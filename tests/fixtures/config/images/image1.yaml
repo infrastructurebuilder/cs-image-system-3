@@ -1,0 +1,113 @@
+
+images:
+  - name: imgfile-basic-cloudflow
+    group: coops # owning group (V2 Q4): identifies the identity type via the group's builder
+    aliases:
+      - some-basic-cloudflow
+    # The default image is used as the base of other images for it's type 
+    # and cloud provider.  The default image should not use a default vaue
+    # for os or type, but may use the default for provider
+    is_default: true
+    # Tags have to be strings
+    tags:
+      cloudflow: "true"
+    #os: rhel8
+    # runtime: default
+    type: default # from global config default-image-type
+    auto_update: true
+    source_image: imgfile-basic-dask
+    description: '{{ ENV["USER"] }}''s Basic cloudflow head node with essential tools and configurations.'    
+    runtimes: 
+    - image_builder: pckr-ebs-ans
+    - image_builder: some-other-builder
+  - name: imgfile-basic-dask
+    group: coops # owning group (V2 Q4): identifies the identity type via the group's builder
+    runtimes:
+      - image_builder: pckr-ebs-ans
+      - image_builder: pckr-gce-ans # GCP readiness (2026-09-02)
+        # bake size (finding 41): the dask mods OOM a 1-2 GB machine -- the
+        # AWS lesson (t3.medium) in GCE form; e2-medium = 4 GB
+        machine_type: e2-medium
+        # source_image: imgfile-basic-cloudflow # Because it's the default
+    tags:
+      dask: "true"
+    type: pckr-ebs-ans
+    source_image: basic-rh-10 # renamed from basic-rhel-8 (2026-09-04)
+    # convergent bakes (stage 9): a newer basic-rh-10 head re-bakes this image
+    # from it in the same run and moves the parent pin (op: follow) -- the
+    # explicit `upgrade image` step is no longer needed between the two bakes
+    parent_policy: follow
+    # stage 22.5 REMOVED -- valid inside a runtime subconfig (as above), not at image level, where no field accepts it
+    # machine_type: t2.medium
+    description: "Basic Dask head node with essential tools and configurations."
+    tests:
+      commands:
+        - run: "git --version"
+          contains: "git version"
+      packages: [git]
+      users: [csisadmin]
+      # stage 14: post-bake tests run ON the launched (ephemeral) instance by
+      # `verify instance`, recorded per build in meta-state/image-tests.yaml;
+      # `release` refuses a build without a passing record
+      post_bake:
+        commands:
+          - run: "python3 -c 'import dask'"
+        files:
+          - path: /var/lib/csis/launch-applied
+        mounts: [/mnt/gce-data]
+    # stage 14: a build whose post-bake tests pass is released for `default`
+    # by the same run's release lifecycle (before retention, which keeps it)
+    release:
+      model: default
+    modifications:
+      - name: dask-setup-jeffy
+        type: ansible-default
+        playbooks:
+          - setup_dask.yml
+        config:
+          dask_version: "2023.9.1AA"
+          jupyterlab_extension: true
+        # stage 22.5 REMOVED -- the same key nested under the mod item's config is read; this bare one sits on the item itself, which has no such field
+        # dask_version: Suck it trebek
+      # A shell modification (DESIGN 3M2): inline lines and/or script files
+      # (config-root-relative), emitted as one packer provisioner "shell".
+      - name: derivative-setup
+        type: bash-remote
+        script:
+          - "echo 'derivative setup'"  # inline lines are literal shell (no templating; packer would also misread '{{')
+          - "sudo mkdir -p /opt/derivative && echo 1.0.0 | sudo tee /opt/derivative/VERSION"
+        scripts:
+          - mod_image.sh
+        # declarative, idempotent steps (guarded shell is generated)
+        ensure:
+          packages: [git]
+          files:
+            - path: /etc/derivative.conf
+              content: "version=1.0.0\n"
+              mode: "0644"
+          commands:
+            - run: "sudo mkdir -p /opt/derivative/data"
+              unless: "test -d /opt/derivative/data"
+        config:
+          derivative_version: "1.0.0"
+    # stage 22.5 REMOVED -- not a field anywhere in the system; a stray value that has always been discarded
+    # jethro: bodine
+  - name: imgfile-data-science
+    group: stofs # owning group (V2 Q4): identifies the identity type via the group's builder
+    aliases:
+      - ds-node
+    tags:
+      data_science: "true"
+    # stage 22.5 REMOVED -- the builder assigns this at load; valid on an OS base-image subconfig and as a runtime list entry (above), not at image level
+    # image_builder: default
+    source_image: my-deb-11
+    description: "Data Science node with pre-installed libraries and tools."
+    runtimes:
+      - image_builder: pckr-ebs-ans
+    modifications:
+      - name: data-science-setup
+        playbooks:
+          - setup_data_science.yml
+        config:
+          python_version: "3.10"
+          r_version: "4.2.1"

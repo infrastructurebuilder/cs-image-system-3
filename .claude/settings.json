@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tree -La /Volumes/MiniSSD/git/Work/Lynker/cs-image-system -I '.venv|__pycache__|*.egg-info|.pytest_cache|.git')",
+      "Bash(just ci *)",
+      "Bash(git -C /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 stash)",
+      "Bash(git -C /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 stash pop)",
+      "Bash(just cli *)",
+      "Bash(echo \"exit=$?\")"
+    ]
+  }
+}

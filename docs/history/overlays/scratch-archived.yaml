@@ -1,0 +1,10 @@
+# stage 11.6 proof: the same transient disk requested ARCHIVED -- the disk is
+# snapshotted (csis-scratch-archive) and destroyed; declaring it active again
+# (scratch-active.yaml) recreates it FROM the snapshot and deletes the snapshot.
+storages:
+  - name: scratch
+    type: gcp-pd
+    mount_point: /mnt/scratch
+    groups:
+      - coops
+    state: archived

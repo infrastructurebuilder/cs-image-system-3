@@ -1,0 +1,14 @@
+# stage 13.5 proof (2026-09-10): the first LIVE AWS ephemeral instance --
+# `test2` (the stage-1 fixture shape) declared for one invocation as
+# ephemeral, without its EBS mount (a throwaway instance attaches nothing;
+# the SSM verification then expects zero data disks). The AWS runtime
+# itself stays non-ephemeral (§10 decision). Applied with
+# `run instance-image --apply-runtime aws-east2-runtime`.
+instances:
+  - name: test2
+    machine_type: t3.medium
+    image: imgfile-basic-dask
+    description: "AWS ephemeral verification (stage 13.5)"
+    ephemeral: true
+    tags:
+      hype: test

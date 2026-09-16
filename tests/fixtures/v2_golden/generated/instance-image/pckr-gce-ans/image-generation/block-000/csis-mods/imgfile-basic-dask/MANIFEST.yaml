@@ -1,0 +1,15 @@
+image: imgfile-basic-dask
+mods:
+- content_hash: f69207b82321c53a4944d6cba1940d6a4b8e051fa26c8c30c733c7f7c0faea3d
+  dir: 01-dask-setup-jeffy
+  idempotent: ansible
+  name: dask-setup-jeffy
+  operation: ansible
+  type: ansible-default
+- content_hash: 7efcd1a4fa07925eb1b11398f175aa61b5c77dff355050cc6871b50ffbe697cb
+  dir: 02-derivative-setup
+  idempotent: unknown
+  name: derivative-setup
+  operation: bash
+  type: bash-remote
+run: 2026_08_26t12_00_00

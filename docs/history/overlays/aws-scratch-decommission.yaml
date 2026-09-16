@@ -1,0 +1,12 @@
+# stage 15 live proof: test2 UNDECLARED for one invocation (the overlay
+# `undeclare` form) -- decommissioned through the gate; scratch-ebs stays
+# declared so this run's storage lifecycle keeps it.
+storages:
+  - name: scratch-ebs
+    mount_point: /mnt/scratch
+    groups:
+      - coops
+    state: active
+instances:
+  - name: test2
+    undeclare: true

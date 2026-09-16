@@ -1,0 +1,23 @@
+groups:
+  # Membership mirrors the LIVE OPA state (state query drift, reconciled
+  # 2026-09-05 — the secofs/stage-1.4 shape): members and extra admins were
+  # added out-of-band via the ASA console during the 2026-09-03 sftd
+  # enrollment work. NOTE for the next identity apply: the live
+  # oktapam_user_group_attachment records exist in OPA but not in tofu
+  # state — import them (the stage-1 six-import shape), never recreate.
+  # users.yaml carries the four principals' records, read 2026-09-05
+  # from the OPA user API (note: the canonical host is
+  # https://{org}.pam.okta.com — app.scaleft.com 401s on these reads).
+  - name: tcmet
+    is_default: false
+    description: "{{ group.name }} group"
+    members:
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB5eUlRdlFkUk9ueUdRNm5zMGMwekEvYm5MUUpOc3dIdVJqVHIxcHpQWVMwCnkyOUhxK21EV09OTGR2N1RWTTlZa3VLMXp4Q2xiZFg0U2JIR3ZxOWFZNFkKLS0tIEtKK0g3UU5GS3JwYUUyV1BMZTdmNnFvMWZNZGp5ZDF5aDNieXE1RWFtVDQKbS2fdhVNv/Jgg/e6puUO7TardCmh8A/vQWnEAxsLcmfKf6hhhCU=]
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBrRHZDME9vM1ZxR3RibEtDZmZma2JFemFTOTYwSmloejA5L0Jra2pZb2pVCnNIN0pyV1NSeGpvSVVpR00zcG1EUzNRRUtXS1NDcitmMXdUV1pFNEx4Qk0KLS0tIG1FL0swQ3FodGVjQnN6Rlp3RHlCbkZGU3lLeHhDbDF0cnl4OHdtUXlqVGMKpfH6x6AlVH3H/NVc4F7RCSFgLXY5pceIoHwKmhfLF/CdHABBVeHJIuTiQBc=]
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB2aUgvY256SC9vK1BxcXZjb2dBYTVKa3lQTnErVlFscTN1TzZwaG8zSVM4Ckh1T1BCRDVIQUQyMzZGT0g0NzNDRU9tNGp0WVMwM2JSVVg1enJCWVhZQVEKLS0tIGRmakRvSnFLaTJVQXRnRmZYWHBzWTVJd3FScTMvMVVJMWZCRy9vV2JmUXMK+aQPlSG2oibRnh1xPcBDMufAS8CoQwTkQ96TboDqsl96vRBHkMA=]
+    admins:
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBtVm1sbGtLdVpqcE14c1JjT1BnOEVNZFR4WnArcnA1OUJaNkRzQVdFQ2o0CjRIZUtSeHR2Z1M0Q0ZBMWVHRzZJNnJFNXFtNE5DTnp6R1NHQUNKbkFWb3MKLS0tICtPVUFxdW03SWRubDFmMml2WW1IU2M3WjZGV1RzV1BHenpjUlJ4aTlHNGsKHwNrEPOabI8+ee5n4KNQ6WOVIiHrb0aCSspZogk3H4eBT+ZnrHC5gMNgKA==]
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB0SHJvSVVPc25zWE9VcnFwS1c0RzBZTElSNThjdGdRSEpaN0NOc0NVYkFjCkVza0lXZUVzMCtkM2hkR0NSMjNCOHdvMExNeXVFWlRaYjJPMGg1TmwzSFkKLS0tIHFFcmRrR1NFeFptZlR5R2x5ZHp0VUhmeVFiQjlwQXFoR2NTRVhaQ0p4M2cKQCj8qQXEoYVTvCX/s1+VaTYJYJfjjDi5LOmNI+tfVl8Yk98CPiF5Uzg1Ag==]
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBCMXYrajJNT1FmRjZhY2VIUUZza21TZXlzc3I3YzNqQ3RNYndRNmpDdnpRCml1aktLNW1GdW9VdzRsOHBFL3J1RnVTdm1VcVA5WE5kUGZKUWNZSklzZU0KLS0tIHFFejZtdzVLaE94aTFaaEdUbHRxZ1VjdEdwQURDN1U0SHpYb0VsT3NDdmcK2Hv2/HVCYdZHODdzYSDH90+cmds5xTtvC7F5lp1Dlu/7w3iHKT4=]
+    tags:
+      environment: "{{ group.name}}"

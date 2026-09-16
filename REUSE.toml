@@ -1,0 +1,24 @@
+# REUSE (https://reuse.software) declarations for the files that carry no header of
+# their own: the frozen fixture (its modification files are content-hashed into image
+# lineage and the golden must equal the emission byte for byte), prose, the lock file,
+# JSON and marker files. Every other source file carries the SPDX two-liner; `just
+# headers` adds it to a new file and `just lint` runs `reuse lint`.
+version = 1
+
+[[annotations]]
+path = [
+  "tests/fixtures/**",
+  "docs/**",
+  "**/*.md",
+  "uv.lock",
+  ".gitignore",
+  "**/*.json",
+  "*.code-workspace",
+  "**/py.typed",
+  ".claude/**",
+  ".devcontainer/**",
+  ".vscode/**",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>"
+SPDX-License-Identifier = "Apache-2.0"

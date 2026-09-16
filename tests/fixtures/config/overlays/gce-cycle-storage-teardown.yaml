@@ -1,0 +1,11 @@
+# GCE change cycle, storage teardown leg (stage 8): the cycle's storages are
+# requested destroyed (the bucket is wiped first by the plugin's transition
+# action) and the GCE storage roots alone may apply. Runs AFTER the instance
+# is gone: a destroyed transition requires no attachments.
+config:
+  apply_storage: [gcloud-east1]
+storages:
+  - name: gce_data
+    state: destroyed
+  - name: gce_bucket
+    state: destroyed

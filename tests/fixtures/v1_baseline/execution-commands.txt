@@ -1,0 +1,29 @@
+okta-tf-users/user-generation: /usr/local/bin/tofu fmt
+okta-tf-users/user-generation: /usr/local/bin/tofu init -backend-config=okta-tf-users-user-generation.tfbackend.hcl
+okta-tf-users/user-generation: /usr/local/bin/tofu validate
+okta-tf-users/user-generation: /usr/local/bin/tofu plan
+oktagroups/group-generation: /usr/local/bin/tofu fmt
+oktagroups/group-generation: /usr/local/bin/tofu init -backend-config=oktagroups-group-generation.tfbackend.hcl
+oktagroups/group-generation: /usr/local/bin/tofu validate
+oktagroups/group-generation: /usr/local/bin/tofu plan
+aws-ebs/storage-generation: /usr/local/bin/tofu fmt
+aws-ebs/storage-generation: /usr/local/bin/tofu init -backend-config=aws-ebs-storage-generation.tfbackend.hcl
+aws-ebs/storage-generation: /usr/local/bin/tofu validate
+aws-efs/storage-generation: /usr/local/bin/tofu fmt
+aws-efs/storage-generation: /usr/local/bin/tofu init -backend-config=aws-efs-storage-generation.tfbackend.hcl
+aws-efs/storage-generation: /usr/local/bin/tofu validate
+aws-s3/storage-generation: /usr/local/bin/tofu fmt
+aws-s3/storage-generation: /usr/local/bin/tofu init -backend-config=aws-s3-storage-generation.tfbackend.hcl
+aws-s3/storage-generation: /usr/local/bin/tofu validate
+pckr-ebs-ans/image-generation/block-000: /usr/local/bin/packer fmt .
+pckr-ebs-ans/image-generation/block-000: /usr/local/bin/packer init .
+pckr-ebs-ans/image-generation/block-000: /usr/local/bin/packer validate .
+pckr-ebs-ans/image-generation/block-001: /usr/local/bin/packer fmt .
+pckr-ebs-ans/image-generation/block-001: /usr/local/bin/packer init .
+pckr-ebs-ans/image-generation/block-001: /usr/local/bin/packer validate .
+some-other-builder/image-generation/block-000: packer-1.9.4 fmt .
+some-other-builder/image-generation/block-000: packer-1.9.4 init .
+some-other-builder/image-generation/block-000: packer-1.9.4 validate .
+open-tofu/instance-generation: /usr/local/bin/tofu fmt
+open-tofu/instance-generation: /usr/local/bin/tofu init -backend-config=open-tofu-instance-generation.tfbackend.hcl
+open-tofu/instance-generation: /usr/local/bin/tofu validate

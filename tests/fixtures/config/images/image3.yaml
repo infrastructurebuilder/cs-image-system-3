@@ -1,0 +1,12 @@
+
+
+images:
+  - name: imgfile-basic-cloudflow-notdocker
+    group: secofs # owning group (V2 Q4): identifies the identity type via the group's builder
+    tags:
+      cloudflow: "true"
+    source_image: basic-rhel-9
+    description: "Basic cloudflow head node with essential tools and configurations number TWO."
+    type: some-other-builder
+    runtimes:
+      - image_builder: pckr-ebs-ans

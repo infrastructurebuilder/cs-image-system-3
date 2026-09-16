@@ -1,0 +1,81 @@
+run: 2026_08_26t12_00_00
+storages:
+  default-bucket:
+    allowed_groups: []
+    attachment_cardinality: many
+    attachments: []
+    builder: aws-s3
+    current_state: null
+    generation: 1
+    lifecycle:
+      storage_class: STANDARD_IA
+      transition_days: 30
+    plugin: tf-aws-s3
+    posix: false
+    public_read: true
+    requested_state: active
+    share_mode: '2770'
+    type: s3
+  efs-storage:
+    allowed_groups:
+    - coops
+    - stofs
+    attachment_cardinality: many
+    attachments: []
+    builder: aws-efs
+    current_state: null
+    generation: 1
+    lifecycle:
+      ia_days: 30
+    plugin: tf-aws-efs
+    posix: true
+    public_read: false
+    requested_state: active
+    share_mode: '2775'
+    type: efs
+  gce_bucket:
+    allowed_groups: []
+    attachment_cardinality: many
+    attachments: []
+    builder: gcp-gcs
+    current_state: null
+    generation: 1
+    lifecycle: {}
+    plugin: tf-gcp-gcs
+    posix: false
+    public_read: false
+    requested_state: active
+    share_mode: '2770'
+    type: gcs
+  gce_data:
+    allowed_groups:
+    - coops
+    attachment_cardinality: single
+    attachments:
+    - gce-test
+    builder: gcp-pd
+    current_state: null
+    generation: 1
+    lifecycle: {}
+    plugin: tf-gcp-pd
+    posix: true
+    public_read: false
+    requested_state: active
+    share_mode: '2770'
+    type: pd
+  mnt_data:
+    allowed_groups:
+    - coops
+    attachment_cardinality: single
+    attachments:
+    - test2
+    builder: aws-ebs
+    current_state: null
+    generation: 1
+    lifecycle: {}
+    plugin: tf-aws-ebs
+    posix: true
+    public_read: false
+    requested_state: active
+    share_mode: '2770'
+    type: ebs

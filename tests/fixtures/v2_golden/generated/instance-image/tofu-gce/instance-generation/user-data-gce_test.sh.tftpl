@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# cs-image-system launch parameters for instance gce-test (N26).
+# Generated from validated configuration; immutable after launch --
+# changing them means replacing the instance.
+set -euo pipefail
+hostnamectl set-hostname 'gce-test' || true
+# owning group: coops (gid by reference)
+GID="${group_gid}"
+# mount storage gce_data (pd) at /mnt/gce-data
+mkdir -p '/mnt/gce-data'
+DEV='/dev/disk/by-id/google-gce-data'
+BYID="$DEV"
+# the attachment lands after boot: wait for either name
+for i in $(seq 1 60); do [ -e "$DEV" ] && break; [ -e "$BYID" ] && DEV="$BYID" && break; sleep 2; done
+if ! blkid "$DEV" >/dev/null 2>&1; then mkfs -t xfs "$DEV"; fi
+grep -q ' /mnt/gce-data ' /etc/fstab || echo "$DEV /mnt/gce-data xfs defaults,nofail 0 2" >> /etc/fstab
+mount '/mnt/gce-data' || mount "$DEV" '/mnt/gce-data'
+mkdir -p '/mnt/gce-data/coops'
+chgrp "$GID" '/mnt/gce-data/coops'
+chmod 2770 '/mnt/gce-data/coops'
+# advertise the reachable private address: the auto-discovered public
+# IP is unroutable when the VPC has no internet gateway (found live)
+PRIV_IP=$(hostname -I | awk '{print $1}')
+mkdir -p /etc/sft
+grep -q '^AccessAddress:' /etc/sft/sftd.yaml 2>/dev/null || printf 'AccessAddress: %s\n' "$PRIV_IP" >> /etc/sft/sftd.yaml
+# identity enrollment trigger (token supplied at apply time, never recorded)
+%{ if sft_enrollment_token != "" }
+mkdir -p /var/lib/sftd
+printf '%s' '${sft_enrollment_token}' > /var/lib/sftd/enrollment.token
+chmod 0600 /var/lib/sftd/enrollment.token
+systemctl restart sftd || systemctl start sftd
+%{ endif }
+mkdir -p /var/lib/csis
+date -u +%FT%TZ > /var/lib/csis/launch-applied

@@ -1,0 +1,9 @@
+---
+# Fixture playbook: installs data-science tooling on the image under construction.
+- name: Set up data science workstation
+  hosts: all
+  become: true
+  tasks:
+    - name: Placeholder data-science setup task
+      ansible.builtin.debug:
+        msg: "data science setup would run here"

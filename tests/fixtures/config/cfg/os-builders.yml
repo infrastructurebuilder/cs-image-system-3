@@ -1,0 +1,162 @@
+---
+# OS builders are responsible for producing images relative to
+# whatever runtime they are for.  They also supply coordination for the
+# DAG that is used to generate actual images
+os_builders:
+  - name: my-deb-11
+    # V2 capability declaration (DESIGN 3F1): the ONLY identity and storage
+    # types usable downstream of this base image (declared, not merely possible).
+    identity_types: [okta]
+    storage_types: [ebs]
+    type: debian
+    family: debian
+    family_version: 11
+    # stage 22.3 REMOVED -- no field on the OS builder model accepts this, so it has always been dropped. Nothing has ever been named from these templates: images carry the _final_name shape instead (AWS basic-rh-10-aws-east2-runtime-<ts>, GCE imgfile-basic-dask-pckr-gce-ans-<ts>). Kept here because the NOSCSB naming intent may return: reviving it means restoring the field AND making the subconfig property use it, which renames every future image on both clouds and is its own stage.
+    # output_image_name: "{{ this.name }}-{{ this.family }}-{{ this.family_version }}"
+    tags:
+      Project: MyDebianProject
+      Environment: Development
+      OS: "{{ this.parent.family }}"
+      Version: "{{ this.parent.family_version }}"
+    runtimes:
+    -   name: aws-my-deb-11BB # Name is irrelevant but must be unique within this builder
+        # Bake on 4 GB (2026-08-31, TODO stage 1): dnf update OOMs a t2.micro
+        default_machine_type: t3.medium
+        image_builder: pckr-ebs-ans
+        # stage 22.3 REMOVED -- shadowed by a computed property of the same name on the runtime subconfig, so a declared value here can never take effect. Nothing has ever been named from these templates: images carry the _final_name shape instead (AWS basic-rh-10-aws-east2-runtime-<ts>, GCE imgfile-basic-dask-pckr-gce-ans-<ts>). Kept here because the NOSCSB naming intent may return: reviving it means restoring the field AND making the subconfig property use it, which renames every future image on both clouds and is its own stage.
+        # output_image_name: "AWS-{{ this.display_name }}-{{ this.parent.family }}-{{ this.parent.family_version }}-{{ execution.timestamp }}" # Override builder name
+        # Filters work like filters in AWS and possibly elsewhere.  The runtime builder will use these filters to find the most recent image that matches the filters.  The builder will then pass that image to an image builder, along with the modifications defined in this os builder, to produce a final image within the region of the runtime builder. 
+        owners:
+          - "self" # "self" will always be first in the query list
+          - amazon
+          - 136693071363        
+        query:
+          filters:
+            name: "debian-11-amd64-*"
+            state: available # This is always going to be hard-coded into the query for the image (here for example)
+            root_device_type: ebs
+  - name: basic-rhel-9
+    identity_types: [okta]
+    storage_types: [ebs, efs, s3]
+    type: rhel
+    family: rhel
+    family_version: 9
+    # Was auto_update: true (= policy full). A 599-package full upgrade
+    # severed the SSM build tunnel twice (~27 min in); the security policy
+    # is the proven-survivable shape (2026-08-31, TODO stage 1).
+    update:
+      policy: security
+      exclude: ["kernel*"]
+    is_default: false
+    # stage 22.3 REMOVED -- no field on the OS builder model accepts this, so it has always been dropped. Nothing has ever been named from these templates: images carry the _final_name shape instead (AWS basic-rh-10-aws-east2-runtime-<ts>, GCE imgfile-basic-dask-pckr-gce-ans-<ts>). Kept here because the NOSCSB naming intent may return: reviving it means restoring the field AND making the subconfig property use it, which renames every future image on both clouds and is its own stage.
+    # output_image_name: "NOSCSB-{{ this.name }}-{{ this.family }}-{{ this.family_version }}-{{ execution.timestamp}}"
+    runtimes:
+    -   name: aws-my-rhel9
+        # Bake on 4 GB (2026-08-31, TODO stage 1): dnf update OOMs a t2.micro
+        default_machine_type: t3.medium
+        image_builder: default
+        # stage 22.3 REMOVED -- shadowed by a computed property of the same name on the runtime subconfig, so a declared value here can never take effect. Nothing has ever been named from these templates: images carry the _final_name shape instead (AWS basic-rh-10-aws-east2-runtime-<ts>, GCE imgfile-basic-dask-pckr-gce-ans-<ts>). Kept here because the NOSCSB naming intent may return: reviving it means restoring the field AND making the subconfig property use it, which renames every future image on both clouds and is its own stage.
+        # output_image_name: "NOSCSB-AWS-RHEL9-{{ this.name }}-{{ execution.timestamp }}" # Override builder name
+        owners:
+          - "self"
+          - amazon
+        query:
+          filters:
+            name: "RHEL-9.5*x86_64*"
+            root_device_type: ebs
+    # -   name: gcp-my-rhel9 # Name here is irrelevant, but must be unique across all builders and could be used for logging purposes.
+    #     runtime: gcp
+    #     image_name: "family:rhel-9" # Fake example image identifier for rhel 9 on GCP
+    #     auto_update: true
+    #     tags:
+    #       env: prod
+    # -   name: azure-my-rhel9
+    #     type: azure
+    #     # Image name is meant to be wildcarded, possibly?
+    #     image_name: "Publisher:RedHat,Offer:RHEL,Skus:9,Version:latest"
+    #     auto_update: false
+  # Renamed basic-rhel-8 -> basic-rh-10 (user decision 2026-09-04): "rh"
+  # denotes Red Hat-FAMILY, so the series survives Alma/Rocky/RHEL source
+  # swaps. Both runtimes bake AlmaLinux 10 since 2026-09-10 (stage 13;
+  # the AWS chain baked RHEL 8.10 until then -- the EL8 pair
+  # ami-075901e1bd7965da7/ami-085eeafc0b8efbebc is disposed by the same
+  # stage). family stays rhel (the dnf/RHUI family), family_version 10.
+  - name: basic-rh-10
+    identity_types: [okta]
+    # pd/gcs added for the GCE runtime (2026-09-02); on AWS they emit the
+    # documented 'declared but has no plugin on runtime' note, nothing more
+    storage_types: [ebs, efs, s3, pd, gcs]
+    # in-bake assertions (EXPLORE image tests); the bake fails if any fails
+    tests:
+      # nfs-utils is what the efs prerequisite installs on RHUI RHEL
+      # (amazon-efs-utils is Amazon-Linux-only; found live 2026-08-31)
+      packages: [nfs-utils]
+      files:
+        - path: /etc/yum.repos.d/oktapam-stable.repo
+          contains: "dist.scaleft.com"
+    # targeted update policy (EXPLORE): security patches plus openssl,
+    # never the kernel; the bake records the resulting package manifest
+    update:
+      policy: security
+      packages: [openssl]
+      exclude: ["kernel*"]
+    type: rhel
+    family: rhel
+    family_version: 10
+    is_default: true
+    # stage 22.3 REMOVED -- no field on the OS builder model accepts this, so it has always been dropped. Nothing has ever been named from these templates: images carry the _final_name shape instead (AWS basic-rh-10-aws-east2-runtime-<ts>, GCE imgfile-basic-dask-pckr-gce-ans-<ts>). Kept here because the NOSCSB naming intent may return: reviving it means restoring the field AND making the subconfig property use it, which renames every future image on both clouds and is its own stage.
+    # output_image_name: "{{ this.name }}-{{ this.family }}-{{ this.family_version }}-{{ execution.timestamp}}"
+    runtimes:
+    -   name: aws-my-rhel8
+        # Bake on 4 GB (2026-08-31, TODO stage 1): dnf update OOMs a t2.micro
+        default_machine_type: t3.medium
+        # image_builder: pckr-ebs-ans
+        # stage 22.3 REMOVED -- shadowed by a computed property of the same name on the runtime subconfig, so a declared value here can never take effect. Nothing has ever been named from these templates: images carry the _final_name shape instead (AWS basic-rh-10-aws-east2-runtime-<ts>, GCE imgfile-basic-dask-pckr-gce-ans-<ts>). Kept here because the NOSCSB naming intent may return: reviving it means restoring the field AND making the subconfig property use it, which renames every future image on both clouds and is its own stage.
+        # output_image_name: "NOSCSB-AWS-RH10-{{ this.parent.name }}-{{ this.name }}-{{ execution.timestamp }}" # Override builder name
+        # AlmaLinux OS Foundation's official AMIs (stage 13, decided
+        # 2026-09-09): owner 764336703387, names "AlmaLinux OS 10.<minor>.<date> x86_64";
+        # the arm64 line is a separate name suffix, excluded by the pattern and
+        # the architecture filter (the finding-39 lesson). No licence premium;
+        # the RHUI/subscription-manager guard is a no-op on an unregistered
+        # image; the vendor ssh user is ec2-user, as on RHEL.
+        owners:
+            - "self"
+            - "764336703387"
+        query:
+          filters:
+            name: "AlmaLinux OS 10*x86_64"
+            state: available
+            root_device_type: ebs
+            architecture: x86_64
+            virtualization_type: hvm
+    -   name: gcp-my-rh10
+        image_builder: pckr-gce-ans
+        # finding 43 (found live, first Alma 10 dask bake): without this the
+        # base bake defaulted to the AWS-ism "ec2-user" while the instance
+        # bake fell back to "packer"; at the instance bake's boot the guest
+        # agent (new manager+core-plugin generation) aborts its whole
+        # metadata-ssh-key setup when removing the stale other-name user
+        # fails ("not a member of google-sudoers"), so packer's key is never
+        # provisioned and SSH auth fails. One name for every GCE bake means
+        # the agent only ever updates keys for an existing user.
+        ssh_username: packer
+        # per-runtime tests (finding 40): the builder-level packages test
+        # asserts efs tooling that only AWS bakes install
+        tests:
+          packages: [google-guest-agent]
+          files:
+            - path: /etc/yum.repos.d/oktapam-stable.repo
+              contains: "dist.scaleft.com"
+        # AWS lesson (stage 1): 1 GB machines OOM under dnf; e2-small for bakes
+        default_machine_type: e2-small
+        # stage 22.3 REMOVED -- shadowed by a computed property of the same name on the runtime subconfig, so a declared value here can never take effect. Nothing has ever been named from these templates: images carry the _final_name shape instead (AWS basic-rh-10-aws-east2-runtime-<ts>, GCE imgfile-basic-dask-pckr-gce-ans-<ts>). Kept here because the NOSCSB naming intent may return: reviving it means restoring the field AND making the subconfig property use it, which renames every future image on both clouds and is its own stage.
+        # output_image_name: "noscsb-gcp-rh10-{{ this.name }}-{{ execution.timestamp }}"
+        owners:
+            - almalinux-cloud
+        query:
+          filters:
+            # almalinux-10-v* is the x86_64 line (family almalinux-10);
+            # the ARM images are almalinux-10-arm64-v* (separate family),
+            # which this pattern cannot match -- same trap as finding 39
+            # (an ARM image on an x86 build VM never boots -- SSH timeout)
+            name: "almalinux-10-v*"

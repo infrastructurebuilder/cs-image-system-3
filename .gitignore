@@ -1,0 +1,26 @@
+.envrc
+# Okta API-integration key material -- never commit
+.private_key.pem
+.private_key.json
+.public_key.json
+*.pem
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.venv/
+.DS_Store
+packages/**/*.code-workspace
+trial
+tfmodules/tftest
+YAML_DUMP.yaml
+.obsidian
+.tofu-plugin-cache/
+_uncommitted/
+target/
+# never publishable, whatever the root (stage 35 refuses them; stage 40's publish-tree checks the policy)
+tfplan
+*.tfstate
+*.tfstate.backup

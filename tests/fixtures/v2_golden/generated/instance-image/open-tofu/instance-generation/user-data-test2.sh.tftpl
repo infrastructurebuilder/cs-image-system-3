@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# cs-image-system launch parameters for instance test2 (N26).
+# Generated from validated configuration; immutable after launch --
+# changing them means replacing the instance.
+set -euo pipefail
+hostnamectl set-hostname 'test2' || true
+# owning group: coops (gid by reference)
+GID="${group_gid}"
+# mount storage mnt_data (ebs) at /mnt/data
+mkdir -p '/mnt/data'
+DEV='/dev/xvdf'
+VOL="${ebs["mnt_data"].volume_id}"
+BYID="/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_$(printf '%s' "$VOL" | tr -d -)"
+# the attachment lands after boot: wait for either name
+for i in $(seq 1 60); do [ -e "$DEV" ] && break; [ -e "$BYID" ] && DEV="$BYID" && break; sleep 2; done
+if ! blkid "$DEV" >/dev/null 2>&1; then mkfs -t xfs "$DEV"; fi
+grep -q ' /mnt/data ' /etc/fstab || echo "$DEV /mnt/data xfs defaults,nofail 0 2" >> /etc/fstab
+mount '/mnt/data' || mount "$DEV" '/mnt/data'
+mkdir -p '/mnt/data/coops'
+chgrp "$GID" '/mnt/data/coops'
+chmod 2770 '/mnt/data/coops'
+# advertise the reachable private address: the auto-discovered public
+# IP is unroutable when the VPC has no internet gateway (found live)
+PRIV_IP=$(hostname -I | awk '{print $1}')
+mkdir -p /etc/sft
+grep -q '^AccessAddress:' /etc/sft/sftd.yaml 2>/dev/null || printf 'AccessAddress: %s\n' "$PRIV_IP" >> /etc/sft/sftd.yaml
+# identity enrollment trigger (token supplied at apply time, never recorded)
+%{ if sft_enrollment_token != "" }
+mkdir -p /var/lib/sftd
+printf '%s' '${sft_enrollment_token}' > /var/lib/sftd/enrollment.token
+chmod 0600 /var/lib/sftd/enrollment.token
+systemctl restart sftd || systemctl start sftd
+%{ endif }
+mkdir -p /var/lib/csis
+date -u +%FT%TZ > /var/lib/csis/launch-applied

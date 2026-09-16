@@ -1,0 +1,6 @@
+# stage 12.5 proof: a very long "expected run" so the strict preflight
+# flags the current SSO session as too short (a proof device, not a setting
+# to keep; the live default is 30 minutes).
+config:
+  preflight:
+    expected_run_minutes: 100000

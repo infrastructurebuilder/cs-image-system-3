@@ -1,0 +1,9 @@
+---
+# Fixture playbook: installs a dask stack on the image under construction.
+- name: Set up dask
+  hosts: all
+  become: true
+  tasks:
+    - name: Placeholder dask setup task
+      ansible.builtin.debug:
+        msg: "dask setup would run here"

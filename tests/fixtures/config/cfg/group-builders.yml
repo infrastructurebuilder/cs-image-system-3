@@ -1,0 +1,43 @@
+---
+# Group builders are responsible for handling groups
+# Note that "group" and "user" is an abstraction and
+# only really means something once the builders have resolved them
+group_builders:
+  # Groups are MANAGED OPA (oktapam) resources: ${NAME}_admin/${NAME}_user
+  # groups, ${NAME}_rg delegated to ${NAME}_admin, and the user/admin policy
+  # pair (PLAN.md local-migration). Users, by contrast, are read-only lookups.
+  - name: oktagroups
+    is_default: true
+    type: okta-tf
+    executable: open-tofu-1
+    org: "noaa"
+    team: "nos-coastal-modeling-cloud-sandbox"
+    # key: "test-key"
+    # secret: "test-secret"
+    # stage 22.5 REMOVED -- a field on the USER builder, not the group builder; group-builders.yml uses it correctly further down under user_builders
+    # default_user_email_template: "{{ this.name }}@example.invalid"
+    required_providers:
+      - name: oktapam
+        source: okta/oktapam
+        version: '>= 0.6.3'
+# User builders handle users
+user_builders:
+  # okta-tf-ro: read-only. Emits only `data "okta_user"` lookups of existing
+  # users -- never creates or modifies anything in Okta. Identities are made
+  # by hand in the Okta admin UI (PLAN.md local-migration).
+  - name: okta-tf-users
+    is_default: true
+    type: okta-tf-ro
+    executable: open-tofu-1
+    org: "noaa"
+    team: "nos-coastal-modeling-cloud-sandbox"
+    # user.name is the bare OPA username; email (explicit, or derived by this
+    # template) is used ONLY for the org lookup (PLAN.md local-migration Q3).
+    email_as_username: false
+    default_user_email_template: "{{ user.name }}@example.invalid"
+    # Lookup credentials come from OKTA_API_* env vars (see the credentials
+    # runbook in PLAN.md), so no key/secret here.
+    required_providers:
+      - name: okta
+        source: okta/okta
+        version: '>= 6.0'

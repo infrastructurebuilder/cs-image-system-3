@@ -1,0 +1,12 @@
+---
+state_backends:
+  - name: s3-east2
+    type: s3
+    encrypt: true    # server-side encryption of the state objects (stage 39; re-init with -reconfigure)
+    is_default: true
+    bucket: noaa-ioos-cloud-sandbox-tfstate
+    # Scratch prefix for this test fixture -- statefiles/csia/ holds real
+    # deployment state whose root-level resources need the default provider.
+    key: statefiles/csia-image-system-test/ # Automatically appends the rest of the path based on the builder
+    region: us-east-2
+    profile: noaa

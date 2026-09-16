@@ -1,0 +1,38 @@
+---
+# V2 (DESIGN §3F2, rev 12): instances no longer declare groups -- the owning
+# group lives on the instance IMAGE and every instance of that image shares it.
+# Storage attachment stays per instance (N16); an attachment is legal only if
+# the image's group is on the storage's allowed list (or the storage is
+# public_read).
+instances:
+  # The suite's three instance subjects, in this order (tests address them by
+  # position): test and test2 (the stage-1 AWS t3.medium shapes) and gce-test.
+  # They were injected by the harness from tests/fixtures/test_instances.yaml
+  # until stage 39 (2026-09-16); now the fixture declares them itself. This
+  # tree is owned by the tests and no run ever applies it, so a dormant
+  # declaration costs nothing here -- the LIVE configuration keeps its own
+  # decisions (test/test2 absent, gce-test `ephemeral: true`). gce-test is
+  # NOT ephemeral here: a test that wants ephemerality declares it.
+  - name: test
+    machine_type: t3.medium
+    image: imgfile-basic-cloudflow
+    description: Test deploy of CSB Base Image RHEL 8.8 - Snapshot
+    tags:
+      stype: test
+  - name: test2
+    machine_type: t3.medium
+    image: imgfile-basic-dask
+    description: Test deploy of CSB Base Image AlmaLinux 9 - Snapshot
+    tags:
+      hype: test
+    storages:
+      - name: mnt_data
+        mount_point: /mnt/data
+  - name: gce-test
+    image: imgfile-basic-dask
+    runtime: gcloud-east1
+    type: tofu-gce
+    description: First GCE instance (GCP readiness); free-tier e2-micro
+    storages:
+      - name: gce_data
+        mount_point: /mnt/gce-data

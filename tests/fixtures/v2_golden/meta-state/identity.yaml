@@ -1,0 +1,85 @@
+groups:
+  basic:
+    admins:
+    - avery.alpha
+    builder: oktagroups
+    gid_policy: creation-only
+    identity_type: okta
+    is_root: true
+    managed: true
+    members: []
+  coops:
+    admins:
+    - avery.alpha
+    - casey.charlie
+    builder: oktagroups
+    gid_policy: creation-only
+    identity_type: okta
+    is_root: false
+    managed: true
+    members:
+    - avery.alpha
+    - casey.charlie
+  secofs:
+    admins:
+    - avery.alpha
+    - lennox.lima
+    - oakley
+    builder: oktagroups
+    gid_policy: creation-only
+    identity_type: okta
+    is_root: false
+    managed: true
+    members:
+    - lennox.lima
+    - morganm
+    - noel
+  stofs:
+    admins:
+    - avery.alpha
+    builder: oktagroups
+    gid_policy: creation-only
+    identity_type: okta
+    is_root: false
+    managed: true
+    members:
+    - avery.alpha
+    - kendall.kilo
+  tcmet:
+    admins:
+    - avery.alpha
+    - lennox.lima
+    - sawyer
+    builder: oktagroups
+    gid_policy: creation-only
+    identity_type: okta
+    is_root: false
+    managed: true
+    members:
+    - parker
+    - quinn_quebec
+    - rileyr
+note: structural facts only; gids flow by terraform remote-state reference (N7)
+run: 2026_08_26t12_00_00
+user_builders:
+  okta-tf-users: okta-tf-ro
+users:
+- avery.alpha
+- blake.bravo
+- casey.charlie
+- dakota.delta
+- emerson.echo
+- finley.foxtrot
+- greer.golf
+- harper.hotel
+- i.india
+- jordan.juliett
+- kendall.kilo
+- lennox.lima
+- morganm
+- noel
+- oakley
+- parker
+- quinn_quebec
+- rileyr
+- sawyer

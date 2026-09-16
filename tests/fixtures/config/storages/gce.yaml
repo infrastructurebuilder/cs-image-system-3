@@ -1,0 +1,10 @@
+storages:
+- name: gce_data
+  type: gcp-pd
+  mount_point: /mnt/gce-data
+  groups:
+  - coops
+  state: active
+- name: gce_bucket
+  type: gcp-gcs
+  bucket_name: csis-sandbox-86233086783-default-bucket

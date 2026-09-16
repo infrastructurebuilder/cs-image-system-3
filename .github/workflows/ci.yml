@@ -1,0 +1,190 @@
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: CI
+
+# Every command is a `just` target, so CI and a developer's shell run the same
+# thing (stage 16's contract). Stage 18 shapes the jobs: `verify` is the
+# acceptance bar and needs neither configuration nor credentials; `live` drives
+# the live configuration read-only and is gated on the secrets the operator
+# provides -- until they exist every leg reports SKIPPED and the job passes.
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "23 6 * * *"        # nightly (UTC): drift and the strict state query on the live configuration
+  workflow_dispatch:
+
+jobs:
+  verify:
+    # The bar: lint, type-check (blocking since pyright reached 0 errors, stage 23)
+    # and the fast suite over the frozen fixture (stage 28). Every push and PR.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: just init
+
+      - name: Verify
+        run: just verify
+
+      - name: Public-safe
+        # stage 35: nothing in the checkout may be material that must never be public
+        run: just public-safe
+
+  live:
+    # The live configuration (cs-image-system-testconfig, checked out BESIDE this
+    # repository so the Justfile's default root and the configuration's
+    # `module_source_base: ../cs-image-system-3/tfmodules` both resolve):
+    # validate, config-drift, the strict state query, the docker-backed
+    # modification tests. Reads only; never --no-dry-run. Pushes and the nightly
+    # schedule, never pull requests (forks carry no secrets).
+    needs: verify
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write          # OIDC federation for the read-only cloud roles
+      contents: read
+    env:
+      AWS_REGION: us-east-2
+    steps:
+      - name: Gate on the live-configuration secrets
+        id: gate
+        env:
+          HAVE_CONFIG: ${{ secrets.CSIS_CONFIG_TOKEN != '' }}
+          HAVE_AWS: ${{ secrets.AWS_ROLE_ARN != '' }}
+          HAVE_GCP: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && secrets.GCP_SERVICE_ACCOUNT != '' }}
+          HAVE_OKTA: ${{ secrets.OKTA_API_PRIVATE_KEY != '' && secrets.TF_VAR_NOS_KEY != '' && secrets.TF_VAR_NOS_SECRET != '' }}
+          HAVE_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY != '' }}
+        run: |
+          ready=true
+          [ "$HAVE_CONFIG" = true ] || { echo "live: SKIPPED -- no CSIS_CONFIG_TOKEN (read access to the private cs-image-system-testconfig repository)"; ready=false; }
+          [ "$HAVE_AWS" = true ]    || { echo "live: SKIPPED -- no AWS_ROLE_ARN (a federated READ-ONLY role: EC2 describe for the configuration load, read on the state bucket, image and volume describes for the state query)"; ready=false; }
+          [ "$HAVE_GCP" = true ]    || { echo "live: SKIPPED -- no GCP_WORKLOAD_IDENTITY_PROVIDER / GCP_SERVICE_ACCOUNT (the gcloud runtime discovers its network at load; read-only)"; ready=false; }
+          [ "$HAVE_OKTA" = true ]   || { echo "live: SKIPPED -- no OKTA_API_PRIVATE_KEY / TF_VAR_NOS_KEY / TF_VAR_NOS_SECRET (the Okta workspace asserts them at load)"; ready=false; }
+          [ "$HAVE_IDENTITY" = true ] || { echo "live: SKIPPED -- no CSIS_CONFIG_IDENTITY (the age identity that decrypts the configuration's ENC[age:...] values, stage 33)"; ready=false; }
+          echo "ready=$ready" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the system
+        if: steps.gate.outputs.ready == 'true'
+        uses: actions/checkout@v4
+        with:
+          path: cs-image-system-3
+
+      - name: Check out the live configuration beside it
+        if: steps.gate.outputs.ready == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: infrastructurebuilder/cs-image-system-testconfig
+          ref: develop
+          token: ${{ secrets.CSIS_CONFIG_TOKEN }}
+          path: cs-image-system-testconfig
+
+      - name: Federated AWS credentials
+        if: steps.gate.outputs.ready == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Name the federated credentials as the configuration's profile
+        if: steps.gate.outputs.ready == 'true'
+        # The runtimes declare `credentials.profile_name: noaa`. botocore drops
+        # the environment credential provider whenever a profile is named
+        # explicitly, so the profile itself must carry the federated keys the
+        # step above exported (temporary, one hour); the preflight reads a
+        # static-key profile as present.
+        run: |
+          mkdir -p ~/.aws
+          printf '[profile noaa]\nregion = %s\n' "$AWS_REGION" > ~/.aws/config
+          printf '[noaa]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n' \
+            "$AWS_ACCESS_KEY_ID" "$AWS_SECRET_ACCESS_KEY" "$AWS_SESSION_TOKEN" > ~/.aws/credentials
+          chmod 600 ~/.aws/credentials
+
+      - name: Federated GCP credentials
+        if: steps.gate.outputs.ready == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Install just
+        if: steps.gate.outputs.ready == 'true'
+        uses: extractions/setup-just@v2
+
+      - name: Install uv
+        if: steps.gate.outputs.ready == 'true'
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install OpenTofu
+        if: steps.gate.outputs.ready == 'true'
+        uses: opentofu/setup-opentofu@v1
+
+      - name: Install Packer
+        if: steps.gate.outputs.ready == 'true'
+        uses: hashicorp/setup-packer@main
+
+      - name: Place the tools where the configuration's executables.yml pins them
+        if: steps.gate.outputs.ready == 'true'
+        # cfg/executables.yml names /usr/local/bin/{tofu,packer,gcloud,ansible-playbook,bash,docker}
+        run: |
+          for tool in tofu packer gcloud ansible-playbook bash docker; do
+            [ -x "/usr/local/bin/$tool" ] || { src="$(command -v "$tool" || true)"; [ -n "$src" ] && sudo ln -sf "$src" "/usr/local/bin/$tool"; }
+          done
+
+      - name: Install dependencies
+        if: steps.gate.outputs.ready == 'true'
+        working-directory: cs-image-system-3
+        run: just init
+
+      - name: Validate the live configuration
+        if: steps.gate.outputs.ready == 'true'
+        working-directory: cs-image-system-3
+        env:
+          OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_key: ${{ secrets.TF_VAR_NOS_KEY }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_secret: ${{ secrets.TF_VAR_NOS_SECRET }}
+          CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY }}
+        run: just cli validate
+
+      - name: Is the committed emission current with the declarations?
+        if: steps.gate.outputs.ready == 'true'
+        working-directory: cs-image-system-3
+        env:
+          OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_key: ${{ secrets.TF_VAR_NOS_KEY }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_secret: ${{ secrets.TF_VAR_NOS_SECRET }}
+          CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY }}
+        run: just config-drift
+
+      - name: Reality matches the records (state query --strict)
+        if: steps.gate.outputs.ready == 'true'
+        working-directory: cs-image-system-3
+        env:
+          OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_key: ${{ secrets.TF_VAR_NOS_KEY }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_secret: ${{ secrets.TF_VAR_NOS_SECRET }}
+          CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY }}
+        run: just cloud-preflight
+
+      - name: Modification tests under docker
+        if: steps.gate.outputs.ready == 'true'
+        working-directory: cs-image-system-3
+        env:
+          OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_key: ${{ secrets.TF_VAR_NOS_KEY }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_secret: ${{ secrets.TF_VAR_NOS_SECRET }}
+          CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY }}
+        run: just test-mods --strict

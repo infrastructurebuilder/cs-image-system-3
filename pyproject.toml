@@ -1,0 +1,137 @@
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+[project]
+name = "cs-image-system-root"
+version = "0.1.0"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.13"
+dependencies = [
+    "cs-image-system-ansible-plugin",
+    "cs-image-system-bash-mod-plugin",
+    "cs-image-system-aws-runtime-plugin",
+    "cs-image-system-base",
+    "cs-image-system-default-os-plugin",
+    "cs-image-system-dummy-plugin",
+    "cs-image-system-gcloud-runtime-plugin",
+    "cs-image-system-hashicorp-utils",
+    "cs-image-system-okta-opa-plugin",
+    "cs-image-system-packer-plugin",
+    "cs-image-system-system",
+    "cs-image-system-tf-ebs-instance-plugin",
+    "cs-image-system-tf-gcp-plugin",
+    "cs-image-system-tf-s3-state-plugin",
+    "pydantic>=2.13.5",
+]
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+cs-image-system-base = { workspace = true }
+cs-image-system-system = { workspace = true }
+cs-image-system-okta-opa-plugin = { workspace = true }
+cs-image-system-aws-runtime-plugin = { workspace = true }
+cs-image-system-gcloud-runtime-plugin = { workspace = true }
+cs-image-system-packer-plugin = { workspace = true }
+cs-image-system-ansible-plugin = { workspace = true }
+cs-image-system-bash-mod-plugin = { workspace = true }
+cs-image-system-dummy-plugin = { workspace = true }
+cs-image-system-tf-ebs-instance-plugin = { workspace = true }
+cs-image-system-tf-gcp-plugin = { workspace = true }
+cs-image-system-default-os-plugin = { workspace = true }
+cs-image-system-tf-s3-state-plugin = { workspace = true }
+cs-image-system-hashicorp-utils = { workspace = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests",
+ "packages/base/tests",
+  "packages/system/tests",
+   "packages/okta-opa-plugin/tests",
+   "packages/packer-plugin/tests",
+   "packages/aws-runtime-plugin/tests",
+   "packages/gcloud-runtime-plugin/tests",
+   "packages/ansible-plugin/tests",
+   "packages/bash-mod-plugin/tests",
+   "packages/dummy-plugin/tests",
+   "packages/tf-ebs-instance-plugin/tests",
+   "packages/tf-gcp-plugin/tests",
+   "packages/default-os-plugin/tests",
+   "packages/hashicorp-utils/tests"
+   ]
+pythonpath = [
+    "tests",
+    "packages/base/src",
+    "packages/system/src",
+    "packages/okta-opa-plugin/src",
+    "packages/packer-plugin/src",
+    "packages/aws-runtime-plugin/src",
+    "packages/gcloud-runtime-plugin/src",
+    "packages/ansible-plugin/src",
+    "packages/bash-mod-plugin/src",
+    "packages/dummy-plugin/src",
+    "packages/tf-ebs-instance-plugin/src",
+    "packages/tf-gcp-plugin/src",
+    "packages/default-os-plugin/src",
+    "packages/hashicorp-utils/src"
+
+]
+addopts = "--import-mode=importlib"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.15",
+    "pyright>=1.1.390",
+    "reuse>=6.2.0",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+extend-exclude = [".venv", "generated", "**/generated"]
+
+[tool.ruff.lint]
+# Conservative, high-signal rules: pyflakes (unused imports/vars, undefined names,
+# redefinitions) + syntax errors. Style/import-ordering rules are intentionally left
+# off for now to avoid large churn on this codebase.
+select = ["F", "E9"]
+# F841 (unused local variables) is a real backlog of ~50 across mostly untested
+# plugin code; ruff's autofix for it is "unsafe" (some RHS have side effects), so it
+# is deferred. Remove this ignore and clean up incrementally as coverage grows.
+ignore = ["F841"]
+
+[tool.pyright]
+# Lenient baseline: the codebase carries many `# type: ignore`; run in "basic" mode
+# and report (non-blocking in CI) rather than enforce strict typing yet.
+# NB: "packages/*/src" matches nothing in pyright's spec globbing (it silently
+# analyzed 0 files, which also broke find-all-references); use ** instead.
+include = ["packages/**/src", "packages/**/tests", "tests"]
+exclude = ["**/.venv", "**/generated"]
+# Resolve cross-package imports of the cs_image_system namespace directly from
+# source instead of through the venv's editable-install .pth files; otherwise
+# Pylance treats them as library code and find-references/rename only sees open
+# files. Globs are not supported in extraPaths, so each src root is listed.
+extraPaths = [
+    "packages/ansible-plugin/src",
+    "packages/aws-runtime-plugin/src",
+    "packages/base/src",
+    "packages/bash-mod-plugin/src",
+    "packages/default-os-plugin/src",
+    "packages/dummy-plugin/src",
+    "packages/gcloud-runtime-plugin/src",
+    "packages/hashicorp-utils/src",
+    "packages/okta-opa-plugin/src",
+    "packages/packer-plugin/src",
+    "packages/system/src",
+    "packages/tf-ebs-instance-plugin/src",
+    "packages/tf-gcp-plugin/src",
+    "packages/tf-s3-state-plugin/src",
+]
+pythonVersion = "3.13"
+typeCheckingMode = "basic"
+reportMissingImports = "warning"
+

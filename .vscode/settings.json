@@ -1,0 +1,41 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/packages/ansible-plugin/src",
+    "${workspaceFolder}/packages/aws-runtime-plugin/src",
+    "${workspaceFolder}/packages/base/src",
+    "${workspaceFolder}/packages/bash-mod-plugin/src",
+    "${workspaceFolder}/packages/default-os-plugin/src",
+    "${workspaceFolder}/packages/dummy-plugin/src",
+    "${workspaceFolder}/packages/gcloud-runtime-plugin/src",
+    "${workspaceFolder}/packages/hashicorp-utils/src",
+    "${workspaceFolder}/packages/okta-opa-plugin/src",
+    "${workspaceFolder}/packages/packer-plugin/src",
+    "${workspaceFolder}/packages/system/src",
+    "${workspaceFolder}/packages/tf-ebs-instance-plugin/src",
+    "${workspaceFolder}/packages/tf-s3-state-plugin/src"
+  ],
+  "python.analysis.indexing": true,
+  "python.analysis.packageIndexDepths": [
+    {
+      "name": "cs_image_system",
+      "depth": 5,
+      "includeAllSymbols": true
+    }
+  ],
+  "python.analysis.diagnosticMode": "workspace",
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.autoImportCompletions": true,
+  "python.testing.pytestEnabled": true,
+  "python.testing.pytestPath": "${workspaceFolder}/.venv/bin/pytest",
+  "python.testing.pytestArgs": [
+    "--import-mode=importlib"
+  ],
+  "python-envs.pythonProjects": [
+    {
+      "path": ".",
+      "envManager": "ms-python.python:venv",
+      "packageManager": "ms-python.python:pip"
+    }
+  ]
+}

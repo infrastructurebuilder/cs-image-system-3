@@ -1,0 +1,42 @@
+---
+id: cs-image-action-test
+generation_directory: ./generated/
+sleep_before_finalization: 30
+# stage 33: every ENC[age:...] value is encrypted to these recipients; the
+# fixture's identity (.age-identity, a TEST key) opens them in the suite
+encryption:
+  recipients:
+    - age1hl95vsankapyxyyejhdejmywuwc4ddvpjmflj0hf0y8xjtuk3vystd9ang
+# stage 35: what the scanner may let through, by decision (the reason beside each);
+# everything else that looks like a secret or a person refuses the commit
+public_safe:
+  allow:
+    - ".iam.gserviceaccount.com"     # the runner service account's address is an identifier, not a person
+    - "path:.age-identity"           # the fixture's TEST identity, committed on purpose (stage 33)
+    - "mykelalvis@infrastructurebuilder.org"   # the copyright holder's address in every SPDX header and REUSE.toml: public by intent
+gitignore:
+  - ".*" # Ignore all dotfiles except for .gitignore and the tf lockfiles
+  - "!.terraform.lock.hcl"
+  - "!.gitignore"
+  - "**/target/" # Ignore all target directories
+dateformat : "%Y%m%d_%H%M%S"    
+config:
+  use_state_backends: true # emit backend/remote-state blocks (needs real state buckets)
+  apply_instances: false # FINALIZATION runs 'tofu apply' for instances only when true
+  apply_storage: false
+  apply_identity: false # FINALIZATION runs 'tofu apply' for identity roots only when true
+  # Relative to THIS configuration tree (test_folder/); every generated
+  # terraform root resolves it to the right relative path for its own depth.
+  # Absolute paths and git/registry URLs pass through unchanged.
+  module_source_base: ../tfmodules
+  some_key: some_value
+  another_key: another_value
+  systemuser: "{{ ENV.USER }}"
+  okta_gateway_selector: "environment=staging"
+  # Mandatory local admin user on every base image (DESIGN Q2/N9/N12): a LIST
+  # of PUBLIC keys (rotation = add new, migrate, remove old); the schema refuses
+  # anything resembling private-key material. Per-base override: admin_public_keys
+  # on the OS builder. Placeholder key below -- replace with real operator keys.
+  admin_public_keys:
+    - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPlaceholderKeyReplaceMeReplaceMeReplaceMe csis-admin-placeholder"
+

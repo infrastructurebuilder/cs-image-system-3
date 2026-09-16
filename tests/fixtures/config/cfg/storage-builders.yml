@@ -1,0 +1,87 @@
+---
+
+# Storage builders are responsible for managing storage
+# on a given runtime.  The underlying provider is given 
+# latitude to stand up or generate storage as it sees fit within
+# broad categories of storage type.  There are some
+# flags left for expansion, where data could be transported
+# between storage types
+storage_builders:
+  - name: aws-efs
+    type: tf-aws-efs
+    executable: open-tofu-1
+    runtime: aws-east2-runtime # Refers to the runtime builder named aws-east2-runtime
+    # stage 26: inputs to the module call (tfmodules/aws_storage_efs/variables.tf), typed --
+    # `performance-mode` (the old spelling) is refused; both values equal the module defaults
+    variables:
+      performance_mode: generalPurpose
+      encrypted: true
+      tags:
+        Project: MyProject
+        Environment: Development
+  - name: aws-ebs
+    type: tf-aws-ebs
+    executable: open-tofu-1
+    is_default: true
+    runtime: aws-east2-runtime # Refers to the runtime builder named aws-east2-runtime  
+    # stage 26: `size` is the builder's own field (GB); the rest are inputs to the module
+    # call (tfmodules/aws_storage_ebs/variables.tf). Declared to MATCH the live mnt_data
+    # volume (gp3, 100 GB; operator decision 2026-09-13, snapshot snap-08b1ebbccfbdd7570
+    # taken first) -- the pre-stage-25 gp2/8 GB would have forced its replacement
+    size: 100
+    variables:
+      volume_type: gp3
+      encrypted: true
+      tags:
+        Project: MyProject
+        Environment: Development
+  - name: aws-s3
+    type: tf-aws-s3
+    executable: open-tofu-1
+    runtime: aws-east2-runtime # Refers to the runtime builder named aws-east2-runtime  
+    bucket_name: noscsb-csis-test-514190660293-default-bucket
+    # stage 26: builder-wide default tags (tfmodules/aws_storage_s3/variables.tf); a
+    # storage item's own tags win key by key
+    variables:
+      tags:
+        Project: MyProject
+        Environment: Development
+  # GCP readiness (2026-09-02): pd + gcs only -- Filestore is excluded by
+  # user decision (1 TiB minimum; file.googleapis.com stays un-enabled)
+  - name: gcp-pd
+    type: tf-gcp-pd
+    executable: open-tofu-1
+    runtime: gcloud-east1
+    size: 30 # the entire Always-Free standard-PD allotment
+    disk_type: pd-standard # the free tier is standard only (pd-balanced bills)
+  - name: gcp-gcs
+    type: tf-gcp-gcs
+    executable: open-tofu-1
+    runtime: gcloud-east1
+    bucket_name: csis-sandbox-86233086783-default-bucket
+  # - name: gcp-pd
+  #   type: gcp-pd
+  #   runtime: gcp-my-deb-11 # Refers to the runtime builder named gcp-my-deb-11
+  #   variables:
+  #     volume_type: pd-standard
+  #     size: 10 # Size in GB
+  #     encrypted: true
+  #     labels:
+  #       project: my-project
+  #       environment: development
+  # - name: azure-disk
+  #   type: azure-disk
+  #   runtime: azure-my-deb-11 # Refers to the runtime builder named azure-my-deb-11
+  #   variables:
+  #     volume_type: Standard_LRS
+  #     size: 10 # Size in GB
+  #     encrypted: true
+  #     tags:
+  #       Project: MyProject
+  #       Environment: Development
+  # - name: local-ssd
+  #   type: local-ssd
+  #   runtime: local
+  #   variables:
+  #     size: 375 # Size in GB
+  #     encrypted: false

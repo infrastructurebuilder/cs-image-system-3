@@ -1,0 +1,15 @@
+# Live proofs 2026-09-09 (ledger 68): scratch ARCHIVED while detached
+# (snapshot csis-scratch-archive, disk destroyed); gce-test unchanged.
+storages:
+  - name: scratch
+    type: gcp-pd
+    mount_point: /mnt/scratch
+    groups:
+      - coops
+    state: archived
+instances:
+  - name: gce-test
+    ephemeral: false
+    storages:
+      - name: gce_data
+        mount_point: /mnt/gce-data

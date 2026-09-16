@@ -1,0 +1,17 @@
+# Live proofs 2026-09-09 (ledger 68): the same standing gce-test with the
+# scratch mount REMOVED from its declaration -- the §10.14 detach: unmount
+# session, receipt, gated in-place detach; scratch stays declared (active,
+# unattached), which is also the shape the restore from archive runs under.
+storages:
+  - name: scratch
+    type: gcp-pd
+    mount_point: /mnt/scratch
+    groups:
+      - coops
+    state: active
+instances:
+  - name: gce-test
+    ephemeral: false
+    storages:
+      - name: gce_data
+        mount_point: /mnt/gce-data

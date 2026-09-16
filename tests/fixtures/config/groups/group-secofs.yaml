@@ -1,0 +1,19 @@
+groups:
+  # Re-adopted per PLAN.md local-migration Q5: secofs already exists in OPA and
+  # in the remote terraform state (module.group_secofs). Membership mirrors the
+  # LIVE OPA state (state query drift, updated 2026-08-31 per TODO stage 1.4:
+  # secofs_user = danishyo/hjyoo/jason.ducker, secofs_admin adds
+  # jason.ducker/yjzhang; mykel.alvis also arrives via the root-admin merge).
+  - name: secofs
+    is_default: false
+    description: "{{ group.name }} group"
+    members:
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBuVjN0eERmMzB1SnJsTzg0VXgzWnVVSVN6OXVPM01samlIb0VKUk1WUlVNCmsxeXdTUklFUFcwdTc2aER6M243QnRma1F5S0twelEyek5ZcG9MMWlLbFUKLS0tIFU4a25jNlFHbmdLQS9MbkdoZ2cyY2Q3QndDQjRBdHl5MmE1a0hGeHBKRVkKQbVpR04nUdFrL7URC6E1uMCTwUWQIK/E1iDStsRsu0T/oawEmOlb]
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAvdjFvMk5ySld0VE4zK3hQTXJSOE9jSUk0R21WK2FKUW9CWWZINkpjQ2pvCk1nc0NjaXRNeitRS0xHVlFHMlpIMkVwazc1RXdVdW1Mbk1FWU5uNldqcVEKLS0tIHU2anY0dkE2TVRPUVdXRHFDUGMzMHNRd1RTMVZYN2MyQTFmT3Y4QVlBaXcKrqxCEqnWuvR0Tzap1nGhKYLP18swpvf/w4U9Pz4Kuem5wb2g]
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBpb3dMaUc0c2lqNmxQOTNIUGcyS0FmbWhkRGloVUlGbDBPODdDSEl4MHo4CmtLN1c1Wml6VEw3VEsrbCtwaWNtZ1FBS2pwTTM0SVkwaDBweUI5NFpSMkEKLS0tIERQN0JuN0xobnNiNGFJS0k3anNKUDYzWWZqK0N1YnozVkhXeUVZSUpveUUKwqL4YhJxM2nvjhRZKHyJ8GmQaWFq2T0LFz4ZbVm7nGY+gbZPiouNSNO9bQ==]
+    admins:
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBtbldUaWV1WHlVNndsMHhlQ2QvMElxeFBIS0IzUTU3R1d4d1ZEMm1vdzBzCjVSazVRcHpYMkZWUEg2VzVpQmZmYzJpVndWdGlLWEdrZERGbjBHang3bGcKLS0tIHRwOC9PUEZXZVNxYmpkQUdGNFlYOVlKcFBIdVlzN1ZtMFBueWVLZXRTSzQKwlz6I2jWObccpG7tvmBIWUs2oUn6RFV3t1hRPktL5BRFOGfYSFj7Sg8VMA==]
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBOSml0alpkd01LdUVLdndHYUlUZk5xUDkyV2gzUWZ3K0pPT0Z0S1NrNDA0CmlQQVNndThTSFJWV1gxWnNUVUlCWFcwWkpEZGVTTWJXNUZXV1FMN3JFZVEKLS0tIFdtSU5wUUFNSktQNlhMRGZTeFJOdmV2S1VQZ2hnU3pHZkI0Kzd1Ry9OL0EK6Efi9UyJEAHdrc8Khc1SuPr0+YPks5qzp/UjfqY6zPHNE669vN2gGzaEpQ==]
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA1V2NvTUM4Mk5Vb2VBSnRqSWpWSnVMUWlNZUQvTWM5TTYwMVBGVThhR3kwCkxLTldQK1oyRENjODYxbm95aHY5aUVvTkpQZjFCRW1IakgwdXB3MENPaGMKLS0tIEFhdXhGRkR2TDNIMXVnYWtvVjVUS0ZSSTR1VGs2VnlUTEdYNjRuMGdPSHMKImsvz07ptyqGXE9PEg/eRfziUhQfZqbclxuNOhlkgu1NTGf4KQs=]
+    tags:
+      environment: test

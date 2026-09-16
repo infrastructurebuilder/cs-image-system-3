@@ -1,0 +1,29 @@
+{
+  "name": "cs-image-system",
+  "image": "mcr.microsoft.com/devcontainers/python:3.13",
+  "onCreateCommand": "curl -LsSf https://astral.sh/uv/install.sh | sh",
+  "postCreateCommand": "~/.local/bin/uv sync",
+  "postStartCommand": "~/.local/bin/uv sync --frozen",
+  "remoteEnv": {
+    "PATH": "/root/.local/bin:${containerEnv:PATH}"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.pylance",
+        "ms-python.debugpy",
+        "charliermarsh.ruff"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "${containerWorkspaceFolder}/.venv/bin/python",
+        "python.analysis.diagnosticMode": "workspace",
+        "python.analysis.packageIndexDepths": [
+          { "name": "cs_image_system", "depth": 5, "includeAllSymbols": true }
+        ],
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestPath": "${containerWorkspaceFolder}/.venv/bin/pytest"
+      }
+    }
+  }
+}

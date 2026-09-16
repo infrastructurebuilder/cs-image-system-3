@@ -1,0 +1,3 @@
+pckr-ebs-ans/image-generation/block-000: /usr/local/bin/packer fmt .
+pckr-ebs-ans/image-generation/block-000: /usr/local/bin/packer init .
+pckr-ebs-ans/image-generation/block-000: /usr/local/bin/packer validate .

@@ -1,0 +1,8 @@
+content_hash: 1a40dbc7caf2de73397f92b077264a46b4982344df5b1406f763dad0da0b8ecf
+files: []
+idempotent: unknown
+image: imgfile-basic-dask-two
+name: data-science-workstation-two
+operation: ansible-default
+run: 2026_08_26t12_00_00
+type: ansible-default

@@ -1,0 +1,14 @@
+# Live proofs 2026-09-09 (ledger 68): the standing gce-test UNDECLARED for
+# one invocation (the overlay `undeclare` form) -- a decommission through the
+# gate, its records forgotten; scratch stays declared so this run's storage
+# lifecycle (if included) keeps it.
+storages:
+  - name: scratch
+    type: gcp-pd
+    mount_point: /mnt/scratch
+    groups:
+      - coops
+    state: active
+instances:
+  - name: gce-test
+    undeclare: true

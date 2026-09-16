@@ -1,0 +1,88 @@
+---
+base_images:
+  - name: jimmy-the-image
+    aliases:
+      - some-other-basic-cloudflow
+    is_default: true
+    tags:
+      cloudflow: "true"
+    type: default # from global config default-image-type
+    auto_update: true
+    runtimes: 
+    - runtime: aws-east2-runtime  # Use default name from this base image def
+    - runtime: aws-west1
+  - name: my-deb-11
+    type: debian # This need to be 
+    family: debian
+    family_version: 11
+    output_image_name: "{{ this.name }}-{{ this.family }}-{{ this.family_version }}"
+    tags:
+      Project: MyDebianProject
+      Environment: Development
+      OS: "{{ this.family }}"
+      Version: "{{ this.family_version }}"
+    runtimes:
+    -   name: aws-my-deb-11AA # Name is irrelevant but must be unique within this builder
+        runtime: aws-east2-runtime
+        output_image_name: "AWS-{{ this.name }}-{{ this.os.family }}-{{ this.os.family_version }}-{{ execution.timestamp }}" # Override builder name
+        owners:
+          - "self" # "self" will always be first in the query list
+          - amazon
+          - 136693071363        
+        query:
+          filters:
+            name: "debian-11-amd64-*"
+            state: available # This is always going to be hard-coded into the query for the image (here for example)
+            root_device_type: ebs # This is likely to be overwritten if not an ebs builder
+  - name: basic-rhel-9
+    type: rhel
+    family: rhel
+    family_version: 9
+    auto_update: true
+    is_default: false
+    output_image_name: "{{ this.name }}-{{ this.family }}-{{ this.family_version }}-{{ execution.timestamp}}"
+    runtimes:
+    -   name: aws-my-rhel9
+        runtime: aws-east2-runtime
+        output_image_name: "AWS-RHEL9-{{ this.name }}-{{ execution.timestamp }}" # Override builder name
+        owners:
+          - "self"
+          - amazon
+        query:
+          filters:
+            name: "RHEL*"
+            root_device_type: ebs
+  # Renamed basic-rhel-8 -> basic-rh-10 (2026-09-04): GCE bakes Alma 10,
+  # AWS still bakes RHEL 8.10 (parity ignored; migrates forward later)
+  - name: basic-rh-10
+    type: rhel
+    family: rhel
+    family_version: 8
+    is_default: true
+    output_image_name: "{{ this.name }}-{{ this.family }}-{{ this.family_version }}-{{ execution.timestamp}}"
+    runtimes:
+    -   name: aws-my-rhel8
+        runtime: aws-east2-runtime
+        output_image_name: "AWS-RHEL8-{{ this.name }}-{{ execution.timestamp }}" # Override builder name
+        owners:
+            - "self" # Do quotes matter?  I think they do for "numbers"
+            - amazon
+        query:
+          filters:
+            name: "RHEL-8.10*2025*"
+            state: available
+            root_device_type: ebs
+            architecture: x86_64
+            virtualization_type: hvm
+    -   name: gcp-my-rh10
+        runtime: gcloud-east1
+        ssh_username: packer # finding 43: one ssh user for every GCE bake
+        output_image_name: "GCP-RH10-{{ this.name }}-{{ execution.timestamp }}"
+        owners:
+            - almalinux-cloud
+        query:
+          filters:
+            # almalinux-10-v* is the x86_64 line (family almalinux-10);
+            # the ARM images are almalinux-10-arm64-v* (separate family),
+            # which this pattern cannot match -- same trap as finding 39
+            name: "almalinux-10-v*"

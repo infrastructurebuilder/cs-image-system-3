@@ -1,0 +1,20 @@
+# Live proofs 2026-09-09 (ledger 68): the §11.3 failure policy. gce-test
+# ephemeral with on_failure: teardown and a userdata line that FAILS the
+# startup script (`false` under set -e), so the verification fails, the
+# verdict is recorded, the instance is torn down through the gate and the
+# run fails. scratch stays declared (unattached).
+storages:
+  - name: scratch
+    type: gcp-pd
+    mount_point: /mnt/scratch
+    groups:
+      - coops
+    state: active
+instances:
+  - name: gce-test
+    ephemeral: true
+    on_failure: teardown
+    userdata: "false"
+    storages:
+      - name: gce_data
+        mount_point: /mnt/gce-data

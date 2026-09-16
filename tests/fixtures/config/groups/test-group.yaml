@@ -1,0 +1,29 @@
+---
+# Note that every user must have a unique name, and that any user referenced in a group membership MUST have a corresponding user entry in the users section of this file.
+# Any given user can be added to any given group at any location using any builder.
+# Member/admin entries are BARE OPA usernames (PLAN.md local-migration Q3), not emails.
+
+# Currently, you should not set a "type" on a user entry as the default user type is the only valid one ('okta-tf-ro', read-only)
+groups:
+  # Both of these groups use the default group-builder
+  - name: basic
+    is_root: true
+    is_default: false
+    description: "Root admin group with access to everything"
+    admins:
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAvNFdjbVB6VExmbnZNQjFRR1dMelZGeW5EN2pubGNmSUpnY1dYZnNXTWtVCjVWZkJEZDhBNVU5NU9peEx2bk1ESFl1VlloZ09xL0ROSENTcHhaSU8xdVUKLS0tIFJ3MHVpS3Mrd0dpU1VRM09Fc0MwUS9PdUt4eGNjZW1oN0NRK094VWxEMkUK0dNHQLvHhdhYSge+ouPxeHoNYFf15B0Ya2TwLmnHdzgwQv+1LfaGStLgOA==]
+    tags:
+      environment: production
+  - name: coops
+    is_default: false
+    description: "CO-Ops  group"
+    members:
+      # Mirrors live OPA coops_user (state query, 2026-08-31). Names MUST
+      # match a corresponding user['name'] entry in SOME users section.
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAzc0FHckxjQlhxU3hhdE5oQndyMThiRFdaam9DVFdmN01sRDhzNFhReUhVClQyZCtHWjhWT0FTaDF1ZDYyRnA2dUx5a29IQ2hrd00zS24wc0JJdmlPdlkKLS0tIG4zNDUwd2xqdlJzV2hHWExYNURVSm91Ly80dXdOeCtrdUF3bkRtQUltdDgKDStS6WKCa1MdgygeyI+8HZVQ0ZISK7VWXmzsKvsPfAXbm7ejnNbO/AhaEg==]
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBldi90NSswangvWFNJSWFSK2RWdjB2TjJFdGQ5MTZEc014MzlrRlFTdUNZCnlpaC9zUmkzZFM2VlpPYUF5dENEVlZ3ZjBBM3Y0M2Z3aFdyV3F0dnlqRTgKLS0tIDRXS1FRWVlwRmVMZU44R3NXVkNWbG1wVi9SWWhMcGFUa1NkR3lIeGpCOHcKg7CJs4RbYYbgD/LQ82jATQnl9fxlYF1Szib5MYyh+L5hNsnlZdZVh7+Vh1xy]
+    admins:
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBINVJpbnVuSFRFbXl4Y0NaRVVPL1MzMSt0Nm0zOGU5MXlVSXg1ekpzbEFZCk1zcnByNEkvNDJ5T0tMMUIvT3crZ3cxcmo3NGtNdENUTnNodFluUk5DdlkKLS0tIFdnRC8yMkE3c2kwTGpUcTMwNEVINUtWUjNSTXJsSFF6Q2hqVVVQYVQyS3cKLVZM1hASU6ALSZYU23yar+s30QpbJs/Xd8gFrfasdSmIBepXtL5xsCM8xrIX]
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBBSUtCMzNoU2p4QWNsQzhZaXA2TkNsMk8wemdZQlBMWUEzWnB3ZmYrZVFzCnhmd1gvaXBJYnpOZVYrbEI1U1dobTBNU2JuS0RNZytKTVB0Nkx2ZWhrVk0KLS0tIFB1ZWR5VXRJTjcwcTZobGJ4dFM5UnFHSW53TlFvZCtSbS8xcUJsUE5OYk0KScKYJqWMhLw2ISHb8I4mWc9AP3R/Fv/1prPgl1u4BXcYPWwLXUTZKR4IkA==]
+    tags:
+      environment: test

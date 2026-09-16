@@ -1,0 +1,25 @@
+---
+# Mod builders are responsible for 
+# abstracting modification of an image or instance
+mod_builders:
+  - name: ansible-default
+    is_default: true
+    type: ansible
+    executable: ansible-playbook # Mapped to executable defined in executables section
+    playbooks: 
+      - modify_image.yml
+    config:
+      key1: value1
+      key2: value2
+  - name: bash-remote
+    aliases:
+      - bash
+    is_default: false
+    type: bash-remote
+    executable: bash # Mapped to executable defined in executables section
+    # stage 22.5 REMOVED -- `script` is a field on the bash mod ITEM, not on the mod BUILDER; declared here it is dropped
+    # script: |
+    #   echo "Doing some other stuff in the script using config value: {{ config.some_unknown_mod_builder_setting }}"      
+    #   ./modify_image.sh
+    config:
+      some_unknown_mod_builder_setting: "{{ ENV.USER }} and some_value"

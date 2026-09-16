@@ -1,0 +1,9 @@
+image: imgfile-data-science
+mods:
+- content_hash: e835044f85def6722a70ad56bb710d52e6b1207c464addd60bf7bb879cf3213f
+  dir: 01-data-science-setup
+  idempotent: ansible
+  name: data-science-setup
+  operation: ansible
+  type: ansible-default
+run: 2026_08_26t12_00_00

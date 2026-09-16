@@ -1,0 +1,16 @@
+# stage 15 live proof: scratch-ebs ARCHIVED while detached (snapshot tagged
+# Name=csis-scratch-ebs-archive, the volume destroyed); test2 unchanged.
+storages:
+  - name: scratch-ebs
+    mount_point: /mnt/scratch
+    groups:
+      - coops
+    state: archived
+instances:
+  - name: test2
+    machine_type: t3.medium
+    image: imgfile-basic-dask
+    description: "AWS storage-archive proof (stage 15)"
+    ephemeral: false
+    tags:
+      hype: test

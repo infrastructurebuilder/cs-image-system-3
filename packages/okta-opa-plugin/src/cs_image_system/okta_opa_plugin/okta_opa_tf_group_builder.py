@@ -1,0 +1,420 @@
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+import logging
+from typing import Any
+
+from cs_image_system.base import utils
+from cs_image_system.base.basic.asset import AssetSet
+from cs_image_system.base.basic.builder_base_group import GID_POLICY_CREATION_ONLY, GroupBuilderBase
+from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.base.models.executable_adds import CFExecutables
+from cs_image_system.base.models.group import Group
+from cs_image_system.hashicorp_utils.blocks import BlockSpec, DataSpec, OutputSpec, Raw, render_blocks
+from cs_image_system.hashicorp_utils.collector import TerraformCollector
+from cs_image_system.hashicorp_utils.roots import TerraformRootMixin
+
+from .okta_opa_tf_group_models import OktaTfGroupBuilderModel
+from .okta_tf_models import OKTATF
+from .opa_attributes import OPA_GROUP_ATTRIBUTES, validate_opa_attributes
+from .opa_gids import ADMIN_GROUP_SUFFIX, GROUP_NAME_ATTRIBUTE, USER_GROUP_SUFFIX, OpaGidResolver, credentials_from_env
+
+"""
+Group provider implementation via Terraform/Tofu for Okta groups using okta/oktapam
+
+"""
+
+
+# THIS version of the OktaTfGroupBuilder is forced to pull
+# users and groups directly from Okta for Linux machines
+# and inject them into the running image via a cron process that
+# continuouslly performs that pull/chage operation BECAUSE OKTA DOESN'T
+# SYNC GROUPS TO OPA PAM MACHINES!!!!!!!!
+
+# The identity-type token base images declare (DESIGN §3F1).
+OKTA_IDENTITY_TYPE = "okta"
+EXTERNAL_PROVIDER = "external"
+GID_SHIM_LABEL = "group_gids"
+
+
+log = logging.getLogger(__name__)
+
+
+class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRootMixin):
+    """Okta group provider implementation via Terraform/Tofu."""
+    @classmethod
+    def csis_name(cls) -> str:
+        return OKTATF
+
+
+    @property
+    def model(self) -> OktaTfGroupBuilderModel:
+        return self._model # type: ignore   # FIXME: This is dangerous
+
+    # ------------------------------------------------------ V2 contract
+    @classmethod
+    def identity_type(cls) -> str:
+        return OKTA_IDENTITY_TYPE
+
+    def gid_policy(self) -> str:
+        # N1: okta allows defining a gid only at group creation; thereafter it
+        # is a read attribute, delivered downstream by reference (N7).
+        return GID_POLICY_CREATION_ONLY
+
+    def base_image_prerequisites(self, os_family: str | None = None) -> list[str]:
+        """Bake the OPA server agent (sftd), installed but DORMANT: no
+        enrollment token, service disabled. Activation happens per instance
+        image (activation_commands) and enrollment at launch (N26)."""
+        fam = (os_family or "").lower()
+        if fam in ("debian", "ubuntu"):
+            install = [
+                # Debian vendor AMIs ship neither curl nor gnupg (found live)
+                "command -v curl >/dev/null 2>&1 && command -v gpg >/dev/null 2>&1 || { sudo apt-get -o DPkg::Lock::Timeout=600 update -y; sudo apt-get -o DPkg::Lock::Timeout=600 install -y curl gnupg; }",
+                "curl -fsSL https://dist.scaleft.com/GPG-KEY-OktaPAM-2023 | sudo gpg --dearmor -o /usr/share/keyrings/oktapam-2023-archive-keyring.gpg",
+                "echo 'deb [signed-by=/usr/share/keyrings/oktapam-2023-archive-keyring.gpg] https://dist.scaleft.com/repos/deb focal okta' | sudo tee /etc/apt/sources.list.d/oktapam-stable.list",
+                "sudo apt-get -o DPkg::Lock::Timeout=600 update -y",
+                "sudo apt-get -o DPkg::Lock::Timeout=600 install -y scaleft-server-tools",
+            ]
+        else:
+            install = [
+                "sudo rpm --import https://dist.scaleft.com/GPG-KEY-OktaPAM-2023",
+                "printf '[oktapam-stable]\\nname=Okta PAM Stable - $basearch\\nbaseurl=https://dist.scaleft.com/repos/rpm/stable/rhel/$releasever/$basearch\\ngpgcheck=1\\nrepo_gpgcheck=1\\nenabled=1\\ngpgkey=https://dist.scaleft.com/GPG-KEY-OktaPAM-2023\\n' | sudo tee /etc/yum.repos.d/oktapam-stable.repo",
+                "sudo yum install -y scaleft-server-tools",
+            ]
+        return [f"# identity type '{OKTA_IDENTITY_TYPE}' prerequisites ({self.get_name()}): OPA agent, dormant"] + install + [
+            "sudo systemctl disable --now sftd || true",
+            "sudo rm -f /var/lib/sftd/enrollment.token",
+        ]
+
+    def verify_commands(self, os_family: str | None = None) -> list[str]:
+        return [
+            "# verify: OPA agent present and dormant",
+            "command -v sftd >/dev/null 2>&1 || test -x /usr/sbin/sftd || test -x /usr/bin/sftd",
+            "! systemctl is-enabled sftd >/dev/null 2>&1",
+            "test ! -e /var/lib/sftd/enrollment.token",
+        ]
+
+    def activation_verify_commands(self, image: Any, group: Group) -> list[str]:
+        return [
+            f"# verify: activated for group '{group.get_name()}'",
+            f"grep -q 'tx.group: {group.get_name()}' /etc/sft/sftd.yaml",
+            "systemctl is-enabled sftd >/dev/null 2>&1",
+        ]
+
+    def activation_commands(self, image: Any, group: Group) -> list[str]:
+        """Turn the dormant plumbing on for the image's owning group: the
+        ``sftd.tx.group`` server label the group's policies select on, and
+        the service armed to enroll when a token appears at launch."""
+        label = group.get_name()
+        return [
+            f"# identity activation for group '{label}' ({OKTA_IDENTITY_TYPE}) on image {image.get_name()}",
+            "sudo mkdir -p /etc/sft",
+            f"printf 'Labels:\\n  tx.group: {label}\\n' | sudo tee /etc/sft/sftd.yaml",
+            "sudo systemctl enable sftd",
+        ]
+
+    def launch_parameters(self, group: Group) -> dict[str, str]:
+        return {"enrollment": "sftd-token", "server_label": f"sftd.tx.group={group.get_name()}"}
+
+    @classmethod
+    def export_gids(cls, query: dict[str, str], groups: list[str]) -> dict[str, int]:
+        team = str(query.get("team") or "")
+        api_host = str(query.get("api_host") or "")
+        if not team or not api_host:
+            raise ValueError("okta gid shim query must carry 'team' and 'api_host'")
+        key, secret = credentials_from_env(team)
+        return OpaGidResolver(api_host, team, key, secret).resolve(groups)
+
+    def query_state(self) -> dict[str, dict[str, Any]]:
+        """OPA's record of every group this builder manages: the server
+        group's unix gid / group name and, when the service answers, its
+        members. Read-only; the service token never leaves the process."""
+        team, api_host = str(self.model.team), str(self.model.api_host)
+        key, secret = credentials_from_env(team)
+        resolver = OpaGidResolver(api_host, team, key, secret)
+        out: dict[str, dict[str, Any]] = {}
+        for g in self.get_groups_for_builder():
+            name = g.get_name()
+            server_group = f"{name}{USER_GROUP_SUFFIX}"
+            try:
+                attrs = resolver.group_attributes(server_group)
+            except Exception as e:
+                log.debug(f"OPA group {server_group!r} unavailable: {e}")
+                out[name] = {"present": False, "error": str(e)[:120]}
+                continue
+            rec: dict[str, Any] = {"present": True, "gid": resolver.gid_of(attrs),
+                                   "local_name": attrs.get(GROUP_NAME_ATTRIBUTE)}
+            members = resolver.group_users(server_group)
+            if members is not None:
+                rec["members"] = members
+            admins = resolver.group_users(f"{name}{ADMIN_GROUP_SUFFIX}")
+            if admins is not None:
+                rec["admins"] = admins
+            # Token liveness (PLAN.md IaC-managed enrollment tokens, finding
+            # 32): an out-of-band deletion ERRORS every identity plan, so this
+            # probe is the only witness. Key omitted when the API is silent.
+            descs = resolver.project_enrollment_tokens(name)
+            if descs is not None:
+                rec["enrollment_token"] = any(
+                    d.startswith("cs-image-system launch enrollment") for d in descs)
+            out[name] = rec
+        return out
+
+    # ------------------------------------------- EXPLORE identity hooks
+    def validate_attributes(self, group: Any, attributes: dict[str, Any]) -> list[str]:
+        return validate_opa_attributes(f"group '{group.get_name()}'", attributes, OPA_GROUP_ATTRIBUTES)
+
+    def _resolver(self) -> OpaGidResolver:
+        team, api_host = str(self.model.team), str(self.model.api_host)
+        key, secret = credentials_from_env(team)
+        return OpaGidResolver(api_host, team, key, secret)
+
+    def query_attributes(self, group: Any) -> dict[str, Any] | None:
+        return self._resolver().group_attributes(f"{group.get_name()}{USER_GROUP_SUFFIX}")
+
+    def attribute_conflicts(self) -> list[dict[str, Any]] | None:
+        return self._resolver().attribute_conflicts()
+
+    # ------------------------------------------------------- emission
+    def _external_provider_ref(self) -> str | None:
+        return TerraformCollector().provider_bindings(self.name).get(EXTERNAL_PROVIDER)
+
+    def generate_items_before(
+        self, phase: ExecutionLifecyclePhase
+    ) -> AssetSet:
+        """Generate a list of items to create before a specific execution lifecycle
+        event."""
+        items: AssetSet = AssetSet()
+        if phase == ExecutionLifecyclePhase.GROUP_GENERATION:
+            rpath = self.get_path_for_phase(phase, suffix=".tf")
+            items = items.with_default_path(rpath)  # Set default path for convenience when generating group TF configs
+            items.add(
+                f"# Terraform configuration for Okta groups generated by "
+                f"{self.__class__.__name__} ({self.name})",
+            )
+            items.add( "\n")
+            col = TerraformCollector()
+            self.model.register_hcl_requirements(self.name)
+            # The gid shim (N7) is a data "external" lookup: declare the provider.
+            col.require_provider(self.name, EXTERNAL_PROVIDER, source="hashicorp/external")
+            col.configure_provider(self.name, EXTERNAL_PROVIDER, {})
+            items.add_list(col.generate_terraform_block(self.name))
+            items.add("\n")
+            items.add_list(col.generate_provider_blocks(self.name))
+            items.add("\n")
+            # stage 34: declared-encrypted workspace credentials, if any,
+            # reach the provider block by reference (registered by
+            # transform_provider above)
+            sensitive_lines = col.generate_sensitive_blocks(self.name)
+            if sensitive_lines:
+                items.add_list(sensitive_lines)
+                items.add("\n")
+            vpath = self.get_path_for_phase(phase,
+                suffix=f"-{utils.safe_name(self.name)}-vars.tf"
+            )
+            items.add_list(vpath, col.generate_variable_blocks(self.name))
+            backend_lines = col.generate_backend_config(self.name)
+            if backend_lines:
+                items.add_list(self._backend_config_path(phase), backend_lines)
+
+        return items
+
+    def get_commands_to_run_before(
+        self, phase: ExecutionLifecyclePhase
+    ) -> CFExecutables:
+        """Get a list of commands to run before a specific execution lifecycle event."""
+        return CFExecutables()
+
+    def generate_items_during(
+        self, phase: ExecutionLifecyclePhase
+    ) -> AssetSet:
+        """Generate a list of items to create during a specific execution lifecycle
+        event."""
+        items = AssetSet()
+        if phase == ExecutionLifecyclePhase.GROUP_GENERATION:
+            from cs_image_system.base.global_context import GlobalTypeContext
+            ctx = GlobalTypeContext()
+            rg: Group = ctx.root_group
+            src = utils.module_source("okta_opa_module",
+                                      self.get_path_for_phase(phase, suffix=".tf").parent)
+
+            for group in self.get_groups_for_builder():
+                rpath = self.get_path_for_phase(phase, f"group-{group.name}", suffix=".tf")
+                if getattr(group, "unmanaged", False):
+                    items.add(rpath, f"# Okta group {group.name} is UNMANAGED (N19): alive on the far side, "
+                                     "no longer described here; its state entries are removed, never destroyed.")
+                    continue
+                items.add(
+                    rpath,
+                    f"# Terraform module call for Okta group {group.name} "
+                    f"generated by {self.__class__.__name__} "
+                    f"({self.name})",
+                )
+                items.add_list(rpath, self._group_module_call(group, rg, src))
+            opath = self.get_path_for_phase(phase, "outputs", suffix=".tf")
+            items.add_list(opath, self._outputs(self.managed_groups()))
+
+        return items
+
+    def _outputs(self, groups: list[Group]) -> list[str]:
+        """The identity root's outputs (N7): ``group_gids`` (group -> gid, via
+        the external gid shim) and ``groups`` (the OPA object ids per group,
+        from the module outputs). Consumers read them through
+        ``data.terraform_remote_state.<this workspace>.outputs``."""
+        names = sorted(g.get_name() for g in groups)
+        lines = [
+            f"# Outputs of the identity root {self.name} (DESIGN N7).",
+            "# GIDs are never literals: the oktapam provider exposes no group gid, so this",
+            "# root asks the system's own CLI (read-only, credentials from the environment)",
+            "# and publishes the answer as an output for terraform_remote_state consumers.",
+        ]
+        if not names:
+            lines.append('output "group_gids" {')
+            lines.append("  value = {}")
+            lines.append("}")
+            return lines
+        query: dict[str, Any] = {
+            "identity_type": OKTA_IDENTITY_TYPE,
+            "org": self.model.org,
+            "team": self.model.team,
+            "api_host": self.model.api_host,
+            "groups": ",".join(names),
+        }
+        args: dict[str, Any] = {}
+        ref = self._external_provider_ref()
+        if ref:
+            args["provider"] = Raw(ref)
+        args["program"] = [utils.SYSTEM_CLI, "identity", "export-gids"]
+        args["query"] = query
+        specs: list[BlockSpec] = [DataSpec(EXTERNAL_PROVIDER, GID_SHIM_LABEL, args,
+                                           comment="gid shim: {group: gid} for every managed group")]
+        specs.append(OutputSpec(
+            "group_gids",
+            Raw(f"{{ for g, gid in data.external.{GID_SHIM_LABEL}.result : g => tonumber(gid) }}"),
+            description="Group name -> unix gid, queried from OPA; consume by reference only"))
+        group_map: dict[str, Any] = {}
+        for name in names:
+            label = utils.super_safe_name(name)
+            group_map[name] = {
+                "user_group_id": Raw(f"module.group_{label}.user_group_id"),
+                "admin_group_id": Raw(f"module.group_{label}.admin_group_id"),
+                "resource_group_id": Raw(f"module.group_{label}.resource_group_id"),
+                "user_group_name": Raw(f"module.group_{label}.user_group_name"),
+            }
+        specs.append(OutputSpec("groups", group_map,
+                                description="Managed OPA groups and their object ids"))
+        token_map = {name: Raw(f"module.group_{utils.super_safe_name(name)}.enrollment_token")
+                     for name in names}
+        specs.append(OutputSpec(
+            "group_enrollment_tokens", token_map, sensitive=True,
+            description="Group -> launch enrollment token (IaC-owned, PLAN.md); "
+                        "consume by reference only"))
+        lines.extend(render_blocks(specs))
+        return lines
+
+    def enrollment_token_reference(self, group: str) -> str | None:
+        """The launch enrollment credential for ``group``, by remote-state
+        reference into this root's sensitive output (PLAN.md IaC-managed
+        enrollment tokens); never a literal."""
+        ws = utils.super_safe_name(self.name)
+        return (f"data.terraform_remote_state.{ws}"
+                f'.outputs.group_enrollment_tokens["{group}"]')
+
+    def _group_module_call(self, group: Group, root_group: Group, source: str) -> list[str]:
+        """Emit a `module` call for one group against tfmodules/okta_opa_module.
+
+        Every group's resource group delegates to that group's OWN admin
+        group: no delegates are passed and the module's fallback
+        ([oktapam_group.admin.id]) supplies it (PLAN.md local-migration Q1).
+        """
+        label = utils.super_safe_name(group.name)
+        # Membership comes from the group definition itself; users attach to the
+        # user builder, not this group builder. Member/admin entries are bare
+        # OPA usernames (PLAN.md local-migration Q3) — exactly what the module's
+        # oktapam_user_group_attachment expects.
+        members = sorted(group.members or set())
+        admin_set = set(group.admins or set())
+        # Root group's admins merge into every group's admins (union, no
+        # duplicates) unless the group opts out (PLAN.md local-migration Q2); the
+        # root group itself is a natural no-op.
+        if getattr(group, "include_root_group_in_admins", True):
+            admin_set |= set(root_group.admins or set())
+        admins = sorted(admin_set)
+        quoted_members = ", ".join(f'"{m}"' for m in members)
+        quoted_admins = ", ".join(f'"{a}"' for a in admins)
+        delegated = "[]"
+        bindings = TerraformCollector().provider_bindings(self.name)
+        providers = ", ".join(f"{k} = {v}" for k, v in sorted(bindings.items())
+                              if k != EXTERNAL_PROVIDER)
+        lines = [
+            f'module "group_{label}" {{',
+            f'  source                    = "{source}"',
+            *([f'  providers                 = {{ {providers} }}'] if providers else []),
+            f'  group_id                  = "{label}"',
+            f'  members                   = [{quoted_members}]',
+            f'  admins                    = [{quoted_admins}]',
+            f'  delegated_admin_group_ids = {delegated}',
+            f'  account_discovery         = {str(self.model.account_discovery).lower()}',
+        ]
+        gateway_selector = self.model.effective_gateway_selector
+        if gateway_selector:
+            lines.append(f'  gateway_selector          = "{gateway_selector}"')
+        lines.append("}")
+        return lines
+
+    def get_commands_to_run_during(
+        self, phase: ExecutionLifecyclePhase
+    ) -> CFExecutables:
+        """Get a list of commands to run during a specific execution lifecycle event."""
+        return CFExecutables([], [])
+
+    def generate_items_after(
+        self, phase: ExecutionLifecyclePhase
+    ) -> AssetSet:
+        """Generate a list of items to create after a specific execution lifecycle event."""
+        return AssetSet()
+
+    def _newly_unmanaged_groups(self) -> list[Group]:
+        """Groups marked unmanaged now that the identity read-model last
+        recorded as managed: their state entries get removed (never destroyed)."""
+        from cs_image_system.base.global_context import GlobalTypeContext
+        previous = GlobalTypeContext().meta_state.identity_read_model().get("groups", {}) or {}
+        out: list[Group] = []
+        for g in self.get_groups_for_builder():
+            if getattr(g, "unmanaged", False):
+                rec = previous.get(g.get_name())
+                if isinstance(rec, dict) and rec.get("managed", True):
+                    out.append(g)
+        return out
+
+    def get_commands_to_run_after(
+        self, phase: ExecutionLifecyclePhase
+    ) -> CFExecutables:
+        """fmt/init/validate/plan at generation (a read); the deferred runner
+        script carries the gated plan -> gate -> (apply) sequence, applying
+        only when ``config: apply_identity`` is set."""
+        if phase != ExecutionLifecyclePhase.GROUP_GENERATION:
+            return CFExecutables([], [])
+        wd = self.get_path_for_phase(phase, suffix=".tf").parent
+        # a dry run initialises without the backend and touches no state, so
+        # the generation-time plan (a read) is a real run's; the deferred
+        # script below enumerates the gated plan either way
+        arg_lists = [["fmt"], self._init_args(phase), ["validate"]] + ([] if self._dry_run() else [["plan"]])
+        commands = self.terraform_commands(phase, arg_lists, wd)
+        pre_plan = [["state", "rm", f"module.group_{utils.super_safe_name(g.name)}"]
+                    for g in self._newly_unmanaged_groups()]
+        # Per-root apply scoping (stage 7): the identity root is its builder name
+        deferred = self.gated_apply_commands(
+            phase, wd, apply=utils.apply_enabled("identity", self.name), pre_plan=pre_plan,
+            apply_flag_key="identity", apply_root=self.name)
+        # EXPLORE identity: attributes travel outside terraform. When
+        # anything is declared, the runner probes (read-only) after the
+        # apply and shows what an attribute apply would change; the write
+        # itself stays disabled (DESIGN Q7).
+        from cs_image_system.base.identity_attributes import declared_attributes
+        declared = declared_attributes(self._get_context())
+        if declared["groups"] or declared["users"]:
+            deferred.append(utils.system_cli_executable(
+                ["identity-attributes", "--probe", "--dry-run-apply"], wd))
+        return CFExecutables(commands, deferred)

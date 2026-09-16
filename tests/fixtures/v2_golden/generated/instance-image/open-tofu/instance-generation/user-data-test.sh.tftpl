@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# cs-image-system launch parameters for instance test (N26).
+# Generated from validated configuration; immutable after launch --
+# changing them means replacing the instance.
+set -euo pipefail
+hostnamectl set-hostname 'test' || true
+# owning group: coops (gid by reference)
+GID="${group_gid}"
+# advertise the reachable private address: the auto-discovered public
+# IP is unroutable when the VPC has no internet gateway (found live)
+PRIV_IP=$(hostname -I | awk '{print $1}')
+mkdir -p /etc/sft
+grep -q '^AccessAddress:' /etc/sft/sftd.yaml 2>/dev/null || printf 'AccessAddress: %s\n' "$PRIV_IP" >> /etc/sft/sftd.yaml
+# identity enrollment trigger (token supplied at apply time, never recorded)
+%{ if sft_enrollment_token != "" }
+mkdir -p /var/lib/sftd
+printf '%s' '${sft_enrollment_token}' > /var/lib/sftd/enrollment.token
+chmod 0600 /var/lib/sftd/enrollment.token
+systemctl restart sftd || systemctl start sftd
+%{ endif }
+mkdir -p /var/lib/csis
+date -u +%FT%TZ > /var/lib/csis/launch-applied

@@ -1,0 +1,49 @@
+---
+
+# Image builders are the actual builder for an image on a a specific runtime.
+# The image buuilder's task is to take images and generate a useable artifact
+# for a runtime
+image_builders:
+  - name: pckr-ebs-ans
+    is_default: true
+    type: packer-ebs
+    # Optional, but if the version is specified, it must actually match
+    runtime: default
+    executable: packer    
+    # stage 26: `parameters: [build, .]` removed -- argv the packer plugin assembles itself;
+    # the field is retired (a module call's inputs are a storage builder's `variables:`)
+    required_plugins:
+      - name: amazon
+        source: github.com/hashicorp/amazon
+        version: '>= 1.0.0'
+      - name: ansible
+        source: github.com/hashicorp/ansible
+        version: '>= 1.0.0'    
+  - name: some-other-builder
+    type: packer-ebs
+    # Optional, but if the version is specified, it must actually match
+    runtime: default
+    executable: packer-1.9.4
+    # stage 26: `parameters: [build, .]` removed -- argv the packer plugin assembles itself;
+    # the field is retired (a module call's inputs are a storage builder's `variables:`)
+    required_plugins:
+      - name: amazon
+        source: github.com/hashicorp/amazon
+        version: '>= 1.0.0'
+      - name: ansible
+        source: github.com/hashicorp/ansible
+        version: '>= 1.0.0'
+  # GCP readiness (2026-09-02): GCE bakes via the googlecompute source
+  - name: pckr-gce-ans
+    type: packer-gce
+    runtime: gcloud-east1
+    executable: packer
+    # stage 26: `parameters: [build, .]` removed -- argv the packer plugin assembles itself;
+    # the field is retired (a module call's inputs are a storage builder's `variables:`)
+    required_plugins:
+      - name: googlecompute
+        source: github.com/hashicorp/googlecompute
+        version: '>= 1.0.0'
+      - name: ansible
+        source: github.com/hashicorp/ansible
+        version: '>= 1.0.0'

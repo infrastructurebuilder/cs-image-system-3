@@ -1,0 +1,10 @@
+content_hash: 7efcd1a4fa07925eb1b11398f175aa61b5c77dff355050cc6871b50ffbe697cb
+files:
+- mod_image.sh
+- inline.sh
+idempotent: unknown
+image: imgfile-basic-dask
+name: derivative-setup
+operation: bash
+run: 2026_08_26t12_00_00
+type: bash-remote

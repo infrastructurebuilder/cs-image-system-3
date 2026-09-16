@@ -1,0 +1,453 @@
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""Cross-run meta-state (DESIGN §3B, N5/N6, rev-14 derived rule).
+
+Meta-state is the set of committed, human-readable YAML files that carry the
+system's memory between runs: the identity and storage read-models, the pin
+file (instance -> build and image -> base-build edges), image lineage, the
+storage state machine's authoritative state + transition history, recorded
+launch parameters, and a run journal.
+
+Two invariants are enforced here rather than trusted to callers:
+
+* **Location** -- meta-state lives at ``<config root>/meta-state/``, OUTSIDE
+  every per-lifecycle generated directory, so a lifecycle wipe (Q5) can never
+  touch it.
+* **Publicness** -- the config repo is public by design (DESIGN standing
+  constraint, rev 8). Every write is scanned for secret-shaped material and
+  refused if any is found.
+"""
+from __future__ import annotations
+
+import logging
+import re
+import subprocess
+from dataclasses import field
+from .models.model_config import CSIS_MODEL_CONFIG
+from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+from .public_safe import (REFUSED_PATHS, PublicSafeError, allow_from_config, assert_public_safe,  # noqa: F401
+                          config_for, refused_path, scan_file)
+
+log = logging.getLogger(__name__)
+
+META_STATE_DIRNAME = "meta-state"
+
+IDENTITY_READ_MODEL = "identity.yaml"
+STORAGE_READ_MODEL = "storage.yaml"
+STORAGE_STATE = "storage-state.yaml"
+LINEAGE = "lineage.yaml"
+PINS = "pins.yaml"
+LAUNCH_PARAMS = "launch-params.yaml"
+RUNS = "runs.yaml"
+VERIFICATIONS = "verifications.yaml"   # ephemeral / verified instances (stage 10.1)
+IMAGE_TESTS = "image-tests.yaml"       # post-bake test results per build (stage 14)
+
+ALL_FILES = (IDENTITY_READ_MODEL, STORAGE_READ_MODEL, STORAGE_STATE, LINEAGE, PINS,
+             LAUNCH_PARAMS, RUNS)
+
+# Public-safe by construction (stage 35): the scanner lives in public_safe.py
+# and is the same one behind the commit gate, `just public-safe` and the
+# pre-commit hook; these names are kept for the callers of the first gate.
+MetaStateSecretError = PublicSafeError
+NEVER_STAGED = REFUSED_PATHS
+never_staged = refused_path
+
+
+def _never_staged_pathspecs() -> list[str]:
+    """git pathspecs excluding REFUSED_PATHS names at any depth, appended to
+    the run's ``add`` and ``commit`` so those files are never picked up --
+    not even one the operator had staged by hand under the same trees."""
+    return [f":(exclude,glob)**/{pat}" for pat in REFUSED_PATHS]
+
+
+def _dump(data: Any) -> str:
+    return yaml.safe_dump(data, sort_keys=True, default_flow_style=False, allow_unicode=True)
+
+
+@dataclass(config=CSIS_MODEL_CONFIG)
+class MetaState:
+    """Typed access to the meta-state directory. Reads are lazy; writes are
+    immediate, atomic per file, and secret-scanned."""
+
+    root: Path
+    _cache: dict[str, Any] = field(default_factory=dict, repr=False)
+
+    # ------------------------------------------------------------------ io
+    @classmethod
+    def at(cls, config_root: Path) -> "MetaState":
+        return cls(Path(config_root) / META_STATE_DIRNAME)
+
+    def path(self, name: str) -> Path:
+        return self.root / name
+
+    def read(self, name: str) -> dict[str, Any]:
+        if name in self._cache:
+            return self._cache[name]
+        p = self.path(name)
+        data: dict[str, Any] = {}
+        if p.is_file():
+            loaded = yaml.safe_load(p.read_text()) or {}
+            if not isinstance(loaded, dict):
+                raise ValueError(f"Meta-state file {p} must hold a mapping at the top level")
+            data = loaded
+        self._cache[name] = data
+        return data
+
+    def write(self, name: str, data: dict[str, Any]) -> Path:
+        assert_public_safe(data, where=f"meta-state/{name}")
+        self.root.mkdir(parents=True, exist_ok=True)
+        p = self.path(name)
+        tmp = p.with_suffix(p.suffix + ".tmp")
+        tmp.write_text(_dump(data))
+        tmp.replace(p)
+        self._cache[name] = data
+        return p
+
+    def exists(self) -> bool:
+        return self.root.is_dir()
+
+    def invalidate(self) -> None:
+        self._cache.clear()
+
+    # --------------------------------------------------------- read-models
+    def write_identity_read_model(self, model: dict[str, Any]) -> Path:
+        return self.write(IDENTITY_READ_MODEL, model)
+
+    def identity_read_model(self) -> dict[str, Any]:
+        return self.read(IDENTITY_READ_MODEL)
+
+    def write_storage_read_model(self, model: dict[str, Any]) -> Path:
+        return self.write(STORAGE_READ_MODEL, model)
+
+    def storage_read_model(self) -> dict[str, Any]:
+        return self.read(STORAGE_READ_MODEL)
+
+    # ------------------------------------------------- storage state machine
+    def storage_states(self) -> dict[str, dict[str, Any]]:
+        """``{storage name: {state, history: [...]}}`` -- the authoritative
+        current state of every storage the system has ever managed."""
+        return self.read(STORAGE_STATE).setdefault("storages", {})
+
+    def storage_state(self, name: str) -> str | None:
+        entry = self.storage_states().get(name)
+        return entry.get("state") if entry else None
+
+    def record_storage_transition(self, name: str, from_state: str | None, to_state: str,
+                                  run_id: str, action: str | None = None,
+                                  facts: dict[str, Any] | None = None) -> None:
+        """One transition into the authoritative record. A destroyed -> active
+        transition is a REGENERATION (stage 10.12): the entry's generation
+        counter moves on and the history keeps the earlier life. ``facts``
+        (owning builder, type, bucket name) let an undeclared storage still
+        be planned and wiped after its entry left the YAML."""
+        from .models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_DESTROYED
+        data = self.read(STORAGE_STATE)
+        storages = data.setdefault("storages", {})
+        entry = storages.setdefault(name, {"state": to_state, "history": []})
+        entry.setdefault("generation", 1)
+        if from_state == STORAGE_STATE_DESTROYED and to_state == STORAGE_STATE_ACTIVE:
+            entry["generation"] = int(entry.get("generation") or 1) + 1
+        entry["state"] = to_state
+        if facts:
+            entry["facts"] = {**(entry.get("facts") or {}), **facts}
+        entry.setdefault("history", []).append({
+            "from": from_state, "to": to_state, "run": run_id, "generation": entry["generation"],
+            **({"action": action} if action else {}),
+        })
+        self.write(STORAGE_STATE, data)
+
+    def storage_generation(self, name: str) -> int:
+        entry = self.storage_states().get(name) or {}
+        return int(entry.get("generation") or 1)
+
+    # -------------------------------------------------------------- lineage
+    def builds(self) -> list[dict[str, Any]]:
+        return self.read(LINEAGE).setdefault("builds", [])
+
+    def add_build(self, record: dict[str, Any]) -> None:
+        data = self.read(LINEAGE)
+        builds = data.setdefault("builds", [])
+        if any(b.get("build_id") == record.get("build_id") for b in builds):
+            log.debug(f"Build {record.get('build_id')} already recorded in lineage; skipping")
+            return
+        builds.append(record)
+        self.write(LINEAGE, data)
+
+    def remove_build(self, build_id: str) -> dict[str, Any] | None:
+        """Drop a build's lineage record (disposal, stage 8.4): the artifact
+        is gone from the cloud, so a record would be `missing` drift. The
+        git history keeps the record. Returns what was removed."""
+        data = self.read(LINEAGE)
+        builds = data.setdefault("builds", [])
+        rec = next((b for b in builds if b.get("build_id") == build_id), None)
+        if rec is not None:
+            builds.remove(rec)
+            self.write(LINEAGE, data)
+        return rec
+
+    def builds_for_series(self, series: str) -> list[dict[str, Any]]:
+        return [b for b in self.builds() if b.get("series") == series]
+
+    def build(self, build_id: str) -> dict[str, Any] | None:
+        for b in self.builds():
+            if b.get("build_id") == build_id:
+                return b
+        return None
+
+    def series_head(self, series: str, runtime: str | None = None) -> dict[str, Any] | None:
+        """Most recently recorded build of a series (lineage is append-only),
+        on ``runtime`` when given -- a series has one head PER runtime."""
+        builds = [b for b in self.builds_for_series(series)
+                  if runtime is None or b.get("runtime") in (None, runtime)]
+        return builds[-1] if builds else None
+
+    # ----------------------------------------------------------------- pins
+    def _pins(self) -> dict[str, Any]:
+        data = self.read(PINS)
+        data.setdefault("instances", {})
+        data.setdefault("images", {})
+        data.setdefault("upgrades", [])
+        return data
+
+    def instance_pin(self, instance: str) -> str | None:
+        return self._pins()["instances"].get(instance)
+
+    @staticmethod
+    def image_pin_key(image: str, runtime: str | None) -> str:
+        """Image pins are keyed per runtime (``<image>@<runtime>``): the same
+        logical image baked on two runtimes has two parents, two builds and
+        therefore two pins. A key without ``@`` is a legacy single-runtime pin."""
+        return f"{image}@{runtime}" if runtime else image
+
+    def image_pin(self, image: str, runtime: str | None = None) -> str | None:
+        table = self._pins()["images"]
+        if runtime:
+            keyed = table.get(self.image_pin_key(image, runtime))
+            if keyed:
+                return keyed
+            # legacy key: honoured only when lineage cannot place that build on
+            # a DIFFERENT runtime (an AMI must never become a GCE parent)
+            legacy = table.get(image)
+            if legacy:
+                record = self.build(str(legacy))
+                if record is None or record.get("runtime") in (None, runtime):
+                    return legacy
+            return None
+        return table.get(image)
+
+    def bind_instance(self, instance: str, build_id: str, run_id: str) -> None:
+        data = self._pins()
+        data["instances"][instance] = build_id
+        data["upgrades"].append({"kind": "instance", "name": instance, "to": build_id,
+                                 "run": run_id, "op": "bind"})
+        self.write(PINS, data)
+
+    def bind_image(self, image: str, base_build_id: str, run_id: str,
+                   runtime: str | None = None) -> None:
+        data = self._pins()
+        key = self.image_pin_key(image, runtime)
+        data["images"][key] = base_build_id
+        if runtime and data["images"].get(image) == base_build_id:
+            del data["images"][image]  # the legacy key is superseded by the keyed one
+        data["upgrades"].append({"kind": "image", "name": key, "to": base_build_id,
+                                 "run": run_id, "op": "bind", **({"runtime": runtime} if runtime else {})})
+        self.write(PINS, data)
+
+    def move_pin(self, kind: str, name: str, to_build: str, run_id: str,
+                 op: str = "upgrade", pending: bool = True) -> str | None:
+        """The explicit upgrade operation: move exactly one edge. Returns the
+        previous build id. ``op="follow"`` records a policy-driven move
+        (stage 9); ``pending=False`` skips the replacement marker (the
+        replacement already happened)."""
+        if kind not in ("instance", "image"):
+            raise ValueError(f"Unknown pin kind {kind!r}")
+        data = self._pins()
+        table = data["instances" if kind == "instance" else "images"]
+        previous = table.get(name)
+        if previous is None and kind == "image" and "@" in name:
+            # a legacy single-runtime pin moves into its keyed form
+            previous = table.pop(name.split("@", 1)[0], None)
+        table[name] = to_build
+        data["upgrades"].append({"kind": kind, "name": name, "from": previous,
+                                 "to": to_build, "run": run_id, "op": op})
+        if kind == "instance" and pending:
+            data.setdefault("pending_replacements", {})[name] = to_build
+        self.write(PINS, data)
+        return previous
+
+    def pending_replacements(self) -> dict[str, str]:
+        return dict(self._pins().get("pending_replacements", {}))
+
+    def clear_pending_replacement(self, instance: str) -> None:
+        data = self._pins()
+        data.get("pending_replacements", {}).pop(instance, None)
+        self.write(PINS, data)
+
+    def unpin_images_at(self, build_id: str, run_id: str) -> list[str]:
+        """Remove every image pin pointing at ``build_id`` (its disposal): a
+        pin at a deleted parent would bake the next child FROM nothing.
+        Logged as ``op: dispose``; the next bake first-binds to the series
+        head again. Returns the pin keys removed."""
+        data = self._pins()
+        removed = [key for key, b in data["images"].items() if b == build_id]
+        for key in removed:
+            del data["images"][key]
+            data["upgrades"].append({"kind": "image", "name": key, "from": build_id,
+                                     "to": None, "run": run_id, "op": "dispose"})
+        if removed:
+            self.write(PINS, data)
+        return removed
+
+    def remove_instance_pin(self, instance: str, run_id: str, op: str = "decommission") -> None:
+        data = self._pins()
+        if instance in data["instances"]:
+            previous = data["instances"].pop(instance)
+            data["upgrades"].append({"kind": "instance", "name": instance, "from": previous,
+                                     "to": None, "run": run_id, "op": op})
+            data.get("pending_replacements", {}).pop(instance, None)
+            self.write(PINS, data)
+
+    # -------------------------------------------------------- launch params
+    def launch_params(self) -> dict[str, dict[str, Any]]:
+        return self.read(LAUNCH_PARAMS).setdefault("instances", {})
+
+    def record_launch_params(self, instance: str, params: dict[str, Any]) -> None:
+        data = self.read(LAUNCH_PARAMS)
+        data.setdefault("instances", {})[instance] = params
+        self.write(LAUNCH_PARAMS, data)
+
+    def remove_launch_params(self, instance: str) -> None:
+        data = self.read(LAUNCH_PARAMS)
+        if instance in data.get("instances", {}):
+            del data["instances"][instance]
+            self.write(LAUNCH_PARAMS, data)
+
+    # ----------------------------------------------------------------- runs
+    def record_run(self, summary: dict[str, Any]) -> None:
+        data = self.read(RUNS)
+        runs = data.setdefault("runs", [])
+        # One entry per run id: a run may journal twice (before its commit and
+        # at exit); the later record replaces the earlier.
+        runs[:] = [r for r in runs if r.get("run") != summary.get("run")]
+        runs.append(summary)
+        # Keep the journal bounded; the git history is the full record.
+        del runs[:-200]
+        self.write(RUNS, data)
+
+    # -------------------------------------------------------- verifications
+    def verifications(self) -> list[dict[str, Any]]:
+        return self.read(VERIFICATIONS).setdefault("verifications", [])
+
+    def record_verification(self, record: dict[str, Any]) -> None:
+        data = self.read(VERIFICATIONS)
+        data.setdefault("verifications", []).append(record)
+        del data["verifications"][:-500]
+        self.write(VERIFICATIONS, data)
+
+    # ------------------------------------------- post-bake image tests (stage 14)
+    def image_tests(self) -> dict[str, Any]:
+        """``{build_id: {"ok", "run", "instance", "runtime", "time", "checks"}}`` --
+        the latest post-bake result per build."""
+        return self.read(IMAGE_TESTS).setdefault("builds", {})
+
+    def record_image_test(self, build_id: str, record: dict[str, Any]) -> None:
+        data = self.read(IMAGE_TESTS)
+        data.setdefault("builds", {})[str(build_id)] = record
+        self.write(IMAGE_TESTS, data)
+
+    def instance_pins(self) -> dict[str, str]:
+        return dict(self._pins()["instances"])
+
+    def image_pins(self) -> dict[str, str]:
+        return dict(self._pins()["images"])
+
+
+# ---------------------------------------------------------------- git commit
+
+def git_toplevel(path: Path) -> Path | None:
+    try:
+        res = subprocess.run(["git", "-C", str(path), "rev-parse", "--show-toplevel"],
+                             capture_output=True, text=True, check=False)
+    except OSError:
+        return None
+    if res.returncode != 0:
+        return None
+    return Path(res.stdout.strip())
+
+
+def commit_meta_state(config_root: Path, generated_root: Path, run_id: str,
+                      lifecycles: list[str], dry_run: bool) -> str | None:
+    """The single well-formed meta-state commit (DESIGN §3B).
+
+    Stages ``meta-state/`` and the generated-IaC tree and commits them with a
+    templated message. Returns the new commit sha, or ``None`` when there was
+    nothing to commit or the config root is not inside a git repository (a
+    warning, not an error: relocation to a config repo is what makes this
+    meaningful). Never runs when the caller did not ask for it.
+    """
+    top = git_toplevel(config_root)
+    if top is None:
+        log.warning(f"Config root {config_root} is not inside a git repository; "
+                    "meta-state commit skipped")
+        return None
+    paths = [str(Path(config_root) / META_STATE_DIRNAME), str(generated_root)]
+    existing = []
+    for candidate in paths:
+        if not Path(candidate).exists():
+            continue
+        # A repo may gitignore a tree (this repo ignores the fixture's
+        # generated/); adding it would fail, so skip it with a warning --
+        # found live at the first successful bake's meta-state commit.
+        ignored = subprocess.run(["git", "-C", str(top), "check-ignore", "-q", candidate],
+                                 check=False, capture_output=True).returncode == 0
+        if ignored:
+            log.warning(f"Meta-state commit: {candidate} is gitignored here; not committing it")
+            continue
+        existing.append(candidate)
+    if not existing:
+        return None
+    # stage 34: belt to the ignore policy's braces -- a plan, state or key file
+    # under the run's trees is never staged, and the operator is told which
+    would_add = subprocess.run(["git", "-C", str(top), "add", "-A", "--dry-run", "--", *existing],
+                               check=True, capture_output=True, text=True).stdout
+    adds = sorted({m.group(1) for m in re.finditer(r"^add '(.+)'$", would_add, re.M)})
+    refused = [rel for rel in adds if never_staged(rel)]
+    if refused:
+        log.warning(f"Meta-state commit: never staging {', '.join(refused)} "
+                    "(plans, state and key material carry decrypted values)")
+    # stage 35: the gate -- every file about to be staged is scanned, with the
+    # configuration's allowances, before the index is touched; a finding
+    # refuses the whole commit and the run never records a secret
+    allow = allow_from_config(config_for(config_root))
+    findings = [f for rel in adds if not never_staged(rel) for f in scan_file(top, rel, allow)]
+    if findings:
+        raise PublicSafeError(findings, "the run's meta-state commit")
+    pathspecs = [*existing, *_never_staged_pathspecs()]
+    subprocess.run(["git", "-C", str(top), "add", "-A", "--", *pathspecs],
+                   check=True, capture_output=True, text=True)
+    staged = subprocess.run(["git", "-C", str(top), "diff", "--cached", "--quiet"],
+                            check=False, capture_output=True, text=True)
+    if staged.returncode == 0:
+        log.info("Meta-state commit: nothing changed")
+        return None
+    mode = "dry-run generation" if dry_run else "run"
+    message = (f"cs-image-system {mode} {run_id}: {', '.join(lifecycles) or 'no lifecycles'}\n\n"
+               f"Meta-state commit: read-models, pins, lineage, launch parameters and "
+               f"generated IaC for lifecycles [{', '.join(lifecycles)}].\n"
+               f"Run id: {run_id}")
+    # stage 28: commit ONLY the paths this run staged -- the config repo is
+    # where operators edit configuration, and a bare `git commit` would sweep
+    # whatever they had staged into a "cs-image-system run" commit
+    subprocess.run(["git", "-C", str(top), "commit", "-q", "-m", message, "--", *pathspecs],
+                   check=True, capture_output=True, text=True)
+    sha = subprocess.run(["git", "-C", str(top), "rev-parse", "HEAD"],
+                         check=True, capture_output=True, text=True).stdout.strip()
+    log.info(f"Meta-state committed as {sha}")
+    return sha

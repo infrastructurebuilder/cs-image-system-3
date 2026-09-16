@@ -1,0 +1,11 @@
+# stage 11.4/§11.6 proof: a TRANSIENT storage a test declares (never in the
+# tree). Declared here as active; the archived variant is scratch-archived.yaml.
+# Being declared by an overlay on an ephemeral runtime, the closing phase of a
+# `run --all` destroys it (§11.4); dropping the overlay also undeclares it (§10.11).
+storages:
+  - name: scratch
+    type: gcp-pd
+    mount_point: /mnt/scratch
+    groups:
+      - coops
+    state: active

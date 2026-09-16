@@ -1,0 +1,22 @@
+# stage 15 live proof (2026-09-10): a TRANSIENT EBS volume `scratch-ebs`
+# declared only here, mounted on a STANDING (non-ephemeral) test2 so data
+# can be written over SSM, the mount dropped (§10.14 detach on AWS, live for
+# the first time), the volume archived/restored (§15) and the data read
+# back on a relaunch. Applied with --apply-runtime aws-east2-runtime.
+storages:
+  - name: scratch-ebs
+    mount_point: /mnt/scratch
+    groups:
+      - coops
+    state: active
+instances:
+  - name: test2
+    machine_type: t3.medium
+    image: imgfile-basic-dask
+    description: "AWS storage-archive proof (stage 15)"
+    ephemeral: false
+    tags:
+      hype: test
+    storages:
+      - name: scratch-ebs
+        mount_point: /mnt/scratch

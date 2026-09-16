@@ -1,0 +1,55 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    
+    
+    {
+      "name": "verify-base",
+      "type": "debugpy",
+      "request": "launch",
+      "module" : "cs_image_system.system",
+      "console": "integratedTerminal",
+      "args": [ "--base-only", "--verbose", "--root-dir=../cs-image-system-testconfig", "build-all" ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "verify-images",
+      "type": "debugpy",
+      "request": "launch",
+      "module" : "cs_image_system.system",
+      "console": "integratedTerminal",
+      "args": [ "--verbose", "--root-dir=../cs-image-system-testconfig", "build-all" ],
+      "cwd": "${workspaceFolder}"
+    },
+
+    {
+      "name": "Run Loader (all plugins)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "cs_image_system.system",
+      "justMyCode": false,
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "pytest (all tests)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["--import-mode=importlib", "-v"],
+      "justMyCode": false,
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "pytest (current file)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["${file}", "--import-mode=importlib", "-v"],
+      "justMyCode": false,
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

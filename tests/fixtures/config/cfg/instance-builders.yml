@@ -1,0 +1,26 @@
+---
+# Instance builders are fairly simple.  They take a resolved Image
+# and stand it up on a given runtime
+instance_builders:
+  - name: open-tofu
+    type: tofu
+    is_default: true
+    runtime: aws-east2-runtime # Refers to the runtime builder named aws-east2-runtime  
+    executable: open-tofu-1
+    required_plugins:
+      - name: aws
+        source: hashicorp/aws
+        version: '>= 4.0.0'
+    # stage 22.5 REMOVED -- not a field on an instance builder; modifications belong on an image
+    # modifications:
+    #   - name: add-data-to-item
+    #     type: default # Use the top-level system defined modification type (i.e. mod-builder with is_default: true)
+    #     playbooks: 
+    #     - "{{ this.os.family }}/{{ this.os.family_version }}/{{ this.name}}.yml"
+    state_configuration: s3-east2 # tofu/terraform state backend (by name)
+  # GCP readiness (2026-09-02)
+  - name: tofu-gce
+    type: tofu-gce
+    runtime: gcloud-east1
+    executable: open-tofu-1
+    state_configuration: s3-east2 # decision: GCP roots keep the S3 backend for now

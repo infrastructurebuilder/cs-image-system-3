@@ -1,0 +1,36 @@
+---
+# Unfortunately, we require a specific parser for every "name"'d executable
+# if it has a version requirement, because parsing actual versions of executables
+# isn't easy.
+executables:
+  - name: aws-cli # DEFAULT type
+    version: ">=2.32"
+    binary: aws
+  - name: packer # DEFAULT type
+    version: ">=1.14, <1.15"
+    binary: /usr/local/bin/packer
+  - name: packer-1.9.4
+    version: ">=1.8, <1.10"
+    binary: packer-1.9.4
+    type: packer
+  - name: gcloud
+    binary: /usr/local/bin/gcloud
+    version: ">=2026.02.0, <2027.01.0"
+  - name: ansible-playbook
+    binary: /usr/local/bin/ansible-playbook
+    version: "<2.21"
+  - name: bash
+    binary: /usr/local/bin/bash
+  - name: docker
+    binary: /usr/local/bin/docker
+  - name: open-tofu-1
+    type: tofu
+    binary: /usr/local/bin/tofu
+    version: ">1,<2"
+    # The former per-runtime state map (bucket/key_root) lived here; state
+    # configuration is the state-backends mechanism only
+    # (cfg/state-backends*.yml -> tf-s3-state-plugin -> .tfbackend.hcl).
+  - name: yq
+    version: ">=4.5"
+  - name: jq
+    version: ">=1.8"

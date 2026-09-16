@@ -1,0 +1,62 @@
+instances:
+  gce-test:
+    build: unbound
+    enrollment:
+      enrollment: sftd-token
+      server_label: sftd.tx.group=coops
+    ephemeral: false
+    group: coops
+    hostname: gce-test
+    identity_type: okta
+    image: imgfile-basic-dask
+    launched: false
+    mounts:
+    - builder: gcp-pd
+      device: /dev/disk/by-id/google-gce-data
+      group: coops
+      mount_point: /mnt/gce-data
+      public_read: false
+      share_mode: '2770'
+      storage: gce_data
+      type: pd
+    run: 2026_08_26t12_00_00
+    session: iap
+    user_data_sha256: a3c2278dc804b182525e4621ee38d96cc29ba67570bdf3c680d2be5bbd193b6d
+  test:
+    build: unbound
+    enrollment:
+      enrollment: sftd-token
+      server_label: sftd.tx.group=coops
+    ephemeral: false
+    group: coops
+    hostname: test
+    identity_type: okta
+    image: imgfile-basic-cloudflow
+    launched: false
+    mounts: []
+    run: 2026_08_26t12_00_00
+    session: ssm
+    user_data_sha256: a8acaa7dbc21ac336f77027c93d1723a33e83e476921f9f911f441c8a57e8884
+  test2:
+    build: unbound
+    enrollment:
+      enrollment: sftd-token
+      server_label: sftd.tx.group=coops
+    ephemeral: false
+    group: coops
+    hostname: test2
+    identity_type: okta
+    image: imgfile-basic-dask
+    launched: false
+    mounts:
+    - builder: aws-ebs
+      device: /dev/xvdf
+      group: coops
+      mount_point: /mnt/data
+      public_read: false
+      share_mode: '2770'
+      storage: mnt_data
+      type: ebs
+    run: 2026_08_26t12_00_00
+    session: ssm
+    user_data_sha256: 255e3e75f62ce5680fa8466d90676e02281f5638c8383fd57c16c5b0063a1cd5

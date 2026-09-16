@@ -1,0 +1,12 @@
+# Decommission overlay (`just gce-decommission`): the GCE instance root may
+# apply, and gce-test is UNDECLARED for this invocation -- the overlay
+# `undeclare` form (ledger 68), so a standing gce-test is destroyed through
+# the gate whether it lives in the tree (declared ephemeral since 2026-09-08,
+# stage 10.8) or only in the records. Found 2026-09-10 (ledger 71): with
+# gce-test declared in the tree, the previous config-only form RESUMED the
+# ephemeral sequence (verify again) instead of decommissioning.
+config:
+  apply_instances: [gcloud-east1]
+instances:
+  - name: gce-test
+    undeclare: true

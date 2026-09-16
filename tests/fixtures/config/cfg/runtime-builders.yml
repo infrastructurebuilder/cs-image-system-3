@@ -1,0 +1,190 @@
+---
+
+# Runtime builders are where final working services are deployed
+# They are used to resolve os builder queries to make final targets specific
+# to that runtime, and they are responsible for the "end" state of an instance, all its
+# users and groups, and all its storage
+runtime_builders:
+    - name: aws-east2-runtime
+      is_default: true
+      aliases:
+        - aws
+        - amazon
+        - us-east-2
+      type: aws
+      # stage 22.5 REMOVED -- no field on any runtime model, and zero references anywhere in the codebase
+      # runtime_classifier: cloud # or container or metal
+      account_id: "514190660293"
+      description: |
+          AWS runtime builder for the {{ this.region }} region account {{ this.account_id }}. 
+          This builder is used for building images and instances in AWS. 
+          It uses the AWS CLI for interactions with AWS services and supports 
+          features such as tagging, networking configuration, and image querying 
+          based on filters. The builder can be configured with default machine types and
+          image builders, and it requires credentials for authentication with AWS.
+      
+      credentials:
+        profile_name: noaa
+        # aws_access_key_id: "{{ ENV['AWS_ACCESS_KEY_ID_east2'] }}"
+        # aws_secret_access_key: "{{ ENV['AWS_SECRET_ACCESS_KEY_east2'] }}"
+        # aws_session_token: "{{ ENV['AWS_SESSION_TOKEN_east2'] }}" 
+      tags:
+        Project: MyProject
+        Environment: Development
+      region: us-east-2
+      # stage 22.5 REMOVED -- the modelled key is credentials.profile_name, declared just above with the same value; the raw preflight reader prefers this one, so removing it changes nothing while both agree
+      # profile: noaa
+      # Debug sessions AND bakes connect via SSM (no internet gateway in
+      # this VPC; decided 2026-08-31, TODO stage 1). Profile is swappable.
+      session_mechanism: ssm
+      session_instance_profile: AmazonSSMRoleForInstancesQuickSetup
+      default_machine_type: t2.micro
+      default_image_builder: pckr-ebs-ans
+      # stage 22.5 REMOVED -- `executables` is an IAConfig field, not a runtime-builder one; declared here it is dropped
+      # executables: 
+      #   - aws-cli
+      networking:
+        # network_id is the vpc_id
+        network: vpc-0c78d0d63b7a100df
+        # SSH reaches instances only through the Okta gateway's SG (no CIDR
+        # ingress -- policy forbids opening the shared networks' ranges)
+        ssh_ingress_security_group_ids:
+        - sg-03015ec107ae5f81a # OKTA-GATEWAY
+        # existing groups every instance also wears (never modified by us);
+        # the session relay expects targets to be OKTA-GATEWAY members
+        addl_security_groups:
+        - sg-03015ec107ae5f81a # OKTA-GATEWAY
+        subnets:
+        # Default flipped to the NAT-routed private subnet (2026-08-31, TODO
+        # stage 1): the VPC has NO internet gateway -- the "public" 137.75
+        # subnet is not internet-routable, and bakes/instances connect via
+        # SSM, so they belong on a private subnet with outbound NAT.
+        - name: east2-az1-private
+          subnet_id: subnet-09f79018af845358a
+          is_default: true
+        - name: east2-az2-private
+          subnet_id: subnet-00075cfbfcbc8f2cf
+        - name: east2-az1-public
+          subnet_id: subnet-01e56d2f9c1c95cc8
+          public: true
+        - name: east2-az2-public
+          subnet_id: subnet-0c127b762e075a94d
+          public: true
+    - name: gcloud-east1
+      aliases:
+        - gcp
+        - google
+        - us-east1
+      type: gcloud
+      # stage 22.5 REMOVED -- no field on any runtime model, and zero references anywhere in the codebase
+      # runtime_classifier: cloud # or container or metal
+      # Credentials come from the environment only (ADC or
+      # GOOGLE_APPLICATION_CREDENTIALS) -- same rule as the AWS profile.
+      # Live project (2026-09-02): csis-sandbox (86233086783). Terraform state
+      # for GCP roots stays on the existing S3 backend for now (user decision).
+      project_id: csis-sandbox
+      zone: us-east1-b
+      session_mechanism: iap # decided with GCP increment 3
+      # build VMs and instances run AS the least-privilege runner (it holds
+      # serviceAccountUser on itself); the default compute SA is not ours
+      service_account_email: csis-runner@csis-sandbox.iam.gserviceaccount.com
+      # finding 51: bake disk (= every instance's boot disk) at the vendor image's
+      # 10 GB floor (a boot disk cannot be smaller than its source image), not
+      # the OS builder's 200 GB default (~$8/month per instance)
+      default_disk_size: 10
+      bake_preemptible: true # spot build VMs (GCP-READINESS §6); a preempted bake re-runs
+      # Declared ephemerality (stage 10.4, operator rule 58): nothing baked here
+      # survives a successful run -- the closing `retention` lifecycle disposes
+      # every GCE image. Declared storages (gce_data, gce_bucket) persist (§10.15).
+      ephemeral: true
+      tags:
+        Project: csis-sandbox
+        Environment: Development
+      region: us-east1
+      default_machine_type: e2-micro
+      default_image_builder: packer-gcloud-ansible
+      networking:
+        network: default # Name of the VPC network to use.  If DEFAULT, uses the default network for the project.
+        subnets:
+        - name: subnet1
+          subnet_id: projects/csis-sandbox/regions/us-east1/subnetworks/default # Full identifier for the subnetwork.  If DEFAULT, uses the default subnetwork for the region.
+          is_default: true
+          public: true # Note that for GCP, this doesn't necessarily mean that the subnet has a public IP range, but rather that it has a route to the internet and can be used for public-facing resources.
+    - name: aws-east1
+      aliases:
+        - us-east-1
+      type: aws
+      # stage 22.5 REMOVED -- no field on any runtime model, and zero references anywhere in the codebase
+      # runtime_classifier: cloud # or container or metal
+      account_id: "123456789012"
+      tags:
+        Project: MyProject
+        Environment: Development
+      region: us-east-1
+#      profile: noaa
+      credentials:
+        profile_name: noaa
+        # aws_access_key_id: "{{ ENV['AWS_ACCESS_KEY_ID_east2'] }}"
+        # aws_secret_access_key: "{{ ENV['AWS_SECRET_ACCESS_KEY_east2'] }}"
+        # aws_session_token: "{{ ENV['AWS_SESSION_TOKEN_east2'] }}" 
+      default_machine_type: t2.micro
+      default_image_builder: pckr-ebs-ans
+      networking:
+        # network_id is the vpc_id
+        network: vpc-0381e9f82c9ae68e7
+        subnets:
+        - name: east1-private1
+          subnet_id: subnet-010dcda462c567c27
+          is_default: true
+        - name: east1-private2
+          subnet_id: subnet-0978450a55b662bd3
+        - name: east1-private3
+          subnet_id: subnet-01ce99f9006e8ed06
+          is_default: true
+        - name: east1-private4
+          subnet_id: subnet-027cfa8f898714c8e
+    - name: west1
+      is_default: false
+      aliases:
+        - us-west-1
+        - west
+      type: aws
+      # stage 22.5 REMOVED -- no field on any runtime model, and zero references anywhere in the codebase
+      # runtime_classifier: cloud
+      account_id: "123456789012"
+      credentials:
+        profile_name: noaa
+        # aws_access_key_id: "{{ ENV['AWS_ACCESS_KEY_ID_east2'] }}"
+        # aws_secret_access_key: "{{ ENV['AWS_SECRET_ACCESS_KEY_east2'] }}"
+        # aws_session_token: "{{ ENV['AWS_SESSION_TOKEN_east2'] }}" 
+      tags:
+        Project: MyProject
+        Environment: Development
+      region: us-west-1
+      default_machine_type: t2.micro
+      networking:
+        # network_id is the vpc_id
+        network: default # Query builder for identifier for default network
+        subnets:
+        - name: subnet1
+          subnet_id: subnet-09add21146fbccbc3
+          is_default: true          
+          # Note that Packer from GH requires access via public subnet
+        - name: subnet2
+          subnet_id: subnet-0ca0978d152fca976
+    # - name: docker
+    #   runtime_classifier: container
+    #   is_default: false
+    #   type: docker
+    #   executable: docker
+    #   default_machine_type: docker-machine_type-1
+    #   default_image_builder: packer-docker-ansible
+    #   config:
+    #     some_docker_setting: some_docker_value
+    # - name: swarm
+    #   runtime_classifier: container
+    #   is_default: false
+    #   type: docker-swarm
+    #   config:
+    #     some_docker_swarm_setting: some_docker_swarm_value
+    #   default_image_builder: packer-docker-ansible

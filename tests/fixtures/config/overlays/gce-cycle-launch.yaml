@@ -1,0 +1,14 @@
+# GCE change cycle, launch leg (stage 8): the cycle's instance, declared for
+# this invocation only, and the GCE instance root allowed to apply. Nothing
+# else applies (per-root scoping, stage 7): the AWS root plans and gates.
+config:
+  apply_instances: [gcloud-east1]
+instances:
+  - name: gce-test
+    image: imgfile-basic-dask
+    runtime: gcloud-east1
+    type: tofu-gce
+    description: "GCE change-cycle instance (free-tier e2-micro); exists only for the cycle"
+    storages:
+      - name: gce_data
+        mount_point: /mnt/gce-data

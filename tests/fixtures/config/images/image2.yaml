@@ -1,0 +1,36 @@
+images:
+  - name: imgfile-basic-cloudflow-two
+    group: tcmet # owning group (V2 Q4): identifies the identity type via the group's builder
+    tags:
+      cloudflow: "true"
+    source_image: basic-rhel-9
+    description: "Basic cloudflow head node with essential tools and configurations number TWO."
+    type: default
+    runtimes:
+      - image_builder: pckr-ebs-ans
+        machine_type: r5.4xlarge
+  - name: imgfile-basic-dask-two
+    group: stofs # owning group (V2 Q4): identifies the identity type via the group's builder
+    tags:
+      dask: "true"
+    source_image: basic-rhel-9
+    description: "Basic Dask head node with essential tools and configurations number TWO."
+    type: pckr-ebs-ans
+    modifications:
+      # Modifications without config fail silently
+      - name: dask-setup2
+        type: default
+        # stage 22.4 REMOVED (no model accepts `source:` on an ansible mod item, so this has always been dropped and the item has zero playbooks; restore as `playbooks:` with a real file if the mod is wanted): source: ./modifications/dask-setup.yml
+        config:
+          dask_version: "2023.9.1"
+          jupyterlab_extension: true
+      - name: data-science-workstation-two
+        type: ansible-default
+        # stage 22.4 REMOVED (no model accepts `source:` on an ansible mod item, so this has always been dropped and the item has zero playbooks; restore as `playbooks:` with a real file if the mod is wanted): source: git@github:LynkerCloud/cs-image-action-modifications.git/data-science-workstation.yml
+        config:
+          include_r_packages: true
+          include_julia: false
+          include_tensorflow: true
+    runtimes:   
+      - image_builder: pckr-ebs-ans
+        machine_type: t2.medium

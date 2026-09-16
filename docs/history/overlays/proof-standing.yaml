@@ -1,0 +1,19 @@
+# Live proofs 2026-09-09 (ledger 68): gce-test STANDING (not ephemeral) with
+# the declared gce_data and a transient scratch pd, so data can be written,
+# the mount dropped (§10.14 detach), the disk archived/restored (§11.6) and
+# the data read back on a relaunch. Applied with --apply-runtime gcloud-east1.
+storages:
+  - name: scratch
+    type: gcp-pd
+    mount_point: /mnt/scratch
+    groups:
+      - coops
+    state: active
+instances:
+  - name: gce-test
+    ephemeral: false
+    storages:
+      - name: gce_data
+        mount_point: /mnt/gce-data
+      - name: scratch
+        mount_point: /mnt/scratch

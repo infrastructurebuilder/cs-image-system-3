@@ -1,0 +1,41 @@
+storages:
+  # V2 access model (DESIGN Q3/N2/N3/N13/N15): storages name the specific
+  # GROUPS allowed to use them (never users, never the retired ALL value);
+  # each allowed group owns a private /<group>/ subtree (share_mode 2770 by
+  # default). public_read opens mounting to anyone; POSIX still governs.
+  # state: the REQUESTED lifecycle state (active | archived | destroyed);
+  # the authoritative state lives in meta-state/storage-state.yaml.
+  - name: mnt_data
+    mount_point: /mnt/data
+    is_default: true
+    groups:
+      - coops
+    state: active
+  - name: default-bucket
+    is_default: false
+    runtime: default
+    type: aws-s3
+    singleton: true
+    # renamed 2026-09-01 (step 4): 'my-image-bucket' is globally taken
+    bucket_name: noscsb-csis-test-514190660293-default-bucket
+    public_read: true
+    # data lifecycle (stage 15): objects untouched for 30 days move to
+    # Infrequent Access; nothing expires (a sandbox bucket, cents either way)
+    lifecycle:
+      transition_days: 30
+      storage_class: STANDARD_IA
+    tags:
+      env: production
+      team: devops
+  - name: efs-storage
+    type: aws-efs # This is efs on AWS west 2 (default provider)
+    # file_system_id removed 2026-09-01 (TODO stage 1 step 4, decision):
+    # the fake fs-12345678 cannot plan live; the module now CREATES the
+    # filesystem, with coops/stofs access points (gids by reference).
+    groups:
+      - coops
+      - stofs
+    share_mode: "2775" # read-shared between the allowed groups (N15 override)
+    # data lifecycle (stage 15): files not read for 30 days move to EFS IA
+    lifecycle:
+      ia_days: 30
