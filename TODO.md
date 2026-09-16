@@ -212,7 +212,14 @@ system needs no change for it — the run is the one an operator performs
 by hand ([docs/OPERATIONS.md](docs/OPERATIONS.md)) — so the stage builds
 the job, its identities and its scope.
 
-1. **Scope, decided up front.** Nothing here is code; it is the set of
+**Where this stands**: the job, its pins and the manual are written and
+landed, and the job is inert — it prints a SKIPPED line per missing
+identity and passes. Two identities are missing: the write-capable AWS
+role (creatable from this machine, but it is a bake-capable credential,
+so it wants the operator's word) and the push token (only a person can
+make one). Once both exist, step 6's proofs run.
+
+1. **DONE — scope, decided up front.** Nothing here is code; it is the set of
    decisions the rest of the stage implements, each one checkable today.
    1. **One runtime.** The job runs `run --all --only-runtime
       aws-east2-runtime`, the runtime the live images bake on. It never
@@ -238,9 +245,9 @@ the job, its identities and its scope.
       the bake half has run unattended for a while.
    5. Record the four decisions in the stage's squash message, because
       they are the reason the job is shaped the way it is.
-2. **USER — the identities.** Three groups. None of them can be created
+2. **USER — the identities** (2.3 and 2.5 done; 2.1, 2.2 and 2.4 open). Three groups. None of them can be created
    by the system, and none of their values may ever be printed.
-   1. **The write-capable AWS role**, `csis-github-apply`, trusting only
+   1. **OPEN — the write-capable AWS role**, `csis-github-apply`, trusting only
       `main` of the published repository. The trust document mirrors the
       read-only role's but pins the ref; both subject forms are needed
       because this organisation's OIDC subject embeds ids:
@@ -264,7 +271,7 @@ the job, its identities and its scope.
       ```
       Note `ref:refs/heads/main` rather than the read-only role's `:*`:
       a branch other than `main` cannot assume it even by accident.
-   2. **Its permissions**, three statements, no more. The bake is packer's
+   2. **OPEN — its permissions**, three statements, no more. The bake is packer's
       documented minimum; the state statement is scoped to this
       configuration's prefix alone; retention needs the deregister and
       delete:
@@ -295,7 +302,7 @@ the job, its identities and its scope.
       (storage and networking are never applied here), and anything
       outside the state prefix. A later `--apply-runtime` decision adds
       what the instance roots need, as its own review.
-   3. **The Okta secrets the terraform provider needs.** The `live` job
+   3. **DONE — the Okta secrets the terraform provider needs.** The `live` job
       never plans the identity roots, so it needs only the API key; a
       real run plans them, and the provider wants the full triple. They
       are already in `.envrc`:
@@ -305,7 +312,7 @@ the job, its identities and its scope.
         printf '%s' "${!v}" | gh secret set "$v" -R $O/$R
       done
       ```
-   4. **The push token.** The run commits into the configuration
+   4. **OPEN, USER — the push token.** Only a person can create one: GitHub has no API for it. The run commits into the configuration
       repository but never pushes; the job does. A fine-grained personal
       access token with **Contents: read and write on
       `cs-image-system-testconfig` only**, no other repository and no
@@ -315,12 +322,12 @@ the job, its identities and its scope.
       gh secret set CSIS_CONFIG_PUSH_TOKEN -R $O/$R   # paste, then Ctrl-D
       gh secret list -R $O/$R                          # expect 12
       ```
-   5. **USER — which configuration branch** the job reads and pushes:
+   5. **DECIDED — `develop`**, which is what `live` reads and what every stage pushes; the job's checkout `ref:` and its push target are that branch. The question was: which configuration branch the job reads and pushes,
       `develop`, which is what `live` reads and what every stage pushes
       (recommended), or the configuration's own `main`. Whichever is
       chosen, the job's checkout `ref:` and its push target are that one
       branch, and the answer goes in the job's comment.
-3. **The job.** One new job in [.github/workflows/ci.yml](.github/workflows/ci.yml),
+3. **DONE — the job.** One new job in [.github/workflows/ci.yml](.github/workflows/ci.yml),
    on `feature/ci-apply-on-main`.
    1. **Its trigger and its mode.** The workflow gains a
       `workflow_dispatch` input so the plumbing can be exercised without
@@ -375,7 +382,7 @@ the job, its identities and its scope.
    7. **The skip lines.** The gate step gains the new secrets, each with
       its own `SKIPPED` line, so a missing identity reads as a reason
       rather than a stack trace.
-4. **The pins**, in [tests/test_v2_ci_workflow.py](tests/test_v2_ci_workflow.py).
+4. **DONE — the pins**, in [tests/test_v2_ci_workflow.py](tests/test_v2_ci_workflow.py).
    Each is one assertion, and each would have caught a real mistake.
    1. `live` stays read-only: no `--no-dry-run`, no `--commit`.
    2. `apply` is the only job that carries either.
@@ -385,7 +392,7 @@ the job, its identities and its scope.
    6. No `GCP_APPLY_*` secret appears anywhere in the workflow.
    7. `apply`'s run line carries `--only-runtime aws-east2-runtime`, so a
       scope regression fails the bar rather than a cloud account.
-5. **Cost, in writing**, in the manual beside the GCE discipline.
+5. **DONE — cost, in writing**, in the manual's CI section.
    1. **No CI run can leave a billable GCP resource standing**, because
       the job holds no identity that could create one. That is a
       structural guarantee, not a promise.
@@ -393,7 +400,7 @@ the job, its identities and its scope.
       snapshot, cents a month each, until retention disposes them.
    3. **The first `main` run is reported** with its run id and exactly
       what it baked, released, disposed and committed.
-6. **Proof**, in three stages, cheapest first.
+6. **Proof**, in three stages, cheapest first. All three wait on the two open identities.
    1. **The plumbing, without applying**: dispatch the job in `dry` mode
       from the feature branch and confirm the write role assumes and the
       configuration checks out.
@@ -410,7 +417,7 @@ the job, its identities and its scope.
 7. **Records.**
    1. The squash message carries step 1's four decisions and what the
       first run did.
-   2. [docs/OPERATIONS.md](docs/OPERATIONS.md) gains the third job in its
+   2. **DONE** — [docs/OPERATIONS.md](docs/OPERATIONS.md) gained the third job in its
       CI section, its secrets in the table with the Job column filled in,
       and step 5's cost sentences.
    3. This section is removed from the worksheet.
