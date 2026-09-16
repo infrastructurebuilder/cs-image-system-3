@@ -61,14 +61,12 @@ jobs:
       - name: Gate on the live-configuration secrets
         id: gate
         env:
-          HAVE_CONFIG: ${{ secrets.CSIS_CONFIG_TOKEN != '' }}
           HAVE_AWS: ${{ secrets.AWS_ROLE_ARN != '' }}
           HAVE_GCP: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && secrets.GCP_SERVICE_ACCOUNT != '' }}
           HAVE_OKTA: ${{ secrets.OKTA_API_PRIVATE_KEY != '' && secrets.TF_VAR_NOS_KEY != '' && secrets.TF_VAR_NOS_SECRET != '' }}
           HAVE_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY != '' }}
         run: |
           ready=true
-          [ "$HAVE_CONFIG" = true ] || { echo "live: SKIPPED -- no CSIS_CONFIG_TOKEN (read access to the private cs-image-system-testconfig repository)"; ready=false; }
           [ "$HAVE_AWS" = true ]    || { echo "live: SKIPPED -- no AWS_ROLE_ARN (a federated READ-ONLY role: EC2 describe for the configuration load, read on the state bucket, image and volume describes for the state query)"; ready=false; }
           [ "$HAVE_GCP" = true ]    || { echo "live: SKIPPED -- no GCP_WORKLOAD_IDENTITY_PROVIDER / GCP_SERVICE_ACCOUNT (the gcloud runtime discovers its network at load; read-only)"; ready=false; }
           [ "$HAVE_OKTA" = true ]   || { echo "live: SKIPPED -- no OKTA_API_PRIVATE_KEY / TF_VAR_NOS_KEY / TF_VAR_NOS_SECRET (the Okta workspace asserts them at load)"; ready=false; }
@@ -87,7 +85,6 @@ jobs:
         with:
           repository: infrastructurebuilder/cs-image-system-testconfig
           ref: develop
-          token: ${{ secrets.CSIS_CONFIG_TOKEN }}
           path: cs-image-system-testconfig
 
       - name: Federated AWS credentials

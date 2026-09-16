@@ -60,8 +60,11 @@ def test_live_is_gated_scheduled_and_read_only():
     assert "pull_request" in live["if"]
     assert live["permissions"]["id-token"] == "write"
     gate = next(s for s in live["steps"] if s.get("id") == "gate")
-    for secret in ("CSIS_CONFIG_TOKEN", "AWS_ROLE_ARN", "GCP_WORKLOAD_IDENTITY_PROVIDER", "OKTA_API_PRIVATE_KEY"):
+    for secret in ("AWS_ROLE_ARN", "GCP_WORKLOAD_IDENTITY_PROVIDER", "OKTA_API_PRIVATE_KEY", "CSIS_CONFIG_IDENTITY"):
         assert secret in yaml.safe_dump(gate["env"]), secret
+    # the configuration repository is public: its checkout needs no token, and none is declared
+    assert "CSIS_CONFIG_TOKEN" not in yaml.safe_dump(wf)
+    assert not [s for s in live["steps"] if "token" in (s.get("with") or {})], "a step still passes a token"
     assert gate["run"].count("SKIPPED") >= 4
     for s in live["steps"]:
         if s.get("id") != "gate":

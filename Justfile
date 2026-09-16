@@ -201,7 +201,7 @@ public-safe-live *ARGS: config-guard
 # Build a publishable tree (stage 40): the TRACKED files of ROOT at HEAD (nothing ignored can enter),
 # a USER exclusion list (PUBLISH_EXCLUDE="path/one path/two", default none), the public-safe gate over
 # the result with the root's own allow list, the ignore policy checked line by line, then ONE commit on
-# master (PUBLISH_MESSAGE, default "Initial public release"). Refuses a dirty root, a finding, a missing
+# main (PUBLISH_MESSAGE, default "Initial public release"). Refuses a dirty root, a finding, a missing
 # ignore line or an existing DEST. Never pushes: the remote is the operator's act (TODO §40.4).
 publish-tree root dest:
 	#!/usr/bin/env bash
@@ -217,9 +217,9 @@ publish-tree root dest:
 	for p in .envrc .private_key.pem .private_key.json .public_key.json '*.pem' tfplan '*.tfstate' '*.tfstate.backup'; do
 		grep -qxF -- "$p" "$dest/.gitignore" || { echo "publish-tree: .gitignore lacks $p"; exit 1; }
 	done
-	git -C "$dest" init -q -b master && git -C "$dest" add -A
+	git -C "$dest" init -q -b main && git -C "$dest" add -A
 	git -C "$dest" commit -q -m "${PUBLISH_MESSAGE:-Initial public release}"
-	echo "publish-tree: $(git -C "$dest" ls-files | wc -l | tr -d ' ') files, one commit on master at $dest"
+	echo "publish-tree: $(git -C "$dest" ls-files | wc -l | tr -d ' ') files, one commit on main at $dest"
 
 # Install the plain pre-commit hook (.githooks/pre-commit) for this checkout; `init` does this.
 hooks:

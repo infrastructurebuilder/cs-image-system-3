@@ -203,13 +203,13 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
 
-## 37. The real run on `master`
+## 37. The real run on `main`
 
-**Why**: the operator's CI model is "branches verify, master applies"
+**Why**: the operator's CI model is "branches verify, main applies"
 (ledger 87). The `live` job is half of it — read-only, green since
 2026-09-15 (ledger 91). The other half, a run with `--no-dry-run
 --commit` over the live configuration whose meta-state and emission land
-in the configuration repository, is what makes a merge to `master` an
+in the configuration repository, is what makes a merge to `main` an
 operation rather than a record. The system needs no change for it: the
 run is the one an operator performs by hand ([docs/OPERATIONS.md](docs/OPERATIONS.md)
 "an operator's live cycle"); the stage builds the job, its identities and
@@ -233,7 +233,7 @@ published repository.
    later USER decision.
 2. **USER — the identities** (the table in OPERATIONS "CI shape" already
    names them): `AWS_APPLY_ROLE_ARN`, a second federated role trusting
-   ONLY `ref:refs/heads/master` (both subject forms, as the read-only
+   ONLY `ref:refs/heads/main` (both subject forms, as the read-only
    role), with what a bake, a plan and retention need — EC2 run/terminate
    and describe, AMI and snapshot create/register/deregister/tag, the
    packer builder's temporary key pair and security group, and read/write
@@ -243,11 +243,11 @@ published repository.
    `CSIS_CONFIG_PUSH_TOKEN`, a fine-grained token with contents:write on
    the configuration repository only. USER also decides which
    configuration branch the job reads and pushes: `develop` (what `live`
-   reads today) or `master`.
+   reads today) or `main`.
 3. **The job** `apply` in `.github/workflows/ci.yml`: `needs: live`,
-   runs on `push` to `master` and on `workflow_dispatch` with a `mode`
+   runs on `push` to `main` and on `workflow_dispatch` with a `mode`
    input (`dry`, the default on any ref, or `apply`, honoured only on
-   `master`); `concurrency: {group: apply-live, cancel-in-progress: false}`
+   `main`); `concurrency: {group: apply-live, cancel-in-progress: false}`
    so two merges never run against one state at once; checks the
    configuration out beside the system, assumes the write role and names
    it as profile `noaa` the way `live` does, runs `just cli --no-dry-run
@@ -257,21 +257,21 @@ published repository.
    cloud-preflight` as the post-condition (reality matches the records).
 4. **The pins** in `tests/test_v2_ci_workflow.py`: `live` stays read-only
    (line 38); `apply` is the only job that passes `--no-dry-run` or
-   `--commit`, its condition names `refs/heads/master`, it declares the
+   `--commit`, its condition names `refs/heads/main`, it declares the
    concurrency group, and no `GCP_APPLY_*` secret exists anywhere in the
    workflow.
 5. **Cost, in writing**: no run started by CI may leave a billable GCP
    resource standing — the job has no identity that could. On AWS a run
    may leave what convergence baked (an AMI and its snapshot, cents a
    month) until retention disposes it; the ledger entry records what the
-   first `master` run left.
+   first `main` run left.
 6. **Proof**: a `dry` dispatch from the feature branch proves the plumbing
    (the write role assumes, the push token can `git push --dry-run`); the
-   first `apply` happens at the next release to `master` and is recorded
+   first `apply` happens at the next release to `main` and is recorded
    with its run id and what it committed.
 7. Records: ledger; OPERATIONS "CI shape" gains the third job and the
    table's Job column is completed; §18's "later stage" note in this
-   file's header closed. Feature branch `feature/ci-apply-on-master`,
+   file's header closed. Feature branch `feature/ci-apply-on-main`,
    squash-merged, kept. Two days, most of it the USER identities and the
    first run.
 
@@ -429,7 +429,7 @@ gated.
    2. The recipe, in the Justfile:
       ```just
       # Build a publishable tree: the TRACKED files of ROOT at HEAD (nothing ignored can enter), the
-      # public-safe gate over the result, the ignore policy checked, ONE commit on master. Never pushes.
+      # public-safe gate over the result, the ignore policy checked, ONE commit on main. Never pushes.
       publish-tree root dest:
           #!/usr/bin/env bash
           set -euo pipefail
@@ -443,9 +443,9 @@ gated.
           for p in .envrc .private_key.pem .private_key.json .public_key.json '*.pem' tfplan '*.tfstate' '*.tfstate.backup'; do
               grep -qxF -- "$p" "$dest/.gitignore" || { echo "publish-tree: .gitignore lacks $p"; exit 1; }
           done
-          git -C "$dest" init -q -b master && git -C "$dest" add -A
+          git -C "$dest" init -q -b main && git -C "$dest" add -A
           git -C "$dest" commit -q -m "${PUBLISH_MESSAGE:-Initial public release}"
-          echo "publish-tree: $(git -C "$dest" ls-files | wc -l | tr -d ' ') files, one commit on master at $dest"
+          echo "publish-tree: $(git -C "$dest" ls-files | wc -l | tr -d ' ') files, one commit on main at $dest"
       ```
    3. Its test, in `tests/test_v2_justfile_contract.py`: the recipe exists,
       its body never runs `git push`, and a run of it over THIS repository
@@ -486,15 +486,27 @@ gated.
       ```
    4. **DONE 2026-09-16 — no exclusion list** (operator's decision): the
       trees are built with `PUBLISH_EXCLUDE` unset.
-   5. **Both gates clean, both trees pushed on `develop`** (the published
+   5. **DONE — both gates clean, both trees pushed on `develop`** (the published
       tree is `develop`'s: it is what CI reads and what every stage pushes;
-      the sibling's `master` lags and is never pushed by a stage):
+      the sibling's `main` lags and is never pushed by a stage):
       ```sh
       just public-safe && just public-safe-live
       git status --short; git -C ../cs-image-system-testconfig status --short     # both empty
       git log --oneline -1 origin/develop; git -C ../cs-image-system-testconfig log --oneline -1 origin/develop
       ```
-4. **USER — build the trees and the new remotes**, in one sitting; an hour.
+4. **DONE 2026-09-16 — the trees are built and the remotes exist.** Both
+   public repositories hold exactly one commit (659 files and 124 files),
+   two branches and no tags; the originals are renamed `-archive`,
+   private and archived. Two things went differently from the plan below:
+   a fresh tree's `git init` takes the GLOBAL git identity, so the first
+   push was refused for exposing a private address and the single commit
+   had to be re-authored to the operator's GitHub noreply address (the
+   `publish-tree` recipe should copy the source repository's identity —
+   see §43); and the production branch is **`main`**, not `master`
+   (decided 2026-09-16), which the recipe, its test, the manual and §37
+   now say. Renaming the originals freed the old names, so both working
+   checkouts' `origin` silently pointed at the new empty public
+   repositories until they were repointed at the archives.
    1. Both checkouts on `develop`, clean, pushed (step 3.5).
    2. Build the two trees:
       ```sh
@@ -520,7 +532,7 @@ gated.
       ```
    5. Create the public repositories from the trees, push the one commit,
       create `develop` from it and make it the default branch (what a
-      visitor sees and where a pull request lands; `master` stays the
+      visitor sees and where a pull request lands; `main` stays the
       release branch):
       ```sh
       for r in cs-image-system-3 cs-image-system-testconfig; do
@@ -532,7 +544,16 @@ gated.
       Nothing else is pushed, ever: no tag, branch or fork of the old
       history reaches these remotes. The trees under `$P` are done with
       after step 5.
-5. **USER — fresh clones replace the working checkouts**; half an hour.
+5. **DONE 2026-09-16 — fresh clones replace the working checkouts.**
+   Both clones sit at the original paths, the previous checkouts beside
+   them as `*.old`, both on `develop` tracking `origin/develop`, both
+   with the pre-commit gate installed. Beyond `.envrc`, the ignored key
+   material had to be carried over as well (`.private_key.pem`, which
+   `.envrc` reads for `OKTA_API_PRIVATE_KEY`, plus `.private_key.json`
+   and `.public_key.json`) and `_uncommitted/`; without the PEM every
+   live command fails the Okta assertion. `git flow init` creates a local
+   `main` as the production branch, which is why the published branch was
+   renamed to match.
    Never `git remote set-url` on the old checkouts: their `develop` is the
    old history and would push it.
    ```sh
@@ -549,9 +570,9 @@ gated.
    ```
    The `.old` checkouts go once the archives are confirmed on GitHub
    (`gh repo view $O/cs-image-system-3-archive --json isArchived`).
-6. **CI on the new repository**; an hour. Secrets do not travel with a
+6. **CI on the new repository** — steps 1, 2, 3 and 4 DONE 2026-09-16; step 5 pending. Secrets do not travel with a
    new repository and the trust policy names the old repository's id.
-   1. **The seven secrets**, set again from where each value lives, never
+   1. **DONE — the seven secrets** (operator), set from where each value lives, never
       on a command line:
       ```sh
       R=$O/cs-image-system-3; set -a; source .envrc; set +a
@@ -564,7 +585,7 @@ gated.
       gh secret set GCP_SERVICE_ACCOUNT -R $R -b csis-github-readonly@csis-sandbox.iam.gserviceaccount.com
       gh secret list -R $R          # seven, and no CSIS_CONFIG_TOKEN
       ```
-   2. **The AWS trust policy**: the id-bearing subject embeds the
+   2. **DONE — the AWS trust policy** now names the new repository's id (the plain subject was unchanged; the archived repository's id is gone): the id-bearing subject embeds the
       repository id, and a new repository has a new one (the organisation
       id stays):
       ```sh
@@ -573,21 +594,21 @@ gated.
       sed -i '' "s/cs-image-system-3@[0-9]*/cs-image-system-3@$NEW_ID/" /tmp/trust.json
       aws iam update-assume-role-policy --profile noaa --role-name csis-github-readonly --policy-document file:///tmp/trust.json && rm /tmp/trust.json
       ```
-   3. **GCP**: the provider's attribute condition and the service account's
+   3. **DONE — GCP needed nothing**: the name is unchanged, so the provider's attribute condition and the service account's
       `workloadIdentityUser` binding match `assertion.repository ==
       'infrastructurebuilder/cs-image-system-3'` by NAME — nothing changes
       while the name is kept. If it is not, update the provider's
       `--attribute-condition` and re-add the binding for the new
       `attribute.repository/<owner>/<name>`; no billable resource either way.
-   4. **The workflow**, on `feature/public-ci` in the new checkout: the
+   4. **DONE — the workflow** (on `feature/prod-branch-main`, with the branch rename): the
       `live` job's `HAVE_CONFIG` variable and its gate line go, the sibling
       checkout loses its `token:` input (a public repository needs none),
       `tests/test_v2_ci_workflow.py` drops `CSIS_CONFIG_TOKEN` from the
       pinned secrets and asserts no `token:` appears, and the secrets table
       in the operating manual loses the row. Bar, finish, push. Then
-      revoke the fine-grained token itself in GitHub → Settings →
-      Developer settings (it has no use left) and delete the
-      `CSIS_CONFIG_TOKEN` line from `.envrc`.
+      **USER, still open:** revoke the fine-grained token itself in
+      GitHub → Settings → Developer settings (it has no use left) and
+      delete the `CSIS_CONFIG_TOKEN` line from `.envrc`.
    5. **Dispatch and watch** on the new repository:
       ```sh
       gh workflow run ci.yml -R $R --ref develop; sleep 25
@@ -604,8 +625,8 @@ gated.
       ```
    4. The public history is one commit deep and has no other refs:
       ```sh
-      git ls-remote --heads --tags origin            # master, develop; no tags
-      git log --oneline origin/master | wc -l         # 1
+      git ls-remote --heads --tags origin            # main, develop; no tags
+      git log --oneline origin/main | wc -l         # 1
       ```
    5. The new clone still drives the live configuration: `just config-drift` current (step 5).
 8. **Records**, in the new history: the squash message of `feature/public-ci`
@@ -748,5 +769,15 @@ so. Whenever convenient; nothing else waits on it.
    terraform roots too since 2026-09-10. Read the code, make the help say
    what the flag does, and add the missing test if the record is right.
    While there, every option's help is read once against its behaviour.
-8. Records by whatever convention is current when this lands (§42 changes
-   it). Feature branch `feature/hygiene-two`, squash-merged, kept. A day.
+8. **`publish-tree` builds a tree with the wrong git identity.** The
+   recipe's `git init` in a fresh directory takes the GLOBAL git identity,
+   not the source repository's, so the tree's single commit can carry an
+   address the operator does not push with. GitHub refused the first
+   publication push for exactly that, and the commit had to be
+   re-authored by hand. The recipe reads `user.name` and `user.email`
+   from the source repository (falling back to the global values) and
+   writes them into the new repository before committing; its test pins
+   that a source repository with a distinctive `user.email` produces a
+   commit carrying it.
+9. Records by whatever convention is current when this lands. Feature
+   branch `feature/hygiene-two`, squash-merged, kept. A day.
