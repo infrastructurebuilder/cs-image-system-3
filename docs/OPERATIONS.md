@@ -1281,7 +1281,7 @@ exception is a decision to record, not a bypass.
 | [GOLDEN.md](../GOLDEN.md) | the golden fixture: what it is, how it is produced and enforced |
 | [CONFIGURATION.md](CONFIGURATION.md) | the configuration reference: every key of the YAML tree |
 | [PLUGINS.md](PLUGINS.md) | the index of the package READMEs under `packages/` |
-| [PARITY.md](../PARITY.md) | what each runtime implements |
+| [PARITY.md](../PARITY.md) | how the documentation and the system can diverge, and the check for each |
 | [DESIGN.md](DESIGN.md) | the design record |
 | [history/](history/) | frozen: the findings ledger, the GCP readiness study and the live-proof overlays; evidence, not documentation |
 | [tests/fixtures/config/README.md](../tests/fixtures/config/README.md) | the frozen fixture |
@@ -1289,3 +1289,4 @@ exception is a decision to record, not a bypass.
 | [.github/workflows/ci.yml](../.github/workflows/ci.yml) | the CI workflow |
 | [.githooks/pre-commit](../.githooks/pre-commit) | the public-safe hook |
 | `cs-image-system-testconfig` (beside this repository) | the live configuration, its `meta-state/` and committed `generated/` |
+| `cs-image-system-3-archive`, `cs-image-system-testconfig-archive` (GitHub, private, archived) | every commit either repository made before it was published, including the kept feature branches and the records that are frozen here under `history/`. Read-only. Nothing from them ever reaches a public remote. |

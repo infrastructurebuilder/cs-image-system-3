@@ -58,7 +58,13 @@ trust first:
   ids) are copied from records and can go stale when a resource is
   replaced; the records under the live configuration's `meta-state/` are
   authoritative.
-- **The frozen history** is inconsistent with the present by design.
+- **The frozen history** under `docs/history/` is inconsistent with the
+  present by design.
+- **The pre-publication history is not in these repositories at all.**
+  Each was published as a single commit; everything before it lives in a
+  private, archived `…-archive` repository. A claim in any document that
+  cites "the history" for something older than the first public commit
+  cannot be checked from a public clone.
 
 ## How to keep parity
 
