@@ -239,6 +239,13 @@ jobs:
             [ "$HAVE_PUSH" = true ] || { echo "apply: SKIPPED -- no CSIS_CONFIG_PUSH_TOKEN (contents:write on the configuration repository; the run commits, this job pushes)"; ready=false; }
           fi
           echo "ready=$ready" >> "$GITHUB_OUTPUT"
+          # A dispatch or an unconfigured repository may skip and pass. A real run
+          # asked for on `main` may NOT: a missing identity there is a failure, not
+          # a green job that did nothing.
+          if [ "$IS_APPLY" = true ] && [ "$ready" != true ]; then
+            echo "apply: a real run was requested on main and an identity is missing (see above); failing rather than passing silently"
+            exit 1
+          fi
           if [ "$IS_APPLY" = true ]; then
             echo "apply: mode APPLY -- the run performs, and the commit it makes is pushed"
             echo "apply=true" >> "$GITHUB_OUTPUT"

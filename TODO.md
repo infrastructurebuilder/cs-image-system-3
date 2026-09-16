@@ -401,12 +401,21 @@ make one). Once both exist, step 6's proofs run.
    3. **The first `main` run is reported** with its run id and exactly
       what it baked, released, disposed and committed.
 6. **Proof**, in three stages, cheapest first. All three wait on the two open identities.
-   1. **The plumbing, without applying**: dispatch the job in `dry` mode
-      from the feature branch and confirm the write role assumes and the
-      configuration checks out.
+   1. **The plumbing, without applying.** A dispatch off `main` cannot do
+      it: the write role trusts `ref:refs/heads/main` alone, so AWS
+      refuses the assume and the job fails at the credentials step. That
+      refusal is itself worth having — it proves the trust is as narrow as
+      intended — but the dry proof has to run where the role is trusted.
+      So: `main` first carries the job, which is safe while the push token
+      is absent, since apply mode then fails at the gate without touching
+      anything; then a dispatch on `main` in `dry` mode enumerates with
+      every identity in play.
       ```sh
-      gh workflow run ci.yml -R $O/$R --ref feature/ci-apply-on-main -f mode=dry
+      git push origin develop:main          # main carries the job
+      gh workflow run ci.yml -R $O/$R --ref main -f mode=dry
       gh run watch -R $O/$R "$(gh run list -R $O/$R --limit 1 --json databaseId -q '.[0].databaseId')" --exit-status
+      # then read the step conclusions, never just the job's:
+      gh run view <id> --json jobs -q '.jobs[] | select(.name=="apply") | .steps[] | "\(.conclusion) \(.name)"'
       ```
    2. **The push path, without pushing**: a step that runs `git push
       --dry-run` under the token proves write access before anything
@@ -565,5 +574,18 @@ so. Whenever convenient; nothing else waits on it.
    writes them into the new repository before committing; its test pins
    that a source repository with a distinctive `user.email` produces a
    commit carrying it.
-9. Records by whatever convention is current when this lands. Feature
+9. **A secret that exists but is empty reads as absent, and the job
+   passes.** The `live` job skipped every step across three runs on the
+   published repository and reported success each time, because
+   `OKTA_API_PRIVATE_KEY` had been set from a checkout where the file
+   `.envrc` reads it from was missing: the secret existed and its value
+   was the empty string. The gate is right to skip when nothing is
+   configured, but it cannot tell that from configured-and-broken, and a
+   reader of the job's conclusion cannot either. The `apply` job now
+   fails rather than skips when a real run is asked for, and the same
+   distinction belongs in `live`: a gate item whose secret exists but is
+   empty is a failure, not an absence. While here, make `just preflight`
+   report the same way, and never read a job's conclusion as proof that
+   its steps ran.
+10. Records by whatever convention is current when this lands. Feature
    branch `feature/hygiene-two`, squash-merged, kept. A day.

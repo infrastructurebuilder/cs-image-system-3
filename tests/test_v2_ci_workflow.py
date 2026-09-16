@@ -115,6 +115,9 @@ def test_apply_runs_only_on_main_scoped_to_one_runtime_and_never_twice():
     assert on["workflow_dispatch"]["inputs"]["mode"]["default"] == "dry"
     assert "github.ref == 'refs/heads/main'" in gate["env"]["IS_APPLY"]
 
+    # a real run on main with a missing identity fails; it never passes silently
+    assert "exit 1" in gate["run"], "apply mode must fail on a missing identity"
+
     # the push is the job's, not the run's, and it never forces
     push = next(s for s in apply["steps"] if s.get("name", "").startswith("Push what the run"))
     assert "--force" not in push["run"] and "HEAD:develop" in push["run"]
