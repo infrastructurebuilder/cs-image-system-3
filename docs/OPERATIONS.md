@@ -799,9 +799,12 @@ by default and take `no` to apply. `gce-*` are aliases for the
 [ci.yml](../.github/workflows/ci.yml) runs on every push, every pull
 request, a nightly schedule (`23 6 * * *` UTC) and `workflow_dispatch`.
 Every command is a `just` target, so CI and a developer's shell run the
-same thing; `tests/test_v2_ci_workflow.py` pins the shape below, that no
-step passes `--no-dry-run` or `--commit`, and that `verify` reads no
-secret.
+same thing. Three jobs: `verify` is the bar, `live` reads the live
+configuration, and `apply` performs a real run, on `main` alone.
+`tests/test_v2_ci_workflow.py` pins the shape below, that `verify` reads
+no secret, that neither `verify` nor `live` passes `--no-dry-run` or
+`--commit`, and that `apply` cannot run off `main`, cannot run twice at
+once, and holds no write-capable GCP identity.
 
 ### The `verify` job
 
@@ -844,6 +847,38 @@ read-only and a plan needs the state bucket. There is no applying job.
 Every step after the gate carries `if: steps.gate.outputs.ready == 'true'`;
 until every secret exists the job prints its skip lines and passes.
 
+### The `apply` job
+
+The other half of the model: branches verify, `main` applies. It runs
+after `live`, only when the ref is `main` or the run was dispatched by
+hand, and never twice at once (`concurrency: apply-live`, which does not
+cancel a run in flight). Its preparation is `live`'s, step for step, with
+two differences: it assumes `AWS_APPLY_ROLE_ARN`, a write-capable role
+that trusts `main` alone, and it carries the Okta client id, key id and
+scopes the terraform okta provider needs to plan the identity roots.
+
+| Step | What it does |
+| --- | --- |
+| Gate on the apply secrets and decide the mode | one `apply: SKIPPED -- no <SECRET> (…)` line per missing identity; sets `apply=true` only for a push to `main` or a dispatch on `main` asking for it |
+| the two checkouts, the federated credentials, the `[noaa]` shim, the tools | exactly as `live` does them |
+| `just cli --no-dry-run run --all --commit --only-runtime aws-east2-runtime` | the real run, in apply mode: the convergent AWS bakes, the declared releases, retention disposals, and the commit of meta-state and emission into the configuration repository |
+| `just cli run --all --only-runtime aws-east2-runtime` | in dry mode instead: enumerates, commits nothing |
+| Push what the run committed | the run commits, the job pushes (`HEAD:develop`); a non-fast-forward fails the job, and nothing is ever forced |
+| `just cloud-preflight` | the post-condition: reality matches the records after the run |
+
+**What it does not do, by construction.** The scope is one runtime, so
+the GCE runtime is never in it; the job holds no identity that could
+write to GCP, so a GCE root that slipped into scope fails at load instead
+of spending money. The live configuration's `apply_*` flags are all
+false and no `--apply-runtime` is passed, so the storage, instance and
+identity roots plan and gate only. Post-bake tests launch an instance, so
+they need `apply_instances` and do not run here.
+
+**Cost.** No CI run can leave a billable GCP resource standing, because
+no job holds an identity that could create one. On AWS a real run may
+leave what convergence baked, an image and its snapshot, cents a month
+each, until retention disposes them.
+
 ### The `[noaa]` profile shim
 
 The runtimes declare `credentials.profile_name: noaa`. botocore drops the
@@ -862,11 +897,16 @@ credentials for the named profile.
 | `OKTA_API_PRIVATE_KEY` | the load's check that the okta provider can authenticate (`okta_tf_workspace.py`) | live |
 | `TF_VAR_NOS_KEY` → exported as `TF_VAR_nos_coastal_modeling_cloud_sandbox_key` | the load's `_require_tfvar` assertion; the OPA API for gids and the state query (`opa_gids.py`) | live |
 | `TF_VAR_NOS_SECRET` → exported as `TF_VAR_nos_coastal_modeling_cloud_sandbox_secret` | the same two places | live |
-| `CSIS_CONFIG_IDENTITY` | the configuration load, to decrypt `ENC[age:…]` values; the CI age identity | live |
+| `CSIS_CONFIG_IDENTITY` | the configuration load, to decrypt `ENC[age:…]` values; the CI age identity | live, apply |
+| `AWS_APPLY_ROLE_ARN` | the federated-credentials action in `apply`: a WRITE-capable role trusting `main` alone, with the bake's EC2 and image actions and read/write on this configuration's state prefix; deliberately no `iam:PassRole`, no volume or subnet writes, nothing outside the prefix | apply |
+| `OKTA_API_CLIENT_ID`, `OKTA_API_PRIVATE_KEY_ID`, `OKTA_API_SCOPES` | the terraform okta provider, which plans the identity roots in a real run | apply |
+| `CSIS_CONFIG_PUSH_TOKEN` | the push of what the run committed: a fine-grained token with contents:write on the configuration repository and nothing else | apply |
 
 The gate requires all of `OKTA_API_PRIVATE_KEY`, `TF_VAR_NOS_KEY` and
 `TF_VAR_NOS_SECRET` for the Okta item, and both GCP secrets for the GCP
-item. The `verify` job reads none of them.
+item. The `verify` job reads none of them. The rows marked `apply` are
+what that job adds; until every one of them exists it prints its SKIPPED
+lines and passes, exactly as `live` did before its own secrets were set.
 
 ## 4. The operator's cycles
 

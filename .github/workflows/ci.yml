@@ -5,16 +5,23 @@
 name: CI
 
 # Every command is a `just` target, so CI and a developer's shell run the same
-# thing (stage 16's contract). Stage 18 shapes the jobs: `verify` is the
-# acceptance bar and needs neither configuration nor credentials; `live` drives
-# the live configuration read-only and is gated on the secrets the operator
-# provides -- until they exist every leg reports SKIPPED and the job passes.
+# thing. Three jobs: `verify` is the acceptance bar and needs neither
+# configuration nor credentials; `live` drives the live configuration read-only;
+# `apply` is the only job that performs anything, and only on `main`. Each is
+# gated on the secrets the operator provides -- until they exist every leg
+# reports SKIPPED and the job passes.
 on:
   push:
   pull_request:
   schedule:
     - cron: "23 6 * * *"        # nightly (UTC): drift and the strict state query on the live configuration
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry enumerates the run; apply performs it (honoured only on main)"
+        type: choice
+        options: [dry, apply]
+        default: dry
 
 jobs:
   verify:
@@ -185,3 +192,170 @@ jobs:
           TF_VAR_nos_coastal_modeling_cloud_sandbox_secret: ${{ secrets.TF_VAR_NOS_SECRET }}
           CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY }}
         run: just test-mods --strict
+
+  apply:
+    # The other half of the CI model: branches verify, `main` applies. A real run
+    # over the live configuration -- the convergent AWS bakes, the declared
+    # releases, retention disposals -- whose meta-state and emission the RUN
+    # commits into the configuration repository and this job pushes (the run
+    # never pushes). Scope is one runtime: the GCE runtime is never in it, and
+    # this job holds no identity that could write to GCP, so a GCE root that
+    # slipped into scope fails at load instead of spending money. The storage,
+    # instance and identity roots plan and gate only, because the live
+    # configuration's `apply_*` flags are all false and no `--apply-runtime` is
+    # passed; what the run performs is the bakes, the releases and retention.
+    needs: live
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: apply-live           # two merges never run against one state at once
+      cancel-in-progress: false   # an apply in flight is never cancelled
+    permissions:
+      id-token: write             # OIDC federation for the write-capable role
+      contents: read
+    env:
+      AWS_REGION: us-east-2
+    steps:
+      - name: Gate on the apply secrets and decide the mode
+        id: gate
+        env:
+          HAVE_AWS_APPLY: ${{ secrets.AWS_APPLY_ROLE_ARN != '' }}
+          HAVE_GCP: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && secrets.GCP_SERVICE_ACCOUNT != '' }}
+          HAVE_OKTA: ${{ secrets.OKTA_API_PRIVATE_KEY != '' && secrets.TF_VAR_NOS_KEY != '' && secrets.TF_VAR_NOS_SECRET != '' }}
+          HAVE_OKTA_TF: ${{ secrets.OKTA_API_CLIENT_ID != '' && secrets.OKTA_API_PRIVATE_KEY_ID != '' && secrets.OKTA_API_SCOPES != '' }}
+          HAVE_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY != '' }}
+          HAVE_PUSH: ${{ secrets.CSIS_CONFIG_PUSH_TOKEN != '' }}
+          IS_APPLY: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.mode == 'apply') }}
+        run: |
+          ready=true
+          [ "$HAVE_AWS_APPLY" = true ] || { echo "apply: SKIPPED -- no AWS_APPLY_ROLE_ARN (a federated WRITE role trusting main only: the bake, the state prefix, retention)"; ready=false; }
+          [ "$HAVE_GCP" = true ]       || { echo "apply: SKIPPED -- no GCP_WORKLOAD_IDENTITY_PROVIDER / GCP_SERVICE_ACCOUNT (READ-ONLY; the gcloud runtime discovers its network at load)"; ready=false; }
+          [ "$HAVE_OKTA" = true ]      || { echo "apply: SKIPPED -- no OKTA_API_PRIVATE_KEY / TF_VAR_NOS_KEY / TF_VAR_NOS_SECRET (the Okta workspace asserts them at load)"; ready=false; }
+          [ "$HAVE_OKTA_TF" = true ]   || { echo "apply: SKIPPED -- no OKTA_API_CLIENT_ID / OKTA_API_PRIVATE_KEY_ID / OKTA_API_SCOPES (the terraform okta provider plans the identity roots in a real run)"; ready=false; }
+          [ "$HAVE_IDENTITY" = true ]  || { echo "apply: SKIPPED -- no CSIS_CONFIG_IDENTITY (the age identity that decrypts the configuration's ENC[age:...] values)"; ready=false; }
+          [ "$HAVE_PUSH" = true ]      || { echo "apply: SKIPPED -- no CSIS_CONFIG_PUSH_TOKEN (contents:write on the configuration repository; the run commits, this job pushes)"; ready=false; }
+          echo "ready=$ready" >> "$GITHUB_OUTPUT"
+          if [ "$IS_APPLY" = true ]; then
+            echo "apply: mode APPLY -- the run performs, and the commit it makes is pushed"
+            echo "apply=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "apply: mode DRY -- the run enumerates; nothing is committed, nothing is pushed"
+            echo "apply=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out the system
+        if: steps.gate.outputs.ready == 'true'
+        uses: actions/checkout@v4
+        with:
+          path: cs-image-system-3
+
+      - name: Check out the live configuration beside it
+        if: steps.gate.outputs.ready == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: infrastructurebuilder/cs-image-system-testconfig
+          ref: develop
+          path: cs-image-system-testconfig
+
+      - name: Federated AWS credentials
+        if: steps.gate.outputs.ready == 'true'
+        # the WRITE-capable role, which trusts `main` alone; never AWS_ROLE_ARN
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_APPLY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Name the federated credentials as the configuration's profile
+        if: steps.gate.outputs.ready == 'true'
+        # botocore drops the environment credential provider whenever a profile is
+        # named explicitly, and the runtimes declare `credentials.profile_name: noaa`
+        run: |
+          mkdir -p ~/.aws
+          printf '[profile noaa]\nregion = %s\n' "$AWS_REGION" > ~/.aws/config
+          printf '[noaa]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n' \
+            "$AWS_ACCESS_KEY_ID" "$AWS_SECRET_ACCESS_KEY" "$AWS_SESSION_TOKEN" > ~/.aws/credentials
+          chmod 600 ~/.aws/credentials
+
+      - name: Federated GCP credentials
+        if: steps.gate.outputs.ready == 'true'
+        # read-only, the same identity the live job uses: the load discovers the
+        # gcloud network. There is deliberately no write-capable GCP identity.
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Install just
+        if: steps.gate.outputs.ready == 'true'
+        uses: extractions/setup-just@v2
+
+      - name: Install uv
+        if: steps.gate.outputs.ready == 'true'
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install OpenTofu
+        if: steps.gate.outputs.ready == 'true'
+        uses: opentofu/setup-opentofu@v1
+
+      - name: Install Packer
+        if: steps.gate.outputs.ready == 'true'
+        uses: hashicorp/setup-packer@main
+
+      - name: Place the tools where the configuration's executables.yml pins them
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          for tool in tofu packer gcloud ansible-playbook bash docker; do
+            [ -x "/usr/local/bin/$tool" ] || { src="$(command -v "$tool" || true)"; [ -n "$src" ] && sudo ln -sf "$src" "/usr/local/bin/$tool"; }
+          done
+
+      - name: Install dependencies
+        if: steps.gate.outputs.ready == 'true'
+        working-directory: cs-image-system-3
+        run: just init
+
+      - name: The real run over the live configuration
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.apply == 'true'
+        working-directory: cs-image-system-3
+        env:
+          OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY }}
+          OKTA_API_CLIENT_ID: ${{ secrets.OKTA_API_CLIENT_ID }}
+          OKTA_API_PRIVATE_KEY_ID: ${{ secrets.OKTA_API_PRIVATE_KEY_ID }}
+          OKTA_API_SCOPES: ${{ secrets.OKTA_API_SCOPES }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_key: ${{ secrets.TF_VAR_NOS_KEY }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_secret: ${{ secrets.TF_VAR_NOS_SECRET }}
+          CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY }}
+        run: just cli --no-dry-run run --all --commit --only-runtime aws-east2-runtime
+
+      - name: Enumerate the run without performing it
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.apply != 'true'
+        working-directory: cs-image-system-3
+        env:
+          OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY }}
+          OKTA_API_CLIENT_ID: ${{ secrets.OKTA_API_CLIENT_ID }}
+          OKTA_API_PRIVATE_KEY_ID: ${{ secrets.OKTA_API_PRIVATE_KEY_ID }}
+          OKTA_API_SCOPES: ${{ secrets.OKTA_API_SCOPES }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_key: ${{ secrets.TF_VAR_NOS_KEY }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_secret: ${{ secrets.TF_VAR_NOS_SECRET }}
+          CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY }}
+        run: just cli run --all --only-runtime aws-east2-runtime
+
+      - name: Push what the run committed
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.apply == 'true'
+        working-directory: cs-image-system-testconfig
+        # the run commits; this job pushes. A non-fast-forward means a person
+        # committed while the run was in flight: fail loudly, never force.
+        run: |
+          git log --oneline -1
+          git push "https://x-access-token:${{ secrets.CSIS_CONFIG_PUSH_TOKEN }}@github.com/infrastructurebuilder/cs-image-system-testconfig" HEAD:develop
+
+      - name: Reality matches the records (state query --strict)
+        if: steps.gate.outputs.ready == 'true'
+        working-directory: cs-image-system-3
+        env:
+          OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_key: ${{ secrets.TF_VAR_NOS_KEY }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_secret: ${{ secrets.TF_VAR_NOS_SECRET }}
+          CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY }}
+        run: just cloud-preflight
