@@ -10,21 +10,19 @@ system must not take itself.
 Current stage: **none in progress**.
 
 Open stages and their order: §37, then §41; §43 whenever convenient;
-§19 and §30 wait on the operator's decisions. §40 (publication) is done
-but for one USER item.
+§19 and §30 wait on the operator's decisions.
 
 Standing decisions (operator):
 
 - The documentation describes what is; no document carries a commit hash;
   a landed stage is recorded by its squash message, not by a ledger or an
   archive entry.
-- Publication (§40): the repositories go public as fresh single-commit
-  repositories built from redacted trees; the identifiers (account id,
-  project number, VPC, subnet and security-group ids, image ids, the state
-  bucket, the Okta org and OPA team) stay in plaintext; the live rosters
-  stay real and encrypted to the four recipients; the fixture's people are
-  synthetic; the OPA credentials the audit found in the private history
-  were rotated and the old ones expired.
+- Publication is done: both repositories are public, each a single commit
+  built from a redacted tree, with the pre-publication history private and
+  archived. The identifiers (account id, project number, VPC, subnet and
+  security-group ids, image ids, the state bucket, the Okta org and OPA
+  team) are public by decision; the live rosters are real and encrypted to
+  the four recipients; the fixture's people are synthetic.
 - All terraform state stays in the AWS S3 backend by design; a GCS backend
   for the GCE roots and per-runtime networking validation are the very
   last priorities and are not stages; a session identity for the runtime
@@ -274,24 +272,6 @@ published repository.
    file's header closed. Feature branch `feature/ci-apply-on-main`,
    squash-merged, kept. Two days, most of it the USER identities and the
    first run.
-
-## 40. Publication — one USER item remains
-
-Both repositories are public, each built from a redacted tree as a single
-commit, with `develop` the default branch and `main` the production
-branch; the pre-publication history is private and archived in
-`cs-image-system-3-archive` and `cs-image-system-testconfig-archive`, and
-the public repositories share no commit with them. The OPA credentials
-the audit found were rotated and the old ones expired; the five
-enrollment tokens were replaced through the gate. The seven repository
-secrets are set, the AWS trust policy names the new repository, CI is
-green on both jobs, both gates are clean, and a clone with no
-configuration beside it and no credentials passes the bar.
-
-**USER, still open**: revoke the fine-grained `CSIS_CONFIG_TOKEN` in
-GitHub → Settings → Developer settings (a public configuration repository
-needs none, and nothing reads it any more) and delete its line from
-`.envrc`. Then this section goes.
 
 ## 41. Releases publish to an index through `uv publish`
 
