@@ -233,7 +233,11 @@ jobs:
           [ "$HAVE_OKTA" = true ]      || { echo "apply: SKIPPED -- no OKTA_API_PRIVATE_KEY / TF_VAR_NOS_KEY / TF_VAR_NOS_SECRET (the Okta workspace asserts them at load)"; ready=false; }
           [ "$HAVE_OKTA_TF" = true ]   || { echo "apply: SKIPPED -- no OKTA_API_CLIENT_ID / OKTA_API_PRIVATE_KEY_ID / OKTA_API_SCOPES (the terraform okta provider plans the identity roots in a real run)"; ready=false; }
           [ "$HAVE_IDENTITY" = true ]  || { echo "apply: SKIPPED -- no CSIS_CONFIG_IDENTITY (the age identity that decrypts the configuration's ENC[age:...] values)"; ready=false; }
-          [ "$HAVE_PUSH" = true ]      || { echo "apply: SKIPPED -- no CSIS_CONFIG_PUSH_TOKEN (contents:write on the configuration repository; the run commits, this job pushes)"; ready=false; }
+          # the push token is needed only when something will actually be pushed,
+          # so a dry dispatch can prove the rest of the plumbing without it
+          if [ "$IS_APPLY" = true ]; then
+            [ "$HAVE_PUSH" = true ] || { echo "apply: SKIPPED -- no CSIS_CONFIG_PUSH_TOKEN (contents:write on the configuration repository; the run commits, this job pushes)"; ready=false; }
+          fi
           echo "ready=$ready" >> "$GITHUB_OUTPUT"
           if [ "$IS_APPLY" = true ]; then
             echo "apply: mode APPLY -- the run performs, and the commit it makes is pushed"
