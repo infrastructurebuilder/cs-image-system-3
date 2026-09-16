@@ -6,7 +6,7 @@
 
 The tracked files of ROOT at HEAD (nothing ignored can enter), a USER
 exclusion list, the public-safe gate over the result with the root's own
-allow list, the ignore policy checked line by line, ONE commit on master,
+allow list, the ignore policy checked line by line, ONE commit on main,
 never a push. It refuses a dirty root, a finding, an ignore file that lacks
 a required line, and an existing destination. Proven here over a throwaway
 git repository built from the frozen fixture.
@@ -45,7 +45,7 @@ def source(tmp_path: Path) -> Path:
     (root / ".envrc").write_text("export NEVER=travels\n")               # ignored: must not reach the tree
     (root / "_uncommitted").mkdir()
     (root / "_uncommitted" / "notes.md").write_text("private\n")
-    _git(root, "init", "-q", "-b", "master")
+    _git(root, "init", "-q", "-b", "main")
     _git(root, "add", "-A")
     _git(root, "commit", "-q", "-m", "source")
     return root
@@ -56,11 +56,11 @@ def test_the_tree_is_the_tracked_files_at_head_in_one_commit(source: Path, tmp_p
     r = _publish(source, dest, PUBLISH_MESSAGE="first public")
     assert r.returncode == 0, r.stdout + r.stderr
     assert _git(dest, "rev-list", "--count", "HEAD").strip() == "1"
-    assert _git(dest, "branch", "--show-current").strip() == "master"
+    assert _git(dest, "branch", "--show-current").strip() == "main"
     assert _git(dest, "log", "-1", "--format=%s").strip() == "first public"
     assert sorted(_git(dest, "ls-files").split()) == sorted(_git(source, "ls-files").split())
     assert not (dest / ".envrc").exists() and not (dest / "_uncommitted").exists()
-    assert "one commit on master" in r.stdout
+    assert "one commit on main" in r.stdout
     assert _git(dest, "remote").strip() == "", "no remote: the push is the operator's act"
 
 

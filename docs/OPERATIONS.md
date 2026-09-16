@@ -696,7 +696,7 @@ git diff develop feature/<name>    # must be empty
 
 The squash keeps `develop` readable as one commit per piece of work; the
 kept branch preserves the step-by-step history. Never commit directly to
-`develop` or `master`; never force-push a shared branch. Documentation-only
+`develop` or `main`; never force-push a shared branch. Documentation-only
 changes skip the bar (nothing in it reads Markdown); say so.
 
 ### `just build`, `just release`, `just publish-tree`
@@ -732,7 +732,7 @@ none), gated by `public-safe` with the root's own allow list (or the
 fixture's when the root is this repository), the destination's
 `.gitignore` checked line by line for `.envrc`, `.private_key.pem`,
 `.private_key.json`, `.public_key.json`, `*.pem`, `tfplan`, `*.tfstate`,
-`*.tfstate.backup`, then ONE commit on `master` (`PUBLISH_MESSAGE`,
+`*.tfstate.backup`, then ONE commit on `main` (`PUBLISH_MESSAGE`,
 default `Initial public release`). It refuses a dirty root, a finding, a
 missing ignore line or an existing `<dest>`, and never pushes.
 
@@ -769,7 +769,7 @@ needs docker and the live configuration, no cloud credentials.
 | `ci` | lint → pyright (non-blocking) → pytest; not the bar | nothing |
 | `public-safe *ARGS` | scan this checkout with the fixture's allow list | nothing |
 | `public-safe-live *ARGS` | scan the live tree with its allow list | live tree |
-| `publish-tree <root> <dest>` | a publishable copy: tracked files, gate, one commit on `master` | a clean root |
+| `publish-tree <root> <dest>` | a publishable copy: tracked files, gate, one commit on `main` | a clean root |
 | `hooks` / `hooks-live` | `core.hooksPath .githooks` here / in the live checkout | (live tree) |
 | `verify` | alias of `test` | nothing |
 | `clean` / `clean-venv` / `clean-all` | build residue / `.venv` / both plus `uv.lock` | nothing |
@@ -829,7 +829,7 @@ read-only and a plan needs the state bucket. There is no applying job.
 | --- | --- |
 | Gate on the live-configuration secrets | evaluates the secrets below; prints one `live: SKIPPED -- no <SECRET> (…)` line per missing item and sets `ready=false` |
 | Check out the system at `cs-image-system-3` | |
-| Check out the live configuration beside it at `cs-image-system-testconfig` (`develop`) | with `CSIS_CONFIG_TOKEN`; the Justfile's default root and `module_source_base` both resolve |
+| Check out the live configuration beside it at `cs-image-system-testconfig` (`develop`) | the Justfile's default root and `module_source_base` both resolve |
 | Federated AWS credentials | `aws-actions/configure-aws-credentials` assumes `AWS_ROLE_ARN` in `us-east-2` via OIDC (`id-token: write`) |
 | Name the federated credentials as the configuration's profile | writes `[profile noaa]` to `~/.aws/config` and `[noaa]` with the exported key, secret and session token to `~/.aws/credentials` (mode 600) |
 | Federated GCP credentials | `google-github-actions/auth` with `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_SERVICE_ACCOUNT` → Application Default Credentials |
@@ -857,7 +857,6 @@ credentials for the named profile.
 
 | Secret | What reads it | Job |
 | --- | --- | --- |
-| `CSIS_CONFIG_TOKEN` | the checkout of the private configuration repository | live |
 | `AWS_ROLE_ARN` | the federated-credentials action, then the `[noaa]` shim; a READ-ONLY role: EC2 describe for the configuration load, read on the state bucket, image and volume describes for the state query | live |
 | `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_SERVICE_ACCOUNT` | the GCP auth action: the application-default credentials the gcloud runtime's network discovery and the GCP state query use; read-only | live |
 | `OKTA_API_PRIVATE_KEY` | the load's check that the okta provider can authenticate (`okta_tf_workspace.py`) | live |
@@ -896,8 +895,8 @@ pair, with `OKTAPAM_KEY`/`OKTAPAM_SECRET` as its generic fallback).
 Each checkout has a gitignored `.envrc` (never committed; the public-safe
 scanner refuses the name). The system checkout's exports the Okta and
 `TF_VAR_<team>_*` names, `CSIS_CONFIG_IDENTITY`, and the CI names
-(`CSIS_CONFIG_TOKEN`, `GCP_WORKLOAD_IDENTITY_PROVIDER`,
-`GCP_SERVICE_ACCOUNT`); the live checkout's exports the Okta and
+(`GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_SERVICE_ACCOUNT`); the live
+checkout's exports the Okta and
 `TF_VAR_<team>_*` names. Whatever runs a configuration load needs
 `CSIS_CONFIG_IDENTITY` in its environment: the recipe shell has no direnv,
 so `source .envrc` in a subshell or set it inline. Because terraform runs
@@ -1259,7 +1258,7 @@ exception is a decision to record, not a bypass.
 - Work goes through the Justfile, not the underlying tools; a missing
   check gets a recipe.
 - One feature branch per piece of work, squash-merged into `develop`, the
-  branch kept and pushed. Never commit to `develop` or `master` directly;
+  branch kept and pushed. Never commit to `develop` or `main` directly;
   never force-push a shared branch. Nothing in the tooling pushes: a push
   is the operator's act.
 - A change that touches the live configuration commits and pushes that
