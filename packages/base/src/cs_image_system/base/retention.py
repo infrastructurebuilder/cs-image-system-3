@@ -45,7 +45,11 @@ def after_generate(ctx: "GlobalTypeContext", lifecycle: LifecycleLike) -> None:
         return
     from .commands.dispose import retention_plan
     from .utils import system_cli_executable_with_config
-    disposable, debt = retention_plan(ctx)
+    # stage 45: a run scoped to one runtime (--only-runtime, or --apply-runtime
+    # implying it) disposes within that runtime alone -- CI performs on the
+    # AWS runtime with an identity that must never write to the other one
+    scope = getattr(ctx, "only_runtime_scope", None)
+    disposable, debt = retention_plan(ctx, str(scope) if scope else None)
     for b, why in debt:
         log.warning(f"retention debt: {b.get('build_id')} ({b.get('series')}@{b.get('runtime')}) "
                     f"is beyond retention but {why}")
@@ -70,7 +74,8 @@ def after_generate(ctx: "GlobalTypeContext", lifecycle: LifecycleLike) -> None:
         return
     wd = ctx.generation_path / RETENTION_LIFECYCLE.name
     wd.mkdir(parents=True, exist_ok=True)
-    steps = [system_cli_executable_with_config(["dispose", "image", "--retention"], wd)]
+    args = ["dispose", "image", "--retention", *(["--runtime", str(scope)] if scope else [])]
+    steps = [system_cli_executable_with_config(args, wd)]
     if transient_on_ephemeral:
         steps.append(transient_storage_teardown_command(ctx, wd))
     ctx.extend_finalization_phase(ExecutionLifecyclePhase.INSTANCE_GENERATION, steps)

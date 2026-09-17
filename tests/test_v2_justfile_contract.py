@@ -104,10 +104,12 @@ def test_the_live_configuration_never_reaches_the_fast_suite_and_is_guarded_else
     # config-drift: the committed emission versus a fresh dry run, run-local noise ignored
     deps, body = r["config-drift"]
     assert "config-guard" in deps.split()
-    for needle in ("git -C", "archive HEAD generated", "run --all", "<RUN>", "<STAMP>",
-                   "run-summary.json", "state-report.json", ".terraform.lock.hcl", "diff -r", "exit 1"):
+    normaliser = (REPO / "scripts" / "normalise-emission").read_text()      # stage 45: the normaliser is a shared script
+    for needle in ("git -C", "archive HEAD generated", "run --all", "scripts/normalise-emission", "diff -r", "exit 1"):
         assert needle in body, needle
-    assert "<ROOT>" not in body and "s#--root-dir" not in body   # stage 38: an absolute path in the emission IS drift
+    for needle in ("<RUN>", "<STAMP>", "run-summary.json", "state-report.json", ".terraform.lock.hcl"):
+        assert needle in normaliser, needle
+    assert "<ROOT>" not in body + normaliser and "s#--root-dir" not in body + normaliser   # stage 38: an absolute path in the emission IS drift
     assert not re.search(r"cs-image-system .*--commit", body)   # it never records anything
     assert "--undeclare instance:gce-test" in r["gce-decommission"][1] and "--overlay" not in r["gce-decommission"][1]
 
@@ -165,6 +167,27 @@ def test_the_looser_ci_recipe_is_gone_and_the_tofu_executing_recipes_take_the_lo
         assert "scripts/with-tofu-lock" in r[name][1], name              # may execute the roots
     for name in ("config-drift", "cloud-preflight", "test", "pytest", "golden-regen"):
         assert "with-tofu-lock" not in r[name][1], f"{name} never starts tofu and must not contend"
+
+
+def test_the_performing_recipe_and_the_runtime_guard_hold_their_shape():
+    """stage 45: `cloud-perform` is the one recipe that executes a runtime's
+    bakes, releases and retention from CI; it is scoped to the runtime, real,
+    committed and locked. `runtime-unchanged` compares a runtime's emission
+    across records with the same normaliser config-drift uses."""
+    r = _recipes()
+    body = r["cloud-perform"][1]
+    for needle in ("scripts/with-tofu-lock", "--no-dry-run", "run base-image instance-image release retention",
+                   "--only-runtime {{runtime}}", "--commit"):
+        assert needle in body, needle
+    assert "--apply-runtime" not in body and "--all" not in body       # bakes, releases, retention: roots plan and gate only
+    assert "cloud-preflight" in r["cloud-perform"][0]
+    guard = r["runtime-unchanged"][1]
+    assert "runtime describe" in guard and "scripts/normalise-emission" in guard and "git -C" in guard
+    assert "scripts/normalise-emission" in r["config-drift"][1]
+    script = REPO / "scripts" / "normalise-emission"
+    assert os.access(script, os.X_OK)
+    text = script.read_text()
+    assert "run-summary.json" in text and "[0-9]{8}[-_][0-9]{6}" in text
 
 
 def test_preflight_readiness_marks_presence():

@@ -227,7 +227,12 @@ answer for.
 
 Print configuration-driven facts about a runtime as JSON: project or zone,
 ephemerality, retention, the images baked there, the declared storages with
-their cloud names, the instances. Exit 1 for an unknown runtime.
+their cloud names, the instances, its `builders` (image, storage and
+instance builders bound to it) and its `emission` (the
+`<lifecycle>/<builder>` directories under `generated/` that hold its
+emission and exist now -- what a run scoped to another runtime leaves
+untouched, and what `just runtime-unchanged` compares across records).
+Exit 1 for an unknown runtime.
 
 ### `empty --runtime NAME`
 

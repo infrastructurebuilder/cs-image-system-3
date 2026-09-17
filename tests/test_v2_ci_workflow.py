@@ -3,16 +3,18 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """The CI workflow calls only `just` targets and splits into three jobs: the
-credential-free bar, the read-only live job, and the record job that runs the
-full configuration on `main` and commits what it emits.
+credential-free bar, the read-only live job, and the perform job that on
+`main` records the full configuration, performs on the AWS runtime alone
+under the write role, and records again.
 
 The Justfile is the single entry point, so the workflow's own test is that
 every command it runs is a Justfile target -- the targets are tested by their
 own contract test -- plus the shape of each job: what it may touch, what it is
-gated on, and, for `record`, that it runs FULL and unscoped (any filter would
-make the emission partial and its commit would delete everything out of
-scope), that it performs nothing, that no job anywhere holds a write-capable
-cloud credential, and that it cannot record off `main` or twice at once.
+gated on, and, for `perform`, that its records are FULL and unscoped, that
+the only write-capable cloud credential anywhere is the AWS write role held
+for the performing step alone, that the GCE runtime is guarded before anything
+performs, that the closing record runs even after a failure, and that it
+cannot record off `main` or twice at once.
 """
 from __future__ import annotations
 
@@ -25,8 +27,8 @@ REPO = Path(__file__).resolve().parents[1]
 WORKFLOW = REPO / ".github" / "workflows" / "ci.yml"
 
 # steps that are environment or transport plumbing rather than the system
-_PLUMBING = ("Gate on", "Name the federated", "Place the tools", "Push what the run committed",
-              "Prove write access", "Name the committer")
+_PLUMBING = ("Gate on", "Name the federated", "Name the write", "Name the read-only", "Place the tools",
+              "Install what a bake needs", "Push", "Prove write access", "Name the committer")
 
 
 def _workflow() -> dict:
@@ -44,9 +46,10 @@ def test_every_command_is_a_just_target():
             if name.startswith(_PLUMBING):
                 continue
             assert re.match(r"^just [a-z][\w-]*", run.strip()), f"{job_name}/{name}: {run!r}"
-    # no job performs anything; only `record` commits
+    # the workflow itself names no real run: performing is the `cloud-perform`
+    # recipe's business (stage 45), and only `perform` commits
     everything = yaml.safe_dump(wf)
-    assert "--no-dry-run" not in everything, "no CI job may perform a real run"
+    assert "--no-dry-run" not in everything, "a real run is named only inside the Justfile"
     for job_name in ("verify", "live"):
         commands = "\n".join(run for _, run in _run_steps(wf["jobs"][job_name]))
         assert "--commit" not in commands, job_name
@@ -88,54 +91,86 @@ def test_live_is_gated_scheduled_and_read_only():
     assert checkout["with"]["path"] == "cs-image-system-testconfig"      # beside cs-image-system-3
 
 
-def test_record_runs_full_on_main_only_commits_and_holds_no_write_credential():
+def test_perform_records_performs_on_the_aws_runtime_alone_and_records_again():
+    """stage 45: `main` records (a FULL dry run, committed and pushed first),
+    refuses a GCE declaration change, performs on the AWS runtime under the
+    WRITE role through the `cloud-perform` recipe, then records again under
+    the read-only role -- and the closing record and its push run even when
+    the performing step failed, so nothing baked goes unrecorded."""
     wf = _workflow()
-    record = wf["jobs"]["record"]
-    assert record["needs"] == "live"
-    assert "refs/heads/main" in record["if"]
-    assert record["concurrency"] == {"group": "record-live", "cancel-in-progress": False}
-    assert record["permissions"]["id-token"] == "write"
+    job = wf["jobs"]["perform"]
+    assert job["needs"] == "live"
+    assert "refs/heads/main" in job["if"]
+    assert job["concurrency"] == {"group": "record-live", "cancel-in-progress": False}
+    assert job["permissions"]["id-token"] == "write"
 
-    gate = next(s for s in record["steps"] if s.get("id") == "gate")
+    gate = next(s for s in job["steps"] if s.get("id") == "gate")
     for secret in ("AWS_ROLE_ARN", "GCP_WORKLOAD_IDENTITY_PROVIDER", "OKTA_API_PRIVATE_KEY",
                    "CSIS_CONFIG_IDENTITY", "CSIS_CONFIG_PUSH_TOKEN"):
         assert secret in yaml.safe_dump(gate["env"]), secret
     assert "SKIPPED" in gate["run"] and "GITHUB_STEP_SUMMARY" in gate["run"]
     assert "EMPTY" in gate["run"], "a secret that exists but is empty is a failure, not an absence"
     assert "exit 1" in gate["run"], "recording on main must fail on a missing identity"
-    for s in record["steps"]:
+    for s in job["steps"]:
         if s.get("id") != "gate":
             assert "steps.gate.outputs.ready == 'true'" in (s.get("if") or ""), s.get("name")
 
-    # the READ-ONLY role: no CI job may hold a write-capable cloud credential
-    creds = next(s for s in record["steps"] if (s.get("uses") or "").startswith("aws-actions/"))
-    assert creds["with"]["role-to-assume"] == "${{ secrets.AWS_ROLE_ARN }}"
-    assert "AWS_APPLY_ROLE_ARN" not in yaml.safe_dump(wf)
+    names = [s.get("name", "") for s in job["steps"]]
+    def before(a: str, b: str) -> None:
+        assert names.index(a) < names.index(b), f"{a!r} must come before {b!r}"
+
+    # the roles, in order: read-only for the record, WRITE for the performing step
+    # alone, read-only again for the closing record; the write role is the only
+    # write-capable cloud credential anywhere, and GCP never gets one
+    creds = [s for s in job["steps"] if (s.get("uses") or "").startswith("aws-actions/")]
+    assert [c["with"]["role-to-assume"] for c in creds] == [
+        "${{ secrets.AWS_ROLE_ARN }}", "${{ secrets.AWS_APPLY_ROLE_ARN }}", "${{ secrets.AWS_ROLE_ARN }}"]
+    assert yaml.safe_dump(wf).count("AWS_APPLY_ROLE_ARN") == 1
     assert "GCP_APPLY" not in yaml.safe_dump(wf)
+    before("Federated AWS credentials, the WRITE role", "The AWS runtime performs")
+    before("The AWS runtime performs", "Federated AWS credentials, the read-only role again")
+    before("Federated AWS credentials, the read-only role again", "The full run, recorded again")
 
-    # the run is FULL and unscoped: a filter would make the emission partial and
-    # the commit would stage the deletion of every root out of scope
-    committing = [run.strip() for _, run in _run_steps(record) if "--commit" in run]
-    assert committing == ["just cli run --all --commit"]
-    for _, run in _run_steps(record):
-        assert "--only" not in run, run
+    # what commits: the two FULL records, and the performing recipe (scoped to the
+    # AWS runtime inside the Justfile, so the workflow itself names no filter and
+    # no --no-dry-run)
+    committing = [run.strip() for _, run in _run_steps(job) if "--commit" in run]
+    assert committing == ["just cli run --all --commit", "just cli run --all --commit"]
+    perform = next(s for s in job["steps"] if s.get("name") == "The AWS runtime performs")
+    assert perform["run"].strip() == "just cloud-perform aws-east2-runtime"
+    assert "--no-dry-run" not in yaml.safe_dump(wf) and "--only" not in yaml.safe_dump(wf)
 
-    # the committer is named and write access proven BEFORE the record is written:
-    # a runner has no git identity, and `git commit` without one exits 128
-    names = [s.get("name", "") for s in record["steps"]]
-    assert names.index("Name the committer for the record") < names.index("The full run, recorded")
-    committer = next(s for s in record["steps"] if s.get("name") == "Name the committer for the record")
-    assert "user.email" in committer["run"] and "user.name" in committer["run"]
+    # the order of the record: committer named and write access proven, the
+    # record written and PUSHED, the GCE guard, then the performing step
+    before("Name the committer for the record", "The full run, recorded")
+    before("Prove write access to the configuration repository", "The full run, recorded")
+    before("The full run, recorded", "Push the record")
+    before("Push the record", "The GCE runtime stays out of CI, so a change there fails loudly")
+    before("The GCE runtime stays out of CI, so a change there fails loudly", "The AWS runtime performs")
+    proof = next(s for s in job["steps"] if s.get("name", "").startswith("Prove write access"))
+    assert "--dry-run" in proof["run"] and proof.get("id") == "proof" and "before=" in proof["run"]
+    guard = next(s for s in job["steps"] if s.get("name", "").startswith("The GCE runtime stays out"))
+    assert guard["run"].strip().startswith("just runtime-unchanged gcloud-east1") and "steps.proof.outputs.before" in guard["run"]
 
-    assert names.index("Prove write access to the configuration repository") < \
-           names.index("The full run, recorded")
-    proof = next(s for s in record["steps"] if s.get("name", "").startswith("Prove write access"))
-    assert "--dry-run" in proof["run"]
+    # the closing record and every push after the performing step run even on failure
+    for name in ("Push what the performing run committed", "Federated AWS credentials, the read-only role again",
+                 "The full run, recorded again", "Push the closing record"):
+        step = next(s for s in job["steps"] if s.get("name") == name)
+        assert step["if"].startswith("always()"), name
+    for s in job["steps"]:
+        if s.get("name", "").startswith("Push"):
+            assert "--force" not in s["run"] and "HEAD:develop" in s["run"], s["name"]
+
+    # the bake's runner needs: Session Manager (the emitted AWS sources have no
+    # public IP) and ansible; installed only when performing
+    tools = next(s for s in job["steps"] if "Session Manager" in s.get("name", ""))
+    assert "session-manager-plugin" in tools["run"] and "ansible" in tools["run"]
+    assert "steps.gate.outputs.record == 'true'" in tools["if"]
 
     # the push credential reaches git through the checkout, never through a URL
-    cfg = next(s for s in record["steps"] if (s.get("with") or {}).get("path") == "cs-image-system-testconfig")
+    cfg = next(s for s in job["steps"] if (s.get("with") or {}).get("path") == "cs-image-system-testconfig")
     assert "CSIS_CONFIG_PUSH_TOKEN" in cfg["with"]["token"]
-    for s in record["steps"]:
+    for s in job["steps"]:
         assert "@github.com" not in (s.get("run") or ""), s.get("name")
 
     # a dispatch enumerates unless it is asked to record, and only on main
@@ -143,6 +178,3 @@ def test_record_runs_full_on_main_only_commits_and_holds_no_write_credential():
     assert isinstance(on, dict)
     assert on["workflow_dispatch"]["inputs"]["mode"]["default"] == "dry"
     assert "github.ref == 'refs/heads/main'" in gate["env"]["IS_RECORD"]
-
-    push = next(s for s in record["steps"] if s.get("name", "").startswith("Push what the run"))
-    assert "--force" not in push["run"] and "HEAD:develop" in push["run"]
