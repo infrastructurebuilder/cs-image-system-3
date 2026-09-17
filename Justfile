@@ -105,8 +105,12 @@ release target index="test" dry="no":
 		bump=(bump "{{target}}")
 	fi
 	[[ "$new" =~ $shape ]] || { echo "release: $current is a final version and '{{target}}' would make it $new -- open the next version with patch, minor or major (its first development release), then dev for each further one"; exit 2; }
-	# the probes, before anything changes
-	[ -n "${UV_PUBLISH_TOKEN:-}" ] || { echo "release: UV_PUBLISH_TOKEN is not set -- the API token for $name; a release publishes, so it refuses up front rather than leave a tagged, unpublished version"; exit 2; }
+	# the probes, before anything changes. The token: UV_PUBLISH_TOKEN, else the index's own
+	# name (TEST_PYPI_TOKEN or PYPI_TOKEN, the repository secrets' names, so one .envrc line
+	# serves the shell and CI alike)
+	token_var=TEST_PYPI_TOKEN; [ "$name" = pypi ] && token_var=PYPI_TOKEN
+	export UV_PUBLISH_TOKEN="${UV_PUBLISH_TOKEN:-${!token_var:-}}"
+	[ -n "$UV_PUBLISH_TOKEN" ] || { echo "release: neither UV_PUBLISH_TOKEN nor $token_var is set -- the API token for $name; a release publishes, so it refuses up front rather than leave a tagged, unpublished version"; exit 2; }
 	set +e; uv run --no-sync python scripts/index-knows "$simple" cs-image-system "$new"; known=$?; set -e
 	case $known in
 		0) echo "release: $name already knows cs-image-system $new -- a version is never re-cut; take the next one"; exit 1 ;;
@@ -148,8 +152,9 @@ release target index="test" dry="no":
 # built, every file uploaded to INDEX -- `test` (TestPyPI, the default) or `pypi` -- with
 # the files the index already holds with the same content skipped (--check-url), so a
 # re-run after a partial failure, or CI after a local publish, uploads what is missing and
-# nothing twice. The token is UV_PUBLISH_TOKEN from the environment, never here; the
-# endpoints are the `[[tool.uv.index]]` entries in pyproject.toml. A deleted version can
+# nothing twice. The token is UV_PUBLISH_TOKEN, else TEST_PYPI_TOKEN / PYPI_TOKEN (the
+# repository secrets' names), from the environment and never here; the endpoints are the
+# `[[tool.uv.index]]` entries in pyproject.toml. A deleted version can
 # never be uploaded again, on either index: the next upload is a new version.
 [doc("Build and upload the version in the tree to TestPyPI (`test`, the default) or PyPI (`pypi`); UV_PUBLISH_TOKEN from the environment")]
 publish index="test":
@@ -160,7 +165,10 @@ publish index="test":
 		pypi) name=pypi; simple=https://pypi.org/simple/ ;;
 		*) echo "publish: the index is test (TestPyPI, the default) or pypi, not '{{index}}'"; exit 2 ;;
 	esac
-	[ -n "${UV_PUBLISH_TOKEN:-}" ] || { echo "publish: UV_PUBLISH_TOKEN is not set -- the API token for $name, from the environment; never in this file"; exit 2; }
+	# the token: UV_PUBLISH_TOKEN, else the index's own name (TEST_PYPI_TOKEN or PYPI_TOKEN)
+	token_var=TEST_PYPI_TOKEN; [ "$name" = pypi ] && token_var=PYPI_TOKEN
+	export UV_PUBLISH_TOKEN="${UV_PUBLISH_TOKEN:-${!token_var:-}}"
+	[ -n "$UV_PUBLISH_TOKEN" ] || { echo "publish: neither UV_PUBLISH_TOKEN nor $token_var is set -- the API token for $name, from the environment; never in this file"; exit 2; }
 	version=$(uv run --no-sync bump-my-version show current_version)
 	rm -rf dist
 	just build

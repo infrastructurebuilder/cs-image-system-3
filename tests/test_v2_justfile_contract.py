@@ -226,6 +226,11 @@ def test_release_cannot_half_release_and_publish_is_its_own_recipe():
     publish = r["publish"][1]
     for needle in ("rm -rf dist", "just build", 'uv publish --index "$name" --check-url "$simple"', "UV_PUBLISH_TOKEN"):
         assert needle in publish, needle
+    # the token is UV_PUBLISH_TOKEN, else the index's own name -- the repository secrets'
+    # names, so the operator's one .envrc line serves the shell and CI alike
+    for recipe in (body, publish):
+        assert 'token_var=TEST_PYPI_TOKEN; [ "$name" = pypi ] && token_var=PYPI_TOKEN' in recipe
+        assert 'export UV_PUBLISH_TOKEN="${UV_PUBLISH_TOKEN:-${!token_var:-}}"' in recipe
     assert "pypi-" not in publish and "pypi-" not in body                                 # no token shape anywhere
     probe = REPO / "scripts" / "index-knows"
     assert os.access(probe, os.X_OK) and "PEP 700" in probe.read_text()

@@ -256,10 +256,10 @@ What remains is the operator's:
 1. **USER — the credential**: an account-scoped TestPyPI API token
    (test.pypi.org → Account settings → API tokens; scope "entire
    account" while the fifteen project names do not yet exist), exported
-   as `UV_PUBLISH_TOKEN` in the shell that releases (this repository's
-   `.envrc` is the place, never the Justfile); the same token as the
-   repository secret `TEST_PYPI_TOKEN` so the tag's CI job can check the
-   upload. `PYPI_TOKEN` waits for the first final version.
+   as `TEST_PYPI_TOKEN` in the shell that releases (this repository's
+   `.envrc` is the place, never the Justfile; `UV_PUBLISH_TOKEN` overrides
+   it); the same token as the repository secret `TEST_PYPI_TOKEN` so the
+   tag's CI job can check the upload. Done 2026-09-17. `PYPI_TOKEN` waits for the first final version.
 2. **USER — the first upload**: `just release patch` (dry first:
    `just release patch test yes`) → `0.1.1.dev1` on TestPyPI, committed
    and tagged; then `git push --follow-tags` and the `publish` job goes
