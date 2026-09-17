@@ -326,6 +326,17 @@ jobs:
         working-directory: cs-image-system-3
         run: just init
 
+      - name: Name the committer for the record
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
+        working-directory: cs-image-system-testconfig
+        # The RUN commits into this repository, and a runner has no git identity
+        # of its own: without one, `git commit` exits 128 and the run fails after
+        # doing all its work. The bot identity keeps a person's address out of the
+        # configuration repository's history.
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
       - name: Prove write access to the configuration repository
         if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
         working-directory: cs-image-system-testconfig
