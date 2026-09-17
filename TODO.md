@@ -7,10 +7,9 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **§45 in progress** -- the code is landed; step 3 waits on
-the operator, step 4 is the proof.
+Current stage: **none in progress**.
 
-Open stages and their order: §45 to its proof; §41 and §46 whenever convenient
+Open stages and their order: §41 and §46 whenever convenient
 (§46 is correctness work on state isolation); §47, state backends beyond
 S3, follows §46; §48 is the open hygiene bundle; §19 and §30 wait on the
 operator's decisions.
@@ -38,6 +37,11 @@ Standing decisions (operator):
 - No new GCP work unless a change is likely to make the existing GCP code
   fail; then the GCE cycle runs as the proof, on the operator's account,
   and is torn down. GCP is the operator's money.
+- `main` performs (stage 45): a push to `main` records the full
+  configuration, then bakes, releases and applies retention on the AWS
+  runtime under the write role, then records again. The GCE runtime stays
+  out of CI: a declaration change there fails the job before anything
+  performs. A push to `main` is the operator's act.
 - The release publish target is the tag until §41.
 - §19 (the first real model image) stays planned by the operator's
   instruction; §30 (the contract package) is planned.
@@ -277,50 +281,6 @@ the index is PyPI it follows §40.
    paragraph; §16's open item closed for good. Feature branch
    `feature/publish-index`, squash-merged, kept. A day, plus the USER
    decision; the CodeArtifact setup is a dozen CLI commands.
-
-## 45. CI performs on `main`
-
-**Why**: §37 records but does not perform, because generation pruned
-whatever a run did not emit, so only a full run could be committed, and a
-full REAL run would bake on every runtime including one CI must never
-write to. The pruning is fixed and the job is written; what remains is the
-one IAM change the system may not make itself, and the proof.
-
-1. ~~The prerequisite~~ landed: a run scoped to one runtime prunes only
-   within its scope (`generate_lifecycle` keeps the other runtimes'
-   builder directories), its retention disposes within that runtime alone,
-   and a test pins that a scoped run followed by `--commit` deletes nothing
-   under any builder directory. The runner scripts describe the scoped run
-   and the closing full record in CI restores them.
-2. ~~The job~~ written: `perform` on `main` records (full dry run, pushed),
-   guards the GCE runtime (`just runtime-unchanged gcloud-east1`), performs
-   under the WRITE role (`just cloud-perform aws-east2-runtime`: bakes due,
-   release, retention on that runtime; roots plan and gate only), then
-   records again under the read-only role, even after a failure.
-3. **USER -- the write role learns the Session Manager path.** The emitted
-   AWS sources reach their build instance through Session Manager
-   (`ssh_interface = "session_manager"`, no public IP, instance profile
-   `AmazonSSMRoleForInstancesQuickSetup`), so `csis-github-apply` needs
-   `ssm:StartSession` on instances and the SSH and port-forwarding
-   documents, `ssm:TerminateSession`/`ResumeSession`,
-   `ssm:DescribeInstanceInformation`, and `iam:PassRole` on that instance
-   profile's role (plus `iam:GetInstanceProfile`). The prepared document
-   adds exactly those five statements to `csis-apply-bake-and-state`; the
-   system was refused permission to apply it:
-   `aws --profile noaa iam put-role-policy --role-name csis-github-apply
-   --policy-name csis-apply-bake-and-state --policy-document file://<the
-   prepared apply-policy-45.json>`.
-4. **Proof**, once 3 is done: `main` fast-forwarded to develop (8 commits
-   behind at the time of writing), then the push's `perform` job watched.
-   The AWS runtime has one bake due (`imgfile-basic-dask-two`, its inputs
-   changed in §43), so the first performing run is the "something to do"
-   proof and reports what it left standing (the new AMI and its snapshot);
-   a following dispatch with mode `record` on `main` is the "nothing to
-   do" proof and must commit an emission unchanged but for run ids. Any
-   permission the bake still lacks shows up there, loudly, and is added to
-   the role by the operator.
-5. Records by the current convention. Feature branch
-   `feature/ci-perform-on-main`, squash-merged, kept.
 
 ## 46. Multiple state backends, used and proven collision-proof
 
@@ -622,6 +582,14 @@ Whenever convenient; nothing waits on it.
    `cloud-dispose-images` and `cloud-relabel` depend on it and start no
    tofu; the executing recipes create the cache through the lock wrapper.
    Drop the dependency where nothing needs it.
-6. Records by the current convention. Feature branch
+6. **Two things the first performing run on `main` committed that may
+   not belong in the record.** Packer's `manifest.json` landed under the
+   block directory of the baked image, and every push to `main` now makes
+   two record commits (the record and the closing record) whose only
+   difference is run ids and stamps. Decide whether the manifest is a
+   record (then the golden and the ignore policy say so) or run-local
+   (then it joins `run-summary.json`), and whether the closing record
+   should skip its commit when the emission differs only by run ids.
+7. Records by the current convention. Feature branch
    `feature/hygiene-three`, squash-merged, kept. Half a day plus the USER
    decision.
