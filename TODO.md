@@ -582,7 +582,7 @@ Whenever convenient; nothing waits on it.
    `validate` fail on a real mismatch -- or delete the checkers and the
    requirements together. **USER** chooses. Until then §43 collapsed the
    noise to one INFO line.
-2. **Two warnings every load prints that no one reads.**
+2. **Three warnings every load prints that no one reads.**
    `template_utils.cycle_main_yaml` warns "Final cycled YAML still contains
    template tags" on every load (something legitimately unresolved at that
    stage, probably `{{ identified_model.name }}` on OS sub-configurations):
@@ -590,7 +590,10 @@ Whenever convenient; nothing waits on it.
    with the offending snippet. `parent_property_holding_protocol.model_id`
    warns "already has a model assigned … Overwriting" four times per load
    for `OSBuilderBaseImageBuilderSubconfig`: find the second assignment
-   and make it one.
+   and make it one. `orchestrator.py`'s template resolver warns "marked as
+   DEFAULT but has no 'fk_target' metadata" five times per load: either
+   those fields should carry a target, or a DEFAULT that resolves to
+   nothing is the declared meaning and the message goes to DEBUG.
 3. **An unresolvable foreign key only warns.** `orchestrator.py` falls back
    to the raw id when an FK does not resolve, which is how the fixture and
    the live tree named a non-existent image builder for months. A field
