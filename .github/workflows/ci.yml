@@ -268,6 +268,10 @@ jobs:
           repository: infrastructurebuilder/cs-image-system-testconfig
           ref: develop
           path: cs-image-system-testconfig
+          # actions/checkout persists a credential as an HTTP header that overrides
+          # any token in a push URL, so the checkout itself must carry the push
+          # credential; the fallback keeps an unconfigured repository cloning.
+          token: ${{ secrets.CSIS_CONFIG_PUSH_TOKEN || github.token }}
 
       - name: Federated AWS credentials
         if: steps.gate.outputs.ready == 'true'
@@ -333,7 +337,7 @@ jobs:
         # Fail fast. A push credential that is missing, empty or under-scoped must
         # stop the job here, not after a bake has already spent money and changed
         # what the records must describe.
-        run: git push --dry-run "https://x-access-token:${{ secrets.CSIS_CONFIG_PUSH_TOKEN }}@github.com/infrastructurebuilder/cs-image-system-testconfig" HEAD:develop
+        run: git push --dry-run origin HEAD:develop
 
       - name: The real run over the live configuration
         if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.apply == 'true'
@@ -368,7 +372,7 @@ jobs:
         # committed while the run was in flight: fail loudly, never force.
         run: |
           git log --oneline -1
-          git push "https://x-access-token:${{ secrets.CSIS_CONFIG_PUSH_TOKEN }}@github.com/infrastructurebuilder/cs-image-system-testconfig" HEAD:develop
+          git push origin HEAD:develop
 
       - name: Reality matches the records (state query --strict)
         if: steps.gate.outputs.ready == 'true'

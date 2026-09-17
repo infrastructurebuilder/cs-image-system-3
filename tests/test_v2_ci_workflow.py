@@ -123,6 +123,13 @@ def test_apply_runs_only_on_main_scoped_to_one_runtime_and_never_twice():
     proof = next(s for s in apply["steps"] if s.get("name", "").startswith("Prove write access"))
     assert "--dry-run" in proof["run"]
 
+    # the push credential reaches git through the checkout, never through a URL in a
+    # command: actions/checkout persists a header that would override one anyway
+    cfg = next(s for s in apply["steps"] if (s.get("with") or {}).get("path") == "cs-image-system-testconfig")
+    assert "CSIS_CONFIG_PUSH_TOKEN" in cfg["with"]["token"]
+    for s in apply["steps"]:
+        assert "@github.com" not in (s.get("run") or ""), s.get("name")
+
     # a real run on main with a missing identity fails; it never passes silently
     assert "exit 1" in gate["run"], "apply mode must fail on a missing identity"
 
