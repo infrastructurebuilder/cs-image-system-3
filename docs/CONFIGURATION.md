@@ -236,7 +236,7 @@ Builders refer to an executable by its `name` (`executable: open-tofu-1`).
 | --- | --- | --- | --- |
 | `name` | str | required | the name builders reference; non-empty, unique; not `default`/`self` |
 | `type` | str | `executable` | selects the version checker; `default` means "same as `name`" |
-| `version` | str or null | null | a version requirement (`">=1.14, <1.15"`, `"<2.21"`) checked by `validate` |
+| `version` | str or null | null | a version requirement (`">=1.14"`, `">1,<2"`), a PEP 440 specifier set checked by `validate` and every run |
 | `binary` | str or null | the name | path or command to run |
 | `prepended_arguments` | list[str] | `[]` | arguments placed before the command's own |
 | `appended_arguments` | list[str] | `[]` | arguments placed after |

@@ -10,7 +10,7 @@ executables:
     version: ">=2.32"
     binary: aws
   - name: packer
-    version: ">=1.14, <1.15"
+    version: ">=1.14"          # CI's setup action installs the latest (1.16 today) and bakes with it; the operator runs 1.14
     binary: /usr/local/bin/packer
   - name: gcloud
     binary: /usr/local/bin/gcloud
