@@ -885,7 +885,8 @@ emission the record just wrote with the previous record
 that runtime fails the job loudly rather than bake. **A bake that happened
 must never go unrecorded** (an unrecorded image is foreign drift that
 refuses the next run), so the closing record and its push run even when
-the performing step failed.
+the performing step failed -- once the first record was made; a failure
+before it has nothing to close.
 
 The performing step is `just cloud-perform aws-east2-runtime`: a real run
 of `base-image instance-image release retention` under `--only-runtime`,
@@ -902,16 +903,16 @@ the complete emission.
 | --- | --- |
 | Gate on the record secrets and decide the mode | the same rule as `live` (none configured skips and says so in the job summary; a partial set fails by name); sets `record=true` only for a push to `main` or a dispatch on `main` asking for it, and there every secret plus the push token is required -- a missing or empty one is a failure, never a green job that did nothing |
 | the two checkouts, the READ-ONLY federated credentials, the `[noaa]` shim, the tools | exactly as `live` does them; the configuration checkout carries the push credential, because `actions/checkout` persists a header that would override a token in a push URL |
-| Install what a bake needs on the runner | when recording: the Session Manager plugin (the emitted AWS sources reach their build instance through Session Manager, with no public IP) and `ansible-core` for the ansible provisioner, placed where `cfg/executables.yml` pins them |
 | Name the committer for the record | a runner has no git identity, and the RUN commits: without one `git commit` exits 128 after all the work is done. The bot identity keeps a person's address out of the configuration repository's history |
 | Prove write access to the configuration repository | `git push --dry-run`, before the record is written, so a bad token stops the job early; remembers the configuration's HEAD as `before` for the GCE guard |
 | `just cli run --all --commit` | the full run, recorded: generation across every lifecycle and runtime, then the commit of meta-state and emission |
 | `just cli run --all` | in dry mode instead: the same full run, committing nothing |
 | Push the record | the run commits, the job pushes (`HEAD:develop`); a non-fast-forward fails the job, and nothing is ever forced |
 | `just runtime-unchanged gcloud-east1 <before>` | the GCE guard: the runtime's emission directories in the record, normalised like config-drift, against the previous record; a change fails the job here |
+| Install what a bake needs on the runner | the Session Manager plugin (the emitted AWS sources reach their build instance through Session Manager, with no public IP) and `ansible-core` for the ansible provisioner, placed where `cfg/executables.yml` pins them; after the record is pushed and the guard passed, so a failure here leaves a record and performs nothing |
 | Federated AWS credentials, the WRITE role | `AWS_APPLY_ROLE_ARN`: trusts `main` alone; the bake's EC2 and image actions, Session Manager (`ssm:StartSession` on instances and the SSH and port-forwarding documents, `iam:PassRole` for the SSM instance profile), read/write on this configuration's state prefix; the `[noaa]` shim is rewritten with it |
 | `just cloud-perform aws-east2-runtime` | the performing run: bakes due on the AWS runtime, releases, retention; commits its meta-state |
-| Push what the performing run committed | `always()`: pushed even when the step failed |
+| Push what the performing run committed | `always()` once the first record was made: pushed even when the step failed |
 | Federated AWS credentials, the read-only role again | `always()`: the closing record and the state query read with the read-only role, which alone carries the bucket metadata reads |
 | `just cli run --all --commit` | `always()`: the full run, recorded again -- the complete emission after the scoped run, and the bake's lineage |
 | Push the closing record | `always()` |

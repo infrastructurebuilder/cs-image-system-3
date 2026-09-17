@@ -361,18 +361,6 @@ jobs:
         working-directory: cs-image-system-3
         run: just init
 
-      - name: Install what a bake needs on the runner (Session Manager plugin, ansible)
-        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
-        # the emitted AWS sources reach their build instance through Session
-        # Manager (no public IP), which packer drives through this plugin; the
-        # ansible provisioner runs ansible-playbook on the runner
-        run: |
-          curl -fsSL "https://s3.amazonaws.com/session-manager-downloads/session-manager-plugin/latest/ubuntu_64bit/session-manager-plugin.deb" -o /tmp/session-manager-plugin.deb
-          sudo dpkg -i /tmp/session-manager-plugin.deb
-          uv tool install ansible-core
-          sudo ln -sf "$HOME/.local/bin/ansible-playbook" /usr/local/bin/ansible-playbook
-          session-manager-plugin --version && ansible-playbook --version | head -1
-
       - name: Name the committer for the record
         if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
         working-directory: cs-image-system-testconfig
@@ -395,6 +383,7 @@ jobs:
         id: proof
 
       - name: The full run, recorded
+        id: record
         if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
         working-directory: cs-image-system-3
         env:
@@ -433,6 +422,18 @@ jobs:
         # failure here, before anything performs (the record is already pushed)
         run: just runtime-unchanged gcloud-east1 "${{ steps.proof.outputs.before }}"
 
+      - name: Install what a bake needs on the runner (Session Manager plugin, ansible)
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
+        # the emitted AWS sources reach their build instance through Session
+        # Manager (no public IP), which packer drives through this plugin; the
+        # ansible provisioner runs ansible-playbook on the runner
+        run: |
+          curl -fsSL "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb" -o /tmp/session-manager-plugin.deb
+          sudo dpkg -i /tmp/session-manager-plugin.deb
+          uv tool install ansible-core
+          sudo ln -sf "$HOME/.local/bin/ansible-playbook" /usr/local/bin/ansible-playbook
+          session-manager-plugin --version && ansible-playbook --version | head -1
+
       - name: Federated AWS credentials, the WRITE role
         if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
         # trusts `main` alone; the bake's EC2 and image actions, Session Manager
@@ -461,29 +462,34 @@ jobs:
         # instance roots plan and gate only; commits its meta-state
         run: just cloud-perform aws-east2-runtime
 
+      # The closing steps run after a FAILED performing step, but only once the
+      # first record has been made (steps.record): a failure before it -- setup,
+      # the committer, the record itself -- has nothing to close and would fail
+      # again on the same cause (the first run on main did: the committer had
+      # been skipped and the closing commit exited 128).
       - name: Push what the performing run committed
-        if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
+        if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
         working-directory: cs-image-system-testconfig
         run: |
           git log --oneline -1
           git push origin HEAD:develop
 
       - name: Federated AWS credentials, the read-only role again
-        if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
+        if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Name the read-only credentials as the configuration's profile again
-        if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
+        if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
         run: |
           printf '[noaa]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n' \
             "$AWS_ACCESS_KEY_ID" "$AWS_SECRET_ACCESS_KEY" "$AWS_SESSION_TOKEN" > ~/.aws/credentials
           chmod 600 ~/.aws/credentials
 
       - name: The full run, recorded again
-        if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
+        if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
         working-directory: cs-image-system-3
         env:
           OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY }}
@@ -495,7 +501,7 @@ jobs:
         run: just cli run --all --commit
 
       - name: Push the closing record
-        if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
+        if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
         working-directory: cs-image-system-testconfig
         run: |
           git log --oneline -1

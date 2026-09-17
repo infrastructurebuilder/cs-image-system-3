@@ -152,11 +152,16 @@ def test_perform_records_performs_on_the_aws_runtime_alone_and_records_again():
     guard = next(s for s in job["steps"] if s.get("name", "").startswith("The GCE runtime stays out"))
     assert guard["run"].strip().startswith("just runtime-unchanged gcloud-east1") and "steps.proof.outputs.before" in guard["run"]
 
-    # the closing record and every push after the performing step run even on failure
+    # the closing record and every push after the performing step run even on
+    # failure -- but only once the first record was made: a failure before it has
+    # nothing to close (the first run on main skipped the committer and the closing
+    # commit exited 128)
+    record = next(s for s in job["steps"] if s.get("name") == "The full run, recorded")
+    assert record.get("id") == "record"
     for name in ("Push what the performing run committed", "Federated AWS credentials, the read-only role again",
                  "The full run, recorded again", "Push the closing record"):
         step = next(s for s in job["steps"] if s.get("name") == name)
-        assert step["if"].startswith("always()"), name
+        assert step["if"].startswith("always()") and "steps.record.outcome == 'success'" in step["if"], name
     for s in job["steps"]:
         if s.get("name", "").startswith("Push"):
             assert "--force" not in s["run"] and "HEAD:develop" in s["run"], s["name"]
@@ -166,6 +171,12 @@ def test_perform_records_performs_on_the_aws_runtime_alone_and_records_again():
     tools = next(s for s in job["steps"] if "Session Manager" in s.get("name", ""))
     assert "session-manager-plugin" in tools["run"] and "ansible" in tools["run"]
     assert "steps.gate.outputs.record == 'true'" in tools["if"]
+    assert "session-manager-downloads/plugin/latest/ubuntu_64bit" in tools["run"]   # the documented path; the older one is AccessDenied
+    # installed after the record is pushed and the GCE guard passed, so a failure
+    # there leaves a record behind and nothing performed
+    before("Push the record", tools["name"])
+    before("The GCE runtime stays out of CI, so a change there fails loudly", tools["name"])
+    before(tools["name"], "Federated AWS credentials, the WRITE role")
 
     # the push credential reaches git through the checkout, never through a URL
     cfg = next(s for s in job["steps"] if (s.get("with") or {}).get("path") == "cs-image-system-testconfig")
