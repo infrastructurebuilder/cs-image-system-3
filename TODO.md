@@ -9,8 +9,10 @@ system must not take itself.
 
 Current stage: **none in progress**.
 
-Open stages and their order: §37, then §41; §43 whenever convenient;
-§19 and §30 wait on the operator's decisions.
+Open stages and their order: §37 (one USER step left: trigger the first
+record), then §45, which makes CI perform rather than only record and
+needs a generation fix first; §41 whenever convenient; §43 whenever
+convenient; §19 and §30 wait on the operator's decisions.
 
 Standing decisions (operator):
 
@@ -201,254 +203,72 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
 
-## 37. The real run on `main`
+## 37. The record on `main`
 
 **Why**: the operator's CI model is "branches verify, `main` applies". The
-`live` job is half of it, and it is read-only. The other half is a run
-with `--no-dry-run --commit` over the live configuration, whose
-meta-state and emission land in the configuration repository: that is
-what makes a merge to `main` an operation rather than a record. The
-system needs no change for it — the run is the one an operator performs
-by hand ([docs/OPERATIONS.md](docs/OPERATIONS.md)) — so the stage builds
-the job, its identities and its scope.
+`live` job reads; this stage adds the half that writes the record. A full
+run over the live configuration commits the emission and meta-state into
+the configuration repository and pushes them, so a merge to `main` leaves
+the record true rather than merely checked.
 
-**Where this stands**: everything is built, landed and proven except the
-first real run, which is the operator's to trigger. Twelve secrets; the
-write-capable role trusting `main` alone; the push token scoped to the
-configuration repository; `main` level with `develop`; a dry dispatch on
-`main` clearing every step of the job. Three defects were found and fixed
-on the way, each by a check that existed for the purpose: a malformed
-role ARN (the shell ate part of it), a push that authenticated as the
-runner's own identity rather than the operator's token, and a live job
-that had been passing while skipping every step for want of a secret's
-value.
+It records but does not perform, and that is forced rather than chosen.
+**Only a full, unscoped run keeps the emission complete**: any `--only` or
+`--only-runtime` filter makes generation partial, and the run's commit
+stages deletions as readily as additions, so a scoped run that commits
+deletes every root out of scope. Measured on the live tree: a runtime
+filter drops 37 committed files (every GCE packer root, the GCE tofu root,
+both GCP storage roots, two lifecycle runner scripts), and `--only none`
+drops 23. A full REAL run, meanwhile, would bake whatever fingerprint had
+changed, including on the GCE runtime, which no CI job has an identity to
+write to. So the job that keeps the record true carries no write-capable
+cloud credential at all. Performing from CI is §45, and it needs the
+pruning fixed first.
 
-1. **DONE — scope, decided up front.** Nothing here is code; it is the set of
-   decisions the rest of the stage implements, each one checkable today.
-   1. **One runtime.** The job runs `run --all --only-runtime
-      aws-east2-runtime`, the runtime the live images bake on. It never
-      runs the GCE runtime, whose cycle stays a hand-run
-      (`just cloud-cycle gcloud-east1`) under the GCP cost decision.
-   2. **No write-capable GCP identity, ever.** The job keeps the
-      read-only GCP identity the `live` job already uses, because the
-      configuration load discovers the gcloud network. A GCE root that
-      slipped into scope then fails at load instead of spending money.
-   3. **What a real run actually does**, given the live `_config.yml`:
-      ```sh
-      grep -n 'apply_' ../cs-image-system-testconfig/cfg/_config.yml   # instances, storage, identity: all false
-      ```
-      With all three false and no `--apply-runtime`, the storage,
-      instance and identity roots plan and gate only. What the run
-      performs is the convergent bake of AWS images whose declaration
-      changed (packer, in process, ephemeral build instances), the
-      declared releases, retention disposals, and the meta-state commit.
-   4. **What that excludes, and why.** Post-bake tests launch an instance,
-      so they need `apply_instances`; they do not run in this first
-      realisation. Letting the AWS roots apply (`--apply-runtime
-      aws-east2-runtime`) is a later **USER** decision, taken only once
-      the bake half has run unattended for a while.
-   5. Record the four decisions in the stage's squash message, because
-      they are the reason the job is shaped the way it is.
-2. **DONE — the identities.** All three groups exist: the write-capable
-   role and its policy, the Okta triple, and the push token. Three groups. None of them can be created
-   by the system, and none of their values may ever be printed.
-   1. **DONE — the write-capable AWS role**, `csis-github-apply`, trusting only
-      `main` of the published repository. The trust document mirrors the
-      read-only role's but pins the ref; both subject forms are needed
-      because this organisation's OIDC subject embeds ids:
-      ```sh
-      O=infrastructurebuilder; R=cs-image-system-3
-      ACCT=$(aws sts get-caller-identity --profile noaa --query Account --output text)
-      ORG_ID=$(gh api orgs/$O --jq .id); REPO_ID=$(gh api repos/$O/$R --jq .id)
-      cat > /tmp/apply-trust.json <<JSON
-      {"Version":"2012-10-17","Statement":[{"Effect":"Allow",
-       "Principal":{"Federated":"arn:aws:iam::$ACCT:oidc-provider/token.actions.githubusercontent.com"},
-       "Action":"sts:AssumeRoleWithWebIdentity",
-       "Condition":{"StringEquals":{"token.actions.githubusercontent.com:aud":"sts.amazonaws.com",
-         "token.actions.githubusercontent.com:sub":[
-           "repo:$O/$R:ref:refs/heads/main",
-           "repo:$O@$ORG_ID/$R@$REPO_ID:ref:refs/heads/main"]}}}]}
-      JSON
-      aws iam create-role --profile noaa --role-name csis-github-apply \
-        --assume-role-policy-document file:///tmp/apply-trust.json \
-        --description "GitHub Actions: real runs on main (bakes, releases, retention)"
-      rm -f /tmp/apply-trust.json
-      ```
-      Note `ref:refs/heads/main` rather than the read-only role's `:*`:
-      a branch other than `main` cannot assume it even by accident.
-   2. **DONE — its permissions**, three statements, no more. The bake is packer's
-      documented minimum; the state statement is scoped to this
-      configuration's prefix alone; retention needs the deregister and
-      delete:
-      ```sh
-      cat > /tmp/apply-policy.json <<'JSON'
-      {"Version":"2012-10-17","Statement":[
-        {"Sid":"BakeAndDescribe","Effect":"Allow","Resource":"*","Action":[
-          "ec2:Describe*","ec2:RunInstances","ec2:StopInstances","ec2:TerminateInstances",
-          "ec2:CreateKeyPair","ec2:DeleteKeyPair","ec2:CreateSecurityGroup","ec2:DeleteSecurityGroup",
-          "ec2:AuthorizeSecurityGroupIngress","ec2:RevokeSecurityGroupIngress",
-          "ec2:CreateImage","ec2:RegisterImage","ec2:DeregisterImage","ec2:CopyImage",
-          "ec2:CreateSnapshot","ec2:DeleteSnapshot","ec2:CreateTags","ec2:DeleteTags",
-          "ec2:ModifyImageAttribute","ec2:ModifyInstanceAttribute","ec2:GetConsoleOutput",
-          "elasticfilesystem:Describe*","sts:GetCallerIdentity"]},
-        {"Sid":"StatePrefix","Effect":"Allow",
-         "Resource":["arn:aws:s3:::noaa-ioos-cloud-sandbox-tfstate",
-                     "arn:aws:s3:::noaa-ioos-cloud-sandbox-tfstate/statefiles/csia-image-system-test/*"],
-         "Action":["s3:ListBucket","s3:GetObject","s3:PutObject","s3:DeleteObject"]}]}
-      JSON
-      aws iam put-role-policy --profile noaa --role-name csis-github-apply \
-        --policy-name csis-apply-bake-and-state --policy-document file:///tmp/apply-policy.json
-      rm -f /tmp/apply-policy.json
-      gh secret set AWS_APPLY_ROLE_ARN -R $O/$R \
-        -b "arn:aws:iam::$ACCT:role/csis-github-apply"
-      ```
-      Deliberately absent: `iam:PassRole` (no instance profile is
-      attached by a bake), every `ec2:*Volume*` and `ec2:*Subnet*` write
-      (storage and networking are never applied here), and anything
-      outside the state prefix. A later `--apply-runtime` decision adds
-      what the instance roots need, as its own review.
-   3. **DONE — the Okta secrets the terraform provider needs.** The `live` job
-      never plans the identity roots, so it needs only the API key; a
-      real run plans them, and the provider wants the full triple. They
-      are already in `.envrc`:
-      ```sh
-      set -a; . ./.envrc; set +a
-      for v in OKTA_API_CLIENT_ID OKTA_API_PRIVATE_KEY_ID OKTA_API_SCOPES; do
-        printf '%s' "${!v}" | gh secret set "$v" -R $O/$R
-      done
-      ```
-   4. **DONE — the push token** (operator, fine-grained, contents:write on
-      the configuration repository alone, set as `CSIS_CONFIG_PUSH_TOKEN`
-      on the system repository; twelve secrets now). Only a person can
-      create one: GitHub has no API for it. The run commits into the configuration
-      repository but never pushes; the job does. A fine-grained personal
-      access token with **Contents: read and write on
-      `cs-image-system-testconfig` only**, no other repository and no
-      other permission, set as `CSIS_CONFIG_PUSH_TOKEN`. Create it in
-      GitHub → Settings → Developer settings → Fine-grained tokens, then:
-      ```sh
-      gh secret set CSIS_CONFIG_PUSH_TOKEN -R $O/$R   # paste, then Ctrl-D
-      gh secret list -R $O/$R                          # expect 12
-      ```
-   5. **DECIDED — `develop`**, which is what `live` reads and what every stage pushes; the job's checkout `ref:` and its push target are that branch. The question was: which configuration branch the job reads and pushes,
-      `develop`, which is what `live` reads and what every stage pushes
-      (recommended), or the configuration's own `main`. Whichever is
-      chosen, the job's checkout `ref:` and its push target are that one
-      branch, and the answer goes in the job's comment.
-3. **DONE — the job.** One new job in [.github/workflows/ci.yml](.github/workflows/ci.yml),
-   on `feature/ci-apply-on-main`.
-   1. **Its trigger and its mode.** The workflow gains a
-      `workflow_dispatch` input so the plumbing can be exercised without
-      applying anything:
-      ```yaml
-      on:
-        workflow_dispatch:
-          inputs:
-            mode:
-              description: dry enumerates; apply performs (honoured only on main)
-              type: choice
-              options: [dry, apply]
-              default: dry
-      ```
-   2. **Its guard and its lock.** `apply` runs after `live`, only on
-      `main`, and never twice at once against one state:
-      ```yaml
-        apply:
-          needs: live
-          if: github.ref == 'refs/heads/main'
-          concurrency: {group: apply-live, cancel-in-progress: false}
-          permissions: {id-token: write, contents: read}
-          runs-on: ubuntu-latest
-      ```
-   3. **Its preparation** repeats `live`'s, step for step, with two
-      differences: the role is `AWS_APPLY_ROLE_ARN`, and the Okta triple
-      joins the environment. Everything else — the two checkouts side by
-      side, the `[noaa]` profile shim, the tool installation and the
-      pinned paths — is copied verbatim, because a divergence between the
-      two jobs is a defect waiting to happen.
-   4. **The run itself**, one line, and the only place in the workflow
-      that carries `--no-dry-run`:
-      ```yaml
-            - name: The real run over the live configuration
-              working-directory: cs-image-system-3
-              run: just cli --no-dry-run run --all --commit --only-runtime aws-east2-runtime
-      ```
-      With `mode: dry` the flag is omitted, so the same job enumerates
-      instead of performing.
-   5. **The push**, which the run never does. A non-fast-forward is a
-      loud failure, never a force, because it means a person committed to
-      the configuration while the run was in flight:
-      ```yaml
-            - name: Push what the run committed
-              working-directory: cs-image-system-testconfig
-              run: |
-                git log --oneline -1
-                git push "https://x-access-token:${{ secrets.CSIS_CONFIG_PUSH_TOKEN }}@github.com/infrastructurebuilder/cs-image-system-testconfig" HEAD:develop
-      ```
-   6. **The post-condition**: `just cloud-preflight`, so the job fails if
-      the records and the clouds disagree after the run.
-   7. **The skip lines.** The gate step gains the new secrets, each with
-      its own `SKIPPED` line, so a missing identity reads as a reason
-      rather than a stack trace.
-4. **DONE — the pins**, in [tests/test_v2_ci_workflow.py](tests/test_v2_ci_workflow.py).
-   Each is one assertion, and each would have caught a real mistake.
-   1. `live` stays read-only: no `--no-dry-run`, no `--commit`.
-   2. `apply` is the only job that carries either.
-   3. `apply`'s condition names `refs/heads/main`.
-   4. `apply` declares `concurrency.group` and does not cancel in progress.
-   5. `apply` names `AWS_APPLY_ROLE_ARN`, never `AWS_ROLE_ARN`.
-   6. No `GCP_APPLY_*` secret appears anywhere in the workflow.
-   7. `apply`'s run line carries `--only-runtime aws-east2-runtime`, so a
-      scope regression fails the bar rather than a cloud account.
-5. **DONE — cost, in writing**, in the manual's CI section.
-   1. **No CI run can leave a billable GCP resource standing**, because
-      the job holds no identity that could create one. That is a
-      structural guarantee, not a promise.
-   2. **On AWS a run may leave what convergence baked**: an AMI and its
-      snapshot, cents a month each, until retention disposes them.
-   3. **The first `main` run is reported** with its run id and exactly
-      what it baked, released, disposed and committed.
-6. **Proof**, in three stages, cheapest first. The first two are done; the third is the operator's to trigger.
-   1. **DONE — the plumbing, without applying.** A dispatch off `main`
-      cannot do it: the write role trusts `ref:refs/heads/main` alone, so
-      AWS refuses the assume and the job fails at the credentials step.
-      That refusal is worth having — it proves the trust is as narrow as
-      intended. `main` was advanced with the workflow paused, so the
-      advance triggered no run and the first real apply stayed a
-      deliberate act; a dispatch on `main` in `dry` mode then cleared
-      every step: the role assumed, both checkouts landed, the tools
-      installed, write access was proven, the run enumerated with every
-      lifecycle reported `dry-run`, and the strict state query passed.
-      The performing step and the push were skipped, as dry mode requires.
-      ```sh
-      git push origin develop:main          # main carries the job
-      gh workflow run ci.yml -R $O/$R --ref main -f mode=dry
-      gh run watch -R $O/$R "$(gh run list -R $O/$R --limit 1 --json databaseId -q '.[0].databaseId')" --exit-status
-      # then read the step conclusions, never just the job's:
-      gh run view <id> --json jobs -q '.jobs[] | select(.name=="apply") | .steps[] | "\(.conclusion) \(.name)"'
-      ```
-   2. **DONE — the push path, without pushing.** The job proves write
-      access with `git push --dry-run` before the run step, so a token
-      that is missing, empty or under-scoped stops the job rather than
-      being discovered after a bake has spent money. It runs in dry mode
-      too, whenever a push credential is present, which makes it the
-      cheapest check of the token there is.
-   3. **OPEN, USER — the first real run.** Everything before it is
-      proven, so this is a decision rather than a task: `main` is level
-      with `develop`, so the trigger is either a dispatch on `main` with
-      `mode=apply` or the next advance of `main`. Watch it, then check the
+1. **DONE — what the job is, decided from the constraint.** The run is
+   `run --all --commit`, full and unscoped. No bake happens, because a dry
+   run performs nothing. Releases and retention are enumerated, not
+   executed. The record is complete and correct, which is the thing CI is
+   good at guaranteeing.
+2. **DONE — the identities.** The job uses exactly what `live` uses, the
+   read-only AWS role and GCP service account, plus
+   `CSIS_CONFIG_PUSH_TOKEN`, a fine-grained token with contents:write on
+   the configuration repository alone. Twelve secrets exist; two of them
+   (`AWS_APPLY_ROLE_ARN` and the Okta client/key-id/scopes triple) are
+   read by nothing today and wait for §45.
+3. **DONE — the job** in [.github/workflows/ci.yml](.github/workflows/ci.yml):
+   after `live`, only on `main` or by hand, `concurrency: record-live`
+   without cancelling in flight; the dispatch input decides `dry` or
+   `record`; write access is proven with `git push --dry-run` before the
+   record is written; the configuration checkout carries the push
+   credential, because `actions/checkout` persists a header that overrides
+   a token in a push URL; the push is `HEAD:develop` and never forced.
+4. **DONE — the pins** in [tests/test_v2_ci_workflow.py](tests/test_v2_ci_workflow.py):
+   no job anywhere passes `--no-dry-run` or names a write-capable cloud
+   credential; `record` is the only job that commits; its run carries no
+   `--only` of any kind; the write-access proof precedes the record; the
+   push credential never appears in a URL; recording is `main`-only, once
+   at a time, and fails rather than skips when an identity is missing.
+5. **DONE — cost, in writing**, in the manual: no CI run can leave a
+   billable resource standing on either cloud, because no job holds a
+   credential that could create one. That is structural, not a promise.
+6. **Proof.**
+   1. **DONE — the plumbing.** A dry dispatch on `main` cleared every step
+      of the job in its previous shape: the role assumed, both checkouts
+      landed, the tools installed, write access was proven, the run
+      enumerated, and the strict state query passed.
+   2. **DONE — the push path**, proven by the `git push --dry-run` step
+      that now runs before every record.
+   3. **OPEN, USER — the first record.** `main` is level with `develop`
+      once this lands, so the trigger is a dispatch on `main` with
+      `mode=record`, or the next advance of `main`. It commits and pushes
+      one commit to the configuration repository and performs nothing.
+      Watch the step conclusions, not the job's, then confirm the
       configuration repository received exactly one commit and that `just
-      cloud-preflight` is clean locally. It may bake, release and dispose
-      on the AWS account, and it will commit and push.
-7. **Records.**
-   1. The squash message carries step 1's four decisions and what the
-      first run did.
-   2. **DONE** — [docs/OPERATIONS.md](docs/OPERATIONS.md) gained the third job in its
-      CI section, its secrets in the table with the Job column filled in,
-      and step 5's cost sentences.
-   3. This section is removed from the worksheet.
-   4. Feature branch `feature/ci-apply-on-main`, squash-merged, kept. Two
-      days, most of it the USER identities and watching the first run.
+      config-drift` is clean.
+7. **Records.** The squash message carries the emission-completeness rule,
+   which is the reason for the job's shape. [docs/OPERATIONS.md](docs/OPERATIONS.md)
+   has the third job, its secrets and its cost sentences. This section
+   goes when the first record has run.
 
 ## 41. Releases publish to an index through `uv publish`
 
@@ -606,3 +426,33 @@ so. Whenever convenient; nothing else waits on it.
    its steps ran.
 10. Records by whatever convention is current when this lands. Feature
    branch `feature/hygiene-two`, squash-merged, kept. A day.
+
+## 45. CI performs on `main`
+
+**Why**: §37 records but does not perform, because generation prunes
+whatever a run does not emit, so only a full run may be committed, and a
+full REAL run would bake on every runtime including one CI must never
+write to. Fixing the pruning is what lets CI bake, release and dispose
+under a scope, which is the operator's original "main applies".
+
+1. **The prerequisite: a scoped run stops deleting out-of-scope
+   emission.** Generation prunes `generated/` to what the current run
+   emitted. It should prune only within the scope the run was given, so
+   that `run --all --only-runtime aws-east2-runtime` leaves the GCE roots
+   exactly as committed. Decide whether that is a property of generation
+   or of the commit (the run could stage only the paths it emitted), and
+   pin it with a test that a scoped run followed by `--commit` deletes
+   nothing.
+2. **Then the job performs**: `--no-dry-run --commit` under
+   `--only-runtime aws-east2-runtime`, with `AWS_APPLY_ROLE_ARN` and the
+   Okta triple, which already exist. The write role trusts
+   `ref:refs/heads/main` alone and carries the bake's EC2 and image
+   actions plus read/write on this configuration's state prefix, and
+   nothing else.
+3. **The GCE runtime stays out of CI** by the cost decision, so a GCE
+   declaration change must fail the job loudly rather than bake.
+4. **Proof**: a dispatch that performs with nothing to do (every image
+   current) commits an unchanged emission; then one that has something to
+   do, watched, with what it left standing reported.
+5. Records by the convention current when it lands. Feature branch
+   `feature/ci-perform-on-main`, squash-merged, kept.

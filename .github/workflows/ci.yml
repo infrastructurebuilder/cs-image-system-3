@@ -7,9 +7,10 @@ name: CI
 # Every command is a `just` target, so CI and a developer's shell run the same
 # thing. Three jobs: `verify` is the acceptance bar and needs neither
 # configuration nor credentials; `live` drives the live configuration read-only;
-# `apply` is the only job that performs anything, and only on `main`. Each is
-# gated on the secrets the operator provides -- until they exist every leg
-# reports SKIPPED and the job passes.
+# `record` runs the full configuration on `main` and commits what it emits.
+# No job performs a cloud change: none holds a write-capable cloud credential.
+# Each is gated on the secrets the operator provides -- until they exist every
+# leg reports SKIPPED and the job passes.
 on:
   push:
   pull_request:
@@ -18,9 +19,9 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "dry enumerates the run; apply performs it (honoured only on main)"
+        description: "dry enumerates the run; record commits and pushes it (honoured only on main)"
         type: choice
-        options: [dry, apply]
+        options: [dry, record]
         default: dry
 
 jobs:
@@ -193,66 +194,64 @@ jobs:
           CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY }}
         run: just test-mods --strict
 
-  apply:
-    # The other half of the CI model: branches verify, `main` applies. A real run
-    # over the live configuration -- the convergent AWS bakes, the declared
-    # releases, retention disposals -- whose meta-state and emission the RUN
-    # commits into the configuration repository and this job pushes (the run
-    # never pushes). Scope is one runtime: the GCE runtime is never in it, and
-    # this job holds no identity that could write to GCP, so a GCE root that
-    # slipped into scope fails at load instead of spending money. The storage,
-    # instance and identity roots plan and gate only, because the live
-    # configuration's `apply_*` flags are all false and no `--apply-runtime` is
-    # passed; what the run performs is the bakes, the releases and retention.
+  record:
+    # `main` records. A FULL, unscoped run that commits the emission and
+    # meta-state into the configuration repository, and pushes them.
+    #
+    # It performs nothing: no bake, no apply. Two facts force that. Only a full
+    # run keeps the emission complete -- any `--only` filter makes generation
+    # partial and the commit then stages the deletion of everything out of scope
+    # (a scoped run drops 23 to 37 committed files). And a full REAL run would
+    # bake whatever fingerprint changed, including on the GCE runtime, which this
+    # job has no identity to write to. So the job that keeps the record true
+    # carries no write-capable credential at all: the same READ-ONLY AWS role and
+    # GCP service account the live job uses, plus a token that can push the
+    # configuration repository. Performing on `main` is a later stage, and needs
+    # generation to stop pruning out-of-scope emission first.
     needs: live
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     concurrency:
-      group: apply-live           # two merges never run against one state at once
-      cancel-in-progress: false   # an apply in flight is never cancelled
+      group: record-live          # two merges never write one record at once
+      cancel-in-progress: false   # a record in flight is never cancelled
     permissions:
-      id-token: write             # OIDC federation for the write-capable role
+      id-token: write             # OIDC federation for the read-only cloud roles
       contents: read
     env:
       AWS_REGION: us-east-2
     steps:
-      - name: Gate on the apply secrets and decide the mode
+      - name: Gate on the record secrets and decide the mode
         id: gate
         env:
-          HAVE_AWS_APPLY: ${{ secrets.AWS_APPLY_ROLE_ARN != '' }}
+          HAVE_AWS: ${{ secrets.AWS_ROLE_ARN != '' }}
           HAVE_GCP: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && secrets.GCP_SERVICE_ACCOUNT != '' }}
           HAVE_OKTA: ${{ secrets.OKTA_API_PRIVATE_KEY != '' && secrets.TF_VAR_NOS_KEY != '' && secrets.TF_VAR_NOS_SECRET != '' }}
-          HAVE_OKTA_TF: ${{ secrets.OKTA_API_CLIENT_ID != '' && secrets.OKTA_API_PRIVATE_KEY_ID != '' && secrets.OKTA_API_SCOPES != '' }}
           HAVE_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY != '' }}
           HAVE_PUSH: ${{ secrets.CSIS_CONFIG_PUSH_TOKEN != '' }}
-          IS_APPLY: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.mode == 'apply') }}
+          IS_RECORD: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.mode == 'record') }}
         run: |
           ready=true
-          [ "$HAVE_AWS_APPLY" = true ] || { echo "apply: SKIPPED -- no AWS_APPLY_ROLE_ARN (a federated WRITE role trusting main only: the bake, the state prefix, retention)"; ready=false; }
-          [ "$HAVE_GCP" = true ]       || { echo "apply: SKIPPED -- no GCP_WORKLOAD_IDENTITY_PROVIDER / GCP_SERVICE_ACCOUNT (READ-ONLY; the gcloud runtime discovers its network at load)"; ready=false; }
-          [ "$HAVE_OKTA" = true ]      || { echo "apply: SKIPPED -- no OKTA_API_PRIVATE_KEY / TF_VAR_NOS_KEY / TF_VAR_NOS_SECRET (the Okta workspace asserts them at load)"; ready=false; }
-          [ "$HAVE_OKTA_TF" = true ]   || { echo "apply: SKIPPED -- no OKTA_API_CLIENT_ID / OKTA_API_PRIVATE_KEY_ID / OKTA_API_SCOPES (the terraform okta provider plans the identity roots in a real run)"; ready=false; }
-          [ "$HAVE_IDENTITY" = true ]  || { echo "apply: SKIPPED -- no CSIS_CONFIG_IDENTITY (the age identity that decrypts the configuration's ENC[age:...] values)"; ready=false; }
-          # the push token is needed only when something will actually be pushed,
-          # so a dry dispatch can prove the rest of the plumbing without it
-          if [ "$IS_APPLY" = true ]; then
-            [ "$HAVE_PUSH" = true ] || { echo "apply: SKIPPED -- no CSIS_CONFIG_PUSH_TOKEN (contents:write on the configuration repository; the run commits, this job pushes)"; ready=false; }
+          [ "$HAVE_AWS" = true ]      || { echo "record: SKIPPED -- no AWS_ROLE_ARN (the READ-ONLY role the configuration load needs)"; ready=false; }
+          [ "$HAVE_GCP" = true ]      || { echo "record: SKIPPED -- no GCP_WORKLOAD_IDENTITY_PROVIDER / GCP_SERVICE_ACCOUNT (READ-ONLY; the gcloud runtime discovers its network at load)"; ready=false; }
+          [ "$HAVE_OKTA" = true ]     || { echo "record: SKIPPED -- no OKTA_API_PRIVATE_KEY / TF_VAR_NOS_KEY / TF_VAR_NOS_SECRET (the Okta workspace asserts them at load)"; ready=false; }
+          [ "$HAVE_IDENTITY" = true ] || { echo "record: SKIPPED -- no CSIS_CONFIG_IDENTITY (the age identity that decrypts the configuration's ENC[age:...] values)"; ready=false; }
+          if [ "$IS_RECORD" = true ]; then
+            [ "$HAVE_PUSH" = true ] || { echo "record: SKIPPED -- no CSIS_CONFIG_PUSH_TOKEN (contents:write on the configuration repository; the run commits, this job pushes)"; ready=false; }
           fi
           echo "ready=$ready" >> "$GITHUB_OUTPUT"
-          echo "push=$HAVE_PUSH" >> "$GITHUB_OUTPUT"
-          # A dispatch or an unconfigured repository may skip and pass. A real run
-          # asked for on `main` may NOT: a missing identity there is a failure, not
-          # a green job that did nothing.
-          if [ "$IS_APPLY" = true ] && [ "$ready" != true ]; then
-            echo "apply: a real run was requested on main and an identity is missing (see above); failing rather than passing silently"
+          # A dispatch or an unconfigured repository may skip and pass. Recording
+          # on `main` may NOT: a missing identity there is a failure, not a green
+          # job that did nothing.
+          if [ "$IS_RECORD" = true ] && [ "$ready" != true ]; then
+            echo "record: recording was requested on main and an identity is missing (see above); failing rather than passing silently"
             exit 1
           fi
-          if [ "$IS_APPLY" = true ]; then
-            echo "apply: mode APPLY -- the run performs, and the commit it makes is pushed"
-            echo "apply=true" >> "$GITHUB_OUTPUT"
+          if [ "$IS_RECORD" = true ]; then
+            echo "record: mode RECORD -- the full run commits the emission and meta-state, and they are pushed"
+            echo "record=true" >> "$GITHUB_OUTPUT"
           else
-            echo "apply: mode DRY -- the run enumerates; nothing is committed, nothing is pushed"
-            echo "apply=false" >> "$GITHUB_OUTPUT"
+            echo "record: mode DRY -- the full run enumerates; nothing is committed, nothing is pushed"
+            echo "record=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Check out the system
@@ -275,16 +274,14 @@ jobs:
 
       - name: Federated AWS credentials
         if: steps.gate.outputs.ready == 'true'
-        # the WRITE-capable role, which trusts `main` alone; never AWS_ROLE_ARN
+        # the READ-ONLY role: this job writes nothing to any cloud
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_APPLY_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Name the federated credentials as the configuration's profile
         if: steps.gate.outputs.ready == 'true'
-        # botocore drops the environment credential provider whenever a profile is
-        # named explicitly, and the runtimes declare `credentials.profile_name: noaa`
         run: |
           mkdir -p ~/.aws
           printf '[profile noaa]\nregion = %s\n' "$AWS_REGION" > ~/.aws/config
@@ -294,8 +291,6 @@ jobs:
 
       - name: Federated GCP credentials
         if: steps.gate.outputs.ready == 'true'
-        # read-only, the same identity the live job uses: the load discovers the
-        # gcloud network. There is deliberately no write-capable GCP identity.
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
@@ -332,41 +327,36 @@ jobs:
         run: just init
 
       - name: Prove write access to the configuration repository
-        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.push == 'true'
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
         working-directory: cs-image-system-testconfig
-        # Fail fast. A push credential that is missing, empty or under-scoped must
-        # stop the job here, not after a bake has already spent money and changed
-        # what the records must describe.
+        # Fail fast: a push credential that is missing, empty or under-scoped must
+        # stop the job before the record is written, not after.
         run: git push --dry-run origin HEAD:develop
 
-      - name: The real run over the live configuration
-        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.apply == 'true'
+      - name: The full run, recorded
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
         working-directory: cs-image-system-3
         env:
           OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY }}
-          OKTA_API_CLIENT_ID: ${{ secrets.OKTA_API_CLIENT_ID }}
-          OKTA_API_PRIVATE_KEY_ID: ${{ secrets.OKTA_API_PRIVATE_KEY_ID }}
-          OKTA_API_SCOPES: ${{ secrets.OKTA_API_SCOPES }}
           TF_VAR_nos_coastal_modeling_cloud_sandbox_key: ${{ secrets.TF_VAR_NOS_KEY }}
           TF_VAR_nos_coastal_modeling_cloud_sandbox_secret: ${{ secrets.TF_VAR_NOS_SECRET }}
           CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY }}
-        run: just cli --no-dry-run run --all --commit --only-runtime aws-east2-runtime
+        # full and unscoped: any --only filter would make the emission partial and
+        # the commit would then delete everything out of scope
+        run: just cli run --all --commit
 
-      - name: Enumerate the run without performing it
-        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.apply != 'true'
+      - name: The full run, not recorded
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record != 'true'
         working-directory: cs-image-system-3
         env:
           OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY }}
-          OKTA_API_CLIENT_ID: ${{ secrets.OKTA_API_CLIENT_ID }}
-          OKTA_API_PRIVATE_KEY_ID: ${{ secrets.OKTA_API_PRIVATE_KEY_ID }}
-          OKTA_API_SCOPES: ${{ secrets.OKTA_API_SCOPES }}
           TF_VAR_nos_coastal_modeling_cloud_sandbox_key: ${{ secrets.TF_VAR_NOS_KEY }}
           TF_VAR_nos_coastal_modeling_cloud_sandbox_secret: ${{ secrets.TF_VAR_NOS_SECRET }}
           CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY }}
-        run: just cli run --all --only-runtime aws-east2-runtime
+        run: just cli run --all
 
       - name: Push what the run committed
-        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.apply == 'true'
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
         working-directory: cs-image-system-testconfig
         # the run commits; this job pushes. A non-fast-forward means a person
         # committed while the run was in flight: fail loudly, never force.
