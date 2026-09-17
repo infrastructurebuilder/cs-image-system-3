@@ -24,7 +24,7 @@ from typing import Any
 import hcl2
 from hcl2 import Builder
 
-from cs_image_system.base.constants import DEFAULT
+from cs_image_system.base.constants import DEFAULT, OOPS_DEFAULTS
 from cs_image_system.base.singleton import singleton
 from cs_image_system.base.utils import super_safe_name as ssn
 
@@ -87,20 +87,60 @@ class TerraformVariable:
 
 
 @dataclass(frozen=True)
+class StateLocation:
+    """Where one workspace keeps its state (stage 46): the tuple (backend type,
+    bucket, key prefix, object name), normalised so that two spellings of one
+    place compare equal -- repeated slashes collapsed, leading and trailing
+    ones stripped, case kept (S3 keys are case-sensitive), ``.`` and ``..``
+    segments refused. ``BUCKET1//xyz`` and ``BUCKET1/xyz`` are the same
+    location; the emitted ``key`` is the normalised one, so the doubled slash
+    can never reach a backend configuration file."""
+    type: str
+    bucket: str
+    key_prefix: str       # normalised: '' or 'a/b', never a leading or trailing slash
+    object_name: str      # '<workspace>.tfstate' after super_safe_name
+
+    @staticmethod
+    def normalise_prefix(prefix: str | None) -> str:
+        segments = [s for s in (prefix or "").split("/") if s]
+        for s in segments:
+            if s in (".", ".."):
+                raise ValueError(f"state key prefix {prefix!r} carries a {s!r} segment")
+        return "/".join(segments)
+
+    @classmethod
+    def of(cls, type: str, bucket: str, key_prefix: str | None, workspace: str) -> "StateLocation":
+        return cls(type=type, bucket=bucket, key_prefix=cls.normalise_prefix(key_prefix),
+                   object_name=f"{ssn(workspace)}.tfstate")
+
+    @property
+    def key(self) -> str:
+        """The object key inside the bucket."""
+        return f"{self.key_prefix}/{self.object_name}" if self.key_prefix else self.object_name
+
+    def __str__(self) -> str:
+        return f"{self.type}://{self.bucket}/{self.key}"
+
+
+@dataclass(frozen=True)
 class BackendRegistration:
     """A state backend made available for the run (registered by a state plugin)."""
     name: str
     type: str            # e.g. "s3"
     bucket: str
     region: str
-    key_prefix: str      # normalized with trailing '/'
+    key_prefix: str      # as declared; normalised through StateLocation
     encrypt: bool = False
     use_lockfile: bool = True
     profile: str | None = None
     is_default: bool = False
 
+    def state_location(self, workspace: str) -> StateLocation:
+        return StateLocation.of(self.type, self.bucket, self.key_prefix, workspace)
+
     def state_file_path(self, workspace: str) -> str:
-        return f"{self.key_prefix}{ssn(workspace)}.tfstate"
+        """The object key: the normalised prefix and the workspace's state file."""
+        return self.state_location(workspace).key
 
 
 @dataclass(frozen=True)
@@ -251,7 +291,34 @@ class TerraformCollector:
         self._backends[registration.name] = registration
 
     def set_backend(self, workspace: str, backend_name: str = DEFAULT) -> None:
+        """Bind a workspace to a backend. A workspace keeps its state in exactly
+        one location (stage 46): a second binding to a DIFFERENT backend is
+        refused, naming the workspace and both backends; rebinding to the same
+        one is a no-op (a builder may bind per phase)."""
+        current = self._workspace_backend.get(workspace)
+        if current is not None and current != backend_name:
+            raise HclConfigConflictError(
+                f"Workspace '{workspace}' is bound to state backend '{current}' and cannot be "
+                f"rebound to '{backend_name}': a workspace keeps its state in exactly one location"
+            )
         self._workspace_backend[workspace] = backend_name
+
+    @staticmethod
+    def effective_backend_name(*candidates: str | None) -> str:
+        """The chain a workspace's backend resolves through (stage 46.2): the first
+        candidate outside the loader's absent sentinels (``default``, ``self``,
+        empty, unset) -- the builder's own ``state_configuration``, then its
+        runtime's -- else ``default``, the single backend marked ``is_default``."""
+        for candidate in candidates:
+            if candidate not in OOPS_DEFAULTS:
+                return str(candidate)
+        return DEFAULT
+
+    def bind_workspace(self, workspace: str, *candidates: str | None) -> str:
+        """``set_backend`` through the chain; returns the name bound."""
+        name = self.effective_backend_name(*candidates)
+        self.set_backend(workspace, name)
+        return name
 
     def reference_remote_state(self, consumer_workspace: str,
                                producer_workspace: str,
@@ -298,6 +365,36 @@ class TerraformCollector:
     def bound_workspaces(self) -> list[str]:
         return sorted(self._workspace_backend)
 
+    def state_locations(self) -> dict[str, StateLocation]:
+        """Every bound workspace's resolved location (unbound and unresolvable
+        ones absent), whether or not backends are enabled: the collision rule
+        is about the declaration, not the emission."""
+        out: dict[str, StateLocation] = {}
+        for workspace in self.bound_workspaces():
+            reg = self._workspace_backend_registration(workspace)
+            if reg is not None:
+                out[workspace] = reg.state_location(workspace)
+        return out
+
+    @staticmethod
+    def state_collisions(locations: dict[str, StateLocation]) -> list[str]:
+        """One message per location that two or more workspaces would share
+        (stage 46.3): the same bucket and normalised prefix under two backend
+        names, two workspace names that collapse under super_safe_name, or a
+        doubled slash against a single one."""
+        by_location: dict[StateLocation, list[str]] = {}
+        for workspace, location in locations.items():
+            by_location.setdefault(location, []).append(workspace)
+        return [f"workspaces {', '.join(sorted(names))} would share the state object {location}"
+                for location, names in sorted(by_location.items(), key=lambda kv: str(kv[0]))
+                if len(names) > 1]
+
+    def validate_state_locations(self) -> None:
+        """Refuse the run when two bound workspaces resolve to one state object."""
+        collisions = self.state_collisions(self.state_locations())
+        if collisions:
+            raise HclConfigConflictError("state location collision: " + "; ".join(collisions))
+
     def merged_providers(self, workspace: str) -> list[ConfiguredTerraformProvider]:
         """Per-workspace merge: one entry per provider name with intersected
         version constraint; abort on conflict or source disagreement."""
@@ -334,6 +431,7 @@ class TerraformCollector:
         for name, reqs in by_name.items():
             self._agree_source(name, reqs)
             assert_satisfiable(name, [(r.version, r.requested_by) for r in reqs])
+        self.validate_state_locations()
 
     # --- generation (in-memory only) ----------------------------------------
     def generate_terraform_block(self, workspace: str) -> list[str]:
@@ -367,6 +465,13 @@ class TerraformCollector:
         reg = self._workspace_backend_registration(workspace)
         if reg is None or not self.backends_enabled():
             return []
+        return self.render_backend_config(
+            self.backend_settings(reg, workspace),
+            f"# Backend '{reg.name}' ({reg.type}) partial configuration for workspace {workspace}")
+
+    @staticmethod
+    def backend_settings(reg: BackendRegistration, workspace: str) -> dict[str, Any]:
+        """The ``key = value`` settings a workspace's backend file carries."""
         settings: dict[str, Any] = {
             "bucket": reg.bucket,
             "key": reg.state_file_path(workspace),
@@ -376,14 +481,26 @@ class TerraformCollector:
         }
         if reg.profile:
             settings["profile"] = reg.profile
-        lines = [f"# Backend '{reg.name}' ({reg.type}) partial configuration "
-                 f"for workspace {workspace}"]
+        return settings
+
+    @staticmethod
+    def render_backend_config(settings: dict[str, Any], comment: str) -> list[str]:
+        lines = [comment]
         for k, v in settings.items():
             if isinstance(v, bool):
                 lines.append(f"{k} = {str(v).lower()}")
             else:
                 lines.append(f'{k} = "{v}"')
         return lines
+
+    def backend_record(self, workspace: str) -> dict[str, Any] | None:
+        """The record meta-state keeps of where a workspace's state lives
+        (stage 46.4): the backend's name and type over its file settings, enough
+        to write that file again for a migration's previous location."""
+        reg = self._workspace_backend_registration(workspace)
+        if reg is None:
+            return None
+        return {"backend": reg.name, "type": reg.type, **self.backend_settings(reg, workspace)}
 
     def generate_provider_blocks(self, workspace: str) -> list[str]:
         self.validate_all()

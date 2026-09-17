@@ -95,7 +95,7 @@ class TofuGcpStorageBuilder(TofuStorageBuilder[Q]):
         cfg = google_provider_config(self._runtime())
         if cfg:
             col.configure_provider(ws, "google", cfg)
-        col.set_backend(ws, self.model.state_configuration)
+        col.bind_workspace(ws, self.model.state_configuration, self.runtime_state_configuration())   # stage 46: own, runtime's, default
         for identity_ws in sorted(self.identity_workspaces()):
             col.reference_remote_state(ws, producer_workspace=identity_ws)
         items.add_list(col.generate_terraform_block(ws))

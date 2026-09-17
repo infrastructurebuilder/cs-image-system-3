@@ -103,6 +103,12 @@ def run_command(
         help="Let a --no-dry-run run bake on runtimes OUTSIDE its apply scope (a list-valued "
              "apply_* flag or --apply-runtime). Without it such a run refuses before any bake; "
              "--apply-runtime <rt> already implies --only-runtime <rt> unless --only is given.")] = False,
+    migrate_state: Annotated[list[str] | None, typer.Option("--migrate-state",
+        help="MOVE the named terraform workspace's state to the backend it now resolves to "
+             "(repeatable; needs --no-dry-run). The operation backs the old state up beside the "
+             "root, copies it (init -migrate-state -force-copy), accepts only a clean plan at the "
+             "new location and records the move in meta-state. There is deliberately no flag that "
+             "merely proceeds past the move guard; giving resources up is a records correction.")] = None,
 ) -> None:
     """Run one or more lifecycles of the meta-workflow (V2)."""
     # registered lifecycles (release, retention) must exist before `all` /
@@ -123,6 +129,13 @@ def run_command(
     gctx = GlobalTypeContext()
     gctx.explicit_bake_selection = bool(only or only_runtime)
     gctx.allow_unscoped_bakes = allow_unscoped_bakes
+    workspaces = [w.strip() for w in (migrate_state or []) if w.strip()]
+    if workspaces:
+        if gctx.dry_run:
+            typer.secho("--migrate-state moves state and needs --no-dry-run: a dry run never moves state",
+                        fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=2)
+        gctx.migrate_state = workspaces
     if apply_runtime:
         if apply_runtime not in gctx.runtime_builders:
             typer.secho(f"--apply-runtime: unknown runtime {apply_runtime!r}", fg=typer.colors.RED, err=True)
@@ -449,6 +462,34 @@ def release_command(
         raise typer.Exit(code=1)
     typer.echo(json.dumps(entry, indent=2, sort_keys=True))
     typer.secho(f"released {image} {build_id} for model {model}", fg=typer.colors.GREEN)
+
+
+@app.command(name="state-migration")
+def state_migration_command(
+    action: Annotated[str, typer.Argument(
+        help="begin: write the previous location beside the root, refuse a non-empty new location, back the "
+             "old state up and leave the root initialised against the previous location; finish: record the "
+             "move once the plan at the new location was clean")],
+    workspace: Annotated[str, typer.Option("--workspace", help="The terraform workspace (its builder's name)")],
+    run: Annotated[str, typer.Option("--run", help="The id of the migrating run")],
+    tofu: Annotated[str, typer.Option("--tofu", help="tofu/terraform binary")] = "tofu",
+    backend_config: Annotated[Path | None, typer.Option("--backend-config",
+        help="The root's .tfbackend.hcl (the NEW location); begin only")] = None,
+) -> None:
+    """One step of a state migration (stage 46.4.3), emitted into a root's runner by
+    `run --migrate-state <workspace>`; never a by-hand command."""
+    from cs_image_system.base.commands.state_migration import begin, finish
+    from cs_image_system.base.global_context import GlobalTypeContext
+    gctx = GlobalTypeContext()
+    if action == "begin":
+        code = begin(gctx, workspace, tofu, backend_config, run, Path.cwd())
+    elif action == "finish":
+        code = finish(gctx, workspace, run, Path.cwd())
+    else:
+        typer.secho(f"state-migration: the action is begin or finish, not {action!r}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=2)
+    if code:
+        raise typer.Exit(code=code)
 
 
 @app.command(name="gate-plan")

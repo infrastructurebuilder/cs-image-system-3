@@ -51,6 +51,7 @@ def test_every_command_is_a_just_target():
     # recipe's business (stage 45), and only `perform` commits
     everything = yaml.safe_dump(wf)
     assert "--no-dry-run" not in everything, "a real run is named only inside the Justfile"
+    assert "--migrate-state" not in everything, "CI never migrates state (stage 46): the flag is an operator's, by hand"
     for job_name in ("verify", "live"):
         commands = "\n".join(run for _, run in _run_steps(wf["jobs"][job_name]))
         assert "--commit" not in commands, job_name

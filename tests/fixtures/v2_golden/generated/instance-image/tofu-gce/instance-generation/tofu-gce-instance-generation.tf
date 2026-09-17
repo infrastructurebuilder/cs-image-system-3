@@ -29,9 +29,9 @@ data "terraform_remote_state" "aws_efs" {
     backend = "s3"
     
     config = {
-        bucket = "noaa-ioos-cloud-sandbox-tfstate"
-        key = "statefiles/csia-image-system-test/aws_efs.tfstate"
-        region = "us-east-2"
+        bucket = "my-east1-tfstate-bucket"
+        key = "statefiles/csia/aws_efs.tfstate"
+        region = "us-east-1"
         profile = "noaa"
     }
 }
@@ -39,9 +39,9 @@ data "terraform_remote_state" "aws_ebs" {
     backend = "s3"
     
     config = {
-        bucket = "noaa-ioos-cloud-sandbox-tfstate"
-        key = "statefiles/csia-image-system-test/aws_ebs.tfstate"
-        region = "us-east-2"
+        bucket = "my-east1-tfstate-bucket"
+        key = "statefiles/csia/aws_ebs.tfstate"
+        region = "us-east-1"
         profile = "noaa"
     }
 }
@@ -49,9 +49,9 @@ data "terraform_remote_state" "aws_s3" {
     backend = "s3"
     
     config = {
-        bucket = "noaa-ioos-cloud-sandbox-tfstate"
-        key = "statefiles/csia-image-system-test/aws_s3.tfstate"
-        region = "us-east-2"
+        bucket = "my-east1-tfstate-bucket"
+        key = "statefiles/csia/aws_s3.tfstate"
+        region = "us-east-1"
         profile = "noaa"
     }
 }
@@ -59,9 +59,9 @@ data "terraform_remote_state" "gcp_pd" {
     backend = "s3"
     
     config = {
-        bucket = "noaa-ioos-cloud-sandbox-tfstate"
-        key = "statefiles/csia-image-system-test/gcp_pd.tfstate"
-        region = "us-east-2"
+        bucket = "my-east1-tfstate-bucket"
+        key = "statefiles/csia/gcp_pd.tfstate"
+        region = "us-east-1"
         profile = "noaa"
     }
 }
@@ -69,9 +69,9 @@ data "terraform_remote_state" "gcp_gcs" {
     backend = "s3"
     
     config = {
-        bucket = "noaa-ioos-cloud-sandbox-tfstate"
-        key = "statefiles/csia-image-system-test/gcp_gcs.tfstate"
-        region = "us-east-2"
+        bucket = "my-east1-tfstate-bucket"
+        key = "statefiles/csia/gcp_gcs.tfstate"
+        region = "us-east-1"
         profile = "noaa"
     }
 }

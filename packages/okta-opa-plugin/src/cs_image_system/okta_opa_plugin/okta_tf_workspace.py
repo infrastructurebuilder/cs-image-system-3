@@ -177,7 +177,7 @@ class OktaTfWorkspaceModelMixin:
                                    dict(configured.config))
             for variable in self.provider_variables(provider):
                 col.declare_variable(workspace, variable)
-        col.set_backend(workspace, self.state_configuration)
+        col.bind_workspace(workspace, self.state_configuration)   # stage 46: own value, else the default (no runtime)
 
     # ------------------------------------------------------------------
     # Finalization

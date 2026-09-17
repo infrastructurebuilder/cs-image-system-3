@@ -10,7 +10,7 @@ from packaging.version import parse
 import logging
 log = logging.getLogger(__name__)
 
-from ..constants import VCT, ComplianceState
+from ..constants import VCT, ComplianceState, STATE_BACKEND_FIELD
 from .. import registry
 from ..basic.abstract_version_checker import AbstractVersionChecker
 from ..basic.builder_base import BuilderBase
@@ -192,13 +192,140 @@ def check_executables_exist_and_versions(ctx: GlobalTypeContext) -> list[Excepti
         log.info(f"No executable declared, version check skipped: {', '.join(unspecified)}")
     return exs
 
+# ------------------------------------------------------------ state locations
+
+def terraform_workspaces(ctx: GlobalTypeContext) -> dict[str, tuple[str | None, str | None]]:
+    """workspace -> (its builder's own ``state_configuration``, its runtime's)
+    for every builder that owns a terraform root, read from the models alone
+    so ``validate`` resolves the bindings without generating anything (stage
+    46.3.4). The runtime rung belongs to the roots that have a runtime -- the
+    storage and instance roots; an identity root resolves its own value or
+    the default, exactly as the builders bind at generation."""
+    out: dict[str, tuple[str | None, str | None]] = {}
+    runtime_rooted = set(ctx.storage_builders) | set(ctx.instance_builders)
+    for builder in ctx.all_sorted_builders:
+        name = builder.get_name()
+        if name in ctx.runtime_builders:
+            continue
+        model = getattr(builder, "model", None)
+        if model is None or not hasattr(model, STATE_BACKEND_FIELD):
+            continue
+        runtime_value: str | None = None
+        if name in runtime_rooted:
+            try:
+                runtime_name = model.get_runtime_provider()
+            except ValueError:
+                runtime_name = None
+            rtb = ctx.runtime_builders.get(runtime_name) if runtime_name else None
+            runtime_value = getattr(getattr(rtb, "model", None), STATE_BACKEND_FIELD, None) if rtb else None
+        out[name] = (getattr(model, STATE_BACKEND_FIELD), runtime_value)
+    return out
+
+
+def deployed_in_workspace(ctx: GlobalTypeContext, workspace: str) -> list[str]:
+    """What the records say stands in a workspace's state (stage 46.4.2):
+    storages whose recorded state is not destroyed, the groups and users the
+    identity read-model attributes to the root, and instances pinned to a
+    build (a pin is a standing instance; a decommission removes it)."""
+    ms = ctx.meta_state
+    out: list[str] = []
+    read_model = ms.storage_read_model().get("storages") or {}
+    for name, rec in ms.storage_states().items():
+        state = rec.get("state")
+        if state in (None, "destroyed"):
+            continue
+        builder = (rec.get("facts") or {}).get("builder") or (read_model.get(name) or {}).get("builder")
+        if builder == workspace:
+            out.append(f"storage {name} ({state})")
+    # the identity read-model is written at generation, so it is evidence only
+    # once a recorded run has EXECUTED the identity lifecycle
+    identity_applied = any((run.get("apply") or {}).get("identity") == "executed"
+                           for run in (ms.read("runs.yaml").get("runs") or []))
+    identity = ms.identity_read_model() if identity_applied else {}
+    for kind in ("groups", "users"):
+        entries = identity.get(kind) or {}
+        for name, rec in (entries.items() if isinstance(entries, dict) else []):
+            if isinstance(rec, dict) and rec.get("builder") == workspace:
+                out.append(f"{kind[:-1]} {name}")
+    builders_of = {inst.get_name(): getattr(inst, "type_", None) for inst in ctx.instances}
+    for inst, build in ms.instance_pins().items():
+        if builders_of.get(inst) == workspace:
+            out.append(f"instance {inst} (build {build})")
+    return out
+
+
+def check_state_locations(ctx: GlobalTypeContext) -> list[Exception]:
+    """Stage 46: every terraform root's state location resolved from the
+    declarations, then two refusals. Collisions (46.3): two roots that would
+    write one state object -- the same bucket and normalised prefix under two
+    backend names, two names that collapse under super_safe_name, a doubled
+    slash against a single one. Moves (46.4): a root whose resolved location
+    differs from the one meta-state recorded while the records show live
+    resources in it -- the new location is empty, so the next plan would
+    create everything again and strand the old state. A root with nothing
+    deployed moves freely. The escape is an operation, `--migrate-state
+    <workspace>`, never an override; giving resources up is a records
+    correction, not a rebinding."""
+    try:
+        from cs_image_system.hashicorp_utils.collector import StateLocation, TerraformCollector
+    except ImportError:  # pragma: no cover - hashicorp-utils is always installed here
+        return []
+    col = TerraformCollector()
+    if not col.backends_enabled():
+        return []
+    errors: list[Exception] = []
+    resolved: dict[str, StateLocation] = {}
+    for workspace, (own, runtime_value) in terraform_workspaces(ctx).items():
+        name = col.effective_backend_name(own, runtime_value)
+        try:
+            reg = col.resolve_backend(name)
+        except Exception as ex:                       # more than one default: the existing guard
+            errors.append(ex)
+            continue
+        if reg is None:
+            errors.append(Exception(f"workspace '{workspace}' names state backend '{name}', which is not declared"))
+            continue
+        try:
+            resolved[workspace] = reg.state_location(workspace)
+        except ValueError as ex:                      # a `.` or `..` segment in the prefix
+            errors.append(Exception(f"workspace '{workspace}': {ex}"))
+    for message in col.state_collisions(resolved):
+        errors.append(Exception(f"state location collision: {message}"))
+    recorded = ctx.meta_state.state_locations()
+    migrating = set(getattr(ctx, "migrate_state", None) or [])
+    for workspace, location in sorted(resolved.items()):
+        old = recorded.get(workspace)
+        if not old:
+            continue
+        old_key = ctx.meta_state.location_key(old)
+        if old_key == (location.type, location.bucket, location.key) or workspace in migrating:
+            continue
+        old_text = f"{old_key[0]}://{old_key[1]}/{old_key[2]}"
+        deployed = deployed_in_workspace(ctx, workspace)
+        if not deployed:
+            log.info(f"workspace '{workspace}' moves its state from {old_text} to {location}: "
+                     "nothing is deployed from it, so nothing is at risk")
+            continue
+        errors.append(Exception(
+            f"workspace '{workspace}' would move its state from {old_text} to {location} while "
+            f"{', '.join(deployed)} stand(s) in it: the new location is empty, so the next plan would "
+            f"create everything again and strand the old state. To MOVE the state: "
+            f"`run --no-dry-run ... --migrate-state {workspace}` (backs the old state up, copies it, "
+            f"accepts only a clean plan at the new location and records the move). If those resources "
+            f"are gone or being given up, correct the records instead (the state query's import and "
+            f"forget paths); never rebind past this refusal."))
+    return errors
+
+
 def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     """The configuration checks, with no side effects on generated output:
-    unique global ids, executables present and version-compliant."""
+    unique global ids, executables present and version-compliant, every
+    terraform root's state location (stage 46)."""
     exs: list[Exception] = []
     # Check to ensure that all OS Builder runtimes and all images have a unique id
     # This allouws us to use the name as the identifier for the dependency tree.
     exs.extend(check_name_uniquness(ctx))
     # Chec existence and versions of executables before we try doign any real work
     exs.extend(check_executables_exist_and_versions(ctx))
+    exs.extend(check_state_locations(ctx))
     return exs

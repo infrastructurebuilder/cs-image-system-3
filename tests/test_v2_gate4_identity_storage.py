@@ -158,6 +158,11 @@ def test_storage_root_consumes_gids_by_reference_only(v2):
     assert 'data.terraform_remote_state.oktagroups.outputs.group_gids["stofs"]' in module
     assert '"path" = "/coops"' in module and '"permissions" = "2775"' in module
     assert 'output "storage_efs_storage"' in module
+    # stage 46: the storage root keeps its own state in the second backend and
+    # reads the identity root's from the first -- the isolation is real
+    backend = efs["aws-efs-storage-generation.tfbackend.hcl"]
+    assert 'bucket = "my-east1-tfstate-bucket"' in backend and 'key = "statefiles/csia/aws_efs.tfstate"' in backend
+    assert 'bucket = "noaa-ioos-cloud-sandbox-tfstate"' in root and "csia-image-system-test/oktagroups.tfstate" in root
     everything = "\n".join(tree(v2.generated / "storage").values())
     assert not LITERAL_GID.search(everything), "a literal gid leaked into storage IaC (N7)"
     # ebs carries no gid at the cloud level (ownership is applied at mount time)

@@ -398,3 +398,15 @@ def test_state_query_reports_a_declared_lifecycle_the_resource_lacks(prepared):
     assert storage_drift(run.ctx, real) == []
     del real["default-bucket"]["lifecycle"]                  # a provider that reported nothing makes no claim
     assert storage_drift(run.ctx, real) == []
+
+
+def test_the_instance_root_reads_storage_state_from_the_second_backend(tmp_path, monkeypatch):
+    """stage 46: the instance root's own state is in the default backend; the
+    storage state it binds to lives in the second, and the datasource says so."""
+    from v2_support import V2Run
+    run = V2Run(tmp_path, monkeypatch)
+    assert run.run(["identity", "storage", "instance-image"], apply=False).ok
+    inst = run.generated / "instance-image" / "open-tofu" / "instance-generation"
+    root = (inst / "open-tofu-instance-generation.tf").read_text()
+    assert 'bucket = "my-east1-tfstate-bucket"' in root and 'key = "statefiles/csia/aws_ebs.tfstate"' in root
+    assert 'bucket = "noaa-ioos-cloud-sandbox-tfstate"' in (inst / "open-tofu-instance-generation.tfbackend.hcl").read_text()

@@ -215,7 +215,7 @@ class TofuStorageBuilder(StorageBuilderBase[Q], TerraformRootMixin):
             if profile:
                 config["profile"] = profile
             col.configure_provider(ws, "aws", config)
-        col.set_backend(ws, self.model.state_configuration)
+        col.bind_workspace(ws, self.model.state_configuration, self.runtime_state_configuration())   # stage 46: own, runtime's, default
         # gids by reference: the identity workspace's state (applied before
         # storage in meta-workflow order) is read through remote state.
         for identity_ws in sorted(self.identity_workspaces()):

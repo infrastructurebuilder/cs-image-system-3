@@ -190,6 +190,8 @@ def test_the_performing_recipe_and_the_runtime_guard_hold_their_shape():
                    "--only-runtime {{runtime}}", "--commit"):
         assert needle in body, needle
     assert "--apply-runtime" not in body and "--all" not in body       # bakes, releases, retention: roots plan and gate only
+    for name, (_, recipe) in r.items():
+        assert "--migrate-state" not in recipe, f"{name}: a state migration is the operator's act through `just cli`, never a recipe's (stage 46)"
     assert "cloud-preflight" in r["cloud-perform"][0]
     guard = r["runtime-unchanged"][1]
     assert "runtime describe" in guard and "scripts/normalise-emission" in guard and "git -C" in guard

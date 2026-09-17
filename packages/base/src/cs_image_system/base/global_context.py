@@ -648,6 +648,7 @@ class GlobalTypeContext:
         # decommission a tree entry for one invocation (ledger 68, 71)
         self.undeclared: list[tuple[str, str]] = parse_undeclare(undeclare)
         self.apply_runtime: str | None = None      # `run --apply-runtime <rt>` (stage 11.5)
+        self.migrate_state: list[str] = []          # `run --migrate-state <ws>` (stage 46): the workspaces whose state MOVES this run
         # stage 12: run scoping safe by construction
         self.implied_scope: str | None = None      # --apply-runtime implied the bake filter to this runtime
         self.allow_unscoped_bakes: bool = False    # `run --allow-unscoped-bakes`
