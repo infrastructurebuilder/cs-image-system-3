@@ -125,32 +125,55 @@ converts the model with `to_backend_registration()` and calls
 sees the registration. Registering the same name twice with different
 values raises `HclConfigConflictError`.
 
-### `BackendRegistration`
+### `BackendRegistration` and the S3 kind
 
-The frozen dataclass in
+The registration is type-agnostic (stage 47): the frozen dataclass in
 [collector.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/collector.py)
-that the collector holds per backend name:
+carries what every backend has -- `name`, `type`, `is_default` -- plus the
+type's own settings as an opaque mapping and the *kind* that renders them.
+The collector names no field of any type: it asks the kind for a
+workspace's `StateLocation`, for the settings the partial configuration
+file needs, and for the settings a consumer's remote-state data source
+needs (which differ: a data source has no `encrypt` or `use_lockfile`).
 
-| Field | Type | Default | Meaning |
+This plugin's kind, `S3BackendKind` in
+[tf_s3_state_models.py](src/cs_image_system/tf_s3_state_plugin/tf_s3_state_models.py),
+holds the S3 knowledge:
+
+| Settings the model registers | `location(settings, workspace)` | `backend_settings(...)` | `remote_state_settings(...)` |
 |---|---|---|---|
-| `name` | str | | The backend name. |
-| `type` | str | | `s3`. |
-| `bucket` | str | | The bucket. |
-| `region` | str | | The region. |
-| `key_prefix` | str | | The normalized prefix with its trailing `/`. |
-| `encrypt` | bool | false | |
-| `use_lockfile` | bool | true | |
-| `profile` | str \| None | None | |
-| `is_default` | bool | false | |
-
-`state_file_path(workspace)` returns `<key_prefix><super_safe_name(workspace)>.tfstate`.
+| `bucket`, `region`, `key_prefix`, `encrypt`, `use_lockfile`, `profile` | `s3://<bucket>/<key prefix>/<super_safe_name(workspace)>.tfstate`, the key normalised (stage 46) | `bucket`, `key`, `region`, `encrypt`, `use_lockfile`, `profile` when set | `bucket`, `key`, `region`, `profile` when set |
 
 The collector resolves a consumer's `state_configuration` with
 `resolve_backend(name)`: `default`, `None` or `""` means the single
 registration with `is_default: true` (more than one raises
 `HclConfigConflictError`; none yields no backend); any other value is looked
 up by name. A workspace with no resolvable backend is simply unbound: no
-backend block, no partial configuration file, bare `init`.
+backend block, no partial configuration file, bare `init`. A registration
+without a kind is refused the moment it is asked for a location.
+
+### Adding a backend type
+
+A backend type is a model plus one kind (stage 47.5); the next one is a day:
+
+1. A model under `state_backends:` with the type's fields, `csis_name()`
+   returning the terraform backend type (`local`, `gcs`, `azurerm`, ...),
+   `csis_classifier()` `STATE_BACKEND_MODEL`, and a `finalize()` that
+   registers `BackendRegistration(name, type, settings, kind, is_default)`
+   with the collector -- the settings in the type's own vocabulary.
+2. A kind with three methods: `location(settings, workspace)` returning a
+   `StateLocation` (`<type>://<container>/<key>`, the key normalised; for an
+   object store `StateLocation.of(type, bucket, prefix, workspace)`),
+   `backend_settings(settings, workspace)` (the `.tfbackend.hcl` keys, in
+   order) and `remote_state_settings(settings, workspace)` (the data
+   source's `config`).
+3. The plugin metadata registers the model and a `StateBuilderBase`
+   subclass under the type's name; a fixture entry and one collector test
+   per rendering.
+
+Nothing else changes: the collector, the roots mixin, the runner header,
+the location record and the migration operation render whatever the kind
+returns.
 
 ## The builder
 
@@ -217,8 +240,9 @@ sources, and `init` runs bare.
 ## Emission
 
 From the frozen golden emission over the test fixture. The fixture binds
-every terraform root to `s3-east2`, so there is one partial configuration
-per root, all with `encrypt = true` and `use_lockfile = true`:
+its storage roots to `s3-east1` and every other root to `s3-east2`
+(stage 46), so there is one partial configuration per root, all with
+`encrypt = true` and `use_lockfile = true`:
 
 | Workspace | File |
 |---|---|
@@ -249,8 +273,9 @@ The consumer side, in
 the empty `backend "s3" {}` inside `terraform {}`, and six
 `data "terraform_remote_state"` blocks (`aws_efs`, `aws_ebs`, `aws_s3`,
 `gcp_pd`, `gcp_gcs`, `oktagroups`), each with `backend = "s3"` and a
-`config` naming the same bucket, the producer's state file under the same
-prefix, the region and the profile.
+`config` naming the PRODUCER's bucket, its state file under the producer's
+prefix, the region and the profile -- the storage roots' in `s3-east1`'s
+bucket, the identity root's in `s3-east2`'s.
 
 The runner scripts,
 [run-storage.sh](../../tests/fixtures/v2_golden/generated/storage/run-storage.sh)

@@ -475,6 +475,8 @@ def state_migration_command(
     tofu: Annotated[str, typer.Option("--tofu", help="tofu/terraform binary")] = "tofu",
     backend_config: Annotated[Path | None, typer.Option("--backend-config",
         help="The root's .tfbackend.hcl (the NEW location); begin only")] = None,
+    location: Annotated[str | None, typer.Option("--location",
+        help="The new location as its type renders it (<type>://<container>/<key>); begin only")] = None,
 ) -> None:
     """One step of a state migration (stage 46.4.3), emitted into a root's runner by
     `run --migrate-state <workspace>`; never a by-hand command."""
@@ -482,7 +484,7 @@ def state_migration_command(
     from cs_image_system.base.global_context import GlobalTypeContext
     gctx = GlobalTypeContext()
     if action == "begin":
-        code = begin(gctx, workspace, tofu, backend_config, run, Path.cwd())
+        code = begin(gctx, workspace, tofu, backend_config, run, Path.cwd(), new_location=location)
     elif action == "finish":
         code = finish(gctx, workspace, run, Path.cwd())
     else:
