@@ -576,6 +576,8 @@ class GlobalTypeContext:
         yaml_files = get_files_by_extensions(self.working_path / spec.source_dir)
         cvt = Orchestrator().get_converter()
         template_resolver = TemplateResolver()
+        from .orchestrator import reset_unresolved_fks
+        reset_unresolved_fks()          # stage 48.3: a fresh load starts with no unresolved foreign keys
         reg = self.reg
         items: list[NameTyped] = []
         try:

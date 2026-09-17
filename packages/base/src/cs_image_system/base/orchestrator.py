@@ -26,6 +26,20 @@ from . import registry
 
 
 
+# stage 48.3: foreign keys that named nothing during resolution -- (object class,
+# object name, field, value, target), deduplicated; `validate` refuses them
+UNRESOLVED_FKS: list[tuple[str, str, str, str, str]] = []
+
+
+def record_unresolved_fk(cls_name: str, obj_name: str, field_name: str, value: str, target: str) -> None:
+    entry = (cls_name, obj_name, field_name, value, target)
+    if entry not in UNRESOLVED_FKS:
+        UNRESOLVED_FKS.append(entry)
+
+
+def reset_unresolved_fks() -> None:
+    UNRESOLVED_FKS.clear()
+
 def default_fk_value(reg: Any, obj: Any, target: VCT) -> str | None:
     """What a foreign key left at ``default`` resolves to: the registry's default
     for its target -- except a root's ``state_configuration`` (stage 46.2), which
@@ -232,7 +246,11 @@ class TemplateResolver:
                 # so that TemplateResolver.resolve_all() will process its Jinja tags!
                 if isinstance(concrete_mod, ParentPropertyHoldingProtocol):
                     try:
-                        if hasattr(obj, "global_id"):                           
+                        # stage 48.2: a sub-item its MODEL already claimed (an OS builder's
+                        # runtime subconfig, parented in the model's __post_init__) keeps
+                        # that parent; this used to overwrite it with the builder's id and
+                        # warn four times per load
+                        if hasattr(obj, "global_id") and not getattr(concrete_mod, "_model_id", None):
                             concrete_mod.model_id = getattr(obj, "global_id")
                     except Exception as e:
                         log.warning(f"Structured object {concrete_mod} does not have a valid _model_id. It will not be added to the flattened map for template resolution. Error: {e}")
@@ -368,7 +386,10 @@ class TemplateResolver:
 #                                        raise e # continue
                                         continue
                                 if val == DEFAULT:
-                                    log.warning(f"Field '{f.name}' in object '{obj}' is marked as DEFAULT but has no 'fk_target' metadata. It will remain as DEFAULT.")
+                                    # stage 48.2: `default` here is the declared meaning -- the
+                                    # consumer decides (a machine type the runtime supplies at
+                                    # bake time); five warnings per load said nothing actionable
+                                    log.debug(f"Field '{f.name}' of {type(obj).__name__} '{getattr(obj, 'name', '')}' stays `default`: the consumer resolves it")
                         # NOTE: I have to split this off to two paths
                         # if isinstance(val, list):
                         #     log.debug("Debugging here")
@@ -672,8 +693,14 @@ class _FkFieldHandler(field_kinds.FieldKindHandler):
                         else:
                             log.warning(f"Context already has a 'builder' entry. Skipping setting it to {bldr} for field '{f.name}' in object '{obj}'.")
         else:
-            log.warning(f"FK resolution warning: Could not resolve FK for field '{f.name}' with id '{fk_id}' and target '{target}'. It will be available in the context as the raw ID value.")
-            ctx[f.name] = fk_id  # Fall back to the raw ID if we can't resolve it
+            # stage 48.3: a foreign key that names nothing is a configuration error,
+            # recorded here and refused by `validate` (a `default` that has no default
+            # is not one: the consumer decides). The raw id stays in the context so
+            # templates still render and the run reaches the refusal.
+            if fk_id not in OOPS_DEFAULTS:
+                record_unresolved_fk(type(obj).__name__, str(getattr(obj, "name", "") or ""), f.name, str(fk_id), str(target))
+            log.debug(f"foreign key '{f.name}' = {fk_id!r} (target {target}) resolves to nothing; the raw id stays in the context")
+            ctx[f.name] = fk_id
 
 
 class _TemplatedFieldHandler(field_kinds.FieldKindHandler):

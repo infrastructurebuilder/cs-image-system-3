@@ -6,8 +6,7 @@ mod_builders:
     is_default: true
     type: ansible
     executable: ansible-playbook # Mapped to executable defined in executables section
-    playbooks: 
-      - modify_image.yml
+    # stage 48.4: no builder-level playbooks -- an item's playbooks are its own
     config:
       key1: value1
       key2: value2

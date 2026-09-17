@@ -1,28 +1,29 @@
 ---
-# Unfortunately, we require a specific parser for every "name"'d executable
-# if it has a version requirement, because parsing actual versions of executables
-# isn't easy.
+# Every entry is checked by `validate` and by every run (stage 48.1): the binary must exist
+# (an absolute path, or a name on PATH) and, when `version` is given, the version its checker
+# reads must satisfy the PEP 440 specifier set. The checker is looked up under the entry's
+# name first (packer, tofu, gcloud, aws-cli, ansible-playbook and bash have their own), then
+# its type; the default type, `executable`, is the generic checker (`--version`, the first
+# dotted number). The floors are what CI's runners and the operator's machine ran in 2026-09.
 executables:
-  - name: aws-cli # DEFAULT type
+  - name: aws-cli
     version: ">=2.32"
     binary: aws
-  - name: packer # DEFAULT type
+  - name: packer
     version: ">=1.14, <1.15"
     binary: /usr/local/bin/packer
-  - name: packer-1.9.4
-    version: ">=1.8, <1.10"
-    binary: packer-1.9.4
-    type: packer
   - name: gcloud
     binary: /usr/local/bin/gcloud
-    version: ">=2026.02.0, <2027.01.0"
+    version: ">=500"        # the Google Cloud SDK version, not the core component's date
   - name: ansible-playbook
     binary: /usr/local/bin/ansible-playbook
-    version: "<2.21"
+    version: ">=2.16"       # ansible-core
   - name: bash
     binary: /usr/local/bin/bash
+    version: ">=5"          # never the system's 3.2 on macOS
   - name: docker
     binary: /usr/local/bin/docker
+    version: ">=24"
   - name: open-tofu-1
     type: tofu
     binary: /usr/local/bin/tofu
@@ -33,4 +34,4 @@ executables:
   - name: yq
     version: ">=4.5"
   - name: jq
-    version: ">=1.8"
+    version: ">=1.7"

@@ -1017,7 +1017,7 @@ job's business, on `main` alone.
 | Install just, uv (3.13), OpenTofu, Packer | |
 | Place the tools where `cfg/executables.yml` pins them | symlinks `tofu`, `packer`, `gcloud`, `ansible-playbook`, `bash`, `docker` into `/usr/local/bin` |
 | `just init` | |
-| `just cli validate` | the live tree loads and passes every rule, with the Okta workspace's assertions and the age identity |
+| `just cli validate` | the live tree loads and passes every rule, with the Okta workspace's assertions and the age identity; every declared tool exists at its pinned path and meets its version requirement (stage 48.1), every foreign key resolves (48.3), every root's state location is sound (46) |
 | `just config-drift` | the committed emission is current with the declarations |
 | `just cloud-preflight` | reality matches the records (`state query --strict`, both clouds) |
 | `just test-mods --strict` | every modification applies and is idempotent in a container |
@@ -1026,6 +1026,13 @@ Every step after the gate carries `if: steps.gate.outputs.ready == 'true'`;
 until every secret exists the job prints its skip lines and passes.
 
 ### The `perform` job
+
+Two record commits per push to `main` -- the record and the closing
+record -- are by design (stage 48.6): each run on `main` is journaled in
+`meta-state/runs.yaml`, so the closing record is never skipped for
+differing only by run ids and stamps; what a run writes for itself
+(`run-summary.json`, `state-report.json`, packer's `manifest.json`) is
+run-local and never enters a record.
 
 `main` records, performs on the AWS runtime, and records again. It runs
 after `live`, only when the ref is `main` or the run was dispatched by
@@ -1300,7 +1307,7 @@ is likely to break the GCE code path; then one live cycle, torn down.
 
 | Command | Does |
 | --- | --- |
-| `validate` | loads the tree and applies every rule; generates nothing |
+| `validate` | loads the tree and applies every rule -- unique names, every declared executable present at its path and within its version requirement, every foreign key resolving, every root's state location sound; generates nothing |
 | `run … --migrate-state <root>` (repeatable, `--no-dry-run`) | MOVES that root's state to the backend it now resolves to: backup, copy, a clean plan at the new location, the move recorded ("Where state lives") |
 | `state-migration begin\|finish --workspace <root> --run <id>` | the two steps of a migration, emitted into the root's runner by `--migrate-state`; never a by-hand command |
 | `generate` / `build-all` | aliases: every lifecycle without / with the apply step (`--base-only`: base-image alone) |

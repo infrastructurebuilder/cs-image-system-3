@@ -15,7 +15,7 @@ CSIS_ROOT="$(cd "../.." && pwd)"   # the configuration root, relative to this sc
 ( cd "pckr-ebs-ans/image-generation/block-000" && /usr/local/bin/packer build . )
 ( cd "pckr-ebs-ans/image-generation/block-001" && /usr/local/bin/packer build . )
 ( cd "pckr-gce-ans/image-generation/block-000" && /usr/local/bin/packer build . )
-( cd "some-other-builder/image-generation/block-000" && packer-1.9.4 build . )
+( cd "some-other-builder/image-generation/block-000" && /usr/local/bin/packer build . )
 
 # --- phase: instance-generation ---
 ( cd "open-tofu/instance-generation" && rm -f tfplan )

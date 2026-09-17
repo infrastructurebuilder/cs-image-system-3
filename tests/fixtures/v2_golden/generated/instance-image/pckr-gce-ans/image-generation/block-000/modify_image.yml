@@ -1,9 +1,0 @@
----
-- name: Ensure git is installed
-  hosts: all
-  become: true
-  tasks:
-    - name: Ensure git package is installed
-      ansible.builtin.package:
-        name: git
-        state: present
