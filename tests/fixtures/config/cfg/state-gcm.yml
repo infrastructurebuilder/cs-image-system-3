@@ -1,0 +1,12 @@
+---
+# stage 47: a `gcs` state backend, declared and bound to nothing. Declaring the type is not
+# the same as moving the GCE roots onto it: every live root, the GCE roots included, keeps
+# its state in the S3 backend by the standing decision. OpenTofu's gcs backend stores a
+# root's state as <prefix>/<root>/default.tfstate, so no two roots share an object.
+state_backends:
+  - name: gcs-east1
+    type: gcs
+    bucket: csis-sandbox-tfstate
+    prefix: statefiles/csia
+    # credentials: /path/to/credentials.json        # a PATH, never a value
+    # impersonate_service_account: tf@project.iam.gserviceaccount.com

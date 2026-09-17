@@ -1057,11 +1057,13 @@ user_builders:
 
 ## 10. `cfg/state-backends*.yml`
 
-Key: `state_backends`. Two types exist (stage 47): `s3`, model
+Key: `state_backends`. Three types exist (stage 47): `s3`, model
 `TofuS3StateBuilderModel`
 ([`tf_s3_state_models.py`](../packages/tf-s3-state-plugin/src/cs_image_system/tf_s3_state_plugin/tf_s3_state_models.py)),
-and `local`, model `LocalStateBuilderModel`
-([`local_state_models.py`](../packages/local-state-plugin/src/cs_image_system/local_state_plugin/local_state_models.py)).
+`local`, model `LocalStateBuilderModel`
+([`local_state_models.py`](../packages/local-state-plugin/src/cs_image_system/local_state_plugin/local_state_models.py)),
+and `gcs`, model `GcsStateBuilderModel`
+([`gcs_state_models.py`](../packages/gcs-state-plugin/src/cs_image_system/gcs_state_plugin/gcs_state_models.py)).
 A type is a plugin: a model plus a *kind* that renders a root's location,
 its backend file and a consumer's data source (the S3 plugin's README has
 the recipe). Every terraform root names one backend through
@@ -1200,6 +1202,40 @@ state_backends:
   - name: local-dev
     type: local
     path: state
+```
+
+### `gcs`
+
+A Google Cloud Storage bucket. Declared in the fixture and bound to
+nothing: the GCE roots stay on the S3 backend by the standing decision,
+and the live tree carries the same file with every line commented out.
+
+| Field | Type | Default | Meaning and allowed values |
+| --- | --- | --- | --- |
+| common builder fields (4.1) | | | `is_default` marks the backend `default` resolves to |
+| `bucket` | str | required, non-empty | the state bucket |
+| `prefix` | str | `statefiles` | the prefix inside the bucket; each root gets `<prefix>/<root name>` beneath it |
+| `credentials` | str or null | null | a PATH to a credentials file, never a value |
+| `impersonate_service_account` | str or null | null | the service account terraform impersonates |
+| `encryption_key` | str or null | null | a customer-supplied key |
+| `kms_encryption_key` | str or null | null | a Cloud KMS key name |
+| `executable` | str or null | `tofu` | |
+
+A root's location is `gcs://<bucket>/<prefix>/<root name>/default.tfstate`
+(OpenTofu's `gcs` backend names the default terraform workspace's object
+`default.tfstate` under the prefix, so each root gets its own prefix). The
+backend file carries `bucket`, `prefix` and the identity fields when set; a
+consumer's data source `bucket`, `prefix` and the identity fields.
+
+[`cfg/state-gcm.yml`](../tests/fixtures/config/cfg/state-gcm.yml):
+
+```yaml
+---
+state_backends:
+  - name: gcs-east1
+    type: gcs
+    bucket: csis-sandbox-tfstate
+    prefix: statefiles/csia
 ```
 
 ## 11. The collections

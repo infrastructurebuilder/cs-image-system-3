@@ -9,9 +9,8 @@ system must not take itself.
 
 Current stage: **none in progress**.
 
-Open stages and their order: none open; §47 waits on the operator's
-`gcs` decision; §19 and §30 wait on the operator's decisions. A new
-hygiene issue starts bundle IV.
+Open stages and their order: none open; §19 and §30 wait on the
+operator's decisions. A new hygiene issue starts bundle IV.
 
 Standing decisions (operator):
 
@@ -41,6 +40,10 @@ Standing decisions (operator):
   runtime under the write role, then records again. The GCE runtime stays
   out of CI: a declaration change there fails the job before anything
   performs. A push to `main` is the operator's act.
+- State backends (stages 46 and 47, landed 2026-09-17): three types, `s3`,
+  `local` and `gcs`; every live root stays on the default S3 backend and
+  the `gcs` backend is declared (commented out in the live tree) and bound
+  to nothing until moving the GCE roots is decided.
 - Releases publish to an index (stage 41, landed 2026-09-17): PyPI,
   TestPyPI first, every version through `just release <part|version>
   [test|pypi]`; the first upload, `0.1.1.dev1`, is on TestPyPI and
@@ -220,40 +223,3 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-package` (steps 1–3, 5–7),
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
-
-## 47. State backends beyond S3
-
-**Why**: an S3 bucket is not the only place terraform state can live, and
-the system behaved as though it were.
-
-**Done 2026-09-17** (`feature/state-backend-contract`,
-`feature/state-backend-types`): the backend contract is type-agnostic --
-`BackendRegistration` carries name, type, `is_default`, the type's own
-settings and the *kind* that renders a root's `StateLocation`
-(`<type>://<container>/<key>`), its backend file and a consumer's data
-source; the collector names no field of any type; the S3 knowledge lives in
-`tf-s3-state-plugin` as `S3BackendKind` and the emission stayed
-byte-identical through the refactor. `local`, the type that needs nothing,
-is the fifteenth package (`local-state-plugin`): `path` relative to the
-configuration root or absolute, rendered from the root directory's fixed
-depth. The fixture's identity roots bind to `local-dev`, so the golden
-carries two types, two shapes of backend file and reads across types
-(storage and instance roots in S3 reading identity state on disk); a real
-`tofu init` runs against the local backend with an empty environment;
-§46's collision check holds across types (the same name under two types is
-two locations; two roots on one directory collide). The S3 plugin's README
-carries "adding a backend type" as the recipe (a model plus one kind; the
-next type is a day); CONFIGURATION has a section per type and OPERATIONS'
-"Where state lives" covers both. No live state moved.
-
-What remains is the operator's:
-
-1. **USER — `gcs`, the obvious second cloud.** Fields: `bucket`, `prefix`,
-   optional `credentials` (a path, never a value) and
-   `impersonate_service_account`. Declaring the type is not the same as
-   moving the GCE roots onto it: that remains the deferred, very-last-
-   priority decision, and nothing binds a GCE root to it. The operator
-   confirms that reading before the type is added, since it is the one
-   place this stage brushes against a standing decision. With the recipe
-   in place it is a model, a kind and a fixture entry -- a day.
-2. Records by the current convention once 1 is decided (added or declined).

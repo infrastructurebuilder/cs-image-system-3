@@ -277,3 +277,25 @@ def test_begin_needs_a_record_and_the_backend_file(migration):
     assert begin(migration.ctx, "ws", migration.tofu, None, "r1", migration.root) == 2
     assert begin(migration.ctx, "never-generated", migration.tofu, Path("ws.tfbackend.hcl"), "r1", migration.root, new_location=NEW) == 2
     assert finish(migration.ctx, "ws", "r1", migration.root) == 2                              # begin did not run
+
+
+# ------------------------------------------------------------- stage 47: the gcs type
+
+def test_the_gcs_backend_is_declared_bound_to_nothing_and_its_commented_twin_loads_as_nothing(tmp_path, monkeypatch):
+    """The fixture declares `gcs-east1` (cfg/state-gcm.yml) and no root binds
+    to it, so it registers, renders, and moves nothing in the golden; the
+    live tree carries the same file with every line commented out, which
+    loads as no declaration at all."""
+    from cs_image_system.hashicorp_utils.collector import TerraformCollector
+    v2 = V2Run(tmp_path, monkeypatch)
+    reg = TerraformCollector().resolve_backend("gcs-east1")
+    assert reg is not None and reg.type == "gcs" and reg.settings["bucket"] == "csis-sandbox-tfstate"
+    assert str(reg.state_location("gcp-pd")) == "gcs://csis-sandbox-tfstate/statefiles/csia/gcp_pd/default.tfstate"
+    assert v2.run("all", apply=False).ok
+    assert not [ws for ws, rec in _records(v2).items() if rec["backend"] == "gcs-east1"]
+    root = copy_config(tmp_path / "live-shape")
+    source = (root / "cfg" / "state-gcm.yml").read_text().splitlines()
+    (root / "cfg" / "state-gcm.yml").write_text("\n".join(f"# {line}" if line and not line.startswith("#") else line or "#" for line in source) + "\n")
+    assert not [line for line in (root / "cfg" / "state-gcm.yml").read_text().splitlines() if not line.startswith("#")]
+    V2Run(tmp_path / "live-shape", monkeypatch, config_root=root)
+    assert TerraformCollector().resolve_backend("gcs-east1") is None

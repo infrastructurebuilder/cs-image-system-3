@@ -176,7 +176,7 @@ publish index="test":
 	n=$(ls dist | wc -l | tr -d ' ')
 	# --index alone: uv takes the index's url as the check url and refuses an explicit one beside it
 	uv publish --index "$name" dist/*
-	echo "publish: cs-image-system $version is on $name ($n files: the system and its fifteen packages, sdist and wheel each; files already there with the same content were skipped)"
+	echo "publish: cs-image-system $version is on $name ($n files: the system and its sixteen packages, sdist and wheel each; files already there with the same content were skipped)"
 
 # ------------------------------------------------------------ development
 
