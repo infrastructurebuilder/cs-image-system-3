@@ -3,14 +3,16 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """The CI workflow calls only `just` targets and splits into three jobs: the
-credential-free bar, the read-only live job, and the apply job that performs
-a real run and only on `main`.
+credential-free bar, the read-only live job, and the record job that runs the
+full configuration on `main` and commits what it emits.
 
 The Justfile is the single entry point, so the workflow's own test is that
 every command it runs is a Justfile target -- the targets are tested by their
-own contract test -- plus the shape of each job: what it may touch, what it
-is gated on, and, for `apply`, that it cannot run off `main`, cannot run
-twice at once, and cannot reach GCP with a write-capable identity.
+own contract test -- plus the shape of each job: what it may touch, what it is
+gated on, and, for `record`, that it runs FULL and unscoped (any filter would
+make the emission partial and its commit would delete everything out of
+scope), that it performs nothing, that no job anywhere holds a write-capable
+cloud credential, and that it cannot record off `main` or twice at once.
 """
 from __future__ import annotations
 
@@ -42,10 +44,12 @@ def test_every_command_is_a_just_target():
             if name.startswith(_PLUMBING):
                 continue
             assert re.match(r"^just [a-z][\w-]*", run.strip()), f"{job_name}/{name}: {run!r}"
-    # only `apply` performs anything; the bar and the live job read
+    # no job performs anything; only `record` commits
+    everything = yaml.safe_dump(wf)
+    assert "--no-dry-run" not in everything, "no CI job may perform a real run"
     for job_name in ("verify", "live"):
         commands = "\n".join(run for _, run in _run_steps(wf["jobs"][job_name]))
-        assert "--no-dry-run" not in commands and "--commit" not in commands, job_name
+        assert "--commit" not in commands, job_name
 
 
 def test_verify_is_the_bar_and_needs_nothing():
@@ -81,58 +85,55 @@ def test_live_is_gated_scheduled_and_read_only():
     assert checkout["with"]["path"] == "cs-image-system-testconfig"      # beside cs-image-system-3
 
 
-def test_apply_runs_only_on_main_scoped_to_one_runtime_and_never_twice():
+def test_record_runs_full_on_main_only_commits_and_holds_no_write_credential():
     wf = _workflow()
-    apply = wf["jobs"]["apply"]
-    assert apply["needs"] == "live"
-    assert "refs/heads/main" in apply["if"]
-    assert apply["concurrency"] == {"group": "apply-live", "cancel-in-progress": False}
-    assert apply["permissions"]["id-token"] == "write"
+    record = wf["jobs"]["record"]
+    assert record["needs"] == "live"
+    assert "refs/heads/main" in record["if"]
+    assert record["concurrency"] == {"group": "record-live", "cancel-in-progress": False}
+    assert record["permissions"]["id-token"] == "write"
 
-    gate = next(s for s in apply["steps"] if s.get("id") == "gate")
-    for secret in ("AWS_APPLY_ROLE_ARN", "OKTA_API_CLIENT_ID", "OKTA_API_PRIVATE_KEY_ID",
-                   "OKTA_API_SCOPES", "CSIS_CONFIG_PUSH_TOKEN", "CSIS_CONFIG_IDENTITY"):
+    gate = next(s for s in record["steps"] if s.get("id") == "gate")
+    for secret in ("AWS_ROLE_ARN", "GCP_WORKLOAD_IDENTITY_PROVIDER", "OKTA_API_PRIVATE_KEY",
+                   "CSIS_CONFIG_IDENTITY", "CSIS_CONFIG_PUSH_TOKEN"):
         assert secret in yaml.safe_dump(gate["env"]), secret
-    assert gate["run"].count("SKIPPED") >= 6              # one reason per missing identity
-    for s in apply["steps"]:
+    assert gate["run"].count("SKIPPED") >= 5
+    assert "exit 1" in gate["run"], "recording on main must fail on a missing identity"
+    for s in record["steps"]:
         if s.get("id") != "gate":
             assert "steps.gate.outputs.ready == 'true'" in (s.get("if") or ""), s.get("name")
 
-    # the WRITE-capable role, never the read-only one
-    creds = next(s for s in apply["steps"] if (s.get("uses") or "").startswith("aws-actions/"))
-    assert "AWS_APPLY_ROLE_ARN" in creds["with"]["role-to-assume"]
-    assert "secrets.AWS_ROLE_ARN" not in creds["with"]["role-to-assume"]
-
-    # exactly one line performs, and it is scoped to the one AWS runtime
-    performing = [run.strip() for _, run in _run_steps(apply) if "--no-dry-run" in run]
-    assert performing == ["just cli --no-dry-run run --all --commit --only-runtime aws-east2-runtime"]
-
-    # no write-capable GCP identity exists anywhere in the workflow
+    # the READ-ONLY role: no CI job may hold a write-capable cloud credential
+    creds = next(s for s in record["steps"] if (s.get("uses") or "").startswith("aws-actions/"))
+    assert creds["with"]["role-to-assume"] == "${{ secrets.AWS_ROLE_ARN }}"
+    assert "AWS_APPLY_ROLE_ARN" not in yaml.safe_dump(wf)
     assert "GCP_APPLY" not in yaml.safe_dump(wf)
 
-    # a dispatch enumerates unless it is asked to apply, and `apply` is honoured on main alone
-    on = wf.get("on") or wf.get(True) or {}                            # YAML 1.1 reads `on:` as True
-    assert isinstance(on, dict)
-    assert on["workflow_dispatch"]["inputs"]["mode"]["default"] == "dry"
-    assert "github.ref == 'refs/heads/main'" in gate["env"]["IS_APPLY"]
+    # the run is FULL and unscoped: a filter would make the emission partial and
+    # the commit would stage the deletion of every root out of scope
+    committing = [run.strip() for _, run in _run_steps(record) if "--commit" in run]
+    assert committing == ["just cli run --all --commit"]
+    for _, run in _run_steps(record):
+        assert "--only" not in run, run
 
-    # write access is proven BEFORE anything is performed
-    names = [s.get("name", "") for s in apply["steps"]]
+    # write access is proven BEFORE the record is written
+    names = [s.get("name", "") for s in record["steps"]]
     assert names.index("Prove write access to the configuration repository") < \
-           names.index("The real run over the live configuration")
-    proof = next(s for s in apply["steps"] if s.get("name", "").startswith("Prove write access"))
+           names.index("The full run, recorded")
+    proof = next(s for s in record["steps"] if s.get("name", "").startswith("Prove write access"))
     assert "--dry-run" in proof["run"]
 
-    # the push credential reaches git through the checkout, never through a URL in a
-    # command: actions/checkout persists a header that would override one anyway
-    cfg = next(s for s in apply["steps"] if (s.get("with") or {}).get("path") == "cs-image-system-testconfig")
+    # the push credential reaches git through the checkout, never through a URL
+    cfg = next(s for s in record["steps"] if (s.get("with") or {}).get("path") == "cs-image-system-testconfig")
     assert "CSIS_CONFIG_PUSH_TOKEN" in cfg["with"]["token"]
-    for s in apply["steps"]:
+    for s in record["steps"]:
         assert "@github.com" not in (s.get("run") or ""), s.get("name")
 
-    # a real run on main with a missing identity fails; it never passes silently
-    assert "exit 1" in gate["run"], "apply mode must fail on a missing identity"
+    # a dispatch enumerates unless it is asked to record, and only on main
+    on = wf.get("on") or wf.get(True) or {}
+    assert isinstance(on, dict)
+    assert on["workflow_dispatch"]["inputs"]["mode"]["default"] == "dry"
+    assert "github.ref == 'refs/heads/main'" in gate["env"]["IS_RECORD"]
 
-    # the push is the job's, not the run's, and it never forces
-    push = next(s for s in apply["steps"] if s.get("name", "").startswith("Push what the run"))
+    push = next(s for s in record["steps"] if s.get("name", "").startswith("Push what the run"))
     assert "--force" not in push["run"] and "HEAD:develop" in push["run"]

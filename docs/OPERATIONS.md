@@ -800,11 +800,11 @@ by default and take `no` to apply. `gce-*` are aliases for the
 request, a nightly schedule (`23 6 * * *` UTC) and `workflow_dispatch`.
 Every command is a `just` target, so CI and a developer's shell run the
 same thing. Three jobs: `verify` is the bar, `live` reads the live
-configuration, and `apply` performs a real run, on `main` alone.
-`tests/test_v2_ci_workflow.py` pins the shape below, that `verify` reads
-no secret, that neither `verify` nor `live` passes `--no-dry-run` or
-`--commit`, and that `apply` cannot run off `main`, cannot run twice at
-once, and holds no write-capable GCP identity.
+configuration, and `record` runs the full configuration on `main` and
+commits what it emits. `tests/test_v2_ci_workflow.py` pins the shape below,
+that `verify` reads no secret, that no job anywhere passes `--no-dry-run`
+or holds a write-capable cloud credential, and that `record` runs full and
+unscoped, cannot record off `main`, and cannot record twice at once.
 
 ### The `verify` job
 
@@ -847,37 +847,41 @@ read-only and a plan needs the state bucket. There is no applying job.
 Every step after the gate carries `if: steps.gate.outputs.ready == 'true'`;
 until every secret exists the job prints its skip lines and passes.
 
-### The `apply` job
+### The `record` job
 
-The other half of the model: branches verify, `main` applies. It runs
-after `live`, only when the ref is `main` or the run was dispatched by
-hand, and never twice at once (`concurrency: apply-live`, which does not
-cancel a run in flight). Its preparation is `live`'s, step for step, with
-two differences: it assumes `AWS_APPLY_ROLE_ARN`, a write-capable role
-that trusts `main` alone, and it carries the Okta client id, key id and
-scopes the terraform okta provider needs to plan the identity roots.
+`main` records. A full, unscoped run over the live configuration that
+commits the emission and meta-state into the configuration repository and
+pushes them. It runs after `live`, only when the ref is `main` or the run
+was dispatched by hand, and never twice at once (`concurrency:
+record-live`, which does not cancel a run in flight).
+
+It performs nothing, and that is forced by two facts. **Only a full run
+keeps the emission complete**: any `--only` or `--only-runtime` filter
+makes generation partial, and the run's commit stages deletions as readily
+as additions, so a scoped run that commits removes every root out of scope
+(measured: 37 files for a runtime filter, 23 for `--only none`). And a full
+REAL run would bake whatever fingerprint had changed, including on the GCE
+runtime, which no CI job has an identity to write to. So the job that keeps
+the record true carries **no write-capable cloud credential at all**: the
+same read-only AWS role and GCP service account the `live` job uses, plus a
+token that can push the configuration repository.
 
 | Step | What it does |
 | --- | --- |
-| Gate on the apply secrets and decide the mode | one `apply: SKIPPED -- no <SECRET> (…)` line per missing identity; sets `apply=true` only for a push to `main` or a dispatch on `main` asking for it |
-| the two checkouts, the federated credentials, the `[noaa]` shim, the tools | exactly as `live` does them |
-| `just cli --no-dry-run run --all --commit --only-runtime aws-east2-runtime` | the real run, in apply mode: the convergent AWS bakes, the declared releases, retention disposals, and the commit of meta-state and emission into the configuration repository |
-| `just cli run --all --only-runtime aws-east2-runtime` | in dry mode instead: enumerates, commits nothing |
+| Gate on the record secrets and decide the mode | one `record: SKIPPED -- no <SECRET> (…)` line per missing identity; sets `record=true` only for a push to `main` or a dispatch on `main` asking for it; a missing identity when recording is a failure, never a green job that did nothing |
+| the two checkouts, the federated credentials, the `[noaa]` shim, the tools | exactly as `live` does them; the configuration checkout carries the push credential, because `actions/checkout` persists a header that would override a token in a push URL |
+| Prove write access to the configuration repository | `git push --dry-run`, before the record is written, so a bad token stops the job early |
+| `just cli run --all --commit` | the full run, recorded: generation across every lifecycle and runtime, then the commit of meta-state and emission |
+| `just cli run --all` | in dry mode instead: the same full run, committing nothing |
 | Push what the run committed | the run commits, the job pushes (`HEAD:develop`); a non-fast-forward fails the job, and nothing is ever forced |
-| `just cloud-preflight` | the post-condition: reality matches the records after the run |
+| `just cloud-preflight` | the post-condition: reality matches the records |
 
-**What it does not do, by construction.** The scope is one runtime, so
-the GCE runtime is never in it; the job holds no identity that could
-write to GCP, so a GCE root that slipped into scope fails at load instead
-of spending money. The live configuration's `apply_*` flags are all
-false and no `--apply-runtime` is passed, so the storage, instance and
-identity roots plan and gate only. Post-bake tests launch an instance, so
-they need `apply_instances` and do not run here.
+**Cost.** No CI run can leave a billable resource standing on either
+cloud, because no job holds a credential that could create one.
 
-**Cost.** No CI run can leave a billable GCP resource standing, because
-no job holds an identity that could create one. On AWS a real run may
-leave what convergence baked, an image and its snapshot, cents a month
-each, until retention disposes them.
+**Performing on `main`** — bakes, releases and disposals from CI — is a
+later stage. It needs generation to stop pruning out-of-scope emission
+first, so that a scoped run can be committed safely.
 
 ### The `[noaa]` profile shim
 
@@ -897,16 +901,18 @@ credentials for the named profile.
 | `OKTA_API_PRIVATE_KEY` | the load's check that the okta provider can authenticate (`okta_tf_workspace.py`) | live |
 | `TF_VAR_NOS_KEY` → exported as `TF_VAR_nos_coastal_modeling_cloud_sandbox_key` | the load's `_require_tfvar` assertion; the OPA API for gids and the state query (`opa_gids.py`) | live |
 | `TF_VAR_NOS_SECRET` → exported as `TF_VAR_nos_coastal_modeling_cloud_sandbox_secret` | the same two places | live |
-| `CSIS_CONFIG_IDENTITY` | the configuration load, to decrypt `ENC[age:…]` values; the CI age identity | live, apply |
-| `AWS_APPLY_ROLE_ARN` | the federated-credentials action in `apply`: a WRITE-capable role trusting `main` alone, with the bake's EC2 and image actions and read/write on this configuration's state prefix; deliberately no `iam:PassRole`, no volume or subnet writes, nothing outside the prefix | apply |
-| `OKTA_API_CLIENT_ID`, `OKTA_API_PRIVATE_KEY_ID`, `OKTA_API_SCOPES` | the terraform okta provider, which plans the identity roots in a real run | apply |
-| `CSIS_CONFIG_PUSH_TOKEN` | the push of what the run committed: a fine-grained token with contents:write on the configuration repository and nothing else | apply |
+| `CSIS_CONFIG_IDENTITY` | the configuration load, to decrypt `ENC[age:…]` values; the CI age identity | live, record |
+| `CSIS_CONFIG_PUSH_TOKEN` | the configuration checkout and the push of what the run committed: a fine-grained token with contents:write on the configuration repository and nothing else | record |
 
 The gate requires all of `OKTA_API_PRIVATE_KEY`, `TF_VAR_NOS_KEY` and
 `TF_VAR_NOS_SECRET` for the Okta item, and both GCP secrets for the GCP
-item. The `verify` job reads none of them. The rows marked `apply` are
-what that job adds; until every one of them exists it prints its SKIPPED
-lines and passes, exactly as `live` did before its own secrets were set.
+item. The `verify` job reads none of them. The `record` job reads the same
+set plus the push token; until every one exists it prints its SKIPPED lines
+and passes, exactly as `live` did before its own secrets were set. Two
+secrets exist for the later performing stage and are read by nothing today:
+`AWS_APPLY_ROLE_ARN` (a write-capable role trusting `main` alone) and the
+`OKTA_API_CLIENT_ID` / `OKTA_API_PRIVATE_KEY_ID` / `OKTA_API_SCOPES` triple
+the terraform okta provider needs to plan the identity roots.
 
 ## 4. The operator's cycles
 
