@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+"""Does an index already know a version of a project? (stage 41.5)
+
+    uv run python scripts/index-knows <simple-url> <project> <version>
+
+Exit 0 when the simple index at <simple-url> lists <version> of <project>,
+1 when it does not (a project the index has never seen included), 2 when
+the index could not be read. The JSON simple API (PEP 691) is asked for and
+its `versions` list (PEP 700) read; an HTML answer, or one without the
+list, is read from its file names. The release recipe refuses a version the
+index knows before anything is bumped or tagged, because a version is never
+re-cut: a deleted version's files can never be uploaded again.
+"""
+from __future__ import annotations
+
+import json
+import re
+import sys
+import urllib.error
+import urllib.request
+
+from packaging.utils import canonicalize_name, parse_sdist_filename, parse_wheel_filename
+from packaging.version import Version
+
+ACCEPT = "application/vnd.pypi.simple.v1+json, text/html;q=0.1"
+_FILENAME = re.compile(r">([^<>]+?\.(?:whl|tar\.gz|zip))<")
+
+
+def versions_in(payload: bytes) -> set[str]:
+    """The versions a simple-index project page lists, as normalised strings."""
+    text = payload.decode("utf-8", "replace")
+    names: list[str]
+    try:
+        doc = json.loads(text)
+    except ValueError:
+        names = _FILENAME.findall(text)
+    else:
+        if isinstance(doc.get("versions"), list):
+            return {str(Version(v)) for v in doc["versions"]}
+        names = [f["filename"] for f in doc.get("files", [])]
+    out: set[str] = set()
+    for name in names:
+        try:
+            _, version, *_ = parse_wheel_filename(name) if name.endswith(".whl") else parse_sdist_filename(name)
+        except ValueError:
+            continue
+        out.add(str(version))
+    return out
+
+
+def fetch(simple_url: str, project: str) -> bytes | None:
+    """The project's page, or None when the index has never seen the project."""
+    url = f"{simple_url.rstrip('/')}/{canonicalize_name(project)}/"
+    request = urllib.request.Request(url, headers={"Accept": ACCEPT})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return response.read()
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None
+        raise
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) != 4:
+        print(__doc__.strip().splitlines()[2].strip(), file=sys.stderr)
+        return 2
+    simple_url, project, version = argv[1:]
+    try:
+        wanted = str(Version(version))
+    except ValueError:
+        print(f"index-knows: {version!r} is not a version", file=sys.stderr)
+        return 2
+    try:
+        payload = fetch(simple_url, project)
+    except (OSError, urllib.error.URLError) as e:
+        print(f"index-knows: cannot read {simple_url}: {e}", file=sys.stderr)
+        return 2
+    if payload is None:
+        print(f"index-knows: {simple_url} has never seen {project}; {wanted} is free")
+        return 1
+    known = versions_in(payload)
+    if wanted in known:
+        print(f"index-knows: {simple_url} knows {project} {wanted}")
+        return 0
+    print(f"index-knows: {simple_url} knows {project} at {', '.join(sorted(known, key=Version)) or 'no version'}; {wanted} is free")
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

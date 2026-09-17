@@ -5,15 +5,23 @@
 [project]
 name = "cs-image-system-hashicorp-utils"
 version = "0.1.0"
+description = "HCL rendering and the init, plan, gate and apply sequence for the plugins that emit OpenTofu roots and Packer templates"
+readme = "README.md"
+authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
-"cs-image-system-system",
-"cs-image-system-base",
-"packaging",
-"python-hcl2"
+    "cs-image-system-system==0.1.0",
+    "cs-image-system-base==0.1.0",
+    "packaging>=26.2",
+    "python-hcl2>=8.1",
 ]
+
+[project.urls]
+Repository = "https://github.com/infrastructurebuilder/cs-image-system-3"
+Documentation = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/docs/OPERATIONS.md"
+"Package README" = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/packages/hashicorp-utils/README.md"
 
 [build-system]
 requires = ["hatchling"]

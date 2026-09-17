@@ -5,13 +5,23 @@
 [project]
 name = "cs-image-system-tf-ebs-instance-plugin"
 version = "0.1.0"
+description = "The OpenTofu plugin for AWS: instances and EBS, EFS and S3 storages as module calls"
+readme = "README.md"
+authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
-"cs-image-system-system",
-"cs-image-system-hashicorp-utils",
+    "cs-image-system-system==0.1.0",
+    "cs-image-system-hashicorp-utils==0.1.0",
+    "cs-image-system-aws-runtime-plugin==0.1.0",
+    "pydantic>=2.13",
 ]
+
+[project.urls]
+Repository = "https://github.com/infrastructurebuilder/cs-image-system-3"
+Documentation = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/docs/OPERATIONS.md"
+"Package README" = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/packages/tf-ebs-instance-plugin/README.md"
 
 [project.entry-points."cs_image_system.plugins.instance"]
 tf-ebs-instance-plugin = "cs_image_system.tf_ebs_instance_plugin.main:initialize"

@@ -48,6 +48,10 @@ trust first:
   `tests/test_v2_publish_tree.py`).
 - The suite never reads the live configuration
   (`tests/test_fixture_independence.py`).
+- Every package declares exactly the third-party distributions it imports
+  and pins its siblings at the shared version; the root is the whole system;
+  one bump moves every version line and pin
+  (`tests/test_v2_package_metadata.py`).
 
 ## Known divergences
 

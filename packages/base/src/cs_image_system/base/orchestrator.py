@@ -15,10 +15,7 @@ from .protocols.parent_property_holding_protocol import ParentPropertyHoldingPro
 
 
 from dataclasses import MISSING, fields, is_dataclass
-import datetime
-from typing import  Any, Union
-from cattrs import Converter
-from cattrs.gen import make_dict_structure_fn, make_dict_unstructure_fn, override
+from typing import Any
 import jinja2
 from .constants import DEFAULT, DEFERRED_BUILDER_VCT, DEFERRED_ITEM_VCT, FK_ALSO_SET_ON_UPDATE, FK_TARGET, IS_DEFERRED_LIST_FK, IS_DEFERRED_LIST_GENERATED, IS_FK, IS_REPLACE, VCT, REPLACE_VALUE
 
@@ -594,8 +591,8 @@ class PydanticConverter:
 
 class Orchestrator:
     """The Orchestrator is responsible for managing the overall configuration and state of the system.
-    It handles plugin loading, dependency resolution, and provides a centralized Converter for 
-    serialization/deserialization with cattrs.
+    It hands out the one converter that structures YAML into the models and
+    unstructures them back (pydantic behind two verbs, stage 23).
     """
     def __init__(self):
         # Built lazily on first get_converter() -- after plugins have registered
@@ -604,17 +601,16 @@ class Orchestrator:
         self._converter: Any = None          # stage 23: a PydanticConverter
 
     def get_converter(self, ignore_collections: bool = False) -> Any:
-        """Return the cached cattrs Converter, building it once on first use.
+        """Return the cached converter, building it once on first use.
 
         The converter depends on the set of registered model/builder classes, so it
         is built lazily and memoized. Call :meth:`invalidate_converter` if the
         registered model schema changes (e.g. after loading more plugins).
         """
         if self._converter is None:
-            # stage 23 branch two: pydantic behind the same two verbs. The
-            # cattrs builder below is kept for one release as _get_orchestrator
-            # so the previous behaviour can be diffed against if anything is
-            # found to differ; nothing calls it.
+            # stage 23: pydantic behind the same two verbs. The cattrs builder it
+            # replaced was kept for one release and removed in stage 41 (it is in
+            # the history before the first published version).
             self._converter = PydanticConverter(registry.Registry())
         return self._converter
 
@@ -622,214 +618,7 @@ class Orchestrator:
         """Drop the cached converter so it rebuilds on the next ``get_converter``."""
         self._converter = None
 
-    def _get_orchestrator(self, ignore_collections: bool = False) -> Converter:
-        conv = Converter()
-        reg = registry.Registry()
 
-        # ==========================================
-        # COMMON UTILITIES
-        # ==========================================
-        def to_kebab(name: str) -> str:
-            return name
-            # return name.replace("_", "-")
-
-        # ==========================================
-        # 1. STRUCTURE HOOKS (YAML -> Python)
-        # ==========================================
-        
-        # A. Global LISP-case mapping for all dataclasses
-        conv.register_structure_hook_factory(
-            lambda cls: hasattr(cls, "__dataclass_fields__"),
-            lambda cls: make_dict_structure_fn(
-                cls, 
-                conv, 
-                # This is the correct cattrs syntax to rename all keys globally!
-                **{
-                    # field_name: override(rename=to_kebab(field_name))
-                    field_name: override(rename=field_name)
-                    for field_name in getattr(cls, "__dataclass_fields__", {}).keys()
-                } # type: ignore
-            )
-        )
-        # log.debug(f"Registered global dataclass structure hook with kebab-case mapping.")
-        # B. Structure the Model and track it
-        def structure_model(data: dict, model_type: type[NameTypedProtocol]):
-            # 1. Build the pure data model using standard dataclass logic
-            
-            # slight_chage
-            
-            kv = {
-                    field_name: override(rename=to_kebab(field_name))
-                    for field_name in getattr(model_type, "__dataclass_fields__", {}).keys()
-                }
-            
-            base_fn = make_dict_structure_fn(
-                model_type, 
-                conv, 
-                # We must also apply the correct syntax here to catch the plugin models
-                **kv # type: ignore
-            )
-            model_instance = base_fn(data, model_type)
-            
-            # 2. Register the instance in your state tracker if needed
-            reg.register_built_instance(model_instance)
-            
-            # 3. CRITICAL: Return the MODEL so IAConfig is populated correctly
-            return model_instance
-
-        def vct_dispatch_replace_missing_type(data: dict, vct_builder_type: VCT, vct_type: VCT):
-            if not isinstance(data, dict):
-                return data
-                
-            raw_identity = data.get("type", None)
-            if not raw_identity:
-                log.warning(f"Missing 'type' key for: '{vct_type}'. Setting to {DEFAULT}")
-                raw_identity = DEFAULT
-            if raw_identity == DEFAULT:
-                default_builder_name = reg.get_default_for(vct_builder_type)
-                if not default_builder_name:
-                    raise ValueError(f"No default builder found for VCT '{vct_builder_type}' to use as fallback for 'type' field.")
-                data["type"] = default_builder_name
-            return vct_dispatch(data, vct_builder_type)
-    
-        def vct_dispatch(data: dict, vct_type: VCT):
-            if not isinstance(data, dict):
-                return data
-                
-            raw_identity = data.get("type")
-            if not raw_identity:
-                raise ValueError(f"Missing 'type' key for: '{vct_type}'")
-
-            try:
-                target_cls = reg.get_model(vct_type, raw_identity)
-                if target_cls is None:
-                    raise KeyError(f"Unrecognized type/alias '{raw_identity}' for {vct_type}")
-                
-                # Canonicalize identity to root csis_name
-                canonical_name = target_cls.csis_name() # type: ignore
-                if raw_identity != canonical_name:
-                    data["type"] = canonical_name
-                    
-                return conv.structure(data, target_cls)
-            except KeyError as e:
-                log.error(f"FATAL: Unrecognized type/alias '{raw_identity}' for {vct_type}", exc_info=e)
-                raise
-
-        # D. Wire up the Models to the Structure Hook
-        for model_cls in reg.builder_keys():
-            conv.register_structure_hook(model_cls, structure_model)
-
-        # E. Wire up ALL Base Classes to the VCT Dispatcher
-        # from .models.executable import ExecutableModel
-        from .models.os_builder_model import OsBuilderModel
-        from .models.runtime import RuntimeBuilderModel
-        from .models.storage_builder import StorageBuilderModel
-        from .models.image_builder_model import ImageBuilderModel
-        from .models.instance_builder import InstanceBuilderModel
-        from .models.mod_builder import ModBuilderModel
-        from .models.group_builder import GroupBuilderModel
-        from .models.user_builder import UserBuilderModel
-        from .models.state_builder import StateBuilderModel
-
-        conv.register_structure_hook(
-            Union[str, int],
-            disk_size_struct_hook
-        )
-        conv.register_structure_hook(
-            Union[str, int, None],
-            optional_scalar_struct_hook
-        )
-        # A YAML key with no value ("members:") parses to None, which cattrs then
-        # tries to iterate. Treat it as the empty collection it reads as.
-        # Registered by predicate because parameterized generics like set[str]
-        # can't go through register_structure_hook's singledispatch.
-        conv.register_structure_hook_func(
-            lambda t: t == set[str],
-            lambda v, _: set() if v is None else {str(x) for x in v}
-        )
-        conv.register_structure_hook_func(
-            lambda t: t == list[str],
-            lambda v, _: [] if v is None else [str(x) for x in v]
-        )
-        conv.register_structure_hook(RuntimeBuilderModel, lambda d, t: vct_dispatch(d, VCT.RUNTIME_BUILDER_MODEL))
-        conv.register_structure_hook(OsBuilderModel, lambda d, t: vct_dispatch(d, VCT.OS_BUILDER_MODEL))   
-        # conv.register_structure_hook(OSRuntimeConfigModel, lambda d, t: vct_dispatch(d, VCT.OS_RUNTIME_CONFIG_MODEL))     
-        conv.register_structure_hook(StorageBuilderModel, lambda d, t: vct_dispatch(d, VCT.STORAGE_BUILDER_MODEL))
-        conv.register_structure_hook(ImageBuilderModel, lambda d, t: vct_dispatch(d, VCT.IMAGE_BUILDER_MODEL))
-        conv.register_structure_hook(InstanceBuilderModel, lambda d, t: vct_dispatch(d, VCT.INSTANCE_BUILDER_MODEL))
-        conv.register_structure_hook(ModBuilderModel, lambda d, t: vct_dispatch(d, VCT.MOD_BUILDER_MODEL))
-        conv.register_structure_hook(GroupBuilderModel, lambda d, t: vct_dispatch(d, VCT.GROUP_BUILDER_MODEL))
-        conv.register_structure_hook(UserBuilderModel, lambda d, t: vct_dispatch(d, VCT.USER_BUILDER_MODEL))
-        conv.register_structure_hook(StateBuilderModel, lambda d, t: vct_dispatch(d, VCT.STATE_BACKEND_MODEL))
-        # conv.register_structure_hook(Instance, lambda d, t: vct_dispatch_replace_missing_type(d, VCT.INSTANCE_BUILDER_MODEL, VCT.INSTANCE_MODEL))
-        # conv.register_structure_hook(Image, lambda d, t: vct_dispatch(d, VCT.IMAGE_MODEL))
-        # conv.register_structure_hook(ExecutableModel, lambda d, t: vct_dispatch(d, VCT.EXECUTABLE_MODEL))
-
-        # ==========================================
-        # 2. UNSTRUCTURE HOOKS (Python -> YAML)
-        # ==========================================
-        
-        # A. Global LISP-case mapping & omission of default empty fields
-        conv.register_unstructure_hook_factory(
-            lambda cls: hasattr(cls, "__dataclass_fields__"),
-            lambda cls: make_dict_unstructure_fn(
-                cls, 
-                conv, 
-                # Correct cattrs syntax to globally rename AND omit empty defaults
-                **{
-                    field_name: override(rename=to_kebab(field_name), omit_if_default=True)
-                    for field_name in getattr(cls, "__dataclass_fields__", {}).keys()
-                } # type: ignore
-            ) 
-        )
-
-        # B. Datetime hooks
-        conv.register_structure_hook(
-            datetime.datetime,
-            lambda d, _: datetime.datetime.fromisoformat(d) if isinstance(d, str) else d
-        )
-        conv.register_unstructure_hook(datetime.datetime, lambda dt: dt.isoformat())
-
-        return conv
-    
-def optional_scalar_struct_hook(val, _):
-    """Structure hook for `str | int | None` fields (e.g. Group.gid).
-
-    cattrs cannot disambiguate this union on its own, and unlike
-    :func:`disk_size_struct_hook` a missing value must stay None rather than
-    collapsing to 0 -- for gid, None means "adopt the created group's id" while 0
-    is a distinct (also-deferred) sentinel the model normalizes itself. Ints pass
-    through, digit strings are narrowed to int, and everything else is left as a
-    string for the owning model's __post_init__ to validate or reject.
-    """
-    if val is None:
-        return None
-    try:
-        return int(val)
-    except (ValueError, TypeError):
-        return str(val)
-
-
-def disk_size_struct_hook(val, _):
-    """
-    Attempts to cast to int; if it fails (like for 'DEFAULT' or '10GB'), 
-    returns it as a string.
-    """
-    if val is None:
-        return 0
-    try:
-        return int(val)
-    except (ValueError, TypeError):
-        return str(val)
-
-
-# ==========================================
-# Built-in field-kind handlers
-# ==========================================
-# These carry the historical SmartContext behavior for the ``fk`` and ``templated``
-# kinds, now dispatched through the open field_kinds registry so plugins can add
-# their own kinds alongside them. (Deferred kinds keep their inline upgrade methods
-# on TemplateResolver for now; a plugin kind may still supply upgrade/resolve hooks.)
 class _FkFieldHandler(field_kinds.FieldKindHandler):
     """Built-in ``fk`` kind: dereference a foreign-key id into its object in context."""
     def contribute_context(self, ctx, obj, f, reg) -> None:

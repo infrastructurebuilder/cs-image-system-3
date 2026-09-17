@@ -5,12 +5,13 @@
 name: CI
 
 # Every command is a `just` target, so CI and a developer's shell run the same
-# thing. Three jobs: `verify` is the acceptance bar and needs neither
+# thing. Four jobs: `verify` is the acceptance bar and needs neither
 # configuration nor credentials; `live` drives the live configuration read-only;
-# `record` runs the full configuration on `main` and commits what it emits.
-# No job performs a cloud change: none holds a write-capable cloud credential.
-# Each is gated on the secrets the operator provides -- until they exist every
-# leg reports SKIPPED and the job passes.
+# `perform` records the full configuration on `main`, performs on the AWS
+# runtime under the write role and records again; `publish` uploads a pushed
+# `v*` tag to the index (TestPyPI always, PyPI for a final version). Each is
+# gated on the secrets the operator provides -- until they exist every leg
+# reports SKIPPED and the job passes.
 on:
   push:
   pull_request:
@@ -523,3 +524,79 @@ jobs:
           TF_VAR_nos_coastal_modeling_cloud_sandbox_secret: ${{ secrets.TF_VAR_NOS_SECRET }}
           CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY }}
         run: just cloud-preflight
+
+  publish:
+    # A pushed `v*` tag publishes the release (stage 41): to TestPyPI always, to
+    # PyPI when the tag is not a development version. `just publish` skips every
+    # file the index already holds with the same content, so a release the
+    # operator published locally with `just release` is checked here, not
+    # uploaded twice; one published from CI alone is uploaded here. The tag
+    # must name the version in the tree it points at. Each index's token is a
+    # repository secret until the package names are stable enough for trusted
+    # publishing (one pending publisher per project name).
+    needs: verify
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate on the index tokens
+        id: gate
+        env:
+          HAVE_TEST_PYPI_TOKEN: ${{ secrets.TEST_PYPI_TOKEN != '' }}
+          HAVE_PYPI_TOKEN: ${{ secrets.PYPI_TOKEN != '' }}
+          IS_DEV: ${{ contains(github.ref_name, '.dev') }}
+        run: |
+          # The same rule as the other jobs: none configured is SKIPPED and said in the
+          # job summary; a tag that needs a token which is missing or EMPTY is a FAILURE
+          # by name. A development tag needs TestPyPI's token alone; a final tag both.
+          if [ "$HAVE_TEST_PYPI_TOKEN" != true ] && [ "$HAVE_PYPI_TOKEN" != true ]; then
+            echo "publish: SKIPPED -- no index token is configured, so nothing is uploaded (TEST_PYPI_TOKEN: an API token for test.pypi.org; PYPI_TOKEN: one for pypi.org, needed for a final version)"
+            { echo "## publish: SKIPPED"; echo "No index token is configured; nothing was uploaded for $GITHUB_REF_NAME. A green conclusion here is not proof that anything ran."; } >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"; echo "pypi=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          [ "$HAVE_TEST_PYPI_TOKEN" = true ] || { echo "publish: FAILED -- TEST_PYPI_TOKEN is missing or EMPTY and every version goes to TestPyPI first"; exit 1; }
+          if [ "$IS_DEV" = true ]; then
+            echo "publish: $GITHUB_REF_NAME is a development version -- TestPyPI alone"
+            echo "pypi=false" >> "$GITHUB_OUTPUT"
+          else
+            [ "$HAVE_PYPI_TOKEN" = true ] || { echo "publish: FAILED -- $GITHUB_REF_NAME is a final version and PYPI_TOKEN is missing or EMPTY"; exit 1; }
+            echo "publish: $GITHUB_REF_NAME is a final version -- TestPyPI, then PyPI"
+            echo "pypi=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the tag
+        if: steps.gate.outputs.ready == 'true'
+        uses: actions/checkout@v4
+
+      - name: Install just
+        if: steps.gate.outputs.ready == 'true'
+        uses: extractions/setup-just@v2
+
+      - name: Install uv
+        if: steps.gate.outputs.ready == 'true'
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        if: steps.gate.outputs.ready == 'true'
+        run: just init
+
+      - name: The tag names the version in the tree
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          version=$(uv run --no-sync bump-my-version show current_version)
+          [ "v$version" = "$GITHUB_REF_NAME" ] || { echo "publish: FAILED -- the tag is $GITHUB_REF_NAME but the tree says $version"; exit 1; }
+
+      - name: Publish to TestPyPI
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.TEST_PYPI_TOKEN }}
+        run: just publish test
+
+      - name: Publish to PyPI
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.pypi == 'true'
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        run: just publish pypi

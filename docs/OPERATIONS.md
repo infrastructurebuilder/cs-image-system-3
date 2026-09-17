@@ -714,31 +714,105 @@ kept branch preserves the step-by-step history. Never commit directly to
 `develop` or `main`; never force-push a shared branch. Documentation-only
 changes skip the bar (nothing in it reads Markdown); say so.
 
-### `just build`, `just release`, `just publish-tree`
+### `just build`, `just release`, `just publish`, `just publish-tree`
 
-`just build` packages every workspace member (sdist + wheel) under
-`dist/`; no tests.
+`just build` packages the system and every workspace member (sdist +
+wheel: thirty files) under `dist/`; no tests. The builds are
+reproducible -- two builds of one tree are byte-identical -- which is what
+lets CI check a tag against the index instead of uploading it again.
 
-`just release <version> [yes]` is gated on `full-test` (the contract).
-`just release 0.2.0 yes` is the dry form: `full-test`, then the version
-bumps `uv version --dry-run` would make and what would follow. The real
-form:
+`just release <target> [test|pypi] [yes]` (stage 41) cuts a release and
+publishes it. `<target>` is a part for `bump-my-version` -- `patch`,
+`minor` or `major` open the next version as its first development
+release (`0.1.0` → `0.1.1.dev1`), `dev` is the next development release
+of the same version (`0.1.1.dev1` → `0.1.1.dev2`), `stage` finalises it
+(`0.1.1.dev2` → `0.1.1`) -- or an explicit version. The index is `test`
+(TestPyPI, the default) or `pypi`. `yes` as the third argument is the dry
+form: the probes and the version, nothing changed. The real form, in
+order:
 
-1. refuses a dirty working tree, and refuses without
-   `<config_root>/meta-state/mod-tests.yaml` (the evidence that the
-   released modifications passed; `full-test` with docker writes it in
-   the LIVE configuration) or with any other change in the live checkout;
-2. sets the version on the root and every workspace package
-   (`uv version`), `uv lock`;
-3. commits the mod-test evidence in the live repository
-   (`release <v>: modification-test evidence`) and `pyproject.toml`,
-   `packages/*/pyproject.toml`, `uv.lock` here (`release <v>`);
-4. tags `v<version>` (annotated) and runs `just build`;
-5. publishes with `uv publish dist/*` only when `UV_PUBLISH_URL` (and
-   `UV_PUBLISH_TOKEN`) is set; otherwise the leg reports `SKIPPED` and
-   **the tag is the release**.
+1. the probes, before anything changes: `UV_PUBLISH_TOKEN` is set; the
+   index does not know the version (`scripts/index-knows` reads the
+   simple index; a version is never re-cut, because a deleted version's
+   files can never be uploaded again); no `v<version>` tag exists here
+   (the local record of a version that was cut, deleted from the index
+   or not); `dev` on a final version is refused (open the next version
+   with `patch` first);
+2. a clean working tree, then the gate: for TestPyPI the bar
+   (`just test`); for PyPI `just full-test`, the modification-test
+   evidence at `<config_root>/meta-state/mod-tests.yaml` (written by
+   `full-test` with docker in the LIVE configuration) and a live checkout
+   clean apart from it;
+3. `bump-my-version bump <part>` (or `--new-version`): every `version =`
+   line and every `== <version>` pin between the packages, in one move
+   (`[tool.bumpversion]` in the root `pyproject.toml`); then `uv lock`;
+4. `just publish <index>` -- BEFORE the commit and the tag, so a failed
+   upload leaves an uncommitted bump to discard
+   (`git checkout -- pyproject.toml packages/*/pyproject.toml uv.lock`)
+   and never a tagged, unpublished version;
+5. for PyPI, the mod-test evidence committed in the live repository
+   (`release <v>: modification-test evidence`); then `pyproject.toml`,
+   `packages/*/pyproject.toml` and `uv.lock` committed here
+   (`release <v>`) and the annotated tag `v<version>`.
 
-Nothing is pushed: `git push --follow-tags` is the operator's act.
+Nothing is pushed: `git push --follow-tags` is the operator's act, and
+the pushed tag makes CI's `publish` job check the release against the
+index (it uploads nothing the index already holds).
+
+`just publish [test|pypi]` builds and uploads the version in the tree:
+`dist/` cleaned, `just build`, then `uv publish --index <name>
+--check-url <simple>`. The endpoints are the `[[tool.uv.index]]` entries
+in the root `pyproject.toml` -- `testpypi` uploads to
+`https://test.pypi.org/legacy/` and is checked against
+`https://test.pypi.org/simple/`; `pypi` uploads to
+`https://upload.pypi.org/legacy/` -- both `explicit`, so neither takes
+part in resolving the workspace. Files the index already holds with the
+same content are skipped, so a re-run after a partial failure uploads
+what is missing and nothing twice. The credential is `UV_PUBLISH_TOKEN`
+from the environment and never in the Justfile: while versions are being
+deleted and re-cut, an account-scoped TestPyPI token; trusted publishing
+(a pending publisher per project name, fifteen registrations) waits until
+the names are stable, and is then the CI job's credential.
+
+The version lives in sixteen places -- fifteen `version =` lines and the
+`== <version>` pins between the packages -- and `bump-my-version` is the
+one thing that changes them (`uv version` bumps the lines but never a
+pin, so it is not used). The scheme is `MAJOR.MINOR.PATCH[.devN]`; every
+version goes to TestPyPI first, and versions there are deleted as
+development goes on, so an increment must be cheap: `just release dev`
+is one. `tests/test_v2_package_metadata.py` bumps a copy of the tree and
+asserts nothing of the old version is left.
+
+### Installing a release
+
+The fifteen packages are on the index as `cs-image-system` (the whole
+system: no sources, a `==` pin on every package) and
+`cs-image-system-<package>`. TestPyPI does not carry the third-party
+dependencies, so an install from it names PyPI as the extra index (in
+`uv`, `--extra-index-url` takes priority over `--index-url`, so the
+third-party packages come from PyPI and only the `cs-image-system` names
+fall through to TestPyPI):
+
+```sh
+uv venv .venv
+uv pip install --python .venv/bin/python \
+  --index-url https://test.pypi.org/simple/ \
+  --extra-index-url https://pypi.org/simple/ \
+  cs-image-system==<version>
+.venv/bin/cs-image-system --help
+.venv/bin/cs-image-system decrypt --help
+```
+
+A final version on PyPI installs with `uv pip install
+cs-image-system==<version>` alone. Python 3.13 or later. The tools the
+system drives (`tofu`, `packer`, `gcloud`, `ansible-playbook`, docker) are
+not Python packages and are not installed by this; the configuration's
+`cfg/executables.yml` pins where they are. The same install from the
+built files, without an index, is `uv pip install --find-links dist
+cs-image-system==<version>` after `just build`; the fifteen wheels
+installed that way into a fresh virtualenv run `cs-image-system --help`
+and `decrypt`, which is the proof that every package declares what it
+imports.
 
 `just publish-tree <root> <dest>` builds what a public repository will
 hold: the TRACKED files of `<root>` at HEAD (`git archive`; nothing
@@ -775,7 +849,8 @@ needs docker and the live configuration, no cloud credentials.
 | `build` | sdist + wheel of every workspace member under `dist/` | nothing |
 | `test` | lint → typecheck → pytest, all blocking (the bar) | nothing |
 | `full-test` | `test` + `test-mods --strict` (docker) + dry `run --all` and `state query --strict` over a copy of the live tree (sessions) | docker, live tree, runtime sessions; each leg skips loudly |
-| `release <version> [yes]` | `full-test`, version bump, commit, tag, `build`, publish when `UV_PUBLISH_URL` is set | clean trees, mod-test evidence, `full-test`'s needs |
+| `release <part\|version> [test\|pypi] [yes]` | probe (token, index, tag), the bar or `full-test`, `bump-my-version`, `uv lock`, `publish`, commit, tag `v<version>`; `yes` = dry | `UV_PUBLISH_TOKEN`; for `pypi`: clean trees, mod-test evidence, `full-test`'s needs |
+| `publish [test\|pypi]` | clean `dist/`, `build`, `uv publish --index` with the check URL: upload the version in the tree, skip what is there | `UV_PUBLISH_TOKEN` |
 | `format` | `ruff format packages tests` | nothing |
 | `lint` / `lint-fix` / `lint-unsafe-fix` | ruff check; with safe / unsafe fixes | nothing |
 | `typecheck` | pyright | nothing |
@@ -784,7 +859,6 @@ needs docker and the live configuration, no cloud credentials.
 | `test-mods *ARGS` | the modification tests in a container | docker, live tree |
 | `golden-regen` | rewrite `tests/fixtures/v2_golden` from the fixture | nothing; review the diff |
 | `v2-dry-run *ARGS` | `run --all` (dry) against the live tree | live tree; AWS profile for discovery |
-| `ci` | lint → pyright (non-blocking) → pytest; not the bar | nothing |
 | `public-safe *ARGS` | scan this checkout with the fixture's allow list | nothing |
 | `public-safe-live *ARGS` | scan the live tree with its allow list | live tree |
 | `publish-tree <root> <dest>` | a publishable copy: tracked files, gate, one commit on `main` | a clean root |
@@ -819,12 +893,16 @@ by default and take `no` to apply. `gce-*` are aliases for the
 [ci.yml](../.github/workflows/ci.yml) runs on every push, every pull
 request, a nightly schedule (`23 6 * * *` UTC) and `workflow_dispatch`.
 Every command is a `just` target, so CI and a developer's shell run the
-same thing. Three jobs: `verify` is the bar, `live` reads the live
-configuration, and `record` runs the full configuration on `main` and
-commits what it emits. `tests/test_v2_ci_workflow.py` pins the shape below,
-that `verify` reads no secret, that no job anywhere passes `--no-dry-run`
-or holds a write-capable cloud credential, and that `record` runs full and
-unscoped, cannot record off `main`, and cannot record twice at once.
+same thing. Four jobs: `verify` is the bar, `live` reads the live
+configuration, `perform` records the full configuration on `main`,
+performs on the AWS runtime under the write role and records again, and
+`publish` uploads a pushed `v*` tag to the index (stage 41).
+`tests/test_v2_ci_workflow.py` pins the shape below, that `verify` reads
+no secret, that no job anywhere passes `--no-dry-run`, that the only
+write-capable cloud credential is the write role held for the performing
+step, that `perform` records full and unscoped, cannot record off `main`
+and cannot record twice at once, and that `publish` is the only uploader
+and runs on a tag alone.
 
 ### The `verify` job
 
@@ -923,6 +1001,23 @@ and snapshot of a bake, and what a release keeps. Retention disposes what
 the declarations no longer keep, on that runtime alone. No CI job holds a
 credential that can create anything on GCP.
 
+### The `publish` job
+
+Runs after `verify` on a pushed `v*` tag and nowhere else. It checks out
+the tag, `just init`, checks that the tag names the version in the tree
+(`bump-my-version show current_version`), then `just publish test` with
+`TEST_PYPI_TOKEN` as `UV_PUBLISH_TOKEN` and, when the tag is not a
+development version (no `.dev` in its name), `just publish pypi` with
+`PYPI_TOKEN`. `just publish` skips every file the index already holds
+with the same content, so a release the operator published locally with
+`just release` is checked here and uploaded nowhere twice; a tag pushed
+without a local publish is uploaded here. The gate follows the other
+jobs' rule: no token configured is `publish: SKIPPED` with a job-summary
+line; a tag that needs a token which is missing or EMPTY fails by name
+(a development tag needs TestPyPI's token alone; a final tag both). It
+holds no cloud credential and no `id-token` permission: trusted
+publishing waits until the package names are stable.
+
 ### The `[noaa]` profile shim
 
 The runtimes declare `credentials.profile_name: noaa`. botocore drops the
@@ -944,6 +1039,8 @@ credentials for the named profile.
 | `CSIS_CONFIG_IDENTITY` | the configuration load, to decrypt `ENC[age:…]` values; the CI age identity | live, perform |
 | `CSIS_CONFIG_PUSH_TOKEN` | the configuration checkout and the push of what the run committed: a fine-grained token with contents:write on the configuration repository and nothing else | perform |
 | `AWS_APPLY_ROLE_ARN` | the federated-credentials action for the performing step alone: the WRITE role, trusting `main` alone | perform |
+| `TEST_PYPI_TOKEN` | `just publish test`, as `UV_PUBLISH_TOKEN`: an account-scoped TestPyPI API token while versions are being deleted and re-cut | publish |
+| `PYPI_TOKEN` | `just publish pypi`, as `UV_PUBLISH_TOKEN`, for a final version | publish |
 
 The gate cannot tell a missing secret from an empty one (both read as
 `''`), so it decides on the set: with none configured the job skips and
@@ -953,7 +1050,8 @@ because `OKTA_API_PRIVATE_KEY` had been set to the empty string from a
 checkout missing the file it was read from; a job's conclusion is never
 proof that its steps ran. The `verify` job reads none of them. The
 `perform` job reads the same set plus the push token and the write role
-when recording. The `OKTA_API_CLIENT_ID` / `OKTA_API_PRIVATE_KEY_ID` /
+when recording; the `publish` job reads the two index tokens and nothing
+else. The `OKTA_API_CLIENT_ID` / `OKTA_API_PRIVATE_KEY_ID` /
 `OKTA_API_SCOPES` triple exists and is read by nothing: the terraform okta
 provider would need it to plan the identity roots, which no CI run does.
 
