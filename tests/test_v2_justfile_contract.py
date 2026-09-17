@@ -224,8 +224,9 @@ def test_release_cannot_half_release_and_publish_is_its_own_recipe():
     assert "git checkout -- pyproject.toml packages/*/pyproject.toml uv.lock" in body     # the recovery from a failed upload
     assert "test) name=testpypi" in body and "pypi) name=pypi" in body
     publish = r["publish"][1]
-    for needle in ("rm -rf dist", "just build", 'uv publish --index "$name" --check-url "$simple"', "UV_PUBLISH_TOKEN"):
+    for needle in ("rm -rf dist", "just build", 'uv publish --index "$name" dist/*', "UV_PUBLISH_TOKEN"):
         assert needle in publish, needle
+    assert "--check-url" not in publish, "uv refuses --check-url beside --index; the index's url is the check url"
     # the token is UV_PUBLISH_TOKEN, else the index's own name -- the repository secrets'
     # names, so the operator's one .envrc line serves the shell and CI alike
     for recipe in (body, publish):

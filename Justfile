@@ -150,7 +150,8 @@ release target index="test" dry="no":
 
 # Build and upload the version in the tree (stage 41.6): `dist/` cleaned, every package
 # built, every file uploaded to INDEX -- `test` (TestPyPI, the default) or `pypi` -- with
-# the files the index already holds with the same content skipped (--check-url), so a
+# the files the index already holds with the same content skipped (the index's url is
+# the check url), so a
 # re-run after a partial failure, or CI after a local publish, uploads what is missing and
 # nothing twice. The token is UV_PUBLISH_TOKEN, else TEST_PYPI_TOKEN / PYPI_TOKEN (the
 # repository secrets' names), from the environment and never here; the endpoints are the
@@ -161,8 +162,8 @@ publish index="test":
 	#!/usr/bin/env bash
 	set -euo pipefail
 	case "{{index}}" in
-		test) name=testpypi; simple=https://test.pypi.org/simple/ ;;
-		pypi) name=pypi; simple=https://pypi.org/simple/ ;;
+		test) name=testpypi ;;
+		pypi) name=pypi ;;
 		*) echo "publish: the index is test (TestPyPI, the default) or pypi, not '{{index}}'"; exit 2 ;;
 	esac
 	# the token: UV_PUBLISH_TOKEN, else the index's own name (TEST_PYPI_TOKEN or PYPI_TOKEN)
@@ -173,7 +174,8 @@ publish index="test":
 	rm -rf dist
 	just build
 	n=$(ls dist | wc -l | tr -d ' ')
-	uv publish --index "$name" --check-url "$simple" dist/*
+	# --index alone: uv takes the index's url as the check url and refuses an explicit one beside it
+	uv publish --index "$name" dist/*
 	echo "publish: cs-image-system $version is on $name ($n files: the system and its fourteen packages, sdist and wheel each; files already there with the same content were skipped)"
 
 # ------------------------------------------------------------ development
