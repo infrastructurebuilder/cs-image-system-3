@@ -356,6 +356,31 @@ def lifecycle_state_bindings(ctx: GlobalTypeContext) -> dict[str, dict[str, str]
     return out
 
 
+def _record_state_locations(ctx: GlobalTypeContext) -> None:
+    """Every workspace generated this run records its resolved state location
+    in meta-state (stage 46.4.1): the record, not the emission, is the memory
+    a later run's move guard compares against (``generated/`` can be pruned or
+    regenerated). A workspace migrating this run keeps its old record until
+    the migration's ``finish`` step moves it, which is what ``begin`` reads."""
+    try:
+        from cs_image_system.hashicorp_utils.collector import TerraformCollector
+    except ImportError:  # pragma: no cover - hashicorp-utils is always installed here
+        return
+    col = TerraformCollector()
+    if not col.backends_enabled():
+        return
+    migrating = set(getattr(ctx, "migrate_state", None) or [])
+    records = {}
+    for workspace in col.bound_workspaces():
+        if workspace in migrating:
+            continue
+        record = col.backend_record(workspace)
+        if record is not None:
+            records[workspace] = record
+    if records:
+        ctx.meta_state.record_state_locations(records, ctx.run_id)
+
+
 def _script_header(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> list[str]:
     """Runner-script header lines listing the state files this lifecycle's
     workspaces bind to."""
@@ -488,6 +513,10 @@ def run_lifecycles(requested: list[LifecycleLike], *, apply: bool = True,
     root.mkdir(parents=True, exist_ok=True)
     _write_gitignore(ctx, root, extra=RUN_LOCAL_FILENAMES)
     try:
+        if getattr(ctx, "migrate_state", None) and ctx.dry_run:
+            # stage 46.4.3: the operation needs --no-dry-run; refused here as well
+            # as at the CLI so that no other path moves state dry
+            raise LifecycleRunError("--migrate-state moves state and needs --no-dry-run: a dry run never moves state")
         if state_query:
             from ..state_query import query_state, write_state_report
             report = query_state(ctx)
@@ -519,6 +548,7 @@ def run_lifecycles(requested: list[LifecycleLike], *, apply: bool = True,
         for lifecycle in ordered:
             result = generate_lifecycle(ctx, lifecycle)
             summary.lifecycles.append(result)
+        _record_state_locations(ctx)         # stage 46.4: where each generated workspace keeps its state
         ctx.write_gating_script()
         if apply:
             apply_lifecycles(ctx, summary)

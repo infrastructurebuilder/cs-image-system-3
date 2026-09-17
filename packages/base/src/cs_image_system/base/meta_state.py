@@ -21,6 +21,7 @@ Two invariants are enforced here rather than trusted to callers:
 """
 from __future__ import annotations
 
+import datetime
 import logging
 import re
 import shutil
@@ -51,9 +52,10 @@ LAUNCH_PARAMS = "launch-params.yaml"
 RUNS = "runs.yaml"
 VERIFICATIONS = "verifications.yaml"   # ephemeral / verified instances (stage 10.1)
 IMAGE_TESTS = "image-tests.yaml"       # post-bake test results per build (stage 14)
+STATE_LOCATIONS = "state-locations.yaml"  # every workspace's resolved state location, and the migrations (stage 46)
 
 ALL_FILES = (IDENTITY_READ_MODEL, STORAGE_READ_MODEL, STORAGE_STATE, LINEAGE, PINS,
-             LAUNCH_PARAMS, RUNS)
+             LAUNCH_PARAMS, RUNS, STATE_LOCATIONS)
 
 # Public-safe by construction (stage 35): the scanner lives in public_safe.py
 # and is the same one behind the commit gate, `just public-safe` and the
@@ -402,6 +404,49 @@ class MetaState:
 
     def image_pins(self) -> dict[str, str]:
         return dict(self._pins()["images"])
+
+    # ------------------------------------------------------ state locations
+    @staticmethod
+    def location_key(record: dict[str, Any]) -> tuple[str, str, str]:
+        """What makes a location THE location (stage 46): backend type, bucket
+        and the normalised object key; region, profile and encryption are how
+        it is reached, not where it is."""
+        return (str(record.get("type", "")), str(record.get("bucket", "")), str(record.get("key", "")))
+
+    def state_locations(self) -> dict[str, dict[str, Any]]:
+        """workspace -> the location it was last generated against (stage 46.4):
+        the backend's name and the settings its ``.tfbackend.hcl`` carried
+        (type, bucket, key, region, profile, ...), and the run that recorded
+        it. The record, not the emission, is the memory a later run's move
+        guard compares against."""
+        return {k: dict(v) for k, v in (self.read(STATE_LOCATIONS).get("workspaces") or {}).items()}
+
+    def record_state_locations(self, locations: dict[str, dict[str, Any]], run_id: str) -> None:
+        """Merge this run's resolved locations over the record (a scoped run
+        generates some workspaces and leaves the others' records alone)."""
+        data = self.read(STATE_LOCATIONS)
+        workspaces = data.setdefault("workspaces", {})
+        for workspace, location in locations.items():
+            workspaces[workspace] = {**location, "run": run_id}
+        self.write(STATE_LOCATIONS, data)
+
+    def state_migrations(self) -> list[dict[str, Any]]:
+        return list(self.read(STATE_LOCATIONS).get("migrations") or [])
+
+    def record_state_migration(self, workspace: str, from_location: dict[str, Any],
+                               to_location: dict[str, Any], run_id: str, serial: int | None,
+                               backup: str | None) -> None:
+        """A performed move (stage 46.4.3.5): from, to, when, the state serial
+        and the backup file, appended to the audit list; the workspace's record
+        moves with it."""
+        data = self.read(STATE_LOCATIONS)
+        data.setdefault("migrations", []).append({
+            "workspace": workspace, "from": dict(from_location), "to": dict(to_location),
+            "run": run_id, "at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+            "serial": serial, "backup": backup,
+        })
+        data.setdefault("workspaces", {})[workspace] = {**to_location, "run": run_id}
+        self.write(STATE_LOCATIONS, data)
 
 
 # ---------------------------------------------------------------- git commit

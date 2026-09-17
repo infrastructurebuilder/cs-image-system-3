@@ -57,6 +57,28 @@ class TerraformRootMixin(_Base):
     def _dry_run(self) -> bool:
         return run_is_dry(self)
 
+    def runtime_state_configuration(self) -> str | None:
+        """The runtime's own ``state_configuration`` (stage 46.2), the second
+        rung of the chain a root's backend resolves through: the root's own
+        value when it names a backend, else its runtime's, else the default.
+        None for a root without a runtime (the identity roots) or outside a run."""
+        from cs_image_system.base.constants import STATE_BACKEND_FIELD
+        model = getattr(self, "model", None)
+        get_runtime = getattr(model, "get_runtime_provider", None)
+        try:
+            runtime_name = get_runtime() if callable(get_runtime) else None
+        except ValueError:      # a runtime still at `default`: no runtime rung
+            return None
+        if not runtime_name:
+            return None
+        get_ctx = getattr(self, "_get_context", None)
+        try:
+            ctx: Any = get_ctx() if callable(get_ctx) else None
+        except ValueError:
+            return None
+        rtb = ctx.runtime_builders.get(runtime_name) if ctx is not None else None
+        return getattr(getattr(rtb, "model", None), STATE_BACKEND_FIELD, None) if rtb else None
+
     def _init_args(self, phase: "ExecutionLifecyclePhase") -> list[str]:
         """``init`` args. A dry run initialises WITHOUT the backend: it installs
         providers and validates the emission and nothing after it needs state,
@@ -142,8 +164,9 @@ class TerraformRootMixin(_Base):
         addresses are forced replacements (an explicit upgrade); ``pre_plan``
         arg lists (e.g. ``state rm``) run before the plan.
         """
+        from cs_image_system.base.global_context import GlobalTypeContext
         from cs_image_system.base.models.executable import ExecutableModel
-        from cs_image_system.base.utils import system_cli_executable
+        from cs_image_system.base.utils import system_cli_executable, system_cli_executable_with_config
 
         commands: list["ExecutableModel"] = []
         # A failed plan must leave nothing for the gate to read: a stale
@@ -152,20 +175,42 @@ class TerraformRootMixin(_Base):
         rm.args = ["-f", "tfplan"]
         rm.working_directory = working_directory
         commands.append(rm)
-        commands.extend(self.terraform_commands(phase, [self._runner_init_args(phase)], working_directory))
+        tofu = self.get_executable_copy()
+        tofu_bin = str(tofu.binary or tofu.name)
+        # Stage 46.4.3: a root whose state MOVES this run (`--migrate-state`)
+        # begins with the backup-and-check step, inits with -migrate-state
+        # -force-copy instead of -reconfigure, plans with -detailed-exitcode
+        # (a change stops the runner: the move is accepted only clean) and
+        # records the move after the gate. See base/commands/state_migration.py.
+        migrating = self.name in (getattr(GlobalTypeContext(), "migrate_state", None) or [])
+        if migrating:
+            backend_file = self._backend_config_path(phase).name
+            commands.append(system_cli_executable_with_config(
+                ["state-migration", "begin", "--workspace", self.name, "--tofu", tofu_bin,
+                 "--backend-config", backend_file, "--run", str(GlobalTypeContext().run_id)],
+                working_directory))
+            init_args = ["init", "-input=false", "-migrate-state", "-force-copy", f"-backend-config={backend_file}"]
+        else:
+            init_args = self._runner_init_args(phase)
+        commands.extend(self.terraform_commands(phase, [init_args], working_directory))
         commands.extend(self.terraform_commands(phase, list(pre_plan), working_directory))
         commands.extend(pre_commands)               # e.g. the unmount before a detach (stage 10.14)
         plan_args = ["plan", "-input=false", "-out=tfplan"]
+        if migrating:
+            plan_args.append("-detailed-exitcode")
         plan_args += [f"-replace={addr}" for addr in replace]
         plan_args += list(plan_extra_args)          # e.g. -var=ephemeral_present=false (stage 10.1)
         commands.extend(self.terraform_commands(phase, [plan_args], working_directory))
-        tofu = self.get_executable_copy()
-        gate_args = ["gate-plan", "--planfile", "tfplan", "--tofu", str(tofu.binary or tofu.name)]
+        gate_args = ["gate-plan", "--planfile", "tfplan", "--tofu", tofu_bin]
         for addr in list(allow_destroy) + list(replace):
             gate_args += ["--allow-destroy", addr]
         for pair in require_unmounted:
             gate_args += ["--require-unmounted", pair]
         commands.append(system_cli_executable(gate_args, working_directory))
+        if migrating:
+            commands.append(system_cli_executable_with_config(
+                ["state-migration", "finish", "--workspace", self.name, "--run", str(GlobalTypeContext().run_id)],
+                working_directory))
         if apply:
             # Re-checked at EXECUTION time: a runner script generated under
             # yesterday's flags must not apply under today's (finding 24).
@@ -180,7 +225,6 @@ class TerraformRootMixin(_Base):
                             check += ["--root-alias", str(alias)]
                 # The overlays this run was generated under are re-read at
                 # execution the same way (their config keys over the file).
-                from cs_image_system.base.global_context import GlobalTypeContext
                 for path in getattr(GlobalTypeContext(), "overlays", None) or []:
                     check += ["--overlay", str(path)]
                 apply_runtime = getattr(GlobalTypeContext(), "apply_runtime", None)

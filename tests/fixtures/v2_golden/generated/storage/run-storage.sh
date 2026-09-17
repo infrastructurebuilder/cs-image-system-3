@@ -3,11 +3,11 @@
 # run id: 2026_08_26t12_00_00
 # Deferred commands accumulated while generating this lifecycle,
 # in phase order. Paths are relative to this lifecycle's directory.
-# state: workspace aws-ebs -> s3://noaa-ioos-cloud-sandbox-tfstate/statefiles/csia-image-system-test/aws_ebs.tfstate
-# state: workspace aws-efs -> s3://noaa-ioos-cloud-sandbox-tfstate/statefiles/csia-image-system-test/aws_efs.tfstate
-# state: workspace aws-s3 -> s3://noaa-ioos-cloud-sandbox-tfstate/statefiles/csia-image-system-test/aws_s3.tfstate
-# state: workspace gcp-gcs -> s3://noaa-ioos-cloud-sandbox-tfstate/statefiles/csia-image-system-test/gcp_gcs.tfstate
-# state: workspace gcp-pd -> s3://noaa-ioos-cloud-sandbox-tfstate/statefiles/csia-image-system-test/gcp_pd.tfstate
+# state: workspace aws-ebs -> s3://my-east1-tfstate-bucket/statefiles/csia/aws_ebs.tfstate
+# state: workspace aws-efs -> s3://my-east1-tfstate-bucket/statefiles/csia/aws_efs.tfstate
+# state: workspace aws-s3 -> s3://my-east1-tfstate-bucket/statefiles/csia/aws_s3.tfstate
+# state: workspace gcp-gcs -> s3://my-east1-tfstate-bucket/statefiles/csia/gcp_gcs.tfstate
+# state: workspace gcp-pd -> s3://my-east1-tfstate-bucket/statefiles/csia/gcp_pd.tfstate
 # NOTE: builders' pre/post finalize hooks are NOT part of this
 # script; a --no-dry-run run performs them in-process.
 set -euo pipefail

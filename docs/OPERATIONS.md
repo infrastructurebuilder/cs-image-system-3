@@ -487,6 +487,69 @@ claims reality that no apply produced. The one exception is
 | `releases.yaml` | every release ever made and, per model, the current released build of each series | `release` |
 | `mod-tests.yaml` | modification test results keyed by the mod's content hash (apply + idempotence), so an unchanged mod is not re-tested | `test-mods` |
 
+### Where state lives
+
+Every terraform root keeps its state in exactly one *location*: the tuple
+(backend type, bucket, key prefix, state file name), the prefix normalised
+(repeated slashes collapsed, leading and trailing ones stripped, case
+kept). A root's location is readable from its `.tfbackend.hcl` beside the
+root -- `bucket`, `key`, `region` and the profile -- and every lifecycle
+runner's header lists them (`# state: workspace <ws> -> s3://…`). The
+whole mechanism is gated by `use_state_backends` in `cfg/_config.yml`:
+off, no backend block, no backend file and no remote-state datasource is
+emitted, and none of what follows applies.
+
+The backend a root uses resolves through a chain (stage 46): its own
+`state_configuration` when it names a backend, else its runtime's, else
+the one backend marked `is_default`. `validate` (and every run, before
+anything is emitted) resolves every root's location from the declarations
+and refuses two roots that would share one state object -- the same bucket
+and normalised prefix under two backend names, two root names that
+collapse under the state-file naming, a `//` against a `/` -- naming both
+roots and the object. A consumer root reading a producer's state across
+backends (an instance root reading a storage root's, a storage root
+reading the identity root's) emits a `terraform_remote_state` datasource
+carrying the producer's bucket, key and region, whichever backend it is
+in.
+
+Every run records each generated root's resolved location in
+`meta-state/state-locations.yaml` (the record, not the emission, is the
+memory: `generated/` can be pruned or regenerated). A later run whose
+resolution differs from the record is refused while the records show live
+resources in that root -- a storage not destroyed, a group or user the
+identity read-model attributes to the root after an applied identity run,
+an instance pinned to a build -- because the new location is empty, so the
+next plan would create everything again and strand the old state. The
+refusal names the root, both locations, what stands in it and both ways
+out. A root with nothing deployed moves freely, with one INFO line.
+
+**Moving a root's state** is an operation, never an override:
+
+```sh
+just cli --no-dry-run run storage --migrate-state aws-efs
+```
+
+`--migrate-state <root>` (repeatable) makes that root's runner, in order:
+`state-migration begin` (the previous location from the record is written
+beside the root as `<root>.tfbackend.previous.hcl`; the new location must
+be empty -- one that holds state of another lineage is a collision and is
+refused; the old state is pulled to `<root>.backup-<run>.tfstate`, which is
+kept and never deleted by the operation; the root is left initialised
+against the previous location), then `init -input=false -migrate-state
+-force-copy -backend-config=<root>.tfbackend.hcl` (tofu copies the state;
+every normal run emits `-reconfigure`, which means "do NOT migrate", so
+this cannot be done by hand under the system's own flags), then
+`plan -detailed-exitcode` (the move is accepted only when the plan at the
+new location reports no changes: a change stops the runner there), the
+gate, and `state-migration finish`, which records the move in meta-state
+(from, to, when, the state serial, the backup) and moves the root's
+location record. A move that already happened (the new location holds the
+same lineage) is recognised and recorded without copying. A dry run
+refuses the flag; CI never migrates (its records are dry and no recipe
+carries the flag). Giving resources up is a different act: correct the
+records through the state query's import and forget paths, never rebind
+past the guard.
+
 ### Run outputs and exit codes
 
 A run ends with `generated/run-summary.json`: `run_id`, `requested`,
@@ -1228,6 +1291,8 @@ is likely to break the GCE code path; then one live cycle, torn down.
 | Command | Does |
 | --- | --- |
 | `validate` | loads the tree and applies every rule; generates nothing |
+| `run … --migrate-state <root>` (repeatable, `--no-dry-run`) | MOVES that root's state to the backend it now resolves to: backup, copy, a clean plan at the new location, the move recorded ("Where state lives") |
+| `state-migration begin\|finish --workspace <root> --run <id>` | the two steps of a migration, emitted into the root's runner by `--migrate-state`; never a by-hand command |
 | `generate` / `build-all` | aliases: every lifecycle without / with the apply step (`--base-only`: base-image alone) |
 | `upgrade instance <name> [--to <build>]` | moves that instance's pin (default: the series head); the next `instance-image` plans `-replace` and the gate whitelists it |
 | `upgrade image <name> [--to <base build>] [--runtime <rt>]` | moves an instance image's base pin (per runtime); the next `instance-image` bakes a new build; no instance moves |
@@ -1307,6 +1372,12 @@ operator key: nothing in a run can prompt.
 
 ### Procedures
 
+- **Move a root's state to another backend**: change its
+  `state_configuration` (or its runtime's), then
+  `just cli --no-dry-run run <lifecycle> --migrate-state <root>`; the
+  guard refuses a plain run while resources stand in the root, and the
+  operation backs the old state up, copies it and accepts only a clean plan
+  ("Where state lives"). Nothing deployed: the binding moves on its own.
 - **Upgrade an instance**: `just cli upgrade instance <name> [--to <build>]`
   (default: the series head in lineage), then run `instance-image` with
   the instance root allowed to apply. The plan carries `-replace` for that

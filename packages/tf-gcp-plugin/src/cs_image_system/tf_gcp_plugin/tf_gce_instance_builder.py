@@ -71,7 +71,7 @@ class TofuGceInstanceBuilder(TofuInstanceBuilder[Q]):
         col.declare_variable(ws, TerraformVariable(
             name=ENROLLMENT_TOKEN_VARIABLE, type="string", default="", sensitive=True,
             description="Identity enrollment token handed to instances at launch (TF_VAR_...); empty = no enrollment"))
-        col.set_backend(ws, self.model.state_configuration)
+        col.bind_workspace(ws, self.model.state_configuration, self.runtime_state_configuration())   # stage 46: own, runtime's, default
         ctx = self._get_context()
         for sb_name, sb in ctx.storage_builders.items():
             if getattr(sb.model, "_storages", None):

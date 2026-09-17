@@ -1,0 +1,91 @@
+workspaces:
+  aws-ebs:
+    backend: s3-east1
+    bucket: my-east1-tfstate-bucket
+    encrypt: true
+    key: statefiles/csia/aws_ebs.tfstate
+    profile: noaa
+    region: us-east-1
+    run: 2026_08_26t12_00_00
+    type: s3
+    use_lockfile: true
+  aws-efs:
+    backend: s3-east1
+    bucket: my-east1-tfstate-bucket
+    encrypt: true
+    key: statefiles/csia/aws_efs.tfstate
+    profile: noaa
+    region: us-east-1
+    run: 2026_08_26t12_00_00
+    type: s3
+    use_lockfile: true
+  aws-s3:
+    backend: s3-east1
+    bucket: my-east1-tfstate-bucket
+    encrypt: true
+    key: statefiles/csia/aws_s3.tfstate
+    profile: noaa
+    region: us-east-1
+    run: 2026_08_26t12_00_00
+    type: s3
+    use_lockfile: true
+  gcp-gcs:
+    backend: s3-east1
+    bucket: my-east1-tfstate-bucket
+    encrypt: true
+    key: statefiles/csia/gcp_gcs.tfstate
+    profile: noaa
+    region: us-east-1
+    run: 2026_08_26t12_00_00
+    type: s3
+    use_lockfile: true
+  gcp-pd:
+    backend: s3-east1
+    bucket: my-east1-tfstate-bucket
+    encrypt: true
+    key: statefiles/csia/gcp_pd.tfstate
+    profile: noaa
+    region: us-east-1
+    run: 2026_08_26t12_00_00
+    type: s3
+    use_lockfile: true
+  okta-tf-users:
+    backend: s3-east2
+    bucket: noaa-ioos-cloud-sandbox-tfstate
+    encrypt: true
+    key: statefiles/csia-image-system-test/okta_tf_users.tfstate
+    profile: noaa
+    region: us-east-2
+    run: 2026_08_26t12_00_00
+    type: s3
+    use_lockfile: true
+  oktagroups:
+    backend: s3-east2
+    bucket: noaa-ioos-cloud-sandbox-tfstate
+    encrypt: true
+    key: statefiles/csia-image-system-test/oktagroups.tfstate
+    profile: noaa
+    region: us-east-2
+    run: 2026_08_26t12_00_00
+    type: s3
+    use_lockfile: true
+  open-tofu:
+    backend: s3-east2
+    bucket: noaa-ioos-cloud-sandbox-tfstate
+    encrypt: true
+    key: statefiles/csia-image-system-test/open_tofu.tfstate
+    profile: noaa
+    region: us-east-2
+    run: 2026_08_26t12_00_00
+    type: s3
+    use_lockfile: true
+  tofu-gce:
+    backend: s3-east2
+    bucket: noaa-ioos-cloud-sandbox-tfstate
+    encrypt: true
+    key: statefiles/csia-image-system-test/tofu_gce.tfstate
+    profile: noaa
+    region: us-east-2
+    run: 2026_08_26t12_00_00
+    type: s3
+    use_lockfile: true

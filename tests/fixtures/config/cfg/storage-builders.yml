@@ -11,6 +11,7 @@ storage_builders:
     type: tf-aws-efs
     executable: open-tofu-1
     runtime: aws-east2-runtime # Refers to the runtime builder named aws-east2-runtime
+    state_configuration: s3-east1   # stage 46: the storage roots keep their state in the second backend
     # stage 26: inputs to the module call (tfmodules/aws_storage_efs/variables.tf), typed --
     # `performance-mode` (the old spelling) is refused; both values equal the module defaults
     variables:
@@ -24,6 +25,7 @@ storage_builders:
     executable: open-tofu-1
     is_default: true
     runtime: aws-east2-runtime # Refers to the runtime builder named aws-east2-runtime  
+    state_configuration: s3-east1   # stage 46: the storage roots keep their state in the second backend
     # stage 26: `size` is the builder's own field (GB); the rest are inputs to the module
     # call (tfmodules/aws_storage_ebs/variables.tf). Declared to MATCH the live mnt_data
     # volume (gp3, 100 GB; operator decision 2026-09-13, snapshot snap-08b1ebbccfbdd7570
@@ -39,6 +41,7 @@ storage_builders:
     type: tf-aws-s3
     executable: open-tofu-1
     runtime: aws-east2-runtime # Refers to the runtime builder named aws-east2-runtime  
+    state_configuration: s3-east1   # stage 46: the storage roots keep their state in the second backend
     bucket_name: noscsb-csis-test-514190660293-default-bucket
     # stage 26: builder-wide default tags (tfmodules/aws_storage_s3/variables.tf); a
     # storage item's own tags win key by key
@@ -52,12 +55,14 @@ storage_builders:
     type: tf-gcp-pd
     executable: open-tofu-1
     runtime: gcloud-east1
+    state_configuration: s3-east1   # stage 46: the storage roots keep their state in the second backend
     size: 30 # the entire Always-Free standard-PD allotment
     disk_type: pd-standard # the free tier is standard only (pd-balanced bills)
   - name: gcp-gcs
     type: tf-gcp-gcs
     executable: open-tofu-1
     runtime: gcloud-east1
+    state_configuration: s3-east1   # stage 46: the storage roots keep their state in the second backend
     bucket_name: csis-sandbox-86233086783-default-bucket
   # - name: gcp-pd
   #   type: gcp-pd

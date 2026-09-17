@@ -351,7 +351,7 @@ image, instance and storage builders) add:
 | Field | Type | Default | Meaning and allowed values |
 | --- | --- | --- | --- |
 | `account_id` | str or null | null | the account (a number is coerced to a string) |
-| `state_configuration` | str | `default` | a state backend (section 10) |
+| `state_configuration` | str | `default` | a state backend (section 10); `default` inherits the runtime's, else the default backend |
 | `ena_support` | bool or null | null | passed to the packer source |
 | `sriov_support` | bool or null | null | accepted; not read |
 | `iam_instance_profile` | str or null | null | instance profile attached to build VMs |
@@ -378,7 +378,7 @@ session.
 | `service_account_email` | str or null | null | the service account attached to build VMs and instances |
 | `default_disk_size` | int or null | null | bake disk size in GB for every image baked here (a GCE boot disk is exactly its image's disk); null uses the image's own value |
 | `bake_preemptible` | bool | `false` | bake on preemptible (spot) build VMs |
-| `state_configuration` | str | `default` | a state backend |
+| `state_configuration` | str | `default` | a state backend (section 10); `default` inherits the runtime's, else the default backend |
 | `ssh_username` | str | `default` | override of the bake ssh user |
 | `session_mechanism` | str or null | null | `iap` is the only supported value |
 | `networking` | mapping or null | null | 4.5 with `network_tags` |
@@ -822,7 +822,7 @@ types `tofu` (AWS) and `tofu-gce` (GCE, same fields,
 | `executable` | str or null | `tofu` | the tofu/terraform entry |
 | `runtime` | str | `default` | the runtime instances stand on |
 | `required_plugins` | list | `[]` | terraform providers: `{name (required), version (required), source, config}` |
-| `state_configuration` | str | `default` | the state backend of this root |
+| `state_configuration` | str | `default` | the state backend of this root; `default` inherits the runtime's, else the default backend |
 
 [`cfg/instance-builders.yml`](../tests/fixtures/config/cfg/instance-builders.yml):
 
@@ -969,7 +969,7 @@ Keys: `group_builders` and `user_builders`. Models:
 | `okta_base_url` | str | `okta.com` | `okta` provider `base_url` (`oktapreview.com` for a preview org) |
 | `default_user_status` | str | `STAGED` | `okta_user.status` for enabled managed users: `ACTIVE`, `STAGED`, `SUSPENDED`, `DEPROVISIONED`; disabled users are always `SUSPENDED` |
 | `required_providers` | list | `[]` | `{name (required), version (required), source, config}`; `oktapam` gets its credentials wired through variables, `okta` reads `OKTA_API_*` from the environment and its `config` may carry any provider argument |
-| `state_configuration` | str | `default` | the state backend |
+| `state_configuration` | str | `default` | the state backend every root on this runtime inherits unless it names its own (stage 46) |
 
 `<team>` in a variable name is the team with every non-alphanumeric
 character replaced by `_` (`nos-coastal-modeling-cloud-sandbox` →
@@ -1052,9 +1052,50 @@ user_builders:
 
 Key: `state_backends`. Model: `TofuS3StateBuilderModel`, type `s3`
 ([`tf_s3_state_models.py`](../packages/tf-s3-state-plugin/src/cs_image_system/tf_s3_state_plugin/tf_s3_state_models.py)).
-Every terraform root names one through `state_configuration` (or takes the
-default). A root's state file is `<key><root name>.tfstate` in the
-bucket, the root name with non-alphanumerics replaced by `_`.
+Every terraform root names one through `state_configuration`, or inherits
+its runtime's, or takes the default. A root's state file is
+`<key>/<root name>.tfstate` in the bucket, the root name with
+non-alphanumerics replaced by `_`, the key normalised.
+
+**Where a root's state lives (stage 46).** A configured root keeps its state
+in exactly one *location*, the tuple (backend type, bucket, key prefix,
+state file name), and no two roots may write the same state object. The
+backend a root uses resolves through a chain: the root's own
+`state_configuration` when it names a backend, else its runtime's
+`state_configuration` (declared on both runtime types: "everything on this
+runtime keeps its state in that bucket"), else the single backend marked
+`is_default`. "Names a backend" means a value outside the loader's absent
+sentinels (`default`, `self`, empty, unset). The key prefix is normalised
+before anything is emitted or compared -- repeated slashes collapsed,
+leading and trailing ones stripped, case kept, `.` and `..` refused -- so
+the doubled slash can never reach a `.tfbackend.hcl`. The operator's
+examples, which are the test:
+
+| Root | Declared location | Collides? |
+| --- | --- | --- |
+| A | `BUCKET1/abc` | no |
+| B | `BUCKET2/xyz` | no, different bucket |
+| C | `BUCKET1//xyz` | no, and normalises to `BUCKET1/xyz` |
+| D | `BUCKET1/xyz` | **yes, with C** |
+
+`validate` resolves every root's location from the declarations alone and
+refuses a collision before anything is emitted: two backends whose bucket
+and normalised prefix match, two root names that collapse under the state
+file naming (`aws-ebs` and `aws_ebs` both become `aws_ebs.tfstate`), or a
+`//` against a `/`. It also refuses a root bound twice to different
+backends, a backend registered twice with different settings, and more
+than one `is_default`. Every run records each root's resolved location in
+`meta-state/state-locations.yaml`; a later run whose resolution differs
+from the record is refused while the records show live resources in that
+root (a storage not destroyed, a group or user the identity read-model
+attributes to it, an instance pinned to a build), because the new location
+is empty and the next plan would create everything again. A root with
+nothing deployed moves freely. The escape is the operation
+`run --no-dry-run … --migrate-state <root>` (OPERATIONS, "Where state
+lives"); there is no flag that merely proceeds past the refusal. The
+fixture binds its storage roots to `s3-east1` and everything else to the
+default `s3-east2`, so its golden carries both buckets; the live
+configuration keeps every root on its default backend by decision.
 
 | Field | Type | Default | Meaning and allowed values |
 | --- | --- | --- | --- |

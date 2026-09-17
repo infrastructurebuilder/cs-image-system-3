@@ -135,7 +135,7 @@ class TofuInstanceBuilder(InstanceBuilderBase[Q], TerraformRootMixin):
         # this workspace's own backend, plus a remote-state datasource per
         # storage workspace so instances can bind to storage outputs, and per
         # identity workspace so gids flow by reference (N7).
-        col.set_backend(ws, self.model.state_configuration)
+        col.bind_workspace(ws, self.model.state_configuration, self.runtime_state_configuration())   # stage 46: own, runtime's, default
         ctx = self._get_context()
         for sb_name, sb in ctx.storage_builders.items():
             if getattr(sb.model, "_storages", None):

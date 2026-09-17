@@ -17,12 +17,34 @@ from .protocols.parent_property_holding_protocol import ParentPropertyHoldingPro
 from dataclasses import MISSING, fields, is_dataclass
 from typing import Any
 import jinja2
-from .constants import DEFAULT, DEFERRED_BUILDER_VCT, DEFERRED_ITEM_VCT, FK_ALSO_SET_ON_UPDATE, FK_TARGET, IS_DEFERRED_LIST_FK, IS_DEFERRED_LIST_GENERATED, IS_FK, IS_REPLACE, VCT, REPLACE_VALUE
+from .constants import DEFAULT, DEFERRED_BUILDER_VCT, DEFERRED_ITEM_VCT, FK_ALSO_SET_ON_UPDATE, FK_TARGET, IS_DEFERRED_LIST_FK, IS_DEFERRED_LIST_GENERATED, IS_FK, IS_REPLACE, OOPS_DEFAULTS, STATE_BACKEND_FIELD, VCT, REPLACE_VALUE
 
 from .singleton import singleton
 
 from .protocols.name_typed_protocol import NameTypedProtocol, SelfInjectedNameProtocol, SubItemOverrideProtocol
 from . import registry
+
+
+
+def default_fk_value(reg: Any, obj: Any, target: VCT) -> str | None:
+    """What a foreign key left at ``default`` resolves to: the registry's default
+    for its target -- except a root's ``state_configuration`` (stage 46.2), which
+    inherits its RUNTIME's backend when that names one, so "everything on this
+    runtime keeps its state in that bucket" is a sentence the configuration can
+    write. A runtime model's own field, and a model without a runtime (the
+    identity roots), fall through to the default backend."""
+    if target == VCT.STATE_BACKEND_MODEL:
+        classifier: Any = getattr(obj, "csis_classifier", None)
+        classified: Any = classifier() if callable(classifier) else None
+        is_runtime = classified is not None and registry.sanitize_classifier(classified) == VCT.RUNTIME_BUILDER_MODEL
+        runtime_name = None if is_runtime else getattr(obj, "runtime", None)
+        if runtime_name in OOPS_DEFAULTS and not is_runtime and hasattr(obj, "runtime"):
+            runtime_name = reg.get_default_for(VCT.RUNTIME_BUILDER_MODEL)
+        runtime = reg.get_instance_by_name_or_alias(VCT.RUNTIME_BUILDER_MODEL, runtime_name) if runtime_name else None
+        inherited = getattr(runtime, STATE_BACKEND_FIELD, None) if runtime is not None else None
+        if inherited not in OOPS_DEFAULTS:
+            return str(inherited)
+    return reg.get_default_for(target)
 
 
 class SmartContext(dict):
@@ -330,7 +352,7 @@ class TemplateResolver:
                         target: VCT | None = f.metadata.get(FK_TARGET,None)
                         if field_set_to_default(f, val):
                             if target:
-                                val = reg.get_default_for(target) or DEFAULT
+                                val = default_fk_value(reg, obj, target) or DEFAULT
                             if f.metadata.get(IS_REPLACE) and f.metadata.get(REPLACE_VALUE):
                                 templ = f.metadata[REPLACE_VALUE]
                                 if isinstance(templ, str) and "{{" in templ:
@@ -630,7 +652,7 @@ class _FkFieldHandler(field_kinds.FieldKindHandler):
         update_this_field = False
         if field_set_to_default(f, fk_id):
             if target:
-                newval = reg.get_default_for(target) or field_default(f)
+                newval = default_fk_value(reg, obj, target) or field_default(f)
             setattr(obj, f.name, newval)  # may still be DEFAULT if no default is found
             update_this_field = (fk_id != newval)
 
