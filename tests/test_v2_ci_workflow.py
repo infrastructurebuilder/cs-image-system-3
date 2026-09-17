@@ -151,6 +151,12 @@ def test_perform_records_performs_on_the_aws_runtime_alone_and_records_again():
     assert "--dry-run" in proof["run"] and proof.get("id") == "proof" and "before=" in proof["run"]
     guard = next(s for s in job["steps"] if s.get("name", "").startswith("The GCE runtime stays out"))
     assert guard["run"].strip().startswith("just runtime-unchanged gcloud-east1") and "steps.proof.outputs.before" in guard["run"]
+    # every step that loads the configuration carries its environment (the guard
+    # once ran without it and could not read the runtime's emission directories)
+    for name in ("The full run, recorded", "The GCE runtime stays out of CI, so a change there fails loudly",
+                 "The AWS runtime performs", "The full run, recorded again"):
+        env = next(s for s in job["steps"] if s.get("name") == name).get("env") or {}
+        assert "CSIS_CONFIG_IDENTITY" in env and "OKTA_API_PRIVATE_KEY" in env, name
 
     # the closing record and every push after the performing step run even on
     # failure -- but only once the first record was made: a failure before it has

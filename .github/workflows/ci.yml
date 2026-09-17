@@ -417,9 +417,16 @@ jobs:
       - name: The GCE runtime stays out of CI, so a change there fails loudly
         if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
         working-directory: cs-image-system-3
+        env:
+          OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_key: ${{ secrets.TF_VAR_NOS_KEY }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_secret: ${{ secrets.TF_VAR_NOS_SECRET }}
+          CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY }}
         # the GCE emission the record just wrote, against the previous record:
         # a declaration change on the runtime CI must never bake on is a
-        # failure here, before anything performs (the record is already pushed)
+        # failure here, before anything performs (the record is already pushed).
+        # The recipe reads the runtime's emission directories from the
+        # configuration, so it loads it: the same environment as the record
         run: just runtime-unchanged gcloud-east1 "${{ steps.proof.outputs.before }}"
 
       - name: Install what a bake needs on the runner (Session Manager plugin, ansible)
