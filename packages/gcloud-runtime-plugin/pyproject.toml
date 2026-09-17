@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-gcloud-runtime-plugin"
-version = "0.1.0"
+version = "0.1.1.dev1"
 description = "The gcloud runtime type: Google Compute Engine as a place where images bake and instances run"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
@@ -12,8 +12,8 @@ license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
-    "cs-image-system-system==0.1.0",
-    "cs-image-system-hashicorp-utils==0.1.0",
+    "cs-image-system-system==0.1.1.dev1",
+    "cs-image-system-hashicorp-utils==0.1.1.dev1",
     "google-cloud-compute>=1.49",
     "google-api-core>=2.31",
     "google-auth>=2.55",

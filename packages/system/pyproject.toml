@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-system"
-version = "0.1.0"
+version = "0.1.1.dev1"
 description = "The command-line host: the cs-image-system console script that loads the plugins and drives the lifecycle runner"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
@@ -12,7 +12,7 @@ license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
-    "cs-image-system-base==0.1.0",
+    "cs-image-system-base==0.1.1.dev1",
     "typer>=0.26",
     "rich>=15.0",
     "PyYAML>=6.0",
