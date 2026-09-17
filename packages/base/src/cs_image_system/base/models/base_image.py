@@ -33,12 +33,9 @@ class BaseImageImageBuilderSubconfig(NameTyped, ParentPropertyHoldingProtocol):
     #. self.runtime serves as the 'type' for ImageRuntimeSubconfig
     #. but we must set it to override the parent
     name: str = DEFAULT
-    type_: Annotated[str, Field(alias="type")] = fk_field(target=VCT.OS_BUILDER_MODEL,
-                            default = DEFAULT,
-                            metadata={
-                                "description": "The runtime this config uses",
-                                "required": True,
-    })
+    # stage 48.3: a type TAG, not a reference -- it carried the runtime's name under
+    # an OS-builder foreign key and resolved only through the fallback
+    type_: Annotated[str, Field(alias="type")] = DEFAULT
     runtime: str = fk_field(target=VCT.RUNTIME_BUILDER_MODEL, # FIXME: This should be image builder
                             default = DEFAULT,
                             metadata={

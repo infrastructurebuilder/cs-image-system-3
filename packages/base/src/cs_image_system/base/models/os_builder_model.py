@@ -87,7 +87,9 @@ class OsBuilderModel(BuilderModel):
                     f"Duplicate runtime configuration name {r.get_image_builder()} in OS builder {self.name}"
                 )
             nameset.add(r.get_image_builder())
-            r.model_id = self.global_id
+            # stage 48.2: the runtime subconfigs are parented ONCE, by the OS builder
+            # that wraps this model (OsBuilderBase.__post_init__, "self-registers");
+            # the model's own claim here was overwritten there on every load
         if self.default_primary_disk_size == DEFAULT:
             self.default_primary_disk_size = 200
             

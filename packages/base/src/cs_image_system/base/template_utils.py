@@ -370,8 +370,15 @@ def cycle_main_yaml(y: str, cycles: int = 10, addl: dict | None = None) -> str:
     current = y
     for _name, fn in resolution_stages.resolution_passes():
         current = fn(current, addl=addl, cycles=cycles)
-    if '{{' in current and '}}' in current:
-        log.warning("Final cycled YAML still contains template tags. Consider increasing the number of cycles or checking for circular references.")
+    # stage 48.2: what remains after the string passes is either a comment (a
+    # commented-out `{{ ENV[...] }}` in the fixture fired this on every load) or a
+    # tag that legitimately resolves at the object stage (`{{ group.name }}`,
+    # `{{ identified_model.name }}`); neither is a warning
+    remaining = [line.strip() for line in current.splitlines()
+                 if "{{" in line and "}}" in line and not line.lstrip().startswith("#")]
+    if remaining:
+        log.debug(f"{len(remaining)} template tag(s) remain after the string passes and resolve at the "
+                  f"object stage: {remaining[:5]}")
     return current
 
 # def cycle_once_as_this(plugin_type: str, to_cycle: dict, addl: dict = {}) -> dict:

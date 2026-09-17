@@ -54,3 +54,18 @@ class AbstractVersionChecker(ABC):
         except Exception as ex:
             log.error(f"Error while checking version for executable {executable}: {ex}")
             raise ex
+
+
+class GenericVersionChecker(AbstractVersionChecker):
+    """The checker for an executable that has no checker of its own (stage
+    48.1): ``<binary> --version``, the first dotted number on the first line
+    -- ``jq-1.8.2``, ``Docker version 29.4.0, build ...``, ``yq (...) version
+    v4.53.6``. Registered under the executable model's default type,
+    ``executable``, so the name-then-type lookup ends here."""
+
+    @classmethod
+    def csis_name(cls) -> str:
+        return "executable"
+
+    def get_regex(self) -> str:
+        return r"(\d+(?:\.\d+)+)"

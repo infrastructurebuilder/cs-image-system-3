@@ -39,9 +39,6 @@ class AnsiblePackerModBuilder(ModBuilderBase[Q]):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        if not self.model.playbooks:
-            log.warning(f"Ansible builder {self.get_display_name()} should have at least one playbook specified.")
-        # Registry().register_built_instance(self)
 
     @property
     def model(self) -> AnsibleBuilderModel: # type: ignore
@@ -126,25 +123,11 @@ class AnsiblePackerModBuilder(ModBuilderBase[Q]):
         return retval
 
     def copy_external_assets(self, target_path: Path, mod=None) -> dict[str, Path]:
-        assets: dict[str, Path] = {}
-        # assets = super().copy_external_assets(target_path)
-        for i, mod in enumerate(self.model.playbooks):
-            if mod in target_path.parents:
-                raise ValueError(f"Playbook {mod} is already in the target path {target_path} or one of its subdirectories, cannot copy.")
-            if mod in target_path.parent.parents:
-                raise ValueError(f"Playbook {mod} is already in the parent of the target path {target_path} or one of its subdirectories, cannot copy.")
-            pwd = Path.cwd().absolute()
-            source = Path(mod).resolve().absolute()
-            relsource = source.relative_to(pwd)
+        """Nothing: an item's playbooks are copied beside the block when its
+        provisioners are emitted (stage 48.4: the builder-level playbooks that
+        were copied here and never referenced are gone)."""
+        return {}
 
-            if not source.is_file():
-                raise FileNotFoundError(f"Playbook {source} does not exist or is not a file, cannot copy.")
-            target = target_path / relsource
-            target.parent.mkdir(parents=True, exist_ok=True)
-            # copy2 preserves file metadata and handles both binary and text content.
-            shutil.copy2(source, target)
-            assets[mod] = relsource
-        return assets
 
 class AnsibleVersionChecker(AbstractVersionChecker):
     """Version checker for Ansible."""

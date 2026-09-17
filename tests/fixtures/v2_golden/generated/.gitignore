@@ -12,3 +12,4 @@ terraform.tfstate.backup
 **/target/
 run-summary.json
 state-report.json
+manifest.json

@@ -70,7 +70,11 @@ DEFAULT_GITIGNORE_ENTRIES = [
 # dirtied the checkout after every preflight)
 RUN_SUMMARY_FILENAME = "run-summary.json"
 STATE_REPORT_FILENAME = "state-report.json"
-RUN_LOCAL_FILENAMES: tuple[str, ...] = (RUN_SUMMARY_FILENAME, STATE_REPORT_FILENAME)
+PACKER_MANIFEST_FILENAME: str = "manifest.json"   # packer's post-processor output, read for the build's artifact id
+# Run-local (stage 43, 48.6): what a run writes for itself and never commits -- the summary,
+# the state report and packer's manifest (its artifact ids are recorded in lineage; the
+# file itself landed in the record once and is noise there). Ignored under generated/.
+RUN_LOCAL_FILENAMES: tuple[str, ...] = (RUN_SUMMARY_FILENAME, STATE_REPORT_FILENAME, PACKER_MANIFEST_FILENAME)
 SAVED_LOAD_DICT = "_saved_dict_from_load"
 ANY_AT_ALL = "ANY_AT_ALL"
 

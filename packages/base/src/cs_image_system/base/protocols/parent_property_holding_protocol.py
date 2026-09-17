@@ -74,10 +74,18 @@ class ParentPropertyHoldingProtocol(Protocol):
       #         f"{self._model_id}. Cannot assign {model.name}."
       #     )
       if self._model_id and self._model_id != model_name:
-          log.warning(
-              f"Model {self} already has a model assigned: "
-              f"{self._model_id}. Overwriting with {model_name}."
-          )
+          # stage 48.2: a bare NAME is the placeholder the foreign-key fill writes
+          # (`_model_id: default` resolved to the default builder's name); the
+          # builder that wraps the model then assigns its global id, which ends in
+          # that name -- a refinement, not a second parent. Two different global
+          # ids would be, and stay a warning.
+          if "::" in self._model_id and not model_name.endswith(f"::{self._model_id}"):
+              log.warning(
+                  f"Model {self} already has a model assigned: "
+                  f"{self._model_id}. Overwriting with {model_name}."
+              )
+          else:
+              log.debug(f"{type(self).__name__} {getattr(self, 'name', '')}: parent {self._model_id!r} refined to {model_name!r}")
       self._model_id = model_name
       reg = registry.Registry()
       try:

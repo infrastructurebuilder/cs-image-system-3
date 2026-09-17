@@ -119,15 +119,14 @@ def test_every_runtime_default_image_builder_names_a_declared_image_builder():
 
 
 def test_validate_says_what_it_cannot_check_once_as_information(caplog):
-    from cs_image_system.base.commands.validate import check_existence_of_executable, check_single_version
-    from cs_image_system.base.models.executable import ExecutableModel
-    unchecked: list[str] = []
+    """stage 43: a provider without an executable is information, not a
+    warning apiece (the tools themselves are checked since stage 48.1)."""
+    from cs_image_system.base.commands.validate import check_existence_of_executable
     unspecified: list[str] = []
     with caplog.at_level(logging.DEBUG):
-        assert check_single_version(ExecutableModel(name="yq", type_="executable", binary="yq"), unchecked=unchecked) == []
         providers = {"aws-east2-runtime": SimpleNamespace(model=SimpleNamespace(executable=None), type_="aws")}
         assert check_existence_of_executable({}, providers, unspecified=unspecified) == []   # type: ignore[arg-type]
-    assert unchecked == ["yq (type executable)"] and unspecified == ["aws-east2-runtime (aws)"]
+    assert unspecified == ["aws-east2-runtime (aws)"]
     assert not [r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING]
 
 

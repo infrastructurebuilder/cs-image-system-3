@@ -38,11 +38,9 @@ class AnsibleModItemModel(ModItemModel):
                 "it has nothing to modify with (config alone provisions nothing). "
                 "Give it 'playbooks:' (files the config keys feed as variables) or remove it.")
     def remap_self_with_copied_assets(self, copied_assets: dict[str, Path]) -> None:
-        _playbooks: list[str]=  []
-        pb: list[str] = getattr(self.identified_model, "playbooks", [])
-        for playbook in pb:
-            if playbook not in _playbooks:
-                _playbooks.append(playbook)
+        # stage 48.4: an item's playbooks are its own (the builder-level field that
+        # was copied beside the root and never run is gone)
+        _playbooks: list[str] = []
         for playbook in self.playbooks:
             if playbook not in _playbooks:
                 _playbooks.append(playbook)
@@ -56,11 +54,9 @@ class AnsibleModItemModel(ModItemModel):
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
 class AnsibleBuilderModel(ModBuilderModel):
-    """Dataclass representing an Ansible playbook modification.
-
-    Attributes:
-        playbooks: Playbooks that are prepended to the list of provided playbooks.
-    """
+    """The ansible modification BUILDER: how ansible-playbook is driven. The
+    playbooks are the modification ITEMS' (stage 48.4: the builder-level list
+    was copied beside the Packer root and never run, so it is gone)."""
     type = ANSIBLE_BUILDER
     configuration_user: str | None = None  # Username to use for provisioning (if none use OSBuilder)
     extra_arguments: list[str] = field(default_factory=list) # Extra arguments to pass to ansible-playbook command (e.g. --tags, --skip-tags, etc.)
@@ -71,7 +67,6 @@ class AnsibleBuilderModel(ModBuilderModel):
     # provisioning to a docker container, but other connection types could be used as well.
     # see https://developer.hashicorp.com/packer/integrations/hashicorp/ansible/latest/components/provisioner/ansible#docker
     ansible_connection: str | None = None # Ansible connection type to use (e.g. ssh, winrm, etc.)
-    playbooks: list[str] = field(default_factory=list) # Playbooks that are prepended to the list
             # of provided playbooks.
 
 

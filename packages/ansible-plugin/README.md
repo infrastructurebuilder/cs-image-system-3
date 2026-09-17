@@ -57,7 +57,6 @@ registered subclass; it adds no fields.
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `playbooks` | `list[str]` | `[]` | Playbook files (relative to the configuration root) copied beside the Packer root by `copy_external_assets`. They are copied only; no provisioner is emitted for them (see below). A builder with none logs a warning. |
 | `extra_arguments` | `list[str]` | `[]` | Prepended to every emitted `provisioner "ansible"`'s `extra_arguments`. |
 | `expect_disconnect` | `bool` | `False` | Emits `expect_disconnect = true` on every provisioner. |
 | `ansible_connection` | `str \| None` | `None` | Emits `connection_type = "<value>"` when set (for example `docker`). |
@@ -88,12 +87,10 @@ Inherited item fields:
 | `config` | `RootItem` | `{}` | Not read by this plugin. It takes part in the lineage content hash of the modification and nothing else. |
 | `_model_id` | `ModItemModel` | set at load | The owning image's global id. `identified_model` (and `builder`) therefore resolve to the *image*, not to the modification builder. |
 
-`remap_self_with_copied_assets(copied)` rebuilds `playbooks` from
-`getattr(self.identified_model, "playbooks", [])` followed by the item's own
-entries, de-duplicated, replacing any path present in `copied` with its
-copy. Since the identified model is the image, which has no `playbooks`
-attribute, the first part contributes nothing: the item's playbooks are
-exactly the ones it declares.
+`remap_self_with_copied_assets(copied)` rewrites the item's own
+`playbooks` to their copied paths (stage 48.4: the builder-level list that
+was copied beside the root and never run is gone, and nothing is
+inherited).
 
 ## The builder
 

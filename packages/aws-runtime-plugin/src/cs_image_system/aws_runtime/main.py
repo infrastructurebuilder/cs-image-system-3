@@ -6,7 +6,7 @@ import logging
 
 from cs_image_system.base.basic.abstract_plugin_metadata import AbstractPluginMetadata
 from cs_image_system.base.protocols.plugin_metadata import PluginMetadataProtocol
-from .aws_runtime_builders import AWS_RUNTIME, AwsCloudBuilder
+from .aws_runtime_builders import AWS_RUNTIME, AwsCLIVersionChecker, AwsCloudBuilder
 from .aws_runtime_models import AwsCloudBuilderModel
 
 log = logging.getLogger(__name__)
@@ -17,6 +17,7 @@ class AwsRuntimePluginMetadata(AbstractPluginMetadata,PluginMetadataProtocol):
                      {AWS_RUNTIME: [
                        AwsCloudBuilderModel,
                        AwsCloudBuilder,
+                       AwsCLIVersionChecker,     # stage 48.1: registered under its own name, aws-cli
                      ]},
                      {AwsCloudBuilderModel: AwsCloudBuilder}
                      )

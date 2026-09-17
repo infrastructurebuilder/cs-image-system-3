@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
-import subprocess
 from collections.abc import Mapping
 from typing import Any
 
@@ -345,9 +344,7 @@ class GCPCLIVersionChecker(AbstractVersionChecker):
         return VCT.VERSION_CHECKER
 
 
-    def get_extracted_string(self, res: subprocess.CompletedProcess[str]) -> str | None:
-        return (
-            [line for line in res.stdout.strip().splitlines() if line.startswith("core")][0]
-            .split(" ")[1]
-            .strip()
-        )
+    def get_regex(self) -> str:
+        # the SDK version (`Google Cloud SDK 585.0.0`, the first line), not the
+        # `core` component's date-shaped version nobody quotes (stage 48.1)
+        return r"Google Cloud SDK ([\d\.]+)"

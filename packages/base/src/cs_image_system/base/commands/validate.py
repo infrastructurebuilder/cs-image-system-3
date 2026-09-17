@@ -8,6 +8,7 @@ from packaging.specifiers import SpecifierSet
 from packaging.version import parse
 
 import logging
+import shutil
 log = logging.getLogger(__name__)
 
 from ..constants import VCT, ComplianceState, STATE_BACKEND_FIELD
@@ -48,62 +49,60 @@ def check_version(sv: str | None, version: str | None) -> ComplianceState:
     return ComplianceState.IGNORED
 
 
-def check_single_version(exe: ExecutableModel, verbose: bool = False,
-                         unchecked: list[str] | None = None) -> list[Exception]:
-    exceptions: list[Exception] = []
-    if not exe.binary:
-        exceptions.append(
-            Exception(f"Executable not specified for {exe.name}, skipping version check.")
-        )
-        return exceptions
+def version_checker_for(exe: ExecutableModel) -> type[AbstractVersionChecker] | None:
+    """The checker for an executable (stage 48.1): registered under its NAME
+    first -- packer, tofu, gcloud, aws-cli, ansible-playbook and bash have
+    their own -- then under its TYPE (`packer-1.9.4` with `type: packer`),
+    which for the default type `executable` is the generic checker base
+    registers. The checkers were always registered by name while the lookup
+    keyed on the type in the wrong table, so none had ever matched."""
     reg = registry.Registry()
-    cc = reg.get_instance_by_name_or_alias(VCT.VERSION_CHECKER, exe.type_)
-    # reg.get(key=exe.type_, level=VERSION_CHECKER)
-    # checker_types = reg.get_registered_type(key=exe.type_, level=VERSION_CHECKER)
-    # cc = checker_types[0] if checker_types else None
-    # utils.find_subclass_by_name(VERSION_CHECKER, version_checker)
-    if cc:
-        if cc is dict:
-            log.warning(
-                f"Type of checker for {exe.type_} is a dict; "
-                "expected a class. Skipping version check."
-            )
-            return []
-        log.debug(
-                f"Found version checker class {cc.__name__} "
-                f"for type {exe.type_}; checking version..."
-            )
-        vc: AbstractVersionChecker = cc()  # type: ignore
-        try:
-            version = vc.get_version(exe)
-            cs = check_version(version, exe.version)
-            if cs == ComplianceState.UNACCEPTABLE:
-                msg = (
-                    f"Version for {exe.name} ({exe.type_}) is unacceptable: "
-                    f"{version} does not meet requirement {exe.version}"
-                )
-                log.error(f"   - {msg}")
-                exceptions.append(Exception(msg))
-            elif cs == ComplianceState.ACCEPTABLE:
-                log.debug(
-                        f"   - Version for {exe.name} ({exe.type_}) is acceptable: "
-                        f"{version} meets requirement {exe.version}"
-                    )
-            else:
-                log.warning(
-                        f"   - Version for {exe.name} ({exe.type_}) is ignored: "
-                        "no version requirement specified."
-                    )
-        except Exception as ex:
-            log.error(f"   - Error checking version for {exe.name} ({exe.type_}): {ex}")
-            exceptions.append(ex)
-    else:
-        # stage 43: said once for all of them by the caller (one INFO line),
-        # not as a warning apiece that told no one anything actionable
-        log.debug(f"No version checker registered for type {exe.type_} ({exe.name}); version unchecked")
-        if unchecked is not None:
-            unchecked.append(f"{exe.name} (type {exe.type_})")
-    return exceptions
+    for key in (exe.name, exe.type_):
+        cc = reg.get_model(VCT.VERSION_CHECKER, key)
+        if cc is not None:
+            return cc  # type: ignore[return-value]
+    return None
+
+
+def check_single_version(exe: ExecutableModel, verbose: bool = False,
+                         checked: list[str] | None = None) -> list[Exception]:
+    """One declared executable: its binary must exist (an absolute path, or a
+    name on PATH) and, when it declares a `version`, the version its checker
+    reads must satisfy the requirement. Every failure names the tool."""
+    binary = exe.binary or exe.name
+    if shutil.which(binary) is None:
+        msg = (f"{exe.name}: binary {binary!r} not found (declared in cfg/executables.yml; "
+               "an absolute path, or a name on PATH)")
+        log.error(f"   - {msg}")
+        return [Exception(msg)]
+    cc = version_checker_for(exe)
+    if cc is None:  # pragma: no cover - base registers the generic checker under the default type
+        log.info(f"{exe.name}: no version checker under name {exe.name!r} or type {exe.type_!r}; version unchecked")
+        return []
+    vc: AbstractVersionChecker = cc()
+    try:
+        version = vc.get_version(exe)
+    except Exception as ex:
+        msg = f"{exe.name}: could not read its version (`{binary} {' '.join(vc.get_version_params())}`): {ex}"
+        log.error(f"   - {msg}")
+        return [Exception(msg)]
+    if not version:
+        msg = (f"{exe.name}: {cc.__name__} could not parse a version from "
+               f"`{binary} {' '.join(vc.get_version_params())}`")
+        log.error(f"   - {msg}")
+        return [Exception(msg)]
+    if not exe.version:
+        log.debug(f"{exe.name} {version}: no version requirement declared")
+        if checked is not None:
+            checked.append(f"{exe.name} {version} (no requirement)")
+        return []
+    if check_version(version, exe.version) == ComplianceState.UNACCEPTABLE:
+        msg = f"{exe.name} {version} does not meet its requirement {exe.version} (cfg/executables.yml)"
+        log.error(f"   - {msg}")
+        return [Exception(msg)]
+    if checked is not None:
+        checked.append(f"{exe.name} {version} ok ({exe.version})")
+    return []
 
 
 def check_existence_of_executable(
@@ -175,19 +174,19 @@ def check_name_uniquness(ctx: GlobalTypeContext) -> list[Exception]:
             seen_names.add(name)
     return exceptions
 def check_executables_exist_and_versions(ctx: GlobalTypeContext) -> list[Exception]:
+    """Every declared executable exists and meets its version requirement
+    (stage 48.1), said once as one INFO line -- the record of what versions a
+    run actually ran with -- and every provider's executable is declared."""
     exs: list[Exception] = []
-    unchecked: list[str] = []
+    checked: list[str] = []
     unspecified: list[str] = []
     for exe in ctx.executables.values():
-        exs.extend(check_single_version(exe, unchecked=unchecked))
+        exs.extend(check_single_version(exe, checked=checked))
     for providers in (ctx.runtime_builders, ctx.storage_builders, ctx.os_builders,
                       ctx.mod_builders, ctx.image_builders, ctx.instance_builders):
         exs.extend(check_existence_of_executable(ctx.executables, providers, unspecified=unspecified))  # type: ignore
-    # stage 43: what validate cannot check is said once, as information. A
-    # warning per tool ("no version checker for type executable") and per
-    # provider ("no executable specified") printed seventeen lines for no one.
-    if unchecked:
-        log.info(f"Versions unchecked (no version checker registered for the type): {', '.join(unchecked)}")
+    if checked:
+        log.info(f"Executables: {'; '.join(checked)}")
     if unspecified:
         log.info(f"No executable declared, version check skipped: {', '.join(unspecified)}")
     return exs
@@ -316,6 +315,26 @@ def check_state_locations(ctx: GlobalTypeContext) -> list[Exception]:
     return errors
 
 
+def check_foreign_keys(ctx: GlobalTypeContext) -> list[Exception]:
+    """Stage 48.3: a field declared as a foreign key that names nothing is an
+    error, with the object, the field, the value and the target named -- the
+    fallback to the raw id let the fixture and the live tree name a
+    non-existent image builder for months. A `default` that has no default is
+    not one (the consumer decides), and is never recorded."""
+    from ..orchestrator import UNRESOLVED_FKS
+    reg = registry.Registry()
+    errors: list[Exception] = []
+    for cls_name, obj_name, field_name, value, target in UNRESOLVED_FKS:
+        try:
+            declared = sorted(reg.get_all_instances_by_classification(VCT(target)))
+        except Exception:
+            declared = []
+        errors.append(Exception(
+            f"{cls_name} '{obj_name}': field '{field_name}' names '{value}', which is no {target}"
+            + (f" (declared: {', '.join(declared)})" if declared else "")))
+    return errors
+
+
 def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     """The configuration checks, with no side effects on generated output:
     unique global ids, executables present and version-compliant, every
@@ -327,4 +346,5 @@ def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     # Chec existence and versions of executables before we try doign any real work
     exs.extend(check_executables_exist_and_versions(ctx))
     exs.extend(check_state_locations(ctx))
+    exs.extend(check_foreign_keys(ctx))
     return exs

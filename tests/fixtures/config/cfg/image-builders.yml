@@ -23,7 +23,7 @@ image_builders:
     type: packer-ebs
     # Optional, but if the version is specified, it must actually match
     runtime: default
-    executable: packer-1.9.4
+    executable: packer   # stage 48.1: the phantom packer-1.9.4 entry is gone; every declared executable must exist
     # stage 26: `parameters: [build, .]` removed -- argv the packer plugin assembles itself;
     # the field is retired (a module call's inputs are a storage builder's `variables:`)
     required_plugins:

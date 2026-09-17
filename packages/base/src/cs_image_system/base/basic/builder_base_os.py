@@ -75,7 +75,7 @@ class OsBuilderBase(BuilderBase[TOS]):
         # self.resolved_images_for_runtime: dict[str, Any] = {}
         # self.resolved_query_results_for_runtime: dict[str, dict[str,Any]] = {}
         for rt in self.get_runtimes():
-            rt.model_id = self.global_id # Self-registers
+            rt.model_id = self.global_id   # the subconfigs' one parent (stage 48.2)
 
     # def set_resolved_image_for_runtime(self, runtime: RuntimeBuilderProtocol, image_id: Any, owner: str, query_result: dict[str, Any]) -> None:
     #     self.resolved_images_for_runtime[runtime.get_name()] = image_id
@@ -225,7 +225,10 @@ class OsBuilderBase(BuilderBase[TOS]):
         # self is the OsBuilder
         image_map: dict[str, Any] = {
             "name": self.get_name(),
-            "type": self.get_type(),
+            # stage 48.3: BaseImage.type is "the image builder to use for this image"
+            # (an Image says the same); the OS builder's own type was written here
+            # and resolved only through the foreign-key fallback
+            "type": img_bldr.get_name(),
             "description": f"Default resolved image for OS builder {self.name} and runtime {img_bldr.get_name()}",
             "aliases": set(), # No aliases for these image
             "config": {},

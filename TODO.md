@@ -9,9 +9,9 @@ system must not take itself.
 
 Current stage: **none in progress**.
 
-Open stages and their order: §48, the open hygiene bundle, whenever
-convenient; §47 waits on the operator's `gcs` decision; §19 and §30 wait
-on the operator's decisions.
+Open stages and their order: none open; §47 waits on the operator's
+`gcs` decision; §19 and §30 wait on the operator's decisions. A new
+hygiene issue starts bundle IV.
 
 Standing decisions (operator):
 
@@ -257,61 +257,3 @@ What remains is the operator's:
    place this stage brushes against a standing decision. With the recipe
    in place it is a model, a kind and a fixture entry -- a day.
 2. Records by the current convention once 1 is decided (added or declined).
-
-## 48. Hygiene bundle III: the small things noted during §43
-
-**Why**: each was found while landing the second bundle and left alone
-because it was not that stage's business; none threatens function. By the
-standing decision they collect here rather than in stages of their own.
-Whenever convenient; nothing waits on it.
-
-1. **The version checkers never run.** `cfg/executables.yml` promises a
-   version requirement per tool and four checkers exist (`aws-cli`,
-   `ansible-playbook`, `bash`, `gcloud`), but they are registered by
-   executable NAME while `validate` looks them up by TYPE
-   (`check_single_version`), so no checker has ever matched and every
-   requirement is unenforced. Wiring the lookup (name first, then type)
-   would make the checks real, and at least one requirement is stale
-   (`gcloud >=2026.02.0, <2027.01.0` cannot match a `5xx.0.0` version), so
-   the change is: wire the lookup, correct the requirements in both trees
-   against the versions CI and the operator actually run, and let
-   `validate` fail on a real mismatch -- or delete the checkers and the
-   requirements together. **USER** chooses. Until then §43 collapsed the
-   noise to one INFO line.
-2. **Three warnings every load prints that no one reads.**
-   `template_utils.cycle_main_yaml` warns "Final cycled YAML still contains
-   template tags" on every load (something legitimately unresolved at that
-   stage, probably `{{ identified_model.name }}` on OS sub-configurations):
-   find what remains and either resolve it or demote the message to DEBUG
-   with the offending snippet. `parent_property_holding_protocol.model_id`
-   warns "already has a model assigned … Overwriting" four times per load
-   for `OSBuilderBaseImageBuilderSubconfig`: find the second assignment
-   and make it one. `orchestrator.py`'s template resolver warns "marked as
-   DEFAULT but has no 'fk_target' metadata" five times per load: either
-   those fields should carry a target, or a DEFAULT that resolves to
-   nothing is the declared meaning and the message goes to DEBUG.
-3. **An unresolvable foreign key only warns.** `orchestrator.py` falls back
-   to the raw id when an FK does not resolve, which is how the fixture and
-   the live tree named a non-existent image builder for months. A field
-   declared as an FK that names nothing should fail validation, with the
-   field, the value and the target named; find every site that relies on
-   the fallback first (a DEFAULT sentinel is not a failure).
-4. **The builder-level ansible `playbooks` do nothing.** They are copied
-   beside the Packer root and no provisioner references them (the ansible
-   plugin's README records it). Either the item inherits them, as the
-   field's description says, or the field goes.
-5. **Vestigial `tofu-cache-dir` dependencies.** `cloud-preflight`,
-   `cloud-dispose-images` and `cloud-relabel` depend on it and start no
-   tofu; the executing recipes create the cache through the lock wrapper.
-   Drop the dependency where nothing needs it.
-6. **Two things the first performing run on `main` committed that may
-   not belong in the record.** Packer's `manifest.json` landed under the
-   block directory of the baked image, and every push to `main` now makes
-   two record commits (the record and the closing record) whose only
-   difference is run ids and stamps. Decide whether the manifest is a
-   record (then the golden and the ignore policy say so) or run-local
-   (then it joins `run-summary.json`), and whether the closing record
-   should skip its commit when the emission differs only by run ids.
-7. Records by the current convention. Feature branch
-   `feature/hygiene-three`, squash-merged, kept. Half a day plus the USER
-   decision.

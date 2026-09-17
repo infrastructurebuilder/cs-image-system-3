@@ -12,7 +12,7 @@ import hcl2
 from hcl2 import Builder
 
 from cs_image_system.base.basic.asset import Asset, AssetSet
-from cs_image_system.base.constants import SELF
+from cs_image_system.base.constants import SELF, PACKER_MANIFEST_FILENAME
 from cs_image_system.base.global_context import GlobalTypeContext
 from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.base_image import BaseImage
@@ -30,7 +30,7 @@ log = logging.getLogger(__name__)
 
 PACKER_EBS: str = "packer-ebs"
 PACKER_PLUGIN_TYPE: str = "PackerPlugin"
-MANIFEST_FILENAME: str = "manifest.json"
+MANIFEST_FILENAME: str = PACKER_MANIFEST_FILENAME   # run-local (stage 48.6): never committed
 
 
 def parse_packer_manifest(manifest_path: Path, rtb: Any = None) -> dict[str, str]:

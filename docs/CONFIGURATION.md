@@ -246,13 +246,20 @@ Builders refer to an executable by its `name` (`executable: open-tofu-1`).
 | `description` | str or null | null | free text |
 | `aliases` | list[str] | `[]` | extra names |
 
-**Version checkers.** `validate` looks a checker up by the executable's
-`type`. Checkers exist under these names: `packer` (`packer version
--machine-readable`), `ansible-playbook`, `bash`, `aws-cli`
-(`aws --version`), `gcloud` (`gcloud --version`, the `core` line), `tofu`,
-`tf-aws` and `s3` (`tofu --version -json`). An executable whose `type` is
-left at `executable` has no checker: its version requirement is skipped
-with a warning. The requirement string is a PEP 440 specifier set.
+**What `validate` checks (stage 48.1).** Every entry's binary must exist
+(an absolute path, or a name on PATH), and when it declares a `version`
+the version its checker reads must satisfy that PEP 440 specifier set; a
+mismatch, a missing binary or an unreadable version fails validation and
+every run, by name. The checker is looked up under the entry's `name`
+first -- `packer` (`packer version -machine-readable`), `tofu`
+(`--version -json`), `gcloud` (the `Google Cloud SDK` line), `aws-cli`
+(`aws --version`), `ansible-playbook` (`[core x.y.z]`) and `bash` have
+their own -- then under its `type` (`type: packer` on an entry with
+another name); the default type, `executable`, is the generic checker:
+`<binary> --version`, the first dotted number on the first line (`jq`,
+`yq`, `docker`). One INFO line records what was checked and the versions
+found. The fixture's requirements are the floors CI's runners and the
+operator's machine ran in 2026-09.
 
 [`cfg/executables.yml`](../tests/fixtures/config/cfg/executables.yml):
 
