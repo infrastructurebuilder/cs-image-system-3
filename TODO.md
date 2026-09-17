@@ -212,12 +212,14 @@ system needs no change for it — the run is the one an operator performs
 by hand ([docs/OPERATIONS.md](docs/OPERATIONS.md)) — so the stage builds
 the job, its identities and its scope.
 
-**Where this stands**: the job, its pins and the manual are written and
-landed, and the job is inert — it prints a SKIPPED line per missing
-identity and passes. Two identities are missing: the write-capable AWS
-role (creatable from this machine, but it is a bake-capable credential,
-so it wants the operator's word) and the push token (only a person can
-make one). Once both exist, step 6's proofs run.
+**Where this stands**: the job, its pins and the manual are landed, and
+every identity exists — twelve secrets, the write-capable role trusting
+`main` alone, the push token scoped to the configuration repository.
+Nothing is left but the proofs, and they need one thing: `main` must
+carry the job, because the write role refuses every other ref. Advancing
+`main` is safe while nothing has been proven, since apply mode now fails
+at the gate rather than passing quietly, and the write-access check fails
+before any bake. The first real run is then the operator's to trigger.
 
 1. **DONE — scope, decided up front.** Nothing here is code; it is the set of
    decisions the rest of the stage implements, each one checkable today.
@@ -245,9 +247,10 @@ make one). Once both exist, step 6's proofs run.
       the bake half has run unattended for a while.
    5. Record the four decisions in the stage's squash message, because
       they are the reason the job is shaped the way it is.
-2. **USER — the identities** (2.3 and 2.5 done; 2.1, 2.2 and 2.4 open). Three groups. None of them can be created
+2. **DONE — the identities.** All three groups exist: the write-capable
+   role and its policy, the Okta triple, and the push token. Three groups. None of them can be created
    by the system, and none of their values may ever be printed.
-   1. **OPEN — the write-capable AWS role**, `csis-github-apply`, trusting only
+   1. **DONE — the write-capable AWS role**, `csis-github-apply`, trusting only
       `main` of the published repository. The trust document mirrors the
       read-only role's but pins the ref; both subject forms are needed
       because this organisation's OIDC subject embeds ids:
@@ -271,7 +274,7 @@ make one). Once both exist, step 6's proofs run.
       ```
       Note `ref:refs/heads/main` rather than the read-only role's `:*`:
       a branch other than `main` cannot assume it even by accident.
-   2. **OPEN — its permissions**, three statements, no more. The bake is packer's
+   2. **DONE — its permissions**, three statements, no more. The bake is packer's
       documented minimum; the state statement is scoped to this
       configuration's prefix alone; retention needs the deregister and
       delete:
@@ -312,7 +315,10 @@ make one). Once both exist, step 6's proofs run.
         printf '%s' "${!v}" | gh secret set "$v" -R $O/$R
       done
       ```
-   4. **OPEN, USER — the push token.** Only a person can create one: GitHub has no API for it. The run commits into the configuration
+   4. **DONE — the push token** (operator, fine-grained, contents:write on
+      the configuration repository alone, set as `CSIS_CONFIG_PUSH_TOKEN`
+      on the system repository; twelve secrets now). Only a person can
+      create one: GitHub has no API for it. The run commits into the configuration
       repository but never pushes; the job does. A fine-grained personal
       access token with **Contents: read and write on
       `cs-image-system-testconfig` only**, no other repository and no
@@ -400,7 +406,7 @@ make one). Once both exist, step 6's proofs run.
       snapshot, cents a month each, until retention disposes them.
    3. **The first `main` run is reported** with its run id and exactly
       what it baked, released, disposed and committed.
-6. **Proof**, in three stages, cheapest first. All three wait on the two open identities.
+6. **Proof**, in three stages, cheapest first. The first waits on `main` carrying the job; the third is the operator's to trigger.
    1. **The plumbing, without applying.** A dispatch off `main` cannot do
       it: the write role trusts `ref:refs/heads/main` alone, so AWS
       refuses the assume and the job fails at the credentials step. That
@@ -417,9 +423,12 @@ make one). Once both exist, step 6's proofs run.
       # then read the step conclusions, never just the job's:
       gh run view <id> --json jobs -q '.jobs[] | select(.name=="apply") | .steps[] | "\(.conclusion) \(.name)"'
       ```
-   2. **The push path, without pushing**: a step that runs `git push
-      --dry-run` under the token proves write access before anything
-      needs it.
+   2. **DONE — the push path, without pushing.** The job proves write
+      access with `git push --dry-run` before the run step, so a token
+      that is missing, empty or under-scoped stops the job rather than
+      being discovered after a bake has spent money. It runs in dry mode
+      too, whenever a push credential is present, which makes it the
+      cheapest check of the token there is.
    3. **The first real run** happens at the next merge to `main`. Watch
       it, then check the configuration repository received exactly one
       commit and that `just cloud-preflight` is clean locally.
