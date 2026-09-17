@@ -212,14 +212,16 @@ system needs no change for it — the run is the one an operator performs
 by hand ([docs/OPERATIONS.md](docs/OPERATIONS.md)) — so the stage builds
 the job, its identities and its scope.
 
-**Where this stands**: the job, its pins and the manual are landed, and
-every identity exists — twelve secrets, the write-capable role trusting
-`main` alone, the push token scoped to the configuration repository.
-Nothing is left but the proofs, and they need one thing: `main` must
-carry the job, because the write role refuses every other ref. Advancing
-`main` is safe while nothing has been proven, since apply mode now fails
-at the gate rather than passing quietly, and the write-access check fails
-before any bake. The first real run is then the operator's to trigger.
+**Where this stands**: everything is built, landed and proven except the
+first real run, which is the operator's to trigger. Twelve secrets; the
+write-capable role trusting `main` alone; the push token scoped to the
+configuration repository; `main` level with `develop`; a dry dispatch on
+`main` clearing every step of the job. Three defects were found and fixed
+on the way, each by a check that existed for the purpose: a malformed
+role ARN (the shell ate part of it), a push that authenticated as the
+runner's own identity rather than the operator's token, and a live job
+that had been passing while skipping every step for want of a secret's
+value.
 
 1. **DONE — scope, decided up front.** Nothing here is code; it is the set of
    decisions the rest of the stage implements, each one checkable today.
@@ -406,16 +408,18 @@ before any bake. The first real run is then the operator's to trigger.
       snapshot, cents a month each, until retention disposes them.
    3. **The first `main` run is reported** with its run id and exactly
       what it baked, released, disposed and committed.
-6. **Proof**, in three stages, cheapest first. The first waits on `main` carrying the job; the third is the operator's to trigger.
-   1. **The plumbing, without applying.** A dispatch off `main` cannot do
-      it: the write role trusts `ref:refs/heads/main` alone, so AWS
-      refuses the assume and the job fails at the credentials step. That
-      refusal is itself worth having — it proves the trust is as narrow as
-      intended — but the dry proof has to run where the role is trusted.
-      So: `main` first carries the job, which is safe while the push token
-      is absent, since apply mode then fails at the gate without touching
-      anything; then a dispatch on `main` in `dry` mode enumerates with
-      every identity in play.
+6. **Proof**, in three stages, cheapest first. The first two are done; the third is the operator's to trigger.
+   1. **DONE — the plumbing, without applying.** A dispatch off `main`
+      cannot do it: the write role trusts `ref:refs/heads/main` alone, so
+      AWS refuses the assume and the job fails at the credentials step.
+      That refusal is worth having — it proves the trust is as narrow as
+      intended. `main` was advanced with the workflow paused, so the
+      advance triggered no run and the first real apply stayed a
+      deliberate act; a dispatch on `main` in `dry` mode then cleared
+      every step: the role assumed, both checkouts landed, the tools
+      installed, write access was proven, the run enumerated with every
+      lifecycle reported `dry-run`, and the strict state query passed.
+      The performing step and the push were skipped, as dry mode requires.
       ```sh
       git push origin develop:main          # main carries the job
       gh workflow run ci.yml -R $O/$R --ref main -f mode=dry
@@ -429,9 +433,13 @@ before any bake. The first real run is then the operator's to trigger.
       being discovered after a bake has spent money. It runs in dry mode
       too, whenever a push credential is present, which makes it the
       cheapest check of the token there is.
-   3. **The first real run** happens at the next merge to `main`. Watch
-      it, then check the configuration repository received exactly one
-      commit and that `just cloud-preflight` is clean locally.
+   3. **OPEN, USER — the first real run.** Everything before it is
+      proven, so this is a decision rather than a task: `main` is level
+      with `develop`, so the trigger is either a dispatch on `main` with
+      `mode=apply` or the next advance of `main`. Watch it, then check the
+      configuration repository received exactly one commit and that `just
+      cloud-preflight` is clean locally. It may bake, release and dispose
+      on the AWS account, and it will commit and push.
 7. **Records.**
    1. The squash message carries step 1's four decisions and what the
       first run did.
