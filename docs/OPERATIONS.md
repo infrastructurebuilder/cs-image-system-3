@@ -731,7 +731,8 @@ of the same version (`0.1.1.dev1` → `0.1.1.dev2`), `stage` finalises it
 form: the probes and the version, nothing changed. The real form, in
 order:
 
-1. the probes, before anything changes: `UV_PUBLISH_TOKEN` is set; the
+1. the probes, before anything changes: the token is set
+   (`UV_PUBLISH_TOKEN`, else `TEST_PYPI_TOKEN` / `PYPI_TOKEN`); the
    index does not know the version (`scripts/index-knows` reads the
    simple index; a version is never re-cut, because a deleted version's
    files can never be uploaded again); no `v<version>` tag exists here
@@ -769,8 +770,11 @@ in the root `pyproject.toml` -- `testpypi` uploads to
 part in resolving the workspace. Files the index already holds with the
 same content are skipped, so a re-run after a partial failure uploads
 what is missing and nothing twice. The credential is `UV_PUBLISH_TOKEN`
-from the environment and never in the Justfile: while versions are being
-deleted and re-cut, an account-scoped TestPyPI token; trusted publishing
+from the environment or, absent that, the index's own name --
+`TEST_PYPI_TOKEN` or `PYPI_TOKEN`, the repository secrets' names, so one
+`.envrc` line serves the shell and CI alike -- and never in the Justfile:
+while versions are being deleted and re-cut, an account-scoped TestPyPI
+token; trusted publishing
 (a pending publisher per project name, fifteen registrations) waits until
 the names are stable, and is then the CI job's credential.
 
