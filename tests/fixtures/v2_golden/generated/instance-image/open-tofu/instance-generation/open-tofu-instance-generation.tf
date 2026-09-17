@@ -80,13 +80,10 @@ data "terraform_remote_state" "gcp_gcs" {
     }
 }
 data "terraform_remote_state" "oktagroups" {
-    backend = "s3"
+    backend = "local"
     
     config = {
-        bucket = "noaa-ioos-cloud-sandbox-tfstate"
-        key = "statefiles/csia-image-system-test/oktagroups.tfstate"
-        region = "us-east-2"
-        profile = "noaa"
+        path = "../../../../state/oktagroups.tfstate"
     }
 }
 data "aws_vpc" "csis_instances" {

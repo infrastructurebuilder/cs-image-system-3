@@ -30,7 +30,20 @@ def test_every_declared_s3_backend_encrypts():
 
 
 def test_every_emitted_backend_configuration_encrypts():
+    """Every S3 backend configuration encrypts its state objects (stage 39). A
+    `local` backend (stage 47) is a file on disk with no such setting: its
+    file carries `path` alone, and the rule does not apply to it."""
     files = sorted(GOLDEN.rglob("*.tfbackend.hcl"))
-    assert len(files) >= 7, "the golden carries a partial backend configuration per terraform root"
+    assert len(files) >= 9, "the golden carries a partial backend configuration per terraform root"
+    types: dict[str, int] = {}
     for path in files:
-        assert re.search(r"^encrypt\s*=\s*true$", path.read_text(), flags=re.M), path.relative_to(GOLDEN)
+        text = path.read_text()
+        header = re.match(r"# Backend '[^']+' \((?P<type>[^)]+)\)", text)
+        assert header, path.relative_to(GOLDEN)
+        kind = header.group("type")
+        types[kind] = types.get(kind, 0) + 1
+        if kind == "local":
+            assert re.search(r"^path\s*=", text, flags=re.M) and "encrypt" not in text, path.relative_to(GOLDEN)
+        else:
+            assert re.search(r"^encrypt\s*=\s*true$", text, flags=re.M), path.relative_to(GOLDEN)
+    assert types.get("s3", 0) >= 7 and types.get("local", 0) >= 2, types

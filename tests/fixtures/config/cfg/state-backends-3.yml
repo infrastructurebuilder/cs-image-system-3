@@ -1,0 +1,8 @@
+---
+# stage 47: the type that needs nothing -- a state file on disk. The identity roots bind to it, so
+# the golden carries two backend types, and the storage and instance roots read identity state
+# across types. `path` is a directory, relative to the configuration root (or absolute).
+state_backends:
+  - name: local-dev
+    type: local
+    path: state

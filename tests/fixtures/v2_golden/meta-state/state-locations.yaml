@@ -55,27 +55,17 @@ workspaces:
     type: s3
     use_lockfile: true
   okta-tf-users:
-    backend: s3-east2
-    bucket: noaa-ioos-cloud-sandbox-tfstate
-    encrypt: true
-    key: statefiles/csia-image-system-test/okta_tf_users.tfstate
-    location: s3://noaa-ioos-cloud-sandbox-tfstate/statefiles/csia-image-system-test/okta_tf_users.tfstate
-    profile: noaa
-    region: us-east-2
+    backend: local-dev
+    location: local://state/okta_tf_users.tfstate
+    path: ../../../../state/okta_tf_users.tfstate
     run: 2026_08_26t12_00_00
-    type: s3
-    use_lockfile: true
+    type: local
   oktagroups:
-    backend: s3-east2
-    bucket: noaa-ioos-cloud-sandbox-tfstate
-    encrypt: true
-    key: statefiles/csia-image-system-test/oktagroups.tfstate
-    location: s3://noaa-ioos-cloud-sandbox-tfstate/statefiles/csia-image-system-test/oktagroups.tfstate
-    profile: noaa
-    region: us-east-2
+    backend: local-dev
+    location: local://state/oktagroups.tfstate
+    path: ../../../../state/oktagroups.tfstate
     run: 2026_08_26t12_00_00
-    type: s3
-    use_lockfile: true
+    type: local
   open-tofu:
     backend: s3-east2
     bucket: noaa-ioos-cloud-sandbox-tfstate

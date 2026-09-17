@@ -59,7 +59,13 @@ def test_every_root_resolves_a_location_the_run_records_and_the_emission_carries
                               "region": "us-east-1", "encrypt": True, "use_lockfile": True, "profile": "noaa",
                               "run": v2.ctx.run_id}
     assert rec["open-tofu"]["bucket"] == "noaa-ioos-cloud-sandbox-tfstate"      # own value: s3-east2
-    assert rec["oktagroups"]["bucket"] == "noaa-ioos-cloud-sandbox-tfstate"     # the default
+    assert rec["oktagroups"] == {"backend": "local-dev", "type": "local", "location": "local://state/oktagroups.tfstate",
+                                 "path": "../../../../state/oktagroups.tfstate", "run": v2.ctx.run_id}   # stage 47: on disk
+    # the read across TYPES: the instance root (s3) reads the identity root's state (local)
+    root_local = (v2.generated / "instance-image" / "open-tofu" / "instance-generation" / "open-tofu-instance-generation.tf").read_text()
+    assert 'backend = "local"' in root_local and 'path = "../../../../state/oktagroups.tfstate"' in root_local
+    header = (v2.generated / "identity" / "run-identity.sh").read_text()
+    assert "# state: workspace oktagroups -> local://state/oktagroups.tfstate" in header
     # the cross-backend read: the instance root (backend A) reads storage state in backend B
     inst = v2.generated / "instance-image" / "open-tofu" / "instance-generation"
     root = (inst / "open-tofu-instance-generation.tf").read_text()
@@ -84,6 +90,7 @@ def test_the_chain_reads_the_runtimes_backend_when_the_root_is_silent(tmp_path, 
     assert rec["aws-ebs"]["backend"] == "s3-east1"                # inherited from aws-east2-runtime
     assert rec["gcp-pd"]["backend"] == "s3-east2"                 # gcloud-east1 is silent: the default
     assert rec["open-tofu"]["backend"] == "s3-east2"              # names its own
+    assert rec["oktagroups"]["backend"] == "local-dev"            # names its own, a different type
 
 
 # ------------------------------------------------------------- collisions

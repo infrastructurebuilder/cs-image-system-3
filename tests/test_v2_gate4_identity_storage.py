@@ -104,7 +104,7 @@ def test_identity_runner_script_is_gated_and_never_applies_unless_configured(v2)
     assert any("tofu plan -input=false -out=tfplan" in c for c in cmds)
     assert any("cs-image-system gate-plan --planfile tfplan" in c for c in cmds)
     assert not any(" apply " in c for c in cmds), "apply_identity is off in the fixture"
-    assert "# state: workspace oktagroups -> s3://noaa-ioos-cloud-sandbox-tfstate/" in script
+    assert "# state: workspace oktagroups -> local://state/oktagroups.tfstate" in script   # stage 47: on disk
 
 
 def test_group_disappearance_is_a_hard_failure(tmp_path, monkeypatch):
@@ -158,11 +158,11 @@ def test_storage_root_consumes_gids_by_reference_only(v2):
     assert 'data.terraform_remote_state.oktagroups.outputs.group_gids["stofs"]' in module
     assert '"path" = "/coops"' in module and '"permissions" = "2775"' in module
     assert 'output "storage_efs_storage"' in module
-    # stage 46: the storage root keeps its own state in the second backend and
-    # reads the identity root's from the first -- the isolation is real
+    # stage 46/47: the storage root keeps its own state in the second S3 backend
+    # and reads the identity root's from the LOCAL backend -- across buckets and types
     backend = efs["aws-efs-storage-generation.tfbackend.hcl"]
     assert 'bucket = "my-east1-tfstate-bucket"' in backend and 'key = "statefiles/csia/aws_efs.tfstate"' in backend
-    assert 'bucket = "noaa-ioos-cloud-sandbox-tfstate"' in root and "csia-image-system-test/oktagroups.tfstate" in root
+    assert 'backend = "local"' in root and 'path = "../../../../state/oktagroups.tfstate"' in root
     everything = "\n".join(tree(v2.generated / "storage").values())
     assert not LITERAL_GID.search(everything), "a literal gid leaked into storage IaC (N7)"
     # ebs carries no gid at the cloud level (ownership is applied at mount time)
