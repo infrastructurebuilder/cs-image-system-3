@@ -9,7 +9,7 @@ system must not take itself.
 
 Current stage: **none in progress**.
 
-Open stages and their order: §41 and §46 whenever convenient
+Open stages and their order: §46 whenever convenient
 (§46 is correctness work on state isolation); §47, state backends beyond
 S3, follows §46; §48 is the open hygiene bundle; §19 and §30 wait on the
 operator's decisions.
@@ -42,9 +42,16 @@ Standing decisions (operator):
   runtime under the write role, then records again. The GCE runtime stays
   out of CI: a declaration change there fails the job before anything
   performs. A push to `main` is the operator's act.
-- Releases publish to an index (§41): PyPI, TestPyPI first, every version
-  through `just release`; versions on TestPyPI will be deleted during
-  development, and a deleted version is never re-cut.
+- Releases publish to an index (stage 41, landed 2026-09-17): PyPI,
+  TestPyPI first, every version through `just release <part|version>
+  [test|pypi]`; the first upload, `0.1.1.dev1`, is on TestPyPI and
+  installs from it into a fresh virtualenv (an install in the seconds after
+  an upload can fail to resolve until the index has propagated). Versions
+  on TestPyPI will be deleted during development, and a deleted version is
+  never re-cut. The first final version (`just release stage pypi`, after
+  a green `full-test` with docker on a clean live configuration, with
+  `PYPI_TOKEN` in place) is the operator's call; trusted publishing
+  replaces the tokens once the package names are stable.
 - §19 (the first real model image) stays planned by the operator's
   instruction; §30 (the contract package) is planned.
 
@@ -214,66 +221,6 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-package` (steps 1–3, 5–7),
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
-
-## 41. Releases publish to an index through `uv publish`
-
-**Why**: `just release <version>` ended at an annotated tag and `dist/`;
-a tag is a source of truth, not a distribution: a second operator, CI, or
-a plugin author writing against §30's contract installs from an index,
-and a published version is immutable in a way a tag is not.
-
-**Decided (operator, 2026-09-17)**: the index is **PyPI**, and every
-version goes to **TestPyPI first**; CodeArtifact is out (the operator may
-not create domains), GCP Artifact Registry is out by the GCP decision.
-Versions will be deleted from the index as development goes on.
-
-**Done 2026-09-17 (`feature/publish-index`)**: every package declares
-exactly the third-party distributions its sources import, at the floors
-the lock resolves, and pins its siblings at `==` the shared version; the
-root is the buildable `cs-image-system` (no sources, all fourteen pinned;
-`uv build --all-packages` emits thirty reproducible files); the version
-changes in one place (`[tool.bumpversion]`: fifteen `version =` lines and
-every pin, scheme `MAJOR.MINOR.PATCH[.devN]` where `patch` opens
-`0.1.1.dev1`, `dev` increments, `stage` finalises); `just release
-<target> [test|pypi] [yes]` probes the token, the index
-(`scripts/index-knows`) and the local tag before anything changes, gates
-on the bar (TestPyPI) or `full-test` (PyPI), bumps, locks, publishes,
-then commits and tags; `just publish [test|pypi]` builds and uploads with
-the check URL against the `[[tool.uv.index]]` endpoints; description,
-readme, urls and author on every package; CI's `publish` job uploads a
-pushed `v*` tag (TestPyPI always, PyPI for a final version, tokens from
-repository secrets, trusted publishing deferred until the names are
-stable); OPERATIONS "Installing a release" records the consumer's two
-commands. Proven locally: the fifteen wheels install from `dist/` into a
-fresh virtualenv and run `cs-image-system --help` and `decrypt`; the
-dry publish against TestPyPI checks thirty files; the cattrs converter
-and a copied dummy model that the test found were removed
-(`tests/test_v2_package_metadata.py`, `test_v2_justfile_contract.py`,
-`test_v2_ci_workflow.py`).
-
-What remains is the operator's:
-
-1. **USER — the credential**: an account-scoped TestPyPI API token
-   (test.pypi.org → Account settings → API tokens; scope "entire
-   account" while the fifteen project names do not yet exist), exported
-   as `TEST_PYPI_TOKEN` in the shell that releases (this repository's
-   `.envrc` is the place, never the Justfile; `UV_PUBLISH_TOKEN` overrides
-   it); the same token as the repository secret `TEST_PYPI_TOKEN` so the
-   tag's CI job can check the upload. Done 2026-09-17. `PYPI_TOKEN` waits for the first final version.
-2. **USER — the first upload**: `just release patch` (dry first:
-   `just release patch test yes`) → `0.1.1.dev1` on TestPyPI, committed
-   and tagged; then `git push --follow-tags` and the `publish` job goes
-   green uploading nothing. Then the proof of "Installing a release" from
-   a clean virtualenv on a machine that is not the operator's, against
-   the index. Whatever is deleted afterwards is deleted; the next upload
-   is `just release dev`.
-3. The first non-dev version (`just release stage pypi`) is the
-   operator's call and runs after a green `full-test` with docker on a
-   clean live configuration; `PYPI_TOKEN` exists by then. Trusted
-   publishing (one pending publisher per project name) replaces the
-   tokens once the names are stable.
-4. Records by the current convention once 2 is done; §16's open item
-   closes with it.
 
 ## 46. Multiple state backends, used and proven collision-proof
 
