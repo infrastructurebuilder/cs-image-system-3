@@ -42,7 +42,8 @@ Standing decisions (operator):
   runtime under the write role, then records again. The GCE runtime stays
   out of CI: a declaration change there fails the job before anything
   performs. A push to `main` is the operator's act.
-- The release publish target is the tag until §41.
+- The release publish target is the tag until §41; the index is PyPI,
+  TestPyPI first, and versions there will be deleted during development.
 - §19 (the first real model image) stays planned by the operator's
   instruction; §30 (the contract package) is planned.
 
@@ -221,66 +222,112 @@ leg exists but runs only with `UV_PUBLISH_URL` set, which nobody sets —
 §39.2 decided 2026-09-15 that the tag is the release until this stage. A
 tag is a source of truth, not a distribution: a second operator, CI, or a
 plugin author writing against §30's contract installs from an index, and
-a published version is immutable in a way a tag is not. This stage picks
-the index and makes the leg real, at the endpoint `uv publish
---publish-url` (`UV_PUBLISH_URL`) takes. It depends on no other stage; if
-the index is PyPI it follows §40.
+a published version is immutable in a way a tag is not.
 
-1. **USER — the index.** Two shapes fit the endpoint: (a) **AWS
-   CodeArtifact**, a PyPI-format repository in the account already in
-   use — free tier 2 GB stored and 100k requests a month, cents beyond;
-   authenticated with `aws codeartifact get-authorization-token` (twelve
-   hours), so the operator's SSO session and CI's federated role both
-   reach it with no long-lived secret; usable while the repositories are
-   private and after — the recommendation. (b) **PyPI** once the
-   repositories are public (§40), with trusted publishing from GitHub
-   Actions (OIDC, no token at all; the fourteen `cs-image-system-*` names
-   must be free there). GCP Artifact Registry is out by the GCP decision.
-   For (a): one domain, one repository, and an external connection to
-   `pypi` so a consumer resolves the packages' dependencies from the same
-   index (otherwise `--extra-index-url`).
-2. **A `publish` recipe, split out of `release`**: `just publish <version>`
-   uploads `dist/` for that version only (`dist/` is cleaned before
-   `just build` — today `uv publish dist/*` would upload every stale
-   wheel left from an earlier version), with `--check-url` so a re-run
-   after a partial failure skips what is already there; the index URL is
-   the Justfile's default (`publish_url := env("UV_PUBLISH_URL", "<the
-   decided index>")`), the credential comes from the environment
-   (`UV_PUBLISH_TOKEN`, or for CodeArtifact `UV_PUBLISH_USERNAME=aws` and
-   the token as `UV_PUBLISH_PASSWORD`) and is never in the Justfile.
-3. **`release` publishes, and cannot half-release**: the credential and
-   the index are probed BEFORE the version bump (today the publish leg is
-   the last step, after the commit and the tag, so a failure there leaves
-   a tagged, unpublished release); with them present `release` ends with
-   `just publish`, without them it refuses up front — the SKIPPED path
-   goes, since the target is decided. The contract test's needles
-   (`tests/test_v2_justfile_contract.py:66`: `uv publish`,
-   `UV_PUBLISH_URL`, `SKIPPED`) follow.
-4. **CI publishes the tag**: a `publish` job in `.github/workflows/ci.yml`
-   on `push` of a `v*` tag — `just init`, the federated identity (the
-   read-only AWS role gains `codeartifact:GetAuthorizationToken`,
-   `codeartifact:PublishPackageVersion` and `codeartifact:ReadFromRepository`
-   on that one repository; or PyPI's trusted publisher), `just publish
-   <tag>`. The operator's flow stays `just release <v>` then `git push
-   --follow-tags`; the push is what publishes, and a local publish is the
-   fallback when CI cannot. The workflow test pins that only this job
-   runs `uv publish` and only on a tag.
-5. **Consumers**: the index declared for installs in the root
-   `pyproject.toml` (`[[tool.uv.index]]`, credentials via
-   `UV_INDEX_<NAME>_USERNAME`/`_PASSWORD`), and OPERATIONS gains
-   "installing a release": the two commands a stranger with access needs.
-   Proof from a clean virtualenv on a machine that is not the operator's:
-   `uv pip install --index-url <index> cs-image-system-system==<version>`,
-   then `cs-image-system --help` and `cs-image-system decrypt` run.
-6. **USER — the first version**: every package is `0.1.0` today and
-   nothing has been published; the first `just release` after this stage
-   publishes a version that can never be replaced, so it runs after a
-   green `full-test` with docker (the recipe requires it) and on a clean
-   live configuration.
-7. Records: ledger; OPERATIONS "CI shape" (the fourth job) and the release
-   paragraph; §16's open item closed for good. Feature branch
-   `feature/publish-index`, squash-merged, kept. A day, plus the USER
-   decision; the CodeArtifact setup is a dozen CLI commands.
+**Decided (operator, 2026-09-17)**: the index is **PyPI**, and every
+version goes to **TestPyPI first**; CodeArtifact is out (the operator may
+not create domains), GCP Artifact Registry is out by the GCP decision.
+Versions will be deleted from the index as development goes on.
+
+**Releasability as measured 2026-09-17** (the builds are clean: 28
+artifacts, licence carried, every `cs-image-system-*` name and
+`cs-image-system` free on both indexes; what the wheels DECLARE is not):
+
+- `base` imports pydantic, packaging and typer and declares none of them
+  (pydantic is declared only on the workspace root, which is never built);
+  `system` imports PyYAML without declaring it; `base` still declares
+  `cattrs` and `multipledispatch`, retired in §23. A wheel installed from
+  an index would lack pydantic.
+- The inter-package dependencies are unpinned (`Requires-Dist:
+  cs-image-system-system`), so a 0.3.0 plugin would resolve a 0.1.0 host.
+- The root `cs-image-system-root` has no build system and is not built:
+  nothing installs the whole system, and `cs-image-system-system` alone
+  is a CLI with zero plugins.
+- `bump-my-version` is installed as a user tool (1.2.4) and has no
+  configuration in the repository; `uv version` bumps the fifteen version
+  lines but never a dependency specifier.
+- A deleted version's files can never be re-uploaded, on TestPyPI as on
+  PyPI: every upload needs a fresh number, so increments must be cheap.
+- No package carries `description`, `readme` or `[project.urls]`.
+
+1. **The packages declare what they import.** Each package's
+   `dependencies` names every third-party import its sources make, with
+   the floor the lock already resolves (`pydantic>=2.13`, `packaging`,
+   `typer`, `PyYAML`, `boto3`, `google-cloud-compute`, `python-hcl2`, …);
+   the retired ones go. A test parses every package's sources, maps
+   top-level imports to distributions, and fails on an import that no
+   package in the dependency chain declares, and on a declared
+   distribution nothing imports. The root keeps only what the workspace
+   itself needs.
+2. **Lockstep pins between the packages.** Every `cs-image-system-*`
+   dependency is `== <the version>` (they release together, from one
+   tag, so `~=` buys nothing and `>=` lets versions mix); the same test
+   asserts every pin equals the package's own version.
+3. **The whole system is one install.** The root becomes a buildable
+   `cs-image-system` (hatchling, no sources of its own) depending on all
+   fourteen at `==`; `uv build --all-packages` then emits fifteen; the
+   §41.10 proof installs that name.
+4. **`bump-my-version` is the one place a version changes.**
+   `[tool.bumpversion]` in the root: `current_version`, a parse/serialize
+   pair that carries a `dev` segment, and a `files` entry per
+   `pyproject.toml` (fifteen) covering the `version =` line AND the
+   `== <version>` pins from step 2, so `bump-my-version bump patch` (or
+   `dev`) moves all of them at once and the lock is refreshed after. The
+   `release` recipe stops calling `uv version` in a loop; a test bumps a
+   copy of the tree and asserts no `0.x` string is left behind.
+5. **A cheap increment for development releases.** The scheme is
+   `MAJOR.MINOR.PATCH[.devN]`: `bump-my-version bump dev` for another
+   TestPyPI upload of the same work (`0.1.1.dev1`, `.dev2`, …), `bump
+   patch`/`minor` for a real one. Because a deleted version can never be
+   re-uploaded, the recipe refuses a version the index already knows
+   (`--check-url` against the simple index) before anything is bumped or
+   tagged.
+6. **A `publish` recipe, split out of `release`**: `just publish
+   [test|pypi]` cleans `dist/`, builds, and uploads that version only,
+   with `--check-url` so a re-run after a partial failure skips what is
+   there. Endpoints in the Justfile: TestPyPI
+   (`https://test.pypi.org/legacy/`, check
+   `https://test.pypi.org/simple/`) is the default; PyPI is the explicit
+   second argument. The credential is `UV_PUBLISH_TOKEN` from the
+   environment and never in the Justfile. While versions are being
+   deleted and re-cut, an account-scoped TestPyPI token is the credential;
+   trusted publishing (a pending publisher per project name, fifteen
+   registrations) waits until the names are stable, and is then the CI
+   job's credential.
+7. **`release` publishes, and cannot half-release**: the credential and
+   the index are probed BEFORE the bump (today the publish leg is last,
+   after the commit and the tag, so a failure leaves a tagged, unpublished
+   release); with them present `release` ends with `just publish`, without
+   them it refuses up front — the SKIPPED path goes. A development release
+   to TestPyPI (`just release <v> test`) needs the bar, not the docker
+   gate or a clean live configuration; a PyPI release keeps both. The
+   contract test's needles follow.
+8. **Metadata that an index page shows**: `description`, `readme` (each
+   package's README) and `[project.urls]` (repository, documentation) on
+   every package; the same test asserts they exist.
+9. **CI publishes the tag**: a `publish` job on `push` of a `v*` tag —
+   `just init`, then `just publish test` always and `just publish pypi`
+   when the tag is not a dev version — with trusted publishing once step 6
+   allows it, `UV_PUBLISH_TOKEN` from a repository secret until then. The
+   operator's flow stays `just release <v>` then `git push
+   --follow-tags`; a local publish is the fallback. The workflow test pins
+   that only this job runs `uv publish` and only on a tag.
+10. **Consumers**: TestPyPI does not carry the third-party dependencies,
+    so the two commands a stranger needs are recorded in OPERATIONS
+    ("installing a release"): `uv pip install --index-url
+    https://test.pypi.org/simple/ --extra-index-url
+    https://pypi.org/simple/ cs-image-system==<version>`, then
+    `cs-image-system --help` and `cs-image-system decrypt` run. Proof from
+    a clean virtualenv on a machine that is not the operator's. The root
+    `pyproject.toml` declares the index for installs (`[[tool.uv.index]]`).
+11. **USER — the first upload**: `0.1.1.dev1` to TestPyPI, the proof of
+    step 10 against it, then whatever is deleted is deleted; the first
+    non-dev version is the operator's call and runs after a green
+    `full-test` with docker on a clean live configuration.
+12. Records by the current convention: OPERATIONS "CI shape" (the fourth
+    job), the release and publish paragraphs, "installing a release";
+    §16's open item closed for good. Feature branch
+    `feature/publish-index`, squash-merged, kept. Two days.
 
 ## 46. Multiple state backends, used and proven collision-proof
 
