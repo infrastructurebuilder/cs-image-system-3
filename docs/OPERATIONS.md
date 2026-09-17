@@ -761,13 +761,15 @@ the pushed tag makes CI's `publish` job check the release against the
 index (it uploads nothing the index already holds).
 
 `just publish [test|pypi]` builds and uploads the version in the tree:
-`dist/` cleaned, `just build`, then `uv publish --index <name>
---check-url <simple>`. The endpoints are the `[[tool.uv.index]]` entries
-in the root `pyproject.toml` -- `testpypi` uploads to
-`https://test.pypi.org/legacy/` and is checked against
-`https://test.pypi.org/simple/`; `pypi` uploads to
+`dist/` cleaned, `just build`, then `uv publish --index <name>`. The
+endpoints are the `[[tool.uv.index]]` entries in the root
+`pyproject.toml` -- `testpypi` uploads to `https://test.pypi.org/legacy/`
+and is checked against `https://test.pypi.org/simple/`; `pypi` uploads to
 `https://upload.pypi.org/legacy/` -- both `explicit`, so neither takes
-part in resolving the workspace. Files the index already holds with the
+part in resolving the workspace. The index's `url` is the check URL (uv
+refuses an explicit `--check-url` beside `--index`; the first release
+attempt stopped on exactly that, before anything was uploaded, committed
+or tagged). Files the index already holds with the
 same content are skipped, so a re-run after a partial failure uploads
 what is missing and nothing twice. The credential is `UV_PUBLISH_TOKEN`
 from the environment or, absent that, the index's own name --
