@@ -408,7 +408,9 @@ independently, and a `terraform_remote_state` reference resolves the
 PRODUCER's backend, so a root in one bucket can read a root in another.
 None of it is exercised: two backends are declared, everything resolves to
 the default, all nine emitted backend configurations name one bucket, and
-no test covers two backends at once. Three defects sit in that unexercised
+no test covers two backends at once. Nothing stops a deployed workspace
+being pointed at a different location either, which is the most
+destructive thing in this area and gets its own step. Three defects sit in that unexercised
 path, each of which would silently share or overwrite state:
 
 - **A rebinding wins silently.** `set_backend` assigns, so a workspace bound
@@ -485,12 +487,35 @@ decision.
       configurations, and more than one `is_default`.
    4. The check runs in `validate` as well as during a run, so a
       configuration error is caught without generating anything.
-4. **The cross-backend read, proven.** A consumer workspace in backend A
+4. **A bound workspace cannot silently move.** Changing where a deployed
+   workspace keeps its state is destructive in a way nothing else here is:
+   the new location is empty, so the next plan proposes to create
+   everything that already exists, and the old state is stranded with no
+   owner and no one watching it.
+   1. Each run records every workspace's resolved location in meta-state,
+      beside what that workspace has live. The record, not the emission, is
+      the memory: `generated/` can be pruned or regenerated, and was seen
+      to be during §37.
+   2. Validation refuses when a workspace's resolved location differs from
+      its recorded one AND the records show live resources for it, naming
+      the workspace, both locations and what is deployed. A workspace with
+      nothing deployed moves freely, because nothing is at risk; that
+      distinction is the whole rule.
+   3. The refusal names the sanctioned way to move state on purpose —
+      `tofu init -migrate-state` against the root, then a run to re-record
+      the binding — so this is a guard rather than a dead end. Whether that
+      becomes a flag or stays a documented procedure is decided in the
+      stage.
+   4. Tests: rebinding with nothing deployed passes; the same rebinding
+      with a live resource recorded is refused; the message names both
+      locations; re-running under the original binding is clean.
+
+5. **The cross-backend read, proven.** A consumer workspace in backend A
    referencing a producer in backend B must emit a
    `data "terraform_remote_state"` carrying B's bucket, key and region. The
    code already resolves the producer's backend; a test now holds it, with
    a second test for the explicit `backend_name` override on the reference.
-5. **Exercised in the frozen fixture**, so the golden proves it rather than
+6. **Exercised in the frozen fixture**, so the golden proves it rather than
    a unit test alone.
    1. The fixture declares a second, genuinely used backend — a different
       bucket and prefix — and binds one family of roots to it (the storage
@@ -501,23 +526,24 @@ decision.
       at the other backend. The golden moves by design.
    3. `tests/test_v2_gate4_identity_storage.py` and the storage tests get
       the one assertion each that the isolation is real.
-6. **Documentation.** [docs/CONFIGURATION.md](docs/CONFIGURATION.md)'s
+7. **Documentation.** [docs/CONFIGURATION.md](docs/CONFIGURATION.md)'s
    state-backend section gains the rule, the resolution order and the
    collision examples; [docs/OPERATIONS.md](docs/OPERATIONS.md) gains
    "where state lives", including how to read a workspace's location from
    its `.tfbackend.hcl` and that `use_state_backends` gates the whole
    mechanism.
-7. **What this stage does not do**: migrate any live state, create any
+8. **What this stage does not do**: migrate any live state, create any
    bucket, or add a second backend type. Types beyond S3 are §47, which
    follows this one; the standing decision keeps all LIVE state in S3
    either way.
-8. **Acceptance**: the bar green; the golden moved once and reviewed; a
+9. **Acceptance**: the bar green; the golden moved once and reviewed; a
    test for each row of the table; a test that a rebinding raises; a test
    that two workspaces colliding under `super_safe_name` are refused; a
    test that the cross-backend data source names the producer's bucket;
    `just cli validate` on the live tree unchanged and still passing.
-   Feature branch `feature/multi-state-backends`, squash-merged, kept. Two
-   to three days.
+   A rebinding of a workspace with live resources is refused and names both
+   locations; the same rebinding with nothing deployed passes. Feature
+   branch `feature/multi-state-backends`, squash-merged, kept. Three days.
 
 ## 47. State backends beyond S3
 
