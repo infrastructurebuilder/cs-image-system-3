@@ -10,8 +10,9 @@ system must not take itself.
 Current stage: **none in progress**.
 
 Open stages and their order: §45, which makes CI perform rather than only
-record and needs a generation fix first; §41 and §43 whenever convenient;
-§19 and §30 wait on the operator's decisions.
+record and needs a generation fix first; §41, §43 and §46 whenever
+convenient (§46 is correctness work on state isolation and pairs naturally
+with §43); §19 and §30 wait on the operator's decisions.
 
 Standing decisions (operator):
 
@@ -396,3 +397,114 @@ under a scope, which is the operator's original "main applies".
    do, watched, with what it left standing reported.
 5. Records by the convention current when it lands. Feature branch
    `feature/ci-perform-on-main`, squash-merged, kept.
+
+## 46. Multiple state backends, used and proven collision-proof
+
+**Why**: the system is already capable of putting each terraform workspace
+in its own state location — every terraform builder carries a
+`state_configuration` foreign key, the collector binds each workspace
+independently, and a `terraform_remote_state` reference resolves the
+PRODUCER's backend, so a root in one bucket can read a root in another.
+None of it is exercised: two backends are declared, everything resolves to
+the default, all nine emitted backend configurations name one bucket, and
+no test covers two backends at once. Three defects sit in that unexercised
+path, each of which would silently share or overwrite state:
+
+- **A rebinding wins silently.** `set_backend` assigns, so a workspace bound
+  twice to different backends keeps the last one, with no error.
+- **Two workspace names can collapse to one state file.** The object is
+  `<key prefix><super_safe_name(workspace)>.tfstate`, and that function
+  maps `-` and `.` to `_` and lowercases, so `aws-ebs` and `aws_ebs` both
+  write `aws_ebs.tfstate`.
+- **Key prefixes are not normalised against each other.** `__post_init__`
+  only strips a trailing slash, so `statefiles//x` and `statefiles/x` are
+  treated as different locations.
+
+**The rule, as the operator stated it.** A configured provider stores its
+state in exactly one location, and no two providers may write the same
+state object. A location is the tuple (backend type, bucket, normalised key
+prefix, state file name). Two locations collide when that tuple matches
+after normalisation, where normalisation collapses repeated slashes and
+strips a trailing one. The operator's example, which becomes the test:
+
+| Provider | Declared location | Collides? |
+| --- | --- | --- |
+| A | `BUCKET1/abc` | no |
+| B | `BUCKET2/xyz` | no, different bucket |
+| C | `BUCKET1//xyz` | no, and normalises to `BUCKET1/xyz` |
+| D | `BUCKET1/xyz` | **yes, with C** |
+
+Collapsing `//` is the conservative reading: S3 would treat those as two
+distinct keys, but nothing should depend on that, so the emission
+normalises the key as well and the pair is refused.
+
+Scope: only the S3 backend type exists, so this is several S3 locations,
+not S3 beside another kind. The live configuration does not change and no
+state is migrated: the standing decision keeps its state where it is, and
+the placeholder `s3-east1` stays declared and unbound by the operator's
+decision.
+
+1. **The location, as a value.**
+   1. A `StateLocation` (type, bucket, key prefix, object name) with a
+      normalising constructor: collapse repeated slashes, strip leading and
+      trailing ones, keep case (S3 keys are case-sensitive), and reject `.`
+      and `..` segments.
+   2. `BackendRegistration.state_file_path` returns it rather than a
+      string, and the emitted `key` uses the normalised prefix, so
+      `statefiles//x` can never reach a backend configuration file.
+   3. Unit tests over the table above, plus the empty prefix, a prefix with
+      no trailing slash, and a prefix that is only slashes.
+2. **One location per provider.**
+   1. `set_backend` refuses a second binding of the same workspace to a
+      different backend, with a message naming the workspace and both
+      backends; rebinding to the same one stays a no-op.
+   2. The resolution order becomes explicit and documented: the builder's
+      own `state_configuration`, then its runtime's, then the single
+      backend marked `is_default`. Today the runtime's field is declared
+      and read by nothing, which promises what it does not do.
+   3. **USER — or delete it instead.** Honouring the runtime's field is the
+      recommendation, because "everything on this runtime lives in that
+      bucket" is the sentence an operator wants to write once. The
+      alternative is to remove the field from both runtime models.
+3. **Collisions refused at validation**, before anything is emitted.
+   1. Compute every bound workspace's `StateLocation` and refuse duplicates
+      with a message naming both workspaces and the object they share.
+   2. That catches all three defects above: two backends whose bucket and
+      normalised prefix match, two workspace names that collapse under
+      `super_safe_name`, and `//` against `/`.
+   3. The existing guards stay: a backend registered twice with different
+      configurations, and more than one `is_default`.
+   4. The check runs in `validate` as well as during a run, so a
+      configuration error is caught without generating anything.
+4. **The cross-backend read, proven.** A consumer workspace in backend A
+   referencing a producer in backend B must emit a
+   `data "terraform_remote_state"` carrying B's bucket, key and region. The
+   code already resolves the producer's backend; a test now holds it, with
+   a second test for the explicit `backend_name` override on the reference.
+5. **Exercised in the frozen fixture**, so the golden proves it rather than
+   a unit test alone.
+   1. The fixture declares a second, genuinely used backend — a different
+      bucket and prefix — and binds one family of roots to it (the storage
+      roots are the natural choice, since instances already read storage
+      state across workspaces).
+   2. The golden then carries backend configuration files naming two
+      different buckets, and at least one remote-state data source pointing
+      at the other backend. The golden moves by design.
+   3. `tests/test_v2_gate4_identity_storage.py` and the storage tests get
+      the one assertion each that the isolation is real.
+6. **Documentation.** [docs/CONFIGURATION.md](docs/CONFIGURATION.md)'s
+   state-backend section gains the rule, the resolution order and the
+   collision examples; [docs/OPERATIONS.md](docs/OPERATIONS.md) gains
+   "where state lives", including how to read a workspace's location from
+   its `.tfbackend.hcl` and that `use_state_backends` gates the whole
+   mechanism.
+7. **What this stage does not do**: migrate any live state, create any
+   bucket, or add a second backend type. A second type is a plugin and a
+   separate decision, and the standing decision keeps all state in S3.
+8. **Acceptance**: the bar green; the golden moved once and reviewed; a
+   test for each row of the table; a test that a rebinding raises; a test
+   that two workspaces colliding under `super_safe_name` are refused; a
+   test that the cross-backend data source names the producer's bucket;
+   `just cli validate` on the live tree unchanged and still passing.
+   Feature branch `feature/multi-state-backends`, squash-merged, kept. Two
+   to three days.
