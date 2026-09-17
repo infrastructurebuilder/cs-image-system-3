@@ -16,6 +16,13 @@ from cs_image_system.hashicorp_utils.collector import (
 from cs_image_system.hashicorp_utils.roots import TerraformRootMixin
 
 
+def _s3(name="s3-east2", bucket="b", key_prefix="statefiles/", is_default=True):
+    from cs_image_system.tf_s3_state_plugin.tf_s3_state_models import S3_KIND
+    return BackendRegistration(name=name, type="s3", kind=S3_KIND, is_default=is_default,
+                               settings={"bucket": bucket, "region": "us-east-2", "key_prefix": key_prefix,
+                                         "encrypt": False, "use_lockfile": True, "profile": None})
+
+
 class _Exe:
     """Minimal ExecutableModel stand-in: args/working_directory are mutated."""
 
@@ -62,9 +69,7 @@ def test_init_args_without_backend(col):
 
 
 def test_init_args_with_backend_uses_bare_filename(col):
-    col.register_backend(BackendRegistration(
-        name="s3-east2", type="s3", bucket="b", region="us-east-2",
-        key_prefix="statefiles/", is_default=True))
+    col.register_backend(_s3())
     col.set_backend("okta-tf-users", "s3-east2")
     args = _root()._init_args(_phase())
     assert args == ["init", "-reconfigure", "-backend-config=okta-tf-users-user-generation.tfbackend.hcl"]
@@ -76,9 +81,7 @@ def test_a_dry_run_initialises_without_the_backend(col):
     providers are installed and the emission validated with -backend=false,
     whether or not a backend is registered; a real run keeps the backend."""
     assert _root_in_run(dry_run=True)._init_args(_phase()) == ["init", "-backend=false"]
-    col.register_backend(BackendRegistration(
-        name="s3-east2", type="s3", bucket="b", region="us-east-2",
-        key_prefix="statefiles/", is_default=True))
+    col.register_backend(_s3())
     col.set_backend("okta-tf-users", "s3-east2")
     assert _root_in_run(dry_run=True)._init_args(_phase()) == ["init", "-backend=false"]
     assert _root_in_run(dry_run=False)._init_args(_phase()) == [
@@ -91,9 +94,7 @@ def test_the_runner_script_initialises_in_the_real_form_whatever_the_run_mode(co
     argument such as `encrypt` changed since, stage 39) -- even when the run
     that wrote it was dry."""
     assert _root_in_run(dry_run=True)._runner_init_args(_phase()) == ["init", "-input=false", "-reconfigure"]
-    col.register_backend(BackendRegistration(
-        name="s3-east2", type="s3", bucket="b", region="us-east-2",
-        key_prefix="statefiles/", is_default=True))
+    col.register_backend(_s3())
     col.set_backend("okta-tf-users", "s3-east2")
     for dry in (True, False):
         assert _root_in_run(dry_run=dry)._runner_init_args(_phase()) == [

@@ -79,7 +79,7 @@ def render_record(record: dict[str, Any], comment: str) -> list[str]:
 
 
 def _location_text(record: dict[str, Any]) -> str:
-    return f"{record.get('type')}://{record.get('bucket')}/{record.get('key')}"
+    return str(record.get("location") or f"{record.get('type')}://{record.get('bucket')}/{record.get('key')}")
 
 
 def tofu_run(tofu: str, args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
@@ -106,8 +106,10 @@ def pull_state(tofu: str, cwd: Path) -> dict[str, Any] | None:
 
 
 def begin(ctx: "GlobalTypeContext", workspace: str, tofu: str, backend_config: Path | None,
-          run_id: str, cwd: Path) -> int:
-    """Step 1 of the operation; exit 0 to let the runner continue."""
+          run_id: str, cwd: Path, new_location: str | None = None) -> int:
+    """Step 1 of the operation; exit 0 to let the runner continue. The new
+    location is the type's rendering of it, passed by the root that emitted
+    the step (the backend file alone does not say what type it is for)."""
     if backend_config is None:
         log.error("state-migration begin: --backend-config (the root's .tfbackend.hcl) is required")
         return 2
@@ -116,6 +118,8 @@ def begin(ctx: "GlobalTypeContext", workspace: str, tofu: str, backend_config: P
         log.error(f"state-migration begin: {new_file} does not exist")
         return 2
     new = parse_backend_config(new_file)
+    if new_location:
+        new["location"] = new_location
     record = ctx.meta_state.state_locations().get(workspace)
     if not record:
         log.error(f"state-migration begin: meta-state records no location for workspace '{workspace}'; "

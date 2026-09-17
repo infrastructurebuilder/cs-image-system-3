@@ -22,12 +22,21 @@ def col(monkeypatch):
     c.reset()
 
 
+def s3_registration(name: str = "s3-east2", bucket: str = "my-bucket", region: str = "us-east-2",
+                    key_prefix: str = "statefiles/csia/", encrypt: bool = True, use_lockfile: bool = True,
+                    profile: str | None = "noaa", is_default: bool = True) -> BackendRegistration:
+    """An S3 registration as the S3 plugin builds one (stage 47: the collector
+    itself knows no S3 field; the kind renders the settings)."""
+    from cs_image_system.tf_s3_state_plugin.tf_s3_state_models import S3_KIND
+    return BackendRegistration(
+        name=name, type="s3", kind=S3_KIND, is_default=is_default,
+        settings={"bucket": bucket, "region": region, "key_prefix": key_prefix, "encrypt": encrypt,
+                  "use_lockfile": use_lockfile, "profile": profile})
+
+
 @pytest.fixture
 def backend():
-    return BackendRegistration(
-        name="s3-east2", type="s3", bucket="my-bucket", region="us-east-2",
-        key_prefix="statefiles/csia/", encrypt=True, use_lockfile=True,
-        profile="noaa", is_default=True)
+    return s3_registration()
 
 
 def test_singleton_and_reset(col):
@@ -123,9 +132,8 @@ def test_default_backend_resolution(col, backend):
 def test_duplicate_backend_conflict(col, backend):
     col.register_backend(backend)
     col.register_backend(backend)  # identical: fine
-    from dataclasses import replace
     with pytest.raises(HclConfigConflictError, match="registered twice"):
-        col.register_backend(replace(backend, bucket="other-bucket"))
+        col.register_backend(s3_registration(bucket="other-bucket"))
 
 
 def test_remote_state_datasource_when_enabled(col, backend, monkeypatch):
@@ -192,9 +200,9 @@ def test_a_state_location_is_the_normalised_tuple():
     assert len({a, b, c, d}) == 3 and c == d and a != c and b != c
     assert c.key == "xyz/p.tfstate" and str(c) == "s3://BUCKET1/xyz/p.tfstate"
     assert StateLocation.of("s3", "b", "", "ws").key == "ws.tfstate"
-    assert StateLocation.of("s3", "b", "a/b", "ws").key_prefix == "a/b"
+    assert StateLocation.of("s3", "b", "a/b", "ws").key == "a/b/ws.tfstate"
     assert StateLocation.of("s3", "b", "///", "ws").key == "ws.tfstate"
-    assert StateLocation.of("s3", "b", "Statefiles/CSIA", "ws").key_prefix == "Statefiles/CSIA"   # case kept
+    assert StateLocation.of("s3", "b", "Statefiles/CSIA", "ws").key == "Statefiles/CSIA/ws.tfstate"   # case kept
     with pytest.raises(ValueError, match=r"'\.\.'"):
         StateLocation.of("s3", "b", "a/../b", "ws")
     assert TerraformCollector().state_collisions({"C": c, "D": d, "A": a}) == \
@@ -203,16 +211,14 @@ def test_a_state_location_is_the_normalised_tuple():
 
 def test_the_emitted_key_is_normalised(col, monkeypatch):
     monkeypatch.setattr(col, "backends_enabled", lambda: True)
-    col.register_backend(BackendRegistration(name="odd", type="s3", bucket="b", region="us-east-2",
-                                             key_prefix="statefiles//x/", is_default=True))
+    col.register_backend(s3_registration(name="odd", bucket="b", key_prefix="statefiles//x/"))
     col.set_backend("open-tofu", "odd")
     assert 'key = "statefiles/x/open_tofu.tfstate"' in "\n".join(col.generate_backend_config("open-tofu"))
 
 
 def test_a_rebinding_to_a_different_backend_is_refused(col, backend):
-    from dataclasses import replace
     col.register_backend(backend)
-    col.register_backend(replace(backend, name="s3-east1", bucket="other", is_default=False))
+    col.register_backend(s3_registration(name="s3-east1", bucket="other", is_default=False))
     col.set_backend("open-tofu", "s3-east2")
     col.set_backend("open-tofu", "s3-east2")          # the same one: a no-op
     with pytest.raises(HclConfigConflictError, match="'open-tofu' is bound to state backend 's3-east2'.*'s3-east1'"):
@@ -220,9 +226,8 @@ def test_a_rebinding_to_a_different_backend_is_refused(col, backend):
 
 
 def test_the_chain_is_own_value_then_runtime_then_default(col, backend):
-    from dataclasses import replace
     col.register_backend(backend)
-    col.register_backend(replace(backend, name="s3-east1", bucket="other", is_default=False))
+    col.register_backend(s3_registration(name="s3-east1", bucket="other", is_default=False))
     assert col.effective_backend_name("s3-east1", "s3-east2") == "s3-east1"     # the builder names one
     assert col.effective_backend_name("default", "s3-east1") == "s3-east1"      # else its runtime's
     assert col.effective_backend_name(None, "self") == "default"                 # else the default
@@ -231,7 +236,6 @@ def test_the_chain_is_own_value_then_runtime_then_default(col, backend):
 
 
 def test_two_names_that_collapse_or_two_backends_on_one_prefix_are_refused(col, backend):
-    from dataclasses import replace
     col.register_backend(backend)
     col.set_backend("aws-ebs", "s3-east2")
     col.set_backend("aws_ebs", "s3-east2")             # super_safe_name collapses both to aws_ebs
@@ -239,7 +243,7 @@ def test_two_names_that_collapse_or_two_backends_on_one_prefix_are_refused(col, 
         col.validate_state_locations()
     col.reset()
     col.register_backend(backend)
-    col.register_backend(replace(backend, name="twin", key_prefix="statefiles//csia", is_default=False))
+    col.register_backend(s3_registration(name="twin", key_prefix="statefiles//csia", is_default=False))
     col.set_backend("one", "s3-east2")
     col.set_backend("one", "s3-east2")
     col.set_backend("two", "twin")
@@ -252,10 +256,8 @@ def test_a_cross_backend_read_carries_the_producers_backend(col, backend, monkey
     """A consumer in backend A referencing a producer in backend B emits a
     remote-state datasource with B's bucket, key and region; an explicit
     backend_name on the reference overrides the producer's binding."""
-    from dataclasses import replace
     monkeypatch.setattr(col, "backends_enabled", lambda: True)
-    east1 = replace(backend, name="s3-east1", bucket="east1-bucket", region="us-east-1",
-                    key_prefix="statefiles/csia/", profile=None, is_default=False)
+    east1 = s3_registration(name="s3-east1", bucket="east1-bucket", region="us-east-1", profile=None, is_default=False)
     col.register_backend(backend)
     col.register_backend(east1)
     col.set_backend("aws-ebs", "s3-east1")             # the producer, in B
@@ -279,7 +281,18 @@ def test_the_backend_record_carries_what_a_migration_needs(col, backend, monkeyp
     col.register_backend(backend)
     col.set_backend("open-tofu", "s3-east2")
     rec = col.backend_record("open-tofu")
-    assert rec == {"backend": "s3-east2", "type": "s3", "bucket": "my-bucket",
-                   "key": "statefiles/csia/open_tofu.tfstate", "region": "us-east-2",
+    assert rec == {"backend": "s3-east2", "type": "s3", "location": "s3://my-bucket/statefiles/csia/open_tofu.tfstate",
+                   "bucket": "my-bucket", "key": "statefiles/csia/open_tofu.tfstate", "region": "us-east-2",
                    "encrypt": True, "use_lockfile": True, "profile": "noaa"}
     assert col.backend_record("never-bound") is None
+
+
+def test_a_registration_without_a_kind_cannot_render(col):
+    """stage 47: the collector names no field of any type; a registration is
+    rendered by the kind its plugin supplies, and one without is refused
+    the moment it is asked for a location."""
+    bare = BackendRegistration(name="x", type="mystery", settings={"anything": 1})
+    col.register_backend(bare)
+    col.set_backend("ws", "x")
+    with pytest.raises(HclConfigConflictError, match="without a kind"):
+        col.state_locations()

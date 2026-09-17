@@ -407,11 +407,15 @@ class MetaState:
 
     # ------------------------------------------------------ state locations
     @staticmethod
-    def location_key(record: dict[str, Any]) -> tuple[str, str, str]:
-        """What makes a location THE location (stage 46): backend type, bucket
-        and the normalised object key; region, profile and encryption are how
-        it is reached, not where it is."""
-        return (str(record.get("type", "")), str(record.get("bucket", "")), str(record.get("key", "")))
+    def location_key(record: dict[str, Any]) -> str:
+        """What makes a location THE location (stage 46): the type's rendering of
+        it, ``<type>://<container>/<key>`` (stage 47); region, profile and
+        encryption are how it is reached, not where it is. A record from before
+        the `location` field is read through its S3 fields."""
+        location = record.get("location")
+        if location:
+            return str(location)
+        return f"{record.get('type', '')}://{record.get('bucket', '')}/{record.get('key', '')}"
 
     def state_locations(self) -> dict[str, dict[str, Any]]:
         """workspace -> the location it was last generated against (stage 46.4):

@@ -297,10 +297,9 @@ def check_state_locations(ctx: GlobalTypeContext) -> list[Exception]:
         old = recorded.get(workspace)
         if not old:
             continue
-        old_key = ctx.meta_state.location_key(old)
-        if old_key == (location.type, location.bucket, location.key) or workspace in migrating:
+        old_text = ctx.meta_state.location_key(old)
+        if old_text == str(location) or workspace in migrating:
             continue
-        old_text = f"{old_key[0]}://{old_key[1]}/{old_key[2]}"
         deployed = deployed_in_workspace(ctx, workspace)
         if not deployed:
             log.info(f"workspace '{workspace}' moves its state from {old_text} to {location}: "

@@ -67,11 +67,13 @@ they need; the collector dedupes, merges and validates, and renders.
 | `sensitive_ref(workspace, key, value)` | See [Sensitive values](#sensitive-values-by-reference). |
 
 `BackendRegistration` fields: `name`, `type` (for example `s3`),
-`bucket`, `region`, `key_prefix` (normalized with a trailing `/`),
-`encrypt` (`False`), `use_lockfile` (`True`), `profile` (`None`),
-`is_default` (`False`). `state_file_path(workspace)` is
-`<key_prefix><super_safe_name(workspace)>.tfstate`, so the workspace
-`open-tofu` binds to `statefiles/.../open_tofu.tfstate`.
+`settings` (the type's own, as an opaque mapping), `kind` (the type's
+renderings, supplied by the state plugin that declares it) and
+`is_default`. `state_location(workspace)` asks the kind for the
+`StateLocation` (`<type>://<container>/<key>`, normalised, stage 46);
+`backend_settings(workspace)` and `remote_state_settings(workspace)` for
+the partial configuration and the data source (stage 47). The collector
+names no field of any type.
 
 ### Dedupe, merge and conflicts
 

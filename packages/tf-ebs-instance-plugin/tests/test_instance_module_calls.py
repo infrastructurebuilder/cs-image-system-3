@@ -13,6 +13,14 @@ from cs_image_system.base.models.provider_specific_image import (
 from cs_image_system.tf_ebs_instance_plugin.tf_instance_builder import TofuInstanceBuilder
 
 
+def _s3(name="s3-east2", bucket="b", key_prefix="statefiles/", is_default=True):
+    from cs_image_system.hashicorp_utils.collector import BackendRegistration
+    from cs_image_system.tf_s3_state_plugin.tf_s3_state_models import S3_KIND
+    return BackendRegistration(name=name, type="s3", kind=S3_KIND, is_default=is_default,
+                               settings={"bucket": bucket, "region": "us-east-2", "key_prefix": key_prefix,
+                                         "encrypt": False, "use_lockfile": True, "profile": None})
+
+
 def _instance(name, image):
     return SimpleNamespace(get_name=lambda: name, image=image, get_tags=lambda: {"stype": "test"})
 
@@ -68,10 +76,7 @@ def test_init_args_carry_backend_config_when_enabled(monkeypatch):
     from pathlib import Path
 
     from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
-    from cs_image_system.hashicorp_utils.collector import (
-        BackendRegistration,
-        TerraformCollector,
-    )
+    from cs_image_system.hashicorp_utils.collector import TerraformCollector
 
     col = TerraformCollector()
     col.reset()
@@ -90,9 +95,7 @@ def test_init_args_carry_backend_config_when_enabled(monkeypatch):
         assert stub._init_args(phase) == ["init"]
 
         monkeypatch.setattr(TerraformCollector(), "backends_enabled", lambda: True)
-        col.register_backend(BackendRegistration(
-            name="s3-east2", type="s3", bucket="b", region="us-east-2",
-            key_prefix="statefiles/", is_default=True))
+        col.register_backend(_s3())
         col.set_backend("open-tofu", "s3-east2")
         assert stub._init_args(phase) == [
             "init",

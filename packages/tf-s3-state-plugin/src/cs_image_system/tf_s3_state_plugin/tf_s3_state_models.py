@@ -3,19 +3,57 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import field
+from typing import Any, Mapping
 from cs_image_system.base.models.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 
 from cs_image_system.base.constants import VCT
 from cs_image_system.base.models.state_builder import StateBuilderModel
 from cs_image_system.hashicorp_utils.hashicorp import AssumeRoleConfig, AssumeRoleWithWebIdentityConfig, StateEndpoints
-from cs_image_system.hashicorp_utils.collector import BackendRegistration, TerraformCollector
+from cs_image_system.hashicorp_utils.collector import BackendRegistration, StateLocation, TerraformCollector
 from cs_image_system.hashicorp_utils.hashicorp_models import TFTofuPluginModel
 
 
 TF_AWS_S3_STATE: str = "s3"
 
 HASHICORP_S3 = "s3-state"
+
+
+class S3BackendKind:
+    """The S3 backend type's renderings (stage 47.2): a workspace's state is the
+    object ``<key prefix>/<workspace>.tfstate`` in the bucket; the partial
+    configuration carries bucket, key, region, encrypt, use_lockfile and the
+    profile; a consumer's data source carries bucket, key, region and the
+    profile. The collector knows none of these names."""
+    type = TF_AWS_S3_STATE
+
+    def location(self, settings: Mapping[str, Any], workspace: str) -> StateLocation:
+        return StateLocation.of(self.type, str(settings["bucket"]), settings.get("key_prefix"), workspace)
+
+    def backend_settings(self, settings: Mapping[str, Any], workspace: str) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "bucket": settings["bucket"],
+            "key": self.location(settings, workspace).key,
+            "region": settings["region"],
+            "encrypt": bool(settings.get("encrypt", False)),
+            "use_lockfile": bool(settings.get("use_lockfile", True)),
+        }
+        if settings.get("profile"):
+            out["profile"] = settings["profile"]
+        return out
+
+    def remote_state_settings(self, settings: Mapping[str, Any], workspace: str) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "bucket": settings["bucket"],
+            "key": self.location(settings, workspace).key,
+            "region": settings["region"],
+        }
+        if settings.get("profile"):
+            out["profile"] = settings["profile"]
+        return out
+
+
+S3_KIND = S3BackendKind()
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
 class TofuS3StateBuilderModel(StateBuilderModel):
@@ -75,12 +113,15 @@ class TofuS3StateBuilderModel(StateBuilderModel):
         return BackendRegistration(
             name=self.name,
             type=self.type_,
-            bucket=self.bucket,
-            region=self.region,
-            key_prefix=self.key,
-            encrypt=self.encrypt,
-            use_lockfile=self.use_lockfile,
-            profile=self.profile,
+            settings={
+                "bucket": self.bucket,
+                "region": self.region,
+                "key_prefix": self.key,
+                "encrypt": self.encrypt,
+                "use_lockfile": self.use_lockfile,
+                "profile": self.profile,
+            },
+            kind=S3_KIND,
             is_default=self.get_is_default(),
         )
 

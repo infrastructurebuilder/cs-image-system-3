@@ -351,8 +351,7 @@ def lifecycle_state_bindings(ctx: GlobalTypeContext) -> dict[str, dict[str, str]
                 continue
             reg = col.workspace_backend(builder.get_name())
             if reg is not None:
-                out[lifecycle.value][builder.get_name()] = (
-                    f"{reg.type}://{reg.bucket}/{reg.state_file_path(builder.get_name())}")
+                out[lifecycle.value][builder.get_name()] = str(reg.state_location(builder.get_name()))
     return out
 
 

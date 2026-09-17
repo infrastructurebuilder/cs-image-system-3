@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import logging
-from typing import Any
+from typing import Any, Mapping, Protocol
 
 import hcl2
 from hcl2 import Builder
@@ -89,58 +89,90 @@ class TerraformVariable:
 @dataclass(frozen=True)
 class StateLocation:
     """Where one workspace keeps its state (stage 46): the tuple (backend type,
-    bucket, key prefix, object name), normalised so that two spellings of one
-    place compare equal -- repeated slashes collapsed, leading and trailing
-    ones stripped, case kept (S3 keys are case-sensitive), ``.`` and ``..``
-    segments refused. ``BUCKET1//xyz`` and ``BUCKET1/xyz`` are the same
-    location; the emitted ``key`` is the normalised one, so the doubled slash
-    can never reach a backend configuration file."""
+    container, key), normalised so that two spellings of one place compare
+    equal -- repeated slashes collapsed, leading and trailing ones stripped,
+    case kept (object keys are case-sensitive), ``.`` and ``..`` segments
+    refused. The container is what the type addresses (an S3 or GCS bucket, a
+    local directory) and the key the state object within it; the type decides
+    both (stage 47), which is why ``BUCKET1//xyz`` and ``BUCKET1/xyz`` are one
+    location and the emitted key is the normalised one."""
     type: str
-    bucket: str
-    key_prefix: str       # normalised: '' or 'a/b', never a leading or trailing slash
-    object_name: str      # '<workspace>.tfstate' after super_safe_name
+    container: str
+    key: str
 
     @staticmethod
-    def normalise_prefix(prefix: str | None) -> str:
-        segments = [s for s in (prefix or "").split("/") if s]
+    def normalise_key(key: str | None) -> str:
+        segments = [s for s in (key or "").split("/") if s]
         for s in segments:
             if s in (".", ".."):
-                raise ValueError(f"state key prefix {prefix!r} carries a {s!r} segment")
+                raise ValueError(f"state key {key!r} carries a {s!r} segment")
         return "/".join(segments)
 
     @classmethod
-    def of(cls, type: str, bucket: str, key_prefix: str | None, workspace: str) -> "StateLocation":
-        return cls(type=type, bucket=bucket, key_prefix=cls.normalise_prefix(key_prefix),
-                   object_name=f"{ssn(workspace)}.tfstate")
+    def of(cls, type: str, container: str, prefix: str | None, workspace: str) -> "StateLocation":
+        """The object-store convention: ``<prefix>/<workspace>.tfstate``, the
+        workspace name made safe, the prefix normalised."""
+        return cls(type=type, container=container, key=cls.normalise_key(f"{prefix or ''}/{ssn(workspace)}.tfstate"))
 
     @property
-    def key(self) -> str:
-        """The object key inside the bucket."""
-        return f"{self.key_prefix}/{self.object_name}" if self.key_prefix else self.object_name
+    def bucket(self) -> str:
+        """The container, under the name the object-store types give it."""
+        return self.container
 
     def __str__(self) -> str:
-        return f"{self.type}://{self.bucket}/{self.key}"
+        return f"{self.type}://{self.container}/{self.key}"
+
+
+class BackendKind(Protocol):
+    """What a state backend TYPE knows (stage 47.1): where a workspace's state
+    lives, the settings its partial configuration file needs, and the
+    settings a consumer's remote-state data source needs -- which differ (a
+    data source has no ``encrypt`` or ``use_lockfile``). A state plugin
+    supplies one per type it declares; the collector renders whatever the
+    kind returns and names no field of its own."""
+    type: str
+
+    def location(self, settings: Mapping[str, Any], workspace: str) -> StateLocation: ...
+
+    def backend_settings(self, settings: Mapping[str, Any], workspace: str) -> dict[str, Any]: ...
+
+    def remote_state_settings(self, settings: Mapping[str, Any], workspace: str) -> dict[str, Any]: ...
 
 
 @dataclass(frozen=True)
 class BackendRegistration:
-    """A state backend made available for the run (registered by a state plugin)."""
+    """A state backend made available for the run (registered by a state
+    plugin): what every backend has -- a name, a type, whether it is the
+    default -- plus the type's own settings as an opaque mapping, and the kind
+    that renders them (stage 47.1). Equality is the declaration (name, type,
+    settings, default); the kind is behaviour."""
     name: str
-    type: str            # e.g. "s3"
-    bucket: str
-    region: str
-    key_prefix: str      # as declared; normalised through StateLocation
-    encrypt: bool = False
-    use_lockfile: bool = True
-    profile: str | None = None
+    type: str
+    settings: dict[str, Any] = field(default_factory=dict, hash=False)
+    kind: Any = field(default=None, compare=False, repr=False, hash=False)
     is_default: bool = False
 
+    def _kind(self) -> BackendKind:
+        if self.kind is None:
+            raise HclConfigConflictError(
+                f"State backend '{self.name}' (type '{self.type}') was registered without a kind: "
+                "the plugin that declares the type must supply its renderings")
+        return self.kind
+
     def state_location(self, workspace: str) -> StateLocation:
-        return StateLocation.of(self.type, self.bucket, self.key_prefix, workspace)
+        return self._kind().location(self.settings, workspace)
 
     def state_file_path(self, workspace: str) -> str:
-        """The object key: the normalised prefix and the workspace's state file."""
+        """The state object's key within the container, normalised."""
         return self.state_location(workspace).key
+
+    def backend_settings(self, workspace: str) -> dict[str, Any]:
+        """The ``key = value`` settings the workspace's backend file carries."""
+        return self._kind().backend_settings(self.settings, workspace)
+
+    def remote_state_settings(self, workspace: str) -> dict[str, Any]:
+        """The ``config`` a consumer's remote-state data source carries."""
+        return self._kind().remote_state_settings(self.settings, workspace)
 
 
 @dataclass(frozen=True)
@@ -466,22 +498,8 @@ class TerraformCollector:
         if reg is None or not self.backends_enabled():
             return []
         return self.render_backend_config(
-            self.backend_settings(reg, workspace),
+            reg.backend_settings(workspace),
             f"# Backend '{reg.name}' ({reg.type}) partial configuration for workspace {workspace}")
-
-    @staticmethod
-    def backend_settings(reg: BackendRegistration, workspace: str) -> dict[str, Any]:
-        """The ``key = value`` settings a workspace's backend file carries."""
-        settings: dict[str, Any] = {
-            "bucket": reg.bucket,
-            "key": reg.state_file_path(workspace),
-            "region": reg.region,
-            "encrypt": reg.encrypt,
-            "use_lockfile": reg.use_lockfile,
-        }
-        if reg.profile:
-            settings["profile"] = reg.profile
-        return settings
 
     @staticmethod
     def render_backend_config(settings: dict[str, Any], comment: str) -> list[str]:
@@ -500,7 +518,8 @@ class TerraformCollector:
         reg = self._workspace_backend_registration(workspace)
         if reg is None:
             return None
-        return {"backend": reg.name, "type": reg.type, **self.backend_settings(reg, workspace)}
+        return {"backend": reg.name, "type": reg.type, "location": str(reg.state_location(workspace)),
+                **reg.backend_settings(workspace)}
 
     def generate_provider_blocks(self, workspace: str) -> list[str]:
         self.validate_all()
@@ -577,13 +596,11 @@ class TerraformCollector:
                            labels=['"terraform_remote_state"',
                                    f'"{ref.datasource_label()}"'],
                            backend=QString(reg.type, quoted=True))
+            # whatever the producer's TYPE says a data source needs (stage 47.1)
             cargs: dict[str, Any] = {
-                "bucket": QString(reg.bucket, quoted=True),
-                "key": QString(reg.state_file_path(ref.producer_workspace), quoted=True),
-                "region": QString(reg.region, quoted=True),
+                k: (QString(v, quoted=True) if isinstance(v, str) else v)
+                for k, v in reg.remote_state_settings(ref.producer_workspace).items()
             }
-            if reg.profile:
-                cargs["profile"] = QString(reg.profile, quoted=True)
             ds.block("config", labels=["="], **cargs)
             lines.extend(hcl2.dumps(doc.build(), formatter_options=FO).splitlines())
         return lines

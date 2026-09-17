@@ -185,9 +185,11 @@ class TerraformRootMixin(_Base):
         migrating = self.name in (getattr(GlobalTypeContext(), "migrate_state", None) or [])
         if migrating:
             backend_file = self._backend_config_path(phase).name
+            reg = TerraformCollector().workspace_backend(self.name)
+            location = str(reg.state_location(self.name)) if reg is not None else ""
             commands.append(system_cli_executable_with_config(
                 ["state-migration", "begin", "--workspace", self.name, "--tofu", tofu_bin,
-                 "--backend-config", backend_file, "--run", str(GlobalTypeContext().run_id)],
+                 "--backend-config", backend_file, "--location", location, "--run", str(GlobalTypeContext().run_id)],
                 working_directory))
             init_args = ["init", "-input=false", "-migrate-state", "-force-copy", f"-backend-config={backend_file}"]
         else:

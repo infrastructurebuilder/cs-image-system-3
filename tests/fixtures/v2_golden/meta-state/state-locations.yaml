@@ -4,6 +4,7 @@ workspaces:
     bucket: my-east1-tfstate-bucket
     encrypt: true
     key: statefiles/csia/aws_ebs.tfstate
+    location: s3://my-east1-tfstate-bucket/statefiles/csia/aws_ebs.tfstate
     profile: noaa
     region: us-east-1
     run: 2026_08_26t12_00_00
@@ -14,6 +15,7 @@ workspaces:
     bucket: my-east1-tfstate-bucket
     encrypt: true
     key: statefiles/csia/aws_efs.tfstate
+    location: s3://my-east1-tfstate-bucket/statefiles/csia/aws_efs.tfstate
     profile: noaa
     region: us-east-1
     run: 2026_08_26t12_00_00
@@ -24,6 +26,7 @@ workspaces:
     bucket: my-east1-tfstate-bucket
     encrypt: true
     key: statefiles/csia/aws_s3.tfstate
+    location: s3://my-east1-tfstate-bucket/statefiles/csia/aws_s3.tfstate
     profile: noaa
     region: us-east-1
     run: 2026_08_26t12_00_00
@@ -34,6 +37,7 @@ workspaces:
     bucket: my-east1-tfstate-bucket
     encrypt: true
     key: statefiles/csia/gcp_gcs.tfstate
+    location: s3://my-east1-tfstate-bucket/statefiles/csia/gcp_gcs.tfstate
     profile: noaa
     region: us-east-1
     run: 2026_08_26t12_00_00
@@ -44,6 +48,7 @@ workspaces:
     bucket: my-east1-tfstate-bucket
     encrypt: true
     key: statefiles/csia/gcp_pd.tfstate
+    location: s3://my-east1-tfstate-bucket/statefiles/csia/gcp_pd.tfstate
     profile: noaa
     region: us-east-1
     run: 2026_08_26t12_00_00
@@ -54,6 +59,7 @@ workspaces:
     bucket: noaa-ioos-cloud-sandbox-tfstate
     encrypt: true
     key: statefiles/csia-image-system-test/okta_tf_users.tfstate
+    location: s3://noaa-ioos-cloud-sandbox-tfstate/statefiles/csia-image-system-test/okta_tf_users.tfstate
     profile: noaa
     region: us-east-2
     run: 2026_08_26t12_00_00
@@ -64,6 +70,7 @@ workspaces:
     bucket: noaa-ioos-cloud-sandbox-tfstate
     encrypt: true
     key: statefiles/csia-image-system-test/oktagroups.tfstate
+    location: s3://noaa-ioos-cloud-sandbox-tfstate/statefiles/csia-image-system-test/oktagroups.tfstate
     profile: noaa
     region: us-east-2
     run: 2026_08_26t12_00_00
@@ -74,6 +81,7 @@ workspaces:
     bucket: noaa-ioos-cloud-sandbox-tfstate
     encrypt: true
     key: statefiles/csia-image-system-test/open_tofu.tfstate
+    location: s3://noaa-ioos-cloud-sandbox-tfstate/statefiles/csia-image-system-test/open_tofu.tfstate
     profile: noaa
     region: us-east-2
     run: 2026_08_26t12_00_00
@@ -84,6 +92,7 @@ workspaces:
     bucket: noaa-ioos-cloud-sandbox-tfstate
     encrypt: true
     key: statefiles/csia-image-system-test/tofu_gce.tfstate
+    location: s3://noaa-ioos-cloud-sandbox-tfstate/statefiles/csia-image-system-test/tofu_gce.tfstate
     profile: noaa
     region: us-east-2
     run: 2026_08_26t12_00_00
