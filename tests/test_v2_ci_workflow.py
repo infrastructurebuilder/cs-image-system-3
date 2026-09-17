@@ -2,10 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The CI workflow calls only `just` targets and splits into three jobs: the
-credential-free bar, the read-only live job, and the perform job that on
+"""The CI workflow calls only `just` targets and splits into four jobs: the
+credential-free bar, the read-only live job, the perform job that on
 `main` records the full configuration, performs on the AWS runtime alone
-under the write role, and records again.
+under the write role, and records again, and the publish job that uploads
+a pushed `v*` tag to the index (stage 41).
 
 The Justfile is the single entry point, so the workflow's own test is that
 every command it runs is a Justfile target -- the targets are tested by their
@@ -28,7 +29,7 @@ WORKFLOW = REPO / ".github" / "workflows" / "ci.yml"
 
 # steps that are environment or transport plumbing rather than the system
 _PLUMBING = ("Gate on", "Name the federated", "Name the write", "Name the read-only", "Place the tools",
-              "Install what a bake needs", "Push", "Prove write access", "Name the committer")
+              "Install what a bake needs", "Push", "Prove write access", "Name the committer", "The tag names")
 
 
 def _workflow() -> dict:
@@ -195,3 +196,37 @@ def test_perform_records_performs_on_the_aws_runtime_alone_and_records_again():
     assert isinstance(on, dict)
     assert on["workflow_dispatch"]["inputs"]["mode"]["default"] == "dry"
     assert "github.ref == 'refs/heads/main'" in gate["env"]["IS_RECORD"]
+
+
+def test_publish_runs_on_a_tag_alone_and_is_the_only_uploader():
+    """stage 41: a pushed `v*` tag publishes -- to TestPyPI always, to PyPI when
+    the tag is not a development version -- through `just publish`, after the
+    bar, with each index's token from a repository secret; the tag must name
+    the version in the tree; no other job uploads anything."""
+    wf = _workflow()
+    job = wf["jobs"]["publish"]
+    assert job["needs"] == "verify"
+    assert job["if"].strip() == "startsWith(github.ref, 'refs/tags/v')"
+    assert "id-token" not in (job.get("permissions") or {}), "trusted publishing waits until the names are stable"
+    gate = next(s for s in job["steps"] if s.get("id") == "gate")
+    assert "TEST_PYPI_TOKEN" in yaml.safe_dump(gate["env"]) and "PYPI_TOKEN" in yaml.safe_dump(gate["env"])
+    assert "SKIPPED" in gate["run"] and "GITHUB_STEP_SUMMARY" in gate["run"] and "EMPTY" in gate["run"] and "exit 1" in gate["run"]
+    assert "contains(github.ref_name, '.dev')" in gate["env"]["IS_DEV"]
+    for s in job["steps"]:
+        if s.get("id") != "gate":
+            assert "steps.gate.outputs.ready == 'true'" in (s.get("if") or ""), s.get("name")
+    commands = [run.strip() for name, run in _run_steps(job) if not name.startswith(_PLUMBING)]
+    assert commands == ["just init", "just publish test", "just publish pypi"]
+    pypi = next(s for s in job["steps"] if s.get("name") == "Publish to PyPI")
+    assert "steps.gate.outputs.pypi == 'true'" in pypi["if"]
+    assert pypi["env"]["UV_PUBLISH_TOKEN"] == "${{ secrets.PYPI_TOKEN }}"
+    test = next(s for s in job["steps"] if s.get("name") == "Publish to TestPyPI")
+    assert test["env"]["UV_PUBLISH_TOKEN"] == "${{ secrets.TEST_PYPI_TOKEN }}"
+    names = [s.get("name", "") for s in job["steps"]]
+    assert names.index("The tag names the version in the tree") < names.index("Publish to TestPyPI")
+    # the only uploader anywhere, and only on a tag
+    for job_name, other in wf["jobs"].items():
+        uploads = [run for _, run in _run_steps(other) if "publish" in run]
+        assert (job_name == "publish") == bool(uploads), job_name
+    everything = yaml.safe_dump(wf)
+    assert everything.count("UV_PUBLISH_TOKEN") == 2 and "uv publish" not in everything

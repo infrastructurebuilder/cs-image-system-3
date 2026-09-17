@@ -3,28 +3,48 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [project]
-name = "cs-image-system-root"
+name = "cs-image-system"
 version = "0.1.0"
+description = "Declarative provisioning of identities, storages, base images and instance images on AWS and GCE, from one YAML tree through gates: every cs-image-system package in one install"
+readme = "README.md"
+authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
+# The whole system (stage 41.3): this package has no sources of its own; it pins every
+# workspace package at == its own version, so one install gets the CLI and every plugin.
 dependencies = [
-    "cs-image-system-ansible-plugin",
-    "cs-image-system-bash-mod-plugin",
-    "cs-image-system-aws-runtime-plugin",
-    "cs-image-system-base",
-    "cs-image-system-default-os-plugin",
-    "cs-image-system-dummy-plugin",
-    "cs-image-system-gcloud-runtime-plugin",
-    "cs-image-system-hashicorp-utils",
-    "cs-image-system-okta-opa-plugin",
-    "cs-image-system-packer-plugin",
-    "cs-image-system-system",
-    "cs-image-system-tf-ebs-instance-plugin",
-    "cs-image-system-tf-gcp-plugin",
-    "cs-image-system-tf-s3-state-plugin",
-    "pydantic>=2.13.5",
+    "cs-image-system-ansible-plugin==0.1.0",
+    "cs-image-system-aws-runtime-plugin==0.1.0",
+    "cs-image-system-base==0.1.0",
+    "cs-image-system-bash-mod-plugin==0.1.0",
+    "cs-image-system-default-os-plugin==0.1.0",
+    "cs-image-system-dummy-plugin==0.1.0",
+    "cs-image-system-gcloud-runtime-plugin==0.1.0",
+    "cs-image-system-hashicorp-utils==0.1.0",
+    "cs-image-system-okta-opa-plugin==0.1.0",
+    "cs-image-system-packer-plugin==0.1.0",
+    "cs-image-system-system==0.1.0",
+    "cs-image-system-tf-ebs-instance-plugin==0.1.0",
+    "cs-image-system-tf-gcp-plugin==0.1.0",
+    "cs-image-system-tf-s3-state-plugin==0.1.0",
 ]
+
+[project.urls]
+Repository = "https://github.com/infrastructurebuilder/cs-image-system-3"
+Documentation = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/docs/OPERATIONS.md"
+Configuration = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/docs/CONFIGURATION.md"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# a metadata-only wheel: nothing to select
+bypass-selection = true
+
+[tool.hatch.build.targets.sdist]
+only-include = ["README.md", "LICENSE"]
 
 [tool.uv.workspace]
 members = ["packages/*"]
@@ -44,6 +64,65 @@ cs-image-system-tf-gcp-plugin = { workspace = true }
 cs-image-system-default-os-plugin = { workspace = true }
 cs-image-system-tf-s3-state-plugin = { workspace = true }
 cs-image-system-hashicorp-utils = { workspace = true }
+
+# The indexes a release is published to (stage 41): `uv publish --index <name>` reads the
+# publish-url and skips files already present with the same content (the url is the check
+# url). Both are explicit, so neither takes part in resolving this workspace's dependencies;
+# a consumer installs from TestPyPI with PyPI as the extra index (docs/OPERATIONS.md,
+# "Installing a release").
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
+explicit = true
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple/"
+publish-url = "https://upload.pypi.org/legacy/"
+explicit = true
+
+# The one place a version changes (stage 41.4): `bump-my-version bump <part>` moves the
+# `version =` line of every package and every `== <version>` pin between them at once; the
+# release recipe then refreshes the lock, commits and tags. Scheme MAJOR.MINOR.PATCH[.devN]:
+# `bump patch` (or minor, major) opens the next version as its first development release
+# (0.1.0 -> 0.1.1.dev1), `bump dev` is the next development release of the same version
+# (0.1.1.dev1 -> 0.1.1.dev2), `bump stage` finalises it (0.1.1.dev2 -> 0.1.1). A missing
+# stage reads as final, a bumped part resets the parts after it to their first values.
+[tool.bumpversion]
+current_version = "0.1.0"
+parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)(\\.(?P<stage>dev)(?P<dev>\\d+))?"
+serialize = ["{major}.{minor}.{patch}.{stage}{dev}", "{major}.{minor}.{patch}"]
+commit = false
+tag = false
+
+[tool.bumpversion.parts.stage]
+values = ["dev", "final"]
+optional_value = "final"
+
+[tool.bumpversion.parts.dev]
+first_value = "1"
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = "version = \"{current_version}\""
+replace = "version = \"{new_version}\""
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = "=={current_version}\""
+replace = "=={new_version}\""
+
+[[tool.bumpversion.files]]
+glob = "packages/*/pyproject.toml"
+search = "version = \"{current_version}\""
+replace = "version = \"{new_version}\""
+
+[[tool.bumpversion.files]]
+glob = "packages/*/pyproject.toml"
+glob_exclude = ["packages/base/pyproject.toml"]     # base depends on no other package
+search = "=={current_version}\""
+replace = "=={new_version}\""
 
 [tool.pytest.ini_options]
 testpaths = ["tests",
@@ -87,6 +166,7 @@ dev = [
     "ruff>=0.15",
     "pyright>=1.1.390",
     "reuse>=6.2.0",
+    "bump-my-version>=1.2",
 ]
 
 [tool.ruff]

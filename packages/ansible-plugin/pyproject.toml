@@ -5,12 +5,21 @@
 [project]
 name = "cs-image-system-ansible-plugin"
 version = "0.1.0"
+description = "The Ansible modification plugin: an image's playbooks become Packer provisioners on its build"
+readme = "README.md"
+authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
-"cs-image-system-system",
+    "cs-image-system-system==0.1.0",
+    "pydantic>=2.13",
 ]
+
+[project.urls]
+Repository = "https://github.com/infrastructurebuilder/cs-image-system-3"
+Documentation = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/docs/OPERATIONS.md"
+"Package README" = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/packages/ansible-plugin/README.md"
 
 [project.entry-points."cs_image_system.plugins.modification"]
 ansible_plugin = "cs_image_system.ansible_plugin.main:initialize"

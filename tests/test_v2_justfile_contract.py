@@ -5,9 +5,11 @@
 """stage 16: the Justfile's contract.  Five reserved targets in lifecycle
 order (`init`, `build`, `test`, `full-test`, `release`), listed first;
 `build` wraps `uv build`; `full-test` runs the slow legs and reports a
-missing prerequisite as SKIPPED; `release` is gated on `full-test`; and the
-`preflight` command that gates full-test's cloud-reading legs reads the
-credential caches without loading the configuration."""
+missing prerequisite as SKIPPED; `release` (stage 41) probes, bumps,
+publishes and only then commits and tags, gated on the bar or on
+`full-test` by the index; and the `preflight` command that gates
+full-test's cloud-reading legs reads the credential caches without loading
+the configuration."""
 from __future__ import annotations
 
 import json
@@ -66,14 +68,21 @@ def test_build_wraps_uv_build_and_the_gates_hold():
         assert needle in body, needle
     assert body.count("SKIPPED") >= 2                         # docker leg, credential legs
     deps, body = r["release"]
-    assert "full-test" in deps.split()
-    for needle in ("git status --porcelain", "mod-tests.yaml", "uv version", "git tag -a", "just build", "uv publish", "UV_PUBLISH_URL", "SKIPPED"):
+    # stage 41: the gate follows the index -- the bar for a development release to
+    # TestPyPI, full-test (with the mod-test evidence and a clean live checkout) for
+    # PyPI -- so it is chosen in the body, never a static dependency
+    assert deps.strip() == ""
+    assert "just full-test" in body and "just test" in body and "mod-tests.yaml" in body
+    for needle in ("git status --porcelain", "bump-my-version", "uv lock", "just publish {{index}}", "git tag -a"):
         assert needle in body, needle
+    assert "uv version" not in body and "UV_PUBLISH_URL" not in body and "SKIPPED" not in body   # the tag is no longer the release
     assert "git push" not in body.replace("push with: git push", "")   # nothing is pushed by the recipe
 
 
 def _closure(recipes: dict[str, tuple[str, str]], name: str) -> set[str]:
-    """The recipe plus every recipe in its dependency chain."""
+    """The recipe plus every recipe in its dependency chain -- its dependencies
+    and the recipes its body invokes as `just <name>` (release chooses its
+    gate in the body, stage 41)."""
     seen: set[str] = set()
     todo = [name]
     while todo:
@@ -82,6 +91,7 @@ def _closure(recipes: dict[str, tuple[str, str]], name: str) -> set[str]:
             continue
         seen.add(n)
         todo += [d for d in re.findall(r"[A-Za-z_][\w-]*", recipes[n][0]) if d in recipes]
+        todo += [d for d in re.findall(r"\bjust ([A-Za-z_][\w-]*)", recipes[n][1]) if d in recipes]
     return seen
 
 
@@ -197,3 +207,25 @@ def test_preflight_readiness_marks_presence():
     merged = _merge([a, b])
     assert len(merged) == 1 and merged[0].runtime == "r1, r2" and merged[0].present is False
     assert os.environ.get("CSIS_AWS_DIR")                     # the suite never reads the real caches
+
+
+def test_release_cannot_half_release_and_publish_is_its_own_recipe():
+    """stage 41: every probe -- the token, the index's knowledge of the version,
+    the local tag -- runs before the bump; the upload runs before the commit and
+    the tag, so a failed upload leaves an uncommitted bump and never a tagged,
+    unpublished version; `publish` cleans, builds and uploads with the check
+    URL, and the token is never in the Justfile."""
+    r = _recipes()
+    body = r["release"][1]
+    order = [body.rindex(s) for s in ("UV_PUBLISH_TOKEN", "scripts/index-knows", "git tag -l", "bump-my-version \"${bump[@]}\"",
+                                      "just publish {{index}}", "git commit", "git tag -a")]      # the last mention: the dry echo names them first
+    assert order == sorted(order), "probe, bump, publish, commit, tag -- in that order"
+    assert body.rindex("just test") < body.rindex("bump-my-version \"${bump[@]}\"")         # the bar before the bump
+    assert "git checkout -- pyproject.toml packages/*/pyproject.toml uv.lock" in body     # the recovery from a failed upload
+    assert "test) name=testpypi" in body and "pypi) name=pypi" in body
+    publish = r["publish"][1]
+    for needle in ("rm -rf dist", "just build", 'uv publish --index "$name" --check-url "$simple"', "UV_PUBLISH_TOKEN"):
+        assert needle in publish, needle
+    assert "pypi-" not in publish and "pypi-" not in body                                 # no token shape anywhere
+    probe = REPO / "scripts" / "index-knows"
+    assert os.access(probe, os.X_OK) and "PEP 700" in probe.read_text()

@@ -33,9 +33,11 @@ names are reserved, in lifecycle order:
 | `build`     | Every workspace member as sdist + wheel under `dist/`; no tests                        |
 | `test`      | The fast suite, all blocking: ruff, pyright, the unit tests (the golden included)      |
 | `full-test` | `test` plus the docker-backed modification tests and, when the runtime sessions are present, a headless dry `run --all` with `state query --strict`; an absent prerequisite reports SKIPPED |
-| `release`   | Gated on `full-test`: version on every package, commit, tag, `build`; the tag is the release, publish when `UV_PUBLISH_URL` is set |
+| `release`   | `just release <part\|version> [test\|pypi]`: probe the index and the token, then the bar (TestPyPI) or `full-test` (PyPI), bump every version line and pin, lock, `build`, publish, commit, tag `v<version>` |
 
-`just` alone lists every recipe, the contract first. `just cli …` runs
+`just` alone lists every recipe, the contract first. `just publish
+[test|pypi]` builds and uploads the version in the tree (TestPyPI by
+default; a pushed `v*` tag makes CI do the same). `just cli …` runs
 the CLI against the live configuration; the `cloud-*` and `gce-*` recipes
 are the sanctioned cloud change cycle; `just public-safe` is the gate that
 keeps secrets and people out of anything published. The manual describes

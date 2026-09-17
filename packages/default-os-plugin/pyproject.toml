@@ -5,10 +5,21 @@
 [project]
 name = "cs-image-system-default-os-plugin"
 version = "0.1.0"
+description = "The OS builders: debian, ubuntu, rhel, fedora and alpine as base operating systems"
+readme = "README.md"
+authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
-dependencies = ["cs-image-system-system"]
+dependencies = [
+    "cs-image-system-system==0.1.0",
+    "pydantic>=2.13",
+]
+
+[project.urls]
+Repository = "https://github.com/infrastructurebuilder/cs-image-system-3"
+Documentation = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/docs/OPERATIONS.md"
+"Package README" = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/packages/default-os-plugin/README.md"
 
 [project.entry-points."cs_image_system.plugins.os"]
 default_os_plugin = "cs_image_system.default_os_plugin.main:initialize"

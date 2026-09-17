@@ -74,46 +74,99 @@ full-test: test
 	if [ "$status" -eq 0 ]; then echo "full-test: passed"; else echo "full-test: FAILED"; fi
 	exit $status
 
-# Cut a release: `full-test` first (the contract), then the version on the
-# root and every workspace package, one commit, an annotated tag, `build`,
-# and publish -- the publish leg runs only with UV_PUBLISH_URL in the
-# environment; without it the TAG is the release (decided 2026-09-15, stage 39;
-# an index is stage 41) and the leg reports SKIPPED. Nothing is pushed:
-# `git push --follow-tags` is the operator's act.
-# `just release 0.2.0 yes` is the dry form: full-test, then what would change.
-[doc("Gated on full-test: version on every package, commit, tag v<version>, build, publish when UV_PUBLISH_URL is set; `yes` = dry")]
-release version dry="no": full-test
+# Cut a release (stage 41): the probes first -- the index token, the index, the version
+# it would carry (free on the index, untagged) -- then the bar, the bump, the lock, the
+# build and the upload, and only then the commit and the tag, so a failed upload leaves
+# an uncommitted bump to discard and never a tagged, unpublished version. TARGET is a
+# part for bump-my-version (`patch`, `minor` and `major` open the next version as its
+# first development release, 0.1.0 -> 0.1.1.dev1; `dev` is the next development release
+# of the same version; `stage` finalises it, 0.1.1.dev2 -> 0.1.1) or an explicit version.
+# INDEX is `test` (TestPyPI, the default) or `pypi`: a development release to TestPyPI is
+# gated on `test`, the bar; a PyPI release on `full-test`, the modification-test evidence
+# in the live configuration and a clean live checkout. `yes` as the third argument is the
+# dry form: the probes and the version, nothing changed. Nothing is pushed: `git push
+# --follow-tags` is the operator's act, and the pushed tag makes CI publish (it uploads
+# nothing the index already holds).
+[doc("Gated on the bar (test) or full-test (pypi): probe, bump, lock, build, publish, commit, tag v<version>; `yes` = dry")]
+release target index="test" dry="no":
 	#!/usr/bin/env bash
 	set -euo pipefail
+	case "{{index}}" in
+		test) name=testpypi; simple=https://test.pypi.org/simple ;;
+		pypi) name=pypi; simple=https://pypi.org/simple ;;
+		*) echo "release: the index is test (TestPyPI, the default) or pypi, not '{{index}}'"; exit 2 ;;
+	esac
+	shape='^[0-9]+\.[0-9]+\.[0-9]+(\.dev[0-9]+)?$'
+	current=$(uv run --no-sync bump-my-version show current_version)
+	if [[ "{{target}}" =~ $shape ]]; then
+		new="{{target}}"; bump=(bump --new-version "$new")
+	else
+		new=$(uv run --no-sync bump-my-version show --increment "{{target}}" new_version 2>/dev/null) || { echo "release: '{{target}}' is neither a version part (patch, minor, major, dev, stage) nor a version"; exit 2; }
+		bump=(bump "{{target}}")
+	fi
+	[[ "$new" =~ $shape ]] || { echo "release: $current is a final version and '{{target}}' would make it $new -- open the next version with patch, minor or major (its first development release), then dev for each further one"; exit 2; }
+	# the probes, before anything changes
+	[ -n "${UV_PUBLISH_TOKEN:-}" ] || { echo "release: UV_PUBLISH_TOKEN is not set -- the API token for $name; a release publishes, so it refuses up front rather than leave a tagged, unpublished version"; exit 2; }
+	set +e; uv run --no-sync python scripts/index-knows "$simple" cs-image-system "$new"; known=$?; set -e
+	case $known in
+		0) echo "release: $name already knows cs-image-system $new -- a version is never re-cut; take the next one"; exit 1 ;;
+		1) ;;
+		*) echo "release: could not read $simple (the probe exited $known)"; exit 2 ;;
+	esac
+	[ -z "$(git tag -l "v$new")" ] || { echo "release: v$new is already tagged here -- a version is never re-cut, even after its files were deleted from the index"; exit 1; }
+	gate=test; [ "$name" = pypi ] && gate=full-test
 	if [ "{{dry}}" = "yes" ]; then
-		echo "release: dry -- full-test passed; the version bump would be:"
-		uv version --dry-run --no-sync {{version}}
-		for p in packages/*/; do uv version --dry-run --no-sync --package "cs-image-system-$(basename "$p")" {{version}}; done
-		echo "release: dry -- then: commit 'release {{version}}', tag v{{version}}, just build, publish: ${UV_PUBLISH_URL:-SKIPPED (no UV_PUBLISH_URL)}"
+		echo "release: dry -- $current would become $new: free on $name, untagged, token present. The real form: just $gate, bump-my-version ${bump[*]}, uv lock, just publish {{index}}, commit 'release $new', tag v$new"
 		exit 0
 	fi
-	# full-test's docker leg writes meta-state/mod-tests.yaml in the LIVE configuration (the evidence that
-	# the released modifications passed, stage 14): release commits it THERE, and this tree must be clean
 	dirty=$(git status --porcelain)
 	[ -z "$dirty" ] || { echo "release: the working tree must be clean:"; echo "$dirty"; exit 1; }
-	[ -f "{{config_root}}/meta-state/mod-tests.yaml" ] || { echo "release: no modification-test evidence at {{config_root}}/meta-state/mod-tests.yaml (run full-test with docker)"; exit 1; }
-	cdirty=$(git -C "{{config_root}}" status --porcelain | grep -v ' meta-state/mod-tests.yaml$' || true)
-	[ -z "$cdirty" ] || { echo "release: the live configuration must be clean apart from its mod-test evidence:"; echo "$cdirty"; exit 1; }
-	uv version --no-sync {{version}}
-	for p in packages/*/; do uv version --no-sync --package "cs-image-system-$(basename "$p")" {{version}}; done
-	uv lock
-	git -C "{{config_root}}" add meta-state/mod-tests.yaml
-	git -C "{{config_root}}" diff --cached --quiet || git -C "{{config_root}}" commit -q -m "release {{version}}: modification-test evidence"
-	git add pyproject.toml packages/*/pyproject.toml uv.lock
-	git commit -q -m "release {{version}}"
-	git tag -a "v{{version}}" -m "release {{version}}"
-	just build
-	if [ -n "${UV_PUBLISH_URL:-}" ]; then
-		uv publish dist/*
+	if [ "$name" = pypi ]; then
+		# full-test's docker leg writes meta-state/mod-tests.yaml in the LIVE configuration (the evidence
+		# that the released modifications passed, stage 14): release commits it THERE
+		just full-test
+		[ -f "{{config_root}}/meta-state/mod-tests.yaml" ] || { echo "release: no modification-test evidence at {{config_root}}/meta-state/mod-tests.yaml (run full-test with docker)"; exit 1; }
+		cdirty=$(git -C "{{config_root}}" status --porcelain | grep -v ' meta-state/mod-tests.yaml$' || true)
+		[ -z "$cdirty" ] || { echo "release: the live configuration must be clean apart from its mod-test evidence:"; echo "$cdirty"; exit 1; }
 	else
-		echo "release: SKIPPED publish -- the tag is the release (decided 2026-09-15; an index is stage 41); set UV_PUBLISH_URL (and UV_PUBLISH_TOKEN) to publish"
+		just test
 	fi
-	echo "release: v{{version}} tagged and built under dist/; push with: git push --follow-tags"
+	uv run --no-sync bump-my-version "${bump[@]}"
+	uv lock
+	# the upload comes BEFORE the commit and the tag: a failed upload leaves an uncommitted bump
+	just publish {{index}} || { echo "release: the upload to $name failed; the bump to $new is uncommitted -- discard it with: git checkout -- pyproject.toml packages/*/pyproject.toml uv.lock"; exit 1; }
+	if [ "$name" = pypi ]; then
+		git -C "{{config_root}}" add meta-state/mod-tests.yaml
+		git -C "{{config_root}}" diff --cached --quiet || git -C "{{config_root}}" commit -q -m "release $new: modification-test evidence"
+	fi
+	git add pyproject.toml packages/*/pyproject.toml uv.lock
+	git commit -q -m "release $new"
+	git tag -a "v$new" -m "release $new"
+	echo "release: $new is on $name, committed and tagged v$new; push with: git push --follow-tags (CI then checks the tag against the index and uploads nothing already there)"
+
+# Build and upload the version in the tree (stage 41.6): `dist/` cleaned, every package
+# built, every file uploaded to INDEX -- `test` (TestPyPI, the default) or `pypi` -- with
+# the files the index already holds with the same content skipped (--check-url), so a
+# re-run after a partial failure, or CI after a local publish, uploads what is missing and
+# nothing twice. The token is UV_PUBLISH_TOKEN from the environment, never here; the
+# endpoints are the `[[tool.uv.index]]` entries in pyproject.toml. A deleted version can
+# never be uploaded again, on either index: the next upload is a new version.
+[doc("Build and upload the version in the tree to TestPyPI (`test`, the default) or PyPI (`pypi`); UV_PUBLISH_TOKEN from the environment")]
+publish index="test":
+	#!/usr/bin/env bash
+	set -euo pipefail
+	case "{{index}}" in
+		test) name=testpypi; simple=https://test.pypi.org/simple/ ;;
+		pypi) name=pypi; simple=https://pypi.org/simple/ ;;
+		*) echo "publish: the index is test (TestPyPI, the default) or pypi, not '{{index}}'"; exit 2 ;;
+	esac
+	[ -n "${UV_PUBLISH_TOKEN:-}" ] || { echo "publish: UV_PUBLISH_TOKEN is not set -- the API token for $name, from the environment; never in this file"; exit 2; }
+	version=$(uv run --no-sync bump-my-version show current_version)
+	rm -rf dist
+	just build
+	n=$(ls dist | wc -l | tr -d ' ')
+	uv publish --index "$name" --check-url "$simple" dist/*
+	echo "publish: cs-image-system $version is on $name ($n files: the system and its fourteen packages, sdist and wheel each; files already there with the same content were skipped)"
 
 # ------------------------------------------------------------ development
 

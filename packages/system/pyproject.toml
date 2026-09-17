@@ -5,13 +5,23 @@
 [project]
 name = "cs-image-system-system"
 version = "0.1.0"
+description = "The command-line host: the cs-image-system console script that loads the plugins and drives the lifecycle runner"
+readme = "README.md"
+authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
-    "typer[all]",
-    "cs-image-system-base"
+    "cs-image-system-base==0.1.0",
+    "typer>=0.26",
+    "rich>=15.0",
+    "PyYAML>=6.0",
 ]
+
+[project.urls]
+Repository = "https://github.com/infrastructurebuilder/cs-image-system-3"
+Documentation = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/docs/OPERATIONS.md"
+"Package README" = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/packages/system/README.md"
 
 [build-system]
 requires = ["hatchling"]

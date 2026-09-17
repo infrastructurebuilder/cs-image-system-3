@@ -18,8 +18,6 @@ log = logging.getLogger(__name__)
 from cs_image_system.base.constants import DEFAULT, OOPS_DEFAULTS, VCT
 from cs_image_system.base.models.cloud_builder import CloudBuilderModel, CloudNetworkingConfig
 from cs_image_system.base.models.group_builder import GroupBuilderModel
-from cs_image_system.base.models.user_builder import UserBuilderModel
-from cs_image_system.dummy_plugin.main import DUMMY
 
 
 AWS: str = "aws"
@@ -184,13 +182,3 @@ class DummyGroupBuilderModel(GroupBuilderModel):
     secret: str = DEFAULT
     api_host: str = DEFAULT
 
-@dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
-class DummyUserBuilderModel(UserBuilderModel):
-    """Dataclass representing an Dummy user configuration.
-
-    Attributes:
-        Dummy_user_id: The ID of the Dummy user.
-    """
-    org: str
-    team: str
-    type = DUMMY

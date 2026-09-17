@@ -5,6 +5,13 @@ README that describes it on its own terms: what it registers, its models
 and how they extend the base models, its builder's hooks, what it emits,
 and one example configuration. The core and the CLI are packages too.
 
+The workspace root is the fifteenth, `cs-image-system`: no sources of its
+own, a `==` pin on every package, so one install is the whole system
+(`uv pip install cs-image-system==<version>`; see "Installing a release"
+in [OPERATIONS.md](OPERATIONS.md)). Every package declares exactly the
+third-party distributions its sources import and pins its siblings at its
+own version; `tests/test_v2_package_metadata.py` holds it to that.
+
 ## The core
 
 | Package | What it is |
