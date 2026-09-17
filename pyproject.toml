@@ -21,6 +21,7 @@ dependencies = [
     "cs-image-system-default-os-plugin==0.1.1.dev1",
     "cs-image-system-dummy-plugin==0.1.1.dev1",
     "cs-image-system-gcloud-runtime-plugin==0.1.1.dev1",
+    "cs-image-system-gcs-state-plugin==0.1.1.dev1",
     "cs-image-system-hashicorp-utils==0.1.1.dev1",
     "cs-image-system-local-state-plugin==0.1.1.dev1",
     "cs-image-system-okta-opa-plugin==0.1.1.dev1",
@@ -66,6 +67,7 @@ cs-image-system-default-os-plugin = { workspace = true }
 cs-image-system-tf-s3-state-plugin = { workspace = true }
 cs-image-system-hashicorp-utils = { workspace = true }
 cs-image-system-local-state-plugin = { workspace = true }
+cs-image-system-gcs-state-plugin = { workspace = true }
 
 # The indexes a release is published to (stage 41): `uv publish --index <name>` reads the
 # publish-url and skips files already present with the same content (the url is the check
@@ -141,7 +143,8 @@ testpaths = ["tests",
    "packages/tf-gcp-plugin/tests",
    "packages/default-os-plugin/tests",
    "packages/hashicorp-utils/tests",
-   "packages/local-state-plugin/tests"
+   "packages/local-state-plugin/tests",
+   "packages/gcs-state-plugin/tests"
    ]
 pythonpath = [
     "tests",
@@ -157,8 +160,10 @@ pythonpath = [
     "packages/tf-ebs-instance-plugin/src",
     "packages/tf-gcp-plugin/src",
     "packages/default-os-plugin/src",
+    "packages/gcs-state-plugin/src",
     "packages/hashicorp-utils/src",
-    "packages/local-state-plugin/src"
+    "packages/local-state-plugin/src",
+    "packages/gcs-state-plugin/src"
 
 ]
 addopts = "--import-mode=importlib"
@@ -207,6 +212,7 @@ extraPaths = [
     "packages/default-os-plugin/src",
     "packages/dummy-plugin/src",
     "packages/gcloud-runtime-plugin/src",
+    "packages/gcs-state-plugin/src",
     "packages/hashicorp-utils/src",
     "packages/local-state-plugin/src",
     "packages/okta-opa-plugin/src",

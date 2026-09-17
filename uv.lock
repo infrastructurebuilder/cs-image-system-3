@@ -16,6 +16,7 @@ members = [
     "cs-image-system-default-os-plugin",
     "cs-image-system-dummy-plugin",
     "cs-image-system-gcloud-runtime-plugin",
+    "cs-image-system-gcs-state-plugin",
     "cs-image-system-hashicorp-utils",
     "cs-image-system-local-state-plugin",
     "cs-image-system-okta-opa-plugin",
@@ -460,6 +461,7 @@ dependencies = [
     { name = "cs-image-system-default-os-plugin" },
     { name = "cs-image-system-dummy-plugin" },
     { name = "cs-image-system-gcloud-runtime-plugin" },
+    { name = "cs-image-system-gcs-state-plugin" },
     { name = "cs-image-system-hashicorp-utils" },
     { name = "cs-image-system-local-state-plugin" },
     { name = "cs-image-system-okta-opa-plugin" },
@@ -489,6 +491,7 @@ requires-dist = [
     { name = "cs-image-system-default-os-plugin", editable = "packages/default-os-plugin" },
     { name = "cs-image-system-dummy-plugin", editable = "packages/dummy-plugin" },
     { name = "cs-image-system-gcloud-runtime-plugin", editable = "packages/gcloud-runtime-plugin" },
+    { name = "cs-image-system-gcs-state-plugin", editable = "packages/gcs-state-plugin" },
     { name = "cs-image-system-hashicorp-utils", editable = "packages/hashicorp-utils" },
     { name = "cs-image-system-local-state-plugin", editable = "packages/local-state-plugin" },
     { name = "cs-image-system-okta-opa-plugin", editable = "packages/okta-opa-plugin" },
@@ -638,6 +641,23 @@ requires-dist = [
     { name = "google-cloud-compute", specifier = ">=1.49" },
     { name = "pydantic", specifier = ">=2.13" },
     { name = "python-hcl2", specifier = ">=8.1" },
+]
+
+[[package]]
+name = "cs-image-system-gcs-state-plugin"
+version = "0.1.1.dev1"
+source = { editable = "packages/gcs-state-plugin" }
+dependencies = [
+    { name = "cs-image-system-hashicorp-utils" },
+    { name = "cs-image-system-system" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cs-image-system-hashicorp-utils", editable = "packages/hashicorp-utils" },
+    { name = "cs-image-system-system", editable = "packages/system" },
+    { name = "pydantic", specifier = ">=2.13" },
 ]
 
 [[package]]
