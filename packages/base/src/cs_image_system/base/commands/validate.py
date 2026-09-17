@@ -48,7 +48,8 @@ def check_version(sv: str | None, version: str | None) -> ComplianceState:
     return ComplianceState.IGNORED
 
 
-def check_single_version(exe: ExecutableModel, verbose: bool = False) -> list[Exception]:
+def check_single_version(exe: ExecutableModel, verbose: bool = False,
+                         unchecked: list[str] | None = None) -> list[Exception]:
     exceptions: list[Exception] = []
     if not exe.binary:
         exceptions.append(
@@ -97,24 +98,25 @@ def check_single_version(exe: ExecutableModel, verbose: bool = False) -> list[Ex
             log.error(f"   - Error checking version for {exe.name} ({exe.type_}): {ex}")
             exceptions.append(ex)
     else:
-        log.warning(
-                f"No valid version checker class found for type {exe.type_}; "
-                "skipping version check."
-            )
+        # stage 43: said once for all of them by the caller (one INFO line),
+        # not as a warning apiece that told no one anything actionable
+        log.debug(f"No version checker registered for type {exe.type_} ({exe.name}); version unchecked")
+        if unchecked is not None:
+            unchecked.append(f"{exe.name} (type {exe.type_})")
     return exceptions
 
 
 def check_existence_of_executable(
-    executables: dict[str, ExecutableModel], providers: dict[str, BuilderBase]
+    executables: dict[str, ExecutableModel], providers: dict[str, BuilderBase],
+    unspecified: list[str] | None = None,
 ) -> list[Exception]:
     exceptions: list[Exception] = []
     for provider_name, provider in providers.items():
         bc_exe = provider.model.executable
         if not bc_exe:
-            log.warning(
-                f"   - No executable specified for provider {provider_name} "
-                f"({provider.type_}), skipping version check."
-            )
+            log.debug(f"No executable declared for provider {provider_name} ({provider.type_}); version check skipped")
+            if unspecified is not None:
+                unspecified.append(f"{provider_name} ({provider.type_})")
             continue
         exe = executables.get(bc_exe)
         if not exe:
@@ -174,16 +176,20 @@ def check_name_uniquness(ctx: GlobalTypeContext) -> list[Exception]:
     return exceptions
 def check_executables_exist_and_versions(ctx: GlobalTypeContext) -> list[Exception]:
     exs: list[Exception] = []
+    unchecked: list[str] = []
+    unspecified: list[str] = []
     for exe in ctx.executables.values():
-        exs.extend(check_single_version(exe))
-
-    exs.extend(check_existence_of_executable(ctx.executables, ctx.runtime_builders))  # type: ignore
-    exs.extend(check_existence_of_executable(ctx.executables, ctx.storage_builders))  # type: ignore
-    exs.extend(check_existence_of_executable(ctx.executables, ctx.os_builders))  # type: ignore
-    exs.extend(check_existence_of_executable(ctx.executables, ctx.mod_builders))  # type: ignore
-    exs.extend(check_existence_of_executable(ctx.executables, ctx.image_builders))  # type: ignore
-    exs.extend(check_existence_of_executable(ctx.executables, ctx.instance_builders))  # type: ignore
-    # exs.extend(check_existence_of_executable(ctx.executables, ctx.os_builders))  # type: ignore
+        exs.extend(check_single_version(exe, unchecked=unchecked))
+    for providers in (ctx.runtime_builders, ctx.storage_builders, ctx.os_builders,
+                      ctx.mod_builders, ctx.image_builders, ctx.instance_builders):
+        exs.extend(check_existence_of_executable(ctx.executables, providers, unspecified=unspecified))  # type: ignore
+    # stage 43: what validate cannot check is said once, as information. A
+    # warning per tool ("no version checker for type executable") and per
+    # provider ("no executable specified") printed seventeen lines for no one.
+    if unchecked:
+        log.info(f"Versions unchecked (no version checker registered for the type): {', '.join(unchecked)}")
+    if unspecified:
+        log.info(f"No executable declared, version check skipped: {', '.join(unspecified)}")
     return exs
 
 def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:

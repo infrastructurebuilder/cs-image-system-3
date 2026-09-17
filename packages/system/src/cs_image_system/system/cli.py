@@ -85,11 +85,15 @@ def run_command(
              "roots are untouched -- instances stay declarative. Unknown names fail. "
              "'--only none' bakes nothing: the terraform roots alone.")] = None,
     only_runtime: Annotated[str | None, typer.Option("--only-runtime",
-        help="Restrict the BAKE surface to every image baked on this runtime (the "
-             "configuration-driven form of --only <image>@<runtime> ...)")] = None,
+        help="Restrict the run to this runtime: the BAKE surface becomes every image baked "
+             "on it (the configuration-driven form of --only <image>@<runtime> ...) AND only "
+             "its terraform roots (storage, instance) are generated and planned -- the roots "
+             "of every other runtime emit nothing. Implied by --apply-runtime unless --only "
+             "is given.")] = None,
     apply_runtime: Annotated[str | None, typer.Option("--apply-runtime",
         help="Let the storage and instance roots of this runtime apply (apply_storage / "
-             "apply_instances as if they listed it); the generated apply-check carries it")] = None,
+             "apply_instances as if they listed it); the generated apply-check carries it. "
+             "Implies --only-runtime <rt> unless --only or --only-runtime is given.")] = None,
     force_bake: Annotated[list[str] | None, typer.Option("--force-bake",
         help="Bake the named image(s) even when current (repeatable; 'all' = every "
              "image in the run's surface). Images are otherwise baked only when "
@@ -209,6 +213,7 @@ def preflight_command(
     when one expires within the expected run length."""
     from cs_image_system.base.commands.preflight import raw_session_readiness
     root_dir, overlays = typer_cntx.obj["preflight_args"]
+    from cs_image_system.base.commands.preflight import empty_environment_credentials
     lines, absent, expired, blocking = raw_session_readiness(root_dir, overlays)
     if not lines:
         typer.secho(f"preflight: no runtimes declared under {root_dir} (cfg/runtime-builders.yml)",
@@ -218,6 +223,16 @@ def preflight_command(
         colour = (typer.colors.RED if line in absent or line in expired
                   else typer.colors.YELLOW if line in blocking else None)
         typer.secho(line, fg=colour)
+    # stage 43: a credential the environment sets but leaves EMPTY is a failure,
+    # not an absence -- reported by name, never by value
+    empty = empty_environment_credentials()
+    for name in empty:
+        typer.secho(f"environment: {name} is set but EMPTY -- a credential that exists with no value "
+                    "is a failure, not an absence", fg=typer.colors.RED)
+    if empty:
+        typer.secho("preflight: an environment credential is set but empty (see above); "
+                    "give it its value or unset it", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=2)
     if absent or expired:
         typer.secho("preflight: a session is absent or has EXPIRED -- the configuration cannot load "
                     "(aws sso login --profile <p> / gcloud auth application-default login)",

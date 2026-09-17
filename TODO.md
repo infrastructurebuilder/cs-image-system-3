@@ -10,10 +10,10 @@ system must not take itself.
 Current stage: **none in progress**.
 
 Open stages and their order: §45, which makes CI perform rather than only
-record and needs a generation fix first; §41, §43 and §46 whenever
-convenient (§46 is correctness work on state isolation and pairs naturally
-with §43); §47, state backends beyond S3, follows §46; §19 and §30 wait on
-the operator's decisions.
+record and needs a generation fix first; §41 and §46 whenever convenient
+(§46 is correctness work on state isolation); §47, state backends beyond
+S3, follows §46; §48 is the open hygiene bundle; §19 and §30 wait on the
+operator's decisions.
 
 Standing decisions (operator):
 
@@ -277,102 +277,6 @@ the index is PyPI it follows §40.
    paragraph; §16's open item closed for good. Feature branch
    `feature/publish-index`, squash-merged, kept. A day, plus the USER
    decision; the CodeArtifact setup is a dozen CLI commands.
-
-## 43. Hygiene bundle II: the small things noted since §39
-
-**Why**: each of these was found while doing something else between
-2026-09-15 and 2026-09-16 and left alone because it was not that stage's
-business. None is large; together they are a day. Each item lands with
-its own proof, in one branch, and the golden may move where an item says
-so. Whenever convenient; nothing else waits on it.
-
-1. **A run commits no run-local file.** The live configuration tracks
-   `generated/run-summary.json` and `generated/state-report.json` (four
-   run-local files in all; `meta-state/runs.yaml` and
-   `generated/final_execution.sh` are records and stay). The strict query
-   rewrites the report outside any run, so every `just cloud-preflight`
-   dirties the checkout and `publish-tree` rightly refuses it (found in
-   §40.2). The run's commit pathspecs exclude the two files, the emitted
-   ignore policy names them, and one dry `--commit` run removes them from
-   the sibling's index (pushed). Proof: `just cloud-preflight` leaves
-   `git status` clean; config-drift current.
-2. **A modification that declares only `config:` is refused.** Two
-   fixture and live items (`dask-setup2`, `data-science-workstation-two`
-   on `imgfile-basic-dask-two`) carry config keys and no playbook or
-   script; the ansible builder emits one provisioner per playbook, so they
-   render nothing and only log a warning, while lineage, the on-image
-   bundle and the modification tests all record them as present. Decision
-   (recommended): a modification item with neither `playbooks` nor
-   `script`/`scripts`/`ensure` fails validation with a message that names
-   the item; the two items either gain a playbook that reads their config
-   keys as variables or are deleted along with the two "stage 22.4
-   REMOVED" comments beside them. **USER** chooses; either way a test pins
-   the refusal, and the golden moves if the fixture's items change.
-3. **The unused placeholder backend goes.** `cfg/state-backends.yml`
-   declares `s3-east1` on `my-east1-tfstate-bucket` in both trees; no
-   workspace binds to it and nothing references it. **USER** confirms it is
-   a placeholder; then it is removed from both trees (the golden should not
-   move: no workspace emits it).
-4. **The looser `ci` recipe goes.** `just ci` (pyright non-blocking) is
-   referenced by nothing since CI runs `just verify`, and the standing rule
-   says such a target must not be the bar. Removed, with the contract test
-   asserting it stays gone.
-5. **Warnings the bar and the CLI print for no one**: pyright's
-   `orchestrator.py:515` (a `@staticmethod` declared with `cls` — make it a
-   classmethod or drop the parameter); the FK warning `golden-regen`
-   prints for `gcloud-east1` against `os_builder_model` (a runtime name
-   where an OS builder is expected in the fixture, or a wrong FK target —
-   find which and fix it; the golden may move); `validate`'s per-tool "No
-   valid version checker class found" and per-provider "No executable
-   specified" lines (either implement the checkers the executables file
-   promises or collapse them to one INFO line). Proof: the bar and
-   `just cli validate` print none of them.
-6. **One tofu process at a time, by construction.** A sibling run that
-   overlapped the bar's tests failed on the shared plugin cache (ledger
-   93). The suite's real-tofu tests use a private `TF_PLUGIN_CACHE_DIR`
-   under their temporary directory, so the bar never contends with an
-   operator's run; the tofu-using recipes (`config-drift`, `v2-dry-run`,
-   `cloud-*`, `gce-*`) take a simple lock directory under
-   `.tofu-plugin-cache/` and refuse with a clear message when another holds
-   it. Proof: two concurrent `just config-drift` invocations, one refuses.
-7. **CLI help that lags behaviour.** `--only-runtime`'s help names the
-   bake surface only; the operating record says it has scoped the
-   terraform roots too since 2026-09-10. Read the code, make the help say
-   what the flag does, and add the missing test if the record is right.
-   While there, every option's help is read once against its behaviour.
-8. **`publish-tree` builds a tree with the wrong git identity.** The
-   recipe's `git init` in a fresh directory takes the GLOBAL git identity,
-   not the source repository's, so the tree's single commit can carry an
-   address the operator does not push with. GitHub refused the first
-   publication push for exactly that, and the commit had to be
-   re-authored by hand. The recipe reads `user.name` and `user.email`
-   from the source repository (falling back to the global values) and
-   writes them into the new repository before committing; its test pins
-   that a source repository with a distinctive `user.email` produces a
-   commit carrying it.
-9. **USER — the read-only GCP service account cannot describe the GCS
-   bucket**, so every state query reports `storages/gcp-gcs` unavailable.
-   It is the GCP twin of a gap already fixed on AWS, where the role was
-   missing `s3:GetBucketTagging` and `s3:GetLifecycleConfiguration`: a
-   missing read permission, not a real drift. The fix is one grant of a
-   bucket-read role to `csis-github-readonly@csis-sandbox`; it is free and
-   read-only, but it is a GCP change, so it waits on the operator's word
-   under the standing rule.
-10. **A secret that exists but is empty reads as absent, and the job
-   passes.** The `live` job skipped every step across three runs on the
-   published repository and reported success each time, because
-   `OKTA_API_PRIVATE_KEY` had been set from a checkout where the file
-   `.envrc` reads it from was missing: the secret existed and its value
-   was the empty string. The gate is right to skip when nothing is
-   configured, but it cannot tell that from configured-and-broken, and a
-   reader of the job's conclusion cannot either. The `apply` job now
-   fails rather than skips when a real run is asked for, and the same
-   distinction belongs in `live`: a gate item whose secret exists but is
-   empty is a failure, not an absence. While here, make `just preflight`
-   report the same way, and never read a job's conclusion as proof that
-   its steps ran.
-11. Records by whatever convention is current when this lands. Feature
-   branch `feature/hygiene-two`, squash-merged, kept. A day.
 
 ## 45. CI performs on `main`
 
@@ -657,3 +561,53 @@ state moves.
    the bar green. Feature branches `feature/state-backend-contract` (steps
    1–2) and `feature/state-backend-types` (steps 3–6), each squash-merged
    and kept. Three to four days, most of it step 1.
+
+## 48. Hygiene bundle III: the small things noted during §43
+
+**Why**: each was found while landing the second bundle and left alone
+because it was not that stage's business; none threatens function. By the
+standing decision they collect here rather than in stages of their own.
+Whenever convenient; nothing waits on it.
+
+1. **The version checkers never run.** `cfg/executables.yml` promises a
+   version requirement per tool and four checkers exist (`aws-cli`,
+   `ansible-playbook`, `bash`, `gcloud`), but they are registered by
+   executable NAME while `validate` looks them up by TYPE
+   (`check_single_version`), so no checker has ever matched and every
+   requirement is unenforced. Wiring the lookup (name first, then type)
+   would make the checks real, and at least one requirement is stale
+   (`gcloud >=2026.02.0, <2027.01.0` cannot match a `5xx.0.0` version), so
+   the change is: wire the lookup, correct the requirements in both trees
+   against the versions CI and the operator actually run, and let
+   `validate` fail on a real mismatch -- or delete the checkers and the
+   requirements together. **USER** chooses. Until then §43 collapsed the
+   noise to one INFO line.
+2. **Three warnings every load prints that no one reads.**
+   `template_utils.cycle_main_yaml` warns "Final cycled YAML still contains
+   template tags" on every load (something legitimately unresolved at that
+   stage, probably `{{ identified_model.name }}` on OS sub-configurations):
+   find what remains and either resolve it or demote the message to DEBUG
+   with the offending snippet. `parent_property_holding_protocol.model_id`
+   warns "already has a model assigned … Overwriting" four times per load
+   for `OSBuilderBaseImageBuilderSubconfig`: find the second assignment
+   and make it one. `orchestrator.py`'s template resolver warns "marked as
+   DEFAULT but has no 'fk_target' metadata" five times per load: either
+   those fields should carry a target, or a DEFAULT that resolves to
+   nothing is the declared meaning and the message goes to DEBUG.
+3. **An unresolvable foreign key only warns.** `orchestrator.py` falls back
+   to the raw id when an FK does not resolve, which is how the fixture and
+   the live tree named a non-existent image builder for months. A field
+   declared as an FK that names nothing should fail validation, with the
+   field, the value and the target named; find every site that relies on
+   the fallback first (a DEFAULT sentinel is not a failure).
+4. **The builder-level ansible `playbooks` do nothing.** They are copied
+   beside the Packer root and no provisioner references them (the ansible
+   plugin's README records it). Either the item inherits them, as the
+   field's description says, or the field goes.
+5. **Vestigial `tofu-cache-dir` dependencies.** `cloud-preflight`,
+   `cloud-dispose-images` and `cloud-relabel` depend on it and start no
+   tofu; the executing recipes create the cache through the lock wrapper.
+   Drop the dependency where nothing needs it.
+6. Records by the current convention. Feature branch
+   `feature/hygiene-three`, squash-merged, kept. Half a day plus the USER
+   decision.

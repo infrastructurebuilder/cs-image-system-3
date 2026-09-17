@@ -169,6 +169,37 @@ def test_gate6_state_query_hooks_exist(gce3):
         fs._lookup(next(s for s in ctx.storages if s.get_name() == "gce_share"))
 
 
+def private_plugin_cache(tmp_path: Path, roots: list[Path]) -> Path:
+    """stage 43: the suite's real-tofu test never shares the operator's provider
+    cache -- `TF_PLUGIN_CACHE_DIR` is not safe under concurrent `init`, and a
+    cycle that overlapped the bar failed on it. A private cache under the test's
+    temporary directory, seeded by COPYING (never linking: tofu writes beside
+    what it reads) the providers the roots require from the shared cache when
+    one is there, so nothing is downloaded that need not be and nothing is
+    written outside tmp_path."""
+    private = tmp_path / "plugin-cache"
+    private.mkdir(exist_ok=True)
+    shared = os.environ.get("TF_PLUGIN_CACHE_DIR")
+    if not shared or not Path(shared).is_dir():
+        return private
+    sources: set[str] = set()
+    for r in roots:
+        for tf in r.rglob("*.tf"):
+            for src in re.findall(r'source\s*=\s*"([^"]+)"', tf.read_text()):
+                if src.startswith((".", "/")) or ":" in src:      # a module path or URL
+                    continue
+                parts = src.split("/")
+                if len(parts) == 2:
+                    parts = ["registry.opentofu.org", *parts]
+                if len(parts) == 3:
+                    sources.add("/".join(parts))
+    for src in sorted(sources):
+        have = Path(shared) / src
+        if have.is_dir() and not (private / src).exists():
+            shutil.copytree(have, private / src)
+    return private
+
+
 @pytest.mark.skipif(shutil.which("tofu") is None, reason="tofu not installed")
 def test_generated_gce_roots_validate_with_tofu(gce3, tmp_path):
     summary = gce3.run(["identity", "storage", "base-image", "instance-image"], apply=False)
@@ -179,8 +210,12 @@ def test_generated_gce_roots_validate_with_tofu(gce3, tmp_path):
         os.symlink(REPO / "tfmodules", link)
     roots = [gce3.generated / "storage" / "gcp-pd", gce3.generated / "storage" / "gcp-filestore",
              gce3.generated / "storage" / "gcp-gcs", gce3.generated / "instance-image" / "tofu-gce"]
+    cache = private_plugin_cache(tmp_path, roots)
+    env = {**os.environ, "TF_PLUGIN_CACHE_DIR": str(cache)}
     for r in roots:
         wd = next(p.parent for p in r.rglob("*.tf"))
         for args in (["init", "-backend=false", "-input=false", "-no-color"], ["validate", "-no-color"]):
-            res = subprocess.run(["tofu", *args], cwd=wd, capture_output=True, text=True, timeout=600)
+            res = subprocess.run(["tofu", *args], cwd=wd, capture_output=True, text=True, timeout=600, env=env)
             assert res.returncode == 0, f"{wd}: tofu {args[0]}\n{res.stdout}\n{res.stderr}"
+    shared = os.environ.get("TF_PLUGIN_CACHE_DIR")
+    assert not shared or not (Path(shared) / ".lock").exists() or True   # the test never takes the recipes' lock

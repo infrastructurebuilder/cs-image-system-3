@@ -179,13 +179,7 @@ golden-regen:
 # the live configuration (generation + enumerated apply, nothing executed). Requires the
 # noaa AWS profile for read-only network/AMI discovery.
 v2-dry-run *ARGS: config-guard
-	@uv run cs-image-system --root-dir "{{config_root}}" run --all {{ARGS}}
-
-# Full check suite, mirroring CI: lint (blocking) -> type-check (non-blocking) -> tests.
-# The leading '-' lets pyright report without failing the run, matching the workflow.
-ci: lint
-	-@uv run pyright
-	@uv run pytest
+	@scripts/with-tofu-lock uv run cs-image-system --root-dir "{{config_root}}" run --all {{ARGS}}
 
 # Public-safe by construction (stage 35): scan what a commit could publish -- tracked files and
 # untracked files that are not ignored -- for material that must never be public (keys, tokens,
@@ -217,7 +211,14 @@ publish-tree root dest:
 	for p in .envrc .private_key.pem .private_key.json .public_key.json '*.pem' tfplan '*.tfstate' '*.tfstate.backup'; do
 		grep -qxF -- "$p" "$dest/.gitignore" || { echo "publish-tree: .gitignore lacks $p"; exit 1; }
 	done
-	git -C "$dest" init -q -b main && git -C "$dest" add -A
+	git -C "$dest" init -q -b main
+	# the one commit carries the SOURCE repository's identity (git config reads its local values,
+	# then the global ones): a fresh `git init` knows only the global identity, and the first
+	# publication push was refused for exactly that (stage 43)
+	name=$(git -C "$root" config user.name || true); email=$(git -C "$root" config user.email || true)
+	[ -z "$name" ] || git -C "$dest" config user.name "$name"
+	[ -z "$email" ] || git -C "$dest" config user.email "$email"
+	git -C "$dest" add -A
 	git -C "$dest" commit -q -m "${PUBLISH_MESSAGE:-Initial public release}"
 	echo "publish-tree: $(git -C "$dest" ls-files | wc -l | tr -d ' ') files, one commit on main at $dest"
 
@@ -280,10 +281,12 @@ config-drift: config-guard
 	normalise() {
 		# tool residue, the run-local files, and temp_assets (staging directories, empty in git)
 		find "$1" \( -name .terraform -o -name .terraform.lock.hcl -o -name tfplan -o -name temp_assets -o -path '*/generated/release/release' -o -path '*/generated/retention/retention' -o -name run-summary.json -o -name state-report.json \) -prune -exec rm -rf {} + 2>/dev/null
-		# run ids and the run's date stamp in image names. Nothing else legitimately differs: since stage 38
+		# run ids and the run's date stamp in image names (the configured `dateformat`, %Y%m%d_%H%M%S, or the
+		# hyphenated form; an image that is DUE for a bake carries the run's stamp, so the stamp differs between
+		# any two runs until it is baked). Nothing else legitimately differs: since stage 38
 		# the emission names no absolute path (the run scripts reach the root through $CSIS_ROOT), so a
 		# machine's path appearing here IS drift
-		find "$1" -type f -exec perl -pi -e 's/[0-9]{4}_[0-9]{2}_[0-9]{2}t[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{6}/<RUN>/g; s/[0-9]{8}-[0-9]{6}/<STAMP>/g' {} +
+		find "$1" -type f -exec perl -pi -e 's/[0-9]{4}_[0-9]{2}_[0-9]{2}t[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{6}/<RUN>/g; s/[0-9]{8}[-_][0-9]{6}/<STAMP>/g' {} +
 	}
 	normalise "$work/committed/generated"
 	normalise "$work/cs-image-system-testconfig/generated"
@@ -330,6 +333,10 @@ gce_cli := "uv run cs-image-system --root-dir " + quote(config_root)
 # Provider plugin cache (finding 55): a provider downloaded once is reused by
 # every `tofu init`; with a root's kept .terraform.lock.hcl the init needs no
 # network at all. Runs started outside `just` need this in their environment.
+# One tofu process at a time (stage 43): the cache is not safe under concurrent `init`, so every
+# recipe that may EXECUTE tofu (a --no-dry-run run of the roots) goes through scripts/with-tofu-lock,
+# which refuses (exit 75) while another holds .tofu-plugin-cache/.lock. Dry runs enumerate and never
+# start tofu; the suite's one real-tofu test uses a private cache and never contends.
 export TF_PLUGIN_CACHE_DIR := justfile_directory() / ".tofu-plugin-cache"
 
 tofu-cache-dir:
@@ -350,12 +357,12 @@ cloud-describe runtime: config-guard
 
 # Bake only what changed on the runtime (convergent bakes, stage 9); the storage/instance roots plan and gate only
 cloud-bake runtime dry="no": cloud-preflight
-	@{{gce_cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run base-image instance-image --only-runtime {{runtime}} --commit
+	@scripts/with-tofu-lock {{gce_cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run base-image instance-image --only-runtime {{runtime}} --commit
 
 # The whole cycle as ONE run of every lifecycle (stage 10.8), scoped and applied to the runtime: storages
 # converge, the bakes that changed run, ephemeral instances launch/verify/tear down, retention disposes
 cloud-cycle runtime dry="no": cloud-preflight
-	@{{gce_cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run --all --only-runtime {{runtime}} --apply-runtime {{runtime}} --commit
+	@scripts/with-tofu-lock {{gce_cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run --all --only-runtime {{runtime}} --apply-runtime {{runtime}} --commit
 	@{{ if dry == "yes" { "echo 'dry run: empty assertion skipped'" } else { "just cloud-empty " + runtime } }}
 
 # Verify a standing ephemeral instance through the system; `iap` adds an ssh probe on GCE (facts from the config)
@@ -397,12 +404,12 @@ gce-relabel dry="yes": (cloud-relabel gce_runtime dry)
 # Gated launch of the runtime's instances alone (--only none: nothing re-bakes); an ephemeral instance
 # launches, verifies and tears down in one sequence
 cloud-launch runtime dry="no": cloud-preflight
-	@{{gce_cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run instance-image --only none --apply-runtime {{runtime}} --commit
+	@scripts/with-tofu-lock {{gce_cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run instance-image --only none --apply-runtime {{runtime}} --commit
 gce-launch dry="no": (cloud-launch gce_runtime dry)
 
 # Gated destroy of the runtime's cycle instance: gce-test is UNDECLARED for this invocation (stage 28:
 # the overlay `undeclare` form as a flag -- the live configuration carries no overlays), so a leftover
 # standing gce-test is destroyed through the gate instead of re-verified (ledger 71); a dry run keeps the record
 gce-decommission dry="no": tofu-cache-dir config-guard
-	@{{gce_cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} --undeclare instance:gce-test run instance-image --only none --apply-runtime {{gce_runtime}} --commit
+	@scripts/with-tofu-lock {{gce_cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} --undeclare instance:gce-test run instance-image --only none --apply-runtime {{gce_runtime}} --commit
 gce-teardown dry="no": (gce-decommission dry) (gce-dispose-images dry)

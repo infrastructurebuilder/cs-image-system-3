@@ -474,7 +474,7 @@ runtime_builders:
         Environment: Development
       region: us-east1
       default_machine_type: e2-micro
-      default_image_builder: packer-gcloud-ansible
+      default_image_builder: pckr-gce-ans
       networking:
         network: default
         subnets:
@@ -733,7 +733,7 @@ builder's type decides which item model applies.
 | `type` | str | `default` | the mod builder |
 | `description`, `aliases`, `tags` | | | as elsewhere |
 | `config` | mapping | `{}` | free-form. It is **part of the build's content hash** (a change re-bakes the image) and available to templates as `{{ this.config.x }}`; it is **not** passed to ansible or to the shell. |
-| `playbooks` (ansible) | list[str] | `[]` | playbooks run after the builder's; a warning is logged when empty |
+| `playbooks` (ansible) | list[str] | `[]` | playbooks run after the builder's. **Required in effect**: an item with no playbooks has nothing to modify with (`config:` alone provisions nothing) and is refused at load, by name |
 | `script` (bash-remote) | list[str] | `[]` | inline shell lines, run in order (no templating; literal) |
 | `scripts` (bash-remote) | list[str] | `[]` | script files, relative to the root, copied beside the packer root |
 | `ensure` (bash-remote) | mapping | `{}` | declarative, idempotent steps: `packages: [..]`, `files: [{path, content, mode (0644)}]`, `services: [..]` (enabled and started), `commands: [{run, unless}]` (run only when `unless` fails); any other key is refused |

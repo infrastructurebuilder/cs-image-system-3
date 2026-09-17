@@ -75,7 +75,10 @@ def test_live_is_gated_scheduled_and_read_only():
     # the configuration repository is public: its checkout needs no token, and none is declared
     assert "CSIS_CONFIG_TOKEN" not in yaml.safe_dump(wf)
     assert not [s for s in live["steps"] if "token" in (s.get("with") or {})], "a step still passes a token"
-    assert gate["run"].count("SKIPPED") >= 4
+    # stage 43: none configured skips (and says so in the job summary); some configured
+    # and some missing or EMPTY fails by name -- a green job that ran nothing is the bug
+    assert "SKIPPED" in gate["run"] and "GITHUB_STEP_SUMMARY" in gate["run"]
+    assert "EMPTY" in gate["run"] and "exit 1" in gate["run"]
     for s in live["steps"]:
         if s.get("id") != "gate":
             assert s.get("if") == "steps.gate.outputs.ready == 'true'", s.get("name")
@@ -97,7 +100,8 @@ def test_record_runs_full_on_main_only_commits_and_holds_no_write_credential():
     for secret in ("AWS_ROLE_ARN", "GCP_WORKLOAD_IDENTITY_PROVIDER", "OKTA_API_PRIVATE_KEY",
                    "CSIS_CONFIG_IDENTITY", "CSIS_CONFIG_PUSH_TOKEN"):
         assert secret in yaml.safe_dump(gate["env"]), secret
-    assert gate["run"].count("SKIPPED") >= 5
+    assert "SKIPPED" in gate["run"] and "GITHUB_STEP_SUMMARY" in gate["run"]
+    assert "EMPTY" in gate["run"], "a secret that exists but is empty is a failure, not an absence"
     assert "exit 1" in gate["run"], "recording on main must fail on a missing identity"
     for s in record["steps"]:
         if s.get("id") != "gate":

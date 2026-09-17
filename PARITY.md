@@ -51,9 +51,6 @@ trust first:
 
 ## Known divergences
 
-- **A modification that declares only `config:` renders no provisioner**
-  while lineage, the on-image bundle and the modification tests record it
-  as present. The documents state this; the code does not refuse it.
 - **Cloud identifiers in documents** (account id, project number, image
   ids) are copied from records and can go stale when a resource is
   replaced; the records under the live configuration's `meta-state/` are

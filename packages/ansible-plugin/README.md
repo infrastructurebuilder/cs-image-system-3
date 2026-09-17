@@ -148,29 +148,23 @@ modification bundle records the item: its directory
 per playbook, and a `MANIFEST.yaml` with `operation: ansible` and
 `idempotent: ansible`.
 
-### A modification item with only `config:`
+### A modification item with only `config:` is refused
 
-An item that declares `config:` and no `playbooks:` loads without error
-(the item model logs "should have at least one playbook specified") and
-emits nothing: `generate_items_during_modification` loops over an empty
-`playbooks` list and returns an empty asset set, and no code in this
-plugin reads `config:`. The bake proceeds as if the modification were not
-there. The only traces are in the Packer plugin's local bundle, which still
-creates `NN-<name>/` with `files: []`, a `run.sh` that runs nothing, and a
-`MANIFEST.yaml` whose `operation` is the item's type (for example
-`ansible-default`) and `idempotent: unknown`; the item's `config` is part of
-the recorded content hash. The golden shows this for
-`imgfile-basic-dask-two`'s two items:
-[01-dask-setup2/MANIFEST.yaml](../../tests/fixtures/v2_golden/generated/instance-image/pckr-ebs-ans/image-generation/block-000/csis-mods/imgfile-basic-dask-two/01-dask-setup2/MANIFEST.yaml)
-and its empty
-[run.sh](../../tests/fixtures/v2_golden/generated/instance-image/pckr-ebs-ans/image-generation/block-000/csis-mods/imgfile-basic-dask-two/01-dask-setup2/run.sh),
-while the block's
-[build file](../../tests/fixtures/v2_golden/generated/instance-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl)
-carries no `ansible` provisioner for that image.
+An item that declares `config:` and no `playbooks:` has nothing to modify
+with: `generate_items_during_modification` emits one provisioner per
+playbook, and no code in this plugin reads `config:`, so such an item
+would render nothing while lineage, the Packer plugin's local bundle and
+the modification tests all recorded it as present. The item model refuses
+it at load, by name ("Ansible modification 'x' declares no playbooks: it
+has nothing to modify with"), so `validate`, `run` and every other
+configuration load stop there
+([ansible_models.py](src/cs_image_system/ansible_plugin/ansible_models.py)).
+The fixture carries no such item.
 
-The same applies to the builder-level `playbooks`: they are copied beside
-the Packer root (the golden block directory contains `modify_image.yml`)
-but no provisioner references them, because the item never inherits them.
+The builder-level `playbooks` are a separate mechanism: they are copied
+beside the Packer root (the golden block directory contains
+`modify_image.yml`) but no provisioner references them, because the item
+never inherits them. An item's own `playbooks` are the ones that run.
 
 ## Emission
 

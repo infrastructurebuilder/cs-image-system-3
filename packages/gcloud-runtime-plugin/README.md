@@ -367,7 +367,7 @@ runtime_builders:
       Environment: Development
     region: us-east1
     default_machine_type: e2-micro
-    default_image_builder: packer-gcloud-ansible
+    default_image_builder: pckr-gce-ans
     networking:
       network: default
       subnets:

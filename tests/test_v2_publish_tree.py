@@ -64,6 +64,20 @@ def test_the_tree_is_the_tracked_files_at_head_in_one_commit(source: Path, tmp_p
     assert _git(dest, "remote").strip() == "", "no remote: the push is the operator's act"
 
 
+def test_the_tree_carries_the_source_repositorys_identity(source: Path, tmp_path: Path):
+    """stage 43: `git init` in a fresh directory knows only the GLOBAL identity, and
+    the first publication push was refused for exactly that. The recipe reads
+    user.name and user.email from the SOURCE repository (its local values, else
+    the global ones) into the new repository before committing."""
+    _git(source, "config", "user.email", "publisher@example.test")
+    _git(source, "config", "user.name", "The Publisher")
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("GIT_AUTHOR_", "GIT_COMMITTER_"))}
+    dest = tmp_path / "pub"
+    r = subprocess.run(["just", "publish-tree", str(source), str(dest)], cwd=REPO, capture_output=True, text=True, env=env)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _git(dest, "log", "-1", "--format=%an <%ae>").strip() == "The Publisher <publisher@example.test>"
+
+
 def test_the_recipe_never_pushes():
     body = (REPO / "Justfile").read_text().split("publish-tree root dest:")[1].split("\n\n")[0]
     assert "git push" not in body and "gh repo" not in body

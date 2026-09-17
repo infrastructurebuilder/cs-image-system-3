@@ -143,6 +143,30 @@ def test_preflight_passes_with_static_keys_and_an_adc(monkeypatch, tmp_path):
     assert "every session present" in result.output
 
 
+def test_preflight_fails_on_a_credential_that_is_set_but_empty(monkeypatch, tmp_path):
+    """stage 43: a secret set from a checkout missing its source file passed three
+    green CI jobs that ran nothing -- the variable existed and its value was "".
+    Set-but-empty is a failure, reported by NAME, never by value."""
+    from cs_image_system.base.commands.preflight import empty_environment_credentials
+    assert empty_environment_credentials({"TF_VAR_X": "", "OKTA_API_TOKEN": "", "AWS_PROFILE": "p", "HOME": ""}) == \
+        ["OKTA_API_TOKEN", "TF_VAR_X"]
+    adc = tmp_path / "adc.json"
+    adc.write_text(json.dumps({"type": "authorized_user"}))
+    result = _preflight(monkeypatch, AWS_ACCESS_KEY_ID="AKIA-test", GOOGLE_APPLICATION_CREDENTIALS=str(adc),
+                        TF_VAR_NOS_KEY="")
+    assert result.exit_code == 2, result.output
+    assert "TF_VAR_NOS_KEY is set but EMPTY" in result.output and "AKIA-test" not in result.output
+
+
+def test_the_looser_ci_recipe_is_gone_and_the_tofu_executing_recipes_take_the_lock():
+    r = _recipes()
+    assert "ci" not in r, "`just ci` (pyright non-blocking) must not return: `just test` is the bar"
+    for name in ("cloud-bake", "cloud-cycle", "cloud-launch", "gce-decommission", "v2-dry-run"):
+        assert "scripts/with-tofu-lock" in r[name][1], name              # may execute the roots
+    for name in ("config-drift", "cloud-preflight", "test", "pytest", "golden-regen"):
+        assert "with-tofu-lock" not in r[name][1], f"{name} never starts tofu and must not contend"
+
+
 def test_preflight_readiness_marks_presence():
     from cs_image_system.base.commands.preflight import SessionInfo, _merge
     a = SessionInfo("r1", "aws", "profile p", None, "no SSO token cached", present=False)

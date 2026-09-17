@@ -359,7 +359,17 @@ preemptible build VM; a preempted bake re-runs. The Justfile exports
 `TF_PLUGIN_CACHE_DIR` (`.tofu-plugin-cache/`, gitignored) so every
 `tofu init` reuses downloaded providers; with a root's kept
 `.terraform.lock.hcl` the init needs no network. Runs started outside
-`just` need the variable in their environment to benefit.
+`just` need the variable in their environment to benefit. The cache is
+not safe under concurrent `init`, so one tofu process runs at a time by
+construction: every recipe that may execute the roots (`v2-dry-run`,
+`cloud-bake`, `cloud-cycle`, `cloud-launch`, `gce-decommission` and
+their `gce-*` aliases) goes through `scripts/with-tofu-lock`, which holds
+`.tofu-plugin-cache/.lock` for the command and refuses with exit 75 and
+the holder's pid while another has it. Dry runs enumerate and never
+start tofu, so `config-drift`, `cloud-preflight` and the bar take no
+lock; the suite's one real-tofu test uses a private cache under its
+temporary directory, seeded by copying the providers it needs, and never
+contends with an operator's run.
 
 ### Storages
 
@@ -485,13 +495,18 @@ A run ends with `generated/run-summary.json`: `run_id`, `requested`,
 `not-attempted`, `stale-script-skipped`), `meta_state_commit`, `error`,
 `state` (the pre-run state query's counts), `overlays`, `undeclared`,
 `bake_plan`. The pre-run state query writes `generated/state-report.json`.
+Both are **run-local**: the emitted `generated/.gitignore` names them, a
+`--commit` run never stages them, and a run whose configuration
+repository tracked them from an older tree removes them from the index
+(the files stay on disk). `generated/final_execution.sh` and
+`meta-state/runs.yaml` are records and are committed.
 
 | Command | Exit | Meaning |
 | --- | --- | --- |
 | `run` | 1 | any failure (validation, generation, apply, hard drift, an expired session before the load) |
 | `run` | 2 | no or unknown lifecycle; unknown `--apply-runtime`/`--only-runtime` |
 | `validate` | 1 | any rule fails; generates nothing |
-| `preflight` | 2 | a session absent or expired (the configuration could not load) |
+| `preflight` | 2 | a session absent or expired (the configuration could not load), or a credential-shaped environment variable (`AWS_*`, `GOOGLE_*`, `OKTA_*`, `TF_VAR_*`, `CSIS_*`) that is set but EMPTY -- reported by name, never by value |
 | `preflight --strict` | 1 | a session expires within `config.preflight.expected_run_minutes` (default 30) |
 | `state query --strict` | 1 | hard drift; any drift class but `stale`; a session expiring within the window |
 | `gate-plan` | 3 | destroy not whitelisted, stale or missing planfile, detach not unmounted; 2 with no plan input |
@@ -566,8 +581,8 @@ does).
 errors), `pytest` (the unit tests, the golden emission included). `just
 verify` is its alias. It needs no live configuration and no credentials:
 the tests own the frozen fixture and export its TEST identity themselves.
-`just ci` (pyright non-blocking) mirrors an older workflow shape and is
-not the bar.
+There is no looser recipe: the contract test asserts that a
+`ci` recipe with a non-blocking type-check stays gone.
 
 The tests run over private copies of the fixture with every cloud, Okta
 and tool execution stubbed; `just v2-test` runs the gate tests alone
@@ -732,7 +747,10 @@ none), gated by `public-safe` with the root's own allow list (or the
 fixture's when the root is this repository), the destination's
 `.gitignore` checked line by line for `.envrc`, `.private_key.pem`,
 `.private_key.json`, `.public_key.json`, `*.pem`, `tfplan`, `*.tfstate`,
-`*.tfstate.backup`, then ONE commit on `main` (`PUBLISH_MESSAGE`,
+`*.tfstate.backup`, then ONE commit on `main` carrying the SOURCE
+repository's `user.name` and `user.email` (its local values, else the
+global ones -- a fresh `git init` knows only the global identity, and the
+first publication push was refused for that) (`PUBLISH_MESSAGE`,
 default `Initial public release`). It refuses a dirty root, a finding, a
 missing ignore line or an existing `<dest>`, and never pushes.
 
@@ -830,7 +848,7 @@ read-only and a plan needs the state bucket. There is no applying job.
 
 | Step | What it does |
 | --- | --- |
-| Gate on the live-configuration secrets | evaluates the secrets below; prints one `live: SKIPPED -- no <SECRET> (…)` line per missing item and sets `ready=false` |
+| Gate on the live-configuration secrets | evaluates the secrets below. None configured: `live: SKIPPED`, `ready=false`, and a job-summary line saying no step ran (a green conclusion is not proof that anything ran). Some configured and some missing or EMPTY: `live: FAILED -- … missing or EMPTY: <names>` and exit 1 -- a secret that exists with no value is a failure, not an absence |
 | Check out the system at `cs-image-system-3` | |
 | Check out the live configuration beside it at `cs-image-system-testconfig` (`develop`) | the Justfile's default root and `module_source_base` both resolve |
 | Federated AWS credentials | `aws-actions/configure-aws-credentials` assumes `AWS_ROLE_ARN` in `us-east-2` via OIDC (`id-token: write`) |
@@ -868,7 +886,7 @@ token that can push the configuration repository.
 
 | Step | What it does |
 | --- | --- |
-| Gate on the record secrets and decide the mode | one `record: SKIPPED -- no <SECRET> (…)` line per missing identity; sets `record=true` only for a push to `main` or a dispatch on `main` asking for it; a missing identity when recording is a failure, never a green job that did nothing |
+| Gate on the record secrets and decide the mode | the same rule as `live` (none configured skips and says so in the job summary; a partial set fails by name); sets `record=true` only for a push to `main` or a dispatch on `main` asking for it, and there every secret plus the push token is required -- a missing or empty one is a failure, never a green job that did nothing |
 | the two checkouts, the federated credentials, the `[noaa]` shim, the tools | exactly as `live` does them; the configuration checkout carries the push credential, because `actions/checkout` persists a header that would override a token in a push URL |
 | Name the committer for the record | a runner has no git identity, and the RUN commits: without one `git commit` exits 128 after all the work is done. The bot identity keeps a person's address out of the configuration repository's history |
 | Prove write access to the configuration repository | `git push --dry-run`, before the record is written, so a bad token stops the job early |
@@ -905,11 +923,14 @@ credentials for the named profile.
 | `CSIS_CONFIG_IDENTITY` | the configuration load, to decrypt `ENC[age:…]` values; the CI age identity | live, record |
 | `CSIS_CONFIG_PUSH_TOKEN` | the configuration checkout and the push of what the run committed: a fine-grained token with contents:write on the configuration repository and nothing else | record |
 
-The gate requires all of `OKTA_API_PRIVATE_KEY`, `TF_VAR_NOS_KEY` and
-`TF_VAR_NOS_SECRET` for the Okta item, and both GCP secrets for the GCP
-item. The `verify` job reads none of them. The `record` job reads the same
-set plus the push token; until every one exists it prints its SKIPPED lines
-and passes, exactly as `live` did before its own secrets were set. Two
+The gate cannot tell a missing secret from an empty one (both read as
+`''`), so it decides on the set: with none configured the job skips and
+says so in its summary; with some configured, every missing or empty one
+is named and the job fails. Three green `live` runs once ran nothing
+because `OKTA_API_PRIVATE_KEY` had been set to the empty string from a
+checkout missing the file it was read from; a job's conclusion is never
+proof that its steps ran. The `verify` job reads none of them. The
+`record` job reads the same set plus the push token when recording. Two
 secrets exist for the later performing stage and are read by nothing today:
 `AWS_APPLY_ROLE_ARN` (a write-capable role trusting `main` alone) and the
 `OKTA_API_CLIENT_ID` / `OKTA_API_PRIVATE_KEY_ID` / `OKTA_API_SCOPES` triple
@@ -1255,9 +1276,11 @@ exception is a decision to record, not a bypass.
   it.
 - Declared storages are never destroyed by retention or by a change
   cycle; a storage leaves only when its declaration does.
-- One tofu process at a time on a machine: the shared
+- One tofu process at a time on a machine, by construction: the shared
   `TF_PLUGIN_CACHE_DIR` is not safe under concurrent `init`, and two runs
-  would race on the same roots and records.
+  would race on the same roots and records. The recipes that may execute
+  the roots hold `.tofu-plugin-cache/.lock` (`scripts/with-tofu-lock`) and
+  a second one refuses; the suite never shares the cache.
 
 ### Network
 

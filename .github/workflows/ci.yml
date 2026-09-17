@@ -69,17 +69,36 @@ jobs:
       - name: Gate on the live-configuration secrets
         id: gate
         env:
-          HAVE_AWS: ${{ secrets.AWS_ROLE_ARN != '' }}
-          HAVE_GCP: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && secrets.GCP_SERVICE_ACCOUNT != '' }}
-          HAVE_OKTA: ${{ secrets.OKTA_API_PRIVATE_KEY != '' && secrets.TF_VAR_NOS_KEY != '' && secrets.TF_VAR_NOS_SECRET != '' }}
-          HAVE_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY != '' }}
+          HAVE_AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN != '' }}
+          HAVE_GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' }}
+          HAVE_GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT != '' }}
+          HAVE_OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY != '' }}
+          HAVE_TF_VAR_NOS_KEY: ${{ secrets.TF_VAR_NOS_KEY != '' }}
+          HAVE_TF_VAR_NOS_SECRET: ${{ secrets.TF_VAR_NOS_SECRET != '' }}
+          HAVE_CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY != '' }}
         run: |
-          ready=true
-          [ "$HAVE_AWS" = true ]    || { echo "live: SKIPPED -- no AWS_ROLE_ARN (a federated READ-ONLY role: EC2 describe for the configuration load, read on the state bucket, image and volume describes for the state query)"; ready=false; }
-          [ "$HAVE_GCP" = true ]    || { echo "live: SKIPPED -- no GCP_WORKLOAD_IDENTITY_PROVIDER / GCP_SERVICE_ACCOUNT (the gcloud runtime discovers its network at load; read-only)"; ready=false; }
-          [ "$HAVE_OKTA" = true ]   || { echo "live: SKIPPED -- no OKTA_API_PRIVATE_KEY / TF_VAR_NOS_KEY / TF_VAR_NOS_SECRET (the Okta workspace asserts them at load)"; ready=false; }
-          [ "$HAVE_IDENTITY" = true ] || { echo "live: SKIPPED -- no CSIS_CONFIG_IDENTITY (the age identity that decrypts the configuration's ENC[age:...] values, stage 33)"; ready=false; }
-          echo "ready=$ready" >> "$GITHUB_OUTPUT"
+          # A secret that is MISSING and one that is EMPTY read the same here ('' either
+          # way), so the distinction is made on the SET (stage 43): none configured is an
+          # unconfigured repository -- SKIPPED, and said so in the job summary, because a
+          # green conclusion is not proof that a step ran; some configured and some not
+          # is configured-and-broken -- a FAILURE that names them. Three green jobs once
+          # ran nothing because one secret had been set to '' from a checkout missing
+          # the file it was read from.
+          missing=""; present=0
+          for name in AWS_ROLE_ARN GCP_WORKLOAD_IDENTITY_PROVIDER GCP_SERVICE_ACCOUNT OKTA_API_PRIVATE_KEY TF_VAR_NOS_KEY TF_VAR_NOS_SECRET CSIS_CONFIG_IDENTITY; do
+            have="HAVE_$name"
+            if [ "${!have}" = true ]; then present=$((present + 1)); else missing="$missing $name"; fi
+          done
+          if [ "$present" -eq 0 ]; then
+            echo "live: SKIPPED -- no live-configuration secret is configured, so no step runs (AWS_ROLE_ARN: a federated READ-ONLY AWS role (EC2 describe for the configuration load, read on the state bucket, image and volume describes for the state query); GCP_WORKLOAD_IDENTITY_PROVIDER / GCP_SERVICE_ACCOUNT: the read-only GCP identity (the gcloud runtime discovers its network at load); OKTA_API_PRIVATE_KEY / TF_VAR_NOS_KEY / TF_VAR_NOS_SECRET: the Okta triple the Okta workspace asserts at load; CSIS_CONFIG_IDENTITY: the age identity that decrypts the configuration's ENC[age:...] values)"
+            { echo "## live: SKIPPED"; echo "No live-configuration secret is configured; no step ran. A green conclusion here is not proof that anything ran."; } >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$missing" ]; then
+            echo "live: FAILED -- secrets are configured but these are missing or EMPTY:$missing (a secret that exists with no value is a failure, not an absence)"
+            exit 1
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Check out the system
         if: steps.gate.outputs.ready == 'true'
@@ -223,34 +242,47 @@ jobs:
       - name: Gate on the record secrets and decide the mode
         id: gate
         env:
-          HAVE_AWS: ${{ secrets.AWS_ROLE_ARN != '' }}
-          HAVE_GCP: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && secrets.GCP_SERVICE_ACCOUNT != '' }}
-          HAVE_OKTA: ${{ secrets.OKTA_API_PRIVATE_KEY != '' && secrets.TF_VAR_NOS_KEY != '' && secrets.TF_VAR_NOS_SECRET != '' }}
-          HAVE_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY != '' }}
-          HAVE_PUSH: ${{ secrets.CSIS_CONFIG_PUSH_TOKEN != '' }}
+          HAVE_AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN != '' }}
+          HAVE_GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' }}
+          HAVE_GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT != '' }}
+          HAVE_OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY != '' }}
+          HAVE_TF_VAR_NOS_KEY: ${{ secrets.TF_VAR_NOS_KEY != '' }}
+          HAVE_TF_VAR_NOS_SECRET: ${{ secrets.TF_VAR_NOS_SECRET != '' }}
+          HAVE_CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY != '' }}
+          HAVE_CSIS_CONFIG_PUSH_TOKEN: ${{ secrets.CSIS_CONFIG_PUSH_TOKEN != '' }}
           IS_RECORD: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.mode == 'record') }}
         run: |
-          ready=true
-          [ "$HAVE_AWS" = true ]      || { echo "record: SKIPPED -- no AWS_ROLE_ARN (the READ-ONLY role the configuration load needs)"; ready=false; }
-          [ "$HAVE_GCP" = true ]      || { echo "record: SKIPPED -- no GCP_WORKLOAD_IDENTITY_PROVIDER / GCP_SERVICE_ACCOUNT (READ-ONLY; the gcloud runtime discovers its network at load)"; ready=false; }
-          [ "$HAVE_OKTA" = true ]     || { echo "record: SKIPPED -- no OKTA_API_PRIVATE_KEY / TF_VAR_NOS_KEY / TF_VAR_NOS_SECRET (the Okta workspace asserts them at load)"; ready=false; }
-          [ "$HAVE_IDENTITY" = true ] || { echo "record: SKIPPED -- no CSIS_CONFIG_IDENTITY (the age identity that decrypts the configuration's ENC[age:...] values)"; ready=false; }
-          if [ "$IS_RECORD" = true ]; then
-            [ "$HAVE_PUSH" = true ] || { echo "record: SKIPPED -- no CSIS_CONFIG_PUSH_TOKEN (contents:write on the configuration repository; the run commits, this job pushes)"; ready=false; }
-          fi
-          echo "ready=$ready" >> "$GITHUB_OUTPUT"
-          # A dispatch or an unconfigured repository may skip and pass. Recording
-          # on `main` may NOT: a missing identity there is a failure, not a green
-          # job that did nothing.
-          if [ "$IS_RECORD" = true ] && [ "$ready" != true ]; then
-            echo "record: recording was requested on main and an identity is missing (see above); failing rather than passing silently"
+          # The same rule as `live` (stage 43): a MISSING secret and an EMPTY one read the
+          # same, so none configured is SKIPPED (said in the job summary), some configured
+          # is FAILED by name. Recording on `main` needs every one, plus the push token
+          # (contents:write on the configuration repository: the run commits, this job
+          # pushes) -- there a missing identity is a failure, never a green job that did
+          # nothing.
+          names="AWS_ROLE_ARN GCP_WORKLOAD_IDENTITY_PROVIDER GCP_SERVICE_ACCOUNT OKTA_API_PRIVATE_KEY TF_VAR_NOS_KEY TF_VAR_NOS_SECRET CSIS_CONFIG_IDENTITY"
+          if [ "$IS_RECORD" = true ]; then names="$names CSIS_CONFIG_PUSH_TOKEN"; fi
+          missing=""; present=0
+          for name in $names; do
+            have="HAVE_$name"
+            if [ "${!have}" = true ]; then present=$((present + 1)); else missing="$missing $name"; fi
+          done
+          if [ "$IS_RECORD" = true ] && [ -n "$missing" ]; then
+            echo "record: FAILED -- recording was requested on main and these secrets are missing or EMPTY:$missing (a secret that exists with no value is a failure, not an absence)"
             exit 1
-          fi
-          if [ "$IS_RECORD" = true ]; then
+          elif [ "$present" -eq 0 ]; then
+            echo "record: SKIPPED -- no record secret is configured, so no step runs (AWS_ROLE_ARN: a federated READ-ONLY AWS role (EC2 describe for the configuration load, read on the state bucket, image and volume describes for the state query); GCP_WORKLOAD_IDENTITY_PROVIDER / GCP_SERVICE_ACCOUNT: the read-only GCP identity (the gcloud runtime discovers its network at load); OKTA_API_PRIVATE_KEY / TF_VAR_NOS_KEY / TF_VAR_NOS_SECRET: the Okta triple the Okta workspace asserts at load; CSIS_CONFIG_IDENTITY: the age identity that decrypts the configuration's ENC[age:...] values; CSIS_CONFIG_PUSH_TOKEN: contents:write on the configuration repository, needed only when recording)"
+            { echo "## record: SKIPPED"; echo "No record secret is configured; no step ran. A green conclusion here is not proof that anything ran."; } >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "record=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$missing" ]; then
+            echo "record: FAILED -- secrets are configured but these are missing or EMPTY:$missing (a secret that exists with no value is a failure, not an absence)"
+            exit 1
+          elif [ "$IS_RECORD" = true ]; then
             echo "record: mode RECORD -- the full run commits the emission and meta-state, and they are pushed"
+            echo "ready=true" >> "$GITHUB_OUTPUT"
             echo "record=true" >> "$GITHUB_OUTPUT"
           else
             echo "record: mode DRY -- the full run enumerates; nothing is committed, nothing is pushed"
+            echo "ready=true" >> "$GITHUB_OUTPUT"
             echo "record=false" >> "$GITHUB_OUTPUT"
           fi
 
