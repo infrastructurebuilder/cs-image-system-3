@@ -26,7 +26,7 @@ WORKFLOW = REPO / ".github" / "workflows" / "ci.yml"
 
 # steps that are environment or transport plumbing rather than the system
 _PLUMBING = ("Gate on", "Name the federated", "Place the tools", "Push what the run committed",
-              "Prove write access")
+              "Prove write access", "Name the committer")
 
 
 def _workflow() -> dict:
@@ -116,8 +116,13 @@ def test_record_runs_full_on_main_only_commits_and_holds_no_write_credential():
     for _, run in _run_steps(record):
         assert "--only" not in run, run
 
-    # write access is proven BEFORE the record is written
+    # the committer is named and write access proven BEFORE the record is written:
+    # a runner has no git identity, and `git commit` without one exits 128
     names = [s.get("name", "") for s in record["steps"]]
+    assert names.index("Name the committer for the record") < names.index("The full run, recorded")
+    committer = next(s for s in record["steps"] if s.get("name") == "Name the committer for the record")
+    assert "user.email" in committer["run"] and "user.name" in committer["run"]
+
     assert names.index("Prove write access to the configuration repository") < \
            names.index("The full run, recorded")
     proof = next(s for s in record["steps"] if s.get("name", "").startswith("Prove write access"))

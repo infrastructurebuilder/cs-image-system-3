@@ -870,6 +870,7 @@ token that can push the configuration repository.
 | --- | --- |
 | Gate on the record secrets and decide the mode | one `record: SKIPPED -- no <SECRET> (…)` line per missing identity; sets `record=true` only for a push to `main` or a dispatch on `main` asking for it; a missing identity when recording is a failure, never a green job that did nothing |
 | the two checkouts, the federated credentials, the `[noaa]` shim, the tools | exactly as `live` does them; the configuration checkout carries the push credential, because `actions/checkout` persists a header that would override a token in a push URL |
+| Name the committer for the record | a runner has no git identity, and the RUN commits: without one `git commit` exits 128 after all the work is done. The bot identity keeps a person's address out of the configuration repository's history |
 | Prove write access to the configuration repository | `git push --dry-run`, before the record is written, so a bad token stops the job early |
 | `just cli run --all --commit` | the full run, recorded: generation across every lifecycle and runtime, then the commit of meta-state and emission |
 | `just cli run --all` | in dry mode instead: the same full run, committing nothing |
@@ -896,7 +897,7 @@ credentials for the named profile.
 
 | Secret | What reads it | Job |
 | --- | --- | --- |
-| `AWS_ROLE_ARN` | the federated-credentials action, then the `[noaa]` shim; a READ-ONLY role: EC2 describe for the configuration load, read on the state bucket, image and volume describes for the state query | live |
+| `AWS_ROLE_ARN` | the federated-credentials action, then the `[noaa]` shim; a READ-ONLY role: EC2 and EFS describes, the S3 bucket tag and lifecycle reads the state query needs, and read on the state bucket for the configuration load, read on the state bucket, image and volume describes for the state query | live |
 | `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_SERVICE_ACCOUNT` | the GCP auth action: the application-default credentials the gcloud runtime's network discovery and the GCP state query use; read-only | live |
 | `OKTA_API_PRIVATE_KEY` | the load's check that the okta provider can authenticate (`okta_tf_workspace.py`) | live |
 | `TF_VAR_NOS_KEY` → exported as `TF_VAR_nos_coastal_modeling_cloud_sandbox_key` | the load's `_require_tfvar` assertion; the OPA API for gids and the state query (`opa_gids.py`) | live |
