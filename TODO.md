@@ -501,14 +501,44 @@ decision.
       the workspace, both locations and what is deployed. A workspace with
       nothing deployed moves freely, because nothing is at risk; that
       distinction is the whole rule.
-   3. The refusal names the sanctioned way to move state on purpose —
-      `tofu init -migrate-state` against the root, then a run to re-record
-      the binding — so this is a guard rather than a dead end. Whether that
-      becomes a flag or stays a documented procedure is decided in the
-      stage.
-   4. Tests: rebinding with nothing deployed passes; the same rebinding
+   3. **The escape is an operation, not an override.** `--migrate-state
+      <workspace>` (repeatable) PERFORMS the move; there is deliberately no
+      flag that merely proceeds past the refusal. A bare override would let
+      one word do the destructive thing, while a migration flag makes the
+      safe path the easy one, and the refusal message names it.
+      1. It requires `--no-dry-run`: a dry run never moves state.
+      2. The target is named. A blanket form that migrates every rebound
+         workspace at once is nearly as dangerous as no guard at all.
+      3. **It changes the root's `init`.** Every run emits `-reconfigure`
+         today, which means "discard the previous backend record and do NOT
+         migrate" — right for every normal run and exactly wrong for this
+         one. Under the flag that root inits with `-migrate-state
+         -force-copy` instead, which is the whole reason this cannot be a
+         documented procedure alone: the flags the system emits actively
+         defeat a by-hand migration.
+      4. Backup first, verify after. The old state is pulled to a file that
+         is kept, the new location must be empty (a non-empty one is
+         already a collision and refused), the old state is never deleted
+         by this operation, and the move is accepted only when a plan
+         against the new location reports no changes. That plan is the real
+         proof the state survived.
+      5. The migration is recorded in meta-state — from, to, when, and the
+         state serial — so the binding record moves with it and the history
+         is auditable.
+      6. CI never migrates: the recording job is dry, and §45's performing
+         job refuses the flag outright.
+   4. **Abandoning resources is a different act**, and stays one. When the
+      resources are gone or are being given up deliberately, the honest fix
+      is to correct the records (the state query's import and forget paths),
+      not to bypass the guard. The refusal message says so, because the
+      person hitting it usually wants one of these two things and should be
+      told which is which.
+   5. Tests: rebinding with nothing deployed passes; the same rebinding
       with a live resource recorded is refused; the message names both
-      locations; re-running under the original binding is clean.
+      locations and both routes; `--migrate-state` on a dry run is refused;
+      a migration run leaves the old state readable, records the move, and
+      plans clean at the new location; re-running under the original
+      binding is clean.
 
 5. **The cross-backend read, proven.** A consumer workspace in backend A
    referencing a producer in backend B must emit a
