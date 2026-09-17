@@ -9,10 +9,9 @@ system must not take itself.
 
 Current stage: **none in progress**.
 
-Open stages and their order: §37 (one USER step left: trigger the first
-record), then §45, which makes CI perform rather than only record and
-needs a generation fix first; §41 whenever convenient; §43 whenever
-convenient; §19 and §30 wait on the operator's decisions.
+Open stages and their order: §45, which makes CI perform rather than only
+record and needs a generation fix first; §41 and §43 whenever convenient;
+§19 and §30 wait on the operator's decisions.
 
 Standing decisions (operator):
 
@@ -203,73 +202,6 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
 
-## 37. The record on `main`
-
-**Why**: the operator's CI model is "branches verify, `main` applies". The
-`live` job reads; this stage adds the half that writes the record. A full
-run over the live configuration commits the emission and meta-state into
-the configuration repository and pushes them, so a merge to `main` leaves
-the record true rather than merely checked.
-
-It records but does not perform, and that is forced rather than chosen.
-**Only a full, unscoped run keeps the emission complete**: any `--only` or
-`--only-runtime` filter makes generation partial, and the run's commit
-stages deletions as readily as additions, so a scoped run that commits
-deletes every root out of scope. Measured on the live tree: a runtime
-filter drops 37 committed files (every GCE packer root, the GCE tofu root,
-both GCP storage roots, two lifecycle runner scripts), and `--only none`
-drops 23. A full REAL run, meanwhile, would bake whatever fingerprint had
-changed, including on the GCE runtime, which no CI job has an identity to
-write to. So the job that keeps the record true carries no write-capable
-cloud credential at all. Performing from CI is §45, and it needs the
-pruning fixed first.
-
-1. **DONE — what the job is, decided from the constraint.** The run is
-   `run --all --commit`, full and unscoped. No bake happens, because a dry
-   run performs nothing. Releases and retention are enumerated, not
-   executed. The record is complete and correct, which is the thing CI is
-   good at guaranteeing.
-2. **DONE — the identities.** The job uses exactly what `live` uses, the
-   read-only AWS role and GCP service account, plus
-   `CSIS_CONFIG_PUSH_TOKEN`, a fine-grained token with contents:write on
-   the configuration repository alone. Twelve secrets exist; two of them
-   (`AWS_APPLY_ROLE_ARN` and the Okta client/key-id/scopes triple) are
-   read by nothing today and wait for §45.
-3. **DONE — the job** in [.github/workflows/ci.yml](.github/workflows/ci.yml):
-   after `live`, only on `main` or by hand, `concurrency: record-live`
-   without cancelling in flight; the dispatch input decides `dry` or
-   `record`; write access is proven with `git push --dry-run` before the
-   record is written; the configuration checkout carries the push
-   credential, because `actions/checkout` persists a header that overrides
-   a token in a push URL; the push is `HEAD:develop` and never forced.
-4. **DONE — the pins** in [tests/test_v2_ci_workflow.py](tests/test_v2_ci_workflow.py):
-   no job anywhere passes `--no-dry-run` or names a write-capable cloud
-   credential; `record` is the only job that commits; its run carries no
-   `--only` of any kind; the write-access proof precedes the record; the
-   push credential never appears in a URL; recording is `main`-only, once
-   at a time, and fails rather than skips when an identity is missing.
-5. **DONE — cost, in writing**, in the manual: no CI run can leave a
-   billable resource standing on either cloud, because no job holds a
-   credential that could create one. That is structural, not a promise.
-6. **Proof.**
-   1. **DONE — the plumbing.** A dry dispatch on `main` cleared every step
-      of the job in its previous shape: the role assumed, both checkouts
-      landed, the tools installed, write access was proven, the run
-      enumerated, and the strict state query passed.
-   2. **DONE — the push path**, proven by the `git push --dry-run` step
-      that now runs before every record.
-   3. **OPEN, USER — the first record.** `main` is level with `develop`
-      once this lands, so the trigger is a dispatch on `main` with
-      `mode=record`, or the next advance of `main`. It commits and pushes
-      one commit to the configuration repository and performs nothing.
-      Watch the step conclusions, not the job's, then confirm the
-      configuration repository received exactly one commit and that `just
-      config-drift` is clean.
-7. **Records.** The squash message carries the emission-completeness rule,
-   which is the reason for the job's shape. [docs/OPERATIONS.md](docs/OPERATIONS.md)
-   has the third job, its secrets and its cost sentences. This section
-   goes when the first record has run.
-
 ## 41. Releases publish to an index through `uv publish`
 
 **Why**: `just release <version>` ends at an annotated tag and `dist/`
@@ -411,7 +343,15 @@ so. Whenever convenient; nothing else waits on it.
    writes them into the new repository before committing; its test pins
    that a source repository with a distinctive `user.email` produces a
    commit carrying it.
-9. **A secret that exists but is empty reads as absent, and the job
+9. **USER — the read-only GCP service account cannot describe the GCS
+   bucket**, so every state query reports `storages/gcp-gcs` unavailable.
+   It is the GCP twin of a gap already fixed on AWS, where the role was
+   missing `s3:GetBucketTagging` and `s3:GetLifecycleConfiguration`: a
+   missing read permission, not a real drift. The fix is one grant of a
+   bucket-read role to `csis-github-readonly@csis-sandbox`; it is free and
+   read-only, but it is a GCP change, so it waits on the operator's word
+   under the standing rule.
+10. **A secret that exists but is empty reads as absent, and the job
    passes.** The `live` job skipped every step across three runs on the
    published repository and reported success each time, because
    `OKTA_API_PRIVATE_KEY` had been set from a checkout where the file
@@ -424,7 +364,7 @@ so. Whenever convenient; nothing else waits on it.
    empty is a failure, not an absence. While here, make `just preflight`
    report the same way, and never read a job's conclusion as proof that
    its steps ran.
-10. Records by whatever convention is current when this lands. Feature
+11. Records by whatever convention is current when this lands. Feature
    branch `feature/hygiene-two`, squash-merged, kept. A day.
 
 ## 45. CI performs on `main`
