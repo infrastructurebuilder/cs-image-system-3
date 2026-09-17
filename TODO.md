@@ -458,14 +458,22 @@ decision.
    1. `set_backend` refuses a second binding of the same workspace to a
       different backend, with a message naming the workspace and both
       backends; rebinding to the same one stays a no-op.
-   2. The resolution order becomes explicit and documented: the builder's
-      own `state_configuration`, then its runtime's, then the single
-      backend marked `is_default`. Today the runtime's field is declared
-      and read by nothing, which promises what it does not do.
-   3. **USER — or delete it instead.** Honouring the runtime's field is the
-      recommendation, because "everything on this runtime lives in that
-      bucket" is the sentence an operator wants to write once. The
-      alternative is to remove the field from both runtime models.
+   2. **DECIDED — the field is used when provided, and inherited when it is
+      not.** `state_configuration` has always meant "this backend, or the
+      default defined a level above", so the resolution is a chain: the
+      builder's own value when it names a backend, else its runtime's when
+      that names one, else the single backend marked `is_default`.
+      "Provided" means a value outside the sentinels the loader already
+      treats as absent (`OOPS_DEFAULTS`: `default`, `self`, empty, unset) —
+      the same set `resolve_backend` keys on today, so the chain is an
+      extension of existing behaviour rather than a new rule.
+   3. That makes the runtime's field real. It is declared on both runtime
+      models and read by nothing, so "everything on this runtime keeps its
+      state in that bucket" is a sentence the configuration can already
+      write and the system currently ignores. A test covers each rung: a
+      builder naming its own backend, a builder inheriting its runtime's,
+      and a builder whose runtime is silent too, falling through to the
+      default.
 3. **Collisions refused at validation**, before anything is emitted.
    1. Compute every bound workspace's `StateLocation` and refuse duplicates
       with a message naming both workspaces and the object they share.
