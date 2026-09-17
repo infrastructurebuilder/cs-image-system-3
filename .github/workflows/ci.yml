@@ -239,6 +239,7 @@ jobs:
             [ "$HAVE_PUSH" = true ] || { echo "apply: SKIPPED -- no CSIS_CONFIG_PUSH_TOKEN (contents:write on the configuration repository; the run commits, this job pushes)"; ready=false; }
           fi
           echo "ready=$ready" >> "$GITHUB_OUTPUT"
+          echo "push=$HAVE_PUSH" >> "$GITHUB_OUTPUT"
           # A dispatch or an unconfigured repository may skip and pass. A real run
           # asked for on `main` may NOT: a missing identity there is a failure, not
           # a green job that did nothing.
@@ -325,6 +326,14 @@ jobs:
         if: steps.gate.outputs.ready == 'true'
         working-directory: cs-image-system-3
         run: just init
+
+      - name: Prove write access to the configuration repository
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.push == 'true'
+        working-directory: cs-image-system-testconfig
+        # Fail fast. A push credential that is missing, empty or under-scoped must
+        # stop the job here, not after a bake has already spent money and changed
+        # what the records must describe.
+        run: git push --dry-run "https://x-access-token:${{ secrets.CSIS_CONFIG_PUSH_TOKEN }}@github.com/infrastructurebuilder/cs-image-system-testconfig" HEAD:develop
 
       - name: The real run over the live configuration
         if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.apply == 'true'

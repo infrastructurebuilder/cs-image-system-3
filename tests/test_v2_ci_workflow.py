@@ -23,7 +23,8 @@ REPO = Path(__file__).resolve().parents[1]
 WORKFLOW = REPO / ".github" / "workflows" / "ci.yml"
 
 # steps that are environment or transport plumbing rather than the system
-_PLUMBING = ("Gate on", "Name the federated", "Place the tools", "Push what the run committed")
+_PLUMBING = ("Gate on", "Name the federated", "Place the tools", "Push what the run committed",
+              "Prove write access")
 
 
 def _workflow() -> dict:
@@ -114,6 +115,13 @@ def test_apply_runs_only_on_main_scoped_to_one_runtime_and_never_twice():
     assert isinstance(on, dict)
     assert on["workflow_dispatch"]["inputs"]["mode"]["default"] == "dry"
     assert "github.ref == 'refs/heads/main'" in gate["env"]["IS_APPLY"]
+
+    # write access is proven BEFORE anything is performed
+    names = [s.get("name", "") for s in apply["steps"]]
+    assert names.index("Prove write access to the configuration repository") < \
+           names.index("The real run over the live configuration")
+    proof = next(s for s in apply["steps"] if s.get("name", "").startswith("Prove write access"))
+    assert "--dry-run" in proof["run"]
 
     # a real run on main with a missing identity fails; it never passes silently
     assert "exit 1" in gate["run"], "apply mode must fail on a missing identity"
