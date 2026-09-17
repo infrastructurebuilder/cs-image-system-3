@@ -59,6 +59,7 @@ from typing import TYPE_CHECKING, Any
 from .basic.builder_base_group import GroupBuilderBase
 from .basic.builder_base_runtime import RuntimeBuilderBase
 from .basic.builder_base_storage import StorageBuilderBase
+from .constants import STATE_REPORT_FILENAME
 from .lineage import TAG_PREFIX
 from .meta_state import assert_public_safe
 from .models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_DESTROYED
@@ -69,7 +70,6 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-STATE_REPORT_FILENAME = "state-report.json"
 
 DRIFT_MISSING = "missing"
 DRIFT_FOREIGN = "foreign"

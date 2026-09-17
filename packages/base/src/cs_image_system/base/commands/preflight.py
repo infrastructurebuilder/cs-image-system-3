@@ -28,9 +28,14 @@ from ..models.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 DEFAULT_EXPECTED_RUN_MINUTES = 30
+# stage 43: the environment names the system reads credentials and identities
+# from. One that is SET but EMPTY is not an absence: three green CI jobs ran
+# nothing because a secret had been set from a checkout missing the file it
+# was read from -- the variable existed and its value was "".
+CREDENTIAL_ENV_PREFIXES: tuple[str, ...] = ("AWS_", "GOOGLE_", "OKTA_", "TF_VAR_", "CSIS_")
 # the one profile shape with no readable expiry that IS a credential (static keys in the profile)
 _PRESENT_WITHOUT_EXPIRY = "not an SSO profile"
 
@@ -60,6 +65,13 @@ class SessionInfo:
     def blocking(self, now: datetime, expected: int) -> bool:
         left = self.minutes_left(now)
         return left is not None and left < expected
+
+
+def empty_environment_credentials(environ: Mapping[str, str] | None = None) -> list[str]:
+    """The NAMES of credential-shaped environment variables (the prefixes
+    above) whose value is the empty string -- set, and empty. Never a value."""
+    env = os.environ if environ is None else environ
+    return sorted(k for k, v in env.items() if k.startswith(CREDENTIAL_ENV_PREFIXES) and v == "")
 
 
 def expected_run_minutes(ctx: Any) -> int:

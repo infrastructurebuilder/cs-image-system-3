@@ -1,8 +1,0 @@
-content_hash: cfa47ca0cf25ce2c05e0b071041001b36cfc8fcd380b289c7e1c7b99ed5b73a0
-files: []
-idempotent: unknown
-image: imgfile-basic-dask-two
-name: dask-setup2
-operation: ansible-default
-run: 2026_08_26t12_00_00
-type: ansible-default

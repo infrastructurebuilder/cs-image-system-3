@@ -23,7 +23,9 @@ from __future__ import annotations
 
 import logging
 import re
+import shutil
 import subprocess
+import tempfile
 from dataclasses import field
 from .models.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
@@ -32,6 +34,7 @@ from typing import Any
 
 import yaml
 
+from .constants import RUN_LOCAL_FILENAMES
 from .public_safe import (REFUSED_PATHS, PublicSafeError, allow_from_config, assert_public_safe,  # noqa: F401
                           config_for, refused_path, scan_file)
 
@@ -65,6 +68,38 @@ def _never_staged_pathspecs() -> list[str]:
     the run's ``add`` and ``commit`` so those files are never picked up --
     not even one the operator had staged by hand under the same trees."""
     return [f":(exclude,glob)**/{pat}" for pat in REFUSED_PATHS]
+
+
+def _run_local_exclude_pathspecs() -> list[str]:
+    """stage 43: the run-local files (``run-summary.json``,
+    ``state-report.json``) are excluded from the run's ``add``; the emitted
+    root ``.gitignore`` names them too. Records (``final_execution.sh``,
+    ``meta-state/runs.yaml``) are not run-local and stay."""
+    return [f":(exclude,glob)**/{name}" for name in RUN_LOCAL_FILENAMES]
+
+
+def _set_aside_tracked_run_local_files(top: Path, generated_root: Path) -> list[tuple[Path, Path]]:
+    """Where an older tree TRACKS a run-local file, move it out of the working
+    tree for the duration of the commit and return the moves to undo.
+
+    A partial commit (one made with pathspecs, as the run's is) records HEAD's
+    tree plus the WORKING-TREE state of the paths it names -- the index is not
+    consulted -- so a tracked file leaves the repository only when it is absent
+    from the working tree at commit time. Setting it aside is what lets one
+    run remove it from the index; the file itself is put back untouched."""
+    moves: list[tuple[Path, Path]] = []
+    for name in RUN_LOCAL_FILENAMES:
+        file = Path(generated_root) / name
+        tracked = subprocess.run(["git", "-C", str(top), "ls-files", "--error-unmatch", "--", str(file)],
+                                 check=False, capture_output=True).returncode == 0
+        if tracked and file.exists():
+            holding = Path(tempfile.mkdtemp(prefix="csis-run-local-")) / name
+            shutil.move(str(file), str(holding))
+            moves.append((file, holding))
+    if moves:
+        log.info("Meta-state commit: " + ", ".join(m[0].name for m in moves)
+                 + " leave the index (run-local files are never committed; the files stay on disk)")
+    return moves
 
 
 def _dump(data: Any) -> str:
@@ -413,9 +448,23 @@ def commit_meta_state(config_root: Path, generated_root: Path, run_id: str,
         existing.append(candidate)
     if not existing:
         return None
+    aside = _set_aside_tracked_run_local_files(top, generated_root)
+    try:
+        return _commit_staged(top, existing, run_id, lifecycles, dry_run, config_root)
+    finally:
+        for file, holding in aside:
+            shutil.move(str(holding), str(file))
+            shutil.rmtree(holding.parent, ignore_errors=True)
+
+
+def _commit_staged(top: Path, existing: list[str], run_id: str, lifecycles: list[str],
+                   dry_run: bool, config_root: Path) -> str | None:
     # stage 34: belt to the ignore policy's braces -- a plan, state or key file
-    # under the run's trees is never staged, and the operator is told which
-    would_add = subprocess.run(["git", "-C", str(top), "add", "-A", "--dry-run", "--", *existing],
+    # under the run's trees is never staged, and the operator is told which.
+    # The listing excludes the run-local files (never staged, no warning due)
+    # but not the refused names, so those are still seen and named.
+    would_add = subprocess.run(["git", "-C", str(top), "add", "-A", "--dry-run", "--",
+                                *existing, *_run_local_exclude_pathspecs()],
                                check=True, capture_output=True, text=True).stdout
     adds = sorted({m.group(1) for m in re.finditer(r"^add '(.+)'$", would_add, re.M)})
     refused = [rel for rel in adds if never_staged(rel)]
@@ -430,7 +479,7 @@ def commit_meta_state(config_root: Path, generated_root: Path, run_id: str,
     if findings:
         raise PublicSafeError(findings, "the run's meta-state commit")
     pathspecs = [*existing, *_never_staged_pathspecs()]
-    subprocess.run(["git", "-C", str(top), "add", "-A", "--", *pathspecs],
+    subprocess.run(["git", "-C", str(top), "add", "-A", "--", *pathspecs, *_run_local_exclude_pathspecs()],
                    check=True, capture_output=True, text=True)
     staged = subprocess.run(["git", "-C", str(top), "diff", "--cached", "--quiet"],
                             check=False, capture_output=True, text=True)

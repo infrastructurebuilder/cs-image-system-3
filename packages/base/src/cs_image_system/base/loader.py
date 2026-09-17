@@ -27,7 +27,7 @@ def load_plugins():
         log.info(f"Loading plugins of type: {plugin_type}")
         plugins = entry_points(group=f'cs_image_system.plugins.{plugin_type}')
         if not plugins:
-            log.warning(f"No '{plugin_type}' plugins found.")
+            log.debug(f"No '{plugin_type}' plugins found.")
         plugin_names = sorted([plugin.name for plugin in plugins])    
         log.info(f"Found {len(plugins)} plugins.")
         for pname in plugin_names:

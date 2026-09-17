@@ -516,7 +516,7 @@ class PydanticConverter:
         return ta
 
     @staticmethod
-    def _coerce_collections(cls: Any, data: dict) -> dict:
+    def _coerce_collections(model_cls: Any, data: dict) -> dict:
         """Reproduce the two global collection hooks cattrs carried, exactly.
 
         `list[str]` was ``[] if v is None else [str(x) for x in v]`` and
@@ -534,10 +534,10 @@ class PydanticConverter:
         `parameters` should mean is a separate stage, recorded as §25.
         """
         import dataclasses
-        if not dataclasses.is_dataclass(cls):
+        if not dataclasses.is_dataclass(model_cls):
             return data
         out = dict(data)
-        for f in dataclasses.fields(cls):
+        for f in dataclasses.fields(model_cls):
             if f.name not in out:
                 continue
             kind, val = _str_collection_kind(f.type), out[f.name]   # dataclasses.Field.type: the ANNOTATION, not a model field

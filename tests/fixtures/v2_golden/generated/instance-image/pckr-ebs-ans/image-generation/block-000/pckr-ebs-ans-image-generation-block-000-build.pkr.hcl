@@ -106,25 +106,6 @@ provisioner "shell" {
       "sudo systemctl enable sftd",
     ]
   }
-  # local modification bundle for imgfile-basic-dask-two -> /opt/csis/mods (re-run with `csis-mods rerun`)
-  provisioner "shell" {
-    only   = ["amazon-ebs.imgfile-basic-dask-two"]
-    inline = ["mkdir -p /tmp/csis-mods"]
-  }
-  provisioner "file" {
-    only        = ["amazon-ebs.imgfile-basic-dask-two"]
-    source      = "csis-mods/imgfile-basic-dask-two/"
-    destination = "/tmp/csis-mods"
-  }
-  provisioner "shell" {
-    only   = ["amazon-ebs.imgfile-basic-dask-two"]
-    inline = [
-      "sudo rm -rf /opt/csis/mods && sudo mkdir -p /opt/csis",
-      "sudo mv /tmp/csis-mods /opt/csis/mods",
-      "sudo install -m 0755 /opt/csis/mods/csis-mods /usr/local/bin/csis-mods",
-      "sudo chmod -R go-w /opt/csis/mods",
-    ]
-  }
   # in-bake verification for instance image imgfile-basic-dask-two: 2 assertion(s)
   provisioner "shell" {
     only   = ["amazon-ebs.imgfile-basic-dask-two"]

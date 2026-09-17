@@ -63,6 +63,14 @@ DEFAULT_GITIGNORE_ENTRIES = [
     "terraform.tfstate.backup",
     "!.terraform.lock.hcl",
 ]
+# stage 43: the run-local files a run writes at the top of generated/ and never
+# commits -- the emitted root .gitignore names them, the run's commit excludes
+# them and drops them from the index where an older tree tracked them (the
+# strict state query rewrites the report outside any run, so a tracked copy
+# dirtied the checkout after every preflight)
+RUN_SUMMARY_FILENAME = "run-summary.json"
+STATE_REPORT_FILENAME = "state-report.json"
+RUN_LOCAL_FILENAMES: tuple[str, ...] = (RUN_SUMMARY_FILENAME, STATE_REPORT_FILENAME)
 SAVED_LOAD_DICT = "_saved_dict_from_load"
 ANY_AT_ALL = "ANY_AT_ALL"
 

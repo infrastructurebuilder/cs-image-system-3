@@ -10,3 +10,5 @@ terraform.tfstate.backup
 !.terraform.lock.hcl
 !.gitignore
 **/target/
+run-summary.json
+state-report.json

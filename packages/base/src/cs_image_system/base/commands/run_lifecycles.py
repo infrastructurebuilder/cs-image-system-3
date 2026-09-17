@@ -35,6 +35,7 @@ from ..basic.builder_base import BuilderBase
 from ..global_context import GlobalTypeContext
 from ..lifecycle import ExecutionLifecyclePhase
 from ..lifecycles import Lifecycle, LifecycleLike, all_lifecycles, builder_vcts_of, phases_of
+from ..constants import RUN_LOCAL_FILENAMES, RUN_SUMMARY_FILENAME
 from ..meta_state import commit_meta_state
 from ..orchestrator import TemplateResolver
 from .gen_groups import predefined_group_generation
@@ -47,7 +48,6 @@ from .validate import collect_validation_errors
 
 log = logging.getLogger(__name__)
 
-RUN_SUMMARY_FILENAME = "run-summary.json"
 
 # Per-phase "during" step: the existing predefined generation functions.
 _DURING: dict[ExecutionLifecyclePhase, Callable[[GlobalTypeContext, ExecutionLifecyclePhase], bool]] = {
@@ -141,9 +141,12 @@ class LifecycleRunError(RuntimeError):
 
 # ----------------------------------------------------------------- helpers
 
-def _write_gitignore(ctx: GlobalTypeContext, directory: Path) -> None:
+def _write_gitignore(ctx: GlobalTypeContext, directory: Path, extra: tuple[str, ...] = ()) -> None:
+    """The ignore policy (the defaults plus the configuration's list) as a
+    ``.gitignore`` in ``directory``; ``extra`` names what only THIS directory
+    ignores -- the root adds the run-local files (stage 43)."""
     entries = AssetSet(Path(".gitignore"))
-    for i in ctx.gitignore:
+    for i in (*ctx.gitignore, *extra):
         entries.add(i)
     directory.mkdir(parents=True, exist_ok=True)
     entries.sort_and_write(directory, skip_remote=True)
@@ -438,7 +441,7 @@ def run_lifecycles(requested: list[LifecycleLike], *, apply: bool = True,
                          undeclared=[f"{k}:{n}" for k, n in getattr(ctx, "undeclared", None) or []])
     root = ctx.root_generation_path
     root.mkdir(parents=True, exist_ok=True)
-    _write_gitignore(ctx, root)
+    _write_gitignore(ctx, root, extra=RUN_LOCAL_FILENAMES)
     try:
         if state_query:
             from ..state_query import query_state, write_state_report

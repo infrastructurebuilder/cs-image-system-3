@@ -28,8 +28,15 @@ class AnsibleModItemModel(ModItemModel):
     
     def __post_init__(self) -> None:
         super().__post_init__()
+        # stage 43: an item with no playbook has nothing to modify with -- the
+        # builder emits one provisioner per playbook, so such an item rendered
+        # nothing while lineage, the on-image bundle and the modification tests
+        # all recorded it as present. It is refused at load, by name.
         if not self.playbooks:
-            log.warning(f"Ansible modification item {self.get_display_name()} should have at least one playbook specified.")
+            raise ValueError(
+                f"Ansible modification '{self.get_display_name()}' declares no playbooks: "
+                "it has nothing to modify with (config alone provisions nothing). "
+                "Give it 'playbooks:' (files the config keys feed as variables) or remove it.")
     def remap_self_with_copied_assets(self, copied_assets: dict[str, Path]) -> None:
         _playbooks: list[str]=  []
         pb: list[str] = getattr(self.identified_model, "playbooks", [])
