@@ -10,6 +10,7 @@ group_builders:
     is_default: true
     type: okta-tf
     executable: open-tofu-1
+    state_configuration: local-dev   # stage 47: the identity roots keep their state on disk
     org: "noaa"
     team: "nos-coastal-modeling-cloud-sandbox"
     # key: "test-key"
@@ -29,6 +30,7 @@ user_builders:
     is_default: true
     type: okta-tf-ro
     executable: open-tofu-1
+    state_configuration: local-dev   # stage 47: the identity roots keep their state on disk
     org: "noaa"
     team: "nos-coastal-modeling-cloud-sandbox"
     # user.name is the bare OPA username; email (explicit, or derived by this

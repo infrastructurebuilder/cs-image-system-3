@@ -1050,12 +1050,19 @@ user_builders:
 
 ## 10. `cfg/state-backends*.yml`
 
-Key: `state_backends`. Model: `TofuS3StateBuilderModel`, type `s3`
-([`tf_s3_state_models.py`](../packages/tf-s3-state-plugin/src/cs_image_system/tf_s3_state_plugin/tf_s3_state_models.py)).
-Every terraform root names one through `state_configuration`, or inherits
-its runtime's, or takes the default. A root's state file is
-`<key>/<root name>.tfstate` in the bucket, the root name with
-non-alphanumerics replaced by `_`, the key normalised.
+Key: `state_backends`. Two types exist (stage 47): `s3`, model
+`TofuS3StateBuilderModel`
+([`tf_s3_state_models.py`](../packages/tf-s3-state-plugin/src/cs_image_system/tf_s3_state_plugin/tf_s3_state_models.py)),
+and `local`, model `LocalStateBuilderModel`
+([`local_state_models.py`](../packages/local-state-plugin/src/cs_image_system/local_state_plugin/local_state_models.py)).
+A type is a plugin: a model plus a *kind* that renders a root's location,
+its backend file and a consumer's data source (the S3 plugin's README has
+the recipe). Every terraform root names one backend through
+`state_configuration`, or inherits its runtime's, or takes the default;
+roots on different types read each other's state through
+`terraform_remote_state` all the same. A root's state file is
+`<root name>.tfstate`, the root name with non-alphanumerics replaced by
+`_`, under the backend's prefix or directory.
 
 **Where a root's state lives (stage 46).** A configured root keeps its state
 in exactly one *location*, the tuple (backend type, bucket, key prefix,
@@ -1097,6 +1104,8 @@ fixture binds its storage roots to `s3-east1` and everything else to the
 default `s3-east2`, so its golden carries both buckets; the live
 configuration keeps every root on its default backend by decision.
 
+### `s3`
+
 | Field | Type | Default | Meaning and allowed values |
 | --- | --- | --- | --- |
 | common builder fields (4.1) | | | `is_default` marks the backend `default` resolves to |
@@ -1127,6 +1136,10 @@ configuration keeps every root on its default backend by decision.
 | `assume_role` | mapping or null | null | `{role_arn, duration, policy, policy_arns: [], session_name, source_identity, tags: {}, transitive_tag_keys: []}` |
 | `assume_role_with_web_identity` | mapping or null | null | `{role_arn, duration, policy, policy_arns: [], session_name, web_identity_token, web_identity_token_file}` |
 
+A root's location is `s3://<bucket>/<key>/<root name>.tfstate`; the backend
+file carries `bucket`, `key`, `region`, `encrypt`, `use_lockfile` and the
+profile; a consumer's data source `bucket`, `key`, `region` and the profile.
+
 [`cfg/state-backends.yml`](../tests/fixtures/config/cfg/state-backends.yml)
 and [`cfg/state-backends-2.yml`](../tests/fixtures/config/cfg/state-backends-2.yml):
 
@@ -1150,6 +1163,36 @@ state_backends:
     key: statefiles/csia-image-system-test/
     region: us-east-2
     profile: noaa
+```
+
+### `local`
+
+A state file on disk: no cloud, no credentials, so a developer or a test
+can run a real `tofu init` against it. The live configuration keeps every
+root on S3 by the standing decision; the fixture's identity roots use this
+type, so its golden carries two backend types and reads across them.
+
+| Field | Type | Default | Meaning and allowed values |
+| --- | --- | --- | --- |
+| common builder fields (4.1) | | | `is_default` marks the backend `default` resolves to |
+| `path` | str | `state` | a directory, relative to the configuration root or absolute; non-empty |
+| `executable` | str or null | `tofu` | |
+
+A root's location is `local://<directory>/<root name>.tfstate`. The backend
+file and a consumer's data source carry one setting, `path`: the absolute
+directory as declared, or a relative one rewritten from the root
+directory's fixed depth (`../../../../<directory>/<root name>.tfstate`,
+since a root sits at `generated/<lifecycle>/<root>/<phase>/`), so the
+emission names no absolute path of the machine that generated it.
+
+[`cfg/state-backends-3.yml`](../tests/fixtures/config/cfg/state-backends-3.yml):
+
+```yaml
+---
+state_backends:
+  - name: local-dev
+    type: local
+    path: state
 ```
 
 ## 11. The collections

@@ -499,6 +499,16 @@ whole mechanism is gated by `use_state_backends` in `cfg/_config.yml`:
 off, no backend block, no backend file and no remote-state datasource is
 emitted, and none of what follows applies.
 
+Two backend types exist (stage 47): `s3` -- a bucket, `s3://<bucket>/<key>`
+-- and `local` -- a file on disk, `local://<directory>/<root>.tfstate`, the
+directory relative to the configuration root, needing no credentials. A
+type is a plugin (a model and a kind that renders the location, the backend
+file and a consumer's data source; the S3 plugin's README has the recipe),
+and the collector names no field of any type. The fixture's identity roots
+use `local` and its storage roots a second S3 bucket, so its roots read
+each other's state across types and buckets; the live configuration keeps
+every root on its default S3 backend by the standing decision.
+
 The backend a root uses resolves through a chain (stage 46): its own
 `state_configuration` when it names a backend, else its runtime's, else
 the one backend marked `is_default`. `validate` (and every run, before
@@ -780,7 +790,7 @@ changes skip the bar (nothing in it reads Markdown); say so.
 ### `just build`, `just release`, `just publish`, `just publish-tree`
 
 `just build` packages the system and every workspace member (sdist +
-wheel: thirty files) under `dist/`; no tests. The builds are
+wheel: thirty-two files) under `dist/`; no tests. The builds are
 reproducible -- two builds of one tree are byte-identical -- which is what
 lets CI check a tag against the index instead of uploading it again.
 
@@ -840,10 +850,10 @@ from the environment or, absent that, the index's own name --
 `.envrc` line serves the shell and CI alike -- and never in the Justfile:
 while versions are being deleted and re-cut, an account-scoped TestPyPI
 token; trusted publishing
-(a pending publisher per project name, fifteen registrations) waits until
+(a pending publisher per project name, sixteen registrations) waits until
 the names are stable, and is then the CI job's credential.
 
-The version lives in sixteen places -- fifteen `version =` lines and the
+The version lives in seventeen places -- sixteen `version =` lines and the
 `== <version>` pins between the packages -- and `bump-my-version` is the
 one thing that changes them (`uv version` bumps the lines but never a
 pin, so it is not used). The scheme is `MAJOR.MINOR.PATCH[.devN]`; every
@@ -854,7 +864,7 @@ asserts nothing of the old version is left.
 
 ### Installing a release
 
-The fifteen packages are on the index as `cs-image-system` (the whole
+The sixteen packages are on the index as `cs-image-system` (the whole
 system: no sources, a `==` pin on every package) and
 `cs-image-system-<package>`. TestPyPI does not carry the third-party
 dependencies, so an install from it names PyPI as the extra index (in
@@ -878,7 +888,7 @@ system drives (`tofu`, `packer`, `gcloud`, `ansible-playbook`, docker) are
 not Python packages and are not installed by this; the configuration's
 `cfg/executables.yml` pins where they are. The same install from the
 built files, without an index, is `uv pip install --find-links dist
-cs-image-system==<version>` after `just build`; the fifteen wheels
+cs-image-system==<version>` after `just build`; the sixteen wheels
 installed that way into a fresh virtualenv run `cs-image-system --help`
 and `decrypt`, which is the proof that every package declares what it
 imports.

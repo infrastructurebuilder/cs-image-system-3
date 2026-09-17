@@ -3,8 +3,8 @@
 # run id: 2026_08_26t12_00_00
 # Deferred commands accumulated while generating this lifecycle,
 # in phase order. Paths are relative to this lifecycle's directory.
-# state: workspace oktagroups -> s3://noaa-ioos-cloud-sandbox-tfstate/statefiles/csia-image-system-test/oktagroups.tfstate
-# state: workspace okta-tf-users -> s3://noaa-ioos-cloud-sandbox-tfstate/statefiles/csia-image-system-test/okta_tf_users.tfstate
+# state: workspace oktagroups -> local://state/oktagroups.tfstate
+# state: workspace okta-tf-users -> local://state/okta_tf_users.tfstate
 # NOTE: builders' pre/post finalize hooks are NOT part of this
 # script; a --no-dry-run run performs them in-process.
 set -euo pipefail

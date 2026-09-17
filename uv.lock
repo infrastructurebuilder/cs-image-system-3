@@ -17,6 +17,7 @@ members = [
     "cs-image-system-dummy-plugin",
     "cs-image-system-gcloud-runtime-plugin",
     "cs-image-system-hashicorp-utils",
+    "cs-image-system-local-state-plugin",
     "cs-image-system-okta-opa-plugin",
     "cs-image-system-packer-plugin",
     "cs-image-system-system",
@@ -460,6 +461,7 @@ dependencies = [
     { name = "cs-image-system-dummy-plugin" },
     { name = "cs-image-system-gcloud-runtime-plugin" },
     { name = "cs-image-system-hashicorp-utils" },
+    { name = "cs-image-system-local-state-plugin" },
     { name = "cs-image-system-okta-opa-plugin" },
     { name = "cs-image-system-packer-plugin" },
     { name = "cs-image-system-system" },
@@ -488,6 +490,7 @@ requires-dist = [
     { name = "cs-image-system-dummy-plugin", editable = "packages/dummy-plugin" },
     { name = "cs-image-system-gcloud-runtime-plugin", editable = "packages/gcloud-runtime-plugin" },
     { name = "cs-image-system-hashicorp-utils", editable = "packages/hashicorp-utils" },
+    { name = "cs-image-system-local-state-plugin", editable = "packages/local-state-plugin" },
     { name = "cs-image-system-okta-opa-plugin", editable = "packages/okta-opa-plugin" },
     { name = "cs-image-system-packer-plugin", editable = "packages/packer-plugin" },
     { name = "cs-image-system-system", editable = "packages/system" },
@@ -654,6 +657,23 @@ requires-dist = [
     { name = "cs-image-system-system", editable = "packages/system" },
     { name = "packaging", specifier = ">=26.2" },
     { name = "python-hcl2", specifier = ">=8.1" },
+]
+
+[[package]]
+name = "cs-image-system-local-state-plugin"
+version = "0.1.1.dev1"
+source = { editable = "packages/local-state-plugin" }
+dependencies = [
+    { name = "cs-image-system-hashicorp-utils" },
+    { name = "cs-image-system-system" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cs-image-system-hashicorp-utils", editable = "packages/hashicorp-utils" },
+    { name = "cs-image-system-system", editable = "packages/system" },
+    { name = "pydantic", specifier = ">=2.13" },
 ]
 
 [[package]]

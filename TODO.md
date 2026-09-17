@@ -9,9 +9,9 @@ system must not take itself.
 
 Current stage: **none in progress**.
 
-Open stages and their order: §47, state backends beyond S3, whenever
-convenient; §48 is the open hygiene bundle; §19 and §30 wait on the
-operator's decisions.
+Open stages and their order: §48, the open hygiene bundle, whenever
+convenient; §47 waits on the operator's `gcs` decision; §19 and §30 wait
+on the operator's decisions.
 
 Standing decisions (operator):
 
@@ -224,80 +224,39 @@ plugin 1–2 days. Call it three weeks, done as three branches.
 ## 47. State backends beyond S3
 
 **Why**: an S3 bucket is not the only place terraform state can live, and
-the system currently behaves as though it were. One plugin implements one
-type, and the type-agnostic-looking machinery is S3-shaped underneath:
-`BackendRegistration` carries `bucket`, `region`, `key_prefix`, `encrypt`,
-`use_lockfile` and `profile` as fields; the partial configuration writer
-emits exactly those keys; the `terraform_remote_state` data source writes
-`bucket`, `key`, `region` and `profile`; and a state object's path is
-assumed to be `<key prefix><safe workspace name>.tfstate`. A second type
-cannot be added without changing all four. This stage makes the backend
-contract genuinely type-agnostic and proves it with two more types.
+the system behaved as though it were.
 
-It follows §46, which proves multiple *locations* of one type and whose
-collision rule already keys on the backend type, so the two compose. It
-does **not** contradict the standing decision that all live state stays in
-the S3 backend: that decision is about where the live configuration's
-state lives, and this stage is about what the system can express. No live
-state moves.
+**Done 2026-09-17** (`feature/state-backend-contract`,
+`feature/state-backend-types`): the backend contract is type-agnostic --
+`BackendRegistration` carries name, type, `is_default`, the type's own
+settings and the *kind* that renders a root's `StateLocation`
+(`<type>://<container>/<key>`), its backend file and a consumer's data
+source; the collector names no field of any type; the S3 knowledge lives in
+`tf-s3-state-plugin` as `S3BackendKind` and the emission stayed
+byte-identical through the refactor. `local`, the type that needs nothing,
+is the fifteenth package (`local-state-plugin`): `path` relative to the
+configuration root or absolute, rendered from the root directory's fixed
+depth. The fixture's identity roots bind to `local-dev`, so the golden
+carries two types, two shapes of backend file and reads across types
+(storage and instance roots in S3 reading identity state on disk); a real
+`tofu init` runs against the local backend with an empty environment;
+§46's collision check holds across types (the same name under two types is
+two locations; two roots on one directory collide). The S3 plugin's README
+carries "adding a backend type" as the recipe (a model plus one kind; the
+next type is a day); CONFIGURATION has a section per type and OPERATIONS'
+"Where state lives" covers both. No live state moved.
 
-1. **The backend contract becomes type-agnostic.**
-   1. `BackendRegistration` stops being a record of S3 fields. It carries
-      what every backend has — `name`, `type`, `is_default` — plus the
-      type's own settings as an opaque mapping, and it asks the type for
-      two things: the settings a workspace's partial configuration needs,
-      and the settings a consumer's remote-state data source needs. Those
-      differ: a data source has no `encrypt` or `use_lockfile`.
-   2. The state location of a workspace becomes the type's business too,
-      because `<prefix><name>.tfstate` is an object-store idea. A local
-      backend addresses a path, an azurerm backend a container and a blob.
-      §46's `StateLocation` gains the type as its first element, which it
-      already has in its collision tuple.
-   3. `generate_backend_config` and `generate_remote_state_datasources`
-      stop naming S3 keys and render whatever the type returns.
-   4. The golden must not move for this step: the S3 type renders exactly
-      what it renders today. That is the proof the refactor is faithful.
-2. **The S3 type becomes one implementation among others**, moving its
-   field knowledge out of the collector and into
-   `tf-s3-state-plugin`, where its model already lives.
-3. **`local`, the type that needs nothing.** A state file on disk, with a
-   `path`. It is worth having for its own sake — a developer or a test can
-   run a real `tofu init` with no cloud and no credentials — and it is what
-   lets the fixture exercise two types without inventing a second cloud
-   account. Fields: `path` (a directory), and the workspace's file within
-   it; `workspace_dir` if OpenTofu's convention is wanted.
-4. **`gcs`, the obvious second cloud.** Fields: `bucket`, `prefix`,
-   optional `credentials` (a path, never a value) and `impersonate_service_account`.
-   Declaring the type is not the same as moving the GCE roots onto it: that
-   remains the deferred, very-last-priority decision, and nothing in this
-   stage binds a GCE root to it. **USER** confirms that reading before the
-   type is added, since it is the one place this stage brushes against a
-   standing decision.
-5. **The shape admits more without this stage adding them**: `azurerm`,
-   `http`, `pg`, `kubernetes`, `consul`, `oss`, `cos`. Each is a model plus
-   two renderings once step 1 lands, so the next one is a day rather than a
-   refactor. Record that in the plugin's README as the recipe.
-6. **Proven in the fixture.**
-   1. The fixture declares an S3 backend and a `local` backend, and binds
-      at least one root to the local one, so the golden carries two
-      genuinely different backend types, two differently shaped partial
-      configurations, and a remote-state data source pointing across types.
-   2. A real-tofu test does `init` against the local backend with no
-      credentials at all, which nothing in the suite can do today.
-   3. §46's collision check is exercised across types: the same logical
-      name under two types is not a collision, and two workspaces on one
-      local path are.
-7. **Documentation**: [docs/CONFIGURATION.md](docs/CONFIGURATION.md) gains
-   a section per type with its fields and an example; the state plugin's
-   README gains "adding a backend type" as a recipe;
-   [docs/OPERATIONS.md](docs/OPERATIONS.md)'s "where state lives" covers
-   more than one kind.
-8. **Acceptance**: the golden byte-identical after step 1 and moved once,
-   deliberately, after step 6; a `tofu init` against the local backend with
-   an empty environment; `just cli validate` unchanged on the live tree;
-   the bar green. Feature branches `feature/state-backend-contract` (steps
-   1–2) and `feature/state-backend-types` (steps 3–6), each squash-merged
-   and kept. Three to four days, most of it step 1.
+What remains is the operator's:
+
+1. **USER — `gcs`, the obvious second cloud.** Fields: `bucket`, `prefix`,
+   optional `credentials` (a path, never a value) and
+   `impersonate_service_account`. Declaring the type is not the same as
+   moving the GCE roots onto it: that remains the deferred, very-last-
+   priority decision, and nothing binds a GCE root to it. The operator
+   confirms that reading before the type is added, since it is the one
+   place this stage brushes against a standing decision. With the recipe
+   in place it is a model, a kind and a fixture entry -- a day.
+2. Records by the current convention once 1 is decided (added or declined).
 
 ## 48. Hygiene bundle III: the small things noted during §43
 
