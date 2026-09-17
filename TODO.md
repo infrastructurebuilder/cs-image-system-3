@@ -20,6 +20,11 @@ Standing decisions (operator):
 - The documentation describes what is; no document carries a commit hash;
   a landed stage is recorded by its squash message, not by a ledger or an
   archive entry.
+- A hygiene issue that should be fixed but does not threaten function goes
+  into the open **hygiene bundle** stage as a numbered item, not into a
+  stage of its own and not only into a commit message. If no bundle is
+  open, start one. Work that is large, or that blocks something, still
+  earns its own stage.
 - Publication is done: both repositories are public, each a single commit
   built from a redacted tree, with the pre-publication history private and
   archived. The identifiers (account id, project number, VPC, subnet and
