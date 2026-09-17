@@ -7,10 +7,10 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress**.
+Current stage: **§45 in progress** -- the code is landed; step 3 waits on
+the operator, step 4 is the proof.
 
-Open stages and their order: §45, which makes CI perform rather than only
-record and needs a generation fix first; §41 and §46 whenever convenient
+Open stages and their order: §45 to its proof; §41 and §46 whenever convenient
 (§46 is correctness work on state isolation); §47, state backends beyond
 S3, follows §46; §48 is the open hygiene bundle; §19 and §30 wait on the
 operator's decisions.
@@ -280,32 +280,46 @@ the index is PyPI it follows §40.
 
 ## 45. CI performs on `main`
 
-**Why**: §37 records but does not perform, because generation prunes
-whatever a run does not emit, so only a full run may be committed, and a
+**Why**: §37 records but does not perform, because generation pruned
+whatever a run did not emit, so only a full run could be committed, and a
 full REAL run would bake on every runtime including one CI must never
-write to. Fixing the pruning is what lets CI bake, release and dispose
-under a scope, which is the operator's original "main applies".
+write to. The pruning is fixed and the job is written; what remains is the
+one IAM change the system may not make itself, and the proof.
 
-1. **The prerequisite: a scoped run stops deleting out-of-scope
-   emission.** Generation prunes `generated/` to what the current run
-   emitted. It should prune only within the scope the run was given, so
-   that `run --all --only-runtime aws-east2-runtime` leaves the GCE roots
-   exactly as committed. Decide whether that is a property of generation
-   or of the commit (the run could stage only the paths it emitted), and
-   pin it with a test that a scoped run followed by `--commit` deletes
-   nothing.
-2. **Then the job performs**: `--no-dry-run --commit` under
-   `--only-runtime aws-east2-runtime`, with `AWS_APPLY_ROLE_ARN` and the
-   Okta triple, which already exist. The write role trusts
-   `ref:refs/heads/main` alone and carries the bake's EC2 and image
-   actions plus read/write on this configuration's state prefix, and
-   nothing else.
-3. **The GCE runtime stays out of CI** by the cost decision, so a GCE
-   declaration change must fail the job loudly rather than bake.
-4. **Proof**: a dispatch that performs with nothing to do (every image
-   current) commits an unchanged emission; then one that has something to
-   do, watched, with what it left standing reported.
-5. Records by the convention current when it lands. Feature branch
+1. ~~The prerequisite~~ landed: a run scoped to one runtime prunes only
+   within its scope (`generate_lifecycle` keeps the other runtimes'
+   builder directories), its retention disposes within that runtime alone,
+   and a test pins that a scoped run followed by `--commit` deletes nothing
+   under any builder directory. The runner scripts describe the scoped run
+   and the closing full record in CI restores them.
+2. ~~The job~~ written: `perform` on `main` records (full dry run, pushed),
+   guards the GCE runtime (`just runtime-unchanged gcloud-east1`), performs
+   under the WRITE role (`just cloud-perform aws-east2-runtime`: bakes due,
+   release, retention on that runtime; roots plan and gate only), then
+   records again under the read-only role, even after a failure.
+3. **USER -- the write role learns the Session Manager path.** The emitted
+   AWS sources reach their build instance through Session Manager
+   (`ssh_interface = "session_manager"`, no public IP, instance profile
+   `AmazonSSMRoleForInstancesQuickSetup`), so `csis-github-apply` needs
+   `ssm:StartSession` on instances and the SSH and port-forwarding
+   documents, `ssm:TerminateSession`/`ResumeSession`,
+   `ssm:DescribeInstanceInformation`, and `iam:PassRole` on that instance
+   profile's role (plus `iam:GetInstanceProfile`). The prepared document
+   adds exactly those five statements to `csis-apply-bake-and-state`; the
+   system was refused permission to apply it:
+   `aws --profile noaa iam put-role-policy --role-name csis-github-apply
+   --policy-name csis-apply-bake-and-state --policy-document file://<the
+   prepared apply-policy-45.json>`.
+4. **Proof**, once 3 is done: `main` fast-forwarded to develop (8 commits
+   behind at the time of writing), then the push's `perform` job watched.
+   The AWS runtime has one bake due (`imgfile-basic-dask-two`, its inputs
+   changed in §43), so the first performing run is the "something to do"
+   proof and reports what it left standing (the new AMI and its snapshot);
+   a following dispatch with mode `record` on `main` is the "nothing to
+   do" proof and must commit an emission unchanged but for run ids. Any
+   permission the bake still lacks shows up there, loudly, and is added to
+   the role by the operator.
+5. Records by the current convention. Feature branch
    `feature/ci-perform-on-main`, squash-merged, kept.
 
 ## 46. Multiple state backends, used and proven collision-proof

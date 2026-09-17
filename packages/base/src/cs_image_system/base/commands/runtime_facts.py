@@ -77,7 +77,46 @@ def describe_runtime(runtime: str) -> dict[str, Any]:
     facts["instances"] = sorted(i.get_name() for i in ctx.instances if str(getattr(i, "runtime", "")) == runtime)
     facts["ephemeral_instances"] = sorted(i.get_name() for i in ctx.instances
                                           if str(getattr(i, "runtime", "")) == runtime and getattr(i, "ephemeral", False))
+    facts["builders"] = builders_on_runtime(ctx, runtime)
+    facts["emission"] = emission_dirs(ctx, runtime)
     return facts
+
+
+def builders_on_runtime(ctx: GlobalTypeContext, runtime: str) -> dict[str, list[str]]:
+    """``{"image": [...], "storage": [...], "instance": [...]}`` -- the
+    builders bound to the runtime (stage 45). Each emits under
+    ``generated/<lifecycle>/<builder name>/``, so this is also the map of
+    which emission belongs to the runtime."""
+    families = {"image": ctx.image_builders, "storage": ctx.storage_builders, "instance": ctx.instance_builders}
+    out: dict[str, list[str]] = {}
+    for family, builders in families.items():
+        names: list[str] = []
+        for name, builder in builders.items():
+            model = getattr(builder, "model", None)
+            try:
+                bound = str(model.get_runtime_provider()) if model is not None else None
+            except ValueError:
+                bound = None
+            if bound == runtime:
+                names.append(str(name))
+        out[family] = sorted(names)
+    return out
+
+
+def emission_dirs(ctx: GlobalTypeContext, runtime: str) -> list[str]:
+    """The ``<lifecycle>/<builder>`` directories under ``generated/`` that
+    hold the runtime's emission and exist right now (stage 45): what a run
+    scoped to another runtime leaves untouched, and what the CI job compares
+    across records to know whether the runtime's declarations changed."""
+    from ..lifecycles import all_lifecycles
+    names = {n for family in builders_on_runtime(ctx, runtime).values() for n in family}
+    root = ctx.root_generation_path
+    out: list[str] = []
+    for lc in all_lifecycles():
+        for name in sorted(names):
+            if (root / lc.value / name).is_dir():
+                out.append(f"{lc.value}/{name}")
+    return out
 
 
 def emptiness(runtime: str) -> dict[str, Any]:

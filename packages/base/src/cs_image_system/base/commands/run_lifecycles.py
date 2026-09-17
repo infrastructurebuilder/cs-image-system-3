@@ -160,6 +160,49 @@ def _wipe(path: Path) -> None:
         shutil.rmtree(path)
 
 
+def out_of_scope_builder_dirs(ctx: GlobalTypeContext) -> set[str]:
+    """The builder directories a runtime-scoped run must leave alone: every
+    image, storage and instance builder bound to a runtime OTHER than the
+    scope (stage 45). Empty for an unscoped run. A builder's emission lives
+    under ``generated/<lifecycle>/<builder name>/``."""
+    scope = getattr(ctx, "only_runtime_scope", None)
+    if not scope:
+        return set()
+    out: set[str] = set()
+    for family in (ctx.image_builders, ctx.storage_builders, ctx.instance_builders):
+        for name, builder in family.items():
+            model = getattr(builder, "model", None)
+            try:
+                runtime = str(model.get_runtime_provider()) if model is not None else None
+            except ValueError:
+                runtime = None
+            if runtime and runtime != str(scope):
+                out.add(str(name))
+                getter = getattr(builder, "get_name", None)
+                if callable(getter):
+                    out.add(str(getter()))
+    return out
+
+
+def _wipe_in_scope(ctx: GlobalTypeContext, lc_path: Path) -> list[str]:
+    """Wipe a lifecycle directory within the run's scope (stage 45): an
+    unscoped run wipes it whole, as Q5 says; a run under ``--only-runtime``
+    (explicit, or implied by ``--apply-runtime``) emits nothing for the other
+    runtimes, so their builder directories are kept exactly as they were and
+    a ``--commit`` afterwards deletes nothing. Returns what was kept."""
+    keep = out_of_scope_builder_dirs(ctx)
+    if not keep or not lc_path.is_dir():
+        _wipe(lc_path)
+        return []
+    kept: list[str] = []
+    for entry in sorted(lc_path.iterdir()):
+        if entry.is_dir() and entry.name in keep:
+            kept.append(entry.name)
+            continue
+        _wipe(entry)
+    return kept
+
+
 def validate(ctx: GlobalTypeContext, requested: list[LifecycleLike]) -> list[str]:
     """Shared validation: V1 checks (unique names, executables) + registered
     V2 validators. Touches no generated output."""
@@ -269,7 +312,9 @@ def generate_lifecycle(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> Life
         lc_path = ctx.generation_path
         assert lc_path == ctx.lifecycle_generation_path(lifecycle)
         log.info(f"[{lifecycle.value}] regenerating {lc_path}")
-        _wipe(lc_path)
+        kept = _wipe_in_scope(ctx, lc_path)
+        if kept:
+            log.info(f"[{lifecycle.value}] out of this run's runtime scope, kept as committed: {', '.join(kept)}")
         lc_path.mkdir(parents=True, exist_ok=True)
         _write_gitignore(ctx, lc_path)
         _resolve_for(ctx, lifecycle)

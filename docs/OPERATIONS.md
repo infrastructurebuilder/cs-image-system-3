@@ -799,6 +799,8 @@ needs docker and the live configuration, no cloud credentials.
 | `cloud-describe <rt>` | the configuration's facts about a runtime as JSON | live tree, sessions |
 | `cloud-bake <rt> [yes]` / `gce-bake [yes]` | `run base-image instance-image --only-runtime <rt> --commit`; the storage/instance roots plan and gate only | `cloud-preflight`; real bakes need write credentials |
 | `cloud-cycle <rt> [yes]` / `gce-cycle [yes]` | `run --all --only-runtime <rt> --apply-runtime <rt> --commit`, then `cloud-empty` | `cloud-preflight`; write credentials |
+| `cloud-perform <rt>` | the performing run CI makes on `main`: `--no-dry-run run base-image instance-image release retention --only-runtime <rt> --commit` (bakes due, releases, retention; roots plan and gate only) | `cloud-preflight`; write credentials |
+| `runtime-unchanged <rt> [ref]` | is the runtime's emission (its builders' directories) unchanged since `ref` (default HEAD) in the live configuration, normalised like config-drift? exit 1 with the diff when a declaration of that runtime changed | live tree |
 | `cloud-launch <rt> [yes]` / `gce-launch [yes]` | `run instance-image --only none --apply-runtime <rt> --commit` | `cloud-preflight`; write credentials |
 | `cloud-verify <rt> <instance> [serial\|iap]` / `gce-verify [leg]` | `verify instance <i> --timeout 600`; `iap` adds a `gcloud compute ssh --tunnel-through-iap` probe | live tree, sessions |
 | `cloud-dispose-images <rt> [yes]` / `gce-dispose-images [yes]` | `dispose image --runtime <rt> --all --commit` | live tree; write credentials |
@@ -844,7 +846,8 @@ Runs after `verify` on pushes and the nightly schedule, never on pull
 requests (forks carry no secrets). It reads only: it validates, checks
 drift, queries state and runs the mod tests; it never plans against
 remote state and never applies, because its cloud identities are
-read-only and a plan needs the state bucket. There is no applying job.
+read-only and a plan needs the state bucket. Performing is the `perform`
+job's business, on `main` alone.
 
 | Step | What it does |
 | --- | --- |
@@ -865,42 +868,59 @@ read-only and a plan needs the state bucket. There is no applying job.
 Every step after the gate carries `if: steps.gate.outputs.ready == 'true'`;
 until every secret exists the job prints its skip lines and passes.
 
-### The `record` job
+### The `perform` job
 
-`main` records. A full, unscoped run over the live configuration that
-commits the emission and meta-state into the configuration repository and
-pushes them. It runs after `live`, only when the ref is `main` or the run
-was dispatched by hand, and never twice at once (`concurrency:
-record-live`, which does not cancel a run in flight).
+`main` records, performs on the AWS runtime, and records again. It runs
+after `live`, only when the ref is `main` or the run was dispatched by
+hand, and never twice at once (`concurrency: record-live`, which does not
+cancel a run in flight). A dispatch enumerates unless it asks to record,
+and recording is honoured only on `main`.
 
-It performs nothing, and that is forced by two facts. **Only a full run
-keeps the emission complete**: any `--only` or `--only-runtime` filter
-makes generation partial, and the run's commit stages deletions as readily
-as additions, so a scoped run that commits removes every root out of scope
-(measured: 37 files for a runtime filter, 23 for `--only none`). And a full
-REAL run would bake whatever fingerprint had changed, including on the GCE
-runtime, which no CI job has an identity to write to. So the job that keeps
-the record true carries **no write-capable cloud credential at all**: the
-same read-only AWS role and GCP service account the `live` job uses, plus a
-token that can push the configuration repository.
+The shape follows from three facts. **A record must exist whatever
+happens**, so the first thing the job does on `main` is a full, unscoped
+dry run committed and pushed. **The GCE runtime stays out of CI** by the
+cost decision, so before anything performs the job compares the GCE
+emission the record just wrote with the previous record
+(`just runtime-unchanged gcloud-east1 <previous>`): a declaration change on
+that runtime fails the job loudly rather than bake. **A bake that happened
+must never go unrecorded** (an unrecorded image is foreign drift that
+refuses the next run), so the closing record and its push run even when
+the performing step failed.
+
+The performing step is `just cloud-perform aws-east2-runtime`: a real run
+of `base-image instance-image release retention` under `--only-runtime`,
+committed. It bakes what is due on that runtime, releases the declared
+builds and applies the declared retention there; the instance roots plan
+and gate only, and identity and storage are the record's business. A run
+scoped to one runtime prunes only within its scope (stage 45): the other
+runtime's builder directories -- its roots, blocks and bundles -- stay
+exactly as committed, and its retention command carries `--runtime`. The
+runner scripts describe the scoped run; the closing full record restores
+the complete emission.
 
 | Step | What it does |
 | --- | --- |
 | Gate on the record secrets and decide the mode | the same rule as `live` (none configured skips and says so in the job summary; a partial set fails by name); sets `record=true` only for a push to `main` or a dispatch on `main` asking for it, and there every secret plus the push token is required -- a missing or empty one is a failure, never a green job that did nothing |
-| the two checkouts, the federated credentials, the `[noaa]` shim, the tools | exactly as `live` does them; the configuration checkout carries the push credential, because `actions/checkout` persists a header that would override a token in a push URL |
+| the two checkouts, the READ-ONLY federated credentials, the `[noaa]` shim, the tools | exactly as `live` does them; the configuration checkout carries the push credential, because `actions/checkout` persists a header that would override a token in a push URL |
+| Install what a bake needs on the runner | when recording: the Session Manager plugin (the emitted AWS sources reach their build instance through Session Manager, with no public IP) and `ansible-core` for the ansible provisioner, placed where `cfg/executables.yml` pins them |
 | Name the committer for the record | a runner has no git identity, and the RUN commits: without one `git commit` exits 128 after all the work is done. The bot identity keeps a person's address out of the configuration repository's history |
-| Prove write access to the configuration repository | `git push --dry-run`, before the record is written, so a bad token stops the job early |
+| Prove write access to the configuration repository | `git push --dry-run`, before the record is written, so a bad token stops the job early; remembers the configuration's HEAD as `before` for the GCE guard |
 | `just cli run --all --commit` | the full run, recorded: generation across every lifecycle and runtime, then the commit of meta-state and emission |
 | `just cli run --all` | in dry mode instead: the same full run, committing nothing |
-| Push what the run committed | the run commits, the job pushes (`HEAD:develop`); a non-fast-forward fails the job, and nothing is ever forced |
+| Push the record | the run commits, the job pushes (`HEAD:develop`); a non-fast-forward fails the job, and nothing is ever forced |
+| `just runtime-unchanged gcloud-east1 <before>` | the GCE guard: the runtime's emission directories in the record, normalised like config-drift, against the previous record; a change fails the job here |
+| Federated AWS credentials, the WRITE role | `AWS_APPLY_ROLE_ARN`: trusts `main` alone; the bake's EC2 and image actions, Session Manager (`ssm:StartSession` on instances and the SSH and port-forwarding documents, `iam:PassRole` for the SSM instance profile), read/write on this configuration's state prefix; the `[noaa]` shim is rewritten with it |
+| `just cloud-perform aws-east2-runtime` | the performing run: bakes due on the AWS runtime, releases, retention; commits its meta-state |
+| Push what the performing run committed | `always()`: pushed even when the step failed |
+| Federated AWS credentials, the read-only role again | `always()`: the closing record and the state query read with the read-only role, which alone carries the bucket metadata reads |
+| `just cli run --all --commit` | `always()`: the full run, recorded again -- the complete emission after the scoped run, and the bake's lineage |
+| Push the closing record | `always()` |
 | `just cloud-preflight` | the post-condition: reality matches the records |
 
-**Cost.** No CI run can leave a billable resource standing on either
-cloud, because no job holds a credential that could create one.
-
-**Performing on `main`** — bakes, releases and disposals from CI — is a
-later stage. It needs generation to stop pruning out-of-scope emission
-first, so that a scoped run can be committed safely.
+**Cost.** The performing step can leave AWS resources standing: the AMI
+and snapshot of a bake, and what a release keeps. Retention disposes what
+the declarations no longer keep, on that runtime alone. No CI job holds a
+credential that can create anything on GCP.
 
 ### The `[noaa]` profile shim
 
@@ -920,8 +940,9 @@ credentials for the named profile.
 | `OKTA_API_PRIVATE_KEY` | the load's check that the okta provider can authenticate (`okta_tf_workspace.py`) | live |
 | `TF_VAR_NOS_KEY` → exported as `TF_VAR_nos_coastal_modeling_cloud_sandbox_key` | the load's `_require_tfvar` assertion; the OPA API for gids and the state query (`opa_gids.py`) | live |
 | `TF_VAR_NOS_SECRET` → exported as `TF_VAR_nos_coastal_modeling_cloud_sandbox_secret` | the same two places | live |
-| `CSIS_CONFIG_IDENTITY` | the configuration load, to decrypt `ENC[age:…]` values; the CI age identity | live, record |
-| `CSIS_CONFIG_PUSH_TOKEN` | the configuration checkout and the push of what the run committed: a fine-grained token with contents:write on the configuration repository and nothing else | record |
+| `CSIS_CONFIG_IDENTITY` | the configuration load, to decrypt `ENC[age:…]` values; the CI age identity | live, perform |
+| `CSIS_CONFIG_PUSH_TOKEN` | the configuration checkout and the push of what the run committed: a fine-grained token with contents:write on the configuration repository and nothing else | perform |
+| `AWS_APPLY_ROLE_ARN` | the federated-credentials action for the performing step alone: the WRITE role, trusting `main` alone | perform |
 
 The gate cannot tell a missing secret from an empty one (both read as
 `''`), so it decides on the set: with none configured the job skips and
@@ -930,11 +951,10 @@ is named and the job fails. Three green `live` runs once ran nothing
 because `OKTA_API_PRIVATE_KEY` had been set to the empty string from a
 checkout missing the file it was read from; a job's conclusion is never
 proof that its steps ran. The `verify` job reads none of them. The
-`record` job reads the same set plus the push token when recording. Two
-secrets exist for the later performing stage and are read by nothing today:
-`AWS_APPLY_ROLE_ARN` (a write-capable role trusting `main` alone) and the
-`OKTA_API_CLIENT_ID` / `OKTA_API_PRIVATE_KEY_ID` / `OKTA_API_SCOPES` triple
-the terraform okta provider needs to plan the identity roots.
+`perform` job reads the same set plus the push token and the write role
+when recording. The `OKTA_API_CLIENT_ID` / `OKTA_API_PRIVATE_KEY_ID` /
+`OKTA_API_SCOPES` triple exists and is read by nothing: the terraform okta
+provider would need it to plan the identity roots, which no CI run does.
 
 ## 4. The operator's cycles
 

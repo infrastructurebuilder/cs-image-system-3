@@ -277,17 +277,8 @@ config-drift: config-guard
 	fi
 	uv run cs-image-system --root-dir "$work/cs-image-system-testconfig" run --all >"$work/run.log" 2>&1 \
 		|| { echo "config-drift: the dry run FAILED (see $work/run.log excerpt):"; tail -20 "$work/run.log"; trap - EXIT; exit 2; }
-	# normalise what legitimately differs between any two runs of the same configuration
-	normalise() {
-		# tool residue, the run-local files, and temp_assets (staging directories, empty in git)
-		find "$1" \( -name .terraform -o -name .terraform.lock.hcl -o -name tfplan -o -name temp_assets -o -path '*/generated/release/release' -o -path '*/generated/retention/retention' -o -name run-summary.json -o -name state-report.json \) -prune -exec rm -rf {} + 2>/dev/null
-		# run ids and the run's date stamp in image names (the configured `dateformat`, %Y%m%d_%H%M%S, or the
-		# hyphenated form; an image that is DUE for a bake carries the run's stamp, so the stamp differs between
-		# any two runs until it is baked). Nothing else legitimately differs: since stage 38
-		# the emission names no absolute path (the run scripts reach the root through $CSIS_ROOT), so a
-		# machine's path appearing here IS drift
-		find "$1" -type f -exec perl -pi -e 's/[0-9]{4}_[0-9]{2}_[0-9]{2}t[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{6}/<RUN>/g; s/[0-9]{8}[-_][0-9]{6}/<STAMP>/g' {} +
-	}
+	# normalise what legitimately differs between any two runs of the same configuration (scripts/normalise-emission)
+	normalise() { scripts/normalise-emission "$1"; }
 	normalise "$work/committed/generated"
 	normalise "$work/cs-image-system-testconfig/generated"
 	if diff -r "$work/committed/generated" "$work/cs-image-system-testconfig/generated" >"$work/drift.diff"; then
@@ -295,6 +286,35 @@ config-drift: config-guard
 	else
 		echo "config-drift: the committed emission is BEHIND the configuration ($(grep -c '^diff \|^Only in' "$work/drift.diff") files):"
 		head -120 "$work/drift.diff"
+		exit 1
+	fi
+
+# Has a runtime's emission changed since REF in the live configuration? The runtime's builder
+# directories (`runtime describe` -> emission) in the working tree, normalised like config-drift,
+# against the same paths at REF (default HEAD). Exit 0 when unchanged, 1 with the diff when a
+# declaration of that runtime changed. CI's performing job asks this of the GCE runtime, which
+# stays out of CI by the cost decision: a change there fails the job loudly rather than bake.
+runtime-unchanged runtime ref="HEAD": config-guard
+	#!/usr/bin/env bash
+	set -uo pipefail
+	live="{{config_root}}"
+	work=$(mktemp -d "${TMPDIR:-/tmp}/csis-runtime-unchanged.XXXXXX")
+	trap 'rm -rf "$work"' EXIT
+	dirs=$(uv run cs-image-system --root-dir "$live" runtime describe {{runtime}} 2>/dev/null | uv run python -c 'import json,sys; print("\n".join(json.load(sys.stdin)["emission"]))') \
+		|| { echo "runtime-unchanged: could not read the emission directories of {{runtime}} (runtime describe)"; exit 2; }
+	[ -n "$dirs" ] || { echo "runtime-unchanged: {{runtime}} has no emission directories under $live/generated"; exit 0; }
+	mkdir -p "$work/now" "$work/ref"
+	for d in $dirs; do
+		mkdir -p "$work/now/$(dirname "$d")" "$work/ref/$(dirname "$d")"
+		[ -d "$live/generated/$d" ] && cp -R "$live/generated/$d" "$work/now/$d"
+		git -C "$live" archive "{{ref}}" "generated/$d" 2>/dev/null | tar -xf - -C "$work/ref" --strip-components=1 || true
+	done
+	scripts/normalise-emission "$work/now"; scripts/normalise-emission "$work/ref"
+	if diff -r "$work/ref" "$work/now" >"$work/diff"; then
+		echo "runtime-unchanged: the emission of {{runtime}} is unchanged since {{ref}} ($(echo "$dirs" | tr '\n' ' '))"
+	else
+		echo "runtime-unchanged: the emission of {{runtime}} CHANGED since {{ref}} ($(grep -c '^diff \|^Only in' "$work/diff") files):"
+		head -80 "$work/diff"
 		exit 1
 	fi
 
@@ -358,6 +378,13 @@ cloud-describe runtime: config-guard
 # Bake only what changed on the runtime (convergent bakes, stage 9); the storage/instance roots plan and gate only
 cloud-bake runtime dry="no": cloud-preflight
 	@scripts/with-tofu-lock {{gce_cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run base-image instance-image --only-runtime {{runtime}} --commit
+
+# The performing run of a runtime (stage 45, what CI does on `main` for the AWS runtime): the bakes
+# that are due, the declared releases and the declared retention, all on this runtime alone; the
+# instance roots plan and gate only, and identity and storage are the record's business. The other
+# runtimes' emission is kept exactly as committed (a scoped run prunes only within its scope).
+cloud-perform runtime: cloud-preflight
+	@scripts/with-tofu-lock {{gce_cli}} --no-dry-run run base-image instance-image release retention --only-runtime {{runtime}} --commit
 
 # The whole cycle as ONE run of every lifecycle (stage 10.8), scoped and applied to the runtime: storages
 # converge, the bakes that changed run, ephemeral instances launch/verify/tear down, retention disposes

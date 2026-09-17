@@ -213,25 +213,28 @@ jobs:
           CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY }}
         run: just test-mods --strict
 
-  record:
-    # `main` records. A FULL, unscoped run that commits the emission and
-    # meta-state into the configuration repository, and pushes them.
+  perform:
+    # `main` records, then PERFORMS on the AWS runtime, then records again.
     #
-    # It performs nothing: no bake, no apply. Two facts force that. Only a full
-    # run keeps the emission complete -- any `--only` filter makes generation
-    # partial and the commit then stages the deletion of everything out of scope
-    # (a scoped run drops 23 to 37 committed files). And a full REAL run would
-    # bake whatever fingerprint changed, including on the GCE runtime, which this
-    # job has no identity to write to. So the job that keeps the record true
-    # carries no write-capable credential at all: the same READ-ONLY AWS role and
-    # GCP service account the live job uses, plus a token that can push the
-    # configuration repository. Performing on `main` is a later stage, and needs
-    # generation to stop pruning out-of-scope emission first.
+    # First a FULL dry run commits the complete emission and meta-state and
+    # pushes them: the record exists whatever happens next. Then the GCE
+    # runtime's emission is compared with the previous record -- GCE stays out
+    # of CI by the cost decision, so a declaration change there fails the job
+    # loudly rather than bake. Then, under the WRITE role (which trusts `main`
+    # alone and carries the bake's EC2 and image actions, Session Manager for
+    # the bake's SSH, and read/write on this configuration's state prefix),
+    # `just cloud-perform aws-east2-runtime` bakes what is due on that runtime,
+    # releases and applies retention there, and commits its meta-state; a scoped
+    # run prunes only within its scope (stage 45), so the other runtime's roots
+    # stay exactly as committed. A closing full dry run, under the read-only role
+    # again, restores the complete emission and records the bake's lineage; it
+    # and its push run even when the performing step failed, so a bake that
+    # happened is never left unrecorded (an unrecorded image is foreign drift).
     needs: live
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     concurrency:
-      group: record-live          # two merges never write one record at once
+      group: record-live          # two merges never record or perform at once
       cancel-in-progress: false   # a record in flight is never cancelled
     permissions:
       id-token: write             # OIDC federation for the read-only cloud roles
@@ -358,6 +361,18 @@ jobs:
         working-directory: cs-image-system-3
         run: just init
 
+      - name: Install what a bake needs on the runner (Session Manager plugin, ansible)
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
+        # the emitted AWS sources reach their build instance through Session
+        # Manager (no public IP), which packer drives through this plugin; the
+        # ansible provisioner runs ansible-playbook on the runner
+        run: |
+          curl -fsSL "https://s3.amazonaws.com/session-manager-downloads/session-manager-plugin/latest/ubuntu_64bit/session-manager-plugin.deb" -o /tmp/session-manager-plugin.deb
+          sudo dpkg -i /tmp/session-manager-plugin.deb
+          uv tool install ansible-core
+          sudo ln -sf "$HOME/.local/bin/ansible-playbook" /usr/local/bin/ansible-playbook
+          session-manager-plugin --version && ansible-playbook --version | head -1
+
       - name: Name the committer for the record
         if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
         working-directory: cs-image-system-testconfig
@@ -374,7 +389,10 @@ jobs:
         working-directory: cs-image-system-testconfig
         # Fail fast: a push credential that is missing, empty or under-scoped must
         # stop the job before the record is written, not after.
-        run: git push --dry-run origin HEAD:develop
+        run: |
+          git push --dry-run origin HEAD:develop
+          echo "before=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        id: proof
 
       - name: The full run, recorded
         if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
@@ -398,11 +416,87 @@ jobs:
           CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY }}
         run: just cli run --all
 
-      - name: Push what the run committed
+      - name: Push the record
         if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
         working-directory: cs-image-system-testconfig
         # the run commits; this job pushes. A non-fast-forward means a person
         # committed while the run was in flight: fail loudly, never force.
+        run: |
+          git log --oneline -1
+          git push origin HEAD:develop
+
+      - name: The GCE runtime stays out of CI, so a change there fails loudly
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
+        working-directory: cs-image-system-3
+        # the GCE emission the record just wrote, against the previous record:
+        # a declaration change on the runtime CI must never bake on is a
+        # failure here, before anything performs (the record is already pushed)
+        run: just runtime-unchanged gcloud-east1 "${{ steps.proof.outputs.before }}"
+
+      - name: Federated AWS credentials, the WRITE role
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
+        # trusts `main` alone; the bake's EC2 and image actions, Session Manager
+        # for the bake's SSH, read/write on this configuration's state prefix
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_APPLY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Name the write credentials as the configuration's profile
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
+        run: |
+          printf '[noaa]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n' \
+            "$AWS_ACCESS_KEY_ID" "$AWS_SECRET_ACCESS_KEY" "$AWS_SESSION_TOKEN" > ~/.aws/credentials
+          chmod 600 ~/.aws/credentials
+
+      - name: The AWS runtime performs
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
+        working-directory: cs-image-system-3
+        env:
+          OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_key: ${{ secrets.TF_VAR_NOS_KEY }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_secret: ${{ secrets.TF_VAR_NOS_SECRET }}
+          CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY }}
+        # bakes what is due on this runtime, releases, applies retention; the
+        # instance roots plan and gate only; commits its meta-state
+        run: just cloud-perform aws-east2-runtime
+
+      - name: Push what the performing run committed
+        if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
+        working-directory: cs-image-system-testconfig
+        run: |
+          git log --oneline -1
+          git push origin HEAD:develop
+
+      - name: Federated AWS credentials, the read-only role again
+        if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Name the read-only credentials as the configuration's profile again
+        if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
+        run: |
+          printf '[noaa]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n' \
+            "$AWS_ACCESS_KEY_ID" "$AWS_SECRET_ACCESS_KEY" "$AWS_SESSION_TOKEN" > ~/.aws/credentials
+          chmod 600 ~/.aws/credentials
+
+      - name: The full run, recorded again
+        if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
+        working-directory: cs-image-system-3
+        env:
+          OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_key: ${{ secrets.TF_VAR_NOS_KEY }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_secret: ${{ secrets.TF_VAR_NOS_SECRET }}
+          CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY }}
+        # the complete emission after the scoped run, and the bake's lineage:
+        # runs even when the performing step failed, so nothing baked goes unrecorded
+        run: just cli run --all --commit
+
+      - name: Push the closing record
+        if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
+        working-directory: cs-image-system-testconfig
         run: |
           git log --oneline -1
           git push origin HEAD:develop
