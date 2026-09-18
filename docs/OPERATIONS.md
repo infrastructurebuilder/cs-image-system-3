@@ -1200,14 +1200,20 @@ just cli run --all --no-dry-run --commit
 A value anywhere in the tree may be committed as
 `ENC[age:<base64 of a standard age-encryption.org/v1 file>]`, encrypted to
 every recipient in `cfg/_config.yml` `encryption.recipients` (age X25519
-public keys, one per holder: a person or CI). A field declared
-`EncryptedStr` decrypts at load with the identity in
-`CSIS_CONFIG_IDENTITY` and refuses at load, naming the variable, when none
-is set; an unmarked value passes through. Encryption is element-level (a
-roster entry by entry: `members:`/`admins:` on groups; `name`,
-`first_name`, `last_name`, `email` on users; the Okta workspace's
-`key`/`secret`), so a diff shows which entry changed and one entry can be
-rotated alone. A decrypted value is a `str` with a repr that hides it.
+public keys, one per holder: a person or CI). **Any value decrypts at load**
+(stage 49) with the identity in `CSIS_CONFIG_IDENTITY`, and a marked value
+with no identity refuses at load, naming both the variable and the value's
+path; an unmarked value passes through. Encryption is element-level, so a
+roster is encrypted entry by entry, a diff shows which entry changed, and one
+entry rotates alone. A decrypted value is a `str` with a repr that hides it.
+
+A marker may not be a mapping **key**, may not be **embedded** in a longer
+string (only a whole value decrypts), and may not stand at the keys read
+before the configuration loads — `encryption.recipients`,
+`public_safe.allow`, a runtime builder's `name`/`type`/`profile`/
+`credentials.profile_name`, `config.preflight.*`, `config.apply_*`, and any
+declaration's `name`/`type`. Each is a named refusal, and the check itself
+needs no identity.
 
 Tools (no configuration load, no identity needed except to decrypt):
 
@@ -1221,6 +1227,9 @@ Tools (no configuration load, no identity needed except to decrypt):
   the CURRENT recipients after one is added or removed; nothing is
   written unless every value opens; a removed identity can no longer open
   the tree;
+- `just cli materialize <dir>` writes the private mirror of a generated root
+  and prints where — what every deferred command runs through, and what to
+  read when debugging emitted code that carries ciphertext;
 - [bin/gen_age.sh](../bin/gen_age.sh), [bin/crypt_age.sh](../bin/crypt_age.sh),
   [bin/rotate_age.sh](../bin/rotate_age.sh) do the same in the `age` CLI's
   format.
@@ -1231,20 +1240,40 @@ Identities are never committed. Operators keep theirs under
 operators' identities and CI's. The frozen fixture ships its own TEST
 identity so the suite needs nothing from the environment.
 
-**In the emission.** A declared-encrypted value never reaches `generated/`
-in clear: the emitted HCL carries the SAME `ENC[age:…]` ciphertext in one
-`data "external" "sensitive"` block per terraform root, whose program is
+**In the emission, and at execution.** A decrypted value never reaches
+`generated/` in clear. The emitted artifact — packer and terraform alike —
+carries the SAME `ENC[age:…]` ciphertext the configuration carries, because
+age is randomised and re-encrypting would move every emitted byte on every
+run. Before a deferred command runs, `cs-image-system materialize` copies its
+root to `_private/<the same relative path>` under the configuration root with
+every marker replaced by its plaintext, and the command runs there:
+
+- the mirror is **never committed** — refused by path as a whole subtree,
+  named in the emitted `.gitignore`, skipped by the scanner, and excluded from
+  the run's `git add` by pathspec;
+- it is **incremental**: a root is materialised again before each of its
+  commands, so `.terraform/` and the `tfplan` that `plan` wrote survive for
+  `apply`;
+- the only thing that ever travels back out is the provider lock file, which
+  `init` writes where it runs and which the emission must carry; a plan, a
+  state file and packer's manifest hold plaintext and stay in the mirror;
+- it is left in place after a local run, so the operator can read what
+  actually ran. CI removes it in a step of its own that runs even when the
+  build failed.
+
+Terraform's older by-reference path still stands for the okta roots: one
+`data "external" "sensitive"` block per root, program
 `cs-image-system decrypt --json`, wrapped as `local.sensitive[...]` with
-`sensitive()`; user lookups read `local.sensitive["email_<user>"]`, a
-declared-encrypted workspace credential reaches its provider block the
-same way, and the root requires `hashicorp/external`. The committed
-emission is readable by anyone and decryptable only by a recipient; a
-rotation is `reencrypt` plus regeneration; plans and state, which hold
-the plaintext, are never committed. The rule is "no declared-encrypted
-value other than a username in clear", not "no address": an email
-DERIVED from `default_user_email_template` is public by construction and
-is emitted in plaintext by decision; declare `email:` encrypted for any
-address that must not be.
+`sensitive()`.
+
+**The guard does not guess.** The system knows every plaintext it opened, so
+`validate` and every commit search `generated/` and `meta-state/` for those
+exact strings (whole tokens, three characters or more) and refuse naming the
+file and line. The shape rules remain the backstop for material that was never
+a marker. A rotation is `reencrypt` plus regeneration. A value DERIVED from a
+decrypted one — an email from `default_user_email_template` — has no
+ciphertext of its own and is emitted in clear by construction; declare the
+value itself encrypted for any address that must not be.
 
 ### `just cloud-preflight`
 

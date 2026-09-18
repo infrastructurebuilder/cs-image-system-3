@@ -301,20 +301,75 @@ EXEMPT_PATHS: tuple[str, ...] = (
 EXEMPT_ENTRY_KEYS: frozenset[str] = frozenset({"name", "type"})
 
 
-#: Every plaintext this process has opened from a marker. The system knows it
-#: by construction -- it did the decrypting -- so the emission guard can search
-#: the committed output for those exact strings instead of guessing at shapes,
-#: and CI can mask exactly them. Run-scoped; never written anywhere.
-_PLAINTEXTS: set[str] = set()
+#: Every marker this process has opened, and what it opened to. The system
+#: knows this by construction -- it did the decrypting -- so the emission guard
+#: can search the committed output for those exact plaintexts instead of
+#: guessing at shapes, CI can mask exactly them, and :func:`substitute_markers`
+#: can materialise an emission without decrypting a second time. Run-scoped;
+#: never written anywhere.
+_OPENED: dict[str, str] = {}
+
+#: plaintext -> the configuration keys it was read under. A value is exempt
+#: from the emission guard only when EVERY key it ever appeared under is
+#: public by decision, so a name that is also declared as an email is not.
+_OPENED_KEYS: dict[str, set[str]] = {}
+
+#: Public by decision since stage 34: "no declared-encrypted value other than a
+#: USERNAME in clear". A username is emitted as a quoted literal in the okta
+#: group module call and stands in the identity read-model, because it is the
+#: join key between a roster and an access grant. Every other decrypted value
+#: is refused in the emission.
+PUBLIC_BY_DECISION_KEYS: frozenset[str] = frozenset({"name", "members", "admins"})
 
 
-def decrypted_plaintexts() -> set[str]:
-    """The run's plaintext set (the live object: the walk adds to it)."""
-    return _PLAINTEXTS
+def decrypted_plaintexts(include_public_by_decision: bool = False) -> set[str]:
+    """The run's plaintext set -- what must not appear in a committed file.
+
+    Values read ONLY under :data:`PUBLIC_BY_DECISION_KEYS` are left out: a
+    username is emitted in clear by the stage-34 decision. Pass
+    ``include_public_by_decision`` for the masking pass, where hiding a
+    username from a log costs nothing."""
+    if include_public_by_decision:
+        return set(_OPENED.values())
+    return {plain for plain in _OPENED.values()
+            if not (_OPENED_KEYS.get(plain, set()) <= PUBLIC_BY_DECISION_KEYS)}
+
+
+def opened_markers() -> dict[str, str]:
+    """Marker -> plaintext, for everything opened so far."""
+    return dict(_OPENED)
 
 
 def reset_decrypted_plaintexts() -> None:
-    _PLAINTEXTS.clear()
+    _OPENED.clear()
+    _OPENED_KEYS.clear()
+
+
+def substitute_markers(text: str, identities: Iterable | None = None) -> str:
+    """``text`` with every embedded marker replaced by its plaintext.
+
+    This is what turns a committed emission into the private copy the tools
+    run from, and what the lineage fingerprint hashes so a rotation -- which
+    mints new ciphertext for the same plaintext -- does not move it. Markers
+    already opened come from the map; any other is decrypted here."""
+    def _sub(m: re.Match) -> str:
+        marker = m.group(0)
+        plain = _OPENED.get(marker)
+        if plain is None:
+            plain = decrypt_marker(marker, identities)
+            _OPENED[marker] = plain
+        return plain
+
+    return INLINE_MARKER_RE.sub(_sub, text)
+
+
+def like(original: Any, text: str) -> Any:
+    """``text``, carrying ``original``'s ciphertext if it had one.
+
+    For the places that reshape a value -- a strip, a case fold -- and would
+    otherwise hand back a plain ``str`` and lose the marker."""
+    marker = getattr(original, "marker", None)
+    return Decrypted(text, marker=marker) if marker else text
 
 
 def emit(value: Any) -> Any:
@@ -374,6 +429,10 @@ def refuse_markers_at(doc: Any, source: str) -> None:
         elif isinstance(node, list):
             for idx, item in enumerate(node):
                 here = path + (idx,)
+                if is_marker(item) and _exempt_pattern(here) in EXEMPT_PATHS:
+                    raise ValueError(
+                        f"{source}: {_path_str(here)}: this value may not be encrypted -- it is read "
+                        f"before the configuration loads, with no identity available")
                 # a top-level list is a list of DECLARATIONS: its entries' name/type are keys
                 depth = len(here) + 1 if len(path) == 1 else entry_depth
                 walk(item, here, depth)
@@ -434,6 +493,9 @@ def decrypt_tree(data: Any, source: str = "<configuration>",
                     raise MissingIdentityError(f"{source}: {_path_str(path)}: {exc}") from exc
                 except ValueError as exc:
                     raise ValueError(f"{source}: {_path_str(path)}: {exc}") from exc
+                _OPENED[text] = plain
+                key = next((p for p in reversed(path) if isinstance(p, str)), "")
+                _OPENED_KEYS.setdefault(plain, set()).add(key)
                 if collect is not None:
                     collect.add(plain)
                 return Decrypted(plain, marker=text)

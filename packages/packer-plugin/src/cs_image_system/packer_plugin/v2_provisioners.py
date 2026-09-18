@@ -31,6 +31,8 @@ if TYPE_CHECKING:
     from cs_image_system.base.models.base_image import BaseImage
     from cs_image_system.base.models.image import Image
 
+from cs_image_system.base.encryption import emit
+
 log = logging.getLogger(__name__)
 
 
@@ -73,7 +75,10 @@ def admin_user_commands(user: str, keys: list[str]) -> list[str]:
         f"sudo rm -f /home/{user}/.ssh/authorized_keys",
     ]
     for key in keys:
-        cmds.append(f"echo '{key}' | sudo tee -a /home/{user}/.ssh/authorized_keys >/dev/null")
+        # stage 49: emit() writes the ENC[age:...] the key was read from, when
+        # it was encrypted; materialize substitutes the key into the private
+        # copy packer actually builds from, so the committed HCL has no key.
+        cmds.append(f"echo '{emit(key)}' | sudo tee -a /home/{user}/.ssh/authorized_keys >/dev/null")
     cmds += [
         f"sudo touch /home/{user}/.ssh/authorized_keys && sudo chmod 0600 /home/{user}/.ssh/authorized_keys",
         f"sudo chown -R {user}:{user} /home/{user}/.ssh",

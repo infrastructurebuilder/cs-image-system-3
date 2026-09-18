@@ -36,8 +36,10 @@ from typing import Any
 import yaml
 
 from .constants import RUN_LOCAL_FILENAMES
-from .public_safe import (REFUSED_PATHS, PublicSafeError, allow_from_config, assert_public_safe,  # noqa: F401
-                          config_for, refused_path, scan_file)
+from .encryption import decrypted_plaintexts
+from .public_safe import (PRIVATE_DIRNAME, REFUSED_PATHS, PublicSafeError,  # noqa: F401
+                          allow_from_config, assert_public_safe,
+                          config_for, refused_path, scan_file, scan_for_plaintexts)
 
 log = logging.getLogger(__name__)
 
@@ -69,7 +71,10 @@ def _never_staged_pathspecs() -> list[str]:
     """git pathspecs excluding REFUSED_PATHS names at any depth, appended to
     the run's ``add`` and ``commit`` so those files are never picked up --
     not even one the operator had staged by hand under the same trees."""
-    return [f":(exclude,glob)**/{pat}" for pat in REFUSED_PATHS]
+    return ([f":(exclude,glob)**/{pat}" for pat in REFUSED_PATHS]
+            # stage 49: the private mirror, as a whole subtree -- it holds the
+            # plaintext of everything the emission carries as ciphertext
+            + [f":(exclude,glob){PRIVATE_DIRNAME}/**", f":(exclude,glob)**/{PRIVATE_DIRNAME}/**"])
 
 
 def _run_local_exclude_pathspecs() -> list[str]:
@@ -525,6 +530,10 @@ def _commit_staged(top: Path, existing: list[str], run_id: str, lifecycles: list
     # refuses the whole commit and the run never records a secret
     allow = allow_from_config(config_for(config_root))
     findings = [f for rel in adds if not never_staged(rel) for f in scan_file(top, rel, allow)]
+    # stage 49: and the primary guard -- no value this run DECRYPTED may stand
+    # in clear in what is about to be committed. The system opened those
+    # markers, so this does not guess at shapes the way the rules must.
+    findings += scan_for_plaintexts(Path(config_root), decrypted_plaintexts())
     if findings:
         raise PublicSafeError(findings, "the run's meta-state commit")
     pathspecs = [*existing, *_never_staged_pathspecs()]

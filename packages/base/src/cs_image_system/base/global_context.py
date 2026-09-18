@@ -41,6 +41,7 @@ from . import registry
 from .utils import super_safe_name
 from .template_utils import cycle_main_yaml, read_and_preprocess_yaml_files
 from .encryption import decrypt_tree, decrypted_plaintexts, refuse_markers_at
+from .materialize import materialize, mirror_path, sync_back
 
 log = logging.getLogger(__name__)
 
@@ -533,6 +534,8 @@ class GlobalTypeContext:
                         f"in {executable.working_directory if executable.working_directory else 'current working directory'}"
                     )
                     os.chdir(self.generation_path)
+                    executable = materialized_for(getattr(self, "working_path", None),
+                                                  self.generation_path, executable)
                     try:
                         res = executable.execute(skips=False)
                     except Exception as e:
@@ -726,6 +729,35 @@ class GlobalTypeContext:
 ROOT_VARIABLE = "CSIS_ROOT"     # the runner scripts' name for the configuration root (stage 38)
 
 
+def materialized_for(root: Path | None, generation_path: Any, executable: Any) -> Any:
+    """``executable`` pointed at the private mirror of its directory (stage 49).
+
+    The committed emission carries the ``ENC[age:...]`` ciphertext; the tools
+    cannot read that, so the root is copied to ``_private/`` with the plaintext
+    substituted and the command runs there. An executable with no working
+    directory, a directory that does not exist, or no configuration root to
+    mirror under, is returned untouched."""
+    wd = getattr(executable, "working_directory", None)
+    if not wd or root is None:
+        return executable
+    src = (Path(generation_path) / wd).resolve()
+    if not src.is_dir():
+        return executable
+    dst = mirror_path(Path(root), src)
+    # on the way IN: bring back what the PREVIOUS command in this root wrote
+    # and the emission must carry -- the provider lock file `init` writes. A
+    # root's commands run in sequence (init, plan, apply), so the lock reaches
+    # the committed tree at the next command's materialize.
+    for name in sync_back(src, dst):
+        log.info("Synced back from the private mirror: %s", name)
+    written, substituted = materialize(src, dst)
+    log.info("Materialized %s -> %s (%d file(s), %d carrying ciphertext)",
+             src.name, dst, written, substituted)
+    moved = executable.model_copy() if hasattr(executable, "model_copy") else copy.copy(executable)
+    moved.working_directory = dst
+    return moved
+
+
 def render_executable_line(executable: Any, base: Path | None = None, root: Path | None = None) -> str:
     """One reviewable shell line for a deferred executable. A working
     directory under ``base`` (the lifecycle's directory) is rendered
@@ -757,6 +789,14 @@ def render_executable_line(executable: Any, base: Path | None = None, root: Path
                 wd = Path(wd).resolve().relative_to(Path(base).resolve())
             except ValueError:
                 pass
+        # stage 49: the committed emission carries the ENC[age:...] ciphertext,
+        # so the command runs in the PRIVATE MIRROR of its root. Entering the
+        # emitted root first keeps the line saying which root it is (and keeps
+        # the directory the first quoted token), then `materialize` writes the
+        # mirror, prints where, and the command runs there.
+        if root is not None:
+            return (f'( cd "{wd}" && cd "$(cs-image-system materialize . '
+                    f'--root-dir "${ROOT_VARIABLE}")" && {cmd} )')
         return f'( cd "{wd}" && {cmd} )'
     return cmd
 

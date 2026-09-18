@@ -858,12 +858,14 @@ operator-local environment (`.envrc`-style) or as public-key material,
 and every schema that could plausibly receive a secret validates against
 it. Consequence for membership data: names, usernames and emails in the
 rosters and the committed read-models are public unless encrypted. Any
-roster value may be declared as an `ENC[age:…]` ciphertext encrypted to
+value at all may be declared as an `ENC[age:…]` ciphertext encrypted to
 the recipients listed in `cfg/_config.yml`; the loader decrypts it with
 the identity the environment supplies (a marked value with no identity
-is a load-time refusal, never a silent plaintext), generated IaC carries
-the ciphertext and opens it at apply time through the CLI's `decrypt`
-command, and every meta-state write is refused if it contains
+is a load-time refusal, never a silent plaintext), every emitted artifact
+carries the SAME ciphertext and is materialised into a private,
+uncommitted mirror at execution time, the system refuses to commit
+anything in which a value it decrypted stands in clear, and every
+meta-state write is refused if it contains
 secret-shaped material. What the operator accepts as public is recorded,
 with its reason, under `public_safe:` in `cfg/_config.yml`. If the
 publicness is ever *not* intended, it is a constraint problem to raise,

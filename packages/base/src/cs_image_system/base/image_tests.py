@@ -161,6 +161,14 @@ def _admin_verify(ctx: "GlobalTypeContext", base: Any) -> list[str]:
             f"sudo test -f /home/{user}/.ssh/authorized_keys"]
     for k in keys:
         # match on the key body (second field), independent of comment/spacing
+        marker = getattr(k, "marker", None)
+        if marker:
+            # stage 49: the committed command carries the ciphertext, and the
+            # body is taken in the SHELL, after materialize has substituted the
+            # key -- a body computed here would be plaintext in the emission.
+            body_expr = f"$(echo {shlex.quote(marker)} | awk '{{print $2}}')"
+            cmds.append(f'sudo grep -q -- "{body_expr}" /home/{user}/.ssh/authorized_keys')
+            continue
         body = k.split()[1] if len(k.split()) > 1 else k
         cmds.append(f"sudo grep -q -- {shlex.quote(body)} /home/{user}/.ssh/authorized_keys")
     return cmds

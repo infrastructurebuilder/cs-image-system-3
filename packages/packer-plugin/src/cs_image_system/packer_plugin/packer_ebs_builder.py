@@ -13,6 +13,7 @@ from hcl2 import Builder
 
 from cs_image_system.base.basic.asset import Asset, AssetSet
 from cs_image_system.base.constants import SELF, PACKER_MANIFEST_FILENAME
+from cs_image_system.base.materialize import mirror_path
 from cs_image_system.base.global_context import GlobalTypeContext
 from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.base_image import BaseImage
@@ -275,9 +276,14 @@ class PackerEbsImageBuilder(PackerImageBuilder[PackerEbsImageBuilderModel]):
             img.get_name(): img for imgs in block_map.values() for img in imgs}
         built: dict[str, str] = {}
         for block in blocks:
-            manifest = (ctx.generation_path
-                        / self.get_block_directory_for_phase(phase, block=block)
-                        / MANIFEST_FILENAME)
+            # packer wrote the manifest where it BUILT: the private mirror
+            # (stage 49), falling back to the generated root for a build that
+            # predates the mirror or ran without one.
+            block_dir = (ctx.generation_path
+                         / self.get_block_directory_for_phase(phase, block=block))
+            manifest = mirror_path(Path(ctx.working_path), block_dir) / MANIFEST_FILENAME
+            if not manifest.is_file():
+                manifest = block_dir / MANIFEST_FILENAME
             for image_name, ami in parse_packer_manifest(manifest, rtb).items():
                 log.info(f"Built image {image_name} -> {ami} (from {manifest})")
                 rtb.create_provider_specific_image_resolved(

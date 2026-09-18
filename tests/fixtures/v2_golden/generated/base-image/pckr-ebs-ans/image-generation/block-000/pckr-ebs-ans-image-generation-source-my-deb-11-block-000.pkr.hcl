@@ -23,7 +23,7 @@ source "amazon-ebs" "my-deb-11" {
         csis_series         = "my-deb-11",
         csis_parent         = "vendor",
         csis_run            = "2026_08_26t12_00_00",
-        csis_fingerprint    = "a6904302a527f9b8",
+        csis_fingerprint    = "050a1b629ffdab12",
         csis_identity_types = "okta",
         csis_storage_types  = "ebs",
     }

@@ -21,7 +21,9 @@ from typing import Any
 
 import pytest
 
-from cs_image_system.base.encryption import Decrypted, decrypt_marker, encrypt_value
+from cs_image_system.base.encryption import (PUBLIC_BY_DECISION_KEYS, Decrypted,
+                                             decrypt_marker, encrypt_value)
+from cs_image_system.base.materialize import PRIVATE_DIRNAME
 from cs_image_system.base.meta_state import commit_meta_state, never_staged
 from cs_image_system.base.models.user import User
 from cs_image_system.hashicorp_utils.blocks import Raw
@@ -157,14 +159,26 @@ def test_no_declared_encrypted_value_but_a_username_reaches_the_emission_or_meta
         emitted = "\n".join(tree(run.generated).values()) + "\n" + "\n".join(tree(run.meta_state).values())
     finally:
         run.restore_cwd()
+    # stage 49: EVERY marker in EVERY file under the root, not three fields of
+    # one directory -- the feature's scope is "anywhere", so the guard's must
+    # be too, or it drifts from the feature by construction. A value read only
+    # under a public-by-decision key (a username) stays exempt.
     hidden: set[str] = set()
-    for path in (FIXTURE_CONFIG / "groups").glob("*.y*ml"):
-        doc = yaml.safe_load(path.read_text()) or {}
-        for user in doc.get("users") or []:
-            for field_name in ("first_name", "last_name", "email"):
-                v = user.get(field_name)
-                if isinstance(v, str) and MARKER.fullmatch(v):
-                    hidden.add(decrypt_marker(v))
+    public_by_decision: set[str] = set()
+    for path in sorted(FIXTURE_CONFIG.rglob("*.y*ml")):
+        if "generated" in path.parts or PRIVATE_DIRNAME in path.parts:
+            continue
+        def walk(node, key=""):
+            if isinstance(node, dict):
+                for k, v in node.items():
+                    walk(v, str(k))
+            elif isinstance(node, list):
+                for v in node:
+                    walk(v, key)
+            elif isinstance(node, str) and MARKER.fullmatch(node):
+                (public_by_decision if key in PUBLIC_BY_DECISION_KEYS else hidden).add(decrypt_marker(node))
+        walk(yaml.safe_load(path.read_text()) or {})
+    hidden -= public_by_decision       # a username also declared elsewhere is still public
     assert len(hidden) >= 30, "the fixture declares encrypted names and emails"
     # whole tokens only: a last name is a part of the public username
     # (`avery.alpha`, label `avery_alpha`), which is not the declared value

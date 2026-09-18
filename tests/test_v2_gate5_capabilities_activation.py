@@ -84,7 +84,11 @@ def test_base_image_bakes_admin_user_and_declared_prerequisites_dormant(v2):
     build = _base_build(v2)
     # admin user with the public key, sudo, no password
     assert "useradd -m -s /bin/bash csisadmin" in build
-    assert "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPlaceholderKey" in build
+    # stage 49: the key is declared encrypted, so the EMISSION carries its
+    # ciphertext; `materialize` puts the key itself in the private copy packer
+    # builds from, and nothing in the committed tree holds it
+    assert "ENC[age:" in build
+    assert "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPlaceholderKey" not in build
     assert "NOPASSWD:ALL" in build
     # okta prerequisites: agent installed, DORMANT
     assert "scaleft-server-tools" in build
@@ -180,8 +184,10 @@ def test_per_base_image_key_override(tmp_path, monkeypatch):
         assert run.run(["base-image"], apply=False).ok
         build = _base_build(run)
         assert "useradd -m -s /bin/bash ops" in build
-        assert "override@rhel8" in build
-        assert "csis-admin-placeholder" in build  # the other base images keep the global list
+        assert "override@rhel8" in build          # an UNencrypted override is a literal
+        # the other base images keep the global list, which is encrypted (stage 49)
+        assert "ENC[age:" in build
+        assert "csis-admin-placeholder" not in build
     finally:
         run.restore_cwd()
 

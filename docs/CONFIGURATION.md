@@ -1680,16 +1680,23 @@ read in full).
 ([`encryption.py`](../packages/base/src/cs_image_system/base/encryption.py))
 
 A value may be the marker `ENC[age:<base64 of an age-encryption.org/v1
-file>]`, encrypted to every key in `encryption.recipients`. A field typed
-`EncryptedStr` decrypts it at load; every other field takes the marker as
-literal text. `list[EncryptedStr]` and `set[EncryptedStr]` decrypt each
-element on its own, so a roster is encrypted entry by entry.
-
-Fields that accept a marker: `users[].name`, `first_name`, `last_name`,
-`email`; every element of `groups[].members` and `admins`; a group or user
-builder's `key` and `secret`. A marked value with no identity in the
-environment is a load-time refusal; a decrypted value prints as
+file>]`, encrypted to every key in `encryption.recipients`. **Any value
+anywhere decrypts at load** (stage 49): no field has to be declared for it,
+and each element of a list or set is encrypted on its own, so a roster is
+encrypted entry by entry. A marked value with no identity in the environment
+is a load-time refusal naming the value's path; a decrypted value prints as
 `Decrypted('***')` in any dump or error.
+
+Three places a marker may NOT stand, each refused at load by name:
+
+| Refused | Why |
+| --- | --- |
+| a mapping **key** | keys dedupe list entries, dispatch the concrete class and name generated directories, so they must be readable with no identity |
+| a marker **embedded** in a longer string | only a whole value decrypts: a composite carries no single ciphertext, so the emission could only write it in clear |
+| `encryption.recipients`, `public_safe.allow`, a runtime builder's `name`/`type`/`profile`/`credentials.profile_name`, `config.preflight.*`, `config.apply_*`, and any declaration's `name`/`type` | these are read by the raw readers that run *before* the configuration loads, several of which must work with no identity at all (encrypting must not need one) |
+
+`EncryptedStr` remains on the roster fields: it is the one annotation under
+which pydantic keeps the decrypted value's identity without help.
 
 **The identity** comes from `CSIS_CONFIG_IDENTITY`: the
 `AGE-SECRET-KEY-1…` string itself, the path of an identity file in the
@@ -1706,20 +1713,32 @@ identity; the suite exports it.
 | `cs-image-system decrypt <marker>` | prints the plaintext (for the operator) |
 | `cs-image-system decrypt --json` | the terraform `external` data source protocol: a JSON object of markers on stdin, decrypted on stdout; generated roots run it at plan time |
 | `cs-image-system reencrypt [--dry-run]` | rotates every marker under the root to the current recipients; nothing is written unless every value opens |
+| `cs-image-system materialize <dir> [dest]` | copies a generated root into the private mirror with every marker replaced by its plaintext, and prints where; what every deferred command runs through |
 | `cs-image-system public-safe [--staged] [--tree] [--config]` | refuses material that must not be public; `public_safe.allow` lists the exceptions |
 
 `bin/gen_age.sh`, `bin/crypt_age.sh` and `bin/rotate_age.sh` produce the
 same marker with the `age` CLI.
 
-**Emission.** Generated terraform never quotes a decrypted value: it
-registers the ciphertext and references `local.sensitive["<key>"]`, filled
-by a `data "external"` block that runs `cs-image-system decrypt --json`
-at plan time (hence `CSIS_CONFIG_IDENTITY` in the planner's environment).
-Only a value that was read from a marker is emitted this way. A **derived**
-value — an email produced by `default_user_email_template` from a
-decrypted name — is a plain string and is emitted in clear, by
-construction; the fixture's `public_safe.allow` therefore names no real
-domain and the derived domain is `example.invalid`.
+**Emission and execution.** A decrypted value is emitted as the ciphertext
+it was read from — the committed artifact says `ENC[age:…]` wherever the
+configuration does, in packer and terraform alike. Before a deferred command
+runs, its root is copied to `_private/<the same relative path>` under the
+configuration root with every marker replaced by its plaintext, and the
+command runs there; the mirror is never committed (refused by path, named in
+the emitted `.gitignore`, skipped by the scanner), and only the provider lock
+file is ever copied back out of it. Age is randomised, so the SOURCE marker is
+reused rather than re-encrypted: re-encrypting would move every emitted byte
+on every run. Terraform's older by-reference path — `local.sensitive["<key>"]`
+filled by a `data "external"` block running `cs-image-system decrypt --json`
+at plan time — still stands for the okta roots.
+
+The guard is not a guess: the system knows every plaintext it opened, and
+`validate` and every commit refuse if one of them stands in clear under
+`generated/` or `meta-state/`, naming the file and line. A **derived** value —
+an email produced by `default_user_email_template` from a decrypted name — has
+no ciphertext of its own and is emitted in clear by construction; the fixture's
+`public_safe.allow` therefore names no real domain and the derived domain is
+`example.invalid`.
 
 ## 14. Environment variables
 

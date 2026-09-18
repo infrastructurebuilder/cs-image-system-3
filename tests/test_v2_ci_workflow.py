@@ -86,9 +86,14 @@ def test_live_is_gated_scheduled_and_read_only():
     assert "EMPTY" in gate["run"] and "exit 1" in gate["run"]
     for s in live["steps"]:
         if s.get("id") != "gate":
-            assert s.get("if") == "steps.gate.outputs.ready == 'true'", s.get("name")
+            # a cleanup runs after a failure too, but still only behind the gate
+            assert s.get("if") in ("steps.gate.outputs.ready == 'true'",
+                                   "always() && steps.gate.outputs.ready == 'true'"), s.get("name")
     commands = [run for name, run in _run_steps(live) if not name.startswith(_PLUMBING)]
-    assert commands == ["just init", "just cli validate", "just config-drift", "just cloud-preflight", "just test-mods --strict"]
+    # stage 49: the mask step opens every encrypted value and tells the runner
+    # to hide it, and the mirror is removed even when a step failed
+    assert commands == ["just init", "just cli mask", "just cli validate", "just config-drift",
+                        "just cloud-preflight", "just test-mods --strict", "just mirror-clean"]
     checkout = next(s for s in live["steps"] if "repository" in (s.get("with") or {}))
     assert checkout["with"]["path"] == "cs-image-system-testconfig"      # beside cs-image-system-3
 
