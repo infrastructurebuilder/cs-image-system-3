@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Any
 
 from .capabilities import declared_capabilities, effective_capabilities, image_chain
 from .constants import SELF
+from .encryption import MARKER_PREFIX, substitute_markers
 
 if TYPE_CHECKING:
     from .global_context import GlobalTypeContext
@@ -45,7 +46,14 @@ RUN_ID_FORMAT = "%Y_%m_%dt%H_%M_%S_%f"
 
 
 def _sha(data: Any) -> str:
-    return hashlib.sha256(json.dumps(data, sort_keys=True, default=str).encode()).hexdigest()
+    text = json.dumps(data, sort_keys=True, default=str)
+    # stage 49: hash the MATERIALISED form. An emission carries the ciphertext,
+    # and age is randomised, so a `reencrypt` mints new ciphertext for the same
+    # plaintext -- hashing the marker would move every fingerprint on every
+    # rotation and mark every image DUE for a rebake that changes nothing.
+    if MARKER_PREFIX in text:
+        text = substitute_markers(text)
+    return hashlib.sha256(text.encode()).hexdigest()
 
 
 def is_base_image(ctx: "GlobalTypeContext", image: Any) -> bool:

@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any
 
 from .basic.builder_base_group import GroupBuilderBase
 from .basic.builder_base_storage import StorageBuilderBase
+from .encryption import like
 from .constants import SELF
 
 if TYPE_CHECKING:
@@ -178,12 +179,15 @@ def admin_public_keys(ctx: "GlobalTypeContext", base: "BaseImage | None" = None,
         override = base.admin_public_keys
     elif os_builder_name and os_builder_name in ctx.os_builders:
         override = ctx.os_builders[os_builder_name].model.get_admin_public_keys()
+    # `like` keeps a decrypted value's ciphertext across the strip (stage 49):
+    # str()/strip() on a str subclass returns a plain str, and the marker is
+    # what tells the emission to write the ciphertext rather than the key.
     if override is not None:
-        return [str(k).strip() for k in override if str(k).strip()]
+        return [like(k, str(k).strip()) for k in override if str(k).strip()]
     keys = ctx.config.get(ADMIN_KEYS_CONFIG_KEY) or []
     if isinstance(keys, str):
         keys = [keys]
-    return [str(k).strip() for k in keys if str(k).strip()]
+    return [like(k, str(k).strip()) for k in keys if str(k).strip()]
 
 
 def admin_user(ctx: "GlobalTypeContext", os_builder_name: str) -> str:

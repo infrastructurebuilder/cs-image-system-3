@@ -12,7 +12,7 @@ cd "$(dirname "$0")"
 CSIS_ROOT="$(cd "../.." && pwd)"   # the configuration root, relative to this script
 
 # --- phase: group-generation ---
-( cd "oktagroups/group-generation" && rm -f tfplan )
-( cd "oktagroups/group-generation" && /usr/local/bin/tofu init -input=false -reconfigure -backend-config=oktagroups-group-generation.tfbackend.hcl )
-( cd "oktagroups/group-generation" && /usr/local/bin/tofu plan -input=false -out=tfplan )
-( cd "oktagroups/group-generation" && cs-image-system gate-plan --planfile tfplan --tofu /usr/local/bin/tofu )
+( cd "oktagroups/group-generation" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && rm -f tfplan )
+( cd "oktagroups/group-generation" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && /usr/local/bin/tofu init -input=false -reconfigure -backend-config=oktagroups-group-generation.tfbackend.hcl )
+( cd "oktagroups/group-generation" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && /usr/local/bin/tofu plan -input=false -out=tfplan )
+( cd "oktagroups/group-generation" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && cs-image-system gate-plan --planfile tfplan --tofu /usr/local/bin/tofu )

@@ -12,17 +12,17 @@ cd "$(dirname "$0")"
 CSIS_ROOT="$(cd "../.." && pwd)"   # the configuration root, relative to this script
 
 # --- phase: image-generation ---
-( cd "pckr-ebs-ans/image-generation/block-000" && /usr/local/bin/packer build . )
-( cd "pckr-ebs-ans/image-generation/block-001" && /usr/local/bin/packer build . )
-( cd "pckr-gce-ans/image-generation/block-000" && /usr/local/bin/packer build . )
-( cd "some-other-builder/image-generation/block-000" && /usr/local/bin/packer build . )
+( cd "pckr-ebs-ans/image-generation/block-000" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && /usr/local/bin/packer build . )
+( cd "pckr-ebs-ans/image-generation/block-001" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && /usr/local/bin/packer build . )
+( cd "pckr-gce-ans/image-generation/block-000" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && /usr/local/bin/packer build . )
+( cd "some-other-builder/image-generation/block-000" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && /usr/local/bin/packer build . )
 
 # --- phase: instance-generation ---
-( cd "open-tofu/instance-generation" && rm -f tfplan )
-( cd "open-tofu/instance-generation" && /usr/local/bin/tofu init -input=false -reconfigure -backend-config=open-tofu-instance-generation.tfbackend.hcl )
-( cd "open-tofu/instance-generation" && /usr/local/bin/tofu plan -input=false -out=tfplan )
-( cd "open-tofu/instance-generation" && cs-image-system gate-plan --planfile tfplan --tofu /usr/local/bin/tofu )
-( cd "tofu-gce/instance-generation" && rm -f tfplan )
-( cd "tofu-gce/instance-generation" && /usr/local/bin/tofu init -input=false -reconfigure -backend-config=tofu-gce-instance-generation.tfbackend.hcl )
-( cd "tofu-gce/instance-generation" && /usr/local/bin/tofu plan -input=false -out=tfplan )
-( cd "tofu-gce/instance-generation" && cs-image-system gate-plan --planfile tfplan --tofu /usr/local/bin/tofu )
+( cd "open-tofu/instance-generation" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && rm -f tfplan )
+( cd "open-tofu/instance-generation" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && /usr/local/bin/tofu init -input=false -reconfigure -backend-config=open-tofu-instance-generation.tfbackend.hcl )
+( cd "open-tofu/instance-generation" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && /usr/local/bin/tofu plan -input=false -out=tfplan )
+( cd "open-tofu/instance-generation" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && cs-image-system gate-plan --planfile tfplan --tofu /usr/local/bin/tofu )
+( cd "tofu-gce/instance-generation" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && rm -f tfplan )
+( cd "tofu-gce/instance-generation" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && /usr/local/bin/tofu init -input=false -reconfigure -backend-config=tofu-gce-instance-generation.tfbackend.hcl )
+( cd "tofu-gce/instance-generation" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && /usr/local/bin/tofu plan -input=false -out=tfplan )
+( cd "tofu-gce/instance-generation" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && cs-image-system gate-plan --planfile tfplan --tofu /usr/local/bin/tofu )

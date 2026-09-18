@@ -9,8 +9,9 @@ system must not take itself.
 
 Current stage: **none in progress**.
 
-Open stages and their order: none open; §19 and §30 wait on the
-operator's decisions. A new hygiene issue starts bundle IV.
+Open stages and their order: §51 next, then §50, independent of each
+other; §19 and §30 wait on the operator's decisions. A new hygiene issue
+starts bundle IV.
 
 Standing decisions (operator):
 
@@ -223,3 +224,77 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-package` (steps 1–3, 5–7),
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
+
+## 50. Meta-state carries markers
+
+**Why**: a `Decrypted` remembers its marker, but every meta-state write
+dumps it as plaintext by the PyYAML representer at
+[encryption.py:67-79](packages/base/src/cs_image_system/base/encryption.py#L67-L79),
+with `assert_public_safe` as the only backstop. After §49 the write can
+carry the ciphertext instead — "write what you read". Derived values
+(computed from a plaintext, carrying no marker) stay plaintext by decision
+unless §51 has made them inherit one.
+
+1. `_represent_decrypted` writes `.marker`; a read-model roster carries
+   the same ciphertexts the configuration carries.
+2. Meta-state reads decrypt through `decrypt_tree`
+   ([meta_state.py:133](packages/base/src/cs_image_system/base/meta_state.py#L133));
+   every recorded-vs-declared comparison compares plaintexts — marker
+   strings differ after a rotation, and `reencrypt` already walks every
+   `*.yaml` under the root except `generated/`, so meta-state rotates with
+   the source.
+3. `record_image_test` ([meta_state.py:397](packages/base/src/cs_image_system/base/meta_state.py#L397))
+   stores check commands verbatim; with §49 step 2 those carry markers,
+   which is what the record must hold.
+4. Records: OPERATIONS "meta-state". Opened after §49 is green live.
+   Feature branch `feature/meta-state-markers`, squash-merged, kept.
+
+## 51. Names in clear, the email domain hidden
+
+**Why**: the roster encrypts first and last names, yet the derived email
+`first.last@noaa.gov` — which names the person and the organisation — is
+emitted in clear by the stage-34 decision, so encrypting the names protects
+little. Operator's call (2026-09-18): stop encrypting first and last
+names; hide the fragment that identifies the organisation. The derived
+items in the configuration today are exactly: `User.email` from
+`default_user_email_template`
+([user.py:59](packages/base/src/cs_image_system/base/models/user.py#L59);
+live `"{{ user.name }}@noaa.gov"`), `User.description` from
+`default_user_description_template` (default
+`"User {{ user.name }} / {{ user.email }}"`, so it rides on the email),
+the key-body substring of `_admin_verify` (from `admin_public_keys`, not
+the roster), and the terraform labels from `ssn(user.name)` — usernames,
+plaintext by the stage-34 decision. Group descriptions derive from group
+names, never encrypted.
+
+1. **A derived value inherits its inputs' encryption.** The template
+   renderer at [orchestrator.py:397-405](packages/base/src/cs_image_system/base/orchestrator.py#L397-L405)
+   renders twice when any context value is `Decrypted`: with plaintexts
+   (the value) and with markers (the result's `.marker`), and sets a
+   `Decrypted`; a render with no `Decrypted` input stays a plain `str`.
+   `emit()` and `materialize` (§49) do the rest.
+2. **The fragment, not the whole template** (decided 2026-09-18): in the
+   live `cfg/group-builders.yml`, `email_domain: ENC[…]` (decrypting to
+   `noaa.gov`) and `default_user_email_template: "{{ user.name }}@{{
+   builder.email_domain }}"`, rendering `blake.bravo@noaa.gov` in process
+   and `blake.bravo@ENC[…]` in the emission — one marker reused for every
+   user, so the golden is stable. A whole-template marker decrypts to the
+   unrendered template and has no marker form; it would need a second
+   render pass after materialisation or a committed emission-ciphertext
+   cache keyed by a hash of each address (a confirmation oracle for
+   guessable addresses). The description template follows for free.
+3. `cs-image-system decrypt --file <yaml> --field <name> …`, the inverse of
+   `encrypt --file`: textual, in place, comments preserved. The live
+   roster's `first_name`/`last_name` decrypted with it; the fixture
+   mirrors the shape with `example.invalid` as the hidden fragment (the
+   persona rule stands). The sibling committed and pushed on its develop.
+4. The live `public_safe.allow` drops `"@noaa.gov"`: it existed only
+   because derived addresses were plaintext; after this stage a
+   `noaa.gov` in a committed file is a finding again.
+5. Records: the stage-34 rule in
+   [test_v2_emit_by_reference.py:10-13](tests/test_v2_emit_by_reference.py#L10-L13),
+   OPERATIONS and CONFIGURATION change from "a derived email is plaintext
+   by construction" to "a derived value inherits its inputs' encryption";
+   golden moves once, reviewed. Opened after §49; independent of §50.
+   Feature branch `feature/derived-inherit-encryption`, squash-merged,
+   kept.

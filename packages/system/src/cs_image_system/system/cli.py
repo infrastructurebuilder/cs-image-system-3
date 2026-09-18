@@ -322,6 +322,69 @@ def decrypt_command(
         raise typer.Exit(code=1)
 
 
+@app.command(name="mask")
+def mask_command(
+    typer_cntx: typer.Context,
+    minimum: Annotated[int, typer.Option("--min", help="the shortest plaintext to mask: a short common word masks unrelated log text")] = 8,
+) -> None:
+    """Print a ``::add-mask::`` line for every value the configuration carries
+    encrypted, so a CI log never shows one (stage 49).
+
+    Masking is a blocklist and cannot be complete -- a value that is wrapped,
+    quoted or split across lines evades it -- so it is the last line of
+    defence, not the first: the emission carries the ciphertext, and the
+    committed tree is scanned for these same plaintexts before every commit."""
+    import yaml
+    from cs_image_system.base.encryption import decrypt_tree, decrypted_plaintexts, reset_decrypted_plaintexts
+    from cs_image_system.base.materialize import PRIVATE_DIRNAME
+    root = Path(typer_cntx.obj.get("config_root") or os.getcwd())
+    reset_decrypted_plaintexts()
+    try:
+        for path in sorted(root.rglob("*.y*ml")):
+            if ".git" in path.parts or "generated" in path.parts or PRIVATE_DIRNAME in path.parts:
+                continue
+            try:
+                decrypt_tree(yaml.safe_load(path.read_text()), source=str(path))
+            except Exception:                      # a refusal here is validate's to report, not mask's
+                continue
+        for value in sorted(decrypted_plaintexts(include_public_by_decision=True)):
+            if len(value) >= minimum:
+                for line in value.splitlines():
+                    if len(line) >= minimum:
+                        typer.echo(f"::add-mask::{line}")
+    except ValueError as e:
+        typer.secho(f"mask: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
+
+@app.command(name="materialize")
+def materialize_command(
+    typer_cntx: typer.Context,
+    source: Annotated[Path, typer.Argument(help="the generated directory (or file) to materialize")],
+    destination: Annotated[Path | None, typer.Argument(
+        help="where to write it (default: the mirror of SOURCE under the root's _private/)")] = None,
+) -> None:
+    """Copy a generated root into the private mirror, substituting every
+    ENC[age:...] with its plaintext, and print where it landed (stage 49).
+
+    The committed emission carries the ciphertext; the tools cannot read that,
+    so every deferred command runs from the mirror instead. The mirror is
+    never committed. Needs CSIS_CONFIG_IDENTITY; loads no configuration."""
+    from cs_image_system.base.materialize import materialize, mirror_path, sync_back
+    root = Path(typer_cntx.obj.get("config_root") or os.getcwd())
+    src = source if source.is_absolute() else (Path(os.getcwd()) / source)
+    try:
+        dst = Path(destination) if destination else mirror_path(root, src)
+        for name in sync_back(src, dst):
+            log.info("materialize: synced back from the mirror: %s", name)
+        written, substituted = materialize(src, dst)
+        log.info("materialize: %d file(s), %d carrying ciphertext -> %s", written, substituted, dst)
+        typer.echo(str(dst), nl=False)
+    except (ValueError, OSError) as e:
+        typer.secho(f"materialize: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
+
 @app.command(name="public-safe")
 def public_safe_command(
     typer_cntx: typer.Context,
@@ -1081,9 +1144,11 @@ def main(
         # configuration tree is loaded (plugins are loaded on demand;
         # apply-check reads only cfg/_config.yml itself).
         return
-    if typer_cntx.invoked_subcommand in ("encrypt", "decrypt", "reencrypt", "public-safe"):
+    if typer_cntx.invoked_subcommand in ("encrypt", "decrypt", "reencrypt", "public-safe", "materialize", "mask"):
         # stage 33: value tools -- encrypt reads only cfg/_config.yml's
-        # recipients as text, so no identity and no load is needed
+        # recipients as text, so no identity and no load is needed.
+        # stage 49: materialize joins them -- it runs from a generated root,
+        # inside a run script, where there is no tree to load and no session.
         typer_cntx.obj["config_root"] = Path(root_dir or os.getcwd())
         return
     load_plugins()

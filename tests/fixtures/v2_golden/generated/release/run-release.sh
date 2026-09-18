@@ -10,4 +10,4 @@ cd "$(dirname "$0")"
 CSIS_ROOT="$(cd "../.." && pwd)"   # the configuration root, relative to this script
 
 # --- phase: instance-generation ---
-( cd "release" && cs-image-system --root-dir "$CSIS_ROOT" --no-dry-run release --declared )
+( cd "release" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && cs-image-system --root-dir "$CSIS_ROOT" --no-dry-run release --declared )

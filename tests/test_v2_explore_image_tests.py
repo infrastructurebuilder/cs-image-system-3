@@ -57,7 +57,10 @@ def test_base_image_bake_ends_with_capability_verification(v2):
     sect = _section(build, "base image basic-rh-10")
     assert '"set -e",' in sect
     assert "id -u csisadmin" in sect and "authorized_keys" in sect
-    assert "AAAAC3NzaC1lZDI1NTE5AAAAIPlaceholderKey" in sect          # key body verified
+    # stage 49: the fixture's admin key is encrypted, so the emission carries
+    # the ciphertext and the key body is taken in the shell, after materialize
+    assert "ENC[age:" in sect and "awk '{print $2}'" in sect          # key body verified
+    assert "AAAAC3NzaC1lZDI1NTE5AAAAIPlaceholderKey" not in sect
     assert "command -v sftd" in sect and "! systemctl is-enabled sftd" in sect   # dormant
     assert "mount.efs" in sect and "command -v aws" in sect
     assert "rpm -q nfs-utils" in sect                                 # declared tests (fixture, 2026-08-31)

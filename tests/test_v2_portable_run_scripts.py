@@ -89,7 +89,10 @@ def test_the_executable_keeps_the_absolute_argument_and_the_line_gets_the_refere
     e.args = ["--root-dir", str(root), "--overlay", str(root / "overlays" / "x.yaml"), "--no-dry-run", "release"]
     e.working_directory = root / "generated" / "release" / "release"
     line = render_executable_line(e, base=root / "generated" / "release", root=root)
-    assert line == (f'( cd "release" && cs-image-system --root-dir "${ROOT_VARIABLE}" '
+    # stage 49: the committed emission carries ciphertext, so the line enters
+    # its root, materializes it into the private mirror, and runs there
+    assert line == (f'( cd "release" && cd "$(cs-image-system materialize . '
+                    f'--root-dir "${ROOT_VARIABLE}")" && cs-image-system --root-dir "${ROOT_VARIABLE}" '
                     f'--overlay "${ROOT_VARIABLE}/overlays/x.yaml" --no-dry-run release )')
     assert e.args[1] == str(root), "in-process execution still receives the absolute path"
     elsewhere = render_executable_line(e, base=root / "generated" / "release", root=tmp_path / "other")

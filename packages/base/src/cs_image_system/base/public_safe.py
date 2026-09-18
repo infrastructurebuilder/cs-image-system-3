@@ -46,14 +46,21 @@ import yaml
 REFUSED_PATHS = ("tfplan", "*.tfplan", "*.tfstate", "*.tfstate.*", "*.tfvars", "*.tfvars.json",
                  ".envrc", "*.pem", ".private_key.*", ".public_key.json")
 
+# The private mirror (stage 49): the materialised copy an execution runs from,
+# holding the plaintext of every value the emission carries as ciphertext.
+# Refused as a whole subtree, not by file name, because anything may be in it.
+PRIVATE_DIRNAME = "_private"
+
 # The soft rules skip prose and test modules; every hard rule applies everywhere.
 SOFT_EXEMPT = ("*.md", "docs/*", "tests/*.py", "*/tests/*.py", "test_*.py", "conftest.py")
 
 
 def refused_path(path: str | Path) -> bool:
     """True when ``path`` (any depth) is one nothing may commit."""
-    name = Path(path).name
-    return any(fnmatch.fnmatch(name, pat) for pat in REFUSED_PATHS)
+    path = Path(path)
+    if PRIVATE_DIRNAME in path.parts:
+        return True
+    return any(fnmatch.fnmatch(path.name, pat) for pat in REFUSED_PATHS)
 
 
 def soft_exempt(rel: str) -> bool:
@@ -91,6 +98,9 @@ HARD_RULES: dict[str, Rule] = {
     "age-identity": _regex(rb"\bAGE-SECRET-KEY-1[A-Z0-9]{58}\b"),
     # an assignment with a literal value; `TF_VAR_x=$FROM_ENV` and `TF_VAR_x="${...}"` pass
     "tfvar-assignment": _regex(rb"\bTF_VAR_\w+=(?![\"']?\$)[^\s\"']{4,}"),
+    # the packer equivalent (stage 49): a run script may pass a materialised
+    # value as PKR_VAR_x="$(...)", never as a literal
+    "pkrvar-assignment": _regex(rb"\bPKR_VAR_\w+=(?![\"']?\$)[^\s\"']{4,}"),
 }
 
 _EMAIL = re.compile(rb"[A-Za-z0-9._%+-]+@([A-Za-z0-9.-]+\.[A-Za-z]{2,})")
@@ -239,9 +249,10 @@ def candidate_files(root: Path) -> list[str]:
     if top is not None:
         out = subprocess.run(["git", "-C", str(root), "ls-files", "-co", "--exclude-standard", "-z"],
                              capture_output=True, check=True).stdout
-        return sorted(p.decode() for p in out.split(b"\0") if p)
+        names = (p.decode() for p in out.split(b"\0") if p)
+        return sorted(n for n in names if PRIVATE_DIRNAME not in Path(n).parts)
     return sorted(str(p.relative_to(root)) for p in root.rglob("*")
-                  if p.is_file() and ".git" not in p.parts)
+                  if p.is_file() and ".git" not in p.parts and PRIVATE_DIRNAME not in p.parts)
 
 
 def scan_tree(root: Path, allow: Sequence[str] = (), files: Iterable[str] | None = None) -> list[Finding]:
@@ -309,3 +320,67 @@ def assert_public_safe(data: Any, where: str = "meta-state") -> None:
 
 def format_findings(findings: Sequence[Finding]) -> str:
     return "\n".join(str(f) for f in findings)
+
+
+# -------------------------------------------------- the plaintext set (49)
+
+#: A plaintext shorter than this is not searched for: an initial, a two-letter
+#: name or a short word matches the world, and the invariant test has always
+#: skipped them for the same reason.
+MIN_PLAINTEXT_LENGTH = 3
+
+
+def _whole_token_matches(haystack: str, needle: str) -> bool:
+    """``needle`` in ``haystack`` as a whole token: a last name is part of a
+    public username, so a bare substring test would refuse the legitimate
+    emission of a username derived from a name."""
+    for m in re.finditer(re.escape(needle), haystack):
+        before = haystack[m.start() - 1] if m.start() else " "
+        after = haystack[m.end()] if m.end() < len(haystack) else " "
+        if not (before.isalnum() or before in "_-.") and not (after.isalnum() or after in "_-."):
+            return True
+    return False
+
+
+def scan_for_plaintexts(root: Path, plaintexts: Iterable[str],
+                        subdirs: Sequence[str] = ("generated", "meta-state")) -> list[Finding]:
+    """Every place a value the loader DECRYPTED appears in clear under
+    ``subdirs`` (stage 49).
+
+    This is the primary guard, and it does not guess: the system opened these
+    markers itself, so it knows exactly what must not be in a committed file.
+    The shape rules remain the backstop for material that was never a marker.
+    """
+    root = Path(root)
+    wanted = sorted({p for p in plaintexts if len(p) >= MIN_PLAINTEXT_LENGTH})
+    if not wanted:
+        return []
+    findings: list[Finding] = []
+    for sub in subdirs:
+        base = root / sub
+        if not base.is_dir():
+            continue
+        for path in sorted(base.rglob("*")):
+            if not path.is_file() or PRIVATE_DIRNAME in path.parts:
+                continue
+            try:
+                text = path.read_text()
+            except (OSError, UnicodeDecodeError):
+                continue
+            rel = str(path.relative_to(root))
+            for line_no, line in enumerate(text.splitlines(), 1):
+                if any(_whole_token_matches(line, plain) for plain in wanted):
+                    # the excerpt names the LINE, never the value
+                    findings.append(Finding(path=f"{rel}:{line_no}",
+                                            rule="decrypted-value-in-clear",
+                                            excerpt="a value carried encrypted in the configuration "
+                                                    "appears here in clear"))
+                    break
+    return findings
+
+
+def assert_no_plaintext_emitted(root: Path, plaintexts: Iterable[str],
+                                subdirs: Sequence[str] = ("generated", "meta-state")) -> None:
+    findings = scan_for_plaintexts(root, plaintexts, subdirs)
+    if findings:
+        raise PublicSafeError(findings, "the emission")

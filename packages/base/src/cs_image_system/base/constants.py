@@ -63,6 +63,10 @@ DEFAULT_GITIGNORE_ENTRIES = [
     "terraform.tfstate.backup",
     "!.terraform.lock.hcl",
 ]
+# stage 49: the private mirror, beside generated/ under the configuration root.
+# It holds the plaintext of every value the emission carries as ciphertext, so
+# it is never committed: ignored here, refused by path, skipped by the scanner.
+PRIVATE_DIRNAME = "_private"
 # stage 43: the run-local files a run writes at the top of generated/ and never
 # commits -- the emitted root .gitignore names them, the run's commit excludes
 # them and drops them from the index where an older tree tracked them (the

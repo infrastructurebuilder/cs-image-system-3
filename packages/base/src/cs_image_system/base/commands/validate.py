@@ -9,6 +9,7 @@ from packaging.version import parse
 
 import logging
 import shutil
+from pathlib import Path
 log = logging.getLogger(__name__)
 
 from ..constants import VCT, ComplianceState, STATE_BACKEND_FIELD
@@ -335,6 +336,23 @@ def check_foreign_keys(ctx: GlobalTypeContext) -> list[Exception]:
     return errors
 
 
+def check_no_plaintext_emitted(ctx: GlobalTypeContext) -> list[Exception]:
+    """No value the loader DECRYPTED stands in clear under ``generated/`` or
+    ``meta-state/`` (stage 49).
+
+    The primary encryption guard, and the one that does not guess: the system
+    opened these markers itself, so it knows exactly which strings must not be
+    in a committed file. An emitter that forgot :func:`emit` is caught here
+    rather than in a public repository."""
+    from ..encryption import decrypted_plaintexts
+    from ..public_safe import scan_for_plaintexts
+    plaintexts = decrypted_plaintexts()
+    if not plaintexts:
+        return []
+    findings = scan_for_plaintexts(Path(ctx.working_path), plaintexts)
+    return [ValueError(f"{f.path}: {f.excerpt}") for f in findings]
+
+
 def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     """The configuration checks, with no side effects on generated output:
     unique global ids, executables present and version-compliant, every
@@ -347,4 +365,5 @@ def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     exs.extend(check_executables_exist_and_versions(ctx))
     exs.extend(check_state_locations(ctx))
     exs.extend(check_foreign_keys(ctx))
+    exs.extend(check_no_plaintext_emitted(ctx))
     return exs

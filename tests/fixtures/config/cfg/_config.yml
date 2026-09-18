@@ -36,7 +36,9 @@ config:
   # Mandatory local admin user on every base image (DESIGN Q2/N9/N12): a LIST
   # of PUBLIC keys (rotation = add new, migrate, remove old); the schema refuses
   # anything resembling private-key material. Per-base override: admin_public_keys
-  # on the OS builder. Placeholder key below -- replace with real operator keys.
+  # on the OS builder. Encrypted (stage 49) to prove the packer path: the
+  # emission carries this ciphertext and `materialize` substitutes the key
+  # into the private mirror packer actually builds from.
   admin_public_keys:
-    - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPlaceholderKeyReplaceMeReplaceMeReplaceMe csis-admin-placeholder"
+    - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBrbzlLM25IMlEvdWtkOUxNWVg1cDBxeUJQUEZLZHVjUzh4ZzROdmFpcTBrCitNSGJncm9PTWR4bzBsbGsyUEZTUWFZZ25Ja2JrUEtGcGNyaWMvc0k3SlEKLS0tIHkwbTQ4VFBTS3BGcm9hdG1RNHNVUjlibzJNL0UycGdNbzhWb0trV0s3LzgK0178wSJZ9P74ygZxA7hNhYpJWwT+YLH+rFrEZvk7TbCEsIgvH3OKRYMCtkA9Muf6Lm5uIe6HU4eUhm6rXfcYi5V+W3u5UpfK44dj0Z3UCHsSZuEUyP9H/rYZyt8nr3THNh3r2ZDofOuXH+i1osQJk8I9x0isMnBoxYUeOWZqtzsODENxSQ==]
 

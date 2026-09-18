@@ -255,6 +255,14 @@ public-safe *ARGS:
 public-safe-live *ARGS: config-guard
 	@uv run cs-image-system public-safe --tree "{{config_root}}" {{ARGS}}
 
+# Remove the private mirror (stage 49): the materialised copy an execution runs
+# from, holding the plaintext of every value the emission carries as ciphertext.
+# Never committed; removed by CI in a step of its own that runs even on failure.
+[private]
+mirror-clean: config-guard
+    @rm -rf "{{config_root}}/_private"
+    @echo "removed {{config_root}}/_private"
+
 # Build a publishable tree (stage 40): the TRACKED files of ROOT at HEAD (nothing ignored can enter),
 # a USER exclusion list (PUBLISH_EXCLUDE="path/one path/two", default none), the public-safe gate over
 # the result with the root's own allow list, the ignore policy checked line by line, then ONE commit on

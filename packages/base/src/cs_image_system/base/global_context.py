@@ -40,6 +40,8 @@ if TYPE_CHECKING:
 from . import registry
 from .utils import super_safe_name
 from .template_utils import cycle_main_yaml, read_and_preprocess_yaml_files
+from .encryption import decrypt_tree, decrypted_plaintexts, refuse_markers_at
+from .materialize import materialize, mirror_path, sync_back
 
 log = logging.getLogger(__name__)
 
@@ -532,6 +534,8 @@ class GlobalTypeContext:
                         f"in {executable.working_directory if executable.working_directory else 'current working directory'}"
                     )
                     os.chdir(self.generation_path)
+                    executable = materialized_for(getattr(self, "working_path", None),
+                                                  self.generation_path, executable)
                     try:
                         res = executable.execute(skips=False)
                     except Exception as e:
@@ -725,6 +729,35 @@ class GlobalTypeContext:
 ROOT_VARIABLE = "CSIS_ROOT"     # the runner scripts' name for the configuration root (stage 38)
 
 
+def materialized_for(root: Path | None, generation_path: Any, executable: Any) -> Any:
+    """``executable`` pointed at the private mirror of its directory (stage 49).
+
+    The committed emission carries the ``ENC[age:...]`` ciphertext; the tools
+    cannot read that, so the root is copied to ``_private/`` with the plaintext
+    substituted and the command runs there. An executable with no working
+    directory, a directory that does not exist, or no configuration root to
+    mirror under, is returned untouched."""
+    wd = getattr(executable, "working_directory", None)
+    if not wd or root is None:
+        return executable
+    src = (Path(generation_path) / wd).resolve()
+    if not src.is_dir():
+        return executable
+    dst = mirror_path(Path(root), src)
+    # on the way IN: bring back what the PREVIOUS command in this root wrote
+    # and the emission must carry -- the provider lock file `init` writes. A
+    # root's commands run in sequence (init, plan, apply), so the lock reaches
+    # the committed tree at the next command's materialize.
+    for name in sync_back(src, dst):
+        log.info("Synced back from the private mirror: %s", name)
+    written, substituted = materialize(src, dst)
+    log.info("Materialized %s -> %s (%d file(s), %d carrying ciphertext)",
+             src.name, dst, written, substituted)
+    moved = executable.model_copy() if hasattr(executable, "model_copy") else copy.copy(executable)
+    moved.working_directory = dst
+    return moved
+
+
 def render_executable_line(executable: Any, base: Path | None = None, root: Path | None = None) -> str:
     """One reviewable shell line for a deferred executable. A working
     directory under ``base`` (the lifecycle's directory) is rendered
@@ -756,6 +789,14 @@ def render_executable_line(executable: Any, base: Path | None = None, root: Path
                 wd = Path(wd).resolve().relative_to(Path(base).resolve())
             except ValueError:
                 pass
+        # stage 49: the committed emission carries the ENC[age:...] ciphertext,
+        # so the command runs in the PRIVATE MIRROR of its root. Entering the
+        # emitted root first keeps the line saying which root it is (and keeps
+        # the directory the first quoted token), then `materialize` writes the
+        # mirror, prints where, and the command runs there.
+        if root is not None:
+            return (f'( cd "{wd}" && cd "$(cs-image-system materialize . '
+                    f'--root-dir "${ROOT_VARIABLE}")" && {cmd} )')
         return f'( cd "{wd}" && {cmd} )'
     return cmd
 
@@ -1033,6 +1074,15 @@ def read_config_and_transform(
     # _ddd = template_utils.extend_with_envdata({},include_ENV=True)
     # config_str = template_utils.render_j2_template_string(config_str, **_ddd)
     generic_yaml = yaml.safe_load(cycled)
+    # stage 49: any value in the base document may be an ENC[age:...] marker.
+    # HERE, after the dump/render/re-parse above, not in read_and_process: a
+    # Decrypted dumps as its plain text, so decrypting before that round-trip
+    # would lose every ciphertext the emission has to write back, feed the
+    # plaintext to Jinja as template SOURCE, and put it in YAML_DUMP.yaml.
+    # This one call covers IAConfig and the plugin builder models, whose dicts
+    # are popped out of generic_yaml below and structured from these objects.
+    generic_yaml = decrypt_tree(generic_yaml, source=str(_config_dir),
+                                collect=decrypted_plaintexts())
     if isinstance(generic_yaml, list):
         if len(generic_yaml) != 1:
             raise ValueError(f"Expected single config, got {len(generic_yaml)}")
@@ -1382,6 +1432,9 @@ def read_and_process(dir: Path) -> dict[str, Any] | None:
             with open(file, "r") as stream:
                 data = yaml.unsafe_load(stream)
                 if isinstance(data, dict):
+                    # stage 49: needs NO identity -- a structural check, so it
+                    # still runs where nothing could be decrypted
+                    refuse_markers_at(data, str(file))
                     ret = _extend_lists(ret, data)
         except Exception as e:
             log.error(f"Error reading or processing file {file}: {e}")
