@@ -36,7 +36,7 @@ from typing import Any
 import yaml
 
 from .constants import RUN_LOCAL_FILENAMES
-from .encryption import decrypted_plaintexts
+from .encryption import decrypt_tree, decrypted_plaintexts
 from .public_safe import (PRIVATE_DIRNAME, REFUSED_PATHS, PublicSafeError,  # noqa: F401
                           allow_from_config, assert_public_safe,
                           config_for, refused_path, scan_file, scan_for_plaintexts)
@@ -138,7 +138,12 @@ class MetaState:
             loaded = yaml.safe_load(p.read_text()) or {}
             if not isinstance(loaded, dict):
                 raise ValueError(f"Meta-state file {p} must hold a mapping at the top level")
-            data = loaded
+            # stage 50: a record carries the ciphertext it was written from, so
+            # a read opens it again and every recorded-vs-declared comparison
+            # is between PLAINTEXTS -- two markers for one value differ after a
+            # rotation, and comparing those would report drift that is not
+            # there. A record with no marker needs no identity.
+            data = decrypt_tree(loaded, source=str(p))
         self._cache[name] = data
         return data
 

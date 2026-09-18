@@ -9,7 +9,7 @@ system must not take itself.
 
 Current stage: **none in progress**.
 
-Open stages and their order: §50 next; §19 and §30 wait on the
+Open stages and their order: none open; §19 and §30 wait on the
 operator's decisions. A new hygiene issue starts bundle IV.
 
 Standing decisions (operator):
@@ -223,27 +223,3 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-package` (steps 1–3, 5–7),
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
-
-## 50. Meta-state carries markers
-
-**Why**: a `Decrypted` remembers its marker, but every meta-state write
-dumps it as plaintext by the PyYAML representer at
-[encryption.py:67-79](packages/base/src/cs_image_system/base/encryption.py#L67-L79),
-with `assert_public_safe` as the only backstop. After §49 the write can
-carry the ciphertext instead — "write what you read". Derived values
-(computed from a plaintext, carrying no marker) stay plaintext by decision
-unless §51 has made them inherit one.
-
-1. `_represent_decrypted` writes `.marker`; a read-model roster carries
-   the same ciphertexts the configuration carries.
-2. Meta-state reads decrypt through `decrypt_tree`
-   ([meta_state.py:133](packages/base/src/cs_image_system/base/meta_state.py#L133));
-   every recorded-vs-declared comparison compares plaintexts — marker
-   strings differ after a rotation, and `reencrypt` already walks every
-   `*.yaml` under the root except `generated/`, so meta-state rotates with
-   the source.
-3. `record_image_test` ([meta_state.py:397](packages/base/src/cs_image_system/base/meta_state.py#L397))
-   stores check commands verbatim; with §49 step 2 those carry markers,
-   which is what the record must hold.
-4. Records: OPERATIONS "meta-state". Opened after §49 is green live.
-   Feature branch `feature/meta-state-markers`, squash-merged, kept.

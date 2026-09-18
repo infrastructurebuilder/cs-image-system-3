@@ -77,11 +77,34 @@ class InlineMarkerError(ValueError):
     one and would write the secret in clear."""
 
 
+#: Declared here, before the PyYAML representer that consults them; the store
+#: itself is populated by the walk further down.
+_OPENED_KEYS: dict[str, set[str]] = {}
+
+#: Public by decision since stage 34: "no declared-encrypted value other than a
+#: USERNAME in clear". A username is emitted as a quoted literal in the okta
+#: group module call and stands in the identity read-model, because it is the
+#: join key between a roster and an access grant. Every other decrypted value
+#: is refused in the emission and recorded as ciphertext.
+PUBLIC_BY_DECISION_KEYS: frozenset[str] = frozenset({"name", "members", "admins"})
+
+
 def _represent_decrypted(dumper, value):
-    """PyYAML refuses a ``str`` subclass; a decrypted value is written as the
-    plain text it is wherever a model is dumped (the read-models' rosters).
-    ``assert_public_safe`` on every meta-state write remains the backstop."""
-    return dumper.represent_str(str(value))
+    """PyYAML refuses a ``str`` subclass, so a decrypted value needs a
+    representer. It writes what it READ (stage 50): the ciphertext the value
+    came from, so a record carries the same marker the configuration does and
+    a rotation moves both together.
+
+    A value that is public BY DECISION is the exception and is written in
+    clear -- a username is the join key between a roster and an access grant,
+    and a read-model whose rosters were ciphertext could not serve the purpose
+    it exists for. `assert_public_safe` and the plaintext-set scan on every
+    write remain the backstops."""
+    marker = getattr(value, "marker", "")
+    text = str(value)
+    if marker and not (_OPENED_KEYS.get(text, set()) <= PUBLIC_BY_DECISION_KEYS):
+        return dumper.represent_str(marker)
+    return dumper.represent_str(text)
 
 
 try:
@@ -357,19 +380,6 @@ EXEMPT_ENTRY_KEYS: frozenset[str] = frozenset({"name", "type"})
 #: can materialise an emission without decrypting a second time. Run-scoped;
 #: never written anywhere.
 _OPENED: dict[str, str] = {}
-
-#: plaintext -> the configuration keys it was read under. A value is exempt
-#: from the emission guard only when EVERY key it ever appeared under is
-#: public by decision, so a name that is also declared as an email is not.
-_OPENED_KEYS: dict[str, set[str]] = {}
-
-#: Public by decision since stage 34: "no declared-encrypted value other than a
-#: USERNAME in clear". A username is emitted as a quoted literal in the okta
-#: group module call and stands in the identity read-model, because it is the
-#: join key between a roster and an access grant. Every other decrypted value
-#: is refused in the emission.
-PUBLIC_BY_DECISION_KEYS: frozenset[str] = frozenset({"name", "members", "admins"})
-
 
 def decrypted_plaintexts(include_public_by_decision: bool = False) -> set[str]:
     """The run's plaintext set -- what must not appear in a committed file.

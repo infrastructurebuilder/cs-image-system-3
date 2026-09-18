@@ -1269,6 +1269,17 @@ Terraform's older by-reference path still stands for the okta roots: one
 `cs-image-system decrypt --json`, wrapped as `local.sensitive[...]` with
 `sensitive()`.
 
+**In the records.** A meta-state write says what it READ (stage 50): a value
+that came from a marker is recorded as that marker, so a record and the
+configuration hold the same ciphertext and one `reencrypt` moves both (it
+already walks every `*.yaml` under the root except `generated/`). A read opens
+them again, so every recorded-vs-declared comparison is between plaintexts --
+two markers for one value differ after a rotation, and comparing those would
+report drift that is not there. The exception is a value public BY DECISION: a
+username is written in clear, because the identity read-model's rosters are the
+join key between a roster and an access grant and ciphertext there would defeat
+the file's purpose. A record with no marker needs no identity to read.
+
 **The guard does not guess.** The system knows every plaintext it opened, so
 `validate` and every commit search `generated/` and `meta-state/` for those
 exact strings (whole tokens, three characters or more) and refuse naming the
