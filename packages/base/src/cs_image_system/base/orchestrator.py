@@ -492,6 +492,17 @@ class TemplateResolver:
 #   * unstructure omitted defaults and is used to write meta-state, so
 #     dump_python keeps exclude_defaults and writes by alias.
 # ==========================================================================
+def _as_text(x: Any) -> str:
+    """``str(x)`` for a number, but an existing string UNCHANGED (stage 49).
+
+    ``str()`` on a ``str`` subclass returns a new plain ``str``, which would
+    drop a :class:`Decrypted`'s ``marker`` -- the one signal that tells an
+    emission to write the ciphertext rather than the text. The coercion the
+    cattrs hooks did was for non-strings, so narrowing it this way is neutral
+    for every other value."""
+    return x if isinstance(x, str) else str(x)
+
+
 def _str_collection_kind(ann: Any) -> str | None:
     """Which cattrs-era coercion an annotation wants: ``list`` / ``set`` for a
     collection of strings -- ``str`` itself or an ``Annotated[str, ...]`` such as
@@ -582,9 +593,9 @@ class PydanticConverter:
                 continue
             kind, val = _str_collection_kind(f.type), out[f.name]   # dataclasses.Field.type: the ANNOTATION, not a model field
             if kind == "list":
-                out[f.name] = [] if val is None else [str(x) for x in val]
+                out[f.name] = [] if val is None else [_as_text(x) for x in val]
             elif kind == "set":
-                out[f.name] = set() if val is None else {str(x) for x in val}
+                out[f.name] = set() if val is None else {_as_text(x) for x in val}
             elif kind == "dict" and val is None:
                 out[f.name] = {}
         return out

@@ -15,6 +15,7 @@ log = logging.getLogger(__name__)
 from jinja2 import Environment, Undefined, nodes, Template
 
 from .constants import NAME, PLUGIN_TYPES
+from .encryption import decrypt_tree, decrypted_plaintexts
 from .helpers import resolution_stages
 
 
@@ -637,6 +638,11 @@ def read_and_preprocess_yaml_files(
             with open(yaml_file) as file:
                 ss = file.read()
                 file_data = yaml.safe_load(ss)  #  process_keys( yaml.safe_load(ss) )
+                # stage 49: any value may be an ENC[age:...] marker. The
+                # rosters' markers are opened here, before structuring, and
+                # carry their ciphertext onward for the emission to write back.
+                file_data = decrypt_tree(file_data, source=str(yaml_file),
+                                         collect=decrypted_plaintexts())
                 if not (sub_key and isinstance(file_data, dict)):
                     raise ValueError(
                         f"YAML file {yaml_file} does not contain a top-level "

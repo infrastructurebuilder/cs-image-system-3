@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 from . import registry
 from .utils import super_safe_name
 from .template_utils import cycle_main_yaml, read_and_preprocess_yaml_files
+from .encryption import decrypt_tree, decrypted_plaintexts, refuse_markers_at
 
 log = logging.getLogger(__name__)
 
@@ -1033,6 +1034,15 @@ def read_config_and_transform(
     # _ddd = template_utils.extend_with_envdata({},include_ENV=True)
     # config_str = template_utils.render_j2_template_string(config_str, **_ddd)
     generic_yaml = yaml.safe_load(cycled)
+    # stage 49: any value in the base document may be an ENC[age:...] marker.
+    # HERE, after the dump/render/re-parse above, not in read_and_process: a
+    # Decrypted dumps as its plain text, so decrypting before that round-trip
+    # would lose every ciphertext the emission has to write back, feed the
+    # plaintext to Jinja as template SOURCE, and put it in YAML_DUMP.yaml.
+    # This one call covers IAConfig and the plugin builder models, whose dicts
+    # are popped out of generic_yaml below and structured from these objects.
+    generic_yaml = decrypt_tree(generic_yaml, source=str(_config_dir),
+                                collect=decrypted_plaintexts())
     if isinstance(generic_yaml, list):
         if len(generic_yaml) != 1:
             raise ValueError(f"Expected single config, got {len(generic_yaml)}")
@@ -1382,6 +1392,9 @@ def read_and_process(dir: Path) -> dict[str, Any] | None:
             with open(file, "r") as stream:
                 data = yaml.unsafe_load(stream)
                 if isinstance(data, dict):
+                    # stage 49: needs NO identity -- a structural check, so it
+                    # still runs where nothing could be decrypted
+                    refuse_markers_at(data, str(file))
                     ret = _extend_lists(ret, data)
         except Exception as e:
             log.error(f"Error reading or processing file {file}: {e}")
