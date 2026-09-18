@@ -9,9 +9,9 @@ system must not take itself.
 
 Current stage: **none in progress**.
 
-Open stages and their order: §49 first; §50 and §51 after it, independent
-of each other; §19 and §30 wait on the operator's decisions. A new hygiene
-issue starts bundle IV.
+Open stages and their order: §51 next, then §50, independent of each
+other; §19 and §30 wait on the operator's decisions. A new hygiene issue
+starts bundle IV.
 
 Standing decisions (operator):
 
@@ -224,132 +224,6 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-package` (steps 1–3, 5–7),
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
-
-## 49. Ciphertext all the way to execution
-
-**Why**: an `ENC[age:…]` marker (a value replaced by an age file encrypted
-to every key in `encryption.recipients`, opened only by the identity in
-`CSIS_CONFIG_IDENTITY`; [CONFIGURATION §13](docs/CONFIGURATION.md#L1678))
-decrypts today only in fields typed `EncryptedStr`, and only three okta
-call sites emit a decrypted value by reference. Everything else — packer,
-every other terraform builder, the read-models — quotes a decrypted value
-in clear, and `generated/` and `meta-state/` are committed to a public
-repository. "Decrypt anywhere at load" alone would turn the one loud
-refusal that exists (`validate_public_key` rejecting a marker on
-`admin_public_keys`) into silent plaintext in committed files. The
-operator's design (2026-09-18) inverts the boundary: any value may be a
-marker; the **emission keeps the marker**; execution decrypts into a
-private, uncommitted mirror (`_private/`, a sibling of `generated/` at the
-same depth) that the tools run from; CI masks every decrypted value in
-the job log. The safety story collapses to one invariant — no plaintext
-of any marker in any committed file — enforced by the system that did the
-decrypting, not by guessing at shapes. Fingerprints are unaffected:
-[lineage](packages/base/src/cs_image_system/base/lineage.py#L145-L162)
-hashes the plaintext payload, a sha that no encryption or rotation moves,
-provided it keeps hashing the materialised form. Age is randomised, so the
-emission must reuse the source marker, never re-encrypt.
-
-1. **Any marker decrypts at load.** `encryption.decrypt_tree(data,
-   source)`: a structural walk that turns every whole-value marker into
-   `Decrypted(plaintext, marker=original)`; identities resolved lazily on
-   the first marker, so a tree with none loads with no identity; a marker
-   as a mapping key or embedded inside a longer string is refused naming
-   `source` and the path. `refuse_markers_at(doc, source)`, needing no
-   identity, refuses a marker at the keys the raw bypass readers consume
-   before or without the loader: `encryption.recipients`,
-   `public_safe.allow`, `runtime_builders[].name/type/profile/
-   credentials.profile_name`, `config.preflight.*`, `config.apply_*`, any
-   list entry's `name`/`type`. Insertion points are AFTER the templating
-   round-trip, not inside `read_and_process` (a `Decrypted` dumps as
-   plaintext, so decrypting before the dump/render/re-parse at
-   [global_context.py:1010-1035](packages/base/src/cs_image_system/base/global_context.py#L1010-L1035)
-   loses every ciphertext, feeds plaintext to Jinja as source, and writes
-   it to `YAML_DUMP.yaml` under `--verbose`):
-   [global_context.py:1035](packages/base/src/cs_image_system/base/global_context.py#L1035)
-   right after `generic_yaml = yaml.safe_load(cycled)` (covers `IAConfig`
-   and the plugin builder dicts popped at :1053 and structured at :1106 —
-   `original_yaml_strings` is written at four places and read nowhere),
-   and [template_utils.py:639](packages/base/src/cs_image_system/base/template_utils.py#L639)
-   for `groups/ storages/ images/ instances/`; `refuse_markers_at` at
-   [global_context.py:1383](packages/base/src/cs_image_system/base/global_context.py#L1383),
-   the only place each `cfg/` file is seen with its own path.
-   [orchestrator.py:585-587](packages/base/src/cs_image_system/base/orchestrator.py#L585-L587)
-   keeps a `str` subclass (`x if isinstance(x, str) else str(x)`) so a
-   pre-decrypted element keeps `.marker` — land this first and prove the
-   golden byte-identical. `EncryptedStr` stays: it passes a `Decrypted`
-   through unchanged and is the one annotation under which pydantic keeps
-   the subclass without help.
-2. **The emission carries the marker.** `encryption.emit(v)` is
-   `getattr(v, "marker", None) or v`; every emitter that turns a
-   configuration value into artifact text uses it:
-   [blocks.py `hcl_value`](packages/hashicorp-utils/src/cs_image_system/hashicorp_utils/blocks.py#L35-L50),
-   [v2_provisioners.py `_quote`/`admin_user_commands`](packages/packer-plugin/src/cs_image_system/packer_plugin/v2_provisioners.py#L37-L83)
-   — `f"echo '{key}' | sudo tee -a …"` becomes
-   `f"echo '{emit(key)}' | sudo tee -a …"`, so the committed
-   `build.pkr.hcl` carries `echo 'ENC[age:…]' | …` and the mirror
-   `echo 'ssh-ed25519 AAAA…' | …` —
-   [image_tests.py `_admin_verify`](packages/base/src/cs_image_system/base/image_tests.py#L157-L166)
-   (the key-body `split()[1]` moves into the command so the shell does it
-   after substitution), the ansible plugin's extra-vars/inventory
-   rendering, and
-   [capabilities.py:173-186](packages/base/src/cs_image_system/base/capabilities.py#L173-L186)
-   stops `str(k).strip()`-ing the marker away. A marker is base64 in
-   brackets: safe inside single quotes, HCL strings and JSON. The
-   fingerprint hashes the materialised text of any command carrying a
-   marker (else every `reencrypt` marks every image DUE). The okta
-   `data "external"` path stays as is; retiring it is a later tidy.
-3. **`cs-image-system materialize <src> <dst>`**: copies a generated root
-   to `_private/<same relative path>`, substituting every embedded marker
-   in text files (identity from the environment), binary files verbatim,
-   modes preserved, `.terraform.lock.hcl` copied in and never back.
-   `_private/` joins `REFUSED_PATHS`, the emitted `.gitignore`, and the
-   public-safe scanner's skips. The `local` state type's depth-relative
-   path ([ROOT_DEPTH=4](packages/local-state-plugin/src/cs_image_system/local_state_plugin/local_state_models.py#L30))
-   still resolves because the mirror sits at `generated/`'s depth; the
-   state file does not move.
-4. **Execution runs in the mirror.** `commands_final` working directories
-   and the `run-*.sh` lines
-   ([global_context.py:727-797](packages/base/src/cs_image_system/base/global_context.py#L727-L797))
-   become `materialize` + `cd` into the mirror; `commands_now`
-   (fmt/init/validate) stay in `generated/`, so the lock file is still
-   produced there. The one Python reader of a run-local file, the packer
-   manifest ([packer_ebs_builder.py:280](packages/packer-plugin/src/cs_image_system/packer_plugin/packer_ebs_builder.py#L280)),
-   resolves against the mirror; `tfplan`, `gate-plan` and the migration
-   backup follow the `cd` unchanged. Locally the mirror is left for the
-   operator to read. In CI its removal is a separate workflow step with
-   `if: always()`, so a failed bake or apply never leaves plaintext on a
-   runner that uploads artifacts.
-5. **The plaintext-set scan.** The walk collects every plaintext it
-   produced; before any commit and in `validate_all`, a whole-token
-   search of `generated/` and `meta-state/` for each (≥ 3 chars, as the
-   invariant test does) refuses naming file and line. This is the primary
-   guard; the public-safe scanner stays as the backstop for material that
-   was never a marker.
-6. **CI masking.** The first step of every job carrying
-   `CSIS_CONFIG_IDENTITY` runs `cs-image-system decrypt --mask <root>`,
-   printing `::add-mask::<line>` for every line of every decrypted value
-   ≥ 8 chars (masking is a blocklist: a wrapped or line-split value evades
-   it, a short common name over-masks; `sensitive()` stays on the values
-   that have it). `PKR_VAR_<name>=<literal>` joins `HARD_RULES` beside
-   `tfvar-assignment`.
-7. **The universal invariant test** replaces the three-field loop in
-   [test_v2_emit_by_reference.py:149-184](tests/test_v2_emit_by_reference.py#L149-L184):
-   every marker in every file under the fixture root, decrypted, absent
-   from `generated/` ∪ `meta-state/`. The fixture encrypts
-   `admin_public_keys` on purpose — the golden moves once, reviewed by
-   hand — so the packer path is exercised, and a real `packer validate`
-   of the materialised block-000 proves the substitution yields valid HCL.
-8. Records: CONFIGURATION §13, OPERATIONS "Encrypted values" and "In the
-   emission", DESIGN §4 — any value; the emission carries the ciphertext;
-   execution materialises; CI masks. Acceptance in order: step 1's
-   coercion fix alone leaves the golden byte-identical; after step 1
-   `test_v2_encrypted_values` and `test_v2_emit_by_reference` green
-   unmodified; after step 4 `just golden-regen` once with the diff
-   reviewed; after step 7 a planted leak in a fixture copy is refused;
-   `just full-test`; `gh workflow run ci.yml --ref feature/… -f mode=dry`
-   shows `***` where a decrypted value was echoed; a dry run against the
-   sibling changes nothing but the run-script lines (restored after).
-   Feature branch `feature/ciphertext-to-execution`, squash-merged, kept.
 
 ## 50. Meta-state carries markers
 
