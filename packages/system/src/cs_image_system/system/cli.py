@@ -298,13 +298,28 @@ def decrypt_command(
     as_json: Annotated[bool, typer.Option(
         "--json", help="terraform `external` data source protocol (stage 34): read a JSON "
                        "object of markers on stdin, print it decrypted; unmarked values pass through")] = False,
+    file: Annotated[list[Path] | None, typer.Option("--file", help="a YAML file to DECRYPT in place (repeatable); the inverse of `encrypt --file`")] = None,
+    field: Annotated[list[str] | None, typer.Option("--field", help="a field NAME whose markers are written in clear in each --file (repeatable)")] = None,
 ) -> None:
     """Decrypt one marker with the identity in CSIS_CONFIG_IDENTITY and print
     the plaintext -- for the operator, never for a script that logs. With
     --json it is the program behind every generated root's
     `data "external" "sensitive"`, run by terraform at plan time."""
-    from cs_image_system.base.encryption import decrypt_marker, is_marker
+    from cs_image_system.base.encryption import decrypt_fields_in_text, decrypt_marker, is_marker
     try:
+        if file:
+            if not field:
+                typer.secho("decrypt: --file needs at least one --field", fg=typer.colors.RED, err=True)
+                raise typer.Exit(code=2)
+            total = 0
+            for f in file:
+                text, n = decrypt_fields_in_text(f.read_text(), field)
+                if n:
+                    f.write_text(text)
+                total += n
+                typer.secho(f"decrypt: {n} value{'s' if n != 1 else ''} in {f}", err=True)
+            typer.secho(f"decrypt: {total} value{'s' if total != 1 else ''} written in clear", err=True)
+            return
         if as_json:
             query = json.loads(sys.stdin.read() or "{}")
             if not isinstance(query, dict):

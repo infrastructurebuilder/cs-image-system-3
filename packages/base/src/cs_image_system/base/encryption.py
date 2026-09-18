@@ -258,6 +258,55 @@ def encrypt_fields_in_text(text: str, field_names: Iterable[str], recipients: It
     return "".join(out), count
 
 
+def decrypt_fields_in_text(text: str, field_names: Iterable[str],
+                           identities: Iterable | None = None) -> tuple[str, int]:
+    """The inverse of :func:`encrypt_fields_in_text` (stage 51): replace every
+    marker that is the value of a named key, or an element of a block list
+    under one, with its plaintext. Comments, ordering and every other byte are
+    preserved. Returns the new text and the count decrypted.
+
+    For un-hiding a value whose encryption bought nothing -- a first name whose
+    derived address named the person anyway -- without hand-editing a roster."""
+    ids = list(identities) if identities is not None else list(identities_from_env())
+    names = "|".join(re.escape(n) for n in field_names)
+    scalar_re = re.compile(_SCALAR_RE.format(key=names))
+    head_re = re.compile(_LIST_HEAD_RE.format(key=names))
+    out: list[str] = []
+    count = 0
+    in_list_indent: int | None = None
+    for line in text.splitlines(keepends=True):
+        body = line.rstrip("\n")
+        nl = "\n" if line.endswith("\n") else ""
+        if body.lstrip().startswith("#") or not body.strip():
+            out.append(line)
+            continue
+        if in_list_indent is not None:
+            m = _ITEM_RE.match(body)
+            if m and len(m.group("indent")) > in_list_indent:
+                v = _unquote(m.group("value"))
+                if is_marker(v):
+                    plain = decrypt_marker(v, ids)
+                    body = f"{m.group('indent')}- {plain}" + (f"  {m.group('comment')}" if m.group("comment") else "")
+                    count += 1
+                out.append(body + nl)
+                continue
+            in_list_indent = None
+        m = scalar_re.match(body)
+        if m:
+            v = _unquote(m.group("value"))
+            if is_marker(v):
+                plain = decrypt_marker(v, ids)
+                body = f"{m.group('indent')}{m.group('key')}: {plain}" + (f"  {m.group('comment')}" if m.group("comment") else "")
+                count += 1
+            out.append(body + nl)
+            continue
+        m = head_re.match(body)
+        if m:
+            in_list_indent = len(m.group("indent"))
+        out.append(line)
+    return "".join(out), count
+
+
 def rotate_text(text: str, identities: Iterable, recipients: Iterable[str]) -> tuple[str, int]:
     """Re-encrypt every marker in ``text`` to ``recipients``; raises on the
     first marker the identities cannot open (nothing is returned partially)."""
@@ -361,6 +410,25 @@ def substitute_markers(text: str, identities: Iterable | None = None) -> str:
         return plain
 
     return INLINE_MARKER_RE.sub(_sub, text)
+
+
+def mark_plaintexts(text: str) -> str:
+    """``text`` with every decrypted value it contains put back as the
+    ciphertext it came from -- the marker form of a DERIVED value (stage 51).
+
+    A value computed from an encrypted one is declared nowhere, so it has no
+    ciphertext of its own: this builds one from the pieces, so an address
+    derived from a hidden domain reaches the emission as
+    ``blake.bravo@ENC[age:...]`` and `materialize` puts the address back
+    together where the tools run. Values public by decision (a username) are
+    left alone, and the longest match is taken first so a substring cannot
+    pre-empt the value that contains it."""
+    wanted = [(plain, marker) for marker, plain in _OPENED.items()
+              if plain and not (_OPENED_KEYS.get(plain, set()) <= PUBLIC_BY_DECISION_KEYS)]
+    for plain, marker in sorted(wanted, key=lambda pm: len(pm[0]), reverse=True):
+        if plain in text:
+            text = text.replace(plain, marker)
+    return text
 
 
 def like(original: Any, text: str) -> Any:

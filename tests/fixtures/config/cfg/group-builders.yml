@@ -36,7 +36,10 @@ user_builders:
     # user.name is the bare OPA username; email (explicit, or derived by this
     # template) is used ONLY for the org lookup (PLAN.md local-migration Q3).
     email_as_username: false
-    default_user_email_template: "{{ user.name }}@example.invalid"
+    # stage 51: the domain is its own value, so it can be declared encrypted;
+    # a derived address inherits it and reaches the emission as ciphertext
+    email_domain: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBMd3pHdFlPNlQ3UmpCNXF3R3prWEhwWlJVcWJoTVExdlJHNUVxZHZIUlZzCjZPRTIwZ1pNUVNIeTBrUGhabllPaGU2cFJTa0xFVWZuMmxSNTAxcnZ6MDgKLS0tIHU1dHUvOFFtR0RJSDZkR280Q1ZQY2h2M3RHYzR4OW0xTXdWT0ozOHBiVGMKZfcyCqflNN+CE4oPpyTAtEiOjdfaXEuxzxv7D6cRTNjHGTTr8GmHFq1Xk2BGfkw=]
+    default_user_email_template: "{{ user.name }}@{{ builder.email_domain }}"
     # Lookup credentials come from OKTA_API_* env vars (see the credentials
     # runbook in PLAN.md), so no key/secret here.
     required_providers:

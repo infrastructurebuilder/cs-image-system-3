@@ -38,7 +38,13 @@ def _fixture_identity(monkeypatch):
 
 
 def _plain(value: str) -> str:
-    assert MARKER.fullmatch(value), f"a roster value in clear: {value!r}"
+    """The text of a roster value, whether or not it is encrypted.
+
+    Since stage 51 a first and last name stand in clear: encrypting them
+    bought nothing while the address derived from them named the person and
+    the organisation both. What is hidden now is the address's domain."""
+    if not MARKER.fullmatch(value):
+        return value
     return decrypt_marker(value)
 
 
@@ -68,7 +74,13 @@ def test_every_group_member_is_a_roster_user():
 def test_the_derived_address_cannot_be_delivered():
     builders = (FIXTURE_CONFIG / "cfg" / "group-builders.yml").read_text()
     templates = re.findall(r"^\s*default_user_email_template:\s*\"([^\"]+)\"", builders, flags=re.M)
-    assert templates and all(t.endswith("@example.invalid") for t in templates)
+    # stage 51: the domain is its own declared value and is encrypted, so the
+    # template names it rather than spelling it; it still decrypts to a domain
+    # that cannot receive mail
+    assert templates and all(t.endswith("@{{ builder.email_domain }}") for t in templates)
+    domains = re.findall(r"^\s*email_domain:\s*(\S+)", builders, flags=re.M)
+    assert domains, "the fixture declares the domain as its own value"
+    assert all(_plain(d).endswith(EXAMPLE_DOMAINS) for d in domains)
     config = yaml.safe_load((FIXTURE_CONFIG / "cfg" / "_config.yml").read_text())
     allow = config.get("public_safe", {}).get("allow", [])
     assert not any(a.endswith(".gov") for a in allow), "the fixture needs no allowance for a real domain"

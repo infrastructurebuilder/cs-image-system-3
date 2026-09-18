@@ -1712,6 +1712,7 @@ identity; the suite exports it.
 | `cs-image-system encrypt --file <yaml> --field <name> …` | encrypts, in place and textually, every scalar value of a key named `<name>` and every element of a block list under it; comments and every other byte are preserved; values already marked, templated (`{{`), empty or nested are left alone |
 | `cs-image-system decrypt <marker>` | prints the plaintext (for the operator) |
 | `cs-image-system decrypt --json` | the terraform `external` data source protocol: a JSON object of markers on stdin, decrypted on stdout; generated roots run it at plan time |
+| `cs-image-system decrypt --file <yaml> --field <name> …` | the inverse of `encrypt --file`: writes those fields' markers back in clear, in place, comments preserved |
 | `cs-image-system reencrypt [--dry-run]` | rotates every marker under the root to the current recipients; nothing is written unless every value opens |
 | `cs-image-system materialize <dir> [dest]` | copies a generated root into the private mirror with every marker replaced by its plaintext, and prints where; what every deferred command runs through |
 | `cs-image-system public-safe [--staged] [--tree] [--config]` | refuses material that must not be public; `public_safe.allow` lists the exceptions |
@@ -1734,11 +1735,18 @@ at plan time — still stands for the okta roots.
 
 The guard is not a guess: the system knows every plaintext it opened, and
 `validate` and every commit refuse if one of them stands in clear under
-`generated/` or `meta-state/`, naming the file and line. A **derived** value —
-an email produced by `default_user_email_template` from a decrypted name — has
-no ciphertext of its own and is emitted in clear by construction; the fixture's
-`public_safe.allow` therefore names no real domain and the derived domain is
-`example.invalid`.
+`generated/` or `meta-state/`, naming the file and line.
+
+**A derived value inherits its inputs' encryption** (stage 51). A value
+computed from a decrypted one — an address from `default_user_email_template` —
+is declared nowhere and so has no ciphertext of its own; one is built from the
+pieces, so the emission carries `blake.bravo@ENC[age:…]` and `materialize` puts
+the address back together where the tools run. That is why the address domain
+is its own declared value: put `email_domain` on the user builder and write the
+template as `"{{ user.name }}@{{ builder.email_domain }}"`, encrypt the domain,
+and one marker serves every user. A username stays public by decision, so a
+value read only under `name`, `members` or `admins` is emitted in clear —
+it is the join key between a roster and an access grant.
 
 ## 14. Environment variables
 

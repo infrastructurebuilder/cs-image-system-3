@@ -6,7 +6,7 @@ data "okta_user" "avery_alpha" {
     
     search {
         name = "profile.login"
-        value = "avery.alpha@example.invalid"
+        value = local.sensitive["email_avery_alpha"]
         comparison = "eq"
     }
 }
@@ -30,7 +30,7 @@ data "okta_user" "casey_charlie" {
     
     search {
         name = "profile.login"
-        value = "casey.charlie@example.invalid"
+        value = local.sensitive["email_casey_charlie"]
         comparison = "eq"
     }
 }
@@ -42,7 +42,7 @@ data "okta_user" "dakota_delta" {
     
     search {
         name = "profile.login"
-        value = "dakota.delta@example.invalid"
+        value = local.sensitive["email_dakota_delta"]
         comparison = "eq"
     }
 }
@@ -54,7 +54,7 @@ data "okta_user" "emerson_echo" {
     
     search {
         name = "profile.login"
-        value = "emerson.echo@example.invalid"
+        value = local.sensitive["email_emerson_echo"]
         comparison = "eq"
     }
 }
@@ -66,7 +66,7 @@ data "okta_user" "finley_foxtrot" {
     
     search {
         name = "profile.login"
-        value = "finley.foxtrot@example.invalid"
+        value = local.sensitive["email_finley_foxtrot"]
         comparison = "eq"
     }
 }
@@ -78,7 +78,7 @@ data "okta_user" "greer_golf" {
     
     search {
         name = "profile.login"
-        value = "greer.golf@example.invalid"
+        value = local.sensitive["email_greer_golf"]
         comparison = "eq"
     }
 }
@@ -90,7 +90,7 @@ data "okta_user" "harper_hotel" {
     
     search {
         name = "profile.login"
-        value = "harper.hotel@example.invalid"
+        value = local.sensitive["email_harper_hotel"]
         comparison = "eq"
     }
 }
@@ -114,7 +114,7 @@ data "okta_user" "jordan_juliett" {
     
     search {
         name = "profile.login"
-        value = "jordan.juliett@example.invalid"
+        value = local.sensitive["email_jordan_juliett"]
         comparison = "eq"
     }
 }
@@ -138,7 +138,7 @@ data "okta_user" "lennox_lima" {
     
     search {
         name = "profile.login"
-        value = "lennox.lima@example.invalid"
+        value = local.sensitive["email_lennox_lima"]
         comparison = "eq"
     }
 }

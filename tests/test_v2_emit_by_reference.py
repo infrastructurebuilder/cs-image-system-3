@@ -135,7 +135,11 @@ def test_the_fixture_emission_carries_only_ciphertexts_the_configuration_carries
     finally:
         run.restore_cwd()
     source = (FIXTURE_CONFIG / "groups" / "users.yaml").read_text()
-    declared = {m for m in MARKER.findall(source)}
+    # stage 51: a DERIVED address carries the ciphertext of the piece it was
+    # derived from -- the domain, declared in cfg/ -- so the emission's
+    # ciphertexts come from the whole tree, not from the roster alone
+    declared = {m for f in FIXTURE_CONFIG.rglob("*.y*ml") if "generated" not in f.parts
+                for m in MARKER.findall(f.read_text())}
     emitted_markers = set(MARKER.findall(users_tf)) | set(MARKER.findall(root_tf))
     assert emitted_markers and emitted_markers <= declared, "the emission carries the SAME ciphertexts as the YAML"
     # every declared email is read by reference and its text is not in the emission
@@ -144,7 +148,10 @@ def test_the_fixture_emission_carries_only_ciphertexts_the_configuration_carries
     all_text = "\n".join(emitted.values())
     for email in declared_emails:
         assert email not in all_text
-    assert users_tf.count('value = local.sensitive["email_') == 10
+    # stage 51: EVERY address is read by reference now -- the ten declared
+    # explicitly, and the nine derived from the encrypted domain, which used to
+    # be quoted in clear because a derived value had no ciphertext of its own
+    assert users_tf.count('value = local.sensitive["email_') == 19
     assert 'data "external" "sensitive"' in root_tf and re.search(r'source\s*=\s*"hashicorp/external"', root_tf)
 
 
@@ -179,7 +186,11 @@ def test_no_declared_encrypted_value_but_a_username_reaches_the_emission_or_meta
                 (public_by_decision if key in PUBLIC_BY_DECISION_KEYS else hidden).add(decrypt_marker(node))
         walk(yaml.safe_load(path.read_text()) or {})
     hidden -= public_by_decision       # a username also declared elsewhere is still public
-    assert len(hidden) >= 30, "the fixture declares encrypted names and emails"
+    # since stage 51 the fixture hides the ADDRESS DOMAIN and the ten explicit
+    # addresses, not the first and last names: encrypting those bought nothing
+    # while the address derived from them named person and organisation both
+    assert len(hidden) >= 10, "the fixture declares encrypted addresses and a domain"
+    assert "example.invalid" in hidden, "the derived address's domain is hidden"
     # whole tokens only: a last name is a part of the public username
     # (`avery.alpha`, label `avery_alpha`), which is not the declared value
     def in_clear(value: str) -> bool:
