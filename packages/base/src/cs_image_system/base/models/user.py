@@ -56,7 +56,7 @@ class User(RootItem, SelfInjectedNameProtocol, ParentPropertyHoldingProtocol):
     first_name: EncryptedStr
     last_name: EncryptedStr
     middle_name: str | None = None
-    email: EncryptedStr = templated_field(replace_value = "{{ builder.default_user_email_template }}",
+    email: EncryptedStr = templated_field(replace_value = "{{ builder.get_user_email_template() }}",
                                  default = DEFAULT, metadata={
         "description": "The user email or a format string",
         "required": True,

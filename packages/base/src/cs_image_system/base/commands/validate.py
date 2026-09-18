@@ -342,8 +342,15 @@ def check_no_plaintext_emitted(ctx: GlobalTypeContext) -> list[Exception]:
 
     The primary encryption guard, and the one that does not guess: the system
     opened these markers itself, so it knows exactly which strings must not be
-    in a committed file. An emitter that forgot :func:`emit` is caught here
-    rather than in a public repository."""
+    in a committed file. An emitter that forgot :func:`emit` is caught before a
+    public repository has it.
+
+    NOT part of :func:`collect_validation_errors`, which runs BEFORE a run
+    generates: it would then read the emission the run is about to replace, so
+    the first run after a value is newly encrypted could never regenerate the
+    tree that made it fail. The gate is the commit
+    (:func:`meta_state.commit_meta_state`), which is where anything becomes
+    public; this function is for asking the same question by hand."""
     from ..encryption import decrypted_plaintexts
     from ..public_safe import scan_for_plaintexts
     plaintexts = decrypted_plaintexts()
@@ -365,5 +372,4 @@ def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     exs.extend(check_executables_exist_and_versions(ctx))
     exs.extend(check_state_locations(ctx))
     exs.extend(check_foreign_keys(ctx))
-    exs.extend(check_no_plaintext_emitted(ctx))
     return exs

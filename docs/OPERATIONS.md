@@ -1227,6 +1227,9 @@ Tools (no configuration load, no identity needed except to decrypt):
   the CURRENT recipients after one is added or removed; nothing is
   written unless every value opens; a removed identity can no longer open
   the tree;
+- `just cli decrypt --file F --field NAME…` writes those fields back in clear,
+  in place, comments preserved -- the inverse of `encrypt --file`, for a value
+  whose encryption bought nothing;
 - `just cli materialize <dir>` writes the private mirror of a generated root
   and prints where — what every deferred command runs through, and what to
   read when debugging emitted code that carries ciphertext;
@@ -1270,10 +1273,19 @@ Terraform's older by-reference path still stands for the okta roots: one
 `validate` and every commit search `generated/` and `meta-state/` for those
 exact strings (whole tokens, three characters or more) and refuse naming the
 file and line. The shape rules remain the backstop for material that was never
-a marker. A rotation is `reencrypt` plus regeneration. A value DERIVED from a
-decrypted one — an email from `default_user_email_template` — has no
-ciphertext of its own and is emitted in clear by construction; declare the
-value itself encrypted for any address that must not be.
+a marker. A rotation is `reencrypt` plus regeneration.
+
+**A derived value inherits its inputs' encryption** (stage 51): an address
+built from `default_user_email_template` carries a ciphertext assembled from
+the pieces it was built from, so it reaches the emission as
+`blake.bravo@ENC[age:…]` rather than in clear. Encrypting a first and last name
+bought little while the address derived from them named the person and the
+organisation both, so what is hidden is the address's DOMAIN: `email_domain` is
+its own value on the user builder, the template reads
+`"{{ user.name }}@{{ builder.email_domain }}"`, and one marker serves every
+user. A username remains public by decision — it is the join key between a
+roster and an access grant — so a value read only under `name`, `members` or
+`admins` is emitted in clear.
 
 ### `just cloud-preflight`
 

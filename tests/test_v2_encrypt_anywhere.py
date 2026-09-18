@@ -297,3 +297,69 @@ def test_the_provider_lock_file_comes_back_out_and_nothing_else(tmp_path):
     assert (src / ".terraform.lock.hcl").is_file()
     assert not (src / "tfplan").exists() and not (src / "terraform.tfstate").exists()
     assert sync_back(src, dst) == [], "an unchanged lock file is not copied again"
+
+
+# -------------------------------------------- derived values (stage 51)
+
+def test_a_derived_value_inherits_its_inputs_encryption():
+    """The stage-51 rule: a value computed from a decrypted one is declared
+    nowhere, so its ciphertext is built from the pieces."""
+    from types import SimpleNamespace
+    from cs_image_system.base.orchestrator import TemplateResolver
+    domain = enc("noaa.example")
+    decrypt_tree({"email_domain": domain})          # so the map knows it
+    ctx = {"user": SimpleNamespace(name="blake.bravo"),
+           "builder": SimpleNamespace(domain="noaa.example")}
+    out = TemplateResolver().render_inheriting("{{ user.name }}@{{ builder.domain }}", ctx)
+    assert out == "blake.bravo@noaa.example"
+    assert isinstance(out, Decrypted)
+    assert out.marker == f"blake.bravo@{domain}"
+
+
+def test_a_render_with_no_encrypted_input_stays_a_plain_string():
+    from cs_image_system.base.orchestrator import TemplateResolver
+    decrypt_tree({"k": enc("something-else")})
+    out = TemplateResolver().render_inheriting("{{ a }}-suffix", {"a": "plain"})
+    assert out == "plain-suffix" and not isinstance(out, Decrypted)
+
+
+def test_a_username_is_public_by_decision_and_is_not_marked_in_a_derived_value():
+    """A username is the join key between a roster and an access grant, so it
+    is emitted in clear -- the stage-34 decision, kept."""
+    from cs_image_system.base.orchestrator import TemplateResolver
+    name = enc("blake.bravo")
+    domain = enc("noaa.example")
+    decrypt_tree({"users": [{"name": name}], "email_domain": domain})
+    out = TemplateResolver().render_inheriting(
+        "{{ a }}@{{ b }}", {"a": "blake.bravo", "b": "noaa.example"})
+    assert out.marker == f"blake.bravo@{domain}", "the username stays in clear, the domain does not"
+
+
+def test_decrypt_file_is_the_inverse_of_encrypt_file(tmp_path):
+    from cs_image_system.base.encryption import decrypt_fields_in_text, encrypt_fields_in_text
+    original = ("users:\n"
+                "  - name: avery.alpha        # a comment\n"
+                "    first_name: Avery\n"
+                "    last_name: Alpha\n"
+                "  # - name: commented.out\n")
+    encrypted, n = encrypt_fields_in_text(original, ["first_name", "last_name"], [RECIPIENT])
+    assert n == 2 and "Avery" not in encrypted and "ENC[age:" in encrypted
+    back, m = decrypt_fields_in_text(encrypted, ["first_name", "last_name"])
+    assert m == 2
+    assert back == original, "comments, ordering and every other byte survive the round trip"
+
+
+def test_the_fixture_hides_the_domain_and_not_the_names():
+    import yaml
+    builders = yaml.safe_load((FIXTURE_CONFIG / "cfg" / "group-builders.yml").read_text())
+    ub = next(b for b in builders["user_builders"] if b.get("email_domain"))
+    assert is_marker_str(ub["email_domain"]), "the domain is encrypted"
+    assert ub["default_user_email_template"].endswith("@{{ builder.email_domain }}")
+    users = yaml.safe_load((FIXTURE_CONFIG / "groups" / "users.yaml").read_text())
+    names = [u["first_name"] for u in users["users"] if "first_name" in u]
+    assert names and not any(is_marker_str(n) for n in names), "first names stand in clear"
+
+
+def is_marker_str(v) -> bool:
+    from cs_image_system.base.encryption import is_marker
+    return is_marker(v)

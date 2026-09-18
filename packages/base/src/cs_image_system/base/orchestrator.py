@@ -8,6 +8,7 @@ log = logging.getLogger(__name__)
 
 
 from . import template_utils
+from .encryption import Decrypted, mark_plaintexts
 from .helpers.field_helpers import lookup_dataclass_field
 from .helpers import field_kinds
 from .protocols.plugin_metadata import PluginArtifactProtocol
@@ -152,6 +153,23 @@ class TemplateResolver:
         self.flattened_map = addl or {}
         self.env = jinja2.Environment(undefined=template_utils.KeepUndefined)
         self.deferred_fields: dict[str, VCT] = {"modifications": VCT.MOD_BUILDER_ITEM_MODEL}  # List of fields that require late-stage structuring into concrete types due to dependencies on the registry
+    def render_inheriting(self, templ: str, context: dict) -> Any:
+        """Render ``templ``, and let the result INHERIT its inputs' encryption
+        (stage 51).
+
+        A value computed from a decrypted one is declared nowhere, so it has no
+        ciphertext of its own -- which is why a derived address was emitted in
+        clear while the name it came from was hidden. :func:`mark_plaintexts`
+        builds one from the pieces, and the result is a ``Decrypted`` carrying
+        it, so the emission writes ``blake.bravo@ENC[age:...]``. The template
+        is rendered ONCE: its context reaches live model methods, and calling
+        them twice is not free of consequence."""
+        rendered = self.env.from_string(templ).render(context)
+        if not isinstance(rendered, str) or not rendered:
+            return rendered
+        marked = mark_plaintexts(rendered)
+        return Decrypted(rendered, marker=marked) if marked != rendered else rendered
+
     def upgrade_deferred_list_generated(self, obj, dfield):
         conv = Orchestrator().get_converter() 
         reg = registry.Registry()
@@ -376,7 +394,7 @@ class TemplateResolver:
                                 if isinstance(templ, str) and "{{" in templ:
                                     template = self.env.from_string(templ)
                                     try:
-                                        rendered = template.render(context)
+                                        rendered = self.render_inheriting(templ, context)
                                         if rendered != templ:
                                             val = rendered
                                             setattr(obj, f.name, val)
@@ -397,8 +415,7 @@ class TemplateResolver:
                             tmp_val = json.dumps(val) if isinstance(val, dict) else val
                             if "{{" in tmp_val:
                                 try:
-                                    template = self.env.from_string(tmp_val)
-                                    rendered = template.render(context)
+                                    rendered = self.render_inheriting(tmp_val, context)
                                     if rendered != tmp_val:
                                         if isinstance(val, dict):
                                             rendered = json.loads(rendered)
