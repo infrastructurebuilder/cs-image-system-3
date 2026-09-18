@@ -363,3 +363,55 @@ def test_the_fixture_hides_the_domain_and_not_the_names():
 def is_marker_str(v) -> bool:
     from cs_image_system.base.encryption import is_marker
     return is_marker(v)
+
+
+# ----------------------------------------- meta-state records (stage 50)
+
+def test_a_record_carries_the_ciphertext_it_was_written_from(tmp_path):
+    """A meta-state write says what it READ, so a record and the configuration
+    hold the same marker and a rotation moves both together."""
+    from cs_image_system.base.meta_state import MetaState
+    marker = enc("a-private-bucket")
+    value = decrypt_tree({"bucket": marker})["bucket"]
+
+    ms = MetaState.at(tmp_path)
+    ms.write("storage.yaml", {"storages": {"s1": {"bucket": value}}})
+
+    on_disk = (tmp_path / "meta-state" / "storage.yaml").read_text()
+    assert marker in on_disk and "a-private-bucket" not in on_disk
+
+
+def test_a_username_is_recorded_in_clear():
+    """The read-model's rosters are the join key between a roster and an
+    access grant; ciphertext there would defeat the file's purpose."""
+    import yaml
+    name = enc("blake.bravo")
+    value = decrypt_tree({"groups": [{"members": [name]}]})["groups"][0]["members"][0]
+    assert yaml.safe_dump({"members": [value]}).strip() == "members:\n- blake.bravo"
+
+
+def test_a_record_is_read_back_as_its_plaintext(tmp_path):
+    """So a recorded-vs-declared comparison is between plaintexts: two markers
+    for one value differ after a rotation, and comparing those would report
+    drift that is not there."""
+    from cs_image_system.base.meta_state import MetaState
+    marker = enc("a-private-bucket")
+    value = decrypt_tree({"bucket": marker})["bucket"]
+
+    ms = MetaState.at(tmp_path)
+    ms.write("storage.yaml", {"storages": {"s1": {"bucket": value}}})
+    ms.invalidate()
+    read_back = ms.read("storage.yaml")["storages"]["s1"]["bucket"]
+
+    assert read_back == "a-private-bucket"
+    assert isinstance(read_back, Decrypted)
+    assert read_back.marker == marker, "and it still knows its ciphertext"
+
+
+def test_a_record_with_no_markers_needs_no_identity(tmp_path, monkeypatch):
+    from cs_image_system.base.meta_state import MetaState
+    ms = MetaState.at(tmp_path)
+    ms.write("pins.yaml", {"pins": {"i1": "ami-0123"}})
+    ms.invalidate()
+    monkeypatch.delenv("CSIS_CONFIG_IDENTITY", raising=False)
+    assert ms.read("pins.yaml")["pins"]["i1"] == "ami-0123"
