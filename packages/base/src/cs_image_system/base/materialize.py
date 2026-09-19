@@ -50,13 +50,26 @@ def private_root(config_root: Path) -> Path:
 def mirror_path(config_root: Path, path: Path) -> Path:
     """Where ``path`` (under the configuration root) is materialised.
 
+    ``_private/`` stands exactly where ``generated/`` stands: the generation
+    directory's own name is REPLACED, not nested under. That keeps every
+    materialised root at the SAME DEPTH below the configuration root as the
+    root it mirrors, which is what makes the relative paths in the emission
+    keep resolving -- a module source
+    (``../../../../../cs-image-system-3/tfmodules/...``) and the ``local``
+    state type's ``../../../../<dir>/<ws>.tfstate`` both count directories up
+    to the configuration root, and one extra level breaks both. Found by
+    probing an AZ change, 2026-09-19: ``tofu init`` in the mirror could not
+    read its module.
+
     A path already inside the mirror is returned unchanged, so materialising
     twice is harmless."""
     config_root, path = Path(config_root).resolve(), Path(path).resolve()
     rel = path.relative_to(config_root)
     if rel.parts and rel.parts[0] == PRIVATE_DIRNAME:
         return path
-    return private_root(config_root) / rel
+    # drop the generation directory's name (whatever it is called) and put
+    # the mirror in its place
+    return private_root(config_root).joinpath(*rel.parts[1:])
 
 
 def _is_binary(path: Path) -> bool:
