@@ -179,21 +179,35 @@ def test_materialize_substitutes_the_plaintext_into_a_private_copy(tmp_path):
     written, substituted = materialize(src, dst)
 
     assert (written, substituted) == (2, 1)
-    assert dst == tmp_path / PRIVATE_DIRNAME / "generated" / "base-image" / "block-000"
+    # the mirror stands where `generated` stands, at the same depth
+    assert dst == tmp_path.resolve() / PRIVATE_DIRNAME / "base-image" / "block-000"
     built = (dst / "build.pkr.hcl").read_text()
     assert "ssh-ed25519 AAAAbody operator@host" in built and "ENC[age:" not in built
     # the committed copy is untouched
     assert marker in (src / "build.pkr.hcl").read_text()
 
 
-def test_the_mirror_sits_beside_generated_so_local_state_paths_still_resolve(tmp_path):
-    """ROOT_DEPTH counts directories from the root; a deeper mirror would
-    point every local-state root at nothing."""
-    src = tmp_path / "generated" / "identity" / "ws" / "phase"
+def test_the_mirror_stands_where_generated_stands_at_the_same_depth(tmp_path):
+    """`_private/` REPLACES the generation directory rather than nesting under
+    it, so a materialised root is the same number of directories below the
+    configuration root as the root it mirrors. Every relative path in the
+    emission counts those directories: a module source
+    (`../../../../../cs-image-system-3/tfmodules/...`) and the `local` state
+    type's `../../../../<dir>/<ws>.tfstate` both break if the mirror is one
+    level deeper -- `tofu init` in the mirror could not read its module
+    (found 2026-09-19)."""
+    root = tmp_path.resolve()
+    src = root / "generated" / "storage" / "aws-ebs" / "storage-generation"
     src.mkdir(parents=True)
-    mirror = mirror_path(tmp_path, src)
-    assert mirror.relative_to(tmp_path).parts[0] == PRIVATE_DIRNAME
-    assert mirror.relative_to(tmp_path / PRIVATE_DIRNAME) == src.relative_to(tmp_path)
+    mirror = mirror_path(root, src)
+
+    src_rel, mirror_rel = src.relative_to(root), mirror.relative_to(root)
+    assert mirror_rel.parts[0] == PRIVATE_DIRNAME
+    assert len(mirror_rel.parts) == len(src_rel.parts), "the mirror must not add a level"
+    assert mirror_rel.parts[1:] == src_rel.parts[1:]
+    # the decisive property: a path relative to the root resolves the same
+    up = "/".join([".."] * len(src_rel.parts))
+    assert (src / up).resolve() == (mirror / up).resolve() == root
 
 
 def test_materializing_the_mirror_is_a_no_op(tmp_path):
