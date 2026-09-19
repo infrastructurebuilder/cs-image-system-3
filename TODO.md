@@ -72,13 +72,37 @@ in-bake and post-bake tests, declared releases, `require_released_builds`,
 group ownership → OPA access (proven by `sft ssh` in stage 1), storage
 attached by group. This stage spends them on one model, on AWS.
 
-1. **USER — the model**: which one first (the groups are named for them:
-   coops, stofs, secofs, tcmet); what its image must contain (packages,
-   model source or binaries, data paths); what "correct" means as tests
-   (a smoke run of the model, expected files and services); who its users
-   are (the group's members); the instance size and the standing hours it
-   may cost on the AWS account; its storage (the existing `mnt_data` /
-   `efs-storage` / bucket, or new declarations).
+1. **USER — the model.** Decided 2026-09-19: the group is **`coops`**, the
+   instance is a **`c5n.4xlarge`**, and it mounts the **existing `mnt_data`
+   and `efs-storage`** — no new storage declarations. What that settles, and
+   what it implies:
+   - Both storages already allow `coops` and are `active`
+     ([storage0.yaml](../cs-image-system-testconfig/storages/storage0.yaml)):
+     `mnt_data` is EBS at `/mnt/data`, `efs-storage` is EFS shared with
+     `stofs` at mode 2775. Nothing there has to change.
+   - **The instance must launch in `us-east-2a`** (`subnet-09f79018af845358a`):
+     `mnt_data` is the 100 GiB volume `vol-0fe1e27716f86c2f2`, which is
+     AZ-bound and sits in 2a, and an EBS volume can only attach from its own
+     AZ. `c5n.4xlarge` is offered in 2a, 2b and 2c, so the size does not
+     constrain the choice; the volume does. Both declared private subnets
+     map no public IP, as the standing constraint requires.
+   - Its users are the `coops` roster: `zachary.wills` (member),
+     `mykel.alvis` (admin), conformed to OPA on 2026-09-18.
+   - Two `coops`-owned images already exist, `imgfile-basic-cloudflow` and
+     `imgfile-basic-dask` ([image1.yaml](../cs-image-system-testconfig/images/image1.yaml)),
+     so the model image can derive from one rather than start bare.
+
+   **Still needed from the operator, and blocking:**
+   - **What the image must contain**: the model's packages, its source or
+     binaries and where they come from, and the data paths it expects under
+     `/mnt/data` and the EFS mount.
+   - **What "correct" means**: the smoke run that proves the image, and the
+     files and services that must be present after a bake.
+   - **The standing-hours budget.** A `c5n.4xlarge` is roughly $0.86/hour
+     on demand in us-east-2 — about $620 a month if it stands — and this
+     role cannot read the pricing API, so confirm the figure before relying
+     on it. Whether the instance is ephemeral, stood up for working hours,
+     or left running is a cost decision, not a technical one.
 2. **The image**: `basic-rh-10` on AWS plus an instance image owned by
    the model's group; real modifications — ansible for the stack, bash
    `ensure` for glue — idempotent and passing `just test-mods`; in-bake
