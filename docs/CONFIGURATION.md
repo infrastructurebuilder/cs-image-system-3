@@ -1675,6 +1675,29 @@ are enumerated, not executed), `--overlay`, `--undeclare`, `--force`,
 `--base-only`, `--only-providers` (accepted; the configuration is still
 read in full).
 
+## 12a. Availability zones
+
+A subnet, a storage and an instance may each declare `availability_zone`. It is
+declared, never inferred: an absent value constrains nothing.
+
+`validate` refuses a set that is not **compatible** — more than one distinct
+zone across an instance, the zonal storages it mounts, and its runtime's
+effective subnet — naming each claimant and the zone it asked for. Compatible
+rather than identical, because two things impose no constraint at all: an unset
+value, and a **regional** storage. EBS and GCP persistent disks are zonal; EFS,
+S3 and GCS are regional and are reachable from any zone in their region.
+
+A runtime asserts a zone through `networking.default_availability_zone`, else
+through its default subnet's declared `availability_zone`. A storage's own
+declaration wins over its runtime's when the module call is emitted, so
+declaring a zone pins the resource rather than decorating the file.
+
+**Why it is refused early.** A zone is a replace-forcing attribute. Pointing a
+runtime at a subnet in another zone does not fail to attach a volume — it plans
+to destroy and recreate it, losing the data. The plan gate does refuse that as
+an unwhitelisted destroy, but it names the volume rather than the cause, and it
+does so at apply time.
+
 ## 13. Encrypted values
 
 ([`encryption.py`](../packages/base/src/cs_image_system/base/encryption.py))

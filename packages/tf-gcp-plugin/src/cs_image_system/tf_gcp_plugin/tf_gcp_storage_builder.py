@@ -142,6 +142,9 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
     def capability_type(cls) -> str:
         return "pd"
 
+    def is_zonal(self) -> bool:
+        return True     # stage 52: a persistent disk lives in one zone; changing it replaces the volume
+
     def attachment_cardinality(self) -> str:
         return CARDINALITY_SINGLE
 

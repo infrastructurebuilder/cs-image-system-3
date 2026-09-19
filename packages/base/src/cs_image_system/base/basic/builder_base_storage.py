@@ -53,6 +53,17 @@ class StorageBuilderBase(BuilderBase[TSTORAGE]):
     def attachment_cardinality(self) -> str:
         return CARDINALITY_MANY
 
+    def is_zonal(self) -> bool:
+        """Whether this storage type lives in ONE availability zone (stage 52).
+
+        A zonal storage constrains where its instance may run, and changing its
+        zone REPLACES it. A regional one (EFS, S3, GCS) constrains nothing --
+        which is why the compatibility rule is "compatible", not "identical":
+        a regional storage and an unset declaration both agree with any zone.
+        Regional is the safe default: a plugin that says nothing constrains
+        nothing."""
+        return False
+
     def is_posix(self) -> bool:
         """POSIX filesystems realize group access with gid-owned subtrees
         (N13/N15); non-POSIX stores define their own mapping (N3)."""

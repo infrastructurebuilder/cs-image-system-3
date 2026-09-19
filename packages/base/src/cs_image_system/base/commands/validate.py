@@ -336,6 +336,86 @@ def check_foreign_keys(ctx: GlobalTypeContext) -> list[Exception]:
     return errors
 
 
+def _zone_of_storage(ctx: GlobalTypeContext, name: str) -> tuple[str | None, bool]:
+    """A storage's declared zone, and whether its type is bound to one."""
+    storage = next((s for s in (ctx.storages or []) if s.get_name() == name), None)
+    if storage is None:
+        return (None, False)
+    builder = ctx.storage_builders.get(str(storage.get_type() or ""))
+    zonal = bool(builder.is_zonal()) if builder is not None and hasattr(builder, "is_zonal") else False
+    return (getattr(storage, "availability_zone", None), zonal)
+
+
+def _runtime_zone(ctx: GlobalTypeContext, runtime_name: str | None) -> tuple[str | None, str]:
+    """The zone a runtime asserts, and where it said it: its networking's
+    ``default_availability_zone``, else its DEFAULT SUBNET's declared zone."""
+    rtb = ctx.runtime_builders.get(str(runtime_name or ""))
+    networking = getattr(getattr(rtb, "model", None), "networking", None)
+    if networking is None:
+        return (None, "")
+    declared = getattr(networking, "default_availability_zone", None)
+    if declared:
+        return (str(declared), f"runtime '{runtime_name}'")
+    try:
+        subnet = networking.default_subnet
+    except (ValueError, AttributeError):
+        return (None, "")
+    zone = getattr(subnet, "availability_zone", None)
+    return (str(zone), f"runtime '{runtime_name}' subnet '{subnet.get_name()}'") if zone else (None, "")
+
+
+def check_availability_zones(ctx: GlobalTypeContext) -> list[Exception]:
+    """Everything that shares a zone must ask for a COMPATIBLE one (stage 52).
+
+    An availability zone is declared, never inferred, so an absent value
+    constrains nothing and a REGIONAL storage (EFS, S3, GCS) constrains
+    nothing either -- which is what compatible means here, rather than
+    identical. What is refused is a set with more than one distinct zone in
+    it: an instance, the zonal storages it mounts and its runtime's subnet
+    cannot be in two places.
+
+    It is worth refusing early because the alternative is late and obscure. A
+    zone is a replace-forcing attribute: pointing a runtime at a subnet in
+    another zone does not fail to attach the volume, it plans to DESTROY and
+    recreate it. The plan gate catches that as an unwhitelisted destroy, but
+    it names the volume, not the cause."""
+    exs: list[Exception] = []
+
+    # a zonal storage against its own runtime
+    for storage in (ctx.storages or []):
+        name = str(storage.get_name())
+        zone, zonal = _zone_of_storage(ctx, name)
+        if not (zone and zonal):
+            continue
+        runtime_zone, where = _runtime_zone(ctx, getattr(storage, "runtime", None))
+        if runtime_zone and runtime_zone != zone:
+            exs.append(ValueError(
+                f"storage '{name}' declares availability zone '{zone}' but {where} "
+                f"is in '{runtime_zone}': a zonal storage must be where its runtime puts it "
+                f"(changing a zone REPLACES the storage)"))
+
+    # an instance, its zonal storages and its runtime
+    for instance in (ctx.instances or []):
+        name = str(instance.get_name())
+        asked: dict[str, list[str]] = {}
+        own = getattr(instance, "availability_zone", None)
+        if own:
+            asked.setdefault(str(own), []).append(f"instance '{name}'")
+        runtime_zone, where = _runtime_zone(ctx, getattr(instance, "runtime", None))
+        if runtime_zone:
+            asked.setdefault(runtime_zone, []).append(where)
+        for mapping in getattr(instance, "storages", None) or []:
+            sname = str(getattr(mapping, "name", "") or "")
+            zone, zonal = _zone_of_storage(ctx, sname)
+            if zone and zonal:
+                asked.setdefault(zone, []).append(f"storage '{sname}'")
+        if len(asked) > 1:
+            detail = "; ".join(f"{z} ({', '.join(sorted(who))})" for z, who in sorted(asked.items()))
+            exs.append(ValueError(
+                f"instance '{name}' cannot be in more than one availability zone: {detail}"))
+    return exs
+
+
 def check_no_plaintext_emitted(ctx: GlobalTypeContext) -> list[Exception]:
     """No value the loader DECRYPTED stands in clear under ``generated/`` or
     ``meta-state/`` (stage 49).
@@ -372,4 +452,5 @@ def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     exs.extend(check_executables_exist_and_versions(ctx))
     exs.extend(check_state_locations(ctx))
     exs.extend(check_foreign_keys(ctx))
+    exs.extend(check_availability_zones(ctx))
     return exs

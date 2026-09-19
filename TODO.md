@@ -9,8 +9,9 @@ system must not take itself.
 
 Current stage: **none in progress**.
 
-Open stages and their order: none open; §19 and §30 wait on the
-operator's decisions. A new hygiene issue starts bundle IV.
+Open stages and their order: none open; §19 waits on the model's
+contents, §30 on the operator's decision. A new hygiene issue starts
+bundle IV.
 
 Standing decisions (operator):
 

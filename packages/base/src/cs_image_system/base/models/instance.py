@@ -102,6 +102,13 @@ class Instance(RootItem, SubItemOverrideProtocol, SelfInjectedNameProtocol):
     userdata: str
         User data script to be executed on instance initialization.
         This is sent through as a single string.
+    availability_zone : str | None
+        The zone this lives in, when it is bound to one. Declared, never
+        inferred: absent means "no constraint", and a set that is not
+        compatible -- more than one distinct zone across an instance, its
+        zonal storages and its runtime's subnet -- is refused at validate
+        (stage 52). Changing a zone REPLACES a zonal resource, so the
+        refusal is cheaper than the plan that follows it.
     """
 
     type_: Annotated[str, Field(alias="type")] = fk_field(target = VCT.INSTANCE_BUILDER_MODEL,
@@ -124,6 +131,7 @@ class Instance(RootItem, SubItemOverrideProtocol, SelfInjectedNameProtocol):
     storages: list[dict[str, Any]] = deferred_list_field(builder_vct = VCT.STORAGE_BUILDER_MODEL,
                                                         item_vct=VCT.STORAGE_MAPPING_ITEM_MODEL,
                                                         default_factory=list) # list of storage mappings
+    availability_zone: str | None = None      # stage 52
     userdata: str = ""
     # Convergent bakes (stage 9.5): pinned (default) keeps the launched build until an
     # explicit `upgrade instance`; follow plans the gated replacement whenever the
