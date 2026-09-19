@@ -1269,6 +1269,17 @@ Terraform's older by-reference path still stands for the okta roots: one
 `cs-image-system decrypt --json`, wrapped as `local.sensitive[...]` with
 `sensitive()`.
 
+**Availability zones.** A subnet, a storage and an instance may declare
+`availability_zone`, and `validate` refuses a set that is not compatible: more
+than one distinct zone across an instance, its ZONAL storages (EBS, GCP
+persistent disk — EFS, S3 and GCS are regional and constrain nothing) and its
+runtime's subnet. An unset value constrains nothing, which is why the rule is
+compatible rather than identical. Refused early because a zone forces
+replacement: a runtime pointed at another zone does not fail to attach a
+volume, it plans to DESTROY and recreate it. The plan gate catches that as an
+unwhitelisted destroy, but only at apply time and naming the volume rather than
+the reason. Live subnets and `mnt_data` declare their zones since 2026-09-19.
+
 **In the records.** A meta-state write says what it READ (stage 50): a value
 that came from a marker is recorded as that marker, so a record and the
 configuration hold the same ciphertext and one `reencrypt` moves both (it

@@ -64,6 +64,13 @@ class Storage(NameTyped, SelfInjectedNameProtocol):
     singleton : bool
         Indicates if the storage is a singleton and
         new usage should be attached to the existing storage.
+    availability_zone : str | None
+        The zone this lives in, when it is bound to one. Declared, never
+        inferred: absent means "no constraint", and a set that is not
+        compatible -- more than one distinct zone across an instance, its
+        zonal storages and its runtime's subnet -- is refused at validate
+        (stage 52). Changing a zone REPLACES a zonal resource, so the
+        refusal is cheaper than the plan that follows it.
     """
 
     runtime: str = fk_field(target = VCT.RUNTIME_BUILDER_MODEL,
@@ -78,6 +85,7 @@ class Storage(NameTyped, SelfInjectedNameProtocol):
         "required": True,
         })
     groups: list[str] = field(default_factory=list)
+    availability_zone: str | None = None      # stage 52; meaningful only for a ZONAL storage
     public_read: bool = False
     share_mode: str = SHARE_MODE_PRIVATE
     state: str = STORAGE_STATE_ACTIVE

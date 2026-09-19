@@ -26,12 +26,18 @@ class RuntimeSubnetModel:
     is_default: bool = False
     public: bool = False
     cidr: str | None = None
+    # stage 52: the zone this subnet is in. Declared, never inferred -- it is
+    # what lets a zone mismatch be refused at validate instead of discovered
+    # as a volume replacement at apply.
+    availability_zone: str | None = None
     config: dict[str, Any] = field(default_factory=dict)
 
     def get_name(self) -> str:
         return self.name
     def get_subnet_id(self) -> str:
         return self.subnet_id
+    def get_availability_zone(self) -> str | None:
+        return self.availability_zone
     def get_is_default(self) -> bool:
         return self.is_default
     def get_public(self) -> bool:

@@ -389,6 +389,9 @@ class TofuEbsStorageBuilder(TofuStorageBuilder[R]):
     def capability_type(cls) -> str:
         return "ebs"
 
+    def is_zonal(self) -> bool:
+        return True     # stage 52: an EBS volume lives in one zone; changing it replaces the volume
+
     def attachment_cardinality(self) -> str:
         # A volume attaches to one instance at a time (the forcing argument of N16).
         return CARDINALITY_SINGLE
@@ -481,7 +484,13 @@ class TofuEbsStorageBuilder(TofuStorageBuilder[R]):
         ctx = self._get_context()
         rtb = ctx.runtime_builders.get(self.model.get_runtime_provider(), None)
         networking = getattr(rtb.model, "networking", None) if rtb else None
-        az = getattr(networking, "default_availability_zone", None) if networking else None
+        # stage 52: the storage's OWN zone wins, then the runtime's, and only
+        # then the subnet the module derives one from. A declared zone has to
+        # pin, or declaring it would decorate the configuration without
+        # changing where the volume goes -- and validate would be checking a
+        # value the emission ignores.
+        az = (getattr(storage, "availability_zone", None)
+              or (getattr(networking, "default_availability_zone", None) if networking else None))
         if az:
             args["availability_zone"] = az
         else:
