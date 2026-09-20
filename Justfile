@@ -464,6 +464,13 @@ cloud-cycle runtime dry="no": cloud-preflight
 	@scripts/with-tofu-lock {{gce_cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run --all --only-runtime {{runtime}} --apply-runtime {{runtime}} --commit
 	@{{ if dry == "yes" { "echo 'dry run: empty assertion skipped'" } else { "just cloud-empty " + runtime } }}
 
+# The same cycle for a runtime that carries STANDING instances (stage 19): every
+# lifecycle, scoped and applied, but no emptiness assertion afterwards -- an
+# instance declared to stand is supposed to still be there when the run ends.
+# `cloud-cycle` is for runtimes whose instances are all ephemeral.
+cloud-stand runtime dry="no": cloud-preflight
+	@scripts/with-tofu-lock {{gce_cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run --all --only-runtime {{runtime}} --apply-runtime {{runtime}} --commit
+
 # Verify a standing ephemeral instance through the system; `iap` adds an ssh probe on GCE (facts from the config)
 cloud-verify runtime instance leg="serial": config-guard
 	#!/usr/bin/env bash

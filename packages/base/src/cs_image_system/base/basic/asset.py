@@ -112,7 +112,8 @@ class AssetSet(list[Asset]):
         # if val.endswith("\n"):
         #     log.warning(f"Value for asset at path '{path}' ends with a newline.  This may cause issues when writing the asset to a file.")
         if not val:
-            log.warning(f"Value for asset at path '{path}' is empty.")
+            if val is None:
+                log.warning(f"Value for asset at path '{path}' is None.")
             return
         if isinstance(val, list):
             for v in val:
@@ -161,7 +162,8 @@ class AssetSet(list[Asset]):
             path = self.default_path
             val = item
         if not val:
-            log.warning("Value for asset list is empty")
+            if val is None:
+                log.warning("Value for asset list is None")
             return
         if not isinstance(val, list):
             raise ValueError(f"Value must be a list, got {type(val)}")

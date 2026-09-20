@@ -9,9 +9,10 @@ system must not take itself.
 
 Current stage: **none in progress**.
 
-Open stages and their order: none open; §19 waits on the model's
-contents, §30 on the operator's decision. A new hygiene issue starts
-bundle IV.
+Open stages and their order: §53 next (it questions whether a bake's own
+tests are enforcing, which §19 depends on); §19 waits on it and on a
+released build, §30 on the operator's decision. A new hygiene issue
+starts bundle IV.
 
 Standing decisions (operator):
 
@@ -261,3 +262,52 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-package` (steps 1–3, 5–7),
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
+
+## 53. Does a bake's own test actually stop the bake?
+
+**Why**: stage 19's first image baked green twice while carrying an
+assertion that cannot pass. The image declared `tests.packages: [vim,
+mpdecimal]`; on AlmaLinux 10 there is no package named `vim` (`dnf install
+vim` resolves a virtual provide to `vim-enhanced`), so `rpm -q vim` is
+always false. The emission committed at `5800f3d` carried that assertion,
+under `set -e`, in a `provisioner "shell"` scoped `only` to this image --
+and the bake produced `ami-0290b3741222d1e47` and recorded
+`tests: {assertions: 6, in_bake: true}`. The instance launched from that
+AMI then failed the SAME check post-bake. Either the assertion never ran,
+or it ran and its failure did not stop the build; either way a green bake
+and a recorded assertion count currently prove less than they appear to,
+and stage 19 is being asked to trust exactly that.
+
+A second thing surfaced beside it. Run `e72e195`, whose bake decision was
+`skip: current`, DELETED the image's whole packer emission from
+`generated/` -- 9 files, 174 lines, the build block, the source, the vars,
+the plugins and the mod payload -- and the next real bake (`bb14c55`) put
+all 9 back. So the committed emission of an image whose bake is skipped
+does not describe that image at all, which is awkward for a tree whose
+generated IaC is committed on purpose and whose CI asks "is the committed
+emission current with the declarations?".
+
+1. **Establish which**, with evidence rather than inference: re-bake a
+   throwaway image whose in-bake test is a bare `false`, keeping the packer
+   log. If it goes green, the assertions are not enforcing and the cause is
+   in how the test provisioner is emitted or invoked (the `inline_shebang`
+   and whether `set -e` governs the inline list; whether the provisioner's
+   `only` matches the source actually built). If it goes red, the first
+   build's history is the thing to explain instead -- start from whether
+   the bake regenerated over `5800f3d` before running.
+2. **Make the count mean something.** `tests: {assertions: N, in_bake: true}`
+   is recorded from the emitted assertion COUNT, not from a result, so a
+   build that skipped its tests and a build that passed them record
+   identically. Record what the bake actually reported, or stop recording a
+   number that reads like a verdict.
+3. **Decide what a skipped bake owes the emission.** Either a skipped bake
+   keeps the image's committed packer files as they were (so `generated/`
+   always describes every declared image), or their removal is deliberate
+   and `config-drift` and the `--commit` contract say so out loud. Today it
+   is neither: the files disappear and come back with no note.
+4. **A test that cannot pass should be refused before it is baked.**
+   `rpm -q vim` is a declaration error the system could catch at validate
+   on a package that no repository provides -- cheaper than a bake, and it
+   is what would have caught stage 19's first image.
+5. Records: OPERATIONS on what a green bake proves. Feature branch
+   `feature/in-bake-tests-enforce`, squash-merged, kept.
