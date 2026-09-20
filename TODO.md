@@ -74,7 +74,9 @@ in-bake and post-bake tests, declared releases, `require_released_builds`,
 group ownership → OPA access (proven by `sft ssh` in stage 1), storage
 attached by group. This stage spends them on one model, on AWS.
 
-1. **USER — the model.** Decided 2026-09-19: the group is **`coops`**, the
+1. **USER — the model.** **No GCP resources** (operator, 2026-09-20): this
+   stage is AWS only, whatever the GCE runtime's images say they are due.
+   Decided 2026-09-19: the group is **`coops`**, the
    instance is a **`c5n.4xlarge`**, and it mounts the **existing `mnt_data`
    and `efs-storage`** — no new storage declarations. What that settles, and
    what it implies:
