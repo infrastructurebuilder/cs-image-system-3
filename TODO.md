@@ -9,9 +9,10 @@ system must not take itself.
 
 Current stage: **none in progress**.
 
-Open stages and their order: none open; §19 waits on a released build --
-its image is baked and its tests enforce now -- and §30 on the operator's
-decision. A new hygiene issue starts bundle IV.
+Open stages and their order: §54 (hygiene bundle IV) is open and waits on
+nothing; §19 waits on a released build -- its image is baked and its tests
+enforce now -- and §30 on the operator's decision. A new hygiene issue
+joins bundle IV.
 
 Standing decisions (operator):
 
@@ -261,3 +262,39 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-package` (steps 1–3, 5–7),
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
+
+## 54. Hygiene bundle IV: the small things noted during §19 and §49-53
+
+**Why**: each was found while landing another stage and left alone because
+it was not that stage's business; none threatens function. By the standing
+decision they collect here rather than in stages of their own. Whenever
+convenient; nothing waits on it.
+
+1. **Destroying an instance leaves its pin behind.** `coops-model` was
+   undeclared and its instance destroyed on 2026-09-20, and
+   `meta-state/pins.yaml` still binds it to `ami-0e209feedc49fa96c`. The
+   record says an instance runs a build when neither is true, and with
+   `config.require_released_builds` on it is worse than untidy: a declared
+   instance pinned to a build that was never released makes `validate`
+   refuse EVERY run, including the one that would release it. That deadlock
+   is why the declaration is commented out rather than live. A destroy
+   should drop the pin it made; failing that, there is no command to clear
+   one -- `upgrade` only MOVES a pin -- so the only recourse is editing
+   meta-state by hand, which nothing else in the system asks of an operator.
+   (Operator agreed 2026-09-20.)
+2. **`AssetSet.add_list` warns on any falsy value and names no path.**
+   `add` was changed on 2026-09-20 to warn only when a value is actually
+   `None`; `add_list` still warns whenever its list is empty, which is the
+   ordinary case for most of its callers, and its message -- unlike `add`'s
+   -- does not say which asset it meant. One line, for consistency with the
+   policy already set two methods above it.
+3. **`_private/` is not in the live repository's `.gitignore`.** The mirror
+   is refused by the commit gate and excluded from the run's `git add`, so
+   nothing of it can be committed -- but git still lists it as untracked,
+   and `git add -A` stages it before the hook refuses the commit. The
+   emitted `.gitignore` covers `generated/`, which cannot reach a sibling
+   directory; the entry belongs in `DEFAULT_GITIGNORE_ENTRIES` so the system
+   writes it rather than an operator remembering to.
+
+Records: the squash message. Feature branch `feature/hygiene-four`,
+squash-merged, kept.
