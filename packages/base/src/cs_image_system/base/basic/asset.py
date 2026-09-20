@@ -163,7 +163,7 @@ class AssetSet(list[Asset]):
             val = item
         if not val:
             if val is None:
-                log.warning("Value for asset list is None")
+                log.warning(f"Value for asset list at path '{path}' is None.")
             return
         if not isinstance(val, list):
             raise ValueError(f"Value must be a list, got {type(val)}")

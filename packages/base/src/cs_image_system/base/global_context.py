@@ -41,7 +41,7 @@ from . import registry
 from .utils import super_safe_name
 from .template_utils import cycle_main_yaml, read_and_preprocess_yaml_files
 from .encryption import decrypt_tree, decrypted_plaintexts, refuse_markers_at
-from .materialize import materialize, mirror_path, sync_back
+from .materialize import ensure_ignored, materialize, mirror_path, sync_back
 
 log = logging.getLogger(__name__)
 
@@ -744,6 +744,7 @@ def materialized_for(root: Path | None, generation_path: Any, executable: Any) -
     if not src.is_dir():
         return executable
     dst = mirror_path(Path(root), src)
+    ensure_ignored(Path(root))      # the system made the mirror; the system ignores it
     # on the way IN: bring back what the PREVIOUS command in this root wrote
     # and the emission must carry -- the provider lock file `init` writes. A
     # root's commands run in sequence (init, plan, apply), so the lock reaches
