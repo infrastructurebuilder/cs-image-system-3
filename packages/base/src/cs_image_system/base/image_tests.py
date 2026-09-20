@@ -128,7 +128,12 @@ def parse_post_bake_output(spec: dict[str, Any], output: str) -> list[dict[str, 
 
 
 def declared_test_commands(spec: dict[str, Any]) -> list[str]:
-    """Shell assertions for a ``tests:`` map (each line exits nonzero on failure)."""
+    """Shell assertions for a ``tests:`` map.
+
+    Every line must ABORT the script it is spliced into, not merely exit
+    nonzero: these run as packer `inline` lines under `set -e`, and errexit
+    does not fire for a command inside an AND-OR list. A line that ends in
+    `|| { ... }` is therefore unenforceable however false it is (stage 53)."""
     out: list[str] = []
     spec = spec or {}
     for f in spec.get("files", []) or []:
@@ -140,7 +145,15 @@ def declared_test_commands(spec: dict[str, Any]) -> list[str]:
             out.append(f"grep -q -- {shlex.quote(str(f['contains']))} {path}")
     for p in spec.get("packages", []) or []:
         q = shlex.quote(str(p))
-        out.append(f"rpm -q {q} >/dev/null 2>&1 || {{ command -v dpkg >/dev/null 2>&1 && dpkg -s {q} >/dev/null 2>&1; }}")
+        # An `a || { b && c; }` cannot fail a bake, however false it is: POSIX
+        # suppresses errexit for a command in an AND-OR list, so `set -e` never
+        # fires and packer's shell provisioner carries on to the next line.
+        # Stage 19's first image baked green twice while asserting `rpm -q vim`
+        # on a system that has no package by that name. The test must therefore
+        # exit for itself -- and while it is doing that, say which package.
+        out.append(f"if ! rpm -q {q} >/dev/null 2>&1 && "
+                   f"! {{ command -v dpkg >/dev/null 2>&1 && dpkg -s {q} >/dev/null 2>&1; }}; "
+                   f"then printf 'package %s is not installed\\n' {q} >&2; exit 1; fi")
     for c in spec.get("commands", []) or []:
         run = str(c["run"]); rc = int(c.get("expect_rc", 0))
         if c.get("contains"):

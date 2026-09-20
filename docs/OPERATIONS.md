@@ -1269,6 +1269,28 @@ Terraform's older by-reference path still stands for the okta roots: one
 `cs-image-system decrypt --json`, wrapped as `local.sensitive[...]` with
 `sensitive()`.
 
+**What a green bake proves.** An image's `tests:` become `inline` lines in a
+packer shell provisioner behind `set -e`, so each assertion must be able to
+ABORT that script -- exiting nonzero is not enough. POSIX suppresses errexit
+for a command inside an AND-OR list, so an assertion ending in `|| { ... }`
+cannot fail a build however false it is. One did: until 2026-09-20 a
+`packages:` entry was written `rpm -q P || { ... dpkg -s P ... }`, and stage
+19's first image baked green twice asserting `rpm -q vim` on AlmaLinux 10,
+which has no package of that name; the instance launched from that AMI then
+failed the same check. Package assertions now test and `exit 1` for
+themselves, naming the package on stderr. Because a failing assertion stops
+the build, a build that EXISTS is one whose in-bake assertions passed, which
+is what makes `tests: {assertions: N, in_bake: true}` in its lineage record
+worth reading -- the number is the count that ran, and the record's existence
+is the verdict.
+
+**What the committed emission covers.** `generated/` describes the bakes a run
+would DO, not every image declared: an image whose bake decision is `skip:
+current` has no packer block in the emission at all, and gets one back when it
+is next due. So the absence of an image under `generated/` is not drift, and
+`config-drift` compares like with like because it regenerates from the same
+declarations before diffing.
+
 **Availability zones.** A subnet, a storage and an instance may declare
 `availability_zone`, and `validate` refuses a set that is not compatible: more
 than one distinct zone across an instance, its ZONAL storages (EBS, GCP

@@ -9,7 +9,7 @@ source "googlecompute" "basic-rh-10" {
     image_name = "basic-rh-10-gcloud-east1-20260826-120000"
     image_family = "basic-rh-10"
     image_labels = {
-        csis_fingerprint    = "c287f82086f760dd",
+        csis_fingerprint    = "ee4dbdfd2133c573",
         csis_identity_types = "okta",
         csis_parent         = "vendor",
         csis_run            = "2026_08_26t12_00_00",

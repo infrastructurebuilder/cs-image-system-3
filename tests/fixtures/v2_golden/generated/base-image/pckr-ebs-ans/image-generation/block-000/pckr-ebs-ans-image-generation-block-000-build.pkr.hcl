@@ -93,7 +93,7 @@ build {
       "systemctl is-enabled amazon-ssm-agent >/dev/null 2>&1 || systemctl is-enabled snap.amazon-ssm-agent.amazon-ssm-agent.service >/dev/null 2>&1",
       "test -e /etc/yum.repos.d/oktapam-stable.repo",
       "grep -q -- dist.scaleft.com /etc/yum.repos.d/oktapam-stable.repo",
-      "rpm -q nfs-utils >/dev/null 2>&1 || { command -v dpkg >/dev/null 2>&1 && dpkg -s nfs-utils >/dev/null 2>&1; }",
+      "if ! rpm -q nfs-utils >/dev/null 2>&1 && ! { command -v dpkg >/dev/null 2>&1 && dpkg -s nfs-utils >/dev/null 2>&1; }; then printf 'package %s is not installed\\n' nfs-utils >&2; exit 1; fi",
     ]
   }
   # OS update for base image basic-rhel-9 (policy=security, packages=[], exclude=['kernel*'], pin={}, rhel)

@@ -91,7 +91,7 @@ provisioner "shell" {
       "# verify: activated for group 'coops'",
       "grep -q 'tx.group: coops' /etc/sft/sftd.yaml",
       "systemctl is-enabled sftd >/dev/null 2>&1",
-      "rpm -q git >/dev/null 2>&1 || { command -v dpkg >/dev/null 2>&1 && dpkg -s git >/dev/null 2>&1; }",
+      "if ! rpm -q git >/dev/null 2>&1 && ! { command -v dpkg >/dev/null 2>&1 && dpkg -s git >/dev/null 2>&1; }; then printf 'package %s is not installed\\n' git >&2; exit 1; fi",
       "( git --version ) 2>&1 | grep -q -- 'git version'",
       "id -u csisadmin >/dev/null 2>&1",
     ]
