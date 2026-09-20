@@ -43,8 +43,39 @@ BINARY_SUFFIXES = frozenset({
 })
 
 
+#: What the configuration root's own .gitignore must say about the mirror. It
+#: cannot live in the emitted `generated/.gitignore`: a .gitignore's patterns
+#: are relative to its own directory, and the mirror is `generated/`'s SIBLING.
+IGNORE_LINE = f"{PRIVATE_DIRNAME}/"
+IGNORE_NOTE = "# the private mirror an execution runs from (never committed)"
+
+
 def private_root(config_root: Path) -> Path:
     return Path(config_root) / PRIVATE_DIRNAME
+
+
+def ensure_ignored(config_root: Path) -> bool:
+    """Make the configuration root ignore the mirror. True when a line was added.
+
+    The system creates ``_private/`` inside the operator's repository, so the
+    system says it is not to be committed. The commit gate refuses it and the
+    run excludes it by pathspec either way -- but without this git lists it as
+    untracked and ``git add -A`` stages it, leaving the operator a refusal to
+    understand instead of an accident that could not happen.
+
+    Additive and idempotent: an existing ``.gitignore`` is appended to, never
+    rewritten, and a root that is not a git repository is left alone."""
+    root = Path(config_root)
+    if not (root / ".git").exists():
+        return False
+    ignore = root / ".gitignore"
+    existing = ignore.read_text() if ignore.is_file() else ""
+    if any(line.strip().rstrip("/") == PRIVATE_DIRNAME for line in existing.splitlines()):
+        return False
+    prefix = "" if (not existing or existing.endswith("\n")) else "\n"
+    ignore.write_text(f"{existing}{prefix}{IGNORE_NOTE}\n{IGNORE_LINE}\n")
+    log.info("added '%s' to %s: the mirror is never committed", IGNORE_LINE, ignore)
+    return True
 
 
 def mirror_path(config_root: Path, path: Path) -> Path:

@@ -82,8 +82,8 @@ def prepared(tmp_path: Path, monkeypatch):
     _seed_launched(root, "gce-test", GCE_BUILD, "gcloud-east1")
     runs: list[V2Run] = []
 
-    def make_run() -> V2Run:
-        run = V2Run(tmp_path, monkeypatch, config_root=root)
+    def make_run(dry_run: bool = True) -> V2Run:
+        run = V2Run(tmp_path, monkeypatch, config_root=root, dry_run=dry_run)
         runs.append(run)
         return run
     try:
@@ -182,5 +182,82 @@ def test_deferred_parent_binds_from_the_booted_image_after_apply(tmp_path, monke
         builder.post_finalize_phase(ExecutionLifecyclePhase.INSTANCE_GENERATION)   # simulate the apply
         pins = yaml.safe_load((run.meta_state / "pins.yaml").read_text())
         assert pins["instances"]["gce-test"] == GCE_BUILD
+    finally:
+        run.restore_cwd()
+
+
+def test_an_applied_decommission_forgets_the_pin(prepared):
+    """The other half of the dry-run rule above, and the one nothing covered:
+    when the destroy really applied, the instance's pin must GO.
+
+    A pin that outlives its instance is not merely untidy. With
+    `config.require_released_builds` on, a declared instance pinned to a build
+    that was never released makes `validate` refuse EVERY run -- including the
+    run that would release it. Stage 19 met that deadlock on 2026-09-20 after
+    `coops-model` was destroyed and its pin stayed behind.
+    """
+    root, make_run = prepared
+    _undeclare(root, "gce-test")
+    cfg = root / "cfg" / "_config.yml"
+    cfg.write_text(cfg.read_text().replace("  apply_instances: false", "  apply_instances: true"))
+    # dry_run=False: the after-apply hooks, which do the forgetting, never run
+    # in a dry run -- that is what the test above pins
+    run = make_run(dry_run=False)
+    assert run.run(["instance-image"], apply=True).ok
+
+    pins = yaml.safe_load((run.meta_state / "pins.yaml").read_text())
+    params = yaml.safe_load((run.meta_state / "launch-params.yaml").read_text())
+    assert "gce-test" not in pins["instances"], \
+        "a destroyed instance's pin outlived it (it will block every later run)"
+    assert "gce-test" not in params["instances"], "and its launch parameters with it"
+    assert any(u.get("op") == "decommission" and u.get("name") == "gce-test"
+               for u in pins.get("upgrades", [])), "the forgetting is recorded"
+
+
+def test_forget_drops_records_that_outlived_their_instance(prepared):
+    """`forget instance` is the recourse when a decommission did not clean up.
+
+    It happened on 2026-09-20: coops-model was destroyed through the gate and
+    its pin and launch parameters stayed in the records, which -- with
+    require_released_builds on -- made validate refuse every run. The
+    mechanism works in this fixture (the test above), so the live failure was
+    situational and remains unexplained; what was missing either way was any
+    way to correct the records without editing meta-state by hand."""
+    from cs_image_system.system.cli import forget_instance_command
+
+    root, make_run = prepared
+    _undeclare(root, "gce-test")
+    run = make_run()
+    try:
+        assert run.run(["instance-image"], apply=False).ok      # a dry run keeps them
+        assert "gce-test" in yaml.safe_load((run.meta_state / "pins.yaml").read_text())["instances"]
+
+        forget_instance_command("gce-test")
+
+        pins = yaml.safe_load((run.meta_state / "pins.yaml").read_text())
+        params = yaml.safe_load((run.meta_state / "launch-params.yaml").read_text())
+        assert "gce-test" not in pins["instances"]
+        assert "gce-test" not in params["instances"]
+        assert any(u.get("op") == "forget" and u.get("name") == "gce-test"
+                   for u in pins.get("upgrades", [])), "the correction is recorded, not silent"
+    finally:
+        run.restore_cwd()
+
+
+def test_forget_refuses_an_instance_that_is_still_declared(prepared):
+    """The way to remove a live instance is to undeclare it and let its destroy
+    apply. `forget` cleans up after that; it is not a way around it."""
+    import typer
+    from cs_image_system.system.cli import forget_instance_command
+
+    root, make_run = prepared
+    run = make_run()
+    try:
+        assert run.run(["instance-image"], apply=False).ok
+        with pytest.raises(typer.Exit) as ei:
+            forget_instance_command("gce-test")
+        assert ei.value.exit_code == 2
+        pins = yaml.safe_load((run.meta_state / "pins.yaml").read_text())
+        assert "gce-test" in pins["instances"], "a declared instance keeps its pin"
     finally:
         run.restore_cwd()

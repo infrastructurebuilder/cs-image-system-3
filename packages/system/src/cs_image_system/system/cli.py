@@ -385,11 +385,12 @@ def materialize_command(
     The committed emission carries the ciphertext; the tools cannot read that,
     so every deferred command runs from the mirror instead. The mirror is
     never committed. Needs CSIS_CONFIG_IDENTITY; loads no configuration."""
-    from cs_image_system.base.materialize import materialize, mirror_path, sync_back
+    from cs_image_system.base.materialize import ensure_ignored, materialize, mirror_path, sync_back
     root = Path(typer_cntx.obj.get("config_root") or os.getcwd())
     src = source if source.is_absolute() else (Path(os.getcwd()) / source)
     try:
         dst = Path(destination) if destination else mirror_path(root, src)
+        ensure_ignored(root)
         for name in sync_back(src, dst):
             log.info("materialize: synced back from the mirror: %s", name)
         written, substituted = materialize(src, dst)
@@ -902,6 +903,43 @@ def verify_assert_command(
         typer.secho(str(e), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
     typer.secho(f"instance {name}: last verification passed", fg=typer.colors.GREEN)
+
+
+forget_app = typer.Typer(help="Drop a record of something that no longer exists (stage 54).")
+app.add_typer(forget_app, name="forget")
+
+
+@forget_app.command(name="instance")
+def forget_instance_command(
+    name: Annotated[str, typer.Argument(help="the instance whose records are to be dropped")],
+) -> None:
+    """Drop a destroyed instance's pin and launch parameters.
+
+    A decommission through the gate does this itself. This is for the case
+    where it did not and the records outlived the instance -- a pin with no
+    instance is not merely untidy: with `config.require_released_builds` a
+    DECLARED instance pinned to a build that was never released makes
+    `validate` refuse every run, including the one that would release it.
+
+    Refused while the instance is still declared: the way to remove a live
+    instance is to undeclare it and let its destroy apply, which forgets the
+    records for you. This only cleans up after that did not happen."""
+    from cs_image_system.base.global_context import GlobalTypeContext
+    ctx = GlobalTypeContext()
+    if any(i.get_name() == name for i in ctx.instances):
+        typer.secho(f"forget: instance '{name}' is still declared -- undeclare it and let its "
+                    f"destroy apply (that forgets the records); this is for records that "
+                    f"outlived their instance", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=2)
+    ms = ctx.meta_state
+    pin, params = ms.instance_pin(name), ms.launch_params().get(name)
+    if pin is None and params is None:
+        typer.echo(f"forget: nothing recorded for instance '{name}'")
+        return
+    ms.remove_instance_pin(name, ctx.run_id, op="forget")
+    ms.remove_launch_params(name)
+    typer.echo(f"forget: dropped instance '{name}'"
+               + (f" (pin {pin})" if pin else "") + (" and its launch parameters" if params else ""))
 
 
 dispose_app = typer.Typer(help="Dispose of recorded artifacts through the recorded path (stage 8.4).")
