@@ -71,10 +71,14 @@ def _never_staged_pathspecs() -> list[str]:
     """git pathspecs excluding REFUSED_PATHS names at any depth, appended to
     the run's ``add`` and ``commit`` so those files are never picked up --
     not even one the operator had staged by hand under the same trees."""
-    return ([f":(exclude,glob)**/{pat}" for pat in REFUSED_PATHS]
-            # stage 49: the private mirror, as a whole subtree -- it holds the
-            # plaintext of everything the emission carries as ciphertext
-            + [f":(exclude,glob){PRIVATE_DIRNAME}/**", f":(exclude,glob)**/{PRIVATE_DIRNAME}/**"])
+    # The private mirror is NOT excluded here. It was, from stage 49 until
+    # stage 54 gave the configuration root a .gitignore that names it: an
+    # `:(exclude)` pathspec makes git consider the path, and `git add -A`
+    # then exits 1 saying it is ignored, which failed the whole run's commit.
+    # Three things still keep it out -- .gitignore, `refused_path` in the
+    # commit gate, and the scanner's own skip -- and none of them makes git
+    # name a path it has been told to ignore.
+    return [f":(exclude,glob)**/{pat}" for pat in REFUSED_PATHS]
 
 
 def _run_local_exclude_pathspecs() -> list[str]:

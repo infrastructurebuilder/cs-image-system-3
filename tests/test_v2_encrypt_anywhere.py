@@ -429,3 +429,36 @@ def test_a_record_with_no_markers_needs_no_identity(tmp_path, monkeypatch):
     ms.invalidate()
     monkeypatch.delenv("CSIS_CONFIG_IDENTITY", raising=False)
     assert ms.read("pins.yaml")["pins"]["i1"] == "ami-0123"
+
+
+def test_the_run_can_still_commit_once_the_mirror_is_ignored(tmp_path):
+    """stage 54 gave the configuration root a .gitignore naming `_private/`;
+    stage 49 had also excluded it by PATHSPEC. Together they broke every run's
+    commit: an `:(exclude)` pathspec makes git consider the path, and
+    `git add -A` then exits 1 because it is ignored. Found when stage 19's
+    launch succeeded and its commit did not."""
+    import subprocess
+    from cs_image_system.base.materialize import ensure_ignored
+    from cs_image_system.base.meta_state import _never_staged_pathspecs
+
+    root = tmp_path / "config"
+    (root / "generated").mkdir(parents=True)
+    (root / "meta-state").mkdir()
+    (root / "generated" / "main.tf").write_text('x = "1"\n')
+    (root / "meta-state" / "pins.yaml").write_text("instances: {}\n")
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+
+    (root / PRIVATE_DIRNAME / "generated").mkdir(parents=True)
+    (root / PRIVATE_DIRNAME / "generated" / "main.tf").write_text('x = "plaintext"\n')
+    assert ensure_ignored(root), "the mirror is ignored at the configuration root"
+
+    add = subprocess.run(["git", "-C", str(root), "add", "-A", "--",
+                          str(root / "meta-state"), str(root / "generated"),
+                          *_never_staged_pathspecs()],
+                         capture_output=True, text=True)
+    assert add.returncode == 0, f"a run could not commit: {add.stderr or add.stdout}"
+
+    staged = subprocess.run(["git", "-C", str(root), "diff", "--cached", "--name-only"],
+                            capture_output=True, text=True, check=True).stdout
+    assert "generated/main.tf" in staged
+    assert PRIVATE_DIRNAME not in staged, "and the mirror is still not staged"
