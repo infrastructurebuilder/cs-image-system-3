@@ -24,7 +24,7 @@ source "amazon-ebs" "imgfile-basic-dask" {
         csis_series         = "imgfile-basic-dask",
         csis_parent         = "series:basic-rh-10",
         csis_run            = "2026_08_26t12_00_00",
-        csis_fingerprint    = "75e2a9002c29754e",
+        csis_fingerprint    = "5ed27fb06ea6551c",
         csis_identity_types = "okta",
         csis_storage_types  = "ebs,efs,gcs,pd,s3",
     }

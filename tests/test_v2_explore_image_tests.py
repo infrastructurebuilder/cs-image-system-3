@@ -76,7 +76,11 @@ def test_instance_image_bake_verifies_activation_and_declared_tests(v2):
     assert "grep -q 'tx.group: coops' /etc/sft/sftd.yaml" in sect
     assert "systemctl is-enabled sftd" in sect
     assert "( git --version ) 2>&1 | grep -q -- 'git version'" in sect
-    assert "rpm -q git >/dev/null 2>&1 || { command -v dpkg" in sect   # dpkg guarded (2026-08-31)
+    # the package assertion is still dpkg-guarded (2026-08-31), but it must also
+    # be able to STOP the bake: the `|| { ... }` form it used to have could not,
+    # and this assertion pinned that form as correct until stage 53
+    assert "rpm -q git" in sect and "dpkg -s git" in sect
+    assert "exit 1" in sect, "a package assertion that cannot fail the bake is not an assertion"
     assert "id -u csisadmin" in sect
     assert build.index("tx.group: coops") < build.index("in-bake verification for instance image imgfile-basic-dask")
 

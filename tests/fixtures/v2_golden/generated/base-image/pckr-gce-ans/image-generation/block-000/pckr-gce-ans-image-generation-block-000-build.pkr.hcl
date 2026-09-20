@@ -82,7 +82,7 @@ build {
       "systemctl is-enabled google-guest-agent >/dev/null 2>&1",
       "test -e /etc/yum.repos.d/oktapam-stable.repo",
       "grep -q -- dist.scaleft.com /etc/yum.repos.d/oktapam-stable.repo",
-      "rpm -q google-guest-agent >/dev/null 2>&1 || { command -v dpkg >/dev/null 2>&1 && dpkg -s google-guest-agent >/dev/null 2>&1; }",
+      "if ! rpm -q google-guest-agent >/dev/null 2>&1 && ! { command -v dpkg >/dev/null 2>&1 && dpkg -s google-guest-agent >/dev/null 2>&1; }; then printf 'package %s is not installed\\n' google-guest-agent >&2; exit 1; fi",
     ]
   }
   # runtime bake finalization (gcloud-east1)
