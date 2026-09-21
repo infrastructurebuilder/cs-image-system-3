@@ -39,9 +39,15 @@ def launch_inventory(params_by_instance: dict[str, dict[str, Any]]) -> str:
     return yaml.safe_dump(inv, sort_keys=False)
 
 
-def launch_playbook(params: dict[str, Any]) -> str:
-    """The playbook equivalent of ``user_data_template(params)``."""
+def launch_playbook(params: dict[str, Any], name: str | None = None) -> str:
+    """The playbook equivalent of ``user_data_template(params)``. ``name`` is
+    the instance's declared name -- the inventory key ``launch_inventory``
+    uses -- and is what the play TARGETS; ``params["hostname"]`` is the
+    canonical name the machine is GIVEN (since stage 55 step 4 the two
+    differ: ``test`` versus ``test-001``). Without ``name`` the play targets
+    the hostname, as it did when they coincided."""
     host = params["hostname"]
+    target = name or host
     group = params.get("group")
     tasks: list[dict[str, Any]] = [
         {"name": f"hostname {host}", "ansible.builtin.hostname": {"name": host}},
@@ -85,7 +91,7 @@ def launch_playbook(params: dict[str, Any]) -> str:
         ]
     play = {
         "name": f"cs-image-system launch parameters for {host} (N26; immutable after launch)",
-        "hosts": host,
+        "hosts": target,
         "become": True,
         "vars": {"csis_image": params.get("image"), "csis_build": params.get("build"),
                  "csis_group": group, "csis_session": params.get("session")},
