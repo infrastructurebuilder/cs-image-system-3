@@ -9,10 +9,11 @@ system must not take itself.
 
 Current stage: **none in progress**.
 
-Open stages and their order: §55 next (a second machine of the same name
-is already hard to reach); §19 has its released build and its standing
-node, and waits on its users logging in; §30 waits on the operator's
-decision. A new hygiene issue starts bundle V.
+Open stages and their order: §55 then §56 (§56 proves what §19 step 4
+claims, and a duplicate hostname makes that proof meaningless, so §55
+comes first); §19 has its released build and its standing node and waits
+on §56; §30 waits on the operator's decision. A new hygiene issue starts
+bundle V.
 
 Standing decisions (operator):
 
@@ -294,18 +295,73 @@ record. Stage 19 made three in two days without noticing.
    instance whose canonical hostname is already registered to a DIFFERENT
    server is a refusal naming both, not a second registration. Cheap, and it
    is the check that would have stopped the second `coops-model`.
-3. **The credentials cannot do either yet, and that is the first task.** The
-   service key authenticates (`https://noaa.pam.okta.com`, service_token 200)
-   but is refused for capability: `projects.list` and
-   `projects.servers.list` both 401 `Missing capability`, and a delete needs
-   `projects.servers.delete`. Team-wide `/v1/teams/<team>/servers` answers 200
-   with an empty list, so it is not a way round. **USER**: grant the service
-   user those capabilities in Okta, or decide that retiring a registration
-   stays an operator act and the system only REFUSES the duplicate (step 2
-   alone, which needs `.list` but not `.delete`).
-4. **The three standing duplicates** are cleaned up as part of this, by
-   whichever hand the decision in step 3 leaves it to; keep
-   `10ff7662-17e8-428e-bc55-30592d313db0`.
-5. Records: OPERATIONS on what a canonical hostname is and why a second one
-   is worse than a refusal. Feature branch `feature/opa-hostname-unique`,
-   squash-merged, kept.
+3. **The credentials can already do both** -- corrected 2026-09-21, having
+   first claimed otherwise. Servers are NOT reachable at the team-level path
+   (`/v1/teams/<team>/projects/.../servers` answers `401 Missing capability`,
+   which is what the wrong conclusion was drawn from). They are reachable
+   under the RESOURCE GROUP, where the service key's `resource_admin` and
+   `delegated_resource_admin` roles apply:
+
+       /v1/teams/<team>/resource_groups/<rg>/projects/<project>/servers
+
+   `GET` answers 200 and `DELETE` 204. No capability needs granting and there
+   is nothing to do in either console. Note the ids are not the flattened
+   name `sft list-servers` prints: `coops_rg_login` is resource group
+   `bca5c2ed-1ffc-4bce-9a56-71d3f7ab7c00` and project
+   `69e32009-0f50-4f56-af87-803cb94ee47b`, and passing the printed name as
+   the project gives `404 Resource not found`.
+4. **The duplicates are gone** (2026-09-21): `772d4058…` and `eb95bf11…`
+   deregistered, `10ff7662…` at 10.26.34.156 kept, and `sft ssh coops-model`
+   reaches the live machine. That is the symptom cleared, not the cause --
+   the next relaunch makes another one.
+5. Records: OPERATIONS on what a canonical hostname is, why a second one is
+   worse than a refusal, and the resource-group path the API actually wants.
+   Feature branch `feature/opa-hostname-unique`, squash-merged, kept.
+
+## 56. CI logs in as a member of the group, and that is the proof
+
+**Why**: §19 claims that owning a group gets you into the machine, and
+nothing demonstrates it. The system verifies an AWS instance through SSM --
+that is how `coops-model`'s mounts and packages were checked -- which proves
+the box is healthy and says nothing about access. The operator proved the
+claim by hand on 2026-09-21 (`sft ssh coops-model`, after the duplicate
+registrations were cleared); a claim proved by hand once is a claim that
+regresses silently.
+
+It is also worth stating why this is not a workaround. `sft ssh` felt to the
+operator like something automation is meant to be excluded from. It is not:
+the team already has SIX service users, access is granted to GROUPS rather
+than to human-ness, and the client (1.114.0) carries `SFT_NO_BROWSER`,
+`SFT_TOKEN_FILE` and Okta's PAM SDK including `api_service_users.go` and an
+`IsServiceUser` flag. The browser step is the human OIDC flow, not the
+protocol. The alternative -- a long-lived SSH key in a CI secret -- is the
+thing OPA exists to replace with a short-lived, audited, per-session
+certificate.
+
+1. **Settle the client ceremony first, cheaply.** How a SERVICE user enrols a
+   client non-interactively is the one unknown: whether `SFT_TOKEN_FILE`
+   takes a service token, whether `sft enroll` is needed at all, and what
+   `SFT_NO_BROWSER` changes. Establish it here with a throwaway service user
+   before anything depends on it. **USER**: this writes to the OPA team
+   (a service user, a key pair, a group membership), so it needs a go-ahead.
+2. **A CI identity in the group, not an exception.** One service user in
+   `coops_user` -- the same group a scientist is in -- so the test asserts
+   the real path. Its key pair joins the repository secrets beside
+   `TF_VAR_NOS_KEY`/`SECRET`. If it needs a group of its own for hygiene,
+   that group is added to the project like any other; what it must not get is
+   a capability humans do not have, or the proof is of something else.
+3. **The proof itself**: the runner installs `sft` (nothing in the Justfile
+   or CI does today), enrols non-interactively, runs ONE command over
+   `sft ssh` against the standing instance, and asserts on its output. A leg
+   of `cloud-verify` beside `serial` and `iap`, so it is the same shape as
+   the checks that already exist.
+4. **What it must fail on.** A revoked membership, a machine that never
+   enrolled, and a DUPLICATE canonical hostname (§55) all have to fail it
+   loudly -- the last one especially, since a second `coops-model` makes
+   `sft ssh` reach an arbitrary one of them and a green test would then mean
+   nothing.
+5. **Cost**: the proof needs a standing instance to log into, so it runs
+   against whatever §19 leaves standing rather than launching its own.
+6. Records: OPERATIONS on proving access rather than health, and on the
+   service-user pattern. Feature branch `feature/ci-logs-in`, squash-merged,
+   kept.
