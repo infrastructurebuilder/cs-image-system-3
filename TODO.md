@@ -9,9 +9,10 @@ system must not take itself.
 
 Current stage: **none in progress**.
 
-Open stages and their order: none open; §19 waits on a released build --
-its image is baked, its tests enforce, and its stale pin is cleared -- and
-§30 on the operator's decision. A new hygiene issue starts bundle V.
+Open stages and their order: §55 next (a second machine of the same name
+is already hard to reach); §19 has its released build and its standing
+node, and waits on its users logging in; §30 waits on the operator's
+decision. A new hygiene issue starts bundle V.
 
 Standing decisions (operator):
 
@@ -263,3 +264,48 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-package` (steps 1–3, 5–7),
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
+
+## 55. A canonical hostname is claimed once in OPA
+
+**Why**: OPA identifies a server by its canonical hostname, and enrollment by
+token does not refuse a name already in use -- it registers another server
+with the same one. Three `coops-model` entries stand in `coops_rg_login`
+today (2026-09-21), one per launch this stage made, and only one of them is
+the live machine:
+
+| address | id | |
+| --- | --- | --- |
+| 10.26.34.156 | `10ff7662-17e8-428e-bc55-30592d313db0` | the running `i-0169f82844f4cc08d` |
+| 10.26.35.236 | `772d4058-0606-47bb-83b3-7a5d2b1eb173` | a destroyed launch |
+| 10.26.35.35 | `eb95bf11-5c65-4da3-8c6e-804f81ed0d9e` | the first node, destroyed |
+
+`sft ssh coops-model` then has three servers to choose between and no way to
+know which answers; the operator reports it as very hard to log in. The
+system CAUSES this: it sets the hostname from the instance's declared name
+(`launch_params.py:102`, `hostnamectl set-hostname`), so every relaunch of one
+declaration enrolls the same name again, and nothing ever retires the old
+record. Stage 19 made three in two days without noticing.
+
+1. **Retire the record when the instance goes.** A decommission already drops
+   the pin and the launch parameters; the OPA server registration is the third
+   record of the same event and is not dropped. Same hook, same guard -- and
+   the same refusal to act when the destroy did not apply.
+2. **Refuse a name already claimed, before launching.** At validate, an
+   instance whose canonical hostname is already registered to a DIFFERENT
+   server is a refusal naming both, not a second registration. Cheap, and it
+   is the check that would have stopped the second `coops-model`.
+3. **The credentials cannot do either yet, and that is the first task.** The
+   service key authenticates (`https://noaa.pam.okta.com`, service_token 200)
+   but is refused for capability: `projects.list` and
+   `projects.servers.list` both 401 `Missing capability`, and a delete needs
+   `projects.servers.delete`. Team-wide `/v1/teams/<team>/servers` answers 200
+   with an empty list, so it is not a way round. **USER**: grant the service
+   user those capabilities in Okta, or decide that retiring a registration
+   stays an operator act and the system only REFUSES the duplicate (step 2
+   alone, which needs `.list` but not `.delete`).
+4. **The three standing duplicates** are cleaned up as part of this, by
+   whichever hand the decision in step 3 leaves it to; keep
+   `10ff7662-17e8-428e-bc55-30592d313db0`.
+5. Records: OPERATIONS on what a canonical hostname is and why a second one
+   is worse than a refusal. Feature branch `feature/opa-hostname-unique`,
+   squash-merged, kept.
