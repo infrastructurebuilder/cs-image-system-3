@@ -499,18 +499,23 @@ before sftd ever enrolls, so the name AWS gave the machine is gone by the
 time OPA sees it. Each instance should answer to both, and to neither when
 answering would be a lie.
 
-1. **Find out what already resolves before building anything.** Okta
-   documents the ASA resolution order as a RANKING: (1) server id or
-   `CanonicalName`, (2) **Cloud Instance ID**, (3) Hostname, (4)
-   **AltNames**, (5) default IP address
-   ([server name resolution](https://help.okta.com/asa/en-us/content/topics/adv_server_access/docs/server-name-resolution.htm)).
-   Rank 2 is the operator's first alias, already in the platform -- if the
-   agent reports cloud metadata, `sft ssh i-0169f82844f4cc08d` may work
-   right now with no change at all. Prove it against the live
-   `coops-model` (the server record's fields, and the `sft ssh` itself)
-   BEFORE writing a line. If rank 2 answers, this stage is only about the
-   hostname alias, and the id alias is a documentation note. Do not build
-   what the platform already gives.
+1. **SETTLED 2026-09-21: the id and the address already resolve; the
+   provider hostname does not.** Against the live registry, `sft resolve`
+   answers `coops-model` / `10ff7662…` for `i-0169f82844f4cc08d` (rank 2,
+   Cloud Instance ID -- the record carries `"instance_id"` because sftd read
+   IMDS; `canonical_name` is null, `alt_names` is empty) and for
+   `10.26.34.156` (rank 5). `ip-10-26-34-156` and its FQDN answer
+   *"Could not resolve"*. So the instance-id alias is a documentation note,
+   not work, and this stage is ONLY about giving back the hostname the boot
+   script takes away.
+
+   The operator's `sft ssh i-0169f82844f4cc08d` failed the same day, and
+   that failure was NOT resolution: the machine was stopped (§57), the
+   record said `LastSeen: 19h55m ago`, and `sft ssh` reports a stopped
+   target no more helpfully than an unknown one. `state query` says
+   "STOPPED (switched off; not drift)" in so many words; `sft` does not.
+   Worth one line in OPERATIONS: when `sft ssh` fails, `sft resolve` first
+   -- a name that resolves with an old LastSeen is a machine that is off.
 2. **The field is `AltNames` in `/etc/sft/sftd.yaml`** -- the spelling is
    confirmed twice, by the doc page above and by the `sft` binary's own
    server model (`AltNames`, `GetAltNames`, `alt_names_contains`). Note
