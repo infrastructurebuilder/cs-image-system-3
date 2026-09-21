@@ -9,11 +9,12 @@ system must not take itself.
 
 Current stage: **none in progress**.
 
-Open stages and their order: §55 then §56 (§56 proves what §19 step 4
-claims, and a duplicate hostname makes that proof meaningless, so §55
-comes first); §19 has its released build and its standing node and waits
-on §56; §30 waits on the operator's decision. A new hygiene issue starts
-bundle V.
+Open stages and their order: §57 first (until it lands, stopping a machine
+to save money makes the records lie), then §55 and §56 (§56 proves what §19
+step 4 claims, and a duplicate hostname makes that proof meaningless, so
+§55 precedes it); §19 has its released build and its standing node and
+waits on §56; §30 waits on the operator's decision. A new hygiene issue
+starts bundle V.
 
 Standing decisions (operator):
 
@@ -365,3 +366,52 @@ certificate.
 6. Records: OPERATIONS on proving access rather than health, and on the
    service-user pattern. Feature branch `feature/ci-logs-in`, squash-merged,
    kept.
+
+## 57. A machine that exists may be switched off
+
+**Why**: declared and applied means the infrastructure EXISTS, not that it is
+running, and the operator conserves budget by stopping instances by hand
+(2026-09-21). That is expected and allowed. The system does not allow for it:
+it asks only about running machines, so a stopped one reads as absent rather
+than as off.
+
+Two places prove it, both AWS:
+`AwsCloudBuilder._running_instance` filters
+`instance-state-name in (pending, running)`, so `query_instance_boot_image`
+answers `None` for a stopped instance -- which `instance_boot_drift` records
+as `unavailable`, the report for a runtime that could not answer, when the
+truth is a machine that is switched off. And the session path filters
+`running` alone and raises `no running instance named X`, so every
+verification against a stopped machine fails as though the machine were gone.
+
+Stopping a machine to save money should not make the records lie, and should
+not fail a run.
+
+1. **Tell the three apart**: running, stopped, and absent. A stopped instance
+   is not `unavailable` and not `missing` -- it is a declared instance in a
+   state the operator chose. The state report needs a word for it, and
+   `state query --strict` must not fail on it. Confirm first what today's
+   report actually says for a stopped instance, rather than assuming the
+   classification above.
+2. **Work that needs the machine running says so.** Verification, the
+   post-bake tests and §56's login proof all need a running machine; a bake
+   does not. Make the requirement explicit rather than implicit in a filter
+   that silently finds nothing.
+3. **Start it, do the work, put it back.** When work needs a running machine
+   that is stopped, the system starts it, waits for it to be reachable, does
+   the work, and returns it to the state it was in -- stopped stays stopped
+   afterwards. The restore must survive the work FAILING: a verification that
+   fails still leaves the machine as it was found, or the next run's budget is
+   the price of the last run's error.
+4. **What the operator sees**: it says that it is starting a machine and why,
+   and that it is stopping it again -- starting someone's machine silently is
+   its own kind of surprise, and a stop/start is not free (the boot, and the
+   work that startup scripts redo).
+5. **Two interactions to settle, not assume.** A stopped/started EC2 instance
+   keeps its private address, so its OPA registration and its `AccessAddress`
+   should survive -- confirm it, because §55 and §56 both depend on the
+   address being stable. And an `ephemeral` instance is torn down rather than
+   stopped; this stage does not change that.
+6. Records: OPERATIONS on stopping a machine by hand, what the system does
+   when it needs one running, and what it restores. Feature branch
+   `feature/stopped-instances`, squash-merged, kept.
