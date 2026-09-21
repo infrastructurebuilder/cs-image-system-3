@@ -26,7 +26,8 @@ after which §19 finishes -- its step 5, the upgrade path, having gained
 something concrete to mean from §60. §59 is deliberately LAST: it overlaps
 §55 step 4, and only once the suffix is standing can anyone judge whether a
 name pool is still wanted. §30 waits on the operator's decision and depends
-on none of this. A new hygiene issue starts bundle V.
+on none of this. §61 is the open hygiene bundle (V); a new hygiene issue
+goes there.
 
 **If §19 matters more than the naming work**, the cut is clean: §55 steps 1-3
 alone make §56's proof meaningful, so **§57 -> §55 steps 1-3 -> §56 -> §19**
@@ -854,3 +855,29 @@ instances the same thing, in the same words, so the two read alike.
    here. The word is `generation`, matching storage, even though the
    operator said "iteration" -- one word for one concept across both. Feature
    branch `feature/instance-generations`, squash-merged, kept.
+
+## 61. Hygiene bundle V
+
+Non-critical items, each small enough that a stage of its own would be
+ceremony. Landed together on `feature/hygiene-v`, squash-merged, kept.
+
+1. **A group the provider could not be ASKED about is reported as MISSING.**
+   `okta_opa_tf_group_builder.query_state` wraps its lookup in
+   `except Exception` and records `{"present": False, "error": ...}`
+   (`okta_opa_tf_group_builder.py:144`), and the drift assembly turns
+   `present: False` into `missing ... [HARD]`. So a lapsed OPA key does not
+   report a lapsed key -- it reports that five managed groups are "not known
+   to the identity provider", fails `state query --strict`, and sends the
+   reader hunting for a group somebody deleted.
+
+   Found 2026-09-21 while proving §57: a `just full-test` launched without
+   sourcing `.envrc` failed exactly this way, and the five groups were all
+   present the whole time.
+
+   This is the same conflation §57 removed for instances -- "cannot answer"
+   dressed up as a state -- one subsystem over, and the fix is the same
+   shape: the record already CARRIES the distinction in its `error` key, so
+   the assembly need only route an errored lookup to `unavailable` instead
+   of `missing`. Absent-and-known stays `missing [HARD]`; unreachable
+   becomes unavailable, which `--strict` does not fail on. Whatever §57
+   settled for the runtime hooks should be what this follows.
