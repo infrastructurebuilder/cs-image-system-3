@@ -405,13 +405,31 @@ and a happy accident.
    empty? Observe it (the coops node is standing and can be stopped by hand);
    if terraform would start it, THAT is the stage's centre and the rest is
    secondary.
-2. **The primitive**: a runtime hook answering the power state from the
-   provider's own API, mapped onto a vocabulary the system owns -- at least
-   RUNNING, STOPPED and ABSENT, with each cloud's in-between states (EC2
-   `pending`/`stopping`/`shutting-down`, GCE `PROVISIONING`/`STAGING`/
-   `SUSPENDED`/`TERMINATED`) mapped or named. "Cannot answer" stays a
-   DIFFERENT answer from "stopped". Everything else consumes this and nothing
-   infers state from a query that returned nothing.
+2. **The primitive, on the runtime contract.** The runtime PROVIDER is the
+   only thing that can answer this, so the hook belongs on
+   `RuntimeBuilderBase` beside the ones that already ask the cloud about an
+   instance, and the pattern to copy is there:
+   `can_query_instance_boot_image()` gates `query_instance_boot_image()`, so
+   "this cloud does not implement it" is answered once and adds no noise.
+   The same shape -- `can_query_instance_power_state()` /
+   `query_instance_power_state()` -- keeps "cannot answer" a DIFFERENT answer
+   from "stopped", which is the whole point.
+
+   It answers from the provider's own API, mapped onto a vocabulary the
+   system owns: at least RUNNING, STOPPED and ABSENT, with each cloud's
+   in-between states (EC2 `pending`/`stopping`/`shutting-down`, GCE
+   `PROVISIONING`/`STAGING`/`SUSPENDED`/`TERMINATED`) mapped or named, never
+   leaked raw -- a caller must not be reading EC2 spellings.
+
+   Both runtime plugins implement it (`aws-runtime-plugin` from
+   `describe_instances` `State.Name`, `gcloud-runtime-plugin` from the
+   instance `status`); the base's default says it cannot answer, so a future
+   runtime is not obliged. This adds a member to the runtime contract, which
+   is §30's inventory -- that stage counts the hooks a plugin must satisfy,
+   so it gains one.
+
+   Everything else consumes this, and nothing infers state from a query that
+   returned nothing.
 3. **Off is not drift.** A declared instance that is stopped is in the state
    its operator chose: not `missing`, not `unavailable`, and not something
    `state query --strict` fails on. Its pinned build, its mounts and its
