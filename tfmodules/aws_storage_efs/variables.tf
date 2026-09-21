@@ -63,3 +63,25 @@ variable "transition_to_archive" {
   type        = string
   default     = ""
 }
+
+# Mount targets (stage 19). An EFS filesystem is only reachable through a mount
+# target: an ENI in one subnet per availability zone. Without them `mount.efs`
+# cannot even resolve the filesystem's DNS name, which is what this module
+# produced until 2026-09-20 -- a filesystem nothing could mount.
+variable "vpc_id" {
+  type        = string
+  description = "VPC the mount targets live in; empty creates none"
+  default     = ""
+}
+
+variable "mount_target_subnet_ids" {
+  type        = list(string)
+  description = "One subnet per availability zone. EFS permits a single mount target per zone, so these must not share one."
+  default     = []
+}
+
+variable "client_security_group_ids" {
+  type        = list(string)
+  description = "Security groups whose members may mount: NFS ingress is granted to these groups BY REFERENCE, never to a CIDR, so no shared range is opened."
+  default     = []
+}

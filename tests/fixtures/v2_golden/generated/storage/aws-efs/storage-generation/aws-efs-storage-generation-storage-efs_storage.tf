@@ -19,6 +19,9 @@ module "storage_efs_storage" {
       "permissions" = "2775"
     }
   }
+  vpc_id = "vpc-0c78d0d63b7a100df"
+  mount_target_subnet_ids = ["subnet-09f79018af845358a", "subnet-00075cfbfcbc8f2cf"]
+  client_security_group_ids = ["sg-03015ec107ae5f81a"]
   tags = { "Environment" = "Development", "Project" = "MyProject" }
 }
 output "storage_efs_storage" {

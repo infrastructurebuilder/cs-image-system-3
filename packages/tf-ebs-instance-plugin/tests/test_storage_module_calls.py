@@ -19,9 +19,19 @@ from cs_image_system.tf_ebs_instance_plugin.tf_storage_models import (
 )
 
 
-def _builder(variables=None) -> Any:
-    """A builder stand-in: ``module_args`` reads ``self.model.variables`` (stage 26)."""
-    return SimpleNamespace(model=SimpleNamespace(variables=variables or EfsVariables()))
+def _subnet(name, subnet_id, zone, public=False) -> Any:
+    return SimpleNamespace(get_name=lambda: name, get_subnet_id=lambda: subnet_id,
+                           get_availability_zone=lambda: zone, get_public=lambda: public)
+
+
+def _builder(variables=None, networking=None) -> Any:
+    """A builder stand-in: ``module_args`` reads ``self.model.variables`` (stage 26)
+    and, for EFS mount targets, the runtime's networking (stage 19)."""
+    model = SimpleNamespace(variables=variables or EfsVariables(),
+                            get_runtime_provider=lambda: "aws")
+    rtb = SimpleNamespace(model=SimpleNamespace(networking=networking)) if networking else None
+    ctx = SimpleNamespace(runtime_builders={"aws": rtb} if rtb else {})
+    return SimpleNamespace(model=model, _get_context=lambda: ctx)
 
 
 def _storage(name, *, tags=None, config=None, bucket_name=None) -> Any:
@@ -119,3 +129,36 @@ def test_parameters_is_refused_with_the_replacement_named():
     with pytest.raises(ValidationError, match="retired .stage 26.*variables"):
         TofuEbsStorageBuilderModel(name="aws-ebs", type_="tf-aws-ebs", runtime="r",
                                    parameters={"volume_type": "gp2"})   # type: ignore[call-arg]
+
+
+def test_efs_mount_targets_reach_the_module_by_private_subnet_and_group(_=None):
+    """Stage 19: an EFS filesystem is unreachable without a mount target -- an
+    ENI per availability zone -- which this module never made, so nothing in the
+    account could mount EFS until 2026-09-20.
+
+    One subnet per ZONE (EFS permits a single mount target each), PRIVATE only
+    (the public subnets of this VPC share those zones), and the clients are
+    named as security GROUPS so NFS is granted by reference and no CIDR of a
+    shared network is opened."""
+    networking = SimpleNamespace(
+        network="vpc-123",
+        addl_security_groups=["sg-clients"],
+        subnets=[_subnet("az1-private", "subnet-a", "us-east-2a"),
+                 _subnet("az2-private", "subnet-b", "us-east-2b"),
+                 _subnet("az1-public", "subnet-c", "us-east-2a", public=True),
+                 _subnet("az2-extra", "subnet-d", "us-east-2b")],
+    )
+    args = TofuEfsStorageBuilder.module_args(_builder(networking=networking), _storage("share"))
+    assert args["vpc_id"] == "vpc-123"
+    assert args["mount_target_subnet_ids"] == ["subnet-a", "subnet-b"], \
+        "one per zone, private only -- a second in a zone is refused by EFS"
+    assert args["client_security_group_ids"] == ["sg-clients"]
+    assert not any("cidr" in str(k).lower() for k in args), "never a CIDR on a shared network"
+
+
+def test_efs_without_networking_asks_for_no_mount_targets(_=None):
+    """A runtime that declares no networking gets no mount target arguments,
+    so the module's counts collapse to zero rather than half-configuring one."""
+    args = TofuEfsStorageBuilder.module_args(_builder(), _storage("share"))
+    for key in ("vpc_id", "mount_target_subnet_ids", "client_security_group_ids"):
+        assert key not in args

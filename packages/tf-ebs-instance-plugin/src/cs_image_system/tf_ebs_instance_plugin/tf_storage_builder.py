@@ -581,6 +581,29 @@ class TofuEfsStorageBuilder(TofuStorageBuilder[S]):
             args["access_points"] = self.group_subtrees(storage)
         if _public_read(storage):
             args["public_read"] = True
+        # Mount targets (stage 19): an EFS filesystem is reachable only through
+        # an ENI in the VPC, one per availability zone, and without them
+        # `mount.efs` cannot resolve the filesystem at all. Only the PRIVATE
+        # subnets are named: EFS permits one mount target per zone, and the
+        # public subnets of this VPC share the zones the private ones use.
+        # The clients are named as security GROUPS, so the module grants NFS by
+        # reference and opens no CIDR -- the standing rule for a shared network.
+        rtb = self._get_context().runtime_builders.get(self.model.get_runtime_provider(), None)
+        networking = getattr(rtb.model, "networking", None) if rtb else None
+        if networking is not None:
+            seen: set[str] = set()
+            subnets: list[str] = []
+            for subnet in getattr(networking, "subnets", None) or []:
+                zone = subnet.get_availability_zone() or subnet.get_subnet_id()
+                if subnet.get_public() or zone in seen:
+                    continue
+                seen.add(zone)
+                subnets.append(subnet.get_subnet_id())
+            clients = [str(sg) for sg in getattr(networking, "addl_security_groups", None) or []]
+            if subnets and clients:
+                args["vpc_id"] = networking.network
+                args["mount_target_subnet_ids"] = subnets
+                args["client_security_group_ids"] = clients
         tags = self.model.variables.merged_tags(storage.tags)
         if tags:
             args["tags"] = tags
