@@ -14,6 +14,7 @@ from cs_image_system.base.constants import VCT
 from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
 from cs_image_system.base.models.provider_specific_image import ProviderSpecificImage
+from cs_image_system.base import power_state
 from cs_image_system.base.protocols.plugin_metadata import PluginArtifactProtocol
 
 from .gcp_provider_specific_image import GcpProviderSpecificImage
@@ -312,6 +313,87 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         except Exception as e:  # noqa: BLE001 - read-only probe: unavailable, never fatal
             log.debug(f"GCE runtime {self.get_name()}: boot image of {instance_name!r} unavailable: {e}")
             return None
+
+    # ------------------------------------------------ power state (stage 57)
+    #: GCE ``Instance.status`` mapped onto the system's vocabulary. The trap
+    #: is ``TERMINATED``: on GCE that means STOPPED -- the instance exists and
+    #: can be started again -- and NOT deleted, which is the opposite of what
+    #: the word means on EC2. A deleted GCE instance is simply not found. This
+    #: is exactly why the vocabulary is the system's own and no caller is
+    #: allowed to read a provider's spelling.
+    _GCE_POWER = {
+        "PROVISIONING": power_state.STARTING,
+        "STAGING": power_state.STARTING,
+        "RUNNING": power_state.RUNNING,
+        "STOPPING": power_state.STOPPING,
+        "SUSPENDING": power_state.STOPPING,
+        "SUSPENDED": power_state.SUSPENDED,
+        "TERMINATED": power_state.STOPPED,
+        "REPAIRING": power_state.UNKNOWN,
+    }
+
+    def _instances_client(self):
+        """(client, project, zone) for instance calls, or None when the
+        runtime is not resolvable."""
+        from .gcp_utils import _make_credentials, resolve_project
+        from google.cloud import compute_v1  # noqa: PLC0415
+        cfg = self.model.self_to_gcp_client_config()
+        project, zone = resolve_project(cfg), getattr(self.model, "zone", None)
+        if not project or not zone:
+            return None
+        creds = _make_credentials(cfg)
+        kw = {"credentials": creds} if creds else {}
+        return compute_v1.InstancesClient(**kw), str(project), str(zone)
+
+    def can_query_instance_power_state(self) -> bool:
+        return True
+
+    def query_instance_power_state(self, instance_name: str) -> str | None:
+        """GCE's own ``status`` for the named instance. None means this
+        runtime could not find out -- never that the machine is off."""
+        from .gcp_packer_source import gce_name
+        try:
+            got = self._instances_client()
+            if got is None:
+                return None
+            client, project, zone = got
+            try:
+                inst = client.get(project=project, zone=zone, instance=gce_name(instance_name))
+            except Exception as e:  # noqa: BLE001
+                if "not found" in str(e).lower() or "404" in str(e):
+                    return power_state.ABSENT
+                raise
+            raw = str(getattr(inst, "status", "") or "")
+            mapped = self._GCE_POWER.get(raw)
+            if mapped is None:
+                log.warning(f"GCE runtime {self.get_name()}: instance {instance_name!r} reports "
+                            f"unrecognised status {raw!r}; treating it as unknown")
+                return power_state.UNKNOWN
+            return mapped
+        except Exception as e:  # noqa: BLE001 - read-only probe: unavailable, never fatal
+            log.debug(f"GCE runtime {self.get_name()}: power state of {instance_name!r} unavailable: {e}")
+            return None
+
+    def can_set_instance_power_state(self) -> bool:
+        return True
+
+    def start_instance(self, instance_name: str, timeout: int = 300) -> bool:
+        from .gcp_packer_source import gce_name
+        got = self._instances_client()
+        if got is None:
+            raise RuntimeError(f"GCP runtime {self.get_name()}: no project/zone to start an instance")
+        client, project, zone = got
+        client.start(project=project, zone=zone, instance=gce_name(instance_name)).result(timeout=timeout)
+        return self.query_instance_power_state(instance_name) == power_state.RUNNING
+
+    def stop_instance(self, instance_name: str, timeout: int = 300) -> bool:
+        from .gcp_packer_source import gce_name
+        got = self._instances_client()
+        if got is None:
+            raise RuntimeError(f"GCP runtime {self.get_name()}: no project/zone to stop an instance")
+        client, project, zone = got
+        client.stop(project=project, zone=zone, instance=gce_name(instance_name)).result(timeout=timeout)
+        return power_state.is_off(self.query_instance_power_state(instance_name))
 
     # ------------------------------------------------- packer source hooks
     def packer_source_type(self) -> str:

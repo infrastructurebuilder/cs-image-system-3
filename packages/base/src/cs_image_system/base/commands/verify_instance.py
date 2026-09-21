@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from ..global_context import GlobalTypeContext
+from .. import power_state
 
 log = logging.getLogger(__name__)
 
@@ -96,41 +97,61 @@ def verify_instance(name: str, expected_build: str | None = None, timeout: int =
     recorded = ms.instance_pin(name) or (ms.launch_params().get(name) or {}).get("build")
     build = expected_build or (recorded if recorded and recorded != "unbound" else None)
     mounts = len(list(inst.storage_mappings()))
-    result = rtb.verify_instance(name, expected_build=build, expect_mounts=mounts, timeout=timeout)
-    if build is None:
-        # no concrete expectation (the image was built THIS run, so the launch
-        # deferred to the family and nothing is pinned yet -- found live): the
-        # booted image must be a recorded build of the instance's image series
-        booted = next((c.get("detail", "").replace("booted ", "") for c in result.get("checks", [])
-                       if c.get("name") == "booted image"), None)
-        rec = ms.build(str(booted)) if booted else None
-        ok = rec is not None and rec.get("series") == str(inst.image) and str(rec.get("runtime") or rt) == rt
-        for c in result.get("checks", []):
-            if c.get("name") == "booted image":
-                c["ok"] = ok
-                c["detail"] = (f"booted {booted}, a recorded build of {inst.image} on {rt}" if ok
-                               else f"booted {booted}, which lineage does not record for {inst.image} on {rt}")
-        result["ok"] = all(c.get("ok") for c in result.get("checks", []))
-        build = booted if ok else None
-    # stage 14: the image's declared post-bake tests run ON the instance over
-    # the runtime's session command, as one more check; recorded per build
-    from ..image_tests import parse_post_bake_output, post_bake_script, post_bake_spec
-    image = ctx.images_map.get(str(inst.image))
-    spec = post_bake_spec(image) if image is not None else {}
-    test_checks: list[dict[str, Any]] = []
-    if spec:
-        try:
-            _rc, out = rtb.run_session_command(name, post_bake_script(spec), timeout=timeout)
-        except Exception as e:  # noqa: BLE001 - a dead session is a failed suite, recorded as such
-            out = f"session failed: {e}"
-        test_checks = parse_post_bake_output(spec, out)
-        suite_ok = bool(test_checks) and all(c["ok"] for c in test_checks)
-        failed = [c["name"] for c in test_checks if not c["ok"]]
-        result.setdefault("checks", []).append({
-            "name": "declared tests", "ok": suite_ok,
-            "detail": (f"{len(test_checks)} assertion(s) passed" if suite_ok
-                       else f"{len(failed)} of {len(test_checks)} failed: {'; '.join(failed)[:300]}")})
-        result["ok"] = all(c.get("ok") for c in result["checks"])
+    # stage 57: verification is the archetypal task that NEEDS a running
+    # machine, so it is allowed to start one -- for this task alone, and
+    # it puts it back. A machine that is off and cannot be started is a
+    # SKIP: failing it would be the system calling the operator's own
+    # decision a fault.
+    with power_state.running_for_task(rtb, name, why=f"verifying instance {name}",
+                                      timeout=timeout) as available:
+        if not available:
+            state = (rtb.query_instance_power_state(name)
+                     if rtb.can_query_instance_power_state() else None)
+            log.info(f"verify {name}: SKIPPED -- the machine is "
+                     f"{power_state.describe(state)} and verification needs it running. "
+                     f"Nothing is recorded: no verdict was reached.")
+            return {"instance": name, "runtime": rt, "build": build, "run": ctx.run_id,
+                    "ephemeral": bool(getattr(inst, "ephemeral", False)),
+                    "time": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                    "ok": False, "skipped": True, "evidence": [],
+                    "checks": [{"name": "power state", "ok": False,
+                                "detail": f"instance is {power_state.describe(state)}; "
+                                          f"verification needs a running machine"}]}
+        result = rtb.verify_instance(name, expected_build=build, expect_mounts=mounts, timeout=timeout)
+        if build is None:
+            # no concrete expectation (the image was built THIS run, so the launch
+            # deferred to the family and nothing is pinned yet -- found live): the
+            # booted image must be a recorded build of the instance's image series
+            booted = next((c.get("detail", "").replace("booted ", "") for c in result.get("checks", [])
+                           if c.get("name") == "booted image"), None)
+            rec = ms.build(str(booted)) if booted else None
+            ok = rec is not None and rec.get("series") == str(inst.image) and str(rec.get("runtime") or rt) == rt
+            for c in result.get("checks", []):
+                if c.get("name") == "booted image":
+                    c["ok"] = ok
+                    c["detail"] = (f"booted {booted}, a recorded build of {inst.image} on {rt}" if ok
+                                   else f"booted {booted}, which lineage does not record for {inst.image} on {rt}")
+            result["ok"] = all(c.get("ok") for c in result.get("checks", []))
+            build = booted if ok else None
+        # stage 14: the image's declared post-bake tests run ON the instance over
+        # the runtime's session command, as one more check; recorded per build
+        from ..image_tests import parse_post_bake_output, post_bake_script, post_bake_spec
+        image = ctx.images_map.get(str(inst.image))
+        spec = post_bake_spec(image) if image is not None else {}
+        test_checks: list[dict[str, Any]] = []
+        if spec:
+            try:
+                _rc, out = rtb.run_session_command(name, post_bake_script(spec), timeout=timeout)
+            except Exception as e:  # noqa: BLE001 - a dead session is a failed suite, recorded as such
+                out = f"session failed: {e}"
+            test_checks = parse_post_bake_output(spec, out)
+            suite_ok = bool(test_checks) and all(c["ok"] for c in test_checks)
+            failed = [c["name"] for c in test_checks if not c["ok"]]
+            result.setdefault("checks", []).append({
+                "name": "declared tests", "ok": suite_ok,
+                "detail": (f"{len(test_checks)} assertion(s) passed" if suite_ok
+                           else f"{len(failed)} of {len(test_checks)} failed: {'; '.join(failed)[:300]}")})
+            result["ok"] = all(c.get("ok") for c in result["checks"])
     record = {
         "instance": name, "runtime": rt, "build": build, "run": ctx.run_id,
         "ephemeral": bool(getattr(inst, "ephemeral", False)),
@@ -146,7 +167,7 @@ def verify_instance(name: str, expected_build: str | None = None, timeout: int =
             "checks": test_checks})
     for c in record["checks"]:
         log.info(f"verify {name}: {c.get('name')}: {'ok' if c.get('ok') else 'FAILED'} -- {c.get('detail')}")
-    if not record["ok"] and not record_only:
+    if not record["ok"] and not record.get("skipped") and not record_only:
         raise VerificationFailed(record)
     return record
 

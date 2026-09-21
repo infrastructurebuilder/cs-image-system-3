@@ -62,6 +62,7 @@ from .basic.builder_base_storage import StorageBuilderBase
 from .constants import STATE_REPORT_FILENAME
 from .lineage import TAG_PREFIX
 from .meta_state import assert_public_safe
+from . import power_state
 from .models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_DESTROYED
 
 if TYPE_CHECKING:
@@ -99,6 +100,7 @@ class StateReport:
     reality: dict[str, Any] = field(default_factory=dict)
     drift: list[Drift] = field(default_factory=list)
     unavailable: list[str] = field(default_factory=list)  # providers that could not answer
+    notes: list[str] = field(default_factory=list)        # true, and neither drift nor silence (stage 57)
 
     @property
     def hard(self) -> list[Drift]:
@@ -113,6 +115,7 @@ class StateReport:
             "reality": self.reality,
             "drift": [d.as_dict() for d in self.drift],
             "unavailable": sorted(self.unavailable),
+            "notes": sorted(self.notes),
             "summary": {c: len(self.by_class(c)) for c in
                         (DRIFT_MISSING, DRIFT_FOREIGN, DRIFT_CHANGED, DRIFT_STALE)},
         }
@@ -121,6 +124,8 @@ class StateReport:
         lines = [f"state report for run {self.run}"]
         for name in sorted(self.unavailable):
             lines.append(f"  unavailable: {name}")
+        for note in sorted(self.notes):
+            lines.append(f"  note: {note}")
         if not self.drift:
             lines.append("  no drift: meta-state agrees with reality")
         for d in self.drift:
@@ -351,6 +356,19 @@ def instance_boot_drift(ctx: "GlobalTypeContext", report: StateReport) -> list[D
             continue
         booted = rtb.query_instance_boot_image(name)
         if booted is None:
+            # stage 57: before calling this silence, ask whether the machine
+            # is simply switched off. The boot-image probe filters on
+            # `running`, so an instance the operator stopped answers None
+            # exactly as an unreachable cloud does -- and reporting the
+            # operator's own choice as "the provider could not answer" is
+            # how the records came to lie about a stopped machine.
+            state = (rtb.query_instance_power_state(name)
+                     if rtb.can_query_instance_power_state() else None)
+            if power_state.is_off(state):
+                report.notes.append(
+                    f"instances/{name}: {power_state.describe(state)}; its pinned build {build}, "
+                    f"mounts and registration all still stand and are simply not readable while it is off")
+                continue
             report.unavailable.append(f"instances/{name}: booted image (runtime {rt_name} could not answer)")
             continue
         if str(booted) != str(build):
@@ -379,7 +397,13 @@ def standing_ephemeral_drift(ctx: "GlobalTypeContext", report: StateReport) -> l
             continue
         probe = rtb
         booted = _query(report, f"instances/{name}", lambda: probe.query_instance_boot_image(name))
-        if booted:
+        # stage 57: a STOPPED ephemeral is still standing -- it exists and its
+        # disks still cost -- but the boot-image probe filters on `running`,
+        # so until now the one kind of leftover nobody could see was the kind
+        # that had been switched off.
+        state = (_query(report, f"instances/{name}", lambda: probe.query_instance_power_state(name))
+                 if probe.can_query_instance_power_state() else None)
+        if booted or power_state.is_off(state):
             from .commands.verify_instance import failure_policy, last_verification, teardown_due
             policy, after = failure_policy(ctx, inst) if inst is not None else ("keep", None)
             last = last_verification(ctx, name)
@@ -391,8 +415,9 @@ def standing_ephemeral_drift(ctx: "GlobalTypeContext", report: StateReport) -> l
                 what = f"policy keep for {declared_after}, then teardown by a later run"
             else:
                 what = f"policy {policy}: inspect, then decommission it"
+            seen = f"booted {booted}" if booted else power_state.describe(state)
             drift.append(Drift("instance", name, DRIFT_CHANGED,
-                               f"ephemeral instance is STANDING (booted {booted}){when} -- {what}"))
+                               f"ephemeral instance is STANDING ({seen}){when} -- {what}"))
     return drift
 
 

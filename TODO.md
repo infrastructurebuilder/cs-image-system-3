@@ -26,7 +26,8 @@ after which §19 finishes -- its step 5, the upgrade path, having gained
 something concrete to mean from §60. §59 is deliberately LAST: it overlaps
 §55 step 4, and only once the suffix is standing can anyone judge whether a
 name pool is still wanted. §30 waits on the operator's decision and depends
-on none of this. A new hygiene issue starts bundle V.
+on none of this. §61 is the open hygiene bundle (V); a new hygiene issue
+goes there.
 
 **If §19 matters more than the naming work**, the cut is clean: §55 steps 1-3
 alone make §56's proof meaningful, so **§57 -> §55 steps 1-3 -> §56 -> §19**
@@ -216,8 +217,11 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `get_commands_to_run_{before,during,after}`) as `Builder`, plus one
    protocol per kind for the ~60 domain hooks (`StorageBuilder`:
    `module_args`, `capability_type`, `attachment_cardinality`,
-   `transition_actions`, `supports_archive`…; `RuntimeBuilder`: the 16
-   query/session/dispose hooks; `GroupBuilder`, `ImageBuilder`,
+   `transition_actions`, `supports_archive`…; `RuntimeBuilder`: the 21
+   query/session/dispose/power hooks (16 until stage 57 added the power
+   state -- `can_query`/`query_instance_power_state` and
+   `can_set_instance_power_state`/`start_instance`/`stop_instance` -- so
+   recount before trusting any number written here); `GroupBuilder`, `ImageBuilder`,
    `InstanceBuilder`, `ModBuilder`, `UserBuilder`, `StateBuilder`). The
    protocols carry NO implementation (today `NameTypedProtocol` supplies
    `global_id` and a `get_classification` default; those bodies move to
@@ -504,11 +508,16 @@ chase a newer image. Whether an apply leaves a STOPPED machine alone is the
 first thing to confirm -- it is the difference between a documented guarantee
 and a happy accident.
 
-1. **Confirm what already holds, before building on it.** Does `tofu apply`
-   over a stopped, declared instance leave it stopped? Does the plan stay
-   empty? Observe it (the coops node is standing and can be stopped by hand);
-   if terraform would start it, THAT is the stage's centre and the rest is
-   secondary.
+1. **CONFIRMED live, 2026-09-21.** `coops-model` (`i-0169f82844f4cc08d`) was
+   already stopped by the operator. `tofu plan` over the instance root
+   refreshed the real machine and answered *"No changes. Your infrastructure
+   matches the configuration."*; applying that exact plan gave *"Apply
+   complete! Resources: 0 added, 0 changed, 0 destroyed."* and the machine
+   was still `stopped` at `10.26.34.156` afterwards. So the guarantee is
+   real, and it is structural rather than lucky: `aws_instance` carries no
+   power attribute at all, so there is nothing for terraform to reconcile,
+   and `ignore_changes = [ami, user_data]` keeps a newer AMI from replacing
+   it either. This is now a documented guarantee, not an accident.
 2. **The primitive, on the runtime contract.** The runtime PROVIDER is the
    only thing that can answer this, so the hook belongs on
    `RuntimeBuilderBase` beside the ones that already ask the cloud about an
@@ -553,11 +562,23 @@ and a happy accident.
    is stopping it again. Starting someone's machine silently is its own
    surprise, and a stop/start is not free: the boot, and the startup scripts
    that redo their work.
-6. **Two interactions to settle, not assume.** A stopped/started EC2 instance
-   keeps its private address, so its OPA registration and `AccessAddress`
-   should survive -- confirm it, because §55 and §56 depend on that address
-   being stable. And an `ephemeral` instance is torn down rather than stopped;
-   this stage does not change that.
+6. **The address: mechanism confirmed, one leg still unobserved.** The
+   address belongs to the ENI, not the instance: `eni-028db03ddb8ff20f1`
+   holds `10.26.34.156`, is `in-use` WHILE THE MACHINE IS STOPPED, and is
+   released only on termination (`DeleteOnTermination: true`). The
+   running -> stopped leg is observed -- the OPA registration carried
+   10.26.34.156 while the machine ran earlier the same day, and the ENI
+   still holds it now. The stopped -> running leg follows from the ENI
+   surviving, but has NOT been watched happen; completing it costs a boot on
+   a machine the operator deliberately switched off, so it waits for a run
+   that needs the machine anyway. §55 and §56 may rely on the address; they
+   should not rely on it having been proven both ways yet.
+
+   An `ephemeral` instance is torn down rather than stopped; this stage does
+   not change that. It does make a STOPPED ephemeral visible to the state
+   report for the first time -- the boot-image probe filtered on `running`,
+   so the one leftover nobody could see was the one switched off while its
+   disks kept billing.
 7. Records: OPERATIONS on the rule itself -- the power state is the
    operator's, the system creates running and never restores it -- and on what
    a bounded start does and restores. Feature branch
@@ -834,3 +855,29 @@ instances the same thing, in the same words, so the two read alike.
    here. The word is `generation`, matching storage, even though the
    operator said "iteration" -- one word for one concept across both. Feature
    branch `feature/instance-generations`, squash-merged, kept.
+
+## 61. Hygiene bundle V
+
+Non-critical items, each small enough that a stage of its own would be
+ceremony. Landed together on `feature/hygiene-v`, squash-merged, kept.
+
+1. **A group the provider could not be ASKED about is reported as MISSING.**
+   `okta_opa_tf_group_builder.query_state` wraps its lookup in
+   `except Exception` and records `{"present": False, "error": ...}`
+   (`okta_opa_tf_group_builder.py:144`), and the drift assembly turns
+   `present: False` into `missing ... [HARD]`. So a lapsed OPA key does not
+   report a lapsed key -- it reports that five managed groups are "not known
+   to the identity provider", fails `state query --strict`, and sends the
+   reader hunting for a group somebody deleted.
+
+   Found 2026-09-21 while proving §57: a `just full-test` launched without
+   sourcing `.envrc` failed exactly this way, and the five groups were all
+   present the whole time.
+
+   This is the same conflation §57 removed for instances -- "cannot answer"
+   dressed up as a state -- one subsystem over, and the fix is the same
+   shape: the record already CARRIES the distinction in its `error` key, so
+   the assembly need only route an errored lookup to `unavailable` instead
+   of `missing`. Absent-and-known stays `missing [HARD]`; unreachable
+   becomes unavailable, which `--strict` does not fail on. Whatever §57
+   settled for the runtime hooks should be what this follows.
