@@ -10,13 +10,13 @@ system must not take itself.
 Current stage: **none in progress**.
 
 Open stages and their order (revised 2026-09-21, when §58-§60 were added):
-**§60 -> §55 step 4 -> §56 -> §19 steps 4-5 -> §59**, with §30 orthogonal.
-(§57, §55 steps 1-3 and §58 all LANDED 2026-09-21. §57 settled the
-runtime-hook convention §60 follows and the rule it depends on, that a
-stopped machine is the same machine; §58 added `query_instance_identity`,
-the observation §60's generations are defined by. §58's first LIVE write of
-an `AltNames` block is still owed: it needs the machine running, which is
-the operator's call.) §55 SPLITS: steps 1-3 (retire,
+**§55 step 4 -> §56 -> §19 steps 4-5 -> §59**, with §30 orthogonal.
+(§57, §55 steps 1-3, §58 and §60 all LANDED 2026-09-21. §60's ledger
+(`meta-state/instance-state.yaml`) now exists and
+`MetaState.instance_generation(name, "durable")` answers the count §55
+step 4 suffixes the canonical name with. §58's first LIVE write of an
+`AltNames` block is still owed: it needs the machine running, which is the
+operator's call.) §55 SPLITS: steps 1-3 (retire,
 refuse, validate the length) need only the OPA client, so they land early and
 unblock §58, while step 4 (the generation suffix) needs §60's durable counter
 and lands after it -- taken as one indivisible stage, §55, §58 and §60 form a
@@ -31,7 +31,7 @@ goes there.
 
 **If §19 matters more than the naming work**, the cut is clean: §55 steps 1-3
 already make §56's proof meaningful, so **§56 -> §19** delivers the stated
-purpose in two from here, with §60, §55 step 4 and §59 following afterwards. Nothing in that shorter path has to be redone -- §58
+purpose in two from here, with §55 step 4 and §59 following afterwards. Nothing in that shorter path has to be redone -- §58
 adds the bare name back as an alias, so a proof written against `coops-model`
 survives the suffix.
 
@@ -406,14 +406,17 @@ record (the command itself is at `launch_params.py:127`). Stage 19 made three in
    name, pool for an alias), but building both needs a reason. Decide when
    §59 opens, not now.
 
-   **This step lands LAST, and that matters.** As written, §55 needs §60's
-   counter, §60 needs §58's identity hook, and §58 needs §55's OPA client --
-   a cycle, if each stage is taken as one indivisible unit. It is not one:
-   steps 1-3 above need only the OPA client and no generation at all, so
-   they land first and unblock §58; §58 then unblocks §60; and THIS step is
-   a second pass over §55 once §60's durable counter exists. Implement in
-   that order -- 55 (steps 1-3), 58, 60, 55 (step 4) -- and nothing waits on
-   itself.
+   **Unblocked 2026-09-21: §60 landed.** The counter is
+   `MetaState.instance_generation(name, "durable")`; the seam is
+   `canonical_hostname()` in `launch_params.py`, and the OPA registry
+   listing carries `canonical_name` so a suffixed name is a claim like any
+   other. One timing question is this step's to answer: the name is rendered
+   into user_data at GENERATE time, and a generation OPENS at apply time
+   (`mark_launched`, inferred; then observed). So the number the render
+   uses is "the durable count, plus one if this run will replace" -- known,
+   because replacement is explicit (`-replace`, a pending replacement, a
+   follow) -- and the after-apply open must land on that same number.
+   Decide, and write the rule down, before touching the seam.
 
 5. **The credentials can already do both** -- corrected 2026-09-21, having
    first claimed otherwise. Servers are NOT reachable at the team-level path
@@ -566,109 +569,6 @@ configure. That is the operator's stated shape and it should stay literal.
    permanent, and that a human appends while the system comments out. The
    fixture gets a small pool so the draw, the burn and the empty case are all
    tested offline. Feature branch `feature/alias-pool`, squash-merged, kept.
-
-## 60. An instance has generations, and each one is a machine
-
-**Why**: the system already controls WHETHER a machine may be replaced --
-`validate_immutability` (`launch_params.py:376`) refuses a launched instance
-whose parameters changed and names the keys, and the three sanctioned exits
-(an explicit `upgrade`, a policy follow, decommission and redeclare) are each
-an exemption in that check. What it does not have is any identity for the
-machine that RESULTS. `launch-params.yaml` is keyed by instance name and
-holds exactly one record per name, overwritten on every relaunch; no EC2
-instance id appears anywhere in meta-state; the verification record names the
-image, never the machine. So "which machine is this, and what happened to the
-one before it" is answerable only by parsing `pins.yaml.upgrades` and
-guessing.
-
-The cost of that gap is already paid, three times over, in the stages around
-this one. §55 exists because three `coops-model` registrations piled up in
-OPA -- nothing knew a SECOND MACHINE had happened, so nothing retired the
-first. §58 has to reach into the cloud to discover a provider identity the
-system never kept. §59's spend-once name pool is a generation counter spelled
-with words. One concept underneath would serve all three.
-
-Storage already has it: `record_storage_transition` bumps a `generation` on
-every regeneration (`meta_state.py:205`) and `storage_generation`
-(`meta_state.py:217`) reads it back. A storage knows it is on generation 3.
-`coops-model` does not know it is the fourth machine of that name. Give
-instances the same thing, in the same words, so the two read alike.
-
-1. **A generation is one machine, and the machine decides -- not our
-   bookkeeping.** It begins when a machine is created and ends when THAT
-   machine is destroyed. The tempting signal is control flow (bump when
-   `mark_launched` flips `launched` to true, or when a pending replacement
-   clears) and it is the wrong one: it infers a new machine from our own
-   records, and the entire failure this stage addresses is records that did
-   not know a new machine had happened. Define it by OBSERVATION instead --
-   the provider instance id differs from the recorded one, via §58's
-   `query_instance_identity` -- so a machine replaced out of band (a taint, a
-   manual terminate and re-apply, a console delete) is caught. Keep the
-   control-flow signal only as the fallback for a runtime that cannot answer,
-   and mark a generation recorded that way as inferred, not observed.
-   **Depends on §58** for the hook.
-2. **What is NOT a new generation.** A reboot. A stop and start (§57 -- the
-   power state is the operator's and a stopped machine is the same machine;
-   this is the trap, because a stopped instance may also fail an identity
-   query, and "cannot read the id" must never be treated as "the id
-   changed"). A mount detach, which is the one in-place change immutability
-   allows (`launch_params.py:359`). An image pin that has moved but not been
-   applied. Only a new machine is a new generation.
-3. **Two counters, not one** (operator decision, 2026-09-21): a durable
-   count and an ephemeral count per instance, bumped according to that
-   generation's own `ephemeral` flag. §55 builds the canonical name from the
-   DURABLE one, so a standing machine's number never advances because a
-   throwaway was spun up.
-
-   Be honest about what the split buys, because it is less than it looks.
-   Counters are per DECLARED INSTANCE NAME, so the isolation is mostly
-   already there: `gce-test` churning cannot touch `coops-model`'s number --
-   they are different declarations. The split covers exactly one case, a
-   single name whose declaration flipped `ephemeral` between generations,
-   which is rare and already gated (`ephemeral` is a compared launch
-   parameter, so flipping it forces a replacement). It is one dict key
-   instead of an int; do it for correctness, not for leverage.
-
-4. **Its own file, for a reason worth writing down.** Follow the storage
-   shape: `launch-params.yaml` keeps holding what the CURRENT machine booted
-   with, and a new `meta-state/instance-state.yaml` holds the generation, the
-   lifecycle transitions, the provider identity, and the superseded parameter
-   sets -- exactly as `storage.yaml` and `storage-state.yaml` divide today.
-   Do NOT put the counter in the launch-params record itself: `_comparable`
-   filters by key (`launch_params.py:356`), so a `generation` that changes
-   would read as a changed launch parameter and refuse the very replacement
-   that bumped it, unless it were added to `_VOLATILE` -- at which point it
-   is excluded from every comparison and the file is carrying a field it
-   never compares. Separate files, separate jobs.
-5. **Archive, never overwrite.** When a generation ends, its launch-params
-   record moves into the ledger with its number, the run that created it, the
-   run that ended it, why it ended, and the provider identity if it was ever
-   known. Growth is per MACHINE, not per run -- `coops-model` managed four in
-   two days of unusually heavy work, which is nothing next to `runs.yaml` at
-   58KB -- so keep it complete and do not cap it.
-6. **Ephemerals get generations too.** `forget_ephemerals`
-   (`launch_params.py:296`) currently deletes the launch record outright, on
-   the reasoning that the machine is gone. But it EXISTED: it booted, it
-   enrolled in OPA, and it may well have left a registration behind -- which
-   is §55's problem arriving by the one path that erases its own evidence. An
-   ephemeral machine opens and closes a generation within the run, and the
-   record of that is what lets §55 deregister it honestly.
-7. **What it buys the stages around it.** §55 stops searching by name and
-   guessing: retiring a registration becomes "generation N ended, deregister
-   the server generation N enrolled". §58's provider id and hostname become
-   per-generation facts rather than things rediscovered each time. §59's
-   drawn name is recorded ON the generation, so "what was iteration 3 called"
-   has an answer. §19's step 5 upgrade path gets something concrete to mean.
-8. **Do not fabricate the past.** What stands now becomes generation 1,
-   marked as the first RECORDED generation, not the first machine. The
-   earlier `coops-model` machines are visible only in `pins.yaml.upgrades`
-   and stay there; backfilling a history the system never observed would put
-   invented facts in the one file meant to be trustworthy.
-9. Records: OPERATIONS on what a generation is, what does and does not start
-   one, and how to read the ledger; DESIGN on why observation beats inference
-   here. The word is `generation`, matching storage, even though the
-   operator said "iteration" -- one word for one concept across both. Feature
-   branch `feature/instance-generations`, squash-merged, kept.
 
 ## 61. Hygiene bundle V
 

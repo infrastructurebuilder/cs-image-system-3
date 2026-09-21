@@ -23,6 +23,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from .capabilities import group_builder_of, storage_type_of
+from . import generations
 from .lifecycles import Lifecycle
 
 if TYPE_CHECKING:
@@ -297,6 +298,10 @@ def forget_decommissioned(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> Non
             continue
         log.info(f"Instance {name} is no longer declared and its destroy applied: "
                  "dropping its launch parameters and pin (decommission)")
+        # stage 60: the machine is gone -- its generation closes into the
+        # history with the launch parameters it booted with, BEFORE the
+        # launch record is forgotten
+        generations.on_gone(ctx, name, why=generations.WHY_DECOMMISSION)
         # stage 55: the OPA server registration is the THIRD record of the
         # same launch, and the one that used to outlive the machine. Same
         # hook, same guard -- and a failure to retire is reported, not
@@ -353,6 +358,9 @@ def forget_ephemerals(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
             continue
         name = inst.get_name()
         log.info(f"Ephemeral instance {name}: verified and torn down this run; forgetting its launch record")
+        # stage 60: it EXISTED -- it booted and enrolled -- so its generation
+        # closes into the history rather than vanishing with the record
+        generations.on_gone(ctx, name, why=generations.WHY_EPHEMERAL)
         ms.remove_launch_params(name)
         ms.remove_instance_pin(name, ctx.run_id, op="ephemeral")
         # stage 11.3 `teardown` (ledger 68): the instance was torn down
@@ -378,6 +386,7 @@ def mark_launched(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
         return
     ms = ctx.meta_state
     declared = {i.get_name(): i for i in ctx.instances}
+    pending = ms.pending_replacements()
     for name, params in ms.launch_params().items():
         inst = declared.get(name)
         # Per-root scoping (stage 7): a declared instance is launched only
@@ -389,6 +398,10 @@ def mark_launched(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
             params["launched"] = True
             params["launched_run"] = ctx.run_id
             ms.record_launch_params(name, params)
+            # stage 60: a machine now exists (or a sanctioned replacement
+            # just made a new one) -- open its generation, inferred; the
+            # observation pass confirms it against the provider's id
+            generations.on_launched(ctx, name, params, replaced=name in pending)
         ms.clear_pending_replacement(name)
 
 
