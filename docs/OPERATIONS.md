@@ -272,6 +272,53 @@ newer image head plans the gated replacement; the pin moves after the
 apply). A pinned child whose parent head has moved is reported by the
 state query as `stale`: informational, never hard.
 
+### The power state belongs to the operator
+
+An instance is CREATED running -- that is what applying the IaC means --
+and after that the system never forces it back to running. If you switch a
+machine off, nothing here switches it on again behind your back, and
+nothing calls it drifted for being off. Its pinned build, its mounts and
+its OPA registration are all still true; they simply cannot be re-read
+while it is off, and the state report says so in those words:
+
+    note: instances/coops-model: STOPPED (switched off; not drift); its
+    pinned build ami-078... mounts and registration all still stand and
+    are simply not readable while it is off
+
+That line is a `note`, a third category beside `drift` and `unavailable`.
+It is deliberately none of the others: `unavailable` means a provider
+could not answer, and reporting your own decision as a failure to answer
+is how the records used to lie about a stopped machine.
+
+**"Cannot answer" is not "stopped."** The runtime hook
+`query_instance_power_state` returns the system's own vocabulary --
+`running`, `stopped`, `suspended`, `starting`, `stopping`, `absent`,
+`unknown` -- or `None`, which means only that this runtime could not find
+out. Nothing infers a state from `None`. Each cloud's spellings are mapped
+inside its plugin, which matters more than it sounds: GCE's `TERMINATED`
+means STOPPED and the machine can be started again, while EC2's
+`terminated` means the machine is gone. No caller reads a provider's word.
+
+**Starting a machine is a bounded exception.** Only work that NEEDS a
+running machine may start one -- verification and the post-bake tests; a
+bake does not -- and when it does, it says so:
+
+    coops-model is STOPPED (switched off; not drift); STARTING it because
+    verifying instance coops-model. It will be stopped again when that is done.
+    ...
+    coops-model: work finished (verifying instance coops-model); stopping it
+    again, which is how it was found.
+
+It waits for the machine to be genuinely reachable rather than trusting
+the provider's `running`, and it puts the machine back whether the work
+passed, failed or raised. If the restore itself fails you get an ERROR
+naming the machine and saying it is now running and must be stopped by
+hand -- the one case where you are left with something to do.
+
+If a machine is off and its runtime cannot start it, the work is SKIPPED,
+not failed, and nothing is recorded: no verdict was reached. A skipped
+verification does not overwrite the last real one.
+
 ### Ephemeral instances
 
 `instances[].ephemeral: true` declares an instance that exists to be

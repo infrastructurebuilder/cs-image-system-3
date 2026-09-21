@@ -222,6 +222,12 @@ typecheck:
 pytest:
 	@uv run pytest
 
+# One file, or any pytest expression, for iterating on a single change.
+# NOT the acceptance bar -- `just test` is, and a change is not done until
+# that passes. This exists so proving one file does not cost a full suite.
+test-one *ARGS:
+	@uv run pytest {{ARGS}}
+
 # V2 gate tests only (tests/test_v2_*): the executable evidence for each
 # DESIGN §4 gate. Cloud-free: every test runs over a private copy of
 # the frozen fixture with AWS/Okta/tool execution stubbed (see GOLDEN.md).

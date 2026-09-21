@@ -14,6 +14,7 @@ from cs_image_system.base.constants import VCT
 from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
 from cs_image_system.base.models.provider_specific_image import ProviderSpecificImage
+from cs_image_system.base import power_state
 from cs_image_system.base.protocols.plugin_metadata import PluginArtifactProtocol
 
 from .aws_provider_specific_image import AwsProviderSpecificImage
@@ -125,6 +126,84 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
             log.debug(f"AWS runtime {self.get_name()}: boot image of {instance_name!r} unavailable: {e}")
             return None
 
+    # ------------------------------------------------ power state (stage 57)
+    #: EC2 ``State.Name`` mapped onto the system's vocabulary. The mapping
+    #: lives here because this is where the cloud knowledge belongs; nothing
+    #: outside this plugin sees an EC2 spelling. Note ``terminated``: the
+    #: record lingers in describe_instances for about an hour after the
+    #: machine is gone, and a lingering record is not a machine.
+    _EC2_POWER = {
+        "pending": power_state.STARTING,
+        "running": power_state.RUNNING,
+        "stopping": power_state.STOPPING,
+        "stopped": power_state.STOPPED,
+        "shutting-down": power_state.STOPPING,
+        "terminated": power_state.ABSENT,
+    }
+
+    def _named_instance(self, instance_name: str) -> dict[str, Any] | None:
+        """The instance with this Name tag WHATEVER its state -- unlike
+        ``_running_instance``, which filters on pending/running and so cannot
+        see a machine that is merely switched off. A terminated record is
+        used only when there is nothing else, since AWS keeps it visible for
+        about an hour after the machine has gone."""
+        ec2 = aws_utils.ec2_client(self.model.self_to_aws_client_config())
+        res = ec2.describe_instances(Filters=[{"Name": "tag:Name", "Values": [instance_name]}])
+        found = [i for r in res.get("Reservations", []) for i in r.get("Instances", [])]
+        if not found:
+            return None
+        live = [i for i in found
+                if str((i.get("State") or {}).get("Name")) != "terminated"]
+        return (live or found)[0]
+
+    def can_query_instance_power_state(self) -> bool:
+        return True
+
+    def query_instance_power_state(self, instance_name: str) -> str | None:
+        """EC2's own ``State.Name`` for the named instance. None means this
+        runtime could not find out (credentials, network, permissions) --
+        never that the machine is off; a machine that is off answers
+        ``STOPPED``."""
+        try:
+            inst = self._named_instance(instance_name)
+            if inst is None:
+                return power_state.ABSENT
+            raw = str((inst.get("State") or {}).get("Name") or "")
+            mapped = self._EC2_POWER.get(raw)
+            if mapped is None:
+                log.warning(f"AWS runtime {self.get_name()}: instance {instance_name!r} reports "
+                            f"unrecognised state {raw!r}; treating it as unknown")
+                return power_state.UNKNOWN
+            return mapped
+        except Exception as e:  # noqa: BLE001 - read-only probe: unavailable, never fatal
+            log.debug(f"AWS runtime {self.get_name()}: power state of {instance_name!r} unavailable: {e}")
+            return None
+
+    def can_set_instance_power_state(self) -> bool:
+        return True
+
+    def start_instance(self, instance_name: str, timeout: int = 300) -> bool:
+        inst = self._named_instance(instance_name)
+        if inst is None:
+            raise RuntimeError(f"AWS runtime {self.get_name()}: no instance named {instance_name!r} to start")
+        ec2 = aws_utils.ec2_client(self.model.self_to_aws_client_config())
+        iid = str(inst["InstanceId"])
+        ec2.start_instances(InstanceIds=[iid])
+        ec2.get_waiter("instance_running").wait(
+            InstanceIds=[iid], WaiterConfig={"Delay": 5, "MaxAttempts": max(1, timeout // 5)})
+        return True
+
+    def stop_instance(self, instance_name: str, timeout: int = 300) -> bool:
+        inst = self._named_instance(instance_name)
+        if inst is None:
+            raise RuntimeError(f"AWS runtime {self.get_name()}: no instance named {instance_name!r} to stop")
+        ec2 = aws_utils.ec2_client(self.model.self_to_aws_client_config())
+        iid = str(inst["InstanceId"])
+        ec2.stop_instances(InstanceIds=[iid])
+        ec2.get_waiter("instance_stopped").wait(
+            InstanceIds=[iid], WaiterConfig={"Delay": 5, "MaxAttempts": max(1, timeout // 5)})
+        return True
+
     def dispose_image(self, build_id: str) -> bool:
         """Deregister the AMI and delete the EBS snapshots it was made of --
         the finding-46 shape done by hand for two AMIs on 2026-09-05.
@@ -197,7 +276,12 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
                                               {"Name": "instance-state-name", "Values": ["running"]}])
         ids = [i["InstanceId"] for r in res.get("Reservations", []) for i in r.get("Instances", [])]
         if not ids:
-            raise RuntimeError(f"AWS runtime {self.get_name()}: no running instance named {instance_name!r}")
+            # stage 57: say WHICH failure this is. A machine the operator
+            # switched off is not a machine that was never there, and
+            # "no running instance" read as the latter for both.
+            state = self.query_instance_power_state(instance_name)
+            raise RuntimeError(f"AWS runtime {self.get_name()}: cannot run a command on "
+                               f"{instance_name!r}: it is {power_state.describe(state)}")
         ssm = aws_utils.aws_client("ssm", cfg)
         sent = ssm.send_command(InstanceIds=ids[:1], DocumentName="AWS-RunShellScript",
                                 Parameters={"commands": script.splitlines()}, TimeoutSeconds=timeout)

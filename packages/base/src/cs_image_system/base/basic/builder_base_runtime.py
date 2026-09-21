@@ -154,6 +154,45 @@ class RuntimeBuilderBase(BuilderBase[TypeVar("T", bound=RuntimeBuilderModel)]):
         answer; no claim is made."""
         return None
 
+    def can_query_instance_power_state(self) -> bool:
+        """Whether this runtime implements query_instance_power_state (stage
+        57). Gated like the boot-image query so an unsupported cloud makes no
+        claim: callers ask only runtimes that answer."""
+        return False
+
+    def query_instance_power_state(self, instance_name: str) -> str | None:
+        """Is the named machine powered on, as the PROVIDER reports it --
+        EC2's ``State.Name``, GCE's ``status`` -- mapped onto the vocabulary
+        in ``power_state`` so no caller reads a cloud's spelling (stage 57).
+
+        ``None`` means THIS RUNTIME CANNOT ANSWER, which is never the same as
+        ``STOPPED``: an instance the operator switched off is in the state
+        they chose, while None is the absence of knowledge. Conflating the
+        two is the bug this hook exists to end -- ``query_instance_boot_image``
+        answers None for a stopped machine and for an unreachable cloud
+        alike, because the probe behind it filters on ``running``."""
+        return None
+
+    def can_set_instance_power_state(self) -> bool:
+        """Whether this runtime implements start/stop (stage 57). Separate
+        from the query gate: a cloud may well be readable but not driveable
+        by these credentials."""
+        return False
+
+    def start_instance(self, instance_name: str, timeout: int = 300) -> bool:
+        """Start a stopped machine and wait until the PROVIDER reports it
+        running. True when it is running at return.
+
+        This is never reconciliation. The only caller is a bounded task that
+        needs a running machine (``running_for_task``), and it puts the
+        machine back the way it found it."""
+        raise NotImplementedError(f"{self.__class__.__name__} cannot start instances")
+
+    def stop_instance(self, instance_name: str, timeout: int = 300) -> bool:
+        """Stop a running machine and wait until the provider reports it
+        stopped. True when it is stopped at return."""
+        raise NotImplementedError(f"{self.__class__.__name__} cannot stop instances")
+
     def bake_ssh_username(self) -> str | None:
         """The ssh user packer's build VM is reached as on this runtime, for
         provisioners that must name it explicitly (the ansible provisioner
