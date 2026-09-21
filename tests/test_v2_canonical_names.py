@@ -79,6 +79,9 @@ def test_a_pending_replacement_takes_the_next_generation(world):
 def test_a_follow_with_a_newer_head_takes_the_next_generation(world, monkeypatch):
     ctx = world.ctx
     _record(ctx, hostname="test-001", launched=True)
+    # the standing machine's generation is open; the ledger, not the name, is the count
+    ctx.meta_state.open_generation("test", kind="durable", run_id="r", how="observed",
+                                   launch_params={"hostname": "test-001"})
     monkeypatch.setattr(lp, "will_replace", lambda c, i: True)      # what instance_follow_target answers
     assert lp.canonical_hostname(ctx, _inst(ctx)) == "test-002"
 
@@ -175,7 +178,8 @@ def test_the_bare_name_and_the_ip_name_both_come_back_as_aliases(world, monkeypa
     _record(ctx, hostname="test-002", launched=True)
     ctx.config["apply_instances"] = True
     pa.register_provider_aliases(ctx, Lifecycle.INSTANCE_IMAGE)
-    assert len(scripts) == 1 and "  - test\n" in scripts[0] and "  - ip-10-0-0-9\n" in scripts[0]
+    # the block is a printf FORMAT: newlines are the two-character \\n
+    assert len(scripts) == 1 and "  - test\\n" in scripts[0] and "  - ip-10-0-0-9\\n" in scripts[0]
 
 
 def test_the_report_notes_a_name_that_did_not_take_at_boot(world, monkeypatch):

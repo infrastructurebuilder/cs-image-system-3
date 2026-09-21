@@ -105,7 +105,9 @@ def test_a_free_registry_lets_every_instance_through(world, monkeypatch):
 
 
 def test_an_unlaunched_instance_whose_name_is_taken_is_refused_naming_the_record(world, monkeypatch):
-    _opa(monkeypatch, [{"id": "772d4058", "hostname": "test", "address": "10.26.35.236"}])
+    # since step 4 the new machine's name is test-001; a stale bare `test` is
+    # a different name (and would merely block the bare-name ALIAS, stage 58)
+    _opa(monkeypatch, [{"id": "772d4058", "hostname": "test-001", "address": "10.26.35.236"}])
     errs = lp.validate_claimed_hostnames(world.ctx, _launchable(world.ctx))
     assert len(errs) == 1
     assert "instance 'test'" in errs[0] and "772d4058 at 10.26.35.236" in errs[0]
