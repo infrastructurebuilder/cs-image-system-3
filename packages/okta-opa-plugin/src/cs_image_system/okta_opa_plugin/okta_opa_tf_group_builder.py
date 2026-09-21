@@ -126,6 +126,31 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         key, secret = credentials_from_env(team)
         return OpaGidResolver(api_host, team, key, secret).resolve(groups)
 
+    # ----------------------------------------------- server registry (stage 55)
+    # (_resolver, further down, already builds the client these use)
+    def can_query_servers(self) -> bool:
+        return True
+
+    def registered_servers(self, group: str) -> list[dict[str, Any]] | None:
+        try:
+            return self._resolver().registered_servers(group)
+        except Exception as e:  # noqa: BLE001 - credentials, network: cannot ask, so no claim
+            log.debug(f"OPA servers for group {group!r} unavailable: {e}")
+            return None
+
+    def retire_servers_named(self, group: str, hostname: str) -> list[str]:
+        r = self._resolver()
+        servers = r.registered_servers(group)
+        if servers is None:
+            raise RuntimeError(f"OPA could not be asked for group {group!r}'s servers; "
+                               f"registration of {hostname!r} NOT retired")
+        gone: list[str] = []
+        for s in servers:
+            if s["hostname"] == hostname and r.retire_server(group, s["id"]):
+                log.info(f"OPA server registration {s['id']} ({hostname} at {s['address'] or '?'}) retired")
+                gone.append(s["id"])
+        return gone
+
     def query_state(self) -> dict[str, dict[str, Any]]:
         """OPA's record of every group this builder manages: the server
         group's unix gid / group name and, when the service answers, its

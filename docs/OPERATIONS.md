@@ -319,6 +319,47 @@ If a machine is off and its runtime cannot start it, the work is SKIPPED,
 not failed, and nothing is recorded: no verdict was reached. A skipped
 verification does not overwrite the last real one.
 
+### A canonical hostname is claimed once
+
+The name an instance is given at boot (`hostnamectl set-hostname`) is the
+name it enrolls in OPA under, and `sft ssh <name>` resolves against that
+registry. Three rules keep one name meaning one machine (stage 55):
+
+**The registration goes with the machine.** A decommission already drops
+the instance's pin and launch parameters; it now retires its OPA server
+registration too -- the third record of the same launch, and the one that
+used to outlive the machine (three `coops-model` entries stood in
+`coops_rg_login` on 2026-09-21, one of them live). A retirement that fails
+is an ERROR naming the hostname, never a silent skip: the forget still
+happens, but the log says a stale server will answer to that name until it
+is deregistered by hand.
+
+**A run that can launch refuses a claimed name.** Before the instance-image
+lifecycle applies, every declared instance's hostname is checked against
+its group's registry. An unlaunched instance whose name is already
+registered is refused, naming the record; a launched one with more than one
+registration is refused too, because `sft ssh` cannot choose between them.
+The check runs ONLY when a launch is actually possible -- the lifecycle
+requested and `apply_instances` on -- so a dry run never makes the call.
+And an unreachable registry is a refusal saying the claim *could not be
+checked*: silence is not a free name (the same rule the power-state query
+follows), and an unreachable OPA is exactly when a duplicate would
+otherwise slip through.
+
+**A name the machine cannot take is refused at validate.** RFC 1123 caps a
+hostname label at 63 characters of letters, digits and hyphens, not
+starting or ending with one; Okta documents no limit of its own. Nothing
+checked this before, and the failure was silent -- the boot line ends in
+`|| true`, so an invalid name left the machine under the hyperscaler's
+name (`ip-10-26-34-156`), enrolled in OPA as that, and `sft ssh` found
+nothing while every step reported success.
+
+To deregister by hand, servers live under the RESOURCE GROUP:
+`/v1/teams/<team>/resource_groups/<rg>/projects/<project>/servers/<id>`
+(`DELETE` answers 204). The team-level `/projects/...` path answers
+`401 Missing capability`, and the printed name `coops_rg_login` is not the
+project id.
+
 ### Ephemeral instances
 
 `instances[].ephemeral: true` declares an instance that exists to be

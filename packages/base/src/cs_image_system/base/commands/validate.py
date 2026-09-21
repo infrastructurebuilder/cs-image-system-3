@@ -440,6 +440,33 @@ def check_no_plaintext_emitted(ctx: GlobalTypeContext) -> list[Exception]:
     return [ValueError(f"{f.path}: {f.excerpt}") for f in findings]
 
 
+def check_canonical_hostnames(ctx: GlobalTypeContext) -> list[Exception]:
+    """Every instance's canonical hostname must be one the machine can
+    actually take (stage 55).
+
+    The canonical name IS the OS hostname -- the launch script runs
+    ``hostnamectl set-hostname '<name>'`` -- so what binds is Linux's
+    HOST_NAME_MAX and RFC 1123: at most 63 characters of letters, digits and
+    hyphens, not starting or ending with one. Okta documents no limit of its
+    own.
+
+    Refused here because the alternative is silent: that line ends in
+    ``|| true``, so an invalid name does not stop the boot. The machine keeps
+    the hyperscaler's name (``ip-10-26-34-156``), enrolls in OPA under THAT,
+    and ``sft ssh <declared name>`` finds nothing while every step reports
+    success. Nothing checked this before 2026-09-21."""
+    from ..launch_params import HOSTNAME_LABEL_MAX, canonical_hostname, hostname_problems
+    exs: list[Exception] = []
+    for inst in ctx.instances:
+        name = canonical_hostname(inst)
+        for why in hostname_problems(name):
+            exs.append(Exception(
+                f"instance '{inst.get_name()}': canonical hostname {name!r} {why} "
+                f"(RFC 1123 label, at most {HOSTNAME_LABEL_MAX} characters of letters, digits "
+                f"and hyphens; it becomes the OS hostname and the OPA canonical name)"))
+    return exs
+
+
 def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     """The configuration checks, with no side effects on generated output:
     unique global ids, executables present and version-compliant, every
@@ -453,4 +480,5 @@ def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     exs.extend(check_state_locations(ctx))
     exs.extend(check_foreign_keys(ctx))
     exs.extend(check_availability_zones(ctx))
+    exs.extend(check_canonical_hostnames(ctx))
     return exs

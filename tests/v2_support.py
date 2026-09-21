@@ -181,6 +181,15 @@ def stub_environment(monkeypatch) -> list[str]:
     monkeypatch.setattr(OktaTfGroupBuilder, "query_state",
                         lambda self: {g.get_name(): {"present": True, "gid": 1}
                                       for g in self.get_groups_for_builder()})
+    # stage 55: the server registry ANSWERS here -- an empty, free one -- and
+    # retirements are journaled. Silence would be refused by design (a run
+    # that can launch will not trust an unreachable registry), and the
+    # harness models a reachable OPA, not an absent one.
+    retirements: list[tuple[str, str]] = []
+    monkeypatch.setattr(OktaTfGroupBuilder, "registered_servers", lambda self, group: [])
+    monkeypatch.setattr(OktaTfGroupBuilder, "retire_servers_named",
+                        lambda self, group, hostname: retirements.append((group, hostname)) or [])
+    stub_environment.retirements = retirements  # type: ignore[attr-defined]
 
     journal: list[str] = []
     from cs_image_system.base.models.executable import ExecutableModel

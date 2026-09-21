@@ -18,6 +18,7 @@ terraform reference at apply time, never as literals here.
 from __future__ import annotations
 
 import hashlib
+import re
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -37,6 +38,39 @@ ENROLLMENT_TOKEN_VARIABLE = "sft_enrollment_token"
 # Keys that may legitimately differ between generations of an instance's
 # launch params without meaning "replacement".
 _VOLATILE = ("run", "user_data_sha256", "launched", "launched_run", "build")
+
+
+#: RFC 1123 caps one hostname label at 63 characters; Linux's HOST_NAME_MAX
+#: is 64 bytes including the terminator. The canonical name here IS the OS
+#: hostname (see user_data_template), so this is the budget that binds.
+HOSTNAME_LABEL_MAX = 63
+_HOSTNAME_LABEL = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$")
+
+
+def canonical_hostname(instance: Any) -> str:
+    """The name the machine is given at boot and enrolls in OPA under
+    (stage 55). Today the declared instance name; stage 55 step 4 makes it
+    ``f"{name}-{generation:03d}"`` -- change it HERE and nowhere else: the
+    launch parameters, the validators and the retirement all read this."""
+    return str(instance.get_name())
+
+
+def hostname_problems(name: str) -> list[str]:
+    """Why ``name`` cannot be an OS hostname / OPA canonical name; empty when
+    it can. Each reason is a clause that follows the name in a sentence."""
+    out: list[str] = []
+    if not name:
+        out.append("is empty")
+        return out
+    if len(name) > HOSTNAME_LABEL_MAX:
+        out.append(f"is {len(name)} characters, over the {HOSTNAME_LABEL_MAX} a hostname label allows")
+    if not _HOSTNAME_LABEL.match(name):
+        bad = sorted({c for c in name if not (c.isascii() and (c.isalnum() or c == "-"))})
+        if bad:
+            out.append(f"contains {bad}, which a hostname may not")
+        else:
+            out.append("starts or ends with a hyphen, which a hostname may not")
+    return out
 
 
 def _storage_by_name(ctx: "GlobalTypeContext"):
@@ -99,7 +133,7 @@ def compute_launch_params(ctx: "GlobalTypeContext", instance: "Instance") -> dic
         "mounts": mounts,
         "enrollment": enrollment,
         "session": session,
-        "hostname": instance.get_name(),
+        "hostname": canonical_hostname(instance),
         "ephemeral": bool(getattr(instance, "ephemeral", False)),   # stage 10.1
         # the instance's own startup lines (ledger 68): part of what the machine
         # booted with, hence immutable like every other launch parameter
@@ -263,6 +297,12 @@ def forget_decommissioned(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> Non
             continue
         log.info(f"Instance {name} is no longer declared and its destroy applied: "
                  "dropping its launch parameters and pin (decommission)")
+        # stage 55: the OPA server registration is the THIRD record of the
+        # same launch, and the one that used to outlive the machine. Same
+        # hook, same guard -- and a failure to retire is reported, not
+        # swallowed, because the whole point is that nothing silently leaves
+        # a dead machine answering to a live name.
+        _retire_registration(ctx, name, params.get(name) or {})
         ms.remove_launch_params(name)
         ms.remove_instance_pin(name, ctx.run_id)
 
@@ -406,6 +446,82 @@ def validate_immutability(ctx: "GlobalTypeContext", requested: list[Lifecycle]) 
     return errors
 
 
+def _retire_registration(ctx: "GlobalTypeContext", name: str, recorded: dict[str, Any]) -> None:
+    """Retire every OPA registration of a decommissioned instance's canonical
+    hostname (stage 55 step 1). The recorded launch parameters say which
+    group it enrolled under and which hostname it took; the group's builder
+    owns the registry. A provider without one makes no claim."""
+    group = str(recorded.get("group") or "")
+    hostname = str(recorded.get("hostname") or name)
+    gb = group_builder_of(ctx, group) if group else None
+    if gb is None or not gb.can_query_servers():
+        return
+    try:
+        gone = gb.retire_servers_named(group, hostname)
+    except Exception as e:  # noqa: BLE001 - reported loudly, never fatal to the forget
+        log.error(f"Instance {name}: its OPA registration as {hostname!r} was NOT retired ({e}); "
+                  f"a stale server will answer to that name until it is deregistered by hand")
+        return
+    log.info(f"Instance {name}: retired {len(gone)} OPA registration(s) of {hostname!r}"
+             if gone else f"Instance {name}: no OPA registration of {hostname!r} to retire")
+
+
+def validate_claimed_hostnames(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> list[str]:
+    """A canonical hostname is claimed once (stage 55 step 2). Before a run
+    that can LAUNCH, every declared instance's hostname is checked against
+    the group's server registry: an unlaunched instance whose name is already
+    registered would enroll a second server under it, and a launched one with
+    more than one registration already has -- both are refusals naming the
+    records, because that ambiguity is what made ``sft ssh`` unusable.
+
+    Two deliberate limits. It runs only when the instance-image lifecycle is
+    requested AND applies are enabled, so a dry run or an unrelated command
+    never makes a network call. And an unreachable registry is a refusal
+    saying the claim COULD NOT BE CHECKED -- never "the name is free" (stage
+    57's rule: silence is not an answer), because an unreachable OPA is
+    exactly when a duplicate would otherwise slip through."""
+    if Lifecycle.INSTANCE_IMAGE not in requested:
+        return []
+    from .utils import apply_enabled
+    if not apply_enabled("instances"):
+        return []
+    errors: list[str] = []
+    recorded = ctx.meta_state.launch_params()
+    registries: dict[str, list[dict[str, Any]] | None] = {}
+    for instance in ctx.instances:
+        if not apply_enabled("instances", str(instance.type_), [str(instance.runtime)]):
+            continue
+        image = ctx.images_map.get(str(instance.image))
+        group = str(getattr(image, "group", None) or "") if image is not None else ""
+        gb = group_builder_of(ctx, group) if group else None
+        if gb is None or not gb.can_query_servers():
+            continue
+        if group not in registries:
+            registries[group] = gb.registered_servers(group)
+        servers = registries[group]
+        name, hostname = instance.get_name(), canonical_hostname(instance)
+        if servers is None:
+            errors.append(
+                f"instance '{name}': could not check whether canonical hostname {hostname!r} is "
+                f"already claimed (group {group!r}'s server registry did not answer); refusing to "
+                "launch on silence -- an unreachable registry is not a free name")
+            continue
+        claims = [s for s in servers if s.get("hostname") == hostname]
+        launched = bool((recorded.get(name) or {}).get("launched"))
+        if not launched and claims:
+            errors.append(
+                f"instance '{name}': canonical hostname {hostname!r} is already registered to "
+                f"{len(claims)} server(s) in group {group!r} ({', '.join(f'{c['id']} at {c['address'] or '?'}' for c in claims)}); "
+                "launching would enroll a second machine under the same name. Retire the stale "
+                "registration first (a decommission does this; or deregister it by hand)")
+        elif launched and len(claims) > 1:
+            errors.append(
+                f"instance '{name}': canonical hostname {hostname!r} is registered to {len(claims)} servers "
+                f"in group {group!r} ({', '.join(f'{c['id']} at {c['address'] or '?'}' for c in claims)}), "
+                "and only one of them is this machine; sft ssh cannot choose. Deregister the others")
+    return errors
+
+
 def register(runner) -> None:
     runner.register_after_generate(record_launch_params)
     runner.register_after_apply(mark_launched)
@@ -413,3 +529,4 @@ def register(runner) -> None:
     runner.register_after_apply(forget_ephemerals)
     runner.register_after_apply(record_detachments)
     runner.register_validator(validate_immutability)
+    runner.register_validator(validate_claimed_hostnames)

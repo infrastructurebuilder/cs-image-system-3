@@ -10,10 +10,11 @@ system must not take itself.
 Current stage: **none in progress**.
 
 Open stages and their order (revised 2026-09-21, when §58-§60 were added):
-**§55 steps 1-3 -> §58 -> §60 -> §55 step 4 -> §56 -> §19 steps 4-5 -> §59**,
-with §30 orthogonal. (§57 led and LANDED 2026-09-21: it settled the
-runtime-hook convention §58 and §60 both follow, and the rule §60 depends on
-that a stopped machine is the same machine.) §55 SPLITS: steps 1-3 (retire,
+**§58 -> §60 -> §55 step 4 -> §56 -> §19 steps 4-5 -> §59**, with §30
+orthogonal. (§57 led and LANDED 2026-09-21: it settled the runtime-hook
+convention §58 and §60 both follow, and the rule §60 depends on that a
+stopped machine is the same machine. §55 steps 1-3 LANDED the same day,
+unblocking §58.) §55 SPLITS: steps 1-3 (retire,
 refuse, validate the length) need only the OPA client, so they land early and
 unblock §58, while step 4 (the generation suffix) needs §60's durable counter
 and lands after it -- taken as one indivisible stage, §55, §58 and §60 form a
@@ -27,9 +28,9 @@ on none of this. §61 is the open hygiene bundle (V); a new hygiene issue
 goes there.
 
 **If §19 matters more than the naming work**, the cut is clean: §55 steps 1-3
-alone make §56's proof meaningful, so **§55 steps 1-3 -> §56 -> §19**
-delivers the stated purpose in three from here, with §58, §60, §55 step 4
-and §59 following afterwards. Nothing in that shorter path has to be redone -- §58
+already make §56's proof meaningful, so **§56 -> §19** delivers the stated
+purpose in two from here, with §58, §60, §55 step 4 and §59 following
+afterwards. Nothing in that shorter path has to be redone -- §58
 adds the bare name back as an alias, so a proof written against `coops-model`
 survives the suffix.
 
@@ -339,6 +340,18 @@ record (the command itself is at `launch_params.py:127`). Stage 19 made three in
    `2026_09_20t19_22_23_470066` is 26. That objection is answered -- not by
    refusing to decorate, but by decorating SMALL and handing the bare name
    back as an alias (step 4). Decided 2026-09-21.
+
+   **Steps 1-3 LANDED 2026-09-21** (`feature/opa-hostname-unique`): the
+   registration is retired in `forget_decommissioned` under the pin's own
+   guard; `validate_claimed_hostnames` refuses a claimed name -- and refuses
+   on silence -- only when a launch is actually possible; `hostname_problems`
+   refuses what the machine cannot take. `canonical_hostname()` in
+   `launch_params.py` is the ONE seam step 4 changes. The OPA client gained
+   `registered_servers` (None = could not ask) and `retire_server`; the group
+   contract gained `can_query_servers` / `registered_servers` /
+   `retire_servers_named`, gated like the stage-57 hooks. Step 1 is proven
+   through the transport seam and the live 204s of 2026-09-21, not by
+   destroying the standing node.
 
 4. **The canonical name is the declared name plus the durable generation**
    (operator decision, 2026-09-21), zero-padded to three digits:
@@ -775,3 +788,17 @@ ceremony. Landed together on `feature/hygiene-v`, squash-merged, kept.
    of `missing`. Absent-and-known stays `missing [HARD]`; unreachable
    becomes unavailable, which `--strict` does not fail on. Whatever §57
    settled for the runtime hooks should be what this follows.
+2. **Preflight knows when the session ends; a run that cannot finish before
+   then should say so up front.** On 2026-09-21 a 15-minute `just full-test`
+   passed every leg and died on the last one: the NOAA portal token expired
+   at 16:04:17Z, mid-run. Preflight reads that very timestamp
+   (`session: ... EXPIRED at ...`), so it could have refused at minute zero
+   with "this session ends in 11 minutes; the live legs need ~15" instead of
+   at minute fourteen. The number that binds is the PORTAL session: a
+   CLI token issued mid-session only inherits what is LEFT of it (1h43m
+   that morning; a fresh browser sign-in then gave a full 8h), while the 1h
+   role-credential expiry underneath is auto-refreshed and is not the limit.
+   So the remaining time is not knowable from the login time -- only from
+   `expiresAt`, which preflight already reads. Give `preflight` a `--needs <duration>` (or let
+   `full-test` pass its own estimate) and refuse early, naming both numbers.
+   Non-critical: the failure is honest and environmental; it is just late.

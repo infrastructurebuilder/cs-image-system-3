@@ -152,27 +152,81 @@ class OpaGidResolver:
                     out.append(str(name))
         return sorted(out)
 
+    def _login_project(self, group_name: str) -> str | None:
+        """The API path prefix of ``group_name``'s ``<group>_rg_login``
+        project -- ``/v1/teams/{team}/resource_groups/{rg}/projects/{prj}``
+        -- or ``None`` when either level is not there. Servers are reachable
+        ONLY under this prefix: the team-level ``/projects/...`` path answers
+        ``401 Missing capability`` (found live 2026-09-21, stage 55), and the
+        printed name ``coops_rg_login`` is not the project id."""
+        rgs = (self.get(f"/v1/teams/{self.team}/resource_groups") or {}).get("list") or []
+        rg = next((r for r in rgs if r.get("name") == f"{group_name}_rg"), None)
+        if rg is None:
+            return None
+        prjs = (self.get(f"/v1/teams/{self.team}/resource_groups/{rg['id']}/projects")
+                or {}).get("list") or []
+        prj = next((p for p in prjs if p.get("name") == f"{group_name}_rg_login"), None)
+        if prj is None:
+            return None
+        return f"/v1/teams/{self.team}/resource_groups/{rg['id']}/projects/{prj['id']}"
+
     def project_enrollment_tokens(self, group_name: str) -> list[str] | None:
         """Descriptions of the server enrollment tokens on ``group_name``'s
         ``<group>_rg_login`` project, or ``None`` when the service does not
         answer (the state report then says nothing rather than something
         wrong). Read-only; token VALUES are never fetched or returned."""
         try:
-            rgs = (self.get(f"/v1/teams/{self.team}/resource_groups") or {}).get("list") or []
-            rg = next((r for r in rgs if r.get("name") == f"{group_name}_rg"), None)
-            if rg is None:
+            prefix = self._login_project(group_name)
+            if prefix is None:
                 return None
-            prjs = (self.get(f"/v1/teams/{self.team}/resource_groups/{rg['id']}/projects")
-                    or {}).get("list") or []
-            prj = next((p for p in prjs if p.get("name") == f"{group_name}_rg_login"), None)
-            if prj is None:
-                return None
-            toks = (self.get(f"/v1/teams/{self.team}/resource_groups/{rg['id']}"
-                             f"/projects/{prj['id']}/server_enrollment_tokens") or {}).get("list") or []
+            toks = (self.get(f"{prefix}/server_enrollment_tokens") or {}).get("list") or []
             return sorted(str(t.get("description") or "") for t in toks if isinstance(t, dict))
         except Exception as e:
             log.debug(f"OPA enrollment tokens for {group_name!r} unavailable: {e}")
             return None
+
+    # ----------------------------------------------- servers (stage 55)
+    def registered_servers(self, group_name: str) -> list[dict[str, Any]] | None:
+        """Every server enrolled in ``group_name``'s login project, as
+        ``{id, hostname, address}``, or ``None`` when the service could not
+        be asked. None is NOT an empty list: a caller deciding whether a
+        hostname is free must not read silence as freedom (stage 57's rule,
+        applied here -- an unreachable OPA is exactly when a second
+        registration would otherwise slip through)."""
+        try:
+            prefix = self._login_project(group_name)
+            if prefix is None:
+                return None
+            data = self.get(f"{prefix}/servers") or {}
+        except Exception as e:
+            log.debug(f"OPA servers for {group_name!r} unavailable: {e}")
+            return None
+        out: list[dict[str, Any]] = []
+        for rec in data.get("list") or []:
+            if not isinstance(rec, dict) or not rec.get("id"):
+                continue
+            out.append({"id": str(rec["id"]),
+                        "hostname": str(rec.get("hostname") or rec.get("canonical_name") or ""),
+                        "address": str(rec.get("access_address") or rec.get("bind_address") or "")})
+        return sorted(out, key=lambda s: (s["hostname"], s["address"], s["id"]))
+
+    def retire_server(self, group_name: str, server_id: str) -> bool:
+        """``DELETE`` one server registration from ``group_name``'s login
+        project (204 live, 2026-09-21). True when it is gone at return; a
+        404 counts as gone. Anything else raises: a retirement that did not
+        happen must not be recorded as one."""
+        prefix = self._login_project(group_name)
+        if prefix is None:
+            raise ValueError(f"OPA login project for group {group_name!r} not found; cannot retire {server_id}")
+        try:
+            self.transport("DELETE", self._url(f"{prefix}/servers/{server_id}"),
+                           {"Authorization": f"Bearer {self.token()}", "Accept": "application/json"}, None)
+        except Exception as e:
+            if "404" in str(e):
+                log.info(f"OPA server {server_id} was already gone")
+                return True
+            raise
+        return True
 
     def user_attributes(self, user_name: str) -> dict[str, Any]:
         """``{attribute_name: attribute_value}`` for one OPA user
