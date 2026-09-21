@@ -39,15 +39,15 @@ def launch_inventory(params_by_instance: dict[str, dict[str, Any]]) -> str:
     return yaml.safe_dump(inv, sort_keys=False)
 
 
-def launch_playbook(params: dict[str, Any], name: str | None = None) -> str:
-    """The playbook equivalent of ``user_data_template(params)``. ``name`` is
-    the instance's declared name -- the inventory key ``launch_inventory``
-    uses -- and is what the play TARGETS; ``params["hostname"]`` is the
-    canonical name the machine is GIVEN (since stage 55 step 4 the two
-    differ: ``test`` versus ``test-001``). Without ``name`` the play targets
-    the hostname, as it did when they coincided."""
+def launch_playbook(params: dict[str, Any], inventory_name: str | None = None) -> str:
+    """The playbook equivalent of ``user_data_template(params)``.
+    ``inventory_name`` is the instance's declared name -- the key
+    ``launch_inventory`` uses -- and is what the play TARGETS;
+    ``params["hostname"]`` is the canonical name the machine is GIVEN (since
+    stage 55 step 4 the two differ: ``test`` versus ``test-001``). Without
+    it the play targets the hostname, as it did when they coincided."""
     host = params["hostname"]
-    target = name or host
+    target = inventory_name or host
     group = params.get("group")
     tasks: list[dict[str, Any]] = [
         {"name": f"hostname {host}", "ansible.builtin.hostname": {"name": host}},
