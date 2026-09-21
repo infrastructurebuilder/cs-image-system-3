@@ -179,6 +179,23 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
             log.debug(f"AWS runtime {self.get_name()}: power state of {instance_name!r} unavailable: {e}")
             return None
 
+    def can_query_instance_identity(self) -> bool:
+        return True
+
+    def query_instance_identity(self, instance_name: str) -> dict[str, str] | None:
+        """``InstanceId`` and ``PrivateDnsName`` of the named instance,
+        whatever its power state (stage 58) -- ``_named_instance`` sees a
+        stopped machine, ``_running_instance`` does not."""
+        try:
+            inst = self._named_instance(instance_name)
+            if inst is None or not inst.get("InstanceId"):
+                return None
+            return {"instance_id": str(inst["InstanceId"]),
+                    "provider_hostname": str(inst.get("PrivateDnsName") or "")}
+        except Exception as e:  # noqa: BLE001 - read-only probe
+            log.debug(f"AWS runtime {self.get_name()}: identity of {instance_name!r} unavailable: {e}")
+            return None
+
     def can_set_instance_power_state(self) -> bool:
         return True
 

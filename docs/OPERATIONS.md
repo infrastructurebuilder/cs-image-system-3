@@ -360,6 +360,48 @@ To deregister by hand, servers live under the RESOURCE GROUP:
 `401 Missing capability`, and the printed name `coops_rg_login` is not the
 project id.
 
+### What a machine answers to
+
+`sft ssh` resolves a name against the OPA registry in a fixed order: the
+server id or canonical name, then the **cloud instance id**, then the
+hostname, then `AltNames`, then the address. Two of those come for free --
+sftd reads the instance id from IMDS at enrollment, so `sft ssh
+i-0169f82844f4cc08d` and `sft ssh 10.26.34.156` both reach `coops-model`
+with nothing configured (settled live, 2026-09-21). The one name that does
+NOT resolve is the provider's own hostname, `ip-10-26-34-156`, because the
+launch script overwrites it with the declared name before sftd enrolls.
+
+**The system gives that name back after launch** (stage 58): an
+applies-on instance-image run finds each launched, RUNNING instance's
+provider hostname from the cloud, checks the label against every name the
+group's registry already answers to (hostnames, canonical names, alt names)
+and every name the configuration declares, and writes it as an `AltNames`
+entry in `/etc/sft/sftd.yaml` over the runtime's session command, restarting
+sftd only when the block actually changed. The log says which alias went
+on, or why it did not:
+
+    Instance coops-model: now also answers to ['ip-10-26-34-156'] (sftd restarted)
+    Instance coops-model: alias 'ip-10-26-34-156' SKIPPED -- already claimed by 772d4058…
+
+A collision is always skipped, because OPA ranks a record's hostname above
+another record's alt names: a colliding alias would resolve to a dead
+machine, or make the name ambiguous and refuse -- worse for both than no
+alias. A machine that is off is left off (an alias is not worth starting one
+for); the alias goes on at the next run that finds it running. A registry
+that could not be asked skips every alias that run: silence is not a free
+name.
+
+The state report shows what each machine answers to under `reality.instances`
+(`instance_id`, `provider_hostname`, `registered_as`, `alt_names`) and notes
+a running machine whose alias is not yet there. Nothing about aliases is
+written to the launch parameters -- they are discovered after boot, and the
+registry entry is the record.
+
+**When `sft ssh` fails, `sft resolve` first.** A name that resolves with an
+old `LastSeen` is a machine that is switched off, and `sft` reports that no
+more helpfully than an unknown name; `state query` says "STOPPED (switched
+off; not drift)" in words.
+
 ### Ephemeral instances
 
 `instances[].ephemeral: true` declares an instance that exists to be

@@ -173,6 +173,22 @@ class RuntimeBuilderBase(BuilderBase[TypeVar("T", bound=RuntimeBuilderModel)]):
         alike, because the probe behind it filters on ``running``."""
         return None
 
+    def can_query_instance_identity(self) -> bool:
+        """Whether this runtime implements query_instance_identity (stage
+        58). Same gate shape as the power-state pair."""
+        return False
+
+    def query_instance_identity(self, instance_name: str) -> dict[str, str] | None:
+        """The provider's own names for the machine: ``{"instance_id",
+        "provider_hostname"}`` -- EC2's ``InstanceId`` and ``PrivateDnsName``
+        (``ip-10-26-34-156.us-east-2.compute.internal``), GCE's numeric id and
+        ``<name>.c.<project>.internal``. None when this runtime cannot answer
+        or the machine is not there; no claim is made either way. Read from
+        the provider, never inferred, and never recorded in the launch
+        parameters (they are what the machine booted with, and these are
+        discovered afterwards)."""
+        return None
+
     def can_set_instance_power_state(self) -> bool:
         """Whether this runtime implements start/stop (stage 57). Separate
         from the query gate: a cloud may well be readable but not driveable

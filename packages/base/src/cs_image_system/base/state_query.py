@@ -432,6 +432,8 @@ def query_state(ctx: "GlobalTypeContext") -> StateReport:
                     + storage_drift(ctx, storages) + group_drift(ctx, groups)
                     + instance_boot_drift(ctx, report)
                     + standing_ephemeral_drift(ctx, report))
+    from .provider_aliases import instance_identity_notes
+    instance_identity_notes(ctx, report)   # stage 58: what each machine answers to
     return report
 
 

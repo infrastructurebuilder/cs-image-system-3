@@ -207,7 +207,14 @@ class OpaGidResolver:
                 continue
             out.append({"id": str(rec["id"]),
                         "hostname": str(rec.get("hostname") or rec.get("canonical_name") or ""),
-                        "address": str(rec.get("access_address") or rec.get("bind_address") or "")})
+                        "address": str(rec.get("access_address") or rec.get("bind_address") or ""),
+                        # stage 58: the names a record answers to besides its
+                        # hostname, and the provider id sftd read from IMDS --
+                        # which is how a launch finds ITS OWN record among
+                        # several bearing one name
+                        "canonical_name": str(rec.get("canonical_name") or ""),
+                        "alt_names": sorted(str(n) for n in (rec.get("alt_names") or []) if n),
+                        "instance_id": str(rec.get("instance_id") or "")})
         return sorted(out, key=lambda s: (s["hostname"], s["address"], s["id"]))
 
     def retire_server(self, group_name: str, server_id: str) -> bool:
