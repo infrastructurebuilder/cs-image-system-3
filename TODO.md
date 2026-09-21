@@ -371,47 +371,61 @@ certificate.
 
 **Why**: declared and applied means the infrastructure EXISTS, not that it is
 running, and the operator conserves budget by stopping instances by hand
-(2026-09-21). That is expected and allowed. The system does not allow for it:
-it asks only about running machines, so a stopped one reads as absent rather
-than as off.
+(2026-09-21). That is expected and allowed.
 
-Two places prove it, both AWS:
-`AwsCloudBuilder._running_instance` filters
+**The system cannot ask the question.** A runtime builder can verify an
+instance, run a session command on it, and say which image it booted -- and
+there is no hook anywhere that answers *is this machine powered on*, as the
+hyperscaler itself reports it: EC2's `State.Name`, GCE's `status`, whether a
+container is running. That primitive is missing, and its absence is why every
+consequence below exists.
+
+What stands in for it today is a filter and a `None`.
+`AwsCloudBuilder._running_instance` selects
 `instance-state-name in (pending, running)`, so `query_instance_boot_image`
-answers `None` for a stopped instance -- which `instance_boot_drift` records
-as `unavailable`, the report for a runtime that could not answer, when the
-truth is a machine that is switched off. And the session path filters
-`running` alone and raises `no running instance named X`, so every
-verification against a stopped machine fails as though the machine were gone.
+answers `None` for a machine that is merely switched off -- the same `None`
+it gives when it genuinely cannot tell. `instance_boot_drift` then records
+`unavailable`, whose meaning is "the provider could not answer". And the
+session path filters `running` alone and raises `no running instance named
+X`, so every verification against a stopped machine fails as though the
+machine had been destroyed.
 
 Stopping a machine to save money should not make the records lie, and should
 not fail a run.
 
-1. **Tell the three apart**: running, stopped, and absent. A stopped instance
-   is not `unavailable` and not `missing` -- it is a declared instance in a
-   state the operator chose. The state report needs a word for it, and
-   `state query --strict` must not fail on it. Confirm first what today's
-   report actually says for a stopped instance, rather than assuming the
-   classification above.
-2. **Work that needs the machine running says so.** Verification, the
-   post-bake tests and §56's login proof all need a running machine; a bake
-   does not. Make the requirement explicit rather than implicit in a filter
+1. **The primitive first**: a runtime hook that answers the machine's power
+   state from the provider's own API, mapped onto a small vocabulary the
+   system owns -- at least RUNNING, STOPPED and ABSENT, with the in-between
+   states each cloud has (EC2 `pending`/`stopping`/`shutting-down`, GCE
+   `PROVISIONING`/`STAGING`/`SUSPENDED`/`TERMINATED`) either mapped or named.
+   A runtime that cannot answer says so, and that is a DIFFERENT answer from
+   "stopped". Everything below consumes this; nothing below infers state from
+   a query that returned nothing.
+2. **Stop conflating off with unanswerable.** `query_instance_boot_image`
+   returns `None` for both; once the primitive exists, a stopped machine is
+   reported as stopped and `unavailable` goes back to meaning what it says.
+   Confirm what the drift report prints for a stopped instance before
+   changing it -- the classification above is read from the code, not
+   observed.
+3. **Work that needs the machine running says so.** Verification, the
+   post-bake tests and §56's login proof need a running machine; a bake does
+   not. The requirement becomes explicit, rather than implicit in a filter
    that silently finds nothing.
-3. **Start it, do the work, put it back.** When work needs a running machine
-   that is stopped, the system starts it, waits for it to be reachable, does
-   the work, and returns it to the state it was in -- stopped stays stopped
-   afterwards. The restore must survive the work FAILING: a verification that
-   fails still leaves the machine as it was found, or the next run's budget is
-   the price of the last run's error.
-4. **What the operator sees**: it says that it is starting a machine and why,
-   and that it is stopping it again -- starting someone's machine silently is
-   its own kind of surprise, and a stop/start is not free (the boot, and the
-   work that startup scripts redo).
-5. **Two interactions to settle, not assume.** A stopped/started EC2 instance
-   keeps its private address, so its OPA registration and its `AccessAddress`
-   should survive -- confirm it, because §55 and §56 both depend on the
+4. **Start it, do the work, put it back.** When such work meets a stopped
+   machine, the system starts it, waits until it is actually reachable (the
+   provider saying `running` is not the same as sshd answering), does the
+   work, and returns it to the state it was found in. The restore must
+   survive the work FAILING: a failed verification still leaves the machine
+   stopped, or one bad run costs the budget the operator was conserving.
+5. **What the operator sees**: it says it is starting a machine and why, and
+   that it is stopping it again. Starting someone's machine silently is its
+   own kind of surprise, and a stop/start is not free -- the boot, and the
+   startup scripts that redo their work.
+6. **Two interactions to settle, not assume.** A stopped/started EC2 instance
+   keeps its private address, so its OPA registration and `AccessAddress`
+   should survive -- confirm it, because §55 and §56 both depend on that
    address being stable. And an `ephemeral` instance is torn down rather than
    stopped; this stage does not change that.
-6. Records: OPERATIONS on stopping a machine by hand, what the system does
+7. Records: OPERATIONS on stopping a machine by hand, what the system does
    when it needs one running, and what it restores. Feature branch
    `feature/stopped-instances`, squash-merged, kept.
