@@ -794,9 +794,11 @@ ceremony. Landed together on `feature/hygiene-v`, squash-merged, kept.
    at 16:04:17Z, mid-run. Preflight reads that very timestamp
    (`session: ... EXPIRED at ...`), so it could have refused at minute zero
    with "this session ends in 11 minutes; the live legs need ~15" instead of
-   at minute fourteen. The number that binds is the PORTAL session
-   (observed 2h, and a CLI token issued mid-session only inherits the
-   remainder -- the 1h role-credential expiry underneath is auto-refreshed
-   and is not the limit). Give `preflight` a `--needs <duration>` (or let
+   at minute fourteen. The number that binds is the PORTAL session: a
+   CLI token issued mid-session only inherits what is LEFT of it (1h43m
+   that morning; a fresh browser sign-in then gave a full 8h), while the 1h
+   role-credential expiry underneath is auto-refreshed and is not the limit.
+   So the remaining time is not knowable from the login time -- only from
+   `expiresAt`, which preflight already reads. Give `preflight` a `--needs <duration>` (or let
    `full-test` pass its own estimate) and refuse early, naming both numbers.
    Non-critical: the failure is honest and environmental; it is just late.
