@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# cs-image-system launch parameters for instance gce-test (N26).
+# cs-image-system launch parameters for instance gce-test-001 (N26).
 # Generated from validated configuration; immutable after launch --
 # changing them means replacing the instance.
 set -euo pipefail
-hostnamectl set-hostname 'gce-test' || true
+hostnamectl set-hostname 'gce-test-001' || true
 # owning group: coops (gid by reference)
 GID="${group_gid}"
 # mount storage gce_data (pd) at /mnt/gce-data

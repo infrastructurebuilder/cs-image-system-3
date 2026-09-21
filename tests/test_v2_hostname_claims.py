@@ -64,8 +64,8 @@ def world(tmp_path: Path, monkeypatch):
 
 def test_the_fixture_instances_all_pass_and_a_bad_one_is_named(world, monkeypatch):
     assert check_canonical_hostnames(world.ctx) == []
-    # the seam: validate reads canonical_hostname, which step 4 will change
-    monkeypatch.setattr(lp, "canonical_hostname", lambda inst: f"{inst.get_name()}-{'x' * 70}")
+    # the seam: validate reads canonical_hostname (ctx, instance) since step 4
+    monkeypatch.setattr(lp, "canonical_hostname", lambda ctx, inst: f"{inst.get_name()}-{'x' * 70}")
     errs = [str(e) for e in check_canonical_hostnames(world.ctx)]
     assert errs and all("over the 63" in e for e in errs)
     assert any("instance 'test'" in e for e in errs)

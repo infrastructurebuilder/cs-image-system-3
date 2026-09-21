@@ -45,6 +45,14 @@ def test_ec2_gives_back_the_ip_name_and_gce_has_nothing_to_give():
     assert pa.wanted_aliases({"provider_hostname": "bad_name.x"}, "n") == []   # not a label
 
 
+def test_a_suffixed_canonical_name_gives_the_bare_name_back_too():
+    """Stage 55 step 4: coops-model-003 is the canonical name; coops-model is
+    what a person types, so it rides along as an alias."""
+    assert pa.wanted_aliases(EC2, "coops-model-003", "coops-model") == ["coops-model", "ip-10-26-34-156"]
+    assert pa.wanted_aliases(None, "coops-model-003", "coops-model") == ["coops-model"]
+    assert pa.wanted_aliases(None, "coops-model", "coops-model") == []       # grandfathered: no suffix
+
+
 def test_every_name_a_record_answers_to_is_a_claim():
     servers = [{"id": "A", "hostname": "coops-model", "canonical_name": "coops-model-003",
                 "alt_names": ["ip-10-26-35-236"]}]
@@ -161,7 +169,7 @@ def test_a_declared_instance_name_is_a_claim_too(world, monkeypatch, caplog):
     f = Fakes(monkeypatch, servers=[OWN])
     _launched(world.ctx)
     monkeypatch.setattr(pa, "canonical_hostname",
-                        lambda i: "ip-10-26-34-156" if i.get_name() == "test2" else i.get_name())
+                        lambda ctx, i: "ip-10-26-34-156" if i.get_name() == "test2" else i.get_name())
     with caplog.at_level("WARNING"):
         pa.register_provider_aliases(world.ctx, Lifecycle.INSTANCE_IMAGE)
     assert f.scripts == []

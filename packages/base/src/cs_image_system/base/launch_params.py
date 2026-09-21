@@ -48,12 +48,46 @@ HOSTNAME_LABEL_MAX = 63
 _HOSTNAME_LABEL = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$")
 
 
-def canonical_hostname(instance: Any) -> str:
+def will_replace(ctx: "GlobalTypeContext", instance: Any) -> bool:
+    """Whether THIS run replaces the instance's machine: an explicit upgrade
+    left a pending replacement, or a follow policy has a newer head to move
+    to. The same two exemptions validate_immutability honours -- so a name
+    that changes here is exactly a name immutability lets change."""
+    from .lineage import instance_follow_target
+    name = instance.get_name()
+    return name in ctx.meta_state.pending_replacements() or instance_follow_target(ctx, instance) is not None
+
+
+def canonical_hostname(ctx: "GlobalTypeContext", instance: Any) -> str:
     """The name the machine is given at boot and enrolls in OPA under
-    (stage 55). Today the declared instance name; stage 55 step 4 makes it
-    ``f"{name}-{generation:03d}"`` -- change it HERE and nowhere else: the
-    launch parameters, the validators and the retirement all read this."""
-    return str(instance.get_name())
+    (stage 55 step 4, operator decision 2026-09-21): the declared name plus
+    its generation, zero-padded to three digits -- ``coops-model-003``.
+
+    Two rules, in this order:
+
+    * **A machine that stands keeps the name it booted with.** When the
+      instance is launched and this run does not replace it, the answer is
+      the RECORDED hostname, whatever it is -- which also grandfathers a
+      machine launched before the suffix existed (``coops-model``, adopted
+      as generation 1) until its first sanctioned replacement. The name
+      changes only inside a replacement; nothing renames a running machine.
+    * **A new machine takes its kind's NEXT generation.** Never launched,
+      decommissioned, or being replaced this run: the durable count (or the
+      ephemeral count, for an ephemeral instance -- each kind keeps its own
+      number) plus one. ``mark_launched`` opens exactly that generation
+      after the apply, so the name on the machine and the number in the
+      ledger are the same fact decided once, here.
+
+    The pad is a minimum width: generation 1000 renders ``-1000``. Change
+    the seam HERE and nowhere else."""
+    from . import generations
+    name = str(instance.get_name())
+    ms = ctx.meta_state
+    recorded = ms.launch_params().get(name) or {}
+    if recorded.get("launched") and recorded.get("hostname") and not will_replace(ctx, instance):
+        return str(recorded["hostname"])
+    kind = generations.kind_of({"ephemeral": bool(getattr(instance, "ephemeral", False))})
+    return f"{name}-{ms.instance_generation(name, kind) + 1:03d}"
 
 
 def hostname_problems(name: str) -> list[str]:
@@ -134,7 +168,7 @@ def compute_launch_params(ctx: "GlobalTypeContext", instance: "Instance") -> dic
         "mounts": mounts,
         "enrollment": enrollment,
         "session": session,
-        "hostname": canonical_hostname(instance),
+        "hostname": canonical_hostname(ctx, instance),
         "ephemeral": bool(getattr(instance, "ephemeral", False)),   # stage 10.1
         # the instance's own startup lines (ledger 68): part of what the machine
         # booted with, hence immutable like every other launch parameter
@@ -512,7 +546,7 @@ def validate_claimed_hostnames(ctx: "GlobalTypeContext", requested: list[Lifecyc
         if group not in registries:
             registries[group] = gb.registered_servers(group)
         servers = registries[group]
-        name, hostname = instance.get_name(), canonical_hostname(instance)
+        name, hostname = instance.get_name(), canonical_hostname(ctx, instance)
         if servers is None:
             errors.append(
                 f"instance '{name}': could not check whether canonical hostname {hostname!r} is "
