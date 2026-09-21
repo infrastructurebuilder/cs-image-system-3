@@ -133,6 +133,29 @@ class GroupBuilderBase(BuilderBase[TGROUP]):
         only when the provider can answer it. Optional."""
         raise NotImplementedError(f"{self.__class__.__name__} cannot query identity state")
 
+    # ------------------------------------------- server registry (stage 55)
+    def can_query_servers(self) -> bool:
+        """Whether this identity provider keeps a registry of enrolled
+        servers that the builder can read and retire (OPA does). Gated like
+        the stage-57 runtime hooks: a provider without one makes no claim."""
+        return False
+
+    def registered_servers(self, group: str) -> list[dict[str, Any]] | None:
+        """Every server currently enrolled for ``group``, each
+        ``{id, hostname, address}`` -- or ``None`` when the provider could
+        not be ASKED. None is never an empty list: a caller deciding whether
+        a canonical hostname is free must not read silence as freedom."""
+        return None
+
+    def retire_servers_named(self, group: str, hostname: str) -> list[str]:
+        """Remove every registration of ``hostname`` for ``group`` and return
+        the ids removed. The registration is the third record of a launch,
+        beside the pin and the launch parameters, and the only one that
+        used to outlive the machine (stage 55: three ``coops-model``
+        entries, one live). Raises when it cannot: a retirement that did
+        not happen must not be reported as one."""
+        raise NotImplementedError(f"{self.__class__.__name__} keeps no server registry")
+
     # ------------------------------------------- EXPLORE identity hooks
     def validate_attributes(self, group: Any, attributes: dict[str, Any]) -> list[str]:
         """Names/types of declarable provider attributes. Default: none."""
