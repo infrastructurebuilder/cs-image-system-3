@@ -374,6 +374,27 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
             log.debug(f"GCE runtime {self.get_name()}: power state of {instance_name!r} unavailable: {e}")
             return None
 
+    def can_query_instance_identity(self) -> bool:
+        return True
+
+    def query_instance_identity(self, instance_name: str) -> dict[str, str] | None:
+        """GCE's numeric instance id and its internal hostname (a custom
+        ``hostname`` when set, else ``<name>.c.<project>.internal``). The
+        first label of the default is the instance name itself, so on GCE the
+        provider-hostname alias usually has nothing to give back."""
+        from .gcp_packer_source import gce_name
+        try:
+            got = self._instances_client()
+            if got is None:
+                return None
+            client, project, zone = got
+            inst = client.get(project=project, zone=zone, instance=gce_name(instance_name))
+            host = str(getattr(inst, "hostname", "") or "") or f"{gce_name(instance_name)}.c.{project}.internal"
+            return {"instance_id": str(getattr(inst, "id", "") or ""), "provider_hostname": host}
+        except Exception as e:  # noqa: BLE001 - read-only probe
+            log.debug(f"GCE runtime {self.get_name()}: identity of {instance_name!r} unavailable: {e}")
+            return None
+
     def can_set_instance_power_state(self) -> bool:
         return True
 

@@ -10,11 +10,13 @@ system must not take itself.
 Current stage: **none in progress**.
 
 Open stages and their order (revised 2026-09-21, when §58-§60 were added):
-**§58 -> §60 -> §55 step 4 -> §56 -> §19 steps 4-5 -> §59**, with §30
-orthogonal. (§57 led and LANDED 2026-09-21: it settled the runtime-hook
-convention §58 and §60 both follow, and the rule §60 depends on that a
-stopped machine is the same machine. §55 steps 1-3 LANDED the same day,
-unblocking §58.) §55 SPLITS: steps 1-3 (retire,
+**§60 -> §55 step 4 -> §56 -> §19 steps 4-5 -> §59**, with §30 orthogonal.
+(§57, §55 steps 1-3 and §58 all LANDED 2026-09-21. §57 settled the
+runtime-hook convention §60 follows and the rule it depends on, that a
+stopped machine is the same machine; §58 added `query_instance_identity`,
+the observation §60's generations are defined by. §58's first LIVE write of
+an `AltNames` block is still owed: it needs the machine running, which is
+the operator's call.) §55 SPLITS: steps 1-3 (retire,
 refuse, validate the length) need only the OPA client, so they land early and
 unblock §58, while step 4 (the generation suffix) needs §60's durable counter
 and lands after it -- taken as one indivisible stage, §55, §58 and §60 form a
@@ -29,8 +31,7 @@ goes there.
 
 **If §19 matters more than the naming work**, the cut is clean: §55 steps 1-3
 already make §56's proof meaningful, so **§56 -> §19** delivers the stated
-purpose in two from here, with §58, §60, §55 step 4 and §59 following
-afterwards. Nothing in that shorter path has to be redone -- §58
+purpose in two from here, with §60, §55 step 4 and §59 following afterwards. Nothing in that shorter path has to be redone -- §58
 adds the bare name back as an alias, so a proof written against `coops-model`
 survives the suffix.
 
@@ -484,105 +485,6 @@ certificate.
 6. Records: OPERATIONS on proving access rather than health, and on the
    service-user pattern. Feature branch `feature/ci-logs-in`, squash-merged,
    kept.
-
-## 58. An instance answers to its provider's names too
-
-**Why**: `sft ssh coops-model` works only if you are holding the declared
-name. The two identifiers an operator actually has in hand -- from the EC2
-console, a cost report, an alarm, a log line -- are the provider's instance
-id (`i-0169f82844f4cc08d`) and the first label of the provider's own
-hostname (`ip-10-26-34-156` out of
-`ip-10-26-34-156.us-east-2.compute.internal`), and neither resolves today.
-The second one the system DESTROYS itself: `hostnamectl set-hostname
-'<declared>'` (`launch_params.py:127`) overwrites the provider hostname
-before sftd ever enrolls, so the name AWS gave the machine is gone by the
-time OPA sees it. Each instance should answer to both, and to neither when
-answering would be a lie.
-
-1. **SETTLED 2026-09-21: the id and the address already resolve; the
-   provider hostname does not.** Against the live registry, `sft resolve`
-   answers `coops-model` / `10ff7662…` for `i-0169f82844f4cc08d` (rank 2,
-   Cloud Instance ID -- the record carries `"instance_id"` because sftd read
-   IMDS; `canonical_name` is null, `alt_names` is empty) and for
-   `10.26.34.156` (rank 5). `ip-10-26-34-156` and its FQDN answer
-   *"Could not resolve"*. So the instance-id alias is a documentation note,
-   not work, and this stage is ONLY about giving back the hostname the boot
-   script takes away.
-
-   The operator's `sft ssh i-0169f82844f4cc08d` failed the same day, and
-   that failure was NOT resolution: the machine was stopped (§57), the
-   record said `LastSeen: 19h55m ago`, and `sft ssh` reports a stopped
-   target no more helpfully than an unknown one. `state query` says
-   "STOPPED (switched off; not drift)" in so many words; `sft` does not.
-   Worth one line in OPERATIONS: when `sft ssh` fails, `sft resolve` first
-   -- a name that resolves with an old LastSeen is a machine that is off.
-2. **The field is `AltNames` in `/etc/sft/sftd.yaml`** -- the spelling is
-   confirmed twice, by the doc page above and by the `sft` binary's own
-   server model (`AltNames`, `GetAltNames`, `alt_names_contains`). Note
-   what already writes that file: the bake's `activation_commands` truncates
-   it with `tee` (`okta_opa_tf_group_builder.py:113`, `Labels: tx.group`),
-   and the launch script appends `AccessAddress` only if absent
-   (`launch_params.py:192`). An alias write joins the second pattern --
-   idempotent append, never truncate.
-3. **The machine cannot decide this; the control side must.** The operator's
-   rule is "if there are existing collisions, skip that alias", and a booted
-   instance holds an enrollment token and no API credentials, so it cannot
-   know what names are already claimed. Nothing in the boot script can honour
-   the rule. This is therefore a POST-LAUNCH reconciliation, and every piece
-   it needs already exists: the values come back with the instance itself
-   (`describe_instances` returns `InstanceId` and `PrivateDnsName` -- see
-   `_running_instance`, `aws_runtime_builders.py:108`), the claimed-name set
-   comes from §55's resource-group servers path (the one that answers 200),
-   and the write is `run_session_command`
-   (`builder_base_runtime.py:60`; SSM on AWS, IAP ssh on GCE) appending
-   `AltNames` and restarting sftd -- the same post-launch shape
-   `verify_instance.py:123` already uses. **Depends on §55**: it needs that
-   stage's OPA client and its hook, and it is worth nothing until stale
-   records stop accumulating.
-4. **The two aliases are not symmetric, and the skip rule is the DEFAULT,
-   not a fallback.** An AWS instance id is globally unique and never reused,
-   so a genuine collision is impossible -- a duplicate there means a stale
-   record of the same machine, which is §55's problem and not this one. The
-   IP-derived name is the opposite: private addresses are recycled inside the
-   VPC constantly and stale records keep them (the `asa-enrollment-routing`
-   note records exactly that). And the ranking makes a collision actively
-   harmful rather than merely useless: a stale record's Hostname is rank 3
-   while our alias is rank 4, so the name either resolves to a dead machine
-   or, per the same page, "resolves to more than one server" and "the client
-   will return an error to avoid inadvertently connecting to an unintended
-   server". A colliding alias breaks resolution for BOTH servers. Skip on any
-   match -- against a registered canonical name, hostname or alt name, and
-   against any name the configuration itself declares -- and say which alias
-   was skipped and why. Silence here is how the operator ends up debugging an
-   ambiguity error.
-5. **A runtime contract pair, not an AWS special case.** Same shape as the
-   existing gate (`can_query_instance_boot_image` /
-   `query_instance_boot_image`, `builder_base_runtime.py:142`):
-   `can_query_instance_identity()` and `query_instance_identity(name)`
-   returning the provider id and the provider hostname, or None. AWS fills
-   both from the dict `_running_instance` already returns; GCE from its
-   instance get (`<name>.c.<project>.internal`, numeric id). A runtime that
-   cannot answer makes no claim and its instances get no aliases -- no
-   provider-specific branching at the call site. §57 landed this convention
-   first (2026-09-21) -- FOLLOW IT rather than inventing a parallel one:
-   a `can_x()` predicate gating an `x()` that returns None for "this runtime
-   cannot answer", the provider's own spellings mapped inside the plugin
-   onto a vocabulary `base` owns, and None never read as a value. The
-   identity hook is the same shape with a different payload; note that the
-   AWS side can reuse `_named_instance` (added by §57), which sees a machine
-   whatever its power state, rather than `_running_instance`, which cannot
-   see one that is switched off.
-6. **These values do NOT belong in the launch parameters.** Launch
-   parameters are the immutable record of what the machine booted with,
-   compared against the declaration; an alias is discovered from the
-   provider AFTER boot and is not declared anywhere, so recording it there
-   would read as drift on every comparison, forever. It belongs with the
-   state query, beside the OPA registration it describes.
-7. Records: OPERATIONS on what an instance answers to and why an alias is
-   sometimes refused -- including the fact that the system takes the
-   provider hostname away at boot, which is why the alias has to be given
-   back deliberately. Feature branch `feature/provider-name-aliases`,
-   squash-merged, kept.
 
 ## 59. A pool of names, each spent once
 
