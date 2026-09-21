@@ -788,3 +788,15 @@ ceremony. Landed together on `feature/hygiene-v`, squash-merged, kept.
    of `missing`. Absent-and-known stays `missing [HARD]`; unreachable
    becomes unavailable, which `--strict` does not fail on. Whatever §57
    settled for the runtime hooks should be what this follows.
+2. **Preflight knows when the session ends; a run that cannot finish before
+   then should say so up front.** On 2026-09-21 a 15-minute `just full-test`
+   passed every leg and died on the last one: the NOAA portal token expired
+   at 16:04:17Z, mid-run. Preflight reads that very timestamp
+   (`session: ... EXPIRED at ...`), so it could have refused at minute zero
+   with "this session ends in 11 minutes; the live legs need ~15" instead of
+   at minute fourteen. The number that binds is the PORTAL session
+   (observed 2h, and a CLI token issued mid-session only inherits the
+   remainder -- the 1h role-credential expiry underneath is auto-refreshed
+   and is not the limit). Give `preflight` a `--needs <duration>` (or let
+   `full-test` pass its own estimate) and refuse early, naming both numbers.
+   Non-critical: the failure is honest and environmental; it is just late.
