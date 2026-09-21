@@ -216,8 +216,11 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `get_commands_to_run_{before,during,after}`) as `Builder`, plus one
    protocol per kind for the ~60 domain hooks (`StorageBuilder`:
    `module_args`, `capability_type`, `attachment_cardinality`,
-   `transition_actions`, `supports_archive`…; `RuntimeBuilder`: the 16
-   query/session/dispose hooks; `GroupBuilder`, `ImageBuilder`,
+   `transition_actions`, `supports_archive`…; `RuntimeBuilder`: the 21
+   query/session/dispose/power hooks (16 until stage 57 added the power
+   state -- `can_query`/`query_instance_power_state` and
+   `can_set_instance_power_state`/`start_instance`/`stop_instance` -- so
+   recount before trusting any number written here); `GroupBuilder`, `ImageBuilder`,
    `InstanceBuilder`, `ModBuilder`, `UserBuilder`, `StateBuilder`). The
    protocols carry NO implementation (today `NameTypedProtocol` supplies
    `global_id` and a `get_classification` default; those bodies move to
