@@ -10,10 +10,11 @@ system must not take itself.
 Current stage: **none in progress**.
 
 Open stages and their order (revised 2026-09-21, when §58-§60 were added):
-**§55 steps 1-3 -> §58 -> §60 -> §55 step 4 -> §56 -> §19 steps 4-5 -> §59**,
-with §30 orthogonal. (§57 led and LANDED 2026-09-21: it settled the
-runtime-hook convention §58 and §60 both follow, and the rule §60 depends on
-that a stopped machine is the same machine.) §55 SPLITS: steps 1-3 (retire,
+**§58 -> §60 -> §55 step 4 -> §56 -> §19 steps 4-5 -> §59**, with §30
+orthogonal. (§57 led and LANDED 2026-09-21: it settled the runtime-hook
+convention §58 and §60 both follow, and the rule §60 depends on that a
+stopped machine is the same machine. §55 steps 1-3 LANDED the same day,
+unblocking §58.) §55 SPLITS: steps 1-3 (retire,
 refuse, validate the length) need only the OPA client, so they land early and
 unblock §58, while step 4 (the generation suffix) needs §60's durable counter
 and lands after it -- taken as one indivisible stage, §55, §58 and §60 form a
@@ -27,9 +28,9 @@ on none of this. §61 is the open hygiene bundle (V); a new hygiene issue
 goes there.
 
 **If §19 matters more than the naming work**, the cut is clean: §55 steps 1-3
-alone make §56's proof meaningful, so **§55 steps 1-3 -> §56 -> §19**
-delivers the stated purpose in three from here, with §58, §60, §55 step 4
-and §59 following afterwards. Nothing in that shorter path has to be redone -- §58
+already make §56's proof meaningful, so **§56 -> §19** delivers the stated
+purpose in two from here, with §58, §60, §55 step 4 and §59 following
+afterwards. Nothing in that shorter path has to be redone -- §58
 adds the bare name back as an alias, so a proof written against `coops-model`
 survives the suffix.
 
