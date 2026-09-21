@@ -10,13 +10,10 @@ system must not take itself.
 Current stage: **none in progress**.
 
 Open stages and their order (revised 2026-09-21, when §58-§60 were added):
-**§57 -> §55 steps 1-3 -> §58 -> §60 -> §55 step 4 -> §56 -> §19 steps 4-5
--> §59**, with §30 orthogonal.
-
-§57 leads on its own merits -- until it lands, switching a machine off makes
-the records lie, and that will happen often -- and because it settles the
+**§55 steps 1-3 -> §58 -> §60 -> §55 step 4 -> §56 -> §19 steps 4-5 -> §59**,
+with §30 orthogonal. (§57 led and LANDED 2026-09-21: it settled the
 runtime-hook convention §58 and §60 both follow, and the rule §60 depends on
-that a stopped machine is the same machine. §55 SPLITS: steps 1-3 (retire,
+that a stopped machine is the same machine.) §55 SPLITS: steps 1-3 (retire,
 refuse, validate the length) need only the OPA client, so they land early and
 unblock §58, while step 4 (the generation suffix) needs §60's durable counter
 and lands after it -- taken as one indivisible stage, §55, §58 and §60 form a
@@ -30,9 +27,9 @@ on none of this. §61 is the open hygiene bundle (V); a new hygiene issue
 goes there.
 
 **If §19 matters more than the naming work**, the cut is clean: §55 steps 1-3
-alone make §56's proof meaningful, so **§57 -> §55 steps 1-3 -> §56 -> §19**
-delivers the stated purpose in four, with §58, §60, §55 step 4 and §59
-following afterwards. Nothing in that shorter path has to be redone -- §58
+alone make §56's proof meaningful, so **§55 steps 1-3 -> §56 -> §19**
+delivers the stated purpose in three from here, with §58, §60, §55 step 4
+and §59 following afterwards. Nothing in that shorter path has to be redone -- §58
 adds the bare name back as an alias, so a proof written against `coops-model`
 survives the suffix.
 
@@ -475,115 +472,6 @@ certificate.
    service-user pattern. Feature branch `feature/ci-logs-in`, squash-merged,
    kept.
 
-## 57. The power state belongs to the operator
-
-**The rule** (operator, 2026-09-21): an instance is CREATED running -- that is
-what applying the IaC means -- and after that the system never forces it back
-to running. If the operator switches a machine off, the system must not switch
-it on inadvertently, and must not call the machine drifted for being off. It
-may turn one on for a specific, WELL-BOUNDED task, and must put it back.
-
-This will happen often, so the records have to reflect it accurately rather
-than tolerate it.
-
-**The system cannot even ask the question.** A runtime builder can verify an
-instance, run a session command on it, and say which image it booted -- and no
-hook anywhere answers *is this machine powered on*, as the hyperscaler itself
-reports it: EC2's `State.Name`, GCE's `status`, whether a container runs. That
-missing primitive is why the rest of this exists.
-
-What stands in for it is a filter and a `None`.
-`AwsCloudBuilder._running_instance` selects
-`instance-state-name in (pending, running)`, so `query_instance_boot_image`
-answers `None` for a machine that is merely off -- the same `None` it gives
-when it genuinely cannot tell -- and `instance_boot_drift` records
-`unavailable`, which means "the provider could not answer". The session path
-filters `running` alone and raises `no running instance named X`, so
-verification against a stopped machine fails as though it had been destroyed.
-
-One piece of the rule is already kept, for a neighbouring reason: the
-`aws_instance` resource carries no power attribute and
-`ignore_changes = [ami, user_data]`, so an apply does not replace a machine to
-chase a newer image. Whether an apply leaves a STOPPED machine alone is the
-first thing to confirm -- it is the difference between a documented guarantee
-and a happy accident.
-
-1. **CONFIRMED live, 2026-09-21.** `coops-model` (`i-0169f82844f4cc08d`) was
-   already stopped by the operator. `tofu plan` over the instance root
-   refreshed the real machine and answered *"No changes. Your infrastructure
-   matches the configuration."*; applying that exact plan gave *"Apply
-   complete! Resources: 0 added, 0 changed, 0 destroyed."* and the machine
-   was still `stopped` at `10.26.34.156` afterwards. So the guarantee is
-   real, and it is structural rather than lucky: `aws_instance` carries no
-   power attribute at all, so there is nothing for terraform to reconcile,
-   and `ignore_changes = [ami, user_data]` keeps a newer AMI from replacing
-   it either. This is now a documented guarantee, not an accident.
-2. **The primitive, on the runtime contract.** The runtime PROVIDER is the
-   only thing that can answer this, so the hook belongs on
-   `RuntimeBuilderBase` beside the ones that already ask the cloud about an
-   instance, and the pattern to copy is there:
-   `can_query_instance_boot_image()` gates `query_instance_boot_image()`, so
-   "this cloud does not implement it" is answered once and adds no noise.
-   The same shape -- `can_query_instance_power_state()` /
-   `query_instance_power_state()` -- keeps "cannot answer" a DIFFERENT answer
-   from "stopped", which is the whole point.
-
-   It answers from the provider's own API, mapped onto a vocabulary the
-   system owns: at least RUNNING, STOPPED and ABSENT, with each cloud's
-   in-between states (EC2 `pending`/`stopping`/`shutting-down`, GCE
-   `PROVISIONING`/`STAGING`/`SUSPENDED`/`TERMINATED`) mapped or named, never
-   leaked raw -- a caller must not be reading EC2 spellings.
-
-   Both runtime plugins implement it (`aws-runtime-plugin` from
-   `describe_instances` `State.Name`, `gcloud-runtime-plugin` from the
-   instance `status`); the base's default says it cannot answer, so a future
-   runtime is not obliged. This adds a member to the runtime contract, which
-   is §30's inventory -- that stage counts the hooks a plugin must satisfy,
-   so it gains one.
-
-   Everything else consumes this, and nothing infers state from a query that
-   returned nothing.
-3. **Off is not drift.** A declared instance that is stopped is in the state
-   its operator chose: not `missing`, not `unavailable`, and not something
-   `state query --strict` fails on. Its pinned build, its mounts and its
-   registration are all still true; they simply cannot be re-read while it is
-   off, which the report should say plainly. Confirm what the report prints
-   today before changing it -- the classification above is read from the code,
-   not observed.
-4. **Turning one on is a bounded exception, never a reconciliation.** Only
-   work that NEEDS a running machine may start one -- verification, the
-   post-bake tests, §56's login proof; a bake does not -- and it starts the
-   machine for that task alone, waits until it is genuinely reachable (the
-   provider saying `running` is not sshd answering), and returns it to the
-   state it was found in. The restore must survive the work FAILING, or one
-   bad run costs the budget the operator was conserving. Nothing may start a
-   machine merely because the records expected it to be running.
-5. **Say so.** It reports that it is starting a machine and why, and that it
-   is stopping it again. Starting someone's machine silently is its own
-   surprise, and a stop/start is not free: the boot, and the startup scripts
-   that redo their work.
-6. **The address: mechanism confirmed, one leg still unobserved.** The
-   address belongs to the ENI, not the instance: `eni-028db03ddb8ff20f1`
-   holds `10.26.34.156`, is `in-use` WHILE THE MACHINE IS STOPPED, and is
-   released only on termination (`DeleteOnTermination: true`). The
-   running -> stopped leg is observed -- the OPA registration carried
-   10.26.34.156 while the machine ran earlier the same day, and the ENI
-   still holds it now. The stopped -> running leg follows from the ENI
-   surviving, but has NOT been watched happen; completing it costs a boot on
-   a machine the operator deliberately switched off, so it waits for a run
-   that needs the machine anyway. §55 and §56 may rely on the address; they
-   should not rely on it having been proven both ways yet.
-
-   An `ephemeral` instance is torn down rather than stopped; this stage does
-   not change that. It does make a STOPPED ephemeral visible to the state
-   report for the first time -- the boot-image probe filtered on `running`,
-   so the one leftover nobody could see was the one switched off while its
-   disks kept billing.
-7. Records: OPERATIONS on the rule itself -- the power state is the
-   operator's, the system creates running and never restores it -- and on what
-   a bounded start does and restores. Feature branch
-   `feature/stopped-instances`, squash-merged, kept.
-
 ## 58. An instance answers to its provider's names too
 
 **Why**: `sft ssh coops-model` works only if you are holding the declared
@@ -657,9 +545,15 @@ answering would be a lie.
    both from the dict `_running_instance` already returns; GCE from its
    instance get (`<name>.c.<project>.internal`, numeric id). A runtime that
    cannot answer makes no claim and its instances get no aliases -- no
-   provider-specific branching at the call site. This is the second hook of
-   this shape §57 also wants; if §57 lands first, follow whatever it
-   established rather than inventing a parallel convention.
+   provider-specific branching at the call site. §57 landed this convention
+   first (2026-09-21) -- FOLLOW IT rather than inventing a parallel one:
+   a `can_x()` predicate gating an `x()` that returns None for "this runtime
+   cannot answer", the provider's own spellings mapped inside the plugin
+   onto a vocabulary `base` owns, and None never read as a value. The
+   identity hook is the same shape with a different payload; note that the
+   AWS side can reuse `_named_instance` (added by §57), which sees a machine
+   whatever its power state, rather than `_running_instance`, which cannot
+   see one that is switched off.
 6. **These values do NOT belong in the launch parameters.** Launch
    parameters are the immutable record of what the machine booted with,
    compared against the declaration; an alias is discovered from the
