@@ -58,7 +58,8 @@ def test_own_record_is_found_by_the_provider_id_not_the_name():
     told the live one from the stale ones."""
     servers = [{"id": "stale", "hostname": "coops-model", "instance_id": "i-dead"},
                {"id": "live", "hostname": "coops-model", "instance_id": EC2["instance_id"]}]
-    assert pa.own_record(servers, EC2["instance_id"])["id"] == "live"
+    own = pa.own_record(servers, EC2["instance_id"])
+    assert own is not None and own["id"] == "live"
     assert pa.own_record(servers, "") is None
 
 
