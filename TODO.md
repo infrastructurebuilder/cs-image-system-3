@@ -9,8 +9,8 @@ system must not take itself.
 
 Current stage: **none in progress**.
 
-Open stages and their order: §57 first (until it lands, stopping a machine
-to save money makes the records lie), then §55 and §56 (§56 proves what §19
+Open stages and their order: §57 first (until it lands, switching a machine
+off makes the records lie, and this will happen often), then §55 and §56 (§56 proves what §19
 step 4 claims, and a duplicate hostname makes that proof meaningless, so
 §55 precedes it); §19 has its released build and its standing node and
 waits on §56; §30 waits on the operator's decision. A new hygiene issue
@@ -367,65 +367,76 @@ certificate.
    service-user pattern. Feature branch `feature/ci-logs-in`, squash-merged,
    kept.
 
-## 57. A machine that exists may be switched off
+## 57. The power state belongs to the operator
 
-**Why**: declared and applied means the infrastructure EXISTS, not that it is
-running, and the operator conserves budget by stopping instances by hand
-(2026-09-21). That is expected and allowed.
+**The rule** (operator, 2026-09-21): an instance is CREATED running -- that is
+what applying the IaC means -- and after that the system never forces it back
+to running. If the operator switches a machine off, the system must not switch
+it on inadvertently, and must not call the machine drifted for being off. It
+may turn one on for a specific, WELL-BOUNDED task, and must put it back.
 
-**The system cannot ask the question.** A runtime builder can verify an
-instance, run a session command on it, and say which image it booted -- and
-there is no hook anywhere that answers *is this machine powered on*, as the
-hyperscaler itself reports it: EC2's `State.Name`, GCE's `status`, whether a
-container is running. That primitive is missing, and its absence is why every
-consequence below exists.
+This will happen often, so the records have to reflect it accurately rather
+than tolerate it.
 
-What stands in for it today is a filter and a `None`.
+**The system cannot even ask the question.** A runtime builder can verify an
+instance, run a session command on it, and say which image it booted -- and no
+hook anywhere answers *is this machine powered on*, as the hyperscaler itself
+reports it: EC2's `State.Name`, GCE's `status`, whether a container runs. That
+missing primitive is why the rest of this exists.
+
+What stands in for it is a filter and a `None`.
 `AwsCloudBuilder._running_instance` selects
 `instance-state-name in (pending, running)`, so `query_instance_boot_image`
-answers `None` for a machine that is merely switched off -- the same `None`
-it gives when it genuinely cannot tell. `instance_boot_drift` then records
-`unavailable`, whose meaning is "the provider could not answer". And the
-session path filters `running` alone and raises `no running instance named
-X`, so every verification against a stopped machine fails as though the
-machine had been destroyed.
+answers `None` for a machine that is merely off -- the same `None` it gives
+when it genuinely cannot tell -- and `instance_boot_drift` records
+`unavailable`, which means "the provider could not answer". The session path
+filters `running` alone and raises `no running instance named X`, so
+verification against a stopped machine fails as though it had been destroyed.
 
-Stopping a machine to save money should not make the records lie, and should
-not fail a run.
+One piece of the rule is already kept, for a neighbouring reason: the
+`aws_instance` resource carries no power attribute and
+`ignore_changes = [ami, user_data]`, so an apply does not replace a machine to
+chase a newer image. Whether an apply leaves a STOPPED machine alone is the
+first thing to confirm -- it is the difference between a documented guarantee
+and a happy accident.
 
-1. **The primitive first**: a runtime hook that answers the machine's power
-   state from the provider's own API, mapped onto a small vocabulary the
-   system owns -- at least RUNNING, STOPPED and ABSENT, with the in-between
-   states each cloud has (EC2 `pending`/`stopping`/`shutting-down`, GCE
-   `PROVISIONING`/`STAGING`/`SUSPENDED`/`TERMINATED`) either mapped or named.
-   A runtime that cannot answer says so, and that is a DIFFERENT answer from
-   "stopped". Everything below consumes this; nothing below infers state from
-   a query that returned nothing.
-2. **Stop conflating off with unanswerable.** `query_instance_boot_image`
-   returns `None` for both; once the primitive exists, a stopped machine is
-   reported as stopped and `unavailable` goes back to meaning what it says.
-   Confirm what the drift report prints for a stopped instance before
-   changing it -- the classification above is read from the code, not
-   observed.
-3. **Work that needs the machine running says so.** Verification, the
-   post-bake tests and §56's login proof need a running machine; a bake does
-   not. The requirement becomes explicit, rather than implicit in a filter
-   that silently finds nothing.
-4. **Start it, do the work, put it back.** When such work meets a stopped
-   machine, the system starts it, waits until it is actually reachable (the
-   provider saying `running` is not the same as sshd answering), does the
-   work, and returns it to the state it was found in. The restore must
-   survive the work FAILING: a failed verification still leaves the machine
-   stopped, or one bad run costs the budget the operator was conserving.
-5. **What the operator sees**: it says it is starting a machine and why, and
-   that it is stopping it again. Starting someone's machine silently is its
-   own kind of surprise, and a stop/start is not free -- the boot, and the
-   startup scripts that redo their work.
+1. **Confirm what already holds, before building on it.** Does `tofu apply`
+   over a stopped, declared instance leave it stopped? Does the plan stay
+   empty? Observe it (the coops node is standing and can be stopped by hand);
+   if terraform would start it, THAT is the stage's centre and the rest is
+   secondary.
+2. **The primitive**: a runtime hook answering the power state from the
+   provider's own API, mapped onto a vocabulary the system owns -- at least
+   RUNNING, STOPPED and ABSENT, with each cloud's in-between states (EC2
+   `pending`/`stopping`/`shutting-down`, GCE `PROVISIONING`/`STAGING`/
+   `SUSPENDED`/`TERMINATED`) mapped or named. "Cannot answer" stays a
+   DIFFERENT answer from "stopped". Everything else consumes this and nothing
+   infers state from a query that returned nothing.
+3. **Off is not drift.** A declared instance that is stopped is in the state
+   its operator chose: not `missing`, not `unavailable`, and not something
+   `state query --strict` fails on. Its pinned build, its mounts and its
+   registration are all still true; they simply cannot be re-read while it is
+   off, which the report should say plainly. Confirm what the report prints
+   today before changing it -- the classification above is read from the code,
+   not observed.
+4. **Turning one on is a bounded exception, never a reconciliation.** Only
+   work that NEEDS a running machine may start one -- verification, the
+   post-bake tests, §56's login proof; a bake does not -- and it starts the
+   machine for that task alone, waits until it is genuinely reachable (the
+   provider saying `running` is not sshd answering), and returns it to the
+   state it was found in. The restore must survive the work FAILING, or one
+   bad run costs the budget the operator was conserving. Nothing may start a
+   machine merely because the records expected it to be running.
+5. **Say so.** It reports that it is starting a machine and why, and that it
+   is stopping it again. Starting someone's machine silently is its own
+   surprise, and a stop/start is not free: the boot, and the startup scripts
+   that redo their work.
 6. **Two interactions to settle, not assume.** A stopped/started EC2 instance
    keeps its private address, so its OPA registration and `AccessAddress`
-   should survive -- confirm it, because §55 and §56 both depend on that
-   address being stable. And an `ephemeral` instance is torn down rather than
-   stopped; this stage does not change that.
-7. Records: OPERATIONS on stopping a machine by hand, what the system does
-   when it needs one running, and what it restores. Feature branch
+   should survive -- confirm it, because §55 and §56 depend on that address
+   being stable. And an `ephemeral` instance is torn down rather than stopped;
+   this stage does not change that.
+7. Records: OPERATIONS on the rule itself -- the power state is the
+   operator's, the system creates running and never restores it -- and on what
+   a bounded start does and restores. Feature branch
    `feature/stopped-instances`, squash-merged, kept.
