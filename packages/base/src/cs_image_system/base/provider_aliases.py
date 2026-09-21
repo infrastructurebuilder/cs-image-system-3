@@ -232,6 +232,9 @@ def instance_identity_notes(ctx: "GlobalTypeContext", report: "StateReport") -> 
             continue
         entry: dict[str, Any] = {"instance_id": identity.get("instance_id", ""),
                                  "provider_hostname": identity.get("provider_hostname", "")}
+        cur = ctx.meta_state.current_generation(name)
+        if cur:   # stage 60: which machine of this name this is
+            entry["generation"] = {"number": cur.get("number"), "kind": cur.get("kind"), "how": cur.get("how")}
         group = _group_of(ctx, instance)
         gb = group_builder_of(ctx, group) if group else None
         if gb is not None and gb.can_query_servers():

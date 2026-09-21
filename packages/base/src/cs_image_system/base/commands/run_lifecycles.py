@@ -664,6 +664,8 @@ def _register_builtin_hooks() -> None:
     launch_params.register(this)
     from .. import provider_aliases
     provider_aliases.register(this)   # after mark_launched: it reads `launched` (stage 58)
+    from .. import generations
+    generations.register(this)   # after mark_launched and the forgets: the machine decides (stage 60)
     release.register(this)
     from .. import retention
     retention.register(this)   # the closing lifecycle (stage 10.3-6), after release

@@ -376,6 +376,35 @@ only via bind, upgrade and follow operations (§3B).
 
 ---
 
+## 2l. Ruling: instance generations are observed, not inferred (N27)
+
+**N27.** An instance has generations, one per machine, recorded in
+`meta-state/instance-state.yaml` beside the launch parameters and never in
+them. A generation is DEFINED by the provider's own identity for the
+machine (its instance id, read after the apply), not by the system's
+control flow. Control flow -- a launch applying, a pending replacement
+clearing -- may open a generation, but only as `inferred`; the provider's
+id confirms it, or reveals that a different machine now bears the name.
+
+*Why observation.* The failure this ruling answers (2026-09-21: three
+`coops-model` registrations in OPA, one live) was records that did not
+notice a second machine had happened. A counter bumped by the same
+bookkeeping would have the same blind spot: a taint, a console terminate
+and re-apply, a replacement the system did not perform. Asking the
+provider is the only signal that does not share the records' assumptions.
+
+*Why silence is not a change.* A stopped instance may fail the identity
+query, and the power state belongs to the operator (N26, stage 57). Treating
+"no answer" as "a different answer" would manufacture generations out of
+the operator's own decision to switch a machine off. Nothing acts on
+silence; the generation stands as recorded until the provider says
+otherwise.
+
+*Why nothing is backfilled.* What stood when the ledger began is generation
+1 of the record, marked `adopted`. The system never observed the earlier
+machines and will not invent facts about them in the one file meant to be
+trustworthy; `pins.yaml.upgrades` keeps what it saw.
+
 ## 3. The design
 
 ### A. Lifecycle decomposition (the structural core)

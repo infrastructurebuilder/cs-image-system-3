@@ -55,6 +55,7 @@ RUNS = "runs.yaml"
 VERIFICATIONS = "verifications.yaml"   # ephemeral / verified instances (stage 10.1)
 IMAGE_TESTS = "image-tests.yaml"       # post-bake test results per build (stage 14)
 STATE_LOCATIONS = "state-locations.yaml"  # every workspace's resolved state location, and the migrations (stage 46)
+INSTANCE_STATE = "instance-state.yaml"  # generations: one machine each, and the superseded records (stage 60)
 
 ALL_FILES = (IDENTITY_READ_MODEL, STORAGE_READ_MODEL, STORAGE_STATE, LINEAGE, PINS,
              LAUNCH_PARAMS, RUNS, STATE_LOCATIONS)
@@ -217,6 +218,94 @@ class MetaState:
     def storage_generation(self, name: str) -> int:
         entry = self.storage_states().get(name) or {}
         return int(entry.get("generation") or 1)
+
+    # ------------------------------------------ instance generations (stage 60)
+    GENERATION_KINDS = ("durable", "ephemeral")
+
+    def instance_states(self) -> dict[str, dict[str, Any]]:
+        return dict(self.read(INSTANCE_STATE).get("instances", {}))
+
+    def instance_generation(self, name: str, kind: str = "durable") -> int:
+        """How many generations of ``kind`` this instance name has had; 0
+        when none was ever recorded. Stage 55 step 4 builds the canonical
+        hostname from the DURABLE count."""
+        counters = (self.instance_states().get(name) or {}).get("generation") or {}
+        return int(counters.get(kind) or 0)
+
+    def current_generation(self, name: str) -> dict[str, Any] | None:
+        """The open generation -- the machine that stands now -- or None."""
+        cur = (self.instance_states().get(name) or {}).get("current")
+        return dict(cur) if cur else None
+
+    def open_generation(self, name: str, *, kind: str, run_id: str, how: str,
+                        launch_params: dict[str, Any], identity: dict[str, Any] | None = None) -> int:
+        """A machine came into being: the ``kind`` counter moves on and the
+        generation opens, carrying a SNAPSHOT of the launch parameters it
+        booted with (launch-params.yaml is overwritten on the next launch;
+        the snapshot is what the archive keeps). ``how`` says what the claim
+        rests on: ``observed`` (the provider's id), ``inferred`` (our own
+        control flow), or ``adopted`` (a machine that stood before
+        generations were recorded -- generation 1 of the RECORD, not of the
+        name). Refuses to open over an open one: close it first, with a why."""
+        from datetime import datetime, timezone
+        if kind not in self.GENERATION_KINDS:
+            raise ValueError(f"generation kind must be one of {self.GENERATION_KINDS}, not {kind!r}")
+        data = self.read(INSTANCE_STATE)
+        instances = data.setdefault("instances", {})
+        entry = instances.setdefault(name, {"generation": {"durable": 0, "ephemeral": 0}, "history": []})
+        if entry.get("current"):
+            raise ValueError(f"instance {name!r} already has an open generation "
+                             f"({entry['current'].get('kind')} {entry['current'].get('number')}); close it first")
+        counters = entry.setdefault("generation", {"durable": 0, "ephemeral": 0})
+        counters[kind] = int(counters.get(kind) or 0) + 1
+        cur: dict[str, Any] = {"number": counters[kind], "kind": kind, "how": how,
+                               "opened_run": run_id,
+                               "opened_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                               "launch_params": dict(launch_params)}
+        for k in ("instance_id", "provider_hostname"):
+            if identity and identity.get(k):
+                cur[k] = str(identity[k])
+        entry["current"] = cur
+        self.write(INSTANCE_STATE, data)
+        return counters[kind]
+
+    def note_generation_identity(self, name: str, identity: dict[str, Any]) -> bool:
+        """The provider's identity for the open generation, once known. A
+        generation opened on inference becomes ``observed`` at this point:
+        the machine has now been seen. True when something was written."""
+        data = self.read(INSTANCE_STATE)
+        cur = ((data.get("instances") or {}).get(name) or {}).get("current")
+        if not cur:
+            return False
+        changed = False
+        for k in ("instance_id", "provider_hostname"):
+            v = identity.get(k)
+            if v and cur.get(k) != str(v):
+                cur[k] = str(v)
+                changed = True
+        if changed and cur.get("how") == "inferred":
+            cur["how"] = "observed"
+        if changed:
+            self.write(INSTANCE_STATE, data)
+        return changed
+
+    def close_generation(self, name: str, *, run_id: str, why: str) -> dict[str, Any] | None:
+        """The machine is gone (or superseded): the open generation moves
+        into the history with the run that closed it and why -- never
+        deleted, never overwritten. None when nothing was open."""
+        from datetime import datetime, timezone
+        data = self.read(INSTANCE_STATE)
+        entry = (data.get("instances") or {}).get(name)
+        if entry is None:
+            return None
+        cur = entry.pop("current", None)
+        if not cur:
+            return None
+        closed = {**cur, "closed_run": run_id, "why": why,
+                  "closed_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+        entry.setdefault("history", []).append(closed)
+        self.write(INSTANCE_STATE, data)
+        return closed
 
     # -------------------------------------------------------------- lineage
     def builds(self) -> list[dict[str, Any]]:

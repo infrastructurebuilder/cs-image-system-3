@@ -402,6 +402,44 @@ old `LastSeen` is a machine that is switched off, and `sft` reports that no
 more helpfully than an unknown name; `state query` says "STOPPED (switched
 off; not drift)" in words.
 
+### Instance generations
+
+A generation is one machine. It opens when a machine comes into being and
+closes when THAT machine is destroyed; storage has had the same word for the
+same thing since stage 10.12. `meta-state/instance-state.yaml` holds, per
+instance name, two counters (`durable`, `ephemeral`), the open generation --
+its number, kind, the run that opened it, the provider's instance id once
+seen, and a SNAPSHOT of the launch parameters it booted with -- and a
+history nothing is ever deleted from. `launch-params.yaml` keeps holding
+what the current machine booted with; the two files divide exactly as
+`storage.yaml` and `storage-state.yaml` do, and the counter is never in the
+launch-params record (it would read as a changed launch parameter and refuse
+the very replacement that bumped it).
+
+**The machine decides.** A launch that applied opens a generation marked
+`inferred`. After the apply the system asks the provider which machine
+bears the name: the same id confirms it (`observed`); a DIFFERENT id means
+the machine you knew is gone and another stands -- the generation closes as
+`replaced-out-of-band` and the next opens, with a warning saying nothing in
+this system did it. A sanctioned replacement (`upgrade`, a follow) closes
+the generation as `replaced` and opens the next in the same run. A
+decommission closes it as `decommission`, an ephemeral teardown as
+`ephemeral` -- an ephemeral machine existed, booted and enrolled, and its
+generation is the record that lets stage 55 deregister it honestly.
+
+**What is not a new generation**: a reboot; a stop and start (a stopped
+machine is the same machine); a mount detach; an image pin that moved but
+was not applied; and an identity query that returned nothing -- "cannot
+read the id" is never "the id changed", and a stopped instance may well
+fail the query.
+
+**What stood before the ledger is adopted, not invented.** A machine that
+was already launched when this record began becomes generation 1 marked
+`adopted` -- the first generation of the RECORD, not of the name. Its
+predecessors are visible only in `pins.yaml.upgrades`. The state report
+shows each launched machine's generation beside its provider identity under
+`reality.instances`.
+
 ### Ephemeral instances
 
 `instances[].ephemeral: true` declares an instance that exists to be
