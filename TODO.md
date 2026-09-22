@@ -428,12 +428,9 @@ configure. That is the operator's stated shape and it should stay literal.
    faces §55's budget -- an RFC 1123 label, at most 63 characters. Validate
    the whole file at `validate`, where an unusable line is a typo to fix, not
    at 3am when it is the next one up. The operator seeded the live pool on
-   2026-09-21 (`d63858e` in the sibling: 3671 names, e.g. `cod`, `red_cod`),
-   and 3536 of them carry an underscore, which RFC 1123 forbids in a label.
-   So this validation is not hypothetical: decide whether the reader maps
-   `_` to `-` (then `red-cod` is what OPA sees, and the ledger line should
-   say so) or the file is fixed by hand; the first is the operator-friendly
-   reading and the one to take unless told otherwise.
+   2026-09-21 (3671 names, e.g. `cod`, `red-cod`); every line is a legal
+   label and none repeats, so the validator's first live pass is expected
+   to be clean.
 6. **Spent is spent.** A decommission does NOT return a name to the pool.
    That is the point: §55 exists because a name outlived the machine that
    answered to it, and recycling names through a pool would rebuild the same
