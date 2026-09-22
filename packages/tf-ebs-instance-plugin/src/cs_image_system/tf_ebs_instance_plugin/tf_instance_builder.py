@@ -374,7 +374,7 @@ class TofuInstanceBuilder(InstanceBuilderBase[Q], TerraformRootMixin):
             unmounts, require, detach_allow = self._detach_commands(wd)
             finalize.extend(self.gated_apply_commands(
                 phase, wd, apply=apply,
-                allow_destroy=self._decommission_whitelist() + detach_allow,
+                allow_destroy=self._decommission_whitelist() + detach_allow + self._replacement_attachments(),
                 replace=self._replacements(), apply_flag_key="instances",
                 apply_root=self.name, apply_root_aliases=[rt],
                 pre_commands=unmounts, require_unmounted=require))
@@ -479,6 +479,23 @@ class TofuInstanceBuilder(InstanceBuilderBase[Q], TerraformRootMixin):
         from cs_image_system.base.lineage import pending_instance_replacements
         names = pending_instance_replacements(ctx, self._instances)   # upgrades + follow (stage 9)
         return [f"{self._module_address(n)}.aws_instance.this" for n in sorted(names)]
+
+    def _replacement_attachments(self) -> list[str]:
+        """The volume attachments of every instance this plan replaces: an
+        attachment binds a volume to the instance's id, so replacing the
+        instance replaces the attachment, and that destroy is the same
+        operation-driven change the `-replace` sanctioned. The gate matched
+        the instance and refused its attachment on the first live replacement
+        (2026-09-22). None on a runtime whose attachment is an in-place
+        attribute (GCE)."""
+        ctx = self._get_context()
+        from cs_image_system.base.lineage import pending_instance_replacements
+        out: list[str] = []
+        for n in sorted(pending_instance_replacements(ctx, self._instances)):
+            addr = self._attachment_address(n, "")
+            if addr:
+                out.append(addr)
+        return out
 
     def _decommission_whitelist(self) -> list[str]:
         """Instances recorded in meta-state (launched) but no longer declared:

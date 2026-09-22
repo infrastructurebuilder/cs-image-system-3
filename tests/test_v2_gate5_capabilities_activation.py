@@ -330,6 +330,9 @@ def test_launch_parameters_are_immutable_after_launch(tmp_path, monkeypatch):
         cmds = (run2.generated / "instance-image" / "run-instance-image.sh").read_text()
         assert "-replace=module.instance_test2.aws_instance.this" in cmds
         assert "--allow-destroy module.instance_test2.aws_instance.this" in cmds
+        # the attachment binds the volume to the instance's id, so the replace
+        # replaces it too; the gate refused exactly that live (2026-09-22)
+        assert "--allow-destroy module.instance_test2.aws_volume_attachment.this" in cmds
         run2.restore_cwd()
     finally:
         run.restore_cwd()
