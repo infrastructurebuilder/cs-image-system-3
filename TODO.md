@@ -9,8 +9,13 @@ system must not take itself.
 
 Current stage: **none in progress**.
 
-Open stages and their order (revised 2026-09-22, when §19 landed):
-**§59**, with §30 orthogonal. (§19 LANDED 2026-09-22: the coops model
+Open stages and their order (revised 2026-09-22, when §59 landed):
+**none but §30**, which waits on the operator's decision, and §61, the open
+hygiene bundle. (§59 LANDED 2026-09-22: `meta-state/aliases.txt` is the
+pool, the run that can launch a new durable machine draws its first free
+line and comments it out in place, stage 58 gives the name to the machine.
+The live pool holds 3400 names; the first live draw happens at the next
+new machine.) (§19 LANDED 2026-09-22: the coops model
 image had its second release end to end -- a real modification, the bake,
 the pin moved, the gated replace to `coops-model-002`, the post-bake proof
 on the new machine, the release, the names back, and the login by name --
@@ -38,8 +43,8 @@ that is standing can anyone judge whether a name pool is still wanted. §30 wait
 on none of this. §61 is the open hygiene bundle (V); a new hygiene issue
 goes there.
 
-**§59 is the only naming work left**, and deferrable; §30 waits on the
-operator's decision. Nothing in that shorter path has to be redone -- §58
+**Nothing in the naming line is left**; §30 waits on the operator's
+decision. Nothing in that shorter path has to be redone -- §58
 adds the bare name back as an alias, so a proof written against `coops-model`
 survives the suffix.
 
@@ -218,90 +223,6 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-package` (steps 1–3, 5–7),
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
-
-## 59. A pool of names, each spent once
-
-**Why**: §58 gives an instance somewhere to put a memorable name; nothing
-supplies one. A `meta-state/aliases.txt` in the configuration is a pool of
-pre-approved names, hand-written in advance, one per line. When something
-needs an alias the system takes the first line that is not commented out,
-uses it, and comments that line out IN PLACE, recording on the same line what
-took it and when. A name is therefore spent exactly once, permanently, and
-the file is both the supply and the ledger -- `git log -p
-meta-state/aliases.txt` is the whole history of who was called what.
-
-Optional by construction: no file, no aliases, no error, nothing to
-configure. That is the operator's stated shape and it should stay literal.
-
-1. **The file contradicts the directory it lives in, and the file is right.**
-   `meta-state/README.md` says "THIS IS GENERATED DATA... NEVER MODIFY
-   ANYTHING IN THIS DIRECTORY MANUALLY", and this file is seeded by hand. The
-   alternative -- putting the pool in `cfg/` -- is worse: `cfg/` is INPUT, and
-   a system that rewrites its own input breaks the thing the whole design
-   rests on. meta-state is already the committed, system-owned, durable
-   record, which is exactly what a spent-name ledger is. So keep the file
-   where the operator put it and amend the README with the one exception,
-   stated as a division of bytes rather than of files: **a human only ever
-   APPENDS lines; the system only ever comments out lines that are already
-   there.** Neither writer touches what the other wrote, which also makes the
-   merge trivial when two checkouts both draw.
-2. **The burn is the claim, and it comes FIRST.** Write and commit the
-   comment-out BEFORE the name is applied to anything. The failure that
-   matters is burn-after-use: the run dies between using a name and recording
-   it, the file still shows the name free, the next run draws it again, and
-   now two machines answer to one name -- the §55 failure, reintroduced by
-   the mechanism meant to prevent it. Claim, then use; an unused claim costs
-   one name out of a list the operator can extend in one line, which is the
-   cheap direction to fail in.
-3. **A dry run draws nothing.** `--dry-run` is the default (`V2Run` defaults
-   `dry_run=True`), so the obvious bug is a pool quietly drained by runs that
-   never launched anything. A dry run reports which name it WOULD take and
-   leaves the file untouched -- the same discipline as "dry runs never touch
-   remote state".
-4. **Two drawers at once.** Several sessions share this checkout and CI runs
-   against its own clone, so the draw must be atomic: read-modify-write under
-   an exclusive lock, following `MetaState.write`'s existing temp-file-then-
-   `replace` pattern (`meta_state.py:154`). Across checkouts only the push
-   settles it -- so push the burn promptly, and treat a rejected push on this
-   file as "someone else took that name": re-read, draw again, never
-   force. (`ALL_FILES` at `meta_state.py:59` is dead code and gates nothing;
-   a `.txt` under `meta-state/` is staged and committed like everything else
-   there. `MetaState.read`/`write` are YAML-only, so this file needs its own
-   small text reader and writer, and no decrypt walk -- names are public.)
-5. **The line format.** Keep the name readable and greppable after it is
-   spent; the comment marker goes in front and the record after, on the same
-   line as the operator asked:
-
-       # bright-otter  -- instance coops-model (i-0169f82844f4cc08d) 2026-09-21T19:04:11Z run 2026_09_21t19_04_11_004213
-
-   Blank lines and existing comments are skipped. Every uncommented line must
-   be a legal name for the slot it will fill: since §58 puts it in OPA, it
-   faces §55's budget -- an RFC 1123 label, at most 63 characters. Validate
-   the whole file at `validate`, where an unusable line is a typo to fix, not
-   at 3am when it is the next one up. The operator seeded the live pool on
-   2026-09-21 (3671 names, e.g. `cod`, `red-cod`); every line is a legal
-   label and none repeats, so the validator's first live pass is expected
-   to be clean.
-6. **Spent is spent.** A decommission does NOT return a name to the pool.
-   That is the point: §55 exists because a name outlived the machine that
-   answered to it, and recycling names through a pool would rebuild the same
-   problem with extra steps. The pool only ever shrinks; the operator refills
-   it by appending.
-7. **Running out is a warning, not a failure.** `validate` reports how many
-   names remain, so the floor is visible long before it arrives. An empty
-   pool means the launch proceeds WITHOUT an alias and says so loudly --
-   refusing to start a machine over a cosmetic name would be the wrong
-   trade, and §58 already has to survive an instance with no alias.
-8. **Not the canonical name.** A drawn name is an alias; the canonical name
-   stays the declared instance name (`coops-model`), which is what makes it
-   guessable. Drawing the canonical name from this pool would make §55's
-   uniqueness structural, but it would also mean nobody can predict what the
-   machine is called -- a real option, deliberately not taken here. Revisit
-   only if §55's retire-and-refuse proves insufficient in practice.
-9. Records: OPERATIONS on the pool -- how to seed it, that spending is
-   permanent, and that a human appends while the system comments out. The
-   fixture gets a small pool so the draw, the burn and the empty case are all
-   tested offline. Feature branch `feature/alias-pool`, squash-merged, kept.
 
 ## 61. Hygiene bundle V
 

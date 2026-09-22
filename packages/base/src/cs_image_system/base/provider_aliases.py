@@ -69,18 +69,22 @@ def provider_hostname_label(fqdn: str | None) -> str | None:
     return label or None
 
 
-def wanted_aliases(identity: dict[str, Any] | None, canonical: str, declared: str = "") -> list[str]:
+def wanted_aliases(identity: dict[str, Any] | None, canonical: str, declared: str = "",
+                   pool_alias: str = "") -> list[str]:
     """The names to give back. The provider-hostname label, when it is a
     different name from the canonical one and a name a hostname may be (on
     GCE the default label IS the instance name, so nothing; on EC2 the
-    ``ip-…`` name the boot script took away). And the bare DECLARED name,
-    when the canonical one carries a generation suffix (stage 55 step 4):
+    ``ip-…`` name the boot script took away). The bare DECLARED name, when
+    the canonical one carries a generation suffix (stage 55 step 4):
     ``coops-model`` stays the name a person types, and resolves to the
     machine that stands once the previous generation's registration is
-    retired."""
+    retired. And the machine's pool alias (stage 59), the memorable name
+    its launch parameters record."""
     out: list[str] = []
     if declared and declared != canonical and not hostname_problems(declared):
         out.append(declared)
+    if pool_alias and pool_alias != canonical and pool_alias not in out and not hostname_problems(pool_alias):
+        out.append(pool_alias)
     if identity:
         label = provider_hostname_label(identity.get("provider_hostname"))
         if label and label != canonical and label not in out and not hostname_problems(label):
@@ -197,7 +201,7 @@ def register_provider_aliases(ctx: "GlobalTypeContext", lifecycle: Lifecycle) ->
             log.info(f"Instance {name}: provider identity unavailable; no alias this run")
             continue
         canonical = canonical_hostname(ctx, instance)
-        wanted = wanted_aliases(identity, canonical, name)
+        wanted = wanted_aliases(identity, canonical, name, str((recorded.get(name) or {}).get("alias") or ""))
         if not wanted:
             continue
         if str((recorded.get(name) or {}).get("launched_run") or "") == str(ctx.run_id):
@@ -300,7 +304,8 @@ def instance_identity_notes(ctx: "GlobalTypeContext", report: "StateReport") -> 
                 # name it registered under, not the name a pending replacement
                 # would render (that one belongs to the next machine)
                 standing = str(entry["registered_as"] or booted_as or canonical_hostname(ctx, instance))
-                missing = [a for a in wanted_aliases(identity, standing, name)
+                pool_alias = str((ctx.meta_state.launch_params().get(name) or {}).get("alias") or "")
+                missing = [a for a in wanted_aliases(identity, standing, name, pool_alias)
                            if a not in entry["alt_names"]]
                 if missing and power_state.is_on(state):
                     report.notes.append(f"instances/{name}: answers to {entry['registered_as']!r} and "

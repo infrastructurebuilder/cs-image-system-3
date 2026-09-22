@@ -160,6 +160,9 @@ def compute_launch_params(ctx: "GlobalTypeContext", instance: "Instance") -> dic
     enrollment = gb.launch_parameters(group_obj) if (gb is not None and group_obj is not None) else {}
     rtb = ctx.runtime_builders.get(instance.runtime) if instance.runtime else None
     session = rtb.session_mechanism() if rtb is not None else None
+    hostname = canonical_hostname(ctx, instance)
+    from .alias_pool import alias_for
+    alias = alias_for(ctx, instance, hostname)     # stage 59: a pool name, spent once, for a new machine
     return {
         "image": str(instance.image),
         "build": ctx.meta_state.instance_pin(instance.get_name()) or "unbound",
@@ -168,7 +171,8 @@ def compute_launch_params(ctx: "GlobalTypeContext", instance: "Instance") -> dic
         "mounts": mounts,
         "enrollment": enrollment,
         "session": session,
-        "hostname": canonical_hostname(ctx, instance),
+        "hostname": hostname,
+        **({"alias": alias} if alias else {}),
         "ephemeral": bool(getattr(instance, "ephemeral", False)),   # stage 10.1
         # the instance's own startup lines (ledger 68): part of what the machine
         # booted with, hence immutable like every other launch parameter

@@ -588,6 +588,64 @@ $0.86 an hour, some $620 a month while it stands, plus the 100 GiB `gp3`
 volume and the EFS filesystem. Switching it off (the operator's, stage
 57) stops the instance charge and keeps the volume's.
 
+
+### A pool of names, each spent once
+
+`meta-state/aliases.txt` in the configuration is a pool of memorable,
+pre-approved names, hand-written in advance, one per line. When a NEW
+machine of a durable instance is about to be launched -- never launched
+before, or a pending or follow replacement -- the run that can launch it
+takes the first line that is not commented out, records it as the
+machine's `alias` in its launch parameters, and comments that line out
+IN PLACE with what took it and when:
+
+```text
+# bright-otter  -- instance coops-model as coops-model-003 2026-09-22T15:04:11Z run 2026_09_22t15_04_11_004213
+```
+
+The name is therefore spent exactly once, permanently, and the file is
+both the supply and the ledger: `git log -p meta-state/aliases.txt` is
+the history of who was called what. The name reaches the machine through
+the alias pass ("What a machine answers to"): it becomes an `AltNames`
+entry beside the bare declared name and the `ip-…` label, so `sft ssh
+bright-otter` reaches that machine and no other, and the state report
+lists it among what the machine answers to.
+
+**The division of bytes.** The directory's README says nothing here is
+edited by hand, and this file is the one exception, stated as a division
+rather than a file: **a human only ever APPENDS lines; the system only
+ever comments out lines that are already there.** Neither writer touches
+what the other wrote, so two checkouts that both draw merge trivially.
+
+**What holds:**
+
+- **The burn is the claim, and it comes first.** The line is rewritten at
+  generation, before the apply. A run that dies in between costs one name
+  out of a list one appended line refills -- the cheap direction to fail
+  in, against two machines answering to one name.
+- **A dry run draws nothing** and logs the name it would take. A run
+  whose instance roots may not apply draws nothing either. Ephemeral
+  instances draw nothing: a proof machine that comes and goes each cycle
+  would drain the pool for nobody.
+- **Two drawers at once.** The draw re-reads the file under an exclusive
+  lock (`aliases.txt.lock`) and writes it temp-then-replace. Across
+  checkouts only the push settles it: push the burn promptly, and treat a
+  rejected push on this file as "someone else took that name" -- re-read,
+  draw again, never force.
+- **Spent is spent.** A decommission returns nothing; the pool only ever
+  shrinks, and the operator refills it by appending.
+- **Running out is a warning, not a failure.** `validate` reports how many
+  names remain; an empty pool means the launch proceeds without an alias
+  and says so.
+- **Not the canonical name.** The alias is a name beside the canonical
+  one, which stays `<declared>-NNN`; a person can still guess it.
+
+`validate` refuses a free line that is not a legal hostname label (RFC
+1123, at most 63 characters), that repeats another free line, or that is
+a name the configuration already gives an instance -- a typo to fix, not
+a surprise at launch. Optional by construction: no file, no aliases, no
+error.
+
 ### Ephemeral instances
 
 `instances[].ephemeral: true` declares an instance that exists to be
