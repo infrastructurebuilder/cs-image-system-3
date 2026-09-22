@@ -200,3 +200,28 @@ def test_the_report_notes_a_name_that_did_not_take_at_boot(world, monkeypatch):
     inst = report.reality["instances"]["test"]
     assert inst["booted_as"] == "test-001" and inst["registered_as"] == "ip-1"
     assert any("did not take at boot" in n for n in report.notes)
+
+
+def test_a_replacement_retires_the_registration_of_the_machine_it_replaced(world, monkeypatch):
+    """Stage 55 meets stage 60: the replaced machine answered to `test-001`
+    and is gone once the apply replaced it; its OPA registration would
+    otherwise outlive it and claim the bare alias the new machine gets."""
+    from tests.v2_support import stub_environment
+    ctx = world.ctx
+    ms = ctx.meta_state
+    ctx.config["apply_instances"] = True
+    _record(ctx, hostname="test-001", launched=True)
+    ms.open_generation("test", kind="durable", run_id="r", how="observed",
+                       launch_params={"hostname": "test-001"}, identity={"instance_id": "i-old"})
+    monkeypatch.setattr(lp, "will_replace", lambda c, i: True)
+    params = lp.compute_launch_params(ctx, _inst(ctx))
+    assert params["hostname"] == "test-002"
+    _record(ctx, **params, launched=False)
+    retirements = stub_environment.retirements  # type: ignore[attr-defined]
+    retirements.clear()
+    lp.mark_launched(ctx, Lifecycle.INSTANCE_IMAGE)
+    assert retirements == [(params["group"], "test-001")], "the OLD name, for the instance's group"
+    # the standing machine, launched again under its own name: nothing to retire
+    retirements.clear()
+    lp.mark_launched(ctx, Lifecycle.INSTANCE_IMAGE)
+    assert retirements == []

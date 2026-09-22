@@ -435,7 +435,18 @@ def mark_launched(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
             # stage 60: a machine now exists (or a sanctioned replacement
             # just made a new one) -- open its generation, inferred; the
             # observation pass confirms it against the provider's id
+            previous = ms.current_generation(name)
             generations.on_launched(ctx, name, params, replaced=name in pending)
+            # stage 55 meets stage 60: the machine this launch REPLACED
+            # answered to a different name (`<name>-NNN`, stage 55 step 4).
+            # Its registration is the third record of that machine, and the
+            # one that would outlive it -- and it would claim the bare alias
+            # stage 58 gives the new machine. Retire it now that the apply
+            # has destroyed the machine behind it. Found in review before the
+            # first live replacement (2026-09-22).
+            booted_as = str(((previous or {}).get("launch_params") or {}).get("hostname") or "")
+            if booted_as and params.get("hostname") and booted_as != params.get("hostname"):
+                _retire_registration(ctx, name, {"group": params.get("group"), "hostname": booted_as})
         ms.clear_pending_replacement(name)
 
 

@@ -157,10 +157,28 @@ attached by group. This stage spends them on one model, on AWS.
    standing constraint).
 4. **Users in**: the group's members log in through the Okta gateway
    relay (`sft ssh`); evidence captured, the stage-1 shape.
+   **Done 2026-09-22 09:35**: the coops admin logged into `coops-model`
+   over `sft ssh` through `just ci-login-proof coops-model` (stage 56's
+   leg: one registration, the client resolves the name, `id` runs), the
+   record is the sibling's `meta-state/login-proofs.yaml` (`6ab5500`).
+   The member's own login is his to make; the WORKLOAD login (the CI
+   policy's proof) runs in `perform` on `main`.
 5. **Operations, once**: the upgrade path exercised end to end (`upgrade
 image` → re-bake → `upgrade instance` → gated replace) so the model's
    second release is a procedure, not a discovery; the standing cost noted
    for the AWS account.
+   **Shape, settled in review 2026-09-22**: `imgfile-coops-model` is
+   `parent_policy: follow` and its base is at the head, so nothing is due;
+   the second build comes from a real model change or from
+   `--force-bake imgfile-coops-model` in a performing run. Then
+   `upgrade instance coops-model` (the released head), then an applies-on
+   instance-image run: the gate whitelists the replace, the new machine is
+   `coops-model-002` (stage 55 step 4), generation 1 closes and 2 opens
+   (stage 60), the bare name and `ip-…` come back as aliases (stage 58),
+   and -- closed in review before the run -- the replaced machine's
+   registration under `coops-model` is retired by the launch that replaced
+   it (`mark_launched`), so the alias is free to take. `mnt_data` is
+   detached and re-attached across the replace; the root disk is lost.
 6. Records: ledger, PLAN, OPERATIONS "a model image, end to end".
    Feature branch `feature/model-<name>`, squash-merged, kept.
 
