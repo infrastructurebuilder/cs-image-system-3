@@ -122,13 +122,16 @@ def test_drift_names_the_role_the_policy_and_the_connection(world):
     report = sq.query_state(ctx)
     by_name = {d.name: d for d in report.drift if d.kind == "group"}
     role = by_name[names[0]]
-    assert role.drift == sq.DRIFT_MISSING and role.hard and "workload role" in role.detail
+    assert role.drift == sq.DRIFT_MISSING and not role.hard and "workload role" in role.detail
     assert "WORKLOAD_CONNECTION.md" in role.detail          # the operator's object names the checklist
     pol = by_name[names[1]]
-    assert pol.drift == sq.DRIFT_MISSING and pol.hard and "CI login policy" in pol.detail
+    assert pol.drift == sq.DRIFT_MISSING and not pol.hard and "CI login policy" in pol.detail
     assert "apply_identity" in pol.detail                    # the system's object names the apply
     changed = by_name[names[2]]
-    assert changed.drift == sq.DRIFT_CHANGED and changed.hard and "no longer mirrors" in changed.detail
+    assert changed.drift == sq.DRIFT_CHANGED and not changed.hard and "no longer mirrors" in changed.detail
+    # none is HARD: the validator refuses a run on hard drift, and the run that
+    # repairs these is the identity apply itself
+    assert not any(d.hard for d in report.drift if d.kind == "group")
     assert names[3] not in by_name, "present and mirroring: no drift"
     notes = "\n".join(report.notes)
     assert f"groups/{names[1]}: the workload connection is still a DRAFT" in notes

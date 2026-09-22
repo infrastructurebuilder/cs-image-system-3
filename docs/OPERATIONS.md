@@ -503,11 +503,13 @@ change in the module propagates on the next identity run. A group released
 from management is left as it stands, like its user policy; the identity
 lifecycle never destroys.
 
-The state query reads all three objects. An absent role is HARD drift that
+The state query reads all three objects. An absent role is drift that
 names the checklist (the operator's object); an absent or diverged CI
-policy is HARD drift that names the apply (the system's object); a
-connection that is present but still a draft is a `note`, because
-activating it is the operator's act. A silent OPA says nothing, as
+policy is drift that names the apply (the system's object); a connection
+that is present but still a draft is a `note`, because activating it is
+the operator's act. None of it is HARD: the validator refuses a run on
+hard drift, and the run that repairs these is the identity apply itself.
+A strict state query still fails on them. A silent OPA says nothing, as
 everywhere else.
 
 **The proof itself** is `cs-image-system verify login [<instance>...]

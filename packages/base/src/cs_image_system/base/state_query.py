@@ -286,8 +286,11 @@ def workload_drift(name: str, expected: Any, real: Any) -> list[Drift]:
     builder names no workload connection and role) or no record (OPA was
     silent) says nothing. The role is the operator's, so its absence names
     the checklist; the policy is the system's, so its absence or divergence
-    names the apply that repairs it. Both are HARD: the CI login proof for
-    the group fails until they are true."""
+    names the apply that repairs it. Neither is HARD: the validator refuses
+    to run on hard drift, and the run it would refuse is the identity apply
+    that creates the policy (the first live reconcile, 2026-09-22, was
+    refused by exactly that). They stay drift -- a strict query fails on
+    them, and the CI login proof for the group fails until they are true."""
     if not isinstance(expected, dict) or not isinstance(real, dict):
         return []
     role = real.get("role") or {}
@@ -295,16 +298,16 @@ def workload_drift(name: str, expected: Any, real: Any) -> list[Drift]:
     if role.get("present") is False:
         return [Drift("group", name, DRIFT_MISSING,
                       f"workload role {expected.get('role')!r} named in the configuration is not known "
-                      "to OPA; the operator creates it (WORKLOAD_CONNECTION.md section 2)", hard=True)]
+                      "to OPA; the operator creates it (WORKLOAD_CONNECTION.md section 2)")]
     if policy.get("present") is False:
         return [Drift("group", name, DRIFT_MISSING,
                       f"CI login policy {expected.get('policy')!r} is absent; an identity run with "
                       "apply_identity creates it as a copy of "
-                      f"{expected.get('mirrors')!r} (stage 56)", hard=True)]
+                      f"{expected.get('mirrors')!r} (stage 56)")]
     if policy.get("mirrors") is False:
         return [Drift("group", name, DRIFT_CHANGED,
                       f"CI login policy {expected.get('policy')!r} no longer mirrors "
-                      f"{expected.get('mirrors')!r}; the next identity apply rewrites it", hard=True)]
+                      f"{expected.get('mirrors')!r}; the next identity apply rewrites it")]
     return []
 
 
