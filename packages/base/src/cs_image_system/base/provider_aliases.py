@@ -263,7 +263,11 @@ def instance_identity_notes(ctx: "GlobalTypeContext", report: "StateReport") -> 
                                         f"but its generation booted as {booted_as!r} -- the hostname did not "
                                         "take at boot; sft ssh by the declared name will not find it")
                 state = rtb.query_instance_power_state(name) if rtb.can_query_instance_power_state() else None
-                missing = [a for a in wanted_aliases(identity, canonical_hostname(ctx, instance), name)
+                # the names this MACHINE should answer to are judged against the
+                # name it registered under, not the name a pending replacement
+                # would render (that one belongs to the next machine)
+                standing = str(entry["registered_as"] or booted_as or canonical_hostname(ctx, instance))
+                missing = [a for a in wanted_aliases(identity, standing, name)
                            if a not in entry["alt_names"]]
                 if missing and power_state.is_on(state):
                     report.notes.append(f"instances/{name}: answers to {entry['registered_as']!r} and "

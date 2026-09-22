@@ -236,3 +236,35 @@ def test_an_unreachable_cloud_is_still_unavailable(world, monkeypatch):
     report = sq.query_state(ctx)
     assert [u for u in report.unavailable if "instances/test" in u]
     assert not [n for n in report.notes if "instances/test" in n]
+
+
+def test_a_pending_replacement_is_a_note_not_drift_in_the_strict_query(world, monkeypatch):
+    """`upgrade instance` moves the pin and leaves the marker, so the booted
+    image is behind the pin BY DESIGN until the next applies-on run replaces
+    the machine. The strict query used to call that `changed` drift and so
+    refused the very launch that finishes the procedure (cloud-launch's
+    preflight, live 2026-09-22). Without the marker it is drift again."""
+    from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
+    ctx = world.ctx
+    ms = ctx.meta_state
+    rt = _aws_runtime(ctx)
+    for b in ("ami-old", "ami-new"):
+        ms.add_build({"build_id": b, "series": "imgfile-coops-model", "runtime": rt, "name": b,
+                      "parent": "external", "input_fingerprint": "f", "run": "r",
+                      "capabilities": {}, "mods": [], "chain": []})
+    ms.bind_instance("test", "ami-old", "run-x")
+    monkeypatch.setattr(AwsCloudBuilder, "query_instance_boot_image", lambda self, n: "ami-old")
+    monkeypatch.setattr(AwsCloudBuilder, "can_query_instance_power_state", lambda self: True)
+    monkeypatch.setattr(AwsCloudBuilder, "query_instance_power_state", lambda self, n: ps.RUNNING)
+    assert not [d for d in sq.query_state(ctx).drift if d.kind == "instance" and d.name == "test"]
+
+    ms.move_pin("instance", "test", "ami-new", "run-y")          # what `upgrade instance` does
+    assert "test" in ms.pending_replacements()
+    report = sq.query_state(ctx)
+    assert not [d for d in report.drift if d.kind == "instance" and d.name == "test"]
+    note = [n for n in report.notes if "instances/test" in n and "PENDING" in n]
+    assert note and "ami-old" in note[0] and "ami-new" in note[0]
+
+    ms.clear_pending_replacement("test")                         # the marker gone, the mismatch is drift
+    drift = [d for d in sq.query_state(ctx).drift if d.kind == "instance" and d.name == "test"]
+    assert drift and drift[0].drift == sq.DRIFT_CHANGED and "ami-new" in drift[0].detail
