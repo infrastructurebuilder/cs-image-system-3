@@ -14,7 +14,7 @@ Open stages and their order (revised 2026-09-22, when §59 landed):
 hygiene bundle. (§59 LANDED 2026-09-22: `meta-state/aliases.txt` is the
 pool, the run that can launch a new durable machine draws its first free
 line and comments it out in place, stage 58 gives the name to the machine.
-The live pool holds 3671 names; the first live draw happens at the next
+The live pool holds 3400 names; the first live draw happens at the next
 new machine.) (§19 LANDED 2026-09-22: the coops model
 image had its second release end to end -- a real modification, the bake,
 the pin moved, the gated replace to `coops-model-002`, the post-bake proof
