@@ -328,3 +328,19 @@ ceremony. Landed together on `feature/hygiene-v`, squash-merged, kept.
    will run on the new machine -- refused again if the proof does not
    follow within the same or the next run. Design it before the third
    release, not during it.
+5. **The release and retention lifecycles emit an instance root's variable
+   file they never run.** After the 2026-09-22 release run the sibling held
+   an untracked `generated/retention/open-tofu/instance-generation/
+   instances.auto.tfvars` (one key, `coops_model_ami_id`, the pin), and the
+   run's own warning named the same file under `generated/release/`. Neither
+   lifecycle plans or applies an instance root; the file is the instance
+   builder's per-phase emission landing in every lifecycle's directory
+   instead of its own. It is caught by the never-staged rule -- `*.auto.tfvars`
+   is treated as material that may carry decrypted values -- so it lingers
+   untracked and the operator sees a stray `??` after every release. Not a
+   leak here (an AMI id), but the shape stage 49 moved to `_private/` is
+   "plaintext under generated/", and a file nothing runs should not be
+   written at all. Emit the instance root's tfvars only under the
+   instance-image lifecycle (the release and retention runners read the
+   pins from meta-state, not from the root), and let a stale copy under
+   the other two be removed by the next generation there.
