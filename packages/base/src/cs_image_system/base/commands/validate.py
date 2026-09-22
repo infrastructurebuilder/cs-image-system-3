@@ -467,6 +467,27 @@ def check_canonical_hostnames(ctx: GlobalTypeContext) -> list[Exception]:
     return exs
 
 
+def check_alias_pool(ctx: GlobalTypeContext) -> list[Exception]:
+    """Stage 59: every free line of ``meta-state/aliases.txt`` must be a name
+    a machine can take -- an RFC 1123 label, no repeat, not a name the
+    configuration already gives an instance -- checked here, where an
+    unusable line is a typo to fix, not at launch when it is the next one
+    up. Running out is a warning, not a failure."""
+    from ..alias_pool import free_names, pool_path, pool_problems
+    from ..launch_params import canonical_hostname
+    path = pool_path(ctx.working_path)
+    if not path.is_file():
+        return []
+    reserved = {i.get_name() for i in ctx.instances} | {canonical_hostname(ctx, i) for i in ctx.instances}
+    exs = [Exception(f"alias pool {path.name}: {why}") for why in pool_problems(path, reserved=reserved)]
+    remaining = len(free_names(path))
+    if remaining == 0:
+        log.warning(f"alias pool {path.name}: EMPTY -- a new machine launches without an alias; append names to refill")
+    else:
+        log.info(f"alias pool {path.name}: {remaining} name(s) remain")
+    return exs
+
+
 def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     """The configuration checks, with no side effects on generated output:
     unique global ids, executables present and version-compliant, every
@@ -480,5 +501,6 @@ def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     exs.extend(check_state_locations(ctx))
     exs.extend(check_foreign_keys(ctx))
     exs.extend(check_availability_zones(ctx))
+    exs.extend(check_alias_pool(ctx))
     exs.extend(check_canonical_hostnames(ctx))
     return exs
