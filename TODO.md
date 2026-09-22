@@ -345,7 +345,11 @@ certificate.
      smoke test.
    - So the go-ahead this step needs is: create the connection, the role and
      the policy line (UI or API, security admin), and hand back the
-     connection name and the role name. Nothing else is unknown.
+     connection name and the role name. Nothing else is unknown. The
+     click-by-click checklist, with the values decided, is
+     [WORKLOAD_CONNECTION.md](WORKLOAD_CONNECTION.md); the operator runs it
+     on the morning of 2026-09-22, and it moves into OPERATIONS (step 6)
+     once the proof has run.
 2. **A CI identity in the group, not an exception.** One service user in
    `coops_user` -- the same group a scientist is in -- so the test asserts
    the real path. Its key pair joins the repository secrets beside
