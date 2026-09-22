@@ -96,6 +96,34 @@ class TerraformRootMixin(_Base):
             return ["init", "-reconfigure", f"-backend-config={self._backend_config_path(phase).name}"]
         return ["init"]
 
+    def plaintext_read_commands(self, phase: "ExecutionLifecyclePhase", working_directory: Path,
+                                arg_lists: Sequence[list[str]]) -> list[Any]:
+        """Generation-time tofu commands that must read the PLAINTEXT emission.
+
+        The committed emission carries ``ENC[age:...]`` ciphertext (stage 49),
+        and since stage 51 a derived e-mail address carries it inside the
+        string (``first.last@ENC[...]``); ``fmt``, ``init`` and ``validate`` do
+        not care, but a real run's generation-time ``plan`` does -- the Okta
+        user lookups search by that address. So, exactly as the deferred
+        runner does, the root is materialised into the private mirror,
+        initialised THERE (providers are not mirrored) and the commands run
+        there. Found live 2026-09-22: the first real identity run after
+        stage 51 planned in ``generated/`` and every derived lookup failed.
+        Without a configuration root to mirror under (the offline harness's
+        bare context) the commands run where they always did."""
+        from cs_image_system.base.global_context import GlobalTypeContext
+        from cs_image_system.base.materialize import mirror_path
+        from cs_image_system.base.utils import system_cli_executable_with_config
+        ctx = GlobalTypeContext()
+        root = getattr(ctx, "working_path", None)
+        if root is None:
+            return self.terraform_commands(phase, list(arg_lists), working_directory)
+        src = (Path(ctx.generation_path) / working_directory).resolve()
+        mirror = mirror_path(Path(root), src)
+        commands: list[Any] = [system_cli_executable_with_config(["materialize", "."], working_directory)]
+        commands += self.terraform_commands(phase, [self._runner_init_args(phase)] + list(arg_lists), mirror)
+        return commands
+
     def _runner_init_args(self, phase: "ExecutionLifecyclePhase") -> list[str]:
         """The ``init`` a committed runner script performs for itself (stage 38),
         always in the REAL-run form: ``-reconfigure`` because a dry run's

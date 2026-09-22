@@ -191,6 +191,21 @@ def test_perform_records_performs_on_the_aws_runtime_alone_and_records_again():
     before("The GCE runtime stays out of CI, so a change there fails loudly", tools["name"])
     before(tools["name"], "Federated AWS credentials, the WRITE role")
 
+    # stage 56: after the performing step and under the read-only role again, CI
+    # logs into every standing instance on the runtime through the managed CI
+    # policy, then the closing record commits the verdicts
+    client = next(s for s in job["steps"] if s.get("name") == "Install the OPA client")
+    assert client["run"].strip() == "just sft-install"
+    login = next(s for s in job["steps"] if s.get("name") == "CI logs in through the managed policy")
+    assert login["run"].strip() == "just ci-login-proof --runtime aws-east2-runtime"
+    assert "CSIS_CONFIG_IDENTITY" in login["env"] and "TF_VAR_nos_coastal_modeling_cloud_sandbox_key" in login["env"]
+    for step in (client, login):
+        assert "steps.gate.outputs.record == 'true'" in step["if"] and "steps.record.outcome == 'success'" in step["if"]
+        assert not step["if"].startswith("always()"), "a failed performing step skips the proof; the closing record still runs"
+    before("Federated AWS credentials, the read-only role again", "Install the OPA client")
+    before("Install the OPA client", "CI logs in through the managed policy")
+    before("CI logs in through the managed policy", "The full run, recorded again")
+
     # the push credential reaches git through the checkout, never through a URL
     cfg = next(s for s in job["steps"] if (s.get("with") or {}).get("path") == "cs-image-system-testconfig")
     assert "CSIS_CONFIG_PUSH_TOKEN" in cfg["with"]["token"]
@@ -236,3 +251,25 @@ def test_publish_runs_on_a_tag_alone_and_is_the_only_uploader():
         assert (job_name == "publish") == bool(uploads), job_name
     everything = yaml.safe_dump(wf)
     assert everything.count("UV_PUBLISH_TOKEN") == 2 and "uv publish" not in everything
+
+
+# --------------------------------------------------- the workload probe (stage 56)
+PROBE = REPO / ".github" / "workflows" / "opa-workload-probe.yml"
+
+
+def test_the_workload_probe_is_dispatch_only_and_calls_only_just_targets():
+    """Stage 56 step 2: the probe presents this run's OIDC token to the team's
+    workload connection and stops. It runs only when dispatched, holds only
+    the id-token permission that minting needs, names no secret, and passes
+    its inputs through the environment rather than into a shell line."""
+    wf = yaml.safe_load(PROBE.read_text())
+    assert list(wf[True].keys()) == ["workflow_dispatch"], "dispatch only: never on push, PR or schedule"
+    (job_name, job), = wf["jobs"].items()
+    assert job["permissions"] == {"id-token": "write", "contents": "read"}, job_name
+    for name, run in _run_steps(job):
+        assert re.match(r"^just [a-z][\w-]*$", run.strip()), f"{job_name}/{name}: {run!r}"
+        assert "${{" not in run, f"{name}: an input interpolated into a shell line"
+    everything = yaml.safe_dump(wf)
+    assert "secrets." not in everything, "the probe needs no secret: the token is GitHub's own"
+    for var in ("OPA_WORKLOAD_CONNECTION", "OPA_WORKLOAD_ROLE", "SFT_TEAM", "OPA_ADDR"):
+        assert var in job["env"], var

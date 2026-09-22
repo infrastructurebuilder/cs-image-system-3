@@ -41,6 +41,9 @@ def identity_read_model(ctx: "GlobalTypeContext") -> dict[str, Any]:
                 "members": sorted(g.members or set()),
                 "admins": sorted(g.admins or set()),
             }
+            expected = builder.workload_access_expected(g.get_name())   # stage 56
+            if expected is not None:
+                groups[g.get_name()]["workload"] = expected
     users = sorted(u.get_name() for u in ctx.users)
     user_builders = {b.get_name(): b.get_type() for b in ctx.user_builders.values()}
     return {

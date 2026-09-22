@@ -179,16 +179,19 @@ class OktaTfUserBuilder(UserBuilderBase[OktaTfUserBuilderModel], TerraformRootMi
         if phase != ExecutionLifecyclePhase.USER_GENERATION or not self._users():
             return CFExecutables([], [])
         arg_lists = [["fmt"], self._init_args(phase), ["validate"]]
+        wd = self.get_path_for_phase(phase, suffix=".tf").parent
+        commands = self.terraform_commands(phase, arg_lists, wd)
         if self._dry_run():
             # a dry run initialises without the backend and touches no state;
             # the lookups are planned by a real run (or by hand after an init)
             log.info(f"User builder {self.name}: dry run, 'plan' not run at generation time")
         elif okta_credentials_present():
-            arg_lists.append(["plan"])
+            # in the private mirror: the lookups search by an address whose
+            # domain is ciphertext in the committed emission (stage 51)
+            commands += self.plaintext_read_commands(phase, wd, [["plan"]])
         else:
             log.warning(
                 f"User builder {self.name}: skipping 'plan' (no okta "
                 f"credentials in the environment)."
             )
-        wd = self.get_path_for_phase(phase, suffix=".tf").parent
-        return CFExecutables(self.terraform_commands(phase, arg_lists, wd), [])
+        return CFExecutables(commands, [])

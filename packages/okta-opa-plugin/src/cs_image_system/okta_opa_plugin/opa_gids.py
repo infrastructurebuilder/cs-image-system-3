@@ -31,6 +31,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import urllib.error
 import urllib.request
 from typing import Any, Callable, Mapping
 
@@ -234,6 +235,70 @@ class OpaGidResolver:
                 return True
             raise
         return True
+
+    # ------------------------------------ policies and workloads (stage 56)
+    def _send(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:
+        """One authenticated call with a JSON body; the transport raises on
+        any non-2xx, so a write that did not happen never returns."""
+        headers = {"Authorization": f"Bearer {self.token()}", "Accept": "application/json"}
+        payload = None
+        if body is not None:
+            headers["Content-Type"] = "application/json"
+            payload = json.dumps(body).encode()
+        try:
+            return self.transport(method, self._url(path), headers, payload)
+        except urllib.error.HTTPError as e:
+            # the API explains a refusal in its body; keep it, or the first
+            # live write teaches nothing ("HTTP Error 400" alone did, 2026-09-22)
+            try:
+                detail = e.read().decode(errors="replace")[:600]
+            except Exception:  # noqa: BLE001 - a body that cannot be read is no body
+                detail = ""
+            raise RuntimeError(f"{method} {path}: HTTP {e.code} {e.reason}" + (f" -- {detail}" if detail else "")) from e
+
+    def _listing(self, path: str, what: str) -> list[dict[str, Any]] | None:
+        """The records under ``path`` (``{"list": [...]}``, the API's listing
+        shape, or a bare list), or None when the service could not be asked.
+        The transport carries no headers, so a listing longer than one page
+        (the API paginates through ``Link``) is read as its first page."""
+        try:
+            data = self.get(path)
+        except Exception as e:
+            log.debug(f"OPA {what} unavailable: {e}")
+            return None
+        items = data.get("list") if isinstance(data, dict) else data
+        return [rec for rec in (items or []) if isinstance(rec, dict)]
+
+    def security_policies(self) -> list[dict[str, Any]] | None:
+        """Every security policy of the team as the API returns it
+        (``GET /v1/teams/{team}/security_policy``: id, name, description,
+        active, resource_group, principals, rules), or None when it could
+        not be asked."""
+        return self._listing(f"/v1/teams/{self.team}/security_policy", "security policies")
+
+    def create_security_policy(self, body: dict[str, Any]) -> dict[str, Any]:
+        """``POST /v1/teams/{team}/security_policy``; the created record."""
+        data = self._send("POST", f"/v1/teams/{self.team}/security_policy", body)
+        return data if isinstance(data, dict) else {}
+
+    def update_security_policy(self, policy_id: str, body: dict[str, Any]) -> None:
+        """``PUT /v1/teams/{team}/security_policy/{id}`` -- the whole record."""
+        self._send("PUT", f"/v1/teams/{self.team}/security_policy/{policy_id}", body)
+
+    def workload_roles(self) -> list[dict[str, Any]] | None:
+        """The team's workload roles (``GET /v1/teams/{team}/workload-roles``
+        -- a HYPHEN, unlike every older path; the underscore form answered
+        404 live on 2026-09-22, and the path is the one Okta's PAM SDK
+        v1.3.48 carries), or None when they could not be read. Roles are the
+        operator's (WORKLOAD_CONNECTION.md section 2); the system only reads
+        them."""
+        return self._listing(f"/v1/teams/{self.team}/workload-roles", "workload roles")
+
+    def workload_connections(self) -> list[dict[str, Any]] | None:
+        """The team's workload connections
+        (``GET /v1/teams/{team}/connections/workloads``, the SDK's path; each
+        also answers ``/{id}/status``), or None."""
+        return self._listing(f"/v1/teams/{self.team}/connections/workloads", "workload connections")
 
     def user_attributes(self, user_name: str) -> dict[str, Any]:
         """``{attribute_name: attribute_value}`` for one OPA user

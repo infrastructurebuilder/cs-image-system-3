@@ -280,6 +280,58 @@ def storage_drift(ctx: "GlobalTypeContext", storages: dict[str, dict[str, Any]])
     return drift
 
 
+def workload_drift(name: str, expected: Any, real: Any) -> list[Drift]:
+    """Stage 56: the CI login policy the configuration expects for a group
+    against what OPA holds. Only when both sides speak: no expectation (the
+    builder names no workload connection and role) or no record (OPA was
+    silent) says nothing. The role is the operator's, so its absence names
+    the checklist; the policy is the system's, so its absence or divergence
+    names the apply that repairs it. Neither is HARD: the validator refuses
+    to run on hard drift, and the run it would refuse is the identity apply
+    that creates the policy (the first live reconcile, 2026-09-22, was
+    refused by exactly that). They stay drift -- a strict query fails on
+    them, and the CI login proof for the group fails until they are true."""
+    if not isinstance(expected, dict) or not isinstance(real, dict):
+        return []
+    role = real.get("role") or {}
+    policy = real.get("policy") or {}
+    if role.get("present") is False:
+        return [Drift("group", name, DRIFT_MISSING,
+                      f"workload role {expected.get('role')!r} named in the configuration is not known "
+                      "to OPA; the operator creates it (WORKLOAD_CONNECTION.md section 2)")]
+    if policy.get("present") is False:
+        return [Drift("group", name, DRIFT_MISSING,
+                      f"CI login policy {expected.get('policy')!r} is absent; an identity run with "
+                      "apply_identity creates it as a copy of "
+                      f"{expected.get('mirrors')!r} (stage 56)")]
+    if policy.get("mirrors") is False:
+        diff = policy.get("diff") or []
+        return [Drift("group", name, DRIFT_CHANGED,
+                      f"CI login policy {expected.get('policy')!r} no longer mirrors "
+                      f"{expected.get('mirrors')!r}; the next identity apply rewrites it"
+                      + (" -- " + "; ".join(str(d) for d in diff) if diff else ""))]
+    return []
+
+
+def workload_notes(groups: dict[str, dict[str, Any]], report: StateReport) -> None:
+    """Stage 56: a connection that is present but not active is true, and
+    neither drift nor silence -- activating it is the operator's act
+    (WORKLOAD_CONNECTION.md step 6.3) -- so it is a note."""
+    for name, real in sorted(groups.items()):
+        conn = (real.get("workload") or {}).get("connection") if isinstance(real, dict) else None
+        if not isinstance(conn, dict):
+            continue
+        if conn.get("present") is False:
+            report.notes.append(f"groups/{name}: the workload connection named in the configuration is not "
+                                "known to OPA; CI cannot log in until it exists (WORKLOAD_CONNECTION.md)")
+        elif conn.get("active") is False:
+            report.notes.append(f"groups/{name}: the workload connection is still a DRAFT; CI cannot log in "
+                                "until the operator activates it (WORKLOAD_CONNECTION.md step 6.3)")
+        elif conn.get("active") is None:
+            report.notes.append(f"groups/{name}: the workload connection's status could not be read from "
+                                "its record")
+
+
 def group_drift(ctx: "GlobalTypeContext", groups: dict[str, dict[str, Any]]) -> list[Drift]:
     ms = ctx.meta_state
     drift: list[Drift] = []
@@ -311,6 +363,7 @@ def group_drift(ctx: "GlobalTypeContext", groups: dict[str, dict[str, Any]]) -> 
                                "provider (out-of-band deletion?); identity plans will ERROR "
                                "until the token is removed from tofu state (state rm) and "
                                "recreated by a gated apply", hard=True))
+        drift.extend(workload_drift(name, rec.get("workload"), real.get("workload")))   # stage 56
         diffs: list[str] = []
         members = real.get("members")
         if isinstance(members, list) and set(rec.get("members") or []) != set(members):
@@ -434,6 +487,7 @@ def query_state(ctx: "GlobalTypeContext") -> StateReport:
                     + standing_ephemeral_drift(ctx, report))
     from .provider_aliases import instance_identity_notes
     instance_identity_notes(ctx, report)   # stage 58: what each machine answers to
+    workload_notes(groups, report)         # stage 56: the connection behind CI's login
     return report
 
 

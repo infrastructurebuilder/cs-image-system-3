@@ -465,6 +465,73 @@ predecessors are visible only in `pins.yaml.upgrades`. The state report
 shows each launched machine's generation beside its provider identity under
 `reality.instances`.
 
+
+### CI logs in through the policy the system manages
+
+Verifying an instance through SSM proves the box is healthy; it says
+nothing about access. Stage 56 makes CI log in the way a scientist does --
+`sft ssh`, a short-lived OPA certificate, no static key -- and makes that
+login depend on the policy the system manages, so the proof is of the
+policy.
+
+CI is a **workload**: the GitHub Actions run presents GitHub's own OIDC
+token to the team's **workload connection**, which maps it to the team's
+one **workload role**. Both are the operator's, made by hand once in the
+OPA console and named on the okta-tf group builder
+(`workload_connection`, `workload_role`); the checklist with the values,
+the impersonation cases (what a name pin trusts) and the relocation order
+(what to edit, in which order, when the repository moves) is
+[WORKLOAD_CONNECTION.md](../WORKLOAD_CONNECTION.md) until the proof has
+run, after which it folds in here. `just sft-install` puts Okta's client on
+an apt runner; `just opa-workload-probe` (the dispatch-only `OPA workload
+probe` workflow) presents a run's token to the connection and reports the
+client's verdict, masking both tokens -- the test to run against a draft
+connection before activating it.
+
+What grants the role reach is **one CI login policy per managed group**,
+`<group>_v1_security_policy_ci`, kept beside the user policy the terraform
+module emits. The Terraform provider cannot name a workload role as a
+principal (okta/oktapam 0.7.1 accepts only groups), so the policy travels
+through the OPA API, after the identity lifecycle's apply and under the
+same `apply_identity` gate: it is DERIVED from the standing user policy
+record on every reconcile -- same resource group, the rule verbatim,
+admin-level forced off, the role as the only principal -- created, updated
+or left alone, and the outcome recorded under the group in
+`meta-state/identity.yaml` beside what the configuration expects. That
+derivation is what makes "mirrors the user policy" structural: a rule
+change in the module propagates on the next identity run. A group released
+from management is left as it stands, like its user policy; the identity
+lifecycle never destroys.
+
+The state query reads all three objects. An absent role is drift that
+names the checklist (the operator's object); an absent or diverged CI
+policy is drift that names the apply (the system's object); a connection
+that is present but still a draft is a `note`, because activating it is
+the operator's act. None of it is HARD: the validator refuses a run on
+hard drift, and the run that repairs these is the identity apply itself.
+A strict state query still fails on them. A silent OPA says nothing, as
+everywhere else.
+
+**The proof itself** is `cs-image-system verify login [<instance>...]
+[--runtime <rt>]` (`just ci-login-proof`, and the `sft` leg of
+`cloud-verify`). For each standing instance -- launched, not ephemeral --
+of a group whose builder names the workload objects it checks, in order:
+the machine is RUNNING (a stopped one is skipped and never started, stage
+57); exactly one server answers to the canonical hostname in the group's
+registry (stage 55: a second one would make `sft ssh` reach an arbitrary
+machine); the client resolves the name; `id` runs over `sft ssh`. Each
+verdict, with the Unix account the login landed in, goes to
+`meta-state/login-proofs.yaml`. With `OPA_TOKEN` in the environment the
+login is the workload's (`scripts/opa-workload-token` mints it from the
+Actions run's OIDC token; the recipe does this itself inside a job); run by
+hand without one, the enrolled client logs in as you and the record says
+`as: client`. In CI the `perform` job runs it on `main` after the
+performing step, under the read-only role, and the closing record commits
+the verdicts. What must turn it red: the group's CI policy deactivated or
+absent, the role's condition not matching the run, a machine that never
+enrolled, a duplicate hostname -- and deactivating one group's policy
+fails that group's proof alone.
+
 ### Ephemeral instances
 
 `instances[].ephemeral: true` declares an instance that exists to be
@@ -1749,6 +1816,10 @@ exception is a decision to record, not a bypass.
   first.
 - Attribute writes on identities stay disabled until the stakeholder
   decides otherwise.
+- The CI login policy (`<group>_v1_security_policy_ci`, stage 56) is the
+  system's and is rewritten from the user policy on every identity apply;
+  edit the module's rule, never the copy. The workload connection and role
+  it names are the operator's and are never written by the system.
 
 ### Applies
 

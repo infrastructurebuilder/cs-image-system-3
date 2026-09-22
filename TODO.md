@@ -9,26 +9,33 @@ system must not take itself.
 
 Current stage: **none in progress**.
 
-Open stages and their order (revised 2026-09-21, when §58-§60 were added):
-**§56 -> §19 steps 4-5 -> §59**, with §30 orthogonal. (§57, §55, §58 and
+Open stages and their order (revised 2026-09-22, when §56 landed):
+**§19 steps 4-5 -> §59**, with §30 orthogonal. (§56 LANDED 2026-09-22:
+the team's workload connection and role stand, the identity lifecycle keeps
+one CI login policy per group -- all five created live at 09:07 -- and the
+`sft ssh` proof ran by hand at 09:35 as the enrolled client. The WORKLOAD
+form of that login runs in the `perform` job the first time `develop`
+reaches `main`; that run proves the CI policy itself and shows which Unix
+account a workload lands in, after which `WORKLOAD_CONNECTION.md` folds
+into OPERATIONS and the operator adds the `ref` pin to the role.) (§57, §55, §58 and
 §60 all LANDED 2026-09-21 -- §55 in two passes, steps 1-3 before §58 and
 step 4 after §60, which is how the three stages' dependency cycle was
-broken. Two live proofs are still owed and both wait on the operator
-starting a machine: §58's first real `AltNames` write, and §55 step 4's
-first real `-NNN` launch -- `coops-model` is grandfathered under its bare
-name until its first sanctioned replacement, so nothing changes for it
-until then.) §55 SPLIT because, taken whole,
-§55, §58 and §60 formed a dependency cycle. §56 proves what §19 step 4
-claims; the naming is now settled, so it can write the proof down, after
-which §19 finishes -- its step 5, the upgrade path, having gained something
-concrete to mean from §60 (a sanctioned replacement is a new generation with
-a new name). §59 is deliberately LAST: it overlaps the suffix, and only once
+broken. Both live proofs landed 2026-09-21 22:21 in one applies-on
+instance-image run the operator made with `coops-model` running: its record
+now answers to `ip-10-26-34-156` as an `AltNames` alias, and the ledger
+opened it as durable generation 1. `coops-model` is grandfathered under its
+bare name until its first sanctioned replacement, which is the first real
+`-NNN` launch.) §55 SPLIT because, taken whole,
+§55, §58 and §60 formed a dependency cycle. §56 proved what §19 step 4
+claims, so §19 finishes next -- its step 5, the upgrade path, having gained
+something concrete to mean from §60 (a sanctioned replacement is a new
+generation with a new name). §59 is deliberately LAST: it overlaps the suffix, and only once
 that is standing can anyone judge whether a name pool is still wanted. §30 waits on the operator's decision and depends
 on none of this. §61 is the open hygiene bundle (V); a new hygiene issue
 goes there.
 
-**The path to §19 is now the path**: **§56 -> §19**, two stages, with §59
-the only naming work left and deferrable. Nothing in that shorter path has to be redone -- §58
+**The path to §19 is now the path**: **§19**, one stage, with §59 the only
+naming work left and deferrable. Nothing in that shorter path has to be redone -- §58
 adds the bare name back as an alias, so a proof written against `coops-model`
 survives the suffix.
 
@@ -286,54 +293,6 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
 
-## 56. CI logs in as a member of the group, and that is the proof
-
-**Why**: §19 claims that owning a group gets you into the machine, and
-nothing demonstrates it. The system verifies an AWS instance through SSM --
-that is how `coops-model`'s mounts and packages were checked -- which proves
-the box is healthy and says nothing about access. The operator proved the
-claim by hand on 2026-09-21 (`sft ssh coops-model`, after the duplicate
-registrations were cleared); a claim proved by hand once is a claim that
-regresses silently.
-
-It is also worth stating why this is not a workaround. `sft ssh` felt to the
-operator like something automation is meant to be excluded from. It is not:
-the team already has SIX service users, access is granted to GROUPS rather
-than to human-ness, and the client (1.114.0) carries `SFT_NO_BROWSER`,
-`SFT_TOKEN_FILE` and Okta's PAM SDK including `api_service_users.go` and an
-`IsServiceUser` flag. The browser step is the human OIDC flow, not the
-protocol. The alternative -- a long-lived SSH key in a CI secret -- is the
-thing OPA exists to replace with a short-lived, audited, per-session
-certificate.
-
-1. **Settle the client ceremony first, cheaply.** How a SERVICE user enrols a
-   client non-interactively is the one unknown: whether `SFT_TOKEN_FILE`
-   takes a service token, whether `sft enroll` is needed at all, and what
-   `SFT_NO_BROWSER` changes. Establish it here with a throwaway service user
-   before anything depends on it. **USER**: this writes to the OPA team
-   (a service user, a key pair, a group membership), so it needs a go-ahead.
-2. **A CI identity in the group, not an exception.** One service user in
-   `coops_user` -- the same group a scientist is in -- so the test asserts
-   the real path. Its key pair joins the repository secrets beside
-   `TF_VAR_NOS_KEY`/`SECRET`. If it needs a group of its own for hygiene,
-   that group is added to the project like any other; what it must not get is
-   a capability humans do not have, or the proof is of something else.
-3. **The proof itself**: the runner installs `sft` (nothing in the Justfile
-   or CI does today), enrols non-interactively, runs ONE command over
-   `sft ssh` against the standing instance, and asserts on its output. A leg
-   of `cloud-verify` beside `serial` and `iap`, so it is the same shape as
-   the checks that already exist.
-4. **What it must fail on.** A revoked membership, a machine that never
-   enrolled, and a DUPLICATE canonical hostname (§55) all have to fail it
-   loudly -- the last one especially, since a second `coops-model` makes
-   `sft ssh` reach an arbitrary one of them and a green test would then mean
-   nothing.
-5. **Cost**: the proof needs a standing instance to log into, so it runs
-   against whatever §19 leaves standing rather than launching its own.
-6. Records: OPERATIONS on proving access rather than health, and on the
-   service-user pattern. Feature branch `feature/ci-logs-in`, squash-merged,
-   kept.
-
 ## 59. A pool of names, each spent once
 
 **Why**: §58 gives an instance somewhere to put a memorable name; nothing
@@ -393,7 +352,10 @@ configure. That is the operator's stated shape and it should stay literal.
    be a legal name for the slot it will fill: since §58 puts it in OPA, it
    faces §55's budget -- an RFC 1123 label, at most 63 characters. Validate
    the whole file at `validate`, where an unusable line is a typo to fix, not
-   at 3am when it is the next one up.
+   at 3am when it is the next one up. The operator seeded the live pool on
+   2026-09-21 (3671 names, e.g. `cod`, `red-cod`); every line is a legal
+   label and none repeats, so the validator's first live pass is expected
+   to be clean.
 6. **Spent is spent.** A decommission does NOT return a name to the pool.
    That is the point: §55 exists because a name outlived the machine that
    answered to it, and recycling names through a pool would rebuild the same
@@ -477,3 +439,20 @@ ceremony. Landed together on `feature/hygiene-v`, squash-merged, kept.
    refreshable token cannot block a run on its own. What REMAINS of this
    item is the recipe half: one up-front check with full-test's whole
    estimate instead of a per-leg check.
+3. **A membership the YAML dropped and OPA already lacks blocks every
+   identity plan.** The oktapam provider's refresh of an
+   `oktapam_user_group_attachment` ERRORS (`user "x" is not present within
+   group "g"`) instead of dropping the resource from state when the
+   membership is gone, so the plan never reaches the point where it would
+   have destroyed the attachment. Found 2026-09-22 on the first real
+   identity run after the coops declaration was conformed to OPA
+   (2026-09-18): two stale attachments in state, and the repair was a hand
+   `tofu state rm` of both (after the same-day state backup the operations
+   rules ask for). The system can do this itself the way it already does
+   for unmanaged groups (`pre_plan` at `okta_opa_tf_group_builder.py`):
+   before the plan, every attachment in state whose group no longer
+   declares that user is `state rm`'d -- the attachment is a record of a
+   membership, and a membership the configuration no longer declares has
+   nothing to destroy once the provider agrees it is gone. When OPA STILL
+   has the membership, leave it to the plan: that destroy is the explicit
+   decision the operations rules require, and the gate sees it.

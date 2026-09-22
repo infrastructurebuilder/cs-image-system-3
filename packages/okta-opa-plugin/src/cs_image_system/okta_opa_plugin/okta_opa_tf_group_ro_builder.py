@@ -90,15 +90,16 @@ class OktaTfGroupRoBuilder(OktaTfGroupBuilder):
         if phase != ExecutionLifecyclePhase.GROUP_GENERATION or not self._groups():
             return CFExecutables([], [])
         arg_lists = [["fmt"], self._init_args(phase), ["validate"]]
+        wd = self.get_path_for_phase(phase, suffix=".tf").parent
+        commands = self.terraform_commands(phase, arg_lists, wd)
         if self._dry_run():
             # a dry run initialises without the backend and touches no state
             log.info(f"Group builder {self.name}: dry run, 'plan' not run at generation time")
         elif okta_credentials_present():
-            arg_lists.append(["plan"])
+            commands += self.plaintext_read_commands(phase, wd, [["plan"]])   # the mirror: ciphertext in the emission
         else:
             log.warning(
                 f"Group builder {self.name}: skipping 'plan' (no okta "
                 f"credentials in the environment)."
             )
-        wd = self.get_path_for_phase(phase, suffix=".tf").parent
-        return CFExecutables(self.terraform_commands(phase, arg_lists, wd), [])
+        return CFExecutables(commands, [])
