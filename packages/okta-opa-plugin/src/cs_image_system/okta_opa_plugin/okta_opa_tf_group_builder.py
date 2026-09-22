@@ -488,8 +488,11 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         # a dry run initialises without the backend and touches no state, so
         # the generation-time plan (a read) is a real run's; the deferred
         # script below enumerates the gated plan either way
-        arg_lists = [["fmt"], self._init_args(phase), ["validate"]] + ([] if self._dry_run() else [["plan"]])
-        commands = self.terraform_commands(phase, arg_lists, wd)
+        commands = self.terraform_commands(phase, [["fmt"], self._init_args(phase), ["validate"]], wd)
+        if not self._dry_run():
+            # the plan reads plaintext, so it runs in the private mirror (stage 51: the
+            # derived addresses carry ciphertext in the committed emission)
+            commands += self.plaintext_read_commands(phase, wd, [["plan"]])
         pre_plan = [["state", "rm", f"module.group_{utils.super_safe_name(g.name)}"]
                     for g in self._newly_unmanaged_groups()]
         # Per-root apply scoping (stage 7): the identity root is its builder name
