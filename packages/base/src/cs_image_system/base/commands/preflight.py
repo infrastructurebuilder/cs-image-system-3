@@ -104,6 +104,16 @@ def aws_sso_expiry(profile: str, aws_dir: Path | None = None) -> tuple[datetime 
         return None, f"no SSO token cached for profile {profile!r} (aws sso login --profile {profile})"
     try:
         data = json.loads(cache.read_text())
+        if data.get("refreshToken"):
+            # An sso-session profile's cache holds a ONE-HOUR access token
+            # and a refresh token the CLI renews it from silently for as long
+            # as the portal session lives. Its expiresAt is the access
+            # token's, not the window: read against a 30-minute run it
+            # refused a full-test on its last leg (2026-09-21) while the CLI
+            # would have carried it. No fixed expiry is readable -- the same
+            # answer preflight gives GCP ADC.
+            return None, (f"present; refreshes itself from the refresh token in sso cache {cache.name[:8]} "
+                          "while the portal session lives (no fixed expiry readable)")
         exp = str(data.get("expiresAt") or "")
         return datetime.fromisoformat(exp.replace("Z", "+00:00")), f"sso cache {cache.name[:8]}"
     except (ValueError, OSError) as e:

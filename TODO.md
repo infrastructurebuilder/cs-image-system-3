@@ -470,6 +470,10 @@ ceremony. Landed together on `feature/hygiene-v`, squash-merged, kept.
    silently from a refresh token while the portal session lives. So the
    number preflight reads no longer means what it did -- a run of 45
    minutes will read as "expires before the expected length" while the CLI
-   would in fact carry it. Whatever this item does should read the
-   refresh-capable case as the portal session (unknown but long), not as
-   the access token.
+   would in fact carry it. LANDED the same evening, in 55 step 4's branch
+   because it blocked that stage's full-test: `aws_sso_expiry` now answers
+   "no fixed expiry readable; refreshes itself" for a cache entry carrying
+   a `refreshToken`, the answer preflight already gave GCP ADC, so a
+   refreshable token cannot block a run on its own. What REMAINS of this
+   item is the recipe half: one up-front check with full-test's whole
+   estimate instead of a per-leg check.
