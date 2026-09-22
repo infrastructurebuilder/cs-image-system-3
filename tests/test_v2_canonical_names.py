@@ -97,11 +97,17 @@ def test_an_ephemeral_instance_counts_on_its_own_counter(world, monkeypatch):
 
 
 def test_the_pad_is_a_minimum_width(world):
+    """The counter is seeded, not driven: a thousand open/close cycles are
+    thousands of atomic ledger writes (over ten minutes, and the run that
+    hit a full temp volume on 2026-09-22) for a fact one write states."""
     ctx = world.ctx
     ms = ctx.meta_state
-    for n in range(1000):
-        ms.open_generation("test", kind="durable", run_id="r", how="observed", launch_params={})
-        ms.close_generation("test", run_id="r", why="decommission")
+    from cs_image_system.base.meta_state import INSTANCE_STATE
+    data = ms.read(INSTANCE_STATE)
+    data.setdefault("instances", {})["test"] = {"generation": {"durable": 1000, "ephemeral": 0},
+                                                "current": None, "history": []}
+    ms.write(INSTANCE_STATE, data)
+    assert ms.instance_generation("test", "durable") == 1000
     assert lp.canonical_hostname(ctx, _inst(ctx)) == "test-1001"
 
 
