@@ -402,6 +402,13 @@ provider's source (the team's API was not queried):**
    (`run identity` against the live tree), and which also confirms the
    `workload_roles` principal shape and the workload listings' paths
    against the real API.
+   The first attempt (2026-09-22 07:22) found a latent stage-51 defect
+   instead: a real run's generation-time `plan` of the identity roots ran
+   in `generated/`, where the derived addresses carry ciphertext, and every
+   derived Okta user lookup failed with "no users found". Fixed on this
+   branch (`b599d66`): the plan is materialised, initialised and run in the
+   private mirror, as the deferred runner already does
+   (`plaintext_read_commands`).
 4. **The proof leg, generic.** The runner installs `sft` (nothing in the
    Justfile or CI does today). For each managed group with a standing
    instance: `sft workload authenticate --role-hint cs-image-system-ci`;
