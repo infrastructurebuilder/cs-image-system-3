@@ -9,8 +9,15 @@ system must not take itself.
 
 Current stage: **none in progress**.
 
-Open stages and their order (revised 2026-09-21, when §58-§60 were added):
-**§56 -> §19 steps 4-5 -> §59**, with §30 orthogonal. (§57, §55, §58 and
+Open stages and their order (revised 2026-09-22, when §56 landed):
+**§19 steps 4-5 -> §59**, with §30 orthogonal. (§56 LANDED 2026-09-22:
+the team's workload connection and role stand, the identity lifecycle keeps
+one CI login policy per group -- all five created live at 09:07 -- and the
+`sft ssh` proof ran by hand at 09:35 as the enrolled client. The WORKLOAD
+form of that login runs in the `perform` job the first time `develop`
+reaches `main`; that run proves the CI policy itself and shows which Unix
+account a workload lands in, after which `WORKLOAD_CONNECTION.md` folds
+into OPERATIONS and the operator adds the `ref` pin to the role.) (§57, §55, §58 and
 §60 all LANDED 2026-09-21 -- §55 in two passes, steps 1-3 before §58 and
 step 4 after §60, which is how the three stages' dependency cycle was
 broken. Both live proofs landed 2026-09-21 22:21 in one applies-on
@@ -19,17 +26,16 @@ now answers to `ip-10-26-34-156` as an `AltNames` alias, and the ledger
 opened it as durable generation 1. `coops-model` is grandfathered under its
 bare name until its first sanctioned replacement, which is the first real
 `-NNN` launch.) §55 SPLIT because, taken whole,
-§55, §58 and §60 formed a dependency cycle. §56 proves what §19 step 4
-claims; the naming is now settled, so it can write the proof down, after
-which §19 finishes -- its step 5, the upgrade path, having gained something
-concrete to mean from §60 (a sanctioned replacement is a new generation with
-a new name). §59 is deliberately LAST: it overlaps the suffix, and only once
+§55, §58 and §60 formed a dependency cycle. §56 proved what §19 step 4
+claims, so §19 finishes next -- its step 5, the upgrade path, having gained
+something concrete to mean from §60 (a sanctioned replacement is a new
+generation with a new name). §59 is deliberately LAST: it overlaps the suffix, and only once
 that is standing can anyone judge whether a name pool is still wanted. §30 waits on the operator's decision and depends
 on none of this. §61 is the open hygiene bundle (V); a new hygiene issue
 goes there.
 
-**The path to §19 is now the path**: **§56 -> §19**, two stages, with §59
-the only naming work left and deferrable. Nothing in that shorter path has to be redone -- §58
+**The path to §19 is now the path**: **§19**, one stage, with §59 the only
+naming work left and deferrable. Nothing in that shorter path has to be redone -- §58
 adds the bare name back as an alias, so a proof written against `coops-model`
 survives the suffix.
 
@@ -286,171 +292,6 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-package` (steps 1–3, 5–7),
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
-
-## 56. CI logs in through the policy the system manages, and that is the proof
-
-**Why**: §19 claims that owning a group gets you into the machine, and
-nothing demonstrates it. The system verifies an AWS instance through SSM --
-that is how `coops-model`'s mounts and packages were checked -- which proves
-the box is healthy and says nothing about access. The operator proved the
-claim by hand on 2026-09-21 (`sft ssh coops-model`, after the duplicate
-registrations were cleared); a claim proved by hand once is a claim that
-regresses silently. And it is not a claim about one model: the system emits
-a login policy for EVERY group it manages
-(`tfmodules/okta_opa_module/main.tf:64`), so the proof is that THOSE
-policies grant, for every group with a machine standing.
-
-It is also worth stating why this is not a workaround. `sft ssh` felt to the
-operator like something automation is meant to be excluded from. It is not:
-OPA shipped workload identity for exactly this in March 2026, access is
-granted to principals rather than to human-ness, and the alternative -- a
-long-lived SSH key in a CI secret -- is the thing OPA exists to replace with
-a short-lived, audited, per-session certificate.
-
-**Settled 2026-09-21/22 from the docs, the 1.114.0 client and the
-provider's source (the team's API was not queried):**
-
-- The legacy ASA "service user" route does NOT fit a GitHub runner: a
-  service user authenticates from an enrolled SERVER (the automation host
-  runs `sftd`, and the project's *Services* tab binds the service user to a
-  local UID on THAT server). A fresh hosted runner per job has no such
-  binding. `SFT_TOKEN_FILE`/`SFT_NO_BROWSER` are the human-flow switches,
-  not the lever.
-- The modern route needs no enrollment: `sft workload authenticate --team
-  <t> --connection <c> --jwt-env VAR [--role-hint <role>]` prints a
-  short-lived token (`OPA_TOKEN`); with `OPA_ADDR` and `SFT_TEAM` set,
-  `sft ssh <host> --command '...'` then works. The identity proof is GitHub
-  Actions' own OIDC JWT -- the same federation CI already uses for AWS -- so
-  no static secret at all.
-- Three OPA objects: a **Workload Connection** (team-scoped trust in the
-  token signer; a DevOps admin drafts it, a security admin activates it), a
-  **Workload Role** (a principal; conditions on the JWT claims), and a
-  **security policy** naming the role.
-- **The provider gap.** okta/oktapam 0.7.1 is the latest release (May
-  2026; the module's constraint is `>= 0.6.3`) and its source contains the
-  word "workload" zero times. Both `oktapam_security_policy` (principals:
-  `groups`) and `_v2` (`user_groups`) accept ONLY groups as principals. So
-  Terraform can neither create the connection or the role nor put a role
-  into a policy. The OPA API can do all three (create endpoints for
-  connections and roles; the console adds roles to policies), and the
-  system already does API-side OPA work through the same client -- §55's
-  retirements and §58's aliases.
-
-**The shape (decided with the operator 2026-09-22):**
-
-1. **One connection and one role per team, hand-made, referenced by
-   name.** The connection is the trust anchor, scoped to the team, and its
-   activation is a security-admin act by design. The role is CI's one
-   identity: a role reaches nothing by itself, policies grant reach, and
-   the policies are per group, so one role is exactly as much identity as
-   CI needs (per-group roles would all carry the same condition and buy no
-   isolation). Both are bootstrap objects like the OPA API key pair:
-   created once, named in the live configuration on the okta-tf group
-   builder beside `team` (`workload_connection: github-cs-image-system`,
-   `workload_role: cs-image-system-ci`), read by the system from then on.
-   The proof refuses when either named object is absent or the connection
-   is still a draft (the API reads its status). The claims are pinned BY
-   NAME (`repository` and, redundantly and on purpose, `repository_owner`)
-   so the document serves the next organization and a person can read the
-   values off their remote URL; the one impersonation a name pin leaves
-   open (the owner's name recycled after deletion) and the relocation
-   order are written down beside the choice. The click-by-click checklist
-   with the values decided is
-   [WORKLOAD_CONNECTION.md](WORKLOAD_CONNECTION.md); it makes ONLY those two
-   objects. **USER**: create both on the morning of 2026-09-22 (the
-   connection as a draft) and hand back the names (and the audience, if
-   the form shows one).
-2. **Prove the token before anything depends on it.** A dispatch-only CI
-   step requests GitHub's OIDC token (`id-token: write` is already granted
-   to the live and perform jobs) and runs `sft workload authenticate
-   --role-hint cs-image-system-ci` against the DRAFT; a draft validates
-   tokens and issues nothing usable, so this is free of consequence. When
-   the log shows the token validate, the operator activates the
-   connection.
-3. **One CI policy per group, system-managed, SEPARATE from the user
-   policy.** `<g>_v1_security_policy_ci`: a copy of the group's standing
-   user policy record (`<g>_v1_security_policy_user`, the one terraform
-   wrote: same resource group, the rule verbatim -- label selector
-   `sftd.tx.group=<g>`, `principal_account_ssh`, admin-level off) with the
-   team role as its only principal. Because the provider cannot name a
-   role as a principal, the okta group builder creates and reconciles it
-   through the OPA API in the identity lifecycle after the terraform apply,
-   under the same guards as the rest of that lifecycle (`apply_identity`
-   gates the write, a dry run reports what it would create or change),
-   records it in `meta-state/identity.yaml`, and `state query` drift-checks
-   it like the groups: absent or diverged from the user policy is drift
-   [HARD], an unanswerable API is unavailable. Deriving the copy from the
-   standing user-policy record at every reconcile is what makes "mirrors
-   verbatim" structural rather than a promise. When a group leaves the
-   configuration the CI policy goes in the same pass as terraform's
-   destroy of the user policy, behind the same "did the destroy apply"
-   check §55's retirement uses. Separate, and not a principal added to the
-   user policy, for three reasons: the provider could not mix a role into
-   that policy's principals anyway; a machine principal inside the human
-   policy means a CI change can lock a scientist out; and a separate policy
-   is its own audit line, revocable alone. Open question the first login
-   answers: which Unix account a workload lands in under principal-account
-   SSH (a workload has no personal account); record it. The security
-   policy endpoint and JSON are known from the provider's own client; the
-   `workload_roles` principal field is known from the client SDK's tags and
-   is confirmed by a GET before the first POST.
-   **Built 2026-09-22 on `feature/ci-logs-in`** (`workload_policy.py`,
-   `workload_access.py`, the builder's three contract methods, the
-   read-model and state-query wiring, 11 tests; the sibling names both
-   objects on its okta-tf builder). **Owed**: the first live reconcile --
-   an identity run with `apply_identity` on, which is the operator's
-   (`run identity` against the live tree), and which also confirms the
-   `workload_roles` principal shape and the workload listings' paths
-   against the real API.
-   The first attempt (2026-09-22 07:22) found a latent stage-51 defect
-   instead: a real run's generation-time `plan` of the identity roots ran
-   in `generated/`, where the derived addresses carry ciphertext, and every
-   derived Okta user lookup failed with "no users found". Fixed on this
-   branch (`b599d66`): the plan is materialised, initialised and run in the
-   private mirror, as the deferred runner already does
-   (`plaintext_read_commands`).
-   **Landed live 2026-09-22 09:07** (run `2026_09_22t09_07_51_985772`,
-   after a hand `state rm` of two stale attachments, hygiene V item 3): all
-   five CI policies created, `principals.workload_roles: [{id}]` accepted
-   as sent, the listings at the SDK's paths (`/workload-roles`,
-   `/connections/workloads`), and a fresh state query reads every policy
-   as mirroring once `security_policy_id` (OPA's back-reference on a stored
-   rule) is treated as bookkeeping. Also learnt: an absent CI policy must
-   not be HARD drift, or the validator refuses the very apply that creates
-   it.
-4. **The proof leg, generic.** The runner installs `sft` (nothing in the
-   Justfile or CI does today). For each managed group with a standing
-   instance: `sft workload authenticate --role-hint cs-image-system-ci`;
-   `sft resolve <name>` must return exactly ONE server (§55); `sft ssh
-   <name> --command id` and assert on the output. A leg of `cloud-verify`
-   beside `serial` and `iap`, so it is the same shape as the checks that
-   already exist. It runs against whatever §19 leaves standing and
-   launches nothing. After its first green run from `main`, the operator
-   adds `ref` Equals `refs/heads/main` to the role, matching the AWS write
-   role's trust.
-   **Built 2026-09-22** (`commands/login_proof.py`, `verify login`,
-   `workload describe --env`, `scripts/opa-workload-token`, `just
-   ci-login-proof`, the `sft` leg of `cloud-verify`, the two `perform`
-   steps, 9 tests). **Owed**: the first live run, which needs the
-   connection ACTIVE (checklist 6.3) and the CI policy created (step 3's
-   owed identity apply), then `just ci-login-proof coops-model` by hand or
-   a `perform` on `main`.
-5. **What it must fail on.** The group's CI policy deactivated or absent;
-   the role's condition not matching the run; a machine that never
-   enrolled; and a DUPLICATE canonical hostname (§55) -- the last one
-   especially, since a second `coops-model` makes `sft ssh` reach an
-   arbitrary one of them. Deactivating one group's CI policy must turn
-   THAT group's leg red and no other, or it proves nothing about the
-   policy.
-6. Records: OPERATIONS on proving access rather than health, on the team
-   connection and role as bootstrap objects with the impersonation and
-   relocation cases, and on the per-group CI policy; the checklist folds
-   into OPERATIONS and the file is deleted. Feature branch
-   `feature/ci-logs-in`, squash-merged, kept.
-
-Order: 1 -> 2 -> 3 -> 4 -> 5 -> 6. This is larger than "a CI leg": the
-identity lifecycle learns one more object, through the API, and that is
-the honest size of it.
 
 ## 59. A pool of names, each spent once
 

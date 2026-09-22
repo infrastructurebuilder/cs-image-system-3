@@ -95,6 +95,14 @@ def test_a_silent_registry_is_a_failed_check_not_one_server(world):
     assert w["calls"] == []
 
 
+def test_an_expired_client_session_is_named_not_silent(world):
+    _, w = world
+    w["sft"]["resolve"] = (126, "")            # --quiet forbade the browser step (live 2026-09-22)
+    records = lp.login_proof(["test"], record_only=True)
+    resolves = records[0]["checks"][1]
+    assert not resolves["ok"] and "sft login" in resolves["detail"] and "OPA_TOKEN" in resolves["detail"]
+
+
 def test_a_refused_login_names_the_client_output(world):
     _, w = world
     w["sft"]["ssh"] = (255, "Permission denied (publickey)")

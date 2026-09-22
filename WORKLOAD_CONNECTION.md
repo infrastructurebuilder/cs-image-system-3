@@ -3,9 +3,9 @@
 *Stage 56 step 1. Executed by the operator in the Okta Privileged Access
 (OPA) admin console as a security admin. Written so that another team, in
 another organization, can follow it for their own copy of this repository:
-every value that is ours is in the table and nowhere else. Once the proof
-has run, this checklist moves into [docs/OPERATIONS.md](docs/OPERATIONS.md)
-and this file is removed.*
+every value that is ours is in the table and nowhere else. Once the
+workload login has run on `main`, this checklist moves into
+[docs/OPERATIONS.md](docs/OPERATIONS.md) and this file is removed.*
 
 ## What this builds, and what it deliberately does not
 
@@ -254,6 +254,14 @@ privilege rather than working around it.
       2026-09-22 09:07 created the five CI policies (one per managed
       group) and a fresh state query reads every one as mirroring its user
       policy. The first live login waits on `coops-model` running.
+- [x] 6.4a (Operator) **By hand, 2026-09-22 09:35**: `just ci-login-proof
+      coops-model` from the code repo, as the enrolled client, passed all
+      three checks (one registration, resolves, `id` over `sft ssh`) and
+      recorded it. Run `sft login` first when the client's session has
+      lapsed: `sft resolve --quiet` cannot open a browser and exits 126.
+      As the client the grant is YOUR membership, so this proves the leg
+      and the machine; the CI policy is proved by the workload login on
+      `main`, which also shows the Unix account a workload lands in.
 - [ ] 6.5 (Operator) After the first green run from `main`, add the branch
       pin to the role: condition Source field name `ref`, operator
       **Equals**, value `refs/heads/main`. Renaming the default branch is

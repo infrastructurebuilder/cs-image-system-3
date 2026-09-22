@@ -152,8 +152,14 @@ def prove_login(inst: Any, *, timeout: int = 120) -> dict[str, Any]:
                                           else " -- the machine never enrolled, or enrolled under another name"))})
     if checks[-1]["ok"]:
         rc, out = run_sft(["resolve", "--quiet", hostname], timeout=timeout)
+        why = out.strip()[:300]
+        if rc == 126 and not why:
+            # the client wanted a browser and --quiet forbade it (live 2026-09-22):
+            # by hand that is an expired client session; as the workload, no token
+            why = ("the client has no session (as the enrolled client: run `sft login`; as the "
+                   "workload: OPA_TOKEN is missing or was refused)")
         checks.append({"name": "resolves", "ok": rc == 0,
-                       "detail": f"sft resolve {hostname}: exit {rc}" + ("" if rc == 0 else f" -- {out.strip()[:300]}")})
+                       "detail": f"sft resolve {hostname}: exit {rc}" + ("" if rc == 0 else f" -- {why}")})
     if checks[-1]["ok"]:
         rc, out = run_sft(["ssh", hostname, "--command", "id && hostname"], timeout=timeout)
         account = re.search(r"uid=\d+\((?P<u>[^)]+)\)", out)
