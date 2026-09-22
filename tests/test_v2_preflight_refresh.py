@@ -18,6 +18,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from cs_image_system.base.commands import preflight
 from cs_image_system.base.commands.preflight import SessionInfo, aws_sso_expiry
 
 
@@ -59,3 +60,19 @@ def test_a_refreshable_token_has_no_fixed_expiry_and_cannot_block(tmp_path):
 def test_an_sso_session_profile_without_a_refresh_token_is_still_read_literally(tmp_path):
     exp, _ = aws_sso_expiry("p", aws_dir=_aws_dir(tmp_path, session=True, refresh=False, minutes=25))
     assert exp is not None
+
+
+def test_a_refreshable_token_counts_as_present_for_readiness(tmp_path, monkeypatch):
+    """The reader said 'present; refreshes itself' and readiness still called
+    it absent, skipping the live legs (2026-09-21 20:55). Presence must
+    follow the note, as it does for GCP ADC."""
+    d = _aws_dir(tmp_path, session=True, refresh=True, minutes=5)
+    monkeypatch.setattr(preflight, "_aws_dir", lambda: d)
+    monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
+    info = preflight._info_for("r", "aws", "p")
+    assert info is not None and info.present and info.expires_at is None
+    assert not info.blocking(datetime.now(timezone.utc), expected=30)
+    d2 = _aws_dir(tmp_path / "legacy", session=False, refresh=False, minutes=5)
+    monkeypatch.setattr(preflight, "_aws_dir", lambda: d2)
+    info = preflight._info_for("r", "aws", "p")
+    assert info is not None and info.present and info.expires_at is not None

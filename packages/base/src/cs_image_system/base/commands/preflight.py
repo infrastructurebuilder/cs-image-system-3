@@ -162,8 +162,12 @@ def _info_for(name: str, provider: str, profile: str | None) -> SessionInfo | No
         if not profile:
             return SessionInfo(name, "aws", "no profile", None, "no profile configured and no AWS_PROFILE", present=False)
         exp, note = aws_sso_expiry(profile)
+        # present: a fixed expiry, a non-SSO profile, or a refreshable token
+        # (note begins "present;", as the GCP ADC note does) -- the last was
+        # read as ABSENT for an hour on 2026-09-21 and skipped full-test's
+        # live legs while the CLI was refreshing the token underneath
         return SessionInfo(name, "aws", f"profile {profile}", exp, note,
-                           present=exp is not None or _PRESENT_WITHOUT_EXPIRY in note)
+                           present=exp is not None or _PRESENT_WITHOUT_EXPIRY in note or note.startswith("present;"))
     if "gc" in provider or "google" in provider:
         exp, source, note = _gcp_adc()
         return SessionInfo(name, "gcp", source, exp, note, present=not note.startswith("no "))
