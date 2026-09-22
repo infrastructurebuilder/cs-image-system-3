@@ -19,6 +19,8 @@ from .okta_opa_tf_group_models import OktaTfGroupBuilderModel
 from .okta_tf_models import OKTATF
 from .opa_attributes import OPA_GROUP_ATTRIBUTES, validate_opa_attributes
 from .opa_gids import ADMIN_GROUP_SUFFIX, GROUP_NAME_ATTRIBUTE, USER_GROUP_SUFFIX, OpaGidResolver, credentials_from_env
+from .workload_policy import (WorkloadSnapshot, by_name, ci_policy_from, ci_policy_name, policies_equal,
+                              user_policy_name, workload_state)
 
 """
 Group provider implementation via Terraform/Tofu for Okta groups using okta/oktapam
@@ -151,6 +153,61 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
                 gone.append(s["id"])
         return gone
 
+    # ------------------------------------------- CI login policy (stage 56)
+    def can_manage_workload_access(self) -> bool:
+        return bool(self.model.workload_connection and self.model.workload_role)
+
+    def workload_access_expected(self, group: str) -> dict[str, Any] | None:
+        if not self.can_manage_workload_access():
+            return None
+        return {"connection": str(self.model.workload_connection),
+                "role": str(self.model.workload_role),
+                "policy": ci_policy_name(group), "mirrors": user_policy_name(group)}
+
+    def _workload_snapshot(self) -> "WorkloadSnapshot | None":
+        """One read of the three listings a group's state and reconcile need;
+        None when the policies or the roles could not be read (the
+        connections listing may fail alone: it is reported, never required)."""
+        r = self._resolver()
+        policies, roles = r.security_policies(), r.workload_roles()
+        if policies is None or roles is None:
+            return None
+        return WorkloadSnapshot(policies=policies, roles=roles, connections=r.workload_connections())
+
+    def workload_access_state(self, group: str) -> dict[str, Any] | None:
+        snap = self._workload_snapshot()
+        return None if snap is None else workload_state(snap, group, str(self.model.workload_connection),
+                                                        str(self.model.workload_role))
+
+    def ensure_workload_access(self, group: str) -> dict[str, Any]:
+        snap = self._workload_snapshot()
+        if snap is None:
+            raise RuntimeError("OPA's security policies or workload roles could not be read")
+        role = by_name(snap.roles, str(self.model.workload_role))
+        if role is None:
+            raise RuntimeError(f"workload role {self.model.workload_role!r} is not known to OPA; "
+                               "the operator creates it (WORKLOAD_CONNECTION.md section 2)")
+        role_id = str(role.get("id") or "")
+        if not role_id:
+            raise RuntimeError(f"workload role {self.model.workload_role!r} carries no id")
+        user = by_name(snap.policies, user_policy_name(group))
+        if user is None:
+            raise RuntimeError(f"user policy {user_policy_name(group)!r} is absent; the identity apply "
+                               "creates it, and the CI policy is a copy of it")
+        desired = ci_policy_from(user, group, role_id)
+        standing = by_name(snap.policies, ci_policy_name(group))
+        r = self._resolver()
+        if standing is None:
+            created = r.create_security_policy(desired)
+            return {"action": "created", "policy": ci_policy_name(group),
+                    "id": str(created.get("id") or ""), "role_id": role_id}
+        if policies_equal(standing, desired):
+            return {"action": "unchanged", "policy": ci_policy_name(group),
+                    "id": str(standing.get("id") or ""), "role_id": role_id}
+        r.update_security_policy(str(standing["id"]), desired)
+        return {"action": "updated", "policy": ci_policy_name(group),
+                "id": str(standing.get("id") or ""), "role_id": role_id}
+
     def query_state(self) -> dict[str, dict[str, Any]]:
         """OPA's record of every group this builder manages: the server
         group's unix gid / group name and, when the service answers, its
@@ -158,6 +215,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         team, api_host = str(self.model.team), str(self.model.api_host)
         key, secret = credentials_from_env(team)
         resolver = OpaGidResolver(api_host, team, key, secret)
+        snapshot = self._workload_snapshot() if self.can_manage_workload_access() else None
         out: dict[str, dict[str, Any]] = {}
         for g in self.get_groups_for_builder():
             name = g.get_name()
@@ -183,6 +241,11 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
             if descs is not None:
                 rec["enrollment_token"] = any(
                     d.startswith("cs-image-system launch enrollment") for d in descs)
+            # stage 56: the CI login policy, the role it names and the
+            # connection behind it; the key is omitted when OPA is silent
+            if snapshot is not None:
+                rec["workload"] = workload_state(snapshot, name, str(self.model.workload_connection),
+                                                 str(self.model.workload_role))
             out[name] = rec
         return out
 

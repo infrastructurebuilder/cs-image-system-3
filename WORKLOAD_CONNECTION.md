@@ -225,23 +225,33 @@ privilege rather than working around it.
 
 ## 6. What happens next
 
-- [ ] 6.1 (Claude) The two names go into the live configuration on the
+- [x] 6.1 (Claude) The two names go into the live configuration on the
       okta-tf group builder beside `team`: `workload_connection:
       github-cs-image-system` and `workload_role: cs-image-system-ci`.
-- [ ] 6.2 (Claude) A dispatch-only CI step requests GitHub's OIDC token
+      **Done 2026-09-22** in the sibling's `cfg/group-builders.yml`.
+- [x] 6.2 (Claude) A dispatch-only CI step requests GitHub's OIDC token
       (`permissions: id-token: write`, already granted to the live and
       perform jobs) and runs `sft workload authenticate --team
       nos-coastal-modeling-cloud-sandbox --connection github-cs-image-system
       --role-hint cs-image-system-ci --jwt-env <VAR>` against the
       **draft**. The command is documented in [CLI command for workload
       authentication][cli]. The run's log shows the token validate.
+      **Done 2026-09-22 11:44Z**: `just opa-workload-probe` from the
+      `OPA workload probe` workflow (run 35723142181, branch
+      `feature/ci-logs-in`) -- claims `repository`, `repository_owner`, `aud`
+      (`https://github.com/infrastructurebuilder`, GitHub's default; the form
+      showed no audience) as pinned; `sft workload authenticate` exit 0 with
+      a token on stdout even against the draft. The recipe is `just
+      opa-workload-probe`; the runner gets the client from `just sft-install`.
 - [ ] 6.3 (Operator) Activate the connection: **Workload connections**, the
       draft, promote to active. From here the system refuses the proof
       when either named object is absent or the connection is still a
       draft.
-- [ ] 6.4 (Claude) The identity lifecycle learns the per-group CI policy
+- [x] 6.4 (Claude) The identity lifecycle learns the per-group CI policy
       (TODO §56 step 3), then the generic `sft ssh` proof leg lands as
       `cloud-verify ... sft` (steps 4 and 5) and runs from `main`.
+      **Built 2026-09-22** on `feature/ci-logs-in`; the first live run
+      waits on 6.3 and on an identity apply that creates the CI policy.
 - [ ] 6.5 (Operator) After the first green run from `main`, add the branch
       pin to the role: condition Source field name `ref`, operator
       **Equals**, value `refs/heads/main`. Renaming the default branch is

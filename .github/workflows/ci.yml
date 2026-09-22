@@ -520,6 +520,26 @@ jobs:
             "$AWS_ACCESS_KEY_ID" "$AWS_SECRET_ACCESS_KEY" "$AWS_SESSION_TOKEN" > ~/.aws/credentials
           chmod 600 ~/.aws/credentials
 
+      - name: Install the OPA client
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
+        working-directory: cs-image-system-3
+        run: just sft-install
+
+      - name: CI logs in through the managed policy
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
+        working-directory: cs-image-system-3
+        env:
+          OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_key: ${{ secrets.TF_VAR_NOS_KEY }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_secret: ${{ secrets.TF_VAR_NOS_SECRET }}
+          CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY }}
+        # stage 56: as the WORKLOAD (this run's OIDC token, the team's connection
+        # and role from the configuration), `sft ssh` into every standing instance
+        # on the runtime through the CI policy the system manages; a stopped
+        # machine is skipped, never started; the verdicts are recorded and the
+        # closing record below commits them
+        run: just ci-login-proof --runtime aws-east2-runtime
+
       - name: The full run, recorded again
         if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
         working-directory: cs-image-system-3

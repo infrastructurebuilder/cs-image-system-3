@@ -477,7 +477,7 @@ cloud-cycle runtime dry="no": cloud-preflight
 cloud-stand runtime dry="no": cloud-preflight
 	@scripts/with-tofu-lock {{gce_cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run --all --only-runtime {{runtime}} --apply-runtime {{runtime}} --commit
 
-# Verify a standing ephemeral instance through the system; `iap` adds an ssh probe on GCE (facts from the config)
+# Verify a standing instance through the system; `iap` adds an ssh probe on GCE (facts from the config), `sft` the stage-56 login proof
 cloud-verify runtime instance leg="serial": config-guard
 	#!/usr/bin/env bash
 	set -euo pipefail
@@ -488,6 +488,9 @@ cloud-verify runtime instance leg="serial": config-guard
 		zone=$(printf '%s' "$facts" | python3 -c 'import json,sys; print(json.load(sys.stdin)["zone"])')
 		gcloud compute ssh {{instance}} --zone "$zone" --project "$project" --tunnel-through-iap --command 'findmnt -n /mnt && id' \
 		&& echo "cloud-verify: IAP session confirmed"
+	fi
+	if [ "{{leg}}" = "sft" ]; then
+		just ci-login-proof {{instance}} && echo "cloud-verify: login through the managed policy confirmed"
 	fi
 
 # Dispose of every recorded image on the runtime through the recorded path (retention keeps nothing on an
@@ -555,36 +558,28 @@ sft-install:
 	sudo apt-get install -y -qq scaleft-client-tools
 	echo "sft-install: $(sft --version | head -1)"
 
-# Prints the token's public claims and the client's verdict -- never a token (both are masked).
-# Needs PROBE_CONNECTION, PROBE_ROLE, SFT_TEAM and OPA_ADDR in the environment and a job that
-# holds `id-token: write`. Against a DRAFT connection OPA validates and issues nothing usable.
+# Needs OPA_WORKLOAD_CONNECTION, OPA_WORKLOAD_ROLE, SFT_TEAM and OPA_ADDR in the environment and a job
+# that holds `id-token: write`; prints the token's public claims and the client's verdict, never a
+# token (both are masked). Against a DRAFT connection OPA validates and issues nothing usable.
 # Stage 56 step 2: this Actions run's OIDC token, presented to the team's workload connection
 opa-workload-probe:
 	#!/usr/bin/env bash
 	set -euo pipefail
-	: "${PROBE_CONNECTION:?opa-workload-probe: PROBE_CONNECTION (the workload connection's name) is not set}"
-	: "${PROBE_ROLE:?opa-workload-probe: PROBE_ROLE (the workload role's name) is not set}"
-	: "${SFT_TEAM:?opa-workload-probe: SFT_TEAM (the OPA team) is not set}"
-	: "${OPA_ADDR:?opa-workload-probe: OPA_ADDR (the OPA address) is not set}"
-	: "${ACTIONS_ID_TOKEN_REQUEST_URL:?opa-workload-probe: not a GitHub Actions job holding id-token: write}"
-	jwt=$(curl -fsS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${ACTIONS_ID_TOKEN_REQUEST_URL}" \
-		| python3 -c 'import json, sys; print(json.load(sys.stdin)["value"])')
-	echo "::add-mask::${jwt}"
-	python3 - "$jwt" <<'PY'
-	import base64, json, sys
-	payload = sys.argv[1].split(".")[1]
-	claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
-	for key in ("iss", "aud", "sub", "repository", "repository_owner", "ref", "ref_type", "workflow_ref", "exp"):
-	    print(f"claim {key}: {claims.get(key)}")
-	PY
-	export GH_OIDC_JWT="$jwt"
-	set +e
-	out=$(sft workload authenticate --team "$SFT_TEAM" --connection "$PROBE_CONNECTION" --role-hint "$PROBE_ROLE" --jwt-env GH_OIDC_JWT 2>"${RUNNER_TEMP:-/tmp}/probe-stderr.txt")
-	rc=$?
-	set -e
-	if [ -n "$out" ]; then echo "::add-mask::${out}"; fi
-	echo "opa-workload-probe: sft workload authenticate exit ${rc}; stdout $( [ -n "$out" ] && echo 'carried a token (masked)' || echo 'empty' )"
-	echo "--- stderr"
-	cat "${RUNNER_TEMP:-/tmp}/probe-stderr.txt"
-	rm -f "${RUNNER_TEMP:-/tmp}/probe-stderr.txt"
-	exit "$rc"
+	token=$(scripts/opa-workload-token)
+	echo "opa-workload-probe: the connection accepted this run's token$( [ -n "$token" ] && echo ' and issued one (masked)' )"
+
+# The names come from the configuration (`identity workload --env`), the OPA token from this
+# Actions run (scripts/opa-workload-token; by hand, without one, the enrolled client logs in
+# as YOU and the record says so). ARGS go to `verify login`: instance names, --runtime <rt>.
+# Stage 56 steps 4-5: log into every standing instance through the managed CI policy
+ci-login-proof *ARGS: config-guard
+	#!/usr/bin/env bash
+	set -euo pipefail
+	eval "$({{gce_cli}} identity workload --env)"
+	if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+		OPA_TOKEN="$(scripts/opa-workload-token)"
+		export OPA_TOKEN
+	else
+		echo "ci-login-proof: not a GitHub Actions job -- logging in as the enrolled client, not the workload" >&2
+	fi
+	{{gce_cli}} verify login {{ARGS}}

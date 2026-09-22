@@ -666,6 +666,8 @@ def _register_builtin_hooks() -> None:
     provider_aliases.register(this)   # after mark_launched: it reads `launched` (stage 58)
     from .. import generations
     generations.register(this)   # after mark_launched and the forgets: the machine decides (stage 60)
+    from .. import workload_access
+    workload_access.register(this)   # after the identity read-model is written: it records into it (stage 56)
     release.register(this)
     from .. import retention
     retention.register(this)   # the closing lifecycle (stage 10.3-6), after release

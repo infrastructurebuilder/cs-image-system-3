@@ -235,6 +235,57 @@ class OpaGidResolver:
             raise
         return True
 
+    # ------------------------------------ policies and workloads (stage 56)
+    def _send(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:
+        """One authenticated call with a JSON body; the transport raises on
+        any non-2xx, so a write that did not happen never returns."""
+        headers = {"Authorization": f"Bearer {self.token()}", "Accept": "application/json"}
+        payload = None
+        if body is not None:
+            headers["Content-Type"] = "application/json"
+            payload = json.dumps(body).encode()
+        return self.transport(method, self._url(path), headers, payload)
+
+    def _listing(self, path: str, what: str) -> list[dict[str, Any]] | None:
+        """The records under ``path`` (``{"list": [...]}``, the API's listing
+        shape, or a bare list), or None when the service could not be asked.
+        The transport carries no headers, so a listing longer than one page
+        (the API paginates through ``Link``) is read as its first page."""
+        try:
+            data = self.get(path)
+        except Exception as e:
+            log.debug(f"OPA {what} unavailable: {e}")
+            return None
+        items = data.get("list") if isinstance(data, dict) else data
+        return [rec for rec in (items or []) if isinstance(rec, dict)]
+
+    def security_policies(self) -> list[dict[str, Any]] | None:
+        """Every security policy of the team as the API returns it
+        (``GET /v1/teams/{team}/security_policy``: id, name, description,
+        active, resource_group, principals, rules), or None when it could
+        not be asked."""
+        return self._listing(f"/v1/teams/{self.team}/security_policy", "security policies")
+
+    def create_security_policy(self, body: dict[str, Any]) -> dict[str, Any]:
+        """``POST /v1/teams/{team}/security_policy``; the created record."""
+        data = self._send("POST", f"/v1/teams/{self.team}/security_policy", body)
+        return data if isinstance(data, dict) else {}
+
+    def update_security_policy(self, policy_id: str, body: dict[str, Any]) -> None:
+        """``PUT /v1/teams/{team}/security_policy/{id}`` -- the whole record."""
+        self._send("PUT", f"/v1/teams/{self.team}/security_policy/{policy_id}", body)
+
+    def workload_roles(self) -> list[dict[str, Any]] | None:
+        """The team's workload roles (``GET /v1/teams/{team}/workload_roles``),
+        or None when they could not be read. Roles are the operator's
+        (WORKLOAD_CONNECTION.md section 2); the system only reads them."""
+        return self._listing(f"/v1/teams/{self.team}/workload_roles", "workload roles")
+
+    def workload_connections(self) -> list[dict[str, Any]] | None:
+        """The team's workload connections
+        (``GET /v1/teams/{team}/workload_connections``), or None."""
+        return self._listing(f"/v1/teams/{self.team}/workload_connections", "workload connections")
+
     def user_attributes(self, user_name: str) -> dict[str, Any]:
         """``{attribute_name: attribute_value}`` for one OPA user
         (``GET /v1/teams/{team}/users/{user}/attributes``; verified read-only

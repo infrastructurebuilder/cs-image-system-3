@@ -856,6 +856,30 @@ def unmount_storage_command(
     typer.secho(f"unmount receipt written for {instance}:{storage}", fg=typer.colors.GREEN)
 
 
+@identity_app.command(name="workload")
+def identity_workload_command(
+    env: Annotated[bool, typer.Option("--env", help="Print shell exports (OPA_WORKLOAD_CONNECTION, "
+                                                    "OPA_WORKLOAD_ROLE, SFT_TEAM, OPA_ADDR) for the first builder")] = False,
+) -> None:
+    """Stage 56: what a workload login needs from the configuration -- the
+    team's workload connection and role as named on the group builder, the
+    team and the API address. Nothing secret; empty when none is named."""
+    from cs_image_system.base.commands.login_proof import workload_facts
+    from cs_image_system.base.global_context import GlobalTypeContext
+    facts = workload_facts(GlobalTypeContext())
+    if env:
+        if not facts:
+            typer.secho("identity workload: no group builder names a workload connection and role", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=2)
+        f = facts[0]
+        import shlex
+        for key, val in (("OPA_WORKLOAD_CONNECTION", f["connection"]), ("OPA_WORKLOAD_ROLE", f["role"]),
+                         ("SFT_TEAM", f["team"]), ("OPA_ADDR", f["api_host"])):
+            typer.echo(f"export {key}={shlex.quote(val)}")
+        return
+    typer.echo(json.dumps(facts, indent=2, sort_keys=True))
+
+
 verify_app = typer.Typer(help="Verify launched instances through the runtime (stage 10.2).")
 app.add_typer(verify_app, name="verify")
 
@@ -888,6 +912,39 @@ def verify_instance_command(
         typer.secho(f"instance {name} verified", fg=typer.colors.GREEN)
     else:
         typer.secho(f"instance {name} FAILED verification (recorded; teardown proceeds)", fg=typer.colors.YELLOW, err=True)
+
+
+@verify_app.command(name="login")
+def verify_login_command(
+    names: Annotated[list[str] | None, typer.Argument(help="Instances to log into (default: every standing one)")] = None,
+    runtime: Annotated[str | None, typer.Option("--runtime", help="Only the standing instances on this runtime")] = None,
+    timeout: Annotated[int, typer.Option("--timeout", help="Seconds per client call")] = 120,
+    record_only: Annotated[bool, typer.Option("--record-only",
+        help="Record the verdicts but exit 0 even on failure")] = False,
+) -> None:
+    """Stage 56: log into each standing instance over `sft ssh` -- as the
+    workload when OPA_TOKEN is set (scripts/opa-workload-token), else as the
+    enrolled client -- and record the verdict in meta-state/login-proofs.yaml.
+    A stopped machine is skipped, never started. Exits 1 on a failed login."""
+    from cs_image_system.base.commands.login_proof import LoginProofFailed, login_proof
+    try:
+        records = login_proof(list(names or []) or None, runtime=runtime, timeout=timeout, record_only=record_only)
+    except LoginProofFailed as e:
+        typer.echo(json.dumps(e.records, indent=2, sort_keys=True))
+        typer.secho(str(e), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    except (ValueError, NotImplementedError, RuntimeError) as e:
+        typer.secho(f"verify login: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    typer.echo(json.dumps(records, indent=2, sort_keys=True))
+    proved = [r["instance"] for r in records if r.get("ok")]
+    skipped = [r["instance"] for r in records if r.get("skipped")]
+    if proved:
+        typer.secho(f"login proved for {', '.join(proved)}", fg=typer.colors.GREEN)
+    if skipped:
+        typer.secho(f"login SKIPPED for {', '.join(skipped)} (nothing proved)", fg=typer.colors.YELLOW, err=True)
+    if not records:
+        typer.secho("no standing instance to log into", fg=typer.colors.YELLOW, err=True)
 
 
 @verify_app.command(name="assert")

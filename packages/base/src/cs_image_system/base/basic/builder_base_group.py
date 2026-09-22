@@ -156,6 +156,34 @@ class GroupBuilderBase(BuilderBase[TGROUP]):
         not happen must not be reported as one."""
         raise NotImplementedError(f"{self.__class__.__name__} keeps no server registry")
 
+    # ------------------------------------------- CI login policy (stage 56)
+    def can_manage_workload_access(self) -> bool:
+        """Whether this builder keeps a CI login policy per managed group --
+        true only when the configuration names the team's workload
+        connection and role (WORKLOAD_CONNECTION.md), both made by hand
+        once. A provider without workload identity makes no claim."""
+        return False
+
+    def workload_access_expected(self, group: str) -> dict[str, Any] | None:
+        """What the configuration expects for ``group``: the connection and
+        role it names and the CI policy's name. Structural, no network; the
+        identity read-model records it so the state query can compare."""
+        return None
+
+    def workload_access_state(self, group: str) -> dict[str, Any] | None:
+        """Reality: ``{connection: {present, active}, role: {present, id},
+        policy: {present, id, mirrors}}`` for ``group``, or None when the
+        provider could not be asked (never an absent policy)."""
+        return None
+
+    def ensure_workload_access(self, group: str) -> dict[str, Any]:
+        """Make ``group``'s CI login policy exist as a copy of its standing
+        user policy with the workload role as the only principal: created,
+        updated or unchanged, reported as ``{action, policy, id, role_id}``.
+        Raises when it cannot -- a policy that was not written must not be
+        recorded as one."""
+        raise NotImplementedError(f"{self.__class__.__name__} keeps no CI login policy")
+
     # ------------------------------------------- EXPLORE identity hooks
     def validate_attributes(self, group: Any, attributes: dict[str, Any]) -> list[str]:
         """Names/types of declarable provider attributes. Default: none."""

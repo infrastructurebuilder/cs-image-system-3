@@ -394,6 +394,14 @@ provider's source (the team's API was not queried):**
    policy endpoint and JSON are known from the provider's own client; the
    `workload_roles` principal field is known from the client SDK's tags and
    is confirmed by a GET before the first POST.
+   **Built 2026-09-22 on `feature/ci-logs-in`** (`workload_policy.py`,
+   `workload_access.py`, the builder's three contract methods, the
+   read-model and state-query wiring, 11 tests; the sibling names both
+   objects on its okta-tf builder). **Owed**: the first live reconcile --
+   an identity run with `apply_identity` on, which is the operator's
+   (`run identity` against the live tree), and which also confirms the
+   `workload_roles` principal shape and the workload listings' paths
+   against the real API.
 4. **The proof leg, generic.** The runner installs `sft` (nothing in the
    Justfile or CI does today). For each managed group with a standing
    instance: `sft workload authenticate --role-hint cs-image-system-ci`;
@@ -404,6 +412,13 @@ provider's source (the team's API was not queried):**
    launches nothing. After its first green run from `main`, the operator
    adds `ref` Equals `refs/heads/main` to the role, matching the AWS write
    role's trust.
+   **Built 2026-09-22** (`commands/login_proof.py`, `verify login`,
+   `identity workload --env`, `scripts/opa-workload-token`, `just
+   ci-login-proof`, the `sft` leg of `cloud-verify`, the two `perform`
+   steps, 9 tests). **Owed**: the first live run, which needs the
+   connection ACTIVE (checklist 6.3) and the CI policy created (step 3's
+   owed identity apply), then `just ci-login-proof coops-model` by hand or
+   a `perform` on `main`.
 5. **What it must fail on.** The group's CI policy deactivated or absent;
    the role's condition not matching the run; a machine that never
    enrolled; and a DUPLICATE canonical hostname (§55) -- the last one

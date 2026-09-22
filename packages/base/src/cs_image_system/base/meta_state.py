@@ -56,6 +56,7 @@ VERIFICATIONS = "verifications.yaml"   # ephemeral / verified instances (stage 1
 IMAGE_TESTS = "image-tests.yaml"       # post-bake test results per build (stage 14)
 STATE_LOCATIONS = "state-locations.yaml"  # every workspace's resolved state location, and the migrations (stage 46)
 INSTANCE_STATE = "instance-state.yaml"  # generations: one machine each, and the superseded records (stage 60)
+LOGIN_PROOFS = "login-proofs.yaml"     # CI logged in through the managed policy: every verdict (stage 56)
 
 ALL_FILES = (IDENTITY_READ_MODEL, STORAGE_READ_MODEL, STORAGE_STATE, LINEAGE, PINS,
              LAUNCH_PARAMS, RUNS, STATE_LOCATIONS)
@@ -490,6 +491,16 @@ class MetaState:
         data.setdefault("verifications", []).append(record)
         del data["verifications"][:-500]
         self.write(VERIFICATIONS, data)
+
+    # ------------------------------------------------- login proofs (stage 56)
+    def login_proofs(self) -> list[dict[str, Any]]:
+        return self.read(LOGIN_PROOFS).setdefault("proofs", [])
+
+    def record_login_proof(self, record: dict[str, Any]) -> None:
+        data = self.read(LOGIN_PROOFS)
+        data.setdefault("proofs", []).append(record)
+        del data["proofs"][:-500]
+        self.write(LOGIN_PROOFS, data)
 
     # ------------------------------------------- post-bake image tests (stage 14)
     def image_tests(self) -> dict[str, Any]:

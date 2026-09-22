@@ -38,8 +38,8 @@ jobs:
       id-token: write          # GitHub mints the OIDC token the connection validates
       contents: read
     env:
-      PROBE_CONNECTION: ${{ inputs.connection }}
-      PROBE_ROLE: ${{ inputs.role }}
+      OPA_WORKLOAD_CONNECTION: ${{ inputs.connection }}
+      OPA_WORKLOAD_ROLE: ${{ inputs.role }}
       SFT_TEAM: ${{ inputs.team }}
       OPA_ADDR: ${{ inputs.opa_addr }}
     steps:
