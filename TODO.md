@@ -464,3 +464,12 @@ ceremony. Landed together on `feature/hygiene-v`, squash-merged, kept.
    legs, or a `--needs` override) and let the later legs skip the
    per-command check. Non-critical: the failure is honest and
    environmental; it is just late, and it has now cost two 20-minute runs.
+
+   Since 2026-09-21 19:19 the `noaa` profile is an `sso-session` profile:
+   the cache's `expiresAt` is now the ACCESS token's one hour, renewed
+   silently from a refresh token while the portal session lives. So the
+   number preflight reads no longer means what it did -- a run of 45
+   minutes will read as "expires before the expected length" while the CLI
+   would in fact carry it. Whatever this item does should read the
+   refresh-capable case as the portal session (unknown but long), not as
+   the access token.
