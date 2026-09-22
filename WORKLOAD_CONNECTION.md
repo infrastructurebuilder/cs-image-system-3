@@ -177,9 +177,11 @@ from that page.
 
 ## 2. Workload Role
 
-Source: [Configure workload roles][wr]. If the console refuses to bind a
-role to a connection that is still a draft, do this section after step
-6.3 instead.
+Source: [Configure workload roles][wr]. Binding the role to a connection
+that is still a draft works (confirmed 2026-09-22). If the console will not
+let you add the connection to the role, the account you are using most
+likely lacks the security-admin privilege the role needs; get that
+privilege rather than working around it.
 
 - [ ] 2.1 Go to **Security Administration > Workload roles** and create a
       role.
@@ -206,8 +208,10 @@ role to a connection that is still a draft, do this section after step
 
 - [ ] 4.1 The connection name and the role name exactly as saved.
 - [ ] 4.2 The audience value, if step 1.12 showed one.
-- [ ] 4.3 Whether the console let the role bind to the draft (2.x done) or
-      not (2.x deferred).
+- [ ] 4.3 Whether the role is bound to the connection. If the console
+      would not let you add the connection to the role, say so: it most
+      likely means the account needs greater privileges, and nothing
+      downstream can start until the role is bound.
 
 ## 5. Another team following this document
 
@@ -232,9 +236,9 @@ role to a connection that is still a draft, do this section after step
       **draft**. The command is documented in [CLI command for workload
       authentication][cli]. The run's log shows the token validate.
 - [ ] 6.3 (Operator) Activate the connection: **Workload connections**, the
-      draft, promote to active. Create the role now if section 2 was
-      deferred. From here the system refuses the proof when either named
-      object is absent or the connection is still a draft.
+      draft, promote to active. From here the system refuses the proof
+      when either named object is absent or the connection is still a
+      draft.
 - [ ] 6.4 (Claude) The identity lifecycle learns the per-group CI policy
       (TODO §56 step 3), then the generic `sft ssh` proof leg lands as
       `cloud-verify ... sft` (steps 4 and 5) and runs from `main`.
