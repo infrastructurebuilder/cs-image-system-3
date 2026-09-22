@@ -13,11 +13,12 @@ Open stages and their order (revised 2026-09-21, when §58-§60 were added):
 **§56 -> §19 steps 4-5 -> §59**, with §30 orthogonal. (§57, §55, §58 and
 §60 all LANDED 2026-09-21 -- §55 in two passes, steps 1-3 before §58 and
 step 4 after §60, which is how the three stages' dependency cycle was
-broken. Two live proofs are still owed and both wait on the operator
-starting a machine: §58's first real `AltNames` write, and §55 step 4's
-first real `-NNN` launch -- `coops-model` is grandfathered under its bare
-name until its first sanctioned replacement, so nothing changes for it
-until then.) §55 SPLIT because, taken whole,
+broken. Both live proofs landed 2026-09-21 22:21 in one applies-on
+instance-image run the operator made with `coops-model` running: its record
+now answers to `ip-10-26-34-156` as an `AltNames` alias, and the ledger
+opened it as durable generation 1. `coops-model` is grandfathered under its
+bare name until its first sanctioned replacement, which is the first real
+`-NNN` launch.) §55 SPLIT because, taken whole,
 §55, §58 and §60 formed a dependency cycle. §56 proves what §19 step 4
 claims; the naming is now settled, so it can write the proof down, after
 which §19 finishes -- its step 5, the upgrade path, having gained something
@@ -312,6 +313,39 @@ certificate.
    `SFT_NO_BROWSER` changes. Establish it here with a throwaway service user
    before anything depends on it. **USER**: this writes to the OPA team
    (a service user, a key pair, a group membership), so it needs a go-ahead.
+
+   **Settled as far as reading goes (2026-09-21 night, docs + the 1.114.0
+   binary; the team's API was not queried):**
+   - The legacy ASA "service user" route does NOT fit a GitHub runner. A
+     service user authenticates from an enrolled SERVER: the automation
+     host runs `sftd`, and the project's *Services* tab binds the service
+     user to a local UID on THAT server. A fresh hosted runner per job has
+     no such binding, so `SFT_TOKEN_FILE`/`SFT_NO_BROWSER` are not the
+     lever -- they are the human-flow switches, and there is no `sft login`
+     form that takes a service user's key.
+   - The team is on Okta Privileged Access (`noaa.pam.okta.com`, team
+     `nos-coastal-modeling-cloud-sandbox`), and this client has the modern
+     path: `sft workload authenticate --team <t> --connection <c>
+     [--jwt-env VAR | --api-key-env VAR] [--role-hint <role>]` prints a
+     short-lived token (`OPA_TOKEN`); with `OPA_ADDR` and `SFT_TEAM` set,
+     `sft ssh <host> --command '...'` then works with NO `sft enroll`. The
+     identity proof can be GitHub Actions' own OIDC JWT -- the same
+     federation CI already uses for AWS -- so no static secret at all; the
+     API-key form is the fallback.
+   - What the OPA side needs, and who can write it: a **Workload
+     Connection** of the GitHub Actions type (a DevOps admin drafts it, a
+     security admin activates it; API-key connections are security-admin
+     only), a **Workload Role** bound to it with conditions on the JWT
+     claims (repository, ref), and a **security policy** naming that role
+     as a principal for the `coops` project's servers. Roles are principals
+     in policy, not group members -- so step 2's "in `coops_user`" becomes
+     "in the SAME policy rule as `coops_user`", which is the claim §19
+     makes anyway (the policy grants the group; the proof is that the
+     policy is what grants). `sft ls` from the workload is the documented
+     smoke test.
+   - So the go-ahead this step needs is: create the connection, the role and
+     the policy line (UI or API, security admin), and hand back the
+     connection name and the role name. Nothing else is unknown.
 2. **A CI identity in the group, not an exception.** One service user in
    `coops_user` -- the same group a scientist is in -- so the test asserts
    the real path. Its key pair joins the repository secrets beside
@@ -393,7 +427,13 @@ configure. That is the operator's stated shape and it should stay literal.
    be a legal name for the slot it will fill: since §58 puts it in OPA, it
    faces §55's budget -- an RFC 1123 label, at most 63 characters. Validate
    the whole file at `validate`, where an unusable line is a typo to fix, not
-   at 3am when it is the next one up.
+   at 3am when it is the next one up. The operator seeded the live pool on
+   2026-09-21 (`d63858e` in the sibling: 3671 names, e.g. `cod`, `red_cod`),
+   and 3536 of them carry an underscore, which RFC 1123 forbids in a label.
+   So this validation is not hypothetical: decide whether the reader maps
+   `_` to `-` (then `red-cod` is what OPA sees, and the ledger line should
+   say so) or the file is fixed by hand; the first is the operator-friendly
+   reading and the one to take unless told otherwise.
 6. **Spent is spent.** A decommission does NOT return a name to the pool.
    That is the point: §55 exists because a name outlived the machine that
    answered to it, and recycling names through a pool would rebuild the same
