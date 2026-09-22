@@ -145,6 +145,23 @@ def _group_of(ctx: "GlobalTypeContext", instance: Any) -> str:
     return str(getattr(image, "group", None) or "") if image is not None else ""
 
 
+REACHABLE_WAIT_SECONDS = 300      # a fresh machine: sshd and the session agent after `running`
+REGISTRATION_WAIT_SECONDS = 300   # then sftd's enrollment, which the launch script performs
+REGISTRATION_POLL_SECONDS = 15
+
+
+def _wait_for_registration(gb: Any, group: str, instance_id: str) -> list[dict[str, Any]] | None:
+    """Poll the group's registry until a record carries ``instance_id`` or
+    the wait runs out; the last listing either way (None: could not ask)."""
+    import time
+    deadline = time.time() + REGISTRATION_WAIT_SECONDS
+    servers = gb.registered_servers(group)
+    while own_record(servers or [], instance_id) is None and time.time() < deadline:
+        time.sleep(REGISTRATION_POLL_SECONDS)
+        servers = gb.registered_servers(group)
+    return servers
+
+
 def register_provider_aliases(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
     """After the instance-image runner applied for real: every launched
     instance whose root applied gets its provider-hostname alias, unless the
@@ -183,6 +200,22 @@ def register_provider_aliases(ctx: "GlobalTypeContext", lifecycle: Lifecycle) ->
         wanted = wanted_aliases(identity, canonical, name)
         if not wanted:
             continue
+        if str((recorded.get(name) or {}).get("launched_run") or "") == str(ctx.run_id):
+            # the machine booted THIS run: the apply returns on `running`, and
+            # the session agent, then sftd's enrollment, come up a minute or
+            # more later. Writing the alias block before that races the launch
+            # script for sftd's configuration -- the first live replacement
+            # (2026-09-22) wrote nothing. So: wait until the machine answers,
+            # then until its registration exists, bounded; give up loudly.
+            if not power_state.wait_until_reachable(rtb, name, timeout=REACHABLE_WAIT_SECONDS):
+                log.warning(f"Instance {name}: not reachable within {REACHABLE_WAIT_SECONDS}s of its launch; "
+                            f"no alias this run (the next applies-on run gives it back)")
+                continue
+            registries[group] = _wait_for_registration(gb, group, str(identity.get("instance_id") or ""))
+            if own_record(registries[group] or [], str(identity.get("instance_id") or "")) is None:
+                log.warning(f"Instance {name}: not enrolled within {REGISTRATION_WAIT_SECONDS}s of its launch; "
+                            f"no alias this run (the next applies-on run gives it back)")
+                continue
         if group not in registries:
             registries[group] = gb.registered_servers(group)
         servers = registries[group]

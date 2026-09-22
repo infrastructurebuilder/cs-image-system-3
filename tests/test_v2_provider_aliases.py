@@ -223,3 +223,42 @@ def test_the_report_is_quiet_once_the_alias_is_there_or_the_machine_is_off(world
     Fakes(monkeypatch, state=ps.STOPPED, servers=[OWN])
     report = sq.query_state(world.ctx)
     assert not any("not yet to" in n for n in report.notes)
+
+
+# ------------------------------------------- a machine that booted this run
+
+def _fresh(ctx, name="test") -> None:
+    """Launched by THIS run: the alias pass must wait for the machine."""
+    _launched(ctx, name)
+    ms = ctx.meta_state
+    rec = dict(ms.launch_params()[name]); rec["launched_run"] = ctx.run_id
+    ms.record_launch_params(name, rec)
+
+
+def test_a_machine_launched_this_run_is_waited_for_before_its_aliases_are_written(world, monkeypatch):
+    """The first live replacement (2026-09-22) wrote nothing: the pass ran
+    within a minute of the apply, before the session agent and sftd's
+    enrollment. Now it waits for the machine to answer and for its
+    registration to appear, then writes once."""
+    listings = [[], [], [OWN]]
+    f = Fakes(monkeypatch, servers=None)
+    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
+    monkeypatch.setattr(OktaTfGroupBuilder, "registered_servers", lambda s, g: listings.pop(0) if listings else [OWN])
+    monkeypatch.setattr(pa, "REGISTRATION_POLL_SECONDS", 0)
+    _fresh(world.ctx)
+    pa.register_provider_aliases(world.ctx, Lifecycle.INSTANCE_IMAGE)
+    probes = [s for _, s in f.scripts if s == "true"]            # the reachability wait
+    writes = [s for _, s in f.scripts if s != "true"]            # the alias block, once
+    assert probes and len(writes) == 1 and "  - ip-10-26-34-156" in writes[0]
+    assert listings == [], "polled until the record appeared"
+
+
+def test_a_machine_that_never_enrolls_gets_no_alias_this_run(world, monkeypatch, caplog):
+    f = Fakes(monkeypatch, servers=[])
+    monkeypatch.setattr(pa, "REGISTRATION_POLL_SECONDS", 0)
+    monkeypatch.setattr(pa, "REGISTRATION_WAIT_SECONDS", 0)
+    _fresh(world.ctx)
+    with caplog.at_level("WARNING"):
+        pa.register_provider_aliases(world.ctx, Lifecycle.INSTANCE_IMAGE)
+    assert not [s for _, s in f.scripts if s != "true"], "no alias block was written"
+    assert any("not enrolled" in r.message and "next applies-on run" in r.message for r in caplog.records)
