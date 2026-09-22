@@ -287,7 +287,7 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
 
-## 56. CI logs in as a member of the group, and that is the proof
+## 56. CI logs in through the policy the system manages, and that is the proof
 
 **Why**: §19 claims that owning a group gets you into the machine, and
 nothing demonstrates it. The system verifies an AWS instance through SSM --
@@ -295,82 +295,108 @@ that is how `coops-model`'s mounts and packages were checked -- which proves
 the box is healthy and says nothing about access. The operator proved the
 claim by hand on 2026-09-21 (`sft ssh coops-model`, after the duplicate
 registrations were cleared); a claim proved by hand once is a claim that
-regresses silently.
+regresses silently. And it is not a claim about one model: the system emits
+a login policy for EVERY group it manages
+(`tfmodules/okta_opa_module/main.tf:64`), so the proof is that THOSE
+policies grant, for every group with a machine standing.
 
 It is also worth stating why this is not a workaround. `sft ssh` felt to the
 operator like something automation is meant to be excluded from. It is not:
-the team already has SIX service users, access is granted to GROUPS rather
-than to human-ness, and the client (1.114.0) carries `SFT_NO_BROWSER`,
-`SFT_TOKEN_FILE` and Okta's PAM SDK including `api_service_users.go` and an
-`IsServiceUser` flag. The browser step is the human OIDC flow, not the
-protocol. The alternative -- a long-lived SSH key in a CI secret -- is the
-thing OPA exists to replace with a short-lived, audited, per-session
-certificate.
+OPA shipped workload identity for exactly this in March 2026, access is
+granted to principals rather than to human-ness, and the alternative -- a
+long-lived SSH key in a CI secret -- is the thing OPA exists to replace with
+a short-lived, audited, per-session certificate.
 
-1. **Settle the client ceremony first, cheaply.** How a SERVICE user enrols a
-   client non-interactively is the one unknown: whether `SFT_TOKEN_FILE`
-   takes a service token, whether `sft enroll` is needed at all, and what
-   `SFT_NO_BROWSER` changes. Establish it here with a throwaway service user
-   before anything depends on it. **USER**: this writes to the OPA team
-   (a service user, a key pair, a group membership), so it needs a go-ahead.
+**Settled 2026-09-21/22 from the docs, the 1.114.0 client and the
+provider's source (the team's API was not queried):**
 
-   **Settled as far as reading goes (2026-09-21 night, docs + the 1.114.0
-   binary; the team's API was not queried):**
-   - The legacy ASA "service user" route does NOT fit a GitHub runner. A
-     service user authenticates from an enrolled SERVER: the automation
-     host runs `sftd`, and the project's *Services* tab binds the service
-     user to a local UID on THAT server. A fresh hosted runner per job has
-     no such binding, so `SFT_TOKEN_FILE`/`SFT_NO_BROWSER` are not the
-     lever -- they are the human-flow switches, and there is no `sft login`
-     form that takes a service user's key.
-   - The team is on Okta Privileged Access (`noaa.pam.okta.com`, team
-     `nos-coastal-modeling-cloud-sandbox`), and this client has the modern
-     path: `sft workload authenticate --team <t> --connection <c>
-     [--jwt-env VAR | --api-key-env VAR] [--role-hint <role>]` prints a
-     short-lived token (`OPA_TOKEN`); with `OPA_ADDR` and `SFT_TEAM` set,
-     `sft ssh <host> --command '...'` then works with NO `sft enroll`. The
-     identity proof can be GitHub Actions' own OIDC JWT -- the same
-     federation CI already uses for AWS -- so no static secret at all; the
-     API-key form is the fallback.
-   - What the OPA side needs, and who can write it: a **Workload
-     Connection** of the GitHub Actions type (a DevOps admin drafts it, a
-     security admin activates it; API-key connections are security-admin
-     only), a **Workload Role** bound to it with conditions on the JWT
-     claims (repository, ref), and a **security policy** naming that role
-     as a principal for the `coops` project's servers. Roles are principals
-     in policy, not group members -- so step 2's "in `coops_user`" becomes
-     "in the SAME policy rule as `coops_user`", which is the claim §19
-     makes anyway (the policy grants the group; the proof is that the
-     policy is what grants). `sft ls` from the workload is the documented
-     smoke test.
-   - So the go-ahead this step needs is: create the connection, the role and
-     the policy line (UI or API, security admin), and hand back the
-     connection name and the role name. Nothing else is unknown. The
-     click-by-click checklist, with the values decided, is
-     [WORKLOAD_CONNECTION.md](WORKLOAD_CONNECTION.md); the operator runs it
-     on the morning of 2026-09-22, and it moves into OPERATIONS (step 6)
-     once the proof has run.
-2. **A CI identity in the group, not an exception.** One service user in
-   `coops_user` -- the same group a scientist is in -- so the test asserts
-   the real path. Its key pair joins the repository secrets beside
-   `TF_VAR_NOS_KEY`/`SECRET`. If it needs a group of its own for hygiene,
-   that group is added to the project like any other; what it must not get is
-   a capability humans do not have, or the proof is of something else.
-3. **The proof itself**: the runner installs `sft` (nothing in the Justfile
-   or CI does today), enrols non-interactively, runs ONE command over
-   `sft ssh` against the standing instance, and asserts on its output. A leg
-   of `cloud-verify` beside `serial` and `iap`, so it is the same shape as
-   the checks that already exist.
-4. **What it must fail on.** A revoked membership, a machine that never
-   enrolled, and a DUPLICATE canonical hostname (§55) all have to fail it
-   loudly -- the last one especially, since a second `coops-model` makes
-   `sft ssh` reach an arbitrary one of them and a green test would then mean
-   nothing.
-5. **Cost**: the proof needs a standing instance to log into, so it runs
-   against whatever §19 leaves standing rather than launching its own.
-6. Records: OPERATIONS on proving access rather than health, and on the
-   service-user pattern. Feature branch `feature/ci-logs-in`, squash-merged,
-   kept.
+- The legacy ASA "service user" route does NOT fit a GitHub runner: a
+  service user authenticates from an enrolled SERVER (the automation host
+  runs `sftd`, and the project's *Services* tab binds the service user to a
+  local UID on THAT server). A fresh hosted runner per job has no such
+  binding. `SFT_TOKEN_FILE`/`SFT_NO_BROWSER` are the human-flow switches,
+  not the lever.
+- The modern route needs no enrollment: `sft workload authenticate --team
+  <t> --connection <c> --jwt-env VAR [--role-hint <role>]` prints a
+  short-lived token (`OPA_TOKEN`); with `OPA_ADDR` and `SFT_TEAM` set,
+  `sft ssh <host> --command '...'` then works. The identity proof is GitHub
+  Actions' own OIDC JWT -- the same federation CI already uses for AWS -- so
+  no static secret at all.
+- Three OPA objects: a **Workload Connection** (team-scoped trust in the
+  token signer; a DevOps admin drafts it, a security admin activates it), a
+  **Workload Role** (a principal; conditions on the JWT claims), and a
+  **security policy** naming the role.
+- **The provider gap.** okta/oktapam 0.7.1 is the latest release (May
+  2026; the module's constraint is `>= 0.6.3`) and its source contains the
+  word "workload" zero times. Both `oktapam_security_policy` (principals:
+  `groups`) and `_v2` (`user_groups`) accept ONLY groups as principals. So
+  Terraform can neither create the connection or the role nor put a role
+  into a policy. The OPA API can do all three (create endpoints for
+  connections and roles; the console adds roles to policies), and the
+  system already does API-side OPA work through the same client -- §55's
+  retirements and §58's aliases.
+
+**The shape (decided with the operator 2026-09-22):**
+
+1. **One connection per team, hand-made, referenced by name.** The trust
+   anchor is scoped to the team, its activation is a security-admin act by
+   design, and there is one CI -- so it is a bootstrap object like the OPA
+   API key pair: created once, named in the live configuration on the
+   okta-tf group builder beside `team` (`workload_connection:
+   github-cs-image-system`), read by the system from then on. The proof
+   refuses when the named connection is absent or still a draft (the API
+   reads its status). The click-by-click checklist with the values decided
+   is [WORKLOAD_CONNECTION.md](WORKLOAD_CONNECTION.md); it makes ONLY the
+   connection. **USER**: create it as a draft on the morning of 2026-09-22
+   and hand back its name (and the audience, if the form shows one).
+2. **Prove the token before anything depends on it.** A dispatch-only CI
+   step requests GitHub's OIDC token (`id-token: write` is already granted
+   to the live and perform jobs) and runs `sft workload authenticate`
+   against the DRAFT; a draft validates tokens and issues nothing usable,
+   so this is free of consequence. When the log shows the token validate,
+   the operator activates the connection.
+3. **One workload role per group, system-managed.** `<g>_ci`, bound to the
+   team connection, conditions `repository` Equals this repository (and
+   `ref` Equals `refs/heads/main` once the proof runs on main). Per group,
+   not per team, so a role reaches exactly one group's servers. Because the
+   provider cannot, the okta group builder creates and reconciles it
+   through the OPA API in the identity lifecycle, under the same guards as
+   the rest of that lifecycle (`apply_identity` gates the write, a dry run
+   reports), records it in `meta-state/identity.yaml`, and `state query`
+   drift-checks it like the groups. When the provider gains the resource it
+   moves into the module by import.
+4. **One CI policy per group, system-managed, SEPARATE from the user
+   policy.** `<g>_v1_security_policy_ci`: the user policy's rule verbatim
+   (the label selector `sftd.tx.group=<g>`, `principal_account_ssh`,
+   admin-level off), with the role as its only principal; through the API
+   for the same reason as step 3. Separate, and not a principal added to
+   `<g>_v1_security_policy_user`, for three reasons: the provider could not
+   mix a role into that policy's principals anyway; a machine principal
+   inside the human policy means a CI change can lock a scientist out; and
+   a separate policy is its own audit line, revocable alone. Open question
+   the first login answers: which Unix account a workload lands in under
+   principal-account SSH (a workload has no personal account); record it.
+5. **The proof leg, generic.** The runner installs `sft` (nothing in the
+   Justfile or CI does today). For each managed group with a standing
+   instance: `sft workload authenticate --role-hint <g>_ci`; `sft resolve
+   <name>` must return exactly ONE server (§55); `sft ssh <name> --command
+   id` and assert on the output. A leg of `cloud-verify` beside `serial`
+   and `iap`, so it is the same shape as the checks that already exist. It
+   runs against whatever §19 leaves standing and launches nothing.
+6. **What it must fail on.** The group's CI policy deactivated or absent;
+   the role's condition not matching the run; a machine that never
+   enrolled; and a DUPLICATE canonical hostname (§55) -- the last one
+   especially, since a second `coops-model` makes `sft ssh` reach an
+   arbitrary one of them. Deactivating the CI policy must turn the leg red,
+   or it proves nothing about the policy.
+7. Records: OPERATIONS on proving access rather than health, on the team
+   connection as a bootstrap object, and on the per-group role and policy;
+   the checklist folds into OPERATIONS and the file is deleted. Feature
+   branch `feature/ci-logs-in`, squash-merged, kept.
+
+Order: 1 -> 2 -> 3 and 4 together -> 5 -> 6 -> 7. This is larger than "a
+CI leg": the identity lifecycle learns two more objects, through the API,
+and that is the honest size of it.
 
 ## 59. A pool of names, each spent once
 
