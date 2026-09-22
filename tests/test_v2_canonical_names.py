@@ -97,11 +97,17 @@ def test_an_ephemeral_instance_counts_on_its_own_counter(world, monkeypatch):
 
 
 def test_the_pad_is_a_minimum_width(world):
+    """The counter is seeded, not driven: a thousand open/close cycles are
+    thousands of atomic ledger writes (over ten minutes, and the run that
+    hit a full temp volume on 2026-09-22) for a fact one write states."""
     ctx = world.ctx
     ms = ctx.meta_state
-    for n in range(1000):
-        ms.open_generation("test", kind="durable", run_id="r", how="observed", launch_params={})
-        ms.close_generation("test", run_id="r", why="decommission")
+    from cs_image_system.base.meta_state import INSTANCE_STATE
+    data = ms.read(INSTANCE_STATE)
+    data.setdefault("instances", {})["test"] = {"generation": {"durable": 1000, "ephemeral": 0},
+                                                "current": None, "history": []}
+    ms.write(INSTANCE_STATE, data)
+    assert ms.instance_generation("test", "durable") == 1000
     assert lp.canonical_hostname(ctx, _inst(ctx)) == "test-1001"
 
 
@@ -200,3 +206,28 @@ def test_the_report_notes_a_name_that_did_not_take_at_boot(world, monkeypatch):
     inst = report.reality["instances"]["test"]
     assert inst["booted_as"] == "test-001" and inst["registered_as"] == "ip-1"
     assert any("did not take at boot" in n for n in report.notes)
+
+
+def test_a_replacement_retires_the_registration_of_the_machine_it_replaced(world, monkeypatch):
+    """Stage 55 meets stage 60: the replaced machine answered to `test-001`
+    and is gone once the apply replaced it; its OPA registration would
+    otherwise outlive it and claim the bare alias the new machine gets."""
+    from tests.v2_support import stub_environment
+    ctx = world.ctx
+    ms = ctx.meta_state
+    ctx.config["apply_instances"] = True
+    _record(ctx, hostname="test-001", launched=True)
+    ms.open_generation("test", kind="durable", run_id="r", how="observed",
+                       launch_params={"hostname": "test-001"}, identity={"instance_id": "i-old"})
+    monkeypatch.setattr(lp, "will_replace", lambda c, i: True)
+    params = lp.compute_launch_params(ctx, _inst(ctx))
+    assert params["hostname"] == "test-002"
+    _record(ctx, **params, launched=False)
+    retirements = stub_environment.retirements  # type: ignore[attr-defined]
+    retirements.clear()
+    lp.mark_launched(ctx, Lifecycle.INSTANCE_IMAGE)
+    assert retirements == [(params["group"], "test-001")], "the OLD name, for the instance's group"
+    # the standing machine, launched again under its own name: nothing to retire
+    retirements.clear()
+    lp.mark_launched(ctx, Lifecycle.INSTANCE_IMAGE)
+    assert retirements == []

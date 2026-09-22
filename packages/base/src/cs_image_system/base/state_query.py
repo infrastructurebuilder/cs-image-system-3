@@ -425,6 +425,15 @@ def instance_boot_drift(ctx: "GlobalTypeContext", report: StateReport) -> list[D
             report.unavailable.append(f"instances/{name}: booted image (runtime {rt_name} could not answer)")
             continue
         if str(booted) != str(build):
+            if name in ms.pending_replacements():
+                # `upgrade instance` moved the pin on purpose and left the
+                # marker: the mismatch IS the sanctioned procedure mid-way, and
+                # the strict query must not refuse the very run that finishes
+                # it (it did, live 2026-09-22: cloud-launch's preflight)
+                report.notes.append(f"instances/{name}: booted image {booted} is behind its pin {build}; the "
+                                    "replacement is PENDING (upgrade instance) and the next applies-on "
+                                    "instance-image run makes it")
+                continue
             drift.append(Drift("instance", name, DRIFT_CHANGED,
                                f"booted image {booted} != pinned build {build} "
                                f"(replace the instance: upgrade instance {name}, then run instance-image)"))

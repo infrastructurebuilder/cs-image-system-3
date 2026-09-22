@@ -9,8 +9,13 @@ system must not take itself.
 
 Current stage: **none in progress**.
 
-Open stages and their order (revised 2026-09-22, when §56 landed):
-**§19 steps 4-5 -> §59**, with §30 orthogonal. (§56 LANDED 2026-09-22:
+Open stages and their order (revised 2026-09-22, when §19 landed):
+**§59**, with §30 orthogonal. (§19 LANDED 2026-09-22: the coops model
+image had its second release end to end -- a real modification, the bake,
+the pin moved, the gated replace to `coops-model-002`, the post-bake proof
+on the new machine, the release, the names back, and the login by name --
+and the procedure is OPERATIONS "A model image, end to end: the second
+release". The image's content is the group's living work from here.) (§56 LANDED 2026-09-22:
 the team's workload connection and role stand, the identity lifecycle keeps
 one CI login policy per group -- all five created live at 09:07 -- and the
 `sft ssh` proof ran by hand at 09:35 as the enrolled client. The WORKLOAD
@@ -27,15 +32,14 @@ opened it as durable generation 1. `coops-model` is grandfathered under its
 bare name until its first sanctioned replacement, which is the first real
 `-NNN` launch.) §55 SPLIT because, taken whole,
 §55, §58 and §60 formed a dependency cycle. §56 proved what §19 step 4
-claims, so §19 finishes next -- its step 5, the upgrade path, having gained
-something concrete to mean from §60 (a sanctioned replacement is a new
-generation with a new name). §59 is deliberately LAST: it overlaps the suffix, and only once
+claims, and §19 step 5 proved §60's meaning live (a sanctioned replacement
+is a new generation with a new name). §59 is deliberately LAST: it overlaps the suffix, and only once
 that is standing can anyone judge whether a name pool is still wanted. §30 waits on the operator's decision and depends
 on none of this. §61 is the open hygiene bundle (V); a new hygiene issue
 goes there.
 
-**The path to §19 is now the path**: **§19**, one stage, with §59 the only
-naming work left and deferrable. Nothing in that shorter path has to be redone -- §58
+**§59 is the only naming work left**, and deferrable; §30 waits on the
+operator's decision. Nothing in that shorter path has to be redone -- §58
 adds the bare name back as an alias, so a proof written against `coops-model`
 survives the suffix.
 
@@ -85,84 +89,6 @@ Standing decisions (operator):
   instruction; §30 (the contract package) is planned.
 
 ---
-
-## 19. The first real model image, released and in use
-
-**Why**: the system's stated purpose (EXPLORE "Systemic Purpose") is
-images that are correct for a given HPC model, formally released, with
-scientists logging in. The retrospective's warning still stands — "the
-doorway got finished before the building": the fixture's playbooks are
-placeholders (DESCRIPTION.md), the dask image installs dask and nothing
-else, and no image has been used by anyone. Every mechanism the purpose
-needs now exists: shell + ansible modifications with local mod tests,
-in-bake and post-bake tests, declared releases, `require_released_builds`,
-group ownership → OPA access (proven by `sft ssh` in stage 1), storage
-attached by group. This stage spends them on one model, on AWS.
-
-1. **USER — the model.** **No GCP resources** (operator, 2026-09-20): this
-   stage is AWS only, whatever the GCE runtime's images say they are due.
-   Decided 2026-09-19: the group is **`coops`**, the
-   instance is a **`c5n.4xlarge`**, and it mounts the **existing `mnt_data`
-   and `efs-storage`** — no new storage declarations. What that settles, and
-   what it implies:
-   - Both storages already allow `coops` and are `active`
-     ([storage0.yaml](../cs-image-system-testconfig/storages/storage0.yaml)):
-     `mnt_data` is EBS at `/mnt/data`, `efs-storage` is EFS shared with
-     `stofs` at mode 2775. Nothing there has to change.
-   - **The AZ is already right, and nothing needs pinning.** `mnt_data` is the
-     100 GiB volume `vol-0fe1e27716f86c2f2` in `us-east-2a`; EBS is AZ-bound,
-     so the instance must be there to attach it — and the runtime's DEFAULT
-     subnet is `east2-az1-private` (`subnet-09f79018af845358a`), which is 2a.
-     The instance model names no subnet; the builder reads the runtime's
-     default. `c5n.4xlarge` is offered in 2a, 2b and 2c, so the size does not
-     constrain the choice. Both declared private subnets map no public IP, as
-     the standing constraint requires. Note for later: if the default subnet
-     is ever flipped to 2b, this instance stops being able to attach
-     `mnt_data`.
-   - Its users are the `coops` roster: `zachary.wills` (member),
-     `mykel.alvis` (admin), conformed to OPA on 2026-09-18.
-   - **The image derives from `basic-rh-10` directly** (decided 2026-09-19),
-     not from either existing `coops` image: a new `coops`-owned instance
-     image whose only modifications are the model's. Cleanest lineage, at the
-     cost of repeating whatever setup `imgfile-basic-dask` already does.
-   - **The instance stands 24/7** (decided 2026-09-19): a normal declaration,
-     left running, so the group's members can log in whenever — the half of
-     this stage's purpose that an ephemeral instance would not exercise. It
-     bills continuously: roughly $620 a month at the figure above, plus the
-     100 GiB volume and the EFS filesystem. `mnt_data` is
-     `attachment_cardinality: single`, so while this instance stands it owns
-     that volume and no other instance can attach it.
-
-   **Still needed from the operator, and blocking the bake:**
-   - **What the image must contain**: the model's packages, its source or
-     binaries and where they come from, and the data paths it expects under
-     `/mnt/data` and the EFS mount.
-   - **What "correct" means**: the smoke run that proves the image, and the
-     files and services that must be present after a bake.
-
-   Everything else is settled, and nothing can be baked without those two:
-   an image derived from `basic-rh-10` with no modifications is just
-   `basic-rh-10`. The cost figure above could not be confirmed from the
-   account — this role has no `pricing:GetProducts` — so check it before
-   relying on it.
-2. **The image**: `basic-rh-10` on AWS plus an instance image owned by
-   the model's group; real modifications — ansible for the stack, bash
-   `ensure` for glue — idempotent and passing `just test-mods`; in-bake
-   `tests:` and `tests.post_bake` running the model's smoke test;
-   `release: {model: <name>}`.
-3. **The instance(s)**: declared for the group with `image_policy: pinned`
-   and `require_released_builds: true` (only a released build may pin);
-   storage per the decision; launched through the gates on AWS (private
-   subnet, no public IP; the existing network configuration untouched —
-   standing constraint).
-4. **Users in**: the group's members log in through the Okta gateway
-   relay (`sft ssh`); evidence captured, the stage-1 shape.
-5. **Operations, once**: the upgrade path exercised end to end (`upgrade
-image` → re-bake → `upgrade instance` → gated replace) so the model's
-   second release is a procedure, not a discovery; the standing cost noted
-   for the AWS account.
-6. Records: ledger, PLAN, OPERATIONS "a model image, end to end".
-   Feature branch `feature/model-<name>`, squash-merged, kept.
 
 ## 30. The plugin contract is a package of protocols
 
@@ -427,6 +353,11 @@ ceremony. Landed together on `feature/hygiene-v`, squash-merged, kept.
    per-command check. Non-critical: the failure is honest and
    environmental; it is just late, and it has now cost two 20-minute runs.
 
+   **Recipe half done 2026-09-22**: `just full-test-legs` runs the three
+   live legs alone (`full-test` = `test` then `full-test-legs`), so a
+   session that lapses after the bar -- as the portal session did at
+   19:43Z that day, sixteen minutes before the legs -- costs the legs
+   again, not the bar. The reader half landed with stage 55 step 4.
    Since 2026-09-21 19:19 the `noaa` profile is an `sso-session` profile:
    the cache's `expiresAt` is now the ACCESS token's one hour, renewed
    silently from a refresh token while the portal session lives. So the
@@ -456,3 +387,23 @@ ceremony. Landed together on `feature/hygiene-v`, squash-merged, kept.
    nothing to destroy once the provider agrees it is gone. When OPA STILL
    has the membership, leave it to the plan: that destroy is the explicit
    decision the operations rules require, and the gate sees it.
+4. **A durable instance cannot take its own image's second release without
+   a rule being switched off by hand.** `release` refuses a build until its
+   post-bake tests have passed on a launched machine (stage 14), and
+   `require_released_builds` refuses every run while any instance is pinned
+   to an unreleased build. For an ephemeral instance the cycle resolves
+   this inside one run (launch, verify, tear down, release). For a DURABLE
+   instance whose volume allows one attachment (`mnt_data`), no proof
+   instance can mount what the image's post-bake spec requires, so the
+   proof can only run on the instance itself -- after `upgrade instance`
+   pins it to the unreleased build, which the rule refuses. Found
+   2026-09-22 on the coops image's second build (stage 19 step 5); the
+   first release on 2026-09-20 went the same way. The procedure that works
+   is to set `require_released_builds: false` for the window: upgrade,
+   replace, verify (the post-bake record), release, then set it back. The
+   system should own that window instead: an instance may pin an
+   unreleased build when that build is the series head whose in-bake
+   tests passed AND the pin is a pending replacement whose post-bake proof
+   will run on the new machine -- refused again if the proof does not
+   follow within the same or the next run. Design it before the third
+   release, not during it.
