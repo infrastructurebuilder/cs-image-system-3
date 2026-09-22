@@ -451,6 +451,16 @@ ceremony. Landed together on `feature/hygiene-v`, squash-merged, kept.
    that morning; a fresh browser sign-in then gave a full 8h), while the 1h
    role-credential expiry underneath is auto-refreshed and is not the limit.
    So the remaining time is not knowable from the login time -- only from
-   `expiresAt`, which preflight already reads. Give `preflight` a `--needs <duration>` (or let
-   `full-test` pass its own estimate) and refuse early, naming both numbers.
-   Non-critical: the failure is honest and environmental; it is just late.
+   `expiresAt`, which preflight already reads.
+
+   Corrected 2026-09-21, second occurrence: preflight ALREADY refuses when
+   the session ends before `config.preflight.expected_run_minutes` (default
+   30, `preflight.py:77`) -- but every CLI command runs that check for
+   itself, so `full-test` passes preflight at minute zero with plenty of
+   window, spends ~20 minutes on the docker and dry-run legs, and the
+   state-query leg's OWN preflight then refuses with 11 minutes left. The
+   fix is in the recipe, not the checker: run preflight once up front with
+   full-test's whole estimate (`expected_run_minutes` for the sum of its
+   legs, or a `--needs` override) and let the later legs skip the
+   per-command check. Non-critical: the failure is honest and
+   environmental; it is just late, and it has now cost two 20-minute runs.
