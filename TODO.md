@@ -589,3 +589,20 @@ ceremony. Landed together on `feature/hygiene-v`, squash-merged, kept.
    refreshable token cannot block a run on its own. What REMAINS of this
    item is the recipe half: one up-front check with full-test's whole
    estimate instead of a per-leg check.
+3. **A membership the YAML dropped and OPA already lacks blocks every
+   identity plan.** The oktapam provider's refresh of an
+   `oktapam_user_group_attachment` ERRORS (`user "x" is not present within
+   group "g"`) instead of dropping the resource from state when the
+   membership is gone, so the plan never reaches the point where it would
+   have destroyed the attachment. Found 2026-09-22 on the first real
+   identity run after the coops declaration was conformed to OPA
+   (2026-09-18): two stale attachments in state, and the repair was a hand
+   `tofu state rm` of both (after the same-day state backup the operations
+   rules ask for). The system can do this itself the way it already does
+   for unmanaged groups (`pre_plan` at `okta_opa_tf_group_builder.py`):
+   before the plan, every attachment in state whose group no longer
+   declares that user is `state rm`'d -- the attachment is a record of a
+   membership, and a membership the configuration no longer declares has
+   nothing to destroy once the provider agrees it is gone. When OPA STILL
+   has the membership, leave it to the plan: that destroy is the explicit
+   decision the operations rules require, and the gate sees it.
