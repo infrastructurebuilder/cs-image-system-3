@@ -568,14 +568,14 @@ opa-workload-probe:
 	token=$(scripts/opa-workload-token)
 	echo "opa-workload-probe: the connection accepted this run's token$( [ -n "$token" ] && echo ' and issued one (masked)' )"
 
-# The names come from the configuration (`identity workload --env`), the OPA token from this
+# The names come from the configuration (`workload describe --env`), the OPA token from this
 # Actions run (scripts/opa-workload-token; by hand, without one, the enrolled client logs in
 # as YOU and the record says so). ARGS go to `verify login`: instance names, --runtime <rt>.
 # Stage 56 steps 4-5: log into every standing instance through the managed CI policy
 ci-login-proof *ARGS: config-guard
 	#!/usr/bin/env bash
 	set -euo pipefail
-	workload_env=$({{gce_cli}} identity workload --env)
+	workload_env=$({{gce_cli}} workload describe --env)
 	eval "$workload_env"
 	if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
 		OPA_TOKEN="$(scripts/opa-workload-token)"

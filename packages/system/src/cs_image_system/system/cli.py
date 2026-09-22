@@ -856,20 +856,26 @@ def unmount_storage_command(
     typer.secho(f"unmount receipt written for {instance}:{storage}", fg=typer.colors.GREEN)
 
 
-@identity_app.command(name="workload")
-def identity_workload_command(
+workload_app = typer.Typer(help="Stage 56: what CI's workload login needs from the configuration.")
+app.add_typer(workload_app, name="workload")
+
+
+@workload_app.command(name="describe")
+def workload_describe_command(
     env: Annotated[bool, typer.Option("--env", help="Print shell exports (OPA_WORKLOAD_CONNECTION, "
                                                     "OPA_WORKLOAD_ROLE, SFT_TEAM, OPA_ADDR) for the first builder")] = False,
 ) -> None:
     """Stage 56: what a workload login needs from the configuration -- the
     team's workload connection and role as named on the group builder, the
-    team and the API address. Nothing secret; empty when none is named."""
+    team and the API address. Nothing secret; empty when none is named.
+    Its own group, not `identity`: that group is exempt from loading the
+    configuration (export-gids reads stdin), and this needs it loaded."""
     from cs_image_system.base.commands.login_proof import workload_facts
     from cs_image_system.base.global_context import GlobalTypeContext
     facts = workload_facts(GlobalTypeContext())
     if env:
         if not facts:
-            typer.secho("identity workload: no group builder names a workload connection and role", fg=typer.colors.RED, err=True)
+            typer.secho("workload describe: no group builder names a workload connection and role", fg=typer.colors.RED, err=True)
             raise typer.Exit(code=2)
         f = facts[0]
         import shlex

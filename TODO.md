@@ -429,7 +429,7 @@ provider's source (the team's API was not queried):**
    adds `ref` Equals `refs/heads/main` to the role, matching the AWS write
    role's trust.
    **Built 2026-09-22** (`commands/login_proof.py`, `verify login`,
-   `identity workload --env`, `scripts/opa-workload-token`, `just
+   `workload describe --env`, `scripts/opa-workload-token`, `just
    ci-login-proof`, the `sft` leg of `cloud-verify`, the two `perform`
    steps, 9 tests). **Owed**: the first live run, which needs the
    connection ACTIVE (checklist 6.3) and the CI policy created (step 3's
