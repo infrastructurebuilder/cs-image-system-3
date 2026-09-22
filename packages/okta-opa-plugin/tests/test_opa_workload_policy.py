@@ -130,9 +130,9 @@ class FakeOpa:
             pid = path.rsplit("/", 1)[1]
             self.policies = [dict(parsed) | {"id": pid} if p["id"] == pid else p for p in self.policies]
             return {}
-        if path == f"{TEAM}/workload_roles" and method == "GET":
+        if path == f"{TEAM}/workload-roles" and method == "GET":   # the SDK's hyphenated path
             return {"list": self.roles}
-        if path == f"{TEAM}/workload_connections" and method == "GET":
+        if path == f"{TEAM}/connections/workloads" and method == "GET":
             return {"list": [{"id": "c-1", "name": "github-cs-image-system", "status": "ACTIVE"}]}
         raise AssertionError(f"unexpected {method} {path}")
 

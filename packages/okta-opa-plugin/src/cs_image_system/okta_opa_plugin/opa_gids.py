@@ -31,6 +31,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import urllib.error
 import urllib.request
 from typing import Any, Callable, Mapping
 
@@ -244,7 +245,16 @@ class OpaGidResolver:
         if body is not None:
             headers["Content-Type"] = "application/json"
             payload = json.dumps(body).encode()
-        return self.transport(method, self._url(path), headers, payload)
+        try:
+            return self.transport(method, self._url(path), headers, payload)
+        except urllib.error.HTTPError as e:
+            # the API explains a refusal in its body; keep it, or the first
+            # live write teaches nothing ("HTTP Error 400" alone did, 2026-09-22)
+            try:
+                detail = e.read().decode(errors="replace")[:600]
+            except Exception:  # noqa: BLE001 - a body that cannot be read is no body
+                detail = ""
+            raise RuntimeError(f"{method} {path}: HTTP {e.code} {e.reason}" + (f" -- {detail}" if detail else "")) from e
 
     def _listing(self, path: str, what: str) -> list[dict[str, Any]] | None:
         """The records under ``path`` (``{"list": [...]}``, the API's listing
@@ -276,15 +286,19 @@ class OpaGidResolver:
         self._send("PUT", f"/v1/teams/{self.team}/security_policy/{policy_id}", body)
 
     def workload_roles(self) -> list[dict[str, Any]] | None:
-        """The team's workload roles (``GET /v1/teams/{team}/workload_roles``),
-        or None when they could not be read. Roles are the operator's
-        (WORKLOAD_CONNECTION.md section 2); the system only reads them."""
-        return self._listing(f"/v1/teams/{self.team}/workload_roles", "workload roles")
+        """The team's workload roles (``GET /v1/teams/{team}/workload-roles``
+        -- a HYPHEN, unlike every older path; the underscore form answered
+        404 live on 2026-09-22, and the path is the one Okta's PAM SDK
+        v1.3.48 carries), or None when they could not be read. Roles are the
+        operator's (WORKLOAD_CONNECTION.md section 2); the system only reads
+        them."""
+        return self._listing(f"/v1/teams/{self.team}/workload-roles", "workload roles")
 
     def workload_connections(self) -> list[dict[str, Any]] | None:
         """The team's workload connections
-        (``GET /v1/teams/{team}/workload_connections``), or None."""
-        return self._listing(f"/v1/teams/{self.team}/workload_connections", "workload connections")
+        (``GET /v1/teams/{team}/connections/workloads``, the SDK's path; each
+        also answers ``/{id}/status``), or None."""
+        return self._listing(f"/v1/teams/{self.team}/connections/workloads", "workload connections")
 
     def user_attributes(self, user_name: str) -> dict[str, Any]:
         """``{attribute_name: attribute_value}`` for one OPA user
