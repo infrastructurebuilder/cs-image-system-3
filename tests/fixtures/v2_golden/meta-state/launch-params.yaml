@@ -6,7 +6,7 @@ instances:
       server_label: sftd.tx.group=coops
     ephemeral: false
     group: coops
-    hostname: gce-test
+    hostname: gce-test-001
     identity_type: okta
     image: imgfile-basic-dask
     launched: false
@@ -21,7 +21,7 @@ instances:
       type: pd
     run: 2026_08_26t12_00_00
     session: iap
-    user_data_sha256: a3c2278dc804b182525e4621ee38d96cc29ba67570bdf3c680d2be5bbd193b6d
+    user_data_sha256: 29bee6bb7860d0a580101f1179ecf1643da350bb18da93423e5fb14b4d1e1231
   test:
     build: unbound
     enrollment:
@@ -29,14 +29,14 @@ instances:
       server_label: sftd.tx.group=coops
     ephemeral: false
     group: coops
-    hostname: test
+    hostname: test-001
     identity_type: okta
     image: imgfile-basic-cloudflow
     launched: false
     mounts: []
     run: 2026_08_26t12_00_00
     session: ssm
-    user_data_sha256: a8acaa7dbc21ac336f77027c93d1723a33e83e476921f9f911f441c8a57e8884
+    user_data_sha256: ebbdafde380a4aeefc067fc0798ebe7e69b28ff143573124b0e0b8e355acc0f1
   test2:
     build: unbound
     enrollment:
@@ -44,7 +44,7 @@ instances:
       server_label: sftd.tx.group=coops
     ephemeral: false
     group: coops
-    hostname: test2
+    hostname: test2-001
     identity_type: okta
     image: imgfile-basic-dask
     launched: false
@@ -59,4 +59,4 @@ instances:
       type: ebs
     run: 2026_08_26t12_00_00
     session: ssm
-    user_data_sha256: 255e3e75f62ce5680fa8466d90676e02281f5638c8383fd57c16c5b0063a1cd5
+    user_data_sha256: fb3cdfc57a1bc45c973273ac16ad69e445e4aacb450524cc7bffb2cccf0fdf59

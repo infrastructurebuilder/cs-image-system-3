@@ -10,28 +10,25 @@ system must not take itself.
 Current stage: **none in progress**.
 
 Open stages and their order (revised 2026-09-21, when §58-§60 were added):
-**§55 step 4 -> §56 -> §19 steps 4-5 -> §59**, with §30 orthogonal.
-(§57, §55 steps 1-3, §58 and §60 all LANDED 2026-09-21. §60's ledger
-(`meta-state/instance-state.yaml`) now exists and
-`MetaState.instance_generation(name, "durable")` answers the count §55
-step 4 suffixes the canonical name with. §58's first LIVE write of an
-`AltNames` block is still owed: it needs the machine running, which is the
-operator's call.) §55 SPLITS: steps 1-3 (retire,
-refuse, validate the length) need only the OPA client, so they land early and
-unblock §58, while step 4 (the generation suffix) needs §60's durable counter
-and lands after it -- taken as one indivisible stage, §55, §58 and §60 form a
-dependency cycle; see the ordering note in §55 step 4. §56 proves what §19
-step 4 claims and wants the naming settled before it writes the proof down,
-after which §19 finishes -- its step 5, the upgrade path, having gained
-something concrete to mean from §60. §59 is deliberately LAST: it overlaps
-§55 step 4, and only once the suffix is standing can anyone judge whether a
-name pool is still wanted. §30 waits on the operator's decision and depends
+**§56 -> §19 steps 4-5 -> §59**, with §30 orthogonal. (§57, §55, §58 and
+§60 all LANDED 2026-09-21 -- §55 in two passes, steps 1-3 before §58 and
+step 4 after §60, which is how the three stages' dependency cycle was
+broken. Two live proofs are still owed and both wait on the operator
+starting a machine: §58's first real `AltNames` write, and §55 step 4's
+first real `-NNN` launch -- `coops-model` is grandfathered under its bare
+name until its first sanctioned replacement, so nothing changes for it
+until then.) §55 SPLIT because, taken whole,
+§55, §58 and §60 formed a dependency cycle. §56 proves what §19 step 4
+claims; the naming is now settled, so it can write the proof down, after
+which §19 finishes -- its step 5, the upgrade path, having gained something
+concrete to mean from §60 (a sanctioned replacement is a new generation with
+a new name). §59 is deliberately LAST: it overlaps the suffix, and only once
+that is standing can anyone judge whether a name pool is still wanted. §30 waits on the operator's decision and depends
 on none of this. §61 is the open hygiene bundle (V); a new hygiene issue
 goes there.
 
-**If §19 matters more than the naming work**, the cut is clean: §55 steps 1-3
-already make §56's proof meaningful, so **§56 -> §19** delivers the stated
-purpose in two from here, with §55 step 4 and §59 following afterwards. Nothing in that shorter path has to be redone -- §58
+**The path to §19 is now the path**: **§56 -> §19**, two stages, with §59
+the only naming work left and deferrable. Nothing in that shorter path has to be redone -- §58
 adds the bare name back as an alias, so a proof written against `coops-model`
 survives the suffix.
 
@@ -289,158 +286,6 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
 
-## 55. A canonical hostname is claimed once in OPA
-
-**Why**: OPA identifies a server by its canonical hostname, and enrollment by
-token does not refuse a name already in use -- it registers another server
-with the same one. Three `coops-model` entries stand in `coops_rg_login`
-today (2026-09-21), one per launch this stage made, and only one of them is
-the live machine:
-
-| address | id | |
-| --- | --- | --- |
-| 10.26.34.156 | `10ff7662-17e8-428e-bc55-30592d313db0` | the running `i-0169f82844f4cc08d` |
-| 10.26.35.236 | `772d4058-0606-47bb-83b3-7a5d2b1eb173` | a destroyed launch |
-| 10.26.35.35 | `eb95bf11-5c65-4da3-8c6e-804f81ed0d9e` | the first node, destroyed |
-
-`sft ssh coops-model` then has three servers to choose between and no way to
-know which answers; the operator reports it as very hard to log in. The
-system CAUSES this: it sets the hostname from the instance's declared name
-(`launch_params.py:102`, `hostnamectl set-hostname`), so every relaunch of one
-declaration enrolls the same name again, and nothing ever retires the old
-record (the command itself is at `launch_params.py:127`). Stage 19 made three in two days without noticing.
-
-1. **Retire the record when the instance goes.** A decommission already drops
-   the pin and the launch parameters; the OPA server registration is the third
-   record of the same event and is not dropped. Same hook, same guard -- and
-   the same refusal to act when the destroy did not apply.
-2. **Refuse a name already claimed, before launching.** At validate, an
-   instance whose canonical hostname is already registered to a DIFFERENT
-   server is a refusal naming both, not a second registration. Cheap, and it
-   is the check that would have stopped the second `coops-model`.
-3. **How long may the name be, and does uniqueness cost us the name?**
-   Okta documents no maximum for `CanonicalName` -- its name-resolution page
-   says only that the value stands in for the OS hostname and ranks highest
-   when resolving an ambiguous name -- so the limit that actually bites is
-   ours: the canonical name IS the OS hostname here
-   (`launch_params.py:127`, `hostnamectl set-hostname`), so Linux's
-   `HOST_NAME_MAX` of 64 bytes applies, and RFC 1123 caps a label at 63
-   characters of letters, digits and hyphens. Nothing in the system validates
-   this today, and the failure is worse than late -- it is SILENT: the line
-   is `hostnamectl set-hostname '<name>' || true`, so an over-long or
-   otherwise invalid name does not stop the boot script. The machine keeps
-   whatever hostname the hyperscaler gave it (`ip-10-26-34-156`), enrolls in
-   OPA under THAT name, and `sft ssh <declared name>` finds nothing at all
-   while everything reports success. Refuse the name at validate, where it
-   is a declaration error and costs nothing.
-
-   That budget decides the shape of the fix. Decoration was the obvious
-   move, and the obvious objection to it was that it destroys the thing the
-   operator had just used: `sft ssh coops-model` works BECAUSE the name is
-   memorable, and `i-0169f82844f4cc08d` is 19 characters,
-   `2026_09_20t19_22_23_470066` is 26. That objection is answered -- not by
-   refusing to decorate, but by decorating SMALL and handing the bare name
-   back as an alias (step 4). Decided 2026-09-21.
-
-   **Steps 1-3 LANDED 2026-09-21** (`feature/opa-hostname-unique`): the
-   registration is retired in `forget_decommissioned` under the pin's own
-   guard; `validate_claimed_hostnames` refuses a claimed name -- and refuses
-   on silence -- only when a launch is actually possible; `hostname_problems`
-   refuses what the machine cannot take. `canonical_hostname()` in
-   `launch_params.py` is the ONE seam step 4 changes. The OPA client gained
-   `registered_servers` (None = could not ask) and `retire_server`; the group
-   contract gained `can_query_servers` / `registered_servers` /
-   `retire_servers_named`, gated like the stage-57 hooks. Step 1 is proven
-   through the transport seam and the live 204s of 2026-09-21, not by
-   destroying the standing node.
-
-4. **The canonical name is the declared name plus the durable generation**
-   (operator decision, 2026-09-21), zero-padded to three digits:
-
-       canonical = f"{instance.get_name()}-{generation:03d}"
-       # coops-model-003, coops-model-054, coops-model-256
-
-   The pad is a MINIMUM width, not a cap -- generation 1000 renders
-   `-1000` and nothing breaks; four characters against a 63-character
-   budget is not a constraint worth designing around. The counter is the
-   DURABLE one from §60, so ephemeral churn never advances a standing
-   machine's number.
-
-   **Why this is cheap here, when decoration usually is not.** Replacement
-   in this system is always control-plane-initiated: `aws_instance` carries
-   `lifecycle { ignore_changes = [ami, user_data] }`
-   (`tfmodules/aws_instance/main.tf:35`) and a machine moves only when the
-   system passes `-replace=<addr>` (`roots.py:203`). So the generation is
-   not PREDICTED at render time -- it is DECIDED, by the same code that
-   decides to replace -- and because user_data changes are ignored, a name
-   change can never itself trigger the replacement that would bump it.
-   No feedback loop, and no guessing.
-
-   It also lands on the existing immutability check correctly with no new
-   code: `hostname` is a compared launch parameter (`_VOLATILE` excludes
-   only run / user_data_sha256 / launched / launched_run / build), so a
-   suffix bump is REFUSED unless `pending_replacements[name]` is set --
-   which `move_pin` sets on exactly the sanctioned paths. A canonical name
-   can only change as part of a deliberate replacement. That is the
-   property we want, arrived at for free.
-
-   **The memorable name comes back as an alias.** §58 puts the bare
-   `coops-model` on as an `AltName`. The canonical is then unique forever,
-   even against stale records; the alias is memorable and unique among LIVE
-   machines once step 1 retires the dead ones. The degradation is graceful
-   in a way today's is not: if retirement fails, the alias goes ambiguous
-   but the canonical still gets you in, where today a failed retirement
-   makes the only name you have ambiguous.
-
-   **The one real gap: replacement out of band.** Terminate a machine in
-   the console and terraform recreates it on the next apply as a missing
-   resource, not via `-replace`. The machine is new and §60 observes a new
-   generation, but the name was rendered with the old number, so name and
-   observed generation disagree until the next render. The rule: the NAME
-   tracks sanctioned generations, the LEDGER tracks observed ones, and a
-   disagreement between them is a finding the state report raises -- not
-   something either side silently corrects.
-
-   **Settle the overlap with §59.** The suffix and the name pool both
-   supply uniqueness; they are not contradictory (suffix for the canonical
-   name, pool for an alias), but building both needs a reason. Decide when
-   §59 opens, not now.
-
-   **Unblocked 2026-09-21: §60 landed.** The counter is
-   `MetaState.instance_generation(name, "durable")`; the seam is
-   `canonical_hostname()` in `launch_params.py`, and the OPA registry
-   listing carries `canonical_name` so a suffixed name is a claim like any
-   other. One timing question is this step's to answer: the name is rendered
-   into user_data at GENERATE time, and a generation OPENS at apply time
-   (`mark_launched`, inferred; then observed). So the number the render
-   uses is "the durable count, plus one if this run will replace" -- known,
-   because replacement is explicit (`-replace`, a pending replacement, a
-   follow) -- and the after-apply open must land on that same number.
-   Decide, and write the rule down, before touching the seam.
-
-5. **The credentials can already do both** -- corrected 2026-09-21, having
-   first claimed otherwise. Servers are NOT reachable at the team-level path
-   (`/v1/teams/<team>/projects/.../servers` answers `401 Missing capability`,
-   which is what the wrong conclusion was drawn from). They are reachable
-   under the RESOURCE GROUP, where the service key's `resource_admin` and
-   `delegated_resource_admin` roles apply:
-
-       /v1/teams/<team>/resource_groups/<rg>/projects/<project>/servers
-
-   `GET` answers 200 and `DELETE` 204. No capability needs granting and there
-   is nothing to do in either console. Note the ids are not the flattened
-   name `sft list-servers` prints: `coops_rg_login` is resource group
-   `bca5c2ed-1ffc-4bce-9a56-71d3f7ab7c00` and project
-   `69e32009-0f50-4f56-af87-803cb94ee47b`, and passing the printed name as
-   the project gives `404 Resource not found`.
-6. **The duplicates are gone** (2026-09-21): `772d4058…` and `eb95bf11…`
-   deregistered, `10ff7662…` at 10.26.34.156 kept, and `sft ssh coops-model`
-   reaches the live machine. That is the symptom cleared, not the cause --
-   the next relaunch makes another one.
-7. Records: OPERATIONS on what a canonical hostname is, why a second one is
-   worse than a refusal, and the resource-group path the API actually wants.
-   Feature branch `feature/opa-hostname-unique`, squash-merged, kept.
-
 ## 56. CI logs in as a member of the group, and that is the proof
 
 **Why**: §19 claims that owning a group gets you into the machine, and
@@ -606,6 +451,29 @@ ceremony. Landed together on `feature/hygiene-v`, squash-merged, kept.
    that morning; a fresh browser sign-in then gave a full 8h), while the 1h
    role-credential expiry underneath is auto-refreshed and is not the limit.
    So the remaining time is not knowable from the login time -- only from
-   `expiresAt`, which preflight already reads. Give `preflight` a `--needs <duration>` (or let
-   `full-test` pass its own estimate) and refuse early, naming both numbers.
-   Non-critical: the failure is honest and environmental; it is just late.
+   `expiresAt`, which preflight already reads.
+
+   Corrected 2026-09-21, second occurrence: preflight ALREADY refuses when
+   the session ends before `config.preflight.expected_run_minutes` (default
+   30, `preflight.py:77`) -- but every CLI command runs that check for
+   itself, so `full-test` passes preflight at minute zero with plenty of
+   window, spends ~20 minutes on the docker and dry-run legs, and the
+   state-query leg's OWN preflight then refuses with 11 minutes left. The
+   fix is in the recipe, not the checker: run preflight once up front with
+   full-test's whole estimate (`expected_run_minutes` for the sum of its
+   legs, or a `--needs` override) and let the later legs skip the
+   per-command check. Non-critical: the failure is honest and
+   environmental; it is just late, and it has now cost two 20-minute runs.
+
+   Since 2026-09-21 19:19 the `noaa` profile is an `sso-session` profile:
+   the cache's `expiresAt` is now the ACCESS token's one hour, renewed
+   silently from a refresh token while the portal session lives. So the
+   number preflight reads no longer means what it did -- a run of 45
+   minutes will read as "expires before the expected length" while the CLI
+   would in fact carry it. LANDED the same evening, in 55 step 4's branch
+   because it blocked that stage's full-test: `aws_sso_expiry` now answers
+   "no fixed expiry readable; refreshes itself" for a cache entry carrying
+   a `refreshToken`, the answer preflight already gave GCP ADC, so a
+   refreshable token cannot block a run on its own. What REMAINS of this
+   item is the recipe half: one up-front check with full-test's whole
+   estimate instead of a per-leg check.

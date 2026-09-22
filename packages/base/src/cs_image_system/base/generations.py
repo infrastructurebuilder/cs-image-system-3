@@ -79,6 +79,14 @@ def on_launched(ctx: "GlobalTypeContext", name: str, params: dict[str, Any], *, 
     the observation pass then confirms it against the provider's id."""
     ms = ctx.meta_state
     cur = ms.current_generation(name)
+    if cur is not None and not replaced:
+        # A follow moves its pin with pending=False ("already happened"), so
+        # the pending marker alone misses it. The generation's own snapshot
+        # does not: it holds the hostname the standing machine booted with,
+        # and the canonical name changes ONLY inside a replacement -- so a
+        # launch record bearing a different hostname is a new machine.
+        booted_as = (cur.get("launch_params") or {}).get("hostname")
+        replaced = bool(booted_as) and bool(params.get("hostname")) and booted_as != params.get("hostname")
     if cur is not None and replaced:
         ms.close_generation(name, run_id=ctx.run_id, why=WHY_REPLACED)
         log.info(f"Instance {name}: generation {cur.get('kind')} {cur.get('number')} closed -- replaced")

@@ -458,7 +458,7 @@ def check_canonical_hostnames(ctx: GlobalTypeContext) -> list[Exception]:
     from ..launch_params import HOSTNAME_LABEL_MAX, canonical_hostname, hostname_problems
     exs: list[Exception] = []
     for inst in ctx.instances:
-        name = canonical_hostname(inst)
+        name = canonical_hostname(ctx, inst)
         for why in hostname_problems(name):
             exs.append(Exception(
                 f"instance '{inst.get_name()}': canonical hostname {name!r} {why} "

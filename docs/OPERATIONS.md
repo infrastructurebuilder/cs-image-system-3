@@ -354,6 +354,31 @@ checked this before, and the failure was silent -- the boot line ends in
 name (`ip-10-26-34-156`), enrolled in OPA as that, and `sft ssh` found
 nothing while every step reported success.
 
+**The canonical name carries the generation** (stage 55 step 4): a new
+machine is named `<declared>-NNN`, the declared name plus its generation
+zero-padded to three digits -- `coops-model-001`, `coops-model-054`,
+`coops-model-256`; the pad is a minimum width, so generation 1000 renders
+`-1000`. An ephemeral instance counts on its own counter, so a standing
+machine's number never moves because a throwaway was spun up under the same
+name. The number is decided ONCE, at render time -- the durable count plus
+one when this run launches a new machine (never launched, decommissioned,
+or being replaced by an `upgrade` or a follow) -- and the ledger opens
+exactly that generation after the apply.
+
+**A machine that stands keeps the name it booted with.** Nothing renames a
+running machine: the name changes only inside a replacement, which is
+exactly when immutability lets it change. That also grandfathers a machine
+launched before the suffix existed -- `coops-model`, adopted as generation
+1, stays `coops-model` until its first sanctioned replacement, and then
+becomes `coops-model-002`.
+
+The bare declared name comes back as an `AltNames` alias on the new
+machine, so `sft ssh coops-model` keeps working; it resolves to the machine
+that stands once the previous generation's registration is retired, and the
+suffixed canonical name works regardless. The state report notes a machine
+whose registered name is not the one its generation booted with -- the
+silent `hostnamectl ... || true` failure, made visible.
+
 To deregister by hand, servers live under the RESOURCE GROUP:
 `/v1/teams/<team>/resource_groups/<rg>/projects/<project>/servers/<id>`
 (`DELETE` answers 204). The team-level `/projects/...` path answers

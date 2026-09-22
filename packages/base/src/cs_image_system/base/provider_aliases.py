@@ -69,17 +69,23 @@ def provider_hostname_label(fqdn: str | None) -> str | None:
     return label or None
 
 
-def wanted_aliases(identity: dict[str, Any] | None, canonical: str) -> list[str]:
-    """The names to give back: the provider-hostname label, when it is a
-    different name from the canonical one and a name a hostname may be. On
-    GCE the default label IS the instance name, so there is nothing to give
-    back; on EC2 it is the ``ip-…`` name the boot script took away."""
-    if not identity:
-        return []
-    label = provider_hostname_label(identity.get("provider_hostname"))
-    if not label or label == canonical or hostname_problems(label):
-        return []
-    return [label]
+def wanted_aliases(identity: dict[str, Any] | None, canonical: str, declared: str = "") -> list[str]:
+    """The names to give back. The provider-hostname label, when it is a
+    different name from the canonical one and a name a hostname may be (on
+    GCE the default label IS the instance name, so nothing; on EC2 the
+    ``ip-…`` name the boot script took away). And the bare DECLARED name,
+    when the canonical one carries a generation suffix (stage 55 step 4):
+    ``coops-model`` stays the name a person types, and resolves to the
+    machine that stands once the previous generation's registration is
+    retired."""
+    out: list[str] = []
+    if declared and declared != canonical and not hostname_problems(declared):
+        out.append(declared)
+    if identity:
+        label = provider_hostname_label(identity.get("provider_hostname"))
+        if label and label != canonical and label not in out and not hostname_problems(label):
+            out.append(label)
+    return out
 
 
 def claimed_names(servers: list[dict[str, Any]], declared: set[str]) -> dict[str, str]:
@@ -149,7 +155,7 @@ def register_provider_aliases(ctx: "GlobalTypeContext", lifecycle: Lifecycle) ->
     if not apply_enabled("instances"):
         return
     recorded = ctx.meta_state.launch_params()
-    declared = {canonical_hostname(i) for i in ctx.instances}
+    declared = {canonical_hostname(ctx, i) for i in ctx.instances}
     registries: dict[str, list[dict[str, Any]] | None] = {}
     for instance in ctx.instances:
         name = instance.get_name()
@@ -173,8 +179,8 @@ def register_provider_aliases(ctx: "GlobalTypeContext", lifecycle: Lifecycle) ->
         if not identity:
             log.info(f"Instance {name}: provider identity unavailable; no alias this run")
             continue
-        canonical = canonical_hostname(instance)
-        wanted = wanted_aliases(identity, canonical)
+        canonical = canonical_hostname(ctx, instance)
+        wanted = wanted_aliases(identity, canonical, name)
         if not wanted:
             continue
         if group not in registries:
@@ -235,6 +241,8 @@ def instance_identity_notes(ctx: "GlobalTypeContext", report: "StateReport") -> 
         cur = ctx.meta_state.current_generation(name)
         if cur:   # stage 60: which machine of this name this is
             entry["generation"] = {"number": cur.get("number"), "kind": cur.get("kind"), "how": cur.get("how")}
+            booted_as = str((cur.get("launch_params") or {}).get("hostname") or "")
+            entry["booted_as"] = booted_as
         group = _group_of(ctx, instance)
         gb = group_builder_of(ctx, group) if group else None
         if gb is not None and gb.can_query_servers():
@@ -245,8 +253,17 @@ def instance_identity_notes(ctx: "GlobalTypeContext", report: "StateReport") -> 
             if own is not None:
                 entry["registered_as"] = own.get("hostname", "")
                 entry["alt_names"] = list(own.get("alt_names") or [])
+                # stage 55 step 4: the name in the registry must be the name
+                # the generation booted with. A difference is the silent
+                # `hostnamectl ... || true` failure made visible: the machine
+                # kept the hyperscaler's name and enrolled under it.
+                booted_as = entry.get("booted_as") or ""
+                if booted_as and entry["registered_as"] != booted_as:
+                    report.notes.append(f"instances/{name}: registered in OPA as {entry['registered_as']!r} "
+                                        f"but its generation booted as {booted_as!r} -- the hostname did not "
+                                        "take at boot; sft ssh by the declared name will not find it")
                 state = rtb.query_instance_power_state(name) if rtb.can_query_instance_power_state() else None
-                missing = [a for a in wanted_aliases(identity, canonical_hostname(instance))
+                missing = [a for a in wanted_aliases(identity, canonical_hostname(ctx, instance), name)
                            if a not in entry["alt_names"]]
                 if missing and power_state.is_on(state):
                     report.notes.append(f"instances/{name}: answers to {entry['registered_as']!r} and "
