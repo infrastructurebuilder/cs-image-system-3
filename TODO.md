@@ -338,65 +338,88 @@ provider's source (the team's API was not queried):**
 
 **The shape (decided with the operator 2026-09-22):**
 
-1. **One connection per team, hand-made, referenced by name.** The trust
-   anchor is scoped to the team, its activation is a security-admin act by
-   design, and there is one CI -- so it is a bootstrap object like the OPA
-   API key pair: created once, named in the live configuration on the
-   okta-tf group builder beside `team` (`workload_connection:
-   github-cs-image-system`), read by the system from then on. The proof
-   refuses when the named connection is absent or still a draft (the API
-   reads its status). The click-by-click checklist with the values decided
-   is [WORKLOAD_CONNECTION.md](WORKLOAD_CONNECTION.md); it makes ONLY the
-   connection. **USER**: create it as a draft on the morning of 2026-09-22
-   and hand back its name (and the audience, if the form shows one).
+1. **One connection and one role per team, hand-made, referenced by
+   name.** The connection is the trust anchor, scoped to the team, and its
+   activation is a security-admin act by design. The role is CI's one
+   identity: a role reaches nothing by itself, policies grant reach, and
+   the policies are per group, so one role is exactly as much identity as
+   CI needs (per-group roles would all carry the same condition and buy no
+   isolation). Both are bootstrap objects like the OPA API key pair:
+   created once, named in the live configuration on the okta-tf group
+   builder beside `team` (`workload_connection: github-cs-image-system`,
+   `workload_role: cs-image-system-ci`), read by the system from then on.
+   The proof refuses when either named object is absent or the connection
+   is still a draft (the API reads its status). The claims are pinned BY
+   NAME (`repository` and, redundantly and on purpose, `repository_owner`)
+   so the document serves the next organization and a person can read the
+   values off their remote URL; the one impersonation a name pin leaves
+   open (the owner's name recycled after deletion) and the relocation
+   order are written down beside the choice. The click-by-click checklist
+   with the values decided is
+   [WORKLOAD_CONNECTION.md](WORKLOAD_CONNECTION.md); it makes ONLY those two
+   objects. **USER**: create both on the morning of 2026-09-22 (the
+   connection as a draft) and hand back the names (and the audience, if
+   the form shows one).
 2. **Prove the token before anything depends on it.** A dispatch-only CI
    step requests GitHub's OIDC token (`id-token: write` is already granted
-   to the live and perform jobs) and runs `sft workload authenticate`
-   against the DRAFT; a draft validates tokens and issues nothing usable,
-   so this is free of consequence. When the log shows the token validate,
-   the operator activates the connection.
-3. **One workload role per group, system-managed.** `<g>_ci`, bound to the
-   team connection, conditions `repository` Equals this repository (and
-   `ref` Equals `refs/heads/main` once the proof runs on main). Per group,
-   not per team, so a role reaches exactly one group's servers. Because the
-   provider cannot, the okta group builder creates and reconciles it
-   through the OPA API in the identity lifecycle, under the same guards as
-   the rest of that lifecycle (`apply_identity` gates the write, a dry run
-   reports), records it in `meta-state/identity.yaml`, and `state query`
-   drift-checks it like the groups. When the provider gains the resource it
-   moves into the module by import.
-4. **One CI policy per group, system-managed, SEPARATE from the user
-   policy.** `<g>_v1_security_policy_ci`: the user policy's rule verbatim
-   (the label selector `sftd.tx.group=<g>`, `principal_account_ssh`,
-   admin-level off), with the role as its only principal; through the API
-   for the same reason as step 3. Separate, and not a principal added to
-   `<g>_v1_security_policy_user`, for three reasons: the provider could not
-   mix a role into that policy's principals anyway; a machine principal
-   inside the human policy means a CI change can lock a scientist out; and
-   a separate policy is its own audit line, revocable alone. Open question
-   the first login answers: which Unix account a workload lands in under
-   principal-account SSH (a workload has no personal account); record it.
-5. **The proof leg, generic.** The runner installs `sft` (nothing in the
+   to the live and perform jobs) and runs `sft workload authenticate
+   --role-hint cs-image-system-ci` against the DRAFT; a draft validates
+   tokens and issues nothing usable, so this is free of consequence. When
+   the log shows the token validate, the operator activates the
+   connection.
+3. **One CI policy per group, system-managed, SEPARATE from the user
+   policy.** `<g>_v1_security_policy_ci`: a copy of the group's standing
+   user policy record (`<g>_v1_security_policy_user`, the one terraform
+   wrote: same resource group, the rule verbatim -- label selector
+   `sftd.tx.group=<g>`, `principal_account_ssh`, admin-level off) with the
+   team role as its only principal. Because the provider cannot name a
+   role as a principal, the okta group builder creates and reconciles it
+   through the OPA API in the identity lifecycle after the terraform apply,
+   under the same guards as the rest of that lifecycle (`apply_identity`
+   gates the write, a dry run reports what it would create or change),
+   records it in `meta-state/identity.yaml`, and `state query` drift-checks
+   it like the groups: absent or diverged from the user policy is drift
+   [HARD], an unanswerable API is unavailable. Deriving the copy from the
+   standing user-policy record at every reconcile is what makes "mirrors
+   verbatim" structural rather than a promise. When a group leaves the
+   configuration the CI policy goes in the same pass as terraform's
+   destroy of the user policy, behind the same "did the destroy apply"
+   check §55's retirement uses. Separate, and not a principal added to the
+   user policy, for three reasons: the provider could not mix a role into
+   that policy's principals anyway; a machine principal inside the human
+   policy means a CI change can lock a scientist out; and a separate policy
+   is its own audit line, revocable alone. Open question the first login
+   answers: which Unix account a workload lands in under principal-account
+   SSH (a workload has no personal account); record it. The security
+   policy endpoint and JSON are known from the provider's own client; the
+   `workload_roles` principal field is known from the client SDK's tags and
+   is confirmed by a GET before the first POST.
+4. **The proof leg, generic.** The runner installs `sft` (nothing in the
    Justfile or CI does today). For each managed group with a standing
-   instance: `sft workload authenticate --role-hint <g>_ci`; `sft resolve
-   <name>` must return exactly ONE server (§55); `sft ssh <name> --command
-   id` and assert on the output. A leg of `cloud-verify` beside `serial`
-   and `iap`, so it is the same shape as the checks that already exist. It
-   runs against whatever §19 leaves standing and launches nothing.
-6. **What it must fail on.** The group's CI policy deactivated or absent;
+   instance: `sft workload authenticate --role-hint cs-image-system-ci`;
+   `sft resolve <name>` must return exactly ONE server (§55); `sft ssh
+   <name> --command id` and assert on the output. A leg of `cloud-verify`
+   beside `serial` and `iap`, so it is the same shape as the checks that
+   already exist. It runs against whatever §19 leaves standing and
+   launches nothing. After its first green run from `main`, the operator
+   adds `ref` Equals `refs/heads/main` to the role, matching the AWS write
+   role's trust.
+5. **What it must fail on.** The group's CI policy deactivated or absent;
    the role's condition not matching the run; a machine that never
    enrolled; and a DUPLICATE canonical hostname (§55) -- the last one
    especially, since a second `coops-model` makes `sft ssh` reach an
-   arbitrary one of them. Deactivating the CI policy must turn the leg red,
-   or it proves nothing about the policy.
-7. Records: OPERATIONS on proving access rather than health, on the team
-   connection as a bootstrap object, and on the per-group role and policy;
-   the checklist folds into OPERATIONS and the file is deleted. Feature
-   branch `feature/ci-logs-in`, squash-merged, kept.
+   arbitrary one of them. Deactivating one group's CI policy must turn
+   THAT group's leg red and no other, or it proves nothing about the
+   policy.
+6. Records: OPERATIONS on proving access rather than health, on the team
+   connection and role as bootstrap objects with the impersonation and
+   relocation cases, and on the per-group CI policy; the checklist folds
+   into OPERATIONS and the file is deleted. Feature branch
+   `feature/ci-logs-in`, squash-merged, kept.
 
-Order: 1 -> 2 -> 3 and 4 together -> 5 -> 6 -> 7. This is larger than "a
-CI leg": the identity lifecycle learns two more objects, through the API,
-and that is the honest size of it.
+Order: 1 -> 2 -> 3 -> 4 -> 5 -> 6. This is larger than "a CI leg": the
+identity lifecycle learns one more object, through the API, and that is
+the honest size of it.
 
 ## 59. A pool of names, each spent once
 
