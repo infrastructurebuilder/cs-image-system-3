@@ -1269,6 +1269,7 @@ needs docker and the live configuration, no cloud credentials.
 | `preflight` | the runtime sessions from the caches, no load (0 / 2) | live tree |
 | `cloud-preflight` / `gce-preflight` | `state query --strict` (both clouds) | live tree, AWS + GCP sessions, identity credentials, `CSIS_CONFIG_IDENTITY` |
 | `cloud-describe <rt>` | the configuration's facts about a runtime as JSON | live tree, sessions |
+| `full-test-legs` | the live legs of `full-test` alone: `test-mods --strict` under docker, a headless dry run `--all` and a `state query --strict` over a private copy of the live configuration; re-run these after a session renewal instead of the whole `full-test` | `preflight` gates the two copy legs |
 | `cloud-bake <rt> [yes]` / `gce-bake [yes]` | `run base-image instance-image --only-runtime <rt> --commit`; the storage/instance roots plan and gate only | `cloud-preflight`; real bakes need write credentials |
 | `cloud-cycle <rt> [yes]` / `gce-cycle [yes]` | `run --all --only-runtime <rt> --apply-runtime <rt> --commit`, then `cloud-empty` | `cloud-preflight`; write credentials |
 | `cloud-perform <rt>` | the performing run CI makes on `main`: `--no-dry-run run base-image instance-image release retention --only-runtime <rt> --commit` (bakes due, releases, retention; roots plan and gate only) | `cloud-preflight`; write credentials |

@@ -44,7 +44,12 @@ test: lint typecheck pytest
 # does. Identity credentials (OKTA_API_*, TF_VAR_<team>_*) are not gated: a
 # dry run without them warns and skips the identity roots' plan.
 [doc("`test` plus the docker-backed modification tests and, when the runtime sessions are present, a headless dry run --all with state query --strict")]
-full-test: test
+full-test: test full-test-legs
+
+# So a session that lapsed after the bar costs the legs again, not the bar (hygiene V item 2); the
+# session is checked once up front, and a leg that finds it gone mid-way still fails loudly.
+# The live legs of full-test alone: test-mods under docker, a dry run --all and a state query --strict over a private copy of the live configuration
+full-test-legs:
 	#!/usr/bin/env bash
 	set -uo pipefail
 	status=0

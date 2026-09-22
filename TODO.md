@@ -353,6 +353,11 @@ ceremony. Landed together on `feature/hygiene-v`, squash-merged, kept.
    per-command check. Non-critical: the failure is honest and
    environmental; it is just late, and it has now cost two 20-minute runs.
 
+   **Recipe half done 2026-09-22**: `just full-test-legs` runs the three
+   live legs alone (`full-test` = `test` then `full-test-legs`), so a
+   session that lapses after the bar -- as the portal session did at
+   19:43Z that day, sixteen minutes before the legs -- costs the legs
+   again, not the bar. The reader half landed with stage 55 step 4.
    Since 2026-09-21 19:19 the `noaa` profile is an `sso-session` profile:
    the cache's `expiresAt` is now the ACCESS token's one hour, renewed
    silently from a refresh token while the portal session lives. So the
