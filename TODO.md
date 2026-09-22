@@ -474,3 +474,23 @@ ceremony. Landed together on `feature/hygiene-v`, squash-merged, kept.
    nothing to destroy once the provider agrees it is gone. When OPA STILL
    has the membership, leave it to the plan: that destroy is the explicit
    decision the operations rules require, and the gate sees it.
+4. **A durable instance cannot take its own image's second release without
+   a rule being switched off by hand.** `release` refuses a build until its
+   post-bake tests have passed on a launched machine (stage 14), and
+   `require_released_builds` refuses every run while any instance is pinned
+   to an unreleased build. For an ephemeral instance the cycle resolves
+   this inside one run (launch, verify, tear down, release). For a DURABLE
+   instance whose volume allows one attachment (`mnt_data`), no proof
+   instance can mount what the image's post-bake spec requires, so the
+   proof can only run on the instance itself -- after `upgrade instance`
+   pins it to the unreleased build, which the rule refuses. Found
+   2026-09-22 on the coops image's second build (stage 19 step 5); the
+   first release on 2026-09-20 went the same way. The procedure that works
+   is to set `require_released_builds: false` for the window: upgrade,
+   replace, verify (the post-bake record), release, then set it back. The
+   system should own that window instead: an instance may pin an
+   unreleased build when that build is the series head whose in-bake
+   tests passed AND the pin is a pending replacement whose post-bake proof
+   will run on the new machine -- refused again if the proof does not
+   follow within the same or the next run. Design it before the third
+   release, not during it.
