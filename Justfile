@@ -575,7 +575,8 @@ opa-workload-probe:
 ci-login-proof *ARGS: config-guard
 	#!/usr/bin/env bash
 	set -euo pipefail
-	eval "$({{gce_cli}} identity workload --env)"
+	workload_env=$({{gce_cli}} identity workload --env)
+	eval "$workload_env"
 	if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
 		OPA_TOKEN="$(scripts/opa-workload-token)"
 		export OPA_TOKEN
