@@ -525,3 +525,66 @@ gce-launch dry="no": (cloud-launch gce_runtime dry)
 gce-decommission dry="no": config-guard
 	@scripts/with-tofu-lock {{gce_cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} --undeclare instance:gce-test run instance-image --only none --apply-runtime {{gce_runtime}} --commit
 gce-teardown dry="no": (gce-decommission dry) (gce-dispose-images dry)
+
+# ---------------------------------------------------------------------------
+# The CI login proof (stage 56): CI logs into the machines the system launches
+# through the policies the system manages, as a WORKLOAD -- GitHub's own OIDC
+# token presented to the team's workload connection (WORKLOAD_CONNECTION.md),
+# never a static key. These recipes need no configuration: the names come in
+# through the environment, and the token is minted by the running Actions job.
+# ---------------------------------------------------------------------------
+
+# (Ubuntu runners ship none; a no-op where `sft` is already on PATH)
+# The OPA client, from Okta's apt repository for the running release's codename
+sft-install:
+	#!/usr/bin/env bash
+	set -euo pipefail
+	if command -v sft >/dev/null 2>&1; then
+		echo "sft-install: $(sft --version 2>/dev/null | head -1) already on PATH"
+		exit 0
+	fi
+	if ! command -v apt-get >/dev/null 2>&1; then
+		echo "sft-install: not an apt system; install the client by hand:" >&2
+		echo "  https://help.okta.com/oie/en-us/content/topics/privileged-access/tool-setup/pam-sft-ubuntu.htm" >&2
+		exit 2
+	fi
+	. /etc/os-release
+	curl -fsSL https://dist.scaleft.com/GPG-KEY-OktaPAM-2023 | gpg --dearmor | sudo tee /usr/share/keyrings/oktapam-2023-archive-keyring.gpg >/dev/null
+	echo "deb [signed-by=/usr/share/keyrings/oktapam-2023-archive-keyring.gpg] https://dist.scaleft.com/repos/deb ${VERSION_CODENAME} okta" | sudo tee /etc/apt/sources.list.d/oktapam-stable.list >/dev/null
+	sudo apt-get update -qq
+	sudo apt-get install -y -qq scaleft-client-tools
+	echo "sft-install: $(sft --version | head -1)"
+
+# Prints the token's public claims and the client's verdict -- never a token (both are masked).
+# Needs PROBE_CONNECTION, PROBE_ROLE, SFT_TEAM and OPA_ADDR in the environment and a job that
+# holds `id-token: write`. Against a DRAFT connection OPA validates and issues nothing usable.
+# Stage 56 step 2: this Actions run's OIDC token, presented to the team's workload connection
+opa-workload-probe:
+	#!/usr/bin/env bash
+	set -euo pipefail
+	: "${PROBE_CONNECTION:?opa-workload-probe: PROBE_CONNECTION (the workload connection's name) is not set}"
+	: "${PROBE_ROLE:?opa-workload-probe: PROBE_ROLE (the workload role's name) is not set}"
+	: "${SFT_TEAM:?opa-workload-probe: SFT_TEAM (the OPA team) is not set}"
+	: "${OPA_ADDR:?opa-workload-probe: OPA_ADDR (the OPA address) is not set}"
+	: "${ACTIONS_ID_TOKEN_REQUEST_URL:?opa-workload-probe: not a GitHub Actions job holding id-token: write}"
+	jwt=$(curl -fsS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${ACTIONS_ID_TOKEN_REQUEST_URL}" \
+		| python3 -c 'import json, sys; print(json.load(sys.stdin)["value"])')
+	echo "::add-mask::${jwt}"
+	python3 - "$jwt" <<'PY'
+	import base64, json, sys
+	payload = sys.argv[1].split(".")[1]
+	claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+	for key in ("iss", "aud", "sub", "repository", "repository_owner", "ref", "ref_type", "workflow_ref", "exp"):
+	    print(f"claim {key}: {claims.get(key)}")
+	PY
+	export GH_OIDC_JWT="$jwt"
+	set +e
+	out=$(sft workload authenticate --team "$SFT_TEAM" --connection "$PROBE_CONNECTION" --role-hint "$PROBE_ROLE" --jwt-env GH_OIDC_JWT 2>"${RUNNER_TEMP:-/tmp}/probe-stderr.txt")
+	rc=$?
+	set -e
+	if [ -n "$out" ]; then echo "::add-mask::${out}"; fi
+	echo "opa-workload-probe: sft workload authenticate exit ${rc}; stdout $( [ -n "$out" ] && echo 'carried a token (masked)' || echo 'empty' )"
+	echo "--- stderr"
+	cat "${RUNNER_TEMP:-/tmp}/probe-stderr.txt"
+	rm -f "${RUNNER_TEMP:-/tmp}/probe-stderr.txt"
+	exit "$rc"
