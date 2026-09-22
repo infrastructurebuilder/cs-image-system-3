@@ -409,6 +409,15 @@ provider's source (the team's API was not queried):**
    branch (`b599d66`): the plan is materialised, initialised and run in the
    private mirror, as the deferred runner already does
    (`plaintext_read_commands`).
+   **Landed live 2026-09-22 09:07** (run `2026_09_22t09_07_51_985772`,
+   after a hand `state rm` of two stale attachments, hygiene V item 3): all
+   five CI policies created, `principals.workload_roles: [{id}]` accepted
+   as sent, the listings at the SDK's paths (`/workload-roles`,
+   `/connections/workloads`), and a fresh state query reads every policy
+   as mirroring once `security_policy_id` (OPA's back-reference on a stored
+   rule) is treated as bookkeeping. Also learnt: an absent CI policy must
+   not be HARD drift, or the validator refuses the very apply that creates
+   it.
 4. **The proof leg, generic.** The runner installs `sft` (nothing in the
    Justfile or CI does today). For each managed group with a standing
    instance: `sft workload authenticate --role-hint cs-image-system-ci`;

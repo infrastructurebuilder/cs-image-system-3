@@ -243,15 +243,17 @@ privilege rather than working around it.
       showed no audience) as pinned; `sft workload authenticate` exit 0 with
       a token on stdout even against the draft. The recipe is `just
       opa-workload-probe`; the runner gets the client from `just sft-install`.
-- [ ] 6.3 (Operator) Activate the connection: **Workload connections**, the
+- [x] 6.3 (Operator) Activate the connection: **Workload connections**, the
       draft, promote to active. From here the system refuses the proof
       when either named object is absent or the connection is still a
-      draft.
+      draft. **Done 2026-09-22**: the state query reads it as ACTIVE.
 - [x] 6.4 (Claude) The identity lifecycle learns the per-group CI policy
       (TODO §56 step 3), then the generic `sft ssh` proof leg lands as
       `cloud-verify ... sft` (steps 4 and 5) and runs from `main`.
-      **Built 2026-09-22** on `feature/ci-logs-in`; the first live run
-      waits on 6.3 and on an identity apply that creates the CI policy.
+      **Built 2026-09-22** on `feature/ci-logs-in`. The identity apply of
+      2026-09-22 09:07 created the five CI policies (one per managed
+      group) and a fresh state query reads every one as mirroring its user
+      policy. The first live login waits on `coops-model` running.
 - [ ] 6.5 (Operator) After the first green run from `main`, add the branch
       pin to the role: condition Source field name `ref`, operator
       **Equals**, value `refs/heads/main`. Renaming the default branch is
