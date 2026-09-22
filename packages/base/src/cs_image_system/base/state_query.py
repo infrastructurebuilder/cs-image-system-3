@@ -305,9 +305,11 @@ def workload_drift(name: str, expected: Any, real: Any) -> list[Drift]:
                       "apply_identity creates it as a copy of "
                       f"{expected.get('mirrors')!r} (stage 56)")]
     if policy.get("mirrors") is False:
+        diff = policy.get("diff") or []
         return [Drift("group", name, DRIFT_CHANGED,
                       f"CI login policy {expected.get('policy')!r} no longer mirrors "
-                      f"{expected.get('mirrors')!r}; the next identity apply rewrites it")]
+                      f"{expected.get('mirrors')!r}; the next identity apply rewrites it"
+                      + (" -- " + "; ".join(str(d) for d in diff) if diff else ""))]
     return []
 
 

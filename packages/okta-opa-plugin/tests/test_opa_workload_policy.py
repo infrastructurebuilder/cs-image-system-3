@@ -66,6 +66,7 @@ def test_policies_compare_by_reach_not_by_ids_or_descriptions():
     standing["id"] = "pol-ci"
     standing["description"] = "edited in the console"
     standing["rules"][0]["id"] = "rule-9"
+    standing["rules"][0]["security_policy_id"] = "pol-ci"     # OPA's back-reference on a stored rule (live 2026-09-22)
     standing["resource_group"] = {"id": "rg-1", "name": "coops_rg"}
     assert policies_equal(standing, desired)
     standing["rules"][0]["resource_selector"]["selector"]["selectors"][0]["selector"]["server_selector"]["labels"]["sftd.tx.group"] = "other"
@@ -84,9 +85,11 @@ def test_workload_state_reports_presence_mirroring_and_the_connection():
     assert st["role"] == {"present": True, "id": "role-1"}
     assert st["policy"] == {"present": True, "id": "pol-ci", "mirrors": True, "user_policy_present": True}
     assert st["connection"] == {"present": True, "active": False}
-    # diverged: the console changed the CI policy's rule
+    # diverged: the console changed the CI policy's rule -- and the record says WHERE
     ci["rules"][0]["privileges"][0]["privilege_value"]["admin_level_permissions"] = True
-    assert workload_state(snap, "coops", "github-cs-image-system", "cs-image-system-ci")["policy"]["mirrors"] is False
+    diverged = workload_state(snap, "coops", "github-cs-image-system", "cs-image-system-ci")["policy"]
+    assert diverged["mirrors"] is False
+    assert diverged["diff"] == ["rules[0].privileges[0].privilege_value.admin_level_permissions: True != False"]
     # absent role: nothing to mirror against, and the role is reported absent
     st = workload_state(WorkloadSnapshot(policies=[USER_POLICY], roles=[], connections=None),
                         "coops", "github-cs-image-system", "cs-image-system-ci")

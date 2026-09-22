@@ -52,11 +52,17 @@ def by_name(records: list[dict[str, Any]], name: str) -> dict[str, Any] | None:
     return None
 
 
+# OPA's own bookkeeping on a stored record: the object's id and, on each
+# rule, the id of the policy it belongs to (``security_policy_id`` -- the one
+# field on which a fresh copy differed from its original, live 2026-09-22).
+_BOOKKEEPING = ("id", "security_policy_id")
+
+
 def _without_ids(value: Any) -> Any:
-    """The record with every ``id`` key removed at every depth, so a copy
-    posts as a new object and two records compare by content."""
+    """The record with OPA's bookkeeping keys removed at every depth, so a
+    copy posts as a new object and two records compare by content."""
     if isinstance(value, dict):
-        return {k: _without_ids(v) for k, v in value.items() if k != "id"}
+        return {k: _without_ids(v) for k, v in value.items() if k not in _BOOKKEEPING}
     if isinstance(value, list):
         return [_without_ids(v) for v in value]
     return value
@@ -106,6 +112,32 @@ def policies_equal(standing: dict[str, Any], desired: dict[str, Any]) -> bool:
     return _comparable(standing) == _comparable(desired)
 
 
+def _flatten(value: Any, prefix: str = "") -> dict[str, Any]:
+    if isinstance(value, dict):
+        out: dict[str, Any] = {}
+        for k, v in sorted(value.items()):
+            out.update(_flatten(v, f"{prefix}.{k}" if prefix else str(k)))
+        return out or {prefix: {}}
+    if isinstance(value, list):
+        out = {}
+        for i, v in enumerate(value):
+            out.update(_flatten(v, f"{prefix}[{i}]"))
+        return out or {prefix: []}
+    return {prefix: value}
+
+
+def policy_diff(standing: dict[str, Any], desired: dict[str, Any]) -> list[str]:
+    """Every leaf on which the standing record and the desired copy disagree,
+    as ``path: standing != desired`` -- what a drift line names, so a
+    divergence says WHAT rather than only that."""
+    a, b = _flatten(_comparable(standing)), _flatten(_comparable(desired))
+    out = []
+    for key in sorted(set(a) | set(b)):
+        if a.get(key, "<absent>") != b.get(key, "<absent>"):
+            out.append(f"{key}: {a.get(key, '<absent>')!r} != {b.get(key, '<absent>')!r}")
+    return out
+
+
 def connection_active(connection: dict[str, Any] | None) -> bool | None:
     """True/False from whichever status field the record carries; None when
     the record is absent or names its status in a way this code does not
@@ -133,13 +165,19 @@ def workload_state(snapshot: WorkloadSnapshot, group: str, connection_name: str,
     user = by_name(snapshot.policies, user_policy_name(group))
     ci = by_name(snapshot.policies, ci_policy_name(group))
     mirrors: bool | None = None
+    diff: list[str] = []
     if ci is not None and user is not None and role is not None and role.get("id"):
-        mirrors = policies_equal(ci, ci_policy_from(user, group, str(role["id"])))
+        desired = ci_policy_from(user, group, str(role["id"]))
+        mirrors = policies_equal(ci, desired)
+        if not mirrors:
+            diff = policy_diff(ci, desired)[:8]
     out: dict[str, Any] = {
         "role": {"present": role is not None, "id": str(role.get("id") or "") if role else None},
         "policy": {"present": ci is not None, "id": str(ci.get("id") or "") if ci else None,
                    "mirrors": mirrors, "user_policy_present": user is not None},
     }
+    if diff:
+        out["policy"]["diff"] = diff
     if snapshot.connections is not None:
         conn = by_name(snapshot.connections, connection_name)
         out["connection"] = {"present": conn is not None, "active": connection_active(conn)}
