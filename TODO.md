@@ -179,6 +179,16 @@ image` → re-bake → `upgrade instance` → gated replace) so the model's
    registration under `coops-model` is retired by the launch that replaced
    it (`mark_launched`), so the alias is free to take. `mnt_data` is
    detached and re-attached across the replace; the root disk is lost.
+   **Done 2026-09-22 11:34-13:16**: the coops update playbook (EPEL +
+   figlet) made the bake due; build `ami-08b0d669a6b5d86af`; `upgrade
+   instance`; the replace to `coops-model-002` (generation 2 on
+   `i-0461d9643f1cc4e21`, the old registration retired); verify (4
+   assertions, both mounts); release; the aliases back. Four gaps closed
+   on the way (a pending replacement is a note; the attachment joins the
+   replace's whitelist; the alias pass waits for a fresh machine; the
+   replaced registration is retired) and one filed (hygiene V item 4: the
+   `require_released_builds` window). The procedure is in OPERATIONS, "A
+   model image, end to end: the second release".
 6. Records: ledger, PLAN, OPERATIONS "a model image, end to end".
    Feature branch `feature/model-<name>`, squash-merged, kept.
 

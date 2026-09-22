@@ -532,6 +532,62 @@ absent, the role's condition not matching the run, a machine that never
 enrolled, a duplicate hostname -- and deactivating one group's policy
 fails that group's proof alone.
 
+
+### A model image, end to end: the second release
+
+The coops model's image had its second release on 2026-09-22, and the
+path is now a procedure. It takes one durable instance (`coops-model`, a
+`c5n.4xlarge` that stands 24/7 and owns the single-attachment `mnt_data`
+volume) from one released build to the next in eight steps, all from the
+code repository, all but the edits through `just`:
+
+1. **The change.** A modification on the image (here an ansible playbook
+   under the configuration's `playbooks/`), the proof of it in the
+   image's `tests:` and `tests.post_bake`, `just cli validate`, then
+   `just test-mods --strict` (the bundle runs twice in an AlmaLinux 10
+   container: apply and idempotence). Commit the configuration.
+2. **The build.** `just cli --no-dry-run run base-image instance-image
+   release retention --only-runtime aws-east2-runtime --commit`. The
+   change makes the bake due (`--force-bake <image>` bakes an unchanged
+   one). `release` does NOT release the build yet: it wants the
+   post-bake record, which only a launched machine can produce.
+3. **The window.** Set `config.require_released_builds: false` for steps
+   4 to 7. An instance pinned to an unreleased build makes every run
+   refuse under that rule, and for a durable instance whose volume allows
+   one attachment no proof instance can mount what the post-bake spec
+   requires, so the proof runs on the instance itself. Hygiene V item 4
+   is the system taking that window over.
+4. **The pin.** `just cli upgrade instance coops-model` moves the pin to
+   the released head of the series (or `--to <build>`) and leaves the
+   pending-replacement marker. The strict state query now reports the
+   booted image behind the pin as a `note`, not drift.
+5. **The replace.** `just cloud-launch aws-east2-runtime`. The plan
+   carries `-replace` for the instance and the gate whitelists it AND its
+   volume attachments (the attachment binds the volume to the instance's
+   id). The new machine boots as `coops-model-002` (stage 55 step 4);
+   generation 1 closes as replaced and 2 opens on the new instance id
+   (stage 60); the replaced machine's registration under the old name is
+   retired by the launch that replaced it. The data volume is detached and
+   re-attached; the root disk is lost. About ten minutes down.
+6. **The proof.** `just cloud-verify aws-east2-runtime coops-model`: the
+   booted image, both mounts, the post-bake assertions -- recorded for the
+   new build.
+7. **The release.** `just cli --no-dry-run run release --only-runtime
+   aws-east2-runtime --commit` records the build as the model's current
+   release; the previous release stays in the ledger. Then
+   `require_released_builds: true` again, `just cli validate`, commit.
+8. **The names.** One more `just cloud-launch aws-east2-runtime` (no
+   changes) gives the machine back its bare name and `ip-…` label as
+   AltNames; a machine launched in the same run now gets them in that
+   run, after it answers and enrolls. `just ci-login-proof coops-model`
+   then logs in by name.
+
+**The standing cost** of the model node, from the on-demand price this
+account cannot query (no `pricing:GetProducts`): a `c5n.4xlarge` at about
+$0.86 an hour, some $620 a month while it stands, plus the 100 GiB `gp3`
+volume and the EFS filesystem. Switching it off (the operator's, stage
+57) stops the instance charge and keeps the volume's.
+
 ### Ephemeral instances
 
 `instances[].ephemeral: true` declares an instance that exists to be
