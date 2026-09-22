@@ -44,40 +44,8 @@ test: lint typecheck pytest
 # does. Identity credentials (OKTA_API_*, TF_VAR_<team>_*) are not gated: a
 # dry run without them warns and skips the identity roots' plan.
 [doc("`test` plus the docker-backed modification tests and, when the runtime sessions are present, a headless dry run --all with state query --strict")]
-full-test: test full-test-legs
-
-# So a session that lapsed after the bar costs the legs again, not the bar (hygiene V item 2); the
-# session is checked once up front, and a leg that finds it gone mid-way still fails loudly.
-# The live legs of full-test alone: test-mods under docker, a dry run --all and a state query --strict over a private copy of the live configuration
-full-test-legs:
-	#!/usr/bin/env bash
-	set -uo pipefail
-	status=0
-	if docker info >/dev/null 2>&1; then
-		echo "full-test: modification tests under docker (test-mods --strict)"
-		just test-mods --strict || { echo "full-test: FAILED test-mods"; status=1; }
-	else
-		echo "full-test: SKIPPED test-mods -- docker is not available"
-	fi
-	if [ ! -f "{{config_root}}/cfg/_config.yml" ]; then
-		echo "full-test: SKIPPED the live-configuration legs (dry run --all, state query --strict) -- no live configuration at {{config_root}} (see: just config-guard)"
-	elif just preflight; then
-		copy=$(mktemp -d "${TMPDIR:-/tmp}/csis-full-test.XXXXXX")
-		# The live configuration's module_source_base reaches ../cs-image-system-3/tfmodules: reproduce the
-		# sibling shape. Never carry its .git (a copy must not commit into the live repo) or its generated trees.
-		mkdir -p "$copy/cs-image-system-3" "$copy/cs-image-system-testconfig"
-		cp -R tfmodules "$copy/cs-image-system-3/"
-		(cd "{{config_root}}" && tar --exclude=./.git --exclude=./generated -cf - .) | tar -xf - -C "$copy/cs-image-system-testconfig"
-		echo "full-test: headless dry run --all over a private copy of the live configuration ($copy)"
-		uv run cs-image-system --root-dir "$copy/cs-image-system-testconfig" run --all || { echo "full-test: FAILED dry run --all"; status=1; }
-		echo "full-test: state query --strict over the copy"
-		uv run cs-image-system --root-dir "$copy/cs-image-system-testconfig" state query --strict || { echo "full-test: FAILED state query --strict"; status=1; }
-		rm -rf "$copy"
-	else
-		echo "full-test: SKIPPED the credential-gated legs (dry run --all, state query --strict) -- a runtime session is absent or expired (see above)"
-	fi
-	if [ "$status" -eq 0 ]; then echo "full-test: passed"; else echo "full-test: FAILED"; fi
-	exit $status
+full-test: test
+	@just full-test-legs
 
 # Cut a release (stage 41): the probes first -- the index token, the index, the version
 # it would carry (free on the index, untagged) -- then the bar, the bump, the lock, the
@@ -184,6 +152,39 @@ publish index="test":
 	echo "publish: cs-image-system $version is on $name ($n files: the system and its sixteen packages, sdist and wheel each; files already there with the same content were skipped)"
 
 # ------------------------------------------------------------ development
+
+# So a session that lapsed after the bar costs the legs again, not the bar (hygiene V item 2); the
+# session is checked once up front, and a leg that finds it gone mid-way still fails loudly.
+# The live legs of full-test alone: test-mods under docker, a dry run --all and a state query --strict over a private copy of the live configuration
+full-test-legs:
+	#!/usr/bin/env bash
+	set -uo pipefail
+	status=0
+	if docker info >/dev/null 2>&1; then
+		echo "full-test: modification tests under docker (test-mods --strict)"
+		just test-mods --strict || { echo "full-test: FAILED test-mods"; status=1; }
+	else
+		echo "full-test: SKIPPED test-mods -- docker is not available"
+	fi
+	if [ ! -f "{{config_root}}/cfg/_config.yml" ]; then
+		echo "full-test: SKIPPED the live-configuration legs (dry run --all, state query --strict) -- no live configuration at {{config_root}} (see: just config-guard)"
+	elif just preflight; then
+		copy=$(mktemp -d "${TMPDIR:-/tmp}/csis-full-test.XXXXXX")
+		# The live configuration's module_source_base reaches ../cs-image-system-3/tfmodules: reproduce the
+		# sibling shape. Never carry its .git (a copy must not commit into the live repo) or its generated trees.
+		mkdir -p "$copy/cs-image-system-3" "$copy/cs-image-system-testconfig"
+		cp -R tfmodules "$copy/cs-image-system-3/"
+		(cd "{{config_root}}" && tar --exclude=./.git --exclude=./generated -cf - .) | tar -xf - -C "$copy/cs-image-system-testconfig"
+		echo "full-test: headless dry run --all over a private copy of the live configuration ($copy)"
+		uv run cs-image-system --root-dir "$copy/cs-image-system-testconfig" run --all || { echo "full-test: FAILED dry run --all"; status=1; }
+		echo "full-test: state query --strict over the copy"
+		uv run cs-image-system --root-dir "$copy/cs-image-system-testconfig" state query --strict || { echo "full-test: FAILED state query --strict"; status=1; }
+		rm -rf "$copy"
+	else
+		echo "full-test: SKIPPED the credential-gated legs (dry run --all, state query --strict) -- a runtime session is absent or expired (see above)"
+	fi
+	if [ "$status" -eq 0 ]; then echo "full-test: passed"; else echo "full-test: FAILED"; fi
+	exit $status
 
 # Format code with ruff
 format:

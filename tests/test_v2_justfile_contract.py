@@ -64,9 +64,13 @@ def test_build_wraps_uv_build_and_the_gates_hold():
     assert r["verify"][0].split() == ["test"]                 # the alias
     deps, body = r["full-test"]
     assert deps.split() == ["test"]
+    # the live legs live in full-test-legs (hygiene V item 2: re-runnable alone after a
+    # session renewal); full-test is the bar and then those legs, so its closure does it all
+    assert "full-test-legs" in _closure(r, "full-test")
+    legs = "\n".join(r[n][1] for n in _closure(r, "full-test"))
     for needle in ("just test-mods --strict", "just preflight", "run --all", "state query --strict", "cs-image-system-3/tfmodules"):
-        assert needle in body, needle
-    assert body.count("SKIPPED") >= 2                         # docker leg, credential legs
+        assert needle in legs, needle
+    assert legs.count("SKIPPED") >= 2                         # docker leg, credential legs
     deps, body = r["release"]
     # stage 41: the gate follows the index -- the bar for a development release to
     # TestPyPI, full-test (with the mod-test evidence and a clean live checkout) for
@@ -99,13 +103,13 @@ def test_the_live_configuration_never_reaches_the_fast_suite_and_is_guarded_else
     """Stage 28: `just test` needs no live configuration (the tests own the
     frozen fixture), and every recipe that drives one is guarded -- by
     config-guard in its dependency chain, or an inline check of
-    cfg/_config.yml (full-test, whose SKIPPED line names the reason)."""
+    cfg/_config.yml (full-test-legs, whose SKIPPED line names the reason)."""
     r = _recipes()
     assert "config_root" not in r["test"][1] and "config_root" not in r["init"][1]
     for n in _closure(r, "test") | _closure(r, "init") | _closure(r, "build"):
         assert "{{config_root}}" not in r[n][1] and "{{gce_cli}}" not in r[n][1], n
     drivers = {n for n, (_, body) in r.items() if "{{config_root}}" in body or "{{gce_cli}}" in body}
-    assert drivers >= {"cli", "v2-dry-run", "test-mods", "preflight", "cloud-preflight", "full-test", "release"}
+    assert drivers >= {"cli", "v2-dry-run", "test-mods", "preflight", "cloud-preflight", "full-test-legs", "release"}
     for n in drivers - {"config-guard"}:
         closure = _closure(r, n)
         inline = any("cfg/_config.yml" in r[m][1] for m in closure)
