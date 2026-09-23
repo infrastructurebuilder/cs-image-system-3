@@ -980,10 +980,17 @@ repository tracked them from an older tree removes them from the index
 | `validate` | 1 | any rule fails; generates nothing |
 | `preflight` | 2 | a session absent or expired (the configuration could not load), or a credential-shaped environment variable (`AWS_*`, `GOOGLE_*`, `OKTA_*`, `TF_VAR_*`, `CSIS_*`) that is set but EMPTY -- reported by name, never by value |
 | `preflight --strict` | 1 | a session expires within `config.preflight.expected_run_minutes` (default 30) |
-| `state query --strict` | 1 | hard drift; any drift class but `stale`; a session expiring within the window |
+| `state query` | 1 | hard drift |
+| `state query --strict` | 1 | hard drift; any drift class but `stale`; `unavailable` (a provider that could not answer); a session expiring within the window |
 | `gate-plan` | 3 | destroy not whitelisted, stale or missing planfile, detach not unmounted; 2 with no plan input |
 | `apply-check` | 3 | the flag is off now, no `cfg/_config.yml` found, or an overlay is gone |
 | `public-safe` | 1 | a finding; 2 when `--staged` is used outside a git repository |
+| `mask`, `materialize` | 1 | the identity cannot open a marker (`materialize`); `mask` prints nothing and exits 0 without an identity today, which a code stage names |
+| `verify login` | 1 | the login proof failed (registration count, resolve, login); 2 with no standing instance |
+| `forget instance` | 2 | the instance is still declared |
+| `workload describe --env` | 2 | the builder names no workload connection or role |
+| `state-migration`, `prune-attachments` | 1 | the step failed (a pull, a list or a removal); 2 on a wrong action or an unknown builder |
+| `run --migrate-state` under a dry run | 2 | a move needs `--no-dry-run` |
 | `empty --runtime` | 1 | a leftover or drift; 2 when the runtime cannot answer |
 | `test-mods` | 1 | a failed or non-idempotent mod; with `--strict`, any skip |
 | `release` | 1 | refused (evidence missing); 2 with no image and no `--declared` |
@@ -1626,7 +1633,8 @@ before the configuration loads — `encryption.recipients`,
 declaration's `name`/`type`. Each is a named refusal, and the check itself
 needs no identity.
 
-Tools (no configuration load, no identity needed except to decrypt):
+Tools (no configuration load; no identity needed except to decrypt, to mask
+and to materialize):
 
 - `just cli encrypt <value>` (or `-` for stdin) prints one marker;
 - `just cli encrypt --file F --field NAME…` encrypts fields in place,
@@ -1818,7 +1826,8 @@ is likely to break the GCE code path; then one live cycle, torn down.
 | --- | --- |
 | `validate` | loads the tree and applies every rule -- unique names, every declared executable present at its path and within its version requirement, every foreign key resolving, every root's state location sound; generates nothing |
 | `run … --migrate-state <root>` (repeatable, `--no-dry-run`) | MOVES that root's state to the backend it now resolves to: backup, copy, a clean plan at the new location, the move recorded ("Where state lives") |
-| `state-migration begin\|finish --workspace <root> --run <id>` | the two steps of a migration, emitted into the root's runner by `--migrate-state`; never a by-hand command |
+| `state-migration begin\|finish\|backup --workspace <root> --run <id>` | the two steps of a migration, emitted into the root's runner by `--migrate-state`, and the state backup a runner takes before a pre-plan `state rm` (stage 61); never a by-hand command |
+| `prune-attachments --builder <group builder> --run <id>` | the identity runner's step between init and plan: membership attachments the declaration dropped and OPA no longer holds leave state after a backup (stage 61); never a by-hand command |
 | `generate` / `build-all` | aliases: every lifecycle without / with the apply step (`--base-only`: base-image alone) |
 | `upgrade instance <name> [--to <build>]` | moves that instance's pin (default: the series head); the next `instance-image` plans `-replace` and the gate whitelists it |
 | `upgrade image <name> [--to <base build>] [--runtime <rt>]` | moves an instance image's base pin (per runtime); the next `instance-image` bakes a new build; no instance moves |

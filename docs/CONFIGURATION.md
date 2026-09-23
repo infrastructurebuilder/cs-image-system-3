@@ -1793,7 +1793,10 @@ it is the join key between a roster and an access grant.
 | Variable | Read by | Meaning |
 | --- | --- | --- |
 | `CSIS_CONFIG_ROOT` | the Justfile | the live configuration root the `cloud-*`/`gce-*` recipes drive (default: the sibling `cs-image-system-testconfig` checkout); the CLI itself takes `--root-dir` |
-| `CSIS_CONFIG_IDENTITY` | every load; `decrypt`; `reencrypt` | the age identity (section 13) |
+| `CSIS_CONFIG_IDENTITY` | every load; `decrypt`; `reencrypt`; `mask`; `materialize` (the runner's every command) | the age identity (section 13) |
+| `OPA_TOKEN` | `verify login` as the workload | the OPA token minted from the GitHub OIDC token (`scripts/opa-workload-token`); absent, the proof runs as the enrolled client |
+| `USER` / `USERNAME` | `unmount --confirm` | who is recorded on an unmount receipt |
+| `AWS_ACCESS_KEY_ID` (with its secret and token) | `preflight`, the load, every AWS call | the static-key path when no profile is named; `preflight` reports it as a session with no readable expiry |
 | AWS profile | the AWS runtime, the S3 backend, preflight | `credentials.profile_name` on the runtime (else `AWS_PROFILE`; static `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` are honoured when no profile is named); `profile` on the state backend. An SSO profile needs a live session: the load validates the account's network and refuses on an expired one. |
 | `GOOGLE_APPLICATION_CREDENTIALS` | the GCE runtime, preflight | Application Default Credentials; default `~/.config/gcloud/application_default_credentials.json` |
 | `TF_VAR_<team>_key`, `TF_VAR_<team>_secret` | an `okta-tf` builder with the `oktapam` provider; the gid shim; the state query | the OPA API key pair for the builder's `team` (non-alphanumerics of the team → `_`). Required when the configuration LOADS (the workspace's finalize runs during the load, so `validate` and dry runs need them too) whenever the builder's `key`/`secret` are left at default and `oktapam` is among its `required_providers`. The gid shim also accepts `OKTAPAM_KEY`/`OKTAPAM_SECRET`. |
