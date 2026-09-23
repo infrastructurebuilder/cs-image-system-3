@@ -366,15 +366,39 @@ the fixture pins `>=500`, the SDK version the checker matches.
      exit codes, where the logs and the records are.
    - *Every plugin*, one paragraph each, linking to its README's contract
      sections; and *the daily habits*, a short checklist.
-5. **Records**: the root README's "Where to start" names `DAILY_DRIVER.md`
+5. **Two example configurations, both real** (operator, 2026-09-23):
+   - a **standard** configuration per plugin set -- the smallest tree a
+     team writes to get going, one per set the system supports (the AWS
+     set: the `aws` runtime, the `s3` state backend, one OS builder, the
+     EBS packer builder, the ansible and bash mod builders, the terraform
+     instance and storage builders, the OPA group builder; the GCE set
+     likewise), with one group, one storage, one base image, one instance
+     image and one instance each, every value a placeholder a team
+     replaces, and a comment on every line that is a decision;
+   - a **complete** configuration -- every plugin, every field, every
+     variation (`pinned` and `follow`, `ephemeral` and durable, `ensure`
+     and `script`, each storage kind and state, encrypted and clear,
+     overlays), commented, so that the reference manual's field tables
+     have one living example of every row.
+   Both live under `docs/examples/<name>/` in the shape of a configuration
+   root, carry the fixture's TEST identity and synthetic personas and
+   never a real value, and both LOAD and VALIDATE in a test (as the
+   fixture does, with every cloud stubbed), so they cannot drift from the
+   code without the bar saying so. `DAILY_DRIVER.md`'s "from scratch"
+   chapter starts from the standard tree; CONFIGURATION.md's per-field
+   examples point at the complete one. A third tree is not written: the
+   live configuration is the worked example, and stays in its own repo.
+6. **Records**: the root README's "Where to start" names `DAILY_DRIVER.md`
    first. Feature branch `feature/daily-driver`, squash-merged, kept.
-   Documentation only: the bar runs for the contract test, nothing else
-   reads markdown; `just full-test` is not owed by a docs stage.
-6. **From here on, documentation is kept current by stage** (standing
+   Documentation only, plus the two example trees and the tests that load
+   them: the bar runs for those, nothing else reads markdown; `just
+   full-test` is not owed by a docs stage.
+7. **From here on, documentation is kept current by stage** (standing
    decision above): when §62 lands, the first stage that changes
    behaviour afterwards opens the rolling documentation stage, which
    lists the stages it covers and what each changed, and lands as one.
 
 **Sizing**: step 1 is an hour; step 2 is the bulk, roughly an hour per
 package read against its code, and it parallelises by package; steps 3
-and 4 are a day together. Nothing in it touches a cloud or a credential.
+and 4 are a day together; step 5 is a day, most of it the complete tree
+and its loading test. Nothing in it touches a cloud or a credential.
