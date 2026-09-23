@@ -545,6 +545,7 @@ def release_command(
 
 @app.command(name="state-migration")
 def state_migration_command(
+    typer_cntx: typer.Context,
     action: Annotated[str, typer.Argument(
         help="begin: write the previous location beside the root, refuse a non-empty new location, back the "
              "old state up and leave the root initialised against the previous location; finish: record the "
@@ -563,12 +564,14 @@ def state_migration_command(
     from cs_image_system.base.commands.state_migration import backup, begin, finish
     from cs_image_system.base.global_context import GlobalTypeContext
     gctx = GlobalTypeContext()
+    # the root the runner entered, not the configuration root the load moved to
+    cwd = Path(typer_cntx.obj.get("invoked_cwd") or os.getcwd())
     if action == "begin":
-        code = begin(gctx, workspace, tofu, backend_config, run, Path.cwd(), new_location=location)
+        code = begin(gctx, workspace, tofu, backend_config, run, cwd, new_location=location)
     elif action == "finish":
-        code = finish(gctx, workspace, run, Path.cwd())
+        code = finish(gctx, workspace, run, cwd)
     elif action == "backup":
-        code = backup(gctx, workspace, tofu, run, Path.cwd())
+        code = backup(gctx, workspace, tofu, run, cwd)
     else:
         typer.secho(f"state-migration: the action is begin, finish or backup, not {action!r}",
                     fg=typer.colors.RED, err=True)
@@ -1252,6 +1255,12 @@ def main(
 
     typer_cntx.call_on_close(restore_dir)
     typer_cntx.ensure_object(dict)
+    # stage 61 item 3: loading the configuration below changes directory to
+    # its root, so a command that runs FROM a root (the runner's
+    # state-migration steps, in the private mirror) must be told where it
+    # was invoked -- found live 2026-09-23 when a state backup pulled from
+    # the configuration root instead of the mirror and kept nothing
+    typer_cntx.obj["invoked_cwd"] = Path(saved_dir)
     if typer_cntx.invoked_subcommand in ("test", "cleanup"):
         return                      # retired V1 names: refuse without loading anything
     if typer_cntx.invoked_subcommand == "preflight":

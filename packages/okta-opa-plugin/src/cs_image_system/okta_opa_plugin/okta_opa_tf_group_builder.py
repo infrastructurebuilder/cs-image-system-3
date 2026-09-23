@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
+import shlex
 import urllib.error
 from typing import Any
 
@@ -575,7 +576,9 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
                 commands += self.plaintext_read_commands(phase, wd, [["plan"]])
         pre_plan = [["state", "rm", f"module.group_{utils.super_safe_name(g.name)}"]
                     for g in self._newly_unmanaged_groups()]
-        pre_plan += [["state", "rm", addr] for addr in stale]
+        # the address carries a quoted key (members["<user>"]); the runner is a
+        # shell script, so the whole address is quoted for it
+        pre_plan += [["state", "rm", shlex.quote(addr)] for addr in stale]
         # Per-root apply scoping (stage 7): the identity root is its builder name;
         # a pre-plan state rm is preceded by a state backup (stage 61 item 3)
         deferred = self.gated_apply_commands(

@@ -1981,8 +1981,12 @@ exception is a decision to record, not a bypass.
   `gate-plan`, `apply-check`, `apply tfplan`. A hand apply against the
   identity state additionally takes a same-day backup of the S3 state
   first, because those resources are never recreated -- and a runner
-  takes the same backup itself (`<workspace>.backup-<run>.tfstate` beside
-  the root in the private mirror) before any `state rm` it decided on.
+  takes the same backup itself before any `state rm` it decided on:
+  `_private/state-backups/<workspace>.backup-<run>.tfstate` under the
+  configuration root, never committed, outside every directory a run
+  wipes. The step refuses, and the runner stops before anything leaves
+  state, when the root it runs from is not initialised or its location
+  holds no state.
 - Nothing irreversible happens by default: dry run is the default, and a
   runner script generated under one flag never applies under another.
 - Only operation-driven destroys are whitelisted; every other destroy

@@ -186,7 +186,8 @@ def test_the_runner_backs_the_state_up_before_the_first_state_rm(run, monkeypatc
     rms = [i for i, ln in enumerate(deferred) if " state rm " in ln]
     assert len(rms) == 3 and all(backup < i for i in rms), "the backup precedes every state rm"
     assert f"--workspace {gb.name} --tofu" in deferred[backup] and f"--run {run.ctx.run_id}" in deferred[backup]
-    assert any(f'module.group_{label}.oktapam_user_group_attachment.members["gone.user"]' in ln for ln in deferred)
+    assert any(f'module.group_{label}.oktapam_user_group_attachment.members["gone.user"]' in ln
+               for ln in deferred), "the address is shell-quoted: the runner is a shell script"
     plan = next(i for i, ln in enumerate(deferred) if " plan -input=false -out=tfplan" in ln)
     assert all(i < plan for i in rms), "every state rm precedes the plan"
     init = next(i for i, ln in enumerate(deferred) if " init " in ln)
@@ -206,24 +207,56 @@ def test_no_dropped_membership_means_no_backup_step(run, monkeypatch):
     assert not any(" state rm " in ln for ln in deferred)
 
 
-def test_the_backup_keeps_the_pulled_state_and_refuses_to_go_on_when_the_pull_fails(tmp_path: Path):
+def test_the_backup_keeps_the_pulled_state_under_the_private_root_and_refuses_everything_else(tmp_path: Path):
+    from types import SimpleNamespace
     from cs_image_system.base.commands.state_migration import backup
+    root = tmp_path / "config"
+    mirror = root / "_private" / "identity" / "oktagroups" / "group-generation"
+    mirror.mkdir(parents=True)
+    ctx = SimpleNamespace(working_path=root)
     good = tmp_path / "tofu-good"
-    good.write_text('#!/bin/sh\n[ "$1 $2" = "state pull" ] && printf \'{"serial": 7, "resources": []}\'\n')
+    good.write_text('#!/bin/sh\n[ "$1 $2" = "state pull" ] && printf \'{"serial": 7, "resources": [{"type": "x"}]}\'\n')
     good.chmod(0o755)
-    assert backup(None, "oktagroups", str(good), "r1", tmp_path) == 0  # type: ignore[arg-type]
-    kept = tmp_path / "oktagroups.backup-r1.tfstate"
-    assert json.loads(kept.read_text())["serial"] == 7
+    # not an initialised root: refused before any pull
+    assert backup(ctx, "oktagroups", str(good), "r0", mirror) == 1  # type: ignore[arg-type]
+    (mirror / ".terraform").mkdir()
+    assert backup(ctx, "oktagroups", str(good), "r1", mirror) == 0  # type: ignore[arg-type]
+    kept = root / "_private" / "state-backups" / "oktagroups.backup-r1.tfstate"
+    assert json.loads(kept.read_text())["serial"] == 7, "kept under _private/, outside every wiped directory"
+    assert not list(mirror.glob("*.tfstate")), "nothing left in the mirror the run re-materialises"
+    # the location holds no state, yet a state rm is due: refused
     empty = tmp_path / "tofu-empty"
     empty.write_text("#!/bin/sh\nprintf ''\n")
     empty.chmod(0o755)
-    assert backup(None, "oktagroups", str(empty), "r2", tmp_path) == 0  # type: ignore[arg-type]
-    assert not (tmp_path / "oktagroups.backup-r2.tfstate").exists(), "an empty location is nothing to keep"
+    assert backup(ctx, "oktagroups", str(empty), "r2", mirror) == 1  # type: ignore[arg-type]
+    assert not (root / "_private" / "state-backups" / "oktagroups.backup-r2.tfstate").exists()
+    # the pull failed: refused
     bad = tmp_path / "tofu-bad"
     bad.write_text("#!/bin/sh\necho 'Failed to load state: no such bucket' >&2\nexit 1\n")
     bad.chmod(0o755)
-    assert backup(None, "oktagroups", str(bad), "r3", tmp_path) == 1  # type: ignore[arg-type]
-    assert not (tmp_path / "oktagroups.backup-r3.tfstate").exists()
+    assert backup(ctx, "oktagroups", str(bad), "r3", mirror) == 1  # type: ignore[arg-type]
+    # no configuration root known (the bare harness): beside the root
+    assert backup(None, "oktagroups", str(good), "r4", mirror) == 0  # type: ignore[arg-type]
+    assert (mirror / "oktagroups.backup-r4.tfstate").is_file()
+
+
+def test_the_migration_commands_run_from_the_directory_the_runner_entered(tmp_path: Path, monkeypatch):
+    """The CLI's callback loads the configuration and changes directory to its
+    root; a runner step invoked FROM a root (the mirror) must still act there."""
+    from cs_image_system.system import cli as climod
+    seen: dict[str, Path] = {}
+    monkeypatch.setattr("cs_image_system.base.commands.state_migration.backup",
+                        lambda gctx, ws, tofu, run, cwd: seen.setdefault("cwd", cwd) and 0)
+    obj = {"invoked_cwd": tmp_path / "mirror"}
+    ctx = SimpleNamespaceCtx(obj)
+    monkeypatch.chdir(tmp_path)                       # what the load would leave behind
+    climod.state_migration_command(ctx, "backup", workspace="ws", run="r1", tofu="tofu")  # type: ignore[arg-type]
+    assert seen["cwd"] == tmp_path / "mirror"
+
+
+class SimpleNamespaceCtx:
+    def __init__(self, obj):
+        self.obj = obj
 
 
 # --------------------------------------------- 61.4 the release grace and the recipe
