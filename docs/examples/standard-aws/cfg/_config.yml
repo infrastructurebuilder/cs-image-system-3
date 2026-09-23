@@ -1,0 +1,63 @@
+---
+# docs/examples/standard-aws/cfg/_config.yml -- the global settings of the
+# smallest AWS tree. Reference: ../../../CONFIGURATION.md section 2 (`IAConfig`),
+# 2.1 (`encryption`), 2.2 (`public_safe`), 2.3 (the `config` keys the code reads).
+#
+# REPLACE-ME values are placeholders a team must replace. Every other line
+# is a DECISION: the comment beside it says what was decided and what the
+# alternatives are.
+
+id: my-team-images-REPLACE-ME       # REPLACE: the configuration's identifier (any string; it names nothing in the cloud)
+generation_directory: ./generated/  # DECISION: where a run writes its emission; the default is `generated` (same place)
+# DECISION: the timestamp format baked into every generated image name. The
+# default is %Y-%m-%d-%H%M%S; this compact form sorts the same and is shorter
+# in an AMI name. Change it only before the first bake -- it is part of every
+# image name from then on.
+dateformat: "%Y%m%d_%H%M%S"
+sleep_before_finalization: 1        # DECISION: seconds to wait before finalization executes (default 1); the countdown is not interactive
+
+# Every ENC[age:...] value in this tree is encrypted to these recipients
+# (CONFIGURATION.md section 13). The one below is the TEST recipient whose
+# private key is `.age-identity` beside this tree -- committed on purpose so the
+# example loads anywhere, protecting nothing.
+encryption:
+  recipients:
+    - age1hl95vsankapyxyyejhdejmywuwc4ddvpjmflj0hf0y8xjtuk3vystd9ang   # REPLACE: your holders' age public keys, one per holder
+
+# What the public-safe scanner lets through, by decision (2.2). Everything
+# else that looks like a secret or a person refuses the commit.
+public_safe:
+  allow:
+    - "path:.age-identity"          # the TEST identity, committed on purpose; DROP this line the day a real identity replaces it
+
+# Entries appended to the built-in gitignore list and written to generated/.gitignore.
+gitignore:
+  - ".*"                            # DECISION: ignore every dotfile under generated/ ...
+  - "!.terraform.lock.hcl"          # ... except the provider lock file (it is how a bake reproduces)
+  - "!.gitignore"
+  - "**/target/"
+
+config:
+  # DECISION: emit terraform backend blocks so every root keeps remote state in
+  # the bucket declared in cfg/state-backends.yml. `false` emits local-state
+  # roots, which only a single machine can drive.
+  use_state_backends: true
+  # DECISION: nothing applies until the operator flips a flag. Each may be
+  # `true` (every root of that lifecycle), `false` (none) or a LIST of builder
+  # or runtime names (`[aws-main]` lets only that runtime's roots apply).
+  apply_identity: false
+  apply_storage: false
+  apply_instances: false
+  # REPLACE: where the generated `module` calls find the terraform modules --
+  # relative to THIS tree (rewritten for each root's depth), or an absolute
+  # path, or a git/registry URL, which passes through unchanged. The modules
+  # ship in the cs-image-system repository's tfmodules/ directory.
+  module_source_base: ../cs-image-system/tfmodules
+  # REPLACE: the OPA gateway selector the group builder falls back to when it
+  # sets no `gateway_selector` of its own (section 9.2).
+  okta_gateway_selector: "environment=REPLACE-ME"
+  # The mandatory local admin user of every base image gets these PUBLIC keys
+  # (a list; rotation = add the new key, migrate, remove the old). Anything
+  # resembling private-key material is refused at load.
+  admin_public_keys:
+    - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPlaceholderKeyReplaceMeReplaceMeReplaceMe csis-admin-REPLACE-ME"   # REPLACE: an operator's public key

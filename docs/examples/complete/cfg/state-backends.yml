@@ -1,0 +1,50 @@
+---
+# docs/examples/complete/cfg/state-backends.yml -- the default `s3` backend,
+# every field. Reference: ../../../CONFIGURATION.md section 10 (`s3`). A
+# root's location is s3://<bucket>/<key>/<root name>.tfstate; `validate`
+# refuses two roots that resolve to one object.
+state_backends:
+  - name: s3-east2
+    type: s3
+    is_default: true               # the backend `default` resolves to
+    description: "the default state bucket"
+    bucket: tfstate-REPLACE-ME-east2   # required; REPLACE
+    key: statefiles/complete-example/  # required, non-empty; a trailing / is added
+    region: us-east-2              # the bucket's region (default us-east-2)
+    profile: REPLACE-ME-profile    # the AWS profile terraform uses for the backend
+    encrypt: true                  # server-side encryption of the state objects
+    use_lockfile: true             # S3 lockfile locking (default true)
+    executable: open-tofu-1
+    required_plugins: []           # {name, version, source, config} entries
+    allowed_account_ids: ["123456789012"]   # backend argument
+    forbidden_account_ids: []
+    http_proxy: null               # backend arguments
+    https_proxy: null
+    no_proxy: []
+    insecure: false
+    max_retries: 5
+    access_key: null               # static keys belong in the environment, not here
+    secret_key: null
+    shared_config_file: null
+    shared_credentials_file: null
+    skips_credentials_validation: false   # spelled with the `s`
+    skip_region_validation: false
+    skip_requesting_account_id: false
+    skip_metadata_api_check: false
+    skip_s3_checksum: false
+    use_dualstack_endpoint: false
+    use_fips_endpoint: false
+    endpoints: null                # {dynamodb, s3, sts, iam, sso} custom endpoints
+    # an assumed role for the backend: {name (required by the model), role_arn,
+    # duration, policy, policy_arns, session_name, source_identity, tags,
+    # transitive_tag_keys}. `endpoints` and `assume_role_with_web_identity`
+    # need a `name` too.
+    assume_role:
+      name: state-role
+      role_arn: arn:aws:iam::123456789012:role/REPLACE-ME-state-role
+      session_name: cs-image-system
+      duration: 1h
+      policy_arns: []
+      tags: {}
+      transitive_tag_keys: []
+    assume_role_with_web_identity: null   # {name, web_identity_token, web_identity_token_file}

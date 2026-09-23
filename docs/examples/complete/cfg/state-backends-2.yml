@@ -1,0 +1,13 @@
+---
+# docs/examples/complete/cfg/state-backends-2.yml -- a second `s3` backend,
+# the one the aws-east1 runtime and the storage roots bind to. Reference:
+# ../../../CONFIGURATION.md section 10. A list-valued key is concatenated
+# across cfg/ files, so state backends may be declared one per file.
+state_backends:
+  - name: s3-east1
+    type: s3
+    encrypt: true
+    bucket: tfstate-REPLACE-ME-east1   # REPLACE
+    key: statefiles/complete-example/  # the same prefix in another bucket is another location
+    region: us-east-1
+    profile: REPLACE-ME-profile

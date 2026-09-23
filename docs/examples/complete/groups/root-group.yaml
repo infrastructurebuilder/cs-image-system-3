@@ -1,0 +1,16 @@
+---
+# docs/examples/complete/groups/root-group.yaml -- the ONE root/admin group.
+# Reference: ../../../CONFIGURATION.md section 11.5. Exactly one group in the
+# tree is is_root: true; its admin group becomes a delegated admin of every
+# resource group (unless a group opts out with include_root_group_in_admins).
+# Member/admin entries are the fixture's markers for bare OPA usernames.
+groups:
+  - name: basic
+    type: default                  # the group builder (the default one: oktagroups)
+    is_root: true
+    is_default: false
+    description: "Root admin group with access to everything"
+    admins:
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAvNFdjbVB6VExmbnZNQjFRR1dMelZGeW5EN2pubGNmSUpnY1dYZnNXTWtVCjVWZkJEZDhBNVU5NU9peEx2bk1ESFl1VlloZ09xL0ROSENTcHhaSU8xdVUKLS0tIFJ3MHVpS3Mrd0dpU1VRM09Fc0MwUS9PdUt4eGNjZW1oN0NRK094VWxEMkUK0dNHQLvHhdhYSge+ouPxeHoNYFf15B0Ya2TwLmnHdzgwQv+1LfaGStLgOA==]
+    tags:
+      environment: production

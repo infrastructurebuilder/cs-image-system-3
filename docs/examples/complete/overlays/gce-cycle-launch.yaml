@@ -1,0 +1,15 @@
+# docs/examples/complete/overlays/gce-cycle-launch.yaml -- a transient
+# instance, declared for this invocation only, plus the GCE instance root
+# allowed to apply. Reference: ../../../CONFIGURATION.md section 12.
+config:
+  apply_instances: [gcloud-east1]
+instances:
+  - name: gce-cycle
+    image: imgfile-basic-dask
+    runtime: gcloud-east1
+    type: tofu-gce
+    ephemeral: true
+    description: "GCE change-cycle instance; exists only for the cycle"
+    storages:
+      - name: gce_share            # the shared filestore: gce_data is single-attach and gce-node already has it
+        mount_point: /mnt/share

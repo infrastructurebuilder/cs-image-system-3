@@ -1,0 +1,36 @@
+---
+# docs/examples/standard-gce/cfg/group-builders.yml -- the identity builders:
+# groups as MANAGED Okta Privileged Access (OPA) resources, users as read-only
+# lookups. Reference: ../../../CONFIGURATION.md section 9 (9.1 the shared
+# workspace fields, 9.2 group builders, 9.3 user builders).
+group_builders:
+  - name: opa-groups
+    type: okta-tf                # DECISION: managed OPA groups (`okta-tf-ro` would only look existing groups up)
+    is_default: true
+    executable: open-tofu
+    org: REPLACE-ME-org          # REPLACE: the Okta org name (the `okta` provider's org_name)
+    team: REPLACE-ME-team        # REPLACE: the OPA team; it also names the credential variables TF_VAR_<team>_key / _secret
+    # DECISION: the API key pair stays out of the tree. Left at their
+    # defaults, `key` and `secret` become `var.<team>_key` / `var.<team>_secret`,
+    # filled from the environment at finalize. The complete example shows the
+    # alternative: literal ENC[age:...] values emitted by reference.
+    required_providers:
+      - name: oktapam
+        source: okta/oktapam
+        version: ">= 0.6.3"
+user_builders:
+  - name: okta-users
+    type: okta-tf-ro             # DECISION: read-only -- users are made by hand in Okta; this only emits `data "okta_user"` lookups
+    is_default: true
+    executable: open-tofu
+    org: REPLACE-ME-org          # REPLACE
+    team: REPLACE-ME-team        # REPLACE
+    email_as_username: false     # DECISION: a user's `name` is the bare OPA username, not its email
+    # DECISION: the address of a user that declares none is derived from its
+    # name and this domain (the address is used ONLY to look the user up).
+    email_domain: example.invalid    # REPLACE: your org's mail domain
+    default_user_email_template: "{{ user.name }}@{{ builder.email_domain }}"
+    required_providers:
+      - name: okta
+        source: okta/okta
+        version: ">= 6.0"

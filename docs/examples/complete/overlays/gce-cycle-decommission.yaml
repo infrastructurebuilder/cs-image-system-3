@@ -1,0 +1,10 @@
+# docs/examples/complete/overlays/gce-cycle-decommission.yaml -- the overlay
+# `undeclare` form: gce-node is undeclared for this invocation, so a standing
+# gce-node is decommissioned through the gate. The flag form of the same
+# thing is `--undeclare instance:gce-node`. Reference:
+# ../../../CONFIGURATION.md section 12.
+config:
+  apply_instances: [gcloud-east1]
+instances:
+  - name: gce-node
+    undeclare: true

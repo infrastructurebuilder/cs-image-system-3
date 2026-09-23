@@ -1,0 +1,37 @@
+---
+# docs/examples/standard-gce/cfg/os-builders.yml -- the ONE base image: the
+# vendor image to start from, what the base declares it can do, its update
+# policy and its in-bake tests. Reference: ../../../CONFIGURATION.md section 5
+# (5.1 `runtimes[]`, 5.2 `update`, 5.3 `tests`).
+os_builders:
+  - name: el10
+    type: rhel                   # DECISION: the dnf family (rhel, fedora) -- `debian`/`ubuntu` are the apt families
+    family: rhel
+    family_version: 10
+    is_default: true
+    # DECISION: what instances of this base may use: OPA identity and
+    # persistent disks (`pd`). `filestore` and `gcs` are the other GCE tokens.
+    identity_types: [okta]
+    storage_types: [pd]
+    update:
+      policy: security           # DECISION: security patches only; `full` upgrades everything, `none` bakes the vendor image as is
+      exclude: ["kernel*"]
+    tests:
+      packages: [git, google-guest-agent]   # the guest agent is what makes a GCE image bootable with keys
+      commands:
+        - run: "id -u csisadmin"
+    runtimes:
+      - name: gce-el10
+        image_builder: packer-gce
+        default_machine_type: e2-small
+        # DECISION: one ssh user for every GCE bake. Left unset, the base bake
+        # and the instance bake would use different names, and the guest agent
+        # aborts its key setup when it cannot remove the stale other user.
+        ssh_username: packer
+        owners:
+          - almalinux-cloud      # DECISION: AlmaLinux's public image project (a vendor fact, not a team value)
+        query:
+          filters:
+            # almalinux-10-v* is the x86_64 line; the ARM images are a separate
+            # family (almalinux-10-arm64-v*) this pattern cannot match
+            name: "almalinux-10-v*"

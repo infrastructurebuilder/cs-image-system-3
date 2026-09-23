@@ -1,0 +1,138 @@
+---
+# docs/examples/complete/groups/users.yaml -- the roster: the frozen
+# fixture's nineteen synthetic personas (avery.alpha ... sawyer), every
+# identifying value an ENC[age:...] marker opened by the TEST identity, plus
+# one MANAGED user showing every profile field. Reference:
+# ../../../CONFIGURATION.md section 11.6 (users) and 13 (encrypted values).
+# A user's name is the bare OPA username that group members/admins lists
+# use; the address is explicit, or derived from the user builder's
+# template; first_name/last_name are required data, never derived.
+users:
+  # Names are the bare OPA usernames -- exactly what
+  # oktapam_user_group_attachment and group members/admins lists use, matching
+  # the OPA team's user list (verified 2026-08-21). Email is used ONLY to look
+  # the user up in the parent Okta org: explicit `email:` when given, otherwise
+  # derived from the builder's default_user_email_template (name@example.invalid).
+  # first_name/last_name are required data (never derived from 'name').
+  - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBBeXNlTmFDeXN1NUxKNll2UTdNNlgxMVdWbFdHTjZJM3FiYStRN0tBeHhnCitDRHZHUWcvWjhhaUU1RWhDczZaUjRIcXdZUlJ4dkFTV0FkVXRKdDlCencKLS0tIEs2K2RrTmdtWTBEZ01kaGthVHVabWhVVDNieWtVK05YRHVKS3BuZTY3dXMKL6SV9wExndvLOcCh6sUtuTlSJXf8sKaELjPkg2bk9q8JPpVuBsbLJnAE9A==]
+    first_name: Avery
+    last_name: Alpha
+  - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA2dG5xa0Z5MFJabGVOKzB2emhyTzZ2TExzUzJFMk81RkIrNTlNZzFwYlJVCjFMR0J6blNQZW9zdTd2Q3hIeE1vT2xUeGsvS0tTT2w3WWJXWldlL3FGTkUKLS0tIE1IRk5qeXh3SFY4eWd2emNTb3VFVDkwTjFUdytJYmVPRld2TE9UcS85RlUKkef/iVd9FBuLg1k/hQdho889/tmwL06JWA6MQPorqWw4FvsgwDAndIYaVw==]  # exact OPA username casing
+    first_name: Blake
+    last_name: Bravo
+    email: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBFb1FYME9MZGc5b1RBSWMvTzlkKzhTaWNhYVhrMGlXZkU5OFU1Mit6ank4CjZPc2pwQXM5NlhvSDlMQUpCYXp5VGRpVENvcDZaQUVUZGVCSTVlWld3SHcKLS0tIHRXRG1BN3ZFNDltUVdaczU3Q3B5amJMRGg1endNOXFvT3lRZGRoWGVVWTgK45M1NjAO7K3438shGhIPV4n/I0SUOv0kUXL9Z4PiynC50E06Md6vVb8AUiKZ3P25ahwhN7q2yA==]
+  - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA1V1ZtME0vMzJBUysxOHR3dytPL2d0NGJlYVlqUU15dFBaZzZ1QkE5TmxjCjhzMHNmU1h6eHM5VElJZlpmYnhaTjlkQWFBR21CWUhWU2ZJZXpSTVFzV00KLS0tIEQyNDdidDIwUUdPMDlyM2hXbkhMbEp5L2p3M2R3QXFlUTVuSHFscVkyOGcKolfcE8PSyFVJuWkLeNPglzCTtXDpO5TRc81AW38bdRtyUPZVZefRti4ZPpWx]
+    first_name: Casey
+    last_name: Charlie
+  - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSByeFZpSFlJYlAvK1JRZmpsclBFZUt3cGl3dEJSd05UMXJaK2lrTi8rYndNCjBPd0N1NDFUZWxLWkxPT1YzbHp5ODlKbURObEdoTm0yV2VwMlhVN2p1NEkKLS0tIHNKazNsWC9SSHlDYk9HYnQ5V0htcnI2eFUzbTRKbkpic294MWtjUE02MWsK5cYiZzAjzzWv17ehWQrxqC3vJVBuF3dgJ/xF4LJia7MLPBbaI/vdQhR9Kak=]
+    first_name: Dakota
+    last_name: Delta
+  - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBVK0lzdGJLUVM4NmhaYmd5d3RtK3Rhemg1M0NSM3FNS0JiT1lQV3VtdlFFCnEzY0FKYzRKd1JRUVM3K25KM0toZjdCdzJpT3gwRGQvS0d0YUhRc29HQnMKLS0tIHM5U0hhV25wZG5tS2lvN3M4bm9QMzQ1d3h1alJ2YUtTb290ZDYvMkVZVUEKhqqnmFodrq6VZ5xejQ4c/qel6ZJx7F1l0HAMOi+TrQx72Wk1f5TcLBusDm4=]
+    first_name: Emerson
+    last_name: Echo
+  - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBDSS9nbXFlUkZmcFhzcXRtRUJJYlZnWU9lQWpYa2Urd3JzRXJib0JRVkMwCnorcDE3Qm9sREdXZFBsSUlBa0pZbmpOVjZwaWF2RVRuVGhWRVJOV0I4cTQKLS0tIDI2bjh5RVNPN0xIYXZBRjUrVlhCYWEvaTBDQVk1NENCQXZOT2NXTXh2cEUKCvLvt8M5hZr3pU9rrTdH20xrkQJwTpen1CnKTvOh9S+XtEkHiienPc41EPwyRg==]
+    first_name: Finley
+    last_name: Foxtrot
+  - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBReGQ0QXpDcVB0dkdtOWJhajREOTJEOVpGZFA0YUEzSzJXTkpwVHIyQURRCk5HcFZ5MU9mMmJLYU15ZFVobS82UXVTZ25vMjZacytaVjkydENEL0pja3MKLS0tIG9rU0htWTU3dXRxZTgya3dmenA2aFcyNjBzNEdKbGdybVAxMlRrejNPRU0Ky67/dtsacrIy7COaGpKEMAannJmQih3zBk+pdKU5UTMw7Ic/eVrHXCpm]
+    first_name: Greer
+    last_name: Golf
+  - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBmZmVkRW42ejhHMWZtVkNjZ1lJajY2WnNEVHlZSmZiZVN3TVd2b1pPZFJnCk5UcytOYkNuWnRHd29Na3hMUnV3Z1dGRE1lck9HS051OStuL0d6cjJ0VG8KLS0tIGpxa09KSzJqUXBxZXd3Qko0dGdsd210eFJ1VENqTUUxZGVZU1lOUVJoaE0KOwE4yW/qD1PJlAaGn5zL2OYG9Pf4sbOoHQrPMcjVU0P+tU4koyfYQ6q5CRY=]
+    first_name: Harper
+    last_name: Hotel
+  - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBXdGh2V0h3bkswWFBRMTRtYUtKMm5mQzQ0d3FTS1d5S0l4dy9JbkdXVVJBCmpuV09sZnRYM3ZBb0dpWmRrcFpidmRQbGhyeXJ0cDZqNVUrY0ErYWFxZlkKLS0tIFdZRi9yQklPTHVVWjNSQWpTaE5NM2FycG95aktNMlNOb0FOKzFER0g1L1EKXHvsCCVmIkkQb4FtrWBjzVam2vvLELraM1zcpniUFsw8FH3WMK4i]
+    first_name: Indigo
+    last_name: India
+    email: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBJNDdhaGpFQ0txKzFBVDBkYWtRY2EzOFBqaVEyR2tNM2N0SUpUNnR0ejNNCldpNWZqMkdUd0RVampFVjRoQnZDU2ptYTlsTXBOQUFxWjRTTUJhY0NNdXMKLS0tIGJkTnZPVitNYXdHbW1GUTJlUkxlMHNFeVRMdjZqRm5sRHh5d3hFN3pHVE0KehG5uULM5ToPqX5M5NPeaqshDg6KRp8iB5QagTZfi/MTEX6U5DEpSPzDYBGDkgJN2cdP]
+  - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBqaUhKdkwwVUpnMnlyRGRDUzFNTVZVTmdsSnJmQno4dUFLaVRSRmhHUjJFCnNLemxlTXYvcWJZb0pWU3F2MkhablNYUjhVd0V6Y0l3TWIrcnJyUTFmb2sKLS0tIEhsV1lRSUczL2lZM0oxUTlaRWJNd1ROSmt6bjdjYThKZGRSSnd5bVRRcGMKKRK88/uwx9/ygxGMbkctq+zbPc4smOLq91jfwoBeDyF8yZVOKCA+pehhRoMB1A==]
+    first_name: Jordan
+    last_name: Juliett
+  - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAxcHZ5Y0MrTUo0dnJ4TXpHRmJBZ1FXQnJDRDRTSU5RRmYwVmJ4emZ6dGkwCmp1VkNaU3dheHU5QXlIRmdodzVJU0hORjkyekcvRnRTYkE2RVNkeWRDeHcKLS0tIENQc0FJUFBmb3B0SzZFaW9ieCtPSWs5aEJWREJXbzNKQzFpaE5IZVJnYUUKEHXTQAjgikmw72v1RiQTSK+CmqhwyIvJb4ixhp1fAXQGet/jBgGEppQU5Co=]
+    first_name: Kendall
+    last_name: Kilo
+    email: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBBaVBwNzV5dmk1ekUwMTcvR0VEZDhBYTZkNEVaaGRnL2NnaFM1QklKaUdnCkxWaFR0OGV6LzZzRG0vcTVSZkp1TkNpVjZKYlFrTnd6T0NTV0pCaFpCTW8KLS0tIDhOSkNwTjM0azF0d0crd2JVbFd3WUpmNkVBd1hZSUNidDNXcktrRHUwaUkK+jBFOt0RLVYg1YqpqcLRDtmbWEceZaMi09yhYiDEz+NR/MsX2frAtk9IgSkOxPNq2KX0kJJoh98=]
+  # Personas whose addresses are explicit, on example domains; details
+  # in the shape of records read from the OPA user API, read-only.
+  - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBZWitQNWl3OWJBOUhJWk9HQzhzN2VCamxET3VPYitpNmRrVTdVZ0lwT2o0Ckg5ZTdpWUZnRGNlWm0za2hCTHZXWXBDQU8wVWtlamNDTzQxODA4NmRnNDgKLS0tIFBZWVdMZDhwY2RQR08xS1BDUkQzMUhZZFNIVXh6K0NKRkVtVUh0U3RUMncKgwrOp0CE6Xytjw/4rVPbWbBD9CLWkVUzTEzdv4tlwOmuw0s4NPp34yj8AA==]
+    first_name: Lennox
+    last_name: Lima
+  - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBBZkFEcWtJeFAwM0VVSjBMTjJIaE44bkhkbmgxMU1OcytNWVVXN0xVUENrCmdoWjJWOENJcnlQN2Z2cE5TTVJUZkZHTnBPWUdzZTdaaXNHdXZIWjZBVUEKLS0tIDVmRFR5djV3emdtK0pJUk5NRW9GOXUyQUxsMDVCTWtVcEZYMlBqRnBzYTgKYm7T00i9/IkrjxbdWKZ95sMuUYuBwsVm/g8ynUWaO85jPM3JrcRN]
+    first_name: Morgan
+    last_name: Mike
+    email: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBhd3NjU3pxcDJIK3dsSmtOWVFYTTMxS1pjK0RuMFFRa05uVDJYeHd6WnlVCkJscFlKcEMyQlY1UUxXZE5LaGF5MjZBVy9GZDFOaG4xNUwvU2FzcU9pMFEKLS0tIFJQQ0FwSnVJT3JzWHMzMk1YL3owVGxaa3BiNGlEaFVLZzA1cFliUk9OZUUKbkW+HkrtGp7hPb9amzP7c1xEuuUj3qZgg/l3bduisWTmbwk5gXZINasTmYgSOW9AXN51]
+  - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBQNVQza0Z3bitKcXptbnRtcGFERUUxOTlSWStWcWNWc0o2MTkvcHBYbVJjCnNpL1BlbmJHbS82cnN1aTFpWUwvMm1YQVJGQlo5aWlqYmsxeWQzei9SNFkKLS0tIE5HY2RFbnc3eUlwZ0lpaHE5ZFY5ckg2QWt6UzZNRHpjNXNDNmFNOVlJZnMKjgl7GUQErAuATsASso7sjOuAgLQkSPhaKzq2F/ke4hIFZQgM]
+    first_name: Noel
+    last_name: November
+    email: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSArODdIZHF1OGJCalgwVEd4NmE4QUhGZU0zdUtEVFpBcjJXOTNNUys5VTBNClNhNUtqRWVFZHZnZlNpWTVTWHoxS3p3Tm55UVdvQWp2aUdlSWswQlV4ekkKLS0tIHpNZkszUlNJSzhPZUtyOFA4SmxGbWlncmFTSEpac05EM0o3U25qcFEwM28KIhx4osR/36nN2XeEZSX11hKC0dfp2R+VX2sjuVa2xWJjRsWZdhbkp3o1ct671h6+]
+  - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA2anI0N3VUZDd2N0djcnB3WXNhTkluWndsUXRrMTRXL0xxbVhPM1R4cGxzCjVDbkRGVUIwSHFDMDJMNEpuSWZsUVE3OFJSMUQ4TDA1MS93V3Y3eEtpSHcKLS0tIEJ5UGVtZVBqVkRJeHNUM2g1dEd4QzdxNjZ1Qk53SEljNEp6bHVKRFR1YWMKO6jQPi5vJhRAy5n/4dqpGZuV5f30iGqDJvR+WtVhS43jNEuu7Oo=]
+    first_name: Oakley
+    last_name: Oscar
+    email: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBGTktqVnVsaHI4bG84SGhZS1RDMDFya20raDVqSDhjMGdQU0NCL245bWhRCi81aUhhdUEvWkRyTnpDTFFIV2VydXVBM21VRnk0ZGZnd1NBbXpoSS9OSUUKLS0tIGN3cjdqZmRpc2FSZ2RYMmJmdTNLTzNJdEtxd3M4enViMWl0bm5lRnRUZmcKt9lMEBu9GpPu8FCCUJxxtnrFvgrUUAahOHEnpPLh5eheec33te6lX9H68vFQJ1h5LSE=]
+  # Added 2026-09-05 (tcmet reconciliation): live OPA tcmet membership;
+  # details read from the OPA user records
+  # (GET /v1/teams/{team}/users/{user}, read-only).
+  - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBaK252RW9SNlY5OFk3VzhKcXFQWXh3clRuT29EaU02NnA5YjcveGdJSVMwCndvaWk5K2N2MW1YcjhKWTZDMXdBUzB4SnZ2SWN0bWl6MTVZbHFBZVBSb0EKLS0tIDNmWVRsN0FFR0h1TkxURFZqRlQvOTV4VXFUbWFybkNxZlZNTlFZYzJ5QVkKw5KQW8//qgzwyC5NiTJiIUtWe5oERHqc8HtzkmIh71grAUhgIts=]
+    first_name: Parker
+    last_name: Papa
+    email: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBoUHpkOXkvRkN4YTVWVVhkWWFiZm4wckVhek5lZEFNUG0reHhuWFE1clFRCmVFL2VxTzk5UVdscGIzM3RvZUJlMm90OG5kLzFRN3U1MFZ6aE9SK2dJSU0KLS0tIFZ3bEd4ay9LcG5COUVmckxkblQwcmtqUVhmbkprT3ljTmEvMWN0OG5aMGsKYdqvpjKQEkMUBIKigLZzMk8IQPavalPKFuG9fYD8DbmuoBJpdd8hXU4kyTNhB4sa1nU=]
+  - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBhUU9vYzZPdWZlaFBqK0F1WTY5V2x4MEFyK0w2V2dwNmUvOVlJRG5RRjBRCmJvUjlQcUpJTnJ6emJ0WEpuZVc1MDVVbWVveCszWWw4cjF5RGpoRVZ0MG8KLS0tIDVvM0hiWEg5UFZFVVVzdlVIeWNxN1l1di82ZytNKzBhZVlXREpLTExLSEEK5aOORcGQw5pPSq64ezEkX5iOB7OehoKt6Q/RMrqtaDNBdvqgPDZAB9JWc+Q=]
+    first_name: Quinn
+    last_name: Quebec
+    email: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAxOU5uczRTNnBEQ2RvMVVCTHlpMVh6aVZ2VWRjV0YzQkRRVW9tT0NBMXpvCkpHbGVYR3BMMHlwWWdnZ2xsaWtGZXRCSGpKbXhhM2lGZ3YwUzN0Wjd4eGcKLS0tIEhYK2xhSU9uSXd2QVYrQ0xhUkw0aUFsSlE0Qy9nYno3TXFMcWV4bkJrdjQKVJJflDrOfNGNDGr5fXejlezsEe9me1a3byRqe6SMsWXTtrt7eVlZO9hDh4yWccysJ17N7wsJ/5g=]
+  - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBtU0xyRGEwYjh0VXVqUHBwQ3hsTzBYQXRCRWdiZXB3WW4ycUZuTzliZEE0CmxINlowR0IySnZCT05ZUTd4NmMzalNKdXlZY3dsdDlnNXNNTnYxZTlQZTQKLS0tIEcySFFZdDcxcjVSU0hlc0c2MHZsNXhpK2RNVkIxOUNCSWtqajd0OUx2amcKE3Vl+Y3qOfW8zR9Bhb8uq9mBugxdRyc3HOt/YCbGyBtXuOW8khE=]
+    first_name: Riley
+    last_name: Romeo
+    email: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBpWWViNEh1RVFhMlR0NDJBRWNyNWowZGpQcnhWQ01Ob2p6bmNQdEFIaENvCnVJSFFzaHNhTUx0SmJSQzhLZDRtUkp2cERFVjdXWTcwWW1zRWtBNnlYaGMKLS0tIGtxa0R1akF6aHdaSnRHcGE3dFlNSGp5dE1vcHZSR3dhWUY5OFUwZ2ZFWVEKbXTcDwumfDDJ/Ie2uE5jsCKDt3kTwKcWadxUnBFhxxctq9DbDpW+8Z7dHjyoUn8nq3M=]
+  - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBzSmI4RHI1VE1Qb1RpbDFLYmMyS2o1TTdKWHdWZGF6RFY5MmU2N1lSQTNJCnRWbk9PNnkwdkIxbFh1YnVzb2JjQ0JQQXdSM09tUDk4M0xJT1dPOE55Mk0KLS0tIGwyd2gyM3BUVXJJR2JOV0hWNEJxVVlhYWJPVnp2WUJRYkNFNW01eTJmU28K7jiPieDfXD5PS24eit+I1+wrX5egJzHHIuAfp8Elq8N/kHEumWc=]
+    first_name: Sawyer
+    last_name: Sierra
+    email: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBuRXVCTEpqVGRZU3NrWXd4UjBFMVJYNFViREtGeGp5a2IxenZGY0I4emg0CmxrRU5BM3ZxZElqdzF3TzIwK1k1eCtEMEkzdHVjV0dHd2htOFoyQWE4WEUKLS0tIHZqVjJnRFRSU3hQeXVjM0VRZC9LRXY4WjUrUVQ1anlxaXkzMUpwU2ZNQ2cK+dsRK5Rw/gY6a0LKodqmLIJIWRdP1/1+tJuYnjsJsMQTdYxNu181LR+AqPKuBiHZEnM=]
+  # ---- a MANAGED user (11.6): the okta-tf-managed builder emits an okta_user
+  # resource for it. Its builder has email_as_username: true, so name and
+  # email are the same address. In clear, to show every field; encrypt any
+  # of them the same way as the entries above.
+  - name: tatum.tango@example.invalid
+    type: okta-tf-managed          # the user builder (default: the default user builder)
+    email: tatum.tango@example.invalid
+    first_name: Tatum
+    middle_name: T
+    last_name: Tango
+    description: "Managed persona for the complete example"   # default: the builder's description template
+    is_enabled: true               # false emits status SUSPENDED
+    managed: true                  # null: the builder's default (okta-tf: managed; okta-tf-ro refuses true)
+    is_service_account: false      # accepted; not emitted
+    public_keys: []                # accepted; not emitted
+    attributes:                    # provider attributes OPA accepts: planned and probed, never written
+      unix_uid: 5001
+      unix_gid: 5001
+      unix_user_name: tatum.tango
+      windows_user_name: tatum.tango
+    # okta_user profile arguments, emitted when set
+    title: "Modeler"
+    display_name: "Tatum Tango"
+    nick_name: "Tatum"
+    profile_url: "https://example.invalid/~tatum.tango"
+    second_email: "tatum.tango.alt@example.invalid"
+    mobile_phone: "+1-555-0100"
+    primary_phone: "+1-555-0101"
+    honorific_prefix: "Dr."
+    honorific_suffix: "PhD"
+    street_address: "1 Example Way"
+    city: "Exampleville"
+    state: "MD"
+    zip_code: "20000"
+    country_code: "US"
+    postal_address: "1 Example Way, Exampleville MD 20000"
+    preferred_language: "en"
+    locale: "en_US"
+    timezone: "America/New_York"
+    user_type: "employee"
+    employee_number: "0001"
+    cost_center: "CC-0001"
+    organization: "Example Org"
+    division: "Modeling"
+    department: "Coastal"
+    manager_id: "0000"
+    manager: "Avery Alpha"
+    tags:
+      persona: "true"
+    config: {}

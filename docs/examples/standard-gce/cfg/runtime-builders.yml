@@ -1,0 +1,46 @@
+---
+# docs/examples/standard-gce/cfg/runtime-builders.yml -- the one GCE runtime:
+# where images are baked and instances stand. Reference:
+# ../../../CONFIGURATION.md section 4 (4.1 common fields, 4.2 every runtime,
+# 4.4 `gcloud`, 4.5 `networking`). Credentials come from the environment only
+# (Application Default Credentials or GOOGLE_APPLICATION_CREDENTIALS): any key
+# under `credentials:` is refused. At load the plugin resolves the project and
+# checks the network and subnets against it.
+runtime_builders:
+  - name: gcp-main
+    type: gcloud
+    is_default: true             # DECISION: the runtime `runtime: default` resolves to; at most one per class
+    aliases: [gcp, google]       # DECISION: extra names other declarations may use
+    project_id: my-project-REPLACE-ME   # REPLACE: the project
+    region: us-east1             # REPLACE: the region
+    zone: us-east1-b             # REPLACE: the zone build VMs and instances are created in
+    description: "GCE runtime for project {{ this.project_id }} in {{ this.zone }}"
+    # REPLACE: the service account build VMs and instances run AS. DECISION: a
+    # least-privilege runner account rather than the project's default compute
+    # account (the runner holds serviceAccountUser on itself).
+    service_account_email: csis-runner@my-project-REPLACE-ME.iam.gserviceaccount.com
+    # DECISION: debug sessions and bakes reach VMs through IAP TCP forwarding
+    # (the only supported value); no public address is needed. Without it,
+    # `admin_public_keys` is the only debug path.
+    session_mechanism: iap
+    # DECISION: the bake disk (which is every instance's boot disk) at the
+    # vendor image's 10 GB floor rather than the OS builder's 200 GB default;
+    # `null` uses the image's own value.
+    default_disk_size: 10
+    bake_preemptible: true       # DECISION: spot build VMs; a preempted bake re-runs
+    # DECISION: durable. `ephemeral: true` would make the closing `retention`
+    # lifecycle dispose every image baked here after a successful run (the
+    # shape of a proof runtime that bills nothing between runs).
+    ephemeral: false
+    default_machine_type: e2-small   # DECISION: 2 GB; 1 GB machines OOM under dnf during a bake
+    default_image_builder: packer-gce
+    tags:                        # emitted as labels on everything the runtime creates
+      project: REPLACE-ME
+      environment: development
+    networking:
+      network: default           # DECISION: the project's `default` network; name another VPC network to use it
+      subnets:
+        - name: main
+          subnet_id: projects/my-project-REPLACE-ME/regions/us-east1/subnetworks/default   # REPLACE: the full subnetwork path
+          is_default: true       # exactly one subnet is the default: bakes and instances use it
+          public: true           # informational: it has a route to the internet

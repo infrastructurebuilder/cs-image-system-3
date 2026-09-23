@@ -1,0 +1,12 @@
+---
+# docs/examples/standard-aws/playbooks/setup-node.yml -- the ansible playbook
+# the `base-tools` modification of images/images.yaml runs. Its content is
+# hashed into the image's lineage: editing even a comment re-bakes the image.
+- name: Set up the team node
+  hosts: all
+  become: true
+  tasks:
+    - name: Base tools are installed
+      ansible.builtin.package:
+        name: [git, python3]
+        state: present

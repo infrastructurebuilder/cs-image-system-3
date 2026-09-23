@@ -1,0 +1,17 @@
+---
+# docs/examples/standard-gce/cfg/instance-builders.yml -- the ONE instance
+# builder: a terraform root that stands instances on the GCE runtime.
+# Reference: ../../../CONFIGURATION.md section 8.1 (`tofu-gce` has the same
+# fields as `tofu`).
+instance_builders:
+  - name: tofu-gce
+    type: tofu-gce
+    is_default: true
+    runtime: gcp-main
+    executable: open-tofu
+    # DECISION: no `state_configuration` -- the root inherits the default
+    # backend (s3-main); name one to put this root elsewhere.
+    required_plugins:
+      - name: google
+        source: hashicorp/google
+        version: ">= 5.0.0"

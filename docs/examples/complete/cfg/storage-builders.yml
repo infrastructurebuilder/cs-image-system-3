@@ -1,0 +1,66 @@
+---
+# docs/examples/complete/cfg/storage-builders.yml -- every storage kind on
+# both clouds, one terraform root each. Reference:
+# ../../../CONFIGURATION.md section 8.2 (the per-type table and the
+# lifecycle declarations each builder validates).
+storage_builders:
+  # ------------------------------------------------------------------ AWS
+  - name: aws-ebs
+    type: tf-aws-ebs               # capability `ebs`: single-attach block volumes, POSIX
+    is_default: true               # a storage with no `type` is an EBS volume
+    executable: open-tofu-1
+    runtime: aws-east2
+    state_configuration: s3-east1  # the storage roots keep their state in the second backend
+    description: "gp3 volumes, encrypted; archived = snapshot + delete, restored from the snapshot"
+    size: 100                      # the builder's own field: GB per volume (default 100)
+    variables:                     # typed inputs to the module call; a misspelt key is refused
+      volume_type: gp3
+      encrypted: true
+      tags:                        # builder-wide default tags; a storage's own tags win key by key
+        Project: complete-example
+    required_plugins: []
+  - name: aws-efs
+    type: tf-aws-efs               # capability `efs`: shared filesystems, POSIX
+    executable: open-tofu-1
+    runtime: aws-east2
+    state_configuration: s3-east1
+    variables:
+      performance_mode: generalPurpose
+      encrypted: true
+      tags:
+        Project: complete-example
+  - name: aws-s3
+    type: tf-aws-s3                # capability `s3`: buckets, no POSIX
+    executable: open-tofu-1
+    runtime: aws-east2
+    state_configuration: s3-east1
+    bucket_name: complete-example-REPLACE-ME-default-bucket   # required: the builder's default bucket (globally unique)
+    variables:
+      force_destroy: false         # let a destroy empty the bucket first
+      tags:
+        Project: complete-example
+  # ------------------------------------------------------------------ GCE
+  - name: gcp-pd
+    type: tf-gcp-pd                # capability `pd`: single-attach zonal disks, POSIX
+    executable: open-tofu-1
+    runtime: gcloud-east1
+    state_configuration: s3-east1
+    size: 30                       # GB (default 100)
+    disk_type: pd-standard         # default pd-balanced
+    variables:
+      tags:                        # emitted as labels
+        project: complete-example
+  - name: gcp-filestore
+    type: tf-gcp-filestore         # capability `filestore`: shared NFS, POSIX (1 TiB minimum)
+    executable: open-tofu-1
+    runtime: gcloud-east1
+    state_configuration: s3-east1
+    tier: BASIC_HDD                # default BASIC_HDD
+    capacity_gb: 1024              # default 1024
+  - name: gcp-gcs
+    type: tf-gcp-gcs               # capability `gcs`: buckets, no POSIX
+    executable: open-tofu-1
+    runtime: gcloud-east1
+    state_configuration: s3-east1
+    bucket_name: complete-example-REPLACE-ME-gcs-bucket   # required
+    location: US                   # the bucket location (null: the module's default)

@@ -1,0 +1,15 @@
+---
+# docs/examples/standard-aws/storages/storages.yaml -- the ONE storage: an
+# EBS volume the team's instance mounts. Reference:
+# ../../../CONFIGURATION.md section 11.4. `state` is the REQUESTED lifecycle
+# state; a new storage starts `active` (the state machine refuses anything
+# else before the first apply) and later requests `archived` or `destroyed`.
+storages:
+  - name: data
+    # DECISION: no `type`, so the default storage builder (aws-ebs) realizes it
+    groups:                      # the groups allowed to attach; each gets a private /<group>/ subtree
+      - team
+    share_mode: "2770"           # DECISION: private per-group subtree (default); "2775" shares reads between allowed groups
+    state: active
+    tags:
+      purpose: data

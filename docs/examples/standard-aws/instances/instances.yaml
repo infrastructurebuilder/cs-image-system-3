@@ -1,0 +1,20 @@
+---
+# docs/examples/standard-aws/instances/instances.yaml -- the ONE instance.
+# Reference: ../../../CONFIGURATION.md section 11.3 (11.3.1 `storages[]`).
+# An instance declares no group: it belongs to its image's group. A storage
+# attachment is legal only when that group is on the storage's allowed list.
+instances:
+  - name: team-node-1            # DECISION: a hostname label (letters, digits, hyphens; at most 63) -- it becomes the OS hostname and the OPA canonical name
+    image: team-node
+    machine_type: t3.medium      # DECISION: empty would take the runtime's default_machine_type
+    description: "The team's standing node"
+    # DECISION: durable (the default). `ephemeral: true` would launch, verify
+    # and destroy it in the same run -- the shape of a proof machine.
+    # DECISION: `image_policy: pinned` (the default) keeps the launched build
+    # until an explicit `upgrade instance`; `follow` plans the gated
+    # replacement whenever the image's head moves.
+    storages:
+      - name: data
+        mount_point: /mnt/data
+    tags:
+      role: node

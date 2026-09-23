@@ -1,0 +1,16 @@
+---
+# docs/examples/complete/groups/group-stofs.yaml -- a group that keeps the
+# root admin group OUT of its delegated admins. Reference:
+# ../../../CONFIGURATION.md section 11.5.
+groups:
+  - name: stofs
+    description: "{{ group.name }} group"
+    members:                       # avery.alpha, kendall.kilo
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBJU0U5WTIyOEVkakErbkJmMWdCNlB1a1dQZG01MmlUTHZUaWVldk5ENzNzCnExNlM1cksrUGFJcGFtckJFSGZUYWliYitYZDlTUnY5ZmJNcHJudnVVMm8KLS0tIGkwSW9ZU0FMZDdWMW83Vjc4c1VFeFlyckx1VWUzWER6VVM1QzdKVi90dFEK4lF1D6A4Z4VFbcBkDJV909jNs35PqVJ0sKttCPi1DO2Cl7egCYLKOPzolA==]
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBGdTgvQWdrS3lkZGFydjVmOGROZ0t5R1JtMVNwQVdCcTBCakk0Q0NUOWxNClFuWTN2T3pZRUFhd1NNMUlmTTBaKzlYTGE0SUs1WmNGNnIxRlh4dTNaOVEKLS0tIEhCK3VKd2VIQnk4Y1BCc3liUUVwbllSdzZCREc2TlVTaWY4aC8weGc1bncKvxrhi6WD4wppp0YnppjurfRQ9HhJFRzs5GrIJUhZRiIN848heueXdduD1QA=]
+    admins:                        # avery.alpha
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBnTzlkQnBKVUlWNnI2Z2pMcUtkNXQwVDNtK0d2N0o1Y0pIdDNrTVErZ25zClZaQk1NRnFRUExXZUgwRnIrVk9leCsvQjFZUHhWSkVkK1hENHRpTlNNdXMKLS0tIGRpbUJrSWVSZXhFSGpPY3J2L2kwV3R6LzEvdTlKNHRUUjVEd1RQeVQ0QWMK2eVojeCTOIhu+ccN/fADl26JN73yxdF+HNFm2W8AT8hD1qMHxTLM8lVAag==]
+    in_both: true                  # every admin is also a member
+    include_root_group_in_admins: false
+    tags:
+      environment: test

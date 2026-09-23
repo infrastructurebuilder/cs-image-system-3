@@ -1,0 +1,62 @@
+---
+# docs/examples/complete/cfg/_config.yml -- the global settings, every field.
+# Reference: ../../../CONFIGURATION.md section 2 (`IAConfig`), 2.1 (`encryption`),
+# 2.2 (`public_safe`), 2.3 (every `config` key the code reads).
+# REPLACE-ME marks a placeholder; every other line's comment says what the
+# line decides. Section numbers below are CONFIGURATION.md's.
+
+id: complete-example-REPLACE-ME    # 2: the configuration's identifier (required)
+generation_directory: ./generated/ # 2: where a run writes (default `generated`)
+dateformat: "%Y%m%d_%H%M%S"        # 2: strftime format of execution.timestamp, part of every generated image name
+sleep_before_finalization: 5       # 2: seconds before finalization executes (default 1)
+working_directory: ./workdir       # 2: accepted; the CLI's --root-dir is the working directory, so it is not used
+last_updated: 2026-09-23 12:00:00  # 2: accepted; not used
+# 2: entries appended to the built-in gitignore list and written to generated/.gitignore
+gitignore:
+  - ".*"
+  - "!.terraform.lock.hcl"
+  - "!.gitignore"
+  - "**/target/"
+
+# 2.1: every ENC[age:...] value in the tree is encrypted to these age public
+# keys. The TEST recipient below is opened by the committed .age-identity.
+encryption:
+  recipients:
+    - age1hl95vsankapyxyyejhdejmywuwc4ddvpjmflj0hf0y8xjtuk3vystd9ang   # REPLACE: one entry per holder
+
+# 2.2: what the public-safe scanner lets through, by decision. A plain entry
+# is a case-insensitive substring; `path:<glob>` accepts a file whole.
+public_safe:
+  allow:
+    - ".iam.gserviceaccount.com"    # a service account's address is an identifier, not a person
+    - "path:.age-identity"          # the TEST identity, committed on purpose
+    - "path:meta-state/aliases.txt" # a pool of animal names; nothing in it is a person or a secret
+
+# 3: usually its own file (cfg/executables.yml); the list is accepted here too
+
+config:
+  # ---- the apply flags (2.3): true = every root of that lifecycle, false =
+  # none, a LIST = the named builders or runtimes only
+  apply_identity: false
+  apply_storage: false
+  apply_instances: false
+  apply_release: false             # let the release lifecycle mark artifacts in the cloud
+  use_state_backends: true         # emit backend / remote-state blocks (needs the declared state buckets)
+  # a relative path is relative to this tree and rewritten per root depth;
+  # an absolute path or a git/registry URL passes through
+  module_source_base: ../cs-image-system/tfmodules   # REPLACE
+  # the mandatory local admin user's PUBLIC keys, ENCRYPTED here (any value
+  # may be a marker, section 13): the emission carries the ciphertext and
+  # `materialize` substitutes the key where packer runs. It decrypts to a
+  # placeholder ssh-ed25519 line.
+  admin_public_keys:
+    - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBrbzlLM25IMlEvdWtkOUxNWVg1cDBxeUJQUEZLZHVjUzh4ZzROdmFpcTBrCitNSGJncm9PTWR4bzBsbGsyUEZTUWFZZ25Ja2JrUEtGcGNyaWMvc0k3SlEKLS0tIHkwbTQ4VFBTS3BGcm9hdG1RNHNVUjlibzJNL0UycGdNbzhWb0trV0s3LzgK0178wSJZ9P74ygZxA7hNhYpJWwT+YLH+rFrEZvk7TbCEsIgvH3OKRYMCtkA9Muf6Lm5uIe6HU4eUhm6rXfcYi5V+W3u5UpfK44dj0Z3UCHsSZuEUyP9H/rYZyt8nr3THNh3r2ZDofOuXH+i1osQJk8I9x0isMnBoxYUeOWZqtzsODENxSQ==]
+  okta_gateway_selector: "environment=staging"   # fallback gateway_selector for an OPA group builder that sets none (9.2)
+  require_mod_tests: false         # a release refuses a build whose modification has no local mod-test record
+  require_image_tests: true        # a release of an image that declares tests.post_bake needs a passing record
+  require_released_builds: true    # an instance pins only a released build of its image (or the series head under the release grace)
+  preflight:
+    expected_run_minutes: 45       # a credential session expiring sooner than this is reported as blocking (default 30)
+  # any other key is carried on the context for plugins (not a template scope)
+  some_key: some_value
+  systemuser: "{{ ENV.USER }}"     # templates see ENV, execution.* and `this`

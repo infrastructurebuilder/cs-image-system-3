@@ -1,0 +1,18 @@
+---
+# docs/examples/complete/cfg/state-gcs.yml -- the `gcs` type, DECLARED AND
+# BOUND TO NOTHING, as the frozen fixture does. Reference:
+# ../../../CONFIGURATION.md section 10 (`gcs`). Declaring the type is not the
+# same as moving the GCE roots onto it: every root, the GCE roots included,
+# keeps its state in the S3 backend by the standing decision. OpenTofu's gcs
+# backend stores a root's state as <prefix>/<root name>/default.tfstate, so
+# no two roots share an object.
+state_backends:
+  - name: gcs-east1
+    type: gcs
+    bucket: tfstate-REPLACE-ME-gcs        # required, non-empty
+    prefix: statefiles/complete-example   # the prefix inside the bucket (default `statefiles`)
+    credentials: null              # a PATH to a credentials file, never a value
+    impersonate_service_account: null   # the service account terraform impersonates
+    encryption_key: null           # a customer-supplied key (from the environment in practice)
+    kms_encryption_key: null       # a Cloud KMS key name
+    executable: open-tofu-1

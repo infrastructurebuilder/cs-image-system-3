@@ -1,0 +1,29 @@
+---
+# docs/examples/complete/groups/group-coops.yaml -- a team group with every
+# optional field. Reference: ../../../CONFIGURATION.md section 11.5. The
+# okta-tf builder emits coops_user and coops_admin, the resource group
+# coops_rg (delegated to coops_admin and, by default, the root group's
+# admin group), the project coops_rg_login and the user/admin security
+# policies -- plus, with the workload objects named on the builder, a CI
+# login policy beside the user policy.
+groups:
+  - name: coops
+    description: "{{ group.name }}: the CO-OPS modelling group"
+    aliases: [co-ops]
+    members:                       # each entry may be ENC[age:...]; these decrypt to avery.alpha and casey.charlie
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAzc0FHckxjQlhxU3hhdE5oQndyMThiRFdaam9DVFdmN01sRDhzNFhReUhVClQyZCtHWjhWT0FTaDF1ZDYyRnA2dUx5a29IQ2hrd00zS24wc0JJdmlPdlkKLS0tIG4zNDUwd2xqdlJzV2hHWExYNURVSm91Ly80dXdOeCtrdUF3bkRtQUltdDgKDStS6WKCa1MdgygeyI+8HZVQ0ZISK7VWXmzsKvsPfAXbm7ejnNbO/AhaEg==]
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBldi90NSswangvWFNJSWFSK2RWdjB2TjJFdGQ5MTZEc014MzlrRlFTdUNZCnlpaC9zUmkzZFM2VlpPYUF5dENEVlZ3ZjBBM3Y0M2Z3aFdyV3F0dnlqRTgKLS0tIDRXS1FRWVlwRmVMZU44R3NXVkNWbG1wVi9SWWhMcGFUa1NkR3lIeGpCOHcKg7CJs4RbYYbgD/LQ82jATQnl9fxlYF1Szib5MYyh+L5hNsnlZdZVh7+Vh1xy]
+    admins:                        # casey.charlie and avery.alpha
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBINVJpbnVuSFRFbXl4Y0NaRVVPL1MzMSt0Nm0zOGU5MXlVSXg1ekpzbEFZCk1zcnByNEkvNDJ5T0tMMUIvT3crZ3cxcmo3NGtNdENUTnNodFluUk5DdlkKLS0tIFdnRC8yMkE3c2kwTGpUcTMwNEVINUtWUjNSTXJsSFF6Q2hqVVVQYVQyS3cKLVZM1hASU6ALSZYU23yar+s30QpbJs/Xd8gFrfasdSmIBepXtL5xsCM8xrIX]
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBBSUtCMzNoU2p4QWNsQzhZaXA2TkNsMk8wemdZQlBMWUEzWnB3ZmYrZVFzCnhmd1gvaXBJYnpOZVYrbEI1U1dobTBNU2JuS0RNZytKTVB0Nkx2ZWhrVk0KLS0tIFB1ZWR5VXRJTjcwcTZobGJ4dFM5UnFHSW53TlFvZCtSbS8xcUJsUE5OYk0KScKYJqWMhLw2ISHb8I4mWc9AP3R/Fv/1prPgl1u4BXcYPWwLXUTZKR4IkA==]
+    in_both: false                 # no name may be in both sets: admins are removed from members
+    gid: 2001                      # a pinned gid, at least 1024 (null / 0 / default: the created group's gid)
+    include_root_group_in_admins: true   # the root group's admin group is a delegated admin of coops_rg
+    unmanaged: false
+    attributes:                    # provider attributes OPA accepts: planned and probed, never written
+      unix_gid: 2001
+      unix_group_name: coops
+      windows_group_name: coops
+    tags:
+      environment: test
+    config: {}

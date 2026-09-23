@@ -1,0 +1,16 @@
+---
+# docs/examples/standard-aws/cfg/state-backends.yml -- where every terraform
+# root keeps its state. Reference: ../../../CONFIGURATION.md section 10 (`s3`).
+# Every root resolves its backend through a chain: its own
+# `state_configuration`, else its runtime's, else the single `is_default`
+# backend. This tree declares one backend and lets every root inherit it.
+state_backends:
+  - name: s3-main
+    type: s3                     # DECISION: S3 (shared, locked) rather than `local` (one machine) or `gcs`
+    is_default: true
+    bucket: tfstate-REPLACE-ME   # REPLACE: an existing bucket the profile can write
+    key: statefiles/my-team-images/   # REPLACE: the key prefix; each root's state is <prefix>/<root name>.tfstate
+    region: us-east-2            # REPLACE: the bucket's region
+    profile: REPLACE-ME-profile  # REPLACE: the AWS profile terraform uses for the backend
+    encrypt: true                # DECISION: server-side encryption of the state objects
+    use_lockfile: true           # DECISION: S3 lockfile locking (default true)

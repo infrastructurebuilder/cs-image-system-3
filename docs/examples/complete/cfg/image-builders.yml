@@ -1,0 +1,43 @@
+---
+# docs/examples/complete/cfg/image-builders.yml -- three image builders, one
+# per runtime. Reference: ../../../CONFIGURATION.md section 6. `packer-ebs`
+# and `packer-gce` share one body; the runtime plugin owns the source block.
+image_builders:
+  - name: pckr-ebs-ans
+    type: packer-ebs
+    is_default: true
+    runtime: default               # the runtime this builder bakes on (aws-east2)
+    executable: packer
+    description: "amazon-ebs source, ansible and shell provisioners"
+    default_machine_type: default  # machine type for bakes when the image and the runtime entry name none (`default` = the runtime's)
+    required_plugins:              # {name (required), version (required), source, config}
+      - name: amazon
+        source: github.com/hashicorp/amazon
+        version: ">= 1.0.0"
+        config: {}
+      - name: ansible
+        source: github.com/hashicorp/ansible
+        version: ">= 1.0.0"
+  - name: pckr-ebs-east1
+    type: packer-ebs
+    runtime: aws-east1
+    executable: packer-next        # the second packer entry, by name
+    default_machine_type: t3.medium
+    required_plugins:
+      - name: amazon
+        source: github.com/hashicorp/amazon
+        version: ">= 1.0.0"
+      - name: ansible
+        source: github.com/hashicorp/ansible
+        version: ">= 1.0.0"
+  - name: pckr-gce-ans
+    type: packer-gce
+    runtime: gcloud-east1
+    executable: packer
+    required_plugins:
+      - name: googlecompute
+        source: github.com/hashicorp/googlecompute
+        version: ">= 1.0.0"
+      - name: ansible
+        source: github.com/hashicorp/ansible
+        version: ">= 1.0.0"

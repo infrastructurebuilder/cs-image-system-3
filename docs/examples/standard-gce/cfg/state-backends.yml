@@ -1,0 +1,20 @@
+---
+# docs/examples/standard-gce/cfg/state-backends.yml -- where every terraform
+# root keeps its state. Reference: ../../../CONFIGURATION.md section 10.
+#
+# DECISION: the GCE roots keep their state in an S3 bucket, exactly as the
+# frozen fixture and the live configuration do (stage 47: "every live root,
+# the GCE roots included, keeps its state in the S3 backend by the standing
+# decision"). The alternatives are the `gcs` type (a Google Cloud Storage
+# bucket; the complete example declares one, bound to nothing) and `local`
+# (a state file on disk, one machine only). An S3 backend needs an AWS
+# profile that can write the bucket, even for a GCE-only tree.
+state_backends:
+  - name: s3-main
+    type: s3
+    is_default: true             # every root inherits it: no root names a `state_configuration`
+    bucket: tfstate-REPLACE-ME   # REPLACE: an existing bucket the profile can write
+    key: statefiles/my-team-images/   # REPLACE: the key prefix; each root's state is <prefix>/<root name>.tfstate
+    region: us-east-2            # REPLACE: the bucket's region
+    profile: REPLACE-ME-profile  # REPLACE: the AWS profile terraform uses for the backend
+    encrypt: true                # DECISION: server-side encryption of the state objects

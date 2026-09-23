@@ -1,0 +1,33 @@
+---
+# docs/examples/complete/images/images-other-groups.yaml -- images of the
+# other groups on the other base families. Reference:
+# ../../../CONFIGURATION.md section 11.2 and 7.3.
+images:
+  - name: imgfile-data-science
+    group: stofs
+    source_image: my-deb-12        # the Debian base
+    aliases: [ds-node]
+    description: "Data Science node with pre-installed libraries and tools."
+    tags:
+      data_science: "true"
+    runtimes:
+      - image_builder: pckr-ebs-ans
+        machine_type: r5.large     # a bigger bake machine for this image only
+    modifications:
+      - name: data-science-setup
+        playbooks:
+          - playbooks/setup_data_science.yml
+        config:
+          python_version: "3.12"
+          r_version: "4.4.1"
+  - name: imgfile-ubuntu-node
+    group: tcmet
+    source_image: ubuntu-24        # the Ubuntu base
+    description: "A shell-only image: no ansible at all."
+    runtimes:
+      - image_builder: pckr-ebs-ans
+    modifications:
+      - name: apt-tools            # a script-only bash item: recorded as `idempotent: unknown`
+        type: shell                # the bash-remote builder by alias
+        script:
+          - "sudo apt-get update && sudo apt-get install -y tmux"
