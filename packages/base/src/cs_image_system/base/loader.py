@@ -24,12 +24,12 @@ def load_plugins():
         return
     # reg.register_plugin_metadata(DefaultExecutableModelPluginMetadata())
     for plugin_type, plugin_key in PLUGIN_TYPES:
-        log.info(f"Loading plugins of type: {plugin_type}")
+        log.debug(f"Loading plugins of type: {plugin_type}")
         plugins = entry_points(group=f'cs_image_system.plugins.{plugin_type}')
         if not plugins:
             log.debug(f"No '{plugin_type}' plugins found.")
         plugin_names = sorted([plugin.name for plugin in plugins])    
-        log.info(f"Found {len(plugins)} plugins.")
+        log.debug(f"Found {len(plugins)} plugins.")
         for pname in plugin_names:
             plugin = plugins[pname]
             log.info(f"Loading plugin: {plugin.name}")
