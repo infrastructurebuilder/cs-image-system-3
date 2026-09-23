@@ -45,8 +45,8 @@ bare name until its first sanctioned replacement, which is the first real
 claims, and §19 step 5 proved §60's meaning live (a sanctioned replacement
 is a new generation with a new name). §59 is deliberately LAST: it overlaps the suffix, and only once
 that is standing can anyone judge whether a name pool is still wanted. §30 waits on the operator's decision and depends
-on none of this. §61 is the open hygiene bundle (V); a new hygiene issue
-goes there.
+on none of this. No hygiene bundle is open; the next non-critical
+hygiene issue opens bundle VI.
 
 **Nothing in the naming line is left**; §30 waits on the operator's
 decision. Nothing in that shorter path has to be redone -- §58
