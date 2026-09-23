@@ -255,44 +255,12 @@ that branch's history):
    sequence with the rule left on. OPERATIONS' second-release procedure
    is now four steps.
 
-**Remaining:**
+5. The release and retention lifecycles no longer write an instance
+   root's `instances.auto.tfvars` under `generated/release/` or
+   `generated/retention/`: `TofuInstanceBuilder.pre_finalize_phase` acts
+   for the instance-image lifecycle alone. Landed 2026-09-23 with the
+   others. A stale copy from an older run under those two directories is
+   removed by hand once (`git clean` is never run by the system).
 
-5. **The release and retention lifecycles emit an instance root's variable
-   file they never run.**
+**The bundle is complete**; it lands as one squash on develop.
 
-   *What is wrong.* `TofuInstanceBuilder.pre_finalize_phase`
-   ([tf_instance_builder.py](packages/tf-ebs-instance-plugin/src/cs_image_system/tf_ebs_instance_plugin/tf_instance_builder.py))
-   writes `instances.auto.tfvars` (the resolved AMI id per instance) into
-   the builder's `instance-generation` directory of WHATEVER lifecycle is
-   finalising the `INSTANCE_GENERATION` phase. The release and retention
-   lifecycles both extend that phase with their own one deferred step
-   ([release.py](packages/base/src/cs_image_system/base/release.py),
-   [retention.py](packages/base/src/cs_image_system/base/retention.py)),
-   so the hook fires for them too and writes the file under
-   `generated/release/…` and `generated/retention/…`, where no instance
-   root exists and nothing reads it. The commit gate refuses every
-   `*.tfvars` by pattern (they may carry decrypted values), so the file
-   is never staged and stays untracked: after every release run the
-   operator sees a stray `??` in the configuration checkout.
-
-   *Evidence.* 2026-09-22, the release run: the run's own warning named
-   both files ("never staging generated/release/…/instances.auto.tfvars,
-   generated/retention/…"), and `generated/retention/open-tofu/` stayed
-   untracked afterwards; its one line is `coops_model_ami_id = "ami-…"`.
-   Not a leak (an AMI id), but a file nothing runs.
-
-   *Recommendation.* Guard the hook on the lifecycle: write the file only
-   when the lifecycle being finalised is `instance-image` (the context
-   knows the running lifecycle; the release and retention runners read
-   the pins from meta-state, never from the root). A stale copy under
-   `generated/release/` or `generated/retention/` from an older run is
-   removed by the next generation of that lifecycle, which wipes its
-   directory. One test: a release run over the fixture writes no tfvars
-   under `generated/release/`.
-
-   *Effects.* No stray file after a release or retention run; the
-   never-staged warning no longer names those two paths; the
-   instance-image lifecycle is unchanged. Risk: none; nothing consumed the
-   file. Size: an hour.
-
-   *Decision.* None needed; accepted 2026-09-23.

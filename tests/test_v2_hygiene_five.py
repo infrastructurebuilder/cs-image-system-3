@@ -13,7 +13,9 @@ dry run remove nothing. 61.4 an unreleased pin is allowed while the series
 head is under its own proof (pending replacement, launched, verified) and
 refused the moment the proof fails or the pin is not the head; the
 `cloud-upgrade` recipe runs the sequence with the rule left on. (61.2 closed
-as overtaken: a sentence in OPERATIONS; 61.5 stays planned.)
+as overtaken: a sentence in OPERATIONS.) 61.5 the instance root's
+`instances.auto.tfvars` is written by the instance-image lifecycle alone,
+never under generated/release/ or generated/retention/.
 """
 from __future__ import annotations
 
@@ -311,3 +313,32 @@ def test_the_upgrade_recipe_is_the_second_release_procedure_with_the_rule_left_o
     assert order == sorted(order), "pin, replace, proof, release -- in that order"
     assert lines.count("just cloud-launch {{runtime}}") == 2, "one more launch gives the machine its names"
     assert "require_released_builds" not in body.replace("# ", ""), "the rule is never switched off"
+
+
+# ------------------------------------ 61.5 the tfvars belong to instance-image alone
+
+def test_release_and_retention_never_write_an_instance_roots_tfvars(tmp_path: Path, monkeypatch):
+    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.base.release import RELEASE_LIFECYCLE
+    from cs_image_system.base.retention import RETENTION_LIFECYCLE
+    from tests.test_v2_gate6_lineage_pins import _fake_manifest
+    run = V2Run(tmp_path, monkeypatch)
+    try:
+        assert run.run(["instance-image"], apply=False).ok
+        ctx = run.ctx
+        _fake_manifest(run, "instance-image", "block-000", {"imgfile-basic-dask": "ami-0dask0007"})
+        ctx.current_lifecycle = Lifecycle.INSTANCE_IMAGE
+        ctx.image_builders["pckr-ebs-ans"].post_finalize_phase(ExecutionLifecyclePhase.IMAGE_GENERATION)
+        ib = ctx.instance_builders["open-tofu"]
+        for lc in (RELEASE_LIFECYCLE, RETENTION_LIFECYCLE):
+            ctx.current_lifecycle = lc
+            ib.pre_finalize_phase(ExecutionLifecyclePhase.INSTANCE_GENERATION)
+            assert list((run.generated / lc.name).rglob("*.tfvars")) == [], f"{lc.name} wrote an instance root's tfvars"
+        ctx.current_lifecycle = Lifecycle.INSTANCE_IMAGE
+        ib.pre_finalize_phase(ExecutionLifecyclePhase.INSTANCE_GENERATION)
+        tfvars = run.generated / "instance-image" / "open-tofu" / "instance-generation" / "instances.auto.tfvars"
+        assert 'test2_ami_id = "ami-0dask0007"' in tfvars.read_text(), "the instance-image lifecycle still gets it"
+    finally:
+        ctx.current_lifecycle = None
+        run.restore_cwd()
