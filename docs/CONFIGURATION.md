@@ -278,7 +278,7 @@ executables:
     type: packer
   - name: gcloud
     binary: /usr/local/bin/gcloud
-    version: ">=2026.02.0, <2027.01.0"
+    version: ">=500"        # the Google Cloud SDK version, not the core component's date
   - name: ansible-playbook
     binary: /usr/local/bin/ansible-playbook
     version: "<2.21"
@@ -340,8 +340,8 @@ image, instance and storage builders) add:
 | Field | Type | Default | Meaning and allowed values |
 | --- | --- | --- | --- |
 | `default_machine_type` | str | required | the machine type for bakes and instances that name none |
-| `default_image_builder` | str | `default` | the image builder used when an image's runtime entry names none |
-| `default_owners` | list[str] or null | null | accepted; not read by the cloud plugins |
+| `default_image_builder` | str | `default` | accepted and checked as a foreign key to an image builder; not read: an image's runtime entry that names no `image_builder` (or names `default`) resolves to the registry's default image builder, not to this field |
+| `default_owners` | list[str] or null | null | appended to the owners of every vendor image query made for this runtime (the base image lookup by name pattern), after the OS builder's own owners |
 | `credentials` | mapping | `{}` | provider-specific (4.3, 4.4); an unknown key is refused |
 | `default_config_username` | str or null | null | the ssh user for bakes when neither the OS builder nor its runtime entry names one |
 | `ephemeral` | bool | `false` | nothing baked here survives a successful run: the closing `retention` lifecycle disposes every image on this runtime. Declared storages are never touched. |
@@ -359,7 +359,7 @@ image, instance and storage builders) add:
 | --- | --- | --- | --- |
 | `account_id` | str or null | null | the account (a number is coerced to a string) |
 | `state_configuration` | str | `default` | a state backend (section 10); `default` inherits the runtime's, else the default backend |
-| `ena_support` | bool or null | null | passed to the packer source |
+| `ena_support` | bool or null | null | accepted; not read -- nothing emits it into a packer source |
 | `sriov_support` | bool or null | null | accepted; not read |
 | `iam_instance_profile` | str or null | null | instance profile attached to build VMs |
 | `session_mechanism` | str or null | null | `ssm`: bakes and debug sessions go through SSM (the agent is baked into base images) |
@@ -411,7 +411,7 @@ and warns about a network tag no firewall rule targets.
 | `subnets[].cidr` | str or null | null | informational |
 | `subnets[].config` | mapping | `{}` | free-form |
 | `availability_zones` | list | `[]` | entries `{name, is_default}`; the default zone is passed to the instance root |
-| `security_group_ids` (aws) | list[str] | `[]` | security groups for build VMs and instances |
+| `security_group_ids` (aws) | list[str] | `[]` | accepted and counted at load (the total with `addl_security_groups` is validated); emitted nowhere -- an instance wears the root's own security group plus `addl_security_groups`, and SSH ingress references `ssh_ingress_security_group_ids` |
 | `addl_security_groups` (aws) | list[str] | `[]` | existing groups every instance also wears; never modified |
 | `ssh_ingress_security_group_ids` (aws) | list[str] | `[]` | groups whose members may SSH in; when set, port-22 ingress references only these groups, never a CIDR |
 | `network_tags` (gcloud) | list[str] | `[]` | network tags that select firewall rules |
@@ -1286,7 +1286,7 @@ owned by exactly one group.
 | `is_default` | bool | `false` | |
 | `architecture` | str | the OS builder's, else `x86_64` | |
 | `primary_disk_size` | str or int | the OS builder's `default_primary_disk_size`, else 200 | GB |
-| `variables` | mapping | `{}` | emitted as packer variables (`name = value` lines) |
+| `variables` | mapping | `{}` | accepted; not read -- the packer builder declares its own variables (`base_image_version` among them) and the retired `gen_packer.py` was this field's only reader |
 | `tags` | mapping[str, str] | `{}` | tags on the baked image |
 | `description` | str or null | `Image <name> from source image <source_image>` | |
 | `auto_update` | bool or null | null | accepted; updates apply to base images only |
@@ -1363,7 +1363,7 @@ Model: `Instance`
 | `teardown_after` | str or null | null | `<number>` followed by `m`, `h` or `d`: after a failed verification, the next run tears the standing instance down once this has elapsed; null inherits |
 | `image_policy` | str | `pinned` | `pinned`: keep the launched build until an explicit `upgrade instance`; `follow`: plan the gated replacement whenever the image's head moves |
 | `description` | str or null | `Instance from {{ image.name }}` | |
-| `userdata` | str | `""` | accepted; not read by the tofu roots |
+| `userdata` | str | `""` | appended to the instance's launch script (after the system's own lines, before the completion marker) and recorded among its launch parameters |
 | `tags` | mapping[str, str] | `{}` | |
 | `aliases`, `config` | | | as elsewhere |
 | `groups` | — | — | **refused**: the owning group lives on the image |
