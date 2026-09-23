@@ -130,6 +130,9 @@ Every terraform root's deferred sequence is:
 ```text
 rm -f tfplan
 tofu init -input=false -reconfigure [-backend-config=<root>.tfbackend.hcl]
+cs-image-system state-migration backup --workspace <root> ...                                                                   (only before a pre-plan state rm)
+tofu state rm <address>                                                                                                         (only an unmanaged group's module)
+cs-image-system prune-attachments --builder <group builder> ...                                                                 (identity roots only, every run)
 tofu plan -input=false -out=tfplan [-replace=…] [-var=…]
 cs-image-system gate-plan --planfile tfplan --tofu <tofu> [--allow-destroy <addr>]... [--require-unmounted <inst>:<storage>]...
 cs-image-system apply-check --lifecycle <key> --root <root> --root-alias <runtime> [--overlay <file>]... [--apply-runtime <rt>]   (only when an apply is emitted)
@@ -142,10 +145,12 @@ tofu apply -input=false tfplan                                                  
 - `gate-plan` fails (exit 3, `DESTROY NOT WHITELISTED`) unless every
   planned destroy is whitelisted by `--allow-destroy`. The only
   whitelisted destroys are operation-driven: an instance replacement from
-  `upgrade instance`, an instance that was decommissioned (removed from
+  `upgrade instance` or a `follow` policy, together with the replaced
+  instance's volume attachments (they bind the volume to the instance's
+  id; found 2026-09-22), an instance that was decommissioned (removed from
   the YAML, or undeclared for the invocation), a storage whose requested
-  state is `destroyed` or `archived`, and an attachment whose detach was
-  unmounted first. `--require-unmounted` refuses (exit 3, `DETACH NOT
+  state is `destroyed` or `archived` or that is no longer declared, and an
+  attachment whose detach was unmounted first. `--require-unmounted` refuses (exit 3, `DETACH NOT
   UNMOUNTED`) without a successful receipt.
 - `apply-check` re-reads `cfg/_config.yml` (and the run's overlays) at
   EXECUTION time and exits 3 when the flag is off *now*, so a script
@@ -789,8 +794,9 @@ the disk absent and the snapshot present. Declaring it `active` again
 creates the disk *from* that snapshot (on EBS the module resolves the
 snapshot by its Name tag at plan time) and deletes the snapshot after the
 apply; `destroyed` from `archived` deletes the archive. The storage must
-be unattached first. The AWS scripts use the runtime's
-`--region`/`--profile` with credentials from the environment.
+be unattached first. The EBS scripts use the runtime's `--region` and
+`--profile` with credentials from the environment; the S3 wipe passes
+`--profile` alone.
 
 **Data lifecycles.** A storage may declare a `lifecycle:` its builder
 realizes on the resource: S3 `{transition_days, storage_class,
@@ -869,15 +875,21 @@ claims reality that no apply produced. The one exception is
 | `image-tests.yaml` | the latest post-bake test result per build | `verify instance` |
 | `releases.yaml` | every release ever made and, per model, the current released build of each series | `release` |
 | `mod-tests.yaml` | modification test results keyed by the mod's content hash (apply + idempotence), so an unchanged mod is not re-tested | `test-mods` |
+| `state-locations.yaml` | every workspace's resolved state location (type, container, key) and the record of every move | every run, dry runs included, after generation |
 
 ### Where state lives
 
 Every terraform root keeps its state in exactly one *location*: the tuple
-(backend type, bucket, key prefix, state file name), the prefix normalised
-(repeated slashes collapsed, leading and trailing ones stripped, case
-kept). A root's location is readable from its `.tfbackend.hcl` beside the
-root -- `bucket`, `key`, `region` and the profile -- and every lifecycle
-runner's header lists them (`# state: workspace <ws> -> s3://…`). The
+(backend type, container, key), the key normalised (repeated slashes
+collapsed, leading and trailing ones stripped, case kept). A root's
+location is readable from its `.tfbackend.hcl` beside the root -- for
+`s3` the `bucket`, `key`, `region` and the profile; for `local` the `path`;
+for `gcs` the `bucket` and `prefix` -- and every lifecycle runner's header
+lists them (`# state: workspace <ws> -> s3://…`, `local://…`, `gcs://…`).
+A `local` state file never travels with the repository (it is ignored and
+never staged), so a real run from another checkout plans against an empty
+state and nothing in the system refuses that; keep such roots to one
+machine or move them with `--migrate-state`. The
 whole mechanism is gated by `use_state_backends` in `cfg/_config.yml`:
 off, no backend block, no backend file and no remote-state datasource is
 emitted, and none of what follows applies.
@@ -1699,6 +1711,9 @@ replacement: a runtime pointed at another zone does not fail to attach a
 volume, it plans to DESTROY and recreate it. The plan gate catches that as an
 unwhitelisted destroy, but only at apply time and naming the volume rather than
 the reason. Live subnets and `mnt_data` declare their zones since 2026-09-19.
+An EBS storage's own zone is what its module call carries; a GCP persistent
+disk is emitted in its runtime's zone whatever the storage declares (the
+declaration is validated, not emitted; a code stage names the fix).
 
 **In the records.** A meta-state write says what it READ (stage 50): a value
 that came from a marker is recorded as that marker, so a record and the
