@@ -248,9 +248,13 @@ plugin 1–2 days. Call it three weeks, done as three branches.
 
 ## 62. The daily driver: how a person actually uses the system
 
-**Status: IN PROGRESS** (the operator said "execute stage 62" on
-2026-09-23, after §61 landed). Steps are ticked below as they land, one
-commit each on `feature/daily-driver`. An execution begun before the plan
+**Status: steps 1 to 6 LANDED on `feature/daily-driver` 2026-09-23** (the
+operator said "execute stage 62" that morning, after §61 landed): the
+contract test, sixteen READMEs one commit each, seven passes of manual
+corrections, `DAILY_DRIVER.md`, the three example trees with their test,
+the root README. Step 7 is the standing convention. What remains is the
+bar on the branch head and the operator's word to squash-merge; the code
+defects the work found are §63. An execution begun before the plan
 was written was reverted; its draft of `DAILY_DRIVER.md` and its contract
 test are the starting points for steps 4 and 1.
 
