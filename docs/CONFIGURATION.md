@@ -341,7 +341,7 @@ image, instance and storage builders) add:
 | --- | --- | --- | --- |
 | `default_machine_type` | str | required | the machine type for bakes and instances that name none |
 | `default_image_builder` | str | `default` | accepted and checked as a foreign key to an image builder; not read: an image's runtime entry that names no `image_builder` (or names `default`) resolves to the registry's default image builder, not to this field |
-| `default_owners` | list[str] or null | null | appended to the owners of every vendor image query made for this runtime (the base image lookup by name pattern), after the OS builder's own owners |
+| `default_owners` | list[str] or null | null | meant to join the owners of every vendor image query made for this runtime; unreachable in practice, since the lookup that would read it keys the runtime by the image builder's name and never finds it (a code stage names the fix); until then an OS builder entry's own `owners` is what a query uses |
 | `credentials` | mapping | `{}` | provider-specific (4.3, 4.4); an unknown key is refused |
 | `default_config_username` | str or null | null | the ssh user for bakes when neither the OS builder nor its runtime entry names one |
 | `ephemeral` | bool | `false` | nothing baked here survives a successful run: the closing `retention` lifecycle disposes every image on this runtime. Declared storages are never touched. |
