@@ -98,6 +98,17 @@ Standing decisions (operator):
 - §30 (the contract package) and §62 (the daily driver) are planned, not
   started; a stage is a plan in this file until the operator says to
   execute it (2026-09-23).
+- **Documentation stays current by stage** (operator, 2026-09-23). Once
+  §62 has landed, every stage that changes behaviour, configuration,
+  tests or procedure owes a documentation update, done as a stage of its
+  own: a rolling **documentation stage** that is open whenever such work
+  has landed undocumented. If none is open, the stage that lands the
+  change opens one. Several stages of work may land before the
+  documentation stage runs, but the documentation stage must LIST what
+  was worked on since the last update (the stages, by number and name,
+  and what each changed), so whoever writes the docs has the context.
+  The same convention as the hygiene bundle: one open stage, appended to,
+  landed as one.
 
 ---
 
@@ -359,6 +370,10 @@ the fixture pins `>=500`, the SDK version the checker matches.
    first. Feature branch `feature/daily-driver`, squash-merged, kept.
    Documentation only: the bar runs for the contract test, nothing else
    reads markdown; `just full-test` is not owed by a docs stage.
+6. **From here on, documentation is kept current by stage** (standing
+   decision above): when §62 lands, the first stage that changes
+   behaviour afterwards opens the rolling documentation stage, which
+   lists the stages it covers and what each changed, and lands as one.
 
 **Sizing**: step 1 is an hour; step 2 is the bulk, roughly an hour per
 package read against its code, and it parallelises by package; steps 3
