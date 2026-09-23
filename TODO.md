@@ -232,6 +232,9 @@ Each item below says, in this order: what is wrong (the exact path), the
 evidence, the recommendation, its effects (what the operator sees
 afterwards, what changes in the records and in CI, what it risks), and the
 decision it needs from the operator, if any. Sizes are honest guesses.
+**Decided 2026-09-23**: the operator accepted every recommendation (item 2
+shape (a), item 4 shapes (a) and (c)); each item's *Decision* line records
+the choice. The bundle is ready to execute on the operator's word.
 
 1. **A group the provider could not be ASKED about is reported as MISSING.**
 
@@ -272,7 +275,7 @@ decision it needs from the operator, if any. Sizes are honest guesses.
    `live` job behaves the same (it fails strict either way) but its log
    says why. Risk: none to records; nothing is written. Size: an hour.
 
-   *Decision.* None.
+   *Decision.* None needed; accepted 2026-09-23.
 
 2. **Preflight's window check, per command, cannot see the number that
    binds.**
@@ -315,7 +318,8 @@ decision it needs from the operator, if any. Sizes are honest guesses.
    A flag nobody passes on the live tree; a test; dead weight until a
    fixed-expiry profile returns. Size: (a) minutes; (b) two hours.
 
-   *Decision.* (a) or (b).
+   *Decision.* (a), 2026-09-23: the item closes as overtaken with the
+   OPERATIONS sentence; no `--needs` flag.
 
 3. **A membership the YAML dropped and OPA already lacks blocks every
    identity plan.**
@@ -363,8 +367,8 @@ decision it needs from the operator, if any. Sizes are honest guesses.
    plans identity, so it is unaffected; `perform` does not run identity
    either. Size: half a day with tests.
 
-   *Decision.* Whether the automatic `state rm` must take the backup
-   first. I recommend yes.
+   *Decision.* Accepted 2026-09-23: the automatic `state rm` takes the
+   backup first, every time.
 
 4. **A durable instance cannot take its own image's second release without
    a rule being switched off by hand.**
@@ -420,8 +424,9 @@ decision it needs from the operator, if any. Sizes are honest guesses.
    the recipe and its preconditions. Size: (a) half a day; (c) a day;
    (b) half a day.
 
-   *Decision.* Which shape. This is a design decision to make before the
-   third release, not during it.
+   *Decision.* (a) plus (c), 2026-09-23: the grace in `validate_released_pins`
+   and the `cloud-upgrade <rt> <instance>` recipe; shape (b) is not built.
+   Lands before the third release.
 
 5. **The release and retention lifecycles emit an instance root's variable
    file they never run.**
@@ -461,4 +466,4 @@ decision it needs from the operator, if any. Sizes are honest guesses.
    instance-image lifecycle is unchanged. Risk: none; nothing consumed the
    file. Size: an hour.
 
-   *Decision.* None.
+   *Decision.* None needed; accepted 2026-09-23.
