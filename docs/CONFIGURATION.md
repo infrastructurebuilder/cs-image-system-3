@@ -516,7 +516,7 @@ Types: `rhel` (dnf; adds `subscription_id`), `fedora` (dnf), `debian`
 | `runtimes` | list | required, at least one | one entry per image builder (5.1); `image_builder` unique within the list |
 | `config_username` | str or null | null | meant as the sudo-capable ssh user for provisioning; accepted, not read in practice: its only reader is a finalize step nothing calls |
 | `auto_update` | bool | `false` | alias for `update: {policy: full}` when `update` is absent |
-| `update` | mapping or policy name | null | 5.2 |
+| `update` | mapping | null | 5.2 |
 | `identity_types` | list[str] | `[]` | identity types this base bakes prerequisites for (`okta`); an instance image whose group's builder is of another type is refused |
 | `storage_types` | list[str] | `[]` | storage types instances of this base may attach (`ebs`, `efs`, `s3`, `pd`, `filestore`, `gcs`); each must have a configured storage builder |
 | `admin_user` | str | `csisadmin` | the mandatory local admin user; must not be empty |
@@ -553,7 +553,8 @@ Types: `rhel` (dnf; adds `subscription_id`), `fedora` (dnf), `debian`
 
 `UpdatePolicy`
 ([`update_policy.py`](../packages/base/src/cs_image_system/base/models/update_policy.py)).
-A mapping, or a bare policy name.
+A mapping (`update: none` as a bare name is refused when the structure
+loads; write `update: {policy: none}`).
 
 | Key | Type | Default | Meaning and allowed values |
 | --- | --- | --- | --- |
@@ -722,7 +723,7 @@ are all empty.
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | common builder fields (4.1) | | | |
-| `execute_command` | str or null | null | the provisioner's `execute_command` |
+| `execute_command` | str or null | null | the provisioner's `execute_command`; it cannot carry packer's own `{{ .Path }}` syntax, since every configuration string is rendered as a Jinja template at load |
 | `environment_vars` | list[str] | `[]` | the provisioner's `environment_vars` |
 | `expect_disconnect` | bool | `false` | emitted as `expect_disconnect = true` on every block of the builder's items when set |
 | `extra_arguments` | list[str] | `[]` | accepted; not emitted |
@@ -1152,7 +1153,7 @@ configuration keeps every root on its default backend by decision.
 | `use_fips_endpoint` | bool | `false` | accepted, not read |
 | `endpoints` | mapping or null | null | `{name (required), dynamodb, s3, sts, iam, sso}`; accepted, not read |
 | `assume_role` | mapping or null | null | `{name (required), role_arn, duration, policy, policy_arns: [], session_name, source_identity, tags: {}, transitive_tag_keys: []}`; accepted, not read |
-| `assume_role_with_web_identity` | mapping or null | null | `{role_arn, duration, policy, policy_arns: [], session_name, web_identity_token, web_identity_token_file}` |
+| `assume_role_with_web_identity` | mapping or null | null | `{name (required), web_identity_token, web_identity_token_file}`; accepted, not read |
 
 A root's location is `s3://<bucket>/<key>/<root name>.tfstate`; the backend
 file carries `bucket`, `key`, `region`, `encrypt`, `use_lockfile` and the
@@ -1438,7 +1439,7 @@ A storage is realized by its builder's root; the YAML declares the
 | --- | --- | --- | --- |
 | `name` | str | required | system-wide unique |
 | `type` | str | `default` | the storage builder (8.2); fixes the capability type and the runtime |
-| `runtime` | str | `default` | accepted; the builder's runtime governs |
+| `runtime` | str | `default` | the builder's runtime governs the module call; `validate`'s zone check (section 12a) reads THIS field for a zonal storage, so a persistent disk or EBS volume that declares `availability_zone` on a runtime other than the default must name it here too |
 | `groups` | list[str] | `[]` | the groups allowed to attach (never users; each must be a declared group); each gets a private `/<group>/` subtree. The value `ALL` is refused. |
 | `public_read` | bool | `false` | anyone may mount read-only; POSIX permissions still govern |
 | `share_mode` | str | `2770` | mode of every allowed group's subtree: `2770` (private) or `2775` (read-shared between allowed groups) |
@@ -1795,7 +1796,7 @@ it is the join key between a roster and an access grant.
 | `CSIS_CONFIG_IDENTITY` | every load; `decrypt`; `reencrypt` | the age identity (section 13) |
 | AWS profile | the AWS runtime, the S3 backend, preflight | `credentials.profile_name` on the runtime (else `AWS_PROFILE`; static `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` are honoured when no profile is named); `profile` on the state backend. An SSO profile needs a live session: the load validates the account's network and refuses on an expired one. |
 | `GOOGLE_APPLICATION_CREDENTIALS` | the GCE runtime, preflight | Application Default Credentials; default `~/.config/gcloud/application_default_credentials.json` |
-| `TF_VAR_<team>_key`, `TF_VAR_<team>_secret` | an `okta-tf` builder with the `oktapam` provider; the gid shim; the state query | the OPA API key pair for the builder's `team` (non-alphanumerics of the team → `_`). Required at finalize when the builder's `key`/`secret` are left at default and `oktapam` is among its `required_providers`. The gid shim also accepts `OKTAPAM_KEY`/`OKTAPAM_SECRET`. |
+| `TF_VAR_<team>_key`, `TF_VAR_<team>_secret` | an `okta-tf` builder with the `oktapam` provider; the gid shim; the state query | the OPA API key pair for the builder's `team` (non-alphanumerics of the team → `_`). Required when the configuration LOADS (the workspace's finalize runs during the load, so `validate` and dry runs need them too) whenever the builder's `key`/`secret` are left at default and `oktapam` is among its `required_providers`. The gid shim also accepts `OKTAPAM_KEY`/`OKTAPAM_SECRET`. |
 | `OKTA_API_CLIENT_ID`, `OKTA_API_SCOPES`, `OKTA_API_PRIVATE_KEY`, `OKTA_API_PRIVATE_KEY_ID` (or `OKTA_API_TOKEN`) | the `okta/okta` provider at plan/apply | user (and read-only group) lookups. The load only checks that one of `OKTA_API_PRIVATE_KEY`, `OKTA_API_TOKEN`, `OKTA_ACCESS_TOKEN` is set and warns otherwise, skipping `plan` for that root. |
 | `TF_VAR_sft_enrollment_token` | the instance roots | explicit override of the enrollment token the identity root mints |
 | `CSIS_AWS_DIR` | preflight | the `~/.aws` directory to read session caches from |
