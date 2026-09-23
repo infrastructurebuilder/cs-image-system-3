@@ -1912,14 +1912,17 @@ operator key: nothing in a run can prompt.
   destroy of its attachment and the gate sees it. When OPA no longer
   holds it (the roster was conformed to OPA by hand, or the person was
   removed there first), the provider would ERROR on refresh (`user "x"
-  is not present within group "g"`) instead of planning the destroy, so
-  the runner removes that attachment from state before the plan -- after
-  a state backup, and only when OPA, asked in that run, agrees the
-  membership is gone; a silent OPA removes nothing and the plan decides.
-  The run log names each attachment it dropped and why. In that run the
-  generation-time plan (a read) is skipped, since it would refresh the
-  very entry the runner removes first; the runner's plan is the one the
-  gate reads.
+  is not present within group "g"`) instead of planning the destroy. So
+  every identity runner carries a `prune-attachments` step between its
+  `init` and its plan: it lists the state it is bound to, keeps every
+  attachment the declaration still has, asks OPA about each one it
+  dropped, and removes -- after a state backup -- only those OPA no
+  longer holds. A silent or unreachable OPA removes nothing and the plan
+  decides; a failed backup stops the runner before anything leaves
+  state. The run log names each attachment and why. The generation-time
+  plan of the group root is a preview that does not refresh
+  (`-refresh=false`), so it never trips on such an entry; the runner's
+  plan is the one the gate reads.
 - **Rotate the admin key**: add the new public key to
   `config.admin_public_keys` (or the base image's override), run
   `base-image` then `instance-image` (new builds), `upgrade instance` for
@@ -1981,7 +1984,8 @@ exception is a decision to record, not a bypass.
   `gate-plan`, `apply-check`, `apply tfplan`. A hand apply against the
   identity state additionally takes a same-day backup of the S3 state
   first, because those resources are never recreated -- and a runner
-  takes the same backup itself before any `state rm` it decided on:
+  takes the same backup itself before any `state rm` it decided on
+  (an unmanaged group's module, a pruned attachment):
   `_private/state-backups/<workspace>.backup-<run>.tfstate` under the
   configuration root, never committed, outside every directory a run
   wipes. The step refuses, and the runner stops before anything leaves

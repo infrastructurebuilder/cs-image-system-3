@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, TYPE_CHECKING, TypeVar
 
 from ..models.user import User
@@ -155,6 +156,16 @@ class GroupBuilderBase(BuilderBase[TGROUP]):
         entries, one live). Raises when it cannot: a retirement that did
         not happen must not be reported as one."""
         raise NotImplementedError(f"{self.__class__.__name__} keeps no server registry")
+
+    # ------------------------------------ stale memberships (stage 61 item 3)
+    def prune_stale_attachments(self, tofu: str, run_id: str, cwd: Path) -> int:
+        """A runner step, after the root's ``init`` and before its plan: drop
+        from terraform state the membership attachments the declaration no
+        longer has AND the provider no longer holds, after a state backup.
+        Runs in ``cwd``, the initialised root. Exit code: 0 when nothing
+        needs doing or everything was done; non-zero stops the runner before
+        its plan. A provider with no such notion does nothing."""
+        return 0
 
     # ------------------------------------------- CI login policy (stage 56)
     def can_manage_workload_access(self) -> bool:

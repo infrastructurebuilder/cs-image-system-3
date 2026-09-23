@@ -246,9 +246,14 @@ that branch's history):
 2. Closed as overtaken: one paragraph in OPERATIONS "Sessions" says a
    mid-run lapse is environmental and names the repair.
 3. A membership the declaration dropped and OPA no longer holds leaves
-   state before the plan, after `state-migration backup` pulls the state
-   beside the root; OPA holding it, silent, or unreachable removes
-   nothing. (`_stale_attachment_addresses`, `pre_plan_backup`.)
+   state before the plan: the runner's `prune-attachments` step, after
+   its init, lists the state it is bound to, asks OPA about each dropped
+   attachment, backs the state up to `_private/state-backups/` and
+   removes only what OPA lacks; OPA holding it, silent, or unreachable
+   removes nothing; the group root's generation-time plan is a
+   no-refresh preview. Two live attempts (2026-09-23 09:10 and 10:15)
+   taught that a read-model written at generation is not a witness of
+   state and that the CLI's load replaces its context object.
 4. The release grace in `validate_released_pins` (`release_grace`) admits
    the series head under its own proof; `just cloud-upgrade <rt>
    <instance> [to]` runs pin, replace, proof, release, names as one

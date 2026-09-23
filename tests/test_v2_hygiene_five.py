@@ -110,45 +110,72 @@ class _Opa:
         return self.answers.get(server_group)
 
 
-def _drop_two(run, gb):
-    """The read-model remembers two memberships the declaration no longer has."""
+def _fake_tofu(tmp_path: Path, listed: list[str], pull: str = '{"serial": 7, "resources": [{"type": "x"}]}') -> tuple[str, Path]:
+    """A tofu that answers `state list` and `state pull` from canned text and
+    journals every `state rm` address, one per line."""
+    journal = tmp_path / "state-rm.log"
+    script = tmp_path / "tofu"
+    script.write_text("#!/bin/sh\n"
+                      "case \"$1 $2\" in\n"
+                      "  'state list') cat <<'CSIS_EOF'\n" + "\n".join(listed) + "\nCSIS_EOF\n;;\n"
+                      "  'state pull') printf '%s' '" + pull + "' ;;\n"
+                      "  'state rm') printf '%s\\n' \"$3\" >> '" + str(journal) + "'; echo \"Removed $3\" ;;\n"
+                      "esac\n")
+    script.chmod(0o755)
+    return str(script), journal
+
+
+def _root(tmp_path: Path) -> Path:
+    cwd = tmp_path / "root"
+    (cwd / ".terraform").mkdir(parents=True)
+    return cwd
+
+
+def _addr(label: str, kind: str, user: str) -> str:
+    return f'module.group_{label}.oktapam_user_group_attachment.{kind}["{user}"]'
+
+
+def test_the_runner_prunes_the_attachments_the_declaration_dropped_and_opa_no_longer_holds(run, monkeypatch, caplog):
     ctx = run.ctx
+    gb = _group_builder(ctx)
     g = gb.get_groups_for_builder()[0]
-    model = identity_read_model(ctx)
-    rec = model["groups"][g.get_name()]
-    rec["members"] = sorted(set(rec["members"]) | {"gone.user", "kept.user"})
-    rec["admins"] = sorted(set(rec["admins"]) | {"gone.admin"})
-    ctx.meta_state.write_identity_read_model(model)
-    return g
-
-
-def test_dropped_memberships_opa_no_longer_holds_leave_state_before_the_plan(run, monkeypatch, caplog):
-    gb = _group_builder(run.ctx)
-    g = _drop_two(run, gb)
     name, label = g.get_name(), super_safe_name(g.name)
-    opa = _Opa({f"{name}_user": ["kept.user", *sorted(g.members or ())], f"{name}_admin": []})
-    monkeypatch.setattr(gbmod.OktaTfGroupBuilder, "_dry_run", lambda self: False)
+    declared_member = sorted(str(m) for m in g.members)[0]
+    root_admin = sorted(str(a) for a in ctx.root_group.admins)[0]
+    tofu, journal = _fake_tofu(run.config_root, [
+        f"module.group_{label}.oktapam_group.user",
+        _addr(label, "members", declared_member),          # still declared: kept
+        _addr(label, "admins", root_admin),                # the root group's admin, merged in: kept
+        _addr(label, "members", "gone.user"),              # dropped, OPA lacks it: removed
+        _addr(label, "members", "kept.user"),              # dropped, OPA still holds it: the plan decides
+        _addr(label, "admins", "gone.admin"),              # dropped, OPA lacks it: removed
+        _addr("nosuchgroup", "members", "x"),              # not this builder's managed group: ignored
+    ])
+    opa = _Opa({f"{name}_user": ["kept.user", declared_member], f"{name}_admin": [root_admin]})
     monkeypatch.setattr(gbmod.OktaTfGroupBuilder, "_resolver", lambda self: opa)
+    cwd = _root(run.config_root)
     with caplog.at_level("INFO"):
-        addrs = gb._stale_attachment_addresses()
-    assert addrs == [f'module.group_{label}.oktapam_user_group_attachment.members["gone.user"]',
-                     f'module.group_{label}.oktapam_user_group_attachment.admins["gone.admin"]']
-    assert sorted(opa.asked) == sorted([f"{name}_user", f"{name}_admin"]), "asked once per group kind, only where something was dropped"
+        assert gb.prune_stale_attachments(tofu, "r1", cwd) == 0
+    assert journal.read_text().splitlines() == [_addr(label, "members", "gone.user"), _addr(label, "admins", "gone.admin")]
+    assert sorted(opa.asked) == sorted([f"{name}_user", f"{name}_admin"]), "asked once per server group"
+    kept = run.config_root / "_private" / "state-backups" / f"{gb.name}.backup-r1.tfstate"
+    assert json.loads(kept.read_text())["serial"] == 7, "the backup precedes the first state rm"
     assert any("'kept.user'" in r.message and "OPA still holds it" in r.message for r in caplog.records)
-    assert any("'gone.user'" in r.message and "state rm, after a backup" in r.message for r in caplog.records)
+    assert any("'gone.user'" in r.message and "leaves tofu state before the plan" in r.message for r in caplog.records)
 
 
-def test_a_silent_opa_a_dry_run_and_missing_credentials_remove_nothing(run, monkeypatch, caplog):
-    gb = _group_builder(run.ctx)
-    g = _drop_two(run, gb)
-    name = g.get_name()
+def test_a_silent_opa_missing_credentials_or_nothing_dropped_remove_nothing(run, monkeypatch, caplog):
+    ctx = run.ctx
+    gb = _group_builder(ctx)
+    g = gb.get_groups_for_builder()[0]
+    name, label = g.get_name(), super_safe_name(g.name)
+    tofu, journal = _fake_tofu(run.config_root, [_addr(label, "members", "gone.user")])
+    cwd = _root(run.config_root)
     # OPA did not answer for the group: the plan decides
-    opa = _Opa({})
-    monkeypatch.setattr(gbmod.OktaTfGroupBuilder, "_dry_run", lambda self: False)
-    monkeypatch.setattr(gbmod.OktaTfGroupBuilder, "_resolver", lambda self: opa)
+    monkeypatch.setattr(gbmod.OktaTfGroupBuilder, "_resolver", lambda self: _Opa({}))
     with caplog.at_level("WARNING"):
-        assert gb._stale_attachment_addresses() == []
-    assert any("did not answer" in r.message and f"{name}_user" in r.message for r in caplog.records)
+        assert gb.prune_stale_attachments(tofu, "r1", cwd) == 0
+    assert not journal.exists() and any("did not answer" in r.message and f"{name}_user" in r.message for r in caplog.records)
     # no credentials: nothing removed, said once
     caplog.clear()
 
@@ -156,55 +183,57 @@ def test_a_silent_opa_a_dry_run_and_missing_credentials_remove_nothing(run, monk
         raise ValueError("OPA credentials for team 'x' not found in the environment")
     monkeypatch.setattr(gbmod.OktaTfGroupBuilder, "_resolver", no_creds)
     with caplog.at_level("WARNING"):
-        assert gb._stale_attachment_addresses() == []
-    assert any("cannot be asked" in r.message for r in caplog.records)
-    # a dry run asks nothing
-    asked = _Opa({f"{name}_user": [], f"{name}_admin": []})
+        assert gb.prune_stale_attachments(tofu, "r2", cwd) == 0
+    assert not journal.exists() and any("cannot be asked" in r.message for r in caplog.records)
+    # every attachment in state is declared: OPA is not even asked, no backup is taken
+    asked = _Opa({f"{name}_user": []})
     monkeypatch.setattr(gbmod.OktaTfGroupBuilder, "_resolver", lambda self: asked)
-    monkeypatch.setattr(gbmod.OktaTfGroupBuilder, "_dry_run", lambda self: True)
-    assert gb._stale_attachment_addresses() == [] and asked.asked == []
+    two = run.config_root / "two"
+    two.mkdir()
+    tofu2, journal2 = _fake_tofu(two, [_addr(label, "members", sorted(str(m) for m in g.members)[0])])
+    assert gb.prune_stale_attachments(tofu2, "r3", cwd) == 0
+    assert asked.asked == [] and not journal2.exists()
+    assert not (run.config_root / "_private" / "state-backups").exists()
+
+
+def test_a_failed_backup_or_state_list_stops_the_runner_before_any_removal(run, monkeypatch, caplog):
+    gb = _group_builder(run.ctx)
+    g = gb.get_groups_for_builder()[0]
+    name, label = g.get_name(), super_safe_name(g.name)
+    monkeypatch.setattr(gbmod.OktaTfGroupBuilder, "_resolver", lambda self: _Opa({f"{name}_user": []}))
+    cwd = _root(run.config_root)
+    tofu, journal = _fake_tofu(run.config_root, [_addr(label, "members", "gone.user")], pull="")
+    with caplog.at_level("ERROR"):
+        assert gb.prune_stale_attachments(tofu, "r1", cwd) == 1
+    assert not journal.exists() and any("REFUSED" in r.message for r in caplog.records)
+    bad = run.config_root / "tofu-bad"
+    bad.write_text("#!/bin/sh\necho 'Backend initialization required' >&2\nexit 1\n")
+    bad.chmod(0o755)
+    with caplog.at_level("ERROR"):
+        assert gb.prune_stale_attachments(str(bad), "r2", cwd) == 1
+    assert any("`state list` failed" in r.message for r in caplog.records)
 
 
 def _lines(execs) -> list[str]:
     return [" ".join([str(e.binary or e.name), *[str(a) for a in (e.args or [])]]) for e in execs]
 
 
-def test_the_runner_backs_the_state_up_before_the_first_state_rm(run, monkeypatch):
+def test_the_runner_carries_the_prune_step_between_init_and_plan_and_previews_without_refresh(run, monkeypatch):
     from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
     gb = _group_builder(run.ctx)
-    g = _drop_two(run, gb)
-    name, label = g.get_name(), super_safe_name(g.name)
-    opa = _Opa({f"{name}_user": sorted(g.members or ()), f"{name}_admin": sorted(g.admins or ())})
     monkeypatch.setattr(gbmod.OktaTfGroupBuilder, "_dry_run", lambda self: False)
-    monkeypatch.setattr(gbmod.OktaTfGroupBuilder, "_resolver", lambda self: opa)
     execs = gb.get_commands_to_run_after(ExecutionLifecyclePhase.GROUP_GENERATION)
     now = _lines(execs.build_executables)
-    assert not any(" plan" in ln for ln in now), ("the generation-time plan is skipped: it would refresh the "
-                                                  "attachment the runner removes first (live, 2026-09-23)")
+    preview = [ln for ln in now if " plan" in ln]
+    assert preview and all(ln.endswith(" plan -refresh=false") for ln in preview), \
+        "the generation-time plan is a preview: it never refreshes the attachment the runner prunes"
     deferred = _lines(execs.finalize_executables)
-    backup = next(i for i, ln in enumerate(deferred) if "state-migration backup --workspace" in ln)
-    rms = [i for i, ln in enumerate(deferred) if " state rm " in ln]
-    assert len(rms) == 3 and all(backup < i for i in rms), "the backup precedes every state rm"
-    assert f"--workspace {gb.name} --tofu" in deferred[backup] and f"--run {run.ctx.run_id}" in deferred[backup]
-    assert any(f'module.group_{label}.oktapam_user_group_attachment.members["gone.user"]' in ln
-               for ln in deferred), "the address is shell-quoted: the runner is a shell script"
-    plan = next(i for i, ln in enumerate(deferred) if " plan -input=false -out=tfplan" in ln)
-    assert all(i < plan for i in rms), "every state rm precedes the plan"
     init = next(i for i, ln in enumerate(deferred) if " init " in ln)
-    assert init < backup, "the backup pulls from the location the init points at"
-
-
-def test_no_dropped_membership_means_no_backup_step(run, monkeypatch):
-    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
-    gb = _group_builder(run.ctx)
-    run.ctx.meta_state.write_identity_read_model(identity_read_model(run.ctx))
-    monkeypatch.setattr(gbmod.OktaTfGroupBuilder, "_dry_run", lambda self: False)
-    monkeypatch.setattr(gbmod.OktaTfGroupBuilder, "_resolver", lambda self: _Opa({}))
-    execs = gb.get_commands_to_run_after(ExecutionLifecyclePhase.GROUP_GENERATION)
-    assert any(ln.endswith(" plan") for ln in _lines(execs.build_executables)), "the generation-time read plan stands"
-    deferred = _lines(execs.finalize_executables)
-    assert not any("state-migration backup" in ln for ln in deferred)
-    assert not any(" state rm " in ln for ln in deferred)
+    prune = next(i for i, ln in enumerate(deferred) if f"prune-attachments --builder {gb.name} --tofu" in ln)
+    plan = next(i for i, ln in enumerate(deferred) if " plan -input=false -out=tfplan" in ln)
+    assert init < prune < plan, "after the init that binds the root to its state, before the plan the gate reads"
+    assert f"--run {run.ctx.run_id}" in deferred[prune] and "--no-dry-run" in deferred[prune]
+    assert not any("state-migration backup" in ln for ln in deferred), "the prune step takes its own backup"
 
 
 def test_the_backup_keeps_the_pulled_state_under_the_private_root_and_refuses_everything_else(tmp_path: Path):
@@ -241,22 +270,29 @@ def test_the_backup_keeps_the_pulled_state_under_the_private_root_and_refuses_ev
 
 
 def test_the_migration_commands_run_from_the_directory_the_runner_entered(tmp_path: Path, monkeypatch):
-    """The CLI's callback loads the configuration and changes directory to its
-    root; a runner step invoked FROM a root (the mirror) must still act there."""
+    """The CLI's callback loads the configuration, which changes directory to
+    the root AND replaces the context object; a runner step invoked FROM a
+    root (the mirror, or the generated root in-process) must still act
+    there. Through the real command line: a direct call of the function
+    passed while the live step pulled from the configuration root
+    (2026-09-23 10:15)."""
+    from typer.testing import CliRunner
+    from cs_image_system.base.commands import state_migration as sm
     from cs_image_system.system import cli as climod
+    from tests.v2_support import FIXTURE_CONFIG, reset_singletons, stub_environment
+    reset_singletons()                      # the CLI loads the fixture into the singletons itself
+    stub_environment(monkeypatch)
+    monkeypatch.delenv("CSIS_CONFIG_ROOT", raising=False)
     seen: dict[str, Path] = {}
-    monkeypatch.setattr("cs_image_system.base.commands.state_migration.backup",
-                        lambda gctx, ws, tofu, run, cwd: seen.setdefault("cwd", cwd) and 0)
-    obj = {"invoked_cwd": tmp_path / "mirror"}
-    ctx = SimpleNamespaceCtx(obj)
-    monkeypatch.chdir(tmp_path)                       # what the load would leave behind
-    climod.state_migration_command(ctx, "backup", workspace="ws", run="r1", tofu="tofu")  # type: ignore[arg-type]
-    assert seen["cwd"] == tmp_path / "mirror"
-
-
-class SimpleNamespaceCtx:
-    def __init__(self, obj):
-        self.obj = obj
+    monkeypatch.setattr(sm, "backup", lambda gctx, ws, tofu, run, cwd: seen.setdefault("cwd", Path(cwd)) and 0)
+    started_in = tmp_path / "a-root-the-runner-entered"
+    started_in.mkdir()
+    monkeypatch.chdir(started_in)
+    result = CliRunner().invoke(climod.app, ["--root-dir", str(FIXTURE_CONFIG), "state-migration", "backup",
+                                            "--workspace", "ws", "--run", "r1", "--tofu", "/usr/bin/false"])
+    assert result.exit_code == 0, result.output[-800:]
+    assert seen["cwd"] == started_in, "the step acts where it was started, not in the configuration root"
+    reset_singletons()                      # leave the singletons as the next test's harness expects
 
 
 # --------------------------------------------- 61.4 the release grace and the recipe

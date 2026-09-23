@@ -580,6 +580,29 @@ def state_migration_command(
         raise typer.Exit(code=code)
 
 
+@app.command(name="prune-attachments")
+def prune_attachments_command(
+    typer_cntx: typer.Context,
+    builder: Annotated[str, typer.Option("--builder", help="The identity (group) builder whose root this is")],
+    run: Annotated[str, typer.Option("--run", help="The id of the running run")],
+    tofu: Annotated[str, typer.Option("--tofu", help="tofu/terraform binary")] = "tofu",
+) -> None:
+    """Stage 61 item 3: one step of an identity root's runner, after its init
+    and before its plan, in the initialised root -- drop from terraform state
+    the membership attachments the declaration no longer has and the
+    provider no longer holds, after a state backup. Never a by-hand command."""
+    from cs_image_system.base.global_context import GlobalTypeContext
+    gctx = GlobalTypeContext()
+    gb = gctx.group_builders.get(builder)
+    if gb is None:
+        typer.secho(f"prune-attachments: no group builder named {builder!r}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=2)
+    cwd = Path(typer_cntx.obj.get("invoked_cwd") or os.getcwd())
+    code = gb.prune_stale_attachments(tofu, run, cwd)
+    if code:
+        raise typer.Exit(code=code)
+
+
 @app.command(name="gate-plan")
 def gate_plan_command(
     plan_json: Annotated[Path | None, typer.Argument(
@@ -1309,6 +1332,9 @@ def main(
                                   overlays=[p.resolve() for p in (overlay or [])],
                                   undeclare=list(undeclare or []))
         typer_cntx.obj["base_only"] = base_only
+        # the load above REPLACES the context object; the invocation directory
+        # is set again so a runner step still knows where it was started
+        typer_cntx.obj["invoked_cwd"] = Path(saved_dir)
     except Exception as e:
         typer.echo(f"Error reading config file : {e}", err=True)
         raise e
