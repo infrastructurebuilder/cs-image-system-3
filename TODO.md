@@ -10,7 +10,8 @@ system must not take itself.
 Current stage: **none in progress**.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
-**none but §30**, which waits on the operator's decision. (§61, hygiene
+**§62 (the daily driver)**, planned and waiting on the operator's word;
+§30 waits on the operator's decision. (§61, hygiene
 bundle V, LANDED 2026-09-23: five items and two live proofs -- a dropped
 stofs membership pruned from state after a backup and restored through
 the gate; the coops model's third release as one `cloud-upgrade` with
@@ -227,3 +228,81 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-package` (steps 1–3, 5–7),
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
+
+## 62. The daily driver: how a person actually uses the system
+
+**Why**: the documentation describes the system -- every file, every field,
+every rule, every run -- and still a person sitting down to USE it on a
+Monday has no page that starts where they are. Nothing says what has to
+exist before the first command (accounts, roles, keys, sessions, tools, a
+configuration repository), nothing walks through making an image, a
+storage and an instance and then changing each, nothing collects the
+failures the system produces into "this is what that means and what to do",
+and the plugin READMEs -- good, and differently shaped -- do not all say what
+a plugin needs from outside, every knob it reads, every variation it
+performs, what it tests, and how it fails. The standard (operator,
+2026-09-22): **no one should be surprised by the system's behaviour if
+they read the docs.**
+
+1. **`DAILY_DRIVER.md`**, at the root, the narrative in the order a person
+   meets it:
+   - *Before the first command*: what must exist outside the system --
+     the AWS account and its OIDC roles, the S3 state bucket, the VPC and
+     subnets and security groups the constraints assume, the instance
+     profile; the GCP project and ADC; the OPA team, its API key pair, the
+     workload connection and role; the Okta API service app; the age
+     identities and who holds them; the tools and their floors; the
+     shell (`.envrc`, the `sso-session` profile); the configuration
+     repository beside this one and what it starts with.
+   - *The first run*: validate, a dry run, reading what it wrote, the
+     first commit.
+   - *Making things*: an image (base and instance, modifications, tests,
+     release), a storage (each kind, its lifecycle), an instance (durable
+     and ephemeral, the launch, the names it answers to), a group and its
+     access -- each as a procedure with the commands, what to expect, and
+     what the records show afterwards.
+   - *Changing things*: a modification, a re-bake, an upgrade and the
+     gated replace, a storage detach or archive, a membership, a
+     decommission -- the procedures OPERATIONS holds, in the order a
+     change is made.
+   - *What specifies and what tests*: one table -- every declaration that
+     states an intent (`tests:`, `post_bake`, `ensure`, `require_released_builds`,
+     `parent_policy`, `ephemeral`, `lifecycle`, `apply_*`) beside every
+     mechanism that proves it (in-bake tests, post-bake tests, mod tests,
+     verify, the login proof, the state query, the gate, the golden) and
+     where each records its verdict.
+   - *When it fails*: symptom -> meaning -> what to do, from the runs the
+     system has actually failed: the session that lapsed, the plan on
+     ciphertext, the stale attachment, the gate refusing an attachment,
+     the alias that was not written, the released-builds window, the
+     unaskable group, the hard drift that refused its own repair, the
+     client with no session, exit codes, where the logs and the records
+     are.
+   - *Every plugin*, one paragraph each, linking to its README's contract
+     sections.
+2. **The plugin README contract.** Every package README keeps what it has
+   and gains four sections in a fixed form, so a reader can find the same
+   thing in the same place in every plugin:
+   - `## Prerequisites and integration` -- what must exist outside the
+     system before this plugin works (accounts, roles, APIs, tools,
+     credentials, network), and how the plugin finds it.
+   - `## Configuration reference` -- every field the plugin reads, its
+     type, default and meaning, and the VARIATIONS: what the plugin does
+     differently by declaration (ephemeral or durable, pinned or follow,
+     ensure or script, encrypted or clear, one runtime or another).
+   - `## What it tests and verifies` -- what the plugin checks, when, and
+     where the verdict lands; "nothing" is an answer.
+   - `## When it fails` -- the failures the plugin produces, what each
+     means, where to look, what to do.
+   A test pins the contract: every package README carries the four
+   headings, and every relative link in `DAILY_DRIVER.md` and the READMEs
+   resolves.
+3. **Nothing new is invented.** Every statement comes from the code, the
+   configuration reference, the operations manual or a run that happened;
+   where the docs already say it, the daily driver links rather than
+   repeats, and where they disagree, the code wins and the older doc is
+   fixed. PARITY.md's method applies.
+4. Records: the root README's "Where to start" names `DAILY_DRIVER.md`
+   first; PLUGINS.md names the contract. Feature branch
+   `feature/daily-driver`, squash-merged, kept. Documentation only: the
+   bar runs for the contract test, nothing else reads markdown.
