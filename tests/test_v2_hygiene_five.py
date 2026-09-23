@@ -177,7 +177,11 @@ def test_the_runner_backs_the_state_up_before_the_first_state_rm(run, monkeypatc
     opa = _Opa({f"{name}_user": sorted(g.members or ()), f"{name}_admin": sorted(g.admins or ())})
     monkeypatch.setattr(gbmod.OktaTfGroupBuilder, "_dry_run", lambda self: False)
     monkeypatch.setattr(gbmod.OktaTfGroupBuilder, "_resolver", lambda self: opa)
-    deferred = _lines(gb.get_commands_to_run_after(ExecutionLifecyclePhase.GROUP_GENERATION).finalize_executables)
+    execs = gb.get_commands_to_run_after(ExecutionLifecyclePhase.GROUP_GENERATION)
+    now = _lines(execs.build_executables)
+    assert not any(" plan" in ln for ln in now), ("the generation-time plan is skipped: it would refresh the "
+                                                  "attachment the runner removes first (live, 2026-09-23)")
+    deferred = _lines(execs.finalize_executables)
     backup = next(i for i, ln in enumerate(deferred) if "state-migration backup --workspace" in ln)
     rms = [i for i, ln in enumerate(deferred) if " state rm " in ln]
     assert len(rms) == 3 and all(backup < i for i in rms), "the backup precedes every state rm"
@@ -195,7 +199,9 @@ def test_no_dropped_membership_means_no_backup_step(run, monkeypatch):
     run.ctx.meta_state.write_identity_read_model(identity_read_model(run.ctx))
     monkeypatch.setattr(gbmod.OktaTfGroupBuilder, "_dry_run", lambda self: False)
     monkeypatch.setattr(gbmod.OktaTfGroupBuilder, "_resolver", lambda self: _Opa({}))
-    deferred = _lines(gb.get_commands_to_run_after(ExecutionLifecyclePhase.GROUP_GENERATION).finalize_executables)
+    execs = gb.get_commands_to_run_after(ExecutionLifecyclePhase.GROUP_GENERATION)
+    assert any(ln.endswith(" plan") for ln in _lines(execs.build_executables)), "the generation-time read plan stands"
+    deferred = _lines(execs.finalize_executables)
     assert not any("state-migration backup" in ln for ln in deferred)
     assert not any(" state rm " in ln for ln in deferred)
 

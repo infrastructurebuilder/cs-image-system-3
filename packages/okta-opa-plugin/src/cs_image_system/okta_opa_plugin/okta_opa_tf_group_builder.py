@@ -558,13 +558,24 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         # the generation-time plan (a read) is a real run's; the deferred
         # script below enumerates the gated plan either way
         commands = self.terraform_commands(phase, [["fmt"], self._init_args(phase), ["validate"]], wd)
+        stale = self._stale_attachment_addresses()      # asks OPA once; a dry run asks nothing
         if not self._dry_run():
-            # the plan reads plaintext, so it runs in the private mirror (stage 51: the
-            # derived addresses carry ciphertext in the committed emission)
-            commands += self.plaintext_read_commands(phase, wd, [["plan"]])
+            if stale:
+                # Found live 2026-09-23: the generation-time plan refreshes the very
+                # attachment the runner removes first, and the provider ERRORS on
+                # it. Generation stays a read, so the plan here is skipped; the
+                # runner's plan (backup -> state rm -> plan -> gate) is the one that
+                # counts, and the gate reads that one.
+                log.warning(f"Identity builder {self.name}: the generation-time plan is skipped -- {len(stale)} "
+                            "attachment(s) of dropped memberships leave tofu state in the runner before its "
+                            "plan, and a plan now would fail refreshing them")
+            else:
+                # the plan reads plaintext, so it runs in the private mirror (stage 51: the
+                # derived addresses carry ciphertext in the committed emission)
+                commands += self.plaintext_read_commands(phase, wd, [["plan"]])
         pre_plan = [["state", "rm", f"module.group_{utils.super_safe_name(g.name)}"]
                     for g in self._newly_unmanaged_groups()]
-        pre_plan += [["state", "rm", addr] for addr in self._stale_attachment_addresses()]
+        pre_plan += [["state", "rm", addr] for addr in stale]
         # Per-root apply scoping (stage 7): the identity root is its builder name;
         # a pre-plan state rm is preceded by a state backup (stage 61 item 3)
         deferred = self.gated_apply_commands(

@@ -1916,7 +1916,10 @@ operator key: nothing in a run can prompt.
   the runner removes that attachment from state before the plan -- after
   a state backup, and only when OPA, asked in that run, agrees the
   membership is gone; a silent OPA removes nothing and the plan decides.
-  The run log names each attachment it dropped and why.
+  The run log names each attachment it dropped and why. In that run the
+  generation-time plan (a read) is skipped, since it would refresh the
+  very entry the runner removes first; the runner's plan is the one the
+  gate reads.
 - **Rotate the admin key**: add the new public key to
   `config.admin_public_keys` (or the base image's override), run
   `base-image` then `instance-image` (new builds), `upgrade instance` for
