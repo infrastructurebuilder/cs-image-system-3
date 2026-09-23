@@ -260,7 +260,10 @@ and the plugin READMEs -- good, and differently shaped -- do not all say what
 a plugin needs from outside, every knob it reads, every variation it
 performs, what it tests, and how it fails. The standard (operator,
 2026-09-22): **no one should be surprised by the system's behaviour if
-they read the docs.**
+they read the docs.** And its corollary (operator, 2026-09-23): where the
+choice is between a little more explanation and a little less, err on
+the side of more -- a reader who already knows can skip a sentence; a
+reader who does not cannot supply one.
 
 **What exists already, and what the plan builds on**: a 1790-line
 configuration reference ([CONFIGURATION.md](docs/CONFIGURATION.md), every
