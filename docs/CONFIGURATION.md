@@ -825,7 +825,7 @@ types `tofu` (AWS) and `tofu-gce` (GCE, same fields,
 | common builder fields (4.1) | | | |
 | `executable` | str or null | `tofu` | the tofu/terraform entry |
 | `runtime` | str | `default` | the runtime instances stand on |
-| `required_plugins` | list | `[]` | terraform providers: `{name (required), version (required), source, config}` |
+| `required_plugins` | list | `[]` | terraform providers: `{name (required), version (required), source, config}`; `config` is accepted and not read by the storage and instance builders (only the Okta workspace reads a provider's config) |
 | `state_configuration` | str | `default` | the state backend of this root; `default` inherits the runtime's, else the default backend |
 
 [`cfg/instance-builders.yml`](../tests/fixtures/config/cfg/instance-builders.yml):

@@ -129,12 +129,13 @@ Every terraform root's deferred sequence is:
 
 ```text
 rm -f tfplan
-tofu init -input=false -reconfigure [-backend-config=<root>.tfbackend.hcl]
+tofu init -input=false -reconfigure [-backend-config=<root>.tfbackend.hcl]                                                    (a migrating root instead: state-migration begin, then init -migrate-state -force-copy)
 cs-image-system state-migration backup --workspace <root> ...                                                                   (only before a pre-plan state rm)
 tofu state rm <address>                                                                                                         (only an unmanaged group's module)
 cs-image-system prune-attachments --builder <group builder> ...                                                                 (identity roots only, every run)
 tofu plan -input=false -out=tfplan [-replace=…] [-var=…]
 cs-image-system gate-plan --planfile tfplan --tofu <tofu> [--allow-destroy <addr>]... [--require-unmounted <inst>:<storage>]...
+cs-image-system state-migration finish --workspace <root> ...                                                                   (a migrating root only, after the gate)
 cs-image-system apply-check --lifecycle <key> --root <root> --root-alias <runtime> [--overlay <file>]... [--apply-runtime <rt>]   (only when an apply is emitted)
 tofu apply -input=false tfplan                                                                                                   (only when an apply is emitted)
 ```
@@ -1677,7 +1678,12 @@ every marker replaced by its plaintext, and the command runs there:
 Terraform's older by-reference path still stands for the okta roots: one
 `data "external" "sensitive"` block per root, program
 `cs-image-system decrypt --json`, wrapped as `local.sensitive[...]` with
-`sensitive()`.
+`sensitive()`. The rule that a marker may not be embedded in a longer
+string is a rule about the CONFIGURATION: a declared value is a whole
+marker or clear. The EMISSION is different: since stage 51 a derived
+address carries its marker inside the string (`avery.alpha@ENC[age:...]`)
+and both the by-reference program and `materialize` substitute markers
+wherever they stand in a text.
 
 **What a green bake proves.** An image's `tests:` become `inline` lines in a
 packer shell provisioner behind `set -e`, so each assertion must be able to
