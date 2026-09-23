@@ -531,7 +531,20 @@ branches, which cost nothing until someone trusts them.
     runtime `ssh_username` and an OS-entry `ssh_username`, the packer
     source uses the entry's user and the ansible provisioner user is
     `packer`: the mismatch finding 48 fixed for the other path.
-20. **A registry refusal dumps the model.** A duplicate backend name after
+20. **The configuration is loaded with `yaml.unsafe_load`.**
+    `global_context.read_and_process` reads every `cfg/` file with
+    `unsafe_load`, which constructs arbitrary Python objects from a
+    PUBLIC configuration tree; every other reader uses `safe_load`.
+21. **A dry run can call the registry.** `launch_params.validate_claimed_hostnames`
+    gates on the lifecycle and `apply_instances`, not on the dry-run
+    flag, so a dry run with the flag on asks OPA and can refuse on
+    silence; its docstring and the manual promised otherwise.
+22. **Preflight reads one file name.** `preflight.raw_session_infos` reads
+    `cfg/runtime-builders.yml` by that exact name while the loader accepts
+    `runtime_builders:` in any `cfg/*.yml`; a runtime declared elsewhere is
+    never preflighted and the pre-load expired-session refusal never
+    fires for it.
+23. **A registry refusal dumps the model.** A duplicate backend name after
     normalisation is refused at load with `Object TofuS3StateBuilderModel(...)
     has no unique 'id' or 'name' field for registry key`, the whole repr
     included, which would print `access_key`/`secret_key` if anyone set
@@ -610,6 +623,10 @@ field, read it, or fix the message):
   parameter; `_aws_cli_flags`' dead fallback to `rtb.model.profile`.
 - `hashicorp-utils`: `QString.__new__`'s dead `quoted=False`;
   `roots.terraform_commands`' unreachable `ValueError`.
+- `base`: `Instance.__post_init__` warns that an instance without `image`
+  "will be ignored" while `finalize()` then refuses it; `ExecutableModel.execute`
+  builds a command list and discards it; `sleep_before_finalization` and
+  the model's `dateformat` default read by nothing that runs.
 - `system`: `encrypt`/`reencrypt` call `recipients_from_config` and
   `identities_from_env` outside their `try` (a traceback instead of the
   message); `--only-providers` help says "comma-separated" for a value

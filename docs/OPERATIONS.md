@@ -346,7 +346,9 @@ its group's registry. An unlaunched instance whose name is already
 registered is refused, naming the record; a launched one with more than one
 registration is refused too, because `sft ssh` cannot choose between them.
 The check runs ONLY when a launch is actually possible -- the lifecycle
-requested and `apply_instances` on -- so a dry run never makes the call.
+requested and `apply_instances` on. It does not read the dry-run flag, so
+a dry run with the flag on makes the call too and can refuse on a silent
+registry (a code stage names the fix if that is not wanted).
 And an unreachable registry is a refusal saying the claim *could not be
 checked*: silence is not a free name (the same rule the power-state query
 follows), and an unreachable OPA is exactly when a duplicate would
@@ -872,7 +874,10 @@ claims reality that no apply produced. The one exception is
 | `pins.yaml` | instance → build and image → base-build pins, with bind/upgrade/follow/dispose/decommission history and pending replacements | first bind, `upgrade`, decommission, dispose |
 | `launch-params.yaml` | per-instance launch parameters (mounts, group, enrollment kind, session) and the `launched` marker | instance-image lifecycle; marker after a real instance apply |
 | `runs.yaml` | the run journal (bounded to the last 200 runs; git history is the full record): run id, requested lifecycles, dry run or not, outcome, per-lifecycle apply status, error | every run |
-| `verifications.yaml` | instance verification verdicts (last 500) | `verify instance` |
+| `verifications.yaml` | instance verification verdicts, ephemeral and durable (last 500) | `verify instance` |
+| `instance-state.yaml` | per name, the durable and ephemeral generation counters, the open generation with its launch-parameter snapshot and provider id, and an append-only history | after a real instance apply (`mark_launched`), decommission |
+| `login-proofs.yaml` | every login proof: the machine, the checks, as client or as workload | `verify login`, `just ci-login-proof`, the CI job |
+| `aliases.txt` | the pool of memorable names: a person appends lines, a launch that can run comments the first free one out with what took it and when | the run that launches a new durable machine |
 | `image-tests.yaml` | the latest post-bake test result per build | `verify instance` |
 | `releases.yaml` | every release ever made and, per model, the current released build of each series | `release` |
 | `mod-tests.yaml` | modification test results keyed by the mod's content hash (apply + idempotence), so an unchanged mod is not re-tested | `test-mods` |
@@ -975,7 +980,7 @@ repository tracked them from an older tree removes them from the index
 
 | Command | Exit | Meaning |
 | --- | --- | --- |
-| `run` | 1 | any failure (validation, generation, apply, hard drift, an expired session before the load) |
+| `run` | 1 | any failure (validation, generation, apply, hard drift, an expired session before the load); a configuration that fails to LOAD exits 1 too, as `Error reading config file : <e>` followed by the traceback |
 | `run` | 2 | no or unknown lifecycle; unknown `--apply-runtime`/`--only-runtime` |
 | `validate` | 1 | any rule fails; generates nothing |
 | `preflight` | 2 | a session absent or expired (the configuration could not load), or a credential-shaped environment variable (`AWS_*`, `GOOGLE_*`, `OKTA_*`, `TF_VAR_*`, `CSIS_*`) that is set but EMPTY -- reported by name, never by value |

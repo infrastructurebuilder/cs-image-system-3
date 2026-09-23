@@ -119,10 +119,14 @@ generated/
 | `pins.yaml` | instance pins and image pins (`<image>@<runtime>`) |
 | `launch-params.yaml` | what each launched instance was launched with |
 | `runs.yaml` | run summaries |
-| `verifications.yaml` | ephemeral instance verifications |
+| `verifications.yaml` | every instance's verification verdicts (ephemeral and durable; the last 500) |
 | `image-tests.yaml` | post-bake test results per build |
 | `releases.yaml` | every release and the current release per model |
 | `mod-tests.yaml` | local modification test results |
+| `state-locations.yaml` | every workspace's resolved state location and every recorded move |
+| `instance-state.yaml` | per name, the durable and ephemeral generation counters, the open generation and its history |
+| `login-proofs.yaml` | the login proofs (`verify login`, the CI job) |
+| `aliases.txt` | the pool of memorable names, hand-appended, each line spent once by a launch |
 
 ## 2. `cfg/_config.yml`
 
@@ -135,9 +139,9 @@ any `cfg/` file; they are documented in their own sections.
 | --- | --- | --- | --- |
 | `id` | str | required | the configuration's identifier |
 | `generation_directory` | str | `generated` | where a run writes, relative to the root |
-| `dateformat` | str | `%Y-%m-%d-%H%M%S` | `strftime` format of `execution.timestamp` (used in generated image names) |
+| `dateformat` | str | `%Y%m%d_%H%M%S` | `strftime` format of `execution.timestamp` (used in generated image names); read as raw text before the model loads, with this fallback (the model's own default, `%Y-%m-%d-%H%M%S`, feeds a helper nothing calls) |
 | `gitignore` | list[str] | `[]` | entries appended to the built-in list (`target/`, `.terraform/`, `terraform.tfstate`, `terraform.tfstate.backup`, `!.terraform.lock.hcl`) and written to `generated/.gitignore`; duplicates keep their last position |
-| `sleep_before_finalization` | int | `1` | seconds to wait before finalization executes |
+| `sleep_before_finalization` | int | `1` | accepted, not read: finalization logs that it is ignored and waits for nothing |
 | `encryption` | mapping | `{recipients: []}` | see 2.1 |
 | `public_safe` | mapping | `{allow: []}` | see 2.2 |
 | `config` | mapping | `{}` | the global settings the run reads; see 2.3 |
