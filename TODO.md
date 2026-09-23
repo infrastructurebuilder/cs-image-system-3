@@ -228,119 +228,237 @@ plugin 1–2 days. Call it three weeks, done as three branches.
 
 Non-critical items, each small enough that a stage of its own would be
 ceremony. Landed together on `feature/hygiene-v`, squash-merged, kept.
+Each item below says, in this order: what is wrong (the exact path), the
+evidence, the recommendation, its effects (what the operator sees
+afterwards, what changes in the records and in CI, what it risks), and the
+decision it needs from the operator, if any. Sizes are honest guesses.
 
 1. **A group the provider could not be ASKED about is reported as MISSING.**
-   `okta_opa_tf_group_builder.query_state` wraps its lookup in
-   `except Exception` and records `{"present": False, "error": ...}`
-   (`okta_opa_tf_group_builder.py:144`), and the drift assembly turns
-   `present: False` into `missing ... [HARD]`. So a lapsed OPA key does not
-   report a lapsed key -- it reports that five managed groups are "not known
-   to the identity provider", fails `state query --strict`, and sends the
-   reader hunting for a group somebody deleted.
 
-   Found 2026-09-21 while proving §57: a `just full-test` launched without
-   sourcing `.envrc` failed exactly this way, and the five groups were all
-   present the whole time.
+   *What is wrong.* `OktaTfGroupBuilder.query_state`
+   ([okta_opa_tf_group_builder.py](packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/okta_opa_tf_group_builder.py),
+   the `except Exception` around `resolver.group_attributes`) records
+   `{"present": False, "error": "<the exception>"}` for a group whose
+   lookup raised -- a 401 from a wrong or lapsed key pair, a network
+   failure, a missing `.envrc`. `group_drift` in
+   [state_query.py](packages/base/src/cs_image_system/base/state_query.py)
+   turns every `present: False` into `missing group <g>: managed group is
+   not known to the identity provider [HARD]`. It never looks at the
+   `error` key. So an unreachable OPA reads as "every managed group was
+   deleted", the strict query exits 1, and every run refuses to start
+   (a run refuses on hard drift).
 
-   This is the same conflation §57 removed for instances -- "cannot answer"
-   dressed up as a state -- one subsystem over, and the fix is the same
-   shape: the record already CARRIES the distinction in its `error` key, so
-   the assembly need only route an errored lookup to `unavailable` instead
-   of `missing`. Absent-and-known stays `missing [HARD]`; unreachable
-   becomes unavailable, which `--strict` does not fail on. Whatever §57
-   settled for the runtime hooks should be what this follows.
-2. **Preflight knows when the session ends; a run that cannot finish before
-   then should say so up front.** On 2026-09-21 a 15-minute `just full-test`
-   passed every leg and died on the last one: the NOAA portal token expired
-   at 16:04:17Z, mid-run. Preflight reads that very timestamp
-   (`session: ... EXPIRED at ...`), so it could have refused at minute zero
-   with "this session ends in 11 minutes; the live legs need ~15" instead of
-   at minute fourteen. The number that binds is the PORTAL session: a
-   CLI token issued mid-session only inherits what is LEFT of it (1h43m
-   that morning; a fresh browser sign-in then gave a full 8h), while the 1h
-   role-credential expiry underneath is auto-refreshed and is not the limit.
-   So the remaining time is not knowable from the login time -- only from
-   `expiresAt`, which preflight already reads.
+   *Evidence.* 2026-09-21, proving §57: `just full-test` launched without
+   `source .envrc` reported all five groups missing; all five stood the
+   whole time. The same conflation §57 removed for instances ("cannot
+   answer" reported as a state).
 
-   Corrected 2026-09-21, second occurrence: preflight ALREADY refuses when
-   the session ends before `config.preflight.expected_run_minutes` (default
-   30, `preflight.py:77`) -- but every CLI command runs that check for
-   itself, so `full-test` passes preflight at minute zero with plenty of
-   window, spends ~20 minutes on the docker and dry-run legs, and the
-   state-query leg's OWN preflight then refuses with 11 minutes left. The
-   fix is in the recipe, not the checker: run preflight once up front with
-   full-test's whole estimate (`expected_run_minutes` for the sum of its
-   legs, or a `--needs` override) and let the later legs skip the
-   per-command check. Non-critical: the failure is honest and
-   environmental; it is just late, and it has now cost two 20-minute runs.
+   *Recommendation.* In `query_state`, keep the record as it is (it already
+   carries the distinction). In `group_drift`, before the `present` check:
+   a record with an `error` key is routed to `report.unavailable` as
+   `groups/<g>: <error>` and skipped -- the same class `instances/gce-test:
+   booted image (runtime … could not answer)` uses. `present: False`
+   WITHOUT an error stays `missing [HARD]`. `group_drift` needs the report
+   to append to, so its signature gains it (one caller, `query_state`).
+   One test: an errored record is unavailable, not drift; a plain absent
+   one is still hard.
 
-   **Recipe half done 2026-09-22**: `just full-test-legs` runs the three
-   live legs alone (`full-test` = `test` then `full-test-legs`), so a
-   session that lapses after the bar -- as the portal session did at
-   19:43Z that day, sixteen minutes before the legs -- costs the legs
-   again, not the bar. The reader half landed with stage 55 step 4.
-   Since 2026-09-21 19:19 the `noaa` profile is an `sso-session` profile:
-   the cache's `expiresAt` is now the ACCESS token's one hour, renewed
-   silently from a refresh token while the portal session lives. So the
-   number preflight reads no longer means what it did -- a run of 45
-   minutes will read as "expires before the expected length" while the CLI
-   would in fact carry it. LANDED the same evening, in 55 step 4's branch
-   because it blocked that stage's full-test: `aws_sso_expiry` now answers
-   "no fixed expiry readable; refreshes itself" for a cache entry carrying
-   a `refreshToken`, the answer preflight already gave GCP ADC, so a
-   refreshable token cannot block a run on its own. What REMAINS of this
-   item is the recipe half: one up-front check with full-test's whole
-   estimate instead of a per-leg check.
+   *Effects.* A lapsed key pair now prints five `unavailable:` lines naming
+   the error (`HTTP 401`, `Connection refused`) instead of five `missing`
+   lines; `state query --strict` still exits 1 on it (any class but
+   `stale` fails strict), so the cycles still refuse to start, but for the
+   stated reason; a plain `run` warns and continues, as it does for an
+   unreachable cloud. A real deletion is reported exactly as today. CI's
+   `live` job behaves the same (it fails strict either way) but its log
+   says why. Risk: none to records; nothing is written. Size: an hour.
+
+   *Decision.* None.
+
+2. **Preflight's window check, per command, cannot see the number that
+   binds.**
+
+   *What is wrong.* Every command that loads the configuration runs the
+   session check for itself ([preflight.py](packages/base/src/cs_image_system/base/commands/preflight.py):
+   `raw_session_lines`, against `config.preflight.expected_run_minutes`,
+   default 30). A run of several legs passes at minute zero and one leg
+   refuses at minute fourteen with eleven minutes left. Since the `noaa`
+   profile became an `sso-session` profile (2026-09-21 19:19) the cache's
+   `expiresAt` is the ACCESS token's one hour, renewed silently, and
+   preflight reads it as "present; refreshes itself (no fixed expiry
+   readable)": the number that actually ends a run, the portal session's
+   end (about 8h from a browser sign-in, less if the CLI token was minted
+   mid-session), is written nowhere the system can read.
+
+   *Evidence.* 2026-09-21 16:04Z, a full-test died on its last leg; the
+   same day 19:0x a second one was refused with 7 minutes left;
+   2026-09-22 19:43Z the portal session ended sixteen minutes before the
+   live legs of a green bar ran, and all three failed on "Token has
+   expired and refresh failed".
+
+   *What has landed.* The reader half (stage 55 step 4): a refreshable
+   token counts as present and never blocks a run on its own. The recipe
+   half (stage 59's branch): `just full-test-legs` re-runs the three live
+   legs alone, so a lapse after the bar costs ten minutes, not forty.
+
+   *What remains, and the recommendation.* The original ask -- one
+   up-front check with the whole estimate -- cannot be honoured for a
+   profile that reports no fixed expiry, which the live profile now is.
+   Two honest options: (a) close the item as overtaken, keeping only a
+   sentence in OPERATIONS that a lapse mid-run is environmental, costs the
+   legs, and is repaired by `aws sso login` then `just full-test-legs`;
+   or (b) keep a `--needs <minutes>` check for profiles that DO carry a
+   fixed expiry (static-key profiles and non-session SSO caches), which
+   the live tree does not use. I recommend (a).
+
+   *Effects of (a).* No code; the documentation sentence; the item closes.
+   The operator's experience is unchanged from today. *Effects of (b).*
+   A flag nobody passes on the live tree; a test; dead weight until a
+   fixed-expiry profile returns. Size: (a) minutes; (b) two hours.
+
+   *Decision.* (a) or (b).
+
 3. **A membership the YAML dropped and OPA already lacks blocks every
-   identity plan.** The oktapam provider's refresh of an
+   identity plan.**
+
+   *What is wrong.* The oktapam provider's refresh of an
    `oktapam_user_group_attachment` ERRORS (`user "x" is not present within
    group "g"`) instead of dropping the resource from state when the
-   membership is gone, so the plan never reaches the point where it would
-   have destroyed the attachment. Found 2026-09-22 on the first real
-   identity run after the coops declaration was conformed to OPA
-   (2026-09-18): two stale attachments in state, and the repair was a hand
-   `tofu state rm` of both (after the same-day state backup the operations
-   rules ask for). The system can do this itself the way it already does
-   for unmanaged groups (`pre_plan` at `okta_opa_tf_group_builder.py`):
-   before the plan, every attachment in state whose group no longer
-   declares that user is `state rm`'d -- the attachment is a record of a
-   membership, and a membership the configuration no longer declares has
-   nothing to destroy once the provider agrees it is gone. When OPA STILL
-   has the membership, leave it to the plan: that destroy is the explicit
-   decision the operations rules require, and the gate sees it.
+   membership is gone. The identity root's plan never reaches the point
+   where it would have destroyed the attachment, so a group whose YAML
+   membership was conformed to what OPA holds by hand cannot be planned
+   at all until someone removes the attachment from terraform state by
+   hand.
+
+   *Evidence.* 2026-09-22 08:01, the first real identity run after the
+   coops declaration was conformed to OPA on 2026-09-18: two stale
+   attachments (`coops_user|mykel.alvis`, `coops_admin|zachary.wills`),
+   the plan died on both, the repair was a state backup and `tofu state rm`
+   of each in the mirror root, done by the operator.
+
+   *Recommendation.* The identity builder already removes state entries
+   before the plan for groups that became unmanaged (`_newly_unmanaged_groups`
+   feeds `pre_plan` `state rm` lines into `gated_apply_commands`). Extend
+   that pre-plan step: for every managed group, every
+   `module.group_<g>.oktapam_user_group_attachment.members["<u>"]` and
+   `.admins["<u>"]` address whose user the YAML no longer lists AND whom
+   OPA no longer holds in that group (`resolver.group_users`, which
+   returns None when OPA cannot be asked -- then nothing is removed and
+   the plan proceeds as today) gets a `state rm` line before the plan.
+   The addresses come from the previous identity read-model (which lists
+   members and admins as last applied) minus the declaration, so no state
+   read is needed. When OPA STILL holds the membership, nothing is
+   removed: the plan shows the destroy and the gate sees it, which is the
+   explicit decision the operations rules require. Before the first
+   `state rm` of a run, the runner takes the same-day state backup the
+   rules ask of a hand edit (`tofu state pull` into the workspace's
+   `state-backups/`, gitignored), the way `--migrate-state` backs up
+   before it moves.
+
+   *Effects.* The operator conforms a roster to OPA, runs identity, and
+   it plans; the run log lists each attachment it dropped from state and
+   why. `identity.yaml` is unchanged in shape. Nothing in OPA is written by
+   this step. Risk: a `state rm` on a wrong address leaves a real
+   attachment unmanaged (not destroyed); the double condition (YAML dropped
+   it AND OPA lacks it) and the backup bound that. CI's `live` job never
+   plans identity, so it is unaffected; `perform` does not run identity
+   either. Size: half a day with tests.
+
+   *Decision.* Whether the automatic `state rm` must take the backup
+   first. I recommend yes.
+
 4. **A durable instance cannot take its own image's second release without
-   a rule being switched off by hand.** `release` refuses a build until its
-   post-bake tests have passed on a launched machine (stage 14), and
-   `require_released_builds` refuses every run while any instance is pinned
-   to an unreleased build. For an ephemeral instance the cycle resolves
-   this inside one run (launch, verify, tear down, release). For a DURABLE
-   instance whose volume allows one attachment (`mnt_data`), no proof
-   instance can mount what the image's post-bake spec requires, so the
-   proof can only run on the instance itself -- after `upgrade instance`
-   pins it to the unreleased build, which the rule refuses. Found
-   2026-09-22 on the coops image's second build (stage 19 step 5); the
-   first release on 2026-09-20 went the same way. The procedure that works
-   is to set `require_released_builds: false` for the window: upgrade,
-   replace, verify (the post-bake record), release, then set it back. The
-   system should own that window instead: an instance may pin an
-   unreleased build when that build is the series head whose in-bake
-   tests passed AND the pin is a pending replacement whose post-bake proof
-   will run on the new machine -- refused again if the proof does not
-   follow within the same or the next run. Design it before the third
-   release, not during it.
+   a rule being switched off by hand.**
+
+   *What is wrong.* Two rules that are each right on their own deadlock
+   for a durable instance. `release` refuses a build until its post-bake
+   tests have passed on a launched machine
+   ([release.py](packages/base/src/cs_image_system/base/release.py),
+   `config.require_image_tests`, default on). `validate_released_pins`
+   (same file) refuses EVERY run while any instance is pinned to an
+   unreleased build (`config.require_released_builds: true` in the live
+   tree). An ephemeral instance resolves this inside one run: launch,
+   verify, tear down, release. A durable instance whose volume allows one
+   attachment (`mnt_data`) cannot be proved on a proof instance -- the
+   image's `post_bake.mounts` names that volume -- so the proof can only
+   run on the instance itself, after `upgrade instance` pins it to the
+   unreleased build, which the second rule refuses.
+
+   *Evidence.* 2026-09-22, the coops image's second build (stage 19 step
+   5): `upgrade instance` then `cloud-launch` refused with `instance
+   'coops-model' is pinned to build ami-08b0… which is not a released
+   build`; the first release on 2026-09-20 went the same way. The
+   procedure that works, written in OPERATIONS "A model image, end to end:
+   the second release", sets `require_released_builds: false` in the
+   committed configuration for steps 4 to 7 and back to `true` after.
+
+   *Recommendation, three shapes.* (a) **An automatic grace**:
+   `validate_released_pins` accepts an unreleased pin when the build is
+   the head of the instance image's series on that runtime, its in-bake
+   tests passed (lineage records the build only then), and the instance
+   is a pending replacement (`meta-state/pins.yaml`
+   `pending_replacements`) or was launched from that build in the previous
+   run and has no post-bake record yet; the grace ends when the release
+   is recorded or after the next run, whichever first, and the refusal
+   returns with a message naming the missing proof. (b) **A per-instance
+   window** the system flips: `upgrade instance` writes
+   `release_window: <build>` beside the pin and `release` clears it; the
+   validator honours the window and nothing else. (c) **One recipe**,
+   `cloud-upgrade <rt> <instance>`, that runs upgrade, replace, verify and
+   release as one gated sequence and relaxes the rule only inside it. I
+   recommend (a) plus (c): the grace makes the sequence legal, the recipe
+   makes it one command, and the flag in the configuration is never edited
+   by hand again.
+
+   *Effects of (a).* The operator runs `upgrade instance`, `cloud-launch`,
+   `cloud-verify`, then a release run, with the flag left at `true`
+   throughout; a pin that stays unreleased for more than one run is
+   refused as today, so the rule still holds. `pins.yaml` gains nothing;
+   the grace is computed. Risk: the window between the replace and the
+   release is the same one the hand procedure has today; nothing new is
+   reachable in it. *Effects of (c).* The eight steps in OPERATIONS become
+   one recipe with the same gates inside it; the procedure text shrinks to
+   the recipe and its preconditions. Size: (a) half a day; (c) a day;
+   (b) half a day.
+
+   *Decision.* Which shape. This is a design decision to make before the
+   third release, not during it.
+
 5. **The release and retention lifecycles emit an instance root's variable
-   file they never run.** After the 2026-09-22 release run the sibling held
-   an untracked `generated/retention/open-tofu/instance-generation/
-   instances.auto.tfvars` (one key, `coops_model_ami_id`, the pin), and the
-   run's own warning named the same file under `generated/release/`. Neither
-   lifecycle plans or applies an instance root; the file is the instance
-   builder's per-phase emission landing in every lifecycle's directory
-   instead of its own. It is caught by the never-staged rule -- `*.auto.tfvars`
-   is treated as material that may carry decrypted values -- so it lingers
-   untracked and the operator sees a stray `??` after every release. Not a
-   leak here (an AMI id), but the shape stage 49 moved to `_private/` is
-   "plaintext under generated/", and a file nothing runs should not be
-   written at all. Emit the instance root's tfvars only under the
-   instance-image lifecycle (the release and retention runners read the
-   pins from meta-state, not from the root), and let a stale copy under
-   the other two be removed by the next generation there.
+   file they never run.**
+
+   *What is wrong.* `TofuInstanceBuilder.pre_finalize_phase`
+   ([tf_instance_builder.py](packages/tf-ebs-instance-plugin/src/cs_image_system/tf_ebs_instance_plugin/tf_instance_builder.py))
+   writes `instances.auto.tfvars` (the resolved AMI id per instance) into
+   the builder's `instance-generation` directory of WHATEVER lifecycle is
+   finalising the `INSTANCE_GENERATION` phase. The release and retention
+   lifecycles both extend that phase with their own one deferred step
+   ([release.py](packages/base/src/cs_image_system/base/release.py),
+   [retention.py](packages/base/src/cs_image_system/base/retention.py)),
+   so the hook fires for them too and writes the file under
+   `generated/release/…` and `generated/retention/…`, where no instance
+   root exists and nothing reads it. The commit gate refuses every
+   `*.tfvars` by pattern (they may carry decrypted values), so the file
+   is never staged and stays untracked: after every release run the
+   operator sees a stray `??` in the configuration checkout.
+
+   *Evidence.* 2026-09-22, the release run: the run's own warning named
+   both files ("never staging generated/release/…/instances.auto.tfvars,
+   generated/retention/…"), and `generated/retention/open-tofu/` stayed
+   untracked afterwards; its one line is `coops_model_ami_id = "ami-…"`.
+   Not a leak (an AMI id), but a file nothing runs.
+
+   *Recommendation.* Guard the hook on the lifecycle: write the file only
+   when the lifecycle being finalised is `instance-image` (the context
+   knows the running lifecycle; the release and retention runners read
+   the pins from meta-state, never from the root). A stale copy under
+   `generated/release/` or `generated/retention/` from an older run is
+   removed by the next generation of that lifecycle, which wipes its
+   directory. One test: a release run over the fixture writes no tfvars
+   under `generated/release/`.
+
+   *Effects.* No stray file after a release or retention run; the
+   never-staged warning no longer names those two paths; the
+   instance-image lifecycle is unchanged. Risk: none; nothing consumed the
+   file. Size: an hour.
+
+   *Decision.* None.
