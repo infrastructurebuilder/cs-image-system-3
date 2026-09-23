@@ -29,10 +29,10 @@ def load_plugins():
         if not plugins:
             log.debug(f"No '{plugin_type}' plugins found.")
         plugin_names = sorted([plugin.name for plugin in plugins])    
-        log.debug(f"Found {len(plugins)} plugins.")
+        log.info(f"Found {len(plugins)} {plugin_type} plugins.")
         for pname in plugin_names:
             plugin = plugins[pname]
-            log.info(f"Loading plugin: {plugin.name}")
+            log.debug(f"Loading plugin: {plugin.name}")
             initialized = plugin.load()
             # In our case, this can return a single PluginMetadataProtocol instance or a list of them
             _md = initialized()
@@ -47,7 +47,7 @@ def load_plugins():
                     for service in services:                    
                         reg.register_service(service)
                         if service.csis_classifier() in [VCT.CLOUD_BUILDER_MODEL, VCT.CONTAINER_BUILDER_MODEL]:
-                            log.info(f"Registering service: {service.csis_name()} {service.csis_classifier()} as RUNTIME")
+                            log.debug(f"Registering service: {service.csis_name()} {service.csis_classifier()} as RUNTIME")
                             reg.register_service(service, override_classifier=VCT.RUNTIME_BUILDER_MODEL)
                             log.debug(f"Registered service: {service.csis_name()} {service.csis_classifier()}")
                 # for model, builder in md.builders_for_models.items():

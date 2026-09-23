@@ -634,7 +634,7 @@ def read_and_preprocess_yaml_files(
     original_read_processed_dicts: dict[str, dict[str, Any]] = {}
     for yaml_file in yaml_files:
         try:
-            log.info(f"Reading {sub_key} from file: {yaml_file}")
+            log.debug(f"Reading {sub_key} from file: {yaml_file}")
             with open(yaml_file) as file:
                 ss = file.read()
                 file_data = yaml.safe_load(ss)  #  process_keys( yaml.safe_load(ss) )
