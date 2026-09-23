@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
+import urllib.error
 from typing import Any
 
 from cs_image_system.base import utils
@@ -222,7 +223,17 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
             server_group = f"{name}{USER_GROUP_SUFFIX}"
             try:
                 attrs = resolver.group_attributes(server_group)
-            except Exception as e:
+            except urllib.error.HTTPError as e:
+                if e.code == 404:
+                    out[name] = {"present": False}          # OPA answered: the group is not there
+                    continue
+                # stage 61 item 1: a call that FAILED (401 from a lapsed key pair,
+                # a 5xx) is not an absence; the record says so and the drift
+                # rule reports the group as unavailable, never as missing
+                log.debug(f"OPA group {server_group!r} unavailable: {e}")
+                out[name] = {"present": False, "error": f"HTTP {e.code} {e.reason}"[:120]}
+                continue
+            except Exception as e:                          # no token, no network, no credentials
                 log.debug(f"OPA group {server_group!r} unavailable: {e}")
                 out[name] = {"present": False, "error": str(e)[:120]}
                 continue
@@ -476,6 +487,64 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
                     out.append(g)
         return out
 
+    def _stale_attachment_addresses(self) -> list[str]:
+        """Stage 61 item 3: the ``oktapam_user_group_attachment`` state entries
+        of memberships the declaration DROPPED and OPA no longer holds.
+
+        The provider ERRORS on refreshing an attachment whose membership is
+        gone (``user "x" is not present within group "g"``) instead of
+        dropping it from state, so the plan never reaches the destroy it
+        would have shown; on 2026-09-22 two such entries blocked the first
+        real identity run after a roster was conformed to OPA by hand. The
+        addresses come from the previous identity read-model (members and
+        admins as last applied) minus the declaration; each is removed from
+        state before the plan ONLY when OPA, asked now, does not hold the
+        membership either. A membership OPA still holds is left to the plan
+        (the destroy shows, the gate sees it: the explicit decision the rules
+        want); a silent OPA removes nothing and the plan proceeds as it did.
+        A dry run asks nothing and removes nothing."""
+        if self._dry_run():
+            return []
+        from cs_image_system.base.global_context import GlobalTypeContext
+        previous = GlobalTypeContext().meta_state.identity_read_model().get("groups", {}) or {}
+        candidates: list[tuple[Group, str, str, set[str]]] = []
+        for g in self.get_groups_for_builder():
+            if getattr(g, "unmanaged", False):
+                continue
+            rec = previous.get(g.get_name())
+            if not isinstance(rec, dict) or not rec.get("managed", True):
+                continue
+            for kind, suffix, declared in (("members", USER_GROUP_SUFFIX, set(g.members or ())),
+                                           ("admins", ADMIN_GROUP_SUFFIX, set(g.admins or ()))):
+                dropped = {str(u) for u in (rec.get(kind) or [])} - {str(u) for u in declared}
+                if dropped:
+                    candidates.append((g, kind, f"{g.get_name()}{suffix}", dropped))
+        if not candidates:
+            return []
+        try:
+            resolver = self._resolver()
+        except Exception as e:
+            log.warning(f"Identity builder {self.name}: memberships were dropped from the declaration but OPA "
+                        f"cannot be asked whether it still holds them ({e}); nothing is removed from state")
+            return []
+        out: list[str] = []
+        for g, kind, server_group, dropped in candidates:
+            held = resolver.group_users(server_group)
+            if held is None:
+                log.warning(f"Identity builder {self.name}: OPA did not answer for group {server_group!r}; "
+                            f"its dropped {kind} {sorted(dropped)} stay in state for the plan to decide")
+                continue
+            label = utils.super_safe_name(g.name)
+            for user in sorted(dropped - set(held)):
+                out.append(f'module.group_{label}.oktapam_user_group_attachment.{kind}["{user}"]')
+                log.info(f"Identity builder {self.name}: {kind[:-1]} {user!r} was dropped from group "
+                         f"{g.get_name()!r} and OPA no longer holds it; its attachment leaves tofu state "
+                         "before the plan (state rm, after a backup)")
+            for user in sorted(dropped & set(held)):
+                log.info(f"Identity builder {self.name}: {kind[:-1]} {user!r} was dropped from group "
+                         f"{g.get_name()!r} but OPA still holds it; the plan will show the destroy")
+        return out
+
     def get_commands_to_run_after(
         self, phase: ExecutionLifecyclePhase
     ) -> CFExecutables:
@@ -495,10 +564,12 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
             commands += self.plaintext_read_commands(phase, wd, [["plan"]])
         pre_plan = [["state", "rm", f"module.group_{utils.super_safe_name(g.name)}"]
                     for g in self._newly_unmanaged_groups()]
-        # Per-root apply scoping (stage 7): the identity root is its builder name
+        pre_plan += [["state", "rm", addr] for addr in self._stale_attachment_addresses()]
+        # Per-root apply scoping (stage 7): the identity root is its builder name;
+        # a pre-plan state rm is preceded by a state backup (stage 61 item 3)
         deferred = self.gated_apply_commands(
             phase, wd, apply=utils.apply_enabled("identity", self.name), pre_plan=pre_plan,
-            apply_flag_key="identity", apply_root=self.name)
+            apply_flag_key="identity", apply_root=self.name, pre_plan_backup=True)
         # EXPLORE identity: attributes travel outside terraform. When
         # anything is declared, the runner probes (read-only) after the
         # apply and shows what an attribute apply would change; the write

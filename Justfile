@@ -528,6 +528,23 @@ cloud-launch runtime dry="no": cloud-preflight
 	@scripts/with-tofu-lock {{gce_cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run instance-image --only none --apply-runtime {{runtime}} --commit
 gce-launch dry="no": (cloud-launch gce_runtime dry)
 
+# A durable instance takes its image's next build as ONE gated sequence (stage 61 item 4): the pin moves
+# (`to` = a build id; default the series head), the replace launches through the gate, the proof runs on
+# the new machine, the release records the build, and one more launch gives the machine its names back.
+# `config.require_released_builds` stays true throughout: the release grace admits the series head while
+# its own proof is under way, and refuses the moment the proof fails.
+
+# One gated sequence for a durable instance's next build: pin, replace, proof, release, names (stage 61)
+cloud-upgrade runtime instance to="": cloud-preflight
+	#!/usr/bin/env bash
+	set -euo pipefail
+	{{gce_cli}} upgrade instance {{instance}} {{ if to != "" { "--to " + to } else { "" } }}
+	just cloud-launch {{runtime}}
+	just cloud-verify {{runtime}} {{instance}}
+	scripts/with-tofu-lock {{gce_cli}} --no-dry-run run release --only-runtime {{runtime}} --commit
+	just cloud-launch {{runtime}}
+	echo "cloud-upgrade: {{instance}} stands on its released build; run 'just ci-login-proof {{instance}}' to log in by name"
+
 # Gated destroy of the runtime's cycle instance: gce-test is UNDECLARED for this invocation (stage 28:
 # the overlay `undeclare` form as a flag -- the live configuration carries no overlays), so a leftover
 # standing gce-test is destroyed through the gate instead of re-verified (ledger 71); a dry run keeps the record

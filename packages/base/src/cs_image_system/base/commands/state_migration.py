@@ -105,6 +105,29 @@ def pull_state(tofu: str, cwd: Path) -> dict[str, Any] | None:
     return state if isinstance(state, dict) else None
 
 
+def backup(ctx: "GlobalTypeContext", workspace: str, tofu: str, run_id: str, cwd: Path) -> int:
+    """Stage 61 item 3: the same-day state backup the operations rules ask of
+    a hand edit, taken by the runner itself before its first ``state rm``.
+    The root is already initialised against its location (the runner's
+    ``init`` precedes this step); the state is pulled and kept beside the
+    root as ``<workspace>.backup-<run>.tfstate`` -- the mirror, never the
+    committed emission (``*.tfstate`` is a refused path either way). An
+    empty location is nothing to back up. Exit 0 always but on a pull that
+    failed: a ``state rm`` must never run over a state nobody could read."""
+    try:
+        old_state = pull_state(tofu, cwd)
+    except RuntimeError as e:
+        log.error(f"state backup for workspace {workspace!r} FAILED; nothing is removed from state: {e}")
+        return 1
+    if old_state is None:
+        log.info(f"state backup for workspace {workspace!r}: the location holds no state; nothing to keep")
+        return 0
+    backup_path = cwd / f"{workspace}.backup-{run_id}.tfstate"
+    backup_path.write_text(json.dumps(old_state, indent=2) + "\n")
+    log.info(f"state backup for workspace {workspace!r}: serial {old_state.get('serial')} kept at {backup_path}")
+    return 0
+
+
 def begin(ctx: "GlobalTypeContext", workspace: str, tofu: str, backend_config: Path | None,
           run_id: str, cwd: Path, new_location: str | None = None) -> int:
     """Step 1 of the operation; exit 0 to let the runner continue. The new

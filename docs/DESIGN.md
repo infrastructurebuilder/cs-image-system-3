@@ -723,7 +723,11 @@ order. The apply step and its gate are described operationally in
      `release` lifecycle marks a build whose post-bake tests passed in
      the same run; otherwise the operator's explicit `release` command
      does it. With `config.require_released_builds: true` an instance
-     may pin only to a released build.
+     may pin only to a released build -- excepting the series head while
+     its own proof is under way (a pending replacement onto it, or
+     standing on it with no failed post-bake record), so a durable
+     instance that can only be proved on itself takes its next build
+     without the rule being switched off.
 5. **Upgrades are intentional — instance pinning** (GOALS.md §"Upgrades
    are intentional"). Head-convergence would silently replace instances
    whenever a new build appeared — `aws_instance` treats an AMI change
