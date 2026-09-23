@@ -45,3 +45,27 @@ The exact keys, aliases and classifications are in each README's "What it
 registers" section, which is written from the package's `pyproject.toml`
 and its `main.py`. The field-by-field reference for the YAML each plugin
 reads is [CONFIGURATION.md](CONFIGURATION.md).
+
+## The README contract
+
+Every package README ends with the same four sections, in this order, so
+a reader finds the same thing in the same place in every package; only a
+`## Related` section may follow them. Stage 62 (2026-09-23) set the
+contract; [tests/test_docs_contract.py](../tests/test_docs_contract.py)
+holds every README to it and checks that every relative link in the
+READMEs, in this file, in the root README, in
+[WORKLOAD_CONNECTION.md](../WORKLOAD_CONNECTION.md) and in
+[DAILY_DRIVER.md](../DAILY_DRIVER.md) resolves.
+
+| Section | Answers |
+| --- | --- |
+| `## Prerequisites and integration` | what must exist outside the system before the plugin works (accounts, roles, APIs, tools, credentials, network), and how the plugin finds it -- which field or variable; "nothing" is an answer |
+| `## Configuration reference` | every field the plugin reads, with type, default and meaning, in tables; fields accepted but not read, named as such; then the variations: what the plugin does differently by declaration (ephemeral or durable, pinned or follow, ensure or script, encrypted or clear, one runtime or another, dry or real) |
+| `## What it tests and verifies` | what the plugin checks, when (at load, validate, generation, apply, after apply, in the state query), and where the verdict lands; "nothing" is an answer |
+| `## When it fails` | the failures the plugin produces, what each means, where to look, what to do; failures that have actually happened first, with their dates |
+
+The sections are written from the package's models, builders, tests and
+`pyproject.toml` and from the two manuals, never from memory; where a
+README and the code disagree, the code wins and the README is corrected.
+Where the choice is between a little more explanation and a little less,
+the README errs on the side of more.

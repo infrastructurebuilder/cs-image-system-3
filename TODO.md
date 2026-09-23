@@ -7,7 +7,7 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress**.
+Current stage: **§62 (the daily driver), in progress since 2026-09-23** on `feature/daily-driver`.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
 **§62 (the daily driver)**, planned and waiting on the operator's word;
@@ -95,9 +95,13 @@ Standing decisions (operator):
   a green `full-test` with docker on a clean live configuration, with
   `PYPI_TOKEN` in place) is the operator's call; trusted publishing
   replaces the tokens once the package names are stable.
-- §30 (the contract package) and §62 (the daily driver) are planned, not
-  started; a stage is a plan in this file until the operator says to
-  execute it (2026-09-23).
+- A documentation stage modifies no code (operator, 2026-09-23): its diff
+  is markdown, example configuration trees and the tests that hold the
+  documentation contract; a code change it would need is a new stage,
+  written as a plan, never a side edit.
+- §30 (the contract package) is planned, not started; §62 (the daily
+  driver) is in progress since 2026-09-23; a stage is a plan in this file
+  until the operator says to execute it (2026-09-23).
 - **Documentation stays current by stage** (operator, 2026-09-23). Once
   §62 has landed, every stage that changes behaviour, configuration,
   tests or procedure owes a documentation update, done as a stage of its
@@ -243,11 +247,17 @@ plugin 1–2 days. Call it three weeks, done as three branches.
 
 ## 62. The daily driver: how a person actually uses the system
 
-**Status: PLANNED, not started** (operator, 2026-09-23). This section is
-the plan; nothing in it is executed until the operator says so. An
-execution begun the same day was reverted: `feature/daily-driver` carries
-this plan and nothing else, and the empty `DAILY_DRIVER.md` at the root is
-the operator's placeholder.
+**Status: IN PROGRESS** (the operator said "execute stage 62" on
+2026-09-23, after §61 landed). Steps are ticked below as they land, one
+commit each on `feature/daily-driver`. An execution begun before the plan
+was written was reverted; its draft of `DAILY_DRIVER.md` and its contract
+test are the starting points for steps 4 and 1.
+
+**A documentation stage changes no code** (operator, 2026-09-23): the diff
+is markdown, the two example trees and the tests that hold the contract.
+Where a doc and the code disagree, the doc is corrected. Where the code
+itself must change, that is a NEW stage, written as a plan and named in
+this stage's records; it is not made here.
 
 **Why**: the documentation describes the system -- every file, every field,
 every rule, every run -- and still a person sitting down to USE it on a
