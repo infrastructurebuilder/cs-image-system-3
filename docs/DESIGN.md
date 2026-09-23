@@ -818,8 +818,9 @@ runtime instances, ever.** The contract:
 ### M2. Modification plugins: shell and ansible both work
 
 - **Builder resolution**: deferred `modifications` items resolve their
-  builder from the item's `type:` (name or alias of a configured mod
-  builder), never from the field name; an unknown type is a hard
+  builder from the item's `type:` (the name of a configured mod builder;
+  an alias passes the load and fails at generation today), never from
+  the field name; an unknown type is a hard
   failure, `default`/absent falls back to the default mod builder.
 - **Bash mod contract**: `BashModItemModel` accepts inline `script:`
   lines and/or `scripts:` file paths (config-root-relative, copied
@@ -828,11 +829,13 @@ runtime instances, ever.** The contract:
   well-formed `provisioner "shell"` blocks scoped to the image —
   `scripts = [...]` and `inline = [...]` as two blocks when both are
   given, because packer forbids both arguments in one provisioner;
-  optional `execute_command`/`environment_vars` from the builder model.
+  optional `execute_command`/`environment_vars`/`expect_disconnect` from
+  the builder model.
   No raw lines ever land in the build file.
 - **Lineage**: bash mods record `operation: bash` with a content hash
-  over inline lines + script-file contents (N23c), exactly as ansible
-  mods hash playbooks.
+  over the item's type and config, its inline lines, its script-file
+  contents and its whole `ensure` mapping (N23c), as ansible mods hash
+  playbooks with their config.
 - **Fixture + golden**: the frozen fixture carries one bash mod (inline
   and file) next to the ansible ones so the golden emission covers both
   kinds.

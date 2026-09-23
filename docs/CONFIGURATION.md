@@ -714,14 +714,17 @@ Key: `mod_builders`. A modification builder turns an image's
 
 ### 7.2 `bash-remote`
 
-`BashBuilderModel`. Every item becomes one `provisioner "shell"`.
+`BashBuilderModel`. An item becomes one `provisioner "shell"` block, two
+when it carries both `scripts` and inline lines (packer forbids both
+arguments in one block), and none, with a warning, when its `ensure` lists
+are all empty.
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | common builder fields (4.1) | | | |
 | `execute_command` | str or null | null | the provisioner's `execute_command` |
 | `environment_vars` | list[str] | `[]` | the provisioner's `environment_vars` |
-| `expect_disconnect` | bool | `false` | accepted |
+| `expect_disconnect` | bool | `false` | emitted as `expect_disconnect = true` on every block of the builder's items when set |
 | `extra_arguments` | list[str] | `[]` | accepted; not emitted |
 | `configuration_user` | str or null | null | accepted; not emitted |
 
@@ -730,7 +733,9 @@ Key: `mod_builders`. A modification builder turns an image's
 `ModItemModel`
 ([`moditem_type.py`](../packages/base/src/cs_image_system/base/models/moditem_type.py))
 plus the builder type's fields. The item's `type` names a mod builder
-(name or alias, `default`, or omitted = the default mod builder); the
+(its name, `default`, or omitted = the default mod builder; an alias
+loads and validates but fails at generation, since the image builder
+looks mod builders up by name; a code stage names the fix); the
 builder's type decides which item model applies.
 
 | Field | Type | Default | Meaning |
@@ -741,7 +746,7 @@ builder's type decides which item model applies.
 | `config` | mapping | `{}` | free-form. It is **part of the build's content hash** (a change re-bakes the image) and available to templates as `{{ this.config.x }}`; it is **not** passed to ansible or to the shell. |
 | `playbooks` (ansible) | list[str] | `[]` | the playbooks this item runs, in order, paths relative to the configuration root (the builder has no playbooks of its own since stage 48.4). **Required in effect**: an item with no playbooks has nothing to modify with (`config:` alone provisions nothing) and is refused at load, by name |
 | `script` (bash-remote) | list[str] | `[]` | inline shell lines, run in order (no templating; literal) |
-| `scripts` (bash-remote) | list[str] | `[]` | script files, relative to the root, copied beside the packer root |
+| `scripts` (bash-remote) | list[str] | `[]` | script files, relative to the configuration root (resolved against the working directory, which the load sets to the root), copied beside the packer root |
 | `ensure` (bash-remote) | mapping | `{}` | declarative, idempotent steps: `packages: [..]`, `files: [{path, content, mode (0644)}]`, `services: [..]` (enabled and started), `commands: [{run, unless}]` (run only when `unless` fails); any other key is refused |
 
 A bash-remote item must give at least one of `script`, `scripts`,
