@@ -10,8 +10,12 @@ system must not take itself.
 Current stage: **none in progress**.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
-**none but §30**, which waits on the operator's decision, and §61, the open
-hygiene bundle. (§59 LANDED 2026-09-22: `meta-state/aliases.txt` is the
+**none but §30**, which waits on the operator's decision. (§61, hygiene
+bundle V, LANDED 2026-09-23: five items and two live proofs -- a dropped
+stofs membership pruned from state after a backup and restored through
+the gate; the coops model's third release as one `cloud-upgrade` with
+`require_released_builds` left true, `coops-model-003`, first alias-pool
+draw `cod`.) (§59 LANDED 2026-09-22: `meta-state/aliases.txt` is the
 pool, the run that can launch a new durable machine draws its first free
 line and comments it out in place, stage 58 gives the name to the machine.
 The live pool holds 3400 names; the first live draw happens at the next
@@ -40,8 +44,8 @@ bare name until its first sanctioned replacement, which is the first real
 claims, and §19 step 5 proved §60's meaning live (a sanctioned replacement
 is a new generation with a new name). §59 is deliberately LAST: it overlaps the suffix, and only once
 that is standing can anyone judge whether a name pool is still wanted. §30 waits on the operator's decision and depends
-on none of this. §61 is the open hygiene bundle (V); a new hygiene issue
-goes there.
+on none of this. No hygiene bundle is open; the next non-critical
+hygiene issue opens bundle VI.
 
 **Nothing in the naming line is left**; §30 waits on the operator's
 decision. Nothing in that shorter path has to be redone -- §58
@@ -223,49 +227,3 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-package` (steps 1–3, 5–7),
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
-
-## 61. Hygiene bundle V
-
-Non-critical items, each small enough that a stage of its own would be
-ceremony. Landed together on `feature/hygiene-v`, squash-merged, kept.
-Each item below says, in this order: what is wrong (the exact path), the
-evidence, the recommendation, its effects (what the operator sees
-afterwards, what changes in the records and in CI, what it risks), and the
-decision it needs from the operator, if any. Sizes are honest guesses.
-**Decided 2026-09-23**: the operator accepted every recommendation (item 2
-shape (a), item 4 shapes (a) and (c)); each item's *Decision* line records
-the choice. The bundle is ready to execute on the operator's word.
-
-**Items 1 to 4 landed 2026-09-23** on `feature/hygiene-v` (tests in
-`tests/test_v2_hygiene_five.py`; the item texts that stood here are in
-that branch's history):
-
-1. A group the provider could not be ASKED about is an `unavailable:`
-   line, never `missing`; a 404 stays hard drift. (`group_drift` takes
-   the report; the builder tells a 404 from a failed call.)
-2. Closed as overtaken: one paragraph in OPERATIONS "Sessions" says a
-   mid-run lapse is environmental and names the repair.
-3. A membership the declaration dropped and OPA no longer holds leaves
-   state before the plan: the runner's `prune-attachments` step, after
-   its init, lists the state it is bound to, asks OPA about each dropped
-   attachment, backs the state up to `_private/state-backups/` and
-   removes only what OPA lacks; OPA holding it, silent, or unreachable
-   removes nothing; the group root's generation-time plan is a
-   no-refresh preview. Two live attempts (2026-09-23 09:10 and 10:15)
-   taught that a read-model written at generation is not a witness of
-   state and that the CLI's load replaces its context object.
-4. The release grace in `validate_released_pins` (`release_grace`) admits
-   the series head under its own proof; `just cloud-upgrade <rt>
-   <instance> [to]` runs pin, replace, proof, release, names as one
-   sequence with the rule left on. OPERATIONS' second-release procedure
-   is now four steps.
-
-5. The release and retention lifecycles no longer write an instance
-   root's `instances.auto.tfvars` under `generated/release/` or
-   `generated/retention/`: `TofuInstanceBuilder.pre_finalize_phase` acts
-   for the instance-image lifecycle alone. Landed 2026-09-23 with the
-   others. A stale copy from an older run under those two directories is
-   removed by hand once (`git clean` is never run by the system).
-
-**The bundle is complete**; it lands as one squash on develop.
-
