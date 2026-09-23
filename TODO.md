@@ -45,8 +45,8 @@ bare name until its first sanctioned replacement, which is the first real
 claims, and §19 step 5 proved §60's meaning live (a sanctioned replacement
 is a new generation with a new name). §59 is deliberately LAST: it overlaps the suffix, and only once
 that is standing can anyone judge whether a name pool is still wanted. §30 waits on the operator's decision and depends
-on none of this. No hygiene bundle is open; the next non-critical
-hygiene issue opens bundle VI.
+on none of this. §61 is the open hygiene bundle (V); a new hygiene issue
+goes there.
 
 **Nothing in the naming line is left**; §30 waits on the operator's
 decision. Nothing in that shorter path has to be redone -- §58
@@ -95,8 +95,9 @@ Standing decisions (operator):
   a green `full-test` with docker on a clean live configuration, with
   `PYPI_TOKEN` in place) is the operator's call; trusted publishing
   replaces the tokens once the package names are stable.
-- §19 (the first real model image) stays planned by the operator's
-  instruction; §30 (the contract package) is planned.
+- §30 (the contract package) and §62 (the daily driver) are planned, not
+  started; a stage is a plan in this file until the operator says to
+  execute it (2026-09-23).
 
 ---
 
@@ -231,6 +232,12 @@ plugin 1–2 days. Call it three weeks, done as three branches.
 
 ## 62. The daily driver: how a person actually uses the system
 
+**Status: PLANNED, not started** (operator, 2026-09-23). This section is
+the plan; nothing in it is executed until the operator says so. An
+execution begun the same day was reverted: `feature/daily-driver` carries
+this plan and nothing else, and the empty `DAILY_DRIVER.md` at the root is
+the operator's placeholder.
+
 **Why**: the documentation describes the system -- every file, every field,
 every rule, every run -- and still a person sitting down to USE it on a
 Monday has no page that starts where they are. Nothing says what has to
@@ -244,65 +251,115 @@ performs, what it tests, and how it fails. The standard (operator,
 2026-09-22): **no one should be surprised by the system's behaviour if
 they read the docs.**
 
-1. **`DAILY_DRIVER.md`**, at the root, the narrative in the order a person
-   meets it:
+**What exists already, and what the plan builds on**: a 1790-line
+configuration reference ([CONFIGURATION.md](docs/CONFIGURATION.md), every
+file and field), a 2042-line operations manual
+([OPERATIONS.md](docs/OPERATIONS.md), every run, rule and procedure),
+[DESCRIPTION.md](DESCRIPTION.md), [PLUGINS.md](docs/PLUGINS.md), and a
+README in all sixteen packages (80 to 1125 lines each, in a shared shape:
+what it registers, models, the builder, emission, an example). The gap is
+the narrative that ties them together for a person doing the work, and a
+uniform closing contract in every README.
+
+**Known disagreements between the docs and the code**, found while reading
+for this plan on 2026-09-23 and to be fixed in step 3 (the code wins):
+[CONFIGURATION.md](docs/CONFIGURATION.md) section 4 says `ena_support` is
+passed to the packer source (nothing reads it), `default_owners` is not
+read by the cloud plugins (it is appended to every vendor query's owners),
+`security_group_ids` are groups for build VMs and instances (checked and
+counted at load, emitted nowhere), and `default_image_builder` is the
+image builder used when a runtime entry names none (nothing reads it;
+`image_builder: default` resolves to the registry's default); section 11.2
+says `Image.variables` is emitted as packer variables (only the retired
+`gen_packer.py` reads it; the builder emits `release` and
+`base_image_version`); section 11.3 says an instance's `userdata` is not
+read by the tofu roots (the launch script appends it before the completion
+marker and records it as a launch parameter); and the embedded
+`executables.yml` shows the `gcloud` floor as a date-shaped version while
+the fixture pins `>=500`, the SDK version the checker matches.
+
+1. **The README contract, and the test that holds it.** Every package
+   README keeps what it has and ends with four sections in a fixed form,
+   so a reader can find the same thing in the same place in every package
+   (only a `## Related` section may follow them):
+   - `## Prerequisites and integration` -- what must exist outside the
+     system before this plugin works (accounts, roles, APIs, tools,
+     credentials, network), and how the plugin finds it (which field or
+     variable); "nothing" is an answer.
+   - `## Configuration reference` -- every field the plugin reads, its
+     type, default and meaning, in tables; fields accepted but not read
+     named as such; then the VARIATIONS: what the plugin does differently
+     by declaration (ephemeral or durable, pinned or follow, ensure or
+     script, encrypted or clear, one runtime or another, dry or real).
+   - `## What it tests and verifies` -- what the plugin checks, when (at
+     load, validate, generation, apply, after apply, in the state query),
+     and where the verdict lands; "nothing" is an answer.
+   - `## When it fails` -- the failures the plugin produces, what each
+     means, where to look, what to do; failures that have actually
+     happened first, with their dates.
+   `tests/test_docs_contract.py` holds every package README to the four
+   headings in order and checks that every relative link in the READMEs,
+   [PLUGINS.md](docs/PLUGINS.md), [README.md](README.md),
+   [WORKLOAD_CONNECTION.md](WORKLOAD_CONNECTION.md) and `DAILY_DRIVER.md`
+   resolves. PLUGINS.md names the contract. Lands first, with the test
+   red for every package until step 2 turns each green.
+2. **Sixteen READMEs against the contract**, one commit per package,
+   written from the package's models, builders, tests and `pyproject.toml`
+   and from the two manuals, never from memory; where a README and the
+   code disagree, the code wins and the README is corrected. Expect this
+   to surface more disagreements like the list above; each goes into
+   step 3's list. Order: the three core packages (base, system,
+   hashicorp-utils) last, since they cite the plugins.
+3. **The reference manuals corrected** where the code contradicts them:
+   the list above, plus whatever step 2 finds. PARITY.md's method applies;
+   nothing is reworded that the code does not contradict.
+4. **`DAILY_DRIVER.md`**, at the root, the narrative in the order a person
+   meets it, linking to the manuals and the READMEs rather than repeating
+   them:
    - *Before the first command*: what must exist outside the system --
-     the AWS account and its OIDC roles, the S3 state bucket, the VPC and
-     subnets and security groups the constraints assume, the instance
-     profile; the GCP project and ADC; the OPA team, its API key pair, the
-     workload connection and role; the Okta API service app; the age
-     identities and who holds them; the tools and their floors; the
-     shell (`.envrc`, the `sso-session` profile); the configuration
-     repository beside this one and what it starts with.
-   - *The first run*: validate, a dry run, reading what it wrote, the
-     first commit.
-   - *Making things*: an image (base and instance, modifications, tests,
-     release), a storage (each kind, its lifecycle), an instance (durable
-     and ephemeral, the launch, the names it answers to), a group and its
-     access -- each as a procedure with the commands, what to expect, and
-     what the records show afterwards.
-   - *Changing things*: a modification, a re-bake, an upgrade and the
-     gated replace, a storage detach or archive, a membership, a
-     decommission -- the procedures OPERATIONS holds, in the order a
+     the AWS account, the SSO portal and the `sso-session` profile, the S3
+     state bucket, the VPC, private subnets and security groups the
+     constraints assume, the SSM instance profile, the two OIDC roles;
+     the GCP project, ADC with impersonation, IAP; the Okta API services
+     app; the OPA team, its API key pair, the resource group, the gateway,
+     the workload connection and role; the age identities and who holds
+     them; the tools and their floors; the shell (`.envrc`, the profile);
+     the configuration repository beside this one and what it starts
+     with, file by file.
+   - *The first run*: validate, a dry run, reading the runner scripts and
+     the summary, the first commit and push.
+   - *Making things*: a group and its access, a storage (each kind), a
+     base image, an instance image (modifications, tests, release), an
+     instance (durable and ephemeral, the launch, the names it answers
+     to, the verify, the login) -- each with the commands, what to
+     expect, and what the records show afterwards.
+   - *Changing things*: a modification and the second release, a base
+     upgrade, an instance upgrade and the gated replace, a storage detach
+     or archive, a membership, a decommission, the admin key, a state
+     move, an adoption -- the procedures OPERATIONS holds, in the order a
      change is made.
    - *What specifies and what tests*: one table -- every declaration that
-     states an intent (`tests:`, `post_bake`, `ensure`, `require_released_builds`,
-     `parent_policy`, `ephemeral`, `lifecycle`, `apply_*`) beside every
-     mechanism that proves it (in-bake tests, post-bake tests, mod tests,
-     verify, the login proof, the state query, the gate, the golden) and
-     where each records its verdict.
+     states an intent (`tests:`, `post_bake`, `modifications`, `release`,
+     `require_released_builds`, `parent_policy`, `image_policy`,
+     `ephemeral`, storage `state` and `lifecycle`, `apply_*`, `members`,
+     the workload objects, the names) beside the mechanism that proves it
+     (in-bake tests, post-bake tests, mod tests, verify, the login proof,
+     the state query, the gate, the golden, public-safe) and where each
+     records its verdict.
    - *When it fails*: symptom -> meaning -> what to do, from the runs the
      system has actually failed: the session that lapsed, the plan on
      ciphertext, the stale attachment, the gate refusing an attachment,
      the alias that was not written, the released-builds window, the
      unaskable group, the hard drift that refused its own repair, the
-     client with no session, exit codes, where the logs and the records
-     are.
+     client with no session, one tofu at a time, the temp volume, the
+     exit codes, where the logs and the records are.
    - *Every plugin*, one paragraph each, linking to its README's contract
-     sections.
-2. **The plugin README contract.** Every package README keeps what it has
-   and gains four sections in a fixed form, so a reader can find the same
-   thing in the same place in every plugin:
-   - `## Prerequisites and integration` -- what must exist outside the
-     system before this plugin works (accounts, roles, APIs, tools,
-     credentials, network), and how the plugin finds it.
-   - `## Configuration reference` -- every field the plugin reads, its
-     type, default and meaning, and the VARIATIONS: what the plugin does
-     differently by declaration (ephemeral or durable, pinned or follow,
-     ensure or script, encrypted or clear, one runtime or another).
-   - `## What it tests and verifies` -- what the plugin checks, when, and
-     where the verdict lands; "nothing" is an answer.
-   - `## When it fails` -- the failures the plugin produces, what each
-     means, where to look, what to do.
-   A test pins the contract: every package README carries the four
-   headings, and every relative link in `DAILY_DRIVER.md` and the READMEs
-   resolves.
-3. **Nothing new is invented.** Every statement comes from the code, the
-   configuration reference, the operations manual or a run that happened;
-   where the docs already say it, the daily driver links rather than
-   repeats, and where they disagree, the code wins and the older doc is
-   fixed. PARITY.md's method applies.
-4. Records: the root README's "Where to start" names `DAILY_DRIVER.md`
-   first; PLUGINS.md names the contract. Feature branch
-   `feature/daily-driver`, squash-merged, kept. Documentation only: the
-   bar runs for the contract test, nothing else reads markdown.
+     sections; and *the daily habits*, a short checklist.
+5. **Records**: the root README's "Where to start" names `DAILY_DRIVER.md`
+   first. Feature branch `feature/daily-driver`, squash-merged, kept.
+   Documentation only: the bar runs for the contract test, nothing else
+   reads markdown; `just full-test` is not owed by a docs stage.
+
+**Sizing**: step 1 is an hour; step 2 is the bulk, roughly an hour per
+package read against its code, and it parallelises by package; steps 3
+and 4 are a day together. Nothing in it touches a cloud or a credential.
