@@ -549,7 +549,7 @@ class TofuInstanceBuilder(InstanceBuilderBase[Q], TerraformRootMixin):
         # reads it (never staged, it lingered untracked after every release
         # run). Only the lifecycle that generates instance roots gets it.
         from cs_image_system.base.lifecycles import Lifecycle
-        current = ctx.current_lifecycle
+        current = getattr(ctx, "current_lifecycle", None)      # a bare harness context has none
         if current is not None and str(current.value) != Lifecycle.INSTANCE_IMAGE.value:
             return
         rtb = self._runtime_builder()
