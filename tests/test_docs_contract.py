@@ -57,6 +57,8 @@ def _relative_links(md: Path) -> list[tuple[str, Path]]:
         target = m.group(1)
         if target.startswith(("http://", "https://", "mailto:", "#")):
             continue
+        if any(c in target for c in "*[]$"):
+            continue                    # a regular expression written next to brackets, not a link
         path = target.split("#", 1)[0]
         if path:
             out.append((target, (md.parent / path).resolve()))
