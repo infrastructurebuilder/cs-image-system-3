@@ -542,6 +542,16 @@ class TofuInstanceBuilder(InstanceBuilderBase[Q], TerraformRootMixin):
         if phase != ExecutionLifecyclePhase.INSTANCE_GENERATION or not self._instances:
             return
         ctx = self._get_context()
+        # Stage 61 item 5: the release and retention lifecycles extend this
+        # phase with one deferred step of their own, so the hook fired for
+        # them too and wrote the file under generated/release/ and
+        # generated/retention/, where no instance root exists and nothing
+        # reads it (never staged, it lingered untracked after every release
+        # run). Only the lifecycle that generates instance roots gets it.
+        from cs_image_system.base.lifecycles import Lifecycle
+        current = getattr(ctx, "current_lifecycle", None)      # a bare harness context has none
+        if current is not None and str(current.value) != Lifecycle.INSTANCE_IMAGE.value:
+            return
         rtb = self._runtime_builder()
         if rtb is None:
             return

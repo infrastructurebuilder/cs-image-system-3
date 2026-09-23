@@ -185,9 +185,48 @@ def after_generate(ctx: "GlobalTypeContext", lifecycle: LifecycleLike) -> None:
     ctx.extend_finalization_phase(ExecutionLifecyclePhase.INSTANCE_GENERATION, execs)
 
 
+def release_grace(ctx: "GlobalTypeContext", instance: Any, pin: str) -> tuple[str | None, str]:
+    """Stage 61 item 4: why an UNRELEASED pin is allowed for now, or why not.
+
+    A durable instance whose volume allows one attachment can only prove a
+    new build on itself, after ``upgrade instance`` pinned it to that build
+    -- which ``require_released_builds`` refused, so every second release
+    needed the flag switched off by hand (2026-09-20 and 2026-09-22). The
+    grace makes the sanctioned sequence legal without the switch: the pin
+    is the head of the image's series on its runtime, its in-bake tests
+    passed (lineage records a build only then), and the instance is either
+    a pending replacement onto it or stands on it (the open generation
+    booted with that build) with no FAILED post-bake record. The grace ends
+    when the release is recorded (the pin is released) or when the proof
+    fails (the refusal names it). Returns ``(reason allowed or None, what
+    is missing)``."""
+    ms = ctx.meta_state
+    name = instance.get_name()
+    image = str(instance.image)
+    build = ms.build(pin)
+    if build is None:
+        return None, "lineage does not record the build"
+    head = ms.series_head(image, str(build.get("runtime")) if build.get("runtime") else None)
+    if not head or str(head.get("build_id")) != str(pin):
+        return None, f"the build is not the head of series {image!r} on its runtime"
+    if not (build.get("tests") or {}).get("in_bake"):
+        return None, "the build carries no in-bake verification record"
+    result = ms.image_tests().get(str(pin))
+    if result is not None and not result.get("ok"):
+        return None, f"the build FAILED its post-bake tests in run {result.get('run')}"
+    if ms.pending_replacements().get(name) == pin:
+        return f"'{name}' is a pending replacement onto series head {pin}: launch it, verify it, release it", ""
+    current = ms.current_generation(name) or {}
+    if str((current.get("launch_params") or {}).get("build") or "") == str(pin):
+        proof = "verified; release it" if result else "launched; verify it, then release it"
+        return f"'{name}' stands on series head {pin} ({proof})", ""
+    return None, f"'{name}' neither stands on the build nor is a pending replacement onto it"
+
+
 def validate_released_pins(ctx: "GlobalTypeContext", requested: list[LifecycleLike]) -> list[str]:
     """config.require_released_builds: an instance's pinned build must be a
-    released build of its image (for any model)."""
+    released build of its image (for any model) -- or, since stage 61 item
+    4, the series head in the middle of its own proof (:func:`release_grace`)."""
     if not ctx.config.get("require_released_builds", False):
         return []
     errors: list[str] = []
@@ -198,8 +237,13 @@ def validate_released_pins(ctx: "GlobalTypeContext", requested: list[LifecycleLi
             continue
         image = str(inst.image)
         if pin not in released_builds(ms, image):
+            allowed, missing = release_grace(ctx, inst, pin)
+            if allowed:
+                log.warning(f"config.require_released_builds: build {pin} of {image!r} is not released yet, "
+                            f"allowed under the release grace: {allowed}")
+                continue
             errors.append(f"instance '{inst.get_name()}' is pinned to build {pin} of '{image}', which is not "
-                          "a released build (config.require_released_builds)")
+                          f"a released build (config.require_released_builds; no grace: {missing})")
     return errors
 
 

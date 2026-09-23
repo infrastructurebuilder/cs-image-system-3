@@ -178,7 +178,7 @@ template scope: `{{ config.x }}` does not resolve in model fields).
 | `okta_gateway_selector` | str | none | fallback `gateway_selector` for an OPA group builder that sets none |
 | `require_mod_tests` | bool | `false` | a release refuses a build whose modification has no local mod-test record |
 | `require_image_tests` | bool | `true` | a release of an image that declares `tests.post_bake` needs a passing record |
-| `require_released_builds` | bool | `false` | an instance may be pinned only to a released build of its image |
+| `require_released_builds` | bool | `false` | an instance may be pinned only to a released build of its image, or to the series head while its own proof is under way (the release grace; OPERATIONS "A model image, end to end") |
 | `preflight.expected_run_minutes` | int | `30` | a credential session expiring sooner is reported as blocking |
 
 **The `apply_*` flags.** `true` lets every root of that lifecycle apply;
@@ -1369,7 +1369,10 @@ Model: `Instance`
 | `groups` | — | — | **refused**: the owning group lives on the image |
 
 An instance's pinned build must be a released build when
-`config.require_released_builds` is true.
+`config.require_released_builds` is true -- or the head of its image's
+series, verified in bake, while the instance is a pending replacement
+onto it or stands on it with no failed post-bake record (the release
+grace, so a durable instance can prove a build on itself).
 
 #### 11.3.1 `storages[]` entries
 

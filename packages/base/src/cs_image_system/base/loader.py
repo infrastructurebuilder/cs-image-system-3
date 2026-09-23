@@ -24,15 +24,15 @@ def load_plugins():
         return
     # reg.register_plugin_metadata(DefaultExecutableModelPluginMetadata())
     for plugin_type, plugin_key in PLUGIN_TYPES:
-        log.info(f"Loading plugins of type: {plugin_type}")
+        log.debug(f"Loading plugins of type: {plugin_type}")
         plugins = entry_points(group=f'cs_image_system.plugins.{plugin_type}')
         if not plugins:
             log.debug(f"No '{plugin_type}' plugins found.")
         plugin_names = sorted([plugin.name for plugin in plugins])    
-        log.info(f"Found {len(plugins)} plugins.")
+        log.info(f"Found {len(plugins)} {plugin_type} plugins.")
         for pname in plugin_names:
             plugin = plugins[pname]
-            log.info(f"Loading plugin: {plugin.name}")
+            log.debug(f"Loading plugin: {plugin.name}")
             initialized = plugin.load()
             # In our case, this can return a single PluginMetadataProtocol instance or a list of them
             _md = initialized()
@@ -47,7 +47,7 @@ def load_plugins():
                     for service in services:                    
                         reg.register_service(service)
                         if service.csis_classifier() in [VCT.CLOUD_BUILDER_MODEL, VCT.CONTAINER_BUILDER_MODEL]:
-                            log.info(f"Registering service: {service.csis_name()} {service.csis_classifier()} as RUNTIME")
+                            log.debug(f"Registering service: {service.csis_name()} {service.csis_classifier()} as RUNTIME")
                             reg.register_service(service, override_classifier=VCT.RUNTIME_BUILDER_MODEL)
                             log.debug(f"Registered service: {service.csis_name()} {service.csis_classifier()}")
                 # for model, builder in md.builders_for_models.items():

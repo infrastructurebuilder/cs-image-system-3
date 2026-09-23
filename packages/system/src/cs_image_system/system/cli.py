@@ -545,10 +545,12 @@ def release_command(
 
 @app.command(name="state-migration")
 def state_migration_command(
+    typer_cntx: typer.Context,
     action: Annotated[str, typer.Argument(
         help="begin: write the previous location beside the root, refuse a non-empty new location, back the "
              "old state up and leave the root initialised against the previous location; finish: record the "
-             "move once the plan at the new location was clean")],
+             "move once the plan at the new location was clean; backup: pull the state at the root's location "
+             "and keep it beside the root before a pre-plan `state rm` (stage 61 item 3)")],
     workspace: Annotated[str, typer.Option("--workspace", help="The terraform workspace (its builder's name)")],
     run: Annotated[str, typer.Option("--run", help="The id of the migrating run")],
     tofu: Annotated[str, typer.Option("--tofu", help="tofu/terraform binary")] = "tofu",
@@ -559,16 +561,44 @@ def state_migration_command(
 ) -> None:
     """One step of a state migration (stage 46.4.3), emitted into a root's runner by
     `run --migrate-state <workspace>`; never a by-hand command."""
-    from cs_image_system.base.commands.state_migration import begin, finish
+    from cs_image_system.base.commands.state_migration import backup, begin, finish
     from cs_image_system.base.global_context import GlobalTypeContext
     gctx = GlobalTypeContext()
+    # the root the runner entered, not the configuration root the load moved to
+    cwd = Path(typer_cntx.obj.get("invoked_cwd") or os.getcwd())
     if action == "begin":
-        code = begin(gctx, workspace, tofu, backend_config, run, Path.cwd(), new_location=location)
+        code = begin(gctx, workspace, tofu, backend_config, run, cwd, new_location=location)
     elif action == "finish":
-        code = finish(gctx, workspace, run, Path.cwd())
+        code = finish(gctx, workspace, run, cwd)
+    elif action == "backup":
+        code = backup(gctx, workspace, tofu, run, cwd)
     else:
-        typer.secho(f"state-migration: the action is begin or finish, not {action!r}", fg=typer.colors.RED, err=True)
+        typer.secho(f"state-migration: the action is begin, finish or backup, not {action!r}",
+                    fg=typer.colors.RED, err=True)
         raise typer.Exit(code=2)
+    if code:
+        raise typer.Exit(code=code)
+
+
+@app.command(name="prune-attachments")
+def prune_attachments_command(
+    typer_cntx: typer.Context,
+    builder: Annotated[str, typer.Option("--builder", help="The identity (group) builder whose root this is")],
+    run: Annotated[str, typer.Option("--run", help="The id of the running run")],
+    tofu: Annotated[str, typer.Option("--tofu", help="tofu/terraform binary")] = "tofu",
+) -> None:
+    """Stage 61 item 3: one step of an identity root's runner, after its init
+    and before its plan, in the initialised root -- drop from terraform state
+    the membership attachments the declaration no longer has and the
+    provider no longer holds, after a state backup. Never a by-hand command."""
+    from cs_image_system.base.global_context import GlobalTypeContext
+    gctx = GlobalTypeContext()
+    gb = gctx.group_builders.get(builder)
+    if gb is None:
+        typer.secho(f"prune-attachments: no group builder named {builder!r}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=2)
+    cwd = Path(typer_cntx.obj.get("invoked_cwd") or os.getcwd())
+    code = gb.prune_stale_attachments(tofu, run, cwd)
     if code:
         raise typer.Exit(code=code)
 
@@ -1248,6 +1278,12 @@ def main(
 
     typer_cntx.call_on_close(restore_dir)
     typer_cntx.ensure_object(dict)
+    # stage 61 item 3: loading the configuration below changes directory to
+    # its root, so a command that runs FROM a root (the runner's
+    # state-migration steps, in the private mirror) must be told where it
+    # was invoked -- found live 2026-09-23 when a state backup pulled from
+    # the configuration root instead of the mirror and kept nothing
+    typer_cntx.obj["invoked_cwd"] = Path(saved_dir)
     if typer_cntx.invoked_subcommand in ("test", "cleanup"):
         return                      # retired V1 names: refuse without loading anything
     if typer_cntx.invoked_subcommand == "preflight":
@@ -1296,6 +1332,9 @@ def main(
                                   overlays=[p.resolve() for p in (overlay or [])],
                                   undeclare=list(undeclare or []))
         typer_cntx.obj["base_only"] = base_only
+        # the load above REPLACES the context object; the invocation directory
+        # is set again so a runner step still knows where it was started
+        typer_cntx.obj["invoked_cwd"] = Path(saved_dir)
     except Exception as e:
         typer.echo(f"Error reading config file : {e}", err=True)
         raise e

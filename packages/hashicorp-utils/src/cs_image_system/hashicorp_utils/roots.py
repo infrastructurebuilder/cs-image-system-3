@@ -180,6 +180,7 @@ class TerraformRootMixin(_Base):
         plan_extra_args: Sequence[str] = (),
         pre_commands: Sequence["ExecutableModel"] = (),
         require_unmounted: Sequence[str] = (),
+        pre_plan_backup: bool = False,
     ) -> list["ExecutableModel"]:
         """The deferred plan -> gate -> (apply) sequence for a terraform root
         (DESIGN §3C/N19).
@@ -190,7 +191,10 @@ class TerraformRootMixin(_Base):
         very plan that passed the gate, and only when ``apply`` is set by the
         lifecycle's ``apply_<lifecycle>`` configuration flag. ``replace``
         addresses are forced replacements (an explicit upgrade); ``pre_plan``
-        arg lists (e.g. ``state rm``) run before the plan.
+        arg lists (e.g. ``state rm``) run before the plan; with
+        ``pre_plan_backup`` the runner first pulls the state and keeps it
+        beside the root (stage 61 item 3: a ``state rm`` the system decided
+        on is preceded by the backup a hand edit would take).
         """
         from cs_image_system.base.global_context import GlobalTypeContext
         from cs_image_system.base.models.executable import ExecutableModel
@@ -223,6 +227,10 @@ class TerraformRootMixin(_Base):
         else:
             init_args = self._runner_init_args(phase)
         commands.extend(self.terraform_commands(phase, [init_args], working_directory))
+        if pre_plan and pre_plan_backup:
+            commands.append(system_cli_executable_with_config(
+                ["state-migration", "backup", "--workspace", self.name, "--tofu", tofu_bin,
+                 "--run", str(GlobalTypeContext().run_id)], working_directory))
         commands.extend(self.terraform_commands(phase, list(pre_plan), working_directory))
         commands.extend(pre_commands)               # e.g. the unmount before a detach (stage 10.14)
         plan_args = ["plan", "-input=false", "-out=tfplan"]

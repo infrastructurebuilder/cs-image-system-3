@@ -21,8 +21,10 @@ from tests.v2_support import V2Run
 
 
 def _plans(journal: list[str]) -> list[str]:
-    """The generation-time plans: a bare `plan` (the deferred one carries -out=tfplan)."""
-    return [line for line in journal if line.endswith(" plan")]
+    """The generation-time plans: a bare `plan`, or the group root's
+    `plan -refresh=false` preview (stage 61 item 3); the deferred one
+    carries -out=tfplan."""
+    return [line for line in journal if line.endswith(" plan") or line.endswith(" plan -refresh=false")]
 
 
 def _credentials_present(monkeypatch) -> None:

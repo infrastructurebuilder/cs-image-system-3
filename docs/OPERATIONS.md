@@ -538,7 +538,7 @@ fails that group's proof alone.
 The coops model's image had its second release on 2026-09-22, and the
 path is now a procedure. It takes one durable instance (`coops-model`, a
 `c5n.4xlarge` that stands 24/7 and owns the single-attachment `mnt_data`
-volume) from one released build to the next in eight steps, all from the
+volume) from one released build to the next in four steps, all from the
 code repository, all but the edits through `just`:
 
 1. **The change.** A modification on the image (here an ansible playbook
@@ -551,36 +551,38 @@ code repository, all but the edits through `just`:
    change makes the bake due (`--force-bake <image>` bakes an unchanged
    one). `release` does NOT release the build yet: it wants the
    post-bake record, which only a launched machine can produce.
-3. **The window.** Set `config.require_released_builds: false` for steps
-   4 to 7. An instance pinned to an unreleased build makes every run
-   refuse under that rule, and for a durable instance whose volume allows
-   one attachment no proof instance can mount what the post-bake spec
-   requires, so the proof runs on the instance itself. Hygiene V item 4
-   is the system taking that window over.
-4. **The pin.** `just cli upgrade instance coops-model` moves the pin to
-   the released head of the series (or `--to <build>`) and leaves the
-   pending-replacement marker. The strict state query now reports the
-   booted image behind the pin as a `note`, not drift.
-5. **The replace.** `just cloud-launch aws-east2-runtime`. The plan
-   carries `-replace` for the instance and the gate whitelists it AND its
-   volume attachments (the attachment binds the volume to the instance's
-   id). The new machine boots as `coops-model-002` (stage 55 step 4);
-   generation 1 closes as replaced and 2 opens on the new instance id
-   (stage 60); the replaced machine's registration under the old name is
-   retired by the launch that replaced it. The data volume is detached and
-   re-attached; the root disk is lost. About ten minutes down.
-6. **The proof.** `just cloud-verify aws-east2-runtime coops-model`: the
-   booted image, both mounts, the post-bake assertions -- recorded for the
-   new build.
-7. **The release.** `just cli --no-dry-run run release --only-runtime
-   aws-east2-runtime --commit` records the build as the model's current
-   release; the previous release stays in the ledger. Then
-   `require_released_builds: true` again, `just cli validate`, commit.
-8. **The names.** One more `just cloud-launch aws-east2-runtime` (no
-   changes) gives the machine back its bare name and `ip-…` label as
-   AltNames; a machine launched in the same run now gets them in that
-   run, after it answers and enrolls. `just ci-login-proof coops-model`
-   then logs in by name.
+3. **The upgrade.** `just cloud-upgrade aws-east2-runtime coops-model`
+   (`to=<build>` for other than the series head) runs, as one gated
+   sequence, what were five hand steps until 2026-09-23:
+   - *the pin*: `upgrade instance` moves it to the series head and leaves
+     the pending-replacement marker; the strict state query now reports
+     the booted image behind the pin as a `note`, not drift;
+   - *the replace*: `cloud-launch`. The plan carries `-replace` for the
+     instance and the gate whitelists it AND its volume attachments (the
+     attachment binds the volume to the instance's id). The new machine
+     boots as `coops-model-002` (stage 55 step 4); generation 1 closes as
+     replaced and 2 opens on the new instance id (stage 60); the replaced
+     machine's registration under the old name is retired by the launch
+     that replaced it. The data volume is detached and re-attached; the
+     root disk is lost. About ten minutes down;
+   - *the proof*: `cloud-verify`: the booted image, both mounts, the
+     post-bake assertions, recorded for the new build;
+   - *the release*: `run release --only-runtime aws-east2-runtime
+     --commit` records the build as the model's current release; the
+     previous release stays in the ledger;
+   - *the names*: one more `cloud-launch` (no changes) gives the machine
+     back its bare name and `ip-…` label as AltNames; a machine launched
+     in the same run gets them in that run, after it answers and enrolls.
+
+   `config.require_released_builds` stays `true` the whole way. Until
+   2026-09-23 it had to be switched off for the middle steps: an instance
+   pinned to an unreleased build made every run refuse, and for a durable
+   instance whose volume allows one attachment no proof instance can
+   mount what the post-bake spec requires, so the proof can only run on
+   the instance itself. The release grace (above, under `release`) admits
+   the series head while its own proof is under way and refuses the
+   moment the proof fails; nothing is edited by hand.
+4. **The login.** `just ci-login-proof coops-model` logs in by name.
 
 **The standing cost** of the model node, from the on-demand price this
 account cannot query (no `pricing:GetProducts`): a `c5n.4xlarge` at about
@@ -690,7 +692,14 @@ refuses a build whose image declares post-bake tests but has no passing
 record (`config.require_image_tests`, default on) and a build with a
 failed mod test on record (a missing one is tolerated unless
 `config.require_mod_tests` is true). `config.require_released_builds:
-true` lets an instance pin only to a released build of its image.
+true` lets an instance pin only to a released build of its image, with
+one grace: the head of the image's series on its runtime, verified in
+bake, is admitted while its own proof is under way -- the instance is a
+pending replacement onto it, or stands on it (the open generation booted
+with that build) with no FAILED post-bake record. The grace ends when the
+release is recorded or the proof fails, and the refusal names what is
+missing. It exists for the durable instance that can only be proved on
+itself (`cloud-upgrade`).
 
 An image may declare `release: {model: <m>}`: the `release` lifecycle,
 ordered between `instance-image` and `retention`, emits one deferred step
@@ -1001,6 +1010,14 @@ oktapam provider ERRORS on refresh rather than planning a recreate, the
 message names the repair: `tofu state rm` the token, then a gated
 identity apply.
 
+A managed group the identity provider could not be ASKED about -- a
+lapsed or unsourced key pair (`HTTP 401`), no network -- is an
+`unavailable:` line naming the group and the error, never a `missing`
+group: the provider made no claim. Only an answered absence (a 404) is
+`missing … [HARD]`. The strict query refuses either way (only `stale` is
+tolerated), but for the stated reason, and a plain run warns and goes on
+as it does for an unreachable cloud.
+
 `state import [--no-images] [--no-storages]` adopts *foreign* artifacts
 into meta-state. It writes meta-state only, never the cloud, OPA or tofu
 state; importing into tofu state stays a deliberate human step.
@@ -1013,7 +1030,12 @@ readable expiry), and whether GCP Application Default Credentials exist.
 A session that is expired or expires within
 `config.preflight.expected_run_minutes` (default 30) is flagged; the
 strict query refuses on it, a run warns, and an expired session refuses
-before the configuration even loads.
+before the configuration even loads. An `sso-session` profile (the live
+`noaa`) reports no fixed expiry -- its access token renews itself while
+the portal session lives, and the portal's end is written nowhere the
+system can read -- so a session that lapses mid-run is environmental, not
+a defect: it costs the legs that were running, and the repair is `aws sso
+login --profile <p>` then `just full-test-legs` (never the whole bar).
 
 ## 2. The developer workflow
 
@@ -1333,6 +1355,7 @@ needs docker and the live configuration, no cloud credentials.
 | `cloud-perform <rt>` | the performing run CI makes on `main`: `--no-dry-run run base-image instance-image release retention --only-runtime <rt> --commit` (bakes due, releases, retention; roots plan and gate only) | `cloud-preflight`; write credentials |
 | `runtime-unchanged <rt> [ref]` | is the runtime's emission (its builders' directories) unchanged since `ref` (default HEAD) in the live configuration, normalised like config-drift? exit 1 with the diff when a declaration of that runtime changed | live tree |
 | `cloud-launch <rt> [yes]` / `gce-launch [yes]` | `run instance-image --only none --apply-runtime <rt> --commit` | `cloud-preflight`; write credentials |
+| `cloud-upgrade <rt> <instance> [to]` | a durable instance's next build as one gated sequence: `upgrade instance` (to the series head, or `to`), `cloud-launch` (the replace), `cloud-verify`, `run release`, `cloud-launch` again (the names); `config.require_released_builds` stays true throughout | `cloud-preflight`; write credentials |
 | `cloud-verify <rt> <instance> [serial\|iap]` / `gce-verify [leg]` | `verify instance <i> --timeout 600`; `iap` adds a `gcloud compute ssh --tunnel-through-iap` probe | live tree, sessions |
 | `cloud-dispose-images <rt> [yes]` / `gce-dispose-images [yes]` | `dispose image --runtime <rt> --all --commit` | live tree; write credentials |
 | `cloud-relabel <rt> [no]` / `gce-relabel [no]` | `lineage relabel --runtime <rt>`; dry by default | live tree; write credentials for `no` |
@@ -1738,6 +1761,8 @@ instances). Every recipe wraps sanctioned commands only.
   (`--only none`: nothing re-bakes); an ephemeral instance launches,
   verifies and tears down in one sequence.
 - `just cloud-verify <rt> <instance> [iap]` verifies a standing instance
+- `just cloud-upgrade <rt> <instance> [to]` moves a durable instance to
+  its image's next build: pin, replace, proof, release, names
   through the system; `iap` adds `gcloud compute ssh --tunnel-through-iap
   --command 'findmnt -n /mnt && id'` with the project and zone read from
   `runtime describe`.
@@ -1882,6 +1907,22 @@ operator key: nothing in a run can prompt.
 - **Stop managing a group**: keep the entry, add `unmanaged: true`; the
   identity runner removes it from state (`state rm`) and never destroys
   it. Removing a managed group's entry is a hard validation failure.
+- **Drop a membership**: remove the user from the group's `members` or
+  `admins`. When OPA still holds the membership the plan shows the
+  destroy of its attachment and the gate sees it. When OPA no longer
+  holds it (the roster was conformed to OPA by hand, or the person was
+  removed there first), the provider would ERROR on refresh (`user "x"
+  is not present within group "g"`) instead of planning the destroy. So
+  every identity runner carries a `prune-attachments` step between its
+  `init` and its plan: it lists the state it is bound to, keeps every
+  attachment the declaration still has, asks OPA about each one it
+  dropped, and removes -- after a state backup -- only those OPA no
+  longer holds. A silent or unreachable OPA removes nothing and the plan
+  decides; a failed backup stops the runner before anything leaves
+  state. The run log names each attachment and why. The generation-time
+  plan of the group root is a preview that does not refresh
+  (`-refresh=false`), so it never trips on such an entry; the runner's
+  plan is the one the gate reads.
 - **Rotate the admin key**: add the new public key to
   `config.admin_public_keys` (or the base image's override), run
   `base-image` then `instance-image` (new builds), `upgrade instance` for
@@ -1942,7 +1983,14 @@ exception is a decision to record, not a bypass.
   `apply_*` flag or `--apply-runtime`), `rm -f tfplan`, `plan -out`,
   `gate-plan`, `apply-check`, `apply tfplan`. A hand apply against the
   identity state additionally takes a same-day backup of the S3 state
-  first, because those resources are never recreated.
+  first, because those resources are never recreated -- and a runner
+  takes the same backup itself before any `state rm` it decided on
+  (an unmanaged group's module, a pruned attachment):
+  `_private/state-backups/<workspace>.backup-<run>.tfstate` under the
+  configuration root, never committed, outside every directory a run
+  wipes. The step refuses, and the runner stops before anything leaves
+  state, when the root it runs from is not initialised or its location
+  holds no state.
 - Nothing irreversible happens by default: dry run is the default, and a
   runner script generated under one flag never applies under another.
 - Only operation-driven destroys are whitelisted; every other destroy

@@ -332,7 +332,14 @@ def workload_notes(groups: dict[str, dict[str, Any]], report: StateReport) -> No
                                 "its record")
 
 
-def group_drift(ctx: "GlobalTypeContext", groups: dict[str, dict[str, Any]]) -> list[Drift]:
+def group_drift(ctx: "GlobalTypeContext", groups: dict[str, dict[str, Any]],
+                report: StateReport | None = None) -> list[Drift]:
+    """Each managed group's provider record against the identity read-model.
+    A record carrying an ``error`` is a group the provider could not be ASKED
+    about (a lapsed key pair, a network failure): it is reported unavailable
+    on ``report``, never as missing -- stage 61 item 1, after 2026-09-21 when
+    five standing groups read as deleted under an unsourced ``.envrc``. A
+    record that is absent WITHOUT an error is a real deletion: hard drift."""
     ms = ctx.meta_state
     drift: list[Drift] = []
     model = ms.identity_read_model().get("groups", {}) or {}
@@ -348,6 +355,11 @@ def group_drift(ctx: "GlobalTypeContext", groups: dict[str, dict[str, Any]]) -> 
         real = groups.get(name)
         if real is None:
             continue  # no provider answered for this group's builder
+        if real.get("error"):
+            if report is not None:
+                report.unavailable.append(f"groups/{name}: {real['error']}")
+            log.warning(f"state query groups/{name} unavailable: {real['error']}")
+            continue
         if not real.get("present", True):
             drift.append(Drift("group", name, DRIFT_MISSING,
                                "managed group is not known to the identity provider", hard=True))
@@ -491,7 +503,7 @@ def query_state(ctx: "GlobalTypeContext") -> StateReport:
     report.reality = {"images": images, "storages": storages, "groups": groups}
     assert_public_safe(report.reality, where="state report")
     report.drift = (pin_drift(ctx) + image_drift(ctx, images)
-                    + storage_drift(ctx, storages) + group_drift(ctx, groups)
+                    + storage_drift(ctx, storages) + group_drift(ctx, groups, report)
                     + instance_boot_drift(ctx, report)
                     + standing_ephemeral_drift(ctx, report))
     from .provider_aliases import instance_identity_notes

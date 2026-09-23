@@ -3,6 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
+import re
+import subprocess
+import urllib.error
+from pathlib import Path
 from typing import Any
 
 from cs_image_system.base import utils
@@ -222,7 +226,17 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
             server_group = f"{name}{USER_GROUP_SUFFIX}"
             try:
                 attrs = resolver.group_attributes(server_group)
-            except Exception as e:
+            except urllib.error.HTTPError as e:
+                if e.code == 404:
+                    out[name] = {"present": False}          # OPA answered: the group is not there
+                    continue
+                # stage 61 item 1: a call that FAILED (401 from a lapsed key pair,
+                # a 5xx) is not an absence; the record says so and the drift
+                # rule reports the group as unavailable, never as missing
+                log.debug(f"OPA group {server_group!r} unavailable: {e}")
+                out[name] = {"present": False, "error": f"HTTP {e.code} {e.reason}"[:120]}
+                continue
+            except Exception as e:                          # no token, no network, no credentials
                 log.debug(f"OPA group {server_group!r} unavailable: {e}")
                 out[name] = {"present": False, "error": str(e)[:120]}
                 continue
@@ -476,6 +490,97 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
                     out.append(g)
         return out
 
+    _ATTACHMENT_RE = re.compile(
+        r'^module\.group_(?P<label>[^.]+)\.oktapam_user_group_attachment\.(?P<kind>members|admins)\["(?P<user>[^"]+)"\]$')
+
+    def _declared_memberships(self) -> dict[str, tuple[Group, dict[str, set[str]]]]:
+        """``{label: (group, {"members": {...}, "admins": {...}})}`` for every
+        managed group, admins merged with the root group's exactly as the
+        module call emits them."""
+        from cs_image_system.base.global_context import GlobalTypeContext
+        root_group = GlobalTypeContext().root_group
+        out: dict[str, tuple[Group, dict[str, set[str]]]] = {}
+        for g in self.get_groups_for_builder():
+            if getattr(g, "unmanaged", False):
+                continue
+            admins = {str(a) for a in (g.admins or set())}
+            if getattr(g, "include_root_group_in_admins", True) and root_group is not None:
+                admins |= {str(a) for a in (root_group.admins or set())}
+            out[utils.super_safe_name(g.name)] = (g, {"members": {str(m) for m in (g.members or set())},
+                                                      "admins": admins})
+        return out
+
+    def prune_stale_attachments(self, tofu: str, run_id: str, cwd: Path) -> int:
+        """Stage 61 item 3, at EXECUTION time in the initialised root.
+
+        The provider ERRORS on refreshing an ``oktapam_user_group_attachment``
+        whose membership is gone (``user "x" is not present within group
+        "g"``) instead of dropping it from state, so a plan never reaches the
+        destroy it would have shown. This step lists terraform state itself
+        (the only honest witness: a read-model written at generation
+        outlived a failed runner on 2026-09-23 and said the membership was
+        already gone), keeps every attachment the declaration still has,
+        asks OPA about each one it dropped, and removes from state -- after
+        a backup -- only those OPA no longer holds. One OPA still holds is
+        left to the plan (the destroy shows, the gate sees it); a silent or
+        unreachable OPA removes nothing and the plan decides."""
+        listed = subprocess.run([tofu, "state", "list"], cwd=cwd, capture_output=True, text=True, check=False)
+        if listed.returncode != 0:
+            log.error(f"Identity builder {self.name}: `state list` failed in {cwd}; nothing is removed from state:\n"
+                      f"{(listed.stderr or listed.stdout).strip()}")
+            return 1
+        declared = self._declared_memberships()
+        dropped: list[tuple[str, Group, str, str]] = []           # (address, group, kind, user)
+        for line in listed.stdout.splitlines():
+            m = self._ATTACHMENT_RE.match(line.strip())
+            if not m or m.group("label") not in declared:
+                continue
+            group, sets = declared[m.group("label")]
+            if m.group("user") not in sets[m.group("kind")]:
+                dropped.append((line.strip(), group, m.group("kind"), m.group("user")))
+        if not dropped:
+            log.info(f"Identity builder {self.name}: every membership attachment in state is still declared; "
+                     "nothing to prune")
+            return 0
+        try:
+            resolver = self._resolver()
+        except Exception as e:
+            log.warning(f"Identity builder {self.name}: {len(dropped)} attachment(s) in state are no longer "
+                        f"declared but OPA cannot be asked whether it still holds them ({e}); nothing is removed")
+            return 0
+        held_by: dict[str, list[str] | None] = {}
+        remove: list[tuple[str, Group, str, str]] = []
+        for addr, group, kind, user in dropped:
+            server_group = f"{group.get_name()}{USER_GROUP_SUFFIX if kind == 'members' else ADMIN_GROUP_SUFFIX}"
+            if server_group not in held_by:
+                held_by[server_group] = resolver.group_users(server_group)
+            held = held_by[server_group]
+            if held is None:
+                log.warning(f"Identity builder {self.name}: OPA did not answer for group {server_group!r}; "
+                            f"{kind[:-1]} {user!r} stays in state for the plan to decide")
+            elif user in held:
+                log.info(f"Identity builder {self.name}: {kind[:-1]} {user!r} was dropped from group "
+                         f"{group.get_name()!r} but OPA still holds it; the plan will show the destroy")
+            else:
+                remove.append((addr, group, kind, user))
+        if not remove:
+            return 0
+        from cs_image_system.base.commands.state_migration import backup
+        from cs_image_system.base.global_context import GlobalTypeContext
+        if backup(GlobalTypeContext(), self.name, tofu, run_id, cwd) != 0:
+            return 1
+        for addr, group, kind, user in remove:
+            log.info(f"Identity builder {self.name}: {kind[:-1]} {user!r} was dropped from group "
+                     f"{group.get_name()!r} and OPA no longer holds it; its attachment leaves tofu state "
+                     f"before the plan: state rm {addr}")
+            rm = subprocess.run([tofu, "state", "rm", addr], cwd=cwd, capture_output=True, text=True, check=False)
+            if rm.returncode != 0:
+                log.error(f"Identity builder {self.name}: `state rm {addr}` failed; the runner stops here:\n"
+                          f"{(rm.stderr or rm.stdout).strip()}")
+                return 1
+            log.info((rm.stdout or "").strip() or f"Removed {addr}")
+        return 0
+
     def get_commands_to_run_after(
         self, phase: ExecutionLifecyclePhase
     ) -> CFExecutables:
@@ -491,14 +596,26 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         commands = self.terraform_commands(phase, [["fmt"], self._init_args(phase), ["validate"]], wd)
         if not self._dry_run():
             # the plan reads plaintext, so it runs in the private mirror (stage 51: the
-            # derived addresses carry ciphertext in the committed emission)
-            commands += self.plaintext_read_commands(phase, wd, [["plan"]])
+            # derived addresses carry ciphertext in the committed emission). It is a
+            # preview and does not refresh: the provider ERRORS on refreshing an
+            # attachment whose membership is gone (stage 61 item 3, live 2026-09-23),
+            # and the runner's own plan -- after the prune step -- is the one the
+            # gate reads.
+            commands += self.plaintext_read_commands(phase, wd, [["plan", "-refresh=false"]])
         pre_plan = [["state", "rm", f"module.group_{utils.super_safe_name(g.name)}"]
                     for g in self._newly_unmanaged_groups()]
-        # Per-root apply scoping (stage 7): the identity root is its builder name
+        # Stage 61 item 3: after init and before the plan, the runner prunes the
+        # attachments of memberships the declaration dropped and OPA no longer
+        # holds, from the state it can see, after a backup (prune_stale_attachments).
+        tofu_bin = self.get_executable_copy()
+        prune = utils.system_cli_executable_with_config(
+            ["prune-attachments", "--builder", self.name, "--tofu", str(tofu_bin.binary or tofu_bin.name),
+             "--run", str(self._get_context().run_id)], wd)
+        # Per-root apply scoping (stage 7): the identity root is its builder name;
+        # a pre-plan state rm is preceded by a state backup (stage 61 item 3)
         deferred = self.gated_apply_commands(
             phase, wd, apply=utils.apply_enabled("identity", self.name), pre_plan=pre_plan,
-            apply_flag_key="identity", apply_root=self.name)
+            pre_commands=[prune], apply_flag_key="identity", apply_root=self.name, pre_plan_backup=True)
         # EXPLORE identity: attributes travel outside terraform. When
         # anything is declared, the runner probes (read-only) after the
         # apply and shows what an attribute apply would change; the write

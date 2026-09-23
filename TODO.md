@@ -10,8 +10,12 @@ system must not take itself.
 Current stage: **none in progress**.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
-**none but §30**, which waits on the operator's decision, and §61, the open
-hygiene bundle. (§59 LANDED 2026-09-22: `meta-state/aliases.txt` is the
+**none but §30**, which waits on the operator's decision. (§61, hygiene
+bundle V, LANDED 2026-09-23: five items and two live proofs -- a dropped
+stofs membership pruned from state after a backup and restored through
+the gate; the coops model's third release as one `cloud-upgrade` with
+`require_released_builds` left true, `coops-model-003`, first alias-pool
+draw `cod`.) (§59 LANDED 2026-09-22: `meta-state/aliases.txt` is the
 pool, the run that can launch a new durable machine draws its first free
 line and comments it out in place, stage 58 gives the name to the machine.
 The live pool holds 3400 names; the first live draw happens at the next
@@ -40,8 +44,8 @@ bare name until its first sanctioned replacement, which is the first real
 claims, and §19 step 5 proved §60's meaning live (a sanctioned replacement
 is a new generation with a new name). §59 is deliberately LAST: it overlaps the suffix, and only once
 that is standing can anyone judge whether a name pool is still wanted. §30 waits on the operator's decision and depends
-on none of this. §61 is the open hygiene bundle (V); a new hygiene issue
-goes there.
+on none of this. No hygiene bundle is open; the next non-critical
+hygiene issue opens bundle VI.
 
 **Nothing in the naming line is left**; §30 waits on the operator's
 decision. Nothing in that shorter path has to be redone -- §58
@@ -223,108 +227,3 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-package` (steps 1–3, 5–7),
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
-
-## 61. Hygiene bundle V
-
-Non-critical items, each small enough that a stage of its own would be
-ceremony. Landed together on `feature/hygiene-v`, squash-merged, kept.
-
-1. **A group the provider could not be ASKED about is reported as MISSING.**
-   `okta_opa_tf_group_builder.query_state` wraps its lookup in
-   `except Exception` and records `{"present": False, "error": ...}`
-   (`okta_opa_tf_group_builder.py:144`), and the drift assembly turns
-   `present: False` into `missing ... [HARD]`. So a lapsed OPA key does not
-   report a lapsed key -- it reports that five managed groups are "not known
-   to the identity provider", fails `state query --strict`, and sends the
-   reader hunting for a group somebody deleted.
-
-   Found 2026-09-21 while proving §57: a `just full-test` launched without
-   sourcing `.envrc` failed exactly this way, and the five groups were all
-   present the whole time.
-
-   This is the same conflation §57 removed for instances -- "cannot answer"
-   dressed up as a state -- one subsystem over, and the fix is the same
-   shape: the record already CARRIES the distinction in its `error` key, so
-   the assembly need only route an errored lookup to `unavailable` instead
-   of `missing`. Absent-and-known stays `missing [HARD]`; unreachable
-   becomes unavailable, which `--strict` does not fail on. Whatever §57
-   settled for the runtime hooks should be what this follows.
-2. **Preflight knows when the session ends; a run that cannot finish before
-   then should say so up front.** On 2026-09-21 a 15-minute `just full-test`
-   passed every leg and died on the last one: the NOAA portal token expired
-   at 16:04:17Z, mid-run. Preflight reads that very timestamp
-   (`session: ... EXPIRED at ...`), so it could have refused at minute zero
-   with "this session ends in 11 minutes; the live legs need ~15" instead of
-   at minute fourteen. The number that binds is the PORTAL session: a
-   CLI token issued mid-session only inherits what is LEFT of it (1h43m
-   that morning; a fresh browser sign-in then gave a full 8h), while the 1h
-   role-credential expiry underneath is auto-refreshed and is not the limit.
-   So the remaining time is not knowable from the login time -- only from
-   `expiresAt`, which preflight already reads.
-
-   Corrected 2026-09-21, second occurrence: preflight ALREADY refuses when
-   the session ends before `config.preflight.expected_run_minutes` (default
-   30, `preflight.py:77`) -- but every CLI command runs that check for
-   itself, so `full-test` passes preflight at minute zero with plenty of
-   window, spends ~20 minutes on the docker and dry-run legs, and the
-   state-query leg's OWN preflight then refuses with 11 minutes left. The
-   fix is in the recipe, not the checker: run preflight once up front with
-   full-test's whole estimate (`expected_run_minutes` for the sum of its
-   legs, or a `--needs` override) and let the later legs skip the
-   per-command check. Non-critical: the failure is honest and
-   environmental; it is just late, and it has now cost two 20-minute runs.
-
-   **Recipe half done 2026-09-22**: `just full-test-legs` runs the three
-   live legs alone (`full-test` = `test` then `full-test-legs`), so a
-   session that lapses after the bar -- as the portal session did at
-   19:43Z that day, sixteen minutes before the legs -- costs the legs
-   again, not the bar. The reader half landed with stage 55 step 4.
-   Since 2026-09-21 19:19 the `noaa` profile is an `sso-session` profile:
-   the cache's `expiresAt` is now the ACCESS token's one hour, renewed
-   silently from a refresh token while the portal session lives. So the
-   number preflight reads no longer means what it did -- a run of 45
-   minutes will read as "expires before the expected length" while the CLI
-   would in fact carry it. LANDED the same evening, in 55 step 4's branch
-   because it blocked that stage's full-test: `aws_sso_expiry` now answers
-   "no fixed expiry readable; refreshes itself" for a cache entry carrying
-   a `refreshToken`, the answer preflight already gave GCP ADC, so a
-   refreshable token cannot block a run on its own. What REMAINS of this
-   item is the recipe half: one up-front check with full-test's whole
-   estimate instead of a per-leg check.
-3. **A membership the YAML dropped and OPA already lacks blocks every
-   identity plan.** The oktapam provider's refresh of an
-   `oktapam_user_group_attachment` ERRORS (`user "x" is not present within
-   group "g"`) instead of dropping the resource from state when the
-   membership is gone, so the plan never reaches the point where it would
-   have destroyed the attachment. Found 2026-09-22 on the first real
-   identity run after the coops declaration was conformed to OPA
-   (2026-09-18): two stale attachments in state, and the repair was a hand
-   `tofu state rm` of both (after the same-day state backup the operations
-   rules ask for). The system can do this itself the way it already does
-   for unmanaged groups (`pre_plan` at `okta_opa_tf_group_builder.py`):
-   before the plan, every attachment in state whose group no longer
-   declares that user is `state rm`'d -- the attachment is a record of a
-   membership, and a membership the configuration no longer declares has
-   nothing to destroy once the provider agrees it is gone. When OPA STILL
-   has the membership, leave it to the plan: that destroy is the explicit
-   decision the operations rules require, and the gate sees it.
-4. **A durable instance cannot take its own image's second release without
-   a rule being switched off by hand.** `release` refuses a build until its
-   post-bake tests have passed on a launched machine (stage 14), and
-   `require_released_builds` refuses every run while any instance is pinned
-   to an unreleased build. For an ephemeral instance the cycle resolves
-   this inside one run (launch, verify, tear down, release). For a DURABLE
-   instance whose volume allows one attachment (`mnt_data`), no proof
-   instance can mount what the image's post-bake spec requires, so the
-   proof can only run on the instance itself -- after `upgrade instance`
-   pins it to the unreleased build, which the rule refuses. Found
-   2026-09-22 on the coops image's second build (stage 19 step 5); the
-   first release on 2026-09-20 went the same way. The procedure that works
-   is to set `require_released_builds: false` for the window: upgrade,
-   replace, verify (the post-bake record), release, then set it back. The
-   system should own that window instead: an instance may pin an
-   unreleased build when that build is the series head whose in-bake
-   tests passed AND the pin is a pending replacement whose post-bake proof
-   will run on the new machine -- refused again if the proof does not
-   follow within the same or the next run. Design it before the third
-   release, not during it.
