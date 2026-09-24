@@ -1431,7 +1431,10 @@ def read_and_process(dir: Path) -> dict[str, Any] | None:
     for file in f:
         try:
             with open(file, "r") as stream:
-                data = yaml.unsafe_load(stream)
+                # safe_load: a PUBLIC configuration tree constructs no Python object
+                # (stage 63 item 13; unsafe_load stood here alone, every other
+                # reader of the tree is safe_load, and no tree carries a tag)
+                data = yaml.safe_load(stream)
                 if isinstance(data, dict):
                     # stage 49: needs NO identity -- a structural check, so it
                     # still runs where nothing could be decrypted

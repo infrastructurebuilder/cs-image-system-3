@@ -258,3 +258,18 @@ def test_the_opa_listing_follows_the_link_header_to_every_page():
     r1 = OpaGidResolver("https://h", "t", "k", "s",
                         transport=lambda m, u, h, b: {"bearer_token": "tok"} if u.endswith("/service_token") else {"list": [{"id": "x"}]})
     assert [p["id"] for p in (r1.security_policies() or [])] == ["x"]
+
+
+# ------------------------------------ 13. the configuration loads safely
+
+def test_a_python_tag_in_the_configuration_is_refused_not_constructed(tmp_path: Path, monkeypatch):
+    root = copy_config(tmp_path)
+    (root / "cfg" / "zz-tag.yml").write_text("evil: !!python/object/apply:os.system ['echo pwned']\n")
+    stub_environment(monkeypatch)
+    with pytest.raises(Exception) as exc:
+        load_context(root)
+    assert "python/object" in str(exc.value) or "could not determine a constructor" in str(exc.value), str(exc.value)
+    reset_singletons()
+    from cs_image_system.base import global_context
+    src = Path(global_context.__file__).read_text()
+    assert "yaml.unsafe_load(stream)" not in src and "yaml.safe_load(stream)" in src
