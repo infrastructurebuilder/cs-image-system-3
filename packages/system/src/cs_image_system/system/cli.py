@@ -354,22 +354,30 @@ def mask_command(
     from cs_image_system.base.materialize import PRIVATE_DIRNAME
     root = Path(typer_cntx.obj.get("config_root") or os.getcwd())
     reset_decrypted_plaintexts()
-    try:
-        for path in sorted(root.rglob("*.y*ml")):
-            if ".git" in path.parts or "generated" in path.parts or PRIVATE_DIRNAME in path.parts:
-                continue
-            try:
-                decrypt_tree(yaml.safe_load(path.read_text()), source=str(path))
-            except Exception:                      # a refusal here is validate's to report, not mask's
-                continue
-        for value in sorted(decrypted_plaintexts(include_public_by_decision=True)):
-            if len(value) >= minimum:
-                for line in value.splitlines():
-                    if len(line) >= minimum:
-                        typer.echo(f"::add-mask::{line}")
-    except ValueError as e:
-        typer.secho(f"mask: {e}", fg=typer.colors.RED, err=True)
+    # Stage 63 item 2: a masking pass that skipped a file is a pass that may
+    # leak, so every per-file failure -- the identity that cannot open a marker,
+    # a file that does not parse, a marker that is malformed -- ends the command
+    # with exit 1 naming the file. Until 2026-09-23 each was swallowed, and a
+    # missing identity printed nothing and exited 0.
+    failures: list[str] = []
+    for path in sorted(root.rglob("*.y*ml")):
+        if ".git" in path.parts or "generated" in path.parts or PRIVATE_DIRNAME in path.parts:
+            continue
+        try:
+            decrypt_tree(yaml.safe_load(path.read_text()), source=str(path))
+        except Exception as e:
+            failures.append(f"{path}: {e}")
+    if failures:
+        for f in failures:
+            typer.secho(f"mask: {f}", fg=typer.colors.RED, err=True)
+        typer.secho(f"mask: FAILED -- {len(failures)} file(s) could not be read for masking; nothing is masked "
+                    "and the log would show every plaintext", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
+    for value in sorted(decrypted_plaintexts(include_public_by_decision=True)):
+        if len(value) >= minimum:
+            for line in value.splitlines():
+                if len(line) >= minimum:
+                    typer.echo(f"::add-mask::{line}")
 
 
 @app.command(name="materialize")

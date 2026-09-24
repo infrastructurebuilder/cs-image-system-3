@@ -76,7 +76,7 @@ per command, how much to load:
 | Commands | Before the command runs |
 | ---------- | ------------------------- |
 | `test`, `cleanup` | Nothing. They are retired names and exit 2. |
-| `preflight` | Records the root (`--root-dir` or the current directory) and the resolved overlays. The command reads only the raw `cfg/runtime-builders.yml` and `cfg/_config.yml` (and overlays' `config:`). No plugin loads, no configuration loads, no change of directory. |
+| `preflight` | Records the root (`--root-dir` or the current directory) and the resolved overlays. The command reads only the raw `cfg/*.yml` files for `runtime_builders:` (every file directly under `cfg/`, as the loader does, since stage 63 item 11) and `cfg/_config.yml` (and overlays' `config:`). No plugin loads, no configuration loads, no change of directory. |
 | `gate-plan`, `apply-check`, `identity export-gids` | No configuration tree loads and every global option except `--verbose` is ignored. `identity export-gids` loads plugins on demand; `apply-check` reads only `cfg/_config.yml` (and its own `--overlay` files) as text. |
 | `encrypt`, `decrypt`, `reencrypt`, `public-safe`, `materialize`, `mask` | Records the configuration root (`--root-dir` or the current directory). No plugin loads, no configuration loads, no change of directory. `encrypt` and `reencrypt` read `encryption.recipients` from `cfg/_config.yml` as text; `public-safe` reads `public_safe.allow` the same way. |
 | every other command | Loads plugins. For `run` and `state ...` it first prints the credential session lines read from the raw tree and exits 1 when a session has expired. Then it reads the whole configuration (`read_config_and_transform`): the string stage, decryption of every `ENC[age:...]` value, structuring, builder construction and item reading, with overlays and undeclarations applied. The load changes the process directory to the (resolved) configuration root and REPLACES the Typer context object; the callback then records the invocation directory again (`invoked_cwd`) and the `--base-only` flag on the new object, so a command that runs from a terraform root (`state-migration`, `prune-attachments`) still knows where it was started (found live 2026-09-23; see [When it fails](#when-it-fails)). A load that raises prints `Error reading config file : <e>` on standard error and re-raises: a traceback, exit 1. |
@@ -861,8 +861,8 @@ The CLI verifies little of its own; it decides what runs, and reports
 where the base and the plugins put their verdicts.
 
 **Before the command (the callback).** For `run` and `state ...`: the
-credential sessions from the raw `cfg/runtime-builders.yml`, one
-`session:` line each on standard error, and `preflight: a session has
+credential sessions from the raw `cfg/*.yml` files (every file that
+declares `runtime_builders:`), one `session:` line each on standard error, and `preflight: a session has
 EXPIRED; renew it (aws sso login --profile <p>) before the configuration
 can even load` with exit 1 on an expired one. For every loading command:
 the overlay files (existence, shape, allowed top-level keys, named
@@ -1151,8 +1151,11 @@ environment credential is set but empty (see above)`; (exit 1 with
 `--strict`) `preflight: a session expires before the expected run length
 (see above); renew it or lower config.preflight.expected_run_minutes`.
 
-Silent behaviour to know about: `mask` prints nothing and exits 0 when
-the identity is missing or wrong (every file's decryption is skipped);
+Silent behaviour to know about (`mask` is no longer among it: since
+stage 63 item 2, 2026-09-24, a file it cannot read for masking -- the
+identity missing or wrong, a file that does not parse, a malformed marker
+-- ends it with `mask: FAILED` naming each file and exit 1, so a CI step
+that cannot mask fails instead of printing nothing);
 `run --commit` outside a git repository or over a gitignored `generated/`
 logs a warning and reports `meta_state_commit: null`; a plain `run` logs
 `preflight session: ...` warnings and `state query: <unavailable>`

@@ -623,6 +623,9 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         from cs_image_system.base.identity_attributes import declared_attributes
         declared = declared_attributes(self._get_context())
         if declared["groups"] or declared["users"]:
-            deferred.append(utils.system_cli_executable(
+            # the probe loads the configuration, so it carries --root-dir like every
+            # other runner step that does (stage 63 item 8: without it the step loaded
+            # from the root's mirror, which has no cfg/, and failed after the apply)
+            deferred.append(utils.system_cli_executable_with_config(
                 ["identity-attributes", "--probe", "--dry-run-apply"], wd))
         return CFExecutables(commands, deferred)

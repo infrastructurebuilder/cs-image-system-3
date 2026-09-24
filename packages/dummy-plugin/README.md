@@ -154,7 +154,7 @@ Every hook returns empty, in the order the group lifecycle runs them:
 |---|---|---|
 | `group-generation` | `generate_items_before` | An empty `AssetSet`. |
 | `group-generation` | `get_commands_to_run_before` | No commands. |
-| `group-generation` | `generate_items_during` | An empty plain `list` (not an `AssetSet`; the runner calls `.sort_and_write()` on it and fails). |
+| `group-generation` | `generate_items_during` | An empty `AssetSet` (since stage 63 item 1; a plain `list` until then, which the runner's `.sort_and_write()` call broke on). |
 | `group-generation` | `get_commands_to_run_during` | No commands. |
 | `group-generation` | `generate_items_after` | An empty `AssetSet`. |
 | `group-generation` | `get_commands_to_run_after` | No commands. |
@@ -187,7 +187,7 @@ Extends `UserBuilderBase` in
 | any | `get_subpath()` | `Path("Dummy-tf")`, the directory its assets go under. Plugin-local: only `generate_items_before` reads it. |
 | `user-generation` | `generate_items_before` | One asset: `Dummy-tf/dummy_users.tf` containing a single comment line naming the builder class. |
 | `user-generation` | `get_commands_to_run_before` | No commands. |
-| `user-generation` | `generate_items_during` | An empty plain `list` (not an `AssetSet`; the runner calls `.sort_and_write()` on it and fails). |
+| `user-generation` | `generate_items_during` | An empty `AssetSet` (since stage 63 item 1). |
 | `user-generation` | `get_commands_to_run_during` | No commands. |
 | `user-generation` | `generate_items_after` | An empty `AssetSet`. |
 | `user-generation` | `get_commands_to_run_after` | No commands. |
@@ -522,52 +522,21 @@ Failures that have happened, first.
   set, check that the command path loads the hooks before it resolves
   names (a library caller must call `load_hook_plugins()` before
   `parse_lifecycles()`).
-- **2026-09-23, declaring a dummy builder fails the identity lifecycle**
-  (reproduced over a copy of the frozen fixture while writing this
-  README; it has not happened live because no tree declares one). With a
-  `type: dummy` user builder the run dies in `user-generation`; with only
-  a group builder, in `group-generation`:
+- **A declared `type: dummy` builder used to fail the identity lifecycle**
+  (reproduced over a copy of the frozen fixture on 2026-09-23; never live,
+  since no tree declares one). Both builders' `generate_items_during`
+  returned a plain `list` where the contract wants an `AssetSet`, and the
+  during step ([gen_users.py](../base/src/cs_image_system/base/commands/gen_users.py),
+  [gen_groups.py](../base/src/cs_image_system/base/commands/gen_groups.py))
+  died on `.sort_and_write()`:
 
   ```text
   ERROR cs_image_system.base.commands.run_lifecycles:AttributeError: 'list' object has no attribute 'sort_and_write'
   ```
 
-  The during step
-  ([gen_users.py](../base/src/cs_image_system/base/commands/gen_users.py),
-  [gen_groups.py](../base/src/cs_image_system/base/commands/gen_groups.py))
-  calls `sort_and_write()` on whatever `generate_items_during()` returns,
-  and both dummy builders return a plain `list`. Verdict: the run summary
-  and `meta-state/runs.yaml` carry
-  `error: AttributeError: 'list' object has no attribute 'sort_and_write'`
-  with `ok: false` and an empty `apply` map; `generated/identity/` holds
-  the `.gitignore` and, for a user builder, `Dummy-tf/dummy_users.tf`;
-  `final_execution.sh` is not written; the notifier still appends its
-  line. What to do: remove the dummy builder from the tree. The fix in
-  code is to return an `AssetSet()` from both `generate_items_during`
-  hooks; until then the builders are a template of the shape only.
-
-Failures the code raises that have not happened:
-
-| Symptom | Meaning | Where to look | What to do |
-|---|---|---|---|
-| `1 validation error for DummyGroupBuilderModel` / `org: Field required` (or `team`, or `type`) at load | A required key is missing from the builder entry. | The CLI's error output; the entry named in the message. | Add the key. `type` is required even on the user model despite its class attribute. |
-| `bogus: Unexpected keyword argument` at load | An unknown key in the entry (`extra="forbid"`). | Same. | Remove or rename it. |
-| `<name>: parameters was retired (stage 26) ...` at load | The retired key is present. | Same. | Delete it. |
-| `No default builder found in user_builder list.` (or `group_builder`) at load | The list has no `is_default: true`; a tree whose only builder of a kind is a dummy one must mark it. | Same. | Mark exactly one. |
-| `Multiple default builders found: <a> and <b>` at load | Two defaults in one list. | Same. | Keep one. |
-| `users builder 'dummy-users' specified for '<user>' not configured` at load | A user (or group) names a builder that is not declared. | Same. | Declare it or fix the `type:`. |
-| `Builder <name> sets email_as_username, but user name '<n>' != email '<e>'` at load | The inherited check refused a user. | Same. | Make them match, or set `email_as_username: false` on the builder. |
-| `Alias '<a>' is already registered under classification 'user_builder' ...` at load | An alias (or name) collides with another builder's. | Same. | Rename. |
-| `Type Collision: dummy` at plugin load | Another installed plugin registers a service named `dummy` under the same classification. | The CLI's startup error, raised by `Registry.register_plugin_metadata`. | Uninstall or rename the other plugin; the copied template must change its `csis_name()`. |
-| `Builder for model 'DummyGroupBuilderModel' is already registered.` at plugin load | Two plugin metadata objects bind the same model class in `builders_for_models`. | Same. | A copied plugin must define its own model classes. |
-| `validation: user '<n>': builder <b> (dummy) supports no attributes (declared [...])` | A user or group under a dummy builder declares `attributes:`. | The log, `validation_errors` in `generated/run-summary.json`, `meta-state/runs.yaml`. | Remove the attributes or move the item to a builder that supports them. |
-| `validation: base image '<img>' declares identity type 'dummy' but no identity plugin of that type is configured (known: [...])` | A base image names `dummy` in `identity_types` and no dummy group builder is declared. | Same. | Declare the builder or drop the type. |
-| `Unknown lifecycle 'notify'; expected one of [...] or 'all'`, exit 2 | `CSIS_DUMMY_LIFECYCLE` is not set in this process, or the hooks were not loaded before names resolved. | stderr. | Export the variable in the shell that runs the CLI. |
-| `on-summary hook notify_summary failed: [Errno 2] No such file or directory: '<path>'` (or a permission error) | `CSIS_NOTIFY_FILE` names a file in a directory that does not exist or cannot be written. The run's verdict is unchanged. | The log, at error level, after the summary. | Create the directory or point the variable elsewhere; the line for that run is lost. |
-| `Hook plugin dummy_hooks failed to initialize: <e>` or `Hook plugin dummy_hooks returned <type>, not a HookSet` | `initialize()` raised or returned the wrong thing (only possible in a modified copy). | The log, at error level, at hook load; the plugin is skipped and the run continues without its hooks. | Fix the copy's `initialize()`. |
-| `Lifecycle 'notify' is already registered with a different definition` | A second `notify` spec that differs from the first (only a modified copy can cause it). | Raised from `load_hook_plugins()`, caught and logged as `failed to initialize`. | Give the copy's lifecycle its own name. |
-| `export-gids: DummyGroupBuilder does not implement a gid shim; ...`, exit 1 | Something asked the gid shim for identity type `dummy`. | stderr of the `data "external"` program in the terraform run. | Nothing emits such a query for this plugin; a copied plugin that needs gids must implement `export_gids()`. |
-
+  Fixed in stage 63 item 1 (2026-09-24): both return `AssetSet()`, and a
+  declared dummy builder with a group on it now loads, validates and runs
+  the identity lifecycle dry, emitting nothing (`tests/test_v2_defects_low_hanging.py`).
 ## Related
 
 - Base classes: [group_builder.py](../base/src/cs_image_system/base/models/group_builder.py), [user_builder.py](../base/src/cs_image_system/base/models/user_builder.py), [builder_base.py](../base/src/cs_image_system/base/basic/builder_base.py), [builder_base_group.py](../base/src/cs_image_system/base/basic/builder_base_group.py), [builder_base_user.py](../base/src/cs_image_system/base/basic/builder_base_user.py), [abstract_plugin_metadata.py](../base/src/cs_image_system/base/basic/abstract_plugin_metadata.py).

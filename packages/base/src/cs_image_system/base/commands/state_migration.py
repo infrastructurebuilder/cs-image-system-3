@@ -70,8 +70,15 @@ def parse_backend_config(path: Path) -> dict[str, Any]:
     return out
 
 
+#: Keys of a state-location record that are the RECORD's, not the backend's:
+#: a backend file carries only what the backend type takes. ``location`` is the
+#: rendered form every record has carried since stage 47 (stage 63 item 6: it
+#: reached the previous-location file, which no backend could initialise).
+RECORD_ONLY_KEYS = ("backend", "type", "run", "location")
+
+
 def render_record(record: dict[str, Any], comment: str) -> list[str]:
-    settings = {k: v for k, v in record.items() if k not in ("backend", "type", "run")}
+    settings = {k: v for k, v in record.items() if k not in RECORD_ONLY_KEYS}
     lines = [comment]
     for k, v in settings.items():
         lines.append(f"{k} = {str(v).lower()}" if isinstance(v, bool) else f'{k} = "{v}"')

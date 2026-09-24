@@ -266,7 +266,10 @@ every other phase.
      `cs-image-system apply-check --lifecycle identity --root <ws>`
      followed by `tofu apply -input=false tfplan`. When any group or user
      declares `attributes:`, one more deferred command follows:
-     `cs-image-system identity-attributes --probe --dry-run-apply`.
+     `cs-image-system --root-dir <root> --no-dry-run identity-attributes --probe --dry-run-apply`
+     (with the configuration since stage 63 item 8; until 2026-09-24 the
+     step was emitted bare and loaded from the root's mirror, which has no
+     `cfg/`, so a real run of a tree with attributes failed after the apply).
 7. `pre_finalize_phase` / `post_finalize_phase`: not overridden.
 
 The module call
@@ -322,7 +325,9 @@ group / project / enrollment-token / server listings under
 `.../workload-roles` (a hyphen) and `.../connections/workloads`. It writes
 only through `DELETE .../servers/{id}`, `POST .../security_policy` and `PUT
 .../security_policy/{id}`. Token values are never fetched or returned. A
-listing longer than one page is read as its first page. The policy
+listing longer than one page is followed through its `Link: <...>;
+rel="next"` header to the last page (stage 63 item 12; until 2026-09-24
+the first page alone was read). The policy
 derivation is pure code in
 [workload_policy.py](src/cs_image_system/okta_opa_plugin/workload_policy.py).
 

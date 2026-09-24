@@ -537,15 +537,17 @@ def validate_claimed_hostnames(ctx: "GlobalTypeContext", requested: list[Lifecyc
     records, because that ambiguity is what made ``sft ssh`` unusable.
 
     Two deliberate limits. It runs only when the instance-image lifecycle is
-    requested AND applies are enabled, so a dry run or an unrelated command
-    never makes a network call. And an unreachable registry is a refusal
+    requested AND applies are enabled AND the run is not a dry run, so a dry
+    run or an unrelated command never makes a network call (stage 63 item
+    10: until 2026-09-24 the dry-run flag was not read, so a dry run with
+    the apply flag on asked the registry and could refuse on silence). And an unreachable registry is a refusal
     saying the claim COULD NOT BE CHECKED -- never "the name is free" (stage
     57's rule: silence is not an answer), because an unreachable OPA is
     exactly when a duplicate would otherwise slip through."""
     if Lifecycle.INSTANCE_IMAGE not in requested:
         return []
     from .utils import apply_enabled
-    if not apply_enabled("instances"):
+    if not apply_enabled("instances") or getattr(ctx, "dry_run", False):
         return []
     errors: list[str] = []
     recorded = ctx.meta_state.launch_params()

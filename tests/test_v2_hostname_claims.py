@@ -55,7 +55,7 @@ def test_names_a_hostname_may_not_be_are_refused(name, fragment):
 
 @pytest.fixture
 def world(tmp_path: Path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+    run = V2Run(tmp_path, monkeypatch, dry_run=False)   # the check reads the dry-run flag since stage 63 item 10
     try:
         yield run
     finally:

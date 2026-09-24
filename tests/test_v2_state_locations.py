@@ -206,7 +206,9 @@ def migration(tmp_path):
     tofu = tmp_path / "tofu"
     tofu.write_text(
         "#!/bin/sh\n"
-        'if [ "$1" = init ]; then for a in "$@"; do case "$a" in -backend-config=*) printf %s "${a#-backend-config=}" > .current-backend;; esac; done; exit 0; fi\n'
+        # a backend file carrying an argument no backend takes (`location`, the record's
+        # own key) fails the init, as tofu's would (stage 63 item 6)
+        'if [ "$1" = init ]; then for a in "$@"; do case "$a" in -backend-config=*) f="${a#-backend-config=}"; grep -q "^location" "$f" && { echo "Unsupported argument: location" >&2; exit 1; }; printf %s "$f" > .current-backend;; esac; done; exit 0; fi\n'
         'if [ "$1" = state ] && [ "$2" = pull ]; then f=$(cat .current-backend); [ -f "state-for-$f.json" ] && cat "state-for-$f.json"; exit 0; fi\n'
         'echo "unexpected: $*" >&2; exit 1\n')
     tofu.chmod(0o755)

@@ -53,15 +53,12 @@ class DummyGroupBuilder(GroupBuilderBase[DummyGroupBuilderModel]):
 
     def generate_items_during(
         self, phase: ExecutionLifecyclePhase
-    ) -> list[tuple[Path, str]]:
-        """Generate a list of items to create during a specific execution lifecycle
-        event."""
-        items: list[tuple[Path, str]] = []
-        if (
-            phase == ExecutionLifecyclePhase.GROUP_GENERATION
-        ): 
-            ...
-        return items
+    ) -> AssetSet:
+        """Generate the items to create during a specific execution lifecycle
+        event: none, as an ``AssetSet`` (the contract's type; the generators
+        call ``sort_and_write`` on it, and a bare list broke the identity
+        lifecycle for any declared ``type: dummy`` builder -- stage 63 item 1)."""
+        return AssetSet()
 
     def get_commands_to_run_during(
         self, phase: ExecutionLifecyclePhase
@@ -129,10 +126,10 @@ class DummyUserBuilder(UserBuilderBase[DummyUserBuilderModel]):
 
     def generate_items_during(
         self, phase: ExecutionLifecyclePhase
-    ) -> list[tuple[Path, str]]:
-        """Generate a list of items to create during a specific execution lifecycle
-        event."""
-        return []
+    ) -> AssetSet:
+        """Generate the items to create during a specific execution lifecycle
+        event: none, as an ``AssetSet`` (stage 63 item 1)."""
+        return AssetSet()
 
     def get_commands_to_run_during(
         self, phase: ExecutionLifecyclePhase
