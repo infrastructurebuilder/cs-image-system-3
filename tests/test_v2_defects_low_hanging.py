@@ -103,3 +103,14 @@ def test_a_registry_collision_is_named_without_the_models_repr(tmp_path: Path, m
     assert "collide on the registry key" in message and "rename one" in message, message
     assert "TofuS3StateBuilderModel(" not in message and "bucket=" not in message, "no repr, no field values"
     reset_singletons()
+
+
+# ------------------------------- 6. the migration's previous-location file
+
+def test_the_previous_location_file_carries_no_record_only_key():
+    from cs_image_system.base.commands.state_migration import RECORD_ONLY_KEYS, render_record
+    record = {"backend": "s3-east1", "type": "s3", "run": "r0", "location": "s3://old/statefiles/ws.tfstate",
+              "bucket": "old", "key": "statefiles", "region": "us-east-1", "encrypt": True}
+    lines = render_record(record, "# previous")
+    assert lines == ["# previous", 'bucket = "old"', 'key = "statefiles"', 'region = "us-east-1"', "encrypt = true"], lines
+    assert "location" in RECORD_ONLY_KEYS
