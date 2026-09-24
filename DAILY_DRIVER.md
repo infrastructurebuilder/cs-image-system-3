@@ -567,7 +567,7 @@ declares.
   [configuration](packages/system/README.md#configuration-reference) ·
   [tests](packages/system/README.md#what-it-tests-and-verifies) ·
   [failures](packages/system/README.md#when-it-fails)
-- [hashicorp-utils](packages/hashicorp-utils/README.md): the terraform
+- [hashicorp-utils](packages/hashicorp-utils/README.md): the terraform/tofu
   library: providers and backends by reference, the init, the gated plan
   then gate then apply sequence, the private mirror for plans and applies.
   [prerequisites](packages/hashicorp-utils/README.md#prerequisites-and-integration) ·
@@ -625,7 +625,7 @@ declares.
   [tests](packages/okta-opa-plugin/README.md#what-it-tests-and-verifies) ·
   [failures](packages/okta-opa-plugin/README.md#when-it-fails)
 - [tf-ebs-instance-plugin](packages/tf-ebs-instance-plugin/README.md):
-  instances and storages on AWS: the instance root, EBS, EFS and S3,
+  terraform/tofu-backed instances and storages on AWS: the instance root, EBS, EFS and S3,
   attachments, detaches, archives, the gate's whitelist, the release
   grace's evidence.
   [prerequisites](packages/tf-ebs-instance-plugin/README.md#prerequisites-and-integration) ·
@@ -659,8 +659,8 @@ declares.
 
 ## 8. The daily habits
 
-1. Start the shell in the configuration repository: `source .envrc`, the
-   profile, `just preflight`.
+1. Start the shell in the configuration repository: `source .envrc` \[or install `direnv` 
+   so that the system does it for you\], the profile, `just preflight`.
 2. `just validate` after every edit; `just dry` before every real run;
    read the script it wrote.
 3. `just cloud-preflight` before any cycle: reality must match the
@@ -668,25 +668,28 @@ declares.
    starts; that is the point.
 4. Real runs commit their records; you push. `main` performs; everything
    else is read-only in CI.
-5. `just test` before every commit (the sessions present), `just
+6. `just test` before every commit (the sessions present), `just
    full-test` before a performing run you make by hand.
-6. GCP costs are yours: a cycle there ends with `just cloud-empty`, and
+7. GCP costs are yours: a cycle there ends with `just cloud-empty`, and
    any billable resource left standing is named with its cost.
-7. When something fails, the row in section 6 first, then the hygiene
+8. When something fails, the row in section 6 first, then the hygiene
    bundle in [TODO.md](TODO.md); a new failure gets a row.
-8. Upgrade the system deliberately: a new release, then `just validate`,
+9. Upgrade the system deliberately: a new release, then `just validate`,
    `just dry`, and the diff of `generated/` read before anything runs.
 
 ## 9. If you develop the system itself
 
+Development generally requires a tool that can run `docker` commands, like
+docker desktop or OrbStack (maybe PodMan).
+
 Everything above is for a release. Developing the system is this
 repository: `just init`, then `just test` is the bar (lint, types, the
-fast suite over the frozen fixture and its golden emission), `just
-full-test` adds the docker-backed modification tests and, when the
+fast suite over the frozen fixture and its golden emission), `just full-test` 
+adds the docker-backed modification tests and, when the
 sessions are present, a dry run and a strict state query over a private
 copy of the reference configuration, which is checked out BESIDE this
-repository as `cs-image-system-testconfig` for that purpose alone; `just
-release <part|version> [test|pypi]` cuts a release to the index. The
+repository as `cs-image-system-testconfig` for that purpose alone; 
+`just release <part|version> [test|pypi]` cuts a release to the index. The
 recipes here drive that reference configuration through `just cli ...`
 for the system's own live proofs; a team's repository is driven by its own
 `Justfile` and never needs this one. Read [OPERATIONS.md](docs/OPERATIONS.md),
