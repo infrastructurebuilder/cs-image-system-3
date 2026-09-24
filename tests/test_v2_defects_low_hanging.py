@@ -114,3 +114,28 @@ def test_the_previous_location_file_carries_no_record_only_key():
     lines = render_record(record, "# previous")
     assert lines == ["# previous", 'bucket = "old"', 'key = "statefiles"', 'region = "us-east-1"', "encrypt = true"], lines
     assert "location" in RECORD_ONLY_KEYS
+
+
+# ------------------------- 7. a GCE instance receives the build it baked
+
+def test_the_gce_root_receives_the_build_its_run_baked_under_its_own_variable(tmp_path: Path, monkeypatch):
+    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.base.models.provider_specific_image import GenericProviderSpecificImage, PSISourceKind
+    run = V2Run(tmp_path, monkeypatch)
+    try:
+        assert run.run(["instance-image"], apply=False).ok
+        ctx = run.ctx
+        psi = GenericProviderSpecificImage.resolved(source_name="imgfile-basic-dask", source_kind=PSISourceKind.IMAGE,
+                                                    runtime="gcloud-east1", identifier="projects/p/global/images/dask-0007")
+        monkeypatch.setattr(ctx, "get_provider_specific_image", lambda source, runtime: psi)
+        ctx.current_lifecycle = Lifecycle.INSTANCE_IMAGE
+        ctx.instance_builders["tofu-gce"].pre_finalize_phase(ExecutionLifecyclePhase.INSTANCE_GENERATION)
+        tfvars = (run.generated / "instance-image" / "tofu-gce" / "instance-generation" / "instances.auto.tfvars").read_text()
+        assert 'gce_test_image = "projects/p/global/images/dask-0007"' in tfvars, tfvars
+        assert "_ami_id" not in tfvars, "the AWS root's variable name, which no GCE root declares"
+        root = (run.generated / "instance-image" / "tofu-gce" / "instance-generation").glob("*.tf")
+        assert any('variable "gce_test_image"' in p.read_text() for p in root), "the root declares the variable the tfvars sets"
+    finally:
+        ctx.current_lifecycle = None
+        run.restore_cwd()

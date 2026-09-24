@@ -249,10 +249,11 @@ decommission whitelist, `pre_finalize_phase` and `post_finalize_phase`.
 
 Two consequences of the inheritance:
 
-- `pre_finalize_phase` writes `instances.auto.tfvars` with `<label>_ami_id`
-  lines. The GCE root declares `<label>_image`, not `<label>_ami_id`, so
-  those values do not reach the GCE module call. An image that is deferred
-  at generation launches through `image_family`.
+- `pre_finalize_phase` writes `instances.auto.tfvars` with `<label>_image`
+  lines (the builder's `_ami_var` names the GCE root's variable since stage
+  63 item 7; until 2026-09-24 it wrote `<label>_ami_id`, which no GCE root
+  declared, so a build this run baked never reached the module call). An
+  image that is deferred at generation launches through `image_family`.
 - `post_finalize_phase` then binds the pin from reality: the gcloud runtime
   answers `can_query_instance_boot_image()`, so an unpinned, non-ephemeral
   instance is bound to the image it actually booted, provided lineage
@@ -1033,11 +1034,12 @@ Failures the code raises that have not happened live:
   failed). `sft`/`gcloud compute ssh` in, unmount by hand, then `unmount
   storage --confirm ...` records the operator's word.
 - **`Value for undeclared variable` warnings from tofu** on the GCE root
-  after a bake in the same run: `pre_finalize_phase` (inherited) writes
-  `<label>_ami_id = "..."` into `instances.auto.tfvars`, and the GCE root
-  declares `<label>_image`. Harmless as a warning: the instance launches
-  through the family and the pin is bound from the resolved image after
-  the apply.
+  after a bake in the same run (until stage 63 item 7, 2026-09-24):
+  `pre_finalize_phase` wrote `<label>_ami_id = "..."` into
+  `instances.auto.tfvars` while the GCE root declares `<label>_image`, so
+  the instance launched through the family instead of the build. Fixed:
+  the line names `<label>_image`; a warning like it now means a root and
+  its tfvars disagree for another reason.
 - **The startup script stops before "Finished running startup scripts"**
   (`verify instance` times out or reports a failure line): under `set
   -e`, a failed `mkfs`, `mount` or `chgrp` ends it. The serial console

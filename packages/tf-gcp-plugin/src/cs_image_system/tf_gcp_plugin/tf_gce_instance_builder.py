@@ -45,6 +45,16 @@ class TofuGceInstanceBuilder(TofuInstanceBuilder[Q]):
     def _image_var(label: str) -> str:
         return f"{label}_image"
 
+    @staticmethod
+    def _ami_var(label: str) -> str:
+        """The variable the inherited ``pre_finalize_phase`` writes into
+        ``instances.auto.tfvars`` for a build this run baked: the GCE root
+        declares ``<label>_image``, not the AWS root's ``<label>_ami_id``
+        (stage 63 item 7: the tfvars line named a variable no GCE root
+        declared, tofu warned, and the instance launched through
+        ``image_family`` instead of the build)."""
+        return TofuGceInstanceBuilder._image_var(label)
+
     def generate_items_before(self, phase: ExecutionLifecyclePhase) -> AssetSet:
         items = AssetSet()
         if phase != ExecutionLifecyclePhase.INSTANCE_GENERATION or not self._root_has_work():
