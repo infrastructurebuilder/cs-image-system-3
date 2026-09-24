@@ -125,7 +125,7 @@ Fields it adds:
 | `state_configuration` | `str` | `DEFAULT` | Foreign key to a state backend. The second rung of every storage and instance root's backend resolution on this runtime: a root whose own `state_configuration` is `default` inherits this one; `default` here falls through to the default backend (stage 46.2, [orchestrator.py](../base/src/cs_image_system/base/orchestrator.py)). |
 | `ena_support` | `bool \| None` | `None` | Accepted, not read. |
 | `sriov_support` | `bool \| None` | `None` | Accepted, not read. |
-| `iam_instance_profile` | `str \| None` | `None` | Instance profile written into the packer source for build instances. Written after the SSM block, so when both are set it REPLACES `session_instance_profile` there; it is also the fallback SSM profile for bakes when `session_instance_profile` is unset. Never attached to launched instances. |
+| `iam_instance_profile` | `str \| None` | `None` | Instance profile written into the packer source for build instances when `session_instance_profile` is unset (it is also the SSM fallback then). When both are set the SSM profile wins (stage 63 item 9, decided 2026-09-24; until then this one, written after the SSM block, replaced it). Never attached to launched instances. |
 | `session_mechanism` | `str \| None` | `None` | `ssm` (any case, surrounding whitespace ignored) is the only value. Any other string is an error the first time the builder's `session_mechanism()` is called, which is at generation. |
 | `session_instance_profile` | `str \| None` | `None` | The SSM-capable instance profile given to launched instances (through the instance plugin) and to build instances (through the packer source). |
 | `ssh_username` | `str` | `DEFAULT` | When set, overrides the bake's SSH user for every image baked on this runtime, after every per-entry and per-family resolution. |
@@ -561,7 +561,7 @@ value column means the literal string `default`.
 | `state_configuration` | str | `default` | The backend a storage or instance root on this runtime inherits when its own is `default`; `default` here means the default backend. |
 | `session_mechanism` | str or null | null | `ssm` bakes the SSM agent into base images, makes packer connect through Session Manager, attaches `session_instance_profile` to instances, and makes every instance operation possible (verification, unmount, post-bake tests, aliases). Any other value is refused at generation. |
 | `session_instance_profile` | str or null | null | The instance profile for launched instances and (when `iam_instance_profile` is unset) build instances. Read only when the mechanism is `ssm`. |
-| `iam_instance_profile` | str or null | null | The build instances' profile in the packer source; when set it replaces `session_instance_profile` there. Never reaches launched instances. |
+| `iam_instance_profile` | str or null | null | The build instances' profile in the packer source when `session_instance_profile` is unset; with both set the SSM profile wins (stage 63 item 9). Never reaches launched instances. |
 | `ssh_username` | str | `default` | Overrides the bake SSH user for every image on this runtime, last in the resolution. |
 | `networking` | mapping or null | null | See below. Null loads with a warning and fails at image generation. |
 | `ephemeral` | bool | `false` | Nothing baked here survives a successful run: the closing retention disposes every build on this runtime. |
@@ -621,9 +621,10 @@ These are not this plugin's fields, but the packer source reads them:
   operation fails with SSM's `TargetNotConnected` / `InvalidInstanceId`.
   **Declared without any profile:** the agent is baked and verified, but
   the source keeps the SSH communicator (the SSM block needs a profile).
-- **`iam_instance_profile` set beside `session_instance_profile`.** The
-  build instances wear `iam_instance_profile`; launched instances wear
-  `session_instance_profile`.
+- **`iam_instance_profile` set beside `session_instance_profile`.** Both
+  build and launched instances wear `session_instance_profile` (the SSM
+  profile wins, stage 63 item 9); `iam_instance_profile` applies to build
+  instances only when the SSM profile is unset.
 - **`networking.network: default`** resolves to the account's default VPC
   at load and is refused when the account has none. **A VPC id** must be one
   the session can describe.

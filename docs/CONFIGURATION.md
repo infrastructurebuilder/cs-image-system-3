@@ -364,7 +364,7 @@ image, instance and storage builders) add:
 | `state_configuration` | str | `default` | a state backend (section 10); `default` inherits the runtime's, else the default backend |
 | `ena_support` | bool or null | null | accepted; not read -- nothing emits it into a packer source |
 | `sriov_support` | bool or null | null | accepted; not read |
-| `iam_instance_profile` | str or null | null | instance profile attached to build VMs; when `session_instance_profile` is also set, this one is written after the SSM block and replaces it on the build VM |
+| `iam_instance_profile` | str or null | null | instance profile attached to build VMs when `session_instance_profile` is unset; with both set the SSM profile wins |
 | `session_mechanism` | str or null | null | `ssm`: bakes and debug sessions go through SSM (the agent is baked into base images) |
 | `session_instance_profile` | str or null | null | the profile attached to launched instances for SSM sessions |
 | `ssh_username` | str | `default` | override of the bake ssh user |

@@ -148,7 +148,10 @@ def amazon_ebs_source(model: AwsCloudBuilderModel, image: Any, *, runtime: str, 
         c["availability_zone"] = networking.default_availability_zone
     if model.ssh_username and model.ssh_username not in OOPS_DEFAULTS:
         c["ssh_username"] = model.ssh_username
-    if model.iam_instance_profile:
+    if model.iam_instance_profile and "iam_instance_profile" not in c:
+        # the SSM profile wins when both are set (stage 63 item 9, decided
+        # 2026-09-24): this assignment used to run after the SSM block and
+        # replace it, so a runtime with both baked under the wrong profile
         c["iam_instance_profile"] = model.iam_instance_profile
     lmap = {
         # The SOURCE AMI's real root device, never a hardcoded name: RHEL

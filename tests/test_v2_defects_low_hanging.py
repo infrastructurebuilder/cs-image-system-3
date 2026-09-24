@@ -161,3 +161,24 @@ def test_the_attributes_probe_step_carries_the_configuration(tmp_path: Path, mon
         assert "--root-dir" in probe[0] and "--no-dry-run" in probe[0], probe[0]
     finally:
         run.restore_cwd()
+
+
+# ------------------------------------- 9. the SSM profile wins a bake
+
+def test_the_ssm_profile_wins_the_bake_when_both_profiles_are_set(tmp_path: Path, monkeypatch):
+    root = copy_config(tmp_path)
+    p = root / "cfg" / "runtime-builders.yml"
+    data = yaml.safe_load(p.read_text())
+    aws = next(r for r in data["runtime_builders"] if r["name"] == "aws-east2-runtime")
+    assert aws.get("session_instance_profile"), "the fixture's AWS runtime declares an SSM profile"
+    aws["iam_instance_profile"] = "the-other-profile"
+    p.write_text(yaml.safe_dump(data, sort_keys=False))
+    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    try:
+        assert run.run(["base-image"], apply=False).ok
+        sources = list((run.generated / "base-image").rglob("*.pkr.hcl"))
+        text = "\n".join(s.read_text() for s in sources)
+        assert 'iam_instance_profile = "AmazonSSMRoleForInstancesQuickSetup"' in text
+        assert "the-other-profile" not in text, "the SSM profile wins on every source"
+    finally:
+        run.restore_cwd()
