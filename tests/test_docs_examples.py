@@ -272,3 +272,55 @@ def test_the_complete_tree_carries_every_variation(tree):
     assert any(getattr(g.model, "workload_connection", None) for g in ctx.group_builders.values())
     assert (root / "meta-state" / "aliases.txt").is_file()
     assert any(i.get_name() == "gce-node" for i in ctx.instances)
+
+
+# ------------------------------------------------ the starter parts (stage 62 redux)
+
+STARTER_FILES = ["Justfile", ".github/workflows/ci.yml", ".githooks/pre-commit", ".gitignore",
+                 "scripts/with-tofu-lock", "scripts/opa-workload-token", "scripts/normalise-emission"]
+
+
+def test_every_example_is_a_whole_repository_a_team_can_copy():
+    """A configuration repository carries its own Justfile, CI, hook, helper
+    scripts and terraform modules; the system is installed from a release,
+    never cloned beside it. The copies must be the release's, byte for byte."""
+    import stat
+    for name in TREES:
+        root = EXAMPLES / name
+        for rel in STARTER_FILES:
+            assert (root / rel).is_file(), f"{name} lacks {rel}"
+        for rel in (".githooks/pre-commit", "scripts/with-tofu-lock", "scripts/opa-workload-token", "scripts/normalise-emission"):
+            assert (root / rel).stat().st_mode & stat.S_IXUSR, f"{name}/{rel} is not executable"
+            assert (root / rel).read_bytes() == (REPO / rel).read_bytes(), f"{name}/{rel} differs from the release's"
+        ours = sorted(p.relative_to(REPO / "tfmodules") for p in (REPO / "tfmodules").rglob("*") if p.is_file())
+        theirs = sorted(p.relative_to(root / "tfmodules") for p in (root / "tfmodules").rglob("*") if p.is_file())
+        assert ours == theirs, f"{name}/tfmodules does not carry the release's modules"
+        for rel in ours:
+            assert (root / "tfmodules" / rel).read_bytes() == (REPO / "tfmodules" / rel).read_bytes(), f"{name}/tfmodules/{rel} differs"
+        cfg = (root / "cfg" / "_config.yml").read_text()
+        assert re.search(r"module_source_base:\s*tfmodules\b", cfg), f"{name}: module_source_base must be the tree's own tfmodules"
+        assert "REPLACE-ME" in (root / ".github/workflows/ci.yml").read_text(), f"{name}: the workflow's team values must be marked"
+
+
+def test_the_starter_justfile_parses_and_leads_with_the_contract():
+    import shutil, subprocess
+    just = shutil.which("just")
+    if not just:
+        pytest.skip("just is not on PATH")
+    for name in TREES:
+        out = subprocess.run([just, "--justfile", str(EXAMPLES / name / "Justfile"), "--list", "--unsorted"],
+                             capture_output=True, text=True, check=True).stdout
+        names = [ln.split()[0] for ln in out.splitlines()[1:] if ln.strip()]
+        assert names[:5] == ["init", "build", "test", "full-test", "release"], f"{name}: {names[:5]}"
+        for recipe in ("validate", "dry", "run", "cloud-launch", "cloud-upgrade", "ci-login-proof", "public-safe"):
+            assert recipe in names, f"{name}: no recipe {recipe}"
+
+
+def test_the_starter_workflow_has_the_three_jobs():
+    for name in TREES:
+        doc = yaml.safe_load((EXAMPLES / name / ".github/workflows/ci.yml").read_text())
+        assert set(doc["jobs"]) == {"verify", "live", "perform"}, f"{name}: {sorted(doc['jobs'])}"
+        assert doc["jobs"]["live"]["needs"] == "verify" and doc["jobs"]["perform"]["needs"] == "live"
+        text = (EXAMPLES / name / ".github/workflows/ci.yml").read_text()
+        assert "uv tool install" in text and "cs-image-system" in text, f"{name}: the workflow must install a release"
+        assert "just mirror-clean" in text, f"{name}: the mirror must be removed even on failure"

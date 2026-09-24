@@ -3,7 +3,7 @@
 The smallest tree a team writes to get going on the GCE plugin set, in the
 shape of a real configuration repository. Copy it, replace every
 `REPLACE-ME` value, and it is a configuration:
-`cs-image-system --root-dir <copy> validate`.
+`just init`, then `just validate`.
 
 What it declares (one of everything):
 
@@ -45,8 +45,30 @@ saying what was decided and what the alternatives are.
 - The vendor-image project (`almalinux-cloud`) is a public fact, not a team
   value.
 
+## What travels with the tree
+
+This tree is a whole configuration REPOSITORY, not only the YAML. Copy it
+as it stands and every part a team needs is already there:
+
+| Part | What it is |
+| --- | --- |
+| `Justfile` | the single entry point: the five contract targets (`init`, `build`, `test`, `full-test`, `release`) and every daily and cycle recipe, each wrapping the released `cs-image-system` command against this tree |
+| `.github/workflows/ci.yml` | the repository's own CI: `verify` (no secrets), `live` (read-only against the clouds), `perform` (on `main`, under the write role, records pushed back); every `REPLACE-ME` in it is a team value |
+| `.githooks/pre-commit` | the public-safe gate on every commit; `just init` installs it |
+| `tfmodules/` | the terraform modules the emitted roots call, at `module_source_base: tfmodules`; a copy of the release's, byte for byte (a stage makes the release ship them) |
+| `scripts/` | the three helpers the recipes use: one tofu process at a time, the CI login token, the emission normaliser |
+| `.gitignore` | the shell's exports, every credential file, the private mirror, tool residue; `generated/` and `meta-state/` ARE committed |
+| `.csis-version` | absent here: create it with a version to pin the release CI installs |
+
+The system itself is installed from a release, never cloned beside the
+tree: `uv tool install cs-image-system` puts the command on `PATH`, or a
+`pyproject.toml` here that depends on it and `export CSIS="uv run
+cs-image-system"`. [DAILY_DRIVER.md](../../../DAILY_DRIVER.md) is the
+narrative, from the first command on.
+
 ## Before the first run
 
+- The released system: `uv tool install cs-image-system`, then `just init`.
 - Application Default Credentials for the project (`gcloud auth
   application-default login`, or `GOOGLE_APPLICATION_CREDENTIALS`): the
   load resolves the project and checks the network and subnetwork.
@@ -55,10 +77,11 @@ saying what was decided and what the alternatives are.
 - The OPA API pair in the environment as `TF_VAR_<team>_key` and
   `TF_VAR_<team>_secret` (`<team>` with non-alphanumerics replaced by `_`):
   the group builder asserts they exist when it loads, not only at apply.
-- The terraform modules reachable at `config.module_source_base`.
+- `CSIS_CONFIG_IDENTITY` pointing at an identity that opens the tree's
+  `ENC[age:...]` values.
 - `tests/test_docs_examples.py` in the cs-image-system repository loads and
-  validates this tree with every cloud and tool stubbed, so it stays
-  loadable as the code moves.
+  validates this tree with every cloud and tool stubbed, and holds its
+  starter parts to the release's.
 
 The AWS twin is [`../standard-aws/`](../standard-aws/README.md); every field
 and variation is in [`../complete/`](../complete/README.md).

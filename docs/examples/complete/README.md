@@ -78,3 +78,36 @@ part ways; each is worked around here and commented at the spot:
 
 The smallest trees are [`../standard-aws/`](../standard-aws/README.md) and
 [`../standard-gce/`](../standard-gce/README.md).
+
+## What travels with the tree
+
+This tree is a whole configuration REPOSITORY, not only the YAML. Copy it
+as it stands and every part a team needs is already there:
+
+| Part | What it is |
+| --- | --- |
+| `Justfile` | the single entry point: the five contract targets (`init`, `build`, `test`, `full-test`, `release`) and every daily and cycle recipe, each wrapping the released `cs-image-system` command against this tree |
+| `.github/workflows/ci.yml` | the repository's own CI: `verify` (no secrets), `live` (read-only against the clouds), `perform` (on `main`, under the write role, records pushed back); every `REPLACE-ME` in it is a team value |
+| `.githooks/pre-commit` | the public-safe gate on every commit; `just init` installs it |
+| `tfmodules/` | the terraform modules the emitted roots call, at `module_source_base: tfmodules`; a copy of the release's, byte for byte (a stage makes the release ship them) |
+| `scripts/` | the three helpers the recipes use: one tofu process at a time, the CI login token, the emission normaliser |
+| `.gitignore` | the shell's exports, every credential file, the private mirror, tool residue; `generated/` and `meta-state/` ARE committed |
+| `.csis-version` | absent here: create it with a version to pin the release CI installs |
+
+The system itself is installed from a release, never cloned beside the
+tree: `uv tool install cs-image-system` puts the command on `PATH`, or a
+`pyproject.toml` here that depends on it and `export CSIS="uv run
+cs-image-system"`. [DAILY_DRIVER.md](../../../DAILY_DRIVER.md) is the
+narrative, from the first command on.
+
+## Before the first run
+
+- The released system: `uv tool install cs-image-system`, then `just init`.
+- Sessions for every runtime it declares (two AWS profiles and a GCP
+  project), the OPA API pair as `TF_VAR_<team>_key` / `TF_VAR_<team>_secret`,
+  and `CSIS_CONFIG_IDENTITY` for its `ENC[age:...]` values. It is a
+  catalogue of every field and variation, loadable as it stands; a team
+  starts from a standard tree and looks things up here.
+
+The standard trees are [`../standard-aws/`](../standard-aws/README.md) and
+[`../standard-gce/`](../standard-gce/README.md).

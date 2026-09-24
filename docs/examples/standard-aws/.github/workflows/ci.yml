@@ -1,0 +1,224 @@
+name: CI
+
+# The CI of a cs-image-system CONFIGURATION repository. Every command is a `just`
+# target of this tree, so CI and a person's shell run the same thing. Three jobs:
+#   verify   needs no secret: the tree must be public-safe and its Justfile must parse
+#   live     read-only against the clouds and OPA: validate, a dry run, the strict
+#            state query; pushes and the nightly schedule, never pull requests
+#   perform  on main alone, under the WRITE role: the performing run of the runtime
+#            named below, its records committed and pushed back here
+# Each job is gated on the secrets the team provides: none configured is SKIPPED
+# and said so in the job summary; some configured and some missing is a FAILURE
+# that names them (a secret that exists with no value reads as missing).
+#
+# REPLACE-ME: the runtime CI performs on, the team's TF_VAR names (the OPA key pair
+# is TF_VAR_<team>_key / TF_VAR_<team>_secret, the team name with non-alphanumerics
+# as `_`), and the region. Nothing in this file is a credential.
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "23 6 * * *"        # nightly (UTC): the strict state query, drift
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry enumerates the performing run; record commits and pushes it (honoured only on main)"
+        type: choice
+        options: [dry, record]
+        default: dry
+
+env:
+  PERFORM_RUNTIME: aws-REPLACE-ME          # the runtime `perform` drives (cfg/runtime-builders.yml)
+  AWS_REGION: us-east-2                    # REPLACE-ME
+  # a version pin for the release CI installs: the content of .csis-version, else the latest on PyPI
+  CSIS_VERSION_FILE: .csis-version
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v2
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+      - name: Install the released system
+        run: |
+          pin=""; [ -s "$CSIS_VERSION_FILE" ] && pin="==$(cat "$CSIS_VERSION_FILE")"
+          uv tool install "cs-image-system${pin}"
+          cs-image-system --help >/dev/null
+      - name: The Justfile parses and lists its recipes
+        run: just --list >/dev/null
+      - name: Public-safe
+        run: just public-safe
+
+  live:
+    needs: verify
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write          # OIDC federation for the read-only cloud role
+      contents: read
+    steps:
+      - name: Gate on the secrets
+        id: gate
+        env:
+          HAVE_AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN != '' }}
+          HAVE_OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY != '' }}
+          HAVE_TF_VAR_KEY: ${{ secrets.TF_VAR_KEY != '' }}
+          HAVE_TF_VAR_SECRET: ${{ secrets.TF_VAR_SECRET != '' }}
+          HAVE_CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY != '' }}
+        run: |
+          missing=""; present=0
+          for name in AWS_ROLE_ARN OKTA_API_PRIVATE_KEY TF_VAR_KEY TF_VAR_SECRET CSIS_CONFIG_IDENTITY; do
+            have="HAVE_$name"
+            if [ "${!have}" = true ]; then present=$((present + 1)); else missing="$missing $name"; fi
+          done
+          if [ "$present" -eq 0 ]; then
+            echo "live: SKIPPED -- no secret is configured, so no step runs (AWS_ROLE_ARN: a federated READ-ONLY role; OKTA_API_PRIVATE_KEY, TF_VAR_KEY, TF_VAR_SECRET: the Okta API app's key and the OPA key pair; CSIS_CONFIG_IDENTITY: the age identity that opens the tree's ENC values)"
+            { echo "## live: SKIPPED"; echo "No secret is configured; no step ran. A green conclusion here is not proof that anything ran."; } >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$missing" ]; then
+            echo "live: FAILED -- secrets are configured but these are missing or EMPTY:$missing"; exit 1
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.gate.outputs.ready == 'true'
+        uses: actions/checkout@v4
+      - if: steps.gate.outputs.ready == 'true'
+        uses: extractions/setup-just@v2
+      - if: steps.gate.outputs.ready == 'true'
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+      - name: Install the released system
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          pin=""; [ -s "$CSIS_VERSION_FILE" ] && pin="==$(cat "$CSIS_VERSION_FILE")"
+          uv tool install "cs-image-system${pin}"
+      - name: Federated AWS credentials
+        if: steps.gate.outputs.ready == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Name the federated credentials as the configuration's profile
+        if: steps.gate.outputs.ready == 'true'
+        # botocore ignores the environment keys once a profile is NAMED, so the profile the
+        # runtime names (credentials.profile_name) must exist in a credentials file
+        run: |
+          mkdir -p ~/.aws
+          profile=$(grep -m1 'profile_name:' cfg/runtime-builders.yml | awk '{print $2}')
+          printf '[%s]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n' \
+            "$profile" "$AWS_ACCESS_KEY_ID" "$AWS_SECRET_ACCESS_KEY" "$AWS_SESSION_TOKEN" > ~/.aws/credentials
+      - name: The identity that opens the tree
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          umask 077; printf '%s\n' "${{ secrets.CSIS_CONFIG_IDENTITY }}" > "$RUNNER_TEMP/age-identity"
+          echo "CSIS_CONFIG_IDENTITY=$RUNNER_TEMP/age-identity" >> "$GITHUB_ENV"
+          cs-image-system --root-dir . mask        # every encrypted value masked in this log before anything prints
+      - name: Validate, dry run, strict state query
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY }}
+          TF_VAR_REPLACE_ME_key: ${{ secrets.TF_VAR_KEY }}          # REPLACE-ME: TF_VAR_<team>_key
+          TF_VAR_REPLACE_ME_secret: ${{ secrets.TF_VAR_SECRET }}    # REPLACE-ME: TF_VAR_<team>_secret
+        run: |
+          just validate
+          just dry
+          just state-query --strict
+      - name: Remove the private mirror
+        if: always() && steps.gate.outputs.ready == 'true'
+        run: just mirror-clean
+
+  perform:
+    needs: live
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: perform            # two merges never perform at once
+      cancel-in-progress: false
+    permissions:
+      id-token: write
+      contents: write           # the records are committed and pushed back here
+    steps:
+      - name: Gate on the secrets and decide the mode
+        id: gate
+        env:
+          HAVE_AWS_APPLY_ROLE_ARN: ${{ secrets.AWS_APPLY_ROLE_ARN != '' }}
+          HAVE_OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY != '' }}
+          HAVE_TF_VAR_KEY: ${{ secrets.TF_VAR_KEY != '' }}
+          HAVE_TF_VAR_SECRET: ${{ secrets.TF_VAR_SECRET != '' }}
+          HAVE_CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY != '' }}
+          IS_RECORD: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.mode == 'record') }}
+        run: |
+          missing=""; present=0
+          for name in AWS_APPLY_ROLE_ARN OKTA_API_PRIVATE_KEY TF_VAR_KEY TF_VAR_SECRET CSIS_CONFIG_IDENTITY; do
+            have="HAVE_$name"
+            if [ "${!have}" = true ]; then present=$((present + 1)); else missing="$missing $name"; fi
+          done
+          if [ "$present" -eq 0 ]; then
+            echo "perform: SKIPPED -- no secret is configured (AWS_APPLY_ROLE_ARN: the federated WRITE role that trusts main alone; the Okta names and the identity as for live)"
+            { echo "## perform: SKIPPED"; echo "No secret is configured; no step ran."; } >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$missing" ]; then
+            echo "perform: FAILED -- secrets are configured but these are missing or EMPTY:$missing"; exit 1
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "record=$IS_RECORD" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.gate.outputs.ready == 'true'
+        uses: actions/checkout@v4
+      - if: steps.gate.outputs.ready == 'true'
+        uses: extractions/setup-just@v2
+      - if: steps.gate.outputs.ready == 'true'
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+      - name: Install the released system, packer and tofu
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          pin=""; [ -s "$CSIS_VERSION_FILE" ] && pin="==$(cat "$CSIS_VERSION_FILE")"
+          uv tool install "cs-image-system${pin}"
+          just sft-install
+          # packer and tofu at the floors cfg/executables.yml declares; validate refuses a version below them
+          echo "REPLACE-ME: install packer and tofu here (e.g. hashicorp/setup-packer and opentofu/setup-opentofu)"
+      - name: Federated AWS credentials (the write role)
+        if: steps.gate.outputs.ready == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_APPLY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Name the federated credentials as the configuration's profile
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          mkdir -p ~/.aws
+          profile=$(grep -m1 'profile_name:' cfg/runtime-builders.yml | awk '{print $2}')
+          printf '[%s]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n' \
+            "$profile" "$AWS_ACCESS_KEY_ID" "$AWS_SECRET_ACCESS_KEY" "$AWS_SESSION_TOKEN" > ~/.aws/credentials
+      - name: The identity that opens the tree
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          umask 077; printf '%s\n' "${{ secrets.CSIS_CONFIG_IDENTITY }}" > "$RUNNER_TEMP/age-identity"
+          echo "CSIS_CONFIG_IDENTITY=$RUNNER_TEMP/age-identity" >> "$GITHUB_ENV"
+          cs-image-system --root-dir . mask
+      - name: Perform on the runtime
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY }}
+          TF_VAR_REPLACE_ME_key: ${{ secrets.TF_VAR_KEY }}          # REPLACE-ME
+          TF_VAR_REPLACE_ME_secret: ${{ secrets.TF_VAR_SECRET }}    # REPLACE-ME
+        run: |
+          git config user.name "cs-image-system CI"
+          git config user.email "ci@users.noreply.github.com"
+          if [ "${{ steps.gate.outputs.record }}" = "true" ]; then
+            just cloud-perform "$PERFORM_RUNTIME"          # the run commits its records
+            just ci-login-proof                             # CI logs in through the managed policy, as the workload
+            git push origin HEAD:main
+          else
+            just cloud-bake "$PERFORM_RUNTIME" yes           # dry: enumerate only
+          fi
+      - name: Remove the private mirror
+        if: always() && steps.gate.outputs.ready == 'true'
+        run: just mirror-clean

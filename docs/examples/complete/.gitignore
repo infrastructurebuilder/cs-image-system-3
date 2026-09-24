@@ -1,0 +1,22 @@
+# The shell's exports and every credential file: never committed
+.envrc
+.private_key.pem
+.private_key.json
+.public_key.json
+*.pem
+.age-identity-*
+# The private mirror: the plaintext an execution runs from
+_private
+# Tool residue and the run-local files; generated/ itself IS committed (a
+# --commit run stages meta-state/ and generated/)
+**/.terraform/
+!**/.terraform.lock.hcl
+**/target/
+*.tfstate
+*.tfstate.backup
+tfplan
+*.tfvars
+.tofu-plugin-cache/
+YAML_DUMP.yaml
+__pycache__/
+.DS_Store

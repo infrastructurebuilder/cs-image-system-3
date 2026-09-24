@@ -52,7 +52,7 @@ config:
   # relative to THIS tree (rewritten for each root's depth), or an absolute
   # path, or a git/registry URL, which passes through unchanged. The modules
   # ship in the cs-image-system repository's tfmodules/ directory.
-  module_source_base: ../cs-image-system/tfmodules
+  module_source_base: tfmodules   # DECISION: the modules travel with the tree (copied from the release; a stage makes the release ship them)
   # REPLACE: the OPA gateway selector the group builder falls back to when it
   # sets no `gateway_selector` of its own (section 9.2).
   okta_gateway_selector: "environment=REPLACE-ME"
