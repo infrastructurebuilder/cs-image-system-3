@@ -129,9 +129,13 @@ Every terraform root's deferred sequence is:
 
 ```text
 rm -f tfplan
-tofu init -input=false -reconfigure [-backend-config=<root>.tfbackend.hcl]
+tofu init -input=false -reconfigure [-backend-config=<root>.tfbackend.hcl]                                                    (a migrating root instead: state-migration begin, then init -migrate-state -force-copy)
+cs-image-system state-migration backup --workspace <root> ...                                                                   (only before a pre-plan state rm)
+tofu state rm <address>                                                                                                         (only an unmanaged group's module)
+cs-image-system prune-attachments --builder <group builder> ...                                                                 (identity roots only, every run)
 tofu plan -input=false -out=tfplan [-replace=…] [-var=…]
 cs-image-system gate-plan --planfile tfplan --tofu <tofu> [--allow-destroy <addr>]... [--require-unmounted <inst>:<storage>]...
+cs-image-system state-migration finish --workspace <root> ...                                                                   (a migrating root only, after the gate)
 cs-image-system apply-check --lifecycle <key> --root <root> --root-alias <runtime> [--overlay <file>]... [--apply-runtime <rt>]   (only when an apply is emitted)
 tofu apply -input=false tfplan                                                                                                   (only when an apply is emitted)
 ```
@@ -142,10 +146,12 @@ tofu apply -input=false tfplan                                                  
 - `gate-plan` fails (exit 3, `DESTROY NOT WHITELISTED`) unless every
   planned destroy is whitelisted by `--allow-destroy`. The only
   whitelisted destroys are operation-driven: an instance replacement from
-  `upgrade instance`, an instance that was decommissioned (removed from
+  `upgrade instance` or a `follow` policy, together with the replaced
+  instance's volume attachments (they bind the volume to the instance's
+  id; found 2026-09-22), an instance that was decommissioned (removed from
   the YAML, or undeclared for the invocation), a storage whose requested
-  state is `destroyed` or `archived`, and an attachment whose detach was
-  unmounted first. `--require-unmounted` refuses (exit 3, `DETACH NOT
+  state is `destroyed` or `archived` or that is no longer declared, and an
+  attachment whose detach was unmounted first. `--require-unmounted` refuses (exit 3, `DETACH NOT
   UNMOUNTED`) without a successful receipt.
 - `apply-check` re-reads `cfg/_config.yml` (and the run's overlays) at
   EXECUTION time and exits 3 when the flag is off *now*, so a script
@@ -340,7 +346,9 @@ its group's registry. An unlaunched instance whose name is already
 registered is refused, naming the record; a launched one with more than one
 registration is refused too, because `sft ssh` cannot choose between them.
 The check runs ONLY when a launch is actually possible -- the lifecycle
-requested and `apply_instances` on -- so a dry run never makes the call.
+requested and `apply_instances` on. It does not read the dry-run flag, so
+a dry run with the flag on makes the call too and can refuse on a silent
+registry (a code stage names the fix if that is not wanted).
 And an unreachable registry is a refusal saying the claim *could not be
 checked*: silence is not a free name (the same rule the power-state query
 follows), and an unreachable OPA is exactly when a duplicate would
@@ -789,8 +797,9 @@ the disk absent and the snapshot present. Declaring it `active` again
 creates the disk *from* that snapshot (on EBS the module resolves the
 snapshot by its Name tag at plan time) and deletes the snapshot after the
 apply; `destroyed` from `archived` deletes the archive. The storage must
-be unattached first. The AWS scripts use the runtime's
-`--region`/`--profile` with credentials from the environment.
+be unattached first. The EBS scripts use the runtime's `--region` and
+`--profile` with credentials from the environment; the S3 wipe passes
+`--profile` alone.
 
 **Data lifecycles.** A storage may declare a `lifecycle:` its builder
 realizes on the resource: S3 `{transition_days, storage_class,
@@ -865,19 +874,28 @@ claims reality that no apply produced. The one exception is
 | `pins.yaml` | instance → build and image → base-build pins, with bind/upgrade/follow/dispose/decommission history and pending replacements | first bind, `upgrade`, decommission, dispose |
 | `launch-params.yaml` | per-instance launch parameters (mounts, group, enrollment kind, session) and the `launched` marker | instance-image lifecycle; marker after a real instance apply |
 | `runs.yaml` | the run journal (bounded to the last 200 runs; git history is the full record): run id, requested lifecycles, dry run or not, outcome, per-lifecycle apply status, error | every run |
-| `verifications.yaml` | instance verification verdicts (last 500) | `verify instance` |
+| `verifications.yaml` | instance verification verdicts, ephemeral and durable (last 500) | `verify instance` |
+| `instance-state.yaml` | per name, the durable and ephemeral generation counters, the open generation with its launch-parameter snapshot and provider id, and an append-only history | after a real instance apply (`mark_launched`), decommission |
+| `login-proofs.yaml` | every login proof: the machine, the checks, as client or as workload | `verify login`, `just ci-login-proof`, the CI job |
+| `aliases.txt` | the pool of memorable names: a person appends lines, a launch that can run comments the first free one out with what took it and when | the run that launches a new durable machine |
 | `image-tests.yaml` | the latest post-bake test result per build | `verify instance` |
 | `releases.yaml` | every release ever made and, per model, the current released build of each series | `release` |
 | `mod-tests.yaml` | modification test results keyed by the mod's content hash (apply + idempotence), so an unchanged mod is not re-tested | `test-mods` |
+| `state-locations.yaml` | every workspace's resolved state location (type, container, key) and the record of every move | every run, dry runs included, after generation |
 
 ### Where state lives
 
 Every terraform root keeps its state in exactly one *location*: the tuple
-(backend type, bucket, key prefix, state file name), the prefix normalised
-(repeated slashes collapsed, leading and trailing ones stripped, case
-kept). A root's location is readable from its `.tfbackend.hcl` beside the
-root -- `bucket`, `key`, `region` and the profile -- and every lifecycle
-runner's header lists them (`# state: workspace <ws> -> s3://…`). The
+(backend type, container, key), the key normalised (repeated slashes
+collapsed, leading and trailing ones stripped, case kept). A root's
+location is readable from its `.tfbackend.hcl` beside the root -- for
+`s3` the `bucket`, `key`, `region` and the profile; for `local` the `path`;
+for `gcs` the `bucket` and `prefix` -- and every lifecycle runner's header
+lists them (`# state: workspace <ws> -> s3://…`, `local://…`, `gcs://…`).
+A `local` state file never travels with the repository (it is ignored and
+never staged), so a real run from another checkout plans against an empty
+state and nothing in the system refuses that; keep such roots to one
+machine or move them with `--migrate-state`. The
 whole mechanism is gated by `use_state_backends` in `cfg/_config.yml`:
 off, no backend block, no backend file and no remote-state datasource is
 emitted, and none of what follows applies.
@@ -962,15 +980,22 @@ repository tracked them from an older tree removes them from the index
 
 | Command | Exit | Meaning |
 | --- | --- | --- |
-| `run` | 1 | any failure (validation, generation, apply, hard drift, an expired session before the load) |
+| `run` | 1 | any failure (validation, generation, apply, hard drift, an expired session before the load); a configuration that fails to LOAD exits 1 too, as `Error reading config file : <e>` followed by the traceback |
 | `run` | 2 | no or unknown lifecycle; unknown `--apply-runtime`/`--only-runtime` |
 | `validate` | 1 | any rule fails; generates nothing |
 | `preflight` | 2 | a session absent or expired (the configuration could not load), or a credential-shaped environment variable (`AWS_*`, `GOOGLE_*`, `OKTA_*`, `TF_VAR_*`, `CSIS_*`) that is set but EMPTY -- reported by name, never by value |
 | `preflight --strict` | 1 | a session expires within `config.preflight.expected_run_minutes` (default 30) |
-| `state query --strict` | 1 | hard drift; any drift class but `stale`; a session expiring within the window |
+| `state query` | 1 | hard drift |
+| `state query --strict` | 1 | hard drift; any drift class but `stale`; `unavailable` (a provider that could not answer); a session expiring within the window |
 | `gate-plan` | 3 | destroy not whitelisted, stale or missing planfile, detach not unmounted; 2 with no plan input |
 | `apply-check` | 3 | the flag is off now, no `cfg/_config.yml` found, or an overlay is gone |
 | `public-safe` | 1 | a finding; 2 when `--staged` is used outside a git repository |
+| `mask`, `materialize` | 1 | the identity cannot open a marker (`materialize`); `mask` prints nothing and exits 0 without an identity today, which a code stage names |
+| `verify login` | 1 | the login proof failed (registration count, resolve, login); 2 with no standing instance |
+| `forget instance` | 2 | the instance is still declared |
+| `workload describe --env` | 2 | the builder names no workload connection or role |
+| `state-migration`, `prune-attachments` | 1 | the step failed (a pull, a list or a removal); 2 on a wrong action or an unknown builder |
+| `run --migrate-state` under a dry run | 2 | a move needs `--no-dry-run` |
 | `empty --runtime` | 1 | a leftover or drift; 2 when the runtime cannot answer |
 | `test-mods` | 1 | a failed or non-idempotent mod; with `--strict`, any skip |
 | `release` | 1 | refused (evidence missing); 2 with no image and no `--declared` |
@@ -1613,7 +1638,8 @@ before the configuration loads — `encryption.recipients`,
 declaration's `name`/`type`. Each is a named refusal, and the check itself
 needs no identity.
 
-Tools (no configuration load, no identity needed except to decrypt):
+Tools (no configuration load; no identity needed except to decrypt, to mask
+and to materialize):
 
 - `just cli encrypt <value>` (or `-` for stdin) prints one marker;
 - `just cli encrypt --file F --field NAME…` encrypts fields in place,
@@ -1665,7 +1691,12 @@ every marker replaced by its plaintext, and the command runs there:
 Terraform's older by-reference path still stands for the okta roots: one
 `data "external" "sensitive"` block per root, program
 `cs-image-system decrypt --json`, wrapped as `local.sensitive[...]` with
-`sensitive()`.
+`sensitive()`. The rule that a marker may not be embedded in a longer
+string is a rule about the CONFIGURATION: a declared value is a whole
+marker or clear. The EMISSION is different: since stage 51 a derived
+address carries its marker inside the string (`avery.alpha@ENC[age:...]`)
+and both the by-reference program and `materialize` substitute markers
+wherever they stand in a text.
 
 **What a green bake proves.** An image's `tests:` become `inline` lines in a
 packer shell provisioner behind `set -e`, so each assertion must be able to
@@ -1699,6 +1730,9 @@ replacement: a runtime pointed at another zone does not fail to attach a
 volume, it plans to DESTROY and recreate it. The plan gate catches that as an
 unwhitelisted destroy, but only at apply time and naming the volume rather than
 the reason. Live subnets and `mnt_data` declare their zones since 2026-09-19.
+An EBS storage's own zone is what its module call carries; a GCP persistent
+disk is emitted in its runtime's zone whatever the storage declares (the
+declaration is validated, not emitted; a code stage names the fix).
 
 **In the records.** A meta-state write says what it READ (stage 50): a value
 that came from a marker is recorded as that marker, so a record and the
@@ -1797,7 +1831,8 @@ is likely to break the GCE code path; then one live cycle, torn down.
 | --- | --- |
 | `validate` | loads the tree and applies every rule -- unique names, every declared executable present at its path and within its version requirement, every foreign key resolving, every root's state location sound; generates nothing |
 | `run … --migrate-state <root>` (repeatable, `--no-dry-run`) | MOVES that root's state to the backend it now resolves to: backup, copy, a clean plan at the new location, the move recorded ("Where state lives") |
-| `state-migration begin\|finish --workspace <root> --run <id>` | the two steps of a migration, emitted into the root's runner by `--migrate-state`; never a by-hand command |
+| `state-migration begin\|finish\|backup --workspace <root> --run <id>` | the two steps of a migration, emitted into the root's runner by `--migrate-state`, and the state backup a runner takes before a pre-plan `state rm` (stage 61); never a by-hand command |
+| `prune-attachments --builder <group builder> --run <id>` | the identity runner's step between init and plan: membership attachments the declaration dropped and OPA no longer holds leave state after a backup (stage 61); never a by-hand command |
 | `generate` / `build-all` | aliases: every lifecycle without / with the apply step (`--base-only`: base-image alone) |
 | `upgrade instance <name> [--to <build>]` | moves that instance's pin (default: the series head); the next `instance-image` plans `-replace` and the gate whitelists it |
 | `upgrade image <name> [--to <base build>] [--runtime <rt>]` | moves an instance image's base pin (per runtime); the next `instance-image` bakes a new build; no instance moves |

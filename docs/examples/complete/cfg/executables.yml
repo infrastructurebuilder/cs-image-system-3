@@ -1,0 +1,45 @@
+---
+# docs/examples/complete/cfg/executables.yml -- every tool, every field.
+# Reference: ../../../CONFIGURATION.md section 3. Builders reference an entry
+# by `name`; `validate` and every run check that each binary exists and that
+# the version its checker reads satisfies the PEP 440 specifier. The checker
+# is looked up under the entry's `name` first (packer, tofu, gcloud, aws-cli,
+# ansible-playbook, bash), then under its `type`; the default type
+# `executable` is the generic `--version` reader.
+executables:
+  - name: aws-cli                  # checker by NAME
+    version: ">=2.32"
+    binary: aws                    # a name on PATH (an absolute path pins one install)
+    description: "the AWS CLI the aws runtime and the S3 backend need"
+  - name: packer
+    version: ">=1.14"
+    binary: /usr/local/bin/packer
+  - name: packer-next              # a second packer under another name: checker by TYPE
+    type: packer
+    version: ">=1.14"
+    binary: /usr/local/bin/packer
+    aliases: [packer-latest]       # extra names a builder may use
+  - name: gcloud
+    binary: /usr/local/bin/gcloud
+    version: ">=500"               # the Google Cloud SDK version, not a component's date
+  - name: ansible-playbook
+    binary: /usr/local/bin/ansible-playbook
+    version: ">=2.16"              # ansible-core
+    prepended_arguments: []        # arguments placed before the command's own (none here)
+    appended_arguments: ["-v"]     # arguments placed after the command's own
+    config:                        # free-form
+      note: "ansible-core, from the same venv as cs-image-system"
+  - name: bash
+    binary: /usr/local/bin/bash
+    version: ">=5"
+  - name: docker
+    binary: /usr/local/bin/docker  # local modification tests run in a container of the base's family
+    version: ">=24"
+  - name: open-tofu-1
+    type: tofu                     # checker by type (`--version -json`)
+    binary: /usr/local/bin/tofu
+    version: ">1,<2"
+  - name: yq                       # the generic checker: `yq --version`, the first dotted number
+    version: ">=4.5"
+  - name: jq
+    version: ">=1.7"

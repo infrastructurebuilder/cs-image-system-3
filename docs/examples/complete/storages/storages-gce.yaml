@@ -1,0 +1,22 @@
+---
+# docs/examples/complete/storages/storages-gce.yaml -- the three GCE storage
+# kinds. Reference: ../../../CONFIGURATION.md section 11.4 and 8.2.
+storages:
+  - name: gce_data
+    type: gcp-pd                   # zonal disk, single-attach; archived = snapshot + delete on GCE too
+    # the manual says the builder's runtime governs, but the availability-zone
+    # check reads the ITEM's `runtime` (default: the default runtime, aws-east2),
+    # so a zonal GCE storage that declares a zone must name its runtime here
+    runtime: gcloud-east1
+    mount_point: /mnt/gce-data
+    groups: [coops]
+    state: active
+    availability_zone: us-east1-b  # 12a: a persistent disk is zonal
+  - name: gce_share
+    type: gcp-filestore            # shared NFS, many instances
+    groups: [coops]
+    share_mode: "2775"
+  - name: gce_bucket
+    type: gcp-gcs                  # a bucket; regional, no POSIX
+    bucket_name: complete-example-REPLACE-ME-gcs-bucket
+    public_read: true

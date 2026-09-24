@@ -1,0 +1,17 @@
+---
+# docs/examples/standard-gce/cfg/image-builders.yml -- the ONE image builder:
+# packer's googlecompute source on the GCE runtime. Reference:
+# ../../../CONFIGURATION.md section 6.
+image_builders:
+  - name: packer-gce
+    type: packer-gce
+    is_default: true
+    runtime: default             # DECISION: the default runtime (gcp-main)
+    executable: packer
+    required_plugins:
+      - name: googlecompute
+        source: github.com/hashicorp/googlecompute
+        version: ">= 1.0.0"
+      - name: ansible
+        source: github.com/hashicorp/ansible
+        version: ">= 1.0.0"

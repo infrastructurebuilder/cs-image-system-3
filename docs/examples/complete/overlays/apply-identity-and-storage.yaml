@@ -1,0 +1,7 @@
+# docs/examples/complete/overlays/apply-identity-and-storage.yaml -- a
+# config-only overlay: for one invocation the identity roots and the
+# aws-east2 storage roots may apply, nothing else. Reference:
+# ../../../CONFIGURATION.md section 12 and 2.3 (the apply flags).
+config:
+  apply_identity: true
+  apply_storage: [aws-east2]

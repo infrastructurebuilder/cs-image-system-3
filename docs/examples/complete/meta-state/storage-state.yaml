@@ -1,0 +1,28 @@
+# docs/examples/complete/meta-state/storage-state.yaml -- a SYNTHETIC record
+# of two storages standing `active` after an earlier apply, so that
+# storages/storages-aws.yaml may request `archived` for mnt_archive and
+# `destroyed` for old-bucket (a never-applied storage may only be `active`).
+# A run writes this file; it is hand-written here only to keep the example
+# loadable. Reference: ../../../CONFIGURATION.md sections 1.3 and 11.4.
+storages:
+  mnt_archive:
+    state: active
+    generation: 1
+    facts:
+      builder: aws-ebs
+      type: ebs
+    history:
+      - from: null
+        to: active
+        run: 2026_09_23t12_00_00
+  old-bucket:
+    state: active
+    generation: 1
+    facts:
+      builder: aws-s3
+      type: s3
+      bucket_name: complete-example-REPLACE-ME-old-bucket
+    history:
+      - from: null
+        to: active
+        run: 2026_09_23t12_00_00

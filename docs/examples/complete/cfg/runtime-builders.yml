@@ -1,0 +1,122 @@
+---
+# docs/examples/complete/cfg/runtime-builders.yml -- three runtimes: the
+# default AWS runtime, a second AWS region, and GCE. Reference:
+# ../../../CONFIGURATION.md section 4 (4.1 common builder fields, 4.2 every
+# runtime, 4.3 `aws`, 4.4 `gcloud`, 4.5 `networking`, 12a availability zones).
+runtime_builders:
+  # ------------------------------------------------------------ aws, default
+  - name: aws-east2
+    type: aws
+    is_default: true               # 4.1: `runtime: default` resolves here
+    aliases: [aws, us-east-2]      # 4.1: extra names
+    description: |                 # 4.1: templates see the entry as `this`
+      AWS runtime for account {{ this.account_id }} in {{ this.region }}.
+    config: {}                     # 4.1: free-form
+    gitignore: []                  # 4.1: extra gitignore entries for this builder's output
+    tags:                          # 4.1: tags on everything the runtime creates
+      Project: complete-example
+      Environment: development
+    account_id: "123456789012"     # 4.3: REPLACE (a number is coerced to a string)
+    region: us-east-2              # 4.2: REPLACE
+    credentials:                   # 4.3: AwsCredentials; values belong in the environment
+      profile_name: REPLACE-ME-profile
+      # aws_access_key_id: "{{ ENV['AWS_ACCESS_KEY_ID'] }}"        # the static-key form
+      # aws_secret_access_key: "{{ ENV['AWS_SECRET_ACCESS_KEY'] }}"
+      # aws_session_token: "{{ ENV['AWS_SESSION_TOKEN'] }}"
+    default_machine_type: t3.medium   # 4.2: required; bakes and instances that name none
+    default_image_builder: pckr-ebs-ans   # 4.2: the image builder an image's runtime entry defaults to
+    default_owners: null           # 4.2: accepted; not read by the cloud plugins
+    default_config_username: ec2-user   # 4.2: the bake ssh user when neither the OS builder nor its runtime entry names one
+    ephemeral: false               # 4.2: durable -- nothing baked here is disposed by the closing retention lifecycle
+    retention_keep: 3              # 4.2: builds per image series that survive here when the image declares no `retention`
+    on_failure: keep               # 4.2: runtime default for ephemeral instances that fail verification (`keep` or `teardown`)
+    teardown_after: 2h             # 4.2: runtime default: a failed ephemeral instance is torn down by the next run after this
+    state_configuration: default   # 4.3: the backend every root on this runtime inherits (`default` = the default backend)
+    ena_support: true              # 4.3: passed to the packer source
+    sriov_support: true            # 4.3: accepted; not read
+    iam_instance_profile: REPLACE-ME-bake-profile   # 4.3: instance profile attached to BUILD VMs
+    session_mechanism: ssm         # 4.3: bakes and debug sessions through SSM
+    session_instance_profile: REPLACE-ME-ssm-profile   # 4.3: the profile launched INSTANCES wear for SSM sessions
+    ssh_username: default          # 4.3: override of the bake ssh user (`default` = none)
+    networking:                    # 4.5, with the AWS additions
+      name: main-vpc               # a label (defaults to the network)
+      network: vpc-REPLACE-ME-east2   # the VPC id; `default` resolves to the account's default VPC
+      security_group_ids: []       # groups for build VMs and instances (none: the module creates its own)
+      addl_security_groups:        # existing groups every instance also wears; never modified
+        - sg-REPLACE-ME-gateway
+      ssh_ingress_security_group_ids:   # port-22 ingress references only these groups, never a CIDR
+        - sg-REPLACE-ME-gateway
+      availability_zones:          # 4.5 / 12a: the default zone is passed to the instance root
+        - name: us-east-2a
+          is_default: true
+        - name: us-east-2b
+      subnets:                     # exactly one is_default
+        - name: east2-az1-private
+          subnet_id: subnet-REPLACE-ME-2a-private
+          availability_zone: us-east-2a   # 12a: declared, never inferred
+          is_default: true
+          cidr: 10.0.1.0/24        # informational
+          config: {}               # free-form
+        - name: east2-az2-private
+          subnet_id: subnet-REPLACE-ME-2b-private
+          availability_zone: us-east-2b
+        - name: east2-az1-public
+          subnet_id: subnet-REPLACE-ME-2a-public
+          availability_zone: us-east-2a
+          public: true             # informational
+  # ------------------------------------------------------- aws, second region
+  - name: aws-east1
+    type: aws
+    aliases: [us-east-1]
+    account_id: "123456789012"     # REPLACE
+    region: us-east-1              # REPLACE
+    credentials:
+      profile_name: REPLACE-ME-profile
+    tags:
+      Project: complete-example
+      Environment: development
+    default_machine_type: t3.medium
+    default_image_builder: pckr-ebs-east1
+    session_mechanism: ssm
+    session_instance_profile: REPLACE-ME-ssm-profile
+    # 4.3 / 10: everything on THIS runtime keeps its state in the second
+    # bucket unless a root names its own backend
+    state_configuration: s3-east1
+    networking:
+      network: default             # the account's default VPC in this region
+      subnets:
+        - name: east1-private
+          subnet_id: subnet-REPLACE-ME-1a-private
+          is_default: true
+  # ----------------------------------------------------------------- gcloud
+  - name: gcloud-east1
+    type: gcloud
+    aliases: [gcp, google, us-east1]
+    description: "GCE runtime for project {{ this.project_id }}"
+    project_id: my-project-REPLACE-ME   # 4.4: REPLACE
+    region: us-east1               # REPLACE
+    zone: us-east1-b               # 4.4: the zone for build VMs and instances
+    service_account_email: csis-runner@my-project-REPLACE-ME.iam.gserviceaccount.com   # 4.4: REPLACE
+    default_disk_size: 10          # 4.4: bake disk GB for every image baked here (a boot disk is exactly its image's disk)
+    bake_preemptible: true         # 4.4: spot build VMs; a preempted bake re-runs
+    state_configuration: default   # 4.4: the GCE roots keep their state in the default (S3) backend by decision
+    ssh_username: default          # 4.4
+    session_mechanism: iap         # 4.4: the only supported value
+    credentials: {}                # 4.4: the empty base -- ADC only; any key here is refused
+    # 4.2: ephemeral -- the closing retention lifecycle disposes every image
+    # baked here after a successful run; declared storages are never touched
+    ephemeral: true
+    retention_keep: null           # 4.2: null keeps all (moot on an ephemeral runtime)
+    tags:
+      project: complete-example
+      environment: development
+    default_machine_type: e2-small
+    default_image_builder: pckr-gce-ans
+    networking:                    # 4.5, with `network_tags`
+      network: default             # the project's `default` network
+      network_tags: [csis-node]    # tags that select firewall rules (a tag no rule targets is a warning)
+      subnets:
+        - name: east1-default
+          subnet_id: projects/my-project-REPLACE-ME/regions/us-east1/subnetworks/default
+          is_default: true
+          public: true

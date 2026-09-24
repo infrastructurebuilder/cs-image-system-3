@@ -1,0 +1,74 @@
+---
+# docs/examples/complete/storages/storages-aws.yaml -- every AWS storage
+# kind, every requested state, every lifecycle. Reference:
+# ../../../CONFIGURATION.md section 11.4 (the item), 8.2 (what each builder
+# validates). `state` is the REQUESTED lifecycle state; the current one is
+# in meta-state/storage-state.yaml, and a new storage must start `active`.
+storages:
+  # --------------------------------------------------- ebs, active, zonal
+  - name: mnt_data
+    type: default                  # the default storage builder: aws-ebs
+    runtime: default               # accepted; the builder's runtime governs
+    description: "The model group's working volume"
+    is_default: true
+    mount_point: /mnt/data         # accepted; the attachment's mount_point on the instance is what a launch uses
+    groups:                        # the groups allowed to attach (never users, never ALL); each gets a private /<group>/ subtree
+      - coops
+    public_read: false
+    share_mode: "2770"             # private per-group subtree (default)
+    state: active
+    availability_zone: us-east-2a  # 12a: a volume is zonal; declared so a runtime pointed elsewhere is refused at validate
+    lifecycle: null                # EBS accepts no data lifecycle
+    singleton: false               # accepted
+    ephemeral: false               # accepted; not read
+    generative: false              # accepted; not read
+    source: {}                     # accepted; not read
+    tags:                          # merged over the builder's default tags
+      purpose: data
+    config: {}
+    aliases: [data]
+  # --------------------------------------------------- ebs, ARCHIVED
+  - name: mnt_archive
+    type: aws-ebs
+    groups: [coops]
+    # `archived` = a tag-named snapshot with the volume gone; `active` again
+    # restores it from the snapshot. Legal only from a recorded `active`
+    # (meta-state/storage-state.yaml records it) and while nothing attaches it.
+    state: archived
+    availability_zone: us-east-2a
+  # --------------------------------------------------- efs, shared, lifecycle
+  - name: efs-storage
+    type: aws-efs
+    groups:
+      - coops
+      - stofs
+    share_mode: "2775"             # read-shared between the allowed groups
+    lifecycle:                     # what the efs builder validates
+      ia_days: 30                  # one of 1, 7, 14, 30, 60, 90, 180, 270, 365
+      archive_days: 90             # one of 90, 180, 270, 365
+  # --------------------------------------------------- efs, ADOPTED
+  - name: efs-adopted
+    type: aws-efs
+    groups: [coops]
+    config:
+      file_system_id: fs-REPLACE-ME   # EFS: adopt an existing filesystem instead of creating one
+  # --------------------------------------------------- s3, public, lifecycle
+  - name: default-bucket
+    type: aws-s3
+    singleton: true
+    bucket_name: complete-example-REPLACE-ME-default-bucket   # null would use the storage name
+    public_read: true              # anyone may mount read-only; POSIX still governs
+    lifecycle:                     # what the s3 builder validates
+      transition_days: 30          # positive int
+      storage_class: STANDARD_IA   # STANDARD_IA, ONEZONE_IA, INTELLIGENT_TIERING, GLACIER_IR, GLACIER, DEEP_ARCHIVE
+      expire_days: 365             # positive int
+      prefix: "scratch/"           # the rule applies under this prefix
+    tags:
+      env: development
+  # --------------------------------------------------- s3, DESTROYED
+  - name: old-bucket
+    type: aws-s3
+    bucket_name: complete-example-REPLACE-ME-old-bucket
+    # a permanent tombstone: the entry stays, the name is retired. Legal from
+    # a recorded active/archived state while nothing attaches it.
+    state: destroyed

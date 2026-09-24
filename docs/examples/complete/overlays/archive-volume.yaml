@@ -1,0 +1,9 @@
+# docs/examples/complete/overlays/archive-volume.yaml -- one declared
+# storage updated key by key for one invocation: mnt_archive back to
+# `active` (a restore from its snapshot), the aws-east2 storage roots
+# allowed to apply. Reference: ../../../CONFIGURATION.md section 12.
+config:
+  apply_storage: [aws-east2]
+storages:
+  - name: mnt_archive
+    state: active

@@ -1,0 +1,25 @@
+---
+# docs/examples/standard-aws/cfg/executables.yml -- the tools this tree drives.
+# Reference: ../../../CONFIGURATION.md section 3. Builders name an entry through
+# `executable:`; `validate` and every run check that each binary exists and,
+# when `version` is given, that the version its checker reads satisfies the
+# PEP 440 specifier. The checker is looked up under the entry's `name` first
+# (packer, tofu, gcloud, aws-cli, ansible-playbook and bash have their own),
+# then its `type`; the default `executable` type is the generic `--version` reader.
+executables:
+  - name: aws-cli
+    binary: aws                  # DECISION: a name on PATH; an absolute path pins one install
+    version: ">=2.32"            # DECISION: the floor CI's runners and the operator's machine ran in 2026-09
+  - name: packer
+    binary: packer
+    version: ">=1.14"
+  - name: ansible-playbook
+    binary: ansible-playbook
+    version: ">=2.16"            # ansible-core
+  - name: bash
+    binary: bash
+    version: ">=5"               # DECISION: never the system's 3.2 on macOS
+  - name: open-tofu
+    type: tofu                   # DECISION: the entry is named `open-tofu`, so the checker is selected by TYPE; naming it `tofu` would select it by name
+    binary: tofu
+    version: ">1,<2"

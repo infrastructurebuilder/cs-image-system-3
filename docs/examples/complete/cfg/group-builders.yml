@@ -1,0 +1,67 @@
+---
+# docs/examples/complete/cfg/group-builders.yml -- the identity builders:
+# managed OPA groups, read-only user lookups (the default) and a managed
+# user builder. Reference: ../../../CONFIGURATION.md section 9 (9.1 the
+# shared Okta terraform workspace, 9.2 group builders, 9.3 user builders)
+# and WORKLOAD_CONNECTION.md for the workload objects.
+group_builders:
+  - name: oktagroups
+    type: okta-tf                  # managed OPA groups; `okta-tf-ro` would only look existing Okta groups up
+    is_default: true
+    executable: open-tofu-1
+    state_configuration: local-dev # 9.1 / 10: the identity roots keep their state on disk
+    # ---- 9.1: the workspace
+    org: REPLACE-ME-org            # the Okta org name (`okta` provider org_name)
+    team: REPLACE-ME-team          # the OPA team; also names TF_VAR_<team>_key / _secret
+    # the OPA API pair as literal ENC[age:...] values, emitted by reference
+    # (section 13); left at `default` they would come from the environment.
+    # These decrypt to placeholders.
+    key: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAzZWw5QjdDL3NxdldhQ2NqQWNHcGd4Q3VVNU5qcUpEQW1xNkxFTkY2aVc0CjAzMVZLSUwweDVxN05FR0VOamFDSjNQNHo5dlR4VG5UYm1hTmZQQ2Y4aVkKLS0tIDY0Rm92SThMeUdiUW1KbzlXTmRYN0VxSTJEeW5PSEhQdWVzYS9RUjNLTmcKJ2uZaUfoxFFH4qWZsBADffK8y6lJOlSn9cmgA6Wb4NYblGB90LN1Ey2mi8BvNyH4ucubO8qh]
+    secret: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAxaGJTald3Uk0rYkNQeWZYNE1LRFYzcFVsNnk4UDhxY0c3c2JsbWhBU3o4CnU5MDZyQ0tiT2J6c1BheVJwWHlTYVM4WmhRS0xIa2FlSUFNRnlReGZ5QjgKLS0tIHM3QUZOcFh2L05Xd2N0TnN3MFV6bFpHeWVwVVcrR2RPOVlkWG10UldkbncK3hjNYsW8JolWvB6wt55d5c+krB1J14XBqgnSr8+t9COlvRrx2ihC7bhJgi7thOVmfRZOCaMp9MhP]
+    api_host: "https://{{ this.org }}.pam.okta.com"   # the OPA API host (this is the default)
+    okta_base_url: okta.com        # `oktapreview.com` for a preview org
+    default_user_status: STAGED    # okta_user.status for enabled managed users: ACTIVE, STAGED, SUSPENDED, DEPROVISIONED
+    required_providers:
+      - name: oktapam
+        source: okta/oktapam
+        version: ">= 0.6.3"
+        config: {}                 # provider arguments
+    # ---- 9.2: the group builder
+    gateway_selector: "environment=staging"   # the resource-group project's gateway_selector (else config.okta_gateway_selector)
+    account_discovery: true        # the project's account_discovery
+    # stage 56: CI logs in as a WORKLOAD. Both objects are the team's, made by
+    # hand once in the OPA console; with both named, every managed group gets
+    # a CI login policy beside its user policy, kept through the OPA API.
+    workload_connection: REPLACE-ME-workload-connection
+    workload_role: REPLACE-ME-workload-role
+user_builders:
+  - name: okta-tf-users
+    type: okta-tf-ro               # read-only: only `data "okta_user"` lookups; `managed: true` on a user is refused
+    is_default: true
+    executable: open-tofu-1
+    state_configuration: local-dev
+    org: REPLACE-ME-org
+    team: REPLACE-ME-team
+    email_as_username: false       # 9.3: a user's `name` is the bare OPA username, not its email
+    # the address domain is its own value so it can be ENCRYPTED: a derived
+    # address inherits it and reaches the emission as ciphertext (stage 51).
+    # It decrypts to example.invalid.
+    email_domain: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBMd3pHdFlPNlQ3UmpCNXF3R3prWEhwWlJVcWJoTVExdlJHNUVxZHZIUlZzCjZPRTIwZ1pNUVNIeTBrUGhabllPaGU2cFJTa0xFVWZuMmxSNTAxcnZ6MDgKLS0tIHU1dHUvOFFtR0RJSDZkR280Q1ZQY2h2M3RHYzR4OW0xTXdWT0ozOHBiVGMKZfcyCqflNN+CE4oPpyTAtEiOjdfaXEuxzxv7D6cRTNjHGTTr8GmHFq1Xk2BGfkw=]
+    default_user_email_template: "{{ user.name }}@{{ builder.email_domain }}"
+    default_user_description_template: "User {{ user.name }} / {{ user.email }}"
+    required_providers:
+      - name: okta
+        source: okta/okta
+        version: ">= 6.0"
+  - name: okta-tf-managed
+    type: okta-tf                  # managed: an okta_user resource plus the lookup; users name it with `type: okta-tf-managed`
+    executable: open-tofu-1
+    state_configuration: local-dev
+    org: REPLACE-ME-org
+    team: REPLACE-ME-team
+    email_as_username: true        # 9.3: a managed user's `name` must equal its `email` (case-insensitive)
+    default_user_status: ACTIVE
+    required_providers:
+      - name: okta
+        source: okta/okta
+        version: ">= 6.0"

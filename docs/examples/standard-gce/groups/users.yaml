@@ -1,0 +1,16 @@
+---
+# docs/examples/standard-gce/groups/users.yaml -- the roster. Reference:
+# ../../../CONFIGURATION.md section 11.6 (users) and 13 (encrypted values).
+# A user's `name` is the bare OPA username that group members/admins lists
+# use. Each identifying value is an ENC[age:...] marker encrypted to the
+# tree's recipients; ANY value may be one, and it decrypts at load when
+# CSIS_CONFIG_IDENTITY names an identity. These two are synthetic personas
+# (the frozen fixture's) -- the first decrypts to avery.alpha, the second to
+# casey.charlie; their addresses derive from the user builder's template.
+users:
+  - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBBeXNlTmFDeXN1NUxKNll2UTdNNlgxMVdWbFdHTjZJM3FiYStRN0tBeHhnCitDRHZHUWcvWjhhaUU1RWhDczZaUjRIcXdZUlJ4dkFTV0FkVXRKdDlCencKLS0tIEs2K2RrTmdtWTBEZ01kaGthVHVabWhVVDNieWtVK05YRHVKS3BuZTY3dXMKL6SV9wExndvLOcCh6sUtuTlSJXf8sKaELjPkg2bk9q8JPpVuBsbLJnAE9A==]
+    first_name: Avery            # DECISION: first/last names in clear (required, never derived from the name); encrypt them too if they are sensitive
+    last_name: Alpha
+  - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA1V1ZtME0vMzJBUysxOHR3dytPL2d0NGJlYVlqUU15dFBaZzZ1QkE5TmxjCjhzMHNmU1h6eHM5VElJZlpmYnhaTjlkQWFBR21CWUhWU2ZJZXpSTVFzV00KLS0tIEQyNDdidDIwUUdPMDlyM2hXbkhMbEp5L2p3M2R3QXFlUTVuSHFscVkyOGcKolfcE8PSyFVJuWkLeNPglzCTtXDpO5TRc81AW38bdRtyUPZVZefRti4ZPpWx]
+    first_name: Casey
+    last_name: Charlie

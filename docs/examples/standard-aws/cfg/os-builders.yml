@@ -1,0 +1,44 @@
+---
+# docs/examples/standard-aws/cfg/os-builders.yml -- the ONE base image: the
+# vendor image to start from, what the base declares it can do, its update
+# policy and its in-bake tests. Reference: ../../../CONFIGURATION.md section 5
+# (5.1 `runtimes[]`, 5.2 `update`, 5.3 `tests`).
+os_builders:
+  - name: el10
+    type: rhel                   # DECISION: the dnf family (rhel, fedora) -- `debian`/`ubuntu` are the apt families
+    family: rhel
+    family_version: 10           # a number reads as the string "10"; rhel accepts 8, 9 or 10
+    is_default: true             # the base `source_image: default` resolves to
+    # DECISION: what instances of this base may use (declared, not merely
+    # possible): OPA identity, and EBS volumes. An image whose group's builder
+    # is of another identity type, or an instance attaching another storage
+    # type, is refused at validate.
+    identity_types: [okta]
+    storage_types: [ebs]
+    # DECISION: security patches only, never the kernel. `policy: full` (or
+    # `auto_update: true`) upgrades everything, which is slow enough to sever
+    # an SSM build tunnel; `none` bakes the vendor image as is.
+    update:
+      policy: security
+      exclude: ["kernel*"]
+    # in-bake assertions: the bake fails if any fails
+    tests:
+      packages: [git]
+      commands:
+        - run: "id -u csisadmin"      # the mandatory local admin user exists
+    runtimes:
+      - name: aws-el10
+        image_builder: packer-ebs     # the image builder (and so the runtime) this base is baked on
+        default_machine_type: t3.medium
+        # the vendor-image query: the newest match is the source. "self" is
+        # always first, so a re-bake can start from the runtime's own images.
+        owners:
+          - "self"
+          - "764336703387"            # DECISION: the AlmaLinux OS Foundation's PUBLIC publishing account (a vendor fact, not a team value)
+        query:
+          filters:
+            name: "AlmaLinux OS 10*x86_64"
+            state: available
+            root_device_type: ebs
+            architecture: x86_64
+            virtualization_type: hvm

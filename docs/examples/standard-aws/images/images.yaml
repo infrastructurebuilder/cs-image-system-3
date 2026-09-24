@@ -1,0 +1,39 @@
+---
+# docs/examples/standard-aws/images/images.yaml -- the ONE instance image: the
+# base plus modifications, owned by the group. Reference:
+# ../../../CONFIGURATION.md section 11.2 (11.2.1 `runtimes[]`) and 7.3
+# (modification items).
+images:
+  - name: team-node
+    group: team                  # the owning group: every instance of this image belongs to it
+    source_image: el10           # the base (an OS builder name) -- or another image's name, chaining to a base
+    description: "The team's working node: {{ image.name }} from el10"
+    # DECISION: `pinned` bakes from the pinned parent build until an explicit
+    # `upgrade image`; `follow` re-bakes whenever the base's head moves.
+    parent_policy: pinned
+    runtimes:
+      - image_builder: packer-ebs      # one bake per runtime
+    tags:
+      role: node
+    tests:                       # in-bake assertions on the finished image
+      packages: [git, python3]
+      commands:
+        - run: "python3 --version"
+          contains: "Python 3"
+    modifications:
+      - name: base-tools         # an ansible item: its playbooks, config-root-relative
+        type: ansible
+        playbooks:
+          - playbooks/setup-node.yml
+        config:                  # part of the build's content hash (a change re-bakes); not passed to ansible
+          node_role: worker
+      - name: site-files         # a bash-remote item: declarative, idempotent steps plus a script file
+        type: bash
+        ensure:
+          packages: [tmux]
+          files:
+            - path: /etc/team-node.conf
+              content: "role=worker\n"
+              mode: "0644"
+        scripts:
+          - scripts/post-install.sh

@@ -10,12 +10,13 @@ formally released, whose users log in through Okta Privileged Access.
 
 ## Where to start
 
+- [DAILY_DRIVER.md](DAILY_DRIVER.md) — how a person actually uses the system: what must exist first, the first run, making and changing things, what proves what, and what a failure means.
 - [DESCRIPTION.md](DESCRIPTION.md) — what the system is and how it works, in one read.
 - [GOALS.md](GOALS.md) — what it is for and the properties it keeps.
 - [docs/OPERATIONS.md](docs/OPERATIONS.md) — the operating manual: runs, the developer workflow, CI, the operator's cycles, the rules.
 - [docs/CONFIGURATION.md](docs/CONFIGURATION.md) — the configuration reference: every file, every type, every field, one example each.
 - [docs/DESIGN.md](docs/DESIGN.md) — the design and its rationale.
-- [docs/PLUGINS.md](docs/PLUGINS.md) — the packages, each with its own README.
+- [docs/PLUGINS.md](docs/PLUGINS.md) — the packages, each with its own README ending in the same four sections: prerequisites, configuration, what it tests, when it fails.
 - [GOLDEN.md](GOLDEN.md) — the pinned emission every change is judged against.
 - [PARITY.md](PARITY.md) — how the system and its documentation can diverge, and how to check.
 - [BILLING_REMINDERS.md](BILLING_REMINDERS.md) — the GCP account's cost housekeeping.

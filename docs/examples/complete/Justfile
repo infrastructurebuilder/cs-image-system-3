@@ -1,0 +1,231 @@
+# The Justfile of a cs-image-system CONFIGURATION repository: the single entry point
+# for everything a team does to its environment. Every recipe wraps the released
+# `cs-image-system` command against THIS tree; nothing here is the system's code.
+#
+# The command comes from a release. Either of:
+#   uv tool install cs-image-system            the CLI on PATH (the default below)
+#   a pyproject.toml here depending on it       then: export CSIS="uv run cs-image-system"
+# A version pin for CI lives in .csis-version (see .github/workflows/ci.yml).
+#
+# The five contract targets come first, in lifecycle order; bare `just` lists them.
+
+[private]
+default:
+	@just --list --unsorted
+
+# ------------------------------------------------------------- the contract
+
+csis := env("CSIS", "cs-image-system")
+root := justfile_directory()
+cli := csis + " --root-dir " + quote(root)
+
+# One tofu process at a time: every recipe that may execute tofu runs through scripts/with-tofu-lock,
+# which locks this cache directory (a second holder is refused with exit 75).
+export TF_PLUGIN_CACHE_DIR := justfile_directory() / ".tofu-plugin-cache"
+
+# One-time setup: the command must be reachable, the public-safe hook is installed, the plugin cache exists
+init:
+	#!/usr/bin/env bash
+	set -euo pipefail
+	{{csis}} --help >/dev/null 2>&1 || { echo "init: '{{csis}}' is not runnable -- install a release (uv tool install cs-image-system) or export CSIS=\"uv run cs-image-system\" beside a pyproject that depends on it"; exit 2; }
+	git config core.hooksPath .githooks && echo "init: core.hooksPath = .githooks (the public-safe gate)"
+	mkdir -p "$TF_PLUGIN_CACHE_DIR"
+	echo "init: $({{csis}} --version 2>/dev/null || echo cs-image-system) ready against {{root}}"
+
+# The emission: a DRY run of every lifecycle writes generated/ and enumerates every apply; nothing executes
+build:
+	@{{cli}} run --all
+
+# The fast checks: every rule of the configuration, and nothing here that must never be public.
+# `validate` loads the tree, and a load reads the clouds (the runtimes' networks), so it needs the sessions
+# `just preflight` reports; the public-safe scan needs nothing.
+
+# The fast checks: validate (needs the sessions) and public-safe
+test:
+	@{{cli}} validate
+	@{{cli}} public-safe --tree "{{root}}"
+
+# `test` plus the slow legs: a dry run of everything over a private copy, the strict state query against
+# both clouds, and every modification twice in a container (docker). A leg whose prerequisite is absent
+# reports SKIPPED loudly; a leg that runs and fails, fails.
+
+# `test` plus the slow legs: test-mods under docker, a dry run --all and state query --strict over a private copy
+full-test: test
+	#!/usr/bin/env bash
+	set -uo pipefail
+	status=0
+	if docker info >/dev/null 2>&1; then
+		echo "full-test: modification tests under docker (test-mods --strict)"
+		{{cli}} test-mods --strict || { echo "full-test: FAILED test-mods"; status=1; }
+	else
+		echo "full-test: SKIPPED test-mods -- docker is not available"
+	fi
+	if {{cli}} preflight; then
+		copy=$(mktemp -d "${TMPDIR:-/tmp}/csis-full-test.XXXXXX")
+		(cd "{{root}}" && tar --exclude=./.git --exclude=./generated --exclude=./_private -cf - .) | tar -xf - -C "$copy"
+		echo "full-test: dry run --all over a private copy ($copy)"
+		{{csis}} --root-dir "$copy" run --all || { echo "full-test: FAILED dry run --all"; status=1; }
+		echo "full-test: state query --strict over the copy"
+		{{csis}} --root-dir "$copy" state query --strict || { echo "full-test: FAILED state query --strict"; status=1; }
+		rm -rf "$copy"
+	else
+		echo "full-test: SKIPPED the credential-gated legs (dry run --all, state query --strict) -- a runtime session is absent or expired"
+	fi
+	if [ "$status" -eq 0 ]; then echo "full-test: passed"; else echo "full-test: FAILED"; fi
+	exit $status
+
+# A release of this environment is a PERFORMING run on one runtime (what CI does on main): the bakes that
+# are due, the declared releases and the declared retention, gated on a green full-test, records committed
+
+# The performing run on one runtime, gated on full-test: due bakes, declared releases, retention; records committed
+release runtime: full-test
+	@scripts/with-tofu-lock {{cli}} --no-dry-run run base-image instance-image release retention --only-runtime {{runtime}} --commit
+
+# ------------------------------------------------------------ every day
+
+# Every rule, nothing generated; the first thing after any edit
+validate:
+	@{{cli}} validate
+
+# A dry run of the lifecycles named (default: all): generated/ and the runner scripts, nothing executed
+dry *LIFECYCLES:
+	@{{cli}} run {{ if LIFECYCLES == "" { "--all" } else { LIFECYCLES } }}
+
+# A REAL run of the lifecycles named, gated, its records committed here (you push)
+run +LIFECYCLES:
+	@scripts/with-tofu-lock {{cli}} --no-dry-run run {{LIFECYCLES}} --commit
+
+# The credential sessions the runtimes need, read from the caches without loading anything
+preflight:
+	@{{cli}} preflight
+
+# Reality against the records, read-only; --strict (any drift class but stale) before a cycle step
+state-query *ARGS:
+	@{{cli}} state query {{ARGS}}
+
+# Reality must match the records exactly before a cycle step
+cloud-preflight:
+	@{{cli}} state query --strict
+
+# The configuration's facts about a runtime (project or account, zone, images, storages, instances) as JSON
+cloud-describe runtime:
+	@{{cli}} runtime describe {{runtime}}
+
+# Bake only what changed on the runtime; the storage and instance roots plan and gate only
+cloud-bake runtime dry="no": cloud-preflight
+	@scripts/with-tofu-lock {{cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run base-image instance-image --only-runtime {{runtime}} --commit
+
+# The performing run of a runtime (what CI does on main): due bakes, declared releases, declared retention
+cloud-perform runtime: cloud-preflight
+	@scripts/with-tofu-lock {{cli}} --no-dry-run run base-image instance-image release retention --only-runtime {{runtime}} --commit
+
+# The whole cycle as ONE run, scoped and applied to a runtime whose instances are all ephemeral; then the emptiness assertion
+cloud-cycle runtime dry="no": cloud-preflight
+	@scripts/with-tofu-lock {{cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run --all --only-runtime {{runtime}} --apply-runtime {{runtime}} --commit
+	@{{ if dry == "yes" { "echo 'dry run: empty assertion skipped'" } else { "just cloud-empty " + runtime } }}
+
+# The same cycle for a runtime that carries STANDING instances: no emptiness assertion afterwards
+cloud-stand runtime dry="no": cloud-preflight
+	@scripts/with-tofu-lock {{cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run --all --only-runtime {{runtime}} --apply-runtime {{runtime}} --commit
+
+# Gated launch of the runtime's instances alone (nothing re-bakes); an ephemeral instance launches, verifies and tears down
+cloud-launch runtime dry="no": cloud-preflight
+	@scripts/with-tofu-lock {{cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run instance-image --only none --apply-runtime {{runtime}} --commit
+
+# Verify a standing instance through the system; `sft` adds the login proof through the managed policy
+cloud-verify runtime instance leg="serial":
+	#!/usr/bin/env bash
+	set -euo pipefail
+	{{cli}} verify instance {{instance}} --timeout 600
+	if [ "{{leg}}" = "sft" ]; then
+		just ci-login-proof {{instance}} && echo "cloud-verify: login through the managed policy confirmed"
+	fi
+
+# A durable instance takes its image's next build as ONE gated sequence: the pin moves (`to` = a build id;
+# default the series head), the replace launches through the gate, the proof runs on the new machine, the
+# release records the build, one more launch gives the machine its names. require_released_builds stays true.
+cloud-upgrade runtime instance to="": cloud-preflight
+	#!/usr/bin/env bash
+	set -euo pipefail
+	{{cli}} upgrade instance {{instance}} {{ if to != "" { "--to " + to } else { "" } }}
+	just cloud-launch {{runtime}}
+	just cloud-verify {{runtime}} {{instance}}
+	scripts/with-tofu-lock {{cli}} --no-dry-run run release --only-runtime {{runtime}} --commit
+	just cloud-launch {{runtime}}
+	echo "cloud-upgrade: {{instance}} stands on its released build; run 'just ci-login-proof {{instance}}' to log in by name"
+
+# End-of-cycle assertion: the runtime holds nothing beyond its declared storages, and the strict state query agrees
+cloud-empty runtime:
+	@{{cli}} empty --runtime {{runtime}}
+
+# Dispose of every recorded image on the runtime through the recorded path
+cloud-dispose-images runtime dry="no":
+	@{{cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} dispose image --runtime {{runtime}} --all --commit
+
+# Re-tag cloud images whose lineage tags disagree with their record, from the record. Dry by default.
+cloud-relabel runtime dry="yes":
+	@{{cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} lineage relabel --runtime {{runtime}}
+
+# Log into every standing instance (or the ARGS named) through the managed CI policy: as the workload in a
+# GitHub Actions job, as YOU (the enrolled client, `sft login` first) anywhere else
+ci-login-proof *ARGS:
+	#!/usr/bin/env bash
+	set -euo pipefail
+	workload_env=$({{cli}} workload describe --env)
+	eval "$workload_env"
+	if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+		OPA_TOKEN="$(scripts/opa-workload-token)"
+		export OPA_TOKEN
+	else
+		echo "ci-login-proof: not a GitHub Actions job -- logging in as the enrolled client, not the workload" >&2
+	fi
+	{{cli}} verify login {{ARGS}}
+
+# The OPA client, from Okta's apt repository (a no-op where `sft` is already on PATH)
+sft-install:
+	#!/usr/bin/env bash
+	set -euo pipefail
+	if command -v sft >/dev/null 2>&1; then echo "sft-install: $(sft --version 2>/dev/null | head -1) already on PATH"; exit 0; fi
+	command -v apt-get >/dev/null 2>&1 || { echo "sft-install: not an apt system; install the client by hand: https://help.okta.com/oie/en-us/content/topics/privileged-access/tool-setup/pam-sft-ubuntu.htm" >&2; exit 2; }
+	. /etc/os-release
+	curl -fsSL https://dist.scaleft.com/GPG-KEY-OktaPAM-2023 | gpg --dearmor | sudo tee /usr/share/keyrings/oktapam-2023-archive-keyring.gpg >/dev/null
+	echo "deb [signed-by=/usr/share/keyrings/oktapam-2023-archive-keyring.gpg] https://dist.scaleft.com/repos/deb ${VERSION_CODENAME} okta" | sudo tee /etc/apt/sources.list.d/oktapam-stable.list >/dev/null
+	sudo apt-get update -qq && sudo apt-get install -y -qq scaleft-client-tools
+	echo "sft-install: $(sft --version | head -1)"
+
+# Every modification twice in a throwaway container (apply, then idempotence); needs docker
+test-mods *ARGS:
+	@{{cli}} test-mods {{ARGS}}
+
+# Nothing here may be material that must never be public; the pre-commit hook runs the staged form
+public-safe *ARGS:
+	@{{cli}} public-safe --tree "{{root}}" {{ARGS}}
+
+# Is the committed emission current? A dry run over a private copy against generated/ at HEAD
+config-drift:
+	#!/usr/bin/env bash
+	set -uo pipefail
+	work=$(mktemp -d "${TMPDIR:-/tmp}/csis-config-drift.XXXXXX")
+	trap 'rm -rf "$work"' EXIT
+	mkdir -p "$work/tree" "$work/committed"
+	(cd "{{root}}" && tar --exclude=./.git --exclude=./generated --exclude=./_private -cf - .) | tar -xf - -C "$work/tree"
+	git -C "{{root}}" archive HEAD generated 2>/dev/null | tar -xf - -C "$work/committed" || { echo "config-drift: nothing is committed under generated/ at HEAD -- record a run first (just dry; git add generated meta-state)"; exit 2; }
+	{{csis}} --root-dir "$work/tree" run --all >"$work/run.log" 2>&1 || { echo "config-drift: the dry run FAILED:"; tail -20 "$work/run.log"; trap - EXIT; exit 2; }
+	scripts/normalise-emission "$work/committed/generated"; scripts/normalise-emission "$work/tree/generated"
+	if diff -r "$work/committed/generated" "$work/tree/generated" >"$work/drift.diff"; then
+		echo "config-drift: the committed emission is current with the configuration"
+	else
+		echo "config-drift: the committed emission is BEHIND the configuration ($(grep -c '^diff \|^Only in' "$work/drift.diff") files):"; head -120 "$work/drift.diff"; exit 1
+	fi
+
+# Remove the private mirror: the materialised copy an execution ran from (plaintext); never committed
+mirror-clean:
+	@rm -rf "{{root}}/_private" && echo "removed {{root}}/_private"
+
+# Install the public-safe pre-commit hook (init does this)
+hooks:
+	@git config core.hooksPath .githooks && echo "hooks: core.hooksPath = .githooks"
+
+# Any command of the CLI against this tree, e.g. `just cli state query`
+cli *ARGS:
+	@{{cli}} {{ARGS}}

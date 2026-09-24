@@ -1,0 +1,47 @@
+---
+# docs/examples/standard-aws/cfg/runtime-builders.yml -- the one AWS runtime:
+# where images are baked and instances stand. Reference:
+# ../../../CONFIGURATION.md section 4 (4.1 common fields, 4.2 every runtime,
+# 4.3 `aws`, 4.5 `networking`). At load the AWS plugin reads the account's
+# VPCs and security groups with these credentials, so a load needs a live
+# AWS session for the named profile.
+runtime_builders:
+  - name: aws-main
+    type: aws
+    is_default: true             # DECISION: the runtime `runtime: default` resolves to; at most one per class
+    aliases: [aws]               # DECISION: extra names other declarations may use
+    account_id: "123456789012"   # REPLACE: your account (quoted, so it stays a string)
+    region: us-east-2            # REPLACE: the region
+    description: "AWS runtime for account {{ this.account_id }} in {{ this.region }}"
+    credentials:
+      # REPLACE: a named AWS profile (an SSO profile needs a live session).
+      # DECISION: values never live here -- name a profile, or carry
+      # `{{ ENV['AWS_ACCESS_KEY_ID'] }}`-style templates for static keys.
+      profile_name: REPLACE-ME-profile
+    # DECISION: bakes and debug sessions go through SSM (the agent is baked
+    # into base images), so no inbound port is ever opened for the operator.
+    # The alternative is no session mechanism at all, in which case
+    # `admin_public_keys` is the only debug path (the load refuses a base
+    # image that has neither).
+    session_mechanism: ssm
+    session_instance_profile: REPLACE-ME-ssm-instance-profile   # REPLACE: the instance profile launched instances wear for SSM sessions
+    default_machine_type: t3.medium    # DECISION: 4 GB -- `dnf update` OOMs a 1 GB t2.micro during a bake
+    default_image_builder: packer-ebs  # the image builder used when an image's runtime entry names none
+    tags:                              # tags applied to everything the runtime creates
+      Project: REPLACE-ME
+      Environment: development
+    networking:
+      network: vpc-REPLACE-ME          # REPLACE: the VPC id (`default` resolves to the account's default VPC)
+      # DECISION: SSH reaches instances only from the members of these groups
+      # (port-22 ingress references the groups, never a CIDR).
+      ssh_ingress_security_group_ids:
+        - sg-REPLACE-ME-gateway        # REPLACE: the security group of your access gateway
+      # existing groups every instance also wears; never modified by the system
+      addl_security_groups:
+        - sg-REPLACE-ME-gateway
+      subnets:
+        - name: private-a
+          subnet_id: subnet-REPLACE-ME-a   # REPLACE
+          is_default: true               # exactly one subnet is the default: bakes and instances use it
+          # DECISION: a private subnet with outbound NAT -- bakes need the
+          # internet for packages, and SSM needs no inbound route.

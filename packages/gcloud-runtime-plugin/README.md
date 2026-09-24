@@ -9,9 +9,10 @@ with the Compute API and checks the declared networking against them. During
 a run it resolves vendor images by project and filter (or by image family),
 emits the `googlecompute` packer source for every image baked here, bakes
 and reaches instances through Identity-Aware Proxy (IAP) TCP forwarding,
-answers the state query from the Compute API, relabels released images, and
-deletes images by name. Credentials are Application Default Credentials;
-the model declares none.
+answers the state query from the Compute API (images, booted images, power
+states and instance identities), relabels released images, starts and stops
+instances for bounded tasks, and deletes images by name. Credentials are
+Application Default Credentials; the model declares none.
 
 ## What it registers
 
@@ -37,16 +38,19 @@ A YAML entry selects the runtime with `type: gcloud` under
 key. An entry's own `aliases:` list gives that runtime extra names (the
 fixture's `gcloud-east1` also answers to `gcp`, `google` and `us-east1`).
 
-The version checker is looked up by an executable's `type`, which defaults
-to its `name`, so the fixture's `- name: gcloud` executable in
+The version checker is looked up by an executable's `name` first and its
+`type` second, so the fixture's `- name: gcloud` executable in
 [executables.yml](../../tests/fixtures/config/cfg/executables.yml) is parsed
-by it: the checker takes the `core` line of `gcloud --version` and reads its
-second token.
+by it: the checker runs `gcloud --version` and matches
+`Google Cloud SDK ([\d\.]+)` on the first line of the output, so the version
+checked is the SDK's (`585.0.0`), not the `core` component's date-shaped
+one (stage 48, 2026-09-17; before that the checker read the `core` line).
+The fixture requires `>=500`.
 
 Present in the package but not registered as a service:
 
 - `GcpProviderSpecificImage` ([gcp_provider_specific_image.py](src/cs_image_system/gcloud_runtime/gcp_provider_specific_image.py)), reached through the builder's `provider_specific_image_class()` hook.
-- `DummyGroupBuilderModel` and `DummyUserBuilderModel`, unregistered copies of the [dummy plugin](../dummy-plugin/README.md)'s models; the models module imports `DUMMY` from that package.
+- `DummyGroupBuilderModel`, an unregistered copy of the [dummy plugin](../dummy-plugin/README.md)'s group model, at the bottom of the models module.
 - The constant `GCP_CLI = "gcloud-cli"`, which nothing uses.
 
 ## Models
@@ -72,8 +76,8 @@ Base fields it inherits:
 |---|---|---|---|
 | `name` | `str` | the network name | Empty or `default` falls back to `network`. |
 | `network` | `str` | `default` | The VPC network name. `default` resolves at load to the network literally named `default` (GCE has no default flag). |
-| `subnets` | `list[RuntimeSubnetModel]` | required, non-empty | `name`, `subnet_id`, `is_default`, `public`, `cidr`, `config`. `subnet_id` is a subnetwork name, a full self link, or a `projects/<p>/regions/<r>/subnetworks/<n>` path. The first entry with `is_default: true` is the default subnet. |
-| `availability_zones` | `list[RuntimeAvailabilityZoneModel]` | `[]` | Declared; the GCE emitters use the runtime's `zone` instead. |
+| `subnets` | `list[RuntimeSubnetModel]` | required, non-empty | `name`, `subnet_id`, `is_default`, `public`, `cidr`, `availability_zone`, `config`. `subnet_id` is a subnetwork name, a full self link, or a `projects/<p>/regions/<r>/subnetworks/<n>` path. The first entry with `is_default: true` is the default subnet. |
+| `availability_zones` | `list[RuntimeAvailabilityZoneModel]` | `[]` | Entries `{name, is_default}`. Read only by `validate`'s zone-compatibility check (stage 52); the GCE emitters use the runtime's `zone` instead. |
 
 It constrains `name` to be non-empty after stripping. `get_subnet_id()`
 raises when no default subnet exists. There is no security group concept
@@ -93,13 +97,13 @@ Fields it adds:
 | Field | Type | Default | Meaning |
 |---|---|---|---|
 | `project_id` | `str \| None` | `None` | The GCP project. `self` in an owner list resolves to it; without it network discovery is skipped with a warning and image resolution and bakes fail. Reported by `runtime describe`. |
-| `zone` | `str \| None` | `None` | The zone build VMs and instances run in; the packer `zone`, the `google` provider's `zone`, and the scope of `inventory()`, `serial_console()` and the boot-image probe. |
-| `service_account_email` | `str \| None` | `None` | The service account attached to build VMs (`service_account_email` in the packer source). Without it packer attaches the project's default compute service account. |
+| `zone` | `str \| None` | `None` | The zone build VMs and instances run in; the packer `zone`, the `google` provider's `zone`, and the scope of `inventory()`, `serial_console()`, the boot-image probe, the power-state and identity probes and `start_instance`/`stop_instance`. |
+| `service_account_email` | `str \| None` | `None` | The service account attached to build VMs (`service_account_email` in the packer source). Without it packer attaches the project's default compute service account. Nothing passes it to the instance module: an instance gets whatever the module attaches. |
 | `default_disk_size` | `int \| None` | `None` | Boot disk size in GB for every image baked on this runtime; wins over the image's `primary_disk_size`. A GCE instance's boot disk is exactly its image's disk. |
 | `bake_preemptible` | `bool` | `False` | Bake on a preemptible (spot) VM; a preempted bake re-runs. |
-| `state_configuration` | `str` | `DEFAULT` | Foreign key to a state backend. Declared on the runtime; the terraform roots take their backend from their own builders' field of the same name. |
+| `state_configuration` | `str` | `DEFAULT` | Foreign key to a state backend. The storage and instance roots on this runtime resolve their backend as their own builder's `state_configuration`, else this value, else the default backend (`validate` resolves the bindings the same way). |
 | `ssh_username` | `str` | `DEFAULT` | When set, the bake's SSH user for every image baked here. |
-| `session_mechanism` | `str \| None` | `None` | `iap` is the only value. Any other string is an error. |
+| `session_mechanism` | `str \| None` | `None` | `iap` is the only value. The model accepts any string; the builder's `session_mechanism()` raises on anything else the first time a run or `validate` asks for it. |
 | `networking` | `GCPCloudNetworkingModel \| None` | `None` | Narrows the base type and makes it optional. Missing networking logs a warning at load. |
 | `network_map` | `dict` | discovered | Not an init field. `{network: {"subnets": [...]}}` from the project. |
 | `default_network` | `str \| None` | discovered | Not an init field. `default` when a network of that name exists. |
@@ -110,12 +114,12 @@ Base fields it inherits, and what this runtime does with them:
 | Field | From | Default | Meaning here |
 |---|---|---|---|
 | `name`, `type`, `description`, `aliases` | `NameTyped` | `name`/`type` required | `type` is `gcloud`. |
-| `executable`, `is_default`, `config`, `gitignore`, `tags` | `BuilderModel` | | `tags` merge into every image's labels after `gce_label()` sanitising. |
+| `executable`, `is_default`, `config`, `gitignore`, `tags` | `BuilderModel` | | `executable` names an `executables` entry `validate` checks; `is_default` makes this the runtime an unqualified reference resolves to. `tags` are accepted and read by nothing on this runtime: image labels are the lineage tags plus the image's own, and the instance's labels are the instance's own. |
 | `region` | `CloudBuilderModel` | required | The `google` provider's `region`; the client config's `region`. |
 | `credentials` | `RuntimeBuilderModel` | `CredentialsBase()` | Not narrowed. The base declares no fields and forbids extra keys, so `credentials:` accepts nothing; clients use Application Default Credentials. |
-| `default_machine_type` | `RuntimeBuilderModel` | required | Machine type when neither an OS-builder runtime entry nor an image names one. |
+| `default_machine_type` | `RuntimeBuilderModel` | required | Machine type when neither an OS-builder runtime entry nor an image names one; always the instance module's `machine_type`. |
 | `default_image_builder` | `RuntimeBuilderModel` | `DEFAULT` | The image builder an OS-builder runtime entry with `image_builder: default` resolves to. |
-| `default_owners` | `RuntimeBuilderModel` | `None` | Appended to every vendor-image query's owner list, then mapped to projects. |
+| `default_owners` | `RuntimeBuilderModel` | `None` | Appended to every vendor-image query's owner list (through the runtime entry's `get_owners()`), then mapped to projects. |
 | `default_config_username` | `RuntimeBuilderModel` | `None` | Fallback SSH user for OS-builder runtime entries that declare none. |
 | `ephemeral` | `RuntimeBuilderModel` | `False` | See "Retention and the GCE cycle". The fixture's `gcloud-east1` is ephemeral. |
 | `retention_keep` | `RuntimeBuilderModel` | `None` | Builds kept per series when the image declares no retention. |
@@ -149,19 +153,23 @@ hooks. In the order a run reaches them:
 | Resolution | `query_provider_image(subconfig)` | Finds the vendor image for one OS-builder runtime entry (image query below). Returns `(image_name, owning_project, raw_result)` or `None`. |
 | Image generation | `packer_source_type()` | `googlecompute`. |
 | Image generation | `packer_source_blocks(...)` | The `source "googlecompute"` block for one image. |
-| Image generation | `session_mechanism()` | `iap` or `None`. |
-| Image generation | `session_agent_commands(os_family)` | Installs `google-guest-agent` when missing (`apt-get` for `debian`/`ubuntu`, `yum` otherwise) and enables it together with `sshd`/`ssh`. |
-| Image generation | `session_verify_commands(os_family)` | Assertions that the guest agent is present and enabled. |
+| Image generation, `validate` | `session_mechanism()` | `iap` or `None`; raises on any other declared value. Also read by the launch-parameter record (`session`), by the instance builder (no public IP under `iap`) and by `validate`'s dead-end rule (a base image with no admin key AND no session mechanism). |
+| Image generation | `session_agent_commands(os_family)` | Installs `google-guest-agent` when missing (`apt-get` for `debian`/`ubuntu`, `yum` otherwise) and enables it together with `sshd`/`ssh`. Empty when the mechanism is not `iap`. |
+| Image generation | `session_verify_commands(os_family)` | Assertions that the guest agent is present and enabled. Empty when the mechanism is not `iap`. |
 | Image generation | `bake_ssh_username()` | The model's `ssh_username` when set, else `packer`; the ansible provisioner names this user. |
-| Image generation | `bake_finalize_commands(os_family)` | The last provisioner of every bake here: adds the build user to `google-sudoers` when that group exists, so the guest agent's first-boot user cleanup succeeds and metadata SSH keys get provisioned. |
+| Image generation | `bake_finalize_commands(os_family)` | The last provisioner of every bake here: adds the build user to `google-sudoers` when that group exists, so the guest agent's first-boot user cleanup succeeds and metadata SSH keys get provisioned. Emitted whatever the session mechanism. |
 | After a bake | `build_id_from_artifact(artifact_id)` | The packer manifest's `artifact_id` is the image name itself; returned unchanged. |
+| After a bake | `retag_image(image_id, tags)` | The packer builder stamps the recorded `csis_parent` and `csis_fingerprint` back onto the image (zero-drift-report). |
 | Instance verification | `serial_console(name)` | Serial port 1 output of the instance, read-only. |
-| Instance verification | `verify_instance(name, expected_build, expect_mounts, timeout)` | Polls the serial console until the guest agent reports the startup scripts finished (or an explicit failure line), compares the booted image with the expected build, and counts clean XFS mounts against the declared data disks. |
-| Instance operations | `run_session_command(name, script, timeout)` | `gcloud compute ssh <name> --tunnel-through-iap --command <script>` as the operator's gcloud account. |
+| Instance verification | `verify_instance(name, expected_build, expect_mounts, timeout)` | Polls the serial console every 15 s until the guest agent reports the startup scripts finished (`Finished running startup scripts`, or the older `startup-script exit status 0`) or an explicit failure line appears, compares the booted image with the expected build, and counts the kernel's `XFS (...): Ending clean mount` lines against the declared data disks. |
+| Instance operations | `run_session_command(name, script, timeout)` | `gcloud compute ssh <name> --project <p> --zone <z> --tunnel-through-iap --quiet --command <script>` as the operator's gcloud account. Used by `verify instance` (post-bake tests), `unmount storage`, the alias writer and the reachability wait. |
+| Instance operations | `can_query_instance_power_state()`, `query_instance_power_state(name)` | `True`; GCE's `Instance.status` mapped onto the system's vocabulary: `PROVISIONING`/`STAGING` starting, `RUNNING` running, `STOPPING`/`SUSPENDING` stopping, `SUSPENDED` suspended, `TERMINATED` **stopped** (on GCE it means the machine exists and can be started; a deleted instance is simply not found and answers `absent`), `REPAIRING` unknown. `None` means the runtime could not answer, never that the machine is off. |
+| Instance operations | `can_set_instance_power_state()`, `start_instance(name)`, `stop_instance(name)` | `True`; `instances.start`/`instances.stop`, waiting on the operation, then re-reading the state. Only `running_for_task` calls them (a bounded task that needs a running machine, which puts it back). |
+| Instance operations | `can_query_instance_identity()`, `query_instance_identity(name)` | `True`; the numeric instance id and the internal hostname (a custom `hostname` when set, else `<name>.c.<project>.internal`). Feeds the generation ledger and the provider-alias writer. |
 | `empty --runtime` | `inventory()` | Instances and disks in the zone and every custom image in the project (Compute API), plus the project's buckets (`gcloud storage buckets list`). |
 | Retention | `dispose_image(build_id)` | Deletes the image named by the build id and waits for the operation. `NotFound` returns `False` (already gone). |
-| State reconciliation | `retag_image(image_id, tags)` | `setLabels` on one of the system's own images: the current labels merged with the given tags, both sides passed through `gce_label()`. |
-| State query | `query_images(series)` | Every image in the project with a `csis_series` label: `{image_id, name, state, created, tags}` (labels as tags). |
+| State reconciliation | `retag_image(image_id, tags)` | `setLabels` on one of the system's own images: the current labels merged with the given tags, both sides passed through `gce_label()`, with the image's label fingerprint. Also the hook behind `lineage relabel` and `restamp`. |
+| State query | `query_images(series)` | Every image in the project with a `csis_series` label: `{image_id, name, state, created, tags}` (labels as tags). The `series` argument is not used as a filter. |
 | State query | `can_query_instance_boot_image()`, `query_instance_boot_image(name)` | `True`; the instance's boot disk's `source_image` basename, or `None` when the instance, disk, zone or project cannot be resolved. Read-only, never fatal. |
 | Release | `release_commands(build_id, tags)` | Base default: none. A release on GCE is recorded and relabelled through `retag_image`, not through a CLI command. |
 
@@ -246,7 +254,8 @@ so the state query compares the same facts on both clouds.
 With `session_mechanism: iap` the packer source gets `use_iap = true` and
 `iap_tunnel_launch_wait = 120`, so packer reaches the build VM through the
 IAP tunnel instead of its external address; the ephemeral external IP stays
-for package egress only. `run_session_command` tunnels the same way. The
+for package egress only. `run_session_command` tunnels the same way, and the
+GCE instance builder launches instances with `public_ip = false`. The
 operator prerequisites are outside the tree: a firewall rule allowing
 `35.235.240.0/20` to port 22 and `roles/iap.tunnelResourceAccessor` for the
 account that opens tunnels. The bake installs `google-guest-agent` so
@@ -254,16 +263,21 @@ metadata SSH keys are provisioned at first boot.
 
 ### The state query and instance hooks
 
-`query_images`, `query_instance_boot_image`, `inventory`, `serial_console`,
-`retag_image` and `dispose_image` use `compute_v1` clients built from the
-session config. The state query in
+`query_images`, `query_instance_boot_image`, `query_instance_power_state`,
+`query_instance_identity`, `inventory`, `serial_console`, `retag_image`,
+`dispose_image`, `start_instance` and `stop_instance` use `compute_v1`
+clients built from the session config. The state query in
 [state_query.py](../base/src/cs_image_system/base/state_query.py) reads
-`query_images` to classify `missing`, `foreign` and `changed` images, and
-asks `query_instance_boot_image` because `can_query_instance_boot_image()`
-is `True`. `verify_instance` is the deferred verification step of the
-instance lifecycle. `inventory()` feeds `empty --runtime`, which subtracts
-the declared storages' cloud names and the released builds and reports what
-is left.
+`query_images` to classify `missing`, `foreign` and `changed` images, asks
+`query_instance_boot_image` because `can_query_instance_boot_image()` is
+`True`, and asks `query_instance_power_state` before calling a silent boot
+probe "unavailable": a stopped machine is a `note`, not drift.
+`verify_instance` is the deferred verification step of the instance
+lifecycle, run inside `running_for_task` (a stopped instance is started for
+the check and stopped again afterwards; one that cannot be started is a
+SKIP, recorded as such). `inventory()` feeds `empty --runtime`, which
+subtracts the declared storages' cloud names and the released builds and
+reports what is left.
 
 ### Retention and the GCE cycle
 
@@ -324,8 +338,9 @@ The plugin's output is visible in the golden emission under
   and
   [tofu-gce-instance-generation-instance-gce_test.tf](../../tests/fixtures/v2_golden/generated/instance-image/tofu-gce/instance-generation/tofu-gce-instance-generation-instance-gce_test.tf):
   written by the GCE instance plugin from this model. `provider "google" {
-  project, region, zone, alias }`; the instance module's `zone`,
-  `subnetwork` (the default subnet), `image_family` (the series) and, when
+  project, region, zone, alias }`; the instance module's `machine_type`
+  (the runtime default), `zone`, `subnetwork` (the default subnet),
+  `image_family` (the series), `public_ip = false` under `iap` and, when
   declared, `network_tags`. The `.tfbackend.hcl` beside them is an S3
   backend written by the state-backend plugin; GCE roots keep their state
   there.
@@ -333,7 +348,8 @@ The plugin's output is visible in the golden emission under
   ([runtime_facts.py](../base/src/cs_image_system/base/commands/runtime_facts.py))
   reports `runtime`, `type`, `project_id`, `zone`, `region`,
   `default_machine_type`, `ephemeral`, `retention_keep`, the `images`,
-  `storages`, `instances` and `ephemeral_instances` declared on it;
+  `storages`, `instances` and `ephemeral_instances` declared on it, the
+  `builders` bound to it and its `emission` directories;
   `empty --runtime gcloud-east1` adds the live `inventory` and the
   `leftovers`. Commands, not files.
 
@@ -355,7 +371,8 @@ runtime_builders:
     project_id: csis-sandbox
     zone: us-east1-b
     session_mechanism: iap
-    # build VMs and instances run as the least-privilege runner account
+    # build VMs run as the least-privilege runner account (the packer source
+    # carries it; the instance module attaches no service account)
     service_account_email: csis-runner@csis-sandbox.iam.gserviceaccount.com
     # bake disk (= every instance's boot disk) at the vendor image's 10 GB floor
     default_disk_size: 10
@@ -377,13 +394,602 @@ runtime_builders:
           public: true
 ```
 
+## Prerequisites and integration
+
+Everything below exists outside the system; the plugin creates none of it
+and generates no IAM change. For each item: how the plugin finds it.
+
+**A GCP project with the Compute Engine API enabled.** Found through
+`project_id` on the runtime entry; it is the `project` of every Compute
+client call, the packer source's `project_id`, the `google` provider's
+`project` and the project `self` resolves to in an owner list. Without it
+the tree loads with a warning and nothing that touches GCE works. The
+Compute API must be enabled for the project: the first thing the plugin
+does with it is list its networks at load.
+
+**Application Default Credentials (ADC) for a principal that can act in
+that project.** The model declares no credentials (`credentials:` accepts
+no key), so every `compute_v1` client is built with no explicit credentials
+and the Google auth library's default chain applies, in its order:
+`GOOGLE_APPLICATION_CREDENTIALS` naming a credentials file, else
+`~/.config/gcloud/application_default_credentials.json` (written by `gcloud
+auth application-default login`), else the metadata server of an attached
+service account. The operator's form, from
+[docs/OPERATIONS.md](../../docs/OPERATIONS.md) ("Credentials and sessions"):
+
+```sh
+gcloud auth application-default login --impersonate-service-account=csis-runner@<project>.iam.gserviceaccount.com
+```
+
+which needs `roles/iam.serviceAccountTokenCreator` on the runner for the
+operator's own Google user. `cs-image-system preflight` and every `run` and
+`state` check that the ADC file exists at the same path (presence only: an
+impersonated or authorized-user ADC refreshes itself, so no expiry is
+readable) and print one `session:` line for it. In CI the
+`google-github-actions/auth` action turns `GCP_WORKLOAD_IDENTITY_PROVIDER`
+and `GCP_SERVICE_ACCOUNT` into ADC (read-only in CI: the GCE runtime is out
+of CI by the cost decision, and the perform job only records and guards).
+
+What that principal must be allowed to do, by hook: list networks, routes,
+firewalls and subnetworks (load); list and get images in the project and in
+the public image projects the owner aliases name (`resolve`, the state
+query, `lineage relabel`, `empty`); `getFromFamily` (a family query);
+`images.delete` (retention, `dispose image`) and `images.setLabels` (the
+post-bake retag, `relabel`, `restamp`); `instances.get`, `instances.list`,
+`instances.getSerialPortOutput`, `instances.start`, `instances.stop` and
+`disks.get`/`disks.list` in the zone (verification, the state query,
+`empty`, the power-state and identity probes). Bakes run as this principal
+too: packer creates the build VM and the image, and attaching
+`service_account_email` to the build VM needs `roles/iam.serviceAccountUser`
+on that account (found live: a least-privilege runner cannot `actAs` the
+default compute service account, which is why the field exists).
+
+**A service account for build VMs.** Optional. Found through
+`service_account_email`; emitted into the packer source only. Without it
+packer attaches the project's default compute service account.
+
+**A VPC network and a subnetwork in the project.** Found through
+`networking.network` (`default` means the network named `default`; the
+project must have one) and `networking.subnets[].subnet_id`; both are
+checked against the project at every load, so a load needs the API and the
+credentials above even for a dry run or `validate`. The subnetwork's region
+should be the runtime's `region` and contain the runtime's `zone`; the
+plugin does not check that, GCE refuses the VM at bake or launch if it is
+wrong. Under `iap` instances get no public IP, so anything an instance must
+reach on the internet needs a route the operator provides (the bake VM keeps
+an ephemeral external IP for package egress).
+
+**IAP TCP forwarding, when `session_mechanism: iap`.** Three things the
+tree never creates, from OPERATIONS.md ("IAP sessions on GCE"): a firewall
+rule allowing `tcp:22` from `35.235.240.0/20` on the instances' network
+(`network_tags` on the runtime select tagged rules; a tag no rule targets
+is warned about at load); `roles/iap.tunnelResourceAccessor` for the runner
+service account, because bakes tunnel too (`use_iap = true`); and the same
+role for each operator's own Google user, because `run_session_command`
+runs `gcloud compute ssh --tunnel-through-iap` as the operator's active
+gcloud account, not as the impersonated ADC. The operator's SSH key must be
+agent-loaded or passphrase-less: nothing in a run can prompt (found live
+2026-09-09). The images bake the Google guest agent so metadata SSH keys
+are provisioned at first boot; the base image's package manager must be
+able to install `google-guest-agent` (`apt-get` on `debian`/`ubuntu`,
+`yum` elsewhere; the vendor images carry it already).
+
+**The `gcloud` CLI.** Two hooks shell out to it: `run_session_command`
+(`gcloud compute ssh`) and `inventory()` (`gcloud storage buckets list`,
+so `empty --runtime` needs `storage.buckets.list` for the gcloud account).
+Found on `PATH` (the hooks call `gcloud` by name). Its version is checked
+when it is declared under `executables:` with `name: gcloud` (the checker
+is registered under that name): the fixture declares
+`binary: /usr/local/bin/gcloud` and `version: ">=500"`, the Google Cloud
+SDK version; `validate` and every run refuse when the binary is missing,
+the version cannot be parsed from `gcloud --version`, or it is below the
+floor. Packer's `googlecompute` plugin is a prerequisite of the packer
+image builder (`required_plugins` on the `packer-gce` builder), not of this
+package.
+
+**A live AWS session as well.** The GCE roots keep their terraform state
+in the S3 backend by standing decision, and the tree's AWS runtimes
+validate their networking at the same load, so a GCE lifecycle, `empty
+--runtime gcloud-east1` and every configuration load need the AWS
+profile's session too (found live 2026-09-08: an expired SSO session
+stopped GCE work with GCP fully authenticated). See
+[docs/OPERATIONS.md](../../docs/OPERATIONS.md) for the profile.
+
+**Python dependencies**, from [pyproject.toml](pyproject.toml):
+`google-cloud-compute>=1.49`, `google-api-core>=2.31`, `google-auth>=2.55`,
+`python-hcl2>=8.1`, `pydantic>=2.13`, and the system's own
+`cs-image-system-system` and `cs-image-system-hashicorp-utils` at the same
+version. Python 3.13 or later.
+
+Environment variables the plugin or its checks read: `GOOGLE_APPLICATION_CREDENTIALS`
+(optional; the ADC file), and in CI `GCP_WORKLOAD_IDENTITY_PROVIDER` and
+`GCP_SERVICE_ACCOUNT` (read by the auth action, not by the plugin). The
+preflight also refuses any `GOOGLE_*` variable that is set but empty.
+
+## Configuration reference
+
+The YAML this plugin owns is one entry of `runtime_builders:` in
+`cfg/runtime-builders.yml` with `type: gcloud`; the manual's section is
+[docs/CONFIGURATION.md](../../docs/CONFIGURATION.md) 4.4. Every field the
+plugin's model accepts, and who reads it:
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `name` | str | required | the runtime's name; other builders name it through `runtime:`; the `# runtime bake finalization (<name>)` provisioner carries it |
+| `type` | str | required | `gcloud` |
+| `description` | str or null | null | free text; accepted, not read by this plugin |
+| `aliases` | list[str] | `[]` | extra names the runtime answers to |
+| `executable` | str or null | null | an `executables` entry; when set, `validate` checks that entry exists and passes its version check. Not the `gcloud` entry the version checker parses (that one is found by the entry's own name) |
+| `is_default` | bool | false | the runtime an unqualified runtime reference resolves to |
+| `config` | mapping | `{}` | free-form; accepted, not read |
+| `gitignore` | list[str] | `[]` | accepted, not read by this plugin |
+| `tags` | mapping[str, str] | `{}` | accepted, not read: no image label, instance label or storage label comes from the runtime's tags |
+| `region` | str | required | the `google` provider's `region`; the client config's `region` |
+| `project_id` | str or null | null | the project (see above); `runtime describe` reports it |
+| `zone` | str or null | null | the zone of build VMs and instances and the scope of every zonal query; `runtime describe` reports it |
+| `service_account_email` | str or null | null | the packer source's `service_account_email`; instances are not given it |
+| `default_disk_size` | int or null | null | the packer source's `disk_size` in GB; null falls back to the image's `primary_disk_size` |
+| `bake_preemptible` | bool | false | `preemptible = true` on the packer source |
+| `state_configuration` | str | `default` | the state backend rung between a root's own and the default backend |
+| `ssh_username` | str | `default` | the bake's ssh user for every image here; `default` means: the OS-builder runtime entry's `ssh_username`, else `packer` |
+| `session_mechanism` | str or null | null | `iap`, or nothing; any other string is refused by the builder when first read |
+| `default_machine_type` | str | required | the bake's `machine_type` when the OS-builder runtime entry names none, and always the instance module's `machine_type` |
+| `default_image_builder` | str | `default` | the image builder an OS-builder runtime entry with `image_builder: default` resolves to |
+| `default_owners` | list[str] or null | null | extra owners for every vendor-image query on this runtime, resolved to projects |
+| `credentials` | mapping | `{}` | must be empty; any key is a validation error |
+| `default_config_username` | str or null | null | the ssh user for OS-builder runtime entries that declare none |
+| `ephemeral` | bool | false | every image baked here is disposed by the closing retention lifecycle |
+| `retention_keep` | int or null | null | builds kept per series when the image declares no `retention`; null keeps all |
+| `on_failure` | str or null | null | ephemeral default: `keep` or `teardown` |
+| `teardown_after` | str or null | null | ephemeral default: `<number>` followed by `m`, `h` or `d` |
+| `networking` | mapping or null | null | below; null loads with a warning and bakes and instances then emit no `subnetwork` |
+
+`networking:`
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `name` | str | the network | a label; must not be empty after stripping |
+| `network` | str | `default` | the network name; `default` becomes the network literally named `default` at load |
+| `subnets` | list | required, at least one, one `is_default: true` | see below |
+| `availability_zones` | list | `[]` | `{name, is_default}`; only `validate`'s zone-compatibility check reads the default one |
+| `network_tags` | list[str] | `[]` | the packer source's `tags` and the instance module's `network_tags` |
+
+`networking.subnets[]:`
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `name` | str | the subnet id | label |
+| `subnet_id` | str | required | a subnetwork name, self link, or `projects/<p>/regions/<r>/subnetworks/<n>` path; checked against the project at load; the default one is the packer source's and the instance module's `subnetwork` |
+| `is_default` | bool | false | the subnet bakes and instances use |
+| `public` | bool | false | accepted, not read (the plugin discovers publicness from the routes) |
+| `cidr` | str or null | null | accepted, not read |
+| `availability_zone` | str or null | null | the zone `validate`'s compatibility check attributes to the runtime when no default availability zone is declared |
+| `config` | mapping | `{}` | accepted, not read |
+
+Fields the plugin reads from YAML it does not own:
+
+| Where | Field | Read by |
+|---|---|---|
+| the OS builder's runtime entry (`os_builders[].runtimes[]`) | `owners`, `query.filters`, `query.owners` | the image query |
+| the same entry | `machine_type`, `default_machine_type` | the packer source's `machine_type`, before the runtime default |
+| the same entry | `ssh_username` | the packer source's `ssh_username`, unless the runtime declares one |
+| the image | `primary_disk_size` | `disk_size` when the runtime declares no `default_disk_size` |
+| the image | `source_image`, `parent_policy`, the pin | `source_image` (pinned or resolved) or `source_image_family` (deferred) |
+| `cfg/executables.yml` | the `gcloud` entry's `binary` and `version` | the version checker |
+| the instance | `runtime`, `image`, `storages`, `tags` | the GCE instance plugin, which reads `zone`, `default_machine_type`, `networking` and `session_mechanism` from this model |
+
+Not in the model, and refused at load because unknown keys are errors:
+`account_id`, `security_group_ids`, `session_instance_profile`,
+`iam_instance_profile`, `ena_support`, `sriov_support`, `runtime_classifier`,
+and any key inside `credentials:`.
+
+### Variations
+
+- **`session_mechanism: iap` vs unset.** With `iap` the packer source gets
+  `use_iap = true` and `iap_tunnel_launch_wait = 120`, the bake gains the
+  guest-agent install provisioner and the guest-agent assertions in its
+  in-bake verification, the instance module gets `public_ip = false`, the
+  launch record's `session` is `iap`, and `run_session_command` works. Unset,
+  the bake reaches the build VM over its external IP on tcp:22 (which needs
+  a firewall rule the operator owns), instances keep a public IP, no agent
+  is installed or asserted, `run_session_command` still runs `gcloud
+  compute ssh --tunnel-through-iap` (it does not check the mechanism, so it
+  fails without the IAP wiring), and `validate` refuses a base image on
+  this runtime that also declares no admin public key (no debug path). The
+  finalize provisioner is emitted either way.
+- **`ephemeral: true` vs `false`.** Ephemeral: the closing retention step
+  disposes every build baked here that is not released, pinned or launched
+  from, whatever `retention_keep` or the images' `retention` say; `empty
+  --runtime` then expects no custom image but released ones. Durable:
+  builds stand until `retention.keep`, `retention_keep` or an explicit
+  `dispose image`.
+- **Pinned vs deferred vs resolved parent.** A pinned parent bakes from
+  `source_image = gce_name(<build id>)`; a resolved vendor image from
+  `source_image = <name>` plus `source_image_project_id = ["<project>"]`
+  (omitted when the owner is `self` or unset); a deferred parent (built
+  earlier in the run or by a previous one) from `source_image_family =
+  gce_name(<series>)`, which GCE resolves to the newest image of the family.
+  `parent_policy: follow` moves the pin after the bake and the post-bake
+  retag writes the resolved parent onto the image.
+- **`default_disk_size` set vs null.** Set: every image here bakes at that
+  size and the image's `primary_disk_size` is ignored. Null: the image's
+  own value (which inherits the OS builder's default; 200 GB in the frozen
+  fixture's lineage) is emitted.
+- **`ssh_username` set vs `default`.** Set: the packer source and the
+  ansible provisioner both name it, for every image on the runtime. Default:
+  the OS-builder runtime entry's `ssh_username`, else `packer` (the packer
+  source), while the ansible provisioner user is always `packer` in that
+  case (`bake_ssh_username()` reads only the runtime's field).
+- **`network: default` vs a name.** `default` is replaced at load by the
+  network named `default` and the packer source emits no `network` line;
+  a named network is checked to exist and emitted as `network`.
+- **`network_tags` declared vs empty.** Declared: `tags = [...]` on the
+  packer source, `network_tags` on the instance module, a load-time warning
+  per tag no firewall rule targets. Empty: neither line is emitted.
+- **Owner aliases vs project ids vs AWS-only owners.** `self` becomes
+  `project_id`; distro aliases become the public image projects; a valid
+  project id is used as is; `amazon`, `aws-marketplace`, `aws-backup-vault`
+  and anything that cannot be a project id (an AWS account number) are
+  dropped, so a shared OS-builder query works on both clouds.
+- **`filters` with AWS-only keys.** `root_device_type`,
+  `virtualization_type`, `block_device_mapping.*` and the rest of
+  `AWS_ONLY_QUERY_KEYS` are dropped with a DEBUG line; an unknown key is
+  applied as an exact post-query match on the image dictionary (a typo
+  therefore matches nothing and the resolution fails, by design).
+- **`state: available` vs anything else.** `available` maps to `status =
+  "READY"`, which is also forced when no status is given; `pending`/`failed`
+  map to `PENDING`/`FAILED`; another value is upper-cased as given.
+- **`bake_preemptible: true` vs `false`.** True emits `preemptible = true`;
+  a preempted bake fails and is re-run by the next run (nothing is recorded
+  for it). False emits nothing.
+- **`project_id` set vs null.** Null: the load warns and skips network
+  discovery and validation; `resolve` then fails with `Owner 'self'
+  requires a project ...` and every Compute hook raises `no project ...`.
+- **Dry run vs real run.** The plugin itself does not read the flag. A dry
+  run still loads (so network discovery still calls the API), still
+  resolves vendor images (the `resolve` phase queries the image projects),
+  and still emits the packer source and the terraform arguments; nothing is
+  baked, verified, disposed or relabelled because the runner scripts are
+  enumerated, not executed. `dispose image` under `--dry-run` prints its
+  plan and calls no hook; `lineage relabel` is dry by default.
+- **Apply flag on vs off.** With `apply_instances: [gcloud-east1]` (or
+  `--apply-runtime gcloud-east1`) the instance root applies, the launch is
+  recorded, the verification runs, `mark_launched` fires, the generation
+  ledger asks `query_instance_identity` and the alias writer asks it again.
+  Off, the root plans and gates only and none of the instance hooks run.
+- **`--only-runtime` another runtime.** No GCE image bakes and no GCE root
+  is generated or planned (a run scoped away from this runtime cannot fail
+  on its family lookup); retention disposes within the scoped runtime only.
+- **A stopped instance.** `TERMINATED` maps to `stopped`; the state query
+  writes a `note` instead of an `unavailable` line, `verify instance` starts
+  the machine for the check and stops it again, `verify login` and the
+  alias writer skip it, and nothing else touches its power state.
+- **Encrypted vs clear values.** The plugin reads no encrypted value: every
+  field it owns is a name, an id or a number. An `ENC[age:...]` marker in
+  one of them would reach the API as the literal marker.
+
+## What it tests and verifies
+
+**At load (pydantic, then `finalize()`).** Unknown keys anywhere in the
+entry are refused with the field path (`extra="forbid"`); `credentials:`
+with any key is refused; a networking block must have a non-empty `name`
+and `network`, at least one subnet and one `is_default: true`; a runtime
+must declare `default_machine_type`. Then `update_networking()`: with a
+project it calls the Compute API and refuses the load (a `ValueError`; the
+CLI exits 1 for any command that loads the tree, `validate` included) when
+`network: default` names nothing, the network is absent from the project,
+or a `subnet_id` matches no subnetwork of that network; it logs a warning
+per network tag no firewall rule targets, a warning when `networking` is
+absent, and a warning when no project can be resolved. The verdict lands
+in the log; the discovered `network_map`, `default_network` and
+`all_firewall_rules` stay on the model for the emitters. The test suite
+stubs `get_network_map_and_default_network` with the fixture's own subnet
+ids (see `tests/v2_support.py`), so no test reaches the API.
+
+**At `validate`.** The `gcloud` executable's binary exists and its SDK
+version satisfies the declared requirement (one INFO line names every
+version found; a failure names the tool); `session_mechanism()` is asked
+for the dead-end rule, so an unsupported value surfaces here as a
+`ValueError`; the zone-compatibility check reads `networking`'s default
+availability zone or the default subnet's `availability_zone` against the
+instances and zonal storages on the runtime; the state-location check
+resolves each root's backend through `state_configuration`. Every failure
+is one line naming the object, and `validate` exits 1.
+
+**At generation.** `session_mechanism()` again (the packer provisioners,
+the instance builder, the launch record). The packer source is emitted
+with the sanitised names; the golden emission under
+`tests/fixtures/v2_golden` pins its exact shape, and `just test` fails on
+any drift of it. `test_v2_explore_gcp.py` asserts the emitted commands: the
+finalize provisioner is the last one of every GCE bake, IAP runtimes emit
+`use_iap` and the tunnel wait and non-IAP ones do not, the disk size comes
+from the runtime, the device name and the mounted by-id path agree.
+`test_v2_gce_cycle.py` pins that `bake_preemptible` lands on the source and
+that `retag_image` merges the lineage truth into the labels. The package's
+own tests pin the query remap and project resolution.
+
+**In the bake (packer, on the build VM).** The in-bake verification
+provisioner runs `session_verify_commands` under `set -e`: the guest agent
+binary exists and the unit is enabled; a failed assertion fails the bake
+and packer deletes the build VM. The finalize provisioner runs last and is
+tolerant (`|| true`).
+
+**After a bake.** The packer builder records the build from the manifest
+(`build_id_from_artifact` returns the image name) and calls `retag_image`
+to stamp `csis_parent` and `csis_fingerprint` from the record; the labels
+and the record then agree, which the state query later checks.
+
+**After the instance apply (verification).** `verify instance <name>`
+runs inside `running_for_task`; the hook polls the serial console until
+the startup scripts report completion, checks the booted image against the
+pin or launch record (or, for an image built this run, against the lineage
+records of the instance's series on this runtime), counts clean XFS mounts
+against the declared data disks, and then runs the image's declared
+post-bake tests over `run_session_command`. The verdict lands in
+`meta-state/verifications.yaml` (`ok`, `checks`, the last 20 serial
+console lines mentioning `startup`, `XFS` or
+`google_metadata_script_runner` as `evidence`), post-bake results in
+`meta-state/image-tests.yaml`, one `verify <name>: <check>: ok|FAILED --
+<detail>` log line per check, and a failed verdict raises
+`VerificationFailed`, which stops the runner with the instance standing
+(`on_failure: keep`) or after its teardown (`teardown`); the run exits 1.
+A stopped instance that cannot be started is recorded as `skipped` with no
+verdict.
+
+**After the apply (generations and aliases).** `query_instance_identity`
+gives the numeric instance id that defines the instance's generation in
+`meta-state/instance-state.yaml`; the alias writer reads it again, waits
+until `run_session_command` answers, and writes the AltNames over the same
+session (log lines `now also answers to [...]` or a `WARNING`/`ERROR`
+naming why not).
+
+**In the state query.** `query_images` lists every image with a
+`csis_series` label; the base classifies `missing` (recorded, not found),
+`foreign` (labelled, not recorded) and `changed` (labels disagree with the
+record) images. `query_instance_boot_image` compares a pinned instance's
+booted image with its pin (`changed`, or a `note` when a replacement is
+pending) and finds standing ephemerals; `query_instance_power_state` turns
+a stopped machine into a `note`. Any hook that raises becomes an
+`unavailable:` line naming the label and the error, never a claim. The
+report is `generated/state-report.json` (run-local) and the log;
+`state query --strict` exits 1 on any drift but `stale`.
+
+**In `empty --runtime`.** `inventory()` is subtracted by the declared
+storages' cloud names and the released builds; any leftover instance,
+image, disk or bucket is printed and the command exits 1; a hook that
+cannot answer exits 2.
+
+**In retention and `dispose image`.** `dispose_image` reports
+`deleted=True|False` per build in the log (`False` when GCE already had no
+such image); the lineage record is dropped either way.
+
+## When it fails
+
+Failures that have happened, newest first. Dates are the ledger's
+([docs/history/LEDGER.md](../../docs/history/LEDGER.md)) or the test
+docstrings'.
+
+- **2026-09-21 -- a stopped machine reported as "could not answer".** The
+  boot-image probe answered `None` for an instance the operator had
+  stopped, the state query wrote `unavailable`, and the records described a
+  machine that was not there. Since stage 57 the plugin maps GCE's
+  `TERMINATED` to `stopped` (it is not deleted: a deleted instance is `not
+  found` and maps to `absent`), the query asks the power state before
+  calling silence unavailable, and the line is a `note` (`instances/<name>:
+  stopped; its pinned build ... still stand ...`). Nothing to do; a stopped
+  machine is the operator's decision.
+- **2026-09-10 -- `Script disconnected unexpectedly` at the last scriptlet
+  of the security-update transaction.** A GCE base bake over the IAP tunnel
+  died after 3 min 24 s as the transaction closed (`pam`, `dbus-broker`,
+  `libssh`, `curl`, `python3`...); packer cleaned its build VM, nothing was
+  left on GCE, and a scoped retry (`run base-image --only
+  basic-rh-10@gcloud-east1`) baked cleanly. Transient, not reproduced; the
+  watch item is packer's `expect_disconnect` or a pause on the OS-update
+  provisioner of IAP runtimes if it recurs. Look at packer's log in the
+  bake's block directory; retry the bake alone.
+- **2026-09-10 -- `family/imgfile-basic-dask` returned 404 at the GCE
+  instance plan.** A run scoped to the AWS runtime still planned the GCE
+  instance root, whose module resolves a deferred image through
+  `data "google_compute_image" { family = ... }`, and the previous cycle's
+  retention had disposed every GCE image. Since then a run scoped to one
+  runtime (`--only-runtime`, or `--apply-runtime` implying it) generates
+  and plans no other runtime's root. If it appears in an unscoped run: the
+  family is empty because retention emptied it; bake the series first.
+- **2026-09-09 -- `read_passphrase: can't open /dev/tty`.** The operator's
+  `google_compute_engine` key was passphrase-protected and the session hook
+  (`gcloud compute ssh`, non-interactive) cannot prompt, so every
+  `run_session_command` failed. Use an agent-loaded or passphrase-less key
+  (the project's `ssh-keys` metadata was re-provisioned by the guest agent
+  within seconds of the change).
+- **2026-09-08 -- `changed` drift: `fingerprint differs` on a follow image
+  (finding 66).** A `parent_policy: follow` image baked in the same run as
+  its parent got its labels from packer at generation time (parent
+  `series:...`, a placeholder fingerprint); the lineage record was written
+  after the bake; `retag_image` was a no-op on GCE, so the strict preflight
+  refused the next run. `retag_image` now does `setLabels`. For images
+  already standing: `lineage relabel --runtime <rt>` (`just cloud-relabel
+  <rt> no`; dry by default) re-labels every recorded build whose labels
+  disagree with its record.
+- **2026-09-08 -- `4047: Failed to lookup instance` and an SSH timeout
+  against a healthy build VM (finding 64).** A bake that followed another
+  build in the same run hit IAP's instance-lookup lag for longer than
+  packer's default 30 s tunnel wait; four reproductions, serial consoles
+  showed sshd up in 30 s. IAP bakes now set `iap_tunnel_launch_wait = 120`.
+  If it recurs, `PACKER_LOG=1` shows the tunnel retries; the wait is a
+  constant in `gcp_packer_source.py`.
+- **2026-09-08 -- `No valid credential sources found ... backend s3 ...
+  the SSO session has expired` at the GCE instance plan (finding 65).** The
+  AWS session lapsed mid-cycle; the GCE roots' state is in S3 and every
+  load validates the AWS runtimes' networking. Renew the AWS session (`aws
+  sso login --profile <p>`) and rerun; the preflight now reads session
+  lifetimes before a run. `empty --runtime gcloud-east1` needs the AWS
+  session for the same reason.
+- **2026-09-08 -- verification failed on `booted image` with a launch
+  record of `unbound` (finding 63).** The instance's image was baked in the
+  same run, so nothing was pinned and the check compared the booted image
+  with the literal `unbound`; the instance was left standing by the rule.
+  Verification now requires the booted image to be a recorded build of the
+  instance's image series on its runtime. The recovery was the next
+  instance-image run resuming the sequence.
+- **2026-09-07 -- `gce-verify` never saw `startup-script exit status 0`
+  (finding 56).** Guest agent 20260715 logs `Finished running startup
+  scripts` instead; the instance was healthy the whole time. The hook
+  accepts both lines. A verification that reports `no completion on the
+  serial console within <timeout>s` on a newer agent means a third
+  spelling: read `serial_console` output (the `evidence` in
+  `verifications.yaml`) and extend the pattern.
+- **2026-09-07 -- a dask bake timed out waiting for SSH through the IAP
+  tunnel (finding 55).** In the window GitHub's release downloads were
+  returning 504; the retry booted, provisioned in about 90 s and imaged
+  cleanly. Later understood as finding 64 above.
+- **2026-09-06 -- every bake timed out `waiting for SSH` (finding 54).**
+  Packer reached build VMs over their external IP on tcp:22, which only
+  worked while the default VPC's `default-allow-ssh` rule existed; deleting
+  it (deliberate hygiene) broke every bake. IAP runtimes now bake through
+  the tunnel (`use_iap = true`); the operator prerequisite is
+  `roles/iap.tunnelResourceAccessor` for the runner service account. The
+  same symptom today means that role is missing.
+- **2026-09-05 -- the instance boot disk was 200 GB, about $8/month
+  (finding 51).** The boot disk inherited the image's `disk_size`, which
+  inherited the OS builder's 200 GB default (a RHEL vendor minimum carried
+  forward). `default_disk_size` on the runtime now wins; the fixture bakes
+  at the vendor image's 10 GB floor (a boot disk cannot be smaller than its
+  source image).
+- **2026-09-05 -- every SSH/IAP session to the launched instance refused
+  (finding 47).** At first boot the guest agent removes users absent from
+  metadata; when the bake user's `google-sudoers` membership was missing
+  (the agents race over it during bakes) `gpasswd` exited 3 and the agent
+  aborted its whole metadata-ssh-key setup, so no operator key was ever
+  provisioned. `bake_finalize_commands` now guarantees the membership as
+  the bake's last act. The symptom returning means the finalize provisioner
+  is not the last one in the emitted `-build.pkr.hcl` (the test
+  `test_gce_bakes_end_with_the_finalize_provisioner` guards it).
+- **2026-09-05 -- ansible tasks died `unreachable / Failed to create
+  temporary directory` (finding 48).** Packer's ansible provisioner
+  defaulted `ansible_user` to the operator's local login, not the build
+  VM's ssh user, so ansible built `~/.ansible/tmp` under
+  `/home/<local-user>`; intermittent because packer's `use_proxy`
+  auto-detection masked it. `bake_ssh_username()` pins the provisioner
+  `user` to the bake's user (`packer`, or the runtime's `ssh_username`).
+- **2026-09-04 -- the base bake used ssh user `ec2-user` while the
+  instance bake fell back to `packer` (finding 43).** The new-generation
+  guest agent removes the other-name user at first boot and aborts key
+  provisioning; one GCE chain must bake every image as ONE user. Declare
+  `ssh_username` on the runtime, or on every OS-builder runtime entry of
+  the chain.
+- **2026-09-03 -- a dask bake fell through to the runtime's 1 GB machine
+  and OOMed at 65 minutes (finding 41).** The packer source's
+  `machine_type` now follows the AWS-parity chain: the OS-builder runtime
+  entry's `machine_type`, its `default_machine_type`, then the runtime's
+  `default_machine_type`. A bake that needs memory declares it on the
+  entry; the runtime default is the free-tier `e2-micro` in the fixture.
+- **2026-09-03 -- underscores in GCE names (findings 34-37).** GCE refuses
+  `_` in resource and device names; every name now goes through
+  `gce_name()`. A `gce_data` disk attached under that name while the
+  startup script mounted `/dev/disk/by-id/google-gce-data` (finding 50,
+  2026-09-05) is the same lesson on the instance side: one sanitisation
+  serves both.
+
+Failures the code raises that have not happened live, by where they
+surface:
+
+- **Load.** `No usable GCP project could be resolved for cloud builder
+  <name> ... Skipping network validation` (WARNING): no `project_id`;
+  add one. `No networking configuration provided for GCP cloud builder
+  <name>` (WARNING): bakes and instances will carry no `subnetwork`.
+  `No network specified ... and no 'default' network found in GCP project`,
+  `Network <n> ... not found in GCP project`, `Subnetwork <id> ... not
+  found in network <n>` (ERROR, then a `ValueError` that ends the load,
+  exit 1): fix the declaration or the project. `GCP Error: <api error>`
+  (`ValueError`): the API refused the listing, usually permissions or a
+  disabled Compute API. An auth error (`DefaultCredentialsError`, no ADC)
+  is not wrapped and ends the load with the library's own message: run the
+  ADC login above. `Network tag <t> ... is not targeted by any firewall
+  rule` (WARNING): the tag selects nothing.
+- **`validate` / generation.** `GCP runtime <name>: unknown session
+  mechanism '<x>' (supported: iap)` (`ValueError`): only `iap` exists.
+  `gcloud: binary '/usr/local/bin/gcloud' not found`, `gcloud:
+  GCPCLIVersionChecker could not parse a version from ...`, `gcloud <v>
+  does not meet its requirement >=500 (cfg/executables.yml)`: install or
+  upgrade the SDK, or move the floor in `executables.yml`.
+- **Resolution (`resolve`, the base-image phase of a run).** `Owner
+  'self' requires a project in the session configuration (set project_id
+  on the runtime builder ...)`; `No usable GCP projects resolved from
+  query ...` (every owner was dropped as invalid); `Failed to query images
+  in project '<p>' with filter: <error>` and `Failed to query image family
+  '<f>' in project '<p>': <error>` (`ImageQueryError`: permissions or an
+  unknown project); `No resolved Image identifiers for OS <name> in
+  predefined_resolve` (the base's message when the query matched nothing:
+  loosen `filters`, check the owner and the `status`); `Could not get
+  owning project for image <name>` (a result with neither `project` nor a
+  `self_link`; not expected from the API). Each ends the run, exit 1.
+- **The state query.** `state query images/<rt> unavailable: GCP runtime
+  <rt>: no project to query` or an API error: an `unavailable:` line, never
+  drift; `state query --strict` still refuses on a session that will not
+  outlast the run, and a plain run warns. `instances/<name>: booted image
+  (runtime <rt> could not answer)`: the boot probe returned `None` and the
+  machine is not stopped; the DEBUG log carries the exception.
+- **Verification.** `verify <name>: startup scripts: FAILED -- an explicit
+  failure line` (a `startup-script exit status <non-zero>` or a `failed`/
+  `error` startup line on the console; read the `evidence`); `no completion
+  on the serial console within <t>s` (the agent never reported; raise
+  `--timeout`, read the console); `booted image: FAILED -- booted <x>,
+  expected <y>` (the instance did not boot its pin: `upgrade instance` and
+  replace, or `state query` to see the mismatch); `booted <x>, which
+  lineage does not record for <image> on <rt>`; `data disks mounted:
+  FAILED -- <n> clean XFS mount(s) on the console, <m> declared` (the
+  startup script did not format or mount a pd: the device name and the
+  by-id path must agree); `declared tests: FAILED -- k of n failed: ...`
+  (the image's post-bake suite; the per-build record in
+  `image-tests.yaml` names the assertion; `release` refuses the build).
+  `GCP runtime <rt>: no project/zone to read a serial console`
+  (`RuntimeError`): declare `zone`. A `VerificationFailed` leaves the
+  instance standing under `keep` and fails the run.
+- **Session commands.** A non-zero exit from `gcloud compute ssh` is
+  returned with the combined output: `unmount storage` writes a failed
+  receipt and raises `unmount of <mount> on <instance> failed (exit
+  <rc>)`, the alias writer logs `alias write failed (<rc>): <tail>`,
+  `wait_until_reachable` keeps polling until its deadline, and a post-bake
+  suite shows as `no result`. The usual causes are the missing IAP role or
+  firewall rule, a passphrase-protected key, or a machine still booting.
+  `GCP runtime <rt>: no project/zone for a session command`: declare
+  `zone`.
+- **Power state.** `GCE runtime <rt>: instance '<n>' reports unrecognised
+  status '<s>'; treating it as unknown` (WARNING): a status outside the
+  eight the map knows; nothing acts on it. `GCP runtime <rt>: no
+  project/zone to start an instance` / `... to stop an instance`
+  (`RuntimeError`). `<n>: FAILED to stop it again after <why>: <error>. It
+  was switched off before this run and is now RUNNING -- stop it by hand.`
+  (ERROR from `running_for_task`): the one case that leaves a billable
+  change behind; stop the instance.
+- **`empty --runtime`.** `GCP runtime <rt>: no project/zone to inventory`;
+  `gcloud storage buckets list: <stderr tail>` (the gcloud account cannot
+  list buckets, or is not logged in): exit 2. A leftover named under
+  `leftovers` is exit 1: dispose or decommission it through the recorded
+  path, never by hand.
+- **Retention and `dispose image`.** `GCE image <id> not found in <p>;
+  nothing to delete` (WARNING, `deleted=False`): the image was already
+  gone; the record is dropped anyway. `GCP runtime <rt>: no project to
+  dispose in` (`RuntimeError`). An API error (permissions, an image in
+  use by a disk) propagates and stops the retention step; the record then
+  still exists and the next run retries.
+- **Relabel.** `relabel: could not retag <id>: <error>` (WARNING,
+  `retagged=False`): the record is right and the state query keeps showing
+  the tag. `relabel: <id> is not in <rt>; nothing to relabel`: the image
+  is gone; the state query reports it `missing`. The post-bake retag has no
+  guard: an error there fails the bake's record step.
+- **Names.** `gce_name()` never fails; two csis names that differ only in
+  characters it strips (`a_b` and `a-b`, or case) collide on GCE, and the
+  second bake or launch fails with the API's `already exists`. Keep names
+  distinct in the lowercase `[a-z0-9-]` alphabet.
+
 ## Related
 
 - [aws-runtime-plugin](../aws-runtime-plugin/README.md): the other runtime type, with the same hook surface on EC2.
 - [default-os-plugin](../default-os-plugin/README.md): the OS builders whose runtime entries this plugin resolves to GCE images.
+- [tf-gcp-plugin](../tf-gcp-plugin/README.md): the GCE instance and storage roots that read this model.
 - [dummy-plugin](../dummy-plugin/README.md): the extension template; this package's models module imports it.
-- Base classes: [runtime.py](../base/src/cs_image_system/base/models/runtime.py), [cloud_builder.py](../base/src/cs_image_system/base/models/cloud_builder.py), [credentials.py](../base/src/cs_image_system/base/models/credentials.py), [provider_specific_image.py](../base/src/cs_image_system/base/models/provider_specific_image.py), [builder_base_runtime.py](../base/src/cs_image_system/base/basic/builder_base_runtime.py), [abstract_version_checker.py](../base/src/cs_image_system/base/basic/abstract_version_checker.py).
-- Consumers of the hooks: [state_query.py](../base/src/cs_image_system/base/state_query.py), [retention.py](../base/src/cs_image_system/base/retention.py), [dispose.py](../base/src/cs_image_system/base/commands/dispose.py), [verify_instance.py](../base/src/cs_image_system/base/commands/verify_instance.py), [runtime_facts.py](../base/src/cs_image_system/base/commands/runtime_facts.py).
+- Base classes: [runtime.py](../base/src/cs_image_system/base/models/runtime.py), [cloud_builder.py](../base/src/cs_image_system/base/models/cloud_builder.py), [credentials.py](../base/src/cs_image_system/base/models/credentials.py), [provider_specific_image.py](../base/src/cs_image_system/base/models/provider_specific_image.py), [builder_base_runtime.py](../base/src/cs_image_system/base/basic/builder_base_runtime.py), [abstract_version_checker.py](../base/src/cs_image_system/base/basic/abstract_version_checker.py), [power_state.py](../base/src/cs_image_system/base/power_state.py).
+- Consumers of the hooks: [state_query.py](../base/src/cs_image_system/base/state_query.py), [retention.py](../base/src/cs_image_system/base/retention.py), [dispose.py](../base/src/cs_image_system/base/commands/dispose.py), [verify_instance.py](../base/src/cs_image_system/base/commands/verify_instance.py), [runtime_facts.py](../base/src/cs_image_system/base/commands/runtime_facts.py), [relabel.py](../base/src/cs_image_system/base/commands/relabel.py), [provider_aliases.py](../base/src/cs_image_system/base/provider_aliases.py), [generations.py](../base/src/cs_image_system/base/generations.py), [validate.py](../base/src/cs_image_system/base/commands/validate.py).
 - [docs/OPERATIONS.md](../../docs/OPERATIONS.md) for the credential contract and the operator's cycles; [docs/DESIGN.md](../../docs/DESIGN.md) for the design; [docs/PLUGINS.md](../../docs/PLUGINS.md) for the package index.
-
-- [The configuration reference](../../docs/CONFIGURATION.md) — every field of the YAML this plugin reads, with an example.
+- [The configuration reference](../../docs/CONFIGURATION.md) -- every field of the YAML this plugin reads, with an example.

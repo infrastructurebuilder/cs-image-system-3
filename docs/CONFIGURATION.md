@@ -79,7 +79,10 @@ current directory). The Justfile drives the live tree named by
   builder. At most one entry per class may be the default; the load refuses
   a second. The same rule serves `runtime: default`, `image_builder:
   default`, `state_configuration: default`.
-- `aliases:` is a list of extra names an entry answers to. Aliases must be
+- `aliases:` is a list of extra names an entry answers to (a state
+  backend's aliases are the exception: `state_configuration` resolves
+  registration names only, and an alias there is refused by `validate` as
+  not declared). Aliases must be
   unique within the class; `default`, `self` and the empty string are not
   allowed as a name or an alias; `/` and `\` are refused.
 - Names are normalized: trimmed, lower-cased, spaces and colons replaced by
@@ -116,10 +119,14 @@ generated/
 | `pins.yaml` | instance pins and image pins (`<image>@<runtime>`) |
 | `launch-params.yaml` | what each launched instance was launched with |
 | `runs.yaml` | run summaries |
-| `verifications.yaml` | ephemeral instance verifications |
+| `verifications.yaml` | every instance's verification verdicts (ephemeral and durable; the last 500) |
 | `image-tests.yaml` | post-bake test results per build |
 | `releases.yaml` | every release and the current release per model |
 | `mod-tests.yaml` | local modification test results |
+| `state-locations.yaml` | every workspace's resolved state location and every recorded move |
+| `instance-state.yaml` | per name, the durable and ephemeral generation counters, the open generation and its history |
+| `login-proofs.yaml` | the login proofs (`verify login`, the CI job) |
+| `aliases.txt` | the pool of memorable names, hand-appended, each line spent once by a launch |
 
 ## 2. `cfg/_config.yml`
 
@@ -132,9 +139,9 @@ any `cfg/` file; they are documented in their own sections.
 | --- | --- | --- | --- |
 | `id` | str | required | the configuration's identifier |
 | `generation_directory` | str | `generated` | where a run writes, relative to the root |
-| `dateformat` | str | `%Y-%m-%d-%H%M%S` | `strftime` format of `execution.timestamp` (used in generated image names) |
+| `dateformat` | str | `%Y%m%d_%H%M%S` | `strftime` format of `execution.timestamp` (used in generated image names); read as raw text before the model loads, with this fallback (the model's own default, `%Y-%m-%d-%H%M%S`, feeds a helper nothing calls) |
 | `gitignore` | list[str] | `[]` | entries appended to the built-in list (`target/`, `.terraform/`, `terraform.tfstate`, `terraform.tfstate.backup`, `!.terraform.lock.hcl`) and written to `generated/.gitignore`; duplicates keep their last position |
-| `sleep_before_finalization` | int | `1` | seconds to wait before finalization executes |
+| `sleep_before_finalization` | int | `1` | accepted, not read: finalization logs that it is ignored and waits for nothing |
 | `encryption` | mapping | `{recipients: []}` | see 2.1 |
 | `public_safe` | mapping | `{allow: []}` | see 2.2 |
 | `config` | mapping | `{}` | the global settings the run reads; see 2.3 |
@@ -172,7 +179,7 @@ template scope: `{{ config.x }}` does not resolve in model fields).
 | `apply_storage` | bool or list[str] | `false` | let the storage roots apply |
 | `apply_instances` | bool or list[str] | `false` | let the instance roots apply |
 | `apply_release` | bool or list[str] | `false` | let the release lifecycle mark artifacts in the cloud |
-| `use_state_backends` | bool | `false` | emit terraform `backend` and remote-state blocks (needs real state buckets) |
+| `use_state_backends` | bool | `false` | emit terraform `backend` and remote-state blocks (needs real state locations). Required in effect: with it off, the instance and storage roots still reference the remote state they read gids, tokens and volume ids through, and a root with a group or a mount does not validate |
 | `module_source_base` | str | `../tfmodules` | where generated `module` calls find the modules: a relative path is relative to the configuration root and rewritten for each root's depth; an absolute path or a git/registry URL passes through |
 | `admin_public_keys` | list[str] (a single string is accepted) | `[]` | OpenSSH public key lines for the mandatory local admin user of every base image; anything resembling private-key material is refused; per-base override on the OS builder |
 | `okta_gateway_selector` | str | none | fallback `gateway_selector` for an OPA group builder that sets none |
@@ -272,16 +279,12 @@ executables:
   - name: packer
     version: ">=1.14, <1.15"
     binary: /usr/local/bin/packer
-  - name: packer-1.9.4
-    version: ">=1.8, <1.10"
-    binary: packer-1.9.4
-    type: packer
   - name: gcloud
     binary: /usr/local/bin/gcloud
-    version: ">=2026.02.0, <2027.01.0"
+    version: ">=500"        # the Google Cloud SDK version, not the core component's date
   - name: ansible-playbook
     binary: /usr/local/bin/ansible-playbook
-    version: "<2.21"
+    version: ">=2.16"
   - name: bash
     binary: /usr/local/bin/bash
   - name: docker
@@ -317,11 +320,11 @@ Every builder in sections 4 to 10 has these.
 | `type` | str | required | the plugin model |
 | `description` | str or null | null | free text; templates allowed |
 | `aliases` | list[str] | `[]` | extra names |
-| `executable` | str or null | null (plugin models set their own) | an entry of `executables` |
+| `executable` | str or null | null (plugin models set their own) | an entry of `executables`, checked to exist and meet its floor for runtime, OS, image, mod, instance and storage builders; a state backend's is accepted and never checked |
 | `is_default` | bool | `false` | the entry `default` resolves to |
 | `config` | mapping | `{}` | free-form |
 | `gitignore` | list[str] | `[]` | extra gitignore entries for this builder's output |
-| `tags` | mapping[str, str] | `{}` | tags applied to what the builder creates |
+| `tags` | mapping[str, str] | `{}` | tags applied to what the builder creates, where the builder reads them; a `gcloud` runtime's are read by nothing (image labels come from lineage and the image's own tags, instance labels from the instance's) |
 | `parameters` | — | — | **refused** with a message: module inputs are a storage builder's `variables:` |
 
 Builders that bake or launch on a runtime (`RuntimeEnabledBuilderModel`:
@@ -340,10 +343,10 @@ image, instance and storage builders) add:
 | Field | Type | Default | Meaning and allowed values |
 | --- | --- | --- | --- |
 | `default_machine_type` | str | required | the machine type for bakes and instances that name none |
-| `default_image_builder` | str | `default` | the image builder used when an image's runtime entry names none |
-| `default_owners` | list[str] or null | null | accepted; not read by the cloud plugins |
+| `default_image_builder` | str | `default` | accepted and checked as a foreign key to an image builder; not read: an image's runtime entry that names no `image_builder` (or names `default`) resolves to the registry's default image builder, not to this field |
+| `default_owners` | list[str] or null | null | meant to join the owners of every vendor image query made for this runtime; unreachable in practice, since the lookup that would read it keys the runtime by the image builder's name and never finds it (a code stage names the fix); until then an OS builder entry's own `owners` is what a query uses |
 | `credentials` | mapping | `{}` | provider-specific (4.3, 4.4); an unknown key is refused |
-| `default_config_username` | str or null | null | the ssh user for bakes when neither the OS builder nor its runtime entry names one |
+| `default_config_username` | str or null | null | meant as the ssh user for bakes when neither the OS builder nor its runtime entry names one; unreachable in practice, for the same reason as `default_owners` (the fallback that would read it never runs); the bake user that applies is the OS family's (`admin`, `ubuntu`, `ec2-user`), overridden by the runtime's own `ssh_username` |
 | `ephemeral` | bool | `false` | nothing baked here survives a successful run: the closing `retention` lifecycle disposes every image on this runtime. Declared storages are never touched. |
 | `retention_keep` | int or null | null | how many builds per image series survive on this runtime when the image declares no `retention`; null keeps all |
 | `on_failure` | str or null | null | runtime default for ephemeral instances: `keep` or `teardown` |
@@ -359,9 +362,9 @@ image, instance and storage builders) add:
 | --- | --- | --- | --- |
 | `account_id` | str or null | null | the account (a number is coerced to a string) |
 | `state_configuration` | str | `default` | a state backend (section 10); `default` inherits the runtime's, else the default backend |
-| `ena_support` | bool or null | null | passed to the packer source |
+| `ena_support` | bool or null | null | accepted; not read -- nothing emits it into a packer source |
 | `sriov_support` | bool or null | null | accepted; not read |
-| `iam_instance_profile` | str or null | null | instance profile attached to build VMs |
+| `iam_instance_profile` | str or null | null | instance profile attached to build VMs; when `session_instance_profile` is also set, this one is written after the SSM block and replaces it on the build VM |
 | `session_mechanism` | str or null | null | `ssm`: bakes and debug sessions go through SSM (the agent is baked into base images) |
 | `session_instance_profile` | str or null | null | the profile attached to launched instances for SSM sessions |
 | `ssh_username` | str | `default` | override of the bake ssh user |
@@ -382,7 +385,7 @@ session.
 | --- | --- | --- | --- |
 | `project_id` | str or null | null | the project |
 | `zone` | str or null | null | the zone for build VMs and instances |
-| `service_account_email` | str or null | null | the service account attached to build VMs and instances |
+| `service_account_email` | str or null | null | the service account attached to build VMs (the packer source); the instance module attaches none |
 | `default_disk_size` | int or null | null | bake disk size in GB for every image baked here (a GCE boot disk is exactly its image's disk); null uses the image's own value |
 | `bake_preemptible` | bool | `false` | bake on preemptible (spot) build VMs |
 | `state_configuration` | str | `default` | a state backend (section 10); `default` inherits the runtime's, else the default backend |
@@ -409,9 +412,10 @@ and warns about a network tag no firewall rule targets.
 | `subnets[].is_default` | bool | `false` | the subnet bakes and instances use |
 | `subnets[].public` | bool | `false` | informational |
 | `subnets[].cidr` | str or null | null | informational |
-| `subnets[].config` | mapping | `{}` | free-form |
-| `availability_zones` | list | `[]` | entries `{name, is_default}`; the default zone is passed to the instance root |
-| `security_group_ids` (aws) | list[str] | `[]` | security groups for build VMs and instances |
+| `subnets[].availability_zone` | str or null | null | the subnet's zone, read by `validate`'s zone check (section 12a) |
+| `subnets[].config` | mapping | `{}` | free-form; accepted, not read |
+| `availability_zones` | list | `[]` | entries `{name, is_default}`; on AWS the default zone is passed to the instance root; on GCE the instance root takes the runtime's `zone` and the default here is read by `validate`'s zone check only |
+| `security_group_ids` (aws) | list[str] | `[]` | accepted and counted at load (the total with `addl_security_groups` is validated); emitted nowhere -- an instance wears the root's own security group plus `addl_security_groups`, and SSH ingress references `ssh_ingress_security_group_ids` |
 | `addl_security_groups` (aws) | list[str] | `[]` | existing groups every instance also wears; never modified |
 | `ssh_ingress_security_group_ids` (aws) | list[str] | `[]` | groups whose members may SSH in; when set, port-22 ingress references only these groups, never a CIDR |
 | `network_tags` (gcloud) | list[str] | `[]` | network tags that select firewall rules |
@@ -514,9 +518,9 @@ Types: `rhel` (dnf; adds `subscription_id`), `fedora` (dnf), `debian`
 | `owners` | list[str] | `[]` | image owners for the vendor-image query (`self`, `amazon`, an account id, `almalinux-cloud`) |
 | `query` | mapping | `{}` | the vendor-image query: `filters:` by provider field (`name`, `state`, `root_device_type`, `architecture`, `virtualization_type`); the newest match is the source |
 | `runtimes` | list | required, at least one | one entry per image builder (5.1); `image_builder` unique within the list |
-| `config_username` | str or null | null | sudo-capable ssh user on the vendor image, used for provisioning |
+| `config_username` | str or null | null | meant as the sudo-capable ssh user for provisioning; accepted, not read in practice: its only reader is a finalize step nothing calls |
 | `auto_update` | bool | `false` | alias for `update: {policy: full}` when `update` is absent |
-| `update` | mapping or policy name | null | 5.2 |
+| `update` | mapping | null | 5.2 |
 | `identity_types` | list[str] | `[]` | identity types this base bakes prerequisites for (`okta`); an instance image whose group's builder is of another type is refused |
 | `storage_types` | list[str] | `[]` | storage types instances of this base may attach (`ebs`, `efs`, `s3`, `pd`, `filestore`, `gcs`); each must have a configured storage builder |
 | `admin_user` | str | `csisadmin` | the mandatory local admin user; must not be empty |
@@ -537,15 +541,15 @@ Types: `rhel` (dnf; adds `subscription_id`), `fedora` (dnf), `debian`
 | `name` | str or null | null | a label; unique within the builder |
 | `type` | str | the parent's name | set by the loader |
 | `description` | str | templated | free text |
-| `image_id` | str or null | null | a fixed provider image id instead of a query |
+| `image_id` | str or null | null | accepted, not read; the vendor query is always made |
 | `image_name` | str or null | null | accepted; not read |
 | `auto_update` | bool or null | null | overrides the builder's `auto_update` for this runtime |
-| `default_machine_type` | str or null | null | machine type for bakes on this runtime |
-| `default_primary_disk_size` | int | `100` | GB |
+| `default_machine_type` | str or null | null | machine type for bakes on this runtime; the entry's `machine_type` template resolves to the runtime's default when unset |
+| `default_primary_disk_size` | int | `100` | GB; accepted, not read on the entry (the base image takes the OS builder's value; GCE then prefers the runtime's `default_disk_size`) |
 | `tags` | mapping[str, str] | `{}` | merged over the builder's tags |
 | `owners` | list[str] | `[]` | appended to the builder's owners |
 | `query` | mapping | `{}` | merged over the builder's query, key by key |
-| `ssh_username` | str | `default` | the bake ssh user on this runtime; unset falls back to `config_username`, then the runtime's `default_config_username` |
+| `ssh_username` | str | `default` | the bake ssh user on this runtime; left at default it falls back to the OS family's user (`admin`, `ubuntu`, `ec2-user`), the runtime's own `ssh_username` overrides it, and GCE substitutes `packer` when nothing resolves |
 | `tests` | mapping or null | null | when set, **replaces** the builder's `tests` for bakes on this runtime |
 | `tags`, `config` | | | accepted (`config` is not read); `aliases` are refused |
 
@@ -553,7 +557,8 @@ Types: `rhel` (dnf; adds `subscription_id`), `fedora` (dnf), `debian`
 
 `UpdatePolicy`
 ([`update_policy.py`](../packages/base/src/cs_image_system/base/models/update_policy.py)).
-A mapping, or a bare policy name.
+A mapping (`update: none` as a bare name is refused when the structure
+loads; write `update: {policy: none}`).
 
 | Key | Type | Default | Meaning and allowed values |
 | --- | --- | --- | --- |
@@ -707,7 +712,6 @@ Key: `mod_builders`. A modification builder turns an image's
 | Field | Type | Default | Meaning and allowed values |
 | --- | --- | --- | --- |
 | common builder fields (4.1) | | | `executable` names the ansible-playbook entry |
-| `playbooks` | list[str] | `[]` | playbooks run **before** every item's own, for every item of this builder; paths relative to the configuration root |
 | `extra_arguments` | list[str] | `[]` | passed as the provisioner's `extra_arguments` (the system appends `-e ansible_python_interpreter=…`) |
 | `ansible_connection` | str or null | null | the provisioner's `connection_type`; normally unset |
 | `expect_disconnect` | bool | `false` | the provisioner's `expect_disconnect` |
@@ -715,14 +719,17 @@ Key: `mod_builders`. A modification builder turns an image's
 
 ### 7.2 `bash-remote`
 
-`BashBuilderModel`. Every item becomes one `provisioner "shell"`.
+`BashBuilderModel`. An item becomes one `provisioner "shell"` block, two
+when it carries both `scripts` and inline lines (packer forbids both
+arguments in one block), and none, with a warning, when its `ensure` lists
+are all empty.
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | common builder fields (4.1) | | | |
-| `execute_command` | str or null | null | the provisioner's `execute_command` |
+| `execute_command` | str or null | null | the provisioner's `execute_command`; it cannot carry packer's own `{{ .Path }}` syntax, since every configuration string is rendered as a Jinja template at load |
 | `environment_vars` | list[str] | `[]` | the provisioner's `environment_vars` |
-| `expect_disconnect` | bool | `false` | accepted |
+| `expect_disconnect` | bool | `false` | emitted as `expect_disconnect = true` on every block of the builder's items when set |
 | `extra_arguments` | list[str] | `[]` | accepted; not emitted |
 | `configuration_user` | str or null | null | accepted; not emitted |
 
@@ -731,7 +738,9 @@ Key: `mod_builders`. A modification builder turns an image's
 `ModItemModel`
 ([`moditem_type.py`](../packages/base/src/cs_image_system/base/models/moditem_type.py))
 plus the builder type's fields. The item's `type` names a mod builder
-(name or alias, `default`, or omitted = the default mod builder); the
+(its name, `default`, or omitted = the default mod builder; an alias
+loads and validates but fails at generation, since the image builder
+looks mod builders up by name; a code stage names the fix); the
 builder's type decides which item model applies.
 
 | Field | Type | Default | Meaning |
@@ -740,23 +749,18 @@ builder's type decides which item model applies.
 | `type` | str | `default` | the mod builder |
 | `description`, `aliases`, `tags` | | | as elsewhere |
 | `config` | mapping | `{}` | free-form. It is **part of the build's content hash** (a change re-bakes the image) and available to templates as `{{ this.config.x }}`; it is **not** passed to ansible or to the shell. |
-| `playbooks` (ansible) | list[str] | `[]` | playbooks run after the builder's. **Required in effect**: an item with no playbooks has nothing to modify with (`config:` alone provisions nothing) and is refused at load, by name |
+| `playbooks` (ansible) | list[str] | `[]` | the playbooks this item runs, in order, paths relative to the configuration root (the builder has no playbooks of its own since stage 48.4). **Required in effect**: an item with no playbooks has nothing to modify with (`config:` alone provisions nothing) and is refused at load, by name |
 | `script` (bash-remote) | list[str] | `[]` | inline shell lines, run in order (no templating; literal) |
-| `scripts` (bash-remote) | list[str] | `[]` | script files, relative to the root, copied beside the packer root |
+| `scripts` (bash-remote) | list[str] | `[]` | script files, relative to the configuration root (resolved against the working directory, which the load sets to the root), copied beside the packer root |
 | `ensure` (bash-remote) | mapping | `{}` | declarative, idempotent steps: `packages: [..]`, `files: [{path, content, mode (0644)}]`, `services: [..]` (enabled and started), `commands: [{run, unless}]` (run only when `unless` fails); any other key is refused |
 
 A bash-remote item must give at least one of `script`, `scripts`,
 `ensure`. An item with only `ensure` is recorded as `idempotent: declared`;
 one with `script`/`scripts` as `idempotent: unknown`.
 
-**An ansible item with only `config:`** loads with a warning and emits
-no provisioner at all: the builder emits one provisioner per playbook the
-ITEM carries, the builder's own `playbooks` are copied beside the Packer
-root but never referenced, and nothing reads the item's `config`. The bake
-proceeds as if the modification were not there, while the on-image bundle
-still records the item (an empty `run.sh`, its `config` in the content
-hash). The golden shows this for the two such items on
-`imgfile-basic-dask-two`. A bash item with only `config:` refuses at load.
+**An ansible item with only `config:`** is refused at load, by name (`ValueError`:
+an item with no playbooks has nothing to modify with; nothing reads the
+item's `config`). A bash item with only `config:` is refused the same way.
 
 [`cfg/mod-builders.yml`](../tests/fixtures/config/cfg/mod-builders.yml):
 
@@ -767,8 +771,6 @@ mod_builders:
     is_default: true
     type: ansible
     executable: ansible-playbook
-    playbooks:
-      - modify_image.yml
     config:
       key1: value1
       key2: value2
@@ -828,7 +830,7 @@ types `tofu` (AWS) and `tofu-gce` (GCE, same fields,
 | common builder fields (4.1) | | | |
 | `executable` | str or null | `tofu` | the tofu/terraform entry |
 | `runtime` | str | `default` | the runtime instances stand on |
-| `required_plugins` | list | `[]` | terraform providers: `{name (required), version (required), source, config}` |
+| `required_plugins` | list | `[]` | terraform providers: `{name (required), version (required), source, config}`; `config` is accepted and not read by the storage and instance builders (only the Okta workspace reads a provider's config) |
 | `state_configuration` | str | `default` | the state backend of this root; `default` inherits the runtime's, else the default backend |
 
 [`cfg/instance-builders.yml`](../tests/fixtures/config/cfg/instance-builders.yml):
@@ -974,9 +976,9 @@ Keys: `group_builders` and `user_builders`. Models:
 | `secret` | EncryptedStr | `default` | likewise, `TF_VAR_<team>_secret` |
 | `api_host` | str | `https://{{ this.org }}.pam.okta.com` | the OPA API host |
 | `okta_base_url` | str | `okta.com` | `okta` provider `base_url` (`oktapreview.com` for a preview org) |
-| `default_user_status` | str | `STAGED` | `okta_user.status` for enabled managed users: `ACTIVE`, `STAGED`, `SUSPENDED`, `DEPROVISIONED`; disabled users are always `SUSPENDED` |
+| `default_user_status` | str | `STAGED` | `okta_user.status` for enabled managed users: `ACTIVE`, `STAGED`, `SUSPENDED`, `DEPROVISIONED`; disabled users are always `SUSPENDED`. Not validated here: another value is emitted as written and refused by the provider |
 | `required_providers` | list | `[]` | `{name (required), version (required), source, config}`; `oktapam` gets its credentials wired through variables, `okta` reads `OKTA_API_*` from the environment and its `config` may carry any provider argument |
-| `state_configuration` | str | `default` | the state backend every root on this runtime inherits unless it names its own (stage 46) |
+| `state_configuration` | str | `default` | the state backend of the identity roots; `default` takes the default backend (an identity root has no runtime to inherit from) |
 
 `<team>` in a variable name is the team with every non-alphanumeric
 character replaced by `_` (`nos-coastal-modeling-cloud-sandbox` →
@@ -991,6 +993,8 @@ character replaced by `_` (`nos-coastal-modeling-cloud-sandbox` →
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `gateway_selector` | str or null | null | the resource-group project's `gateway_selector`; falls back to `config.okta_gateway_selector` |
+| `workload_connection` | str or null | null | the team's workload connection, by name, made by hand once (`WORKLOAD_CONNECTION.md`); with `workload_role` it makes the builder keep one CI login policy per managed group (stage 56) |
+| `workload_role` | str or null | null | the team's workload role, by name; the only principal of every CI login policy |
 | `account_discovery` | bool | `true` | the project's `account_discovery` |
 
 For every managed group `<g>` the `okta-tf` builder emits: the `oktapam`
@@ -1005,8 +1009,11 @@ declare `identity_types: [okta]` get the OPA server agent baked, dormant;
 an instance image activates it for its owning group. The identity type
 token is `okta`.
 
-The `dummy` plugin registers a `dummy` group builder and user builder
-(`org`, `team`, `key`, `secret`, `api_host`) for tests.
+The `dummy` plugin registers a `dummy` group builder (`org`, `team`,
+`key`, `secret`, `api_host`, all accepted and not read) and a `dummy` user
+builder (`org`, `team`) as the extension template; no test declares
+either, and a declared one fails the identity lifecycle today (its README
+says why).
 
 ### 9.3 User builders
 
@@ -1019,6 +1026,7 @@ an `okta_user` resource plus a lookup) and `okta-tf-ro` (lookup only;
 | `default_user_email_template` | str | `{{ user.name }}` | the email of a user that declares none; `user` is the user being rendered |
 | `default_user_description_template` | str | `User {{ user.name }} / {{ user.email }}` | the description of a user that declares none |
 | `email_as_username` | bool | `true` | when true a user's `name` must equal its `email` (case-insensitive); a blank name is set from the email; a mismatch aborts the load |
+| `email_domain` | str | none | the fragment `default_user_email_template` renders with (`{{ builder.email_domain }}`); the value that is encrypted in the live tree, so a derived address carries the ciphertext (section 13) |
 
 The Okta login of an emitted user is its email. Lookups search
 `profile.login` by that email and skip roles and groups.
@@ -1070,12 +1078,16 @@ the recipe). Every terraform root names one backend through
 `state_configuration`, or inherits its runtime's, or takes the default;
 roots on different types read each other's state through
 `terraform_remote_state` all the same. A root's state file is
-`<root name>.tfstate`, the root name with non-alphanumerics replaced by
-`_`, under the backend's prefix or directory.
+`<root name>.tfstate` under the backend's prefix or directory for the `s3`
+and `local` types, and `<prefix>/<root name>/default.tfstate` for `gcs`;
+the root name is lowercased with `-`, `.`, `:`, `+`, `/`, `\`, `@` and
+spaces replaced by `_` (other characters pass through).
 
 **Where a root's state lives (stage 46).** A configured root keeps its state
-in exactly one *location*, the tuple (backend type, bucket, key prefix,
-state file name), and no two roots may write the same state object. The
+in exactly one *location*, the tuple (backend type, container, key): a
+bucket and an object key for `s3` and `gcs`, a directory and a file name
+for `local`, compared as written after the key is normalised. No two roots
+may write the same state object. The
 backend a root uses resolves through a chain: the root's own
 `state_configuration` when it names a backend, else its runtime's
 `state_configuration` (declared on both runtime types: "everything on this
@@ -1099,8 +1111,9 @@ refuses a collision before anything is emitted: two backends whose bucket
 and normalised prefix match, two root names that collapse under the state
 file naming (`aws-ebs` and `aws_ebs` both become `aws_ebs.tfstate`), or a
 `//` against a `/`. It also refuses a root bound twice to different
-backends, a backend registered twice with different settings, and more
-than one `is_default`. Every run records each root's resolved location in
+backends. A backend name declared twice, and more than one `is_default`,
+are refused earlier, when the configuration loads, with the loader's own
+messages. Every run records each root's resolved location in
 `meta-state/state-locations.yaml`; a later run whose resolution differs
 from the record is refused while the records show live resources in that
 root (a storage not destroyed, a group or user the identity read-model
@@ -1109,8 +1122,9 @@ is empty and the next plan would create everything again. A root with
 nothing deployed moves freely. The escape is the operation
 `run --no-dry-run … --migrate-state <root>` (OPERATIONS, "Where state
 lives"); there is no flag that merely proceeds past the refusal. The
-fixture binds its storage roots to `s3-east1` and everything else to the
-default `s3-east2`, so its golden carries both buckets; the live
+fixture binds its storage roots to `s3-east1`, its identity roots to the
+`local` backend `local-dev`, and its instance roots to the default
+`s3-east2`, so its golden carries both buckets and one local file; the live
 configuration keeps every root on its default backend by decision.
 
 ### `s3`
@@ -1125,25 +1139,25 @@ configuration keeps every root on its default backend by decision.
 | `encrypt` | bool | `false` | server-side encryption of the state objects |
 | `use_lockfile` | bool | `true` | S3 lockfile locking |
 | `executable` | str or null | `tofu` | |
-| `required_plugins` | list | `[]` | `{name, version, source, config}` |
-| `allowed_account_ids` | list[str] | `[]` | backend argument |
-| `forbidden_account_ids` | list[str] | `[]` | backend argument |
-| `http_proxy`, `https_proxy` | str or null | null | backend arguments |
-| `no_proxy` | list[str] | `[]` | backend argument |
-| `insecure` | bool | `false` | |
-| `max_retries` | int | `5` | |
-| `access_key`, `secret_key` | str or null | null | static keys (belong in the environment, not here) |
-| `shared_config_file`, `shared_credentials_file` | str or null | null | |
-| `skips_credentials_validation` | bool | `false` | (spelled with the `s`) |
-| `skip_region_validation` | bool | `false` | |
-| `skip_requesting_account_id` | bool | `false` | |
-| `skip_metadata_api_check` | bool | `false` | |
-| `skip_s3_checksum` | bool | `false` | |
-| `use_dualstack_endpoint` | bool | `false` | |
-| `use_fips_endpoint` | bool | `false` | |
-| `endpoints` | mapping or null | null | `{dynamodb, s3, sts, iam, sso}` custom endpoints |
-| `assume_role` | mapping or null | null | `{role_arn, duration, policy, policy_arns: [], session_name, source_identity, tags: {}, transitive_tag_keys: []}` |
-| `assume_role_with_web_identity` | mapping or null | null | `{role_arn, duration, policy, policy_arns: [], session_name, web_identity_token, web_identity_token_file}` |
+| `required_plugins` | list | `[]` | `{name, version, source, config}`; accepted, not read |
+| `allowed_account_ids` | list[str] | `[]` | accepted, not read |
+| `forbidden_account_ids` | list[str] | `[]` | accepted, not read |
+| `http_proxy`, `https_proxy` | str or null | null | accepted, not read |
+| `no_proxy` | list[str] | `[]` | accepted, not read |
+| `insecure` | bool | `false` | accepted, not read |
+| `max_retries` | int | `5` | accepted, not read |
+| `access_key`, `secret_key` | str or null | null | accepted, not read; static keys belong in the environment, never here |
+| `shared_config_file`, `shared_credentials_file` | str or null | null | accepted, not read |
+| `skips_credentials_validation` | bool | `false` | accepted, not read (spelled with the `s`) |
+| `skip_region_validation` | bool | `false` | accepted, not read |
+| `skip_requesting_account_id` | bool | `false` | accepted, not read |
+| `skip_metadata_api_check` | bool | `false` | accepted, not read |
+| `skip_s3_checksum` | bool | `false` | accepted, not read |
+| `use_dualstack_endpoint` | bool | `false` | accepted, not read |
+| `use_fips_endpoint` | bool | `false` | accepted, not read |
+| `endpoints` | mapping or null | null | `{name (required), dynamodb, s3, sts, iam, sso}`; accepted, not read |
+| `assume_role` | mapping or null | null | `{name (required), role_arn, duration, policy, policy_arns: [], session_name, source_identity, tags: {}, transitive_tag_keys: []}`; accepted, not read |
+| `assume_role_with_web_identity` | mapping or null | null | `{name (required), web_identity_token, web_identity_token_file}`; accepted, not read |
 
 A root's location is `s3://<bucket>/<key>/<root name>.tfstate`; the backend
 file carries `bucket`, `key`, `region`, `encrypt`, `use_lockfile` and the
@@ -1224,8 +1238,9 @@ and the live tree carries the same file with every line commented out.
 A root's location is `gcs://<bucket>/<prefix>/<root name>/default.tfstate`
 (OpenTofu's `gcs` backend names the default terraform workspace's object
 `default.tfstate` under the prefix, so each root gets its own prefix). The
-backend file carries `bucket`, `prefix` and the identity fields when set; a
-consumer's data source `bucket`, `prefix` and the identity fields.
+backend file carries `bucket`, `prefix`, the identity fields and the
+encryption keys when set; a consumer's data source `bucket`, `prefix` and
+the identity fields only. `required_plugins` is accepted and not read.
 
 [`cfg/state-gcm.yml`](../tests/fixtures/config/cfg/state-gcm.yml):
 
@@ -1286,7 +1301,7 @@ owned by exactly one group.
 | `is_default` | bool | `false` | |
 | `architecture` | str | the OS builder's, else `x86_64` | |
 | `primary_disk_size` | str or int | the OS builder's `default_primary_disk_size`, else 200 | GB |
-| `variables` | mapping | `{}` | emitted as packer variables (`name = value` lines) |
+| `variables` | mapping | `{}` | accepted; not read -- the packer builder declares its own variables (`base_image_version` among them) and the retired `gen_packer.py` was this field's only reader |
 | `tags` | mapping[str, str] | `{}` | tags on the baked image |
 | `description` | str or null | `Image <name> from source image <source_image>` | |
 | `auto_update` | bool or null | null | accepted; updates apply to base images only |
@@ -1363,7 +1378,7 @@ Model: `Instance`
 | `teardown_after` | str or null | null | `<number>` followed by `m`, `h` or `d`: after a failed verification, the next run tears the standing instance down once this has elapsed; null inherits |
 | `image_policy` | str | `pinned` | `pinned`: keep the launched build until an explicit `upgrade instance`; `follow`: plan the gated replacement whenever the image's head moves |
 | `description` | str or null | `Instance from {{ image.name }}` | |
-| `userdata` | str | `""` | accepted; not read by the tofu roots |
+| `userdata` | str | `""` | appended to the instance's launch script (after the system's own lines, before the completion marker) and recorded among its launch parameters |
 | `tags` | mapping[str, str] | `{}` | |
 | `aliases`, `config` | | | as elsewhere |
 | `groups` | — | — | **refused**: the owning group lives on the image |
@@ -1428,7 +1443,7 @@ A storage is realized by its builder's root; the YAML declares the
 | --- | --- | --- | --- |
 | `name` | str | required | system-wide unique |
 | `type` | str | `default` | the storage builder (8.2); fixes the capability type and the runtime |
-| `runtime` | str | `default` | accepted; the builder's runtime governs |
+| `runtime` | str | `default` | the builder's runtime governs the module call; `validate`'s zone check (section 12a) reads THIS field for a zonal storage, so a persistent disk or EBS volume that declares `availability_zone` on a runtime other than the default must name it here too |
 | `groups` | list[str] | `[]` | the groups allowed to attach (never users; each must be a declared group); each gets a private `/<group>/` subtree. The value `ALL` is refused. |
 | `public_read` | bool | `false` | anyone may mount read-only; POSIX permissions still govern |
 | `share_mode` | str | `2770` | mode of every allowed group's subtree: `2770` (private) or `2775` (read-shared between allowed groups) |
@@ -1501,13 +1516,13 @@ true`; every member must be a declared user name.
 | --- | --- | --- | --- |
 | `name` | str | required | system-wide unique; the OPA group names derive from it |
 | `type` | str | `default` | the group builder |
-| `is_root` | bool | `false` | the single root/admin group; its admin group is a delegated admin of every resource group |
+| `is_root` | bool | `false` | the single root/admin group; its admins are merged, as usernames, into every other group's `admins` (no group is ever a delegated admin of another's resource group; each resource group delegates to its own admin group only) |
 | `is_default` | bool | `false` | |
 | `members` | set[EncryptedStr] | `{}` | user names; each entry may be `ENC[age:…]` |
 | `admins` | set[EncryptedStr] | `{}` | user names; likewise |
 | `in_both` | bool or null | null | `true`: every admin is also a member; `false`: no name may be in both (admins are removed from members and members from admins); null: as declared |
 | `gid` | int, digit string, `default`, 0 or null | null | a pinned gid, at least 1024; null/0/`default` defer to the created group's gid |
-| `include_root_group_in_admins` | bool | `true` | the root group's admin group is added to this group's delegated admins |
+| `include_root_group_in_admins` | bool | `true` | the root group's admins are merged, as usernames, into this group's `admins` |
 | `unmanaged` | bool | `false` | the group stays in the YAML but leaves management: its state entries are removed, nothing is destroyed. A group once managed may not simply disappear from the YAML. |
 | `attributes` | mapping or null | null | provider attributes: OPA accepts `unix_gid` (int), `unix_group_name` (str), `windows_group_name` (str); planned and probed, never written |
 | `description` | str or null | null | templates allowed (`{{ group.name }}`) |
@@ -1691,9 +1706,12 @@ value, and a **regional** storage. EBS and GCP persistent disks are zonal; EFS,
 S3 and GCS are regional and are reachable from any zone in their region.
 
 A runtime asserts a zone through `networking.default_availability_zone`, else
-through its default subnet's declared `availability_zone`. A storage's own
+through its default subnet's declared `availability_zone`. An EBS storage's own
 declaration wins over its runtime's when the module call is emitted, so
-declaring a zone pins the resource rather than decorating the file.
+declaring a zone pins the volume rather than decorating the file; a GCP
+persistent disk is emitted in the runtime's `zone` whatever the storage
+declares (the declaration is validated, then decorates the file; a code
+stage names the fix).
 
 **Why it is refused early.** A zone is a replace-forcing attribute. Pointing a
 runtime at a subnet in another zone does not fail to attach a volume — it plans
@@ -1779,10 +1797,13 @@ it is the join key between a roster and an access grant.
 | Variable | Read by | Meaning |
 | --- | --- | --- |
 | `CSIS_CONFIG_ROOT` | the Justfile | the live configuration root the `cloud-*`/`gce-*` recipes drive (default: the sibling `cs-image-system-testconfig` checkout); the CLI itself takes `--root-dir` |
-| `CSIS_CONFIG_IDENTITY` | every load; `decrypt`; `reencrypt` | the age identity (section 13) |
+| `CSIS_CONFIG_IDENTITY` | every load; `decrypt`; `reencrypt`; `mask`; `materialize` (the runner's every command) | the age identity (section 13) |
+| `OPA_TOKEN` | `verify login` as the workload | the OPA token minted from the GitHub OIDC token (`scripts/opa-workload-token`); absent, the proof runs as the enrolled client |
+| `USER` / `USERNAME` | `unmount --confirm` | who is recorded on an unmount receipt |
+| `AWS_ACCESS_KEY_ID` (with its secret and token) | `preflight`, the load, every AWS call | the static-key path when no profile is named; `preflight` reports it as a session with no readable expiry |
 | AWS profile | the AWS runtime, the S3 backend, preflight | `credentials.profile_name` on the runtime (else `AWS_PROFILE`; static `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` are honoured when no profile is named); `profile` on the state backend. An SSO profile needs a live session: the load validates the account's network and refuses on an expired one. |
 | `GOOGLE_APPLICATION_CREDENTIALS` | the GCE runtime, preflight | Application Default Credentials; default `~/.config/gcloud/application_default_credentials.json` |
-| `TF_VAR_<team>_key`, `TF_VAR_<team>_secret` | an `okta-tf` builder with the `oktapam` provider; the gid shim; the state query | the OPA API key pair for the builder's `team` (non-alphanumerics of the team → `_`). Required at finalize when the builder's `key`/`secret` are left at default. The gid shim also accepts `OKTAPAM_KEY`/`OKTAPAM_SECRET`. |
+| `TF_VAR_<team>_key`, `TF_VAR_<team>_secret` | an `okta-tf` builder with the `oktapam` provider; the gid shim; the state query | the OPA API key pair for the builder's `team` (non-alphanumerics of the team → `_`). Required when the configuration LOADS (the workspace's finalize runs during the load, so `validate` and dry runs need them too) whenever the builder's `key`/`secret` are left at default and `oktapam` is among its `required_providers`. The gid shim also accepts `OKTAPAM_KEY`/`OKTAPAM_SECRET`. |
 | `OKTA_API_CLIENT_ID`, `OKTA_API_SCOPES`, `OKTA_API_PRIVATE_KEY`, `OKTA_API_PRIVATE_KEY_ID` (or `OKTA_API_TOKEN`) | the `okta/okta` provider at plan/apply | user (and read-only group) lookups. The load only checks that one of `OKTA_API_PRIVATE_KEY`, `OKTA_API_TOKEN`, `OKTA_ACCESS_TOKEN` is set and warns otherwise, skipping `plan` for that root. |
 | `TF_VAR_sft_enrollment_token` | the instance roots | explicit override of the enrollment token the identity root mints |
 | `CSIS_AWS_DIR` | preflight | the `~/.aws` directory to read session caches from |

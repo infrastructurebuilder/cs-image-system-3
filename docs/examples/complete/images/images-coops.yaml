@@ -1,0 +1,113 @@
+---
+# docs/examples/complete/images/images-coops.yaml -- the coops group's
+# images: a base-derived image with every field and both modification
+# kinds, and an image chained from it. Reference:
+# ../../../CONFIGURATION.md section 11.2 (11.2.1 `runtimes[]`), 7.3 (the
+# modification item), 5.3 (`tests` and `post_bake`).
+images:
+  # -------------------------------------------- follow the base, be released
+  - name: imgfile-basic-dask
+    group: coops                   # the owning group; its builder's identity type must be one the root base declares
+    source_image: basic-rh-10      # an OS builder name: a base image
+    type: pckr-ebs-ans             # the primary image builder (default: the default image builder)
+    description: "Basic Dask head node with essential tools and configurations."
+    aliases: [dask-node]
+    # 11.2: `follow` -- a newer base head re-bakes this image in the same run
+    # and moves the parent pin; `pinned` waits for an explicit `upgrade image`
+    parent_policy: follow
+    retention:                     # the newest 2 builds per runtime survive the closing retention lifecycle (null: the runtime's retention_keep)
+      keep: 2
+    release:                       # a build whose post-bake tests pass is released for this model by the same run's release lifecycle
+      model: default
+    is_default: false
+    architecture: x86_64           # default: the OS builder's, else x86_64
+    primary_disk_size: 100         # GB; default: the OS builder's default_primary_disk_size, else 200
+    variables:                     # emitted as packer variables (name = value lines)
+      dask_flavor: standard
+    tags:
+      dask: "true"
+    auto_update: null              # accepted; updates apply to base images only
+    auto_generate_storage: false   # accepted; not read
+    default_groups: []             # accepted; not read
+    config: {}
+    runtimes:                      # 11.2.1: one entry per image builder that bakes this image
+      - image_builder: pckr-ebs-ans
+        name: dask-aws             # a label (default: the image builder)
+        description: "the AWS bake"
+        machine_type: null         # the bake machine type (null: the runtime's default)
+        ssh_username: default      # the bake ssh user on this runtime
+        image_identifier: null     # a fixed provider image id to bake from instead of the pinned parent
+        owners: ["self"]           # owners for the parent-image query
+        tags:                      # merged over the builder's and the image's
+          bake: aws
+      - image_builder: pckr-gce-ans
+        machine_type: e2-medium    # 4 GB: the dask mods OOM a 1-2 GB machine
+    tests:                         # 5.3: in-bake assertions ...
+      commands:
+        - run: "git --version"
+          contains: "git version"
+      packages: [git]
+      users: [csisadmin]
+      post_bake:                   # ... and post-bake ones, run on a launched ephemeral instance by `verify instance`
+        commands:
+          - run: "python3 -c 'import dask'"
+        files:
+          - path: /var/lib/csis/launch-applied
+        mounts: [/mnt/gce-data]    # absolute mount points that must be mounted
+    modifications:                 # 7.3
+      - name: dask-setup           # an ansible item: playbooks (required in effect), config in the content hash
+        type: ansible-default
+        description: "the dask stack"
+        playbooks:
+          - playbooks/setup_dask.yml
+        config:
+          dask_version: "2024.1.0"
+          jupyterlab_extension: true
+        tags: {}
+      - name: derivative-setup     # a bash-remote item with all three forms
+        type: bash-remote
+        script:                    # inline lines, literal (no templating)
+          - "echo 'derivative setup'"
+          - "sudo mkdir -p /opt/derivative && echo 1.0.0 | sudo tee /opt/derivative/VERSION"
+        scripts:                   # script files, config-root-relative, copied beside the packer root
+          - scripts/mod_image.sh
+        ensure:                    # declarative, idempotent steps (guarded shell is generated)
+          packages: [git]
+          files:
+            - path: /etc/derivative.conf
+              content: "version=1.0.0\n"
+              mode: "0644"
+          services: [chronyd]      # enabled and started
+          commands:
+            - run: "sudo mkdir -p /opt/derivative/data"
+              unless: "test -d /opt/derivative/data"
+        config:
+          derivative_version: "1.0.0"
+      - name: site-policy          # an ensure-only item: recorded as `idempotent: declared`
+        type: bash
+        ensure:
+          files:
+            - path: /etc/motd
+              content: "complete example\n"
+  # ---------------------------------- chained from another image, pinned
+  - name: imgfile-basic-cloudflow
+    group: coops
+    source_image: imgfile-basic-dask   # another image: the chain ends at basic-rh-10
+    aliases: [cloudflow]
+    is_default: true               # `image: default` on an instance resolves here
+    type: default                  # the default image builder
+    description: "{{ ENV['USER'] }}'s cloudflow head node, from {{ image.source_image }}"
+    parent_policy: pinned          # bake from the pinned parent build until an explicit `upgrade image`
+    tags:
+      cloudflow: "true"
+    runtimes:
+      - image_builder: pckr-ebs-ans
+      - image_builder: pckr-ebs-east1
+        # 11.2.1: bake on the second region from a FIXED image id rather than a
+        # pinned parent (the parent series is not baked there)
+        image_identifier: ami-REPLACE-ME-east1-dask
+        ssh_username: ec2-user
+    modifications:
+      - name: cloudflow-tools
+        playbooks:                 # no `type`: the default mod builder (ansible)
+          - playbooks/modify_image.yml

@@ -7,10 +7,21 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress**.
+Current stage: **§62 (the daily driver), in progress since 2026-09-23** on `feature/daily-driver`.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
-**none but §30**, which waits on the operator's decision. (§61, hygiene
+**§64**, the release that carries everything a configuration repository
+needs and the reference configuration standing alone, and **§63**, the
+code defects the documentation found, both planned and waiting on the
+operator's word; then a walk of the daily driver (the next stage to write);
+§30 waits on the operator's decision. (§62, the daily driver, LANDED
+2026-09-24 as the operator's "one attempt, accepted": the README contract
+and its test, sixteen READMEs to it, seven passes of manual corrections,
+DAILY_DRIVER.md for a team that installs a release and owns its
+configuration repository, three starter trees that are whole repositories,
+loaded and validated by a test; it will be worked on over time, and every
+material change to the system that invalidates it owes it an update.)
+(§61, hygiene
 bundle V, LANDED 2026-09-23: five items and two live proofs -- a dropped
 stofs membership pruned from state after a backup and restored through
 the gate; the coops model's third release as one `cloud-upgrade` with
@@ -94,8 +105,24 @@ Standing decisions (operator):
   a green `full-test` with docker on a clean live configuration, with
   `PYPI_TOKEN` in place) is the operator's call; trusted publishing
   replaces the tokens once the package names are stable.
-- §19 (the first real model image) stays planned by the operator's
-  instruction; §30 (the contract package) is planned.
+- A documentation stage modifies no code (operator, 2026-09-23): its diff
+  is markdown, example configuration trees and the tests that hold the
+  documentation contract; a code change it would need is a new stage,
+  written as a plan, never a side edit.
+- §30 (the contract package), §63 and §64 are planned, not started; a
+  stage is a plan in this file until the operator says to execute it
+  (2026-09-23). §62 landed 2026-09-24.
+- **Documentation stays current by stage** (operator, 2026-09-23). Once
+  §62 has landed, every stage that changes behaviour, configuration,
+  tests or procedure owes a documentation update, done as a stage of its
+  own: a rolling **documentation stage** that is open whenever such work
+  has landed undocumented. If none is open, the stage that lands the
+  change opens one. Several stages of work may land before the
+  documentation stage runs, but the documentation stage must LIST what
+  was worked on since the last update (the stages, by number and name,
+  and what each changed), so whoever writes the docs has the context.
+  The same convention as the hygiene bundle: one open stage, appended to,
+  landed as one.
 
 ---
 
@@ -227,3 +254,289 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-package` (steps 1–3, 5–7),
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
+
+## 63. What the documentation stage found in the code
+
+**Status: PLANNED, not started.** Written during §62 (2026-09-23) under the
+rule that a documentation stage changes no code: every item below was
+found by an agent reading a package against its README, the manuals and
+the fixture, verified in the code, and left as it was. The manuals now
+say what the code DOES, with "a code stage names the fix" where the doing
+is wrong. This is that stage. Nothing here is proved live yet; each item
+names the file and function so the fix can be judged before it is made.
+Items marked **[likely to bite]** stand between a declared feature and its
+working; the rest are dead fields, misleading messages and unreachable
+branches, which cost nothing until someone trusts them.
+
+**Likely to bite:**
+
+1. **A state migration's previous-location file may not initialise.**
+   `state_migration.render_record` drops `backend`, `type` and `run` from
+   the meta-state record when it writes `<ws>.tfbackend.previous.hcl`,
+   but every record since stage 47 also carries `location`, so the file
+   would carry `location = "..."`, an argument no tofu backend accepts,
+   and `init_against(previous)` in `begin` would fail for any migrating
+   root. The test's fake tofu validates no arguments. Unverified live;
+   check before the next `--migrate-state`.
+2. **A GCE instance never receives the build its own run baked.**
+   `TofuGceInstanceBuilder` inherits `pre_finalize_phase`, which writes
+   `<label>_ami_id` into `instances.auto.tfvars`, while the GCE root
+   declares `<label>_image`; tofu warns of an undeclared variable and the
+   instance launches through `image_family`. Override `_ami_var` (or the
+   hook) to name `_image_var`.
+3. **A declared `type: dummy` builder fails the identity lifecycle.**
+   `DummyGroupBuilder.generate_items_during` and the user builder's return
+   `[]` where the contract wants an `AssetSet`; `gen_users`/`gen_groups`
+   call `sort_and_write` on it (reproduced 2026-09-23). The template
+   plugin should at least load and emit nothing.
+4. **`mask` hides its own failure.** `cli.mask_command` swallows every
+   per-file exception, `MissingIdentityError` included, so with the
+   identity unset or wrong it prints no `::add-mask::` line and exits 0;
+   a CI log would then show every plaintext with no signal. Refuse loudly.
+5. **The attributes probe step cannot load.** The okta group builder emits
+   `identity-attributes --probe --dry-run-apply` with
+   `system_cli_executable` (no `--root-dir`), and the command loads the
+   configuration from its working directory, the root's mirror, which has
+   no `cfg/`; a real run of a tree that declares attributes fails after
+   the identity apply. Use `system_cli_executable_with_config`.
+6. **`use_state_backends: false` cannot produce a valid instance or storage
+   root.** The instance and storage builders emit `terraform_remote_state`
+   references unconditionally while the data sources are gated on the
+   flag; refuse the flag off when a root needs a producer, or gate the
+   references the same way.
+7. **A runtime's `default_owners` and `default_config_username` are
+   unreachable.** `os_builder_runtime_config.get_owners()` and
+   `finalize()` look the runtime up by `self.image_builder` (an
+   image-builder name) in the RUNTIME namespace and never find it; the
+   `finalize()` itself has no caller, so `config_username` and the
+   "ssh user could not be inferred" refusal never run either. Decide
+   whether the fields live (fix the lookup, call the finalize) or die.
+8. **An alias on a modification item's `type` fails at generation.** The
+   orchestrator keeps the alias in `mod_data["type"]` (its comment says it
+   swaps the canonical name; it does not) and `packer_ebs_builder` asserts
+   on `ctx.mod_builders.get(...)`, a name-only map; `validate` does not
+   catch it and the run reports `ok: false` with no validation error.
+9. **A bash `ensure` entry is validated by its keys only.** A malformed
+   entry raises `KeyError` at generation; `packages: git` iterates the
+   letters; an unquoted `mode: 0644` renders `install -m 420`; the
+   packages line falls through `dnf`, `yum`, `apt-get` and shows
+   `apt-get: command not found` on an EL host, hiding the real error; an
+   all-empty `ensure` passes load, is recorded `idempotent: declared` and
+   emits nothing. Validate the entries at load.
+10. **Filestore vanishes from the state report.** `TofuFilestoreStorageBuilder`
+    has no `_lookup`, so `query_state` raises `NotImplementedError` and the
+    query drops the builder silently (no `unavailable:` line, no
+    `missing`), while the module's docstring says it reports unavailable.
+    A `tf-gcp` builder entry loads and fails at generation because
+    `TofuGcpStorageBuilder` cannot emit.
+11. **A persistent disk ignores its own zone.** `TofuPdStorageBuilder.module_args`
+    emits the runtime's `zone` and never reads `storage.availability_zone`,
+    which `validate` checks and section 12a promises pins the resource.
+12. **The zone check reads the wrong runtime.** `validate.check_availability_zones`
+    resolves a zonal storage's zone against the storage ITEM's `runtime`
+    (default: the default runtime) instead of its builder's, so a GCE
+    disk with a zone fails unless the item also names the runtime.
+13. **`iam_instance_profile` overrides the SSM profile.** In
+    `amazon_ebs_source()` the `iam_instance_profile` assignment runs after
+    the SSM block, so a runtime that sets both bakes under the wrong
+    profile; the fallback `ssm_profile = session_instance_profile or
+    iam_instance_profile` implies the reverse was meant.
+14. **The OPA listing reads one page.** `opa_gids._listing` returns the
+    first page only; with more security policies than one page the
+    workload reconcile sees no standing CI policy and creates a duplicate.
+15. **The RO group builder inherits every managed-group hook.**
+    `OktaTfGroupRoBuilder`'s `query_state` asks OPA for groups it never
+    made (a group on it would read `missing [HARD]`),
+    `enrollment_token_reference` points into an output the RO root never
+    emits, and the read-model records it as managed. Latent: no live or
+    fixture RO group builder.
+16. **A packer string variable's default is emitted unquoted.**
+    `hashicorp.packer_variable` renders `default = 1.0.0` for a string
+    default, invalid HCL; only `env_var` and booleans render right (no
+    consumer hits it today: the one string variable uses `env_var`, and
+    its `default="1.0.0"` is dropped in favour of `env("BASE_IMAGE_VERSION")`,
+    empty when unset, while its description promises `1.0.0`).
+17. **`state rm` addresses and a failed backup.** `gated_apply_commands`
+    ignores `pre_plan_backup=True` when `pre_plan` is empty, so a caller
+    that removes state through `pre_commands` gets no backup from the
+    flag (the prune step takes its own; no live effect today).
+18. **The gcloud runtime calls a bare `gcloud`.** `run_session_command`,
+    `inventory`, the pd and GCS scripts call `gcloud` from `PATH`, not the
+    binary `cfg/executables.yml` declares and `validate` checks; and
+    `run_session_command` ignores `session_mechanism()`, so a runtime
+    without `iap` still tunnels through IAP and fails as IAP's problem.
+19. **The GCE bake user can mismatch its provisioner.** With a default
+    runtime `ssh_username` and an OS-entry `ssh_username`, the packer
+    source uses the entry's user and the ansible provisioner user is
+    `packer`: the mismatch finding 48 fixed for the other path.
+20. **The configuration is loaded with `yaml.unsafe_load`.**
+    `global_context.read_and_process` reads every `cfg/` file with
+    `unsafe_load`, which constructs arbitrary Python objects from a
+    PUBLIC configuration tree; every other reader uses `safe_load`.
+21. **A dry run can call the registry.** `launch_params.validate_claimed_hostnames`
+    gates on the lifecycle and `apply_instances`, not on the dry-run
+    flag, so a dry run with the flag on asks OPA and can refuse on
+    silence; its docstring and the manual promised otherwise.
+22. **Preflight reads one file name.** `preflight.raw_session_infos` reads
+    `cfg/runtime-builders.yml` by that exact name while the loader accepts
+    `runtime_builders:` in any `cfg/*.yml`; a runtime declared elsewhere is
+    never preflighted and the pre-load expired-session refusal never
+    fires for it.
+23. **A registry refusal dumps the model.** A duplicate backend name after
+    normalisation is refused at load with `Object TofuS3StateBuilderModel(...)
+    has no unique 'id' or 'name' field for registry key`, the whole repr
+    included, which would print `access_key`/`secret_key` if anyone set
+    them. Name the collision and print no repr.
+
+**Dead fields, dead code and misleading messages** (each a line in the
+READMEs' "accepted, not read" rows or "When it fails" tables; remove the
+field, read it, or fix the message):
+
+- `TofuS3StateBuilderModel`: 24 accepted-not-read fields (`assume_role`,
+  `endpoints`, the proxies, `access_key`/`secret_key`, the `skip_*`,
+  `use_*_endpoint`, `required_plugins`, `executable`), and
+  `skips_credentials_validation` misspelled against terraform's name;
+  `TofuVersionChecker` defined and never registered; the three state
+  models' `executable` never version-checked; `LocalBackendKind` neither
+  refuses nor normalises `.`/`..` segments (`a/../b` and `b` are two
+  locations to the collision check) and renders `//ws.tfstate` for
+  `path: /`; `GcsStateBuilderModel.__post_init__`'s dead `None` guard;
+  the backend kinds render a `Decrypted` setting in clear (only the
+  plaintext guard catches it); `Registry.get_instance_by_name_or_alias`
+  never reads the alias table (a state backend's alias cannot be bound).
+- `AwsCloudBuilderModel.ena_support`/`sriov_support` read nowhere;
+  `security_group_ids` validated, counted, never emitted;
+  `update_networking` never checks `subnets[].subnet_id` against the VPC;
+  `aws_utils.remap_for_image_query` mutates the model's own `query`,
+  `query_image`'s docstring documents keys it does not implement and its
+  trailing `raise` is unreachable, `_query_by_ami_id`, `_query_by_name`,
+  `_build_ami_filters`, `get_ami_ssh_user` (ignores the profile) and
+  `remap_for_aws` unused; `query_provider_image`'s "Could not get owner"
+  branch unreachable.
+- `gcp_runtime_builders.query_images(series)` ignores `series`;
+  `update_networking`'s warning names a key-file path no field can
+  reach; `GCP_CLI`, `get_image_ssh_user` and the stray
+  `DummyGroupBuilderModel` copies in BOTH runtime model modules dead;
+  `gce_label` does not force a leading letter (a tag key `2024` fails at
+  apply); the pd scripts embed the literal `None` for a missing
+  `project_id`/`zone` instead of refusing at generation.
+- `default-os-plugin`: the entry's `image_id`, `image_name`,
+  `default_primary_disk_size`, `config` and `RhelOsBuilderModel.subscription_id`
+  read nowhere; `Apt`/`Fedora` `get_command_to_update()` unreachable from
+  the bake (`test_os_update_hook` pins a form no bake emits); the rhel
+  8/9/10 check runs only when commands are generated (`policy: none` with
+  an unsupported major is never refused); `OsBuilderModel.__post_init__`'s
+  duplicate message names the wrong field; an unreachable branch in
+  `generate_resolved_image`; the `UBUNTU_TYPE` service order; `debian_type`
+  without `kw_only`; apt commands without `DPkg::Lock::Timeout`;
+  `OsBuilderModel.update` typed `dict | None` makes
+  `UpdatePolicy.from_config`'s bare-name branch dead.
+- `packer-plugin`: `PackerEbsImageBuilder.generate_items_before` computes
+  `super_items` and drops it; `PackerImageBuilder.generate_items_during`
+  names `.pkl.hcl`; `gen_packer.py` dead (the only reader of
+  `Image.variables`); `PACKER_EBS` redefined; `image_to_source` fetches
+  the subconfig twice; `ImageBuilderModel.default_machine_type` read by
+  nothing.
+- `ansible-plugin`: `from zipfile import Path` as an annotation; HCL
+  strings unescaped (a `"` in `extra_arguments`, `ansible_connection` or
+  a path breaks packer); a missing relative playbook emitted silently;
+  `configuration_user` unread; `helpers.py` empty; the orchestrator
+  leaves an item a dict when no mod builder is default and the packer
+  builder then raises `AttributeError` instead of a named refusal.
+- `bash-mod-plugin`: `extra_arguments`/`configuration_user` unread;
+  `get_target_deferred_type_by_VCT` no caller; `helpers.py` empty; the
+  on-image `inline.sh` carries `script` lines only, never `ensure` lines
+  (`csis-mods rerun` does not re-apply the declarative form).
+- `okta-opa-plugin`: `okta_tf_workspace.finalize` cites a "credentials
+  runbook in PLAN.md" that no longer exists; `_require_tfvar` is a bare
+  `assert` (stripped under `-O`) and runs at load; `retire_server` matches
+  `"404"` by string; `api_host` metadata says required with a default;
+  `query_existing_users` an empty seam.
+- `tf-ebs-instance-plugin`: `TofuS3StorageBuilder._lookup` reads the
+  builder's `bucket_name`, never the storage's (two S3 storages on one
+  builder report the same bucket); the instance builder's
+  `pre_`/`post_finalize_phase` ignore root scope (under `--only-runtime`
+  with `apply_instances: true` another runtime's builder binds pins and
+  writes tfvars for a root that emitted nothing); the S3 builder's type
+  parameter; `_aws_cli_flags`' dead fallback to `rtb.model.profile`.
+- `hashicorp-utils`: `QString.__new__`'s dead `quoted=False`;
+  `roots.terraform_commands`' unreachable `ValueError`.
+- `base`: `Instance.__post_init__` warns that an instance without `image`
+  "will be ignored" while `finalize()` then refuses it; `ExecutableModel.execute`
+  builds a command list and discards it; `sleep_before_finalization` and
+  the model's `dateformat` default read by nothing that runs.
+- `system`: `encrypt`/`reencrypt` call `recipients_from_config` and
+  `identities_from_env` outside their `try` (a traceback instead of the
+  message); `--only-providers` help says "comma-separated" for a value
+  never split; `--force` is stored and read by nothing;
+  `preflight.raw_session_lines`' `(minutes_left or 1) <= 0` misses exactly
+  `0.0`; `Registry.get_builder()` has no callers (the template's
+  `builders_for_models` map is decorative); root `pyproject.toml` lists a
+  `packages/dummy-plugin/tests` path that does not exist.
+- `dummy-plugin`: `type = DUMMY` class attribute inert; docstrings name
+  attributes that do not exist; `key`/`secret`/`api_host`/`org`/`team`
+  read nowhere; the user builder emits `Dummy-tf/dummy_users.tf` beside
+  the other builders' directories.
+
+**Records**: one branch per group of related items, each squash-merged and
+kept; the READMEs' "accepted, not read" rows and "When it fails" tables
+are updated in the same commits (the rolling documentation stage owes
+nothing for a change the READMEs already track). Golden byte-identical
+except where an item changes the emission by design; bar green; every
+"likely to bite" item proved by a test that fails before the fix.
+
+## 64. The release is the whole system: modules, scripts, starter trees, and a configuration repository that stands alone
+
+**Status: PLANNED, not started.** Written 2026-09-23 during the daily
+driver's second pass (`feature/daily-driver-redux`), when the operator
+corrected the model: a team INSTALLS a release and OWNS a configuration
+repository with its own Justfile and CI; this repository is where the
+system is developed, not something a user clones beside their tree. The
+documentation now says so, and the three example trees under
+`docs/examples/` are whole repositories a team copies (Justfile, workflow,
+hook, scripts, modules). What the documentation cannot do is make the
+release carry those parts, or move the reference deployment onto that
+model; both are code, and this is that stage.
+
+1. **The release ships what a configuration repository needs.** The
+   `tfmodules/` tree and the three helper scripts (`with-tofu-lock`,
+   `opa-workload-token`, `normalise-emission`) become package data of the
+   `system` package (or a package of their own), and a command
+   `cs-image-system init-config <dir> [--from standard-aws|standard-gce|complete]`
+   scaffolds a configuration repository from a starter tree carried in
+   the release: the tree, `module_source_base: tfmodules`, the hook, the
+   workflow, `.gitignore`, a `.csis-version` pinned to the running
+   release. The example trees in `docs/examples/` become the SOURCE the
+   release is built from, and `tests/test_docs_examples.py` keeps them
+   equal to what the release carries.
+2. **The helper scripts become commands** where a script exists only to
+   wrap the CLI: `with-tofu-lock` as `cs-image-system --locked ...` (or a
+   `lock` subcommand), `normalise-emission` as `config-drift`'s own
+   normaliser, `opa-workload-token` as `workload token`. The starter
+   Justfile then calls the CLI alone and carries no scripts.
+3. **The reference configuration stands alone.** `cs-image-system-testconfig`
+   gains its Justfile, workflow, hook, modules and `.csis-version` from
+   `init-config` (item 1), its `module_source_base` moves to its own
+   `tfmodules`, and its CI performs there: the `live` and `perform` jobs
+   leave this repository's workflow, which keeps `verify` and `publish`
+   and a `live` leg that only proves the fixture. Proved live: the
+   sibling's `verify` job green on a push, its `live` job green with the
+   secrets moved over, one performing run on `main` there, the login
+   proof as a workload from that repository.
+4. **This repository's Justfile shrinks to the developer's**: the five
+   contract targets, the bar, the golden, the release recipe, and `just
+   cli ...` against the reference configuration for the system's own live
+   proofs; the cycle recipes (`cloud-*`, `ci-login-proof`, `sft-install`)
+   move to the starter Justfile alone, since a team runs them from its
+   own repository.
+5. **Records**: DAILY_DRIVER.md section 1.9 loses its "until a release
+   ships them" clause; OPERATIONS sections 2 and 3 describe the two
+   workflows; the root README's layout paragraph says the reference
+   configuration is checked out beside this repository for the system's
+   own proofs only. A live proof of `init-config` on a fresh machine with
+   nothing but `uv`: install, scaffold, `just init`, `just validate`
+   against a real account.
+
+**Sizing**: item 1 a day (package data, the command, the tests); item 2
+half a day; item 3 a day with the live proofs, most of it CI secrets and
+the first performing run; item 4 an hour.

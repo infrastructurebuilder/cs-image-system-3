@@ -1,0 +1,16 @@
+---
+# docs/examples/standard-aws/cfg/storage-builders.yml -- the ONE storage
+# builder: a terraform root that realizes EBS volumes on the AWS runtime.
+# Reference: ../../../CONFIGURATION.md section 8.2.
+storage_builders:
+  - name: aws-ebs
+    type: tf-aws-ebs             # DECISION: single-attach block volumes; `tf-aws-efs` (shared) and `tf-aws-s3` (buckets) are the other AWS kinds
+    is_default: true             # a storage item with no `type` is an EBS volume
+    runtime: aws-main
+    executable: open-tofu
+    size: 100                    # DECISION: GB per volume (the builder's own field; default 100)
+    variables:                   # typed inputs to the module call; a misspelt key is refused
+      volume_type: gp3           # DECISION: gp3 over gp2 (cheaper per GB, baseline IOPS independent of size)
+      encrypted: true            # DECISION: encrypted at rest
+      tags:                      # builder-wide default tags; a storage item's own tags win key by key
+        Project: REPLACE-ME

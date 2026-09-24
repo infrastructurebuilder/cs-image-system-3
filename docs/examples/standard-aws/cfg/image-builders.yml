@@ -1,0 +1,17 @@
+---
+# docs/examples/standard-aws/cfg/image-builders.yml -- the ONE image builder:
+# packer's amazon-ebs source on the AWS runtime. Reference:
+# ../../../CONFIGURATION.md section 6.
+image_builders:
+  - name: packer-ebs
+    type: packer-ebs
+    is_default: true
+    runtime: default             # DECISION: the default runtime (aws-main); name another runtime to bake there
+    executable: packer
+    required_plugins:            # packer plugins the generated template requires
+      - name: amazon
+        source: github.com/hashicorp/amazon
+        version: ">= 1.0.0"
+      - name: ansible
+        source: github.com/hashicorp/ansible
+        version: ">= 1.0.0"

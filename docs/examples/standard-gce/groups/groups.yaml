@@ -1,0 +1,21 @@
+---
+# docs/examples/standard-gce/groups/groups.yaml -- the ONE group. Reference:
+# ../../../CONFIGURATION.md section 11.5. Every member and admin must be a
+# declared user name (here the fixture's markers for avery.alpha and
+# casey.charlie). The okta-tf builder emits, for this group, the OPA groups
+# team_user and team_admin, the resource group team_rg (delegated to
+# team_admin), the project team_rg_login and the user/admin security policies.
+groups:
+  - name: team                   # REPLACE: your group's name; the OPA names derive from it
+    # DECISION: exactly one group in a tree must be the root/admin group, and
+    # this tree has only one, so it is both the root group and the group that
+    # owns the image and the storage. A larger tree keeps a separate root
+    # admin group and one group per team (see docs/examples/complete/).
+    is_root: true
+    description: "{{ group.name }}: the team's one group"
+    members:
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBldi90NSswangvWFNJSWFSK2RWdjB2TjJFdGQ5MTZEc014MzlrRlFTdUNZCnlpaC9zUmkzZFM2VlpPYUF5dENEVlZ3ZjBBM3Y0M2Z3aFdyV3F0dnlqRTgKLS0tIDRXS1FRWVlwRmVMZU44R3NXVkNWbG1wVi9SWWhMcGFUa1NkR3lIeGpCOHcKg7CJs4RbYYbgD/LQ82jATQnl9fxlYF1Szib5MYyh+L5hNsnlZdZVh7+Vh1xy]
+    admins:
+      - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAvNFdjbVB6VExmbnZNQjFRR1dMelZGeW5EN2pubGNmSUpnY1dYZnNXTWtVCjVWZkJEZDhBNVU5NU9peEx2bk1ESFl1VlloZ09xL0ROSENTcHhaSU8xdVUKLS0tIFJ3MHVpS3Mrd0dpU1VRM09Fc0MwUS9PdUt4eGNjZW1oN0NRK094VWxEMkUK0dNHQLvHhdhYSge+ouPxeHoNYFf15B0Ya2TwLmnHdzgwQv+1LfaGStLgOA==]
+    tags:
+      environment: development

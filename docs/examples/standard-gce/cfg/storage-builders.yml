@@ -1,0 +1,15 @@
+---
+# docs/examples/standard-gce/cfg/storage-builders.yml -- the ONE storage
+# builder: a terraform root that realizes persistent disks on the GCE
+# runtime. Reference: ../../../CONFIGURATION.md section 8.2.
+storage_builders:
+  - name: gcp-pd
+    type: tf-gcp-pd              # DECISION: single-attach zonal disks; `tf-gcp-filestore` (shared NFS, 1 TiB minimum) and `tf-gcp-gcs` (buckets) are the other GCE kinds
+    is_default: true             # a storage item with no `type` is a persistent disk
+    runtime: gcp-main
+    executable: open-tofu
+    size: 30                     # DECISION: GB per disk (default 100); 30 GB is the whole Always-Free standard-PD allotment
+    disk_type: pd-standard       # DECISION: the free tier is standard only; `pd-balanced` (the default) and `pd-ssd` bill
+    variables:
+      tags:                      # emitted as labels; a storage item's own tags win key by key
+        project: REPLACE-ME

@@ -1,0 +1,11 @@
+---
+# docs/examples/complete/groups/group-legacy.yaml -- an UNMANAGED group: it
+# stays in the YAML (a group once managed may not simply disappear) but
+# leaves management: its state entries are removed, nothing is destroyed.
+# Reference: ../../../CONFIGURATION.md section 11.5.
+groups:
+  - name: legacy
+    description: "A retired group, kept as a declaration"
+    unmanaged: true
+    members: []
+    admins: []

@@ -1,0 +1,14 @@
+# docs/examples/complete/meta-state/aliases.txt -- the alias pool (stage 59):
+# one memorable name per line, hand-appended; the system only ever comments a
+# line out, in place, when a new durable machine takes it. Reference:
+# ../../../OPERATIONS.md (the alias pool) and CONFIGURATION.md section 1.3.
+# The first name below is SPENT, in the exact form the system writes.
+# cod -- instance model-node as model-node-001 2026-09-23T12:00:00Z run 2026_09_23t12_00_00
+eel
+gar
+koi
+ray
+clam
+crab
+seal
+orca

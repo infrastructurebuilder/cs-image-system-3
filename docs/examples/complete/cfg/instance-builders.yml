@@ -1,0 +1,34 @@
+---
+# docs/examples/complete/cfg/instance-builders.yml -- one terraform root per
+# runtime that stands instances. Reference: ../../../CONFIGURATION.md section
+# 8.1 (`tofu` for AWS, `tofu-gce` for GCE, the same fields).
+instance_builders:
+  - name: open-tofu
+    type: tofu
+    is_default: true               # an instance with no `type` stands here
+    runtime: aws-east2
+    executable: open-tofu-1
+    description: "the aws-east2 instance root"
+    state_configuration: s3-east2  # the state backend of this root (`default` would inherit the runtime's, else the default)
+    required_plugins:              # terraform providers: {name (required), version (required), source, config}
+      - name: aws
+        source: hashicorp/aws
+        version: ">= 4.0.0"
+  - name: open-tofu-east1
+    type: tofu
+    runtime: aws-east1
+    executable: open-tofu-1
+    state_configuration: default   # inherits aws-east1's `state_configuration: s3-east1`
+    required_plugins:
+      - name: aws
+        source: hashicorp/aws
+        version: ">= 4.0.0"
+  - name: tofu-gce
+    type: tofu-gce
+    runtime: gcloud-east1
+    executable: open-tofu-1
+    state_configuration: s3-east2  # the GCE roots keep their state in S3 by decision
+    required_plugins:
+      - name: google
+        source: hashicorp/google
+        version: ">= 5.0.0"

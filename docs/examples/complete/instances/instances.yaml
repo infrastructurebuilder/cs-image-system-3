@@ -1,0 +1,72 @@
+---
+# docs/examples/complete/instances/instances.yaml -- every instance
+# variation: durable pinned, durable following its image, ephemeral, on the
+# second region, and on GCE. Reference: ../../../CONFIGURATION.md section
+# 11.3 (11.3.1 `storages[]`), 12a (availability zones). Instances declare no
+# group: the owning group lives on the image. An attachment is legal only
+# when the image's group is on the storage's allowed list (or the storage is
+# public_read); a single-attach storage (ebs, pd) may be attached once.
+instances:
+  # ------------------------------------------------ durable, pinned (default)
+  - name: model-node               # a hostname label: it becomes the OS hostname and the OPA canonical name (with its generation, model-node-001)
+    image: imgfile-basic-cloudflow
+    type: default                  # the instance builder (the default: open-tofu, on aws-east2)
+    runtime: default
+    machine_type: t3.medium        # empty would take the runtime's default_machine_type
+    description: "The standing model node"
+    image_policy: pinned           # keep the launched build until an explicit `upgrade instance`
+    ephemeral: false
+    availability_zone: us-east-2a  # 12a: declared; must be compatible with the runtime's default subnet and the zonal storages it mounts
+    userdata: ""                   # accepted; not read by the tofu roots
+    aliases: [model]
+    config: {}
+    tags:
+      purpose: model
+    storages:                      # 11.3.1
+      - name: mnt_data
+        mount_point: /mnt/data
+        min_size: 100              # must be positive; not consumed by the tofu roots
+        description: "the model's working volume"
+        tags: {}
+        config: {}
+      - name: efs-storage
+        mount_point: /mnt/efs
+  # ------------------------------------------------ durable, follows its image
+  - name: dask-head
+    image: imgfile-basic-dask
+    machine_type: t3.large
+    description: "Follows the dask series: a new head plans the gated replacement"
+    image_policy: follow
+    storages:
+      - name: efs-storage
+        mount_point: /mnt/efs
+      - name: default-bucket       # public_read: any group may mount it
+        mount_point: /mnt/bucket
+  # ------------------------------------------------ ephemeral: a proof machine
+  - name: dask-proof
+    image: imgfile-basic-dask
+    description: "Launched, verified through the runtime and destroyed in the same run"
+    ephemeral: true
+    on_failure: teardown           # a failed verification tears it down (the run still fails); `keep` leaves it standing
+    teardown_after: 90m            # after a failed verification, the next run tears a standing instance down once this has elapsed
+    storages:
+      - name: efs-storage
+        mount_point: /mnt/efs
+  # ------------------------------------------------ the second AWS region
+  - name: east1-node
+    image: imgfile-basic-cloudflow
+    type: open-tofu-east1          # the instance builder is the root; its runtime is aws-east1
+    runtime: aws-east1
+    description: "Stands on the second region, from the east1 bake"
+  # ------------------------------------------------ GCE
+  - name: gce-node
+    image: imgfile-basic-dask
+    type: tofu-gce
+    runtime: gcloud-east1
+    machine_type: e2-micro
+    description: "The GCE instance; free-tier e2-micro"
+    storages:
+      - name: gce_data
+        mount_point: /mnt/gce-data
+      - name: gce_share
+        mount_point: /mnt/share

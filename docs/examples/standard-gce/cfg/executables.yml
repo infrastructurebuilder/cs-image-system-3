@@ -1,0 +1,23 @@
+---
+# docs/examples/standard-gce/cfg/executables.yml -- the tools this tree drives.
+# Reference: ../../../CONFIGURATION.md section 3. `validate` and every run check
+# that each binary exists and that its version satisfies the PEP 440 specifier;
+# the checker is looked up by the entry's `name` first (gcloud, packer, tofu,
+# ansible-playbook and bash have their own), then by its `type`.
+executables:
+  - name: gcloud
+    binary: gcloud               # DECISION: a name on PATH; an absolute path pins one install
+    version: ">=500"             # DECISION: the Google Cloud SDK version (not a component's date); the 2026-09 floor
+  - name: packer
+    binary: packer
+    version: ">=1.14"
+  - name: ansible-playbook
+    binary: ansible-playbook
+    version: ">=2.16"            # ansible-core
+  - name: bash
+    binary: bash
+    version: ">=5"               # DECISION: never the system's 3.2 on macOS
+  - name: open-tofu
+    type: tofu                   # DECISION: the checker is selected by TYPE because the entry's name is not `tofu`
+    binary: tofu
+    version: ">1,<2"

@@ -1,0 +1,139 @@
+---
+# docs/examples/complete/cfg/os-builders.yml -- three base images across two
+# OS families and three runtimes, every field. Reference:
+# ../../../CONFIGURATION.md section 5 (5.1 `runtimes[]`, 5.2 `update`, 5.3 `tests`).
+# An OS builder IS a base image: instance images point at it through `source_image`.
+os_builders:
+  # ------------------------------------------------ the default base: EL 10
+  - name: basic-rh-10
+    type: rhel                     # the dnf family; also fedora; debian/ubuntu are apt; alpine is apk
+    family: rhel                   # required: the OS family token
+    family_version: 10             # required; rhel accepts 8, 9 or 10
+    is_default: true               # `source_image: default` resolves here
+    description: "AlmaLinux 10, the Red Hat family, on both clouds"
+    architecture: x86_64           # `default` = x86_64
+    default_primary_disk_size: 200 # GB; the default for images built from this base (`default` = 200)
+    config_username: null          # the sudo-capable ssh user on the vendor image (null: the runtime entry's ssh_username, then the runtime's default_config_username)
+    admin_user: csisadmin          # the mandatory local admin user (default csisadmin; may not be empty)
+    admin_public_keys: null        # per-base override of config.admin_public_keys (null: the global list)
+    local_test_image: almalinux:10 # the container standing in for this OS in local mod tests (default derived: almalinux:10)
+    subscription_id: null          # rhel only; accepted, not read
+    tags:
+      OS: "{{ this.family }}"
+      Version: "{{ this.family_version }}"
+    # 5: what instances of this base may use (declared, not merely possible);
+    # each type must have a configured plugin. pd/filestore/gcs on an AWS
+    # bake emit the documented "declared but has no plugin on runtime" note.
+    identity_types: [okta]
+    storage_types: [ebs, efs, s3, pd, filestore, gcs]
+    # 5.2: the update policy -- security patches plus openssl, never the
+    # kernel, one package version-locked, and a re-bake when the series head
+    # is 30 days old (the only way package updates reach a build without a
+    # configuration change). Policies: none, security, packages, full.
+    update:
+      policy: security
+      packages: [openssl]
+      exclude: ["kernel*"]
+      pin:
+        git: "2.47.1"
+      refresh_days: 30
+    # 5.3: in-bake assertions, every kind; a failing one fails the bake
+    tests:
+      files:
+        - path: /etc/yum.repos.d/oktapam-stable.repo
+          contains: "dist.scaleft.com"
+          mode: "0644"
+      packages: [nfs-utils]
+      commands:
+        - run: "id -u csisadmin"
+          expect_rc: 0
+        - run: "cat /etc/os-release"
+          contains: "AlmaLinux"
+      services_enabled: [sshd]
+      users: [csisadmin]
+    # 5: the builder-wide vendor query; a runtime entry merges its own over it
+    owners: ["self"]
+    query:
+      filters:
+        state: available
+    runtimes:                      # 5.1: one entry per image builder
+      - name: aws-rh10
+        image_builder: pckr-ebs-ans
+        description: "AlmaLinux 10 on aws-east2"
+        default_machine_type: t3.medium   # 4 GB: dnf OOMs a 1 GB bake machine
+        default_primary_disk_size: 100
+        auto_update: null          # null inherits the builder's update policy
+        ssh_username: ec2-user     # the bake ssh user on this runtime
+        tags:                      # merged over the builder's
+          Cloud: aws
+        owners:                    # appended to the builder's
+          - "764336703387"         # the AlmaLinux OS Foundation's PUBLIC publishing account (a vendor fact)
+        query:                     # merged over the builder's, key by key
+          filters:
+            name: "AlmaLinux OS 10*x86_64"
+            root_device_type: ebs
+            architecture: x86_64
+            virtualization_type: hvm
+        config: {}                 # accepted; not read
+      - name: east1-rh10
+        image_builder: pckr-ebs-east1
+        # 5.1: a FIXED provider image id instead of a query (REPLACE)
+        image_id: ami-REPLACE-ME-east1-alma10
+        image_name: null           # accepted; not read
+        ssh_username: ec2-user
+      - name: gcp-rh10
+        image_builder: pckr-gce-ans
+        default_machine_type: e2-small
+        ssh_username: packer       # one ssh user for every GCE bake (the guest agent aborts key setup otherwise)
+        # 5.1: per-runtime tests REPLACE the builder's for bakes on this runtime
+        tests:
+          packages: [google-guest-agent]
+          files:
+            - path: /etc/yum.repos.d/oktapam-stable.repo
+              contains: "dist.scaleft.com"
+        owners:
+          - almalinux-cloud        # AlmaLinux's public image project
+        query:
+          filters:
+            name: "almalinux-10-v*"   # the x86_64 line; the ARM images are a separate family
+  # ------------------------------------------- a second family: Debian 12
+  - name: my-deb-12
+    type: debian                   # the apt family
+    family: debian
+    family_version: 12
+    identity_types: [okta]
+    storage_types: [ebs]
+    auto_update: true              # 5: alias for `update: {policy: full}` when `update` is absent
+    tags:
+      OS: "{{ this.family }}"
+    runtimes:
+      - name: aws-deb-12
+        image_builder: pckr-ebs-ans
+        default_machine_type: t3.medium
+        ssh_username: admin        # Debian's vendor user
+        owners:
+          - "136693071363"         # Debian's PUBLIC AMI publishing account (a vendor fact)
+        query:
+          filters:
+            name: "debian-12-amd64-*"
+            state: available
+            root_device_type: ebs
+  # ------------------------------------------- a third family: Ubuntu 24.04
+  - name: ubuntu-24
+    type: ubuntu
+    family: ubuntu
+    family_version: 24
+    identity_types: [okta]
+    storage_types: [ebs, efs]
+    update:                        # 5.2: bake the vendor image as is (the model takes a MAPPING; a bare policy name is refused)
+      policy: none
+    runtimes:
+      - name: aws-ubuntu-24
+        image_builder: pckr-ebs-ans
+        ssh_username: ubuntu
+        owners:
+          - "099720109477"         # Canonical's PUBLIC AMI publishing account (a vendor fact)
+        query:
+          filters:
+            name: "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"
+            state: available

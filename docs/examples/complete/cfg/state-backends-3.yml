@@ -1,0 +1,11 @@
+---
+# docs/examples/complete/cfg/state-backends-3.yml -- the `local` type: a state
+# file on disk, no cloud, no credentials. Reference:
+# ../../../CONFIGURATION.md section 10 (`local`). The identity roots bind to
+# it (cfg/group-builders.yml), so this tree reads state across two backend
+# types. A root's location is local://<directory>/<root name>.tfstate.
+state_backends:
+  - name: local-dev
+    type: local
+    path: state                    # a directory, relative to the configuration root (or absolute); default `state`
+    executable: open-tofu-1

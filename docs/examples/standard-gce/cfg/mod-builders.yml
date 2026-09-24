@@ -1,0 +1,18 @@
+---
+# docs/examples/standard-gce/cfg/mod-builders.yml -- the two modification
+# builders an image's `modifications:` items name. Reference:
+# ../../../CONFIGURATION.md section 7 (7.1 `ansible`, 7.2 `bash-remote`,
+# 7.3 the modification item).
+mod_builders:
+  - name: ansible
+    type: ansible
+    is_default: true             # DECISION: an item with no `type` is an ansible item
+    executable: ansible-playbook
+    # DECISION: nothing builder-wide; each item carries its own playbooks.
+    # `extra_arguments` (e.g. --tags) would apply to every item of this builder.
+  - name: bash
+    type: bash-remote
+    aliases: [shell]
+    executable: bash
+    # DECISION: no `execute_command` / `environment_vars`; the packer shell
+    # provisioner's defaults serve. Items give `script`, `scripts` and/or `ensure`.

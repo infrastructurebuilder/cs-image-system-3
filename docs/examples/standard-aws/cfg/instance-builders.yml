@@ -1,0 +1,16 @@
+---
+# docs/examples/standard-aws/cfg/instance-builders.yml -- the ONE instance
+# builder: a terraform root that stands instances on the AWS runtime.
+# Reference: ../../../CONFIGURATION.md section 8.1.
+instance_builders:
+  - name: tofu-aws
+    type: tofu
+    is_default: true
+    runtime: aws-main
+    executable: open-tofu
+    # DECISION: no `state_configuration` -- the root inherits the runtime's
+    # backend, else the default backend (s3-main). Name one to put this root elsewhere.
+    required_plugins:            # terraform providers the root requires
+      - name: aws
+        source: hashicorp/aws
+        version: ">= 4.0.0"
