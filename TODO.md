@@ -261,110 +261,33 @@ plugin 1–2 days. Call it three weeks, done as three branches.
 ## 63. What the documentation stage found in the code
 
 **Status: IN PROGRESS since 2026-09-24** (the operator: "we are now working
-on stage 63"). Written during §62 (2026-09-23) under the rule that a
+on stage 63"; the low-hanging group landed the same day, the medium items
+and the chains are open). Written during §62 (2026-09-23) under the rule that a
 documentation stage changes no code: every item below was found by an
 agent reading a package against its README, the manuals and the fixture,
 verified in the code, and left as it was. The manuals now say what the
 code DOES, with "a code stage names the fix" where the doing is wrong.
-This is that stage. Nothing here is proved live yet; each item names the
-file and function so the fix can be judged before it is made.
+This is that stage. An open item is not proved live until its stage
+lands; each names the file and function so the fix can be judged before
+it is made.
 
 **How the list is ordered** (2026-09-24). Three groups. First the
-**low-hanging fruit**: each item is one function and one test, touches
-nothing another item touches, and can be fixed in any order or all at
-once on one branch. Then the **medium items**, still independent of each
-other but each a small design (a decision to make, a validation model to
-write, an API to read). Then the **chains**, where one item's fix decides
+**low-hanging fruit** (landed): each item was one function and one test,
+touching nothing another item touched. Then the **medium items**, still
+independent of each other but each a small design (a decision to make, a
+validation model to write, an API to read). Then the **chains**, where one item's fix decides
 another's: those are listed in the order they must be made, with the
 dependency named. The dead fields, dead code and misleading messages come
 last and follow the same rule: an entry that depends on a chain says so.
 
-**Low-hanging fruit, each independent** (one branch,
-`feature/defects-low-hanging`, one commit per item; ALL THIRTEEN LANDED on
-the branch 2026-09-24, items 3 and 4 in one commit since they share a README;
-items 2, 11, 12 and 13 proved against the live configuration the same
-day; item 7's GCE cycle is the operator's, before the squash):
-
-1. **A declared `type: dummy` builder fails the identity lifecycle.**
-   `DummyGroupBuilder.generate_items_during` and the user builder's return
-   `[]` where the contract wants an `AssetSet`; `gen_users`/`gen_groups`
-   call `sort_and_write` on it (reproduced 2026-09-23). Return
-   `AssetSet()`; the template plugin then loads and emits nothing.
-2. **`mask` hides its own failure.** `cli.mask_command` swallows every
-   per-file exception, `MissingIdentityError` included, so with the
-   identity unset or wrong it prints no `::add-mask::` line and exits 0;
-   a CI log would then show every plaintext with no signal. Let the
-   identity error through, exit 1, name the file.
-3. **A packer string variable's default is emitted unquoted.**
-   `hashicorp.packer_variable` renders `default = 1.0.0` for a string
-   default, invalid HCL; only `env_var` and booleans render right. No
-   consumer hits it today: the one string variable uses `env_var`, and its
-   `default="1.0.0"` is dropped in favour of `env("BASE_IMAGE_VERSION")`,
-   empty when unset, while its description promises `1.0.0`. Quote a
-   string default; make the description say what is emitted.
-4. **A backup the flag does not take.** `gated_apply_commands` ignores
-   `pre_plan_backup=True` when `pre_plan` is empty, so a caller that
-   removes state through `pre_commands` gets no backup from the flag (the
-   prune step takes its own; no live effect today). Take the backup when
-   the flag is set and either list is non-empty.
-5. **A registry refusal dumps the model.** A duplicate backend name after
-   normalisation is refused at load with `Object TofuS3StateBuilderModel(...)
-   has no unique 'id' or 'name' field for registry key`, the whole repr
-   included, which would print `access_key`/`secret_key` if anyone set
-   them. Name the collision (both names, the normalised key) and print no
-   repr.
-6. **A state migration's previous-location file may not initialise.**
-   `state_migration.render_record` drops `backend`, `type` and `run` from
-   the meta-state record when it writes `<ws>.tfbackend.previous.hcl`,
-   but every record since stage 47 also carries `location`, so the file
-   would carry `location = "..."`, an argument no tofu backend accepts,
-   and `init_against(previous)` in `begin` would fail for any migrating
-   root. The test's fake tofu validates no arguments. Drop `location` too,
-   and give the fake tofu the one check that would have caught it (refuse
-   an argument the backend does not take). Unverified live; check before
-   the next `--migrate-state`.
-7. **A GCE instance never receives the build its own run baked.**
-   `TofuGceInstanceBuilder` inherits `pre_finalize_phase`, which writes
-   `<label>_ami_id` into `instances.auto.tfvars`, while the GCE root
-   declares `<label>_image`; tofu warns of an undeclared variable and the
-   instance launches through `image_family`. Override `_ami_var` (or the
-   hook) to name `_image_var`. The golden moves by design (the GCE root's
-   tfvars line).
-8. **The attributes probe step cannot load.** The okta group builder emits
-   `identity-attributes --probe --dry-run-apply` with
-   `system_cli_executable` (no `--root-dir`), and the command loads the
-   configuration from its working directory, the root's mirror, which has
-   no `cfg/`; a real run of a tree that declares attributes fails after
-   the identity apply. Use `system_cli_executable_with_config`. The golden
-   moves by design (the identity runner's line).
-9. **`iam_instance_profile` overrides the SSM profile.** In
-   `amazon_ebs_source()` the `iam_instance_profile` assignment runs after
-   the SSM block, so a runtime that sets both bakes under the wrong
-   profile; the fallback `ssm_profile = session_instance_profile or
-   iam_instance_profile` implies the reverse was meant. Let the SSM
-   profile win when both are set, and say so in the field's row.
-10. **A dry run can call the registry.** `launch_params.validate_claimed_hostnames`
-    gates on the lifecycle and `apply_instances`, not on the dry-run flag,
-    so a dry run with the flag on asks OPA and can refuse on silence; its
-    docstring and the manual promised otherwise. Gate on `ctx.dry_run`
-    too.
-11. **Preflight reads one file name.** `preflight.raw_session_infos` reads
-    `cfg/runtime-builders.yml` by that exact name while the loader accepts
-    `runtime_builders:` in any `cfg/*.yml`; a runtime declared elsewhere is
-    never preflighted and the pre-load expired-session refusal never fires
-    for it. Read every `cfg/*.yml` the way the loader does.
-12. **The OPA listing reads one page.** `opa_gids._listing` returns the
-    first page only; with more security policies than one page the
-    workload reconcile sees no standing CI policy and creates a duplicate.
-    Follow the listing's next-page marker until it is empty.
-13. **The configuration is loaded with `yaml.unsafe_load`.**
-    `global_context.read_and_process` reads every `cfg/` file with
-    `unsafe_load`, which constructs arbitrary Python objects from a PUBLIC
-    configuration tree; every other reader uses `safe_load`. Switch to
-    `safe_load`; the fixture, the live tree and the three example trees
-    prove nothing relied on a tag. Low-hanging only if they do; if a tag
-    is in use somewhere, this becomes a medium item with the tag's
-    replacement.
+**Low-hanging fruit: LANDED** as `720be3a` on develop (2026-09-24, squash of
+`feature/defects-low-hanging`, kept). Items 1 to 13 are gone from this
+list; the squash message carries them one by one. Each landed with a
+test in `tests/test_v2_defects_low_hanging.py` and its README row; items
+2, 11, 12 and 13 were proved against the live configuration and item 7 by
+a full GCE cycle (run `2026_09_24t12_01_15_155175`, ended empty). The
+numbering below keeps its gaps on purpose: the chains and the dead-code
+entries cite items by number.
 
 **Medium items, each independent** (one branch each, or two or three
 together when they land the same day):
@@ -548,8 +471,9 @@ names a chain):
   read nowhere; the user builder emits `Dummy-tf/dummy_users.tf` beside
   the other builders' directories.
 
-**Records**: the low-hanging group on one branch, `feature/defects-low-hanging`,
-one commit per item, squash-merged and kept; each medium item and each
+**Records**: the low-hanging group landed on one branch,
+`feature/defects-low-hanging`, one commit per item, squash-merged and kept;
+each medium item and each
 chain on a branch of its own (`feature/defect-<subject>`), kept; the
 READMEs' "accepted, not read" rows and "When it fails" tables and the
 manuals' "a code stage names the fix" clauses are updated in the same
