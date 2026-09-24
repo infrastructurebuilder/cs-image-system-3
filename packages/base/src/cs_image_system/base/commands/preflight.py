@@ -186,18 +186,26 @@ def session_infos(ctx: Any) -> list[SessionInfo]:
 
 
 def raw_session_infos(root_dir: Path) -> list[SessionInfo]:
-    """The same sessions read from the RAW ``cfg/runtime-builders.yml`` --
-    before the configuration loads, because loading it validates every
-    runtime's networking against its cloud and dies on an expired
-    session before any preflight could say so (found live 2026-09-09)."""
+    """The same sessions read from the RAW ``cfg/`` files -- before the
+    configuration loads, because loading it validates every runtime's
+    networking against its cloud and dies on an expired session before any
+    preflight could say so (found live 2026-09-09). Every ``cfg/*.yml`` and
+    ``*.yaml`` directly under ``cfg/`` is read, as the loader reads them
+    (stage 63 item 11: only ``runtime-builders.yml`` by name was read, so a
+    runtime declared in another file was never preflighted and the pre-load
+    expired-session refusal never fired for it)."""
     import yaml
-    path = Path(root_dir) / "cfg" / "runtime-builders.yml"
-    if not path.is_file():
+    cfg = Path(root_dir) / "cfg"
+    if not cfg.is_dir():
         return []
-    try:
-        entries = (yaml.safe_load(path.read_text()) or {}).get("runtime_builders") or []
-    except (yaml.YAMLError, OSError):
-        return []
+    entries: list[Any] = []
+    for path in sorted(p for p in cfg.iterdir() if p.is_file() and p.suffix in (".yml", ".yaml")):
+        try:
+            doc = yaml.safe_load(path.read_text()) or {}
+        except (yaml.YAMLError, OSError):
+            continue
+        if isinstance(doc, dict):
+            entries.extend(doc.get("runtime_builders") or [])
     out: list[SessionInfo] = []
     for entry in entries:
         if not isinstance(entry, dict) or not entry.get("name"):

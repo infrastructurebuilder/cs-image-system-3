@@ -213,3 +213,17 @@ def test_a_dry_run_never_asks_the_registry_for_a_hostname_claim(tmp_path: Path, 
         assert calls, "a real run that can launch asks the registry"
     finally:
         real.restore_cwd()
+
+
+# -------------------------------- 11. preflight reads every cfg file
+
+def test_preflight_finds_a_runtime_declared_in_any_cfg_file(tmp_path: Path):
+    from cs_image_system.base.commands.preflight import raw_session_infos
+    root = copy_config(tmp_path)
+    src = root / "cfg" / "runtime-builders.yml"
+    before = {i.runtime for i in raw_session_infos(root)}
+    assert before, "the fixture's runtimes are preflighted from their own file"
+    (root / "cfg" / "clouds.yaml").write_text(src.read_text())      # the same declarations, another file name
+    src.unlink()
+    after = {i.runtime for i in raw_session_infos(root)}
+    assert after == before, f"{after} != {before}: a runtime declared in another cfg file is preflighted too"
