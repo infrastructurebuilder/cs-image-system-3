@@ -346,9 +346,9 @@ its group's registry. An unlaunched instance whose name is already
 registered is refused, naming the record; a launched one with more than one
 registration is refused too, because `sft ssh` cannot choose between them.
 The check runs ONLY when a launch is actually possible -- the lifecycle
-requested and `apply_instances` on. It does not read the dry-run flag, so
-a dry run with the flag on makes the call too and can refuse on a silent
-registry (a code stage names the fix if that is not wanted).
+requested, `apply_instances` on, and not a dry run -- so a dry run never
+makes the call (since stage 63 item 10; until 2026-09-24 a dry run with the
+flag on asked the registry too and could refuse on its silence).
 And an unreachable registry is a refusal saying the claim *could not be
 checked*: silence is not a free name (the same rule the power-state query
 follows), and an unreachable OPA is exactly when a duplicate would

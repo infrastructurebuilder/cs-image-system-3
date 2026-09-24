@@ -1695,7 +1695,7 @@ where they differ.
 | capabilities | `validate_capabilities` | an image that does not chain to a base; a group with no identity builder; an identity type or attached storage type the root base does not carry (resolved through the pins to the stamped build, else the declaration) |
 | identity items | `validate_identity_items` | whatever the owning user or group plugin's `validate_user` / `validate_attributes` returns |
 | immutability | `validate_immutability` | a launched instance whose launch parameters changed, unless a replacement is pending, a follow target exists, or the only change is a removed mount |
-| claimed hostnames | `validate_claimed_hostnames` (only when the instance-image lifecycle is requested AND `apply_instances` allows the root) | an unlaunched instance whose canonical hostname is already registered; a launched one with more than one registration; a registry that could not be asked |
+| claimed hostnames | `validate_claimed_hostnames` (only when the instance-image lifecycle is requested AND `apply_instances` allows the root AND the run is not a dry run, since stage 63 item 10) | an unlaunched instance whose canonical hostname is already registered; a launched one with more than one registration; a registry that could not be asked |
 | released pins | `validate_released_pins` (only with `require_released_builds`) | a pin that is neither released nor under the grace, naming what is missing |
 | the state report | `validate_state_report` | any `hard: true` drift in the last `generated/state-report.json` (re-run `state query` after fixing) |
 
