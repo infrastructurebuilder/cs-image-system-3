@@ -10,13 +10,18 @@ system must not take itself.
 Current stage: **§62 (the daily driver), in progress since 2026-09-23** on `feature/daily-driver`.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
-**§62 (the daily driver)**, in progress since 2026-09-23, its second pass
-on `feature/daily-driver-redux` (the release model: a team installs a
-release and owns a configuration repository with its own Justfile and CI);
-then **§64**, the release that carries everything such a repository
+**§64**, the release that carries everything a configuration repository
 needs and the reference configuration standing alone, and **§63**, the
 code defects the documentation found, both planned and waiting on the
-operator's word; §30 waits on the operator's decision. (§61, hygiene
+operator's word; then a walk of the daily driver (the next stage to write);
+§30 waits on the operator's decision. (§62, the daily driver, LANDED
+2026-09-24 as the operator's "one attempt, accepted": the README contract
+and its test, sixteen READMEs to it, seven passes of manual corrections,
+DAILY_DRIVER.md for a team that installs a release and owns its
+configuration repository, three starter trees that are whole repositories,
+loaded and validated by a test; it will be worked on over time, and every
+material change to the system that invalidates it owes it an update.)
+(§61, hygiene
 bundle V, LANDED 2026-09-23: five items and two live proofs -- a dropped
 stofs membership pruned from state after a backup and restored through
 the gate; the coops model's third release as one `cloud-upgrade` with
@@ -104,9 +109,9 @@ Standing decisions (operator):
   is markdown, example configuration trees and the tests that hold the
   documentation contract; a code change it would need is a new stage,
   written as a plan, never a side edit.
-- §30 (the contract package) is planned, not started; §62 (the daily
-  driver) is in progress since 2026-09-23; a stage is a plan in this file
-  until the operator says to execute it (2026-09-23).
+- §30 (the contract package), §63 and §64 are planned, not started; a
+  stage is a plan in this file until the operator says to execute it
+  (2026-09-23). §62 landed 2026-09-24.
 - **Documentation stays current by stage** (operator, 2026-09-23). Once
   §62 has landed, every stage that changes behaviour, configuration,
   tests or procedure owes a documentation update, done as a stage of its
@@ -249,189 +254,6 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-package` (steps 1–3, 5–7),
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
-
-## 62. The daily driver: how a person actually uses the system
-
-**Status: steps 1 to 6 LANDED on `feature/daily-driver` 2026-09-23, then
-REDONE on `feature/daily-driver-redux` the same day** after the operator
-corrected the model the first daily driver assumed (a clone of this
-repository beside the configuration): a team installs a RELEASE and owns
-a configuration repository that carries its own Justfile, CI, hook,
-modules and scripts; the three example trees are now whole repositories
-of that shape, held to the release's parts by the test, and the daily
-driver is written from the first command a team runs. The first branch
-is kept. (the
-operator said "execute stage 62" that morning, after §61 landed): the
-contract test, sixteen READMEs one commit each, seven passes of manual
-corrections, `DAILY_DRIVER.md`, the three example trees with their test,
-the root README. Step 7 is the standing convention. What remains is the
-bar on the branch head and the operator's word to squash-merge; the code
-defects the work found are §63. An execution begun before the plan
-was written was reverted; its draft of `DAILY_DRIVER.md` and its contract
-test are the starting points for steps 4 and 1.
-
-**A documentation stage changes no code** (operator, 2026-09-23): the diff
-is markdown, the two example trees and the tests that hold the contract.
-Where a doc and the code disagree, the doc is corrected. Where the code
-itself must change, that is a NEW stage, written as a plan and named in
-this stage's records; it is not made here.
-
-**Why**: the documentation describes the system -- every file, every field,
-every rule, every run -- and still a person sitting down to USE it on a
-Monday has no page that starts where they are. Nothing says what has to
-exist before the first command (accounts, roles, keys, sessions, tools, a
-configuration repository), nothing walks through making an image, a
-storage and an instance and then changing each, nothing collects the
-failures the system produces into "this is what that means and what to do",
-and the plugin READMEs -- good, and differently shaped -- do not all say what
-a plugin needs from outside, every knob it reads, every variation it
-performs, what it tests, and how it fails. The standard (operator,
-2026-09-22): **no one should be surprised by the system's behaviour if
-they read the docs.** And its corollary (operator, 2026-09-23): where the
-choice is between a little more explanation and a little less, err on
-the side of more -- a reader who already knows can skip a sentence; a
-reader who does not cannot supply one.
-
-**What exists already, and what the plan builds on**: a 1790-line
-configuration reference ([CONFIGURATION.md](docs/CONFIGURATION.md), every
-file and field), a 2042-line operations manual
-([OPERATIONS.md](docs/OPERATIONS.md), every run, rule and procedure),
-[DESCRIPTION.md](DESCRIPTION.md), [PLUGINS.md](docs/PLUGINS.md), and a
-README in all sixteen packages (80 to 1125 lines each, in a shared shape:
-what it registers, models, the builder, emission, an example). The gap is
-the narrative that ties them together for a person doing the work, and a
-uniform closing contract in every README.
-
-**Known disagreements between the docs and the code**, found while reading
-for this plan on 2026-09-23 and to be fixed in step 3 (the code wins):
-[CONFIGURATION.md](docs/CONFIGURATION.md) section 4 says `ena_support` is
-passed to the packer source (nothing reads it), `default_owners` is not
-read by the cloud plugins (it is appended to every vendor query's owners),
-`security_group_ids` are groups for build VMs and instances (checked and
-counted at load, emitted nowhere), and `default_image_builder` is the
-image builder used when a runtime entry names none (nothing reads it;
-`image_builder: default` resolves to the registry's default); section 11.2
-says `Image.variables` is emitted as packer variables (only the retired
-`gen_packer.py` reads it; the builder emits `release` and
-`base_image_version`); section 11.3 says an instance's `userdata` is not
-read by the tofu roots (the launch script appends it before the completion
-marker and records it as a launch parameter); and the embedded
-`executables.yml` shows the `gcloud` floor as a date-shaped version while
-the fixture pins `>=500`, the SDK version the checker matches.
-
-1. **The README contract, and the test that holds it.** Every package
-   README keeps what it has and ends with four sections in a fixed form,
-   so a reader can find the same thing in the same place in every package
-   (only a `## Related` section may follow them):
-   - `## Prerequisites and integration` -- what must exist outside the
-     system before this plugin works (accounts, roles, APIs, tools,
-     credentials, network), and how the plugin finds it (which field or
-     variable); "nothing" is an answer.
-   - `## Configuration reference` -- every field the plugin reads, its
-     type, default and meaning, in tables; fields accepted but not read
-     named as such; then the VARIATIONS: what the plugin does differently
-     by declaration (ephemeral or durable, pinned or follow, ensure or
-     script, encrypted or clear, one runtime or another, dry or real).
-   - `## What it tests and verifies` -- what the plugin checks, when (at
-     load, validate, generation, apply, after apply, in the state query),
-     and where the verdict lands; "nothing" is an answer.
-   - `## When it fails` -- the failures the plugin produces, what each
-     means, where to look, what to do; failures that have actually
-     happened first, with their dates.
-   `tests/test_docs_contract.py` holds every package README to the four
-   headings in order and checks that every relative link in the READMEs,
-   [PLUGINS.md](docs/PLUGINS.md), [README.md](README.md),
-   [WORKLOAD_CONNECTION.md](WORKLOAD_CONNECTION.md) and `DAILY_DRIVER.md`
-   resolves. PLUGINS.md names the contract. Lands first, with the test
-   red for every package until step 2 turns each green.
-2. **Sixteen READMEs against the contract**, one commit per package,
-   written from the package's models, builders, tests and `pyproject.toml`
-   and from the two manuals, never from memory; where a README and the
-   code disagree, the code wins and the README is corrected. Expect this
-   to surface more disagreements like the list above; each goes into
-   step 3's list. Order: the three core packages (base, system,
-   hashicorp-utils) last, since they cite the plugins.
-3. **The reference manuals corrected** where the code contradicts them:
-   the list above, plus whatever step 2 finds. PARITY.md's method applies;
-   nothing is reworded that the code does not contradict.
-4. **`DAILY_DRIVER.md`**, at the root, the narrative in the order a person
-   meets it, linking to the manuals and the READMEs rather than repeating
-   them:
-   - *Before the first command*: what must exist outside the system --
-     the AWS account, the SSO portal and the `sso-session` profile, the S3
-     state bucket, the VPC, private subnets and security groups the
-     constraints assume, the SSM instance profile, the two OIDC roles;
-     the GCP project, ADC with impersonation, IAP; the Okta API services
-     app; the OPA team, its API key pair, the resource group, the gateway,
-     the workload connection and role; the age identities and who holds
-     them; the tools and their floors; the shell (`.envrc`, the profile);
-     the configuration repository beside this one and what it starts
-     with, file by file.
-   - *The first run*: validate, a dry run, reading the runner scripts and
-     the summary, the first commit and push.
-   - *Making things*: a group and its access, a storage (each kind), a
-     base image, an instance image (modifications, tests, release), an
-     instance (durable and ephemeral, the launch, the names it answers
-     to, the verify, the login) -- each with the commands, what to
-     expect, and what the records show afterwards.
-   - *Changing things*: a modification and the second release, a base
-     upgrade, an instance upgrade and the gated replace, a storage detach
-     or archive, a membership, a decommission, the admin key, a state
-     move, an adoption -- the procedures OPERATIONS holds, in the order a
-     change is made.
-   - *What specifies and what tests*: one table -- every declaration that
-     states an intent (`tests:`, `post_bake`, `modifications`, `release`,
-     `require_released_builds`, `parent_policy`, `image_policy`,
-     `ephemeral`, storage `state` and `lifecycle`, `apply_*`, `members`,
-     the workload objects, the names) beside the mechanism that proves it
-     (in-bake tests, post-bake tests, mod tests, verify, the login proof,
-     the state query, the gate, the golden, public-safe) and where each
-     records its verdict.
-   - *When it fails*: symptom -> meaning -> what to do, from the runs the
-     system has actually failed: the session that lapsed, the plan on
-     ciphertext, the stale attachment, the gate refusing an attachment,
-     the alias that was not written, the released-builds window, the
-     unaskable group, the hard drift that refused its own repair, the
-     client with no session, one tofu at a time, the temp volume, the
-     exit codes, where the logs and the records are.
-   - *Every plugin*, one paragraph each, linking to its README's contract
-     sections; and *the daily habits*, a short checklist.
-5. **Two example configurations, both real** (operator, 2026-09-23):
-   - a **standard** configuration per plugin set -- the smallest tree a
-     team writes to get going, one per set the system supports (the AWS
-     set: the `aws` runtime, the `s3` state backend, one OS builder, the
-     EBS packer builder, the ansible and bash mod builders, the terraform
-     instance and storage builders, the OPA group builder; the GCE set
-     likewise), with one group, one storage, one base image, one instance
-     image and one instance each, every value a placeholder a team
-     replaces, and a comment on every line that is a decision;
-   - a **complete** configuration -- every plugin, every field, every
-     variation (`pinned` and `follow`, `ephemeral` and durable, `ensure`
-     and `script`, each storage kind and state, encrypted and clear,
-     overlays), commented, so that the reference manual's field tables
-     have one living example of every row.
-   Both live under `docs/examples/<name>/` in the shape of a configuration
-   root, carry the fixture's TEST identity and synthetic personas and
-   never a real value, and both LOAD and VALIDATE in a test (as the
-   fixture does, with every cloud stubbed), so they cannot drift from the
-   code without the bar saying so. `DAILY_DRIVER.md`'s "from scratch"
-   chapter starts from the standard tree; CONFIGURATION.md's per-field
-   examples point at the complete one. A third tree is not written: the
-   live configuration is the worked example, and stays in its own repo.
-6. **Records**: the root README's "Where to start" names `DAILY_DRIVER.md`
-   first; the code defects the stage found are §63, a plan, not made here. Feature branch `feature/daily-driver`, squash-merged, kept.
-   Documentation only, plus the two example trees and the tests that load
-   them: the bar runs for those, nothing else reads markdown; `just
-   full-test` is not owed by a docs stage.
-7. **From here on, documentation is kept current by stage** (standing
-   decision above): when §62 lands, the first stage that changes
-   behaviour afterwards opens the rolling documentation stage, which
-   lists the stages it covers and what each changed, and lands as one.
-
-**Sizing**: step 1 is an hour; step 2 is the bulk, roughly an hour per
-package read against its code, and it parallelises by package; steps 3
-and 4 are a day together; step 5 is a day, most of it the complete tree
-and its loading test. Nothing in it touches a cloud or a credential.
 
 ## 63. What the documentation stage found in the code
 
