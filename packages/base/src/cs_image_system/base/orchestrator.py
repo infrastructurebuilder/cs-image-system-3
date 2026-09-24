@@ -474,9 +474,14 @@ class TemplateResolver:
       if obj_id in self.flattened_map:
         log.debug(f"Object {obj} with id {obj_id} is already registered.")
         if self.flattened_map[obj_id] is not obj:
-            log.error(f"Duplicate ID detected: Object {obj} has the same global_id '{obj_id}' as {self.flattened_map[obj_id]}. This may cause issues with template resolution.")
-            tehkey = obj.global_id
-            raise ValueError(f"Object {obj} has no unique 'id' or 'name' field for registry key.")
+            # Stage 63 item 5: name the collision, never the objects -- a model's
+            # repr carries every field, and a state backend's would print
+            # access_key/secret_key if anyone set them
+            other = self.flattened_map[obj_id]
+            raise ValueError(
+                f"two {type(obj).__name__} entries collide on the registry key {obj_id!r}: "
+                f"{getattr(obj, 'name', '?')!r} and {getattr(other, 'name', '?')!r} "
+                f"(a {type(other).__name__}) normalise to the same name; rename one")
         else:
             log.debug(f"Object {obj} is already registered with the same instance, skipping.")
             return

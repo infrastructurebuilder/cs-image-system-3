@@ -85,3 +85,21 @@ def test_a_packer_string_default_is_quoted_and_the_version_variable_says_what_it
     assert 'name="base_image_version"' in src and 'default="1.0.0"' not in src, "the env variable is what is emitted; no promise of 1.0.0"
 
 
+# ----------------------------------------- 5. a registry collision named
+
+def test_a_registry_collision_is_named_without_the_models_repr(tmp_path: Path, monkeypatch):
+    root = copy_config(tmp_path)
+    sb = root / "cfg" / "state-backends-2.yml"
+    data = yaml.safe_load(sb.read_text())
+    twin = dict(data["state_backends"][0])
+    twin["name"] = twin["name"].upper()          # normalises to the same registry key
+    twin.pop("is_default", None)
+    data["state_backends"].append(twin)
+    sb.write_text(yaml.safe_dump(data, sort_keys=False))
+    stub_environment(monkeypatch)
+    with pytest.raises(ValueError) as exc:
+        load_context(root)
+    message = str(exc.value)
+    assert "collide on the registry key" in message and "rename one" in message, message
+    assert "TofuS3StateBuilderModel(" not in message and "bucket=" not in message, "no repr, no field values"
+    reset_singletons()
