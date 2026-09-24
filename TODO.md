@@ -13,7 +13,8 @@ Open stages and their order (revised 2026-09-22, when §59 landed):
 **§64**, the release that carries everything a configuration repository
 needs and the reference configuration standing alone, and **§63**, the
 code defects the documentation found, both planned and waiting on the
-operator's word; then a walk of the daily driver (the next stage to write);
+operator's word; then **§65**, walking the daily driver from a fresh repository
+against a release, planned;
 §30 waits on the operator's decision. (§62, the daily driver, LANDED
 2026-09-24 as the operator's "one attempt, accepted": the README contract
 and its test, sixteen READMEs to it, seven passes of manual corrections,
@@ -109,8 +110,8 @@ Standing decisions (operator):
   is markdown, example configuration trees and the tests that hold the
   documentation contract; a code change it would need is a new stage,
   written as a plan, never a side edit.
-- §30 (the contract package), §63 and §64 are planned, not started; a
-  stage is a plan in this file until the operator says to execute it
+- §30 (the contract package), §63, §64 and §65 are planned, not started;
+  a stage is a plan in this file until the operator says to execute it
   (2026-09-23). §62 landed 2026-09-24.
 - **Documentation stays current by stage** (operator, 2026-09-23). Once
   §62 has landed, every stage that changes behaviour, configuration,
@@ -540,3 +541,75 @@ model; both are code, and this is that stage.
 **Sizing**: item 1 a day (package data, the command, the tests); item 2
 half a day; item 3 a day with the live proofs, most of it CI secrets and
 the first performing run; item 4 an hour.
+
+## 65. Walking the daily driver
+
+**Status: PLANNED, not started** (the operator, 2026-09-24, on accepting
+§62: "make a new stage for walking through the daily driver docs").
+
+**Why**: `DAILY_DRIVER.md` was written from the code and the manuals and
+accepted as one attempt; nobody has yet sat down with it, a fresh
+configuration repository and the prerequisites, and done what it says from
+section 0 to section 8. A page held to "no one should be surprised" is only
+as good as its first walk. The walk is the proof, and every place the text
+and reality differ is a finding: a command that does not exist or says
+something else, a step out of order, a prerequisite the text forgot, a
+message the failure table lacks, a decision the starter tree comments
+wrongly. Findings that are words are fixed in this stage; findings that
+are code go to §63 or §64 as items, never made here (a documentation stage
+changes no code).
+
+1. **The preconditions, before anyone walks.** A release on the index that
+   carries what the page describes: the one on TestPyPI (`0.1.1.dev1`,
+   2026-09-17) predates the prune step, the release grace and
+   `cloud-upgrade`, so `just release dev test` (the operator's act) comes
+   first, and the walk installs THAT version (`.csis-version`). A machine
+   or a user profile with nothing of the system on it: `uv`, `just`,
+   `git`, the tools of section 1.2 at their floors, and no checkout of
+   this repository. The accounts of sections 1.3 to 1.5, as they are for
+   the reference deployment, and a fresh age identity.
+2. **The AWS walk.** Copy `docs/examples/standard-aws/` into a new git
+   repository, then follow sections 1.1 to 1.9 and 2 exactly as written,
+   typing only what the page says: `uv tool install`, `just init`, the
+   identity replaced and the tree re-encrypted, every `REPLACE-ME` filled
+   from the reference account, `just validate`, `just dry`, the emission
+   read, the first commit. Then section 3 as far as the account allows
+   without touching what the reference deployment owns: a group of one
+   test user, one storage, one base image, one instance image with one
+   modification and one post-bake test, one ephemeral instance through
+   `just cloud-launch`, the login proof. Section 4 for one change (a
+   modification, then `cloud-upgrade` on a durable instance if one is
+   declared for the walk). Every step's outcome goes in the walk log
+   beside the exact text that was followed.
+3. **The GCE walk.** The same from `docs/examples/standard-gce/`, on the
+   operator's project: this is also the first live root on the `gcs`
+   state type. If it does not hold, the starter falls back to `local`
+   and the finding goes to §63 with the plugin named. GCP is the
+   operator's money: the walk ends with `just cloud-empty` and nothing
+   standing.
+4. **The CI walk.** Push the walk repository to GitHub, set the secrets
+   the starter workflow names, and watch the three jobs: `verify` green
+   on the first push, `live` green once the secrets exist, one `perform`
+   on `main`, its records pushed back, the login proof as a workload. The
+   `REPLACE-ME` steps the workflow leaves for packer and tofu are filled
+   in the starter from what worked.
+5. **The failure walk.** Provoke five rows of section 6 on purpose (an
+   expired session, an unsourced shell, a destroy the gate must refuse, a
+   pin to an unreleased build outside the grace, a stopped machine) and
+   check each row's symptom, meaning and remedy against what was seen.
+6. **The other paths, read rather than walked**: the pyproject install
+   form (`uv init --bare && uv add cs-image-system`, `CSIS="uv run
+   cs-image-system"`) on the AWS walk's repository; the developer chapter
+   (section 9) against `just test` and `just release ... yes` in this
+   repository.
+7. **The fixes and the records.** Every finding in the walk log becomes
+   a documentation fix here, a starter-tree fix here, or a code item in
+   §63 or §64, and the log itself is the stage's evidence in the squash
+   message (the records convention: no ledger). `DAILY_DRIVER.md` gains
+   a dated line at the top: walked on <date>, against release <version>.
+   The walk repositories are deleted afterwards, their clouds emptied.
+
+**Sizing**: a release, half an hour; the AWS walk a day, most of it the
+bakes and the launch; the GCE walk half a day; the CI walk half a day,
+most of it secrets; the failure walk two hours; the fixes a day. Nothing
+here changes code.
