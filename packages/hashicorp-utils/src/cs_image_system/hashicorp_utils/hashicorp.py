@@ -121,7 +121,9 @@ def packer_variable(
         if isinstance(default, bool):
             default_value = str(default).lower()
         elif isinstance(default, str):
-            default_value = default
+            # a string default is an HCL string, quoted (stage 63 item 3: `default = 1.0.0`
+            # was emitted bare, invalid HCL; only env_var and bool defaults rendered right)
+            default_value = default if isinstance(default, QString) else QString(default)
         else:
             default_value = str(default)
     content: dict[str, Any] = {

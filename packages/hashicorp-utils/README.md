@@ -637,7 +637,11 @@ package does with it.
 - **`pre_plan` given, with or without `pre_plan_backup`.** The argument
   lists run between init and plan as tofu commands. With
   `pre_plan_backup=True` a `state-migration backup` step precedes them;
-  with `pre_plan` empty the backup flag does nothing. The group builder
+  with `pre_plan` empty the backup flag does nothing, by decision (stage
+  63 item 4, 2026-09-24): the flag covers the `pre_plan` lines alone, and
+  a pre-command that removes state, such as the identity runner's prune
+  step, takes its own backup, so a run never pulls state twice for one
+  removal and never backs up a run that removes nothing. The group builder
   passes `state rm module.group_<name>` for a newly unmanaged group with
   the backup on.
 - **`pre_commands` given vs empty.** Executables inserted verbatim after
@@ -843,4 +847,4 @@ Failures the code raises that have not been seen live.
 | `apply-check: overlay <path> is gone; refusing to apply` (exit 3) | an overlay the run was generated under was deleted | restore it or regenerate |
 | `state backup for workspace '<ws>' REFUSED: <dir> is not an initialised terraform root` / `... the location holds no state, yet a state rm is due` (exit 1) | the backup that precedes a `state rm` cannot see the state | the root's init failed or bound to an empty location; nothing was removed; fix the binding, rerun |
 | a migrating runner stops after `plan -detailed-exitcode` with exit 2 | the plan at the new location is not clean | OPERATIONS "Where state lives": the move is accepted only clean; the backup is beside the root, the old location untouched |
-| a packer template fails to parse at `default = 1.0.0` | `packer_variable` renders a plain string default unquoted | no consumer declares a string default today (the one string variable uses `env_var`); a plugin that does must pass a `QString(value, quoted=True)` until the helper quotes strings itself |
+| a packer template fails to parse at `default = 1.0.0` | `packer_variable` rendered a plain string default unquoted until stage 63 item 3 (2026-09-24); it now quotes a `str` default as an HCL string | not since the fix; a `QString` default is passed through as given |

@@ -74,8 +74,8 @@ class PackerImageBuilder(ImageBuilderBase[T]):
                 description="Determines if the build is meant to be immutable"))
             col.declare_variable(ws, PackerVariableDecl(
                 name="base_image_version", type="string",
-                env_var="BASE_IMAGE_VERSION", default="1.0.0",
-                description="The version of the base image to build on top of, used for tagging and versioning the image. Can be set via the BASE_IMAGE_VERSION environment variable, or defaults to '1.0.0' if the environment variable is not set."))
+                env_var="BASE_IMAGE_VERSION",
+                description="The version of the base image to build on top of, used for tagging and versioning the image. Read from the BASE_IMAGE_VERSION environment variable at build time; empty when it is not set."))
 
             setup_path = self.get_path_for_phase(phase, suffix="-setup.pkr.hcl")
             items.add(setup_path,

@@ -66,3 +66,22 @@ def test_mask_refuses_loudly_when_it_cannot_open_a_marker_and_masks_when_it_can(
     assert with_identity.output.count("::add-mask::") > 0
 
 
+# ------------------------------------------- 3. a packer string default
+
+def test_a_packer_string_default_is_quoted_and_the_version_variable_says_what_it_emits():
+    import hcl2
+    from cs_image_system.hashicorp_utils.hashicorp import FO, Builder, packer_variable
+
+    def render(**kw) -> str:
+        return hcl2.dumps(packer_variable(Builder(), **kw).build(), formatter_options=FO)
+    text = render(name="x", type="string", default="1.0.0")
+    assert 'default = "1.0.0"' in text, text
+    text = render(name="y", type="bool", default=True)
+    assert "default = true" in text, text
+    text = render(name="z", type="string", default=None, env_var="Z")
+    assert 'default = env("Z")' in text, text
+    from cs_image_system.packer_plugin import packer_builder
+    src = Path(packer_builder.__file__).read_text()
+    assert 'name="base_image_version"' in src and 'default="1.0.0"' not in src, "the env variable is what is emitted; no promise of 1.0.0"
+
+

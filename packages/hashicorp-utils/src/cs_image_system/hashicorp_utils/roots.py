@@ -193,8 +193,14 @@ class TerraformRootMixin(_Base):
         addresses are forced replacements (an explicit upgrade); ``pre_plan``
         arg lists (e.g. ``state rm``) run before the plan; with
         ``pre_plan_backup`` the runner first pulls the state and keeps it
-        beside the root (stage 61 item 3: a ``state rm`` the system decided
-        on is preceded by the backup a hand edit would take).
+        under the root's ``_private/state-backups/`` (stage 61 item 3: a
+        ``state rm`` the system decided on is preceded by the backup a hand
+        edit would take). The flag covers the ``pre_plan`` lines ALONE: with
+        no such line it takes no backup, whatever ``pre_commands`` carries. A
+        pre-command that removes state (the identity runner's prune step)
+        takes its own backup, so a run never pulls state twice for one
+        removal and never backs up a run that removes nothing (stage 63
+        item 4, decided 2026-09-24).
         """
         from cs_image_system.base.global_context import GlobalTypeContext
         from cs_image_system.base.models.executable import ExecutableModel

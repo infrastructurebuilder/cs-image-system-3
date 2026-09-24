@@ -8,5 +8,5 @@ variable "release" {
 variable "base_image_version" {
     type = string
     default = env("BASE_IMAGE_VERSION")
-    description = "The version of the base image to build on top of, used for tagging and versioning the image. Can be set via the BASE_IMAGE_VERSION environment variable, or defaults to '1.0.0' if the environment variable is not set."
+    description = "The version of the base image to build on top of, used for tagging and versioning the image. Read from the BASE_IMAGE_VERSION environment variable at build time; empty when it is not set."
 }

@@ -80,9 +80,9 @@ configuration can say `type: packer-gce`; the runtime plugin bound through
   assembles Packer's command line itself.
 - The only Packer variables declared are `release` (bool, default `true`)
   and `base_image_version` (string, emitted as
-  `default = env("BASE_IMAGE_VERSION")`; the `1.0.0` the description
-  promises is never written, because a variable with an environment
-  source drops its literal default). There is no field for extra
+  `default = env("BASE_IMAGE_VERSION")`, empty when the variable is unset;
+  since stage 63 item 3 its description says exactly that instead of
+  promising a `1.0.0` that was never written). There is no field for extra
   variables, and an image's `variables:` mapping is read by nothing.
 - No provisioner is configurable on the builder model. Modifications come
   from the modification builders; everything else is derived from the OS
@@ -487,7 +487,7 @@ reads them nowhere itself:
 | Variable | Type | Emitted default | Used by |
 |---|---|---|---|
 | `release` | bool | `true` | `force_deregister = !var.release` on every `amazon-ebs` source (the AWS plugin's block), and the `snapshot` local. The runner script passes no `-var`; only a hand-run `packer build -var release=false .` changes it. |
-| `base_image_version` | string | `env("BASE_IMAGE_VERSION")` (empty when the variable is unset; the literal `1.0.0` is not emitted) | The `image_version` local, which no source references. |
+| `base_image_version` | string | `env("BASE_IMAGE_VERSION")` (empty when the variable is unset; no literal default, and the description says so since stage 63 item 3) | The `image_version` local, which no source references. |
 
 The image-side fields the plugin reads (`runtimes[].image_builder`,
 `machine_type`, `ssh_username`, `image_identifier`, `tags`, `owners`,
