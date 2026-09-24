@@ -266,7 +266,10 @@ every other phase.
      `cs-image-system apply-check --lifecycle identity --root <ws>`
      followed by `tofu apply -input=false tfplan`. When any group or user
      declares `attributes:`, one more deferred command follows:
-     `cs-image-system identity-attributes --probe --dry-run-apply`.
+     `cs-image-system --root-dir <root> --no-dry-run identity-attributes --probe --dry-run-apply`
+     (with the configuration since stage 63 item 8; until 2026-09-24 the
+     step was emitted bare and loaded from the root's mirror, which has no
+     `cfg/`, so a real run of a tree with attributes failed after the apply).
 7. `pre_finalize_phase` / `post_finalize_phase`: not overridden.
 
 The module call

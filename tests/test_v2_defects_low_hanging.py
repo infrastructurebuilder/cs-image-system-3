@@ -139,3 +139,25 @@ def test_the_gce_root_receives_the_build_its_run_baked_under_its_own_variable(tm
     finally:
         ctx.current_lifecycle = None
         run.restore_cwd()
+
+
+# ------------------------------ 8. the attributes probe step can load
+
+def test_the_attributes_probe_step_carries_the_configuration(tmp_path: Path, monkeypatch):
+    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
+    root = copy_config(tmp_path)
+    p = root / "groups" / "group-tcmet.yaml"
+    data = yaml.safe_load(p.read_text())
+    data["groups"][0]["attributes"] = {"unix_gid": 180999}
+    p.write_text(yaml.safe_dump(data, sort_keys=False))
+    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    try:
+        gb = next(b for b in run.ctx.group_builders.values() if isinstance(b, OktaTfGroupBuilder))
+        deferred = gb.get_commands_to_run_after(ExecutionLifecyclePhase.GROUP_GENERATION).finalize_executables
+        lines = [" ".join([str(e.binary or e.name), *[str(a) for a in (e.args or [])]]) for e in deferred]
+        probe = [ln for ln in lines if "identity-attributes --probe --dry-run-apply" in ln]
+        assert len(probe) == 1, lines
+        assert "--root-dir" in probe[0] and "--no-dry-run" in probe[0], probe[0]
+    finally:
+        run.restore_cwd()
