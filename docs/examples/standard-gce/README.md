@@ -10,7 +10,7 @@ What it declares (one of everything):
 | Piece | File | Plugin (`type:`) |
 | --- | --- | --- |
 | the runtime | [`cfg/runtime-builders.yml`](cfg/runtime-builders.yml) | `gcloud` |
-| the state backend | [`cfg/state-backends.yml`](cfg/state-backends.yml) | `s3` (the GCE roots keep their state in S3 by the standing decision; the file says why) |
+| the state backend | [`cfg/state-backends.yml`](cfg/state-backends.yml) | `gcs` (a GCE-only tree needs no AWS account; the file says why the reference deployment chose S3 for its own GCE roots) |
 | the base image (OS builder) | [`cfg/os-builders.yml`](cfg/os-builders.yml) | `rhel` |
 | the image builder | [`cfg/image-builders.yml`](cfg/image-builders.yml) | `packer-gce` |
 | the modification builders | [`cfg/mod-builders.yml`](cfg/mod-builders.yml) | `ansible`, `bash-remote` |
@@ -72,8 +72,8 @@ narrative, from the first command on.
 - Application Default Credentials for the project (`gcloud auth
   application-default login`, or `GOOGLE_APPLICATION_CREDENTIALS`): the
   load resolves the project and checks the network and subnetwork.
-- An AWS profile that can write the state bucket: the S3 backend is the one
-  piece of AWS in this tree.
+- A GCS bucket the identity can write, for the `gcs` state backend; no AWS
+  account is involved anywhere in this tree.
 - The OPA API pair in the environment as `TF_VAR_<team>_key` and
   `TF_VAR_<team>_secret` (`<team>` with non-alphanumerics replaced by `_`):
   the group builder asserts they exist when it loads, not only at apply.

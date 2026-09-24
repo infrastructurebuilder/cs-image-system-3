@@ -28,22 +28,27 @@ through gates.
 **Your configuration repository** is a git repository you own, and it is
 where everything you do happens. It holds:
 
+### What You Provide
+
 - the declarations: **groups** (who may log in where), **storages**
   (volumes, filesystems, buckets), **base images** and **instance images**
   (what is baked), and **instances** (what runs), under `cfg/`, `groups/`,
-  `storages/`, `images/`, `instances/`;
-- the provisioning content the images are baked with (playbooks, scripts);
+  `storages/`, `images/`, `instances/`
+- the provisioning content the images are baked with (playbooks, scripts)
+
+### What the System Provides
+
 - the emission the system writes, under `generated/`: Packer and OpenTofu
   for six lifecycles in a fixed order (identity, storage, base-image,
   instance-image, release, retention), and the runner script of each;
 - the system's memory of what exists, under `meta-state/`, written by
-  runs and committed;
+  runs and committed
 - its own `Justfile`, the single entry point for everything below; its
   own CI under `.github/workflows/`; the public-safe hook under
   `.githooks/`; the terraform modules the emitted roots call, under
   `tfmodules/`; and three helper scripts under `scripts/`.
 
-You do not write those last five from nothing: a **starter tree** is a
+You do not write these from nothing: a **starter tree** is a
 whole repository of exactly this shape, and section 1.9 starts from one.
 Three commitments show up everywhere and explain most of what follows:
 
@@ -106,9 +111,10 @@ floors the reference deployment runs today:
 
 | Tool | Floor | Used by |
 | --- | --- | --- |
-| `just`, `git` | | the recipes, the commits |
+| `just` | 1.56+ | the recipes |
+| `git` | |  the commits |
 | `uv` | | installing the release (either way above) |
-| `tofu` (OpenTofu) | `>1,<2` | every terraform root |
+| `tofu` (OpenTofu) | `>1,<2` | every terraform root, may also swap out for `terraform` executable |
 | `packer` | `>=1.14` | every bake |
 | `aws` (AWS CLI v2) | `>=2.32` | sessions, the state bucket, archives |
 | `gcloud` | `>=500` (the SDK version, not a component's date) | GCE, IAP sessions, ADC |
@@ -123,11 +129,11 @@ A version below the floor fails validation by name; a tool that is absent
 is a validation failure too. Version checks are real: a CI failure naming a
 tool's version means the floor moved, not that the tool broke.
 
-### 1.3 AWS
+### 1.3 AWS, if you use the AWS runtime
 
 | What | Why the system needs it | Where it is named |
 | --- | --- | --- |
-| An account and a way to log in: an SSO portal and a profile (an `sso-session` profile lets the CLI token renew itself while the portal session lives) | every AWS runtime, every S3 state read, the GCE roots too (their state is in S3 by decision) | `credentials.profile_name` on the runtime; `AWS_PROFILE` and `AWS_REGION` in your shell |
+| An account and a way to log in: an SSO portal and a profile (an `sso-session` profile lets the CLI token renew itself while the portal session lives) | every `aws` runtime, and every root whose state backend is `s3`. The system defers to what the tree declares: a GCE-only repository keeps its state in `gcs` (as the GCE starter does) and needs no AWS account at all; the reference deployment keeps its GCE roots' state in S3 beside its AWS roots by its own decision | `credentials.profile_name` on the runtime; `AWS_PROFILE` and `AWS_REGION` in your shell |
 | An S3 bucket for terraform state, encrypted, with lock files | every root's state | `cfg/state-backends.yml` |
 | A VPC with private subnets and no internet gateway; a default subnet per runtime | instances launch there with no public IP | `networking:` on the runtime |
 | The security group SSH ingress comes from (the OPA gateway's) and any group every instance must wear (the gateway relay requires its group on the target) | access to the machines | `ssh_ingress_security_group_ids`, `addl_security_groups` |
@@ -141,6 +147,10 @@ The system generates no IAM. Read [OPERATIONS.md](docs/OPERATIONS.md),
 "Network" and "Instance access and sizing".
 
 ### 1.4 GCP, if you use the GCE runtime
+
+Nothing in the system needs AWS for a GCE runtime: the runtime, its
+storages and its state backend are the declarations, and the GCE starter
+declares a `gcs` backend. What GCE needs is below.
 
 A project, a network and subnet, Application Default Credentials that
 impersonate the runner service account

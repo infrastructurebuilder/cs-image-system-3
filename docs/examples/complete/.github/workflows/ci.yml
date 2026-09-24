@@ -3,7 +3,7 @@ name: CI
 # The CI of a cs-image-system CONFIGURATION repository. Every command is a `just`
 # target of this tree, so CI and a person's shell run the same thing. Three jobs:
 #   verify   needs no secret: the tree must be public-safe and its Justfile must parse
-#   live     read-only against the clouds and OPA: validate, a dry run, the strict
+#   live     read-only against both clouds and OPA: validate, a dry run, the strict
 #            state query; pushes and the nightly schedule, never pull requests
 #   perform  on main alone, under the WRITE role: the performing run of the runtime
 #            named below, its records committed and pushed back here
@@ -65,18 +65,20 @@ jobs:
         id: gate
         env:
           HAVE_AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN != '' }}
+          HAVE_GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' }}
+          HAVE_GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT != '' }}
           HAVE_OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY != '' }}
           HAVE_TF_VAR_KEY: ${{ secrets.TF_VAR_KEY != '' }}
           HAVE_TF_VAR_SECRET: ${{ secrets.TF_VAR_SECRET != '' }}
           HAVE_CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY != '' }}
         run: |
           missing=""; present=0
-          for name in AWS_ROLE_ARN OKTA_API_PRIVATE_KEY TF_VAR_KEY TF_VAR_SECRET CSIS_CONFIG_IDENTITY; do
+          for name in AWS_ROLE_ARN GCP_WORKLOAD_IDENTITY_PROVIDER GCP_SERVICE_ACCOUNT OKTA_API_PRIVATE_KEY TF_VAR_KEY TF_VAR_SECRET CSIS_CONFIG_IDENTITY; do
             have="HAVE_$name"
             if [ "${!have}" = true ]; then present=$((present + 1)); else missing="$missing $name"; fi
           done
           if [ "$present" -eq 0 ]; then
-            echo "live: SKIPPED -- no secret is configured, so no step runs (AWS_ROLE_ARN: a federated READ-ONLY role; OKTA_API_PRIVATE_KEY, TF_VAR_KEY, TF_VAR_SECRET: the Okta API app's key and the OPA key pair; CSIS_CONFIG_IDENTITY: the age identity that opens the tree's ENC values)"
+            echo "live: SKIPPED -- no secret is configured, so no step runs (AWS_ROLE_ARN: a federated READ-ONLY role; GCP_WORKLOAD_IDENTITY_PROVIDER and GCP_SERVICE_ACCOUNT: the read-only GCP identity; OKTA_API_PRIVATE_KEY, TF_VAR_KEY, TF_VAR_SECRET: the Okta API app's key and the OPA key pair; CSIS_CONFIG_IDENTITY: the age identity that opens the tree's ENC values)"
             { echo "## live: SKIPPED"; echo "No secret is configured; no step ran. A green conclusion here is not proof that anything ran."; } >> "$GITHUB_STEP_SUMMARY"
             echo "ready=false" >> "$GITHUB_OUTPUT"
           elif [ -n "$missing" ]; then
@@ -112,6 +114,14 @@ jobs:
           profile=$(grep -m1 'profile_name:' cfg/runtime-builders.yml | awk '{print $2}')
           printf '[%s]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n' \
             "$profile" "$AWS_ACCESS_KEY_ID" "$AWS_SECRET_ACCESS_KEY" "$AWS_SESSION_TOKEN" > ~/.aws/credentials
+      - name: Federated GCP credentials (Application Default Credentials)
+        if: steps.gate.outputs.ready == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      - if: steps.gate.outputs.ready == 'true'
+        uses: google-github-actions/setup-gcloud@v2
       - name: The identity that opens the tree
         if: steps.gate.outputs.ready == 'true'
         run: |
@@ -147,6 +157,8 @@ jobs:
         id: gate
         env:
           HAVE_AWS_APPLY_ROLE_ARN: ${{ secrets.AWS_APPLY_ROLE_ARN != '' }}
+          HAVE_GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' }}
+          HAVE_GCP_APPLY_SERVICE_ACCOUNT: ${{ secrets.GCP_APPLY_SERVICE_ACCOUNT != '' }}
           HAVE_OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY != '' }}
           HAVE_TF_VAR_KEY: ${{ secrets.TF_VAR_KEY != '' }}
           HAVE_TF_VAR_SECRET: ${{ secrets.TF_VAR_SECRET != '' }}
@@ -154,12 +166,12 @@ jobs:
           IS_RECORD: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.mode == 'record') }}
         run: |
           missing=""; present=0
-          for name in AWS_APPLY_ROLE_ARN OKTA_API_PRIVATE_KEY TF_VAR_KEY TF_VAR_SECRET CSIS_CONFIG_IDENTITY; do
+          for name in AWS_APPLY_ROLE_ARN GCP_WORKLOAD_IDENTITY_PROVIDER GCP_APPLY_SERVICE_ACCOUNT OKTA_API_PRIVATE_KEY TF_VAR_KEY TF_VAR_SECRET CSIS_CONFIG_IDENTITY; do
             have="HAVE_$name"
             if [ "${!have}" = true ]; then present=$((present + 1)); else missing="$missing $name"; fi
           done
           if [ "$present" -eq 0 ]; then
-            echo "perform: SKIPPED -- no secret is configured (AWS_APPLY_ROLE_ARN: the federated WRITE role that trusts main alone; the Okta names and the identity as for live)"
+            echo "perform: SKIPPED -- no secret is configured (AWS_APPLY_ROLE_ARN: the federated WRITE role that trusts main alone; GCP_APPLY_SERVICE_ACCOUNT: the GCP identity that may write; the Okta names and the identity as for live)"
             { echo "## perform: SKIPPED"; echo "No secret is configured; no step ran."; } >> "$GITHUB_STEP_SUMMARY"
             echo "ready=false" >> "$GITHUB_OUTPUT"
           elif [ -n "$missing" ]; then
@@ -197,6 +209,14 @@ jobs:
           profile=$(grep -m1 'profile_name:' cfg/runtime-builders.yml | awk '{print $2}')
           printf '[%s]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n' \
             "$profile" "$AWS_ACCESS_KEY_ID" "$AWS_SECRET_ACCESS_KEY" "$AWS_SESSION_TOKEN" > ~/.aws/credentials
+      - name: Federated GCP credentials (the identity that may write)
+        if: steps.gate.outputs.ready == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_APPLY_SERVICE_ACCOUNT }}
+      - if: steps.gate.outputs.ready == 'true'
+        uses: google-github-actions/setup-gcloud@v2
       - name: The identity that opens the tree
         if: steps.gate.outputs.ready == 'true'
         run: |

@@ -2,19 +2,19 @@
 # docs/examples/standard-gce/cfg/state-backends.yml -- where every terraform
 # root keeps its state. Reference: ../../../CONFIGURATION.md section 10.
 #
-# DECISION: the GCE roots keep their state in an S3 bucket, exactly as the
-# frozen fixture and the live configuration do (stage 47: "every live root,
-# the GCE roots included, keeps its state in the S3 backend by the standing
-# decision"). The alternatives are the `gcs` type (a Google Cloud Storage
-# bucket; the complete example declares one, bound to nothing) and `local`
-# (a state file on disk, one machine only). An S3 backend needs an AWS
-# profile that can write the bucket, even for a GCE-only tree.
+# DECISION: a GCE-only tree keeps its state in a Google Cloud Storage bucket,
+# so nothing in it needs an AWS account. The system defers to the backend
+# each root resolves; the three types are `s3`, `gcs` and `local`. The
+# reference deployment keeps its GCE roots' state in S3 alongside its AWS
+# roots (one bucket for everything, by decision), which is why the complete
+# example declares an S3 default and a `gcs` backend bound to nothing. The
+# `gcs` type has not yet carried a live root; `local` (a state file on disk,
+# one machine only) is the fallback while it is proved.
 state_backends:
-  - name: s3-main
-    type: s3
+  - name: gcs-main
+    type: gcs
     is_default: true             # every root inherits it: no root names a `state_configuration`
-    bucket: tfstate-REPLACE-ME   # REPLACE: an existing bucket the profile can write
-    key: statefiles/my-team-images/   # REPLACE: the key prefix; each root's state is <prefix>/<root name>.tfstate
-    region: us-east-2            # REPLACE: the bucket's region
-    profile: REPLACE-ME-profile  # REPLACE: the AWS profile terraform uses for the backend
-    encrypt: true                # DECISION: server-side encryption of the state objects
+    bucket: tfstate-REPLACE-ME   # REPLACE: an existing bucket the identity below can write
+    prefix: statefiles/my-team-images   # REPLACE: each root's state is <prefix>/<root name>/default.tfstate
+    # DECISION: Application Default Credentials, as the runtime uses; a key file path or an
+    # impersonated service account are the alternatives (credentials, impersonate_service_account)

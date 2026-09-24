@@ -10,7 +10,7 @@ instance_builders:
     runtime: gcp-main
     executable: open-tofu
     # DECISION: no `state_configuration` -- the root inherits the default
-    # backend (s3-main); name one to put this root elsewhere.
+    # backend (gcs-main); name one to put this root elsewhere.
     required_plugins:
       - name: google
         source: hashicorp/google
