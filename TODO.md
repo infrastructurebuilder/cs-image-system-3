@@ -10,8 +10,12 @@ system must not take itself.
 Current stage: **§62 (the daily driver), in progress since 2026-09-23** on `feature/daily-driver`.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
-**§62 (the daily driver)**, in progress since 2026-09-23; then **§63**, the
-code defects the documentation found, planned and waiting on the
+**§62 (the daily driver)**, in progress since 2026-09-23, its second pass
+on `feature/daily-driver-redux` (the release model: a team installs a
+release and owns a configuration repository with its own Justfile and CI);
+then **§64**, the release that carries everything such a repository
+needs and the reference configuration standing alone, and **§63**, the
+code defects the documentation found, both planned and waiting on the
 operator's word; §30 waits on the operator's decision. (§61, hygiene
 bundle V, LANDED 2026-09-23: five items and two live proofs -- a dropped
 stofs membership pruned from state after a backup and restored through
@@ -248,7 +252,15 @@ plugin 1–2 days. Call it three weeks, done as three branches.
 
 ## 62. The daily driver: how a person actually uses the system
 
-**Status: steps 1 to 6 LANDED on `feature/daily-driver` 2026-09-23** (the
+**Status: steps 1 to 6 LANDED on `feature/daily-driver` 2026-09-23, then
+REDONE on `feature/daily-driver-redux` the same day** after the operator
+corrected the model the first daily driver assumed (a clone of this
+repository beside the configuration): a team installs a RELEASE and owns
+a configuration repository that carries its own Justfile, CI, hook,
+modules and scripts; the three example trees are now whole repositories
+of that shape, held to the release's parts by the test, and the daily
+driver is written from the first command a team runs. The first branch
+is kept. (the
 operator said "execute stage 62" that morning, after §61 landed): the
 contract test, sixteen READMEs one commit each, seven passes of manual
 corrections, `DAILY_DRIVER.md`, the three example trees with their test,
@@ -650,3 +662,59 @@ are updated in the same commits (the rolling documentation stage owes
 nothing for a change the READMEs already track). Golden byte-identical
 except where an item changes the emission by design; bar green; every
 "likely to bite" item proved by a test that fails before the fix.
+
+## 64. The release is the whole system: modules, scripts, starter trees, and a configuration repository that stands alone
+
+**Status: PLANNED, not started.** Written 2026-09-23 during the daily
+driver's second pass (`feature/daily-driver-redux`), when the operator
+corrected the model: a team INSTALLS a release and OWNS a configuration
+repository with its own Justfile and CI; this repository is where the
+system is developed, not something a user clones beside their tree. The
+documentation now says so, and the three example trees under
+`docs/examples/` are whole repositories a team copies (Justfile, workflow,
+hook, scripts, modules). What the documentation cannot do is make the
+release carry those parts, or move the reference deployment onto that
+model; both are code, and this is that stage.
+
+1. **The release ships what a configuration repository needs.** The
+   `tfmodules/` tree and the three helper scripts (`with-tofu-lock`,
+   `opa-workload-token`, `normalise-emission`) become package data of the
+   `system` package (or a package of their own), and a command
+   `cs-image-system init-config <dir> [--from standard-aws|standard-gce|complete]`
+   scaffolds a configuration repository from a starter tree carried in
+   the release: the tree, `module_source_base: tfmodules`, the hook, the
+   workflow, `.gitignore`, a `.csis-version` pinned to the running
+   release. The example trees in `docs/examples/` become the SOURCE the
+   release is built from, and `tests/test_docs_examples.py` keeps them
+   equal to what the release carries.
+2. **The helper scripts become commands** where a script exists only to
+   wrap the CLI: `with-tofu-lock` as `cs-image-system --locked ...` (or a
+   `lock` subcommand), `normalise-emission` as `config-drift`'s own
+   normaliser, `opa-workload-token` as `workload token`. The starter
+   Justfile then calls the CLI alone and carries no scripts.
+3. **The reference configuration stands alone.** `cs-image-system-testconfig`
+   gains its Justfile, workflow, hook, modules and `.csis-version` from
+   `init-config` (item 1), its `module_source_base` moves to its own
+   `tfmodules`, and its CI performs there: the `live` and `perform` jobs
+   leave this repository's workflow, which keeps `verify` and `publish`
+   and a `live` leg that only proves the fixture. Proved live: the
+   sibling's `verify` job green on a push, its `live` job green with the
+   secrets moved over, one performing run on `main` there, the login
+   proof as a workload from that repository.
+4. **This repository's Justfile shrinks to the developer's**: the five
+   contract targets, the bar, the golden, the release recipe, and `just
+   cli ...` against the reference configuration for the system's own live
+   proofs; the cycle recipes (`cloud-*`, `ci-login-proof`, `sft-install`)
+   move to the starter Justfile alone, since a team runs them from its
+   own repository.
+5. **Records**: DAILY_DRIVER.md section 1.9 loses its "until a release
+   ships them" clause; OPERATIONS sections 2 and 3 describe the two
+   workflows; the root README's layout paragraph says the reference
+   configuration is checked out beside this repository for the system's
+   own proofs only. A live proof of `init-config` on a fresh machine with
+   nothing but `uv`: install, scaffold, `just init`, `just validate`
+   against a real account.
+
+**Sizing**: item 1 a day (package data, the command, the tests); item 2
+half a day; item 3 a day with the live proofs, most of it CI secrets and
+the first performing run; item 4 an hour.
