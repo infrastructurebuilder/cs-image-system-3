@@ -227,3 +227,34 @@ def test_preflight_finds_a_runtime_declared_in_any_cfg_file(tmp_path: Path):
     src.unlink()
     after = {i.runtime for i in raw_session_infos(root)}
     assert after == before, f"{after} != {before}: a runtime declared in another cfg file is preflighted too"
+
+
+# ------------------------------------- 12. the OPA listing reads every page
+
+def test_the_opa_listing_follows_the_link_header_to_every_page():
+    from cs_image_system.okta_opa_plugin.opa_gids import OpaGidResolver, next_page
+    assert next_page({"Link": '<https://h/v1/teams/t/security_policy?offset=2>; rel="next", <https://h/x>; rel="prev"'}) \
+        == "https://h/v1/teams/t/security_policy?offset=2"
+    assert next_page({"link": "<https://h/p2>; rel=next"}) == "https://h/p2"
+    assert next_page({"Link": '<https://h/p1>; rel="prev"'}) is None and next_page({}) is None
+    pages = {
+        "https://h/v1/teams/t/security_policy": ({"list": [{"id": "a"}, {"id": "b"}]},
+                                                  {"Link": '<https://h/v1/teams/t/security_policy?offset=2>; rel="next"'}),
+        "https://h/v1/teams/t/security_policy?offset=2": ({"list": [{"id": "c"}]},
+                                                           {"Link": '</v1/teams/t/security_policy?offset=3>; rel="next"'}),
+        "https://h/v1/teams/t/security_policy?offset=3": ({"list": [{"id": "d"}]}, {}),
+    }
+    asked: list[str] = []
+
+    def full(method, url, headers, body):
+        if url.endswith("/service_token"):
+            return {"bearer_token": "tok"}, {}
+        asked.append(url)
+        return pages[url]
+    r = OpaGidResolver("https://h", "t", "k", "s", transport_full=full)
+    assert [p["id"] for p in (r.security_policies() or [])] == ["a", "b", "c", "d"]
+    assert len(asked) == 3, asked
+    # a body-only transport (every existing test) still answers one page and no headers
+    r1 = OpaGidResolver("https://h", "t", "k", "s",
+                        transport=lambda m, u, h, b: {"bearer_token": "tok"} if u.endswith("/service_token") else {"list": [{"id": "x"}]})
+    assert [p["id"] for p in (r1.security_policies() or [])] == ["x"]

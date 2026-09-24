@@ -31,6 +31,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import urllib.error
 import urllib.request
 from typing import Any, Callable, Mapping
@@ -45,12 +46,33 @@ USER_GROUP_SUFFIX = "_user"
 ADMIN_GROUP_SUFFIX = "_admin"
 
 Transport = Callable[[str, str, dict[str, str], bytes | None], Any]
+#: A transport that also returns the response headers, for the one thing the
+#: body cannot carry: the ``Link`` header a paginated listing continues through.
+FullTransport = Callable[[str, str, dict[str, str], bytes | None], tuple[Any, Mapping[str, str]]]
+
+
+def _urllib_transport_full(method: str, url: str, headers: dict[str, str],
+                           body: bytes | None) -> tuple[Any, Mapping[str, str]]:
+    req = urllib.request.Request(url, data=body, method=method, headers=headers)
+    with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310 - https to the configured host only
+        return json.loads(resp.read().decode() or "{}"), dict(resp.headers.items())
 
 
 def _urllib_transport(method: str, url: str, headers: dict[str, str], body: bytes | None) -> Any:
-    req = urllib.request.Request(url, data=body, method=method, headers=headers)
-    with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310 - https to the configured host only
-        return json.loads(resp.read().decode() or "{}")
+    return _urllib_transport_full(method, url, headers, body)[0]
+
+
+_NEXT_LINK = re.compile(r'<([^>]+)>\s*;\s*rel="?next"?', re.IGNORECASE)
+
+
+def next_page(headers: Mapping[str, str]) -> str | None:
+    """The URL of the next page from a ``Link`` header (RFC 8288), or None."""
+    for name, value in headers.items():
+        if name.lower() == "link":
+            m = _NEXT_LINK.search(str(value))
+            if m:
+                return m.group(1)
+    return None
 
 
 def credentials_from_env(team: str, env: Mapping[str, str] | None = None) -> tuple[str, str]:
@@ -67,12 +89,19 @@ def credentials_from_env(team: str, env: Mapping[str, str] | None = None) -> tup
 
 class OpaGidResolver:
     def __init__(self, api_host: str, team: str, key: str, secret: str,
-                 transport: Transport | None = None) -> None:
+                 transport: Transport | None = None, transport_full: FullTransport | None = None) -> None:
         self.api_host = api_host.rstrip("/")
         self.team = team
         self.key = key
         self.secret = secret
+        # one transport is enough to inject: a body-only one answers listings as
+        # one page with no headers; a full one (body and headers, the Link
+        # header among them) also serves the body-only calls
+        if transport is None and transport_full is not None:
+            transport = lambda m, u, h, b: transport_full(m, u, h, b)[0]  # noqa: E731
         self.transport = transport or _urllib_transport
+        self.transport_full: FullTransport = transport_full or (
+            _urllib_transport_full if transport is None else (lambda m, u, h, b: (self.transport(m, u, h, b), {})))
         self._token: str | None = None
 
     # --------------------------------------------------------------- http
@@ -257,17 +286,31 @@ class OpaGidResolver:
             raise RuntimeError(f"{method} {path}: HTTP {e.code} {e.reason}" + (f" -- {detail}" if detail else "")) from e
 
     def _listing(self, path: str, what: str) -> list[dict[str, Any]] | None:
-        """The records under ``path`` (``{"list": [...]}``, the API's listing
-        shape, or a bare list), or None when the service could not be asked.
-        The transport carries no headers, so a listing longer than one page
-        (the API paginates through ``Link``) is read as its first page."""
-        try:
-            data = self.get(path)
-        except Exception as e:
-            log.debug(f"OPA {what} unavailable: {e}")
-            return None
-        items = data.get("list") if isinstance(data, dict) else data
-        return [rec for rec in (items or []) if isinstance(rec, dict)]
+        """EVERY record under ``path`` (``{"list": [...]}``, the API's listing
+        shape, or a bare list), following the ``Link: <...>; rel="next"``
+        header page by page until there is none, or None when the service
+        could not be asked. Stage 63 item 12: until 2026-09-24 the first page
+        alone was read, so past one page of security policies the workload
+        reconcile would have seen no standing CI policy and created a
+        duplicate. A page that fails mid-way makes the whole listing None:
+        a partial listing is the same lie as a first page."""
+        out: list[dict[str, Any]] = []
+        url: str | None = self._url(path)
+        seen: set[str] = set()
+        while url and url not in seen:
+            seen.add(url)
+            try:
+                data, headers = self.transport_full("GET", url, {"Authorization": f"Bearer {self.token()}",
+                                                                 "Accept": "application/json"}, None)
+            except Exception as e:
+                log.debug(f"OPA {what} unavailable: {e}")
+                return None
+            items = data.get("list") if isinstance(data, dict) else data
+            out.extend(rec for rec in (items or []) if isinstance(rec, dict))
+            url = next_page(headers or {})
+            if url and url.startswith("/"):
+                url = self._url(url)
+        return out
 
     def security_policies(self) -> list[dict[str, Any]] | None:
         """Every security policy of the team as the API returns it
