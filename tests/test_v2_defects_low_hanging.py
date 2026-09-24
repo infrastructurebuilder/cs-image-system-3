@@ -44,3 +44,25 @@ def test_the_dummy_builders_return_an_asset_set_and_a_declared_dummy_builder_run
         run.restore_cwd()
 
 
+# ------------------------------------------------------------- 2. mask
+
+def _mask(monkeypatch, identity: str | None):
+    from typer.testing import CliRunner
+    from cs_image_system.system import cli as climod
+    if identity is None:
+        monkeypatch.delenv("CSIS_CONFIG_IDENTITY", raising=False)
+    else:
+        monkeypatch.setenv("CSIS_CONFIG_IDENTITY", identity)
+    return CliRunner().invoke(climod.app, ["--root-dir", str(FIXTURE_CONFIG), "mask"])
+
+
+def test_mask_refuses_loudly_when_it_cannot_open_a_marker_and_masks_when_it_can(monkeypatch):
+    without = _mask(monkeypatch, None)
+    assert without.exit_code == 1, without.output
+    assert "mask: FAILED" in without.output and "nothing is masked" in without.output
+    assert "::add-mask::" not in without.output
+    with_identity = _mask(monkeypatch, str(FIXTURE_CONFIG / ".age-identity"))
+    assert with_identity.exit_code == 0, with_identity.output
+    assert with_identity.output.count("::add-mask::") > 0
+
+

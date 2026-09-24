@@ -1151,8 +1151,11 @@ environment credential is set but empty (see above)`; (exit 1 with
 `--strict`) `preflight: a session expires before the expected run length
 (see above); renew it or lower config.preflight.expected_run_minutes`.
 
-Silent behaviour to know about: `mask` prints nothing and exits 0 when
-the identity is missing or wrong (every file's decryption is skipped);
+Silent behaviour to know about (`mask` is no longer among it: since
+stage 63 item 2, 2026-09-24, a file it cannot read for masking -- the
+identity missing or wrong, a file that does not parse, a malformed marker
+-- ends it with `mask: FAILED` naming each file and exit 1, so a CI step
+that cannot mask fails instead of printing nothing);
 `run --commit` outside a git repository or over a gitignored `generated/`
 logs a warning and reports `meta_state_commit: null`; a plain `run` logs
 `preflight session: ...` warnings and `state query: <unavailable>`
