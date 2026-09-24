@@ -280,7 +280,10 @@ dependency named. The dead fields, dead code and misleading messages come
 last and follow the same rule: an entry that depends on a chain says so.
 
 **Low-hanging fruit, each independent** (one branch,
-`feature/defects-low-hanging`, one commit per item):
+`feature/defects-low-hanging`, one commit per item; ALL THIRTEEN LANDED on
+the branch 2026-09-24, items 3 and 4 in one commit since they share a README;
+items 2, 11, 12 and 13 proved against the live configuration the same
+day; item 7's GCE cycle is the operator's, before the squash):
 
 1. **A declared `type: dummy` builder fails the identity lifecycle.**
    `DummyGroupBuilder.generate_items_during` and the user builder's return
