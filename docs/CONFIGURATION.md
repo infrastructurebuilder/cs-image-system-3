@@ -390,7 +390,8 @@ session.
 | `bake_preemptible` | bool | `false` | bake on preemptible (spot) build VMs |
 | `state_configuration` | str | `default` | a state backend (section 10); `default` inherits the runtime's, else the default backend |
 | `ssh_username` | str | `default` | override of the bake ssh user |
-| `session_mechanism` | str or null | null | `iap` is the only supported value |
+| `session_mechanism` | str or null | null | `iap` is the only supported value; with none declared, every session command (post-bake verify, unmount, the alias writer) is refused naming the field |
+| `executable` | str or null | `gcloud` | the `cfg/executables.yml` entry every gcloud call on this runtime runs through (sessions, inventory, the GCP storage lookups and scripts); `validate` refuses it undeclared |
 | `networking` | mapping or null | null | 4.5 with `network_tags` |
 | `credentials` | mapping | `{}` | the empty base: GCE uses Application Default Credentials, so any key here is refused |
 

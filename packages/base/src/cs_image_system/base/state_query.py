@@ -137,12 +137,18 @@ class StateReport:
 # ------------------------------------------------------------------ queries
 
 def _query(report: StateReport, label: str, fn) -> Any:
-    """Run one provider query; an unimplemented hook is simply not part of
-    the picture, a failing one is reported as unavailable (never fatal:
-    the report is read-only and partial knowledge is still knowledge)."""
+    """Run one provider query; a failing one is reported as unavailable
+    (never fatal: the report is read-only and partial knowledge is still
+    knowledge). So is an UNIMPLEMENTED hook (stage 63 item 17): a builder
+    that cannot look its things up is a hole in the picture, and silence
+    read as "nothing to report" -- a Filestore builder vanished from the
+    report while its module docstring promised it reported unavailable."""
     try:
         return fn()
-    except NotImplementedError:
+    except NotImplementedError as e:
+        detail = str(e) or "this builder has no state lookup"
+        log.info(f"state query {label} unavailable: {detail}")
+        report.unavailable.append(f"{label}: cannot be queried ({detail})")
         return None
     except Exception as e:  # network, credentials, permissions
         log.warning(f"state query {label} unavailable: {e}")

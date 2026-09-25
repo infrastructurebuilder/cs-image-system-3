@@ -22,6 +22,7 @@ dependencies yet and report as *unavailable*.
 from __future__ import annotations
 
 import logging
+import shlex
 from typing import Any, TypeVar, cast
 
 from cs_image_system.base import utils
@@ -70,6 +71,21 @@ class TofuGcpStorageBuilder(TofuStorageBuilder[Q]):
 
     def _runtime(self):
         return self._get_context().runtime_builders.get(self.model.get_runtime_provider(), None)
+
+    def _gcloud(self) -> str:
+        """The runtime's declared gcloud (stage 63 item 14) for the lookups and
+        the generated scripts (which shell-quote it); a runtime without the
+        resolver (a stub) keeps the bare name. The ON-IMAGE gcloud below
+        (the gcs prerequisites) is the VM's own and stays a bare name."""
+        rtb = self._runtime()
+        resolve = getattr(rtb, "gcloud_binary", None)
+        return str(resolve()) if callable(resolve) else "gcloud"
+
+    def _project(self) -> str | None:
+        from cs_image_system.gcloud_runtime.gcp_utils import resolve_project
+        rtb = self._runtime()
+        to_cfg: Any = getattr(getattr(rtb, "model", None), "self_to_gcp_client_config", None)
+        return resolve_project(cast(dict[str, Any], to_cfg())) if callable(to_cfg) else None
 
     def _zone(self) -> str | None:
         rtb = self._runtime()
@@ -177,12 +193,6 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
     def archive_name(self, storage: Storage) -> str:
         return f"csis-{self._gce_resource_name(storage.get_name())}-archive"
 
-    def _project(self) -> str | None:
-        from cs_image_system.gcloud_runtime.gcp_utils import resolve_project
-        rtb = self._runtime()
-        to_cfg: Any = getattr(getattr(rtb, "model", None), "self_to_gcp_client_config", None)
-        return resolve_project(cast(dict[str, Any], to_cfg())) if callable(to_cfg) else None
-
     def _script(self, storage: Storage, name: str, body: str) -> ExecutableModel:
         wd = self.get_path_for_phase(ExecutionLifecyclePhase.STORAGE_GENERATION, suffix=".tf").parent
         target = self._get_context().generation_path / wd / name
@@ -197,18 +207,19 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
                            to_state: str) -> list[ExecutableModel]:
         disk, snap = self._gce_resource_name(storage.get_name()), self.archive_name(storage)
         project, zone = self._project(), self._zone()
+        gcloud = shlex.quote(self._gcloud())
         if to_state == STORAGE_STATE_ARCHIVED and from_state == STORAGE_STATE_ACTIVE:
             # snapshot the disk BEFORE terraform destroys it; a snapshot left by
             # an earlier attempt is reused (the archive is the name)
             return [self._script(storage, f"archive-{disk}.sh",
-                f'if gcloud compute snapshots describe "{snap}" --project "{project}" >/dev/null 2>&1; then\n'
+                f'if {gcloud} compute snapshots describe "{snap}" --project "{project}" >/dev/null 2>&1; then\n'
                 f'  echo "archive {snap} already exists"; exit 0\nfi\n'
-                f'gcloud compute disks snapshot "{disk}" --snapshot-names "{snap}" --zone "{zone}" '
+                f'{gcloud} compute disks snapshot "{disk}" --snapshot-names "{snap}" --zone "{zone}" '
                 f'--project "{project}" --quiet\n')]
         if to_state == STORAGE_STATE_DESTROYED and from_state == STORAGE_STATE_ARCHIVED:
             # the disk is already gone; the archive goes with the demise
             return [self._script(storage, f"unarchive-{disk}.sh",
-                f'gcloud compute snapshots delete "{snap}" --project "{project}" --quiet 2>&1 '
+                f'{gcloud} compute snapshots delete "{snap}" --project "{project}" --quiet 2>&1 '
                 f'| grep -v "was not found" || true\n')]
         return []
 
@@ -216,10 +227,11 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
                                 to_state: str) -> list[ExecutableModel]:
         disk, snap = self._gce_resource_name(storage.get_name()), self.archive_name(storage)
         project = self._project()
+        gcloud = shlex.quote(self._gcloud())
         if from_state == STORAGE_STATE_ARCHIVED and to_state == STORAGE_STATE_ACTIVE:
             # restored: the data is on the disk again; the archive is deleted
             return [self._script(storage, f"restore-{disk}.sh",
-                f'gcloud compute snapshots delete "{snap}" --project "{project}" --quiet\n')]
+                f'{gcloud} compute snapshots delete "{snap}" --project "{project}" --quiet\n')]
         return []
 
     def _lookup(self, storage: Storage) -> dict[str, Any] | None:
@@ -303,6 +315,38 @@ class TofuFilestoreStorageBuilder(TofuGcpStorageBuilder[S]):
             args["public_read"] = True
         return args
 
+    def _lookup(self, storage: Storage) -> dict[str, Any] | None:
+        """State-query parity for Filestore (stage 63 item 17): ``gcloud
+        filestore instances describe`` through the runtime's declared gcloud
+        (item 14), the same CLI path as GCS, no new client library. The
+        instance is found by the name the module gives it, in the runtime's
+        zone. Not found -> absent; any other failure -> the query reports it
+        unavailable. Until 2026-09-25 there was no lookup, and the query
+        dropped every Filestore builder without a word."""
+        import json  # noqa: PLC0415
+        import subprocess  # noqa: PLC0415
+        project, zone = self._project(), self._zone()
+        if not project or not zone:
+            raise RuntimeError("no project/zone to query")
+        name = self._gce_resource_name(storage.get_name())
+        res = subprocess.run([self._gcloud(), "filestore", "instances", "describe", name,
+                              "--location", str(zone), "--project", str(project), "--format=json"],
+                             capture_output=True, text=True, check=False)
+        if res.returncode != 0:
+            err = (res.stderr or "").strip()
+            if "not found" in err.lower() or "NOT_FOUND" in err or "404" in err:
+                return None
+            raise RuntimeError(f"gcloud filestore instances describe {name}: {err[-300:]}")
+        info = json.loads(res.stdout or "{}")
+        shares = info.get("fileShares") or [{}]
+        rec: dict[str, Any] = {"id": str(info.get("name") or name).rsplit("/", 1)[-1],
+                               "state": str(info.get("state") or ""),
+                               "tags": dict(info.get("labels") or {})}
+        cap = shares[0].get("capacityGb")
+        if cap is not None:
+            rec["size"] = int(cap)
+        return rec
+
 
 G = TypeVar("G", bound=TofuGcsStorageBuilderModel)
 class TofuGcsStorageBuilder(TofuGcpStorageBuilder[G]):
@@ -361,13 +405,14 @@ class TofuGcsStorageBuilder(TofuGcpStorageBuilder[G]):
         wd = self.get_path_for_phase(ExecutionLifecyclePhase.STORAGE_GENERATION, suffix=".tf").parent
         script = self.wipe_script_name(storage)
         ctx = self._get_context()
+        gcloud = shlex.quote(self._gcloud())
         target = ctx.generation_path / wd / script
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(
             "#!/usr/bin/env bash\n"
             f"# Wipe gs://{bucket} before terraform destroys it (storage {storage.get_name()} -> destroyed).\n"
             "set -uo pipefail\n"
-            f'out=$(gcloud storage rm --recursive "gs://{bucket}/**" 2>&1); rc=$?\n'
+            f'out=$({gcloud} storage rm --recursive "gs://{bucket}/**" 2>&1); rc=$?\n'
             'if [ "$rc" -ne 0 ] && grep -q "matched no objects" <<<"$out"; then\n'
             f'  echo "gs://{bucket} is already empty"; exit 0\n'
             "fi\n"
@@ -389,7 +434,7 @@ class TofuGcsStorageBuilder(TofuGcpStorageBuilder[G]):
         import json  # noqa: PLC0415
         import subprocess  # noqa: PLC0415
         bucket = getattr(storage, "bucket_name", None) or getattr(self.model, "bucket_name", None) or storage.get_name()
-        res = subprocess.run(["gcloud", "storage", "buckets", "describe", f"gs://{bucket}", "--format=json"],
+        res = subprocess.run([self._gcloud(), "storage", "buckets", "describe", f"gs://{bucket}", "--format=json"],
                              capture_output=True, text=True, check=False)
         if res.returncode != 0:
             err = (res.stderr or "").strip()

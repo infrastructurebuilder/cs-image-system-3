@@ -394,7 +394,8 @@ def test_gcs_state_lookup_goes_through_gcloud(tmp_path, monkeypatch):
         assert rec == {"id": "csis-sandbox-86233086783-default-bucket", "state": "active",
                        "location": "US-EAST1", "storage_class": "STANDARD",
                        "tags": {"csis_storage": "gce-bucket"}}
-        assert calls[-1][:4] == ["gcloud", "storage", "buckets", "describe"]
+        # stage 63 item 14: the declared binary, not a bare name from PATH
+        assert calls[-1][:4] == ["/usr/local/bin/gcloud", "storage", "buckets", "describe"]
         assert calls[-1][4] == "gs://csis-sandbox-86233086783-default-bucket"
         fake_run.result = SimpleNamespace(returncode=1, stdout="", stderr="ERROR: ... 404 ... not found")
         assert builder._lookup(bucket) is None

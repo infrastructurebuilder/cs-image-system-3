@@ -38,8 +38,10 @@ model, `gce_name`, `gce_label`, and the GCP client helpers).
 | `tf-gcp-gcs` | `TofuGcsStorageBuilderModel` | `TofuGcsStorageBuilder` | `STORAGE_BUILDER_MODEL`, `STORAGE_BUILDER` |
 
 `tf-gcp` is a base: it inherits the abstract `module_dirname()` and
-`module_args()` from `TofuStorageBuilder`, so a builder entry with
-`type: tf-gcp` cannot emit anything. This package registers no version
+`module_args()` from `TofuStorageBuilder`, so it cannot emit anything, and
+since stage 63 item 17 a builder entry with `type: tf-gcp` is refused when
+the tree loads, naming the three concrete types (it used to load and fail
+at generation). This package registers no version
 checker; an executable entry with `type: tofu` is checked by the
 `TofuVersionChecker` of the AWS plugin.
 
@@ -108,7 +110,11 @@ Extends `TofuStorageBuilderModel` from
 (which extends the base `StorageBuilderModel`,
 [storage_builder.py](../base/src/cs_image_system/base/models/storage_builder.py)).
 It adds no fields; `type` is `tf-gcp`. Its `variables` field keeps the base
-type `ModuleVariables`.
+type `ModuleVariables`. Its `__post_init__` refuses an instance of this
+exact class (`type: tf-gcp`) with `storage builder '<name>': type 'tf-gcp'
+is the shared base of the GCP storage plugins and emits nothing; use
+'tf-gcp-pd' ..., 'tf-gcp-filestore' ... or 'tf-gcp-gcs' ...`; the three
+subclasses pass through.
 
 ### `GcpVariables`
 
@@ -287,7 +293,7 @@ applies `gce_name`, because GCE resource names must match
 | `lifecycle:` | refused | refused | refused |
 | `destroyed` transition action | delete the archive snapshot when the disk was archived | none | `wipe-<label>.sh`: `gcloud storage rm --recursive gs://<bucket>/**`, treating "matched no objects" as success |
 | Base-image prerequisites | none (a comment) | `nfs-common` (Debian family) or `nfs-utils`; verify: `mount.nfs`/`mount.nfs4` present | the gcloud CLI from the official installer; verify: `gcloud` present |
-| State query | `compute_v1.DisksClient.get` by disk name (or `SnapshotsClient.get` on the archive when recorded archived); `NotFound` means absent | not implemented: `_lookup` raises `NotImplementedError`, which the state query treats as "no claim": the builder's storages are absent from the report, with no `unavailable:` line | `gcloud storage buckets describe gs://<bucket> --format=json`; "not found" means absent, any other failure is "unavailable" |
+| State query | `compute_v1.DisksClient.get` by disk name (or `SnapshotsClient.get` on the archive when recorded archived); `NotFound` means absent | `gcloud filestore instances describe <name> --location <zone>` through the runtime's declared gcloud; not found means absent, any other failure is "unavailable" (stage 63 item 17; it raised `NotImplementedError` and the query dropped the builder silently) | `gcloud storage buckets describe gs://<bucket> --format=json`; "not found" means absent, any other failure is "unavailable" |
 
 Module arguments (`module_args(storage)`):
 
@@ -531,7 +537,7 @@ a long run.
 | Tool | Found how | Used for |
 |---|---|---|
 | `tofu` (or terraform) | the builder's `executable:` names an entry in `cfg/executables.yml`; its `binary` is the path the runner calls and its `version:` is checked by `TofuVersionChecker` (`tofu --version -json`) at `validate` and at every run | `fmt`, `init`, `validate` at generation; `plan`, `apply` deferred |
-| `gcloud` | **on `PATH`**, not through `cfg/executables.yml`: the generated `archive-*.sh`, `unarchive-*.sh`, `restore-*.sh` and `wipe-*.sh` call a bare `gcloud`, and `TofuGcsStorageBuilder._lookup` runs `gcloud storage buckets describe` with `subprocess.run(["gcloud", ...])`. A `gcloud` entry in `cfg/executables.yml` (the fixture has one, `>=500`) is version-checked by the core but is not what these call | pd archive, restore and archive deletion; the GCS wipe; the GCS state query |
+| `gcloud` | the `binary` of the `cfg/executables.yml` entry the storage builder's RUNTIME names in its `executable` (default `gcloud`; stage 63 item 14): the generated `archive-*.sh`, `unarchive-*.sh`, `restore-*.sh` and `wipe-*.sh` embed that path (shell-quoted), and `TofuGcsStorageBuilder._lookup` runs it for `gcloud storage buckets describe`. Until 2026-09-25 all of these called a bare `gcloud` from `PATH`. The ON-IMAGE `gcloud` the gcs prerequisites install is the VM's own and stays a bare name | pd archive, restore and archive deletion; the GCS wipe; the GCS state query |
 | `bash` | the scripts run as `bash <script>` from the root's directory | the transition scripts |
 | the `hashicorp/google` provider | fetched by `tofu init` from the registry, or from `TF_PLUGIN_CACHE_DIR` when the Justfile exports it | every root |
 
@@ -592,8 +598,9 @@ Fields common to all five service names:
 | `description`, `config`, `gitignore`, `tags` | | | accepted, not read by this package |
 
 `tofu-gce` and `tf-gcp` add no fields. `tf-gcp` cannot emit (abstract
-`module_dirname`/`module_args`); a builder entry of that type loads and
-fails at generation with `NotImplementedError`.
+`module_dirname`/`module_args`), so a builder entry of that type is refused
+at load (stage 63 item 17; it loaded and failed at generation with
+`NotImplementedError` until 2026-09-25).
 
 `tf-gcp-pd`:
 
@@ -880,11 +887,16 @@ every declared and undeclared storage of the builder:
   absent; any other non-zero exit raises `RuntimeError("gcloud storage
   buckets describe gs://<bucket>: <stderr tail>")`; a missing `gcloud`
   binary raises the `FileNotFoundError` from `subprocess`.
-- `tf-gcp-filestore`: `_lookup` raises `NotImplementedError`, which the
-  state query treats as "this builder makes no claim"
-  ([state_query.py](../base/src/cs_image_system/base/state_query.py),
-  `_query`): its storages are absent from the report, with no
-  `unavailable:` line and no drift, whatever reality holds.
+- `tf-gcp-filestore` (stage 63 item 17): `_lookup` runs `<declared gcloud>
+  filestore instances describe <gce name> --location <runtime zone>
+  --project <project> --format=json`. A not-found answer (`NOT_FOUND`,
+  "not found", 404) is absent; any other non-zero exit raises
+  `RuntimeError("gcloud filestore instances describe <name>: <stderr
+  tail>")`, which the query reports as unavailable. The record carries
+  `id` (the instance's short name), `state` (`READY`, ...), `tags` (the
+  labels) and `size` (the first file share's `capacityGb`). Until
+  2026-09-25 the lookup raised `NotImplementedError` and the query
+  dropped the builder's storages with no `unavailable:` line.
 
 Verdicts land in the state report: `missing storage <n>: recorded
 <state> but not found in reality [HARD]`, `foreign storage <n>: <type>

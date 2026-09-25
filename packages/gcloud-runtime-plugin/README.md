@@ -114,7 +114,7 @@ Base fields it inherits, and what this runtime does with them:
 | Field | From | Default | Meaning here |
 |---|---|---|---|
 | `name`, `type`, `description`, `aliases` | `NameTyped` | `name`/`type` required | `type` is `gcloud`. |
-| `executable`, `is_default`, `config`, `gitignore`, `tags` | `BuilderModel` | | `executable` names an `executables` entry `validate` checks; `is_default` makes this the runtime an unqualified reference resolves to. `tags` are accepted and read by nothing on this runtime: image labels are the lineage tags plus the image's own, and the instance's labels are the instance's own. |
+| `executable`, `is_default`, `config`, `gitignore`, `tags` | `BuilderModel` | | `executable` (default `gcloud` on this model, stage 63 item 14) names the `executables` entry every gcloud call on this runtime runs through (`gcloud_binary()`), and `validate` refuses it undeclared; `is_default` makes this the runtime an unqualified reference resolves to. `tags` are accepted and read by nothing on this runtime: image labels are the lineage tags plus the image's own, and the instance's labels are the instance's own. |
 | `region` | `CloudBuilderModel` | required | The `google` provider's `region`; the client config's `region`. |
 | `credentials` | `RuntimeBuilderModel` | `CredentialsBase()` | Not narrowed. The base declares no fields and forbids extra keys, so `credentials:` accepts nothing; clients use Application Default Credentials. |
 | `default_machine_type` | `RuntimeBuilderModel` | required | Machine type when neither an OS-builder runtime entry nor an image names one; always the instance module's `machine_type`. |
@@ -162,7 +162,7 @@ hooks. In the order a run reaches them:
 | After a bake | `retag_image(image_id, tags)` | The packer builder stamps the recorded `csis_parent` and `csis_fingerprint` back onto the image (zero-drift-report). |
 | Instance verification | `serial_console(name)` | Serial port 1 output of the instance, read-only. |
 | Instance verification | `verify_instance(name, expected_build, expect_mounts, timeout)` | Polls the serial console every 15 s until the guest agent reports the startup scripts finished (`Finished running startup scripts`, or the older `startup-script exit status 0`) or an explicit failure line appears, compares the booted image with the expected build, and counts the kernel's `XFS (...): Ending clean mount` lines against the declared data disks. |
-| Instance operations | `run_session_command(name, script, timeout)` | `gcloud compute ssh <name> --project <p> --zone <z> --tunnel-through-iap --quiet --command <script>` as the operator's gcloud account. Used by `verify instance` (post-bake tests), `unmount storage`, the alias writer and the reachability wait. |
+| Instance operations | `run_session_command(name, script, timeout)` | `<declared gcloud> compute ssh <name> --project <p> --zone <z> --tunnel-through-iap --quiet --command <script>` as the operator's gcloud account. Refused with `declares no session_mechanism` before anything runs when the runtime declares none (stage 63 item 14; it used to tunnel anyway and fail as IAP's problem). Used by `verify instance` (post-bake tests), `unmount storage`, the alias writer and the reachability wait. |
 | Instance operations | `can_query_instance_power_state()`, `query_instance_power_state(name)` | `True`; GCE's `Instance.status` mapped onto the system's vocabulary: `PROVISIONING`/`STAGING` starting, `RUNNING` running, `STOPPING`/`SUSPENDING` stopping, `SUSPENDED` suspended, `TERMINATED` **stopped** (on GCE it means the machine exists and can be started; a deleted instance is simply not found and answers `absent`), `REPAIRING` unknown. `None` means the runtime could not answer, never that the machine is off. |
 | Instance operations | `can_set_instance_power_state()`, `start_instance(name)`, `stop_instance(name)` | `True`; `instances.start`/`instances.stop`, waiting on the operation, then re-reading the state. Only `running_for_task` calls them (a bounded task that needs a running machine, which puts it back). |
 | Instance operations | `can_query_instance_identity()`, `query_instance_identity(name)` | `True`; the numeric instance id and the internal hostname (a custom `hostname` when set, else `<name>.c.<project>.internal`). Feeds the generation ledger and the provider-alias writer. |
@@ -477,7 +477,10 @@ able to install `google-guest-agent` (`apt-get` on `debian`/`ubuntu`,
 **The `gcloud` CLI.** Two hooks shell out to it: `run_session_command`
 (`gcloud compute ssh`) and `inventory()` (`gcloud storage buckets list`,
 so `empty --runtime` needs `storage.buckets.list` for the gcloud account).
-Found on `PATH` (the hooks call `gcloud` by name). Its version is checked
+Both run the `binary` of the `executables` entry the runtime's
+`executable` names (default `gcloud`; stage 63 item 14, before which they
+called `gcloud` from `PATH`), so the entry must be declared: `validate`
+refuses the runtime without it. Its version is checked
 when it is declared under `executables:` with `name: gcloud` (the checker
 is registered under that name): the fixture declares
 `binary: /usr/local/bin/gcloud` and `version: ">=500"`, the Google Cloud
@@ -519,7 +522,7 @@ plugin's model accepts, and who reads it:
 | `type` | str | required | `gcloud` |
 | `description` | str or null | null | free text; accepted, not read by this plugin |
 | `aliases` | list[str] | `[]` | extra names the runtime answers to |
-| `executable` | str or null | null | an `executables` entry; when set, `validate` checks that entry exists and passes its version check. Not the `gcloud` entry the version checker parses (that one is found by the entry's own name) |
+| `executable` | str or null | `gcloud` | the `executables` entry whose `binary` every gcloud call on this runtime runs (the session command, `inventory()`, the tf-gcp storage lookups and generated scripts); `validate` refuses a name that is not declared. Stage 63 item 14: until 2026-09-25 every call was a bare `gcloud` from `PATH` |
 | `is_default` | bool | false | the runtime an unqualified runtime reference resolves to |
 | `config` | mapping | `{}` | free-form; accepted, not read |
 | `gitignore` | list[str] | `[]` | accepted, not read by this plugin |
@@ -912,6 +915,17 @@ surface:
   GCPCLIVersionChecker could not parse a version from ...`, `gcloud <v>
   does not meet its requirement >=500 (cfg/executables.yml)`: install or
   upgrade the SDK, or move the floor in `executables.yml`.
+  `Executable gcloud specified for provider <runtime> not found in
+  executables list.`: the runtime's `executable` (default `gcloud`, stage
+  63 item 14) names no declared entry; declare `- name: gcloud` with its
+  `binary`, or point `executable` at the entry you have. The same cause at
+  a session or lookup reads `GCP runtime <name>: executable 'gcloud' is
+  not declared in cfg/executables.yml`.
+- **A session command (post-bake verify, unmount, the alias writer).**
+  `GCP runtime <name> declares no session_mechanism, so no session command
+  can reach its instances (supported: iap)`: declare
+  `session_mechanism: iap` (and its firewall rule and grant) or run
+  nothing that needs a session on that runtime.
 - **Resolution (`resolve`, the base-image phase of a run).** `Owner
   'self' requires a project in the session configuration (set project_id
   on the runtime builder ...)`; `No usable GCP projects resolved from

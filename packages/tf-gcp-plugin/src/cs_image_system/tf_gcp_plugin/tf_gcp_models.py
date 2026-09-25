@@ -34,6 +34,17 @@ class TofuGcpStorageBuilderModel(TofuStorageBuilderModel):
     def csis_name(cls) -> str:
         return TF_GCP
 
+    def __post_init__(self) -> None:
+        # stage 63 item 17: the shared base of the GCP storage plugins has no
+        # module to emit, so `type: tf-gcp` loaded and then failed at
+        # generation; it is refused here, naming the types that do work
+        if type(self) is TofuGcpStorageBuilderModel:
+            raise ValueError(
+                f"storage builder '{getattr(self, 'name', '?')}': type '{TF_GCP}' is the shared base of the "
+                f"GCP storage plugins and emits nothing; use '{TF_GCP_PD}' (a persistent disk), "
+                f"'{TF_GCP_FILESTORE}' (NFS) or '{TF_GCP_GCS}' (a bucket)")
+        super().__post_init__()
+
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
 class GcpVariables(ModuleVariables):

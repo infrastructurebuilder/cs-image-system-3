@@ -55,6 +55,11 @@ class GCPCloudNetworkingModel(CloudNetworkingConfig):
 class GCPCloudBuilderModel(CloudBuilderModel):
     """GCP cloud provider configuration data object."""
     type = GCP
+    # stage 63 item 14: the cfg/executables.yml entry every gcloud call on
+    # this runtime runs through (the session command, the inventory, the
+    # storage lookups and the generated archive/wipe scripts), as the tofu
+    # builders name theirs. `validate` refuses a name that is not declared.
+    executable: str | None = "gcloud"
     project_id: str | None = None
     zone: str | None = None
     # Service account ATTACHED to build VMs and instances (config, never a
