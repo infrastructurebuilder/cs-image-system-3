@@ -902,7 +902,12 @@ state and nothing in the system refuses that; keep such roots to one
 machine or move them with `--migrate-state`. The
 whole mechanism is gated by `use_state_backends` in `cfg/_config.yml`:
 off, no backend block, no backend file and no remote-state datasource is
-emitted, and none of what follows applies.
+emitted, and none of what follows applies. Off is refused by `validate`
+whenever a root would read another's outputs (an instance root reads the
+storage and identity roots, a storage root with group gids reads the
+identity root), because those references are written either way and
+would name data sources the root never declares (stage 63 item 19). In
+practice every tree that launches anything runs with it on.
 
 Three backend types exist (stage 47): `s3` -- a bucket, `s3://<bucket>/<key>`
 -- `local` -- a file on disk, `local://<directory>/<root>.tfstate`, the

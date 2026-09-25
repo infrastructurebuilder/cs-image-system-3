@@ -33,20 +33,22 @@ How a YAML entry selects these classes:
 - A `mod_builders:` entry uses `type: bash-remote` (no aliases on the
   type key) to get a `BashModBuilderModel` and its `BashModBuilder`.
 - A modification item under an image's `modifications:` uses `type:` to
-  name a *builder*: the builder's `name`, or `default`. The orchestrator
+  name a *builder*: the builder's `name`, one of its `aliases:`, or
+  `default`. The orchestrator
   ([orchestrator.py](../base/src/cs_image_system/base/orchestrator.py))
   looks the builder up by name or alias, reads the builder's own `type`
   (`bash-remote`) and loads the item into the class registered under that
   service key for `MOD_BUILDER_ITEM_MODEL`: `BashModItemModel`. The
   builder model's `get_target_deferred_type_by_VCT` method also names that
   class, but nothing calls it; the registry decides.
-- **Write the builder's `name`, not one of its `aliases:`, on an item.**
-  The item keeps the `type` exactly as written, and the image builder later
-  fetches the builder with `ctx.mod_builders.get(mod.get_type())`, a map
-  keyed by builder NAME only. An item declared `type: bash` (the fixture
-  builder's alias) loads and validates cleanly, then generation stops with
-  `AssertionError: No mod builder bash found in context for <image>` (see
-  "When it fails").
+- **The item's `type` is rewritten to the builder's `name` at load**
+  (stage 63 item 15). The image builder later fetches the builder with
+  `ctx.mod_builders.get(mod.get_type())`, a map keyed by builder NAME
+  only, so an alias must not survive the load. An item declared
+  `type: bash` (the fixture builder's alias) is loaded as
+  `type: bash-remote`. Before 2026-09-25 the alias was kept, and
+  generation stopped with
+  `AssertionError: No mod builder bash found in context for <image>`.
 - An `executables:` entry named `bash` is version-checked by
   `BashVersionChecker` (regex `.*version\s+([\d\.]+)` over
   `bash --version`).
@@ -87,7 +89,7 @@ Same file. Extends
 |---|---|---|---|
 | `script` | `list[str]` | `[]` | Inline command lines, run in order in one `provisioner "shell"` (`inline = [...]`). Literal shell; no templating. Blank entries are dropped. |
 | `scripts` | `list[str]` | `[]` | Script files, relative to the configuration root (the process's working directory, which the configuration load sets to the root), copied beside the Packer root and run as `scripts = [...]`. Blank entries are dropped. |
-| `ensure` | `dict[str, Any]` | `{}` | The declarative form. Allowed keys: `packages` (list of names), `files` (list of `{path, content, mode}`; `mode` defaults to `0644`), `services` (list of unit names, enabled and started), `commands` (list of `{run, unless}`; `run` executes only when `unless` fails). Any other key raises `ValueError` at load. |
+| `ensure` | `dict[str, Any]` | `{}` | The declarative form. Allowed keys: `packages` (list of names), `files` (list of `{path, content, mode}`; `mode` defaults to `0644`), `services` (list of unit names, enabled and started), `commands` (list of `{run, unless}`; `run` executes only when `unless` fails). Every entry is validated at load by `validate_ensure` (stage 63 item 16): a wrong shape, an unknown key, a bad mode or an all-empty mapping raises `ValueError` naming the item and the entry. |
 
 Validation at load: at least one of `script`, `scripts`, `ensure` must be
 non-empty, otherwise `ValueError` ("must supply 'script' (inline lines),
@@ -99,8 +101,10 @@ Derived behaviour:
   otherwise. This is what the lineage record and the local bundle's
   `MANIFEST.yaml` report.
 - `ensure_lines()`: guarded shell for the declarative form, so re-running
-  is a no-op. Packages: `rpm -q` or `dpkg -s` first, install via `dnf`,
-  `yum` or `apt-get` only when missing. Files: content is base64-embedded,
+  is a no-op. Packages: `rpm -q` or `dpkg -s` first; only when missing,
+  install with the FIRST of `dnf`, `yum`, `apt-get` that exists on the
+  host, and stop the bake if that one fails (the others are never tried).
+  With none of the three, the line says so and fails. Files: content is base64-embedded,
   decoded to a temp file, and `install -m <mode>` runs only when `cmp`
   says the target differs. Services: `systemctl enable` / `start` only when
   not already enabled / active. Commands: `( <unless> ) || { <run>; }`, or
@@ -156,8 +160,9 @@ calls, in order:
 3. `generate_items_before_modification`: returns an empty asset set.
 4. `generate_items_during_modification(image, mod, image_builder, phase, build_path)`:
    - `inline` = `ensure_lines()` followed by the `script` lines; `scripts`
-     = the script files. When both lists are empty (an `ensure` whose
-     lists are all empty), it logs a warning and emits nothing.
+     = the script files. When both lists are empty it logs a warning and
+     emits nothing; since stage 63 item 16 an all-empty `ensure` is
+     refused at load, so an item can no longer reach this.
    - Appends `# Modifications for <item name> of type <item type> (shell)`.
    - Then, because Packer's shell provisioner takes either `scripts` or
      `inline` but never both, one or two `provisioner "shell"` blocks:
@@ -196,7 +201,7 @@ provisioner "shell" {
 provisioner "shell" {
   only = ["amazon-ebs.imgfile-basic-dask"]
   inline = [
-    "for p in git; do rpm -q \"$p\" >/dev/null 2>&1 || dpkg -s \"$p\" >/dev/null 2>&1 || { ... }; done",
+    "for p in git; do rpm -q \"$p\" >/dev/null 2>&1 || dpkg -s \"$p\" >/dev/null 2>&1 || if command -v dnf >/dev/null 2>&1; then ... fi || exit 1; done",
     "printf '%s' 'dmVyc2lvbj0xLjAuMAo=' | base64 -d > /tmp/.csis-ensure && ( sudo cmp -s /tmp/.csis-ensure '/etc/derivative.conf' || sudo install -m 0644 /tmp/.csis-ensure '/etc/derivative.conf' ) && rm -f /tmp/.csis-ensure",
     "( test -d /opt/derivative/data ) >/dev/null 2>&1 || { sudo mkdir -p /opt/derivative/data; }",
     "echo 'derivative setup'",
@@ -263,8 +268,12 @@ The item that uses it, from
 
 The script path is relative to the configuration root
 ([tests/fixtures/config/mod_image.sh](../../tests/fixtures/config/mod_image.sh)).
-Note the quoted `mode: "0644"`: an unquoted `0644` is a YAML octal integer
-(420), which the plugin would render as `install -m 420`.
+Note the quoted `mode: "0644"`. An unquoted `0644` also works: YAML reads
+it as the integer 420, and the loader renders an integer back in octal
+(`install -m 0644`). What does NOT work is an unquoted `644` without the
+leading zero: YAML reads the decimal number 644, which is no mode a file
+should have, and the loader refuses any integer above `0777` and asks for
+quotes. Quoting is the habit that never needs the rule.
 
 ## Prerequisites and integration
 
@@ -330,7 +339,7 @@ by name (retired in stage 26).
 | `name` | str | required | The builder's name; what an item's `type:` must say. Characters `/` and `\` are refused; `default` is refused as a name. |
 | `type` | str | required | `bash-remote`. Selects this plugin's model and builder. |
 | `description` | str or null | `null` | Free text. Accepted, not read. |
-| `aliases` | list[str] | `[]` | Extra names. Resolvable by the loader, but see "What it registers": an item that uses one fails at generation. |
+| `aliases` | list[str] | `[]` | Extra names an item's `type:` may use; the loader rewrites them to the builder's `name`. |
 | `executable` | str or null | `null` | Must name an `executables:` entry (the fixture: `bash`), or `validate` fails. Never invoked by this plugin. |
 | `is_default` | bool | `false` | Makes this the builder an item with `type: default` (or no `type`) resolves to. |
 | `config` | mapping | `{}` | Accepted, not read. |
@@ -374,11 +383,11 @@ The `ensure` keys:
   bundle manifest); **`ensure` with `script` or `scripts`** is
   `idempotent: unknown`, the same as free-form alone. `ensure` lines always
   precede the `script` lines in the inline block.
-- **`ensure` whose lists are all empty** (`ensure: {packages: []}`) passes
-  load (the mapping is non-empty), counts as `declared`, and emits
-  nothing: the builder logs
+- **`ensure` whose lists are all empty** (`ensure: {packages: []}`) is
+  refused at load (stage 63 item 16). Before 2026-09-25 it passed load,
+  counted as `declared`, and emitted nothing: the builder logged
   `Bash modification <name> has no script lines or files; nothing emitted`
-  and the bake proceeds without a provisioner for it. The bundle directory
+  and the bake proceeded without a provisioner for it. The bundle directory
   still exists, with a `run.sh` that runs nothing.
 - **`commands` with `unless`** is guarded; **without `unless`** the command
   runs on every bake and on every `csis-mods rerun`, so the item is
@@ -394,8 +403,8 @@ The `ensure` keys:
   `type`** reaches whichever mod builder is `is_default: true`; in the
   fixture that is `ansible-default`, so the item is loaded as an ANSIBLE
   item and its `script`/`scripts`/`ensure` keys are refused as unknown.
-  **`type: <alias>`** loads and validates, then fails generation (see
-  "When it fails").
+  **`type: <alias>`** behaves exactly as the builder's name: the loader
+  rewrites it.
 - **AWS versus GCE runtime**: the lines are identical; only the `only`
   label differs (`amazon-ebs.<image>` versus `googlecompute.<image>`), and
   the same blocks land in every image builder's root the image bakes on.
@@ -420,8 +429,13 @@ The `ensure` keys:
 **At load** (pydantic validators and `__post_init__`, before any command
 does anything). Unknown keys on the builder or the item; `parameters:` on
 the builder; `/` or `\` in a name or alias; `ensure` keys outside
-`packages`, `files`, `services`, `commands`; an item with none of `script`,
-`scripts`, `ensure`; an item `type:` that names no builder. Each is a
+`packages`, `files`, `services`, `commands`; every `ensure` entry's shape
+(`packages`/`services` a list of non-empty names, `files` entries with a
+`path` and only `path`/`content`/`mode`, `commands` entries with a `run`
+and only `run`/`unless`, a mode of three or four octal digits, an
+integer mode no higher than `0777`, and not every kind empty); an item
+with none of `script`, `scripts`, `ensure`; an item `type:` that names no
+builder. Each is a
 `ValueError` (or `KeyError` for the type) that stops the load; the CLI
 prints it and exits 1. Nothing loads, so nothing is generated.
 
@@ -515,13 +529,15 @@ Failures that have happened, in date order:
   not in a braced group that returns 0. The plugin's own `commands` form,
   `( unless ) || { run; }`, is deliberate: the group is the LAST element,
   so a failing `run` does abort.
-- **2026-09-23, an item declared with the builder's alias fails at
+- **2026-09-23, an item declared with the builder's alias failed at
   generation** (found while writing this README, on a copy of the fixture
-  with `type: bash` on `derivative-setup`). Load and `validate` pass; the
-  run log then shows
+  with `type: bash` on `derivative-setup`). Load and `validate` passed; the
+  run log then showed
   `AssertionError: No mod builder bash found in context for imgfile-basic-dask`
-  and the summary is `ok: false` with no validation errors. Write the
-  builder's `name` on the item.
+  and the summary was `ok: false` with no validation errors. Fixed by
+  stage 63 item 15 (2026-09-25): the loader rewrites the alias to the
+  builder's name, and `tests/test_v2_defects_loading.py` generates that
+  same fixture copy.
 
 Failures the code raises that have not been seen outside tests:
 
@@ -537,11 +553,13 @@ Failures the code raises that have not been seen outside tests:
 | ``bash: BashVersionChecker could not parse a version from `/usr/local/bin/bash --version` `` | `validate` and every run | The first line of `--version` has no `version N.N`. Something other than bash is at that path. |
 | `bash 5.3.15 does not meet its requirement <spec> (cfg/executables.yml)` | `validate` and every run | The floor moved or the machine is behind. |
 | `FileNotFoundError: Bash modification script mod_image.sh does not exist or is not a file` | generation; run `ok: false`, traceback in the log | The path is resolved from the configuration root, not from the image file's directory or the shell's. Fix the path or `--root-dir`. |
-| `WARNING Bash modification <name> has no script lines or files; nothing emitted` | generation log | Every `ensure` list is empty. Fill one or drop the item. |
-| `KeyError: 'path'` or `KeyError: 'run'` in a traceback through `ensure_lines` | generation | A `files` entry without `path`, or a `commands` entry without `run`. The shape is not checked at load. |
-| `dnf ... No match for argument: g` (and `i`, `t`) on the VM, or in `test-mods` output | apply / `test-mods` | `packages:` was given as a string (`packages: git`); the code iterates its characters. Write a list (`packages: [git]`). |
-| `install -m 420` in the build file; the file ends up mode `0420` | visible in `generated/` before any bake | `mode:` was unquoted. Write `mode: "0644"`. |
-| `sudo: apt-get: command not found` as the LAST line of a failed package step on an EL host | apply / `test-mods` | The real failure is earlier: `dnf` (then `yum`) could not install the package. Read up the log for dnf's own message (no match, no repository, no network from the build subnet). |
+| `Bash modification '<name>': ensure declares [...] but every one is empty, so it would emit nothing` | load; CLI exit 1 | Every `ensure` list is empty. Fill one or drop `ensure`. |
+| `Bash modification '<name>': ensure.files[N]: `path` is required` (or `ensure.commands[N]: `run` is required`) | load; CLI exit 1 | A `files` entry without `path`, or a `commands` entry without `run`. Before stage 63 this was a `KeyError` at generation. |
+| `Bash modification '<name>': ensure.packages must be a list of package names, not str 'git'` | load; CLI exit 1 | `packages:` (or `services:`) given as a string; the old code iterated its letters. Write a list (`packages: [git]`). |
+| `Bash modification '<name>': ensure.files[N].mode 644 is not a mode YAML could have read from octal` | load; CLI exit 1 | An unquoted `644`, which YAML reads as a decimal number. Write `mode: "0644"`. |
+| `Bash modification '<name>': ensure.files[N]: unknown keys [...]` | load; CLI exit 1 | Only `path`, `content`, `mode` on a file and `run`, `unless` on a command. |
+| `csis ensure: no dnf, yum or apt-get to install <pkg>` | apply / `test-mods` | The image has none of the three package managers. Use a `script` line with the one it has. |
+| `dnf` (or `yum`, `apt-get`) error on a package step | apply / `test-mods` | The first package manager found could not install the package, and its message is the real one (no match, no repository, no network from the build subnet). Before stage 63 the line fell through to `apt-get` and showed `apt-get: command not found` last on an EL host. |
 | `cmp: command not found` or `base64: command not found` | apply | The image lacks diffutils / coreutils. Add the package to an earlier item's `ensure.packages` or a `script` line. |
 | `sudo: a terminal is required to read the password` | apply | The bake ssh user has no passwordless `sudo`. This is an OS builder / runtime matter, not the item's. |
 | `Failed to enable unit: Unit <svc>.service does not exist` | apply | `services:` names a unit the image has not installed yet; install it earlier in the same item's `packages` (packages run before services). |

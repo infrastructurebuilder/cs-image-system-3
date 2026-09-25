@@ -160,7 +160,9 @@ def test_group_drift(world):
     from cs_image_system.base.read_models import identity_read_model
     ctx.meta_state.write_identity_read_model(identity_read_model(ctx))
     model = ctx.meta_state.identity_read_model()["groups"]
-    names = sorted(model)
+    # managed groups only: a lookup-only group (the fixture's `readers`,
+    # stage 63 item 18) never drifts, whatever the provider says
+    names = sorted(n for n, rec in model.items() if rec["managed"])
     root_admins = {a for rec in model.values() if rec["is_root"] for a in rec["admins"]}
     reality["groups"] = {
         names[0]: {"present": False},

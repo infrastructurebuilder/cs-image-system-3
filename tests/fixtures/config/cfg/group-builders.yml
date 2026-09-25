@@ -21,6 +21,21 @@ group_builders:
       - name: oktapam
         source: okta/oktapam
         version: '>= 0.6.3'
+  # stage 63 item 18: a READ-ONLY group builder. It emits only
+  # `data "okta_group"` lookups of groups made elsewhere, so its groups are
+  # recorded `managed: false`, never queried in OPA, and carry no
+  # enrollment token. One group sits on it (groups/group-lookup.yaml).
+  - name: okta-groups-ro
+    is_default: false
+    type: okta-tf-ro
+    executable: open-tofu-1
+    state_configuration: local-dev
+    org: "noaa"
+    team: "nos-coastal-modeling-cloud-sandbox"
+    required_providers:
+      - name: okta
+        source: okta/okta
+        version: '>= 6.0'
 # User builders handle users
 user_builders:
   # okta-tf-ro: read-only. Emits only `data "okta_user"` lookups of existing

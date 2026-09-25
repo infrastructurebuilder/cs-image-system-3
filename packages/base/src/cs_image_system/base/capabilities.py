@@ -73,11 +73,18 @@ class EffectiveCapabilities:
 # ------------------------------------------------------------- lookups
 
 def group_builders_by_identity_type(ctx: "GlobalTypeContext") -> dict[str, list[GroupBuilderBase]]:
+    """``{identity type: [group builders]}``. Callers bake and verify with
+    the FIRST builder of a type, so a builder that manages its groups comes
+    before a lookup-only one, then by name (stage 63 item 18: by name alone,
+    a read-only builder called ``okta-groups-ro`` sorted before the managed
+    ``oktagroups`` and its name went into every base image's bake)."""
     out: dict[str, list[GroupBuilderBase]] = {}
     for name in sorted(ctx.group_builders):
         b = ctx.group_builders[name]
         if isinstance(b, GroupBuilderBase):
             out.setdefault(b.identity_type(), []).append(b)
+    for builders in out.values():
+        builders.sort(key=lambda b: not b.manages_groups())     # stable: name order within each kind
     return out
 
 

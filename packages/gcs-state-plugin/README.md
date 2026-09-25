@@ -115,6 +115,9 @@ core, and a dry run never reaches the bucket.
   absent, nothing this plugin registers is rendered, recorded or checked
   (the collector answers "no backend" for every workspace), and none of
   what follows applies.
+  Off is itself refused by `validate` when any root would read another's
+  outputs through remote state (stage 63 item 19), so it is a shape only
+  for a tree where nothing reads anything.
 - **A bucket that exists.** The system creates no state bucket: the
   `bucket` field names one the operator made beforehand, in a project the
   identity below can write to. Nothing in the system checks that it

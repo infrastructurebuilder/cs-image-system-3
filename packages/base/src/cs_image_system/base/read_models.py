@@ -36,7 +36,7 @@ def identity_read_model(ctx: "GlobalTypeContext") -> dict[str, Any]:
                 "builder": builder.get_name(),
                 "identity_type": builder.identity_type(),
                 "gid_policy": builder.gid_policy(),
-                "managed": not getattr(g, "unmanaged", False),
+                "managed": builder.manages_groups() and not getattr(g, "unmanaged", False),
                 "is_root": bool(g.is_root),
                 "members": sorted(g.members or set()),
                 "admins": sorted(g.admins or set()),

@@ -237,9 +237,10 @@ No file under
 builders. An entry that would, shown only to illustrate the shape (the
 fixture's real group and user builders are Okta ones in
 [group-builders.yml](../../tests/fixtures/config/cfg/group-builders.yml)).
-Do not add it to a tree you intend to run: it loads and validates, and the
-identity lifecycle then fails at generation (see
-[When it fails](#when-it-fails)).
+It loads, validates and runs the identity lifecycle, which emits nothing
+for its groups (since stage 63 item 1; before that the lifecycle failed at
+generation, see [When it fails](#when-it-fails)). A tree that manages real
+identities needs a real identity plugin instead.
 
 ```yaml
 group_builders:
@@ -406,8 +407,9 @@ user builder is `is_default: true`.
   be the default or the load fails.
 - **Declared versus not declared**: with no `type: dummy` entry the
   builder plugin does nothing at all; the four classes sit in the registry
-  and no code path reaches them. With one declared, the load and
-  validation succeed and the identity lifecycle fails at generation.
+  and no code path reaches them. With one declared, the load, validation
+  and identity lifecycle succeed and emit nothing for its groups and users
+  (since stage 63 item 1; the lifecycle failed at generation until then).
 - **One runtime versus another, `--only-runtime`, `--apply-runtime`**:
   no effect. The models carry no `runtime` field and identity builders are
   not runtime-scoped, so a scoped run treats them like any identity
