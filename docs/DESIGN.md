@@ -818,8 +818,8 @@ runtime instances, ever.** The contract:
 ### M2. Modification plugins: shell and ansible both work
 
 - **Builder resolution**: deferred `modifications` items resolve their
-  builder from the item's `type:` (the name of a configured mod builder;
-  an alias passes the load and fails at generation today), never from
+  builder from the item's `type:` (the name or an alias of a configured
+  mod builder, rewritten to the builder's name at load), never from
   the field name; an unknown type is a hard
   failure, `default`/absent falls back to the default mod builder.
 - **Bash mod contract**: `BashModItemModel` accepts inline `script:`

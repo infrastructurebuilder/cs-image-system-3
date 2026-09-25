@@ -33,20 +33,22 @@ How a YAML entry selects these classes:
 - A `mod_builders:` entry uses `type: bash-remote` (no aliases on the
   type key) to get a `BashModBuilderModel` and its `BashModBuilder`.
 - A modification item under an image's `modifications:` uses `type:` to
-  name a *builder*: the builder's `name`, or `default`. The orchestrator
+  name a *builder*: the builder's `name`, one of its `aliases:`, or
+  `default`. The orchestrator
   ([orchestrator.py](../base/src/cs_image_system/base/orchestrator.py))
   looks the builder up by name or alias, reads the builder's own `type`
   (`bash-remote`) and loads the item into the class registered under that
   service key for `MOD_BUILDER_ITEM_MODEL`: `BashModItemModel`. The
   builder model's `get_target_deferred_type_by_VCT` method also names that
   class, but nothing calls it; the registry decides.
-- **Write the builder's `name`, not one of its `aliases:`, on an item.**
-  The item keeps the `type` exactly as written, and the image builder later
-  fetches the builder with `ctx.mod_builders.get(mod.get_type())`, a map
-  keyed by builder NAME only. An item declared `type: bash` (the fixture
-  builder's alias) loads and validates cleanly, then generation stops with
-  `AssertionError: No mod builder bash found in context for <image>` (see
-  "When it fails").
+- **The item's `type` is rewritten to the builder's `name` at load**
+  (stage 63 item 15). The image builder later fetches the builder with
+  `ctx.mod_builders.get(mod.get_type())`, a map keyed by builder NAME
+  only, so an alias must not survive the load. An item declared
+  `type: bash` (the fixture builder's alias) is loaded as
+  `type: bash-remote`. Before 2026-09-25 the alias was kept, and
+  generation stopped with
+  `AssertionError: No mod builder bash found in context for <image>`.
 - An `executables:` entry named `bash` is version-checked by
   `BashVersionChecker` (regex `.*version\s+([\d\.]+)` over
   `bash --version`).
@@ -330,7 +332,7 @@ by name (retired in stage 26).
 | `name` | str | required | The builder's name; what an item's `type:` must say. Characters `/` and `\` are refused; `default` is refused as a name. |
 | `type` | str | required | `bash-remote`. Selects this plugin's model and builder. |
 | `description` | str or null | `null` | Free text. Accepted, not read. |
-| `aliases` | list[str] | `[]` | Extra names. Resolvable by the loader, but see "What it registers": an item that uses one fails at generation. |
+| `aliases` | list[str] | `[]` | Extra names an item's `type:` may use; the loader rewrites them to the builder's `name`. |
 | `executable` | str or null | `null` | Must name an `executables:` entry (the fixture: `bash`), or `validate` fails. Never invoked by this plugin. |
 | `is_default` | bool | `false` | Makes this the builder an item with `type: default` (or no `type`) resolves to. |
 | `config` | mapping | `{}` | Accepted, not read. |
@@ -394,8 +396,8 @@ The `ensure` keys:
   `type`** reaches whichever mod builder is `is_default: true`; in the
   fixture that is `ansible-default`, so the item is loaded as an ANSIBLE
   item and its `script`/`scripts`/`ensure` keys are refused as unknown.
-  **`type: <alias>`** loads and validates, then fails generation (see
-  "When it fails").
+  **`type: <alias>`** behaves exactly as the builder's name: the loader
+  rewrites it.
 - **AWS versus GCE runtime**: the lines are identical; only the `only`
   label differs (`amazon-ebs.<image>` versus `googlecompute.<image>`), and
   the same blocks land in every image builder's root the image bakes on.
@@ -515,13 +517,15 @@ Failures that have happened, in date order:
   not in a braced group that returns 0. The plugin's own `commands` form,
   `( unless ) || { run; }`, is deliberate: the group is the LAST element,
   so a failing `run` does abort.
-- **2026-09-23, an item declared with the builder's alias fails at
+- **2026-09-23, an item declared with the builder's alias failed at
   generation** (found while writing this README, on a copy of the fixture
-  with `type: bash` on `derivative-setup`). Load and `validate` pass; the
-  run log then shows
+  with `type: bash` on `derivative-setup`). Load and `validate` passed; the
+  run log then showed
   `AssertionError: No mod builder bash found in context for imgfile-basic-dask`
-  and the summary is `ok: false` with no validation errors. Write the
-  builder's `name` on the item.
+  and the summary was `ok: false` with no validation errors. Fixed by
+  stage 63 item 15 (2026-09-25): the loader rewrites the alias to the
+  builder's name, and `tests/test_v2_defects_loading.py` generates that
+  same fixture copy.
 
 Failures the code raises that have not been seen outside tests:
 

@@ -738,10 +738,11 @@ are all empty.
 `ModItemModel`
 ([`moditem_type.py`](../packages/base/src/cs_image_system/base/models/moditem_type.py))
 plus the builder type's fields. The item's `type` names a mod builder
-(its name, `default`, or omitted = the default mod builder; an alias
-loads and validates but fails at generation, since the image builder
-looks mod builders up by name; a code stage names the fix); the
-builder's type decides which item model applies.
+(its name, one of its `aliases:`, `default`, or omitted = the default
+mod builder). Whatever the item writes, the loader rewrites `type` to
+the builder's own name, so every later reader (the image builder looks
+mod builders up by name) sees one spelling; an unknown name is refused
+at load. The builder's type decides which item model applies.
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
