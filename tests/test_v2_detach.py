@@ -180,7 +180,8 @@ def test_gce_unmount_runs_over_the_iap_tunnel_and_writes_the_receipt(prepared, m
     result = unmount_storage("gce-test", "gce_data", "/mnt/gce-data", root / "ws")
     assert result["ok"] and result["method"] == "session"
     cmd = calls[-1]
-    assert cmd[:4] == ["gcloud", "compute", "ssh", "gce-test"] and "--tunnel-through-iap" in cmd
+    # stage 63 item 14: the runtime's declared gcloud, not a bare name from PATH
+    assert cmd[:4] == ["/usr/local/bin/gcloud", "compute", "ssh", "gce-test"] and "--tunnel-through-iap" in cmd
     assert "--project" in cmd and "csis-sandbox" in cmd and "us-east1-b" in cmd
     script = cmd[cmd.index("--command") + 1]
     assert script == unmount_script("/mnt/gce-data")
