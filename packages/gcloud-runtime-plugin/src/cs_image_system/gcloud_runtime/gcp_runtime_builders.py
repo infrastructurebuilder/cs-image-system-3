@@ -77,6 +77,18 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
     # --------------------------------------------- session mechanism (IAP)
     IAP = "iap"
 
+    def gcloud_binary(self) -> str:
+        """The gcloud this runtime runs: the ``binary`` of the
+        ``cfg/executables.yml`` entry its ``executable`` names (default
+        ``gcloud``), the same one ``validate`` version-checks (stage 63 item
+        14; every call used to be a bare ``gcloud`` from PATH)."""
+        name = self.model.get_executable() or "gcloud"
+        exe = (self._get_context().executables or {}).get(name)
+        if exe is None:
+            raise ValueError(f"GCP runtime {self.get_name()}: executable {name!r} is not declared in "
+                             f"cfg/executables.yml; declare it (name: {name}, binary: <path to gcloud>)")
+        return str(exe.binary or exe.name)
+
     def session_mechanism(self) -> str | None:
         mech = getattr(self.model, "session_mechanism", None)
         if not mech:
@@ -209,11 +221,17 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         import subprocess  # noqa: PLC0415
         from .gcp_packer_source import gce_name
         from .gcp_utils import resolve_project
+        if self.session_mechanism() != self.IAP:
+            # stage 63 item 14: a runtime that declares no mechanism has no
+            # IAP firewall rule or grant to lean on; tunnelling anyway failed
+            # as IAP's problem, far from the cause
+            raise RuntimeError(f"GCP runtime {self.get_name()} declares no session_mechanism, so no "
+                               f"session command can reach its instances (supported: {self.IAP})")
         cfg = self.model.self_to_gcp_client_config()
         project, zone = resolve_project(cfg), getattr(self.model, "zone", None)
         if not project or not zone:
             raise RuntimeError(f"GCP runtime {self.get_name()}: no project/zone for a session command")
-        cmd = ["gcloud", "compute", "ssh", gce_name(instance_name), "--project", str(project), "--zone", str(zone),
+        cmd = [self.gcloud_binary(), "compute", "ssh", gce_name(instance_name), "--project", str(project), "--zone", str(zone),
                "--tunnel-through-iap", "--quiet", "--command", script]
         res = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=timeout)
         return res.returncode, (res.stdout or "") + (res.stderr or "")
@@ -233,7 +251,7 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         instances = sorted(i.name for i in compute_v1.InstancesClient(**kw).list(project=project, zone=zone))
         images = sorted(i.name for i in compute_v1.ImagesClient(**kw).list(project=project))
         disks = sorted(d.name for d in compute_v1.DisksClient(**kw).list(project=project, zone=zone))
-        res = subprocess.run(["gcloud", "storage", "buckets", "list", "--project", str(project), "--format=value(name)"],
+        res = subprocess.run([self.gcloud_binary(), "storage", "buckets", "list", "--project", str(project), "--format=value(name)"],
                              capture_output=True, text=True, check=False)
         if res.returncode != 0:
             raise RuntimeError(f"gcloud storage buckets list: {(res.stderr or '').strip()[-300:]}")

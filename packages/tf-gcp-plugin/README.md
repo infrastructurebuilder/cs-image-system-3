@@ -531,7 +531,7 @@ a long run.
 | Tool | Found how | Used for |
 |---|---|---|
 | `tofu` (or terraform) | the builder's `executable:` names an entry in `cfg/executables.yml`; its `binary` is the path the runner calls and its `version:` is checked by `TofuVersionChecker` (`tofu --version -json`) at `validate` and at every run | `fmt`, `init`, `validate` at generation; `plan`, `apply` deferred |
-| `gcloud` | **on `PATH`**, not through `cfg/executables.yml`: the generated `archive-*.sh`, `unarchive-*.sh`, `restore-*.sh` and `wipe-*.sh` call a bare `gcloud`, and `TofuGcsStorageBuilder._lookup` runs `gcloud storage buckets describe` with `subprocess.run(["gcloud", ...])`. A `gcloud` entry in `cfg/executables.yml` (the fixture has one, `>=500`) is version-checked by the core but is not what these call | pd archive, restore and archive deletion; the GCS wipe; the GCS state query |
+| `gcloud` | the `binary` of the `cfg/executables.yml` entry the storage builder's RUNTIME names in its `executable` (default `gcloud`; stage 63 item 14): the generated `archive-*.sh`, `unarchive-*.sh`, `restore-*.sh` and `wipe-*.sh` embed that path (shell-quoted), and `TofuGcsStorageBuilder._lookup` runs it for `gcloud storage buckets describe`. Until 2026-09-25 all of these called a bare `gcloud` from `PATH`. The ON-IMAGE `gcloud` the gcs prerequisites install is the VM's own and stays a bare name | pd archive, restore and archive deletion; the GCS wipe; the GCS state query |
 | `bash` | the scripts run as `bash <script>` from the root's directory | the transition scripts |
 | the `hashicorp/google` provider | fetched by `tofu init` from the registry, or from `TF_PLUGIN_CACHE_DIR` when the Justfile exports it | every root |
 
