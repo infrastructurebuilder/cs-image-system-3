@@ -289,8 +289,14 @@ a full GCE cycle (run `2026_09_24t12_01_15_155175`, ended empty). The
 numbering below keeps its gaps on purpose: the chains and the dead-code
 entries cite items by number.
 
-**Medium items, each independent** (one branch each, or two or three
-together when they land the same day):
+**Medium items: DECIDED 2026-09-25** (the operator, by quiz; every
+recommendation taken). Two branches by area, one commit per item, the
+bar before each squash: `feature/defect-gcp` carries 14 and 17 (both
+touch the gcloud binary) and ends with ONE full GCE cycle (`just
+gce-cycle`, the operator's, torn down, the stage's live proof);
+`feature/defect-loading` carries 15, 16, 18 and 19 (validation at load
+and builder hooks), proved by tests and the fixture. Each item's
+decision follows its description.
 
 14. **The gcloud runtime calls a bare `gcloud`.** `run_session_command`,
     `inventory`, the pd and GCS scripts call `gcloud` from `PATH`, not the
@@ -300,6 +306,12 @@ together when they land the same day):
     Resolve the binary through the declared entry (as the AWS side does
     for `aws`) and refuse a session on a runtime that declares no
     mechanism.
+    **Decided:** the GCP runtime builder gains an `executable:` field
+    naming its `cfg/executables.yml` entry (default `gcloud`), as the tofu
+    builders name theirs; the Python calls AND the emitted pd/GCS scripts
+    use the declared absolute path. A session command on a runtime that
+    declares no `session_mechanism` is refused naming the field and the
+    supported value (`iap`), as the AWS side gates on `ssm`.
 15. **An alias on a modification item's `type` fails at generation.** The
     orchestrator keeps the alias in `mod_data["type"]` (its comment says it
     swaps the canonical name; it does not) and `packer_ebs_builder` asserts
@@ -308,6 +320,11 @@ together when they land the same day):
     Either canonicalise at load (the comment's promise) or refuse the
     alias at validate by name; the manuals say "an alias fails at
     generation today" and change with the choice.
+    **Decided:** canonicalise at load, as the orchestrator's comment
+    promises: the item's `type` becomes the builder's canonical name, so an
+    alias works everywhere. The fixture's mod builder already declares
+    aliases; a test puts one on an item. The manuals drop "an alias fails
+    at generation today".
 16. **A bash `ensure` entry is validated by its keys only.** A malformed
     entry raises `KeyError` at generation; `packages: git` iterates the
     letters; an unquoted `mode: 0644` renders `install -m 420`; the
@@ -317,6 +334,11 @@ together when they land the same day):
     emits nothing. Validate the entries at load (a model per entry kind),
     refuse an all-empty `ensure`, and stop the package line at the first
     package manager that exists.
+    **Decided:** an integer `mode` (YAML reads an unquoted `0644` as 420)
+    is accepted and rendered back as four-digit octal (`install -m 0644`);
+    a string mode must match `^[0-7]{3,4}$`. The rest as described: a model
+    per entry kind, an all-empty `ensure` refused, the package line stops
+    at the first package manager that exists.
 17. **Filestore vanishes from the state report.** `TofuFilestoreStorageBuilder`
     has no `_lookup`, so `query_state` raises `NotImplementedError` and the
     query drops the builder silently (no `unavailable:` line, no
@@ -326,6 +348,11 @@ together when they land the same day):
     report `unavailable` for a builder that cannot look up (one line in
     `state_query._query`, so every such builder is honest), then give
     Filestore a real lookup and refuse `tf-gcp` as a builder type at load.
+    **Decided:** Filestore looks itself up with `gcloud filestore
+    instances describe <name> --zone --project --format=json` (the GCS
+    path, through item 14's declared binary; no new dependency); not found
+    is absent. `type: tf-gcp` is refused at load naming the concrete types;
+    the class stays as the shared base.
 18. **The RO group builder inherits every managed-group hook.**
     `OktaTfGroupRoBuilder`'s `query_state` asks OPA for groups it never
     made (a group on it would read `missing [HARD]`),
@@ -334,6 +361,10 @@ together when they land the same day):
     fixture RO group builder. Override the hooks to the read-only truth
     (nothing queried, no token, `managed: false`), with a fixture group on
     the RO builder to prove it.
+    **Decided:** keep and fix. The hooks report the read-only truth
+    (nothing queried, no token, `managed: false`), and one fixture group on
+    the RO builder proves it; the golden moves once for that group's
+    lookup root.
 19. **`use_state_backends: false` cannot produce a valid instance or storage
     root.** The instance and storage builders emit `terraform_remote_state`
     references unconditionally while the data sources are gated on the
@@ -342,6 +373,10 @@ together when they land the same day):
     implies), or gate the references the same way (a root without a group
     or a mount then stands alone). The manual's row changes with the
     choice.
+    **Decided:** refuse the flag off at validate when any root would
+    reference a producer (an instance root with a storage or identity root,
+    a storage root with a mount), naming the flag and the root. Every real
+    tree keeps it on; the configuration manual's row says so.
 
 **Chains, in the order they must be made**:
 
