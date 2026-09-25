@@ -347,22 +347,43 @@ def _zone_of_storage(ctx: GlobalTypeContext, name: str) -> tuple[str | None, boo
     return (getattr(storage, "availability_zone", None), zonal)
 
 
+def _storage_runtime(ctx: GlobalTypeContext, storage) -> str | None:
+    """The runtime a storage is REALLY on: its builder's (stage 63 item 20).
+
+    Every other reader places a storage by its builder's runtime; this check
+    read the storage ITEM's ``runtime``, which defaults to the default runtime,
+    so a GCE disk with a zone was compared with an AWS subnet unless the item
+    named its runtime too. The item's own value is the fallback for a builder
+    that names none."""
+    builder = ctx.storage_builders.get(str(storage.get_type() or ""))
+    model = getattr(builder, "model", None)
+    try:
+        name = model.get_runtime_provider() if model is not None else None
+    except ValueError:                          # a builder still on `default`
+        name = None
+    return str(name) if name else getattr(storage, "runtime", None)
+
+
 def _runtime_zone(ctx: GlobalTypeContext, runtime_name: str | None) -> tuple[str | None, str]:
     """The zone a runtime asserts, and where it said it: its networking's
-    ``default_availability_zone``, else its DEFAULT SUBNET's declared zone."""
+    ``default_availability_zone``, else its DEFAULT SUBNET's declared zone,
+    else the runtime's own ``zone`` (a GCE runtime states its zone there and
+    nowhere else, stage 63 item 20)."""
     rtb = ctx.runtime_builders.get(str(runtime_name or ""))
+    own = getattr(getattr(rtb, "model", None), "zone", None)
+    fallback = (str(own), f"runtime '{runtime_name}'") if own else (None, "")
     networking = getattr(getattr(rtb, "model", None), "networking", None)
     if networking is None:
-        return (None, "")
+        return fallback
     declared = getattr(networking, "default_availability_zone", None)
     if declared:
         return (str(declared), f"runtime '{runtime_name}'")
     try:
         subnet = networking.default_subnet
     except (ValueError, AttributeError):
-        return (None, "")
+        return fallback
     zone = getattr(subnet, "availability_zone", None)
-    return (str(zone), f"runtime '{runtime_name}' subnet '{subnet.get_name()}'") if zone else (None, "")
+    return (str(zone), f"runtime '{runtime_name}' subnet '{subnet.get_name()}'") if zone else fallback
 
 
 def check_availability_zones(ctx: GlobalTypeContext) -> list[Exception]:
@@ -388,7 +409,7 @@ def check_availability_zones(ctx: GlobalTypeContext) -> list[Exception]:
         zone, zonal = _zone_of_storage(ctx, name)
         if not (zone and zonal):
             continue
-        runtime_zone, where = _runtime_zone(ctx, getattr(storage, "runtime", None))
+        runtime_zone, where = _runtime_zone(ctx, _storage_runtime(ctx, storage))
         if runtime_zone and runtime_zone != zone:
             exs.append(ValueError(
                 f"storage '{name}' declares availability zone '{zone}' but {where} "
