@@ -1403,7 +1403,7 @@ plugin's README.
 |---|---|---|
 | `name` | everything | System-wide unique; the storage state machine, the read-model, attachments and facts key on it. |
 | `type` | the load (`also_set_on_update`), `validate_storages`, `storage_type_of`, `storage_facts`, `_root_applied` | The storage builder: fixes the capability type, the cardinality, whether it is zonal, and the runtime the root applies on. |
-| `runtime` | `check_availability_zones` only (`_runtime_zone(ctx, storage.runtime)`) | Everywhere else (apply scoping, transitions, facts, `runtime describe`) the BUILDER's runtime governs; the zone check is the one reader of the field itself, and a `default` here resolves to the default runtime, not the builder's. |
+| `runtime` | `check_availability_zones`, as a fallback only (`_storage_runtime`) | The BUILDER's runtime governs everywhere, the zone check included since stage 63 item 20; the item's own value is read only when the builder names no runtime. Until 2026-09-25 the zone check read this field, whose `default` resolved to the default runtime, not the builder's. |
 | `groups` | the load (`ALL` refused), `validate_storages`, `allows_group`, the read-model | The groups allowed to attach; each must be declared. |
 | `public_read` | `allows_group`, `compute_launch_params`, the read-model | Anyone may mount read-only. |
 | `share_mode` | the load (`2770` or `2775`), `compute_launch_params`, the read-model | The mode of each group's subtree. |
