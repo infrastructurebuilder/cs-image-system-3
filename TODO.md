@@ -57,8 +57,8 @@ bare name until its first sanctioned replacement, which is the first real
 claims, and §19 step 5 proved §60's meaning live (a sanctioned replacement
 is a new generation with a new name). §59 is deliberately LAST: it overlaps the suffix, and only once
 that is standing can anyone judge whether a name pool is still wanted. §30 waits on the operator's decision and depends
-on none of this. No hygiene bundle is open; the next non-critical
-hygiene issue opens bundle VI.
+on none of this. **Hygiene bundle VI (§67) is open since 2026-09-25**;
+the next non-critical hygiene issue joins it.
 
 **Nothing in the naming line is left**; §30 waits on the operator's
 decision. Nothing in that shorter path has to be redone -- §58
@@ -112,7 +112,7 @@ Standing decisions (operator):
   documentation contract; a code change it would need is a new stage,
   written as a plan, never a side edit.
 - §30 (the contract package), §64, §65 and §66 are planned, not started; §63
-  is in progress since 2026-09-24;
+  is in progress since 2026-09-24; §67 (hygiene bundle VI) is open;
   a stage is a plan in this file until the operator says to execute it
   (2026-09-23). §62 landed 2026-09-24.
 - **Documentation stays current by stage** (operator, 2026-09-23). Once
@@ -262,7 +262,8 @@ plugin 1–2 days. Call it three weeks, done as three branches.
 
 **Status: IN PROGRESS since 2026-09-24** (the operator: "we are now working
 on stage 63"; the low-hanging group landed the same day, the medium items
-on 2026-09-25; the chains are open). Written during §62 (2026-09-23) under the rule that a
+and both chains on 2026-09-25; what is left is the list of dead fields,
+dead code and misleading messages, which has no decisions yet). Written during §62 (2026-09-23) under the rule that a
 documentation stage changes no code: every item below was found by an
 agent reading a package against its README, the manuals and the fixture,
 verified in the code, and left as it was. The manuals now say what the
@@ -275,9 +276,8 @@ it is made.
 **low-hanging fruit** (landed): each item was one function and one test,
 touching nothing another item touched. Then the **medium items** (landed),
 independent of each other but each a small design (a decision to make, a
-validation model to write, an API to read). Then the **chains**, where one item's fix decides
-another's: those are listed in the order they must be made, with the
-dependency named. The dead fields, dead code and misleading messages come
+validation model to write, an API to read). Then the **chains** (landed),
+where one item's fix decided another's. The dead fields, dead code and misleading messages come
 last and follow the same rule: an entry that depends on a chain says so.
 
 **Low-hanging fruit: LANDED** as `720be3a` on develop (2026-09-24, squash of
@@ -299,58 +299,20 @@ Items 14 and 17 were proved by a full GCE cycle (run
 verified over the declared gcloud, ended empty). The bar was run on the
 two combined (1098 passed).
 
-**Chains, in the order they must be made** (DECIDED 2026-09-25, the
-operator by quiz; 20 and 21 needed no decision, each has one fix):
-
-20. **The zone check reads the wrong runtime.** `validate.check_availability_zones`
-    resolves a zonal storage's zone against the storage ITEM's `runtime`
-    (default: the default runtime) instead of its builder's, so a GCE
-    disk with a zone fails unless the item also names the runtime. Read
-    the builder's runtime, as every other reader does. Before 21: the
-    test for 21 declares a zoned disk on a non-default runtime without
-    naming it on the item.
-21. **A persistent disk ignores its own zone.** After 20.
-    `TofuPdStorageBuilder.module_args` emits the runtime's `zone` and never
-    reads `storage.availability_zone`, which `validate` checks and section
-    12a promises pins the resource. Emit the storage's zone when declared,
-    the runtime's otherwise, as the EBS builder does; the golden moves if
-    the fixture's pd declares one.
-22. **A runtime's `default_owners` and `default_config_username` are
-    unreachable.** `os_builder_runtime_config.get_owners()` and
-    `finalize()` look the runtime up by `self.image_builder` (an
-    image-builder name) in the RUNTIME namespace and never find it; the
-    `finalize()` itself has no caller, so `config_username` and the "ssh
-    user could not be inferred" refusal never run either. DECIDE first
-    (USER): do the three fields live or die? If they live, the lookup keys
-    the runtime by the entry's runtime, the finalize is called from the
-    OS builder's own finalize, and ONE function resolves the bake user
-    (entry `ssh_username`, else `config_username`, else the runtime's
-    `default_config_username`, else the family's user) for every reader.
-    If they die, the fields are removed and the family user is the only
-    fallback. Before 23 and before the default-os entries below.
-    **Decided (USER, 2026-09-25):** all three fields LIVE.
-    `config_username` and `default_config_username` feed ONE resolver
-    (the order under item 23's decision), `finalize()` gets its caller, and
-    the "ssh user could not be inferred" refusal fires. `default_owners`
-    lives too (not the recommendation): the owners lookup keys the runtime
-    by the entry's runtime, and the runtime's owners join the entry's in
-    the AWS image query, deduplicated. The complete example's comments
-    ("accepted; not read") change to what each field does.
-23. **The GCE bake user can mismatch its provisioner.** After 22. With a
-    default runtime `ssh_username` and an OS-entry `ssh_username`, the
-    packer source uses the entry's user and the ansible provisioner user
-    is `packer`: the mismatch finding 48 fixed for the other path. Both
-    the source and the provisioner call the one resolver 22 leaves.
-    **Decided (USER, 2026-09-25):** the OS runtime entry's `ssh_username`
-    wins everywhere, AWS and GCE alike (not the recommendation, which kept
-    the runtime's winning on GCE). The resolver's order, then: the entry's
-    `ssh_username`, the OS builder's `config_username`, the runtime's
-    `ssh_username`, the runtime's `default_config_username`, the family's
-    user (`packer` on GCE, where googlecompute has no vendor default).
-    Finding 43 (one bake user per GCE chain) moves to `validate`: a GCE
-    chain whose images resolve to different users is refused, naming the
-    images and the users. The live tree already declares `ssh_username:
-    packer` on the GCE entry, so it resolves unchanged.
+**Chains: LANDED 2026-09-25** as two squashes on develop, both branches
+kept: `32de1c1` (`feature/defect-zones`, 20 then 21: the zone check reads
+a storage's builder's runtime and a GCE runtime's own `zone`; a
+persistent disk honours its own zone) and `0bee6b8`
+(`feature/defect-bake-user`, 22 then 23: one bake-user resolver,
+`cs_image_system.base.bake_user`, in the operator's order; the three
+dead fields live; GCE's one-user-per-chain rule enforced by `validate`).
+Items 20 to 23 are gone from this list; the squash messages carry them.
+Tests are in `tests/test_v2_defects_zones.py` and
+`tests/test_v2_defects_bake_user.py`; the order is CONFIGURATION 5.1.1.
+Chain 22-23 was proved by a full GCE cycle (run
+`2026_09_25t15_16_23_826583`: both bakes as `packer`, `gce-test`
+verified, ended empty); chain 20-21 owed none (no live GCE disk declares
+a zone). The bar ran on the two combined (1113 passed).
 
 **Dead fields, dead code and misleading messages** (each a line in the
 READMEs' "accepted, not read" rows or "When it fails" tables; remove the
@@ -385,8 +347,8 @@ names a chain):
   `gce_label` does not force a leading letter (a tag key `2024` fails at
   apply); the pd scripts embed the literal `None` for a missing
   `project_id`/`zone` instead of refusing at generation.
-- `default-os-plugin` (after chain item 22, which decides the user
-  fields): the entry's `image_id`, `image_name`,
+- `default-os-plugin` (chain 22 landed 2026-09-25: `config_username`,
+  `default_config_username` and `default_owners` live): the entry's `image_id`, `image_name`,
   `default_primary_disk_size`, `config` and `RhelOsBuilderModel.subscription_id`
   read nowhere; `Apt`/`Fedora` `get_command_to_update()` unreachable from
   the bake (`test_os_update_hook` pins a form no bake emits); the rhel
@@ -659,3 +621,34 @@ release, and never edited at the destination. Then:
 **Sizing**: the recipe and its test half a day; the job an hour; the
 mirrors and tokens are the operator's (an hour); the live proof waits on
 the first final version on PyPI (§41's open call).
+
+## 67. Hygiene bundle VI
+
+**Status: OPEN since 2026-09-25**, one item. A plan: nothing here starts
+until the operator says which items to do.
+
+1. **A child image on an ephemeral runtime re-bakes on every cycle.**
+   Found 2026-09-25 across three GCE cycles: `imgfile-basic-dask@gcloud-east1`
+   planned `inputs changed (<recorded> -> 5bb04fa1e631)` every time, and
+   each bake recorded a different fingerprint (`de18cb2753d4` on
+   2026-09-24, `bd1b37a8f0c9` and `d2fa6a3fb603` on 2026-09-25), while the
+   planned one never moved. **Cause** (read in the code, not yet proved by
+   a test): the fingerprint's `parent` is `lineage.parent_reference`,
+   the effective parent BUILD when one exists, else `series:<parent>`. On
+   an ephemeral runtime the closing retention lifecycle disposes the base
+   build, so at the next plan no parent build exists and the reference is
+   `series:basic-rh-10` (constant); at record time the parent is the base
+   build baked in that same run (new each cycle). Plan and record hash
+   different parents, so they can never agree. **Effect**: about six
+   minutes of spot build time and one release per GCE cycle; the released
+   dask image is replaced each time (one still stands, by decision); no
+   drift and no wrong image. **Fix to decide** (USER): either the
+   fingerprint hashes the parent's own fingerprint rather than its build
+   id (a parent rebuilt from identical inputs then leaves the child
+   current; a changed parent still marks it due), or, on an ephemeral
+   runtime, a child whose parent will be re-baked this run is judged
+   against the parent's planned fingerprint. The first is smaller and
+   changes every recorded fingerprint once (every image reads DUE once
+   after it lands, unless the change restamps them); the second touches
+   only ephemeral runtimes. A test first: plan, bake, dispose the parent,
+   plan again, and assert the child is current.
