@@ -378,7 +378,8 @@ decision follows its description.
     a storage root with a mount), naming the flag and the root. Every real
     tree keeps it on; the configuration manual's row says so.
 
-**Chains, in the order they must be made**:
+**Chains, in the order they must be made** (DECIDED 2026-09-25, the
+operator by quiz; 20 and 21 needed no decision, each has one fix):
 
 20. **The zone check reads the wrong runtime.** `validate.check_availability_zones`
     resolves a zonal storage's zone against the storage ITEM's `runtime`
@@ -406,11 +407,29 @@ decision follows its description.
     `default_config_username`, else the family's user) for every reader.
     If they die, the fields are removed and the family user is the only
     fallback. Before 23 and before the default-os entries below.
+    **Decided (USER, 2026-09-25):** all three fields LIVE.
+    `config_username` and `default_config_username` feed ONE resolver
+    (the order under item 23's decision), `finalize()` gets its caller, and
+    the "ssh user could not be inferred" refusal fires. `default_owners`
+    lives too (not the recommendation): the owners lookup keys the runtime
+    by the entry's runtime, and the runtime's owners join the entry's in
+    the AWS image query, deduplicated. The complete example's comments
+    ("accepted; not read") change to what each field does.
 23. **The GCE bake user can mismatch its provisioner.** After 22. With a
     default runtime `ssh_username` and an OS-entry `ssh_username`, the
     packer source uses the entry's user and the ansible provisioner user
     is `packer`: the mismatch finding 48 fixed for the other path. Both
     the source and the provisioner call the one resolver 22 leaves.
+    **Decided (USER, 2026-09-25):** the OS runtime entry's `ssh_username`
+    wins everywhere, AWS and GCE alike (not the recommendation, which kept
+    the runtime's winning on GCE). The resolver's order, then: the entry's
+    `ssh_username`, the OS builder's `config_username`, the runtime's
+    `ssh_username`, the runtime's `default_config_username`, the family's
+    user (`packer` on GCE, where googlecompute has no vendor default).
+    Finding 43 (one bake user per GCE chain) moves to `validate`: a GCE
+    chain whose images resolve to different users is refused, naming the
+    images and the users. The live tree already declares `ssh_username:
+    packer` on the GCE entry, so it resolves unchanged.
 
 **Dead fields, dead code and misleading messages** (each a line in the
 READMEs' "accepted, not read" rows or "When it fails" tables; remove the
