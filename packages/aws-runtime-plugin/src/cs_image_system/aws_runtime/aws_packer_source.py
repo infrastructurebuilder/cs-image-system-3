@@ -68,14 +68,6 @@ def _chain_root_family(image: Any) -> str:
         return ""
 
 
-def _chain_default_ssh_user(image: Any) -> str:
-    """The vendor AMI's default user for the image's ROOT base family --
-    the only account whose authorized_keys receives packer's key. Found
-    live: a Debian-derived instance image baked as 'ec2-user' never
-    authenticates ('Timeout waiting for SSH' over the SSM tunnel)."""
-    return {"debian": "admin", "ubuntu": "ubuntu"}.get(_chain_root_family(image), "ec2-user")
-
-
 def _machine_type(subconfig: Any, model: AwsCloudBuilderModel) -> str:
     for v in (getattr(subconfig, "machine_type", None),
               getattr(subconfig, "default_machine_type", None)):
@@ -137,17 +129,15 @@ def amazon_ebs_source(model: AwsCloudBuilderModel, image: Any, *, runtime: str, 
         # newlines and bare quotes are illegal inside an HCL quoted string)
         c["user_data"] = (_SSM_BOOTSTRAP.rstrip("\n").replace('"', '\\"')
                           .replace("\n", "\\n"))
-    sshun = self_subconfig.get_ssh_username()
-    if sshun:
-        if sshun in OOPS_DEFAULTS:
-            sshun = _chain_default_ssh_user(image)
-            log.info(f"SSH username for image {image.get_display_name()} on {runtime} defaults to "
-                     f"{sshun!r} (the chain's root base family's vendor user)")
-        c["ssh_username"] = sshun
+    # stage 63 items 22-23: the one resolver (the image's entry, the chain
+    # root's entry, config_username, the runtime's ssh_username, its
+    # default_config_username, the family's vendor user); the runtime's
+    # ssh_username used to override every entry here
+    from cs_image_system.base.bake_user import resolve_bake_user
+    from cs_image_system.base.global_context import GlobalTypeContext
+    c["ssh_username"] = resolve_bake_user(GlobalTypeContext(), image, runtime)
     if networking.default_availability_zone:
         c["availability_zone"] = networking.default_availability_zone
-    if model.ssh_username and model.ssh_username not in OOPS_DEFAULTS:
-        c["ssh_username"] = model.ssh_username
     if model.iam_instance_profile and "iam_instance_profile" not in c:
         # the SSM profile wins when both are set (stage 63 item 9, decided
         # 2026-09-24): this assignment used to run after the SSM block and

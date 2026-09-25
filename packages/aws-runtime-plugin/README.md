@@ -128,7 +128,7 @@ Fields it adds:
 | `iam_instance_profile` | `str \| None` | `None` | Instance profile written into the packer source for build instances when `session_instance_profile` is unset (it is also the SSM fallback then). When both are set the SSM profile wins (stage 63 item 9, decided 2026-09-24; until then this one, written after the SSM block, replaced it). Never attached to launched instances. |
 | `session_mechanism` | `str \| None` | `None` | `ssm` (any case, surrounding whitespace ignored) is the only value. Any other string is an error the first time the builder's `session_mechanism()` is called, which is at generation. |
 | `session_instance_profile` | `str \| None` | `None` | The SSM-capable instance profile given to launched instances (through the instance plugin) and to build instances (through the packer source). |
-| `ssh_username` | `str` | `DEFAULT` | When set, overrides the bake's SSH user for every image baked on this runtime, after every per-entry and per-family resolution. |
+| `ssh_username` | `str` | `DEFAULT` | The bake's SSH user for images on this runtime that name none more specifically: step 4 of the bake-user order ([CONFIGURATION 5.1.1](../../docs/CONFIGURATION.md#511-the-bake-ssh-user)). Until stage 63 it overrode every entry. |
 | `networking` | `AwsCloudNetworkingModel \| None` | `None` | Narrows the base type and makes it optional. Missing networking logs a warning at load; image generation then fails (the packer source reads the VPC and subnet from it). |
 | `vpc_map` | `dict` | discovered | Not an init field. `{vpc_id: {"subnets": [...]}}` from the account. |
 | `default_vpc_id` | `str \| None` | discovered | Not an init field. |
@@ -143,8 +143,8 @@ Base fields it inherits, and what this runtime does with them:
 | `region` | `CloudBuilderModel` | required | boto3 `region_name`, the packer `region`, the `aws` provider block, `--region` on the release and storage-transition commands. |
 | `default_machine_type` | `RuntimeBuilderModel` | required | Instance type when neither an OS-builder runtime entry nor an image names one; the instance type of a launched instance that declares no `machine_type`. |
 | `default_image_builder` | `RuntimeBuilderModel` | `DEFAULT` | The image builder an OS-builder runtime entry with `image_builder: default` resolves to. |
-| `default_owners` | `RuntimeBuilderModel` | `None` | Meant to be appended to every vendor-image query's owner list. In practice not read: the lookup in `get_owners()` keys the runtime by the entry's `image_builder` name, so it never finds this model (reported; see the base's [os_builder_runtime_config.py](../base/src/cs_image_system/base/models/os_builder_runtime_config.py)). |
-| `default_config_username` | `RuntimeBuilderModel` | `None` | Meant as the fallback SSH user for OS-builder runtime entries that declare none. Same unreachable lookup; in practice not read. |
+| `default_owners` | `RuntimeBuilderModel` | `None` | Joins every vendor-image query's owner list on this runtime, after the OS builder's owners and before the entry's own. Read since stage 63 item 22: the lookup in [os_builder_runtime_config.py](../base/src/cs_image_system/base/models/os_builder_runtime_config.py) keyed the runtime by the entry's `image_builder` name and never found it; it now takes the image builder's runtime. |
+| `default_config_username` | `RuntimeBuilderModel` | `None` | The bake's SSH user when nothing more specific names one: step 5 of the bake-user order ([CONFIGURATION 5.1.1](../../docs/CONFIGURATION.md#511-the-bake-ssh-user)), read since stage 63 item 22. |
 | `ephemeral` | `RuntimeBuilderModel` | `False` | See "Retention and the cycle". |
 | `retention_keep` | `RuntimeBuilderModel` | `None` | Builds kept per series on this runtime when the image declares no retention. |
 | `on_failure`, `teardown_after` | `RuntimeBuilderModel` | `None` | Runtime-level defaults for ephemeral instances. |
@@ -179,7 +179,7 @@ hooks. In the order a run reaches them:
 | Image generation | `session_mechanism()` | `ssm` or `None`; raises on any other declared value. |
 | Image generation | `session_agent_commands(os_family)` | Installs and enables the SSM agent on a base image; `dpkg` path for `debian`/`ubuntu`, `yum` path otherwise. Empty when no mechanism is declared. |
 | Image generation | `session_verify_commands(os_family)` | Assertions that the agent is present and enabled. Empty when no mechanism is declared. |
-| Image generation | `bake_ssh_username()`, `bake_finalize_commands()` | Base defaults: `None` and none. Provisioners keep their own user; no closing provisioner. |
+| Image generation | `default_bake_user(family)`, `bake_ssh_username(image)`, `bake_finalize_commands()` | `default_bake_user`: the vendor AMI's user, `admin` for `debian`, `ubuntu` for `ubuntu`, `ec2-user` otherwise (the last step of the bake-user order). `bake_ssh_username` keeps the base `None`, so the ansible provisioner keeps its own user on AWS; no closing provisioner. |
 | After a bake | `build_id_from_artifact(artifact_id)` | Base default: the packer manifest's `<region>:<ami>` becomes the AMI id. |
 | After a bake | `retag_image(ami, tags)` | The packer plugin stamps the resolved `csis_parent` and `csis_fingerprint` onto every recorded build. |
 | Instance generation | `session_instance_profile()` | The instance profile the instance module attaches when the mechanism is `ssm`; `None` otherwise. |
@@ -248,7 +248,7 @@ included).
 [os_builder_runtime_config.py](../base/src/cs_image_system/base/models/os_builder_runtime_config.py)).
 `remap_for_image_query()` builds a `describe_images` request:
 
-- `Owners` is the entry's `get_owners()`: the OS builder's owners, then the entry's own, deduplicated in order (the runtime's `default_owners` are meant to sit between them but are never found; see the model table).
+- `Owners` is the entry's `get_owners()`: the OS builder's owners, then the runtime's `default_owners`, then the entry's own, deduplicated in order (the runtime's were never found before stage 63 item 22).
 - `query.filters` keys are mapped through `AWS_DI_MAP` (snake_case to EC2 filter names, `tag:<key>` kept), booleans lowercased, and `state: available` forced.
 - Keys the map does not know go to a post-query exact-match filter on the result dictionaries.
 
@@ -336,10 +336,11 @@ The plugin's output is visible in the golden emission under
   runtime declares `session_mechanism: ssm`, `ssh_interface =
   "session_manager"`, `iam_instance_profile`, `associate_public_ip_address =
   false`, `ssh_timeout = "15m"` and a `user_data` script that installs the
-  SSM agent on vendor images that lack it. `ssh_username` is the entry's
-  user, else the chain root family's vendor user (`admin` for debian,
-  `ubuntu` for ubuntu, `ec2-user` otherwise), overridden by the runtime's
-  `ssh_username` when set. `launch_block_device_mappings` uses the source
+  SSM agent on vendor images that lack it. `ssh_username` is what
+  `cs_image_system.base.bake_user.resolve_bake_user` answers (the image's
+  entry, the chain root's entry, `config_username`, this runtime's
+  `ssh_username` and `default_config_username`, then the family's vendor
+  user: `admin` for debian, `ubuntu` for ubuntu, `ec2-user` otherwise). `launch_block_device_mappings` uses the source
   AMI's real `RootDeviceName` (else `/dev/xvda` for debian and amazon roots,
   `/dev/sda1` otherwise), `gp3`, and the image's `primary_disk_size`.
 - [pckr-ebs-ans-image-generation-block-000-build.pkr.hcl](../../tests/fixtures/v2_golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl):
@@ -562,14 +563,14 @@ value column means the literal string `default`.
 | `session_mechanism` | str or null | null | `ssm` bakes the SSM agent into base images, makes packer connect through Session Manager, attaches `session_instance_profile` to instances, and makes every instance operation possible (verification, unmount, post-bake tests, aliases). Any other value is refused at generation. |
 | `session_instance_profile` | str or null | null | The instance profile for launched instances and (when `iam_instance_profile` is unset) build instances. Read only when the mechanism is `ssm`. |
 | `iam_instance_profile` | str or null | null | The build instances' profile in the packer source when `session_instance_profile` is unset; with both set the SSM profile wins (stage 63 item 9). Never reaches launched instances. |
-| `ssh_username` | str | `default` | Overrides the bake SSH user for every image on this runtime, last in the resolution. |
+| `ssh_username` | str | `default` | The bake SSH user for images that name none more specifically (step 4 of the bake-user order, CONFIGURATION 5.1.1). |
 | `networking` | mapping or null | null | See below. Null loads with a warning and fails at image generation. |
 | `ephemeral` | bool | `false` | Nothing baked here survives a successful run: the closing retention disposes every build on this runtime. |
 | `retention_keep` | int or null | null | Builds kept per series when the image declares no `retention`; null keeps all. |
 | `on_failure` | str or null | null | Default failure policy for ephemeral instances here: `keep` or `teardown`. |
 | `teardown_after` | str or null | null | Default grace for ephemeral instances here: `<number>` then `m`, `h` or `d`. |
-| `default_owners` | list[str] or null | null | Accepted, not read in practice (the lookup that would read it never finds the runtime; reported). |
-| `default_config_username` | str or null | null | Accepted, not read in practice (same lookup). |
+| `default_owners` | list[str] or null | null | Owners added to every vendor-image query on this runtime (stage 63 item 22). |
+| `default_config_username` | str or null | null | The bake SSH user when no image entry, OS entry, `config_username` or runtime `ssh_username` names one (stage 63 item 22). |
 | `ena_support` | bool or null | null | Accepted, not read. |
 | `sriov_support` | bool or null | null | Accepted, not read. |
 | `executable`, `config`, `gitignore` | | | Accepted from `BuilderModel`; this plugin reads none of them. |
@@ -601,7 +602,7 @@ These are not this plugin's fields, but the packer source reads them:
 | Where | Field | Effect on AWS |
 |---|---|---|
 | OS builder `runtimes[]` entry | `default_machine_type` | The bake instance type for that base (the fixture bakes on `t3.medium` because a `t2.micro` OOMs). |
-| OS builder `runtimes[]` entry | `ssh_username` | The bake user; unset resolves to the chain root family's vendor user. |
+| OS builder `runtimes[]` entry | `ssh_username` | The bake user for that OS on this runtime (step 2 of the bake-user order); unset, the order continues down to the chain root family's vendor user. |
 | OS builder `runtimes[]` entry | `owners`, `query` | The `describe_images` request. |
 | image `runtimes[]` entry | `machine_type` | The bake instance type for that instance image. |
 | image | `primary_disk_size` | The root volume size of the bake, in GB. |
@@ -636,10 +637,10 @@ These are not this plugin's fields, but the packer source reads them:
   the data lookup; **an unpinned or deferred parent** writes the
   name-pattern / most-recent lookup from `get_query_assets()`; **a
   resolved vendor image** writes its exact id and owner.
-- **`ssh_username` on the runtime** wins over the entry's user and the
-  family default; **unset**, the entry's user wins, and an entry at
-  `default` takes `admin` (debian root), `ubuntu` (ubuntu root) or
-  `ec2-user`.
+- **An entry's `ssh_username`** wins over the runtime's (stage 63 item 23;
+  the runtime's used to win); the OS builder's `config_username` wins over
+  the runtime's too. With nothing named anywhere, an image takes `admin`
+  (debian root), `ubuntu` (ubuntu root) or `ec2-user`.
 - **A vendor query that resolved** gives the bake the real
   `RootDeviceName`; **a deferred source** falls back by family (`/dev/xvda`
   for debian and amazon, `/dev/sda1` otherwise).

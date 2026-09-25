@@ -119,14 +119,23 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
                 "command -v google_guest_agent >/dev/null 2>&1 || test -x /usr/bin/google_guest_agent",
                 "systemctl is-enabled google-guest-agent >/dev/null 2>&1"]
 
-    def bake_ssh_username(self) -> str | None:
-        # Mirror googlecompute_source's resolution (finding 48): the model's
-        # ssh_username when set, else the "packer" fallback googlecompute has
-        # no vendor default, so the source always emits one and provisioners
-        # must name the same user.
-        from cs_image_system.base.constants import OOPS_DEFAULTS
-        mu = getattr(self.model, "ssh_username", None)
-        return mu if mu and mu not in OOPS_DEFAULTS else "packer"
+    def default_bake_user(self, family: str) -> str | None:
+        # googlecompute has no vendor default user: it creates the account
+        # from metadata keys, so any name works; `packer` is the one every GCE
+        # chain bakes as unless something names another (finding 43)
+        return "packer"
+
+    def one_bake_user_per_chain(self) -> bool:
+        return True                             # finding 43
+
+    def bake_ssh_username(self, image=None) -> str | None:
+        # finding 48: the provisioner must name the user the source bakes as.
+        # stage 63 item 23: both ask the one resolver, so an entry-level user
+        # no longer bakes as itself while ansible connects as `packer`.
+        if image is None:
+            return self.default_bake_user("")
+        from cs_image_system.base.bake_user import resolve_bake_user
+        return resolve_bake_user(self._get_context(), image, self.get_name())
 
     def bake_finalize_commands(self, os_family: str | None = None) -> list[str]:
         # finding 47 (found live at the gce-test launch): a baked image

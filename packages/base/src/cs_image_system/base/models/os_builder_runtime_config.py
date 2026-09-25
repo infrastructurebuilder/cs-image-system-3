@@ -67,8 +67,22 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
                                         "description": "Associatd OS Builder",
                                         "required": True,})
     
+    def _runtime_model(self) -> RuntimeBuilderModel | None:
+        """The runtime this entry bakes on: its IMAGE BUILDER's runtime (stage
+        63 item 22). The lookup used to key the runtime namespace by the
+        image builder's own name and never found one, so the runtime's
+        ``default_owners`` never reached a query."""
+        ib: Any = self._reg.get_instance_by_name_or_alias(VCT.IMAGE_BUILDER_MODEL, self.image_builder)
+        if ib is None:
+            return None
+        try:
+            runtime = ib.get_runtime_provider()
+        except ValueError:                      # an image builder still on `default`
+            return None
+        return self._reg.get_instance_by_name_or_alias(VCT.RUNTIME_BUILDER_MODEL, runtime)
+
     def get_owners(self) -> Sequence[str]:
-        _rt: RuntimeBuilderModel | None = self._reg.get_instance_by_name_or_alias( VCT.RUNTIME_BUILDER_MODEL, self.image_builder)
+        _rt: RuntimeBuilderModel | None = self._runtime_model()
         _owners: list[str] = []
         _parent = self.identified_model
         if _parent:
@@ -133,19 +147,14 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
         # Ensure the model_id is set to the associated OS builder's name for proper association in the registry
         if self._model_id is None:
             raise ValueError(f"Model ID must be set for OSRuntimeConfigModel {self.name} prior to finalization.")
-        if self.ssh_username in OOPS_DEFAULTS:
-            self.ssh_username = self.identified_model.get_config_username() # type: ignore
-        if self.ssh_username in OOPS_DEFAULTS: #still...            
-            _rt: RuntimeBuilderModel | None = self._reg.get_instance_by_name_or_alias( VCT.RUNTIME_BUILDER_MODEL, self.image_builder)
-            if _rt:
-                nm = _rt.get_default_config_username()
-                if nm and nm not in OOPS_DEFAULTS:
-                    self.ssh_username = nm
-                else:
-                    errstr = f"SSH username for runtime configuration {self.name} is not set and could not be inferred from associated runtime builder {_rt.get_name()}."
-                    log.error(errstr)
-                    raise ValueError(errstr)
-            
+        # stage 63 item 22: this method used to fill ssh_username from
+        # config_username, then from the runtime's default_config_username
+        # (looked up by the wrong key), and refuse when neither answered; it
+        # had no caller. The bake user is now decided in ONE place,
+        # cs_image_system.base.bake_user, in the operator's order (the
+        # runtime's own ssh_username sits between those two fields, which a
+        # value written here would have overtaken), and the refusal is its.
+
 
     @property
     def os(self) -> OsBuilderModel | None:

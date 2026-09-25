@@ -396,6 +396,12 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
         e.args = args
         return [e]
 
+    def default_bake_user(self, family: str) -> str | None:
+        """The vendor AMI's default user: the only account whose
+        authorized_keys receives packer's temporary key (found live: a
+        Debian-derived image baked as 'ec2-user' never authenticates)."""
+        return {"debian": "admin", "ubuntu": "ubuntu"}.get((family or "").lower(), "ec2-user")
+
     def session_instance_profile(self) -> str | None:
         if self.session_mechanism() != self.SSM:
             return None

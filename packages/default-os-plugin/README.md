@@ -75,7 +75,7 @@ Fields every family inherits:
 | `owners` | `list[str]` | `[]` | Vendor-image owners; the runtime plugin maps them (AWS account ids and aliases, GCE projects and aliases). |
 | `query` | `dict` | `{}` | Vendor-image query inputs shared by every runtime entry; an entry's own `query` overrides key by key. |
 | `runtimes` | `list[OSBuilderBaseImageBuilderSubconfig]` | required, non-empty | One entry per image builder this OS bakes on. `image_builder` must be unique across entries. |
-| `config_username` | `str \| None` | `None` | Accepted; effectively not read. The only reader is the runtime entry's `finalize()` fallback chain, and nothing calls that method on an entry, so this value never reaches a bake. The fallback that runs is the family fallback above. |
+| `config_username` | `str \| None` | `None` | The sudo-capable ssh user on this OS's vendor image, for every runtime whose entry names none: step 3 of [the bake-user order](../../docs/CONFIGURATION.md#511-the-bake-ssh-user), after the image's and this OS's entry and ahead of anything the runtime says (stage 63 item 22; it was read by nothing before 2026-09-25). |
 | `auto_update` | `bool` | `False` | Alias for `update: {policy: full}`. |
 | `update` | `dict \| str \| None` | `None` | The update policy: `policy` (`none`, `security`, `packages`, `full`), `packages`, `exclude`, `pin` (`{package: version}`), `refresh_days`. Takes precedence over `auto_update`. |
 | `identity_types` | `list[str]` | `[]` | Identity types (for example `okta`) the base image bakes prerequisites for and that images downstream may use. |
@@ -96,9 +96,9 @@ Each `runtimes[]` entry is an `OSBuilderBaseImageBuilderSubconfig` in
 | `description` | `str` | templated | Free text. |
 | `default_machine_type` | `str \| None` | `None` | Bake machine type; else the image builder's, else the runtime's. |
 | `default_primary_disk_size` | `int` | `100` | Accepted, not read; the base image takes the OS builder's value. |
-| `owners` | `list[str]` | `[]` | Appended after the OS builder's owners and the runtime's `default_owners`. |
+| `owners` | `list[str]` | `[]` | Appended after the OS builder's owners and the entry's runtime's `default_owners` (the runtime is the entry's image builder's; stage 63 item 22 fixed the lookup, which never found it). |
 | `query` | `dict` | `{}` | Overrides the OS builder's `query` key by key. |
-| `ssh_username` | `str` | `DEFAULT` | Bake user on this runtime. Unset falls back, at resolution, to the family fallback (`admin`, `ubuntu`, else `ec2-user`). A runtime that declares its own `ssh_username` overrides the entry on both clouds. |
+| `ssh_username` | `str` | `DEFAULT` | Bake user on this runtime for this OS and every image built on it: step 2 of [the bake-user order](../../docs/CONFIGURATION.md#511-the-bake-ssh-user). It wins over the OS builder's `config_username` and everything the runtime declares, on both clouds (stage 63 item 23; a runtime's `ssh_username` used to override it). |
 | `auto_update` | `bool \| None` | `None` | `true` turns a `none` policy into `full` for bakes on this runtime. |
 | `tags` | `dict` | `{}` | Merged over the OS builder's tags. |
 | `tests` | `dict \| None` | `None` | When set, replaces the OS builder's `tests` for bakes on this runtime. |
@@ -222,8 +222,8 @@ files, under
 - [pckr-ebs-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl](../../tests/fixtures/v2_golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl):
   the resolved vendor image (`image-id` and `owners` in the `data
   "amazon-ami"` block), `instance_type = "t3.medium"` from the entry's
-  `default_machine_type`, `ssh_username = "ec2-user"` from the family
-  fallback, and `volume_size = 200` from `default_primary_disk_size`.
+  `default_machine_type`, `ssh_username = "ec2-user"` from the AWS
+  runtime's family default (the last step of the bake-user order), and `volume_size = 200` from `default_primary_disk_size`.
 
 ## Example configuration
 
@@ -300,7 +300,7 @@ bake does not surprise anyone.
 | Prerequisite | Why | How the plugin finds it |
 |---|---|---|
 | A vendor image visible to the runtime's credentials | The base image bakes FROM it. The query is made by the runtime plugin at resolution, with the credentials that plugin configures (an AWS profile, GCP application default credentials); this plugin only supplies the inputs. | `owners` and `query` on the OS builder, overridden key by key by the entry's `owners` and `query`; the runtime's `default_owners` are appended. Which runtime: the entry's `image_builder`, whose image builder names its runtime. See [aws-runtime-plugin](../aws-runtime-plugin/README.md) and [gcloud-runtime-plugin](../gcloud-runtime-plugin/README.md) for the credential fields. |
-| A sudo-capable login on the vendor image | Every update command runs through `sudo`; packer connects as this user with a temporary key. | The entry's `ssh_username`; unset, the family fallback (`family: debian` -> `admin`, `ubuntu` -> `ubuntu`, anything else -> `ec2-user`). A runtime that declares its own `ssh_username` overrides both. On GCE an unresolved name becomes `packer`, because `googlecompute` creates the account from metadata keys. |
+| A sudo-capable login on the vendor image | Every update command runs through `sudo`; packer connects as this user with a temporary key. | The bake-user order (CONFIGURATION 5.1.1): the image's entry, then this OS builder's entry `ssh_username`, its `config_username`, the runtime's `ssh_username` and `default_config_username`, and last the runtime's family default: on AWS `family: debian` -> `admin`, `ubuntu` -> `ubuntu`, anything else -> `ec2-user`; on GCE `packer`, because `googlecompute` creates the account from metadata keys. |
 | `sudo` on the image | The command lists are written with `sudo` on every line, Alpine included. | Nothing configurable; an image without `sudo` (an Alpine that ships only `doas`) fails at the first command. |
 | Network egress from the bake machine to the package repositories | `apt-get`, `dnf` and `apk` fetch metadata and packages during the bake. On a cloud vendor RHEL/Alma image that is the RHUI or vendor mirror; on Debian/Ubuntu the vendor mirrors. | The runtime's networking (subnet, NAT, security groups), not this plugin. |
 | A registered `subscription-manager` when RHEL subscription repositories are wanted | The `rhel` type enables `rhel-<major>-for-x86_64-{baseos,appstream}-rpms` and `codeready-builder-for-rhel-<major>-x86_64-rpms` only if `subscription-manager identity` succeeds. The plugin never registers a system; `subscription_id` is not read. | Whether the vendor image is registered. An unregistered image prints `not subscription-registered (RHUI image): using vendor repos as-is` and continues. |
@@ -326,11 +326,11 @@ Read by this plugin or the OS builder base: `name`, `type`, `family`,
 `storage_types`, `admin_user`, `admin_public_keys`, `local_test_image`,
 `tests`, `is_default`, `aliases`, `description`; on an entry
 `image_builder`, `name`, `default_machine_type`, `owners`, `query`,
-`ssh_username`, `auto_update`, `tags`, `tests`.
+`ssh_username`, `auto_update`, `tags`, `tests`; and on the OS builder
+`config_username` (since stage 63 item 22).
 
 Accepted, not read (the loader takes them, nothing consults them): on the
-OS builder `config_username` (its only reader, the entry's `finalize()`, is
-never called), `executable`, `config`, `gitignore`, and `subscription_id`
+OS builder `executable`, `config`, `gitignore`, and `subscription_id`
 on `rhel`; on an entry `type`, `description`, `default_primary_disk_size`,
 `image_id`, `image_name`, `config`.
 
@@ -369,8 +369,12 @@ The `update` mapping ([update_policy.py](../base/src/cs_image_system/base/models
   family gets `ec2-user` and `/dev/sda1`. The AWS runtime prefers the
   vendor query's `RootDeviceName` when it has one.
 - When the entry declares `ssh_username`, it is the bake user on that
-  runtime; when the runtime model declares `ssh_username`, that wins over
-  the entry on both clouds; when nothing resolves on GCE, `packer`.
+  runtime for every image of the chain, whatever the runtime declares;
+  when it does not, the OS builder's `config_username`, then the runtime's
+  `ssh_username`, then its `default_config_username`, then the runtime's
+  family default (`packer` on GCE). An image's own runtime entry can name
+  a user for itself alone, except that on GCE it must match the chain's.
+  The whole order is in CONFIGURATION 5.1.1 (stage 63 items 22 and 23).
 - When the entry declares `tests`, they replace the OS builder's `tests`
   for bakes on that runtime (not merge); an entry without `tests` inherits
   the builder's.
@@ -468,8 +472,8 @@ emitted commands, the guard is what an operator sees today.
   bake.** The instance image baked as `ec2-user`, an account the Debian AMI
   does not have; only the vendor user's `authorized_keys` receives packer's
   key. The bake user now falls back by the chain root's `family` (`admin`,
-  `ubuntu`, else `ec2-user`). A timeout on a family outside that map means
-  the entry needs `ssh_username`.
+  `ubuntu`, else `ec2-user`, the AWS runtime's family default). A timeout on
+  a family outside that map means the entry needs `ssh_username`.
 - **2026-08-31, stage 1: a baked AMI carried two root-slot volumes and its
   instances never booted (the `deb-11` chain).** The root device name was
   hard-coded; on HVM `/dev/sda1` and `/dev/xvda` alias one slot. The AWS
@@ -495,6 +499,8 @@ emitted commands, the guard is what an operator sees today.
   declared `ssh_username: packer` on the GCE entry is the fix, and the
   entry's `get_ssh_username()` (previously a no-op that always returned
   `None`) now honours it. Diagnosed from the build VM's serial console.
+  Since stage 63 the GCE family default is `packer` too, and `validate`
+  refuses a GCE chain whose images would bake as different users.
 - **2026-09-05/06, finding 51: the GCE bake disk was 200 GB.** The image
   inherited the OS builder's `default_primary_disk_size` default; the GCE
   runtime's `default_disk_size` (40 GB on `gcloud-east1`) now wins, and
@@ -541,7 +547,7 @@ Failures the code raises that have not been seen live:
 | `No resolved Image identifiers for OS <name> in predefined_resolve` | The vendor query returned nothing: wrong owners, filters that match nothing in this region, or credentials that cannot see the owner's images. | Resolution of the base-image lifecycle. | Check `owners` and `query.filters` against the console; check the runtime's credentials and region. |
 | `No resolved image for runtime <rt> in OS builder <name>` | A runtime the OS builder names had no resolution. | Resolution. | Every entry's runtime must resolve. |
 | Warning `No default machine type specified for runtime ...; using default.` | No machine type on entry, image builder or runtime. | Resolution, in the log. | Declare `default_machine_type`; the `default` sentinel will not bake. |
-| Warning `No ssh_username specified for runtime ...` | The entry declares none; the family fallback is used. | Resolution, in the log. | Expected on AWS; on GCE declare one. |
+| `the ssh user for OS builder <b> on runtime <r> could not be inferred: set ...` | Nothing in the bake-user order names a user, and the runtime has no family default. | `validate`; generation. | Name one where the message says (stage 63 item 22; the warning `No ssh_username specified ...` that used to precede an AWS family guess is gone). |
 | Warning `OS builder <name> declares modifications, but base images do not receive modifications` | Modifications on an OS builder. | Resolution, in the log. | Move them to an instance image. |
 | Warning `Tag <k> from OS builder ... is overwriting tag with same key from runtime builder` | The entry's tag shadows the image builder's. | Resolution, in the log. | Intended precedence; rename if not. |
 | `OS builder <name> (alpine) does not implement update policy '<p>' with exclude/pin; use a dnf/apt family or policy: full` | `security`, `packages`, `exclude` or `pin` on Alpine. | Generation; `NotImplementedError`. | `policy: full` or `none`. |
