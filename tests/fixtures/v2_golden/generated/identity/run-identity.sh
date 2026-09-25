@@ -3,6 +3,7 @@
 # run id: 2026_08_26t12_00_00
 # Deferred commands accumulated while generating this lifecycle,
 # in phase order. Paths are relative to this lifecycle's directory.
+# state: workspace okta-groups-ro -> local://state/okta_groups_ro.tfstate
 # state: workspace oktagroups -> local://state/oktagroups.tfstate
 # state: workspace okta-tf-users -> local://state/okta_tf_users.tfstate
 # NOTE: builders' pre/post finalize hooks are NOT part of this

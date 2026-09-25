@@ -1,0 +1,8 @@
+---
+# stage 63 item 18: a group on the READ-ONLY builder. The Okta group exists
+# already; the system looks it up and never creates, queries or tokens it.
+groups:
+  - name: readers
+    type: okta-groups-ro
+    is_default: false
+    description: "{{ group.name }} group, looked up, never managed"

@@ -133,3 +133,55 @@ def test_the_package_line_installs_with_the_first_manager_and_fails_with_its_err
     assert res.returncode == 1, res
     ran = journal.read_text()
     assert "dnf -y install nosuchpkg" in ran and "apt-get" not in ran, ran
+
+
+# ------------------------------ 18. the read-only group builder's hooks
+
+def test_the_read_only_group_builder_answers_the_read_only_truth(monkeypatch):
+    from tests.v2_support import FIXTURE_CONFIG
+    from cs_image_system.base.read_models import identity_read_model
+    stub_environment(monkeypatch)
+    ctx = load_context(FIXTURE_CONFIG)
+    try:
+        ro = ctx.group_builders["okta-groups-ro"]
+        managed = ctx.group_builders["oktagroups"]
+        assert [g.get_name() for g in ro.get_groups_for_builder()] == ["readers"]
+        assert ro.manages_groups() is False and managed.manages_groups() is True
+
+        def no_opa(*a, **kw):
+            raise AssertionError("the read-only builder asked OPA")
+        monkeypatch.setattr(type(ro), "_resolver", no_opa)
+        assert ro.query_state() == {}
+        assert ro.enrollment_token_reference("readers") is None
+        assert ro.can_query_servers() is False
+        assert ro.can_manage_workload_access() is False
+        with pytest.raises(NotImplementedError):
+            ro.query_attributes(ro.get_groups_for_builder()[0])
+        with pytest.raises(NotImplementedError):
+            ro.attribute_conflicts()
+
+        model = identity_read_model(ctx)["groups"]
+        assert model["readers"]["managed"] is False and model["readers"]["builder"] == "okta-groups-ro"
+        assert model["coops"]["managed"] is True
+    finally:
+        reset_singletons()
+
+
+def test_a_read_only_group_is_looked_up_and_never_drifts(tmp_path: Path, monkeypatch):
+    from cs_image_system.base import state_query
+    from cs_image_system.base.state_query import StateReport
+    run = V2Run(tmp_path, monkeypatch)
+    try:
+        summary = run.run(["identity"], apply=False)
+        assert summary.ok, summary.error
+        data_tf = "".join(p.read_text() for p in run.generated.rglob("*.tf") if "okta-groups-ro" in str(p))
+        assert 'data "okta_group"' in data_tf and '"readers"' in data_tf, "the lookup root emits the lookup"
+        assert "module \"group_readers\"" not in "".join(p.read_text() for p in run.generated.rglob("*.tf"))
+        # the managed parent's rule would read an absent OPA record as missing [HARD]
+        recorded = run.ctx.meta_state.identity_read_model()["groups"]
+        assert recorded["readers"]["managed"] is False, "the run's read-model records the lookup as unmanaged"
+        report = StateReport(run="test")
+        drift = state_query.group_drift(run.ctx, {"readers": {"present": False}}, report)
+        assert not [d for d in drift if d.name == "readers"], drift
+    finally:
+        run.restore_cwd()

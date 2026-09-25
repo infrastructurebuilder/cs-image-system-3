@@ -54,6 +54,12 @@ workspaces:
     run: 2026_08_26t12_00_00
     type: s3
     use_lockfile: true
+  okta-groups-ro:
+    backend: local-dev
+    location: local://state/okta_groups_ro.tfstate
+    path: ../../../../state/okta_groups_ro.tfstate
+    run: 2026_08_26t12_00_00
+    type: local
   okta-tf-users:
     backend: local-dev
     location: local://state/okta_tf_users.tfstate

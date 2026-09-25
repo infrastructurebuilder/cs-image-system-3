@@ -10,6 +10,7 @@ so read-only instances declare okta/okta in required_providers.
 """
 
 import logging
+from typing import Any
 
 from cs_image_system.base.basic.asset import AssetSet
 from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
@@ -40,6 +41,37 @@ class OktaTfGroupRoBuilder(OktaTfGroupBuilder):
     @property
     def model(self) -> OktaTfGroupRoBuilderModel:
         return self._model  # type: ignore   # FIXME: This is dangerous
+
+    # ------------------------------------------ the read-only truth (stage 63 item 18)
+    # The managed parent's hooks ask OPA about groups it CREATED, point
+    # instances at an enrollment token its root emits, and keep a CI login
+    # policy per group. This builder creates nothing and emits only okta_group
+    # lookups, so each hook answers what is true of a lookup.
+
+    def manages_groups(self) -> bool:
+        return False
+
+    def query_state(self) -> dict[str, dict[str, Any]]:
+        """Nothing is queried: OPA holds no record of a group this builder
+        never made, so asking would read every one as missing [HARD]."""
+        return {}
+
+    def enrollment_token_reference(self, group: str) -> str | None:
+        """No token: the lookup root emits no ``group_enrollment_tokens``
+        output for an instance to reference."""
+        return None
+
+    def can_query_servers(self) -> bool:
+        return False
+
+    def can_manage_workload_access(self) -> bool:
+        return False
+
+    def query_attributes(self, group: Any) -> dict[str, Any] | None:
+        raise NotImplementedError(f"{self.__class__.__name__} manages no group attributes")
+
+    def attribute_conflicts(self) -> list[dict[str, Any]] | None:
+        raise NotImplementedError(f"{self.__class__.__name__} manages no group attributes")
 
     def _groups(self) -> list[Group]:
         # Sorted for the same reason as the user builders: deterministic

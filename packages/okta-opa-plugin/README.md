@@ -334,8 +334,25 @@ derivation is pure code in
 ### `OktaTfGroupRoBuilder` (`okta-tf-ro`)
 
 [okta_opa_tf_group_ro_builder.py](src/cs_image_system/okta_opa_plugin/okta_opa_tf_group_ro_builder.py).
-Extends `OktaTfGroupBuilder`, so the identity-type hooks above are
-inherited unchanged. What differs:
+Extends `OktaTfGroupBuilder`, so the identity-type hooks that shape an
+image (prerequisites, activation, launch parameters) are inherited
+unchanged. What differs:
+
+- The hooks that would ask OPA about a group or point at something the
+  managed root makes answer the read-only truth instead (stage 63 item
+  18): `manages_groups()` is `False`, so the identity read-model records
+  each group `managed: false` and neither the never-destroy rule nor the
+  state query's drift rule applies to it; `query_state()` returns `{}`
+  without asking OPA; `enrollment_token_reference()` is `None`, because
+  this root emits no `group_enrollment_tokens` output;
+  `can_query_servers()` and `can_manage_workload_access()` are `False`;
+  `query_attributes()` and `attribute_conflicts()` raise
+  `NotImplementedError`, which the attribute plan reports as "cannot query
+  attributes". Before 2026-09-25 all of these were the managed parent's,
+  so a group on this builder read `missing [HARD]`.
+- When a managed builder of the same identity type exists, it comes first
+  for the image bake and the in-bake verification, whatever the names sort
+  to, so the prerequisites comment names the managed builder.
 
 - `generate_items_before`: the same scaffolding, but only when at least
   one group is attached.
@@ -397,9 +414,13 @@ emission and commands are the parent's.
 
 Real file names from the golden emission under
 [tests/fixtures/v2_golden/generated/identity](../../tests/fixtures/v2_golden/generated/identity),
-produced by the fixture's `oktagroups` (`okta-tf`) and `okta-tf-users`
-(`okta-tf-ro`) builders, both bound to the fixture's `local-dev` state
-backend:
+produced by the fixture's `oktagroups` (`okta-tf`), `okta-groups-ro`
+(`okta-tf-ro`, one group, `readers`, since stage 63 item 18) and
+`okta-tf-users` (`okta-tf-ro`) builders, all bound to the fixture's
+`local-dev` state backend. The read-only group root is
+`okta-groups-ro/group-generation/`: the scaffolding file and
+`okta-groups-ro-group-generation-groups-data.tf` with one
+`data "okta_group" "readers"`:
 
 | File | Content |
 |---|---|
@@ -710,11 +731,12 @@ str must not be blank. They are planned and probed, never written.
   group. `okta-tf-ro` emits only `data "okta_group"` lookups, no outputs
   and no deferred commands, and emits nothing at all with no group; it
   needs the `okta` provider instead of `oktapam`, so no `TF_VAR_<team>_*`
-  assertion fires for it. Every identity-type hook (prerequisites,
-  activation, launch parameters, `query_state`, the registry, the CI
-  policy) is inherited unchanged, so a group on an `okta-tf-ro` builder is
-  still recorded as `identity_type: okta`, `gid_policy: creation-only` and
-  managed, and the state query asks OPA about its `<group>_user` group.
+  assertion fires for it. The image hooks (prerequisites, activation,
+  launch parameters) are inherited; the hooks that read or point into OPA
+  are not (stage 63 item 18): a group on an `okta-tf-ro` builder is
+  recorded as `identity_type: okta`, `gid_policy: creation-only` and
+  `managed: false`, the state query asks OPA nothing about it, no
+  enrollment token is referenced for it, and it has no CI login policy.
 - **`okta-tf` versus `okta-tf-ro` as a user builder.** The emission is one
   code path chosen per item by `managed`: `okta-tf` defaults to managed (an
   `okta_user` resource plus a lookup that `depends_on` it); `okta-tf-ro`
