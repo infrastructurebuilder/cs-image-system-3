@@ -81,6 +81,12 @@ class TofuGcpStorageBuilder(TofuStorageBuilder[Q]):
         resolve = getattr(rtb, "gcloud_binary", None)
         return str(resolve()) if callable(resolve) else "gcloud"
 
+    def _project(self) -> str | None:
+        from cs_image_system.gcloud_runtime.gcp_utils import resolve_project
+        rtb = self._runtime()
+        to_cfg: Any = getattr(getattr(rtb, "model", None), "self_to_gcp_client_config", None)
+        return resolve_project(cast(dict[str, Any], to_cfg())) if callable(to_cfg) else None
+
     def _zone(self) -> str | None:
         rtb = self._runtime()
         return getattr(rtb.model, "zone", None) if rtb else None
@@ -186,12 +192,6 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
 
     def archive_name(self, storage: Storage) -> str:
         return f"csis-{self._gce_resource_name(storage.get_name())}-archive"
-
-    def _project(self) -> str | None:
-        from cs_image_system.gcloud_runtime.gcp_utils import resolve_project
-        rtb = self._runtime()
-        to_cfg: Any = getattr(getattr(rtb, "model", None), "self_to_gcp_client_config", None)
-        return resolve_project(cast(dict[str, Any], to_cfg())) if callable(to_cfg) else None
 
     def _script(self, storage: Storage, name: str, body: str) -> ExecutableModel:
         wd = self.get_path_for_phase(ExecutionLifecyclePhase.STORAGE_GENERATION, suffix=".tf").parent
@@ -314,6 +314,38 @@ class TofuFilestoreStorageBuilder(TofuGcpStorageBuilder[S]):
         if _public_read(storage):
             args["public_read"] = True
         return args
+
+    def _lookup(self, storage: Storage) -> dict[str, Any] | None:
+        """State-query parity for Filestore (stage 63 item 17): ``gcloud
+        filestore instances describe`` through the runtime's declared gcloud
+        (item 14), the same CLI path as GCS, no new client library. The
+        instance is found by the name the module gives it, in the runtime's
+        zone. Not found -> absent; any other failure -> the query reports it
+        unavailable. Until 2026-09-25 there was no lookup, and the query
+        dropped every Filestore builder without a word."""
+        import json  # noqa: PLC0415
+        import subprocess  # noqa: PLC0415
+        project, zone = self._project(), self._zone()
+        if not project or not zone:
+            raise RuntimeError("no project/zone to query")
+        name = self._gce_resource_name(storage.get_name())
+        res = subprocess.run([self._gcloud(), "filestore", "instances", "describe", name,
+                              "--location", str(zone), "--project", str(project), "--format=json"],
+                             capture_output=True, text=True, check=False)
+        if res.returncode != 0:
+            err = (res.stderr or "").strip()
+            if "not found" in err.lower() or "NOT_FOUND" in err or "404" in err:
+                return None
+            raise RuntimeError(f"gcloud filestore instances describe {name}: {err[-300:]}")
+        info = json.loads(res.stdout or "{}")
+        shares = info.get("fileShares") or [{}]
+        rec: dict[str, Any] = {"id": str(info.get("name") or name).rsplit("/", 1)[-1],
+                               "state": str(info.get("state") or ""),
+                               "tags": dict(info.get("labels") or {})}
+        cap = shares[0].get("capacityGb")
+        if cap is not None:
+            rec["size"] = int(cap)
+        return rec
 
 
 G = TypeVar("G", bound=TofuGcsStorageBuilderModel)

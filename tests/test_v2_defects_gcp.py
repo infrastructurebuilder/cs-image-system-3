@@ -115,3 +115,75 @@ def test_the_bucket_lookup_runs_the_declared_gcloud(ctx, monkeypatch):
     gcs = ctx.storage_builders["gcp-gcs"]
     gcs._lookup(_storage_on(ctx, "gcp-gcs"))
     assert rec.calls[0][0] == DECLARED, rec.calls
+
+
+# --------------------------------- 17. Filestore in the state query; tf-gcp
+
+def _with_filestore(tmp_path: Path) -> Path:
+    root = copy_config(tmp_path)
+    sb = root / "cfg" / "storage-builders.yml"
+    data = yaml.safe_load(sb.read_text())
+    data["storage_builders"].append({"name": "gcp-fs", "type": "tf-gcp-filestore", "executable": "open-tofu-1",
+                                     "runtime": "gcloud-east1", "state_configuration": "s3-east1"})
+    sb.write_text(yaml.safe_dump(data, sort_keys=False))
+    (root / "storages" / "filestore.yaml").write_text(yaml.safe_dump(
+        {"storages": [{"name": "shared_nfs", "type": "gcp-fs", "mount_point": "/mnt/shared", "state": "active"}]}))
+    return root
+
+
+def test_an_unimplemented_lookup_is_reported_unavailable_not_dropped():
+    from cs_image_system.base.state_query import StateReport, _query
+    report = StateReport(run="test")
+
+    def cannot():
+        raise NotImplementedError("SomeBuilder cannot query identity state")
+    assert _query(report, "groups/some", cannot) is None
+    assert report.unavailable == ["groups/some: cannot be queried (SomeBuilder cannot query identity state)"]
+
+
+def test_filestore_looks_itself_up_through_the_declared_gcloud(tmp_path: Path, monkeypatch):
+    # the harness stubs every storage builder's query_state; keep the real one
+    from cs_image_system.tf_ebs_instance_plugin.tf_storage_builder import TofuStorageBuilder
+    real_query_state = TofuStorageBuilder.query_state
+    stub_environment(monkeypatch)
+    c = load_context(_with_filestore(tmp_path))
+    try:
+        fs = c.storage_builders["gcp-fs"]
+        storage = _storage_on(c, "gcp-fs")
+        found = _Recorder(0, '{"name": "projects/p/locations/us-east1-b/instances/shared-nfs", "state": "READY", '
+                             '"fileShares": [{"name": "share", "capacityGb": "1024"}], "labels": {"csis": "true"}}')
+        monkeypatch.setattr(subprocess, "run", found)
+        rec = fs._lookup(storage)
+        cmd = found.calls[0]
+        assert cmd[:5] == [DECLARED, "filestore", "instances", "describe", "shared-nfs"], cmd
+        assert cmd[cmd.index("--location") + 1] == "us-east1-b"
+        assert rec == {"id": "shared-nfs", "state": "READY", "tags": {"csis": "true"}, "size": 1024}
+        state = real_query_state(fs)
+        assert state["shared_nfs"]["present"] is True and state["shared_nfs"]["type"] == "filestore", state
+
+        monkeypatch.setattr(subprocess, "run", _Recorder(1, "", "ERROR: (gcloud.filestore.instances.describe) NOT_FOUND: resource"))
+        assert fs._lookup(storage) is None
+        assert real_query_state(fs)["shared_nfs"]["present"] is False
+
+        monkeypatch.setattr(subprocess, "run", _Recorder(1, "", "ERROR: PERMISSION_DENIED"))
+        with pytest.raises(RuntimeError, match="PERMISSION_DENIED"):
+            fs._lookup(storage)
+    finally:
+        reset_singletons()
+
+
+def test_the_base_tf_gcp_type_is_refused_at_load(tmp_path: Path, monkeypatch):
+    root = copy_config(tmp_path)
+    sb = root / "cfg" / "storage-builders.yml"
+    data = yaml.safe_load(sb.read_text())
+    data["storage_builders"].append({"name": "gcp-any", "type": "tf-gcp", "executable": "open-tofu-1",
+                                     "runtime": "gcloud-east1"})
+    sb.write_text(yaml.safe_dump(data, sort_keys=False))
+    stub_environment(monkeypatch)
+    try:
+        with pytest.raises(Exception) as exc:
+            load_context(root)
+        message = str(exc.value)
+        assert "type 'tf-gcp' is the shared base" in message and "tf-gcp-pd" in message, message
+    finally:
+        reset_singletons()

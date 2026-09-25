@@ -155,7 +155,9 @@ def test_gate4_instance_root_and_launch_parameters(gce3):
     assert "gce" not in aws_tf
 
 
-def test_gate6_state_query_hooks_exist(gce3):
+def test_gate6_state_query_hooks_exist(gce3, monkeypatch):
+    import subprocess
+    from types import SimpleNamespace
     from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
     ctx = gce3.ctx
     gcp = ctx.runtime_builders[GCE_RUNTIME]
@@ -164,9 +166,12 @@ def test_gate6_state_query_hooks_exist(gce3):
     assert callable(getattr(gcp, "query_images"))
     pd = ctx.storage_builders["gcp-pd"]
     assert callable(getattr(pd, "_lookup"))
+    # stage 63 item 17: Filestore has a lookup now (it raised NotImplementedError
+    # and the query dropped it); gcloud is stubbed, answering not found
     fs = ctx.storage_builders["gcp-filestore"]
-    with pytest.raises(NotImplementedError):
-        fs._lookup(next(s for s in ctx.storages if s.get_name() == "gce_share"))
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: SimpleNamespace(
+        returncode=1, stdout="", stderr="ERROR: NOT_FOUND: instance"))
+    assert fs._lookup(next(s for s in ctx.storages if s.get_name() == "gce_share")) is None
 
 
 def private_plugin_cache(tmp_path: Path, roots: list[Path]) -> Path:

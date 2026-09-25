@@ -294,7 +294,11 @@ while it is off, and the state report says so in those words:
 That line is a `note`, a third category beside `drift` and `unavailable`.
 It is deliberately none of the others: `unavailable` means a provider
 could not answer, and reporting your own decision as a failure to answer
-is how the records used to lie about a stopped machine.
+is how the records used to lie about a stopped machine. A builder that
+cannot be asked at all (its plugin has no lookup) is `unavailable` too,
+as `<kind>/<builder>: cannot be queried (...)`; until stage 63 item 17 it
+was left out of the report without a word, which is how a Filestore
+storage could never read as missing.
 
 **"Cannot answer" is not "stopped."** The runtime hook
 `query_instance_power_state` returns the system's own vocabulary --

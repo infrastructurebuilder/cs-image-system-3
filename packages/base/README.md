@@ -1170,7 +1170,11 @@ bar.
 
 The core contains no cloud code and makes no network call of its own:
 every provider call goes through a plugin hook, and a hook that is not
-implemented (`can_*` false, or `NotImplementedError`) makes no claim. What
+implemented (`can_*` false, or `NotImplementedError`) makes no claim. The
+state query says so rather than staying silent: a builder whose
+`query_state` (or an image or storage lookup under it) raises
+`NotImplementedError` adds `<kind>/<builder>: cannot be queried (<why>)`
+to `unavailable` (stage 63 item 17; it used to vanish from the report). What
 the core needs outside itself is therefore short, and each item says how
 the core finds it.
 
