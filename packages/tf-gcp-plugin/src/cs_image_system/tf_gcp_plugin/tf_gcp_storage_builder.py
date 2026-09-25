@@ -170,6 +170,16 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
     def module_dirname(self) -> str:
         return "gcp_storage_pd"
 
+    def _disk_zone(self, storage: Storage) -> str | None:
+        """Where THIS disk lives: the storage's own ``availability_zone`` when
+        declared, the runtime's ``zone`` otherwise, as the EBS builder does
+        (stage 63 item 21). `validate` checks the declared zone against the
+        runtime and every instance that mounts the disk; the module call, the
+        lookup and the archive script all read it here, so a disk pinned to a
+        zone is created, found and snapshotted in that zone."""
+        declared = getattr(storage, "availability_zone", None)
+        return str(declared) if declared else self._zone()
+
     def module_args(self, storage: Storage) -> dict[str, Any]:
         args: dict[str, Any] = {
             "name": self._gce_resource_name(storage.get_name()),
@@ -177,7 +187,7 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
             "disk_type": getattr(self.model, "disk_type", "pd-balanced"),
             "labels": self._labels(storage),
         }
-        zone = self._zone()
+        zone = self._disk_zone(storage)
         if zone:
             args["zone"] = zone
         # restore (stage 11.6): recorded archived, declared active -> the disk
@@ -206,7 +216,7 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
     def transition_actions(self, storage: Storage, from_state: str | None,
                            to_state: str) -> list[ExecutableModel]:
         disk, snap = self._gce_resource_name(storage.get_name()), self.archive_name(storage)
-        project, zone = self._project(), self._zone()
+        project, zone = self._project(), self._disk_zone(storage)
         gcloud = shlex.quote(self._gcloud())
         if to_state == STORAGE_STATE_ARCHIVED and from_state == STORAGE_STATE_ACTIVE:
             # snapshot the disk BEFORE terraform destroys it; a snapshot left by
@@ -240,7 +250,7 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
         rtb = self._runtime()
         to_cfg: Any = getattr(getattr(rtb, "model", None), "self_to_gcp_client_config", None)
         cfg: dict[str, Any] = cast(dict[str, Any], to_cfg()) if callable(to_cfg) else {}
-        project, zone = resolve_project(cfg), self._zone()
+        project, zone = resolve_project(cfg), self._disk_zone(storage)
         if not project or not zone:
             raise RuntimeError("no project/zone to query")
         creds = _make_credentials(cfg)

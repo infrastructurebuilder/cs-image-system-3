@@ -9,6 +9,7 @@ here failed before its fix.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, cast
 
 import yaml
 
@@ -67,3 +68,35 @@ def test_a_gce_disk_outside_its_runtimes_zone_is_refused_against_that_runtime(tm
     # the instance that mounts it is in the runtime's zone: two zones, refused
     assert any(e.startswith("instance 'gce-test'") and "us-east1-c" in e and "us-east1-b" in e
                for e in errors), errors
+
+
+# ------------------------------------------ 21. the disk's own zone
+
+def _pd(root: Path, monkeypatch) -> tuple[Any, Any, Any]:
+    stub_environment(monkeypatch)
+    ctx = load_context(root)
+    pd = cast(Any, ctx.storage_builders["gcp-pd"])
+    disk = next(s for s in ctx.storages if s.get_name() == "gce_data")
+    return ctx, pd, disk
+
+
+def test_a_persistent_disk_is_created_found_and_archived_in_its_own_zone(tmp_path: Path, monkeypatch):
+    from cs_image_system.base.models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED
+    ctx, pd, disk = _pd(_zoned_copy(tmp_path, "us-east1-c"), monkeypatch)
+    try:
+        assert pd.module_args(disk)["zone"] == "us-east1-c"
+        assert pd._disk_zone(disk) == "us-east1-c"
+        (script,) = pd.transition_actions(disk, STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED)
+        body = (Path(str(ctx.generation_path)) / str(script.working_directory) / script.args[0]).read_text()
+        assert '--zone "us-east1-c"' in body, body
+    finally:
+        reset_singletons()
+
+
+def test_a_disk_without_a_zone_keeps_the_runtimes(tmp_path: Path, monkeypatch):
+    ctx, pd, disk = _pd(copy_config(tmp_path), monkeypatch)
+    try:
+        assert getattr(disk, "availability_zone", None) is None
+        assert pd.module_args(disk)["zone"] == "us-east1-b"
+    finally:
+        reset_singletons()

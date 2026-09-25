@@ -1716,10 +1716,12 @@ BUILDER's runtime, the one it is actually created on; the storage item's own
 runtime, so a zoned GCE disk failed against an AWS subnet unless the item
 named `gcloud-east1` too). An EBS storage's own
 declaration wins over its runtime's when the module call is emitted, so
-declaring a zone pins the volume rather than decorating the file; a GCP
-persistent disk is emitted in the runtime's `zone` whatever the storage
-declares (the declaration is validated, then decorates the file; a code
-stage names the fix).
+declaring a zone pins the volume rather than decorating the file. A GCP
+persistent disk does the same since stage 63 item 21: its own
+`availability_zone` wins over the runtime's `zone` in the module call, the
+state query's lookup and the archive script, and the runtime's `zone` is
+the fallback when it declares none (until 2026-09-25 the declaration was
+validated and then ignored).
 
 **Why it is refused early.** A zone is a replace-forcing attribute. Pointing a
 runtime at a subnet in another zone does not fail to attach a volume — it plans

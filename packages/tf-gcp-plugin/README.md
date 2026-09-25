@@ -165,9 +165,12 @@ Base `Storage` from
 `state` (`active` | `archived` | `destroyed`), `bucket_name` (GCS), `tags`.
 `lifecycle:` is **refused** on all three GCP builders: none of them realizes
 a data lifecycle, so the base `validate_lifecycle` rejects any declaration.
-`availability_zone` is accepted and checked by `validate` (a persistent
-disk is zonal, so it joins the zone-compatibility check) but is **not
-emitted**: the pd module call always takes the runtime's `zone`.
+`availability_zone` is checked by `validate` (a persistent disk is zonal,
+so it joins the zone-compatibility check) and, since stage 63 item 21,
+**pins the disk**: `_disk_zone(storage)` returns it when declared and the
+runtime's `zone` otherwise, and the module call, the state query's lookup
+and the archive script all read it there (until 2026-09-25 the pd module
+call always took the runtime's `zone`).
 `mount_point`, `source`, `ephemeral`, `generative`, `singleton`,
 `is_default` and `config` are not read.
 
@@ -299,7 +302,7 @@ Module arguments (`module_args(storage)`):
 
 | Builder | Arguments |
 |---|---|
-| PD | `name = gce_name(<storage>)`; `size` and `disk_type` from the builder; `labels`; `zone` from the runtime; `snapshot = csis-<gce name>-archive` when the storage is recorded archived and declared active (restore) |
+| PD | `name = gce_name(<storage>)`; `size` and `disk_type` from the builder; `labels`; `zone` from the storage's own `availability_zone`, else the runtime's; `snapshot = csis-<gce name>-archive` when the storage is recorded archived and declared active (restore) |
 | Filestore | `name = gce_name(<storage>)`; `tier` and `capacity_gb` from the builder; `labels`; `zone`; `network` from the runtime's `networking.network` unless it is `default`; `group_subtrees` = sorted allowed groups (Filestore has no access points, so the per-group subtree is created and `chgrp`ed at first mount by the launch script; the module records the intent); `public_read = true` when set |
 | GCS | `bucket_name` = the storage's `bucket_name`, else the builder's, else the storage name; `labels`; `location` = the builder's `location`, else the runtime's `region`; `group_prefixes` = sorted allowed groups; `public_read = true` when set |
 
@@ -664,7 +667,7 @@ fails at load.
 | `bucket_name` | the plugin (GCS) | the bucket, over the builder's `bucket_name` |
 | `tags` | the plugin | labels, over the builder's `variables.tags` |
 | `lifecycle` | the base's `validate_lifecycle` | refused when set, on all three builders |
-| `availability_zone` | the core's `validate` only | pd is zonal, so it takes part in the compatibility check; the pd module call always uses the runtime's `zone` and never this value |
+| `availability_zone` | the core's `validate`; the pd builder's `_disk_zone` | pd is zonal, so it takes part in the compatibility check, and a declared value is the disk's zone in the module call, the lookup and the archive script (stage 63 item 21) |
 | `mount_point` | the instance side | not read by the storage builders |
 | `runtime` | the core | must resolve; the storage root's runtime is the builder's |
 | `source`, `ephemeral`, `generative`, `singleton`, `is_default`, `config` | | accepted, not read |
@@ -675,7 +678,7 @@ fails at load.
 |---|---|
 | `project_id` | `provider "google" { project }` on every root; `--project` of the pd scripts; the pd state query's project (`self_to_gcp_client_config()` then `resolve_project()`) |
 | `region` | `provider "google" { region }`; the GCS `location` when the builder declares none |
-| `zone` | `provider "google" { zone }`; `zone` of the instance, pd and Filestore module calls; `--zone` of the pd archive script; the pd state query's zone |
+| `zone` | `provider "google" { zone }`; `zone` of the instance and Filestore module calls; the pd's `zone`, `--zone` of its archive script and its state query's zone when the storage declares no `availability_zone` |
 | `networking.subnets[]` (the `is_default: true` one) | `subnetwork` of the instance module call |
 | `networking.network` | Filestore `network`, unless it is `default`, empty, null or `self` (`OOPS_DEFAULTS`), in which case the module's own default `default` applies. Not read by the instance root |
 | `networking.network_tags` | `network_tags` of the instance module call, when any |
