@@ -10,6 +10,7 @@ builder's hooks, and ``use_state_backends: false``. Decided by the operator
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -40,8 +41,8 @@ def test_an_alias_on_a_modification_type_is_rewritten_to_the_builders_name(tmp_p
     assert "type: bash\n" in (root / "images" / "image1.yaml").read_text()
     stub_environment(monkeypatch)
     ctx = load_context(root)
-    mods = [m for image in ctx.images for m in (image.modifications or [])
-            if m.get_name() == "derivative-setup"]
+    mods: list[Any] = [m for image in ctx.images for m in (image.modifications or [])
+                       if not isinstance(m, dict) and m.get_name() == "derivative-setup"]
     assert mods, "the fixture's bash item is gone"
     assert {m.get_type() for m in mods} == {"bash-remote"}
     reset_singletons()

@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
+from typing import Any
 
 from packaging.specifiers import SpecifierSet
 from packaging.version import parse
@@ -524,7 +525,8 @@ def check_state_backends_needed(ctx: GlobalTypeContext) -> list[Exception]:
     for name, sb in sorted((ctx.storage_builders or {}).items()):
         identity = getattr(sb, "identity_workspaces", None)
         if callable(identity):
-            ws = sorted(identity())
+            found: Any = identity()                     # duck-typed hook: {workspace: builder}
+            ws = sorted(str(w) for w in (found or {}))
             if ws:
                 needs.append((name, ws))
     return [ValueError(
