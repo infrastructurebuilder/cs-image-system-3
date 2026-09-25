@@ -12,7 +12,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import yaml
@@ -60,10 +60,10 @@ def test_an_undeclared_gcloud_entry_is_refused_by_validate(tmp_path: Path, monke
     stub_environment(monkeypatch)
     c = load_context(root)
     try:
-        errors = [str(e) for e in check_existence_of_executable(c.executables, c.runtime_builders)]
+        errors = [str(e) for e in check_existence_of_executable(c.executables, cast(Any, c.runtime_builders))]
         assert any("Executable gcloud specified for provider gcloud-east1" in e for e in errors), errors
         with pytest.raises(ValueError, match="executable 'gcloud' is not declared"):
-            c.runtime_builders["gcloud-east1"].gcloud_binary()
+            cast(Any, c.runtime_builders["gcloud-east1"]).gcloud_binary()
     finally:
         reset_singletons()
 
@@ -104,12 +104,12 @@ def test_the_generated_archive_and_wipe_scripts_run_the_declared_gcloud(tmp_path
     actions = pd.transition_actions(disk, STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED)
     assert actions, "archiving a disk writes a snapshot script"
     for e in actions:
-        body = (ctx.generation_path / e.working_directory / e.args[0]).read_text()
+        body = (Path(str(ctx.generation_path)) / str(e.working_directory) / e.args[0]).read_text()
         assert f"{DECLARED} compute disks snapshot" in body and "\ngcloud " not in body, body
     gcs = ctx.storage_builders["gcp-gcs"]
     bucket = _storage_on(ctx, "gcp-gcs")
     (wipe,) = gcs.transition_actions(bucket, STORAGE_STATE_ACTIVE, STORAGE_STATE_DESTROYED)
-    body = (ctx.generation_path / wipe.working_directory / wipe.args[0]).read_text()
+    body = (Path(str(ctx.generation_path)) / str(wipe.working_directory) / wipe.args[0]).read_text()
     assert f"out=$({DECLARED} storage rm" in body, body
     assert str(tmp_path) in str(ctx.generation_path)
     reset_singletons()
@@ -154,7 +154,7 @@ def test_filestore_looks_itself_up_through_the_declared_gcloud(tmp_path: Path, m
     stub_environment(monkeypatch)
     c = load_context(_with_filestore(tmp_path))
     try:
-        fs = c.storage_builders["gcp-fs"]
+        fs: Any = c.storage_builders["gcp-fs"]
         storage = _storage_on(c, "gcp-fs")
         found = _Recorder(0, '{"name": "projects/p/locations/us-east1-b/instances/shared-nfs", "state": "READY", '
                              '"fileShares": [{"name": "share", "capacityGb": "1024"}], "labels": {"csis": "true"}}')
