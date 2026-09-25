@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import re
 from dataclasses import field
 from cs_image_system.base.models.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
@@ -14,6 +15,113 @@ from cs_image_system.base.models.moditem_type import ModItemModel
 BASH_EXECUTABLE: str = "bash"
 
 BASH_BUILDER: str = "bash-remote"
+
+
+ENSURE_KINDS: dict[str, str] = {
+    "packages": "a list of package names",
+    "files": "a list of {path, content, mode} mappings",
+    "services": "a list of systemd unit names",
+    "commands": "a list of {run, unless} mappings",
+}
+_FILE_KEYS = {"path", "content", "mode"}
+_COMMAND_KEYS = {"run", "unless"}
+_MODE_TEXT = re.compile(r"^[0-7]{3,4}$")
+
+
+def _mode_text(mode: Any) -> str:
+    """A file mode as the four-digit octal text ``install -m`` takes.
+
+    YAML reads an unquoted ``0644`` as the integer 420, so an integer is
+    rendered back in octal (stage 63 item 16, decided 2026-09-25); a
+    string must already be three or four octal digits."""
+    if isinstance(mode, bool):
+        raise ValueError(f"mode {mode!r} is not a file mode")
+    if isinstance(mode, int):
+        return f"{mode:04o}"
+    return str(mode)
+
+
+def _names(label: str, kind: str, value: Any) -> list[str]:
+    if not isinstance(value, list):
+        raise ValueError(f"{label}: ensure.{kind} must be {ENSURE_KINDS[kind]}, "
+                         f"not {type(value).__name__} {value!r} (write `{kind}: [{value}]` for one)")
+    out: list[str] = []
+    for i, v in enumerate(value):
+        if not isinstance(v, str) or not v.strip():
+            raise ValueError(f"{label}: ensure.{kind}[{i}] must be a non-empty name, not {v!r}")
+        out.append(v)
+    return out
+
+
+def _entries(label: str, kind: str, value: Any, allowed: set[str], required: str) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        raise ValueError(f"{label}: ensure.{kind} must be {ENSURE_KINDS[kind]}, not {type(value).__name__}")
+    for i, entry in enumerate(value):
+        where = f"{label}: ensure.{kind}[{i}]"
+        if not isinstance(entry, dict):
+            raise ValueError(f"{where} must be a mapping ({ENSURE_KINDS[kind]}), not {entry!r}")
+        unknown = set(entry) - allowed
+        if unknown:
+            raise ValueError(f"{where}: unknown keys {sorted(unknown)} (allowed: {sorted(allowed)})")
+        req = entry.get(required)
+        if not isinstance(req, str) or not req.strip():
+            raise ValueError(f"{where}: `{required}` is required and must be non-empty text")
+        for k, v in entry.items():
+            if k in (required, "mode"):
+                continue
+            if v is not None and not isinstance(v, str):
+                raise ValueError(f"{where}: `{k}` must be text, not {type(v).__name__} {v!r}")
+    return value
+
+
+def validate_ensure(label: str, ensure: Any) -> dict[str, Any]:
+    """Every ``ensure`` entry checked at load, one rule per kind (stage 63
+    item 16). A valid mapping comes back UNCHANGED except that an integer
+    file mode becomes its octal text: the lineage fingerprint hashes this
+    mapping, so a tree that was already valid keeps every fingerprint.
+
+    Refused: an unknown kind; a kind that is not a list (``packages: git``
+    iterated the letters); an entry of the wrong shape or with unknown keys
+    (a missing ``path`` or ``run`` was a ``KeyError`` at generation); a mode
+    that is not three or four octal digits; an integer mode above 0777 (an
+    unquoted ``644`` is the decimal number, not the mode); and an
+    ``ensure`` whose kinds are all empty (it loaded as ``idempotent:
+    declared`` and emitted nothing)."""
+    label = f"Bash modification '{label}'"
+    if ensure is None:
+        return {}
+    if not isinstance(ensure, dict):
+        raise ValueError(f"{label}: ensure must be a mapping of {sorted(ENSURE_KINDS)}, not {ensure!r}")
+    ensure = dict(ensure)
+    if not ensure:
+        return {}
+    unknown = set(ensure) - set(ENSURE_KINDS)
+    if unknown:
+        raise ValueError(f"{label}: unknown ensure keys {sorted(unknown)} (allowed: {sorted(ENSURE_KINDS)})")
+    for kind in ("packages", "services"):
+        if ensure.get(kind) is not None:
+            _names(label, kind, ensure[kind])
+    if ensure.get("files") is not None:
+        files = _entries(label, "files", ensure["files"], _FILE_KEYS, "path")
+        fixed: list[dict[str, Any]] = []
+        for i, f in enumerate(files):
+            if "mode" in f and f["mode"] is not None:
+                mode = f["mode"]
+                if isinstance(mode, int) and not isinstance(mode, bool) and not 0 <= mode <= 0o777:
+                    raise ValueError(f"{label}: ensure.files[{i}].mode {mode} is not a mode YAML could have "
+                                     f"read from octal (an unquoted `644` is the decimal number); quote it: \"0644\"")
+                text = _mode_text(mode)
+                if not _MODE_TEXT.match(text):
+                    raise ValueError(f"{label}: ensure.files[{i}].mode {mode!r} must be three or four octal digits")
+                f = {**f, "mode": text} if isinstance(mode, int) else f
+            fixed.append(f)
+        ensure["files"] = fixed
+    if ensure.get("commands") is not None:
+        _entries(label, "commands", ensure["commands"], _COMMAND_KEYS, "run")
+    if not any(ensure.get(k) for k in ENSURE_KINDS):
+        raise ValueError(f"{label}: ensure declares {sorted(ensure)} but every one is empty, so it would "
+                         f"emit nothing; remove `ensure` or give it an entry")
+    return ensure
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
@@ -47,10 +155,7 @@ class BashModItemModel(ModItemModel):
         super().__post_init__()
         self.script = [str(s) for s in (self.script or []) if str(s).strip()]
         self.scripts = [str(s) for s in (self.scripts or []) if str(s).strip()]
-        self.ensure = dict(self.ensure or {})
-        unknown = set(self.ensure) - {"packages", "files", "services", "commands"}
-        if unknown:
-            raise ValueError(f"Bash modification '{self.get_display_name()}': unknown ensure keys {sorted(unknown)}")
+        self.ensure = validate_ensure(self.get_display_name(), self.ensure)
         if not self.script and not self.scripts and not self.ensure:
             raise ValueError(
                 f"Bash modification '{self.get_display_name()}' must supply 'script' (inline lines), "
@@ -67,10 +172,16 @@ class BashModItemModel(ModItemModel):
         pkgs = [str(p) for p in self.ensure.get("packages", []) or []]
         if pkgs:
             joined = " ".join(pkgs)
+            # stage 63 item 16: the FIRST package manager that exists installs,
+            # and its failure is the failure (the old chain fell through dnf,
+            # yum and apt-get, so an EL host showed `apt-get: command not found`)
             out.append(f"for p in {joined}; do rpm -q \"$p\" >/dev/null 2>&1 || dpkg -s \"$p\" >/dev/null 2>&1 || "
-                       "{ command -v dnf >/dev/null 2>&1 && sudo dnf -y install \"$p\" || command -v yum >/dev/null 2>&1 && sudo yum -y install \"$p\" || sudo apt-get install -y \"$p\"; }; done")
+                       "if command -v dnf >/dev/null 2>&1; then sudo dnf -y install \"$p\"; "
+                       "elif command -v yum >/dev/null 2>&1; then sudo yum -y install \"$p\"; "
+                       "elif command -v apt-get >/dev/null 2>&1; then sudo apt-get install -y \"$p\"; "
+                       "else echo \"csis ensure: no dnf, yum or apt-get to install $p\" >&2; false; fi || exit 1; done")
         for f in self.ensure.get("files", []) or []:
-            path = str(f["path"]); content = str(f.get("content", "")); mode = str(f.get("mode", "0644"))
+            path = str(f["path"]); content = str(f.get("content", "")); mode = _mode_text(f.get("mode", "0644"))
             b64 = __import__("base64").b64encode(content.encode()).decode()
             out.append(f"printf '%s' '{b64}' | base64 -d > /tmp/.csis-ensure && "
                        f"( sudo cmp -s /tmp/.csis-ensure '{path}' || sudo install -m {mode} /tmp/.csis-ensure '{path}' ) && rm -f /tmp/.csis-ensure")

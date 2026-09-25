@@ -20,6 +20,14 @@ groups:
     members:
     - avery.alpha
     - casey.charlie
+  readers:
+    admins: []
+    builder: okta-groups-ro
+    gid_policy: creation-only
+    identity_type: okta
+    is_root: false
+    managed: false
+    members: []
   secofs:
     admins:
     - avery.alpha

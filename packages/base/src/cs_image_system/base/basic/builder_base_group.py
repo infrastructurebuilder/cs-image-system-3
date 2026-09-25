@@ -126,6 +126,14 @@ class GroupBuilderBase(BuilderBase[TGROUP]):
         enrollment trigger. Values must be public-safe (they are recorded)."""
         return {}
 
+    def manages_groups(self) -> bool:
+        """Whether this builder CREATES and owns its groups (stage 63 item
+        18). A lookup-only builder answers False: its groups are recorded
+        ``managed: false`` in the identity read-model, so the never-destroy
+        rule (N19) and the state query's drift rule leave them alone, as
+        they leave a group marked ``unmanaged: true``."""
+        return True
+
     def query_state(self) -> dict[str, dict[str, Any]]:
         """Reality check (EXPLORE state query): the identity provider's
         record of each group this builder manages, ``{group: {present, gid,

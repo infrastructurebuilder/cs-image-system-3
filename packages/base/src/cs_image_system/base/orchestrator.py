@@ -248,8 +248,12 @@ class TemplateResolver:
                 if target_cls is None:
                     raise KeyError(f"No concrete model registered for underlying deferred type '{true_type}'")
                 
-                # Swap the builder name for the canonical canonical_name so cattrs structure hook passes
-                mod_data["type"] = builder_name # target_cls.csis_name()
+                # Stage 63 item 15: the item's `type` becomes the BUILDER's own
+                # name, whatever the item wrote (its name, an alias, `default`
+                # or nothing). Every later reader looks mod builders up by name
+                # (the packer builder's ctx.mod_builders is a name-keyed map),
+                # so an alias kept here passed the load and failed at generation.
+                mod_data = {**mod_data, "type": str(builder_instance.get_name())}
                 
                 try:
                     # Structure the dict into the concrete dataclass

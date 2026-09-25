@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
+from typing import Any
 
 from packaging.specifiers import SpecifierSet
 from packaging.version import parse
@@ -488,6 +489,53 @@ def check_alias_pool(ctx: GlobalTypeContext) -> list[Exception]:
     return exs
 
 
+def check_state_backends_needed(ctx: GlobalTypeContext) -> list[Exception]:
+    """``use_state_backends: false`` is refused when any root would read a
+    producer's outputs (stage 63 item 19, decided 2026-09-25).
+
+    The flag gates the ``terraform_remote_state`` DATA SOURCES, but the
+    instance and storage builders write references to them unconditionally:
+    an instance root to every storage root with storages (the mounts) and to
+    the identity root of each instance's image group (the enrollment token,
+    the gids), a storage root to the identity roots whose gids its storages
+    carry. With the flag off such a root names data sources it never
+    declares, and ``tofu validate`` fails on it. Rather than a second,
+    stand-alone shape of every root, the flag off is refused here, naming
+    each root and what it reads; a tree with no producer at all (nothing
+    references anything) may still turn it off."""
+    from ..capabilities import group_builder_of
+    if bool((ctx.config or {}).get("use_state_backends", False)):
+        return []
+    needs: list[tuple[str, list[str]]] = []
+    storage_roots = sorted(n for n, sb in (ctx.storage_builders or {}).items()
+                           if getattr(getattr(sb, "model", None), "_storages", None))
+    for name, ib in sorted((ctx.instance_builders or {}).items()):
+        instances = list(getattr(ib, "_instances", None) or [])
+        if not instances:
+            continue
+        producers = set(storage_roots)
+        for inst in instances:
+            image = ctx.images_map.get(str(inst.image)) if getattr(inst, "image", None) else None
+            group = getattr(image, "group", None)
+            gb = group_builder_of(ctx, str(group)) if group else None
+            if gb is not None:
+                producers.add(gb.get_name())
+        if producers:
+            needs.append((name, sorted(producers)))
+    for name, sb in sorted((ctx.storage_builders or {}).items()):
+        identity = getattr(sb, "identity_workspaces", None)
+        if callable(identity):
+            found: Any = identity()                     # duck-typed hook: {workspace: builder}
+            ws = sorted(str(w) for w in (found or {}))
+            if ws:
+                needs.append((name, ws))
+    return [ValueError(
+        f"config.use_state_backends is false, but the root '{consumer}' reads "
+        f"{', '.join(repr(p) for p in producers)} through terraform remote state, which the flag "
+        f"turns off; set use_state_backends: true (with a declared state backend) or remove what it reads")
+        for consumer, producers in needs]
+
+
 def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     """The configuration checks, with no side effects on generated output:
     unique global ids, executables present and version-compliant, every
@@ -503,4 +551,5 @@ def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     exs.extend(check_availability_zones(ctx))
     exs.extend(check_alias_pool(ctx))
     exs.extend(check_canonical_hostnames(ctx))
+    exs.extend(check_state_backends_needed(ctx))
     return exs

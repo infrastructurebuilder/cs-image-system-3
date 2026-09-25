@@ -179,7 +179,7 @@ template scope: `{{ config.x }}` does not resolve in model fields).
 | `apply_storage` | bool or list[str] | `false` | let the storage roots apply |
 | `apply_instances` | bool or list[str] | `false` | let the instance roots apply |
 | `apply_release` | bool or list[str] | `false` | let the release lifecycle mark artifacts in the cloud |
-| `use_state_backends` | bool | `false` | emit terraform `backend` and remote-state blocks (needs real state locations). Required in effect: with it off, the instance and storage roots still reference the remote state they read gids, tokens and volume ids through, and a root with a group or a mount does not validate |
+| `use_state_backends` | bool | `false` | emit terraform `backend` and remote-state blocks (needs real state locations). Required in effect: the instance and storage roots read gids, tokens and volume ids through remote state, so `validate` (and every run) refuses the flag off when any root would read a producer, naming each root and what it reads (stage 63 item 19). Only a tree where nothing reads anything (no storages, no instance on a grouped image, no storage carrying a group) may turn it off |
 | `module_source_base` | str | `../tfmodules` | where generated `module` calls find the modules: a relative path is relative to the configuration root and rewritten for each root's depth; an absolute path or a git/registry URL passes through |
 | `admin_public_keys` | list[str] (a single string is accepted) | `[]` | OpenSSH public key lines for the mandatory local admin user of every base image; anything resembling private-key material is refused; per-base override on the OS builder |
 | `okta_gateway_selector` | str | none | fallback `gateway_selector` for an OPA group builder that sets none |
@@ -721,8 +721,8 @@ Key: `mod_builders`. A modification builder turns an image's
 
 `BashBuilderModel`. An item becomes one `provisioner "shell"` block, two
 when it carries both `scripts` and inline lines (packer forbids both
-arguments in one block), and none, with a warning, when its `ensure` lists
-are all empty.
+arguments in one block). An `ensure` whose lists are all empty is refused
+at load.
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
@@ -738,10 +738,11 @@ are all empty.
 `ModItemModel`
 ([`moditem_type.py`](../packages/base/src/cs_image_system/base/models/moditem_type.py))
 plus the builder type's fields. The item's `type` names a mod builder
-(its name, `default`, or omitted = the default mod builder; an alias
-loads and validates but fails at generation, since the image builder
-looks mod builders up by name; a code stage names the fix); the
-builder's type decides which item model applies.
+(its name, one of its `aliases:`, `default`, or omitted = the default
+mod builder). Whatever the item writes, the loader rewrites `type` to
+the builder's own name, so every later reader (the image builder looks
+mod builders up by name) sees one spelling; an unknown name is refused
+at load. The builder's type decides which item model applies.
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
@@ -752,7 +753,7 @@ builder's type decides which item model applies.
 | `playbooks` (ansible) | list[str] | `[]` | the playbooks this item runs, in order, paths relative to the configuration root (the builder has no playbooks of its own since stage 48.4). **Required in effect**: an item with no playbooks has nothing to modify with (`config:` alone provisions nothing) and is refused at load, by name |
 | `script` (bash-remote) | list[str] | `[]` | inline shell lines, run in order (no templating; literal) |
 | `scripts` (bash-remote) | list[str] | `[]` | script files, relative to the configuration root (resolved against the working directory, which the load sets to the root), copied beside the packer root |
-| `ensure` (bash-remote) | mapping | `{}` | declarative, idempotent steps: `packages: [..]`, `files: [{path, content, mode (0644)}]`, `services: [..]` (enabled and started), `commands: [{run, unless}]` (run only when `unless` fails); any other key is refused |
+| `ensure` (bash-remote) | mapping | `{}` | declarative, idempotent steps: `packages: [..]`, `files: [{path, content, mode (0644)}]`, `services: [..]` (enabled and started), `commands: [{run, unless}]` (run only when `unless` fails); any other key is refused, and every entry's shape is checked at load (a list where a list belongs, `path` and `run` present, a mode of three or four octal digits, not every kind empty). An unquoted `mode: 0644` is read by YAML as 420 and rendered back as `0644`; an unquoted `644` is refused. Packages install with the first of `dnf`, `yum`, `apt-get` the host has |
 
 A bash-remote item must give at least one of `script`, `scripts`,
 `ensure`. An item with only `ensure` is recorded as `idempotent: declared`;
