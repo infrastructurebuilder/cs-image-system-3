@@ -179,7 +179,7 @@ template scope: `{{ config.x }}` does not resolve in model fields).
 | `apply_storage` | bool or list[str] | `false` | let the storage roots apply |
 | `apply_instances` | bool or list[str] | `false` | let the instance roots apply |
 | `apply_release` | bool or list[str] | `false` | let the release lifecycle mark artifacts in the cloud |
-| `use_state_backends` | bool | `false` | emit terraform `backend` and remote-state blocks (needs real state locations). Required in effect: with it off, the instance and storage roots still reference the remote state they read gids, tokens and volume ids through, and a root with a group or a mount does not validate |
+| `use_state_backends` | bool | `false` | emit terraform `backend` and remote-state blocks (needs real state locations). Required in effect: the instance and storage roots read gids, tokens and volume ids through remote state, so `validate` (and every run) refuses the flag off when any root would read a producer, naming each root and what it reads (stage 63 item 19). Only a tree where nothing reads anything (no storages, no instance on a grouped image, no storage carrying a group) may turn it off |
 | `module_source_base` | str | `../tfmodules` | where generated `module` calls find the modules: a relative path is relative to the configuration root and rewritten for each root's depth; an absolute path or a git/registry URL passes through |
 | `admin_public_keys` | list[str] (a single string is accepted) | `[]` | OpenSSH public key lines for the mandatory local admin user of every base image; anything resembling private-key material is refused; per-base override on the OS builder |
 | `okta_gateway_selector` | str | none | fallback `gateway_selector` for an OPA group builder that sets none |

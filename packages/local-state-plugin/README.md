@@ -122,6 +122,9 @@ saying where each piece comes from.
   block, no `.tfbackend.hcl`, no remote-state data source, no
   `# state:` header line, and no record in
   `meta-state/state-locations.yaml`.
+  Off is itself refused by `validate` when any root would read another's
+  outputs through remote state (stage 63 item 19), so it is a shape only
+  for a tree where nothing reads anything.
 - **A tofu binary for the root, not for the backend.** The commands that
   touch the state (`init`, `plan`, `apply`, `state pull`) are the ROOT's:
   the identity, storage or instance builder's `executable:` names an

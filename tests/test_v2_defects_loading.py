@@ -185,3 +185,42 @@ def test_a_read_only_group_is_looked_up_and_never_drifts(tmp_path: Path, monkeyp
         assert not [d for d in drift if d.name == "readers"], drift
     finally:
         run.restore_cwd()
+
+
+# --------------------------- 19. use_state_backends: false with a producer
+
+def _state_backend_errors(root: Path, monkeypatch) -> list[str]:
+    from cs_image_system.base.commands.validate import collect_validation_errors
+    stub_environment(monkeypatch)
+    ctx = load_context(root)
+    try:
+        return [str(e) for e in collect_validation_errors(ctx) if "use_state_backends" in str(e)]
+    finally:
+        reset_singletons()
+
+
+def _set_flag(root: Path, value: bool) -> None:
+    cfg = root / "cfg" / "_config.yml"
+    text = cfg.read_text()
+    assert "use_state_backends: true" in text
+    cfg.write_text(text.replace("use_state_backends: true", f"use_state_backends: {str(value).lower()}"))
+
+
+def test_the_flag_off_is_refused_naming_every_root_that_reads_a_producer(tmp_path: Path, monkeypatch):
+    root = copy_config(tmp_path)
+    _set_flag(root, False)
+    errors = _state_backend_errors(root, monkeypatch)
+    assert errors, "the flag off loaded and validated with roots that read remote state"
+    import re
+    consumers = {re.search(r"the root '([^']+)'", e).group(1) for e in errors}   # type: ignore[union-attr]
+    # both instance roots read the storage roots and the identity root; the
+    # three storage roots whose storages carry group gids read the identity root
+    assert consumers == {"open-tofu", "tofu-gce", "aws-ebs", "aws-efs", "gcp-pd"}, errors
+    by_root = {re.search(r"the root '([^']+)'", e).group(1): e for e in errors}   # type: ignore[union-attr]
+    assert "'oktagroups'" in by_root["aws-ebs"] and "'aws-ebs'" in by_root["open-tofu"]
+    assert all("set use_state_backends: true" in e for e in errors)
+
+
+def test_the_flag_on_raises_nothing(tmp_path: Path, monkeypatch):
+    root = copy_config(tmp_path)
+    assert _state_backend_errors(root, monkeypatch) == []
