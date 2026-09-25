@@ -92,7 +92,11 @@ def _storage_on(ctx, builder: str) -> Any:
     return found[0]
 
 
-def test_the_generated_archive_and_wipe_scripts_run_the_declared_gcloud(ctx):
+def test_the_generated_archive_and_wipe_scripts_run_the_declared_gcloud(tmp_path: Path, monkeypatch):
+    # a COPY: the scripts are written under the context's generation path,
+    # which for the frozen fixture would be inside tests/fixtures/config
+    stub_environment(monkeypatch)
+    ctx = load_context(copy_config(tmp_path))
     from cs_image_system.base.models.storage import (STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED,
                                                      STORAGE_STATE_DESTROYED)
     pd = ctx.storage_builders["gcp-pd"]
@@ -107,6 +111,8 @@ def test_the_generated_archive_and_wipe_scripts_run_the_declared_gcloud(ctx):
     (wipe,) = gcs.transition_actions(bucket, STORAGE_STATE_ACTIVE, STORAGE_STATE_DESTROYED)
     body = (ctx.generation_path / wipe.working_directory / wipe.args[0]).read_text()
     assert f"out=$({DECLARED} storage rm" in body, body
+    assert str(tmp_path) in str(ctx.generation_path)
+    reset_singletons()
 
 
 def test_the_bucket_lookup_runs_the_declared_gcloud(ctx, monkeypatch):
