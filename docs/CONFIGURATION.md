@@ -721,8 +721,8 @@ Key: `mod_builders`. A modification builder turns an image's
 
 `BashBuilderModel`. An item becomes one `provisioner "shell"` block, two
 when it carries both `scripts` and inline lines (packer forbids both
-arguments in one block), and none, with a warning, when its `ensure` lists
-are all empty.
+arguments in one block). An `ensure` whose lists are all empty is refused
+at load.
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
@@ -753,7 +753,7 @@ at load. The builder's type decides which item model applies.
 | `playbooks` (ansible) | list[str] | `[]` | the playbooks this item runs, in order, paths relative to the configuration root (the builder has no playbooks of its own since stage 48.4). **Required in effect**: an item with no playbooks has nothing to modify with (`config:` alone provisions nothing) and is refused at load, by name |
 | `script` (bash-remote) | list[str] | `[]` | inline shell lines, run in order (no templating; literal) |
 | `scripts` (bash-remote) | list[str] | `[]` | script files, relative to the configuration root (resolved against the working directory, which the load sets to the root), copied beside the packer root |
-| `ensure` (bash-remote) | mapping | `{}` | declarative, idempotent steps: `packages: [..]`, `files: [{path, content, mode (0644)}]`, `services: [..]` (enabled and started), `commands: [{run, unless}]` (run only when `unless` fails); any other key is refused |
+| `ensure` (bash-remote) | mapping | `{}` | declarative, idempotent steps: `packages: [..]`, `files: [{path, content, mode (0644)}]`, `services: [..]` (enabled and started), `commands: [{run, unless}]` (run only when `unless` fails); any other key is refused, and every entry's shape is checked at load (a list where a list belongs, `path` and `run` present, a mode of three or four octal digits, not every kind empty). An unquoted `mode: 0644` is read by YAML as 420 and rendered back as `0644`; an unquoted `644` is refused. Packages install with the first of `dnf`, `yum`, `apt-get` the host has |
 
 A bash-remote item must give at least one of `script`, `scripts`,
 `ensure`. An item with only `ensure` is recorded as `idempotent: declared`;
