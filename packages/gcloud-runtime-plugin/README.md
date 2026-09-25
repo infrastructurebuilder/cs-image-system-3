@@ -102,7 +102,7 @@ Fields it adds:
 | `default_disk_size` | `int \| None` | `None` | Boot disk size in GB for every image baked on this runtime; wins over the image's `primary_disk_size`. A GCE instance's boot disk is exactly its image's disk. |
 | `bake_preemptible` | `bool` | `False` | Bake on a preemptible (spot) VM; a preempted bake re-runs. |
 | `state_configuration` | `str` | `DEFAULT` | Foreign key to a state backend. The storage and instance roots on this runtime resolve their backend as their own builder's `state_configuration`, else this value, else the default backend (`validate` resolves the bindings the same way). |
-| `ssh_username` | `str` | `DEFAULT` | When set, the bake's SSH user for every image baked here. |
+| `ssh_username` | `str` | `DEFAULT` | The bake's SSH user for images here that name none more specifically: step 4 of the bake-user order ([CONFIGURATION 5.1.1](../../docs/CONFIGURATION.md#511-the-bake-ssh-user)). Until stage 63 it overrode every entry. |
 | `session_mechanism` | `str \| None` | `None` | `iap` is the only value. The model accepts any string; the builder's `session_mechanism()` raises on anything else the first time a run or `validate` asks for it. |
 | `networking` | `GCPCloudNetworkingModel \| None` | `None` | Narrows the base type and makes it optional. Missing networking logs a warning at load. |
 | `network_map` | `dict` | discovered | Not an init field. `{network: {"subnets": [...]}}` from the project. |
@@ -119,8 +119,8 @@ Base fields it inherits, and what this runtime does with them:
 | `credentials` | `RuntimeBuilderModel` | `CredentialsBase()` | Not narrowed. The base declares no fields and forbids extra keys, so `credentials:` accepts nothing; clients use Application Default Credentials. |
 | `default_machine_type` | `RuntimeBuilderModel` | required | Machine type when neither an OS-builder runtime entry nor an image names one; always the instance module's `machine_type`. |
 | `default_image_builder` | `RuntimeBuilderModel` | `DEFAULT` | The image builder an OS-builder runtime entry with `image_builder: default` resolves to. |
-| `default_owners` | `RuntimeBuilderModel` | `None` | Appended to every vendor-image query's owner list (through the runtime entry's `get_owners()`), then mapped to projects. |
-| `default_config_username` | `RuntimeBuilderModel` | `None` | Fallback SSH user for OS-builder runtime entries that declare none. |
+| `default_owners` | `RuntimeBuilderModel` | `None` | Appended to every vendor-image query's owner list (through the runtime entry's `get_owners()`), then mapped to projects. The lookup that reads it keyed the runtime by the wrong name until stage 63 item 22, so it was never found before 2026-09-25. |
+| `default_config_username` | `RuntimeBuilderModel` | `None` | The bake SSH user when nothing more specific names one: step 5 of the bake-user order ([CONFIGURATION 5.1.1](../../docs/CONFIGURATION.md#511-the-bake-ssh-user)), read since stage 63 item 22. |
 | `ephemeral` | `RuntimeBuilderModel` | `False` | See "Retention and the GCE cycle". The fixture's `gcloud-east1` is ephemeral. |
 | `retention_keep` | `RuntimeBuilderModel` | `None` | Builds kept per series when the image declares no retention. |
 | `on_failure`, `teardown_after` | `RuntimeBuilderModel` | `None` | Runtime-level defaults for ephemeral instances. |
@@ -156,7 +156,7 @@ hooks. In the order a run reaches them:
 | Image generation, `validate` | `session_mechanism()` | `iap` or `None`; raises on any other declared value. Also read by the launch-parameter record (`session`), by the instance builder (no public IP under `iap`) and by `validate`'s dead-end rule (a base image with no admin key AND no session mechanism). |
 | Image generation | `session_agent_commands(os_family)` | Installs `google-guest-agent` when missing (`apt-get` for `debian`/`ubuntu`, `yum` otherwise) and enables it together with `sshd`/`ssh`. Empty when the mechanism is not `iap`. |
 | Image generation | `session_verify_commands(os_family)` | Assertions that the guest agent is present and enabled. Empty when the mechanism is not `iap`. |
-| Image generation | `bake_ssh_username()` | The model's `ssh_username` when set, else `packer`; the ansible provisioner names this user. |
+| Image generation | `default_bake_user(family)`, `bake_ssh_username(image)`, `one_bake_user_per_chain()` | `default_bake_user` is `packer` for every family (the last step of the bake-user order). `bake_ssh_username(image)` is the RESOLVED user for that image, the one the packer source bakes as, and the ansible provisioner names it (stage 63 item 23; it read only the runtime's field and said `packer` otherwise). `one_bake_user_per_chain()` is True, so `validate` refuses a chain whose images resolve to different users (finding 43). |
 | Image generation | `bake_finalize_commands(os_family)` | The last provisioner of every bake here: adds the build user to `google-sudoers` when that group exists, so the guest agent's first-boot user cleanup succeeds and metadata SSH keys get provisioned. Emitted whatever the session mechanism. |
 | After a bake | `build_id_from_artifact(artifact_id)` | The packer manifest's `artifact_id` is the image name itself; returned unchanged. |
 | After a bake | `retag_image(image_id, tags)` | The packer builder stamps the recorded `csis_parent` and `csis_fingerprint` back onto the image (zero-drift-report). |
@@ -534,13 +534,13 @@ plugin's model accepts, and who reads it:
 | `default_disk_size` | int or null | null | the packer source's `disk_size` in GB; null falls back to the image's `primary_disk_size` |
 | `bake_preemptible` | bool | false | `preemptible = true` on the packer source |
 | `state_configuration` | str | `default` | the state backend rung between a root's own and the default backend |
-| `ssh_username` | str | `default` | the bake's ssh user for every image here; `default` means: the OS-builder runtime entry's `ssh_username`, else `packer` |
+| `ssh_username` | str | `default` | the bake's ssh user for images that name none more specifically (step 4 of the bake-user order, CONFIGURATION 5.1.1); with nothing named anywhere, `packer` |
 | `session_mechanism` | str or null | null | `iap`, or nothing; any other string is refused by the builder when first read |
 | `default_machine_type` | str | required | the bake's `machine_type` when the OS-builder runtime entry names none, and always the instance module's `machine_type` |
 | `default_image_builder` | str | `default` | the image builder an OS-builder runtime entry with `image_builder: default` resolves to |
 | `default_owners` | list[str] or null | null | extra owners for every vendor-image query on this runtime, resolved to projects |
 | `credentials` | mapping | `{}` | must be empty; any key is a validation error |
-| `default_config_username` | str or null | null | the ssh user for OS-builder runtime entries that declare none |
+| `default_config_username` | str or null | null | the bake ssh user when no image entry, OS entry, `config_username` or runtime `ssh_username` names one (stage 63 item 22) |
 | `ephemeral` | bool | false | every image baked here is disposed by the closing retention lifecycle |
 | `retention_keep` | int or null | null | builds kept per series when the image declares no `retention`; null keeps all |
 | `on_failure` | str or null | null | ephemeral default: `keep` or `teardown` |
@@ -575,7 +575,7 @@ Fields the plugin reads from YAML it does not own:
 |---|---|---|
 | the OS builder's runtime entry (`os_builders[].runtimes[]`) | `owners`, `query.filters`, `query.owners` | the image query |
 | the same entry | `machine_type`, `default_machine_type` | the packer source's `machine_type`, before the runtime default |
-| the same entry | `ssh_username` | the packer source's `ssh_username`, unless the runtime declares one |
+| the same entry | `ssh_username` | the packer source's `ssh_username` and the ansible provisioner's `user`, for this OS and every image built on it, whatever the runtime declares |
 | the image | `primary_disk_size` | `disk_size` when the runtime declares no `default_disk_size` |
 | the image | `source_image`, `parent_policy`, the pin | `source_image` (pinned or resolved) or `source_image_family` (deferred) |
 | `cfg/executables.yml` | the `gcloud` entry's `binary` and `version` | the version checker |
@@ -618,11 +618,13 @@ and any key inside `credentials:`.
   size and the image's `primary_disk_size` is ignored. Null: the image's
   own value (which inherits the OS builder's default; 200 GB in the frozen
   fixture's lineage) is emitted.
-- **`ssh_username` set vs `default`.** Set: the packer source and the
-  ansible provisioner both name it, for every image on the runtime. Default:
-  the OS-builder runtime entry's `ssh_username`, else `packer` (the packer
-  source), while the ansible provisioner user is always `packer` in that
-  case (`bake_ssh_username()` reads only the runtime's field).
+- **`ssh_username` set vs `default`.** Either way the packer source and
+  the ansible provisioner name the same user, the one the bake-user order
+  resolves: an entry's user wins over this field, this field over the
+  runtime's `default_config_username`, and with nothing named anywhere it
+  is `packer`. Before stage 63 the runtime's value overrode the entry, and
+  with it unset the provisioner said `packer` even when the entry named
+  another user.
 - **`network: default` vs a name.** `default` is replaced at load by the
   network named `default` and the packer source emits no `network` line;
   a named network is checked to exist and emitted as `network`.
@@ -872,14 +874,16 @@ docstrings'.
   defaulted `ansible_user` to the operator's local login, not the build
   VM's ssh user, so ansible built `~/.ansible/tmp` under
   `/home/<local-user>`; intermittent because packer's `use_proxy`
-  auto-detection masked it. `bake_ssh_username()` pins the provisioner
-  `user` to the bake's user (`packer`, or the runtime's `ssh_username`).
+  auto-detection masked it. `bake_ssh_username(image)` pins the provisioner
+  `user` to the bake's user, the one the packer source resolves (since
+  stage 63 item 23; it read only the runtime's field before).
 - **2026-09-04 -- the base bake used ssh user `ec2-user` while the
   instance bake fell back to `packer` (finding 43).** The new-generation
   guest agent removes the other-name user at first boot and aborts key
   provisioning; one GCE chain must bake every image as ONE user. Declare
-  `ssh_username` on the runtime, or on every OS-builder runtime entry of
-  the chain.
+  `ssh_username` on the OS-builder runtime entry (it covers the chain), or
+  on the runtime. Since stage 63 `validate` refuses a chain whose images
+  would bake as different users, and the GCE family default is `packer`.
 - **2026-09-03 -- a dask bake fell through to the runtime's 1 GB machine
   and OOMed at 65 minutes (finding 41).** The packer source's
   `machine_type` now follows the AWS-parity chain: the OS-builder runtime

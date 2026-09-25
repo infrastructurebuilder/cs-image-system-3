@@ -786,8 +786,9 @@ predates the change.
 (AWS plugin, found live, before the public history).** Only the vendor
 image's default user receives Packer's key; the AWS source now derives
 `ssh_username` from the chain's ROOT base family (`admin` for Debian,
-`ubuntu` for Ubuntu, `ec2-user` otherwise) unless the subconfig or the
-runtime sets one. Symptom: `Timeout waiting for SSH` over the SSM tunnel
+`ubuntu` for Ubuntu, `ec2-user` otherwise) unless something names one,
+the last step of the bake-user order every source follows since stage 63
+([CONFIGURATION 5.1.1](../../docs/CONFIGURATION.md#511-the-bake-ssh-user)). Symptom: `Timeout waiting for SSH` over the SSM tunnel
 on an AWS bake of an image whose base is Debian. See
 [aws-runtime-plugin](../aws-runtime-plugin/README.md).
 
@@ -848,7 +849,9 @@ Failures the code raises that have not happened in a recorded run:
   runtime hooks it calls:
   [builder_base_runtime.py](../base/src/cs_image_system/base/basic/builder_base_runtime.py)
   (`packer_source_type`, `packer_source_blocks`, `build_id_from_artifact`,
-  `session_agent_commands`, `bake_ssh_username`).
+  `session_agent_commands`, `bake_ssh_username`, `default_bake_user`,
+  `one_bake_user_per_chain`); the bake user itself comes from
+  [bake_user.py](../base/src/cs_image_system/base/bake_user.py).
 - Provisioner helpers in this package:
   [v2_provisioners.py](src/cs_image_system/packer_plugin/v2_provisioners.py)
   (admin user, prerequisites, activation),

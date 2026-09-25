@@ -184,14 +184,14 @@ class OsBuilderBase(BuilderBase[TOS]):
                 # land, which is why the dmt comment above still holds; its
                 # "default_machine_type" twin never did.
             }
-            ssun = os_img_subconfig.get_ssh_username() or DEFAULT
-            if ssun == DEFAULT:
-                log.warning(f"No ssh_username specified for runtime {img_bldr.get_display_name()} in OS builder {self.get_display_name()}, using default value.")
-                fam = self.get_family().lower()
-                # The vendor AMI's default user: the only account whose
-                # authorized_keys receives packer's temporary key.
-                ssun = {"debian": "admin", "ubuntu": "ubuntu"}.get(fam, "ec2-user")
-            log.debug(f"Adding ssh_username variable for runtime {img_bldr.get_display_name()} in OS builder {self.get_display_name()}")
+            # stage 63 item 22: the one resolver (entry, config_username, the
+            # runtime's ssh_username and default_config_username, the family
+            # user); this used to take the entry or a hard-coded AWS vendor
+            # map, never the two config_username fields
+            from ..bake_user import resolve_for_entry
+            ssun = resolve_for_entry(ctx, self, os_img_subconfig, str(image_builder_runtime),
+                                     what=f"OS builder {self.get_display_name()}")
+            log.debug(f"Bake user for OS builder {self.get_display_name()} on {image_builder_runtime}: {ssun}")
             rtcm_map["ssh_username"] = ssun
             # rtcm = cvt.structure(rtcm_map, OSRuntimeConfigModel)
             # template_resolver.flatten_dataclass(rtcm) # Flatten the dataclass to resolve any templates in the fields

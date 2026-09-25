@@ -100,7 +100,7 @@ class AnsiblePackerModBuilder(ModBuilderBase[Q]):
             bake_user = None
             rtb = ctx.runtime_builders.get(str(ibb.model.get_runtime_provider())) if ibb else None
             if rtb is not None:
-                bake_user = rtb.bake_ssh_username()
+                bake_user = rtb.bake_ssh_username(image)   # stage 63 item 23: the source's own user
             if bake_user:
                 retval.add(path, f"  user = \"{bake_user}\"")
             extra = list(self.model.extra_arguments or [])

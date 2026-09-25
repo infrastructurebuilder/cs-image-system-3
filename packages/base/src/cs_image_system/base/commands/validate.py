@@ -557,6 +557,58 @@ def check_state_backends_needed(ctx: GlobalTypeContext) -> list[Exception]:
         for consumer, producers in needs]
 
 
+def check_bake_users(ctx: GlobalTypeContext) -> list[Exception]:
+    """Every bake user resolves, and a chain that must share one does (stage
+    63 item 23, decided 2026-09-25).
+
+    Each OS builder entry and each image's runtime entry is resolved through
+    ``cs_image_system.base.bake_user`` at validate, so a user nothing can
+    name is refused here rather than midway through generation. On a runtime
+    that needs ONE user per chain (GCE, finding 43), an image whose own
+    runtime entry names a user other than its chain root's is refused, naming
+    both: that pair used to bake as two users and break metadata key setup at
+    the instance's first boot."""
+    from ..bake_user import entry_for_runtime, resolve_bake_user, resolve_for_entry, root_os_builder
+    exs: list[Exception] = []
+    for name, osb in sorted((ctx.os_builders or {}).items()):
+        for entry in osb.get_configs_for_image_builders().values():
+            ib = ctx.image_builders.get(entry.get_image_builder())
+            if ib is None:
+                continue
+            try:
+                resolve_for_entry(ctx, osb, entry, str(ib.model.get_runtime_provider()),
+                                  what=f"OS builder {name}")
+            except ValueError as e:
+                exs.append(e)
+    for name, image in sorted((ctx.images_map or {}).items()):
+        if name in (ctx.os_builders or {}):
+            continue
+        for runtime in sorted(getattr(image, "_runtime_map", None) or {}):
+            rtb = ctx.runtime_builders.get(str(runtime))
+            if rtb is None:
+                continue
+            try:
+                user = resolve_bake_user(ctx, image, str(runtime))
+            except ValueError as e:
+                exs.append(e)
+                continue
+            if not rtb.one_bake_user_per_chain():
+                continue
+            osb = root_os_builder(ctx, image)
+            if osb is None:
+                continue
+            try:
+                root_user = resolve_for_entry(ctx, osb, entry_for_runtime(ctx, osb, str(runtime)), str(runtime))
+            except ValueError:
+                continue                        # reported above, on the OS builder
+            if user != root_user:
+                exs.append(ValueError(
+                    f"image '{name}' bakes as '{user}' on runtime {runtime} but its chain root "
+                    f"'{osb.get_name()}' bakes as '{root_user}': runtime {runtime} needs one ssh user "
+                    f"for every image of a chain (finding 43); name the same user on both, or neither"))
+    return exs
+
+
 def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     """The configuration checks, with no side effects on generated output:
     unique global ids, executables present and version-compliant, every
@@ -573,4 +625,5 @@ def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     exs.extend(check_alias_pool(ctx))
     exs.extend(check_canonical_hostnames(ctx))
     exs.extend(check_state_backends_needed(ctx))
+    exs.extend(check_bake_users(ctx))
     return exs

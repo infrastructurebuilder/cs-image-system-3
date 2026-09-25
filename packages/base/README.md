@@ -212,7 +212,7 @@ Per-kind bases add a contract:
 
 | Base class            | Classification     | Notable members |
 | ----------------------- | -------------------- | ----------------- |
-| `RuntimeBuilderBase`  | `RUNTIME_BUILDER`  | `query_provider_image`, `query_images`, `verify_instance`, `run_session_command`, `inventory`, `dispose_image`, `retag_image`, `packer_source_type`, `packer_source_blocks`, `build_id_from_artifact`, `session_mechanism`, `session_agent_commands`, `session_verify_commands`, `bake_finalize_commands`, `bake_ssh_username`, `release_commands`, `session_instance_profile`, `provider_specific_image_class`, `create_provider_specific_image_resolved` / `_deferred`; and the gated reality hooks, each behind a `can_*` predicate so an unsupported cloud makes no claim: `can_query_instance_boot_image` / `query_instance_boot_image`, `can_query_instance_power_state` / `query_instance_power_state` (the vocabulary of [`power_state.py`](src/cs_image_system/base/power_state.py); `None` means "cannot answer", never "stopped"), `can_set_instance_power_state` / `start_instance` / `stop_instance`, `can_query_instance_identity` / `query_instance_identity` (`instance_id`, `provider_hostname`). |
+| `RuntimeBuilderBase`  | `RUNTIME_BUILDER`  | `query_provider_image`, `query_images`, `verify_instance`, `run_session_command`, `inventory`, `dispose_image`, `retag_image`, `packer_source_type`, `packer_source_blocks`, `build_id_from_artifact`, `session_mechanism`, `session_agent_commands`, `session_verify_commands`, `bake_finalize_commands`, `bake_ssh_username(image)`, `default_bake_user(family)` and `one_bake_user_per_chain()` (stage 63: the last step of the bake-user order and the GCE one-user rule), `release_commands`, `session_instance_profile`, `provider_specific_image_class`, `create_provider_specific_image_resolved` / `_deferred`; and the gated reality hooks, each behind a `can_*` predicate so an unsupported cloud makes no claim: `can_query_instance_boot_image` / `query_instance_boot_image`, `can_query_instance_power_state` / `query_instance_power_state` (the vocabulary of [`power_state.py`](src/cs_image_system/base/power_state.py); `None` means "cannot answer", never "stopped"), `can_set_instance_power_state` / `start_instance` / `stop_instance`, `can_query_instance_identity` / `query_instance_identity` (`instance_id`, `provider_hostname`). |
 | `CloudBuilderBase` / `ContainerBuilderBase` | runtime | Thin subclasses of `RuntimeBuilderBase`. |
 | `GroupBuilderBase`    | `GROUP_BUILDER`    | `identity_type()`, `gid_policy()` (`config-time`, `creation-only`, `provider-assigned`), `manages_groups()` (stage 63: `False` for a lookup-only builder, whose groups the read-model records `managed: false` and which comes after a managing builder of its type), `managed_groups()`, `enrollment_token_reference()`, `base_image_prerequisites()`, `verify_commands()`, `activation_commands()`, `activation_verify_commands()`, `launch_parameters()`, `query_state()`, `validate_attributes()`, `query_attributes()`, `attribute_conflicts()`, `export_gids()`; the server registry (stage 55): `can_query_servers()`, `registered_servers(group)` (`None` when the provider could not be asked, never an empty list), `retire_servers_named(group, hostname)`; `prune_stale_attachments(tofu, run_id, cwd)` (stage 61, a runner step, default no-op); and the CI login policy (stage 56): `can_manage_workload_access()`, `workload_access_expected(group)`, `workload_access_state(group)`, `ensure_workload_access(group)`. |
 | `UserBuilderBase`     | `USER_BUILDER`     | `add_user_to_builder()` enforces `email_as_username`; `default_managed()`, `is_managed()`, `validate_user()`, `validate_attributes()`, `query_attributes()`. |
@@ -437,9 +437,9 @@ directory. Names must be unique.
 | ------- | ------ | --------- | --------- |
 | `default_machine_type` | `str` | required | Machine type when nothing more specific is given. |
 | `default_image_builder` | `str` (fk `IMAGE_BUILDER_MODEL`) | `default` | Image builder used for bakes on this runtime. |
-| `default_owners` | `list[str] \| None` | `None` | Owners added to vendor image queries. |
+| `default_owners` | `list[str] \| None` | `None` | Owners added to vendor image queries, between the OS builder's and the entry's (reached since stage 63 item 22: the entry's lookup keyed the runtime by the image builder's name). |
 | `credentials` | `CredentialsBase` | empty | Declared object; each plugin narrows it to its own subclass, so an unknown key is an error. Values name a profile or read the environment; no credential value belongs in the tree. |
-| `default_config_username` | `str \| None` | `None` | Fallback SSH user for bakes. |
+| `default_config_username` | `str \| None` | `None` | Step 5 of the bake-user order ([bake_user.py](src/cs_image_system/base/bake_user.py); CONFIGURATION 5.1.1). |
 | `ephemeral` | `bool` | `False` | Nothing baked here survives a successful run; the retention lifecycle disposes every image. Declared storages are never touched. |
 | `retention_keep` | `int \| None` | `None` | Builds per series kept for images that declare no `retention`. `None` keeps everything. |
 | `on_failure` | `str \| None` | `None` | Runtime default for ephemeral instances: `keep` or `teardown`. |
@@ -485,7 +485,7 @@ live credentials for each.
 | `owners` | `list[str]` | `[]` | Vendor image owners. |
 | `query` | `dict[str, Any]` | `{}` | Vendor image query (provider-specific filters). |
 | `runtimes` | `list[OSBuilderBaseImageBuilderSubconfig]` | required, at least one | One entry per image builder to bake on. `image_builder` must be unique across entries. |
-| `config_username` | `str \| None` | `None` | Sudo-capable user for provisioning. |
+| `config_username` | `str \| None` | `None` | Step 3 of the bake-user order: the sudo-capable user on this OS's vendor image, for every runtime whose entry names none. |
 | `auto_update` | `bool` | `False` | Alias for `update.policy: full`. |
 | `update` | `dict \| None` | `None` | Update policy (below); takes precedence over `auto_update`. |
 | `identity_types` | `list[str]` | `[]` | Identity types this base image carries (see [Capabilities](#capabilities)). |
@@ -510,7 +510,7 @@ live credentials for each.
 | `tags` | mapping | `{}` | Merged over the OS builder's tags. |
 | `owners` | `list[str]` | `[]` | Added to the OS builder's and the runtime's default owners. |
 | `query` | mapping | `{}` | Merged over the OS builder's query. |
-| `ssh_username` | `str` | `default` | Falls back to the OS builder's `config_username`, then the runtime's `default_config_username`; an error when none is set. |
+| `ssh_username` | `str` | `default` | Step 2 of the bake-user order; unset, the order continues with the OS builder's `config_username`, the runtime's `ssh_username` and `default_config_username`, then the runtime's family default, and refuses when none answers. The entry's `finalize()` no longer fills it (it had no caller, and would have put `config_username` ahead of the runtime's `ssh_username`). |
 | `tests` | mapping or `None` | `None` | When set, replaces the OS builder's tests for bakes on this runtime. |
 
 Aliases are refused on subconfig entries.

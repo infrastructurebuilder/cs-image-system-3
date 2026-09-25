@@ -209,12 +209,27 @@ class RuntimeBuilderBase(BuilderBase[TypeVar("T", bound=RuntimeBuilderModel)]):
         stopped. True when it is stopped at return."""
         raise NotImplementedError(f"{self.__class__.__name__} cannot stop instances")
 
-    def bake_ssh_username(self) -> str | None:
+    def default_bake_user(self, family: str) -> str | None:
+        """The last step of the bake-user order (stage 63 item 22, see
+        ``cs_image_system.base.bake_user``): the user a build VM of this OS
+        family is reached as on this runtime when nothing names one. None =
+        this runtime cannot say, and the resolver refuses."""
+        return None
+
+    def one_bake_user_per_chain(self) -> bool:
+        """Whether every image of a chain must bake as the SAME user on this
+        runtime (GCE, finding 43: the guest agent removes a stale other-name
+        user at boot and, when that fails, aborts metadata key setup). When
+        True, ``validate`` refuses a chain whose images resolve differently."""
+        return False
+
+    def bake_ssh_username(self, image=None) -> str | None:
         """The ssh user packer's build VM is reached as on this runtime, for
         provisioners that must name it explicitly (the ansible provisioner
         otherwise defaults to the operator's LOCAL login — finding 48).
-        None = the runtime declares no fixed bake user, and provisioners keep
-        their own default (the AWS path, unchanged)."""
+        None = provisioners keep their own default (the AWS path, unchanged).
+        A runtime that returns a user returns the RESOLVED one for ``image``
+        (stage 63 item 23), the same the packer source bakes as."""
         return None
 
     def release_commands(self, build_id: str, tags: dict[str, str]):

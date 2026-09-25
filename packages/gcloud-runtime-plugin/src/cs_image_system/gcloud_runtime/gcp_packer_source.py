@@ -109,15 +109,13 @@ def googlecompute_source(model: Any, image: Any, *, runtime: str, source_type: s
         c["disk_size"] = int(rt_disk)
     elif image.primary_disk_size:
         c["disk_size"] = int(image.primary_disk_size)
-    sshun = self_subconfig.get_ssh_username() if self_subconfig else None
-    if model.ssh_username and model.ssh_username not in OOPS_DEFAULTS:
-        sshun = model.ssh_username
-    if not sshun or sshun in OOPS_DEFAULTS:
-        # googlecompute has no default and creates the account from metadata
-        # keys, so any name works (found live: an instance-image subconfig
-        # resolves no username and packer refuses the source without one)
-        sshun = "packer"
-    c["ssh_username"] = sshun
+    # stage 63 items 22-23: the one resolver, the same the ansible provisioner
+    # asks (the runtime's ssh_username used to override the entry here, and
+    # the provisioner never read the entry); `packer` is the family default
+    # on GCE (googlecompute creates the account from metadata keys)
+    from cs_image_system.base.bake_user import resolve_bake_user
+    from cs_image_system.base.global_context import GlobalTypeContext
+    c["ssh_username"] = resolve_bake_user(GlobalTypeContext(), image, runtime)
     networking = getattr(model, "networking", None)
     if networking is not None:
         if getattr(networking, "network", None) and networking.network not in OOPS_DEFAULTS:

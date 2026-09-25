@@ -344,9 +344,9 @@ image, instance and storage builders) add:
 | --- | --- | --- | --- |
 | `default_machine_type` | str | required | the machine type for bakes and instances that name none |
 | `default_image_builder` | str | `default` | accepted and checked as a foreign key to an image builder; not read: an image's runtime entry that names no `image_builder` (or names `default`) resolves to the registry's default image builder, not to this field |
-| `default_owners` | list[str] or null | null | meant to join the owners of every vendor image query made for this runtime; unreachable in practice, since the lookup that would read it keys the runtime by the image builder's name and never finds it (a code stage names the fix); until then an OS builder entry's own `owners` is what a query uses |
+| `default_owners` | list[str] or null | null | joins the owners of every vendor image query made for this runtime: an OS builder entry's owners are the builder's, then these, then the entry's own, without repeats (stage 63 item 22; the lookup that should have read it keyed the runtime by the wrong name until 2026-09-25) |
 | `credentials` | mapping | `{}` | provider-specific (4.3, 4.4); an unknown key is refused |
-| `default_config_username` | str or null | null | meant as the ssh user for bakes when neither the OS builder nor its runtime entry names one; unreachable in practice, for the same reason as `default_owners` (the fallback that would read it never runs); the bake user that applies is the OS family's (`admin`, `ubuntu`, `ec2-user`), overridden by the runtime's own `ssh_username` |
+| `default_config_username` | str or null | null | the bake ssh user for images on this runtime when nothing more specific names one: step 5 of the bake-user order (5.1.1); read since stage 63 item 22 |
 | `ephemeral` | bool | `false` | nothing baked here survives a successful run: the closing `retention` lifecycle disposes every image on this runtime. Declared storages are never touched. |
 | `retention_keep` | int or null | null | how many builds per image series survive on this runtime when the image declares no `retention`; null keeps all |
 | `on_failure` | str or null | null | runtime default for ephemeral instances: `keep` or `teardown` |
@@ -367,7 +367,7 @@ image, instance and storage builders) add:
 | `iam_instance_profile` | str or null | null | instance profile attached to build VMs when `session_instance_profile` is unset; with both set the SSM profile wins |
 | `session_mechanism` | str or null | null | `ssm`: bakes and debug sessions go through SSM (the agent is baked into base images) |
 | `session_instance_profile` | str or null | null | the profile attached to launched instances for SSM sessions |
-| `ssh_username` | str | `default` | override of the bake ssh user |
+| `ssh_username` | str | `default` | the bake ssh user for every image on this runtime that names none more specifically: step 4 of the bake-user order (5.1.1). Until stage 63 it overrode every entry |
 | `networking` | mapping or null | null | 4.5 with the AWS additions |
 | `credentials` | mapping | `{}` | `AwsCredentials`: `profile_name`, `aws_access_key_id`, `aws_secret_access_key`, `aws_session_token` (all str or null). Values belong in the environment: name a profile, or carry `{{ ENV['…'] }}` templates. |
 
@@ -389,7 +389,7 @@ session.
 | `default_disk_size` | int or null | null | bake disk size in GB for every image baked here (a GCE boot disk is exactly its image's disk); null uses the image's own value |
 | `bake_preemptible` | bool | `false` | bake on preemptible (spot) build VMs |
 | `state_configuration` | str | `default` | a state backend (section 10); `default` inherits the runtime's, else the default backend |
-| `ssh_username` | str | `default` | override of the bake ssh user |
+| `ssh_username` | str | `default` | the bake ssh user for every image on this runtime that names none more specifically: step 4 of the bake-user order (5.1.1); with nothing named anywhere, GCE bakes as `packer` |
 | `session_mechanism` | str or null | null | `iap` is the only supported value; with none declared, every session command (post-bake verify, unmount, the alias writer) is refused naming the field |
 | `executable` | str or null | `gcloud` | the `cfg/executables.yml` entry every gcloud call on this runtime runs through (sessions, inventory, the GCP storage lookups and scripts); `validate` refuses it undeclared |
 | `networking` | mapping or null | null | 4.5 with `network_tags` |
@@ -519,7 +519,7 @@ Types: `rhel` (dnf; adds `subscription_id`), `fedora` (dnf), `debian`
 | `owners` | list[str] | `[]` | image owners for the vendor-image query (`self`, `amazon`, an account id, `almalinux-cloud`) |
 | `query` | mapping | `{}` | the vendor-image query: `filters:` by provider field (`name`, `state`, `root_device_type`, `architecture`, `virtualization_type`); the newest match is the source |
 | `runtimes` | list | required, at least one | one entry per image builder (5.1); `image_builder` unique within the list |
-| `config_username` | str or null | null | meant as the sudo-capable ssh user for provisioning; accepted, not read in practice: its only reader is a finalize step nothing calls |
+| `config_username` | str or null | null | the sudo-capable ssh user on this OS's vendor image, for every runtime whose entry names none: step 3 of the bake-user order (5.1.1); read since stage 63 item 22 |
 | `auto_update` | bool | `false` | alias for `update: {policy: full}` when `update` is absent |
 | `update` | mapping | null | 5.2 |
 | `identity_types` | list[str] | `[]` | identity types this base bakes prerequisites for (`okta`); an instance image whose group's builder is of another type is refused |
@@ -550,9 +550,47 @@ Types: `rhel` (dnf; adds `subscription_id`), `fedora` (dnf), `debian`
 | `tags` | mapping[str, str] | `{}` | merged over the builder's tags |
 | `owners` | list[str] | `[]` | appended to the builder's owners |
 | `query` | mapping | `{}` | merged over the builder's query, key by key |
-| `ssh_username` | str | `default` | the bake ssh user on this runtime; left at default it falls back to the OS family's user (`admin`, `ubuntu`, `ec2-user`), the runtime's own `ssh_username` overrides it, and GCE substitutes `packer` when nothing resolves |
+| `ssh_username` | str | `default` | the bake ssh user on this runtime, for this OS and every image built on it: step 2 of the bake-user order (5.1.1), ahead of anything the runtime says |
 | `tests` | mapping or null | null | when set, **replaces** the builder's `tests` for bakes on this runtime |
 | `tags`, `config` | | | accepted (`config` is not read); `aliases` are refused |
+
+#### 5.1.1 The bake ssh user
+
+Packer reaches every build VM as one ssh user, and on GCE the ansible
+provisioner must connect as the same one. Since stage 63 (items 22 and 23,
+2026-09-25) one function decides it,
+[`bake_user.py`](../packages/base/src/cs_image_system/base/bake_user.py),
+and every reader asks it: both packer sources, the GCE ansible provisioner
+and the OS builder that fills a base image's entry. The first of these that
+names a user wins; `default` counts as naming none:
+
+1. the image's own `runtimes[]` entry `ssh_username` (11.2.1), for that
+   image alone;
+2. the chain root OS builder's `runtimes[]` entry `ssh_username` (5.1), for
+   that OS on that runtime, and so for every image built on it;
+3. that OS builder's `config_username` (5), for that OS on every runtime;
+4. the runtime's `ssh_username` (4.3, 4.4);
+5. the runtime's `default_config_username` (4.2);
+6. the runtime's default for the OS family: on AWS the vendor image's user
+   (`admin` for Debian, `ubuntu` for Ubuntu, `ec2-user` otherwise), on GCE
+   `packer` (googlecompute makes the account from metadata keys, so any
+   name works).
+
+When none answers, `validate` refuses, naming the places a user could be
+set. The more specific setting always wins, on AWS and GCE alike; before
+stage 63 the runtime's `ssh_username` overrode every entry, the two
+`config_username` fields were read by nothing, and the GCE ansible
+provisioner connected as the runtime's user or `packer` even when the entry
+named another, so the source and the provisioner could disagree.
+
+**One user per GCE chain.** A GCE build VM keeps the user it was baked as,
+and at the next image's first boot the guest agent removes a user that is
+not in its metadata; when that removal fails it abandons key setup and
+packer cannot log in (finding 43). So on GCE every image of a chain must
+resolve to the same user as its chain root, and `validate` refuses an image
+whose own `runtimes[]` entry names a different one. Naming the user on the
+OS builder's GCE entry, as the reference configuration does
+(`ssh_username: packer`), covers the whole chain.
 
 ### 5.2 `update`
 
@@ -1319,7 +1357,7 @@ owned by exactly one group.
 | --- | --- | --- | --- |
 | `image_builder` | str | `default` | the image builder; its runtime is the runtime of this bake |
 | `machine_type` | str or null | null | the bake machine type; null uses the runtime's default |
-| `ssh_username` | str | `default` | the bake ssh user on this runtime |
+| `ssh_username` | str | `default` | the bake ssh user for this image on this runtime: step 1 of the bake-user order (5.1.1); on GCE it must match the chain root's |
 | `image_identifier` | str or null | null | a fixed provider image id to bake from instead of the pinned parent |
 | `owners` | list[str] | `[self]` | owners for the parent-image query |
 | `tags` | mapping[str, str] | `{}` | merged over the builder's and the image's |

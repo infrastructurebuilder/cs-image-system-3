@@ -140,9 +140,10 @@ calls, in order:
      `test -x`, so the second and later playbooks of an image re-run it
      as a no-op;
    - a `provisioner "ansible"` with `only`, `playbook_file = "<playbook>"`,
-     `user = "<name>"` when the runtime declares a bake SSH user
-     (`bake_ssh_username()`; the GCE runtime says its `ssh_username` or
-     `packer`, the AWS runtime says nothing), `extra_arguments = [<builder
+     `user = "<name>"` when the runtime names the bake SSH user to
+     provisioners (`bake_ssh_username(image)`; the GCE runtime answers the
+     user the packer source resolves for that image, the AWS runtime
+     answers nothing), `extra_arguments = [<builder
      extra_arguments>..., "-e",
      "ansible_python_interpreter=/usr/local/bin/csis-ansible-python"]`,
      `connection_type` when `ansible_connection` is set, and
@@ -300,8 +301,11 @@ no environment variable. What must exist outside the system:
   `/usr/bin/python3.N` present, then `python3`; a target with no Python at
   all fails at fact gathering.
 - **The build VM's SSH user**, on runtimes that fix one: the GCE runtime
-  builder's `bake_ssh_username()` (its `ssh_username`, else `packer`) is
-  written as the provisioner's `user`. The AWS runtime returns `None` and
+  builder's `bake_ssh_username(image)`, the user the packer source bakes
+  that image as (the bake-user order, CONFIGURATION 5.1.1), is written as
+  the provisioner's `user`. Before stage 63 it read only the runtime's
+  `ssh_username` and said `packer` otherwise, so an entry-level user baked
+  as itself while ansible connected as `packer`. The AWS runtime returns `None` and
   the provisioner keeps packer's default (the communicator's user). Nothing
   else is needed from the runtime.
 - **Reaching the build VM** is the runtime's and the image builder's
@@ -347,7 +351,7 @@ Python side: Python 3.13 or later, `pydantic>=2.13`, and
 ### Variations
 
 - **Runtime.** When the image builder's runtime declares a bake SSH user
-  (GCE: `ssh_username` when set, else `packer`), the provisioner carries
+  (GCE: the image's resolved bake user), the provisioner carries
   `user = "<that>"`; when it does not (AWS), no `user` line is emitted and
   packer's default applies. The `only` label follows the image builder's
   source type (`amazon-ebs.` or `googlecompute.`).
@@ -487,7 +491,7 @@ Failures that have happened, newest first:
   `use_proxy` auto-detection masked it until it flipped to direct mode.
   Fix: the `user = "<bake ssh user>"` line, emitted when the runtime
   declares one (GCE). If the symptom appears on a runtime that returns
-  `None` from `bake_ssh_username()`, that runtime needs the hook, not the
+  `None` from `bake_ssh_username(image)`, that runtime needs the hook, not the
   playbook.
 - **Stage 1 (before 2026-09-02, the first AWS bakes on RHEL 8): fact
   gathering died with "The module interpreter..."** because the target's

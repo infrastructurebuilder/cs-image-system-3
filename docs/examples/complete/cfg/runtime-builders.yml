@@ -25,8 +25,8 @@ runtime_builders:
       # aws_session_token: "{{ ENV['AWS_SESSION_TOKEN'] }}"
     default_machine_type: t3.medium   # 4.2: required; bakes and instances that name none
     default_image_builder: pckr-ebs-ans   # 4.2: the image builder an image's runtime entry defaults to
-    default_owners: null           # 4.2: accepted; not read by the cloud plugins
-    default_config_username: ec2-user   # 4.2: the bake ssh user when neither the OS builder nor its runtime entry names one
+    default_owners: null           # 4.2: owners every vendor-image query on this runtime adds (after the OS builder's, before the entry's)
+    default_config_username: ec2-user   # 4.2: the bake ssh user when no image entry, OS entry, config_username or runtime ssh_username names one (CONFIGURATION 5.1.1)
     ephemeral: false               # 4.2: durable -- nothing baked here is disposed by the closing retention lifecycle
     retention_keep: 3              # 4.2: builds per image series that survive here when the image declares no `retention`
     on_failure: keep               # 4.2: runtime default for ephemeral instances that fail verification (`keep` or `teardown`)
@@ -37,7 +37,7 @@ runtime_builders:
     iam_instance_profile: REPLACE-ME-bake-profile   # 4.3: instance profile attached to BUILD VMs
     session_mechanism: ssm         # 4.3: bakes and debug sessions through SSM
     session_instance_profile: REPLACE-ME-ssm-profile   # 4.3: the profile launched INSTANCES wear for SSM sessions
-    ssh_username: default          # 4.3: override of the bake ssh user (`default` = none)
+    ssh_username: default          # 4.3: the bake ssh user for images that name none more specifically (`default` = none; CONFIGURATION 5.1.1)
     networking:                    # 4.5, with the AWS additions
       name: main-vpc               # a label (defaults to the network)
       network: vpc-REPLACE-ME-east2   # the VPC id; `default` resolves to the account's default VPC
@@ -100,7 +100,7 @@ runtime_builders:
     default_disk_size: 10          # 4.4: bake disk GB for every image baked here (a boot disk is exactly its image's disk)
     bake_preemptible: true         # 4.4: spot build VMs; a preempted bake re-runs
     state_configuration: default   # 4.4: the GCE roots keep their state in the default (S3) backend by decision
-    ssh_username: default          # 4.4
+    ssh_username: default          # 4.4: as on AWS; with nothing named anywhere, GCE bakes as `packer`
     session_mechanism: iap         # 4.4: the only supported value
     credentials: {}                # 4.4: the empty base -- ADC only; any key here is refused
     # 4.2: ephemeral -- the closing retention lifecycle disposes every image

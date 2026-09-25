@@ -13,7 +13,7 @@ os_builders:
     description: "AlmaLinux 10, the Red Hat family, on both clouds"
     architecture: x86_64           # `default` = x86_64
     default_primary_disk_size: 200 # GB; the default for images built from this base (`default` = 200)
-    config_username: null          # the sudo-capable ssh user on the vendor image (null: the runtime entry's ssh_username, then the runtime's default_config_username)
+    config_username: null          # the sudo-capable ssh user on the vendor image, for every runtime whose entry names none (bake-user order, CONFIGURATION 5.1.1: image entry, OS entry, this, runtime ssh_username, runtime default_config_username, family default)
     admin_user: csisadmin          # the mandatory local admin user (default csisadmin; may not be empty)
     admin_public_keys: null        # per-base override of config.admin_public_keys (null: the global list)
     local_test_image: almalinux:10 # the container standing in for this OS in local mod tests (default derived: almalinux:10)
