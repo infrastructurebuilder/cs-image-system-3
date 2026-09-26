@@ -652,3 +652,20 @@ until the operator says which items to do.
    after it lands, unless the change restamps them); the second touches
    only ephemeral runtimes. A test first: plan, bake, dispose the parent,
    plan again, and assert the child is current.
+   **Decided (USER, 2026-09-25): option one**, in three parts. (a) The
+   fingerprint's `parent` becomes the parent image's own input
+   fingerprint on that runtime (computable from the tree with no lineage
+   record, since a base image hashes from its OS builder model), never a
+   build id; `vendor` and `series:` stand-ins go. (b) A follow move
+   becomes its own bake reason: under `parent_policy: follow`, a pin
+   behind the parent series' head on that runtime (the condition the
+   state query already reports as `stale`) bakes the child, so a parent
+   re-baked from identical inputs (`refresh_days`) is still followed; the
+   two live images on `follow` are `imgfile-basic-dask` and
+   `imgfile-coops-model`. (c) Landing it moves every recorded child
+   fingerprint once; the operator absorbs that with one `lineage restamp
+   --runtime <rt> --commit` per runtime (an operator statement, recorded
+   under `fingerprint_restamped`), never a re-bake. The test: plan, bake,
+   dispose the parent, plan again, the child is current; and a follow
+   child whose parent's head moved with an unchanged fingerprint is due.
+   Proof: one GCE cycle whose bake plan shows dask `skip: current`.
