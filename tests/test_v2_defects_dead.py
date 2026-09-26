@@ -477,3 +477,42 @@ def test_a_modification_with_no_builder_and_no_default_is_a_named_refusal(tmp_pa
         assert ("names no builder" in message or "No default builder found in mod_builder list" in message), message
     finally:
         reset_singletons()
+
+
+# ------------------------------------------------------ 7. the bash plugin
+
+def test_bash_configuration_user_runs_the_lines_as_that_user(tmp_path: Path, monkeypatch):
+    root = copy_config(tmp_path)
+    _edit(root / "cfg" / "mod-builders.yml",
+          lambda d: _mod_builder(d, "bash-remote").update(configuration_user="modder"))
+    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    try:
+        assert run.run(["base-image", "instance-image"], apply=False).ok
+        text = "".join(p.read_text() for p in run.generated.rglob("*build.pkr.hcl") if "instance-image" in str(p))
+        assert "sudo su - modder -c" in text, "the shell provisioner runs the item as the user"
+    finally:
+        run.restore_cwd()
+
+
+def test_bash_configuration_user_and_execute_command_together_are_refused():
+    from cs_image_system.bash_mod_plugin.bash_models import BashModBuilderModel
+    with pytest.raises(Exception, match="declare one"):
+        BashModBuilderModel(name="b", type="bash-remote", configuration_user="u", execute_command="x")
+
+
+def test_bash_extra_arguments_is_refused():
+    from cs_image_system.bash_mod_plugin.bash_models import BashModBuilderModel
+    with pytest.raises(Exception, match="extra_arguments"):
+        BashModBuilderModel(name="b", type="bash-remote", extra_arguments=["-x"])
+
+
+def test_the_on_image_bundle_replays_the_ensure_lines_first(tmp_path: Path, monkeypatch):
+    run = V2Run(tmp_path, monkeypatch)
+    try:
+        assert run.run(["base-image", "instance-image"], apply=False).ok
+        scripts = [p for p in run.generated.rglob("inline.sh") if "derivative-setup" in str(p)]
+        assert scripts, "the bundle carries the derivative-setup item"
+        body = scripts[0].read_text()
+        assert "for p in git;" in body and body.index("for p in git;") < body.index("echo 'derivative setup'"), body
+    finally:
+        run.restore_cwd()

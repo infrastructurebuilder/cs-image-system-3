@@ -107,7 +107,10 @@ def stage_local_mods(ctx: "GlobalTypeContext", image: Any, block_dir: Path,
                 continue
             shutil.copy2(found, d / found.name)
             files.append(found.name)
-        inline = list(getattr(mod, "script", None) or [])
+        # stage 63: the guarded `ensure` lines come first, the order the bake ran
+        # them, so `csis-mods rerun` re-applies the declarative form too
+        ensure = mod.ensure_lines() if callable(getattr(mod, "ensure_lines", None)) else []
+        inline = list(ensure) + list(getattr(mod, "script", None) or [])
         if inline:
             (d / "inline.sh").write_text("#!/bin/sh\nset -eu\n" + "\n".join(inline) + "\n")
             files.append("inline.sh")
