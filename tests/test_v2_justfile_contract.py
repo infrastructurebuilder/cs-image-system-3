@@ -27,10 +27,14 @@ CONTRACT = ["init", "build", "test", "full-test", "release"]
 
 def _recipes() -> dict[str, tuple[str, str]]:
     """name -> (dependency text, body) in file order, from the Justfile source."""
+    return _recipes_of(REPO / "Justfile")
+
+
+def _recipes_of(path: Path) -> dict[str, tuple[str, str]]:
     out: dict[str, tuple[str, str]] = {}
-    lines = (REPO / "Justfile").read_text().splitlines()
+    lines = path.read_text().splitlines()
     i = 0
-    header = re.compile(r"^([A-Za-z_][\w-]*)((?:\s+\*?[\w-]+(?:=\"[^\"]*\")?)*)\s*:(?!=)\s*(.*)$")   # `*ARGS` too
+    header = re.compile(r"^([A-Za-z_][\w-]*)((?:\s+[*+]?[\w-]+(?:=\"[^\"]*\")?)*)\s*:(?!=)\s*(.*)$")   # `*ARGS`, `+LIFECYCLES` too
     while i < len(lines):
         m = header.match(lines[i])
         if m and not lines[i].startswith(("set ", "export ", "#")):
@@ -68,8 +72,9 @@ def test_build_wraps_uv_build_and_the_gates_hold():
     # session renewal); full-test is the bar and then those legs, so its closure does it all
     assert "full-test-legs" in _closure(r, "full-test")
     legs = "\n".join(r[n][1] for n in _closure(r, "full-test"))
-    for needle in ("just test-mods --strict", "just preflight", "run --all", "state query --strict", "cs-image-system-3/tfmodules"):
+    for needle in ("just test-mods --strict", "just preflight", "run --all", "state query --strict", "--exclude=./_private"):
         assert needle in legs, needle
+    assert "cs-image-system-3/tfmodules" not in legs, "stage 64: the reference configuration carries its own tfmodules"
     assert legs.count("SKIPPED") >= 2                         # docker leg, credential legs
     deps, body = r["release"]
     # stage 41: the gate follows the index -- the bar for a development release to
@@ -81,6 +86,11 @@ def test_build_wraps_uv_build_and_the_gates_hold():
         assert needle in body, needle
     assert "uv version" not in body and "UV_PUBLISH_URL" not in body and "SKIPPED" not in body   # the tag is no longer the release
     assert "git push" not in body.replace("push with: git push", "")   # nothing is pushed by the recipe
+
+
+def _starter() -> dict[str, tuple[str, str]]:
+    """The recipes of the starter Justfile the release ships (stage 64), where the cycle recipes live."""
+    return _recipes_of(REPO / "docs" / "examples" / "complete" / "Justfile")
 
 
 def _closure(recipes: dict[str, tuple[str, str]], name: str) -> set[str]:
@@ -107,25 +117,27 @@ def test_the_live_configuration_never_reaches_the_fast_suite_and_is_guarded_else
     r = _recipes()
     assert "config_root" not in r["test"][1] and "config_root" not in r["init"][1]
     for n in _closure(r, "test") | _closure(r, "init") | _closure(r, "build"):
-        assert "{{config_root}}" not in r[n][1] and "{{gce_cli}}" not in r[n][1], n
-    drivers = {n for n, (_, body) in r.items() if "{{config_root}}" in body or "{{gce_cli}}" in body}
-    assert drivers >= {"cli", "v2-dry-run", "test-mods", "preflight", "cloud-preflight", "full-test-legs", "release"}
+        assert "{{config_root}}" not in r[n][1] and "{{live_cli}}" not in r[n][1], n
+    drivers = {n for n, (_, body) in r.items() if "{{config_root}}" in body or "{{live_cli}}" in body}
+    assert drivers >= {"cli", "test-mods", "preflight", "full-test-legs", "release"}
+    # stage 64: the cycle recipes live in a configuration repository's Justfile (the release ships it)
+    assert not {"cloud-cycle", "cloud-perform", "cloud-launch", "ci-login-proof", "sft-install", "v2-dry-run",
+                "config-drift", "runtime-unchanged", "gce-cycle"} & set(r), sorted(set(r))
     for n in drivers - {"config-guard"}:
         closure = _closure(r, n)
         inline = any("cfg/_config.yml" in r[m][1] for m in closure)
         assert "config-guard" in closure or inline, n
     assert "exit 2" in r["config-guard"][1] and "tests/fixtures/config" in r["config-guard"][1]
-    # config-drift: the committed emission versus a fresh dry run, run-local noise ignored
-    deps, body = r["config-drift"]
-    assert "config-guard" in deps.split()
-    # stage 64: the recipe is the CLI's config-drift; the normaliser is its module
-    assert "cs-image-system --root-dir" in body and body.strip().endswith("config-drift")
+    # config-drift: the CLI's command (stage 64), reached here as `just cli config-drift`; the normaliser is its module
+    s = _starter()
+    deps, body = s["config-drift"]
+    assert body.strip().endswith("config-drift")
     normaliser = (REPO / "packages" / "base" / "src" / "cs_image_system" / "base" / "commands" / "emission.py").read_text()
     for needle in ("<RUN>", "<STAMP>", "RUN_LOCAL_FILENAMES", ".terraform.lock.hcl", "archive"):
         assert needle in normaliser, needle
     assert "<ROOT>" not in body + normaliser and "s#--root-dir" not in body + normaliser   # stage 38: an absolute path in the emission IS drift
     assert not re.search(r"cs-image-system .*--commit", body)   # it never records anything
-    assert "--undeclare instance:gce-test" in r["gce-decommission"][1] and "--overlay" not in r["gce-decommission"][1]
+    assert "--undeclare instance:{{instance}}" in s["cloud-decommission"][1] and "--overlay" not in s["cloud-decommission"][1]
 
 
 # ------------------------------------------------------------- preflight
@@ -177,9 +189,12 @@ def test_preflight_fails_on_a_credential_that_is_set_but_empty(monkeypatch, tmp_
 def test_the_looser_ci_recipe_is_gone_and_the_tofu_executing_recipes_take_the_lock():
     r = _recipes()
     assert "ci" not in r, "`just ci` (pyright non-blocking) must not return: `just test` is the bar"
-    for name in ("cloud-bake", "cloud-cycle", "cloud-launch", "gce-decommission", "v2-dry-run"):
-        assert "--locked" in r[name][1], name                            # may execute the roots (stage 64: the CLI's lock)
-    for name in ("config-drift", "cloud-preflight", "test", "pytest", "golden-regen"):
+    s = _starter()
+    for name in ("cloud-bake", "cloud-cycle", "cloud-launch", "cloud-decommission", "run", "release"):
+        assert "--locked" in s[name][1], name                            # may execute the roots (stage 64: the CLI's lock)
+    for name in ("config-drift", "cloud-preflight", "dry", "record", "validate"):
+        assert "--locked" not in s[name][1], f"{name} never starts tofu and must not contend"
+    for name in ("test", "pytest", "golden-regen", "full-test-legs", "fixture-live"):
         assert "--locked" not in r[name][1], f"{name} never starts tofu and must not contend"
     assert not (REPO / "scripts" / "with-tofu-lock").exists()
 
@@ -189,18 +204,19 @@ def test_the_performing_recipe_and_the_runtime_guard_hold_their_shape():
     bakes, releases and retention from CI; it is scoped to the runtime, real,
     committed and locked. `runtime-unchanged` compares a runtime's emission
     across records with the same normaliser config-drift uses."""
-    r = _recipes()
-    body = r["cloud-perform"][1]
+    s = _starter()
+    body = s["cloud-perform"][1]
     for needle in ("--locked", "--no-dry-run", "run base-image instance-image release retention",
                    "--only-runtime {{runtime}}", "--commit"):
         assert needle in body, needle
     assert "--apply-runtime" not in body and "--all" not in body       # bakes, releases, retention: roots plan and gate only
-    for name, (_, recipe) in r.items():
+    for name, (_, recipe) in list(_recipes().items()) + list(s.items()):
         assert "--migrate-state" not in recipe, f"{name}: a state migration is the operator's act through `just cli`, never a recipe's (stage 46)"
-    assert "cloud-preflight" in r["cloud-perform"][0]
-    guard = r["runtime-unchanged"][1]
+    assert "cloud-preflight" in s["cloud-perform"][0]
+    guard = s["runtime-unchanged"][1]
     assert "runtime-unchanged {{runtime}} --ref {{ref}}" in guard          # stage 64: the CLI's command
-    assert "config-drift" in r["config-drift"][1]
+    assert "config-drift" in s["config-drift"][1]
+    assert s["record"][1].strip().endswith("run --all --commit") and "--locked" not in s["record"][1]
     assert not (REPO / "scripts" / "normalise-emission").exists()
     text = (REPO / "packages" / "base" / "src" / "cs_image_system" / "base" / "commands" / "emission.py").read_text()
     assert "RUN_LOCAL_FILENAMES" in text and "[0-9]{8}[-_][0-9]{6}" in text

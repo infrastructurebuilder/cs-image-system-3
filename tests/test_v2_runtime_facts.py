@@ -100,32 +100,46 @@ def test_apply_runtime_lets_that_runtimes_roots_apply_and_the_check_carries_it(r
 
 # ------------------------------------------ the recipes are effective (operator)
 
-def _justfile_cli_invocations() -> list[tuple[int, list[str]]]:
-    """Every `{{gce_cli}} ...` or `uv run cs-image-system ...` invocation in the Justfile as argv, with just's
-    templates reduced: `{{ if … }}` → its first quoted literal, `{{name}}` → X."""
+JUSTFILES = {"Justfile": "{{live_cli}}",                                            # the developer's (stage 64)
+             "docs/examples/complete/Justfile": "{{cli}}"}                          # a configuration repository's
+
+
+def _justfile_cli_invocations() -> list[tuple[str, list[str]]]:
+    """Every `{{live_cli}} ...`/`{{cli}} ...` or `uv run cs-image-system ...` invocation in this
+    repository's Justfile and in the starter Justfile the release ships (stage 64: the cycle recipes
+    moved there) as argv, with just's templates reduced: `{{ if … }}` → its first quoted literal,
+    `{{name}}` → X."""
     import re
     import shlex
     out = []
-    for no, line in enumerate((Path(__file__).resolve().parents[1] / "Justfile").read_text().splitlines(), 1):
-        if ":=" in line:                                       # a variable definition, not a call
-            continue
-        if "{{gce_cli}}" in line:
-            text = line.split("{{gce_cli}}", 1)[1]
-        elif "uv run cs-image-system " in line:                  # the contract recipes (stage 16)
-            text = line.split("uv run cs-image-system ", 1)[1]
-        else:
-            continue
+    for rel, var in JUSTFILES.items():
+        for lineno, line in enumerate((Path(__file__).resolve().parents[1] / rel).read_text().splitlines(), 1):
+            no = f"{rel}:{lineno}"
+            if ":=" in line:                                       # a variable definition, not a call
+                continue
+            if var in line:
+                text = line.split(var, 1)[1]
+            elif "uv run cs-image-system " in line:                  # the contract recipes (stage 16)
+                text = line.split("uv run cs-image-system ", 1)[1]
+            else:
+                continue
+            out.append((no, text))
+    return [(no, argv) for no, argv in ((no, _argv(text)) for no, text in out) if argv is not None]
+
+
+def _argv(text: str) -> list[str] | None:
+    import re
+    import shlex
+    if True:
         text = re.sub(r"\{\{\s*if.*?\{\s*\"([^\"]*)\"\s*\}.*?\}\}", r"\1", text)   # {{ if … { "--x" } … }}
         text = re.sub(r"\{\{[^}]*\}\}", "X", text)
-        text = text.split("2>")[0].split("|")[0].rstrip(")")
+        text = text.split("2>")[0].split("|")[0].split(";")[0].split(">")[0].rstrip(") ")
         argv = shlex.split(text)
         if argv[:1] == ["--root-dir"]:                            # the global option every call carries
             argv = argv[2:]
         if argv == ["X"]:                                       # `just cli <anything>`: the operator's argv, nothing to check
-            continue
-        out.append((no, argv))
-    assert out
-    return out
+            return None
+        return argv
 
 
 def test_every_justfile_recipe_calls_the_cli_with_options_it_actually_has():
@@ -153,7 +167,7 @@ def test_every_justfile_recipe_calls_the_cli_with_options_it_actually_has():
             if tok.startswith("--"):
                 name = tok.split("=", 1)[0]
                 if name not in allowed:
-                    problems.append(f"Justfile:{no}: `{name}` is not an option of `{cmd.name or 'cs-image-system'}` "
+                    problems.append(f"{no}: `{name}` is not an option of `{cmd.name or 'cs-image-system'}` "
                                     f"(line: {' '.join(argv)})")
                 elif allowed[name] and "=" not in tok:
                     i += 1                                              # skip the option's value
@@ -161,8 +175,8 @@ def test_every_justfile_recipe_calls_the_cli_with_options_it_actually_has():
                 cmd = cmd.commands[tok]
                 allowed = {**options(root), **options(cmd)}
             elif isinstance(cmd, TyperGroup) and cmd is root:
-                problems.append(f"Justfile:{no}: unknown command `{tok}`")
+                problems.append(f"{no}: unknown command `{tok}`")
             i += 1
         if isinstance(cmd, TyperGroup):
-            problems.append(f"Justfile:{no}: `{cmd.name or 'cs-image-system'}` needs a subcommand")
+            problems.append(f"{no}: `{cmd.name or 'cs-image-system'}` needs a subcommand")
     assert not problems, "\n".join(problems)

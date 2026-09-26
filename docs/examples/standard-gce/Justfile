@@ -137,6 +137,12 @@ cloud-stand runtime dry="no": cloud-preflight
 cloud-launch runtime dry="no": cloud-preflight
 	@{{cli}} --locked {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run instance-image --only none --apply-runtime {{runtime}} --commit
 
+# Gated destroy of ONE instance of the runtime: INSTANCE is undeclared for this invocation alone (the tree is
+# untouched), so a leftover standing machine is destroyed through the gate instead of re-verified; a dry
+# run keeps the record. `cloud-dispose-images` afterwards is the runtime's full teardown.
+cloud-decommission runtime instance dry="no": cloud-preflight
+	@{{cli}} --locked {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} --undeclare instance:{{instance}} run instance-image --only none --apply-runtime {{runtime}} --commit
+
 # Verify a standing instance through the system; `sft` adds the login proof through the managed policy
 cloud-verify runtime instance leg="serial":
 	#!/usr/bin/env bash
@@ -178,7 +184,7 @@ ci-login-proof *ARGS:
 	#!/usr/bin/env bash
 	set -euo pipefail
 	if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
-		OPA_TOKEN="$({{cli}} workload token)"
+		OPA_TOKEN=$({{cli}} workload token)
 		export OPA_TOKEN
 	else
 		echo "ci-login-proof: not a GitHub Actions job -- logging in as the enrolled client, not the workload" >&2

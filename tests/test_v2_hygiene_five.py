@@ -376,12 +376,14 @@ def test_the_grace_is_only_for_the_series_head_that_was_verified_in_bake(run):
 
 
 def test_the_upgrade_recipe_is_the_second_release_procedure_with_the_rule_left_on():
-    text = (REPO / "Justfile").read_text()
+    # stage 64: the cycle recipes live in a configuration repository's Justfile, which the release ships
+    text = (REPO / "docs" / "examples" / "complete" / "Justfile").read_text()
+    assert "cloud-upgrade" not in (REPO / "Justfile").read_text()
     body = text[text.index("cloud-upgrade runtime instance"):]
     body = body[:body.index("\n\n")]
     lines = [ln.strip() for ln in body.splitlines()]
     assert lines[0].endswith(": cloud-preflight"), "never starts on a false belief or a lapsing session"
-    assert any(ln.startswith("{{gce_cli}} upgrade instance {{instance}}") for ln in lines)
+    assert any(ln.startswith("{{cli}} upgrade instance {{instance}}") for ln in lines)
     order = [next(i for i, ln in enumerate(lines) if key in ln) for key in
              ("upgrade instance", "just cloud-launch {{runtime}}", "just cloud-verify {{runtime}} {{instance}}",
               "run release --only-runtime {{runtime}}")]

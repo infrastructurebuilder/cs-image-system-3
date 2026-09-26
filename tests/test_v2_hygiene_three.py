@@ -161,6 +161,8 @@ def test_the_cache_dir_recipe_is_a_dependency_of_nothing():
     text = (REPO / "Justfile").read_text()
     deps = re.findall(r"^[\w-]+(?:\s+[^:\n]*)?:\s*([^\n]*tofu-cache-dir[^\n]*)$", text, flags=re.M)
     assert deps == [], deps
+    assert "tofu-cache-dir" not in text, "stage 64: the recipe is gone; `--locked` creates the cache directory"
+    assert "TF_PLUGIN_CACHE_DIR" in text                     # still exported for every tofu init
     assert "lock.parent.mkdir(parents=True, exist_ok=True)" in (
         REPO / "packages" / "base" / "src" / "cs_image_system" / "base" / "tofu_lock.py").read_text()   # stage 64: the lock creates it
 
