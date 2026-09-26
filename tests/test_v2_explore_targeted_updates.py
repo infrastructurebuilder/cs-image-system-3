@@ -89,8 +89,10 @@ def test_apt_family_realizes_every_policy():
     assert any("security" in c and "--only-upgrade" in c for c in sec)
     assert sec[-1] == "sudo apt-mark unhold 'linux-image*'"
     pkgs = AptOsBuilderModel.commands_for_policy(m, UpdatePolicy.from_config({"policy": "packages", "packages": ["curl"], "pin": {"openssl": "3.0.2-0ubuntu1"}}))
-    assert "sudo apt-get install -y --only-upgrade curl" in pkgs
-    assert "sudo apt-get install -y --allow-downgrades 'openssl=3.0.2-0ubuntu1' && sudo apt-mark hold 'openssl'" in pkgs
+    # stage 63: every apt command waits for the dpkg lock
+    assert "sudo apt-get -o DPkg::Lock::Timeout=600 install -y --only-upgrade curl" in pkgs
+    assert ("sudo apt-get -o DPkg::Lock::Timeout=600 install -y --allow-downgrades 'openssl=3.0.2-0ubuntu1' "
+            "&& sudo apt-mark hold 'openssl'") in pkgs
     assert AptOsBuilderModel.commands_for_policy(m, UpdatePolicy.from_config(None)) == []
 
 

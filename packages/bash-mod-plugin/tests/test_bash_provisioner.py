@@ -16,6 +16,8 @@ def _builder(**model_fields):
     fields = {"execute_command": None, "environment_vars": [], "expect_disconnect": False}
     fields.update(model_fields)
     model = SimpleNamespace(**fields)
+    # stage 63: the builder asks the model how the script runs
+    model.effective_execute_command = lambda: model.execute_command
     b = BashModBuilder.__new__(BashModBuilder)
     b._model = model  # type: ignore[attr-defined]
     return b
