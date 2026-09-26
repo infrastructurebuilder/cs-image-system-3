@@ -60,10 +60,9 @@ the context performs when it builds a declared builder
 (`Registry.get_builder_for_model(type_name, classification)`) goes by the
 service registry: the class registered under the same `csis_name()` and
 the builder classification. That is why model and builder must report the
-same name. `Registry.get_builder(model_type)`, the reader of the
-`builders_for_models` map, has no caller in the system; only a base test
-([test_plugin_registration.py](../base/tests/test_plugin_registration.py))
-calls it, which is why it stays.
+same name. The `builders_for_models` map is registered and read by
+nothing; its one reader, `Registry.get_builder(model_type)`, had no caller
+and is gone (stage 67). The map stays as the template's shape.
 
 A `group_builders:` entry selects the group pair with `type: dummy`; a
 `user_builders:` entry selects the user pair with the same key. There are
