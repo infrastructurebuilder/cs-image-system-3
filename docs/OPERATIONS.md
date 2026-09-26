@@ -542,8 +542,8 @@ registry (stage 55: a second one would make `sft ssh` reach an arbitrary
 machine); the client resolves the name; `id` runs over `sft ssh`. Each
 verdict, with the Unix account the login landed in, goes to
 `meta-state/login-proofs.yaml`. With `OPA_TOKEN` in the environment the
-login is the workload's (`scripts/opa-workload-token` mints it from the
-Actions run's OIDC token; the recipe does this itself inside a job); run by
+login is the workload's (`cs-image-system workload token` mints it from
+the Actions run's OIDC token; the recipe does this itself inside a job); run by
 hand without one, the enrolled client logs in as you and the record says
 `as: client`. In CI the `perform` job runs it on `main` after the
 performing step, under the read-only role, and the closing record commits
@@ -766,7 +766,8 @@ preemptible build VM; a preempted bake re-runs. The Justfile exports
 not safe under concurrent `init`, so one tofu process runs at a time by
 construction: every recipe that may execute the roots (`v2-dry-run`,
 `cloud-bake`, `cloud-cycle`, `cloud-launch`, `gce-decommission` and
-their `gce-*` aliases) goes through `scripts/with-tofu-lock`, which holds
+their `gce-*` aliases) passes `--locked` to the command (stage 64; the
+`scripts/with-tofu-lock` wrapper before it), which holds
 `.tofu-plugin-cache/.lock` for the command and refuses with exit 75 and
 the holder's pid while another has it. Dry runs enumerate and never
 start tofu, so `config-drift`, `cloud-preflight` and the bar take no
@@ -1139,9 +1140,12 @@ the configuration needs `tfmodules/` beside it.
 
 ### `just config-drift`
 
-Is the committed emission current with the declarations? A headless dry
-`run --all` over a private copy of the live configuration, compared with
-the `generated/` tree committed at its HEAD. Tool residue (`.terraform`,
+Is the committed emission current with the declarations? The recipe runs
+`cs-image-system config-drift` over the live configuration (stage 64: the
+command; until then a shell recipe around `scripts/normalise-emission`):
+a headless dry `run --all` in a process of its own over a private copy of
+the live configuration, compared with the `generated/` tree committed at
+its HEAD. Tool residue (`.terraform`,
 `.terraform.lock.hcl`, `tfplan`, `temp_assets`), the run-local files
 (`run-summary.json`, `state-report.json`, `generated/release/release`,
 `generated/retention/retention`), run ids and the run's date stamp in
@@ -2059,8 +2063,8 @@ exception is a decision to record, not a bypass.
 - One tofu process at a time on a machine, by construction: the shared
   `TF_PLUGIN_CACHE_DIR` is not safe under concurrent `init`, and two runs
   would race on the same roots and records. The recipes that may execute
-  the roots hold `.tofu-plugin-cache/.lock` (`scripts/with-tofu-lock`) and
-  a second one refuses; the suite never shares the cache.
+  the roots hold `.tofu-plugin-cache/.lock` (`cs-image-system --locked`)
+  and a second one refuses; the suite never shares the cache.
 
 ### Network
 

@@ -13,7 +13,6 @@ holder and releases on any exit.
 from __future__ import annotations
 
 import logging
-import os
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
@@ -146,18 +145,20 @@ def test_only_runtime_help_says_it_scopes_the_terraform_roots_too():
 # ------------------------------------------------- 43.6 one tofu process at a time
 
 def test_the_tofu_lock_refuses_a_second_holder_and_releases_on_any_exit(tmp_path):
-    script = REPO / "scripts" / "with-tofu-lock"
-    assert os.access(script, os.X_OK)
+    """Stage 64 item 2: the wrapper script became `cs-image-system --locked`;
+    the lock's shape, the message and exit 75 are unchanged (the command's
+    own tests are in tests/test_v2_release_whole.py)."""
+    from cs_image_system.base import tofu_lock
+    assert not (REPO / "scripts" / "with-tofu-lock").exists()
     cache = tmp_path / "cache"
-    env = {**os.environ, "TF_PLUGIN_CACHE_DIR": str(cache)}
-    r = subprocess.run([str(script), "sh", "-c", 'test -d "$TF_PLUGIN_CACHE_DIR/.lock"'], env=env, capture_output=True, text=True)
-    assert r.returncode == 0, r.stderr                                       # held while the command runs
+    env = {"TF_PLUGIN_CACHE_DIR": str(cache)}
+    release = tofu_lock.acquire(env)
+    assert (cache / ".lock" / "pid").is_file()                               # held while the command runs
+    release()
     assert not (cache / ".lock").exists()                                    # released after it
     (cache / ".lock").mkdir()
     (cache / ".lock" / "pid").write_text("12345\n")
-    r = subprocess.run([str(script), "true"], env=env, capture_output=True, text=True)
-    assert r.returncode == 75 and "pid 12345" in r.stderr and "one tofu process at a time" in r.stderr
+    with pytest.raises(tofu_lock.LockHeld) as e:
+        tofu_lock.acquire(env)
+    assert e.value.holder == "12345" and "one tofu process at a time" in str(e.value) and tofu_lock.EX_TEMPFAIL == 75
     assert (cache / ".lock").exists()                                        # another holder's lock is never removed
-    other = {**env, "TF_PLUGIN_CACHE_DIR": str(tmp_path / "other")}
-    r = subprocess.run([str(script), "false"], env=other, capture_output=True, text=True)
-    assert r.returncode == 1 and not (tmp_path / "other" / ".lock").exists()  # the command's status; released on failure

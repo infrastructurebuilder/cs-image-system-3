@@ -547,8 +547,7 @@ operator sees fail.
   The same holds for every provider a builder declares under
   `required_plugins`. One tofu process at a time on a machine: the cache
   is not safe under concurrent `init` (the recipes that execute roots
-  hold `.tofu-plugin-cache/.lock` through
-  [`scripts/with-tofu-lock`](../../scripts/with-tofu-lock)).
+  hold `.tofu-plugin-cache/.lock` through `cs-image-system --locked`).
 - **`CSIS_CONFIG_IDENTITY` in the environment of whoever runs `plan`.**
   The sensitive data source runs `cs-image-system decrypt --json`, which
   opens the ciphertext with that identity; `materialize` needs it too.
@@ -817,7 +816,7 @@ Failures that have happened, newest first.
   failed because it ran concurrently with the bar's tests over the same
   `TF_PLUGIN_CACHE_DIR`: an `init` that fails with a provider-cache or
   lock error while something else runs tofu is that, and the fix is to
-  run alone (the recipes hold `scripts/with-tofu-lock`).
+  run alone (the recipes pass `--locked`).
 - **Early September 2026, stage 1 live run -- a stale `tfplan` passed the
   gate** (ledger finding 33; the ledger carries no day). A plan failed,
   the previous sequence's `tfplan` remained, and `gate-plan` judged the

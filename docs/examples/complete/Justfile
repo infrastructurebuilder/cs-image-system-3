@@ -19,8 +19,8 @@ csis := env("CSIS", "cs-image-system")
 root := justfile_directory()
 cli := csis + " --root-dir " + quote(root)
 
-# One tofu process at a time: every recipe that may execute tofu runs through scripts/with-tofu-lock,
-# which locks this cache directory (a second holder is refused with exit 75).
+# One tofu process at a time: every recipe that may execute tofu passes `--locked` to the command,
+# which holds a lock under this cache directory for the whole run (a second holder is refused with exit 75).
 export TF_PLUGIN_CACHE_DIR := justfile_directory() / ".tofu-plugin-cache"
 
 # One-time setup: the command must be reachable, the public-safe hook is installed, the plugin cache exists
@@ -79,7 +79,7 @@ full-test: test
 
 # The performing run on one runtime, gated on full-test: due bakes, declared releases, retention; records committed
 release runtime: full-test
-	@scripts/with-tofu-lock {{cli}} --no-dry-run run base-image instance-image release retention --only-runtime {{runtime}} --commit
+	@{{cli}} --locked --no-dry-run run base-image instance-image release retention --only-runtime {{runtime}} --commit
 
 # ------------------------------------------------------------ every day
 
@@ -93,7 +93,7 @@ dry *LIFECYCLES:
 
 # A REAL run of the lifecycles named, gated, its records committed here (you push)
 run +LIFECYCLES:
-	@scripts/with-tofu-lock {{cli}} --no-dry-run run {{LIFECYCLES}} --commit
+	@{{cli}} --locked --no-dry-run run {{LIFECYCLES}} --commit
 
 # The credential sessions the runtimes need, read from the caches without loading anything
 preflight:
@@ -113,24 +113,24 @@ cloud-describe runtime:
 
 # Bake only what changed on the runtime; the storage and instance roots plan and gate only
 cloud-bake runtime dry="no": cloud-preflight
-	@scripts/with-tofu-lock {{cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run base-image instance-image --only-runtime {{runtime}} --commit
+	@{{cli}} --locked {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run base-image instance-image --only-runtime {{runtime}} --commit
 
 # The performing run of a runtime (what CI does on main): due bakes, declared releases, declared retention
 cloud-perform runtime: cloud-preflight
-	@scripts/with-tofu-lock {{cli}} --no-dry-run run base-image instance-image release retention --only-runtime {{runtime}} --commit
+	@{{cli}} --locked --no-dry-run run base-image instance-image release retention --only-runtime {{runtime}} --commit
 
 # The whole cycle as ONE run, scoped and applied to a runtime whose instances are all ephemeral; then the emptiness assertion
 cloud-cycle runtime dry="no": cloud-preflight
-	@scripts/with-tofu-lock {{cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run --all --only-runtime {{runtime}} --apply-runtime {{runtime}} --commit
+	@{{cli}} --locked {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run --all --only-runtime {{runtime}} --apply-runtime {{runtime}} --commit
 	@{{ if dry == "yes" { "echo 'dry run: empty assertion skipped'" } else { "just cloud-empty " + runtime } }}
 
 # The same cycle for a runtime that carries STANDING instances: no emptiness assertion afterwards
 cloud-stand runtime dry="no": cloud-preflight
-	@scripts/with-tofu-lock {{cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run --all --only-runtime {{runtime}} --apply-runtime {{runtime}} --commit
+	@{{cli}} --locked {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run --all --only-runtime {{runtime}} --apply-runtime {{runtime}} --commit
 
 # Gated launch of the runtime's instances alone (nothing re-bakes); an ephemeral instance launches, verifies and tears down
 cloud-launch runtime dry="no": cloud-preflight
-	@scripts/with-tofu-lock {{cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run instance-image --only none --apply-runtime {{runtime}} --commit
+	@{{cli}} --locked {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run instance-image --only none --apply-runtime {{runtime}} --commit
 
 # Verify a standing instance through the system; `sft` adds the login proof through the managed policy
 cloud-verify runtime instance leg="serial":
@@ -150,7 +150,7 @@ cloud-upgrade runtime instance to="": cloud-preflight
 	{{cli}} upgrade instance {{instance}} {{ if to != "" { "--to " + to } else { "" } }}
 	just cloud-launch {{runtime}}
 	just cloud-verify {{runtime}} {{instance}}
-	scripts/with-tofu-lock {{cli}} --no-dry-run run release --only-runtime {{runtime}} --commit
+	{{cli}} --locked --no-dry-run run release --only-runtime {{runtime}} --commit
 	just cloud-launch {{runtime}}
 	echo "cloud-upgrade: {{instance}} stands on its released build; run 'just ci-login-proof {{instance}}' to log in by name"
 
@@ -167,19 +167,26 @@ cloud-relabel runtime dry="yes":
 	@{{cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} lineage relabel --runtime {{runtime}}
 
 # Log into every standing instance (or the ARGS named) through the managed CI policy: as the workload in a
-# GitHub Actions job, as YOU (the enrolled client, `sft login` first) anywhere else
+# GitHub Actions job (`workload token` mints the OPA token from this run's OIDC token, the names from the
+# configuration), as YOU (the enrolled client, `sft login` first) anywhere else
 ci-login-proof *ARGS:
 	#!/usr/bin/env bash
 	set -euo pipefail
-	workload_env=$({{cli}} workload describe --env)
-	eval "$workload_env"
 	if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
-		OPA_TOKEN="$(scripts/opa-workload-token)"
+		OPA_TOKEN="$({{cli}} workload token)"
 		export OPA_TOKEN
 	else
 		echo "ci-login-proof: not a GitHub Actions job -- logging in as the enrolled client, not the workload" >&2
 	fi
 	{{cli}} verify login {{ARGS}}
+
+# Present this Actions run's OIDC token to the team's workload connection and stop (the names from the
+# environment: OPA_WORKLOAD_CONNECTION, OPA_WORKLOAD_ROLE, SFT_TEAM, OPA_ADDR; needs `id-token: write`)
+opa-workload-probe:
+	#!/usr/bin/env bash
+	set -euo pipefail
+	token=$({{cli}} workload token)
+	echo "opa-workload-probe: the connection accepted this run's token$( [ -n "$token" ] && echo ' and issued one (masked)' )"
 
 # The OPA client, from Okta's apt repository (a no-op where `sft` is already on PATH)
 sft-install:
@@ -201,22 +208,13 @@ test-mods *ARGS:
 public-safe *ARGS:
 	@{{cli}} public-safe --tree "{{root}}" {{ARGS}}
 
-# Is the committed emission current? A dry run over a private copy against generated/ at HEAD
+# Is the committed emission current? A dry run over a private copy against generated/ at HEAD (0 / 1 behind / 2 failed)
 config-drift:
-	#!/usr/bin/env bash
-	set -uo pipefail
-	work=$(mktemp -d "${TMPDIR:-/tmp}/csis-config-drift.XXXXXX")
-	trap 'rm -rf "$work"' EXIT
-	mkdir -p "$work/tree" "$work/committed"
-	(cd "{{root}}" && tar --exclude=./.git --exclude=./generated --exclude=./_private -cf - .) | tar -xf - -C "$work/tree"
-	git -C "{{root}}" archive HEAD generated 2>/dev/null | tar -xf - -C "$work/committed" || { echo "config-drift: nothing is committed under generated/ at HEAD -- record a run first (just dry; git add generated meta-state)"; exit 2; }
-	{{csis}} --root-dir "$work/tree" run --all >"$work/run.log" 2>&1 || { echo "config-drift: the dry run FAILED:"; tail -20 "$work/run.log"; trap - EXIT; exit 2; }
-	scripts/normalise-emission "$work/committed/generated"; scripts/normalise-emission "$work/tree/generated"
-	if diff -r "$work/committed/generated" "$work/tree/generated" >"$work/drift.diff"; then
-		echo "config-drift: the committed emission is current with the configuration"
-	else
-		echo "config-drift: the committed emission is BEHIND the configuration ($(grep -c '^diff \|^Only in' "$work/drift.diff") files):"; head -120 "$work/drift.diff"; exit 1
-	fi
+	@{{cli}} config-drift
+
+# Has RUNTIME's emission changed since REF (default HEAD)? Exit 1 with the diff when a declaration of it changed
+runtime-unchanged runtime ref="HEAD":
+	@{{cli}} runtime-unchanged {{runtime}} --ref {{ref}}
 
 # Remove the private mirror: the materialised copy an execution ran from (plaintext); never committed
 mirror-clean:

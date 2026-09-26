@@ -1889,7 +1889,9 @@ it is the join key between a roster and an access grant.
 | --- | --- | --- |
 | `CSIS_CONFIG_ROOT` | the Justfile | the live configuration root the `cloud-*`/`gce-*` recipes drive (default: the sibling `cs-image-system-testconfig` checkout); the CLI itself takes `--root-dir` |
 | `CSIS_CONFIG_IDENTITY` | every load; `decrypt`; `reencrypt`; `mask`; `materialize` (the runner's every command) | the age identity (section 13) |
-| `OPA_TOKEN` | `verify login` as the workload | the OPA token minted from the GitHub OIDC token (`scripts/opa-workload-token`); absent, the proof runs as the enrolled client |
+| `OPA_TOKEN` | `verify login` as the workload | the OPA token minted from the GitHub OIDC token (`cs-image-system workload token`, since stage 64; `scripts/opa-workload-token` before it); absent, the proof runs as the enrolled client |
+| `OPA_WORKLOAD_CONNECTION`, `OPA_WORKLOAD_ROLE`, `SFT_TEAM`, `OPA_ADDR` | `workload token` | the workload connection, role, team and API address to present the run's OIDC token to; any that is missing comes from the configuration's first group builder that names a workload connection |
+| `TF_PLUGIN_CACHE_DIR` | `--locked`; every `tofu init` | OpenTofu's provider cache; the Justfile exports `.tofu-plugin-cache/`; the lock `--locked` holds is `.lock` under it |
 | `USER` / `USERNAME` | `unmount --confirm` | who is recorded on an unmount receipt |
 | `AWS_ACCESS_KEY_ID` (with its secret and token) | `preflight`, the load, every AWS call | the static-key path when no profile is named; `preflight` reports it as a session with no readable expiry |
 | AWS profile | the AWS runtime, the S3 backend, preflight | `credentials.profile_name` on the runtime (else `AWS_PROFILE`; static `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` are honoured when no profile is named); `profile` on the state backend. An SSO profile needs a live session: the load validates the account's network and refuses on an expired one. |

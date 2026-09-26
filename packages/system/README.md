@@ -62,6 +62,7 @@ name. Which commands honour which is in the
 | `--dry-run / --no-dry-run` | `--dry-run` | Dry run: generation is complete and runner scripts are written, but deferred finalization commands (packer builds, tofu init/plan/gate/apply, system CLI steps) are enumerated, not executed. `--no-dry-run` executes them. The same flag governs `dispose image`, `lineage restamp` and `lineage relabel`, which report a plan under a dry run, and `run --migrate-state`, which a dry run refuses. `reencrypt` has a `--dry-run` of its own and ignores the global one. |
 | `--overlay FILE` (repeatable) | none | A transient declaration file merged over the tree for this invocation only. `config:` keys override; named `instances:`/`storages:` (and other item) entries update or add; an entry with `undeclare: true` removes the tree's entry. A file that does not exist, is not a mapping, has a top-level key other than `config` and the item collections, or lists an entry without a `name` is refused before anything loads. The tree on disk never changes. |
 | `--undeclare KIND:NAME` (repeatable) | none | Treat a declared tree entry as absent for this invocation, for example `instance:gce-test`. `KIND` is an item collection key (`instances`, `storages`, ...); the singular is accepted; anything else is refused before the load. |
+| `--locked` | off | Hold the tofu lock for the whole command (stage 64, replacing `scripts/with-tofu-lock`): a directory `.lock` under `TF_PLUGIN_CACHE_DIR`, taken before anything else runs and released when the command ends however it ends. The provider cache is not safe under concurrent `init`, so every recipe that may execute the roots passes it. A second holder is refused with `--locked: another tofu-using command holds <lock> (pid N) -- one tofu process at a time ...` and exit 75; an unset `TF_PLUGIN_CACHE_DIR` is exit 2. A dry run never needs it. |
 | `--base-only` | off | Makes `build-all` and `generate` select the base-image lifecycle only. The configuration is still read in full. |
 | `--only-providers` | | Retired (stage 67, 2026-09-26): it was recorded, split and warned about (`Only providers ... specified but configuration will still be read in full`), and read by nothing; `--only-runtime <rt>` is the runtime filter. Passing it is `No such option`. |
 
@@ -265,6 +266,42 @@ kept. Prints what was written and kept. Loads no configuration and needs
 no credential. Exit 2 for an unknown starter or a destination that is a
 file.
 
+### `config-drift`
+
+Is the committed emission current with the declarations? (stage 45; a
+command since stage 64, where `scripts/normalise-emission` and the recipe
+that used it became this.) A headless dry `run --all` in a process of its
+own over a private copy of the configuration under `--root-dir` (its
+`.git`, `generated/` and `_private/` left out; a relative
+`module_source_base` that escapes the tree is copied beside the copy at
+the same relative place), compared with the `generated/` tree committed at
+HEAD. On both sides tool residue (`.terraform`, `.terraform.lock.hcl`,
+`tfplan`, `temp_assets`, `release/release`, `retention/retention`), the
+run-local files (`run-summary.json`, `state-report.json`,
+`manifest.json`), run ids (`<RUN>`) and the run's date stamp in image
+names (`<STAMP>`) are normalised; nothing else legitimately differs, so an
+absolute path in the emission IS drift. Exit 0 (`config-drift: the
+committed emission is current with the configuration`), 1 with the file
+count and a unified diff when the committed emission is BEHIND the
+configuration, 2 when nothing is committed under `generated/` at HEAD or
+the dry run itself fails (its log's tail is printed). This process loads
+nothing; the copy's run needs what a load needs (the sessions,
+`CSIS_CONFIG_IDENTITY`, the identity credentials) and a dry run's `init`
+skips the backend, so no state access.
+
+### `runtime-unchanged RUNTIME [--ref REF]`
+
+Has a runtime's emission changed since `REF` (default `HEAD`)? (stage 45;
+a command since stage 64.) The runtime's builder directories
+(`runtime describe` -> `emission`: `<lifecycle>/<builder>` under
+`generated/`) in the working tree, normalised as `config-drift`
+normalises, against the same paths at `REF` in the configuration
+repository. Exit 0 (`... is unchanged since REF (<dirs>)`), 1 with the
+diff when a declaration of that runtime changed, 2 for an unknown
+runtime. Loads the configuration. CI's performing job asks this of the
+runtime that stays out of CI by the cost decision, so a change there
+fails the job loudly rather than bake.
+
 ### `public-safe [--staged] [--tree PATH] [--config FILE]`
 
 Scan a tree (tracked plus untracked non-ignored files; default `--root-dir`
@@ -439,6 +476,28 @@ which `just ci-login-proof` evaluates; exit 2 when none names one. This
 command loads the configuration (it is deliberately not under `identity`,
 whose group is exempt from loading).
 
+### `workload token`
+
+This GitHub Actions run's OIDC token, presented to the team's workload
+connection; the OPA access token it yields is the ONLY thing on standard
+output, without a trailing newline, so `OPA_TOKEN="$(cs-image-system
+workload token)"` captures it and nothing else (stage 56 step 2; a
+command since stage 64, replacing `scripts/opa-workload-token`, whose
+`::add-mask::` lines went to standard output and into the captured
+value). On standard error: a mask command for each token before anything
+else, the OIDC token's public claims (`claim iss: ...`, `repository`,
+`sub`, ...), the client's exit and its own output. The Actions runner
+scans standard error for workflow commands as it scans standard output.
+The four names -- `OPA_WORKLOAD_CONNECTION`, `OPA_WORKLOAD_ROLE`,
+`SFT_TEAM`, `OPA_ADDR` -- come from the environment (the probe workflow
+runs on a checkout with no configuration); any that is missing comes from
+the configuration's first group builder that names a workload connection,
+and only then is the configuration loaded. Needs a job holding `id-token:
+write` (`ACTIONS_ID_TOKEN_REQUEST_URL` / `_TOKEN`) and the `sft` client.
+Exit 2 outside such a job or when a name cannot be found; 1 when the
+runner's endpoint refused, the client exited non-zero, or it exited 0
+with no token (a DRAFT connection validates and issues nothing usable).
+
 ### `forget instance NAME`
 
 Drop a destroyed instance's pin and launch parameters from meta-state,
@@ -546,10 +605,10 @@ without loading anything.
 
 | Needs | Commands |
 | ------- | ---------- |
-| Nothing | `preflight` (reads local caches only), `gate-plan`, `apply-check`, `public-safe`, `encrypt` (recipients are read from `cfg/_config.yml` as text), `init-config`, `test`, `cleanup`. |
+| Nothing | `preflight` (reads local caches only), `gate-plan`, `apply-check`, `public-safe`, `encrypt` (recipients are read from `cfg/_config.yml` as text), `init-config`, `config-drift` (this process; the dry run it starts needs what a load needs), `workload token` with the four names in the environment (else it loads), `test`, `cleanup`. |
 | The age identity in `CSIS_CONFIG_IDENTITY` only | `decrypt`, `reencrypt`, `mask`, `materialize` (when a marker is present). |
 | Identity-provider credentials from the environment, and plugins installed | `identity export-gids`. |
-| The age identity when the tree holds encrypted values, and live credentials for every declared cloud runtime | Every command that loads the configuration: `run`, `build-all`, `generate`, `validate`, `upgrade`, `test-mods`, `release`, `runtime describe`, `empty`, `lineage restamp`, `lineage relabel`, `unmount storage`, `workload describe`, `verify instance`, `verify login`, `verify assert`, `forget instance`, `dispose image`, `state query`, `state import`, `state-migration`, `prune-attachments`, `identity-attributes`. Loading constructs every runtime builder, and the cloud plugins validate networking against the cloud in that step. `run` and `state` print the session lines first and exit 1 on an expired session. |
+| The age identity when the tree holds encrypted values, and live credentials for every declared cloud runtime | Every command that loads the configuration: `run`, `build-all`, `generate`, `validate`, `upgrade`, `test-mods`, `release`, `runtime describe`, `empty`, `lineage restamp`, `lineage relabel`, `unmount storage`, `workload describe`, `verify instance`, `verify login`, `verify assert`, `forget instance`, `dispose image`, `state query`, `state import`, `state-migration`, `prune-attachments`, `identity-attributes`, `runtime-unchanged`. Loading constructs every runtime builder, and the cloud plugins validate networking against the cloud in that step. `run` and `state` print the session lines first and exit 1 on an expired session. |
 
 Beyond loading, `test-mods` needs a local `docker`; `verify login` needs
 `sft` (and `OPA_TOKEN` to log in as the workload); `verify instance`,
@@ -608,10 +667,11 @@ separator replaced by `_`), not of the process that executes the step.
 | Code | Meaning |
 | ------ | --------- |
 | 0 | Success. |
-| 1 | The operation failed or was refused: a failed run, validation errors, a refused release, a failed verification or login, hard drift, a value that cannot be decrypted or materialized, a public-safe finding, a release-owned file `init-config` refused, an expired session before a load, a failed load (a traceback), a `state-migration`/`prune-attachments` step that failed (the runner stops). |
-| 2 | Usage: unknown lifecycle or runtime, nothing selected, a missing argument, a retired command, `--migrate-state` under a dry run, `public-safe --staged` outside git, `preflight` with an absent or expired session, an empty credential variable or no runtimes, `empty` on a runtime that cannot answer, `forget instance` on a declared instance, `workload describe --env` with nothing named, `init-config` with an unknown starter, a `state-migration` step without its inputs, `prune-attachments` for an unknown builder. |
+| 1 | The operation failed or was refused: a failed run, validation errors, a refused release, a failed verification or login, hard drift, a value that cannot be decrypted or materialized, a public-safe finding, a release-owned file `init-config` refused, `config-drift` behind or `runtime-unchanged` changed, `workload token` issued nothing, an expired session before a load, a failed load (a traceback), a `state-migration`/`prune-attachments` step that failed (the runner stops). |
+| 2 | Usage: unknown lifecycle or runtime, nothing selected, a missing argument, a retired command, `--migrate-state` under a dry run, `public-safe --staged` outside git, `preflight` with an absent or expired session, an empty credential variable or no runtimes, `empty` on a runtime that cannot answer, `forget instance` on a declared instance, `workload describe --env` with nothing named, `init-config` with an unknown starter, `config-drift` with nothing committed or a failed dry run, `runtime-unchanged` on an unknown runtime, `workload token` outside a job or with a name it cannot find, `--locked` without `TF_PLUGIN_CACHE_DIR`, a `state-migration` step without its inputs, `prune-attachments` for an unknown builder. |
 | 3 | A gate refused: `gate-plan` (destroy not whitelisted, stale plan file, missing unmount receipt), `apply-check` (flag off, no `_config.yml`, overlay gone), `identity-attributes` provider conflicts. |
 | 4 | `identity-attributes --apply`: writing attributes is disabled. |
+| 75 | `--locked`: another command holds the tofu lock (`EX_TEMPFAIL`); wait for it. |
 
 ## Tests
 

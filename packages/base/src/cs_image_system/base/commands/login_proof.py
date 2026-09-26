@@ -8,7 +8,7 @@ policy the system manages, and that is the proof.
 Verifying an instance over SSM proves the box is healthy and says nothing
 about access. This command logs in the way a scientist does -- ``sft
 ssh``, a short-lived OPA certificate -- as the WORKLOAD (``OPA_TOKEN`` in
-the environment, minted by ``scripts/opa-workload-token`` from the Actions
+the environment, minted by ``cs-image-system workload token`` from the Actions
 run's own OIDC token) or, run by hand without one, as the enrolled client.
 For each standing instance of a group whose builder names the team's
 workload connection and role it checks, in order: the machine is running

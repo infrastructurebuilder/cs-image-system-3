@@ -161,7 +161,8 @@ def test_the_cache_dir_recipe_is_a_dependency_of_nothing():
     text = (REPO / "Justfile").read_text()
     deps = re.findall(r"^[\w-]+(?:\s+[^:\n]*)?:\s*([^\n]*tofu-cache-dir[^\n]*)$", text, flags=re.M)
     assert deps == [], deps
-    assert 'mkdir -p "$cache"' in (REPO / "scripts" / "with-tofu-lock").read_text()
+    assert "lock.parent.mkdir(parents=True, exist_ok=True)" in (
+        REPO / "packages" / "base" / "src" / "cs_image_system" / "base" / "tofu_lock.py").read_text()   # stage 64: the lock creates it
 
 
 def test_packers_manifest_is_run_local(tmp_path, monkeypatch):

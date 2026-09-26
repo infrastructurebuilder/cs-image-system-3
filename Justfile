@@ -254,7 +254,7 @@ golden-regen:
 # the live configuration (generation + enumerated apply, nothing executed). Requires the
 # noaa AWS profile for read-only network/AMI discovery.
 v2-dry-run *ARGS: config-guard
-	@scripts/with-tofu-lock uv run cs-image-system --root-dir "{{config_root}}" run --all {{ARGS}}
+	@uv run cs-image-system --locked --root-dir "{{config_root}}" run --all {{ARGS}}
 
 # Public-safe by construction (stage 35): scan what a commit could publish -- tracked files and
 # untracked files that are not ignored -- for material that must never be public (keys, tokens,
@@ -341,65 +341,17 @@ clean-all: clean clean-venv
 
 # Run CLI with arguments
 
-# Is the committed emission current? A headless dry run --all over a private copy of the live
-# configuration, compared with the generated/ tree committed at its HEAD; run ids, absolute roots,
-# lock files and the three run-local files are ignored; a dry run's `tofu init` skips the backend,
-# so no state access is needed. Exit 0 when current, 1 with the diff when
-# the committed emission is BEHIND the declarations, 2 when the dry run itself fails.
+# Is the committed emission current? The CLI's config-drift over the live configuration (stage 64: the
+# command runs a headless dry run --all over a private copy and compares it with generated/ at HEAD;
+# a relative module_source_base outside the tree is copied beside the copy). 0 current / 1 behind / 2 failed
 config-drift: config-guard
-	#!/usr/bin/env bash
-	set -uo pipefail
-	work=$(mktemp -d "${TMPDIR:-/tmp}/csis-config-drift.XXXXXX")
-	trap 'rm -rf "$work"' EXIT
-	live="{{config_root}}"
-	mkdir -p "$work/cs-image-system-3" "$work/cs-image-system-testconfig" "$work/committed"
-	cp -R tfmodules "$work/cs-image-system-3/"
-	(cd "$live" && tar --exclude=./.git --exclude=./generated -cf - .) | tar -xf - -C "$work/cs-image-system-testconfig"
-	if ! git -C "$live" archive HEAD generated 2>/dev/null | tar -xf - -C "$work/committed"; then
-		echo "config-drift: nothing is committed under generated/ at $live HEAD -- record a run first (run --all --commit)"; exit 2
-	fi
-	uv run cs-image-system --root-dir "$work/cs-image-system-testconfig" run --all >"$work/run.log" 2>&1 \
-		|| { echo "config-drift: the dry run FAILED (see $work/run.log excerpt):"; tail -20 "$work/run.log"; trap - EXIT; exit 2; }
-	# normalise what legitimately differs between any two runs of the same configuration (scripts/normalise-emission)
-	normalise() { scripts/normalise-emission "$1"; }
-	normalise "$work/committed/generated"
-	normalise "$work/cs-image-system-testconfig/generated"
-	if diff -r "$work/committed/generated" "$work/cs-image-system-testconfig/generated" >"$work/drift.diff"; then
-		echo "config-drift: the committed emission is current with the configuration"
-	else
-		echo "config-drift: the committed emission is BEHIND the configuration ($(grep -c '^diff \|^Only in' "$work/drift.diff") files):"
-		head -120 "$work/drift.diff"
-		exit 1
-	fi
+	@uv run cs-image-system --root-dir "{{config_root}}" config-drift
 
-# Has a runtime's emission changed since REF in the live configuration? The runtime's builder
-# directories (`runtime describe` -> emission) in the working tree, normalised like config-drift,
-# against the same paths at REF (default HEAD). Exit 0 when unchanged, 1 with the diff when a
-# declaration of that runtime changed. CI's performing job asks this of the GCE runtime, which
-# stays out of CI by the cost decision: a change there fails the job loudly rather than bake.
+# Has a runtime's emission changed since REF (default HEAD) in the live configuration? The CLI's
+# runtime-unchanged: the runtime's builder directories, normalised like config-drift, against REF.
+# CI's performing job asks this of the GCE runtime, which stays out of CI by the cost decision.
 runtime-unchanged runtime ref="HEAD": config-guard
-	#!/usr/bin/env bash
-	set -uo pipefail
-	live="{{config_root}}"
-	work=$(mktemp -d "${TMPDIR:-/tmp}/csis-runtime-unchanged.XXXXXX")
-	trap 'rm -rf "$work"' EXIT
-	dirs=$(uv run cs-image-system --root-dir "$live" runtime describe {{runtime}} 2>/dev/null | uv run python -c 'import json,sys; print("\n".join(json.load(sys.stdin)["emission"]))') \
-		|| { echo "runtime-unchanged: could not read the emission directories of {{runtime}} (runtime describe)"; exit 2; }
-	[ -n "$dirs" ] || { echo "runtime-unchanged: {{runtime}} has no emission directories under $live/generated"; exit 0; }
-	mkdir -p "$work/now" "$work/ref"
-	for d in $dirs; do
-		mkdir -p "$work/now/$(dirname "$d")" "$work/ref/$(dirname "$d")"
-		[ -d "$live/generated/$d" ] && cp -R "$live/generated/$d" "$work/now/$d"
-		git -C "$live" archive "{{ref}}" "generated/$d" 2>/dev/null | tar -xf - -C "$work/ref" --strip-components=1 || true
-	done
-	scripts/normalise-emission "$work/now"; scripts/normalise-emission "$work/ref"
-	if diff -r "$work/ref" "$work/now" >"$work/diff"; then
-		echo "runtime-unchanged: the emission of {{runtime}} is unchanged since {{ref}} ($(echo "$dirs" | tr '\n' ' '))"
-	else
-		echo "runtime-unchanged: the emission of {{runtime}} CHANGED since {{ref}} ($(grep -c '^diff \|^Only in' "$work/diff") files):"
-		head -80 "$work/diff"
-		exit 1
-	fi
+	@uv run cs-image-system --root-dir "{{config_root}}" runtime-unchanged {{runtime}} --ref {{ref}}
 
 # Run the CLI against the live configuration, e.g. `just cli validate`
 cli *ARGS: config-guard
@@ -437,12 +389,12 @@ gce_cli := "uv run cs-image-system --root-dir " + quote(config_root)
 # every `tofu init`; with a root's kept .terraform.lock.hcl the init needs no
 # network at all. Runs started outside `just` need this in their environment.
 # One tofu process at a time (stage 43): the cache is not safe under concurrent `init`, so every
-# recipe that may EXECUTE tofu (a --no-dry-run run of the roots) goes through scripts/with-tofu-lock,
-# which refuses (exit 75) while another holds .tofu-plugin-cache/.lock. Dry runs enumerate and never
-# start tofu; the suite's one real-tofu test uses a private cache and never contends.
+# recipe that may EXECUTE tofu (a --no-dry-run run of the roots) passes `--locked` to the command
+# (stage 64), which refuses (exit 75) while another holds .tofu-plugin-cache/.lock. Dry runs enumerate
+# and never start tofu; the suite's one real-tofu test uses a private cache and never contends.
 export TF_PLUGIN_CACHE_DIR := justfile_directory() / ".tofu-plugin-cache"
 
-# The plugin cache directory; scripts/with-tofu-lock creates it for every recipe that executes tofu
+# The plugin cache directory; `--locked` creates it for every recipe that executes tofu
 tofu-cache-dir:
 	@mkdir -p "$TF_PLUGIN_CACHE_DIR"
 
@@ -461,19 +413,19 @@ cloud-describe runtime: config-guard
 
 # Bake only what changed on the runtime (convergent bakes, stage 9); the storage/instance roots plan and gate only
 cloud-bake runtime dry="no": cloud-preflight
-	@scripts/with-tofu-lock {{gce_cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run base-image instance-image --only-runtime {{runtime}} --commit
+	@{{gce_cli}} --locked {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run base-image instance-image --only-runtime {{runtime}} --commit
 
 # The performing run of a runtime (stage 45, what CI does on `main` for the AWS runtime): the bakes
 # that are due, the declared releases and the declared retention, all on this runtime alone; the
 # instance roots plan and gate only, and identity and storage are the record's business. The other
 # runtimes' emission is kept exactly as committed (a scoped run prunes only within its scope).
 cloud-perform runtime: cloud-preflight
-	@scripts/with-tofu-lock {{gce_cli}} --no-dry-run run base-image instance-image release retention --only-runtime {{runtime}} --commit
+	@{{gce_cli}} --locked --no-dry-run run base-image instance-image release retention --only-runtime {{runtime}} --commit
 
 # The whole cycle as ONE run of every lifecycle (stage 10.8), scoped and applied to the runtime: storages
 # converge, the bakes that changed run, ephemeral instances launch/verify/tear down, retention disposes
 cloud-cycle runtime dry="no": cloud-preflight
-	@scripts/with-tofu-lock {{gce_cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run --all --only-runtime {{runtime}} --apply-runtime {{runtime}} --commit
+	@{{gce_cli}} --locked {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run --all --only-runtime {{runtime}} --apply-runtime {{runtime}} --commit
 	@{{ if dry == "yes" { "echo 'dry run: empty assertion skipped'" } else { "just cloud-empty " + runtime } }}
 
 # The same cycle for a runtime that carries STANDING instances (stage 19): every
@@ -481,7 +433,7 @@ cloud-cycle runtime dry="no": cloud-preflight
 # instance declared to stand is supposed to still be there when the run ends.
 # `cloud-cycle` is for runtimes whose instances are all ephemeral.
 cloud-stand runtime dry="no": cloud-preflight
-	@scripts/with-tofu-lock {{gce_cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run --all --only-runtime {{runtime}} --apply-runtime {{runtime}} --commit
+	@{{gce_cli}} --locked {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run --all --only-runtime {{runtime}} --apply-runtime {{runtime}} --commit
 
 # Verify a standing instance through the system; `iap` adds an ssh probe on GCE (facts from the config), `sft` the stage-56 login proof
 cloud-verify runtime instance leg="serial": config-guard
@@ -525,7 +477,7 @@ gce-relabel dry="yes": (cloud-relabel gce_runtime dry)
 # Gated launch of the runtime's instances alone (--only none: nothing re-bakes); an ephemeral instance
 # launches, verifies and tears down in one sequence
 cloud-launch runtime dry="no": cloud-preflight
-	@scripts/with-tofu-lock {{gce_cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run instance-image --only none --apply-runtime {{runtime}} --commit
+	@{{gce_cli}} --locked {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} run instance-image --only none --apply-runtime {{runtime}} --commit
 gce-launch dry="no": (cloud-launch gce_runtime dry)
 
 # A durable instance takes its image's next build as ONE gated sequence (stage 61 item 4): the pin moves
@@ -541,7 +493,7 @@ cloud-upgrade runtime instance to="": cloud-preflight
 	{{gce_cli}} upgrade instance {{instance}} {{ if to != "" { "--to " + to } else { "" } }}
 	just cloud-launch {{runtime}}
 	just cloud-verify {{runtime}} {{instance}}
-	scripts/with-tofu-lock {{gce_cli}} --no-dry-run run release --only-runtime {{runtime}} --commit
+	{{gce_cli}} --locked --no-dry-run run release --only-runtime {{runtime}} --commit
 	just cloud-launch {{runtime}}
 	echo "cloud-upgrade: {{instance}} stands on its released build; run 'just ci-login-proof {{instance}}' to log in by name"
 
@@ -549,7 +501,7 @@ cloud-upgrade runtime instance to="": cloud-preflight
 # the overlay `undeclare` form as a flag -- the live configuration carries no overlays), so a leftover
 # standing gce-test is destroyed through the gate instead of re-verified (ledger 71); a dry run keeps the record
 gce-decommission dry="no": config-guard
-	@scripts/with-tofu-lock {{gce_cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} --undeclare instance:gce-test run instance-image --only none --apply-runtime {{gce_runtime}} --commit
+	@{{gce_cli}} --locked {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} --undeclare instance:gce-test run instance-image --only none --apply-runtime {{gce_runtime}} --commit
 gce-teardown dry="no": (gce-decommission dry) (gce-dispose-images dry)
 
 # ---------------------------------------------------------------------------
@@ -588,20 +540,18 @@ sft-install:
 opa-workload-probe:
 	#!/usr/bin/env bash
 	set -euo pipefail
-	token=$(scripts/opa-workload-token)
+	token=$(uv run cs-image-system workload token)
 	echo "opa-workload-probe: the connection accepted this run's token$( [ -n "$token" ] && echo ' and issued one (masked)' )"
 
-# The names come from the configuration (`workload describe --env`), the OPA token from this
-# Actions run (scripts/opa-workload-token; by hand, without one, the enrolled client logs in
-# as YOU and the record says so). ARGS go to `verify login`: instance names, --runtime <rt>.
+# The names come from the configuration and the OPA token from this Actions run (`workload token`;
+# by hand, without one, the enrolled client logs in as YOU and the record says so). ARGS go to
+# `verify login`: instance names, --runtime <rt>.
 # Stage 56 steps 4-5: log into every standing instance through the managed CI policy
 ci-login-proof *ARGS: config-guard
 	#!/usr/bin/env bash
 	set -euo pipefail
-	workload_env=$({{gce_cli}} workload describe --env)
-	eval "$workload_env"
 	if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
-		OPA_TOKEN="$(scripts/opa-workload-token)"
+		OPA_TOKEN="$({{gce_cli}} workload token)"
 		export OPA_TOKEN
 	else
 		echo "ci-login-proof: not a GitHub Actions job -- logging in as the enrolled client, not the workload" >&2

@@ -44,11 +44,6 @@ RELEASE_OWNED_FILES: tuple[str, ...] = (
     "Justfile",
     ".gitignore",
     ".githooks/pre-commit",
-    # stage 64 item 2 turns these three into commands of the CLI; until then
-    # the recipes call them and the release carries them
-    "scripts/with-tofu-lock",
-    "scripts/opa-workload-token",
-    "scripts/normalise-emission",
 )
 RELEASE_OWNED_DIRS: tuple[str, ...] = (".github/workflows", "tfmodules")
 

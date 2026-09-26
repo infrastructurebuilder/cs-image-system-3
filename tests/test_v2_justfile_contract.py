@@ -118,10 +118,10 @@ def test_the_live_configuration_never_reaches_the_fast_suite_and_is_guarded_else
     # config-drift: the committed emission versus a fresh dry run, run-local noise ignored
     deps, body = r["config-drift"]
     assert "config-guard" in deps.split()
-    normaliser = (REPO / "scripts" / "normalise-emission").read_text()      # stage 45: the normaliser is a shared script
-    for needle in ("git -C", "archive HEAD generated", "run --all", "scripts/normalise-emission", "diff -r", "exit 1"):
-        assert needle in body, needle
-    for needle in ("<RUN>", "<STAMP>", "run-summary.json", "state-report.json", ".terraform.lock.hcl"):
+    # stage 64: the recipe is the CLI's config-drift; the normaliser is its module
+    assert "cs-image-system --root-dir" in body and body.strip().endswith("config-drift")
+    normaliser = (REPO / "packages" / "base" / "src" / "cs_image_system" / "base" / "commands" / "emission.py").read_text()
+    for needle in ("<RUN>", "<STAMP>", "RUN_LOCAL_FILENAMES", ".terraform.lock.hcl", "archive"):
         assert needle in normaliser, needle
     assert "<ROOT>" not in body + normaliser and "s#--root-dir" not in body + normaliser   # stage 38: an absolute path in the emission IS drift
     assert not re.search(r"cs-image-system .*--commit", body)   # it never records anything
@@ -178,9 +178,10 @@ def test_the_looser_ci_recipe_is_gone_and_the_tofu_executing_recipes_take_the_lo
     r = _recipes()
     assert "ci" not in r, "`just ci` (pyright non-blocking) must not return: `just test` is the bar"
     for name in ("cloud-bake", "cloud-cycle", "cloud-launch", "gce-decommission", "v2-dry-run"):
-        assert "scripts/with-tofu-lock" in r[name][1], name              # may execute the roots
+        assert "--locked" in r[name][1], name                            # may execute the roots (stage 64: the CLI's lock)
     for name in ("config-drift", "cloud-preflight", "test", "pytest", "golden-regen"):
-        assert "with-tofu-lock" not in r[name][1], f"{name} never starts tofu and must not contend"
+        assert "--locked" not in r[name][1], f"{name} never starts tofu and must not contend"
+    assert not (REPO / "scripts" / "with-tofu-lock").exists()
 
 
 def test_the_performing_recipe_and_the_runtime_guard_hold_their_shape():
@@ -190,7 +191,7 @@ def test_the_performing_recipe_and_the_runtime_guard_hold_their_shape():
     across records with the same normaliser config-drift uses."""
     r = _recipes()
     body = r["cloud-perform"][1]
-    for needle in ("scripts/with-tofu-lock", "--no-dry-run", "run base-image instance-image release retention",
+    for needle in ("--locked", "--no-dry-run", "run base-image instance-image release retention",
                    "--only-runtime {{runtime}}", "--commit"):
         assert needle in body, needle
     assert "--apply-runtime" not in body and "--all" not in body       # bakes, releases, retention: roots plan and gate only
@@ -198,12 +199,11 @@ def test_the_performing_recipe_and_the_runtime_guard_hold_their_shape():
         assert "--migrate-state" not in recipe, f"{name}: a state migration is the operator's act through `just cli`, never a recipe's (stage 46)"
     assert "cloud-preflight" in r["cloud-perform"][0]
     guard = r["runtime-unchanged"][1]
-    assert "runtime describe" in guard and "scripts/normalise-emission" in guard and "git -C" in guard
-    assert "scripts/normalise-emission" in r["config-drift"][1]
-    script = REPO / "scripts" / "normalise-emission"
-    assert os.access(script, os.X_OK)
-    text = script.read_text()
-    assert "run-summary.json" in text and "[0-9]{8}[-_][0-9]{6}" in text
+    assert "runtime-unchanged {{runtime}} --ref {{ref}}" in guard          # stage 64: the CLI's command
+    assert "config-drift" in r["config-drift"][1]
+    assert not (REPO / "scripts" / "normalise-emission").exists()
+    text = (REPO / "packages" / "base" / "src" / "cs_image_system" / "base" / "commands" / "emission.py").read_text()
+    assert "RUN_LOCAL_FILENAMES" in text and "[0-9]{8}[-_][0-9]{6}" in text
 
 
 def test_preflight_readiness_marks_presence():

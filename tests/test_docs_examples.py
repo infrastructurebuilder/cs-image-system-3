@@ -276,13 +276,12 @@ def test_the_complete_tree_carries_every_variation(tree):
 
 # ------------------------------------------------ the starter parts (stage 62 redux)
 
-STARTER_FILES = ["Justfile", ".github/workflows/ci.yml", ".githooks/pre-commit", ".gitignore",
-                 "scripts/with-tofu-lock", "scripts/opa-workload-token", "scripts/normalise-emission"]
+STARTER_FILES = ["Justfile", ".github/workflows/ci.yml", ".githooks/pre-commit", ".gitignore"]
 
 
 def test_every_example_is_a_whole_repository_a_team_can_copy():
-    """A configuration repository carries its own Justfile, CI, hook, helper
-    scripts and terraform modules; the system is installed from a release,
+    """A configuration repository carries its own Justfile, CI, hook and
+    terraform modules; the system is installed from a release,
     never cloned beside it. The copies must be the release's, byte for byte,
     and what the release resolves as its starters must be these trees (stage
     64: the source the release is built from)."""
@@ -294,9 +293,10 @@ def test_every_example_is_a_whole_repository_a_team_can_copy():
         root = EXAMPLES / name
         for rel in STARTER_FILES:
             assert (root / rel).is_file(), f"{name} lacks {rel}"
-        for rel in (".githooks/pre-commit", "scripts/with-tofu-lock", "scripts/opa-workload-token", "scripts/normalise-emission"):
+        for rel in (".githooks/pre-commit",):
             assert (root / rel).stat().st_mode & stat.S_IXUSR, f"{name}/{rel} is not executable"
             assert (root / rel).read_bytes() == (REPO / rel).read_bytes(), f"{name}/{rel} differs from the release's"
+        assert not (root / "scripts" / "with-tofu-lock").exists(), f"{name}: the helpers are commands of the CLI (stage 64)"
         ours = sorted(p.relative_to(REPO / "tfmodules") for p in (REPO / "tfmodules").rglob("*") if p.is_file())
         theirs = sorted(p.relative_to(root / "tfmodules") for p in (root / "tfmodules").rglob("*") if p.is_file())
         assert ours == theirs, f"{name}/tfmodules does not carry the release's modules"
