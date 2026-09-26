@@ -353,6 +353,35 @@ config-drift: config-guard
 runtime-unchanged runtime ref="HEAD": config-guard
 	@uv run cs-image-system --root-dir "{{config_root}}" runtime-unchanged {{runtime}} --ref {{ref}}
 
+# The system's live proof over the FROZEN FIXTURE (stage 64: what this repository's CI `live` job runs; the
+# reference configuration's own CI proves the live tree). With real sessions -- the fixture names the real
+# account's networks and project -- and the fixture's committed TEST identity: validate, then a headless dry
+# run --all over a private copy (tfmodules beside it, as the fixture's module_source_base expects) with the
+# state query off (the fixture's declarations are synthetic; reality would read as drift), then the
+# modification tests under docker over the copy. Exit 0 when every leg passed.
+fixture-live:
+	#!/usr/bin/env bash
+	set -uo pipefail
+	export CSIS_CONFIG_IDENTITY="{{justfile_directory()}}/tests/fixtures/config/.age-identity"
+	status=0
+	echo "fixture-live: validate the frozen fixture"
+	uv run cs-image-system --root-dir tests/fixtures/config validate || { echo "fixture-live: FAILED validate"; status=1; }
+	copy=$(mktemp -d "${TMPDIR:-/tmp}/csis-fixture-live.XXXXXX")
+	mkdir -p "$copy/x"
+	cp -R tests/fixtures/config "$copy/x/config"
+	cp -R tfmodules "$copy/x/tfmodules"
+	echo "fixture-live: headless dry run --all over a private copy ($copy), state query off"
+	uv run cs-image-system --root-dir "$copy/x/config" run --all --no-state-query || { echo "fixture-live: FAILED dry run --all"; status=1; }
+	if docker info >/dev/null 2>&1; then
+		echo "fixture-live: modification tests under docker over the copy (test-mods --strict)"
+		uv run cs-image-system --root-dir "$copy/x/config" test-mods --strict || { echo "fixture-live: FAILED test-mods"; status=1; }
+	else
+		echo "fixture-live: SKIPPED test-mods -- docker is not available"
+	fi
+	rm -rf "$copy"
+	if [ "$status" -eq 0 ]; then echo "fixture-live: passed"; else echo "fixture-live: FAILED"; fi
+	exit $status
+
 # Run the CLI against the live configuration, e.g. `just cli validate`
 cli *ARGS: config-guard
 	@uv run cs-image-system --root-dir "{{config_root}}" {{ARGS}}

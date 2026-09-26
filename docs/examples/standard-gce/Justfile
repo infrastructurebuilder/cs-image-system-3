@@ -95,6 +95,11 @@ dry *LIFECYCLES:
 run +LIFECYCLES:
 	@{{cli}} --locked --no-dry-run run {{LIFECYCLES}} --commit
 
+# The record: a dry run of EVERY lifecycle, unscoped, its emission and meta-state committed here (you push);
+# what CI's perform job makes first and last, so a record exists whatever happens in between
+record:
+	@{{cli}} run --all --commit
+
 # The credential sessions the runtimes need, read from the caches without loading anything
 preflight:
 	@{{cli}} preflight

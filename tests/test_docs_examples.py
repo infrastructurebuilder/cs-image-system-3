@@ -328,7 +328,58 @@ def test_the_starter_workflow_has_the_three_jobs():
         assert doc["jobs"]["live"]["needs"] == "verify" and doc["jobs"]["perform"]["needs"] == "live"
         text = (EXAMPLES / name / ".github/workflows/ci.yml").read_text()
         assert "uv tool install" in text and "cs-image-system" in text, f"{name}: the workflow must install a release"
+        assert "test.pypi.org" in text, f"{name}: a development version installs from TestPyPI"
         assert "just mirror-clean" in text, f"{name}: the mirror must be removed even on failure"
+
+
+def _steps(job: dict) -> list[dict]:
+    return job["steps"]
+
+
+def test_the_starter_perform_job_records_guards_performs_proves_and_records_again():
+    """Stage 64 item 3: the proven shape of a performing job (stage 45, 56)
+    travels with the starter: a full record pushed first, the guarded runtime
+    checked against it, the write identity for the performing step alone,
+    the login proof as a workload, a closing record that runs even after a
+    failed performing step, and the strict state query as the post-condition."""
+    for name in TREES:
+        doc = yaml.safe_load((EXAMPLES / name / ".github/workflows/ci.yml").read_text())
+        perform = doc["jobs"]["perform"]
+        assert "refs/heads/main" in perform["if"] and perform["permissions"]["contents"] == "write"
+        assert perform["concurrency"] == {"group": "perform", "cancel-in-progress": False}
+        names = [s.get("name", "") for s in _steps(perform)]
+        order = ["Prove write access to this repository", "The full run, recorded", "Push the record",
+                 "The guarded runtime stays out of CI, so a change there fails loudly", "The runtime performs",
+                 "Push what the performing run committed", "CI logs in through the managed policy",
+                 "The full run, recorded again", "Push the closing record", "Reality matches the records (state query --strict)"]
+        positions = [names.index(n) for n in order]
+        assert positions == sorted(positions), f"{name}: {names}"
+        runs = {s.get("name", ""): s["run"].strip() for s in _steps(perform) if "run" in s}
+        assert runs["The full run, recorded"] == "just record" and runs["The full run, recorded again"] == "just record"
+        assert runs["The runtime performs"] == 'just cloud-perform "$PERFORM_RUNTIME"'
+        assert runs["CI logs in through the managed policy"] == 'just ci-login-proof --runtime "$PERFORM_RUNTIME"'
+        assert "just runtime-unchanged" in runs["The guarded runtime stays out of CI, so a change there fails loudly"]
+        closing = next(s for s in _steps(perform) if s.get("name") == "The full run, recorded again")
+        assert closing["if"].startswith("always()") and "steps.record.outcome == 'success'" in closing["if"]
+        for s in _steps(perform):
+            if s.get("name", "").startswith("Push"):
+                assert "--force" not in s["run"] and "HEAD:main" in s["run"], f"{name}: {s['name']}"
+        text = yaml.safe_dump(doc)
+        assert "--no-dry-run" not in text and "--only" not in text, f"{name}: a real run is named only inside the Justfile"
+        # the write identity is held for the performing step alone
+        write_creds = [s for s in _steps(perform) if "APPLY" in yaml.safe_dump(s.get("with") or {})]
+        assert write_creds, f"{name}: no write identity"
+        for w in write_creds:
+            assert "steps.gate.outputs.record == 'true'" in w["if"], f"{name}: the write identity is taken only when recording"
+        assert names.index(write_creds[-1]["name"]) < names.index("The runtime performs")
+        # the live job never holds one
+        assert "APPLY" not in yaml.safe_dump(doc["jobs"]["live"]), name
+        # the probe workflow travels with the tree
+        probe = yaml.safe_load((EXAMPLES / name / ".github/workflows/opa-workload-probe.yml").read_text())
+        assert list(probe[True].keys()) == ["workflow_dispatch"]
+        (job,), = [list(probe["jobs"].values())]
+        assert job["permissions"] == {"id-token": "write", "contents": "read"}
+        assert any(s.get("run", "").strip() == "just opa-workload-probe" for s in job["steps"])
 
 
 def test_the_built_release_carries_the_starters_byte_for_byte(tmp_path):
