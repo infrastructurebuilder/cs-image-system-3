@@ -56,7 +56,7 @@ class ImageImageBuilderSubconfig(NameTyped, ParentPropertyHoldingProtocol):
     ssh_username: str  = DEFAULT
     image_identifier: str | None = None # A fallback string id
     # Double braces for an f-string inside a template string.  This will be replaced with the default machine type for this runtime from the builder, if it exists, otherwise it will be set to DEFAULT.
-    machine_type: str  | None = templated_field(replace_value =f"{{{{ runtime.get_default_machine_type() if runtime  else '{DEFAULT}' }}}}" ,
+    machine_type: str  | None = templated_field(replace_value =f"{{{{ image_builder.get_default_machine_type() if image_builder and image_builder.get_default_machine_type() not in ['{DEFAULT}', None] else (runtime.get_default_machine_type() if runtime else '{DEFAULT}') }}}}" ,
                                                 default = None,
                                                 metadata={
                     "description": "The machine type to use for this runtime.",

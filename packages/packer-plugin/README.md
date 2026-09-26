@@ -61,7 +61,7 @@ Inherited fields:
 | Base field | From | Default | Meaning |
 |---|---|---|---|
 | `runtime` | `RuntimeEnabledBuilderModel` ([builder_model.py](../base/src/cs_image_system/base/models/builder_model.py)) | `default` | Name or alias of the `runtime_builders:` entry this builder bakes on. `default` resolves to the default runtime. Every source block, credential and machine type comes from that runtime. |
-| `default_machine_type` | `ImageBuilderModel` | `default` | Accepted, not read. The bake's machine type is the image's runtime subconfig `machine_type`, whose own default is the RUNTIME's `default_machine_type`; the runtime plugins' source generators never look at the image builder's value (see the configuration reference below). |
+| `default_machine_type` | `ImageBuilderModel` | `default` | The machine type of every bake on this builder whose image (or base image) runtime entry sets no `machine_type` (stage 63). The order is: the image's runtime entry `machine_type`, else this field when it is declared (anything but `default`), else the runtime's `default_machine_type`. The fill is a load-time template on the per-runtime `machine_type`, so the runtime's source generator sees only the resolved value. Base images already followed this order; for instance images the field used to be skipped, straight to the runtime's default, until 2026-09-25. |
 | `name`, `type`, `description`, `aliases`, `executable`, `is_default`, `config`, `gitignore`, `tags` | `BuilderModel` / `NameTyped` | | `executable` must name an `executables:` entry whose binary is Packer; `tags` are merged into every source's tags. |
 
 ### `PackerEbsImageBuilderModel` (`packer-ebs`)
@@ -78,12 +78,15 @@ configuration can say `type: packer-gce`; the runtime plugin bound through
 
 - `parameters:` is refused at load (a base-model rule); the builder
   assembles Packer's command line itself.
-- The only Packer variables declared are `release` (bool, default `true`)
-  and `base_image_version` (string, emitted as
+- The builder itself declares two Packer variables, `release` (bool,
+  default `true`) and `base_image_version` (string, emitted as
   `default = env("BASE_IMAGE_VERSION")`, empty when the variable is unset;
   since stage 63 item 3 its description says exactly that instead of
-  promising a `1.0.0` that was never written). There is no field for extra
-  variables, and an image's `variables:` mapping is read by nothing.
+  promising a `1.0.0` that was never written). There is no builder field
+  for extra variables; an image's `variables:` mapping adds them instead
+  (stage 63, see "The image models this builder consumes" below). Until
+  2026-09-25 that mapping was read only by a dead module, `gen_packer.py`,
+  which is deleted.
 - No provisioner is configurable on the builder model. Modifications come
   from the modification builders; everything else is derived from the OS
   builder, the runtime, the identity and storage plugins and the image's
@@ -101,7 +104,8 @@ models and their per-builder subconfigs:
 | Item field | Used for |
 |---|---|
 | `Image.runtimes[].image_builder` | Attaches the image to this builder. One image may list several builders (one per runtime). |
-| `Image.runtimes[].machine_type`, `ssh_username`, `image_identifier`, `tags`, `owners` | Passed to the runtime's source block. |
+| `Image.runtimes[].machine_type`, `ssh_username`, `image_identifier`, `tags`, `owners` | Passed to the runtime's source block. An unset `machine_type` is filled at load from this builder's `default_machine_type` when declared, else the runtime's `default_machine_type` (stage 63). |
+| `Image.variables` (and a base image's) | Each entry becomes a Packer `variable` of this builder's roots (stage 63): typed by its value (`string`, `number` or `bool`), with the value as its `default`, written into every block's `-vars.pkr.hcl` beside `release` and `base_image_version`. A list or mapping value, or a name Packer cannot take (it must start with a letter or `_`, then letters, digits, `_` or `-`), is refused at generation naming the image and the key. Nothing a configuration writes today references `var.<name>` in HCL, so a declared variable is carried into the root but no provisioner consumes it yet. |
 | `Image.source_image` | The parent image; orders images into blocks and selects the source AMI/image. |
 | `Image.modifications` | The modification items; each is handed to its modification builder. |
 | `Image.group` | The owning group; its group builder's activation commands are baked. |
@@ -142,10 +146,13 @@ Two things shape every hook:
 Paths below are relative to the run's generation directory; `<ws>` is the
 builder name and `<ph>` is `image-generation`.
 
-1. `generate_items_before` registers the model's `required_plugins` and the
-   two variables into the run's `PackerCollector`, then writes, per block,
+1. `generate_items_before` registers the model's `required_plugins`, the
+   two builder variables and every image's `variables:` entries (stage 63)
+   into the run's `PackerCollector`, then writes, per block,
    under `<ws>/<ph>/block-NNN/`:
-   - `<ws>-<ph>-block-NNN-vars.pkr.hcl`: the `variable` blocks.
+   - `<ws>-<ph>-block-NNN-vars.pkr.hcl`: the `variable` blocks (the two
+     builder variables and every declared image variable; every block of
+     the builder gets the same set).
    - `<ws>-<ph>-block-NNN-plugins.pkr.hcl`: the `packer { required_plugins }`
      block.
    - `<ws>-<ph>-block-NNN-ebs-ansible-setup.pkr.hcl`: a `locals` block with
@@ -153,8 +160,13 @@ builder name and `<ph>` is `image-generation`.
      `image_version`. No emitted source refers to either local; the only
      variable a source uses is `var.release` (`force_deregister =
      !var.release` on `amazon-ebs`).
-   The parent class's builder-level setup and vars assets are not written;
-   only the per-block files are.
+   The `packer-ebs` class calls the parent's `generate_items_before` only
+   for its side effect on the collector; the parent's builder-level setup
+   and vars assets are discarded (stage 63: the result is no longer bound
+   to an unused name) and only the per-block files are written. The
+   parent's `generate_items_during` names its per-image placeholder files
+   `.pkr.hcl` (stage 63; it named them `.pkl.hcl` until 2026-09-25), and
+   `image_to_source` fetches the image's runtime subconfig once.
 2. `get_commands_to_run_before`: nothing.
 3. `generate_items_during` writes, per block:
    - `<ws>-<ph>-source-<image>-block-NNN.pkr.hcl` per image: the runtime
@@ -200,7 +212,11 @@ builder name and `<ph>` is `image-generation`.
       `csis-mods/<image>/` is staged in the block directory with the
       `csis-mods` runner script, a `MANIFEST.yaml` index, and one
       `NN-<mod>/` directory per modification (its playbooks or scripts,
-      an `inline.sh` for inline lines, a `run.sh` wrapper, a
+      an `inline.sh` for inline lines (for a bash item, its guarded
+      `ensure` lines first and then its `script` lines, the order the
+      bake runs them, so `csis-mods rerun` re-applies the declarative
+      form too; stage 63, it held only the `script` lines until
+      2026-09-25), a `run.sh` wrapper, a
       `MANIFEST.yaml` with type, operation, content hash, idempotence, run
       id). Three provisioners upload it: `mkdir -p /tmp/csis-mods`, a
       `file` provisioner, and a shell that moves it to `/opt/csis/mods`
@@ -476,13 +492,14 @@ and [builder_model.py](../base/src/cs_image_system/base/models/builder_model.py)
 | `tags` | mapping[str, str] | `{}` | Merged into every source's tags first, under the image's tags and the runtime subconfig's tags, under the lineage tags (`csis_*` always win). Read through the subconfig's `get_tags()`. |
 | `aliases` | list[str] | `[]` | Extra names an image's `image_builder` may use. |
 | `description` | str or null | null | Accepted, not read. |
-| `default_machine_type` | str | `default` | Accepted, not read. The bake's machine type is the image's runtime subconfig `machine_type`; its default is the runtime's `default_machine_type`, never this field. |
+| `default_machine_type` | str | `default` | Read (stage 63). The bake's machine type is the image's runtime subconfig `machine_type`; when that is unset it is this field when declared (not `default`), else the runtime's `default_machine_type`. Applies to base and instance images alike; instance images used to skip this field until 2026-09-25. |
 | `config` | mapping | `{}` | Accepted, not read by this plugin. (`config.admin_public_keys` in the README above is the GLOBAL `config:` of `cfg/_config.yml`, not this field.) |
 | `gitignore` | list[str] | `[]` | Accepted, not read for image builders (the emitted `.gitignore` comes from the global `config.gitignore`). |
 | `parameters` | | | Refused at load with a message naming the replacement (stage 26). |
 
-The plugin also declares two Packer variables in every block root and
-reads them nowhere itself:
+The plugin also declares two Packer variables of its own in every block
+root and reads them nowhere itself (an image's `variables:` add more; see
+below):
 
 | Variable | Type | Emitted default | Used by |
 |---|---|---|---|
@@ -495,9 +512,17 @@ The image-side fields the plugin reads (`runtimes[].image_builder`,
 `tags`; a base image's `identity_types`, `storage_types`, `admin_user`,
 `admin_public_keys`) are documented in "The image models this builder
 consumes" above and in [CONFIGURATION.md](../../docs/CONFIGURATION.md)
-sections 5 and 11. An image's `variables:` mapping is accepted by the
-image model and read by nothing in this plugin: no `name = value` variable
-lines are emitted.
+sections 5 and 11. An image's `variables:` mapping is read (stage 63):
+each entry becomes a `variable "<name>" { type = <string|number|bool>
+default = <value> }` block in every block root of the builder the image is
+baked on (the image, or base image, lists the builder in `runtimes[]`).
+It is carried, not consumed: no emitted source or provisioner refers to
+`var.<name>` today, so declaring a variable changes the vars file and
+nothing else. Two images of one builder that declare the same name are
+refused by the collector (`Packer variable '<name>' redefined with
+different attributes in workspace '<ws>'`); each declaration's description
+names its image, so this happens even when the two values agree. Until
+2026-09-25 the mapping was read only by the deleted `gen_packer.py`.
 
 ### Variations
 
@@ -633,6 +658,10 @@ the message in the log):
   registered for its source on that runtime (`No provider-specific image
   registered for source '<parent>' of image <x> on runtime <rt>`), or when
   the final-name template renders empty;
+- every image `variables:` entry is checked as it is registered (stage
+  63): a value that is not a string, number or bool, or a name Packer
+  cannot take, raises `ValueError` naming the image and key; the same
+  name from two images raises `HclConfigConflictError`;
 - a modification whose `type` names no modification builder fails an
   assertion (`No mod builder <type> found in context for <image>`);
 - after the files are written, `packer fmt .`, `packer init .` and
@@ -805,7 +834,8 @@ generated by an older tree; regenerate.
 (finding 41, found live, before the public history).** The bake size is
 the subconfig `machine_type`, else the runtime's default; set
 `machine_type` on the image's runtime entry for anything that compiles.
-The image builder's `default_machine_type` is NOT in that chain.
+The image builder's `default_machine_type` was not in that chain then;
+since stage 63 (2026-09-25) it is, between the entry and the runtime.
 
 Failures the code raises that have not happened in a recorded run:
 
@@ -822,6 +852,9 @@ Failures the code raises that have not happened in a recorded run:
 | `Image <x> does not have runtime-specific data for runtime <rt> required to convert to source configuration.` | the image lists this builder but no subconfig was built for the builder's runtime (usually a wrong or duplicated `image_builder` entry) | the image's `runtimes:` list; one entry per builder, the builder's `runtime` must resolve |
 | `No provider-specific image registered for source '<parent>' of image <x> on runtime <rt>; cannot convert to source configuration.` | the parent's image was not resolved on this runtime: the OS builder's vendor query found nothing, the base image is not baked on that runtime, or the parent image does not list this builder | `runtime describe`, the OS builder's `runtimes[]` for that runtime, the parent image's `runtimes[]`; for a vendor query, the AWS or GCP session |
 | `Image <x> does not have a valid output image name ...` | the subconfig's final-name template rendered empty | `image_identifier` / the name template on the runtime entry |
+| `` image '<x>': `variables.<key>` is not a packer variable name (a letter or `_` first, then letters, digits, `_` or `-`) `` at generation | an image's `variables:` key Packer would refuse (stage 63) | rename the key |
+| `` image '<x>': `variables.<key>` must be a string, number or bool, not <type> `` at generation | an image's `variables:` value is a list or mapping (stage 63) | give a scalar; a structured value has no Packer variable form here |
+| `Packer variable '<name>' redefined with different attributes in workspace '<ws>'` (`HclConfigConflictError`) at generation | two images baked on one builder declare the same `variables:` name (even with the same value, since each declaration names its image) | declare the variable on one image only, or use distinct names |
 | `AssertionError: No mod builder <type> found in context for <image>` | a modification's `type` names no `mod_builders:` entry | fix the `type`; `default` uses the default modification builder |
 | `Command failed after phase image-generation: packer (Return code: N)` with Packer's output above it | `packer fmt`, `init` or `validate` failed in a block at generation | the block directory named in the debug log: run the same command there; `init` failures are network or a wrong `source`; `validate` failures are a provisioner from some plugin, or a plugin missing from `required_plugins` |
 | `Final execution failed for command in phase image-generation: /usr/local/bin/packer build . (Return code: 1)` | a real bake failed: the build VM never came up, a provisioner exited nonzero, or an in-bake assertion fired | the terminal log of the runner script; Packer prints the failing provisioner and, for a package assertion, `package <p> is not installed`. Nothing to undo: no manifest entry means no record; the next run bakes again. A half-built AMI or GCE image Packer could not clean up shows in `state query` as unrecorded |

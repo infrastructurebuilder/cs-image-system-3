@@ -348,3 +348,80 @@ def test_a_bare_update_policy_name_stays_refused():
     from cs_image_system.base.models.update_policy import UpdatePolicy
     with pytest.raises(ValueError, match="must be a mapping"):
         UpdatePolicy.from_config("none")
+
+
+# ------------------------------------------------------ 5. the packer plugin
+
+def _image_vars(root: Path, image: str, variables: dict) -> None:
+    def edit(d):
+        next(i for i in d["images"] if i["name"] == image)["variables"] = variables
+    _edit(root / "images" / "image1.yaml", edit)
+
+
+def test_image_variables_become_packer_variables(tmp_path: Path, monkeypatch):
+    root = copy_config(tmp_path)
+    _image_vars(root, "imgfile-basic-dask", {"dask_flavor": "standard", "workers": 4, "gpu": False})
+    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    try:
+        assert run.run(["base-image", "instance-image"], apply=False).ok
+        text = "".join(p.read_text() for p in run.generated.rglob("*-vars.pkr.hcl") if "instance-image" in str(p))
+        assert 'variable "dask_flavor"' in text and 'default = "standard"' in text, text
+        assert 'variable "workers"' in text and "type = number" in text and "default = 4" in text, text
+        assert 'variable "gpu"' in text and "default = false" in text, text
+    finally:
+        run.restore_cwd()
+
+
+@pytest.mark.parametrize("key, value, needle", [
+    ("tiers", ["a", "b"], "must be a string, number or bool"),
+    ("9lives", "x", "is not a packer variable name"),
+])
+def test_an_image_variable_packer_cannot_take_is_refused(key, value, needle):
+    from cs_image_system.packer_plugin.packer_builder import image_packer_variable
+    with pytest.raises(ValueError) as exc:
+        image_packer_variable("imgfile-basic-dask", key, value)
+    assert needle in str(exc.value) and "imgfile-basic-dask" in str(exc.value)
+
+
+def test_two_images_giving_one_variable_the_same_value_declare_it_once(tmp_path: Path, monkeypatch):
+    root = copy_config(tmp_path)
+    _image_vars(root, "imgfile-basic-dask", {"flavour": "same"})
+    _image_vars(root, "imgfile-data-science", {"flavour": "same"})
+    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    try:
+        assert run.run(["base-image", "instance-image"], apply=False).ok
+    finally:
+        run.restore_cwd()
+
+
+def test_two_images_giving_one_variable_different_values_are_refused(tmp_path: Path, monkeypatch):
+    root = copy_config(tmp_path)
+    _image_vars(root, "imgfile-basic-dask", {"flavour": "a"})
+    _image_vars(root, "imgfile-data-science", {"flavour": "b"})
+    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    try:
+        summary = run.run(["base-image", "instance-image"], apply=False)
+        assert not summary.ok and "flavour" in str(summary.error), summary.error
+    finally:
+        run.restore_cwd()
+
+def test_an_image_builders_machine_type_sits_between_the_entry_and_the_runtime(tmp_path: Path, monkeypatch):
+    root = copy_config(tmp_path)
+    _edit(root / "cfg" / "image-builders.yml",
+          lambda d: next(b for b in d["image_builders"] if b["name"] == "pckr-gce-ans").update(
+              default_machine_type="e2-highmem-2"))
+
+    def drop_entry_machine(d):
+        dask = next(i for i in d["images"] if i["name"] == "imgfile-basic-dask")
+        for r in dask.get("runtimes") or []:
+            r.pop("machine_type", None)
+            r.pop("default_machine_type", None)
+    _edit(root / "images" / "image1.yaml", drop_entry_machine)
+    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    try:
+        assert run.run(["base-image", "instance-image"], apply=False).ok
+        src = "".join(p.read_text() for p in run.generated.rglob("*source-imgfile-basic-dask*.pkr.hcl")
+                      if "pckr-gce-ans" in str(p))
+        assert "e2-highmem-2" in src, src
+    finally:
+        run.restore_cwd()

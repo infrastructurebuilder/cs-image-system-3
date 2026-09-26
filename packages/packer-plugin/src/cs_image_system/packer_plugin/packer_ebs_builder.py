@@ -23,13 +23,12 @@ from cs_image_system.base.models.image import Image
 from cs_image_system.base.models.moditem_type import ModItemModel
 from cs_image_system.base.models.provider_specific_image import PSISourceKind
 from cs_image_system.hashicorp_utils.hashicorp import FO # noqa: F401
-from .packer_models import PackerEbsImageBuilderModel  # PACKER_EBS is defined locally below
+from .packer_models import PACKER_EBS, PackerEbsImageBuilderModel
 from .packer_builder import PackerImageBuilder
 
 log = logging.getLogger(__name__)
 
 
-PACKER_EBS: str = "packer-ebs"
 PACKER_PLUGIN_TYPE: str = "PackerPlugin"
 MANIFEST_FILENAME: str = PACKER_MANIFEST_FILENAME   # run-local (stage 48.6): never committed
 
@@ -76,7 +75,10 @@ class PackerEbsImageBuilder(PackerImageBuilder[PackerEbsImageBuilderModel]):
     ) -> AssetSet: # list[tuple[Path, str]]:
         """Generate a list of items to create before a specific execution lifecycle
         event."""
-        super_items = super().generate_items_before(phase)
+        # the parent's call registers this builder's plugins and variables into
+        # the PackerCollector; its own items are superseded by the per-block
+        # ones below (stage 63: the result was bound to a name and dropped)
+        super().generate_items_before(phase)
         items: AssetSet = AssetSet()
         if phase == ExecutionLifecyclePhase.IMAGE_GENERATION:
             blocks, blocks_map = self.get_blocks()
@@ -611,12 +613,7 @@ class PackerEbsImageBuilder(PackerImageBuilder[PackerEbsImageBuilderModel]):
         #     log.error(err)
         #     raise ValueError(err)
 
-        self_rtc = image.get_image_runtime_subconfig_for_runtime(runtime)
-        if not self_rtc:
-            raise ValueError(
-                f"Image {image.name} does not have runtime-specific data for runtime "
-                f"{runtime} required to convert to source configuration."
-            )
+        self_rtc = irtsc      # stage 63: the same subconfig, fetched once
         final_name = self._final_name(self_rtc)
         if not final_name:
             raise ValueError(
