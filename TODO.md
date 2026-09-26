@@ -509,29 +509,52 @@ until the operator says which items to do.
    dispose the parent, plan again, the child is current; and a follow
    child whose parent's head moved with an unchanged fingerprint is due.
    Proof: one GCE cycle whose bake plan shows dask `skip: current`.
+   **Shape (USER, 2026-09-26):** one step, two commits on one branch
+   (`feature/hygiene-vi-fingerprint`: (b) the follow bake reason, then
+   (a) the parent fingerprint), one bar, one squash, the GCE cycle as
+   proof; (a) and (b) never land apart, since (a) alone breaks `follow`
+   for the two live images. (c) is the OPERATOR's: after the squash, ONE
+   `lineage restamp --runtime <rt> --commit` per runtime (aws-east2-runtime,
+   gcloud-east1) absorbs both this change and the dead-field list's
+   disk-size change (the three AWS base images read DUE since 2026-09-26);
+   no push to `main` before it, or the perform job re-bakes them.
 2. **Small remnants found while landing §63's dead-field list**
    (2026-09-25; none threatens function, each is a line or two):
    - `TofuS3StorageBuilderModel.bucket_name` is required and now read by
      nothing (the state lookup and the module call use the STORAGE's
-     bucket); `get_bucket_name()` has no callers. Remove the field or make
-     it the default for a storage that names none.
+     bucket); `get_bucket_name()` has no callers. **Decided (USER,
+     2026-09-26):** the builder's bucket is the DEFAULT for a storage that
+     names none: a storage's `bucket_name` wins, else the builder's, else
+     the storage's name; the field stays required and means something
+     again, and nothing in the trees changes.
    - `--only-providers` splits its comma list now, but nothing reads it
      beyond a load warning ("configuration will still be read in full");
-     its help promises a filter. Wire it or retire it (a decision).
+     its help promises a filter. **Decided (USER, 2026-09-26): RETIRED**,
+     like `--force`; `--only-runtime <rt>` is the runtime filter and the
+     manuals stop promising a second one.
    - `read_config_and_transform` still takes a `force` argument and stores
-     `"force": False` since the `--force` flag went.
+     `"force": False` since the `--force` flag went (obvious: the parameter
+     and the key go, with `only_providers` above).
    - `GlobalContext._sleep_before_finalization` defaults to 10 while the
      model's default is 1 (the load overwrites it; only a context built
-     without a configuration sees 10).
+     without a configuration sees 10). Obvious: one default, the model's.
    - `RhelOsBuilderModel.repo_setup_commands` repeats the major-version
      check the model now makes at load (unreachable, older message);
      rhel's `get_command_to_update`/`commands_to_update` and the base
      `OsBuilderModel.get_command_to_update` are reachable only by alpine.
+     Obvious: rhel's duplicate check and its two unreachable hooks go;
+     the base hook stays as alpine's one path, its docstring saying so.
    - The GCE lookup of a pinned `image_id` does not insist on
-     `status = "READY"` as the vendor query does.
+     `status = "READY"` as the vendor query does. Obvious: a pinned image
+     that is not READY is refused by name (a bake from it would fail).
    - An image's `variables:` become packer variables, but nothing a
-     configuration writes can reference `var.<name>` yet (a design
-     question for whoever wants them consumed).
+     configuration writes can reference `var.<name>` yet. **Decided (USER,
+     2026-09-26): LEFT AS IS**, carried and documented as not yet consumed;
+     a consumer is a design question for whoever wants one. No code.
    - `Registry.get_builder()` has no production caller (a base test pins
      it); the plugin templates' model-to-builder maps it would read are
-     decorative.
+     decorative. Obvious: the method and its test go; the maps stay as
+     the template's shape (the README says they are not read).
+   Item 2 is one step: one branch (`feature/hygiene-vi-remnants`), one
+   commit per remnant that changes code, one bar, no live proof beyond a
+   `validate` of the live tree (nothing here reaches a cloud).
