@@ -175,6 +175,19 @@ def check_name_uniquness(ctx: GlobalTypeContext) -> list[Exception]:
         else:
             seen_names.add(name)
     return exceptions
+def check_state_backend_executables(ctx: GlobalTypeContext) -> list[Exception]:
+    """Stage 63: a state backend names an executable too (the tofu its roots
+    run). A declared one must exist in the executables list, where it is
+    version-checked like every other entry; an undeclared one is skipped."""
+    exs: list[Exception] = []
+    for name, backend in sorted((ctx.state_backends or {}).items()):
+        exe = getattr(getattr(backend, "model", backend), "executable", None)
+        if exe and exe not in ctx.executables:
+            exs.append(Exception(f"Executable {exe} specified for state backend {name} not found in "
+                                 "executables list."))
+    return exs
+
+
 def check_executables_exist_and_versions(ctx: GlobalTypeContext) -> list[Exception]:
     """Every declared executable exists and meets its version requirement
     (stage 48.1), said once as one INFO line -- the record of what versions a
@@ -187,6 +200,7 @@ def check_executables_exist_and_versions(ctx: GlobalTypeContext) -> list[Excepti
     for providers in (ctx.runtime_builders, ctx.storage_builders, ctx.os_builders,
                       ctx.mod_builders, ctx.image_builders, ctx.instance_builders):
         exs.extend(check_existence_of_executable(ctx.executables, providers, unspecified=unspecified))  # type: ignore
+    exs.extend(check_state_backend_executables(ctx))
     if checked:
         log.info(f"Executables: {'; '.join(checked)}")
     if unspecified:

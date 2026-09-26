@@ -33,14 +33,14 @@ A backend entry selects this plugin with `type: s3`. The same value is the
 terraform backend type written into the consumers' `backend "s3" {}` block.
 An entry's `name:` (`s3-east2` in the fixture) is what a consumer's
 `state_configuration:` field names; `default` (the field's default) resolves
-to the entry with `is_default: true`. The entry's `aliases:` are accepted
-and kept apart from other entries' names, but a `state_configuration:` that
-names an alias does **not** resolve (see the configuration reference).
+to the entry with `is_default: true`. The entry's `aliases:` are names it
+answers to as well: a `state_configuration:` that names an alias binds to
+this backend (stage 63; until 2026-09-25 an alias was refused as "not
+declared").
 
-[tf_s3_state_builder.py](src/cs_image_system/tf_s3_state_plugin/tf_s3_state_builder.py)
-also defines a `TofuVersionChecker` (`<binary> --version -json`, reading
-`terraform_version`), but `main.py` does not register it; the checker that
-serves `type: tofu` executables is the one in the AWS instance plugin.
+The checker that serves `type: tofu` executables is the one in the AWS
+instance plugin; this package registers none (a second copy that was never
+registered was removed in stage 63).
 
 ## Models
 
@@ -65,50 +65,48 @@ Inherited from the base:
 | `name` | str | required | Backend name; normalized (trimmed, lowercased, spaces and `:` to `_`). `/` and `\` are refused; `default`, `self` and the empty string are refused. |
 | `type` | str | required | `s3`; also the terraform backend type. |
 | `description` | str \| None | None | Free text. |
-| `aliases` | set[str] | {} | Extra names, normalized like `name`, checked for collisions within the class. Nothing resolves a `state_configuration:` through them (see below). |
+| `aliases` | set[str] | {} | Extra names, normalized like `name`, checked for collisions within the class; a `state_configuration:` may name one (stage 63). |
 | `is_default` | bool | false | The backend chosen for `state_configuration: default`. A second `is_default: true` in the class is refused at load. |
 | `config`, `gitignore`, `tags` | | | Not read by this plugin. |
 
-Fields this model adds. The **Emitted** column says whether the value
-reaches the generated configuration: only the fields carried by
-`BackendRegistration` do. The rest are accepted and validated at load and
-are not read anywhere else.
+Fields this model adds. The first six are the core the backend file
+always carries; every other one is a terraform s3-backend argument that is
+**passed through** (stage 63, decided 2026-09-25): emitted into the
+backend file and into every consumer's remote-state `config` when it
+differs from its default, and absent otherwise, so a tree that declares
+none renders exactly as before.
 
 | Field | Type | Default | Meaning | Emitted |
 |---|---|---|---|---|
-| `bucket` | str | required | The state bucket. | yes |
-| `key` | str | required | The key **prefix** under which every workspace's state file lives; see the key rules below. | yes |
-| `region` | str | `"us-east-2"` | The bucket's region. | yes |
-| `encrypt` | bool | false | Server-side encryption of the state objects. | yes |
-| `use_lockfile` | bool | true | S3-native state locking (a `.tflock` object beside the state file). | yes |
-| `profile` | str \| None | None | The AWS shared-config profile the backend uses. | yes |
-| `executable` | str \| None | `"tofu"` | Present for shape parity with the other tofu builders; this plugin runs no commands. | no |
-| `required_plugins` | list[`TFTofuPluginModel`] | [] | Same; not read. | no |
-| `allowed_account_ids` | list[str] | [] | | no |
-| `forbidden_account_ids` | list[str] | [] | | no |
-| `http_proxy` | str \| None | None | | no |
-| `https_proxy` | str \| None | None | | no |
-| `no_proxy` | list[str] | [] | | no |
-| `insecure` | bool | false | | no |
-| `max_retries` | int | 5 | | no |
-| `access_key` | str \| None | None | Never emitted. Credentials come from the profile or the environment. | no |
-| `secret_key` | str \| None | None | Never emitted. | no |
-| `shared_config_file` | str \| None | None | | no |
-| `shared_credentials_file` | str \| None | None | | no |
-| `skips_credentials_validation` | bool | false | | no |
-| `skip_region_validation` | bool | false | | no |
-| `skip_requesting_account_id` | bool | false | | no |
-| `skip_metadata_api_check` | bool | false | | no |
-| `skip_s3_checksum` | bool | false | | no |
-| `use_dualstack_endpoint` | bool | false | | no |
-| `use_fips_endpoint` | bool | false | | no |
-| `endpoints` | `StateEndpoints` \| None | None | `name` plus optional `dynamodb`, `s3`, `sts`, `iam`, `sso` endpoint overrides. | no |
-| `assume_role` | `AssumeRoleConfig` \| None | None | `name`, `role_arn`, `duration`, `policy`, `policy_arns`, `session_name`, `source_identity`, `tags`, `transitive_tag_keys`. | no |
-| `assume_role_with_web_identity` | `AssumeRoleWithWebIdentityConfig` \| None | None | `name`, `role_arn`, `duration`, `policy`, `policy_arns`, `session_name`, `web_identity_token`, `web_identity_token_file`. | no |
+| `bucket` | str | required | The state bucket. | always |
+| `key` | str | required | The key **prefix** under which every workspace's state file lives; see the key rules below. | always |
+| `region` | str | `"us-east-2"` | The bucket's region. | always |
+| `encrypt` | bool | false | Server-side encryption of the state objects. | always (backend file) |
+| `use_lockfile` | bool | true | S3-native state locking (a `.tflock` object beside the state file). | always (backend file) |
+| `profile` | str \| None | None | The AWS shared-config profile the backend uses. | when set |
+| `executable` | str \| None | None | The `cfg/executables.yml` entry the roots bound here run. When declared it must exist in the executables list (`validate`, `check_state_backend_executables`), where it is version-checked like every entry; unset, nothing is checked. | no |
+| `allowed_account_ids`, `forbidden_account_ids` | list[str] | [] | The account guards. | when non-empty |
+| `http_proxy`, `https_proxy` | str \| None | None | Proxies for the backend's AWS calls. | when set |
+| `no_proxy` | list[str] | [] | Hosts that bypass the proxy; written as the comma-separated string tofu takes. | when non-empty |
+| `insecure` | bool | false | Skip TLS verification. | when true |
+| `max_retries` | int | 5 | AWS API retries. | when not 5 |
+| `shared_config_file`, `shared_credentials_file` | str \| None | None | One file each; written as the lists tofu takes, `shared_config_files = [...]` and `shared_credentials_files = [...]`. | when set |
+| `skip_credentials_validation`, `skip_region_validation`, `skip_requesting_account_id`, `skip_metadata_api_check`, `skip_s3_checksum` | bool | false | The backend's skip flags. | when true |
+| `use_dualstack_endpoint`, `use_fips_endpoint` | bool | false | Endpoint variants. | when true |
+| `endpoints` | `StateEndpoints` \| None | None | `{dynamodb, s3, sts, iam, sso}` endpoint overrides; written as an object with the members that are set. | when set |
+| `assume_role` | `AssumeRoleConfig` \| None | None | `{role_arn (required), duration, external_id, policy, policy_arns, session_name, source_identity, tags, transitive_tag_keys}`; written as an object. | when set |
+| `assume_role_with_web_identity` | `AssumeRoleWithWebIdentityConfig` \| None | None | `{role_arn (required), duration, policy, policy_arns, session_name, web_identity_token, web_identity_token_file}`; written as an object. | when set |
 
-The nested types come from
-[hashicorp.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/hashicorp.py)
-in `hashicorp-utils`.
+**Refused at load**, each with what to do instead: `access_key` and
+`secret_key` (credentials never live in the tree: name a `profile`, or
+`assume_role`); `skips_credentials_validation` (the old spelling, never
+read; the argument is `skip_credentials_validation`); `required_plugins`
+(a state backend has no plugins). A setting that was declared encrypted is
+written as its ciphertext and restored in the private copy tofu runs from.
+
+The nested types are strict (an unknown member is refused) and live in
+[tf_s3_state_models.py](src/cs_image_system/tf_s3_state_plugin/tf_s3_state_models.py);
+they used to require a `name` member that no backend argument has.
 
 **Key prefix rules** (`__post_init__`):
 
@@ -415,11 +413,12 @@ writes the federated keys into `~/.aws/credentials` under the profile's
 section so a named profile still finds them. With `profile` unset, no
 `profile =` line is written and tofu uses the default AWS credential chain
 (`AWS_PROFILE`, `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/
-`AWS_SESSION_TOKEN`, then the shared files). The `access_key`,
-`secret_key`, `shared_config_file`, `shared_credentials_file`,
-`assume_role`, `assume_role_with_web_identity` and `endpoints` fields are
-accepted but **never emitted**, so none of them can steer tofu: credentials
-come from the profile or the environment, full stop. The configuration
+`AWS_SESSION_TOKEN`, then the shared files). `assume_role`,
+`assume_role_with_web_identity`, the shared files and `endpoints` are
+passed through when declared (stage 63), so they steer tofu the way the
+terraform backend documents; static keys are refused at load, so
+credentials still come from the profile, the environment or an assumed
+role. The configuration
 load checks the *runtime's* AWS session (the runtime's
 `credentials.profile_name`), not the backend's `profile`; a backend whose
 profile is unknown or expired fails at tofu's `init`, not at load.
@@ -428,16 +427,16 @@ profile is unknown or expired fails at tofu's `init`, not at load.
 `use_lockfile` -- S3-native locking, no DynamoDB table is declared or
 needed. The binary is the *consumer root's* `executable` (an entry of
 `cfg/executables.yml`, `open-tofu-1` with `version: ">1,<2"` in the
-fixture); this plugin's own `executable` field is never read and the
-executable/version check at `validate` skips state backends entirely. The
+fixture). A backend's own `executable`, when declared, must name an entry
+of that list, which `validate` version-checks (stage 63). The
 `gate-plan` step that follows every plan needs the same binary.
 
 **Network.** From wherever tofu runs, HTTPS to S3 in the bucket's region
 (`s3.<region>.amazonaws.com`) and to STS for the profile's credentials.
 `endpoints`, `http_proxy`, `https_proxy`, `no_proxy`, `use_fips_endpoint`
-and `use_dualstack_endpoint` are not emitted, so an endpoint override or a
-proxy has to reach tofu through its own environment (`HTTPS_PROXY`, and
-the backend's `AWS_ENDPOINT_URL_S3`), not through this configuration. A
+and `use_dualstack_endpoint` are passed through when declared (stage 63);
+tofu's own environment (`HTTPS_PROXY`, `AWS_ENDPOINT_URL_S3`) still works
+when they are not. A
 dry run needs no network for the backend at all: its `init -backend=false`
 never contacts S3.
 
@@ -469,10 +468,10 @@ and nothing else ever looks at it -- a typo in such a field is refused
 | `name` | str | required | The backend's name; what `state_configuration:` names. Trimmed, lowercased, spaces and `:` to `_`; `/` and `\` refused; `default`, `self` and `""` refused. Read by the collector (registration key), the `.tfbackend.hcl` header comment and the location record. |
 | `type` | str | required | `s3`. Read by the loader (selects this model) and written as the terraform backend type in `backend "s3" {}` and every remote-state `backend = "s3"`. |
 | `description` | str or null | null | Accepted, not read. |
-| `aliases` | list[str] | `[]` | Accepted and registered for collision checks (an alias equal to another entry's name or alias is refused at load). **Not** a way to name the backend: `state_configuration: <alias>` is refused at `validate` as "not declared". |
+| `aliases` | list[str] | `[]` | Extra names the backend answers to: `state_configuration: <alias>` binds to it (stage 63). An alias equal to another entry's name or alias is refused at load. |
 | `is_default` | bool | `false` | The entry `state_configuration: default` (and an omitted value, when the runtime names nothing) resolves to. At most one per class; a second is refused at load. Read by the collector's `resolve_backend`. |
-| `executable` | str or null | `tofu` | Accepted, not read. The consumer root's `executable` is the binary that runs. |
-| `required_plugins` | list | `[]` | Accepted, not read. |
+| `executable` | str or null | null | When declared, must name a `cfg/executables.yml` entry (`validate`), which is version-checked; unset, nothing is checked. |
+| `required_plugins` | | | Refused at load: a state backend has no plugins. |
 | `config` | mapping | `{}` | Accepted, not read. |
 | `gitignore` | list[str] | `[]` | Accepted, not read. |
 | `tags` | mapping | `{}` | Accepted, not read. |
@@ -482,19 +481,19 @@ and nothing else ever looks at it -- a typo in such a field is refused
 | `encrypt` | bool | `false` | Server-side encryption of the state objects. Emitted as `encrypt = true` or `encrypt = false` in the backend file only. The fixture and the live tree declare `true` everywhere (stage 39); the test bar requires it of every declared and emitted S3 backend. |
 | `use_lockfile` | bool | `true` | S3-native locking. Emitted as `use_lockfile = true` or `use_lockfile = false` in the backend file only. |
 | `profile` | str or null | null | The AWS profile. Emitted as `profile =` in both places when set; omitted when null or empty. |
-| `allowed_account_ids`, `forbidden_account_ids` | list[str] | `[]` | Accepted, not read. |
-| `http_proxy`, `https_proxy` | str or null | null | Accepted, not read. |
-| `no_proxy` | list[str] | `[]` | Accepted, not read. |
-| `insecure` | bool | `false` | Accepted, not read. |
-| `max_retries` | int | `5` | Accepted, not read. |
-| `access_key`, `secret_key` | str or null | null | Accepted, not read, never emitted. Do not put keys here. |
-| `shared_config_file`, `shared_credentials_file` | str or null | null | Accepted, not read. |
-| `skips_credentials_validation` | bool | `false` | Accepted, not read (spelled with the `s`). |
-| `skip_region_validation`, `skip_requesting_account_id`, `skip_metadata_api_check`, `skip_s3_checksum` | bool | `false` | Accepted, not read. |
-| `use_dualstack_endpoint`, `use_fips_endpoint` | bool | `false` | Accepted, not read. |
-| `endpoints` | mapping or null | null | `{name, dynamodb, s3, sts, iam, sso}`; `name` is required by the nested type. Accepted, not read. |
-| `assume_role` | mapping or null | null | `{name, role_arn, duration, policy, policy_arns, session_name, source_identity, tags, transitive_tag_keys}`; `name` required. Accepted, not read. |
-| `assume_role_with_web_identity` | mapping or null | null | `{name, role_arn, duration, policy, policy_arns, session_name, web_identity_token, web_identity_token_file}`; `name` required. Accepted, not read. |
+| `allowed_account_ids`, `forbidden_account_ids` | list[str] | `[]` | Passed through when non-empty (stage 63). |
+| `http_proxy`, `https_proxy` | str or null | null | Passed through when set. |
+| `no_proxy` | list[str] | `[]` | Passed through when non-empty, as a comma-separated string. |
+| `insecure` | bool | `false` | Passed through when true. |
+| `max_retries` | int | `5` | Passed through when not 5. |
+| `access_key`, `secret_key` | | | Refused at load: static keys never live in the tree. |
+| `shared_config_file`, `shared_credentials_file` | str or null | null | Passed through when set, as the one-element lists `shared_config_files` / `shared_credentials_files`. |
+| `skip_credentials_validation` | bool | `false` | Passed through when true. The old spelling `skips_credentials_validation` is refused by a message naming this one. |
+| `skip_region_validation`, `skip_requesting_account_id`, `skip_metadata_api_check`, `skip_s3_checksum` | bool | `false` | Passed through when true. |
+| `use_dualstack_endpoint`, `use_fips_endpoint` | bool | `false` | Passed through when true. |
+| `endpoints` | mapping or null | null | `{dynamodb, s3, sts, iam, sso}`; passed through as an object of the members set. |
+| `assume_role` | mapping or null | null | `{role_arn (required), duration, external_id, policy, policy_arns, session_name, source_identity, tags, transitive_tag_keys}`; passed through as an object. |
+| `assume_role_with_web_identity` | mapping or null | null | `{role_arn (required), duration, policy, policy_arns, session_name, web_identity_token, web_identity_token_file}`; passed through as an object. |
 | `parameters` | | | Refused at load with a message naming `variables:`. |
 
 Fields the plugin reads from **other** YAML:
@@ -533,7 +532,7 @@ Fields the plugin reads from **other** YAML:
   the root's runtime's `state_configuration` when that names a backend,
   else the one `is_default` entry, else nothing -- an unbound root, no
   backend block, bare `init`, no line in the runner header, no location
-  record. An alias is refused at `validate` as not declared.
+  record. An alias binds exactly as the name does (stage 63).
 - **`is_default: true` vs not.** Only the default entry is reachable
   through `default`; a non-default entry has to be named. Two defaults are
   refused at load.

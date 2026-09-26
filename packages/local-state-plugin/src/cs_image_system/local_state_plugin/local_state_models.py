@@ -75,7 +75,9 @@ class LocalStateBuilderModel(StateBuilderModel):
     """A ``local`` entry under ``state_backends:``."""
     path: str = "state"
     type = LOCAL_STATE
-    executable: str | None = "tofu"
+    # the executables entry these roots run; None = unspecified (no version
+    # check), a declared name is checked like every builder's (stage 63)
+    executable: str | None = None
 
     @classmethod
     def csis_name(cls) -> str:
@@ -89,11 +91,25 @@ class LocalStateBuilderModel(StateBuilderModel):
         if not self.path or not self.path.strip():
             raise ValueError("Terraform state backend 'path' cannot be empty for 'local' type.")
         self.path = self.path.strip()
+        # stage 63: one directory has one spelling. `a/../b` and `b` were two
+        # locations to the collision check, and a bare `/` rendered
+        # `//<ws>.tfstate` (state files in the filesystem root)
+        normalised = LOCAL_KIND.directory({"path": self.path})
+        parts = [s for s in normalised.split("/") if s]
+        # `.` alone is the configuration root itself (a supported place);
+        # only a `.` or `..` INSIDE a longer path, or `..` anywhere, is refused
+        if normalised != "." and any(s in (".", "..") for s in parts):
+            raise ValueError(f"state backend {self.name!r}: `path: {self.path}` has a `.` or `..` "
+                             "segment; write the directory once, without them")
+        if normalised == "/":
+            raise ValueError(f"state backend {self.name!r}: `path: /` would put state files in the "
+                             "filesystem root; name a directory")
         super().__post_init__()
 
     def to_backend_registration(self) -> BackendRegistration:
         return BackendRegistration(name=self.name, type=self.type_, settings={"path": self.path},
-                                   kind=LOCAL_KIND, is_default=self.get_is_default())
+                                   kind=LOCAL_KIND, is_default=self.get_is_default(),
+                                   aliases=tuple(sorted(self.aliases or ())))
 
     def get_state_file_path(self, builder_name: str) -> str:
         return self.to_backend_registration().state_file_path(builder_name)

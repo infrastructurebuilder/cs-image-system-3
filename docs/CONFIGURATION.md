@@ -1178,30 +1178,36 @@ configuration keeps every root on its default backend by decision.
 | `profile` | str or null | null | the AWS profile terraform uses for the backend |
 | `encrypt` | bool | `false` | server-side encryption of the state objects |
 | `use_lockfile` | bool | `true` | S3 lockfile locking |
-| `executable` | str or null | `tofu` | |
-| `required_plugins` | list | `[]` | `{name, version, source, config}`; accepted, not read |
-| `allowed_account_ids` | list[str] | `[]` | accepted, not read |
-| `forbidden_account_ids` | list[str] | `[]` | accepted, not read |
-| `http_proxy`, `https_proxy` | str or null | null | accepted, not read |
-| `no_proxy` | list[str] | `[]` | accepted, not read |
-| `insecure` | bool | `false` | accepted, not read |
-| `max_retries` | int | `5` | accepted, not read |
-| `access_key`, `secret_key` | str or null | null | accepted, not read; static keys belong in the environment, never here |
-| `shared_config_file`, `shared_credentials_file` | str or null | null | accepted, not read |
-| `skips_credentials_validation` | bool | `false` | accepted, not read (spelled with the `s`) |
-| `skip_region_validation` | bool | `false` | accepted, not read |
-| `skip_requesting_account_id` | bool | `false` | accepted, not read |
-| `skip_metadata_api_check` | bool | `false` | accepted, not read |
-| `skip_s3_checksum` | bool | `false` | accepted, not read |
-| `use_dualstack_endpoint` | bool | `false` | accepted, not read |
-| `use_fips_endpoint` | bool | `false` | accepted, not read |
-| `endpoints` | mapping or null | null | `{name (required), dynamodb, s3, sts, iam, sso}`; accepted, not read |
-| `assume_role` | mapping or null | null | `{name (required), role_arn, duration, policy, policy_arns: [], session_name, source_identity, tags: {}, transitive_tag_keys: []}`; accepted, not read |
-| `assume_role_with_web_identity` | mapping or null | null | `{name (required), web_identity_token, web_identity_token_file}`; accepted, not read |
+| `executable` | str or null | null | the `cfg/executables.yml` entry these roots run; when declared `validate` refuses a name that is not in the list, and the entry is version-checked like any other; unset, nothing is checked |
+| `allowed_account_ids`, `forbidden_account_ids` | list[str] | `[]` | backend argument, passed through when non-empty |
+| `http_proxy`, `https_proxy` | str or null | null | backend argument, passed through when set |
+| `no_proxy` | list[str] | `[]` | backend argument, passed through when non-empty as a comma string |
+| `insecure` | bool | `false` | backend argument, passed through when true |
+| `max_retries` | int | `5` | backend argument, passed through when not 5 |
+| `shared_config_file`, `shared_credentials_file` | str or null | null | passed through when set, as `shared_config_files = [...]` / `shared_credentials_files = [...]` |
+| `skip_credentials_validation`, `skip_region_validation`, `skip_requesting_account_id`, `skip_metadata_api_check`, `skip_s3_checksum` | bool | `false` | backend arguments, passed through when true |
+| `use_dualstack_endpoint`, `use_fips_endpoint` | bool | `false` | backend arguments, passed through when true |
+| `endpoints` | mapping or null | null | `{dynamodb, s3, sts, iam, sso}`; passed through as an object |
+| `assume_role` | mapping or null | null | `{role_arn (required), duration, external_id, policy, policy_arns, session_name, source_identity, tags, transitive_tag_keys}`; passed through as an object |
+| `assume_role_with_web_identity` | mapping or null | null | `{role_arn (required), duration, policy, policy_arns, session_name, web_identity_token, web_identity_token_file}`; passed through as an object |
+
+Refused at load, each naming what to do instead: `access_key` and
+`secret_key` (static keys never live in the tree: name a `profile` or an
+`assume_role`), `skips_credentials_validation` (the old spelling; the
+argument is `skip_credentials_validation`) and `required_plugins` (a
+backend has no plugins). A nested object refuses a member it does not
+know. Before stage 63 every argument in this table beyond the core six
+was accepted and read by nothing, and the nested objects demanded a
+`name` member no backend argument has.
 
 A root's location is `s3://<bucket>/<key>/<root name>.tfstate`; the backend
 file carries `bucket`, `key`, `region`, `encrypt`, `use_lockfile` and the
 profile; a consumer's data source `bucket`, `key`, `region` and the profile.
+Both also carry every passed-through argument that is declared, so a
+consumer reads the state the way the root writes it. A setting declared
+encrypted is written as its ciphertext and restored in the private copy
+tofu runs from. A root's `state_configuration` may name a backend by its
+`name` or by one of its `aliases` (stage 63).
 
 [`cfg/state-backends.yml`](../tests/fixtures/config/cfg/state-backends.yml)
 and [`cfg/state-backends-2.yml`](../tests/fixtures/config/cfg/state-backends-2.yml):
@@ -1238,8 +1244,8 @@ type, so its golden carries two backend types and reads across them.
 | Field | Type | Default | Meaning and allowed values |
 | --- | --- | --- | --- |
 | common builder fields (4.1) | | | `is_default` marks the backend `default` resolves to |
-| `path` | str | `state` | a directory, relative to the configuration root or absolute; non-empty |
-| `executable` | str or null | `tofu` | |
+| `path` | str | `state` | a directory, relative to the configuration root or absolute; non-empty; a `.` or `..` segment inside a longer path and a bare `/` are refused at load, while `.` alone (the configuration root) is accepted (one directory, one spelling: `a/../b` and `b` used to be two locations to the collision check, and `/` rendered `//<root>.tfstate`) |
+| `executable` | str or null | null | as for `s3` |
 
 A root's location is `local://<directory>/<root name>.tfstate`. The backend
 file and a consumer's data source carry one setting, `path`: the absolute
@@ -1273,14 +1279,14 @@ and the live tree carries the same file with every line commented out.
 | `impersonate_service_account` | str or null | null | the service account terraform impersonates |
 | `encryption_key` | str or null | null | a customer-supplied key |
 | `kms_encryption_key` | str or null | null | a Cloud KMS key name |
-| `executable` | str or null | `tofu` | |
+| `executable` | str or null | null | as for `s3` |
 
 A root's location is `gcs://<bucket>/<prefix>/<root name>/default.tfstate`
 (OpenTofu's `gcs` backend names the default terraform workspace's object
 `default.tfstate` under the prefix, so each root gets its own prefix). The
 backend file carries `bucket`, `prefix`, the identity fields and the
 encryption keys when set; a consumer's data source `bucket`, `prefix` and
-the identity fields only. `required_plugins` is accepted and not read.
+the identity fields only. `required_plugins` is refused at load (a backend has no plugins; stage 63).
 
 [`cfg/state-gcm.yml`](../tests/fixtures/config/cfg/state-gcm.yml):
 

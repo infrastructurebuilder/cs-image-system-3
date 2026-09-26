@@ -123,6 +123,27 @@ class StateLocation:
         return f"{self.type}://{self.container}/{self.key}"
 
 
+def render_backend_value(v: Any) -> str:
+    """One backend-file value in HCL: bools lower-case, numbers bare,
+    lists and maps (the s3 backend's ``assume_role``/``endpoints`` are
+    object attributes) recursively, strings quoted and escaped. A
+    decrypted setting is written as the ciphertext it was read from
+    (stage 63; it was written in clear, and only the plaintext guard
+    caught it); ``materialize`` restores it in the private copy."""
+    from cs_image_system.base.encryption import emit
+    if isinstance(v, bool):
+        return str(v).lower()
+    if isinstance(v, (int, float)):
+        return str(v)
+    if isinstance(v, (list, tuple)):
+        return "[" + ", ".join(render_backend_value(x) for x in v) + "]"
+    if isinstance(v, dict):
+        inner = ", ".join(f"{k} = {render_backend_value(x)}" for k, x in v.items())
+        return "{ " + inner + " }"
+    text = str(emit(v)).replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{text}"'
+
+
 class BackendKind(Protocol):
     """What a state backend TYPE knows (stage 47.1): where a workspace's state
     lives, the settings its partial configuration file needs, and the
@@ -151,6 +172,9 @@ class BackendRegistration:
     settings: dict[str, Any] = field(default_factory=dict, hash=False)
     kind: Any = field(default=None, compare=False, repr=False, hash=False)
     is_default: bool = False
+    # stage 63: the names the backend answers to beside its own; a root's
+    # `state_configuration` may name any of them
+    aliases: tuple[str, ...] = field(default=(), compare=False, hash=False)
 
     def _kind(self) -> BackendKind:
         if self.kind is None:
@@ -380,7 +404,11 @@ class TerraformCollector:
                     f"{sorted(b.name for b in defaults)}"
                 )
             return defaults[0] if defaults else None
-        return self._backends.get(name_or_default)
+        found = self._backends.get(name_or_default)
+        if found is None:
+            # stage 63: an alias binds too (it was registered and never read)
+            found = next((b for b in self._backends.values() if name_or_default in b.aliases), None)
+        return found
 
     def _workspace_backend_registration(self, workspace: str) -> BackendRegistration | None:
         if workspace not in self._workspace_backend:
@@ -505,10 +533,7 @@ class TerraformCollector:
     def render_backend_config(settings: dict[str, Any], comment: str) -> list[str]:
         lines = [comment]
         for k, v in settings.items():
-            if isinstance(v, bool):
-                lines.append(f"{k} = {str(v).lower()}")
-            else:
-                lines.append(f'{k} = "{v}"')
+            lines.append(f"{k} = {render_backend_value(v)}")
         return lines
 
     def backend_record(self, workspace: str) -> dict[str, Any] | None:

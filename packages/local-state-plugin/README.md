@@ -36,8 +36,8 @@ builder class.
 | Field | Type | Default | Meaning |
 |---|---|---|---|
 | common builder fields | | | `name` is what a root's `state_configuration` names; `is_default` marks the backend `default` resolves to |
-| `path` | str | `state` | a directory: relative to the configuration root, or absolute |
-| `executable` | str or null | `tofu` | accepted, not read: the plugin runs nothing, and the field is not version-checked (see "Configuration reference") |
+| `path` | str | `state` | a directory: relative to the configuration root, or absolute; one spelling per directory, so a `.` or `..` segment and a bare `/` are refused at load (stage 63) |
+| `executable` | str or null | null | the `cfg/executables.yml` entry the bound roots' tofu comes from; when declared it must exist there and is version-checked, when unset nothing is checked (stage 63; see "Configuration reference") |
 
 ## The kind
 
@@ -48,7 +48,7 @@ describes under "Adding a backend type"):
 
 | `location(settings, workspace)` | `backend_settings(...)` | `remote_state_settings(...)` |
 |---|---|---|
-| `local://<directory>/<super_safe_name(workspace)>.tfstate`, the directory normalised (repeated slashes collapsed, `./` and a trailing slash dropped, an absolute path kept) | `path = "<state path>"` | `path = "<state path>"` |
+| `local://<directory>/<super_safe_name(workspace)>.tfstate`, the directory normalised (repeated slashes collapsed, `./` and a trailing slash dropped, an absolute path kept); a `.` or `..` segment never reaches here, the model refuses it at load (stage 63) | `path = "<state path>"` | `path = "<state path>"` |
 
 The state path is the absolute directory as declared, or, for a relative
 one, the directory rewritten from the root directory's fixed depth:
@@ -60,7 +60,10 @@ generated it, and the same file works from a fresh clone.
 Two roots on one directory whose names collapse under `super_safe_name`
 would share a state file and are refused by the stage-46 collision check;
 the same name under `s3` and under `local` are two locations, not a
-collision.
+collision. Because the model refuses a `.` or `..` segment at load (stage
+63), the directory the check compares is the directory's one spelling:
+`a/../b` can no longer pose as a second location beside `b` (until
+2026-09-25 it could, and the check saw two places where the disk had one).
 
 ## Emission
 
@@ -130,7 +133,13 @@ saying where each piece comes from.
   the identity, storage or instance builder's `executable:` names an
   entry in `cfg/executables.yml`, and that binary is what runs (the
   golden's identity runner calls `/usr/local/bin/tofu`). The backend
-  entry's own `executable` field is never consulted. The `local` backend
+  entry's own `executable` field does not pick the binary; since stage 63
+  it is a declaration that is CHECKED: when set it must name an entry of
+  `cfg/executables.yml` (so the tofu the roots on this backend run is
+  declared and version-checked like every other entry), and when unset --
+  the default now, where it used to default to `tofu` and be checked by
+  nothing until 2026-09-25 -- nothing is checked on the backend's behalf.
+  The `local` backend
   is built into OpenTofu and Terraform: it downloads no provider and
   needs no plugin cache entry. This plugin sets no version floor; the
   `version` requirement declared on the root's executable in
@@ -182,20 +191,21 @@ backend has no `runtime` field.
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `name` | str | required | The backend's name, normalised at load (lowercased, spaces and `:` to `_`); `/` and `\` are refused. This is the value a root's `state_configuration:` (or a runtime's) names, and the collector resolves a binding by this name alone. |
+| `name` | str | required | The backend's name, normalised at load (lowercased, spaces and `:` to `_`); `/` and `\` are refused. This is the value a root's `state_configuration:` (or a runtime's) names; the collector looks the name up first and then the backends' `aliases` (stage 63). |
 | `type` | str | required | `local`. Selects this plugin at load and is the terraform backend type written into the consumers' `backend "local" {}` block and `backend = "local"` data sources. |
-| `path` | str | `state` | The directory the state files live in. Whitespace is stripped; empty or blank is refused at load. Relative means relative to the configuration root; absolute is kept as declared. Normalised for the location: repeated slashes collapsed, a leading `./` dropped, a trailing `/` dropped. No `~` or environment-variable expansion; a `..` segment is kept as written. Each bound workspace gets `<path>/<super_safe_name(workspace)>.tfstate`. |
+| `path` | str | `state` | The directory the state files live in. Whitespace is stripped; empty or blank is refused at load. Relative means relative to the configuration root; absolute is kept as declared. Normalised for the location: repeated slashes collapsed, a leading `./` dropped, a trailing `/` dropped. No `~` or environment-variable expansion. Since stage 63 the normalised form may not contain a `.` or `..` segment (`a/../b`, `./x/./y`, `..`, `../state` are refused at load) and may not be the bare filesystem root `/`: one directory has one spelling. `path: .` (or `./`) alone is still accepted: it is the configuration root itself, one spelling of one directory. Until 2026-09-25 a `..` segment was kept as written (so `a/../b` and `b` were two locations to the collision check), and `path: /` rendered `//<workspace>.tfstate`. Each bound workspace gets `<path>/<super_safe_name(workspace)>.tfstate`. |
 | `is_default` | bool | `false` | Marks the backend that `state_configuration: default` (and an omitted field) resolves to. More than one default among the declared backends is refused when a root resolves it. |
 | `description` | str or null | null | Accepted, not read. |
-| `aliases` | set[str] | `{}` | Accepted; the registry knows them, but the collector resolves a root's binding by `name` alone (`register_backend` and `resolve_backend` are keyed by the registration's name). Bind with the name. |
-| `executable` | str or null | `tofu` | Accepted, not read. Present for shape parity with the other tofu builders; nothing runs under it, and `validate`'s executable checks enumerate runtime, storage, os, mod, image and instance builders, never state backends, so the value is not checked for existence or version. |
+| `aliases` | set[str] | `{}` | Other names the backend answers to (stage 63). They travel on the `BackendRegistration`, and the collector's `resolve_backend` tries the backend names first and then every backend's aliases, so a root's (or runtime's) `state_configuration:` may name an alias and `validate` accepts the binding. Until 2026-09-25 aliases were registered and never read, and a binding to one was refused as not declared. The records (`# state:` header, `state-locations.yaml`) still name the backend by its `name`. |
+| `executable` | str or null | null | The `cfg/executables.yml` entry the tofu for the roots on this backend comes from (stage 63). Unset (the default): nothing is checked on the backend's behalf. Declared: `validate` and every run refuse a name that is not an entry of `cfg/executables.yml` (`check_state_backend_executables`), and the entry itself is version-checked like every executables entry (stage 48). The plugin still runs nothing under it, and the binary a root runs is still the root builder's own `executable`. Until 2026-09-25 the field defaulted to `tofu` and was checked by nothing. |
 | `config` | dict | `{}` | Accepted, not read. |
 | `gitignore` | list[str] | `[]` | Accepted, not read. |
 | `tags` | dict[str, str] | `{}` | Accepted, not read. |
 
-`path` is the only field this plugin reads: it is the one setting the
-registration carries (`settings={"path": ...}`), and the kind renders
-everything from it.
+`path` is the only field the kind renders from: it is the one setting the
+registration carries (`settings={"path": ...}`). `aliases` travel beside it
+on the registration for the lookup, and `executable` is read by
+`validate`, not by the plugin.
 
 Fields outside this file that decide what the entry does:
 
@@ -211,7 +221,7 @@ the chain and the collision rule in full.
 ### Variations
 
 - **Relative vs absolute `path`.** When `path` is relative (`state`,
-  `state/dev`, `.`), the backend file and every data source carry
+  `state/dev`), the backend file and every data source carry
   `../../../../<directory>/<workspace>.tfstate`, climbing four directories
   from the phase directory to the configuration root, and the emission
   names nothing of the generating machine. When `path` is absolute
@@ -221,9 +231,29 @@ the chain and the collision rule in full.
   unchanged. The location record and the `# state:` header show the
   declared directory in both cases (`local://state/...`,
   `local:///var/tf/state/...`).
-- **`path: .`** (or `./`, or a path that normalises to it): the state
-  files land in the configuration root itself, and the backend file
-  carries `../../../../<workspace>.tfstate` with no directory segment.
+- **`path: .`** (or `./`): the state files live in the configuration
+  root itself, and the backend file carries
+  `../../../../<workspace>.tfstate` with no directory segment. This is the
+  one place a `.` is accepted: stage 63 refuses a `.` or `..` segment
+  inside a longer path, not `.` alone.
+- **Named vs alias binding.** A root may name the backend by its `name`
+  or by any of its `aliases` (stage 63); both resolve to the same
+  registration and the same location, so switching a root from one
+  spelling to the other moves nothing.
+- **`executable` declared or not.** Unset, nothing about the backend is
+  version-checked. Declared (`executable: open-tofu-1`), the name must be
+  an entry of `cfg/executables.yml`, and that entry's version requirement
+  is checked by `validate` and at the head of every run (stage 63).
+- **Settings that were encrypted.** Any value may be an `ENC[age:...]`
+  marker. Since stage 63 the partial configuration file writes such a
+  setting as the ciphertext it was read from (`render_backend_value` in
+  the collector calls `emit`), and the execution's materialise step puts
+  the plaintext back in the `_private/` copy tofu runs from; until
+  2026-09-25 it was written in clear and only the plaintext guard caught
+  it. A `path` is not a secret, so for this type the rule is a
+  consistency guarantee rather than a practical option; the data source,
+  the `# state:` header and the location record are not part of that
+  change.
 - **Dry run vs real run.** A dry run (the default) initialises every root
   with `init -backend=false`: providers are installed and the emission is
   validated, but the backend file is not read, the state directory is not
@@ -271,12 +301,16 @@ the chain and the collision rule in full.
   refused; the value is stripped. The common checks apply: `name` with
   `/` or `\` is refused, a name in the reserved set (`default`, `self`,
   ...) is refused, an unknown key is refused, `parameters` is refused.
+  Since stage 63, a `path` whose normalised form has a `.` or `..`
+  segment, or is the bare `/`, is refused too (messages under "When it
+  fails").
   The verdict is a load error: the command that loaded the configuration
   (`validate`, `run`, anything) stops before any check runs, with the
   pydantic or `ValueError` message on stderr and exit 1.
 - **At `finalize()` (configuration load, before any generation phase).**
   The model registers `BackendRegistration(name, "local", {"path": ...},
-  LOCAL_KIND, is_default)` with the run-wide `TerraformCollector`. A
+  LOCAL_KIND, is_default, aliases)` with the run-wide `TerraformCollector`
+  (the aliases since stage 63). A
   second registration under the same name with different settings is
   refused (`HclConfigConflictError`); the same settings again are a
   no-op.
@@ -284,7 +318,8 @@ the chain and the collision rule in full.
   (`check_state_locations` in
   [validate.py](../base/src/cs_image_system/base/commands/validate.py)).**
   From the declarations alone, with nothing generated: every terraform
-  root's backend is resolved through the chain and must be declared;
+  root's backend is resolved through the chain (by name, or by alias
+  since stage 63) and must be declared;
   more than one `is_default` among the backends is refused; every root's
   location is rendered by this kind (`local://<directory>/<workspace>.tfstate`)
   and no two roots may share one; and a root whose resolved location
@@ -295,8 +330,13 @@ the chain and the collision rule in full.
   with nothing deployed moves with one INFO line. Verdicts are entries in
   the validation error list: `validate` prints each and exits 1;
   `run` records them in `generated/run-summary.json` under
-  `validation_errors`, generates nothing and exits 1. The backend entry's
-  `executable` is NOT among the executables checked here.
+  `validation_errors`, generates nothing and exits 1.
+- **At `validate` and every run, the executables check
+  (`check_state_backend_executables`, stage 63).** A backend entry whose
+  `executable` is declared must name an entry of `cfg/executables.yml`;
+  that entry is version-checked with the others (stage 48). An unset
+  `executable` is skipped. Until 2026-09-25 the backend's `executable`
+  was not among the executables checked.
 - **At generation.** Each root binds itself with `set_backend`; a second
   binding of one workspace to a different backend is refused
   (`HclConfigConflictError`). Before the terraform block is rendered the
@@ -350,6 +390,21 @@ the chain and the collision rule in full.
 - `Terraform state backend 'path' cannot be empty for 'local' type.` --
   at load, `path: ""` or `path: "   "`. Give the entry a directory or
   delete the key (the default is `state`).
+- ``state backend '<name>': `path: <path>` has a `.` or `..` segment;
+  write the directory once, without them`` -- at load (stage 63), a
+  `path` such as `a/../b`, `./x/./y`, `..` or `../state` (`.` alone is accepted). Write the
+  directory the way it is meant (`b`, `x/y`), or give an absolute path
+  for a directory outside the configuration root. Until 2026-09-25 such a
+  path was accepted and `a/../b` was a different location from `b` to the
+  collision check.
+- ``state backend '<name>': `path: /` would put state files in the
+  filesystem root; name a directory`` -- at load (stage 63), `path: /` (or
+  `//`). Until 2026-09-25 it rendered `//<workspace>.tfstate`. Name a real
+  directory.
+- `Executable <x> specified for state backend <name> not found in
+  executables list.` -- at `validate`/`run` (stage 63), the entry's
+  `executable` names nothing in `cfg/executables.yml`. Fix the spelling,
+  declare the entry, or remove the key (unset means unchecked).
 - `Name '<name>' contains invalid characters: {'/', '\\'}` -- at load, a
   backend name with a slash. Name it without one; the directory belongs
   in `path`.
@@ -363,8 +418,9 @@ the chain and the collision rule in full.
   `state-backends*.yml` files. Rename one.
 - `workspace '<ws>' names state backend '<name>', which is not declared`
   -- at `validate`/`run`, a root's (or its runtime's) `state_configuration`
-  names something no entry is registered under. Check the spelling
-  against the entry's `name` (an alias does not resolve here).
+  names something no entry is registered under, by name or by alias.
+  Check the spelling against the entry's `name` and `aliases` (an alias
+  resolves since stage 63; until 2026-09-25 it was refused here).
 - `Multiple default state backends registered: [...]` -- at
   `validate`/`run` when a root resolves `default` and more than one entry
   says `is_default: true`. Leave one.
@@ -373,10 +429,11 @@ the chain and the collision rule in full.
   roots on one directory whose names collapse under `super_safe_name`
   (`ws-local` and `ws_local`), or two backend entries that normalise to
   one directory (`state` and `./state//`). Rename a root or separate the
-  directories. Note the check compares the directory as written: `a/../b`
-  and `b` are the same directory on disk but two locations to the
-  check, and an absolute path is never matched against the relative
-  spelling of the same directory.
+  directories. The check compares the normalised directory; since stage
+  63 a `.` or `..` segment is refused at load, so `a/../b` can no longer
+  slip past as a second spelling of `b` (it could until 2026-09-25). An
+  absolute path is still never matched against the relative spelling of
+  the same directory.
 - `Workspace '<ws>' is bound to state backend '<x>' and cannot be rebound
   to '<y>'` -- at generation, a builder trying to bind one workspace to
   two backends; not reachable from configuration alone.

@@ -57,52 +57,6 @@ class TerraformGenerator(Protocol):
         return []
 
 
-@dataclass(kw_only=True)
-class TStateRoot():
-    """Base dataclass for Terraform state-related configurations."""
-    name: str
-
-
-@dataclass(kw_only=True)
-class StateEndpoints(TStateRoot):
-    """Dataclass representing custom endpoints for Terraform state management."""
-
-    dynamodb: str | None = None
-    s3: str | None = None
-    sts: str | None = None
-    iam: str | None = None
-    sso: str | None = None
-
-
-@dataclass(kw_only=True)
-class AssumeRoleBaseClass(TStateRoot):
-    """Dataclass representing configuration for assuming an AWS IAM role."""
-
-    role_arn: str | None = None
-    duration: str | None = None
-    policy: str | None = None
-    policy_arns: list[str] = field(default_factory=list)
-    session_name: str | None = None
-
-
-@dataclass(kw_only=True)
-class AssumeRoleConfig(AssumeRoleBaseClass):
-    """Dataclass representing configuration for assuming an AWS IAM role."""
-
-    source_identity: str | None = None
-    tags: dict[str, str] = field(default_factory=dict)
-    transitive_tag_keys: list[str] = field(default_factory=list)
-
-
-@dataclass(kw_only=True)
-class AssumeRoleWithWebIdentityConfig(TStateRoot):
-    """Dataclass representing configuration for assuming an AWS IAM role with web
-    identity."""
-
-    web_identity_token: str | None = None
-    web_identity_token_file: str | None = None
-
-
 def packer_variable(
     builder: Builder,
     name: str,
