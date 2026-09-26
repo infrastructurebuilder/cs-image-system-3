@@ -7,13 +7,14 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **§63 (what the documentation stage found in the code), in progress since 2026-09-24**.
+Current stage: **none in progress** (§63 LANDED 2026-09-26). Next by the operator's word: §67 item 1 (decided: option one), then §64.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
 **§64**, the release that carries everything a configuration repository
-needs and the reference configuration standing alone, and **§63**, the
-code defects the documentation found, both planned and waiting on the
-operator's word; then **§65**, walking the daily driver from a fresh repository
+needs and the reference configuration standing alone, planned and waiting
+on the operator's word (§63, the code defects the documentation found,
+LANDED 2026-09-26 in five squashes: the low-hanging group, the two medium
+branches, the two chains, and the dead-field list); then **§65**, walking the daily driver from a fresh repository
 against a release, and **§66**, the three starter repositories published
 from `docs/examples/` per release, both planned;
 §30 waits on the operator's decision. (§62, the daily driver, LANDED
@@ -112,7 +113,7 @@ Standing decisions (operator):
   documentation contract; a code change it would need is a new stage,
   written as a plan, never a side edit.
 - §30 (the contract package), §64, §65 and §66 are planned, not started; §63
-  is in progress since 2026-09-24; §67 (hygiene bundle VI) is open;
+  landed 2026-09-26; §67 (hygiene bundle VI) is open;
   a stage is a plan in this file until the operator says to execute it
   (2026-09-23). §62 landed 2026-09-24.
 - **Documentation stays current by stage** (operator, 2026-09-23). Once
@@ -258,241 +259,6 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
 
-## 63. What the documentation stage found in the code
-
-**Status: IN PROGRESS since 2026-09-24** (the operator: "we are now working
-on stage 63"; the low-hanging group landed the same day, the medium items
-and both chains on 2026-09-25; what is left is the list of dead fields,
-dead code and misleading messages, which has no decisions yet). Written during §62 (2026-09-23) under the rule that a
-documentation stage changes no code: every item below was found by an
-agent reading a package against its README, the manuals and the fixture,
-verified in the code, and left as it was. The manuals now say what the
-code DOES, with "a code stage names the fix" where the doing is wrong.
-This is that stage. An open item is not proved live until its stage
-lands; each names the file and function so the fix can be judged before
-it is made.
-
-**How the list is ordered** (2026-09-24). Three groups. First the
-**low-hanging fruit** (landed): each item was one function and one test,
-touching nothing another item touched. Then the **medium items** (landed),
-independent of each other but each a small design (a decision to make, a
-validation model to write, an API to read). Then the **chains** (landed),
-where one item's fix decided another's. The dead fields, dead code and misleading messages come
-last and follow the same rule: an entry that depends on a chain says so.
-
-**Low-hanging fruit: LANDED** as `720be3a` on develop (2026-09-24, squash of
-`feature/defects-low-hanging`, kept). Items 1 to 13 are gone from this
-list; the squash message carries them one by one. Each landed with a
-test in `tests/test_v2_defects_low_hanging.py` and its README row; items
-2, 11, 12 and 13 were proved against the live configuration and item 7 by
-a full GCE cycle (run `2026_09_24t12_01_15_155175`, ended empty). The
-numbering below keeps its gaps on purpose: the chains and the dead-code
-entries cite items by number.
-
-**Medium items: LANDED 2026-09-25** as two squashes on develop, both
-branches kept: `e2b40be` (`feature/defect-loading`, items 15, 16, 18, 19)
-and `5e920c9` (`feature/defect-gcp`, items 14 and 17). Items 14 to 19 are
-gone from this list; the squash messages carry them one by one. Tests
-are in `tests/test_v2_defects_loading.py` and `tests/test_v2_defects_gcp.py`.
-Items 14 and 17 were proved by a full GCE cycle (run
-`2026_09_25t11_28_31_278610`: state query unavailable 0, `gce-test`
-verified over the declared gcloud, ended empty). The bar was run on the
-two combined (1098 passed).
-
-**Chains: LANDED 2026-09-25** as two squashes on develop, both branches
-kept: `32de1c1` (`feature/defect-zones`, 20 then 21: the zone check reads
-a storage's builder's runtime and a GCE runtime's own `zone`; a
-persistent disk honours its own zone) and `0bee6b8`
-(`feature/defect-bake-user`, 22 then 23: one bake-user resolver,
-`cs_image_system.base.bake_user`, in the operator's order; the three
-dead fields live; GCE's one-user-per-chain rule enforced by `validate`).
-Items 20 to 23 are gone from this list; the squash messages carry them.
-Tests are in `tests/test_v2_defects_zones.py` and
-`tests/test_v2_defects_bake_user.py`; the order is CONFIGURATION 5.1.1.
-Chain 22-23 was proved by a full GCE cycle (run
-`2026_09_25t15_16_23_826583`: both bakes as `packer`, `gce-test`
-verified, ended empty); chain 20-21 owed none (no live GCE disk declares
-a zone). The bar ran on the two combined (1113 passed).
-
-**Dead fields, dead code and misleading messages: DECIDED 2026-09-25**
-(the operator, by quiz, field by field; each was a line in the READMEs'
-"accepted, not read" rows or "When it fails" tables). One branch,
-`feature/defects-dead`, one commit per package bullet below, one bar, one
-squash; the GCP bullet's live proof is ONE full GCE cycle (the operator's,
-torn down), the AWS bullets' a live `state query`. Anything not given a
-decision below has one obvious fix (dead code goes, a wrong message is
-corrected, a bug is fixed with a test) and needs none. Every removed field
-is refused at load naming the field, after the live tree and the three
-example trees are checked and any use dropped in the same commit; the
-schema teams install from the first release (§64) is the one that stays.
-Not started: a plan until the operator says "do".
-
-- `TofuS3StateBuilderModel`: 24 accepted-not-read fields (`assume_role`,
-  `endpoints`, the proxies, `access_key`/`secret_key`, the `skip_*`,
-  `use_*_endpoint`, `required_plugins`, `executable`), and
-  `skips_credentials_validation` misspelled against terraform's name;
-  `TofuVersionChecker` defined and never registered; the three state
-  models' `executable` never version-checked; `LocalBackendKind` neither
-  refuses nor normalises `.`/`..` segments (`a/../b` and `b` are two
-  locations to the collision check) and renders `//ws.tfstate` for
-  `path: /`; `GcsStateBuilderModel.__post_init__`'s dead `None` guard;
-  the backend kinds render a `Decrypted` setting in clear (only the
-  plaintext guard catches it); `Registry.get_instance_by_name_or_alias`
-  never reads the alias table (a state backend's alias cannot be bound).
-  **Decided:** the 24 fields PASS THROUGH: every one that is a terraform
-  s3-backend argument is emitted into the backend block when set;
-  `access_key`/`secret_key` are REFUSED at load (credentials never live in
-  the tree); `skips_credentials_validation` becomes
-  `skip_credentials_validation`, the old spelling refused by a message
-  naming the new; `executable` on the three state models is
-  version-checked like every other builder's, with `TofuVersionChecker`
-  registered. `LocalBackendKind` refuses `.`/`..` segments and a bare `/`;
-  the alias table is read; the rest as described.
-- `AwsCloudBuilderModel.ena_support`/`sriov_support` read nowhere;
-  `security_group_ids` validated, counted, never emitted;
-  `update_networking` never checks `subnets[].subnet_id` against the VPC;
-  `aws_utils.remap_for_image_query` mutates the model's own `query`,
-  `query_image`'s docstring documents keys it does not implement and its
-  trailing `raise` is unreachable, `_query_by_ami_id`, `_query_by_name`,
-  `_build_ami_filters`, `get_ami_ssh_user` (ignores the profile) and
-  `remap_for_aws` unused; `query_provider_image`'s "Could not get owner"
-  branch unreachable.
-  **Decided:** `ena_support`/`sriov_support` are READ (emitted into the
-  amazon-ebs source); `security_group_ids` is REMOVED
-  (`addl_security_groups` already means it); the rest as described.
-- `gcp_runtime_builders.query_images(series)` ignores `series`;
-  `update_networking`'s warning names a key-file path no field can
-  reach; `GCP_CLI`, `get_image_ssh_user` and the stray
-  `DummyGroupBuilderModel` copies in BOTH runtime model modules dead;
-  `gce_label` does not force a leading letter (a tag key `2024` fails at
-  apply); the pd scripts embed the literal `None` for a missing
-  `project_id`/`zone` instead of refusing at generation.
-  **Decided:** a label GCE cannot take is REFUSED at validate naming the
-  key (never renamed silently); `query_images(series)` honours `series`;
-  the pd scripts refuse at generation; the dead code goes. Proof: one GCE
-  cycle.
-- `default-os-plugin` (chain 22 landed 2026-09-25: `config_username`,
-  `default_config_username` and `default_owners` live): the entry's `image_id`, `image_name`,
-  `default_primary_disk_size`, `config` and `RhelOsBuilderModel.subscription_id`
-  read nowhere; `Apt`/`Fedora` `get_command_to_update()` unreachable from
-  the bake (`test_os_update_hook` pins a form no bake emits); the rhel
-  8/9/10 check runs only when commands are generated (`policy: none` with
-  an unsupported major is never refused); `OsBuilderModel.__post_init__`'s
-  duplicate message names the wrong field; an unreachable branch in
-  `generate_resolved_image`; the `UBUNTU_TYPE` service order; `debian_type`
-  without `kw_only`; apt commands without `DPkg::Lock::Timeout`;
-  `OsBuilderModel.update` typed `dict | None` makes
-  `UpdatePolicy.from_config`'s bare-name branch dead.
-  **Decided:** the entry's `image_id` is READ as a fixed vendor image (the
-  query is skipped; reproducible base bakes); `image_name` is REMOVED;
-  `default_primary_disk_size` is READ (a base image's bake disk on that
-  runtime is the entry's value when declared, else the OS builder's; the
-  GCE runtime's `default_disk_size` keeps winning per finding 51; the
-  fingerprint already hashes it, so bake and fingerprint then agree);
-  `config` is READ into the entry's template context (`{{ config.x }}`
-  resolves in its templated fields); `subscription_id` is KEPT, accepted
-  and not read, reserved for a future register step (its README row says
-  so); `update: none` as a bare name stays REFUSED and the dead branch
-  goes; `ImageBuilderModel.default_machine_type` (packer bullet) is READ,
-  making the promised order true: the entry's, else the image builder's,
-  else the runtime's. The rest as described.
-- `packer-plugin`: `PackerEbsImageBuilder.generate_items_before` computes
-  `super_items` and drops it; `PackerImageBuilder.generate_items_during`
-  names `.pkl.hcl`; `gen_packer.py` dead (the only reader of
-  `Image.variables`); `PACKER_EBS` redefined; `image_to_source` fetches
-  the subconfig twice; `ImageBuilderModel.default_machine_type` read by
-  nothing.
-  **Decided:** `default_machine_type` is READ (see the default-os bullet);
-  `Image.variables` is READ as extra packer variables: each key becomes a
-  `variable` block with that value as its default in the image's build
-  file (a string default quoted, item 3), designed and tested as a
-  feature; `gen_packer.py` goes; the rest as described.
-- `ansible-plugin`: `from zipfile import Path` as an annotation; HCL
-  strings unescaped (a `"` in `extra_arguments`, `ansible_connection` or
-  a path breaks packer); a missing relative playbook emitted silently;
-  `configuration_user` unread; `helpers.py` empty; the orchestrator
-  leaves an item a dict when no mod builder is default and the packer
-  builder then raises `AttributeError` instead of a named refusal (the
-  same orchestrator lines medium item 15 changed; it landed 2026-09-25).
-  **Decided:** `configuration_user` is READ as the ansible provisioner's
-  `user` override: when set it beats the bake-user resolver for that
-  builder's items (documented as the one place a modification connects as
-  someone other than the bake user); HCL strings are escaped; a missing
-  playbook is refused at generation; the item-left-a-dict case becomes a
-  named refusal; `helpers.py` goes.
-- `bash-mod-plugin`: `extra_arguments`/`configuration_user` unread;
-  `get_target_deferred_type_by_VCT` no caller; `helpers.py` empty; the
-  on-image `inline.sh` carries `script` lines only, never `ensure` lines
-  (`csis-mods rerun` does not re-apply the declarative form; the ensure
-  model medium item 16 validates, landed 2026-09-25).
-  **Decided:** `configuration_user` is READ: when set, the shell
-  provisioner's `execute_command` runs the script as that user through
-  `sudo su - <user> -c '...'` (the item's lines run as that user, the bake
-  user only launches them); `extra_arguments` is REMOVED
-  (`execute_command` is the way to change the invocation); the on-image
-  `inline.sh` CARRIES the ensure lines before the script lines, the order
-  the bake ran, so `csis-mods rerun` re-applies the declarative form (the
-  bundle's manifest hash moves once; the stage-67 restamp covers it when
-  both land together); the rest as described.
-- `okta-opa-plugin`: `okta_tf_workspace.finalize` cites a "credentials
-  runbook in PLAN.md" that no longer exists; `_require_tfvar` is a bare
-  `assert` (stripped under `-O`) and runs at load; `retire_server` matches
-  `"404"` by string; `api_host` metadata says required with a default;
-  `query_existing_users` an empty seam.
-  **Decided:** no field decision needed; every item has its obvious fix
-  (`_require_tfvar` raises `ValueError`; `retire_server` reads the status
-  code; the metadata and the citation are corrected; the empty seam goes).
-- `tf-ebs-instance-plugin`: `TofuS3StorageBuilder._lookup` reads the
-  builder's `bucket_name`, never the storage's (two S3 storages on one
-  builder report the same bucket); the instance builder's
-  `pre_`/`post_finalize_phase` ignore root scope (under `--only-runtime`
-  with `apply_instances: true` another runtime's builder binds pins and
-  writes tfvars for a root that emitted nothing); the S3 builder's type
-  parameter; `_aws_cli_flags`' dead fallback to `rtb.model.profile`.
-- `hashicorp-utils`: `QString.__new__`'s dead `quoted=False`;
-  `roots.terraform_commands`' unreachable `ValueError`.
-- `base`: `Instance.__post_init__` warns that an instance without `image`
-  "will be ignored" while `finalize()` then refuses it; `ExecutableModel.execute`
-  builds a command list and discards it; `sleep_before_finalization` and
-  the model's `dateformat` default read by nothing that runs.
-  **Decided:** `sleep_before_finalization` is KEPT with today's
-  ignored-with-a-message behaviour; `dateformat` becomes ONE field with
-  ONE default, the one that runs today (`%Y%m%d_%H%M%S`): the run's
-  timestamp reads the model field, and `last_updated` with its formatter
-  (marked TODO DEPRECATE) goes; output names are unchanged for every tree
-  that declares nothing. The rest as described.
-- `system`: `encrypt`/`reencrypt` call `recipients_from_config` and
-  `identities_from_env` outside their `try` (a traceback instead of the
-  message); `--only-providers` help says "comma-separated" for a value
-  never split; `--force` is stored and read by nothing;
-  `preflight.raw_session_lines`' `(minutes_left or 1) <= 0` misses exactly
-  `0.0`; `Registry.get_builder()` has no callers (the template's
-  `builders_for_models` map is decorative); root `pyproject.toml` lists a
-  `packages/dummy-plugin/tests` path that does not exist.
-  **Decided:** `run --force` is REMOVED (the named overrides,
-  `--force-bake` and `gate-plan --allow-destroy`, stay); the rest as
-  described.
-- `dummy-plugin`: `type = DUMMY` class attribute inert; docstrings name
-  attributes that do not exist; `key`/`secret`/`api_host`/`org`/`team`
-  read nowhere; the user builder emits `Dummy-tf/dummy_users.tf` beside
-  the other builders' directories.
-  **Decided:** `org` and `team` are KEPT as the template's example shape
-  (required, validated, read by nothing, and the docstrings say so);
-  `key`, `secret` and `api_host` are REMOVED, so the template never
-  suggests a credential in the tree; the inert `type` attribute goes; the
-  emission path is fixed.
-
-**Records**: the low-hanging group landed on one branch,
-`feature/defects-low-hanging`, one commit per item, squash-merged and kept;
-each medium item and each
-chain on a branch of its own (`feature/defect-<subject>`), kept; the
-READMEs' "accepted, not read" rows and "When it fails" tables and the
-manuals' "a code stage names the fix" clauses are updated in the same
-commits (the rolling documentation stage owes nothing for a change the
-READMEs already track). Golden byte-identical except where an item says
-it moves; bar green; every item in the first three groups proved by a
-test that fails before the fix.
-
 ## 64. The release is the whole system: modules, scripts, starter trees, and a configuration repository that stands alone
 
 **Status: PLANNED, not started.** Written 2026-09-23 during the daily
@@ -563,7 +329,7 @@ and reality differ is a finding: a command that does not exist or says
 something else, a step out of order, a prerequisite the text forgot, a
 message the failure table lacks, a decision the starter tree comments
 wrongly. Findings that are words are fixed in this stage; findings that
-are code go to §63 or §64 as items, never made here (a documentation stage
+are code go to §64, a new code stage or the open hygiene bundle as items, never made here (a documentation stage
 changes no code).
 
 1. **The preconditions, before anyone walks.** A release on the index that
@@ -591,7 +357,7 @@ changes no code).
 3. **The GCE walk.** The same from `docs/examples/standard-gce/`, on the
    operator's project: this is also the first live root on the `gcs`
    state type. If it does not hold, the starter falls back to `local`
-   and the finding goes to §63 with the plugin named. GCP is the
+   and the finding goes to a new code stage with the plugin named. GCP is the
    operator's money: the walk ends with `just cloud-empty` and nothing
    standing.
 4. **The CI walk.** Push the walk repository to GitHub, set the secrets
@@ -611,7 +377,7 @@ changes no code).
    repository.
 7. **The fixes and the records.** Every finding in the walk log becomes
    a documentation fix here, a starter-tree fix here, or a code item in
-   §63 or §64, and the log itself is the stage's evidence in the squash
+   §64, a new code stage or the open hygiene bundle, and the log itself is the stage's evidence in the squash
    message (the records convention: no ledger). `DAILY_DRIVER.md` gains
    a dated line at the top: walked on <date>, against release <version>.
    The walk repositories are deleted afterwards, their clouds emptied.
