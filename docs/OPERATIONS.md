@@ -1355,7 +1355,13 @@ uv pip install --python .venv/bin/python \
 ```
 
 A final version on PyPI installs with `uv pip install
-cs-image-system==<version>` alone. Python 3.13 or later. The tools the
+cs-image-system==<version>` alone, and `uv tool install cs-image-system`
+puts the command on `PATH` (since stage 64 the whole-system package
+declares the console script itself; before it `uv tool install` ended
+with "Failed to install entrypoints", because uv exposes only the
+requested package's executables and this one had none). A configuration
+repository's `Justfile` and workflow install it that way. Python 3.13 or
+later. The tools the
 system drives (`tofu`, `packer`, `gcloud`, `ansible-playbook`, docker) are
 not Python packages and are not installed by this; the configuration's
 `cfg/executables.yml` pins where they are. The same install from the

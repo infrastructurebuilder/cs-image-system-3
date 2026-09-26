@@ -109,8 +109,6 @@ def _justfile_cli_invocations() -> list[tuple[str, list[str]]]:
     repository's Justfile and in the starter Justfile the release ships (stage 64: the cycle recipes
     moved there) as argv, with just's templates reduced: `{{ if … }}` → its first quoted literal,
     `{{name}}` → X."""
-    import re
-    import shlex
     out = []
     for rel, var in JUSTFILES.items():
         for lineno, line in enumerate((Path(__file__).resolve().parents[1] / rel).read_text().splitlines(), 1):

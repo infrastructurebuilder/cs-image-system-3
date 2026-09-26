@@ -60,6 +60,18 @@ def test_the_release_owned_parts_are_the_whole_repository_minus_the_teams_yaml()
     assert "README.md" not in owned and "scripts/mod_image.sh" not in starters.release_owned_paths(EXAMPLES / "complete")
 
 
+def test_the_whole_system_package_exposes_the_command_to_uv_tool_install():
+    """`uv tool install cs-image-system` exposes only the requested package's
+    executables (the reference configuration's first CI run ended with
+    "Failed to install entrypoints"): the metadata-only whole-system package
+    declares the same console script the system package does."""
+    import tomllib
+    root = tomllib.loads((REPO / "pyproject.toml").read_text())
+    system = tomllib.loads((REPO / "packages" / "system" / "pyproject.toml").read_text())
+    assert root["project"]["scripts"]["cs-image-system"] == system["project"]["scripts"]["cs-image-system"] \
+        == "cs_image_system.system.cli:app"
+
+
 # ------------------------------------------------------------ init-config
 
 @pytest.mark.parametrize("name", starters.STARTERS)
