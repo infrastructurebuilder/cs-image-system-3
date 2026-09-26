@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-packer-plugin"
-version = "0.1.1.dev1"
+version = "0.1.1.dev2"
 description = "The image builders for HashiCorp Packer: amazon-ebs and googlecompute roots from base and instance images"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
@@ -12,9 +12,9 @@ license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
-    "cs-image-system-system==0.1.1.dev1",
-    "cs-image-system-aws-runtime-plugin==0.1.1.dev1",
-    "cs-image-system-hashicorp-utils==0.1.1.dev1",
+    "cs-image-system-system==0.1.1.dev2",
+    "cs-image-system-aws-runtime-plugin==0.1.1.dev2",
+    "cs-image-system-hashicorp-utils==0.1.1.dev2",
     "Jinja2>=3.1",
     "python-hcl2>=8.1",
     "pydantic>=2.13",

@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-tf-gcp-plugin"
-version = "0.1.1.dev1"
+version = "0.1.1.dev2"
 description = "The OpenTofu plugin for Google Cloud: instances and PD, Filestore and GCS storages as module calls"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
@@ -12,10 +12,10 @@ license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
-    "cs-image-system-system==0.1.1.dev1",
-    "cs-image-system-hashicorp-utils==0.1.1.dev1",
-    "cs-image-system-tf-ebs-instance-plugin==0.1.1.dev1",
-    "cs-image-system-gcloud-runtime-plugin==0.1.1.dev1",
+    "cs-image-system-system==0.1.1.dev2",
+    "cs-image-system-hashicorp-utils==0.1.1.dev2",
+    "cs-image-system-tf-ebs-instance-plugin==0.1.1.dev2",
+    "cs-image-system-gcloud-runtime-plugin==0.1.1.dev2",
     "google-cloud-compute>=1.49",
     "pydantic>=2.13",
 ]

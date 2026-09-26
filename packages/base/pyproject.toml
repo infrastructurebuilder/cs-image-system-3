@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-base"
-version = "0.1.1.dev1"
+version = "0.1.1.dev2"
 description = "The core library of cs-image-system: the configuration models, the plugin contract, the lifecycle runner, meta-state and the rules"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]

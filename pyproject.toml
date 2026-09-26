@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system"
-version = "0.1.1.dev1"
+version = "0.1.1.dev2"
 description = "Declarative provisioning of identities, storages, base images and instance images on AWS and GCE, from one YAML tree through gates: every cs-image-system package in one install"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
@@ -14,22 +14,22 @@ requires-python = ">=3.13"
 # The whole system (stage 41.3): this package has no sources of its own; it pins every
 # workspace package at == its own version, so one install gets the CLI and every plugin.
 dependencies = [
-    "cs-image-system-ansible-plugin==0.1.1.dev1",
-    "cs-image-system-aws-runtime-plugin==0.1.1.dev1",
-    "cs-image-system-base==0.1.1.dev1",
-    "cs-image-system-bash-mod-plugin==0.1.1.dev1",
-    "cs-image-system-default-os-plugin==0.1.1.dev1",
-    "cs-image-system-dummy-plugin==0.1.1.dev1",
-    "cs-image-system-gcloud-runtime-plugin==0.1.1.dev1",
-    "cs-image-system-gcs-state-plugin==0.1.1.dev1",
-    "cs-image-system-hashicorp-utils==0.1.1.dev1",
-    "cs-image-system-local-state-plugin==0.1.1.dev1",
-    "cs-image-system-okta-opa-plugin==0.1.1.dev1",
-    "cs-image-system-packer-plugin==0.1.1.dev1",
-    "cs-image-system-system==0.1.1.dev1",
-    "cs-image-system-tf-ebs-instance-plugin==0.1.1.dev1",
-    "cs-image-system-tf-gcp-plugin==0.1.1.dev1",
-    "cs-image-system-tf-s3-state-plugin==0.1.1.dev1",
+    "cs-image-system-ansible-plugin==0.1.1.dev2",
+    "cs-image-system-aws-runtime-plugin==0.1.1.dev2",
+    "cs-image-system-base==0.1.1.dev2",
+    "cs-image-system-bash-mod-plugin==0.1.1.dev2",
+    "cs-image-system-default-os-plugin==0.1.1.dev2",
+    "cs-image-system-dummy-plugin==0.1.1.dev2",
+    "cs-image-system-gcloud-runtime-plugin==0.1.1.dev2",
+    "cs-image-system-gcs-state-plugin==0.1.1.dev2",
+    "cs-image-system-hashicorp-utils==0.1.1.dev2",
+    "cs-image-system-local-state-plugin==0.1.1.dev2",
+    "cs-image-system-okta-opa-plugin==0.1.1.dev2",
+    "cs-image-system-packer-plugin==0.1.1.dev2",
+    "cs-image-system-system==0.1.1.dev2",
+    "cs-image-system-tf-ebs-instance-plugin==0.1.1.dev2",
+    "cs-image-system-tf-gcp-plugin==0.1.1.dev2",
+    "cs-image-system-tf-s3-state-plugin==0.1.1.dev2",
 ]
 
 [project.urls]
@@ -102,7 +102,7 @@ explicit = true
 # (0.1.1.dev1 -> 0.1.1.dev2), `bump stage` finalises it (0.1.1.dev2 -> 0.1.1). A missing
 # stage reads as final, a bumped part resets the parts after it to their first values.
 [tool.bumpversion]
-current_version = "0.1.1.dev1"
+current_version = "0.1.1.dev2"
 parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)(\\.(?P<stage>dev)(?P<dev>\\d+))?"
 serialize = ["{major}.{minor}.{patch}.{stage}{dev}", "{major}.{minor}.{patch}"]
 commit = false

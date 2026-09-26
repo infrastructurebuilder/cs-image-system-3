@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-aws-runtime-plugin"
-version = "0.1.1.dev1"
+version = "0.1.1.dev2"
 description = "The aws runtime type: Amazon EC2 as a place where images bake and instances run"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
@@ -12,8 +12,8 @@ license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
-    "cs-image-system-system==0.1.1.dev1",
-    "cs-image-system-hashicorp-utils==0.1.1.dev1",
+    "cs-image-system-system==0.1.1.dev2",
+    "cs-image-system-hashicorp-utils==0.1.1.dev2",
     "boto3>=1.43",
     "botocore>=1.43",
     "python-hcl2>=8.1",
