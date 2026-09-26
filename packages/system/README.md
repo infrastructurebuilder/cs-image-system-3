@@ -63,8 +63,15 @@ name. Which commands honour which is in the
 | `--overlay FILE` (repeatable) | none | A transient declaration file merged over the tree for this invocation only. `config:` keys override; named `instances:`/`storages:` (and other item) entries update or add; an entry with `undeclare: true` removes the tree's entry. A file that does not exist, is not a mapping, has a top-level key other than `config` and the item collections, or lists an entry without a `name` is refused before anything loads. The tree on disk never changes. |
 | `--undeclare KIND:NAME` (repeatable) | none | Treat a declared tree entry as absent for this invocation, for example `instance:gce-test`. `KIND` is an item collection key (`instances`, `storages`, ...); the singular is accepted; anything else is refused before the load. |
 | `--base-only` | off | Makes `build-all` and `generate` select the base-image lifecycle only. The configuration is still read in full. |
-| `--only-providers NAME` (repeatable) | none | Accepted, not read: recorded on the run context, and the load warns that the configuration is still read in full. (The help text says "comma-separated"; the value is passed through as given and never split.) |
-| `--force` | off | Accepted, not read: stored on the context as `force`; nothing reads it. |
+| `--only-providers NAME[,NAME...]` (repeatable) | none | Recorded on the run context as a list of names, and the load warns `Only providers '<list>' specified but configuration will still be read in full.  only-providers is currently not fully supported.`; nothing else reads it, so it changes no output. Since stage 63 a comma list is split and each name trimmed (`--only-providers "a, b"` is `["a", "b"]`), as the help ("repeatable, or comma-separated") promised; until 2026-09-25 the value was passed through unsplit. |
+
+There is no global `--force` (stage 63). It was "Force execution even if
+the system balks", stored on the context and read by nothing; it was
+removed on 2026-09-25, and passing it is now refused by the CLI parser
+with `No such option: --force` (exit 2). The overrides that do something
+are named for what they override and stay: `run --force-bake`,
+`gate-plan --allow-destroy`, and `test-mods --force` (a different,
+command-level flag that re-tests mods that already passed).
 
 ## What the callback does before a command
 
@@ -162,7 +169,11 @@ when a session is absent or expired, or when a credential-shaped
 environment variable (`AWS_*`, `GOOGLE_*`, `OKTA_*`, `TF_VAR_*`, `CSIS_*`)
 is set but EMPTY (reported by name, never by value); exit 1 with
 `--strict` when a session expires within
-`config.preflight.expected_run_minutes` (default 30).
+`config.preflight.expected_run_minutes` (default 30). A session is expired
+when its minutes left are known and zero or fewer; exactly zero minutes
+left counts as expired since stage 63 (until 2026-09-25 the test read
+`0.0` as one minute left), and a session whose expiry cannot be read is
+never called expired.
 
 ### `encrypt [VALUE] [--file FILE ...] [--field NAME ...]`
 
@@ -172,8 +183,11 @@ least one `--field`, encrypts in place every scalar under the named keys
 and every element of a block list under them, preserving every other byte,
 and reports counts on standard error. Needs no identity. Exit 2 when
 `--file` is given without `--field`, or neither a value nor `--file`. A
-root whose `cfg/_config.yml` is missing or declares no recipients is an
-uncaught error (a traceback, exit 1).
+root whose recipients cannot be read -- `cfg/_config.yml` is missing or
+unreadable, or declares no `encryption.recipients` -- prints
+`encrypt: <reason>` on standard error and exits 1, for example
+`encrypt: <root>/cfg/_config.yml: no encryption.recipients declared`
+(stage 63; until 2026-09-25 it ended in a traceback).
 
 ### `decrypt [MARKER] [--json] [--file FILE ...] [--field NAME ...]`
 
@@ -196,9 +210,12 @@ Rotate every marker in every `*.yml` / `*.yaml` under the root (skipping
 with `CSIS_CONFIG_IDENTITY`, re-encrypt, write in place. Nothing is
 written unless every value opens. `--dry-run` (the command's own flag,
 not the global one) reports what would change. Exit 1 (`reencrypt:
-NOTHING written -- <file>: <reason>`) when a value cannot be opened; an
-unset `CSIS_CONFIG_IDENTITY` or a missing recipients list is an uncaught
-error (a traceback, exit 1).
+NOTHING written -- <file>: <reason>`) when a value cannot be opened, and
+exit 1 with `reencrypt: NOTHING written -- <reason>` when the recipients
+or the identity cannot be read (no `cfg/_config.yml` or no
+`encryption.recipients`; `CSIS_CONFIG_IDENTITY` unset or not a usable
+identity). Both are checked before any file is read (stage 63; until
+2026-09-25 those two ended in a traceback).
 
 ### `mask [--min N]`
 
@@ -601,7 +618,10 @@ and [`test_v2_emit_by_reference.py`](../../tests/test_v2_emit_by_reference.py)
 (`gate-plan --require-unmounted`),
 [`test_v2_decommission.py`](../../tests/test_v2_decommission.py)
 (`forget instance`), [`test_v2_post_bake_tests.py`](../../tests/test_v2_post_bake_tests.py)
-(`release`). [`tests/test_docs_contract.py`](../../tests/test_docs_contract.py)
+(`release`), [`test_v2_defects_dead.py`](../../tests/test_v2_defects_dead.py)
+(stage 63: `--only-providers` splits a comma list, `--force` is `No such
+option`, `encrypt` without recipients is a message, a zero-minute session
+is expired). [`tests/test_docs_contract.py`](../../tests/test_docs_contract.py)
 holds this README to the four-section contract below and checks every
 relative link in it.
 
@@ -716,8 +736,7 @@ base and the plugins ([docs/CONFIGURATION.md](../../docs/CONFIGURATION.md)).
 | `--overlay` | path, repeatable | none | a transient declaration file | every loading command; `preflight` and the `run`/`state` session check (their `config:` keys, for `preflight.expected_run_minutes`); ignored by the value tools, `gate-plan` (which has none), `apply-check` (which has its own), `identity export-gids` |
 | `--undeclare` | `kind:name`, repeatable | none | treat a tree entry as absent | every loading command; ignored elsewhere |
 | `--base-only` | bool | `false` | select the base-image lifecycle alone | `build-all`, `generate` |
-| `--only-providers` | string, repeatable | none | accepted, not read (a warning at load) | every loading command records it |
-| `--force` | bool | `false` | accepted, not read | every loading command records it |
+| `--only-providers` | string, repeatable, comma lists split (stage 63) | none | recorded, not otherwise read (a warning at load) | every loading command records it |
 
 ### Environment variables
 
@@ -746,11 +765,14 @@ base and the plugins ([docs/CONFIGURATION.md](../../docs/CONFIGURATION.md)).
 | `public_safe.allow` | the `--config` file, else the tree's `cfg/_config.yml`, else the fixture's inside the system repository | list | none | `public-safe` |
 | `dateformat`, `working_directory`, `generation_directory` | the merged tree | strings | `%Y%m%d_%H%M%S`, `./workdir`, `generated` | the load (base). The callback always supplies a root (`--root-dir` or the current directory) as the working directory, so `working_directory` is never consulted through the CLI; `generation_directory` is resolved under that root |
 
-Accepted, not read, anywhere in this package: `--force`,
-`--only-providers`; `apply-check --lifecycle release` (the help lists it;
+Accepted, not read, anywhere in this package: `--only-providers` (split
+and recorded, then only warned about); `apply-check --lifecycle release` (the help lists it;
 nothing emits it, and the release lifecycle's cloud marking runs under the
 plugin's own commands); `sleep_before_finalization` in the tree (kept for
-compatibility, finalization never sleeps).
+compatibility: the load reads it, and a real run with a non-zero value
+logs `sleep_before_finalization=<n> is ignored: finalization never waits
+on a terminal (DESIGN §3G)`; finalization never sleeps). The global
+`--force` is gone (stage 63, see [Global options](#global-options)).
 
 ### Variations
 
@@ -1043,6 +1065,13 @@ source comments.
 
 ### Raised by the code, not yet seen
 
+A retired global option is a parser error, not a message of this
+package's own: `cs-image-system --force <command>` prints the usage and
+`No such option: --force` and exits 2 (stage 63; until 2026-09-25 the
+option was accepted and ignored). Drop it; if something should be forced,
+use the named override (`run --force-bake`, `gate-plan --allow-destroy`,
+`test-mods --force`).
+
 Usage (exit 2), all on standard error:
 
 ```text
@@ -1091,9 +1120,14 @@ marker is required (or '-' for stdin, or --json)`, `reencrypt: NOTHING
 written -- <file>: <reason>`, `materialize: nothing to materialize at
 <path>`, `materialize: '<path>' is not in the subpath of '<root>'`,
 `mask: <reason>`, `public-safe: REFUSED -- N finding(s) ...` (with every
-finding on standard output). `encrypt` and `reencrypt` with no
-`encryption.recipients`, and `reencrypt` with no identity, end in a
-traceback rather than a message.
+finding on standard output), `encrypt: <reason>` and `reencrypt: NOTHING
+written -- <reason>` when the recipients (or, for `reencrypt`, the
+identity) cannot be read: for example `encrypt: <root>/cfg/_config.yml:
+no encryption.recipients declared`, or `reencrypt: NOTHING written -- an
+encrypted value is present but CSIS_CONFIG_IDENTITY is not set -- export
+the age identity (the AGE-SECRET-KEY-1 string, an identity file, or a
+directory of *.age-identity files)`. Until 2026-09-25 (stage 63) those
+two ended in a traceback rather than a message.
 
 The gates (exit 3): `DETACH NOT UNMOUNTED: <instance>:<storage> has no
 successful unmount receipt (unmount storage ..., or unmount storage

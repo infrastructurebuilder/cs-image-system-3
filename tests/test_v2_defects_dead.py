@@ -617,3 +617,39 @@ def test_an_executable_builds_its_command_once(monkeypatch, tmp_path: Path):
     e.args = ["a"]
     e.execute("b")
     assert seen == [["/bin/echo", "-n", "a", "b"]], seen
+
+
+# ------------------------------------------------------ 12. the CLI
+
+def test_a_session_with_exactly_no_time_left_is_expired():
+    from cs_image_system.base.commands.preflight import _expired
+    assert _expired(0.0) and _expired(-3) and not _expired(None) and not _expired(0.5)
+
+
+def test_encrypt_without_recipients_says_so_instead_of_a_traceback(tmp_path: Path, monkeypatch):
+    from typer.testing import CliRunner
+    from cs_image_system.system import cli as climod
+    root = copy_config(tmp_path)
+    _edit(root / "cfg" / "_config.yml", lambda d: d.pop("encryption", None))
+    stub_environment(monkeypatch)
+    result = CliRunner().invoke(climod.app, ["--root-dir", str(root), "encrypt", "x"])
+    reset_singletons()
+    assert result.exit_code == 1, result.output
+    assert "encrypt:" in result.output and "Traceback" not in result.output, result.output
+
+
+def test_only_providers_splits_a_comma_list_and_force_is_gone(monkeypatch, tmp_path: Path):
+    from typer.testing import CliRunner
+    from cs_image_system.system import cli as climod
+    from cs_image_system.base import global_context as gc
+    seen: dict = {}
+
+    def capture(ctx, root_dir, verbose, only_providers, force, **kw):
+        seen["only"] = only_providers
+        raise SystemExit(0)
+    monkeypatch.setattr(gc, "read_config_and_transform", capture)
+    CliRunner().invoke(climod.app, ["--root-dir", str(tmp_path), "--only-providers", "aws-east2-runtime, gcloud-east1",
+                                    "validate"])
+    assert seen.get("only") == ["aws-east2-runtime", "gcloud-east1"], seen
+    result = CliRunner().invoke(climod.app, ["--root-dir", str(tmp_path), "--force", "validate"])
+    assert result.exit_code != 0 and "No such option" in result.output, result.output
