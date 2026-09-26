@@ -175,6 +175,19 @@ def check_name_uniquness(ctx: GlobalTypeContext) -> list[Exception]:
         else:
             seen_names.add(name)
     return exceptions
+def check_state_backend_executables(ctx: GlobalTypeContext) -> list[Exception]:
+    """Stage 63: a state backend names an executable too (the tofu its roots
+    run). A declared one must exist in the executables list, where it is
+    version-checked like every other entry; an undeclared one is skipped."""
+    exs: list[Exception] = []
+    for name, backend in sorted((ctx.state_backends or {}).items()):
+        exe = getattr(getattr(backend, "model", backend), "executable", None)
+        if exe and exe not in ctx.executables:
+            exs.append(Exception(f"Executable {exe} specified for state backend {name} not found in "
+                                 "executables list."))
+    return exs
+
+
 def check_executables_exist_and_versions(ctx: GlobalTypeContext) -> list[Exception]:
     """Every declared executable exists and meets its version requirement
     (stage 48.1), said once as one INFO line -- the record of what versions a
@@ -187,6 +200,7 @@ def check_executables_exist_and_versions(ctx: GlobalTypeContext) -> list[Excepti
     for providers in (ctx.runtime_builders, ctx.storage_builders, ctx.os_builders,
                       ctx.mod_builders, ctx.image_builders, ctx.instance_builders):
         exs.extend(check_existence_of_executable(ctx.executables, providers, unspecified=unspecified))  # type: ignore
+    exs.extend(check_state_backend_executables(ctx))
     if checked:
         log.info(f"Executables: {'; '.join(checked)}")
     if unspecified:
@@ -609,6 +623,39 @@ def check_bake_users(ctx: GlobalTypeContext) -> list[Exception]:
     return exs
 
 
+def check_label_keys(ctx: GlobalTypeContext) -> list[Exception]:
+    """Every declared tag key that becomes a label on a runtime whose labels
+    have rules (GCE: a lowercase letter first) is refused here, naming the
+    key and who declared it (stage 63; it used to fail at apply). The keys
+    are the tags of each image on each runtime it bakes on, of each instance
+    on its runtime, and of each storage on its builder's runtime."""
+    exs: list[Exception] = []
+
+    def check(runtime: str | None, tags: Any, who: str) -> None:
+        rtb = ctx.runtime_builders.get(str(runtime or ""))
+        if rtb is None:
+            return
+        for key in sorted((tags or {})):
+            why = rtb.label_key_problem(str(key))
+            if why:
+                exs.append(ValueError(f"{who}: tag key {key!r} on runtime {runtime}: {why}; rename the key"))
+
+    for name, image in sorted((ctx.images_map or {}).items()):
+        for runtime in sorted(getattr(image, "_runtime_map", None) or {}):
+            check(runtime, image.get_tags() if hasattr(image, "get_tags") else {}, f"image '{name}'")
+    for instance in (ctx.instances or []):
+        check(getattr(instance, "runtime", None), getattr(instance, "tags", None), f"instance '{instance.get_name()}'")
+    for storage in (ctx.storages or []):
+        builder = ctx.storage_builders.get(str(storage.get_type() or ""))
+        model = getattr(builder, "model", None)
+        try:
+            runtime = model.get_runtime_provider() if model is not None else None
+        except ValueError:
+            runtime = None
+        check(runtime, getattr(storage, "tags", None), f"storage '{storage.get_name()}'")
+    return exs
+
+
 def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     """The configuration checks, with no side effects on generated output:
     unique global ids, executables present and version-compliant, every
@@ -626,4 +673,5 @@ def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     exs.extend(check_canonical_hostnames(ctx))
     exs.extend(check_state_backends_needed(ctx))
     exs.extend(check_bake_users(ctx))
+    exs.extend(check_label_keys(ctx))
     return exs

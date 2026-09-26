@@ -132,6 +132,8 @@ def test_pre_finalize_writes_tfvars_for_resolved_psis(tmp_path):
         _runtime_builder=lambda: _rtb(),
         _ami_var=TofuInstanceBuilder._ami_var,
         get_path_for_phase=lambda phase, suffix: Path("open-tofu/instance-generation") / f"x{suffix}",
+        # stage 63: the hook checks the root's runtime against the run's scope
+        model=SimpleNamespace(get_runtime_provider=lambda: "aws-east2-runtime"),
     )
     TofuInstanceBuilder.pre_finalize_phase(cast(Any, stub), ExecutionLifecyclePhase.INSTANCE_GENERATION)
     tfvars = tmp_path / "open-tofu/instance-generation/instances.auto.tfvars"

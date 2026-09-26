@@ -40,7 +40,10 @@ builders can be registered from an `instance` entry point.
 `tf-aws` is a base. Its `module_dirname()` and `module_args()` raise
 `NotImplementedError`, so a builder entry with `type: tf-aws` cannot emit
 anything; it exists so the three AWS subclasses and the GCP plugin share one
-implementation.
+implementation. Each subclass binds the base's model type parameter to its
+own model; `TofuS3StorageBuilder` has had its own parameter bound to
+`TofuS3StorageBuilderModel` since stage 63 (a typing change only, so
+`self.model` is known to carry the S3 fields; no behaviour changed).
 
 The version checkers are selected by an **executable** entry, not by a
 builder: an entry in `cfg/executables.yml` with `type: tofu` is checked by
@@ -186,7 +189,7 @@ item's over the builder's.
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `bucket_name` | str | required | The bucket the builder's **state query** reads (`get_bucket_name()`). The module call takes the bucket name from the storage item instead (see below). |
+| `bucket_name` | str | required | Required and validated, but **read by nothing** since stage 63: the module call, the wipe and the state query all take the bucket from the storage item (its `bucket_name`, else its name; see below). Until 2026-09-25 the state query read this field, so two S3 storages on one builder both reported this one bucket. `get_bucket_name()` still returns it and nothing calls it. |
 | `variables` | `S3Variables` | `S3Variables()` | `force_destroy`, `tags`. |
 
 ### The `Storage` item the storage builders read
@@ -357,8 +360,11 @@ launch records and pins are forgotten; under `teardown` a failed verdict
 still fails the run from that hook.
 
 **4. `pre_finalize_phase`** runs before the deferred commands, and only for
-the `instance-image` lifecycle (the `release` and `retention` lifecycles
-extend the same phase and used to get the file too). For every instance
+a root inside the run's runtime scope (`--only-runtime`, explicit or implied
+by `--apply-runtime`; stage 63, it used to act for out-of-scope roots too
+until 2026-09-25) and only for the `instance-image` lifecycle (the `release`
+and `retention` lifecycles extend the same phase and used to get the file
+too). For every instance
 whose provider-specific image is now resolved (the image builder's post-hook
 has read the packer manifest), it writes
 `<B>/instance-generation/instances.auto.tfvars` with one line
@@ -367,7 +373,8 @@ of the name-pattern fallback. The file is run-local: a `--commit` never
 stages `*.tfvars`.
 
 **5. `post_finalize_phase`** runs after the deferred commands succeed and only
-when the root applied. For every non-ephemeral instance: a `follow` target
+when the root is inside the run's runtime scope (stage 63: a root out of
+scope applied nothing to bind) and applied. For every non-ephemeral instance: a `follow` target
 moves the pin to the new head; an unpinned instance is bound to the resolved
 image id (first bind); when the image was deferred and the runtime can query
 the booted image, the pin is bound from what actually booted, provided
@@ -456,7 +463,7 @@ recorded `archived`, the archive snapshot).
 | `lifecycle:` keys | refused | `ia_days` in {1,7,14,30,60,90,180,270,365}; `archive_days` in {90,180,270,365} | `transition_days` (positive int), `storage_class` in {STANDARD_IA, ONEZONE_IA, INTELLIGENT_TIERING, GLACIER_IR, GLACIER, DEEP_ARCHIVE}, `expire_days` (positive int), `prefix`; a class needs `transition_days`; at least one of the two day counts |
 | `destroyed` transition action | delete the archive snapshot when the volume was archived | none | `aws s3 rm s3://<bucket> --recursive [--profile <p>]` before the destroy |
 | Base-image prerequisites | none (a comment) | `nfs-common` (Debian family) or `amazon-efs-utils`/`nfs-utils`; verify: `mount.efs`/`mount.nfs`/`mount.nfs4` present | AWS CLI installed via the official zip (`unzip` first: it is not on RHEL-family images); verify: `aws` present |
-| State query | `describe_volumes` by `Name` tag, or `describe_snapshots` when archived | `describe_file_systems` matched by name, plus the lifecycle policy | `get_bucket_tagging` on the **builder's** `bucket_name`; `NoSuchBucket` means absent, any other failure is "unavailable" |
+| State query | `describe_volumes` by `Name` tag, or `describe_snapshots` when archived | `describe_file_systems` matched by name, plus the lifecycle policy | `get_bucket_tagging` on the **storage's** bucket (its `bucket_name`, else its name: the bucket its module call creates; stage 63, it read the builder's `bucket_name` until 2026-09-25); `NoSuchBucket` means absent, any other failure is "unavailable" |
 
 Module arguments (`module_args(storage)`), in emission order:
 
@@ -707,7 +714,7 @@ Runtime fields (the `aws` runtime the builder's `runtime:` names):
 | Field | Read by | Used for |
 |---|---|---|
 | `region` (`get_region()`) | both | the provider block's `region`; the EBS/EFS/S3 CLI flags and boto3 sessions |
-| `credentials.profile_name` (`get_credentials()`) | both | the provider block's `profile`; `--profile` on the CLI scripts; the boto3 session |
+| `credentials.profile_name` (`get_credentials()`) | both | the provider block's `profile`; `--profile` on the CLI scripts; the boto3 session. It is the only source of the profile: stage 63 removed the storage builder's dead fallback to a `profile` attribute on the runtime model (`rtb.model.profile`, which no runtime declares; removed 2026-09-25). |
 | `state_configuration` | both | the second rung of the backend chain |
 | `networking.network` | instance | the VPC for `data "aws_vpc"` and the `csis-instances` security group; also gates `vpc_security_group_ids` |
 | `networking.ssh_ingress_security_group_ids` | instance | the SSH ingress sources of `csis-instances`; empty falls back to the VPC's CIDR |
@@ -799,7 +806,14 @@ wrapped in `state-migration begin`/`finish`).
 - **`--only-runtime <rt>` (explicit or implied by `--apply-runtime`).**
   A builder whose runtime is not `<rt>` emits no root at all and contributes
   no commands; with no scope every root of every runtime is generated and
-  planned.
+  planned. Both finalize hooks of an out-of-scope instance builder return
+  at once (stage 63): `pre_finalize_phase` writes no `instances.auto.tfvars`
+  and `post_finalize_phase` binds nothing, matching the root's own empty
+  emission. Until 2026-09-25 another runtime's builder still ran
+  `pre_finalize_phase`, wrote tfvars for a root that emitted nothing, and
+  logged `No resolved provider-specific images for instances; modules will
+  use their name-pattern fallback` on every scoped run (visible in every GCE
+  cycle).
 - **`use_state_backends` on versus off.** On: the terraform block gets an
   empty `backend "s3" {}`, the `.tfbackend.hcl` file is written, init
   carries `-backend-config=`, and every `data "terraform_remote_state"`
@@ -852,8 +866,11 @@ wrapped in `state-migration begin`/`finish`).
   list empty none of the three is passed and the module makes no mount
   target, so nothing can mount the filesystem.
 - **S3 bucket name.** The storage's `bucket_name`, else its name, is the
-  bucket the module manages and the wipe empties; the builder's own
-  `bucket_name` is only what the state query reads.
+  bucket the module manages, the wipe empties and (stage 63) the state
+  query reads, so two S3 storages on one builder each report their own
+  bucket. The builder's own `bucket_name` is still required but nothing
+  reads it; until 2026-09-25 it was the bucket the state query read, and
+  every storage on the builder reported that one bucket.
 - **Groups versus `public_read`.** Allowed groups become EBS subtrees in the
   launch script, EFS access points (`access_points`) and S3 prefixes
   (`group_prefixes`), each gid by reference; `public_read: true` adds the
@@ -890,7 +907,9 @@ printed and recorded in `generated/run-summary.json` under
   message naming `variables:` as the replacement.
 - `variables:` keys are typed per provider: `performance-mode`,
   `volume-type`, or `size` under `variables:` on `tf-aws-ebs` are refused.
-- `bucket_name` is required on a `tf-aws-s3` builder.
+- `bucket_name` is required on a `tf-aws-s3` builder (still required,
+  although since stage 63 nothing reads it: the state query takes the
+  storage's bucket).
 - A `Storage` refuses `state` outside `active`/`archived`/`destroyed`,
   `share_mode` outside `2770`/`2775`, the `ALL` group value, an empty
   `runtime` or `type`.
@@ -969,7 +988,8 @@ these stop the runner under `set -euo pipefail`; the run summary records
 the lifecycle's apply as `failed` and the run exits 1.
 
 **After apply (post-finalize and the base hooks), only when the root's
-apply flag was on.** `post_finalize_phase` binds first pins and moves
+apply flag was on and the root is inside the run's runtime scope (stage
+63).** `post_finalize_phase` binds first pins and moves
 `follow` pins in `meta-state/pins.yaml` (a booted image lineage does not
 record is logged and left unbound). The base hooks then mark instances
 `launched`, open or close generations in `instance-state.yaml` and confirm
@@ -1084,7 +1104,22 @@ below and the commit messages on this package.
   root too**, whose image-family lookup returned 404 because the previous
   cycle had disposed every GCE image, and the run failed before the dask
   bake. Under `--only-runtime` (explicit or implied by `--apply-runtime`)
-  another runtime's instance and storage roots emit nothing.
+  another runtime's instance and storage roots emit nothing, and since
+  stage 63 (2026-09-25) the out-of-scope instance builder's finalize hooks
+  do nothing either.
+- **Until 2026-09-25 (stage 63): every scoped run logged `No resolved
+  provider-specific images for instances; modules will use their
+  name-pattern fallback`** (seen in every GCE cycle), because the AWS
+  instance builder's `pre_finalize_phase` still ran for a root the scope
+  had left empty and wrote an `instances.auto.tfvars` nothing read. Both
+  finalize hooks now return early for a root outside the runtime scope.
+- **Until 2026-09-25 (stage 63): two S3 storages on one builder reported
+  the same bucket.** The state query read the builder's `bucket_name`, not
+  the storage's, so the second storage's presence and tags were the
+  first's. `_lookup` now asks for the storage's own bucket (its
+  `bucket_name`, else its name)
+  ([test_v2_defects_dead.py](../../tests/test_v2_defects_dead.py),
+  `test_the_s3_lookup_asks_for_the_storages_own_bucket`).
 - **2026-09-19 (stage 52,
   [test_v2_availability_zones.py](../../tests/test_v2_availability_zones.py)):
   a zone was inferred from the subnet and never checked.** Pointing the
@@ -1142,6 +1177,10 @@ below and the commit messages on this package.
   after every release run. `pre_finalize_phase` now acts for the
   `instance-image` lifecycle alone
   ([test_v2_hygiene_five.py](../../tests/test_v2_hygiene_five.py)).
+  Since stage 63 both finalize hooks also return early for a root outside
+  the run's runtime scope
+  ([test_v2_defects_dead.py](../../tests/test_v2_defects_dead.py),
+  `test_an_out_of_scope_instance_root_writes_no_tfvars`).
 - **Found live, undated: the S3 prerequisite bake failed on RHEL-family
   images** because `unzip` is not installed there (`curl` is). The
   prerequisite now installs `unzip` before fetching the AWS CLI zip.
@@ -1168,7 +1207,8 @@ Each with the message or symptom, what it means, where to look, what to do.
   will use their name-pattern fallback` at pre-finalize: nothing baked this
   run, so no `instances.auto.tfvars`; the module resolves `ami_id` from the
   pin or the most recent AMI matching the pattern. Expected on a launch
-  that re-bakes nothing.
+  that re-bakes nothing. Since stage 63 it is never logged for a root
+  outside the run's `--only-runtime` scope (the hook returns before it).
 - Log warning `Instance <name> booted <ami>, which lineage does not record;
   pin left unbound`: the parent was deferred and the machine booted an
   image outside lineage (a foreign AMI matched the name pattern). Run

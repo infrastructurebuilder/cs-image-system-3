@@ -104,11 +104,13 @@ def googlecompute_source(model: Any, image: Any, *, runtime: str, source_type: s
     # finding 51: the runtime's bake disk size wins over the image's (which
     # inherits the OS builder's 200 GB default); the boot disk of every
     # instance launched from the image is exactly this size
-    rt_disk = getattr(model, "default_disk_size", None)
-    if rt_disk:
-        c["disk_size"] = int(rt_disk)
-    elif image.primary_disk_size:
-        c["disk_size"] = int(image.primary_disk_size)
+    # stage 63: the one bake-disk rule the fingerprint also hashes (the
+    # runtime's default_disk_size first, finding 51)
+    from cs_image_system.base.global_context import GlobalTypeContext
+    from cs_image_system.base.lineage import bake_disk_size
+    size = bake_disk_size(GlobalTypeContext(), image, runtime)
+    if size:
+        c["disk_size"] = int(size)
     # stage 63 items 22-23: the one resolver, the same the ansible provisioner
     # asks (the runtime's ssh_username used to override the entry here, and
     # the provisioner never read the entry); `packer` is the family default

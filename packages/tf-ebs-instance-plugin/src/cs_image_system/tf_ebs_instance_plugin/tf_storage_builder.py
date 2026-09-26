@@ -25,7 +25,7 @@ from cs_image_system.hashicorp_utils.blocks import OutputSpec, Raw, render_block
 from cs_image_system.hashicorp_utils.collector import TerraformCollector
 from cs_image_system.hashicorp_utils.roots import TerraformRootMixin
 
-from .tf_storage_models import TF_AWS, TF_AWS_EBS, TF_AWS_EFS, TF_AWS_S3, TofuEbsStorageBuilderModel, TofuEfsStorageBuilderModel, TofuStorageBuilderModel
+from .tf_storage_models import TF_AWS, TF_AWS_EBS, TF_AWS_EFS, TF_AWS_S3, TofuEbsStorageBuilderModel, TofuEfsStorageBuilderModel, TofuS3StorageBuilderModel, TofuStorageBuilderModel
 
 Q = TypeVar("Q", bound=TofuStorageBuilderModel)
 
@@ -328,7 +328,6 @@ class TofuStorageBuilder(StorageBuilderBase[Q], TerraformRootMixin):
         getter = getattr(getattr(rtb, "model", None), "get_credentials", None)   # stage 17
         creds = (getter() if callable(getter) else None) or {}
         profile = creds.get("profile_name") if isinstance(creds, dict) else None
-        profile = profile or getattr(getattr(rtb, "model", None), "profile", None)
         flags = ""
         region = self._region()
         if region:
@@ -610,7 +609,8 @@ class TofuEfsStorageBuilder(TofuStorageBuilder[S]):
         return args
 
 
-class TofuS3StorageBuilder(TofuStorageBuilder[Q]):
+B = TypeVar("B", bound=TofuS3StorageBuilderModel)
+class TofuS3StorageBuilder(TofuStorageBuilder[B]):
     """OpenTofu IaC provider implementation for S3 buckets."""
 
     @classmethod
@@ -643,9 +643,10 @@ class TofuS3StorageBuilder(TofuStorageBuilder[Q]):
 
     def _lookup(self, storage: Storage) -> dict[str, Any] | None:
         s3 = self._aws_client("s3")
-        bucket = getattr(self.model, "bucket_name", None)
-        if not bucket:
-            return None
+        # stage 63: the STORAGE's bucket, the one its module call creates
+        # (bucket_name, else the storage's name); the builder's bucket_name
+        # made two S3 storages on one builder report the same bucket
+        bucket = getattr(storage, "bucket_name", None) or storage.get_name()
         # The bucket_name binding already scopes this lookup to one bucket, so
         # presence = the bucket is reachable (found live: our own bucket read
         # as HARD-missing because the module sets no Name tag).

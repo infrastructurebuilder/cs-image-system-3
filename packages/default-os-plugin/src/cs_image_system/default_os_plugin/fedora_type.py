@@ -22,12 +22,3 @@ class FedoraOsBuilderModel(DnfOsBuilderModel):
     @classmethod
     def csis_name(cls) -> str:
         return FEDORA_TYPE
-
-    @classmethod
-    def get_command_to_update(cls) -> list[str]:
-        """Full package-level update for Fedora (single packer shell script)."""
-        return [
-            "sudo dnf clean all",
-            "sudo dnf -y upgrade --refresh",
-            "sudo dnf -y autoremove",
-        ]

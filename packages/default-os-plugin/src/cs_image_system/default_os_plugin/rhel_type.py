@@ -24,6 +24,18 @@ class RhelOsBuilderModel(DnfOsBuilderModel):
     def csis_name(cls) -> str:
         return RHEL_TYPE
 
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        # stage 63: checked at load, whatever the update policy (it ran only
+        # when update commands were generated, so `policy: none` with an
+        # unsupported major was never refused)
+        v = self.version()
+        if not v:
+            raise ValueError(f"Could not determine RHEL version from family_version '{self.family_version}' "
+                             f"in OS builder {self.name}")
+        if v.major not in (8, 9, 10):
+            raise ValueError(f"Unsupported RHEL version '{v}' in OS builder {self.name} (supported: 8, 9, 10)")
+
     def repo_setup_commands(self) -> list[str]:
         """Version-aware repository setup (RHEL 8/9/10 enable different repos).
 

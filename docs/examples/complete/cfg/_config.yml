@@ -8,9 +8,8 @@
 id: complete-example-REPLACE-ME    # 2: the configuration's identifier (required)
 generation_directory: ./generated/ # 2: where a run writes (default `generated`)
 dateformat: "%Y%m%d_%H%M%S"        # 2: strftime format of execution.timestamp, part of every generated image name
-sleep_before_finalization: 5       # 2: seconds before finalization executes (default 1)
+sleep_before_finalization: 5       # 2: read, then logged as ignored (the runner scripts and the apply gate replaced the pause)
 working_directory: ./workdir       # 2: accepted; the CLI's --root-dir is the working directory, so it is not used
-last_updated: 2026-09-23 12:00:00  # 2: accepted; not used
 # 2: entries appended to the built-in gitignore list and written to generated/.gitignore
 gitignore:
   - ".*"

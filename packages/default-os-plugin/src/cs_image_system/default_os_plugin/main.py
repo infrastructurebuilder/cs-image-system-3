@@ -28,8 +28,8 @@ class DefaultOsTypes(AbstractPluginMetadata, PluginMetadataProtocol):
                        RhelOsBuilder
                       ],
                       UBUNTU_TYPE: [
-                        UbuntuOsBuilder,
-                        UbuntuOsBuilderModel
+                        UbuntuOsBuilderModel,
+                        UbuntuOsBuilder
                       ],
                       DEBIAN_TYPE: [
                         DebianOsBuilderModel,

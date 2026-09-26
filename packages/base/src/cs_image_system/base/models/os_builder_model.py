@@ -84,7 +84,8 @@ class OsBuilderModel(BuilderModel):
         for r in self.runtimes:
             if r.get_image_builder() in nameset:
                 raise ValueError(
-                    f"Duplicate runtime configuration name {r.get_image_builder()} in OS builder {self.name}"
+                    f"OS builder {self.name}: two `runtimes` entries name image builder "
+                    f"{r.get_image_builder()}; one entry per image builder"
                 )
             nameset.add(r.get_image_builder())
             # stage 48.2: the runtime subconfigs are parented ONCE, by the OS builder

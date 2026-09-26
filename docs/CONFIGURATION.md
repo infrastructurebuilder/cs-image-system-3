@@ -139,15 +139,15 @@ any `cfg/` file; they are documented in their own sections.
 | --- | --- | --- | --- |
 | `id` | str | required | the configuration's identifier |
 | `generation_directory` | str | `generated` | where a run writes, relative to the root |
-| `dateformat` | str | `%Y%m%d_%H%M%S` | `strftime` format of `execution.timestamp` (used in generated image names); read as raw text before the model loads, with this fallback (the model's own default, `%Y-%m-%d-%H%M%S`, feeds a helper nothing calls) |
+| `dateformat` | str | `%Y%m%d_%H%M%S` | `strftime` format of `execution.timestamp` (used in generated image names); read as raw text before the model loads. One field with one default (stage 63): the model's default and the fallback the run uses are the same `DEFAULT_DATEFORMAT`; until 2026-09-25 the model's own default was `%Y-%m-%d-%H%M%S`, read only by a `last_updated` formatter nothing called. A tree that declares nothing gets the same output names as before |
 | `gitignore` | list[str] | `[]` | entries appended to the built-in list (`target/`, `.terraform/`, `terraform.tfstate`, `terraform.tfstate.backup`, `!.terraform.lock.hcl`) and written to `generated/.gitignore`; duplicates keep their last position |
-| `sleep_before_finalization` | int | `1` | accepted, not read: finalization logs that it is ignored and waits for nothing |
+| `sleep_before_finalization` | int | `1` | read, then ignored: finalization waits for nothing. A real (`--no-dry-run`) run with a non-zero value logs `sleep_before_finalization=<n> is ignored: finalization never waits on a terminal (DESIGN §3G)`; a dry run says nothing. Kept with this behaviour by decision (stage 63) |
 | `encryption` | mapping | `{recipients: []}` | see 2.1 |
 | `public_safe` | mapping | `{allow: []}` | see 2.2 |
 | `config` | mapping | `{}` | the global settings the run reads; see 2.3 |
 | `executables` | list | `[]` | section 3 (usually in its own file) |
 | `working_directory` | str | `./workdir` | accepted; the CLI's `--root-dir` (or the current directory) is the working directory, so this value is not used |
-| `last_updated` | datetime | now | accepted; not used |
+| `last_updated` | -- | -- | gone (stage 63): declaring it is an unknown key, refused at load. Until 2026-09-25 it was accepted and not used |
 
 ### 2.1 `encryption`
 
@@ -362,8 +362,8 @@ image, instance and storage builders) add:
 | --- | --- | --- | --- |
 | `account_id` | str or null | null | the account (a number is coerced to a string) |
 | `state_configuration` | str | `default` | a state backend (section 10); `default` inherits the runtime's, else the default backend |
-| `ena_support` | bool or null | null | accepted; not read -- nothing emits it into a packer source |
-| `sriov_support` | bool or null | null | accepted; not read |
+| `ena_support` | bool or null | null | emitted into the amazon-ebs packer source when declared (stage 63; it was read by nothing); unset, packer's default applies |
+| `sriov_support` | bool or null | null | emitted into the amazon-ebs packer source when declared (stage 63) |
 | `iam_instance_profile` | str or null | null | instance profile attached to build VMs when `session_instance_profile` is unset; with both set the SSM profile wins |
 | `session_mechanism` | str or null | null | `ssm`: bakes and debug sessions go through SSM (the agent is baked into base images) |
 | `session_instance_profile` | str or null | null | the profile attached to launched instances for SSM sessions |
@@ -409,14 +409,14 @@ and warns about a network tag no firewall rule targets.
 | `network` | str | `default` | the VPC id (AWS) or network name (GCP); `default` resolves to the account's default VPC / the project's `default` network |
 | `subnets` | list | required, at least one | exactly one entry must have `is_default: true` |
 | `subnets[].name` | str | the subnet id | label |
-| `subnets[].subnet_id` | str | required | the subnet id (AWS) or `projects/…/subnetworks/…` path (GCP) |
+| `subnets[].subnet_id` | str | required | the subnet id (AWS) or `projects/…/subnetworks/…` path (GCP); on AWS every declared subnet must be in the declared VPC, checked at load against the account (stage 63) |
 | `subnets[].is_default` | bool | `false` | the subnet bakes and instances use |
 | `subnets[].public` | bool | `false` | informational |
 | `subnets[].cidr` | str or null | null | informational |
 | `subnets[].availability_zone` | str or null | null | the subnet's zone, read by `validate`'s zone check (section 12a) |
 | `subnets[].config` | mapping | `{}` | free-form; accepted, not read |
 | `availability_zones` | list | `[]` | entries `{name, is_default}`; on AWS the default zone is passed to the instance root; on GCE the instance root takes the runtime's `zone` and the default here is read by `validate`'s zone check only |
-| `security_group_ids` (aws) | list[str] | `[]` | accepted and counted at load (the total with `addl_security_groups` is validated); emitted nowhere -- an instance wears the root's own security group plus `addl_security_groups`, and SSH ingress references `ssh_ingress_security_group_ids` |
+| `security_group_ids` (aws) | | | refused at load since stage 63: it was counted and emitted nowhere; `addl_security_groups` is the list instances wear |
 | `addl_security_groups` (aws) | list[str] | `[]` | existing groups every instance also wears; never modified |
 | `ssh_ingress_security_group_ids` (aws) | list[str] | `[]` | groups whose members may SSH in; when set, port-22 ingress references only these groups, never a CIDR |
 | `network_tags` (gcloud) | list[str] | `[]` | network tags that select firewall rules |
@@ -528,7 +528,7 @@ Types: `rhel` (dnf; adds `subscription_id`), `fedora` (dnf), `debian`
 | `admin_public_keys` | list[str] or null | null | per-base override of `config.admin_public_keys`; public keys only |
 | `local_test_image` | str or null | null | the container standing in for this OS in local mod tests; default derived from family/version (`almalinux:<v>` for rhel 10 and above, `rockylinux:<v>` below) |
 | `tests` | mapping | `{}` | in-bake assertions (5.3) |
-| `subscription_id` (rhel) | str or null | null | accepted; not read |
+| `subscription_id` (rhel) | str or null | null | accepted and not read, reserved for a future step that registers an image (the update commands already use a subscription's repos when the image is registered, the vendor RHUI repos otherwise) |
 | `is_default` | bool | `false` | the base `source_image: default` resolves to |
 
 ### 5.1 `runtimes[]` entries
@@ -542,17 +542,18 @@ Types: `rhel` (dnf; adds `subscription_id`), `fedora` (dnf), `debian`
 | `name` | str or null | null | a label; unique within the builder |
 | `type` | str | the parent's name | set by the loader |
 | `description` | str | templated | free text |
-| `image_id` | str or null | null | accepted, not read; the vendor query is always made |
-| `image_name` | str or null | null | accepted; not read |
+| `image_id` | str or null | null | a fixed vendor image on this runtime: when set the vendor query is skipped and the image is looked up by id (AWS: the AMI id; GCE: the image name, searched in the entry's owner projects); an id the provider does not know stops resolution. Stage 63; it was read by nothing |
+| `image_name` | | | refused at load since stage 63 (it was read by nothing); select by name with `query.filters.name`, pin with `image_id` |
 | `auto_update` | bool or null | null | overrides the builder's `auto_update` for this runtime |
-| `default_machine_type` | str or null | null | machine type for bakes on this runtime; the entry's `machine_type` template resolves to the runtime's default when unset |
-| `default_primary_disk_size` | int | `100` | GB; accepted, not read on the entry (the base image takes the OS builder's value; GCE then prefers the runtime's `default_disk_size`) |
+| `default_machine_type` | str or null | null | machine type for the base image's bakes on this runtime; when unset, the image builder's `default_machine_type` (section 6) when it declares one, else the runtime's `default_machine_type` |
+| `default_primary_disk_size` | int or null | null | GB; the base image's bake disk on this runtime when declared, else the OS builder's `default_primary_disk_size`; a runtime's own `default_disk_size` wins over both (GCE, finding 51). The packer sources and the fingerprint use this one rule (stage 63; the fingerprint hashed the entry's old default 100 while the bake used 200, so AWS base images read DUE once after it lands until `lineage restamp`) |
 | `tags` | mapping[str, str] | `{}` | merged over the builder's tags |
 | `owners` | list[str] | `[]` | appended to the builder's owners |
 | `query` | mapping | `{}` | merged over the builder's query, key by key |
 | `ssh_username` | str | `default` | the bake ssh user on this runtime, for this OS and every image built on it: step 2 of the bake-user order (5.1.1), ahead of anything the runtime says |
 | `tests` | mapping or null | null | when set, **replaces** the builder's `tests` for bakes on this runtime |
-| `tags`, `config` | | | accepted (`config` is not read); `aliases` are refused |
+| `tags` | mapping[str, str] | `{}` | merged over the builder's tags |
+| `config` | mapping | `{}` | free-form; since stage 63 `{{ config.x }}` in the entry's own templated fields (e.g. `description`) resolves from it, shadowing the OS builder's `config` for this entry. `aliases` are refused |
 
 #### 5.1.1 The bake ssh user
 
@@ -692,7 +693,7 @@ the source block.
 | --- | --- | --- | --- |
 | common builder fields (4.1) | | | `executable` names the packer entry |
 | `runtime` | str | `default` | the runtime this builder bakes on |
-| `default_machine_type` | str | `default` | machine type for bakes when the image and the runtime entry name none |
+| `default_machine_type` | str | `default` | machine type for this builder's bakes when the image's (or base image's) runtime entry names none; `default` means "not declared" and passes to the runtime's `default_machine_type`. The order is: the runtime entry's `machine_type`, else this field, else the runtime's. Read for instance images since stage 63 (they skipped it, straight to the runtime's default, until 2026-09-25); base images already followed this order |
 | `required_plugins` | list | `[]` | packer plugins: `{name (required), version (required), source, config}` |
 
 [`cfg/image-builders.yml`](../tests/fixtures/config/cfg/image-builders.yml):
@@ -754,7 +755,17 @@ Key: `mod_builders`. A modification builder turns an image's
 | `extra_arguments` | list[str] | `[]` | passed as the provisioner's `extra_arguments` (the system appends `-e ansible_python_interpreter=…`) |
 | `ansible_connection` | str or null | null | the provisioner's `connection_type`; normally unset |
 | `expect_disconnect` | bool | `false` | the provisioner's `expect_disconnect` |
-| `configuration_user` | str or null | null | accepted; the provisioner's `user` comes from the runtime's bake ssh user |
+| `configuration_user` | str or null | null | when set, the provisioner's `user` for this builder's items, beating the bake-user order (5.1.1): the one place a modification connects as someone other than the bake user. Unset, the `user` comes from the runtime's bake ssh user. Read since stage 63 (accepted and ignored until 2026-09-25) |
+
+Every string the ansible builder writes into a provisioner
+(`playbook_file`, `user`, each `extra_arguments` entry,
+`connection_type`) is escaped as an HCL string: backslash and `"` are
+escaped and packer's `${` / `%{` are doubled, so a value reaches ansible
+literally (stage 63; a `"` used to break the build file). A relative
+playbook path that does not exist is refused at generation:
+`modification '<name>': playbook '<path>' does not exist (a relative path
+is read from the configuration root)` (stage 63; it used to be emitted and
+fail only when packer ran).
 
 ### 7.2 `bash-remote`
 
@@ -766,11 +777,11 @@ at load.
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | common builder fields (4.1) | | | |
-| `execute_command` | str or null | null | the provisioner's `execute_command`; it cannot carry packer's own `{{ .Path }}` syntax, since every configuration string is rendered as a Jinja template at load |
+| `execute_command` | str or null | null | the provisioner's `execute_command`, the way to change how an item's script is invoked; it cannot carry packer's own `{{ .Path }}` syntax, since every configuration string is rendered as a Jinja template at load. Refused together with `configuration_user` |
+| `configuration_user` | str or null | null | when set, each item's lines run as this user: the provisioner's `execute_command` becomes `chmod +x {{ .Path }}; sudo su - <user> -c '{{ .Vars }} {{ .Path }}'` (the plugin writes it after the load, so packer's syntax survives), and the bake user only launches them. Declaring it with `execute_command` is refused at load (`` mod builder '<name>': `configuration_user` and `execute_command` both say how the script runs; declare one ``). Read since stage 63 (accepted and not emitted until 2026-09-25) |
 | `environment_vars` | list[str] | `[]` | the provisioner's `environment_vars` |
 | `expect_disconnect` | bool | `false` | emitted as `expect_disconnect = true` on every block of the builder's items when set |
-| `extra_arguments` | list[str] | `[]` | accepted; not emitted |
-| `configuration_user` | str or null | null | accepted; not emitted |
+| `extra_arguments` | | | **refused** as an unknown key since stage 63 (it was accepted and never emitted); change the invocation with `execute_command` |
 
 ### 7.3 The modification item (inside an image's `modifications:`)
 
@@ -778,7 +789,13 @@ at load.
 ([`moditem_type.py`](../packages/base/src/cs_image_system/base/models/moditem_type.py))
 plus the builder type's fields. The item's `type` names a mod builder
 (its name, one of its `aliases:`, `default`, or omitted = the default
-mod builder). Whatever the item writes, the loader rewrites `type` to
+mod builder). With no mod builder marked `is_default: true`, an item
+that omits `type` is refused at load: the builder-list check says `No
+default builder found in mod_builder list.`, and an item that reaches the
+orchestrator anyway is refused with `` modification '<name>' names no
+builder (`type`) and no mod builder is `is_default: true`; name one with
+`type:` or mark a default `` (stage 63; it used to become an
+`AttributeError` at generation). Whatever the item writes, the loader rewrites `type` to
 the builder's own name, so every later reader (the image builder looks
 mod builders up by name) sees one spelling; an unknown name is refused
 at load. The builder's type decides which item model applies.
@@ -797,6 +814,12 @@ at load. The builder's type decides which item model applies.
 A bash-remote item must give at least one of `script`, `scripts`,
 `ensure`. An item with only `ensure` is recorded as `idempotent: declared`;
 one with `script`/`scripts` as `idempotent: unknown`.
+
+The on-image mods bundle (`/opt/csis/mods/NN-<item>/`, replayed by
+`csis-mods rerun`) carries a bash item's script files and an `inline.sh`
+holding its guarded `ensure` lines followed by its `script` lines, the
+order the bake runs them, so a rerun re-applies the declarative form too
+(stage 63; until 2026-09-25 `inline.sh` held only the `script` lines).
 
 **An ansible item with only `config:`** is refused at load, by name (`ValueError`:
 an item with no playbooks has nothing to modify with; nothing reads the
@@ -1049,11 +1072,19 @@ declare `identity_types: [okta]` get the OPA server agent baked, dormant;
 an instance image activates it for its owning group. The identity type
 token is `okta`.
 
-The `dummy` plugin registers a `dummy` group builder (`org`, `team`,
-`key`, `secret`, `api_host`, all accepted and not read) and a `dummy` user
-builder (`org`, `team`) as the extension template; no test declares
-either, and a declared one fails the identity lifecycle today (its README
-says why).
+The `dummy` plugin registers a `dummy` group builder and a `dummy` user
+builder as the extension template. Each takes `org` and `team`, both
+required, validated at load and read by nothing (the example shape of what
+a provider needs). `key`, `secret` and `api_host` are gone from the group
+builder (stage 63): they are unknown keys now, refused at load, so the
+template never suggests a credential in the tree (until 2026-09-25 they
+were accepted and not read). No tree declares either builder; a declared
+one loads, validates and runs the identity lifecycle, the group builder
+writing nothing and the user builder one comment-only file under its own
+root, `generated/identity/<builder>/user-generation/<builder>-user-generation-users.tf`
+(stage 63; it wrote `Dummy-tf/dummy_users.tf` beside the builder
+directories until 2026-09-25). See the
+[dummy plugin's README](../packages/dummy-plugin/README.md).
 
 ### 9.3 User builders
 
@@ -1178,30 +1209,36 @@ configuration keeps every root on its default backend by decision.
 | `profile` | str or null | null | the AWS profile terraform uses for the backend |
 | `encrypt` | bool | `false` | server-side encryption of the state objects |
 | `use_lockfile` | bool | `true` | S3 lockfile locking |
-| `executable` | str or null | `tofu` | |
-| `required_plugins` | list | `[]` | `{name, version, source, config}`; accepted, not read |
-| `allowed_account_ids` | list[str] | `[]` | accepted, not read |
-| `forbidden_account_ids` | list[str] | `[]` | accepted, not read |
-| `http_proxy`, `https_proxy` | str or null | null | accepted, not read |
-| `no_proxy` | list[str] | `[]` | accepted, not read |
-| `insecure` | bool | `false` | accepted, not read |
-| `max_retries` | int | `5` | accepted, not read |
-| `access_key`, `secret_key` | str or null | null | accepted, not read; static keys belong in the environment, never here |
-| `shared_config_file`, `shared_credentials_file` | str or null | null | accepted, not read |
-| `skips_credentials_validation` | bool | `false` | accepted, not read (spelled with the `s`) |
-| `skip_region_validation` | bool | `false` | accepted, not read |
-| `skip_requesting_account_id` | bool | `false` | accepted, not read |
-| `skip_metadata_api_check` | bool | `false` | accepted, not read |
-| `skip_s3_checksum` | bool | `false` | accepted, not read |
-| `use_dualstack_endpoint` | bool | `false` | accepted, not read |
-| `use_fips_endpoint` | bool | `false` | accepted, not read |
-| `endpoints` | mapping or null | null | `{name (required), dynamodb, s3, sts, iam, sso}`; accepted, not read |
-| `assume_role` | mapping or null | null | `{name (required), role_arn, duration, policy, policy_arns: [], session_name, source_identity, tags: {}, transitive_tag_keys: []}`; accepted, not read |
-| `assume_role_with_web_identity` | mapping or null | null | `{name (required), web_identity_token, web_identity_token_file}`; accepted, not read |
+| `executable` | str or null | null | the `cfg/executables.yml` entry these roots run; when declared `validate` refuses a name that is not in the list, and the entry is version-checked like any other; unset, nothing is checked |
+| `allowed_account_ids`, `forbidden_account_ids` | list[str] | `[]` | backend argument, passed through when non-empty |
+| `http_proxy`, `https_proxy` | str or null | null | backend argument, passed through when set |
+| `no_proxy` | list[str] | `[]` | backend argument, passed through when non-empty as a comma string |
+| `insecure` | bool | `false` | backend argument, passed through when true |
+| `max_retries` | int | `5` | backend argument, passed through when not 5 |
+| `shared_config_file`, `shared_credentials_file` | str or null | null | passed through when set, as `shared_config_files = [...]` / `shared_credentials_files = [...]` |
+| `skip_credentials_validation`, `skip_region_validation`, `skip_requesting_account_id`, `skip_metadata_api_check`, `skip_s3_checksum` | bool | `false` | backend arguments, passed through when true |
+| `use_dualstack_endpoint`, `use_fips_endpoint` | bool | `false` | backend arguments, passed through when true |
+| `endpoints` | mapping or null | null | `{dynamodb, s3, sts, iam, sso}`; passed through as an object |
+| `assume_role` | mapping or null | null | `{role_arn (required), duration, external_id, policy, policy_arns, session_name, source_identity, tags, transitive_tag_keys}`; passed through as an object |
+| `assume_role_with_web_identity` | mapping or null | null | `{role_arn (required), duration, policy, policy_arns, session_name, web_identity_token, web_identity_token_file}`; passed through as an object |
+
+Refused at load, each naming what to do instead: `access_key` and
+`secret_key` (static keys never live in the tree: name a `profile` or an
+`assume_role`), `skips_credentials_validation` (the old spelling; the
+argument is `skip_credentials_validation`) and `required_plugins` (a
+backend has no plugins). A nested object refuses a member it does not
+know. Before stage 63 every argument in this table beyond the core six
+was accepted and read by nothing, and the nested objects demanded a
+`name` member no backend argument has.
 
 A root's location is `s3://<bucket>/<key>/<root name>.tfstate`; the backend
 file carries `bucket`, `key`, `region`, `encrypt`, `use_lockfile` and the
 profile; a consumer's data source `bucket`, `key`, `region` and the profile.
+Both also carry every passed-through argument that is declared, so a
+consumer reads the state the way the root writes it. A setting declared
+encrypted is written as its ciphertext and restored in the private copy
+tofu runs from. A root's `state_configuration` may name a backend by its
+`name` or by one of its `aliases` (stage 63).
 
 [`cfg/state-backends.yml`](../tests/fixtures/config/cfg/state-backends.yml)
 and [`cfg/state-backends-2.yml`](../tests/fixtures/config/cfg/state-backends-2.yml):
@@ -1238,8 +1275,8 @@ type, so its golden carries two backend types and reads across them.
 | Field | Type | Default | Meaning and allowed values |
 | --- | --- | --- | --- |
 | common builder fields (4.1) | | | `is_default` marks the backend `default` resolves to |
-| `path` | str | `state` | a directory, relative to the configuration root or absolute; non-empty |
-| `executable` | str or null | `tofu` | |
+| `path` | str | `state` | a directory, relative to the configuration root or absolute; non-empty; a `.` or `..` segment inside a longer path and a bare `/` are refused at load, while `.` alone (the configuration root) is accepted (one directory, one spelling: `a/../b` and `b` used to be two locations to the collision check, and `/` rendered `//<root>.tfstate`) |
+| `executable` | str or null | null | as for `s3` |
 
 A root's location is `local://<directory>/<root name>.tfstate`. The backend
 file and a consumer's data source carry one setting, `path`: the absolute
@@ -1273,14 +1310,14 @@ and the live tree carries the same file with every line commented out.
 | `impersonate_service_account` | str or null | null | the service account terraform impersonates |
 | `encryption_key` | str or null | null | a customer-supplied key |
 | `kms_encryption_key` | str or null | null | a Cloud KMS key name |
-| `executable` | str or null | `tofu` | |
+| `executable` | str or null | null | as for `s3` |
 
 A root's location is `gcs://<bucket>/<prefix>/<root name>/default.tfstate`
 (OpenTofu's `gcs` backend names the default terraform workspace's object
 `default.tfstate` under the prefix, so each root gets its own prefix). The
 backend file carries `bucket`, `prefix`, the identity fields and the
 encryption keys when set; a consumer's data source `bucket`, `prefix` and
-the identity fields only. `required_plugins` is accepted and not read.
+the identity fields only. `required_plugins` is refused at load (a backend has no plugins; stage 63).
 
 [`cfg/state-gcm.yml`](../tests/fixtures/config/cfg/state-gcm.yml):
 
@@ -1341,7 +1378,7 @@ owned by exactly one group.
 | `is_default` | bool | `false` | |
 | `architecture` | str | the OS builder's, else `x86_64` | |
 | `primary_disk_size` | str or int | the OS builder's `default_primary_disk_size`, else 200 | GB |
-| `variables` | mapping | `{}` | accepted; not read -- the packer builder declares its own variables (`base_image_version` among them) and the retired `gen_packer.py` was this field's only reader |
+| `variables` | mapping | `{}` | packer variables (stage 63): each entry becomes a `variable` of the image builder's roots, in every block's `-vars.pkr.hcl`, typed by its value (`string`, `number`, `bool`) with the value as its default. A list, a mapping, or a name packer cannot take (a letter or `_` first, then letters, digits, `_`, `-`) is refused at generation naming the image and key; two images of one builder declaring the same name are refused by the collector (`Packer variable '<name>' redefined with different attributes in workspace '<builder>'`). Nothing a configuration writes today references `var.<name>`, so a declared variable is carried but not yet consumed by any provisioner. Until 2026-09-25 the field was read only by `gen_packer.py`, a dead module now deleted |
 | `tags` | mapping[str, str] | `{}` | tags on the baked image |
 | `description` | str or null | `Image <name> from source image <source_image>` | |
 | `auto_update` | bool or null | null | accepted; updates apply to base images only |
@@ -1356,7 +1393,7 @@ owned by exactly one group.
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `image_builder` | str | `default` | the image builder; its runtime is the runtime of this bake |
-| `machine_type` | str or null | null | the bake machine type; null uses the runtime's default |
+| `machine_type` | str or null | null | the bake machine type; when unset it is filled at load from the image builder's `default_machine_type` when that builder declares one, else the runtime's `default_machine_type` (stage 63; the image builder's value was skipped until 2026-09-25) |
 | `ssh_username` | str | `default` | the bake ssh user for this image on this runtime: step 1 of the bake-user order (5.1.1); on GCE it must match the chain root's |
 | `image_identifier` | str or null | null | a fixed provider image id to bake from instead of the pinned parent |
 | `owners` | list[str] | `[self]` | owners for the parent-image query |
@@ -1729,9 +1766,15 @@ Options of `cs-image-system run` ([`cli.py`](../packages/system/src/cs_image_sys
 
 Global options (before the command): `--root-dir`, `--verbose`,
 `--dry-run/--no-dry-run` (dry run is the default: finalization commands
-are enumerated, not executed), `--overlay`, `--undeclare`, `--force`,
-`--base-only`, `--only-providers` (accepted; the configuration is still
-read in full).
+are enumerated, not executed), `--overlay`, `--undeclare`,
+`--base-only`, `--only-providers` (repeatable, and since stage 63 a comma
+list is split into names; recorded and warned about, while the
+configuration is still read in full, so it changes no output). There is
+no global `--force` (stage 63): it was stored and read by nothing, and
+passing it is now `No such option` (until 2026-09-25 it was accepted and
+ignored). The overrides that act are named for what they override:
+`--force-bake` above, `gate-plan --allow-destroy`, and `test-mods --force`
+(a different flag, which re-tests mods that already passed).
 
 ## 12a. Availability zones
 

@@ -150,8 +150,12 @@ core, and a dry run never reaches the bucket.
 - **The tofu binary.** The consumer root's, not this plugin's: a root's
   `executable` names an entry of `cfg/executables.yml` (the fixture's
   `open-tofu-1`, type `tofu`, `>1,<2`), and that entry is what `validate`
-  and every run check. The model's own `executable` field (default
-  `tofu`) is accepted and read by nothing; see the reference below.
+  and every run check. Since stage 63 the model's own `executable` field
+  is a checked declaration as well: unset by default, and when set it must
+  name an entry of `cfg/executables.yml`, which is then version-checked
+  like every entry. It does not choose the binary a root runs. Until
+  2026-09-25 it defaulted to `tofu` and was read by nothing; see the
+  reference below.
 - **Network.** Whoever runs a real `init`, `plan` or `apply` must reach
   Google Cloud Storage. A dry run initialises with `init -backend=false`
   and never touches the bucket, so CI's dry records, an operator's preview
@@ -174,24 +178,29 @@ naming `variables:`. Field names are exact: `type` in YAML is the model's
 | `name` | str | required | what a root's or runtime's `state_configuration` names; normalised (lowercase, spaces to `_`); `/` and `\` are refused, and so are `default`, `self` and the empty name |
 | `type` | str | required | `gcs`; also the terraform backend type written into consumers' `backend "gcs" {}` block |
 | `description` | str or null | null | free text; not read |
-| `aliases` | set[str] | `{}` | extra names the registry resolves to this backend |
+| `aliases` | set[str] | `{}` | other names the backend answers to (stage 63): they travel on the `BackendRegistration`, and `resolve_backend` tries the backend names first and then every backend's aliases, so a root's or runtime's `state_configuration` may name an alias and `validate` accepts it. Until 2026-09-25 they were registered and never read, and binding to an alias was refused as not declared |
 | `is_default` | bool | `false` | the backend `default` resolves to (a root that names none, whose runtime names none); more than one default across all backend types is refused when anything resolves it |
 | `bucket` | str | required, non-empty | the state bucket; whitespace is trimmed |
 | `prefix` | str | `statefiles` | the prefix inside the bucket; leading and trailing `/` and whitespace are trimmed; each root gets `<prefix>/<root safe name>` beneath it; may be empty, must be a string (`null` is refused) |
 | `credentials` | str or null | null | a PATH to a credentials file, never a value; written as-is into the backend file and every consumer's data source when set |
 | `impersonate_service_account` | str or null | null | the service account tofu impersonates; written into the backend file and every consumer's data source when set |
-| `encryption_key` | str or null | null | a customer-supplied encryption key; written into the backend file only, in clear, when set |
+| `encryption_key` | str or null | null | a customer-supplied encryption key; written into the backend file (never a data source) when set -- in clear when declared in clear, as its `ENC[age:...]` ciphertext when declared encrypted (stage 63; see Variations) |
 | `kms_encryption_key` | str or null | null | a Cloud KMS key name; written into the backend file only, when set |
-| `executable` | str or null | `tofu` | **accepted, not read.** Present for shape parity with the other tofu builders; this plugin runs no commands, and `validate`'s executable check covers runtime, storage, OS, mod, image and instance builders, not state backends (the default `tofu` names no entry in `cfg/executables.yml`, and nothing notices) |
-| `required_plugins` | list[`TFTofuPluginModel`] | `[]` | **accepted, not read** |
+| `executable` | str or null | null | the `cfg/executables.yml` entry the tofu for the roots on this backend comes from (stage 63). Unset: nothing is checked on the backend's behalf. Declared: `validate` and every run refuse a name that is not an entry of `cfg/executables.yml` (`check_state_backend_executables` in [validate.py](../base/src/cs_image_system/base/commands/validate.py)), and the entry is version-checked like every executables entry. This plugin still runs no commands under it. Until 2026-09-25 it defaulted to `tofu`, named no entry, and nothing noticed |
 | `config` | mapping | `{}` | **accepted, not read** |
 | `gitignore` | list[str] | `[]` | **accepted, not read** |
 | `tags` | mapping[str, str] | `{}` | **accepted, not read** |
 
+There is no `required_plugins` field any more (stage 63): it was accepted
+and read by nothing, and the `gcs` backend is built into OpenTofu, so the
+field was removed on 2026-09-25. Declaring it is now an unknown-key
+refusal at load; delete the key.
+
 What reaches the emission is exactly what `to_backend_registration()`
 registers: `bucket`, `prefix`, `credentials`, `impersonate_service_account`,
-`encryption_key`, `kms_encryption_key`, plus `name`, `type` and
-`is_default` on the registration itself. Two other declarations, owned by
+`encryption_key`, `kms_encryption_key`, plus `name`, `type`, `is_default`
+and (since stage 63) `aliases` on the registration itself. `executable` is
+read by `validate`, not by the plugin. Two other declarations, owned by
 other plugins, decide whether any of it is used:
 
 | Declared where | Field | Effect on this plugin |
@@ -240,15 +249,25 @@ other plugins, decide whether any of it is used:
   `<prefix>/<root>/default.tfstate`. Either way no two roots share an
   object, because the root's own safe name is always a segment.
 - **Encrypted or clear values.** Any value in the tree may be an
-  `ENC[age:...]` marker and decrypts at load, but this plugin's kind treats
-  every setting as a plain string and registers nothing as sensitive: a
-  decrypted `bucket`, `prefix`, path or key would be written in CLEAR into
-  the `.tfbackend.hcl`, the data sources, the runner header and
-  `state-locations.yaml`. The system's plaintext guard then refuses the
-  meta-state write and the commit, naming the file and line -- so
-  encrypting a backend field is not supported; keep these values public
-  (the bucket name is public by decision) or out of the tree (a key in
-  tofu's environment). `name` and `type` may not be markers at all.
+  `ENC[age:...]` marker and decrypts at load. Since stage 63 the partial
+  configuration file (`.tfbackend.hcl`) writes such a setting as the
+  ciphertext it was read from: `render_backend_value` in
+  [collector.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/collector.py)
+  calls `emit`, and execution's materialise step puts the plaintext back
+  in the `_private/` copy tofu runs from. So an `encryption_key` declared
+  encrypted is committed as ciphertext in the backend file. Until
+  2026-09-25 the backend file carried the decrypted value in clear, and
+  only the plaintext guard caught it. That change covers the backend file
+  only. The kind registers nothing as sensitive, and the other places the
+  settings reach -- the consumers' data sources (`bucket`, `prefix`,
+  `credentials`, `impersonate_service_account`), the runner header's
+  location line, and the `state-locations.yaml` record (which repeats the
+  backend-file settings) -- were not changed by stage 63; wherever one of
+  them would carry a plaintext, the plaintext guard still refuses the
+  write or the commit, naming the file and line. So the safe practice is
+  unchanged: keep these values public (the bucket name is public by
+  decision) or out of the tree (a key in tofu's environment). `name` and
+  `type` may not be markers at all.
 - **`--migrate-state <root>`.** A root moving onto or off a `gcs` backend
   goes through the migration operation like any other: the record of the
   previous location (`backend`, `type`, `location` and the settings above)
@@ -277,7 +296,8 @@ other plugins, decide whether any of it is used:
   `use_state_backends`; `check_state_locations` in
   [validate.py](../base/src/cs_image_system/base/commands/validate.py)):
   every terraform root's backend is resolved through the chain from the
-  declarations alone; a root naming an undeclared backend, a prefix whose
+  declarations alone (by name, or by one of a backend's `aliases` since
+  stage 63); a root naming an undeclared backend, a prefix whose
   rendered key carries a `.` or `..` segment, more than one `is_default`,
   two roots that would share one object (same bucket and normalised
   prefix under two names, or two root names that collapse under
@@ -313,9 +333,13 @@ other plugins, decide whether any of it is used:
   The state query asks runtimes and identity providers, never a state
   backend; the location record is the only memory of where a root's state
   was resolved to, and it is compared, not verified against the bucket.
-- **Executable versions.** Nothing: the stage-48 version checks cover the
-  declared `executables` and the six builder classes that run tools; a
-  state backend's `executable` is not among them.
+- **Executable versions (stage 63).** When the entry declares
+  `executable`, `check_state_backend_executables` in
+  [validate.py](../base/src/cs_image_system/base/commands/validate.py)
+  requires it to name an entry of `cfg/executables.yml`, at `validate`
+  and at the head of every run, and the stage-48 checks version-check
+  that entry with the others. Unset, nothing is checked. Until 2026-09-25
+  a state backend's `executable` was not among the checked names.
 
 ## When it fails
 
@@ -334,9 +358,10 @@ is what the code raises, in the order an operator would meet it.
   or write `""` for none.
 - `<key> / Unexpected keyword argument` (or pydantic's extra-input
   refusal naming the key) -- a field this model does not have, a typo
-  (`impersonate_service_acount`), or an S3 field (`key`, `region`,
-  `profile`) on a `gcs` entry. Remove or rename it; the table above is
-  the whole set.
+  (`impersonate_service_acount`), an S3 field (`key`, `region`,
+  `profile`) on a `gcs` entry, or `required_plugins` (removed in stage 63;
+  until 2026-09-25 it was accepted and ignored). Remove or rename it; the
+  table above is the whole set.
 - `<name>: `parameters` was retired (stage 26) ...` -- delete the key.
 - `Name '<name>' contains invalid characters` / `Name cannot be in
   '['default', None, '', 'self']'` -- rename the backend.
@@ -351,9 +376,15 @@ is what the code raises, in the order an operator would meet it.
   instance). Keep one.
 - `workspace '<root>' names state backend '<name>', which is not declared`
   -- a root's or runtime's `state_configuration` names a backend no file
-  declares; the live tree's `gcs-east1` is commented out, so binding a
+  declares, by name or by alias (an alias resolves since stage 63; until
+  2026-09-25 naming one landed here); the live tree's `gcs-east1` is commented out, so binding a
   live root to it today fails exactly here. Declare it, or change the
   binding. Exit 1 from `validate` or the run.
+- `Executable <x> specified for state backend <name> not found in
+  executables list.` -- the entry's `executable` names nothing in
+  `cfg/executables.yml` (stage 63). Fix the spelling, declare the entry,
+  or remove the key (unset means unchecked). Exit 1 from `validate` or
+  the run.
 - `workspace '<root>': state key '<prefix>/<root>' carries a '..' segment`
   -- the declared prefix contains `.` or `..`. Write a plain prefix.
 - `Multiple default state backends registered: [...]` -- two backends,
@@ -387,9 +418,13 @@ is what the code raises, in the order an operator would meet it.
   own. Only a real run gets here; a dry run's init is `-backend=false`.
 - **`meta-state/<file>: <line>` from the plaintext guard, or a refused
   commit** -- a backend field was declared as an `ENC[age:...]` value and
-  its plaintext now stands in a record or in the emission. Encrypting a
-  backend field is not supported (see Variations); write it in clear or
-  move it out of the tree.
+  its plaintext now stands in a record or in a part of the emission that
+  does not write ciphertext. Since stage 63 the `.tfbackend.hcl` itself
+  carries the ciphertext, so the backend file is no longer where the
+  plaintext stands; the data sources, the runner header and the
+  location record were not changed (see Variations). Look at the file
+  and line the guard names, then write the value in clear or move it out
+  of the tree.
 
 ## Related
 

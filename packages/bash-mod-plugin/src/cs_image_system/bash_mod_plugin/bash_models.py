@@ -7,9 +7,8 @@ from dataclasses import field
 from cs_image_system.base.models.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from pathlib import Path
-from typing import Any, Type
+from typing import Any
 
-from cs_image_system.base.constants import VCT
 from cs_image_system.base.models.mod_builder import ModBuilderModel
 from cs_image_system.base.models.moditem_type import ModItemModel
 BASH_EXECUTABLE: str = "bash"
@@ -203,19 +202,31 @@ class BashBuilderModel(ModBuilderModel):
     """Dataclass representing a Bash script modification.
     """
     type = BASH_BUILDER
-    configuration_user: str | None = None  # Username to use for provisioning (if none use OSBuilder)
-    extra_arguments: list[str] = field(default_factory=list) # Extra arguments to pass to bash
+    # stage 63: when set, every item's lines run as this user -- the shell
+    # provisioner's execute_command becomes `sudo su - <user> -c '...'`, so the
+    # bake user only launches them. Declaring it with execute_command is
+    # refused (one of the two decides how the script runs).
+    configuration_user: str | None = None
     # Optional packer shell-provisioner settings applied to every item.
     execute_command: str | None = None
     environment_vars: list[str] = field(default_factory=list)
     expect_disconnect: bool = False
 
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.configuration_user and self.execute_command:
+            raise ValueError(f"mod builder {self.name!r}: `configuration_user` and `execute_command` both say "
+                             "how the script runs; declare one")
 
-    # TODO Add min version / max version for early validation (for weird playbooks/OS versions...)
-
-    def get_target_deferred_type_by_VCT(self, vct: VCT) -> Type[BashModItemModel] | None:
-        if vct == VCT.MOD_BUILDER_ITEM_MODEL:
-            return BashModItemModel
+    def effective_execute_command(self) -> str | None:
+        """The shell provisioner's execute_command: the declared one, else,
+        with a configuration_user, packer's default command run as that user
+        through `su -` (its environment variables travel inside the command)."""
+        if self.execute_command:
+            return self.execute_command
+        if self.configuration_user:
+            return (f"chmod +x {{{{ .Path }}}}; sudo su - {self.configuration_user} "
+                    f"-c '{{{{ .Vars }}}} {{{{ .Path }}}}'")
         return None
 
 

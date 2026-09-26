@@ -14,7 +14,6 @@ decision keeps every live root, the GCE roots included, on the S3 backend.
 """
 from __future__ import annotations
 
-from dataclasses import field
 from typing import Any, Mapping
 
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
@@ -24,7 +23,6 @@ from cs_image_system.base.models.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.base.models.state_builder import StateBuilderModel
 from cs_image_system.base.utils import super_safe_name
 from cs_image_system.hashicorp_utils.collector import BackendRegistration, StateLocation, TerraformCollector
-from cs_image_system.hashicorp_utils.hashicorp_models import TFTofuPluginModel
 
 GCS_STATE: str = "gcs"
 DEFAULT_TERRAFORM_WORKSPACE = "default"
@@ -81,8 +79,9 @@ class GcsStateBuilderModel(StateBuilderModel):
     encryption_key: str | None = None               # a customer-supplied key, from the environment in practice
     kms_encryption_key: str | None = None           # a Cloud KMS key name
     type = GCS_STATE
-    executable: str | None = "tofu"
-    required_plugins: list[TFTofuPluginModel] = field(default_factory=list)
+    # the executables entry these roots run; None = unspecified (no version
+    # check), a declared name is checked like every builder's (stage 63)
+    executable: str | None = None
 
     @classmethod
     def csis_name(cls) -> str:
@@ -96,12 +95,13 @@ class GcsStateBuilderModel(StateBuilderModel):
         if not self.bucket or not self.bucket.strip():
             raise ValueError("Terraform state backend 'bucket' cannot be empty for 'gcs' type.")
         self.bucket = self.bucket.strip()
-        self.prefix = (self.prefix or "").strip().strip("/")
+        self.prefix = self.prefix.strip().strip("/")
         super().__post_init__()
 
     def to_backend_registration(self) -> BackendRegistration:
         return BackendRegistration(
             name=self.name, type=self.type_, kind=GCS_KIND, is_default=self.get_is_default(),
+            aliases=tuple(sorted(self.aliases or ())),
             settings={"bucket": self.bucket, "prefix": self.prefix, "credentials": self.credentials,
                       "impersonate_service_account": self.impersonate_service_account,
                       "encryption_key": self.encryption_key, "kms_encryption_key": self.kms_encryption_key})

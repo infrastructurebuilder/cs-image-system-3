@@ -69,7 +69,7 @@ fields.
 | `team` | `str` | required | OPA team name. Names the `TF_VAR_<team>_key` / `TF_VAR_<team>_secret` variables (non-alphanumerics become `_`) and the `oktapam_team` provider argument. |
 | `key` | `EncryptedStr` | `default` | OPA API key. Left at `default`, it resolves at finalize to `var.<team>_key`. May be `ENC[age:...]`. |
 | `secret` | `EncryptedStr` | `default` | OPA API secret. Same rules as `key`, resolving to `var.<team>_secret`. |
-| `api_host` | `str` | `https://{{ this.org }}.pam.okta.com` | OPA API host; also the host the gid shim, the state query and every other OPA API call use. |
+| `api_host` | `str` | `https://{{ this.org }}.pam.okta.com` | Optional. OPA API host; also the host the gid shim, the state query and every other OPA API call use. Left unset (or at `default`), it becomes `https://<org>.pam.okta.com`; the field's metadata says so since stage 63 (it used to be marked required, 2026-09-25). |
 | `okta_base_url` | `str` | `okta.com` | `okta/okta` provider `base_url` (`oktapreview.com` for preview orgs). |
 | `default_user_status` | `str` | `STAGED` | `okta_user.status` for enabled managed users. Not checked against the `okta_user` status set; the provider refuses an unknown one at plan. |
 | `required_providers` | `list[ConfiguredTerraformProvider]` | `[]` | Providers this root declares: entries with `name`, `source`, `version` and optional `config:`. A group root names `oktapam`; a user root or read-only group root names `okta`. |
@@ -90,10 +90,15 @@ Behaviour attached to these fields:
 - `finalize()`: `api_host` defaults from `org`. When `oktapam` is among
   the providers, `key` and `secret` left at `default` must be backed by
   `TF_VAR_<team>_key` / `TF_VAR_<team>_secret` in the environment,
-  otherwise finalize fails with an assertion. When `okta` is among the
+  otherwise finalize raises a `ValueError` naming the missing variable
+  (stage 63: it used to be a bare `assert`, which disappears when Python
+  runs with `-O`, 2026-09-25). When `okta` is among the
   providers and none of `OKTA_API_PRIVATE_KEY`, `OKTA_API_TOKEN`,
   `OKTA_ACCESS_TOKEN` is set, finalize only warns; the builder then skips
-  `plan` at generation time.
+  `plan` at generation time. The warning points at this README's
+  [Prerequisites and integration](#prerequisites-and-integration) section
+  (stage 63; it used to cite a credentials runbook in a `PLAN.md` that no
+  longer holds one).
 
 ### `OktaGroupBuilderModel`
 
@@ -311,7 +316,7 @@ Hooks other lifecycles call on this builder:
 | `launch_parameters(group)` | `{"enrollment": "sftd-token", "server_label": "sftd.tx.group=<group>"}`. |
 | `export_gids(query, groups)` | `{group: gid}` read from OPA (`<group>_user`'s `unix_gid` attribute, then the bare name; a group without one is absent, never invented). Credentials come from `TF_VAR_<team>_key`/`_secret` or `OKTAPAM_KEY`/`OKTAPAM_SECRET`. |
 | `query_state()` | Per managed group: `present`, `gid`, `local_name`, `members`, `admins` (when OPA answers), whether an IaC-owned enrollment token exists on the login project (`enrollment_token`), and, when the workload fields are set, `workload` (role, policy, connection). A call that failed is `{present: false, error: ...}`; a 404 is `{present: false}`. Read-only. |
-| `can_query_servers()`, `registered_servers(group)`, `retire_servers_named(group, hostname)` | The OPA server registry of `<group>_rg_login` (stage 55): every enrolled server as `{id, hostname, address, canonical_name, alt_names, instance_id}`, or `None` when OPA could not be asked; retirement `DELETE`s every registration of a hostname and returns the ids, raising when the registry cannot be read. |
+| `can_query_servers()`, `registered_servers(group)`, `retire_servers_named(group, hostname)` | The OPA server registry of `<group>_rg_login` (stage 55): every enrolled server as `{id, hostname, address, canonical_name, alt_names, instance_id}`, or `None` when OPA could not be asked; retirement `DELETE`s every registration of a hostname and returns the ids, raising when the registry cannot be read. A `DELETE` answered 404 counts as already gone, judged by the error's status code (stage 63; it used to be judged by the text "404" in the message). |
 | `can_manage_workload_access()`, `workload_access_expected(group)`, `workload_access_state(group)`, `ensure_workload_access(group)` | The CI login policy (stage 56): true only with both `workload_connection` and `workload_role` set; what the configuration expects; what OPA holds; and the reconcile that creates, updates or leaves the `<group>_v1_security_policy_ci` policy as a copy of `<group>_v1_security_policy_user` with the role as its only principal and admin-level permissions forced off. |
 | `prune_stale_attachments(tofu, run, cwd)` | The runner step (stage 61 item 3): lists tofu state, keeps every `oktapam_user_group_attachment` the declaration still has, asks OPA about each dropped one and removes from state, after a backup, only those OPA no longer holds. |
 | `validate_attributes`, `query_attributes`, `attribute_conflicts` | OPA attribute validation and read-only reads through [opa_attributes.py](src/cs_image_system/okta_opa_plugin/opa_attributes.py) and [opa_gids.py](src/cs_image_system/okta_opa_plugin/opa_gids.py). |
@@ -547,8 +552,8 @@ environment variables `TF_VAR_<team>_key` and `TF_VAR_<team>_secret` (the
 team name with every non-alphanumeric character replaced by `_`; the
 live team is `nos_coastal_modeling_cloud_sandbox`). `key:` and `secret:`
 left at `default` on the builder resolve to those variables at finalize
-and the load asserts the environment variables exist whenever `oktapam`
-is among `required_providers`. A literal (or `ENC[age:...]`) `key:` and
+and the load checks that the environment variables exist whenever `oktapam`
+is among `required_providers` (a `ValueError` when one is missing). A literal (or `ENC[age:...]`) `key:` and
 `secret:` bypass the variables. The plugin's own API client
 (`credentials_from_env` in [opa_gids.py](src/cs_image_system/okta_opa_plugin/opa_gids.py))
 takes the same `TF_VAR_<team>_*` pair, or `OKTAPAM_KEY` / `OKTAPAM_SECRET`
@@ -651,7 +656,7 @@ of `required` means the load refuses without it.
 | `team` | `str` | required | OPA team; names the credential variables and the `oktapam_team` provider argument; the API client's `/v1/teams/<team>/` path. |
 | `key` | `EncryptedStr` | `default` | OPA API key for the `oktapam` provider block. `default` becomes `var.<team>_key` (backed by `TF_VAR_<team>_key`); a literal is quoted into HCL; an `ENC[age:...]` value is emitted as `local.sensitive["oktapam_key"]`. Read only when `oktapam` is a declared provider. |
 | `secret` | `EncryptedStr` | `default` | As `key`, for the secret. |
-| `api_host` | `str` | `https://{{ this.org }}.pam.okta.com` | OPA API host for the provider block, the gid shim query, the state query and every API call. |
+| `api_host` | `str` | `https://{{ this.org }}.pam.okta.com` | Optional. OPA API host for the provider block, the gid shim query, the state query and every API call; unset, it is `https://<org>.pam.okta.com`. |
 | `okta_base_url` | `str` | `okta.com` | The `okta` provider's `base_url` when the provider entry's `config:` does not set one. Accepted, not read on a builder without an `okta` provider. |
 | `default_user_status` | `str` | `STAGED` | `okta_user.status` for enabled managed users. Read only by a user builder emitting a managed user; accepted, not read on group builders and on `okta-tf-ro` user builders with no `managed: true` item. Not validated by the plugin. |
 | `required_providers` | list | `[]` | Provider entries (below). Nothing checks that a group root names `oktapam` or a user root names `okta`; a root with no provider emits no provider block and the plugin logs a warning about the missing `okta` binding when it emits data sources. |
@@ -731,7 +736,7 @@ str must not be blank. They are planned and probed, never written.
   group. `okta-tf-ro` emits only `data "okta_group"` lookups, no outputs
   and no deferred commands, and emits nothing at all with no group; it
   needs the `okta` provider instead of `oktapam`, so no `TF_VAR_<team>_*`
-  assertion fires for it. The image hooks (prerequisites, activation,
+  check fires for it. The image hooks (prerequisites, activation,
   launch parameters) are inherited; the hooks that read or point into OPA
   are not (stage 63 item 18): a group on an `okta-tf-ro` builder is
   recorded as `identity_type: okta`, `gid_policy: creation-only` and
@@ -759,11 +764,11 @@ str must not be blank. They are planned and probed, never written.
   group's admins. The root group's own module call is a normal one.
 - **`key`/`secret` at `default`, literal, or `ENC[age:...]`.** `default`:
   `var.<team>_*` in the provider block, two variables in the vars file,
-  and the load asserts the `TF_VAR_<team>_*` variables exist. A literal:
+  and the load checks that the `TF_VAR_<team>_*` variables exist. A literal:
   quoted into the provider block (a secret in the emission; do not). An
   `ENC[age:...]` value: emitted as `local.sensitive["oktapam_key"]` /
   `["oktapam_secret"]` fed by the root's `data "external" "sensitive"`
-  block, and no assertion fires. The API client ignores all three and
+  block, and no check fires. The API client ignores all three and
   reads the environment.
 - **Encrypted versus clear roster values.** A `first_name`, `last_name`,
   `email` (or a bare-name `login`) that was declared encrypted is emitted
@@ -777,7 +782,7 @@ str must not be blank. They are planned and probed, never written.
   else omitted (the module passes `null` and OPA assigns no gateway).
 - **`oktapam` versus `okta` in `required_providers`.** `oktapam`: two
   sensitive variables, the credentials in the provider block by variable,
-  the `TF_VAR` assertion at load. `okta`: no variables, `org_name` and
+  the `TF_VAR` check at load. `okta`: no variables, `org_name` and
   `base_url` in the block, a warning at load without `OKTA_API_*`
   credentials, and `plan` skipped at generation while they are absent.
 - **Dry run versus real run** (the `--dry-run` default versus
@@ -824,13 +829,16 @@ str must not be blank. They are planned and probed, never written.
 type or a missing `org`/`team`; the base model refuses `parameters`.
 `UserBuilderBase.add_user_to_builder` raises `ValueError` when
 `email_as_username` is true and `name` differs from `email`. The
-workspace's `finalize()` asserts `TF_VAR_<team>_key` and
+workspace's `finalize()` checks that `TF_VAR_<team>_key` and
 `TF_VAR_<team>_secret` exist when `oktapam` is declared and `key`/`secret`
-are at `default` (an `AssertionError` that fails every configuration load,
-`validate` included), and logs a warning when `okta` is declared and no
+are at `default` (a `ValueError` that fails every configuration load,
+`validate` included; stage 63 made it a real raise instead of an `assert`,
+so it still fires under `python -O`), and logs a warning when `okta` is declared and no
 `OKTA_API_*` credential is set. Verdicts: an exception with the message
 below, or a log line `Okta builder <name>: no okta/okta credentials in the
-environment (...); 'plan' will be skipped for this workspace`.
+environment (...); 'plan' will be skipped for this workspace. The
+okta-opa-plugin README, "Prerequisites and integration", lists what each
+root needs.`
 
 **At `validate` (and before every run).** The plugin's item checks run
 through the base's `validate_identity_items`
@@ -963,10 +971,11 @@ record is in [docs/OPERATIONS.md](../../docs/OPERATIONS.md),
 - **`Okta builder oktagroups is missing a key value. Expected to find
   environment variable TF_VAR_nos_coastal_modeling_cloud_sandbox_key ...`
   (finding 87, 2026-09-15).** Every configuration load finalizes the
-  workspace and asserts the pair; CI had been red for 245 runs because
+  workspace and checks the pair; CI had been red for 245 runs because
   three tests inherited the developer's `.envrc` locally and had nothing
   in CI. Any command that loads the tree (`validate`, `run`, `state
-  query`, `verify`) dies with this `AssertionError`. Repair: `source
+  query`, `verify`) dies with this error (an `AssertionError` then; a
+  `ValueError` since stage 63, 2026-09-25). Repair: `source
   .envrc` (or export the two variables); in CI the secrets
   `TF_VAR_NOS_KEY`/`TF_VAR_NOS_SECRET`.
 
@@ -1109,7 +1118,10 @@ Failures the code raises that have not been seen live:
 - `OPA login project for group '<g>' not found; cannot retire <id>`
   (`ValueError` from `retire_server`) and any non-404 error from the
   `DELETE`: the decommission logs the `NOT retired` error and completes;
-  deregister by hand under the resource-group path.
+  deregister by hand under the resource-group path. A 404 is recognised
+  by the error's status code (stage 63); until 2026-09-25 any error whose
+  text contained "404" counted as already retired, so a 500 mentioning
+  404 was recorded as a retirement that never happened.
 - `OPA could not be asked for group '<g>''s servers; registration of
   '<h>' NOT retired` (`RuntimeError` from `retire_servers_named`): same
   handling.

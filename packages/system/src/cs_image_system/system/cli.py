@@ -271,7 +271,11 @@ def encrypt_command(
     file is preserved byte for byte. Needs no identity."""
     from cs_image_system.base.encryption import encrypt_fields_in_text, encrypt_value, recipients_from_config
     root: Path = typer_cntx.obj["config_root"]
-    recipients = recipients_from_config(root)
+    try:
+        recipients = recipients_from_config(root)
+    except Exception as e:      # stage 63: a message, not a traceback
+        typer.secho(f"encrypt: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
     if file:
         if not field:
             typer.secho("encrypt: --file needs at least one --field", fg=typer.colors.RED, err=True)
@@ -458,8 +462,12 @@ def reencrypt_command(
     removing a recipient. Nothing is written unless every value opens."""
     from cs_image_system.base.encryption import INLINE_MARKER_RE, identities_from_env, recipients_from_config, rotate_text
     root: Path = typer_cntx.obj["config_root"]
-    recipients = recipients_from_config(root)
-    identities = identities_from_env()
+    try:
+        recipients = recipients_from_config(root)
+        identities = identities_from_env()
+    except Exception as e:      # stage 63: a message, not a traceback
+        typer.secho(f"reencrypt: NOTHING written -- {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
     files = sorted({p for pat in ("*.yml", "*.yaml") for p in root.rglob(pat) if p.is_file() and ".git" not in p.parts and "generated" not in p.parts})
     rewrites: list[tuple[Path, str, int]] = []
     for f in files:
@@ -1238,13 +1246,10 @@ def main(
         list[str],
         typer.Option(
             "--only-providers",
-            help="Only use specified runtime providers (comma-separated)",
+            help="Only use specified runtime providers (repeatable, or comma-separated)",
         ),
     ]
     | None = None,
-    force: bool = typer.Option(
-        False, "--force", help="Force execution even if the system balks"
-    ),
     dry_run: bool = typer.Option(
         True, "--dry-run/--no-dry-run",
         help="Enumerate the deferred finalization commands (packer builds, "
@@ -1334,8 +1339,9 @@ def main(
         read_config_and_transform(typer_cntx,
                                   root_dir,
                                   verbose,
-                                  only_providers,
-                                  force,
+                                  # stage 63: a comma list splits (the help promised it)
+                                  [p.strip() for v in (only_providers or []) for p in v.split(",") if p.strip()] or None,
+                                  False,     # `--force` (read by nothing) was removed
                                   dry_run=dry_run,
                                   overlays=[p.resolve() for p in (overlay or [])],
                                   undeclare=list(undeclare or []))

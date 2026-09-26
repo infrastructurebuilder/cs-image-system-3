@@ -14,7 +14,7 @@ generation_directory: ./generated/  # DECISION: where a run writes its emission;
 # in an AMI name. Change it only before the first bake -- it is part of every
 # image name from then on.
 dateformat: "%Y%m%d_%H%M%S"
-sleep_before_finalization: 1        # DECISION: seconds to wait before finalization executes (default 1); the countdown is not interactive
+sleep_before_finalization: 1        # read, then logged as ignored: the runner scripts and the apply gate replaced the pause
 
 # Every ENC[age:...] value in this tree is encrypted to these recipients
 # (CONFIGURATION.md section 13). The one below is the TEST recipient whose

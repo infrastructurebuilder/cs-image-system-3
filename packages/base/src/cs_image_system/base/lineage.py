@@ -181,7 +181,15 @@ def _verify_commands(ctx: "GlobalTypeContext", image: Any, runtime: str | None) 
         return []
 
 
-def _bake_disk_size(ctx: "GlobalTypeContext", image: Any, runtime: str | None) -> int | str | None:
+def bake_disk_size(ctx: "GlobalTypeContext", image: Any, runtime: str | None) -> int | str | None:
+    """The disk a bake of ``image`` on ``runtime`` gets, in GB -- the ONE rule
+    the packer sources and the fingerprint both use (stage 63): the runtime's
+    own ``default_disk_size`` when it declares one (finding 51: a GCE boot
+    disk is exactly its image's disk); for a base image, its OS builder
+    entry's ``default_primary_disk_size`` for this runtime when declared, else
+    the OS builder's; for an instance image, its own ``primary_disk_size``.
+    Before stage 63 the fingerprint hashed the entry's value (default 100)
+    while the bake used the OS builder's (200)."""
     rtb = ctx.runtime_builders.get(str(runtime)) if runtime else None
     rt_disk = getattr(getattr(rtb, "model", None), "default_disk_size", None)
     if rt_disk:
@@ -189,11 +197,15 @@ def _bake_disk_size(ctx: "GlobalTypeContext", image: Any, runtime: str | None) -
     if is_base_image(ctx, image):
         model = ctx.os_builders[image.get_name()].model
         for sub in getattr(model, "runtimes", None) or []:
-            if _subconfig_runtime(ctx, sub) == runtime:
-                return getattr(sub, "default_primary_disk_size", None)
-        return getattr(model, "default_primary_disk_size", None)
+            if _subconfig_runtime(ctx, sub) == runtime and getattr(sub, "default_primary_disk_size", None):
+                return int(sub.default_primary_disk_size)
+        size = getattr(model, "default_primary_disk_size", None)
+        return None if size in (None, "", "DEFAULT") else size
     size = getattr(image, "primary_disk_size", None)
     return None if size in (None, "", "DEFAULT") else size
+
+
+_bake_disk_size = bake_disk_size
 
 
 def _subconfig_runtime(ctx: "GlobalTypeContext", sub: Any) -> str | None:

@@ -80,8 +80,9 @@ class BashModBuilder(ModBuilderBase[Q]):
         for body in parts:
             lines += ['provisioner "shell" {', f'  only = ["{build_target_label_of(ibb, image)}"]']
             lines += body
-            if self.model.execute_command:
-                lines.append(f"  execute_command = {_hcl_string(self.model.execute_command)}")
+            command = self.model.effective_execute_command()     # stage 63: configuration_user
+            if command:
+                lines.append(f"  execute_command = {_hcl_string(command)}")
             if self.model.environment_vars:
                 lines.append("  environment_vars = [" + ", ".join(_hcl_string(v) for v in self.model.environment_vars) + "]")
             if self.model.expect_disconnect:

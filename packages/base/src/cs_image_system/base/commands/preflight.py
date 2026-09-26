@@ -245,7 +245,7 @@ def raw_session_lines(root_dir: Path, overlays: list[Path] | None = None,
     infos = raw_session_infos(root_dir)
     lines = [i.line(now, expected) for i in infos]
     blocking = [i.line(now, expected) for i in infos if i.blocking(now, expected)]
-    expired = [i.line(now, expected) for i in infos if (i.minutes_left(now) or 1) <= 0]
+    expired = [i.line(now, expected) for i in infos if _expired(i.minutes_left(now))]
     return lines, blocking, expired
 
 
@@ -261,7 +261,7 @@ def raw_session_readiness(root_dir: Path, overlays: list[Path] | None = None,
     infos = raw_session_infos(root_dir)
     lines = [i.line(now, expected) for i in infos]
     absent = [i.line(now, expected) for i in infos if not i.present]
-    expired = [i.line(now, expected) for i in infos if (i.minutes_left(now) or 1) <= 0]
+    expired = [i.line(now, expected) for i in infos if _expired(i.minutes_left(now))]
     blocking = [i.line(now, expected) for i in infos if i.blocking(now, expected)]
     return lines, absent, expired, blocking
 
@@ -281,3 +281,10 @@ def session_lines(ctx: Any, now: datetime | None = None) -> tuple[list[str], lis
 def soon(minutes: float, now: datetime | None = None) -> datetime:
     """Test helper: an instant ``minutes`` from now."""
     return (now or datetime.now(timezone.utc)) + timedelta(minutes=minutes)
+
+
+def _expired(minutes_left: float | None) -> bool:
+    """A session with no time left is expired; one whose expiry cannot be
+    read is not (stage 63: `(minutes_left or 1) <= 0` read exactly 0.0 as one
+    minute left)."""
+    return minutes_left is not None and minutes_left <= 0

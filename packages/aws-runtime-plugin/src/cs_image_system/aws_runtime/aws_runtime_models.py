@@ -17,7 +17,6 @@ log = logging.getLogger(__name__)
 
 from cs_image_system.base.constants import DEFAULT, OOPS_DEFAULTS, VCT
 from cs_image_system.base.models.cloud_builder import CloudBuilderModel, CloudNetworkingConfig
-from cs_image_system.base.models.group_builder import GroupBuilderModel
 
 
 AWS: str = "aws"
@@ -26,7 +25,9 @@ AWS_CLI: str = "aws-cli"
 @dataclass(config=CSIS_MODEL_CONFIG)
 class AwsCloudNetworkingModel(CloudNetworkingConfig):
     """AWS-specific networking configuration data object."""
-    security_group_ids: list[str] = field(default_factory=list)
+    # stage 63: `security_group_ids` was validated and counted but never
+    # emitted; `addl_security_groups` is the list that reaches the roots, so
+    # the other is refused at load (by the base model's unknown-key rule)
     addl_security_groups: list[str]  = field(default_factory=list)
     # Security groups whose members may SSH into launched instances (e.g.
     # the Okta gateway relay). When set, the instance SG's port-22 ingress
@@ -58,8 +59,6 @@ class AwsCloudNetworkingModel(CloudNetworkingConfig):
         if not self.default_subnet_id:
             raise ValueError(f"Subnet ID is required for AWS networking configuration {self.name} but is not set.")
         return self.default_subnet_id
-    def get_security_group_ids(self) -> list[str]:
-        return self.security_group_ids
     def get_addl_security_groups(self) -> list[str]:
         return self.addl_security_groups
 
@@ -152,7 +151,21 @@ class AwsCloudBuilderModel(CloudBuilderModel):
             errstr = f"VPC ID {self.networking.network} specified in networking configuration for AWS cloud builder {self.name} not found in AWS account."
             log.error(errstr)
             raise ValueError(errstr)
-        total_sgs = self.networking.security_group_ids + self.networking.addl_security_groups
+        # stage 63: every declared subnet must be in the declared VPC (a
+        # subnet id from another VPC used to pass the load and fail at the
+        # first bake or apply). The check runs when the account answered with
+        # the VPC's subnets; a VPC listed without any makes no claim.
+        vpc_entry: Any = self.vpc_map.get(self.networking.network) or {}
+        known = {str(s.get("subnet_id")) for s in vpc_entry.get("subnets", [])}
+        if known:
+            for subnet in getattr(self.networking, "subnets", None) or []:
+                sid = getattr(subnet, "subnet_id", None)
+                if sid and sid not in known:
+                    errstr = (f"Subnet {sid} ({subnet.get_name()}) in networking configuration for AWS cloud "
+                              f"builder {self.name} is not in VPC {self.networking.network}.")
+                    log.error(errstr)
+                    raise ValueError(errstr)
+        total_sgs = list(self.networking.addl_security_groups)
         for sg in total_sgs:
             if sg not in self.all_security_groups:
                 errstr = f"Security group ID {sg} specified in networking configuration for AWS cloud builder {self.name} not found in AWS account."
@@ -162,23 +175,3 @@ class AwsCloudBuilderModel(CloudBuilderModel):
             errstr = f"Total number of security groups specified in networking configuration for AWS cloud builder {self.name} is {len(total_sgs)}, which may exceed limits for certain instance types. Please ensure this is intentional and does not exceed limits for your target instance types."
             log.error(errstr)
             raise ValueError(errstr)
-            
-
-        
-            
-
-
-@dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
-class DummyGroupBuilderModel(GroupBuilderModel):
-    """Dataclass representing an Dummy group configuration.
-
-    Attributes:
-        Dummy_group_id: The ID of the Dummy group.
-    """
-
-    org: str
-    team: str
-    key: str = DEFAULT # TODO: Secrets
-    secret: str = DEFAULT
-    api_host: str = DEFAULT
-

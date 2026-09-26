@@ -66,6 +66,20 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
             ownerstr = str(_p)
         return (retval, ownerstr, kv) if retval else None
 
+    def query_provider_image_by_id(self, os_builder: OSBuilderBaseImageBuilderSubconfig,
+                                   image_id: str) -> tuple[str, str, Mapping[str, Any]] | None:
+        """The image an entry pins by ``image_id`` (stage 63): a GCE image is
+        named uniquely within its project, so the name is searched in the
+        entry's owner projects, as the vendor query is."""
+        q, _missed = remap_for_image_query(os_builder)
+        q = {k: v for k, v in q.items() if k not in ("family", "filter")}
+        q["filter"] = f'name = "{image_id}"'
+        kv = query_image(query=q, session_config=self.model.self_to_gcp_client_config())
+        if not kv:
+            return None
+        owner = gcp_utils.get_image_owner(kv) or {}
+        return (str(kv.get("name") or image_id), str(owner.get("project") or "self"), kv)
+
     # stage 24: `resolve_image_for_os_builder` was removed here. It was defined
     # only on this builder, had no callers and no base-class declaration, and
     # returned image_from_query_result(...) -- which could never return an
@@ -125,6 +139,17 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         # chain bakes as unless something names another (finding 43)
         return "packer"
 
+    def label_key_problem(self, key: str) -> str | None:
+        """Why ``key`` cannot be a GCE label key once it is made one, or None.
+        GCE wants a lowercase letter first; ``gce_label`` lowercases and
+        replaces what it cannot keep, but it cannot invent a first letter, so
+        a key such as ``2024`` failed at apply (stage 63: refused at validate)."""
+        from .gcp_packer_source import gce_label
+        label = gce_label(key)
+        if not label or not ("a" <= label[0] <= "z"):
+            return f"GCE label keys must start with a lowercase letter; {key!r} becomes {label!r}"
+        return None
+
     def one_bake_user_per_chain(self) -> bool:
         return True                             # finding 43
 
@@ -162,8 +187,15 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         out: list[dict[str, Any]] = []
         from google.cloud import compute_v1  # noqa: PLC0415
         request = compute_v1.ListImagesRequest(project=project, filter=f"labels.{TAG_PREFIX}series:*")
+        # stage 63: only the images of the series asked about (the argument
+        # was ignored, so every labelled image in the project came back); a
+        # series label carries gce_label(<series>), so compare in that form
+        from .gcp_packer_source import gce_label
+        wanted = {gce_label(s) for s in (series or [])}
         for img in client.list(request=request):
             labels = dict(getattr(img, "labels", {}) or {})
+            if wanted and labels.get(f"{TAG_PREFIX}series") not in wanted:
+                continue
             out.append({"image_id": img.name, "name": img.name, "state": str(getattr(img, "status", "")),
                         "created": str(getattr(img, "creation_timestamp", "")), "tags": labels})
         return out

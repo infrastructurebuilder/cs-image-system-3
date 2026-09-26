@@ -84,15 +84,8 @@ class ExecutableModel(NameTyped, PluginArtifactProtocol):
 
     def execute(self, *args: str, skips: bool = False) -> subprocess.CompletedProcess[str]:
         """Execute the executable with the given arguments."""
-        # This is a placeholder implementation. The actual execution logic would
-        # depend on the specific requirements and environment.
-        command = (
-            [self.binary or self.name]
-            + self.prepended_arguments
-            + list(args)
-            + self.appended_arguments
-        )
-        command = []
+        # stage 63: the command is built once (a first list was built and discarded)
+        command: list[str] = []
         bin = self.binary or self.name
         command.append(bin)
         command.extend(self.prepended_arguments if not skips else [])

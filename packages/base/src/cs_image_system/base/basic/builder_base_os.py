@@ -120,15 +120,6 @@ class OsBuilderBase(BuilderBase[TOS]):
                           f"{os_imgbld_name} not found in predefined_resolve: ")
                 log.error(errstr)
                 raise Exception(errstr)
-            if img_bldr is None:
-                log.warning(
-                        f"Runtime provider {os_imgbld_name} for OS builder "
-                        f"{self.get_name()} was not found; cannot resolve default image."
-                    )
-                raise ValueError(
-                        f"Runtime provider {os_imgbld_name} for OS builder "
-                        f"{self.get_name()} was not found; cannot resolve default image."
-                    )
             # image_id = self.resolved_images_for_runtime.get(rbb.get_name(), None)
             # query_result = self.resolved_query_results_for_runtime.get(rbb.get_name(), None)
             if query_result is None:

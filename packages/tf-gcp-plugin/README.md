@@ -96,7 +96,10 @@ root:
   `machine_type` is always the runtime's `default_machine_type`.
 - `tags` become GCE `labels`, each key and value passed through `gce_label`
   (lowercase; anything outside `[a-z0-9_-]` becomes `-`; cut to 63
-  characters).
+  characters). `gce_label` cannot supply a leading letter, so since stage
+  63 `validate` refuses a tag key whose label form does not start with a
+  lowercase letter (it used to reach GCE and fail at apply until
+  2026-09-25).
 - The instance name is passed through `gce_name` (lowercase; anything
   outside `[a-z0-9-]` becomes `-`; leading and trailing `-` stripped; an
   `i-` prefix when the result does not start with a letter; cut to 63
@@ -163,6 +166,9 @@ Base `Storage` from
 [storage.py](../base/src/cs_image_system/base/models/storage.py):
 `type`, `runtime`, `groups`, `public_read`, `share_mode` (`2770` | `2775`),
 `state` (`active` | `archived` | `destroyed`), `bucket_name` (GCS), `tags`.
+Its `tags` keys are checked at `validate` against the builder's runtime
+(stage 63): on a `gcloud` runtime a key whose `gce_label` form does not
+start with a lowercase letter is refused, naming the storage and the key.
 `lifecycle:` is **refused** on all three GCP builders: none of them realizes
 a data lifecycle, so the base `validate_lifecycle` rejects any declaration.
 `availability_zone` is checked by `validate` (a persistent disk is zonal,
@@ -495,7 +501,12 @@ under [Configuration reference](#configuration-reference). Nothing checks
 that the runtime is a GCP one: with an AWS runtime named by mistake the
 `google` provider block is emitted with no `project`, `region` or `zone`,
 the module calls carry no `zone`, and the failure arrives from `tofu
-plan` (a missing required argument) rather than from the system.
+plan` (a missing required argument) rather than from the system. The one
+place the plugin itself notices (stage 63) is a pd archive, unarchive or
+restore: its script needs a project, which an AWS runtime cannot supply,
+so the storage is refused at generation (see
+[When it fails](#when-it-fails)). The label-key check at `validate` also
+asks the runtime, and an AWS runtime answers that any key is fine.
 
 **A GCP project.** Named by the runtime's `project_id`. The plugin creates
 compute instances, persistent disks and disk snapshots, reads images by
@@ -633,7 +644,7 @@ at load (stage 63 item 17; it loaded and failed at generation with
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `tags` | map[str, str] | `{}` | builder-wide default labels, under the storage item's `tags`, under the `csis_*` labels; every key and value through `gce_label` |
+| `tags` | map[str, str] | `{}` | builder-wide default labels, under the storage item's `tags`, under the `csis_*` labels; every key and value through `gce_label`. Unlike an item's `tags`, these keys are not checked by `validate`'s label-key check (stage 63), so a key that does not start with a letter still fails at apply |
 
 The AWS `variables` keys (`volume_type`, `encrypted`, `performance_mode`,
 `force_destroy`) are not accepted here: a GCP builder that declares one
@@ -648,7 +659,7 @@ fails at load.
 | `storages[].name`, `storages[].mount_point` | the core's `compute_launch_params`, then the plugin | `attached_disks` for `pd` mounts, `filestore` template variables for Filestore mounts; the launch script's mount lines |
 | `ephemeral` | the plugin | `count = var.ephemeral_present ? 1 : 0` on the module call and the verify-and-teardown sequence |
 | `image_policy` (`pinned`, `follow`) | the core's lineage, then `_replacements()` | `follow` puts `-replace=module.instance_<label>.google_compute_instance.this` on the plan when the series head moved |
-| `tags` | the plugin | `labels`, each key and value through `gce_label` |
+| `tags` | the plugin; `validate`'s `check_label_keys` | `labels`, each key and value through `gce_label`; a key whose label form does not start with a lowercase letter (`2024`) is refused at `validate` (stage 63; it failed at apply until 2026-09-25) |
 | `userdata` | the core | extra lines in the launch script |
 | `on_failure`, `teardown_after` | the base's ephemeral sequence | `--record-only` on the verify, and a teardown without re-verifying |
 | `runtime` | the core | the session mechanism recorded in the launch parameters; the root's provider comes from the builder's runtime, not the instance's |
@@ -665,7 +676,7 @@ fails at load.
 | `share_mode` | the core's launch script | the mode of the per-group subtree created at first mount |
 | `state` | the base | `active` emits the module call; `archived` (pd only) emits nothing and snapshots; `destroyed` emits a tombstone comment and whitelists the destroy |
 | `bucket_name` | the plugin (GCS) | the bucket, over the builder's `bucket_name` |
-| `tags` | the plugin | labels, over the builder's `variables.tags` |
+| `tags` | the plugin; `validate`'s `check_label_keys` | labels, over the builder's `variables.tags`; a key whose `gce_label` form does not start with a lowercase letter is refused at `validate` against the builder's runtime (stage 63; it failed at apply until 2026-09-25) |
 | `lifecycle` | the base's `validate_lifecycle` | refused when set, on all three builders |
 | `availability_zone` | the core's `validate`; the pd builder's `_disk_zone` | pd is zonal, so it takes part in the compatibility check, and a declared value is the disk's zone in the module call, the lookup and the archive script (stage 63 item 21) |
 | `mount_point` | the instance side | not read by the storage builders |
@@ -676,9 +687,9 @@ fails at load.
 
 | Field | Where it lands |
 |---|---|
-| `project_id` | `provider "google" { project }` on every root; `--project` of the pd scripts; the pd state query's project (`self_to_gcp_client_config()` then `resolve_project()`) |
+| `project_id` | `provider "google" { project }` on every root; `--project` of the pd scripts, which are refused at generation when it is missing (stage 63; they carried the literal `None` until 2026-09-25); the pd state query's project (`self_to_gcp_client_config()` then `resolve_project()`) |
 | `region` | `provider "google" { region }`; the GCS `location` when the builder declares none |
-| `zone` | `provider "google" { zone }`; `zone` of the instance and Filestore module calls; the pd's `zone`, `--zone` of its archive script and its state query's zone when the storage declares no `availability_zone` |
+| `zone` | `provider "google" { zone }`; `zone` of the instance and Filestore module calls; the pd's `zone`, `--zone` of its archive script and its state query's zone when the storage declares no `availability_zone` (with neither, archiving a pd is refused at generation, stage 63) |
 | `networking.subnets[]` (the `is_default: true` one) | `subnetwork` of the instance module call |
 | `networking.network` | Filestore `network`, unless it is `default`, empty, null or `self` (`OOPS_DEFAULTS`), in which case the module's own default `default` applies. Not read by the instance root |
 | `networking.network_tags` | `network_tags` of the instance module call, when any |
@@ -758,7 +769,10 @@ pending replacements. All of these are the core's, documented in
   `wipe-<label>.sh` then whitelists `module.storage_<label>`; Filestore
   only whitelists. A storage that left the YAML but is still recorded
   (undeclared) is treated as `destroyed` from its recorded state, with
-  the record's `bucket_name` for the wipe.
+  the record's `bucket_name` for the wipe. The three pd scripts are
+  refused at generation when their project (and, for the archive, the
+  disk's zone) cannot be resolved (stage 63; until 2026-09-25 they were
+  written with the literal `None` and failed when gcloud ran).
 - **Groups declared or not.** With groups: `csis_group_<g>` labels, the
   Filestore `group_subtrees` / GCS `group_prefixes` list, a remote-state
   reference to each group's identity workspace, and the launch script's
@@ -775,7 +789,11 @@ pending replacements. All of these are the core's, documented in
 - **Labels.** The item's `tags` over the builder's `variables.tags`, then
   `csis_storage` and `csis_group_*` on top; every key and value through
   `gce_label` (lowercase, `[a-z0-9_-]`, 63 characters). Instance labels
-  are the instance's `tags` alone.
+  are the instance's `tags` alone. A key on an instance or storage item
+  whose label form starts with a lowercase letter is emitted; one that
+  does not (`2024`, `-env`) is refused by `validate` with the item's name
+  and the key (stage 63; until 2026-09-25 it was emitted and GCE refused
+  it at apply). The builder's `variables.tags` keys are not checked.
 - **Names.** Every GCE resource name and the pd `device_name` go through
   `gce_name`; the terraform labels (`instance_<label>`,
   `storage_<label>`, `<label>_image`, the file names) go through
@@ -833,6 +851,7 @@ the builders:
 | `supports_archive` | `true` (pd), `false` (Filestore, GCS) | `state: archived` on Filestore or GCS: `... requests archived, which its builder does not realize (snapshot + restore)` |
 | `is_zonal` | `true` (pd), `false` (Filestore, GCS) | a pd whose `availability_zone` differs from its instance's or its runtime's subnet's |
 | `capability_type` | `pd`, `filestore`, `gcs` | a base image `storage_types` entry with no builder of that type; an instance attaching a type its base image did not declare |
+| `label_key_problem` (the gcloud RUNTIME's hook, asked by `check_label_keys`; stage 63) | a reason when `gce_label(key)` does not start with a lowercase letter, else `None` | a tag key on an instance (its runtime) or a storage (its builder's runtime) that GCE cannot take as a label key: `<instance\|storage> '<name>': tag key '<key>' on runtime <rt>: GCE label keys must start with a lowercase letter; '<key>' becomes '<label>'; rename the key`. Until 2026-09-25 such a key passed here and failed at apply |
 | the state machine (base) | | an illegal transition, a new storage not starting `active`, an `archived`/`destroyed` request while attached, attaching a non-active storage, an undeclared storage whose record names no builder |
 
 Verdict: `validate` exits 1 listing every error; `run` exits 1 before
@@ -846,9 +865,25 @@ message. The plugin itself checks little: an instance with no
 provider-specific image logs `No provider-specific image for image ... the
 module call will not resolve an image` and goes on; a runtime whose
 `session_mechanism` is neither empty nor `iap` raises `ValueError` from
-the runtime plugin. A missing `project_id` or `zone` is not detected: the
-provider block omits the field and the module calls omit `zone`, so the
-verdict is tofu's at plan time.
+the runtime plugin. A missing `project_id` or `zone` is, in general, not
+detected: the provider block omits the field and the module calls omit
+`zone`, so the verdict is tofu's at plan time. The exception (stage 63) is
+the persistent-disk transition scripts: `_require_script_inputs` runs for
+exactly the three transitions that write a script and refuses the storage
+when an input the script needs cannot be resolved. `archive-<disk>.sh`
+(active to archived) needs the project and the disk's zone (the storage's
+`availability_zone`, else the runtime's `zone`); `unarchive-<disk>.sh`
+(archived to destroyed) and `restore-<disk>.sh` (archived to active) need
+the project. The refusal is a `ValueError` that ends the run (exit 1):
+
+```text
+storage '<name>' on builder <b>: the archive scripts need <project and zone|project>, and the runtime declares none (set `project_id` and `zone` on the GCP runtime)
+```
+
+Until 2026-09-25 the scripts were written with the literal `None` in
+`--project`/`--zone` and failed only when gcloud ran them. Every other
+transition (and every storage that is not a pd) writes no script and is
+not checked.
 
 **Deferred, before apply.** `gate-plan` (exit 3) admits only the destroys
 this plugin whitelisted: `module.storage_<label>` for a declared or
@@ -1018,16 +1053,26 @@ Failures the code raises that have not happened live:
 - **`unavailable: storages/<builder>: gcloud storage buckets describe
   gs://<bucket>: <stderr>`**: the CLI could not answer (no ADC, no
   permission, no network); the tail of stderr says which. **`...: [Errno
-  2] No such file or directory: 'gcloud'`**: the CLI is not on the
-  `PATH` of the process running the query.
-- **A Filestore storage missing from the state report with no line at
-  all**: expected; the Filestore builder makes no claim (see above).
-  Check `gcloud filestore instances list` by hand.
-- **`--project "None"` in `archive-<disk>.sh` / `unarchive-<disk>.sh` /
-  `restore-<disk>.sh`**, failing inside gcloud: the
-  runtime declared no `project_id`; the scripts are generated with the
-  literal `None` rather than refused. Declare `project_id` and
-  regenerate.
+  2] No such file or directory: '<path>'`**: the `binary` of the gcloud
+  entry the runtime names is not there (stage 63 item 14: the lookup runs
+  the declared binary, not a `gcloud` from `PATH`); fix the entry's
+  `binary` in `cfg/executables.yml`, which `validate` also checks.
+- **`unavailable: storages/<builder>: gcloud filestore instances describe
+  <name>: <stderr tail>`**: the Filestore lookup could not answer (stage
+  63 item 17; until 2026-09-25 a Filestore storage was simply missing from
+  the report with no line at all). The stderr tail says why: no ADC, no
+  permission, or the Filestore API not enabled.
+- **``storage '<name>' on builder <b>: the archive scripts need <project
+  and zone|project>, and the runtime declares none (set `project_id` and
+  `zone` on the GCP runtime)``** at generation (stage 63, a `ValueError`,
+  exit 1): a pd storage is being archived (needs `project and zone`),
+  destroyed from archived or restored from archived (need `project`), and
+  the builder's runtime resolves no project (no `project_id`) or, for the
+  archive, the disk has no zone (neither the storage's `availability_zone`
+  nor the runtime's `zone`). Declare them on the GCP runtime and rerun.
+  Until 2026-09-25 the scripts were generated with a literal `--project
+  "None"` (or `--zone "None"`) and failed only inside gcloud when the
+  storage lifecycle ran them.
 - **`tofu plan`: `Unsupported attribute ... outputs.storage_<label>`** on
   the instance root, or **`... outputs.group_gids`** on a storage root:
   the producer workspace has not applied yet (or applied to a different
@@ -1036,10 +1081,18 @@ Failures the code raises that have not happened live:
   `image_family`**: the warning `No provider-specific image for image ...`
   was logged at generation; the image is not declared for the builder's
   runtime. Add the image builder's runtime entry.
-- **a label refused by GCE at apply** (`Invalid value for field 'resource.labels'` or similar): `gce_label`
-  lowercases and replaces characters but does not force a leading letter,
-  so a tag key such as `2024` or `-env` passes generation and is refused
-  by GCE. Rename the tag.
+- **`<instance|storage> '<name>': tag key '<key>' on runtime <rt>: GCE
+  label keys must start with a lowercase letter; '<key>' becomes
+  '<label>'; rename the key`** from `validate` (stage 63, exit 1; the check
+  is `check_label_keys`, the reason the gcloud runtime's
+  `label_key_problem`): `gce_label` lowercases and replaces characters but
+  cannot force a leading letter, so a tag key such as `2024` or `-env` on
+  an instance or storage item would become a label key GCE refuses. Rename
+  the key in the YAML; it is never renamed silently. Until 2026-09-25 such
+  a key passed `validate` and generation and GCE refused it at apply
+  (`Invalid value for field 'resource.labels'` or similar). The builder's
+  `variables.tags` keys are not part of the check, so a bad key there still
+  surfaces only at apply: rename it the same way.
 - **`capacity_gb` below the tier's minimum**, an unknown `tier`, an
   unknown `disk_type`, a bucket name already taken: refused by the
   provider at apply, never by the plugin.

@@ -61,16 +61,22 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
             region = self.model.get_region()
             if not region:
                 raise ValueError(f"Region must be specified in builder config to resolve image identifier, but got {region}")
-            reg = aws_utils.get_ami_owner(kv)
-            if not reg:
-                raise ValueError(f"Could not get owner for image {retval} in region {region}")
-            _r = reg.get("ImageOwnerAlias", None)
+            # the owner's alias (e.g. `amazon`) when AWS gives one, else the account id
+            _r = kv.get("ImageOwnerAlias") or kv.get("OwnerId")
             if not _r:
-                _r = reg.get("OwnerId", None)
-            if not _r:
-                raise ValueError(f"Could not get owner alias or owner id for image {retval} in region {region}, got {reg}")
+                raise ValueError(f"Could not get owner alias or owner id for image {retval} in region {region}, got {kv}")
             regstr = str(_r)
         return (retval,regstr, kv) if retval else None
+
+    def query_provider_image_by_id(self, os_builder: OSBuilderBaseImageBuilderSubconfig,
+                                   image_id: str) -> tuple[str, str, Mapping[str, Any]] | None:
+        """The AMI an entry pins by ``image_id`` (stage 63), looked up with
+        DescribeImages by id; its owner is the alias when AWS gives one."""
+        kv = aws_utils._query_by_ami_id(aws_utils.ec2_client(self.model.self_to_aws_client_config()), image_id)
+        if not kv:
+            return None
+        owner = kv.get("ImageOwnerAlias") or kv.get("OwnerId") or "self"
+        return (str(kv.get("ImageId") or image_id), str(owner), kv)
 
     # def resolve_image_for_os_builder(
     #     self, os_builder: OsBuilderProtocol

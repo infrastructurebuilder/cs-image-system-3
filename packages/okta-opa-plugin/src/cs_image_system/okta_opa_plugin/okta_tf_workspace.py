@@ -18,8 +18,9 @@ Credential model per provider:
   ``OKTA_API_PRIVATE_KEY`` / ``OKTA_API_PRIVATE_KEY_ID`` (or ``OKTA_API_TOKEN``
   for SSWS) directly from the environment, so nothing secret enters HCL and no
   terraform variables are declared. Missing credentials only warn -- the
-  builder then skips ``plan`` (see ``okta_credentials_present``). See the
-  credentials runbook in PLAN.md.
+  builder then skips ``plan`` (see ``okta_credentials_present``). The
+  credentials each root needs are listed in this plugin's README,
+  "Prerequisites and integration".
 """
 from __future__ import annotations
 
@@ -73,9 +74,9 @@ class OktaTfWorkspaceModelMixin:
     secret: EncryptedStr = DEFAULT  # oktapam; becomes "var.<team>_secret" at finalize
     api_host: str = templated_field(replace_value='https://{{ this.org }}.pam.okta.com',
                                     default=DEFAULT, metadata={
-                    "description": ("The Okta API host for this builder. "
-                        "This should be in the format of https://{yourOktaDomain}.pam.okta.com"),
-                    "required": True,
+                    "description": ("The Okta API host for this builder; defaults to "
+                        "https://<org>.pam.okta.com"),
+                    "required": False,
                     })
     okta_base_url: str = "okta.com"  # okta/okta provider base_url ("oktapreview.com" for preview orgs)
     # okta_user.status applied to enabled users; STAGED so a first apply does
@@ -189,12 +190,14 @@ class OktaTfWorkspaceModelMixin:
             return current
         _tu = self._team_var()
         value = env.get(f"TF_VAR_{_tu}_{suffix}")
-        assert value is not None, (
-            f"Okta builder {getattr(self, 'name', '<unnamed>')} is missing a "
-            f"{suffix} value.  "
-            f"Expected to find environment variable TF_VAR_{_tu}_{suffix} "
-            f"for team {self.team} in org {self.org}"
-        )
+        if value is None:
+            # stage 63: a real refusal (a bare `assert` vanishes under `python -O`)
+            raise ValueError(
+                f"Okta builder {getattr(self, 'name', '<unnamed>')} is missing a "
+                f"{suffix} value.  "
+                f"Expected to find environment variable TF_VAR_{_tu}_{suffix} "
+                f"for team {self.team} in org {self.org}"
+            )
         return f"var.{_tu}_{suffix}"
 
     def finalize(self) -> None:
@@ -213,6 +216,6 @@ class OktaTfWorkspaceModelMixin:
                 f"Okta builder {getattr(self, 'name', '<unnamed>')}: no "
                 f"okta/okta credentials in the environment "
                 f"({' / '.join(OKTA_CREDENTIAL_ENV_VARS)}); 'plan' will be "
-                f"skipped for this workspace. See the credentials runbook in "
-                f"PLAN.md."
+                f"skipped for this workspace. The okta-opa-plugin README, "
+                f"\"Prerequisites and integration\", lists what each root needs."
             )

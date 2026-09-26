@@ -50,8 +50,14 @@ The fixture requires `>=500`.
 Present in the package but not registered as a service:
 
 - `GcpProviderSpecificImage` ([gcp_provider_specific_image.py](src/cs_image_system/gcloud_runtime/gcp_provider_specific_image.py)), reached through the builder's `provider_specific_image_class()` hook.
-- `DummyGroupBuilderModel`, an unregistered copy of the [dummy plugin](../dummy-plugin/README.md)'s group model, at the bottom of the models module.
-- The constant `GCP_CLI = "gcloud-cli"`, which nothing uses.
+
+Stage 63 removed three dead pieces of code that earlier versions of this
+README listed here (removed 2026-09-25): the unused constant `GCP_CLI`, the
+unregistered `DummyGroupBuilderModel` copy of the
+[dummy plugin](../dummy-plugin/README.md)'s group model that sat at the
+bottom of the models module, and the `get_image_ssh_user` helper in
+`gcp_utils.py`, which nothing called (the bake user comes from the
+bake-user order, see `bake_ssh_username` below).
 
 ## Models
 
@@ -114,7 +120,7 @@ Base fields it inherits, and what this runtime does with them:
 | Field | From | Default | Meaning here |
 |---|---|---|---|
 | `name`, `type`, `description`, `aliases` | `NameTyped` | `name`/`type` required | `type` is `gcloud`. |
-| `executable`, `is_default`, `config`, `gitignore`, `tags` | `BuilderModel` | | `executable` (default `gcloud` on this model, stage 63 item 14) names the `executables` entry every gcloud call on this runtime runs through (`gcloud_binary()`), and `validate` refuses it undeclared; `is_default` makes this the runtime an unqualified reference resolves to. `tags` are accepted and read by nothing on this runtime: image labels are the lineage tags plus the image's own, and the instance's labels are the instance's own. |
+| `executable`, `is_default`, `config`, `gitignore`, `tags` | `BuilderModel` | | `executable` (default `gcloud` on this model, stage 63 item 14) names the `executables` entry every gcloud call on this runtime runs through (`gcloud_binary()`), and `validate` refuses it undeclared; `is_default` makes this the runtime an unqualified reference resolves to. `tags` are accepted and read by nothing on this runtime: image labels are the lineage tags plus the image's own, and the instance's labels are the instance's own. For the same reason `validate`'s label-key check (stage 63, "Label keys" below) does not look at the runtime's own `tags`. |
 | `region` | `CloudBuilderModel` | required | The `google` provider's `region`; the client config's `region`. |
 | `credentials` | `RuntimeBuilderModel` | `CredentialsBase()` | Not narrowed. The base declares no fields and forbids extra keys, so `credentials:` accepts nothing; clients use Application Default Credentials. |
 | `default_machine_type` | `RuntimeBuilderModel` | required | Machine type when neither an OS-builder runtime entry nor an image names one; always the instance module's `machine_type`. |
@@ -133,7 +139,11 @@ Not supported: any key inside `credentials:` (including a service-account
 key file; `gcp_utils` can read `service_account_key_file` from a session
 config, but no model field carries it, so that path is unreachable from
 YAML), session mechanisms other than `iap`, and `availability_zones` as a
-zone selector (use `zone`).
+zone selector (use `zone`). Because no field can reach a key file, the
+load-time warning for a missing project no longer suggests one (stage 63;
+until 2026-09-25 it told the operator to configure a "service account key
+file"): it says that no `project_id` is declared and none is in the
+Application Default Credentials.
 
 ## The builder
 
@@ -151,11 +161,13 @@ hooks. In the order a run reaches them:
 | Configuration load | `GCPCloudBuilderModel.finalize()` | Runs `update_networking()` (network discovery below). |
 | Resolution | `provider_specific_image_class()` | Returns `GcpProviderSpecificImage`. |
 | Resolution | `query_provider_image(subconfig)` | Finds the vendor image for one OS-builder runtime entry (image query below). Returns `(image_name, owning_project, raw_result)` or `None`. |
+| Resolution | `query_provider_image_by_id(subconfig, image_id)` | Stage 63: the image an entry pins with `image_id` (a GCE image NAME), searched in the entry's owner projects with the filter `name = "<id>"` instead of the query's filters. Same return shape; `None` when no owner project has an image of that name. |
 | Image generation | `packer_source_type()` | `googlecompute`. |
 | Image generation | `packer_source_blocks(...)` | The `source "googlecompute"` block for one image. |
 | Image generation, `validate` | `session_mechanism()` | `iap` or `None`; raises on any other declared value. Also read by the launch-parameter record (`session`), by the instance builder (no public IP under `iap`) and by `validate`'s dead-end rule (a base image with no admin key AND no session mechanism). |
 | Image generation | `session_agent_commands(os_family)` | Installs `google-guest-agent` when missing (`apt-get` for `debian`/`ubuntu`, `yum` otherwise) and enables it together with `sshd`/`ssh`. Empty when the mechanism is not `iap`. |
 | Image generation | `session_verify_commands(os_family)` | Assertions that the guest agent is present and enabled. Empty when the mechanism is not `iap`. |
+| `validate` | `label_key_problem(key)` | Implemented by this runtime (stage 63; the base returns `None`, because AWS tags take any key). Returns a reason when `gce_label(key)` does not start with a lowercase letter: `GCE label keys must start with a lowercase letter; '<key>' becomes '<label>'`; otherwise `None`. `validate`'s `check_label_keys` asks it for every tag key declared on an image, instance or storage that lands on this runtime (see "Label keys" below). |
 | Image generation | `default_bake_user(family)`, `bake_ssh_username(image)`, `one_bake_user_per_chain()` | `default_bake_user` is `packer` for every family (the last step of the bake-user order). `bake_ssh_username(image)` is the RESOLVED user for that image, the one the packer source bakes as, and the ansible provisioner names it (stage 63 item 23; it read only the runtime's field and said `packer` otherwise). `one_bake_user_per_chain()` is True, so `validate` refuses a chain whose images resolve to different users (finding 43). |
 | Image generation | `bake_finalize_commands(os_family)` | The last provisioner of every bake here: adds the build user to `google-sudoers` when that group exists, so the guest agent's first-boot user cleanup succeeds and metadata SSH keys get provisioned. Emitted whatever the session mechanism. |
 | After a bake | `build_id_from_artifact(artifact_id)` | The packer manifest's `artifact_id` is the image name itself; returned unchanged. |
@@ -169,7 +181,7 @@ hooks. In the order a run reaches them:
 | `empty --runtime` | `inventory()` | Instances and disks in the zone and every custom image in the project (Compute API), plus the project's buckets (`gcloud storage buckets list`). |
 | Retention | `dispose_image(build_id)` | Deletes the image named by the build id and waits for the operation. `NotFound` returns `False` (already gone). |
 | State reconciliation | `retag_image(image_id, tags)` | `setLabels` on one of the system's own images: the current labels merged with the given tags, both sides passed through `gce_label()`, with the image's label fingerprint. Also the hook behind `lineage relabel` and `restamp`. |
-| State query | `query_images(series)` | Every image in the project with a `csis_series` label: `{image_id, name, state, created, tags}` (labels as tags). The `series` argument is not used as a filter. |
+| State query | `query_images(series)` | The images in the project whose `csis_series` label equals `gce_label(<s>)` for one of the series `s` asked about: `{image_id, name, state, created, tags}` (labels as tags). An empty `series` list keeps every image that carries a `csis_series` label. Stage 63: until 2026-09-25 the argument was ignored and every csis-labelled image in the project came back. The state query asks for every recorded series plus every declared OS builder and image; `lineage relabel` asks for the series of the builds it relabels. |
 | State query | `can_query_instance_boot_image()`, `query_instance_boot_image(name)` | `True`; the instance's boot disk's `source_image` basename, or `None` when the instance, disk, zone or project cannot be resolved. Read-only, never fatal. |
 | Release | `release_commands(build_id, tags)` | Base default: none. A release on GCE is recorded and relabelled through `retag_image`, not through a CLI command. |
 
@@ -179,6 +191,29 @@ are the one place every csis name and tag is mapped to GCE's constrained
 forms: names to `[a-z]([-a-z0-9]*[a-z0-9])?` (63 characters, prefixed `i-`
 when they would start with a digit), labels to lowercase `[a-z0-9_-]`.
 Every hook that names a GCE resource goes through them.
+
+### Label keys
+
+`gce_label()` lowercases a key and replaces what GCE cannot keep, but it
+cannot invent a first letter, and GCE requires a label KEY to start with a
+lowercase letter. A tag key such as `2024`, `-env` or `_x` therefore
+becomes a label key GCE refuses. Since stage 63 the runtime says so through
+`label_key_problem(key)`, and `validate` runs `check_label_keys` in
+[validate.py](../base/src/cs_image_system/base/commands/validate.py) over
+every declared tag key that becomes a label here: an image's tags for each
+runtime it bakes on, an instance's tags on its runtime, and a storage's
+tags on its storage builder's runtime. A key GCE cannot take is refused,
+naming who declared it:
+
+```text
+<image|instance|storage> '<name>': tag key '<key>' on runtime <rt>: GCE label keys must start with a lowercase letter; '<key>' becomes '<label>'; rename the key
+```
+
+The key is never renamed silently: the operator renames it in the YAML.
+Before stage 63 (until 2026-09-25) such a key passed `validate` and
+generation and was refused by GCE at apply. Label VALUES are not checked.
+The runtime's own `tags` are not checked because nothing on this runtime
+reads them.
 
 ### Credentials
 
@@ -228,6 +263,20 @@ filter, and returns the newest `creation_timestamp` with the owning
 `project` added. The builder returns `(name, project, raw)`; the base
 registers a `GcpProviderSpecificImage` in the resolved state.
 
+When the entry declares `image_id` (stage 63), the base's resolve step
+calls `query_provider_image_by_id(entry, image_id)` instead. A GCE image
+is named uniquely within its project, so the id is an image name and is
+searched where the vendor query would search: `remap_for_image_query()`
+builds the same `projects` list (the entry's merged owners, or a
+`query.owners`), then the builder drops the query's `family` and `filter`
+and sets the filter to `name = "<id>"`; the post-query filter is not
+applied, and neither is the forced `status = "READY"`. The owning project
+is read from the result as for the query (else `self`). No match returns
+`None`, and the base stops resolution with `OS builder <name>: image_id
+'<id>' on runtime <rt> is not known to the provider`. Pinning makes the
+base bake reproducible: the same vendor image every time, where the query
+takes the newest match (a vendor family publishes a new image often).
+
 `GcpProviderSpecificImage.get_query_assets()` describes the image as a
 generic query (`filters = { name = "<name>" }` plus `owners` when resolved;
 `owners = ["self"]`, `filters = { name = "<pattern>*" }`, `most_recent`
@@ -247,7 +296,10 @@ Every bake sets `image_family = gce_name(<series>)`, so "the latest build of
 series X" is GCE's own `source_image_family = X` lookup. A pinned parent
 bakes from `source_image = gce_name(<build id>)`; the build id is the image
 name. `query_images()` reads the `csis_series` label rather than the family
-so the state query compares the same facts on both clouds.
+so the state query compares the same facts on both clouds, and since stage
+63 it filters on that label: only images whose `csis_series` equals
+`gce_label(<series>)` for a series it was asked about come back (the label
+carries the sanitised form, so the comparison is made in that form).
 
 ### IAP
 
@@ -268,7 +320,11 @@ metadata SSH keys are provisioned at first boot.
 `dispose_image`, `start_instance` and `stop_instance` use `compute_v1`
 clients built from the session config. The state query in
 [state_query.py](../base/src/cs_image_system/base/state_query.py) reads
-`query_images` to classify `missing`, `foreign` and `changed` images, asks
+`query_images` to classify `missing`, `foreign` and `changed` images
+(asking for every recorded series and every declared OS builder and image,
+so since stage 63 an image labelled with a series the tree neither records
+nor declares is not listed on GCE; until 2026-09-25 every csis-labelled
+image in the project came back whatever was asked), asks
 `query_instance_boot_image` because `can_query_instance_boot_image()` is
 `True`, and asks `query_instance_power_state` before calling a silent boot
 probe "unavailable": a stopped machine is a `note`, not drift.
@@ -323,7 +379,9 @@ The plugin's output is visible in the golden emission under
   lineage tags, sanitised), `machine_type` (the runtime entry's, else the
   runtime default), `service_account_email`, `use_iap` and
   `iap_tunnel_launch_wait` (the mechanism is `iap`), `preemptible`,
-  `disk_size` (the runtime's `default_disk_size`), `ssh_username` and
+  `disk_size` (from `lineage.bake_disk_size`, the one rule the input
+  fingerprint also hashes (stage 63); here the runtime's
+  `default_disk_size`), `ssh_username` and
   `subnetwork` (the default subnet). `network` is emitted only when it
   resolves to a non-default name, and `tags` only when `network_tags` are
   declared.
@@ -531,7 +589,7 @@ plugin's model accepts, and who reads it:
 | `project_id` | str or null | null | the project (see above); `runtime describe` reports it |
 | `zone` | str or null | null | the zone of build VMs and instances and the scope of every zonal query; `runtime describe` reports it |
 | `service_account_email` | str or null | null | the packer source's `service_account_email`; instances are not given it |
-| `default_disk_size` | int or null | null | the packer source's `disk_size` in GB; null falls back to the image's `primary_disk_size` |
+| `default_disk_size` | int or null | null | the packer source's `disk_size` in GB, the first step of `lineage.bake_disk_size`; null falls back, for a base image, to its OS builder entry's `default_primary_disk_size` and then the OS builder's, and for an instance image to its `primary_disk_size` (stage 63) |
 | `bake_preemptible` | bool | false | `preemptible = true` on the packer source |
 | `state_configuration` | str | `default` | the state backend rung between a root's own and the default backend |
 | `ssh_username` | str | `default` | the bake's ssh user for images that name none more specifically (step 4 of the bake-user order, CONFIGURATION 5.1.1); with nothing named anywhere, `packer` |
@@ -574,9 +632,11 @@ Fields the plugin reads from YAML it does not own:
 | Where | Field | Read by |
 |---|---|---|
 | the OS builder's runtime entry (`os_builders[].runtimes[]`) | `owners`, `query.filters`, `query.owners` | the image query |
+| the same entry | `image_id` | stage 63: a GCE image name that replaces the query's filters; searched in the entry's owner projects |
+| the same entry | `default_primary_disk_size` | stage 63: a base image's `disk_size` when the runtime declares no `default_disk_size` |
 | the same entry | `machine_type`, `default_machine_type` | the packer source's `machine_type`, before the runtime default |
 | the same entry | `ssh_username` | the packer source's `ssh_username` and the ansible provisioner's `user`, for this OS and every image built on it, whatever the runtime declares |
-| the image | `primary_disk_size` | `disk_size` when the runtime declares no `default_disk_size` |
+| the image | `primary_disk_size` | an instance image's `disk_size` when the runtime declares no `default_disk_size` (a base image's is its entry's `default_primary_disk_size`, else the OS builder's) |
 | the image | `source_image`, `parent_policy`, the pin | `source_image` (pinned or resolved) or `source_image_family` (deferred) |
 | `cfg/executables.yml` | the `gcloud` entry's `binary` and `version` | the version checker |
 | the instance | `runtime`, `image`, `storages`, `tags` | the GCE instance plugin, which reads `zone`, `default_machine_type`, `networking` and `session_mechanism` from this model |
@@ -614,10 +674,19 @@ and any key inside `credentials:`.
   gce_name(<series>)`, which GCE resolves to the newest image of the family.
   `parent_policy: follow` moves the pin after the bake and the post-bake
   retag writes the resolved parent onto the image.
-- **`default_disk_size` set vs null.** Set: every image here bakes at that
-  size and the image's `primary_disk_size` is ignored. Null: the image's
-  own value (which inherits the OS builder's default; 200 GB in the frozen
-  fixture's lineage) is emitted.
+- **`default_disk_size` set vs null.** The packer source's `disk_size`
+  is `lineage.bake_disk_size` (stage 63), the rule the input fingerprint
+  also hashes. Set: every image here bakes at that size and everything
+  else is ignored. Null: a base image takes its OS builder entry's
+  `default_primary_disk_size` for this runtime when declared, else the OS
+  builder's `default_primary_disk_size` (200 GB unset); an instance image
+  takes its own `primary_disk_size`. Stage 63 moved no GCE fingerprint:
+  the runtime's `default_disk_size` already won, and still does.
+- **A queried vs a pinned vendor image.** Without `image_id` on the OS
+  builder's entry, resolution runs the filter query and takes the newest
+  match, so the next base bake may start from a newer vendor image. With
+  `image_id` (stage 63) that one image name is looked up in the entry's
+  owner projects; the id is part of the fingerprint's vendor source.
 - **`ssh_username` set vs `default`.** Either way the packer source and
   the ansible provisioner name the same user, the one the bake-user order
   resolves: an entry's user wins over this field, this field over the
@@ -650,6 +719,22 @@ and any key inside `credentials:`.
 - **`project_id` set vs null.** Null: the load warns and skips network
   discovery and validation; `resolve` then fails with `Owner 'self'
   requires a project ...` and every Compute hook raises `no project ...`.
+  The warning names the missing `project_id` (stage 63; it named a
+  "service account key file" until 2026-09-25, which no field of this
+  runtime can declare, and the project is never read from the
+  Application Default Credentials).
+- **A tag key that starts with a lowercase letter vs one that does not.**
+  A key whose `gce_label` form starts with `a`-`z` (`Project` becomes
+  `project`) passes and is emitted as a label. A key whose label form
+  starts with anything else (`2024`, `-env`, `_x`) on an image, instance or
+  storage that lands on this runtime is refused by `validate` (stage 63,
+  `check_label_keys`); the same key on an AWS runtime passes, because the
+  base `label_key_problem` answers `None` there. Until 2026-09-25 it passed
+  `validate` everywhere and GCE refused it at apply.
+- **`query_images` with series vs with none.** Given series, only images
+  whose `csis_series` label is one of them (in `gce_label` form) come back;
+  given an empty list, every csis-labelled image in the project does
+  (stage 63; the argument was ignored until 2026-09-25).
 - **Dry run vs real run.** The plugin itself does not read the flag. A dry
   run still loads (so network discovery still calls the API), still
   resolves vendor images (the `resolve` phase queries the image projects),
@@ -698,8 +783,13 @@ for the dead-end rule, so an unsupported value surfaces here as a
 `ValueError`; the zone-compatibility check reads `networking`'s default
 availability zone or the default subnet's `availability_zone` against the
 instances and zonal storages on the runtime; the state-location check
-resolves each root's backend through `state_configuration`. Every failure
-is one line naming the object, and `validate` exits 1.
+resolves each root's backend through `state_configuration`; and (stage 63)
+`check_label_keys` asks `label_key_problem` about every tag key declared on
+an image baked here, an instance on this runtime and a storage whose
+builder's runtime is this one, refusing a key whose label form does not
+start with a lowercase letter (it used to pass here and fail at apply
+until 2026-09-25). Every failure is one line naming the object, and
+`validate` exits 1.
 
 **At generation.** `session_mechanism()` again (the packer provisioners,
 the instance builder, the launch record). The packer source is emitted
@@ -748,8 +838,10 @@ until `run_session_command` answers, and writes the AltNames over the same
 session (log lines `now also answers to [...]` or a `WARNING`/`ERROR`
 naming why not).
 
-**In the state query.** `query_images` lists every image with a
-`csis_series` label; the base classifies `missing` (recorded, not found),
+**In the state query.** `query_images` lists the images whose
+`csis_series` label is `gce_label` of a series the query asked about (the
+recorded series and the declared OS builders and images; stage 63, it
+listed every csis-labelled image until 2026-09-25); the base classifies `missing` (recorded, not found),
 `foreign` (labelled, not recorded) and `changed` (labels disagree with the
 record) images. `query_instance_boot_image` compares a pinned instance's
 booted image with its pin (`changed`, or a `note` when a replacement is
@@ -900,9 +992,12 @@ docstrings'.
 Failures the code raises that have not happened live, by where they
 surface:
 
-- **Load.** `No usable GCP project could be resolved for cloud builder
-  <name> ... Skipping network validation` (WARNING): no `project_id`;
-  add one. `No networking configuration provided for GCP cloud builder
+- **Load.** ``No usable GCP project could be resolved for cloud builder
+  <name> (no `project_id` declared on the runtime). Skipping network validation; image
+  resolution and build execution will not work until valid GCP credentials
+  are configured.`` (WARNING): no `project_id`; add one. (Stage 63: until
+  2026-09-25 this warning pointed at a "service account key file", which
+  no field of this runtime can declare.) `No networking configuration provided for GCP cloud builder
   <name>` (WARNING): bakes and instances will carry no `subnetwork`.
   `No network specified ... and no 'default' network found in GCP project`,
   `Network <n> ... not found in GCP project`, `Subnetwork <id> ... not
@@ -925,6 +1020,13 @@ surface:
   `binary`, or point `executable` at the entry you have. The same cause at
   a session or lookup reads `GCP runtime <name>: executable 'gcloud' is
   not declared in cfg/executables.yml`.
+  `<image|instance|storage> '<name>': tag key '<key>' on runtime <rt>: GCE
+  label keys must start with a lowercase letter; '<key>' becomes
+  '<label>'; rename the key` (stage 63, from `validate`, exit 1): a tag key
+  declared on that image, instance or storage would become a label key GCE
+  refuses (a key such as `2024`). Rename the key in the YAML; nothing
+  renames it for you. Until 2026-09-25 the key passed `validate` and GCE
+  refused it at apply.
 - **A session command (post-bake verify, unmount, the alias writer).**
   `GCP runtime <name> declares no session_mechanism, so no session command
   can reach its instances (supported: iap)`: declare
@@ -938,7 +1040,10 @@ surface:
   '<f>' in project '<p>': <error>` (`ImageQueryError`: permissions or an
   unknown project); `No resolved Image identifiers for OS <name> in
   predefined_resolve` (the base's message when the query matched nothing:
-  loosen `filters`, check the owner and the `status`); `Could not get
+  loosen `filters`, check the owner and the `status`); `OS builder <name>:
+  image_id '<id>' on runtime <rt> is not known to the provider` (stage 63:
+  the pinned `image_id` names no image in the entry's owner projects;
+  check the name and that its project is among the owners); `Could not get
   owning project for image <name>` (a result with neither `project` nor a
   `self_link`; not expected from the API). Each ends the run, exit 1.
 - **The state query.** `state query images/<rt> unavailable: GCP runtime
@@ -1006,7 +1111,7 @@ surface:
 - [aws-runtime-plugin](../aws-runtime-plugin/README.md): the other runtime type, with the same hook surface on EC2.
 - [default-os-plugin](../default-os-plugin/README.md): the OS builders whose runtime entries this plugin resolves to GCE images.
 - [tf-gcp-plugin](../tf-gcp-plugin/README.md): the GCE instance and storage roots that read this model.
-- [dummy-plugin](../dummy-plugin/README.md): the extension template; this package's models module imports it.
+- [dummy-plugin](../dummy-plugin/README.md): the extension template (this package no longer carries a copy of its group model; removed in stage 63).
 - Base classes: [runtime.py](../base/src/cs_image_system/base/models/runtime.py), [cloud_builder.py](../base/src/cs_image_system/base/models/cloud_builder.py), [credentials.py](../base/src/cs_image_system/base/models/credentials.py), [provider_specific_image.py](../base/src/cs_image_system/base/models/provider_specific_image.py), [builder_base_runtime.py](../base/src/cs_image_system/base/basic/builder_base_runtime.py), [abstract_version_checker.py](../base/src/cs_image_system/base/basic/abstract_version_checker.py), [power_state.py](../base/src/cs_image_system/base/power_state.py).
 - Consumers of the hooks: [state_query.py](../base/src/cs_image_system/base/state_query.py), [retention.py](../base/src/cs_image_system/base/retention.py), [dispose.py](../base/src/cs_image_system/base/commands/dispose.py), [verify_instance.py](../base/src/cs_image_system/base/commands/verify_instance.py), [runtime_facts.py](../base/src/cs_image_system/base/commands/runtime_facts.py), [relabel.py](../base/src/cs_image_system/base/commands/relabel.py), [provider_aliases.py](../base/src/cs_image_system/base/provider_aliases.py), [generations.py](../base/src/cs_image_system/base/generations.py), [validate.py](../base/src/cs_image_system/base/commands/validate.py).
 - [docs/OPERATIONS.md](../../docs/OPERATIONS.md) for the credential contract and the operator's cycles; [docs/DESIGN.md](../../docs/DESIGN.md) for the design; [docs/PLUGINS.md](../../docs/PLUGINS.md) for the package index.
