@@ -259,7 +259,9 @@ class OpaGidResolver:
             self.transport("DELETE", self._url(f"{prefix}/servers/{server_id}"),
                            {"Authorization": f"Bearer {self.token()}", "Accept": "application/json"}, None)
         except Exception as e:
-            if "404" in str(e):
+            # stage 63: the status code, not the text (a 500 whose body happened
+            # to mention 404 used to count as a retirement)
+            if getattr(e, "code", None) == 404:
                 log.info(f"OPA server {server_id} was already gone")
                 return True
             raise

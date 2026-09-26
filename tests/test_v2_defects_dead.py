@@ -516,3 +516,33 @@ def test_the_on_image_bundle_replays_the_ensure_lines_first(tmp_path: Path, monk
         assert "for p in git;" in body and body.index("for p in git;") < body.index("echo 'derivative setup'"), body
     finally:
         run.restore_cwd()
+
+
+# ------------------------------------------------------ 8. the okta plugin
+
+def test_a_retirement_404_is_read_from_the_status_code_not_the_text():
+    import urllib.error
+    from email.message import Message
+    from cs_image_system.okta_opa_plugin.opa_gids import OpaGidResolver
+    r = OpaGidResolver("https://h", "t", "k", "s", transport=lambda *a: {})
+    r._login_project = lambda group: "/v1/p"        # type: ignore[method-assign]
+    r.token = lambda: "tok"                          # type: ignore[method-assign]
+
+    def says_404_in_a_500(method, url, headers, body):
+        raise urllib.error.HTTPError(url, 500, "upstream said 404 somewhere", Message(), None)
+    r.transport = says_404_in_a_500                  # type: ignore[assignment]
+    with pytest.raises(urllib.error.HTTPError):
+        r.retire_server("coops", "abc")
+
+    def real_404(method, url, headers, body):
+        raise urllib.error.HTTPError(url, 404, "not found", Message(), None)
+    r.transport = real_404                           # type: ignore[assignment]
+    assert r.retire_server("coops", "abc") is True
+
+
+def test_a_missing_opa_key_is_a_real_refusal():
+    from cs_image_system.okta_opa_plugin.okta_tf_workspace import OktaTfWorkspaceModelMixin
+    probe = type("P", (), {"team": "t", "org": "o", "name": "b",
+                           "_team_var": lambda self: "t"})()
+    with pytest.raises(ValueError, match="TF_VAR_t_key"):
+        OktaTfWorkspaceModelMixin._require_tfvar(probe, "key", "default", {})   # type: ignore[arg-type]

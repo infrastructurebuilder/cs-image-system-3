@@ -50,11 +50,6 @@ class OktaTfUserBuilder(UserBuilderBase[OktaTfUserBuilderModel], TerraformRootMi
     def model(self) -> OktaTfUserBuilderModel:
         return self._model  # type: ignore   # FIXME: This is dangerous
 
-    def query_existing_users(self) -> list[User]:
-        """Seam for lookup-only users (existing Okta identities to reference
-        via data sources instead of creating). Not implemented yet."""
-        return []
-
     def _users(self) -> list[User]:
         # Sorted: sort_and_write preserves insertion order, and deterministic
         # file order keeps generated diffs reviewable.
@@ -173,7 +168,7 @@ class OktaTfUserBuilder(UserBuilderBase[OktaTfUserBuilderModel], TerraformRootMi
         self, phase: ExecutionLifecyclePhase
     ) -> CFExecutables:
         """fmt/init/validate always; plan only when okta credentials are
-        exported (see the credentials runbook in PLAN.md). Skipped entirely
+        exported (this plugin's README, "Prerequisites and integration"). Skipped entirely
         when there are no users, so tofu never runs against an unwritten
         directory."""
         if phase != ExecutionLifecyclePhase.USER_GENERATION or not self._users():
