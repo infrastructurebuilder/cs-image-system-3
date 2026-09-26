@@ -698,7 +698,7 @@ the first final version on PyPI (§41's open call).
 
 ## 67. Hygiene bundle VI
 
-**Status: OPEN since 2026-09-25**, one item. A plan: nothing here starts
+**Status: OPEN since 2026-09-25**, two items. A plan: nothing here starts
 until the operator says which items to do.
 
 1. **A child image on an ephemeral runtime re-bakes on every cycle.**
@@ -743,3 +743,29 @@ until the operator says which items to do.
    dispose the parent, plan again, the child is current; and a follow
    child whose parent's head moved with an unchanged fingerprint is due.
    Proof: one GCE cycle whose bake plan shows dask `skip: current`.
+2. **Small remnants found while landing §63's dead-field list**
+   (2026-09-25; none threatens function, each is a line or two):
+   - `TofuS3StorageBuilderModel.bucket_name` is required and now read by
+     nothing (the state lookup and the module call use the STORAGE's
+     bucket); `get_bucket_name()` has no callers. Remove the field or make
+     it the default for a storage that names none.
+   - `--only-providers` splits its comma list now, but nothing reads it
+     beyond a load warning ("configuration will still be read in full");
+     its help promises a filter. Wire it or retire it (a decision).
+   - `read_config_and_transform` still takes a `force` argument and stores
+     `"force": False` since the `--force` flag went.
+   - `GlobalContext._sleep_before_finalization` defaults to 10 while the
+     model's default is 1 (the load overwrites it; only a context built
+     without a configuration sees 10).
+   - `RhelOsBuilderModel.repo_setup_commands` repeats the major-version
+     check the model now makes at load (unreachable, older message);
+     rhel's `get_command_to_update`/`commands_to_update` and the base
+     `OsBuilderModel.get_command_to_update` are reachable only by alpine.
+   - The GCE lookup of a pinned `image_id` does not insist on
+     `status = "READY"` as the vendor query does.
+   - An image's `variables:` become packer variables, but nothing a
+     configuration writes can reference `var.<name>` yet (a design
+     question for whoever wants them consumed).
+   - `Registry.get_builder()` has no production caller (a base test pins
+     it); the plugin templates' model-to-builder maps it would read are
+     decorative.
