@@ -639,21 +639,13 @@ def test_encrypt_without_recipients_says_so_instead_of_a_traceback(tmp_path: Pat
     assert "encrypt:" in result.output and "Traceback" not in result.output, result.output
 
 
-def test_only_providers_splits_a_comma_list_and_force_is_gone(monkeypatch, tmp_path: Path):
+def test_the_global_force_flag_is_gone(tmp_path: Path):
     from typer.testing import CliRunner
     from cs_image_system.system import cli as climod
-    from cs_image_system.base import global_context as gc
-    seen: dict = {}
-
-    def capture(ctx, root_dir, verbose, only_providers, force, **kw):
-        seen["only"] = only_providers
-        raise SystemExit(0)
-    monkeypatch.setattr(gc, "read_config_and_transform", capture)
-    CliRunner().invoke(climod.app, ["--root-dir", str(tmp_path), "--only-providers", "aws-east2-runtime, gcloud-east1",
-                                    "validate"])
-    assert seen.get("only") == ["aws-east2-runtime", "gcloud-east1"], seen
     result = CliRunner().invoke(climod.app, ["--root-dir", str(tmp_path), "--force", "validate"])
     assert result.exit_code != 0 and "No such option" in result.output, result.output
+    # (--only-providers, which this test once saw splitting a comma list, was
+    # retired in stage 67; tests/test_v2_hygiene_vi.py refuses it)
 
 
 # ------------------------------------------------------ 13. the dummy plugin
