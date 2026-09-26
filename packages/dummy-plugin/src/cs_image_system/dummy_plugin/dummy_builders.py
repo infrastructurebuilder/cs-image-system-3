@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from pathlib import Path
+
 
 from cs_image_system.base.basic.asset import Asset, AssetSet
 from cs_image_system.base.basic.builder_base_group import GroupBuilderBase
@@ -97,9 +97,6 @@ class DummyUserBuilder(UserBuilderBase[DummyUserBuilderModel]):
     def query_existing_users(self) -> list[User]:
         return []
 
-    def get_subpath(self) -> Path:
-        return Path("Dummy-tf")  # TODO
-
     def generate_items_before(
         self, phase: ExecutionLifecyclePhase
     ) -> AssetSet: # list[tuple[Path, str]]:
@@ -107,7 +104,9 @@ class DummyUserBuilder(UserBuilderBase[DummyUserBuilderModel]):
         event."""
         files: AssetSet = AssetSet()
         if phase == ExecutionLifecyclePhase.USER_GENERATION:
-            rpath = self.get_subpath() / f"{DUMMY}_users.tf"
+            # stage 63: under the builder's own root like every other builder's
+            # (it wrote `Dummy-tf/dummy_users.tf` beside them)
+            rpath = self.get_path_for_phase(phase, "users", suffix=".tf")
             files.append(
                 Asset((
                     rpath,

@@ -10,12 +10,20 @@ Nothing in the frozen fixture selects its builders; the runner's tests
 exercise its hooks. Copy it to start a new plugin.
 
 Two things to know before copying it. First, the builders are a template
-of the *shape*, not a working example: as of 2026-09-23 declaring either
-one in a tree makes the identity lifecycle fail at generation (see
-[When it fails](#when-it-fails)); the hook plugin is the part the tests
-prove. Second, the package has no tests of its own; the repository's
+of the *shape*, not a working example: a declared `type: dummy` builder
+loads, validates and runs the identity lifecycle (since stage 63; until
+2026-09-24 it failed at generation, see [When it fails](#when-it-fails)),
+but it manages nothing: the group builder writes nothing and the user
+builder writes one comment-only file. The hook plugin is the part the
+tests prove most. Second, the package has no tests of its own (there is no
+`packages/dummy-plugin/tests` directory, and since stage 63 the root
+[pyproject.toml](../../pyproject.toml) no longer lists one among its
+`testpaths`); the repository's
 [tests/test_v2_explore_plugin_hooks.py](../../tests/test_v2_explore_plugin_hooks.py)
-covers the hooks and nothing covers the builders.
+covers the hooks, and
+[tests/test_v2_defects_low_hanging.py](../../tests/test_v2_defects_low_hanging.py)
+and [tests/test_v2_defects_dead.py](../../tests/test_v2_defects_dead.py)
+cover the builders and models.
 
 ## What it registers
 
@@ -53,15 +61,17 @@ the context performs when it builds a declared builder
 service registry: the class registered under the same `csis_name()` and
 the builder classification. That is why model and builder must report the
 same name. `Registry.get_builder(model_type)`, the reader of the
-`builders_for_models` map, has no callers.
+`builders_for_models` map, has no caller in the system; only a base test
+([test_plugin_registration.py](../base/tests/test_plugin_registration.py))
+calls it, which is why it stays.
 
 A `group_builders:` entry selects the group pair with `type: dummy`; a
 `user_builders:` entry selects the user pair with the same key. There are
 no type aliases. The constant `DUMMY = "dummy"` in `dummy_models.py` is the
-key. The AWS and GCE runtime plugins each carry an unregistered copy of
-`DummyGroupBuilderModel` (in `aws_runtime_models.py` and
-`gcp_runtime_models.py`) left from the template; they import nothing from
-this package and do not depend on it.
+key. No other package imports anything from this one. (The AWS and GCE
+runtime plugins used to carry unregistered copies of
+`DummyGroupBuilderModel` left from the template; those copies are gone
+from their source.)
 
 The second is a hook plugin. `initialize()` in
 [hooks.py](src/cs_image_system/dummy_plugin/hooks.py) returns a `HookSet`
@@ -91,11 +101,15 @@ Fields it adds:
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `org` | `str` | required | An organisation label. Nothing reads it. |
-| `team` | `str` | required | A team label. Nothing reads it. |
-| `key` | `str` | `default` | Placeholder for a provider key name. Nothing reads it; a credential value never belongs in the tree. |
-| `secret` | `str` | `default` | Placeholder; same rule. |
-| `api_host` | `str` | `default` | Placeholder for a provider host. Nothing reads it. |
+| `org` | `str` | required | An organisation label: a required example field, validated at load and read by nothing. It shows a plugin author how a builder declares what its provider needs. |
+| `team` | `str` | required | A team label; the same. |
+
+`key`, `secret` and `api_host` are gone (stage 63): they are now unknown
+keys, refused at load like any other. Until 2026-09-25 the model accepted
+them with the default `default` and read none of them; they were removed
+so the template never suggests putting a credential in the tree. A real
+plugin reads a credential from the environment or a credential cache,
+never from the configuration.
 
 Base fields it inherits: `name`, `type`, `description`, `aliases`,
 `executable`, `is_default`, `config`, `gitignore`, `tags`. It overrides
@@ -111,8 +125,8 @@ Fields it adds:
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `org` | `str` | required | An organisation label. Nothing reads it. |
-| `team` | `str` | required | A team label. Nothing reads it. |
+| `org` | `str` | required | As on the group model: a required example field, validated and read by nothing. |
+| `team` | `str` | required | The same. |
 
 Base fields it inherits, and their meaning here:
 
@@ -124,11 +138,12 @@ Base fields it inherits, and their meaning here:
 | `email_as_username` | `bool` | `True` | When true, `UserBuilderBase.add_user_to_builder()` requires `user.name` to equal `user.email` (case-folded) and fills a blank name from the email. |
 | `name`, `type`, `description`, `aliases`, `executable`, `is_default`, `config`, `gitignore`, `tags` | | | From `BuilderModel`/`NameTyped`. |
 
-It carries the bare class attribute `type = "dummy"` and overrides
-`csis_name()` to return `dummy`. The class attribute is inert: it is not
-annotated, so pydantic does not treat it as a field, and the YAML `type:`
-key is still required (a model built without it fails with
-`type: Field required`). It does not narrow or add validation.
+It overrides `csis_name()` to return `dummy`; the YAML `type:` key is
+required, as on every builder model (a model built without it fails with
+`type: Field required`). Neither model narrows or adds validation. (Until
+2026-09-25 both carried an inert, unannotated class attribute
+`type = DUMMY` and docstrings naming attributes that did not exist; stage
+63 removed them.)
 
 ## The builder
 
@@ -140,9 +155,10 @@ Both builders implement the six generation hooks of `BuilderBase` in
 with a lifecycle phase; a builder answers with assets to write (an
 `AssetSet` of path and content) or commands to run (a `CFExecutables` of
 commands now and commands at finalization). The base class returns an
-`AssetSet` from every `generate_items_*` hook; the two dummy builders
-return a plain `list` from `generate_items_during`, which is the defect
-described under [When it fails](#when-it-fails).
+`AssetSet` from every `generate_items_*` hook, and so do the two dummy
+builders (since stage 63 item 1; `generate_items_during` returned a plain
+`list` until 2026-09-24, the defect described under
+[When it fails](#when-it-fails)).
 
 ### `DummyGroupBuilder`
 
@@ -184,8 +200,7 @@ Extends `UserBuilderBase` in
 | Phase | Hook | Returns |
 |---|---|---|
 | any | `query_existing_users()` | An empty list. Plugin-local: nothing in the core calls it. |
-| any | `get_subpath()` | `Path("Dummy-tf")`, the directory its assets go under. Plugin-local: only `generate_items_before` reads it. |
-| `user-generation` | `generate_items_before` | One asset: `Dummy-tf/dummy_users.tf` containing a single comment line naming the builder class. |
+| `user-generation` | `generate_items_before` | One asset at `get_path_for_phase(phase, "users", suffix=".tf")`, that is `<builder>/user-generation/<builder>-user-generation-users.tf` under the lifecycle directory, containing a single comment line naming the builder class (stage 63; it wrote `Dummy-tf/dummy_users.tf` through a plugin-local `get_subpath()`, now gone, until 2026-09-25). |
 | `user-generation` | `get_commands_to_run_before` | No commands. |
 | `user-generation` | `generate_items_during` | An empty `AssetSet` (since stage 63 item 1). |
 | `user-generation` | `get_commands_to_run_during` | No commands. |
@@ -199,17 +214,17 @@ unsupported) and `query_attributes()` (raises `NotImplementedError`).
 
 ## Emission
 
-With a `type: dummy` user builder in the tree, the identity lifecycle's
-before-phase hook writes `generated/identity/Dummy-tf/dummy_users.tf` with
-one comment line. The path is relative to the lifecycle directory, not to
-a builder directory: the dummy builder does not prefix its assets with
-`get_builder_path()` or the phase the way the real plugins do (compare the
-`<builder>/<phase>/...` convention in
-[OPERATIONS.md](../../docs/OPERATIONS.md)). The group builder writes
-nothing. The run then fails in the same phase's during step, so that file
-is all a run with a dummy builder ever produces (reproduced 2026-09-23 over
-a copy of the frozen fixture). The frozen fixture declares neither, so the
-golden emission under
+With a `type: dummy` user builder named `<builder>` in the tree, the
+identity lifecycle's before-phase hook writes
+`generated/identity/<builder>/user-generation/<builder>-user-generation-users.tf`
+with one comment line: under the builder's own root, the
+`<builder>/<phase>/...` convention every other builder follows (see
+[OPERATIONS.md](../../docs/OPERATIONS.md)). Since stage 63; until
+2026-09-25 it wrote `generated/identity/Dummy-tf/dummy_users.tf`, beside
+the builder directories instead of inside one. The group builder writes
+nothing, and neither builder defers a command, so that one file is all a
+run with a dummy builder produces. The frozen fixture declares neither, so
+the golden emission under
 [tests/fixtures/v2_golden/generated](../../tests/fixtures/v2_golden/generated)
 carries no dummy output.
 
@@ -238,8 +253,11 @@ builders. An entry that would, shown only to illustrate the shape (the
 fixture's real group and user builders are Okta ones in
 [group-builders.yml](../../tests/fixtures/config/cfg/group-builders.yml)).
 It loads, validates and runs the identity lifecycle, which emits nothing
-for its groups (since stage 63 item 1; before that the lifecycle failed at
-generation, see [When it fails](#when-it-fails)). A tree that manages real
+for its groups and one comment-only file for the user builder (since
+stage 63 item 1; before that the lifecycle failed at generation, see
+[When it fails](#when-it-fails)). `org` and `team` are the only fields of
+its own either entry takes; `key`, `secret` and `api_host` are refused as
+unknown keys (stage 63). A tree that manages real
 identities needs a real identity plugin instead.
 
 ```yaml
@@ -310,9 +328,11 @@ need:
   resolves lifecycle names, so `notify` is a valid name for `run notify`
   and part of `run --all` in the same process (the reason is a failure
   that happened; see [When it fails](#when-it-fails)).
-- **The `key`, `secret` and `api_host` fields are not credentials.** They
-  are accepted and never read; the plugin has no provider to talk to. A
-  credential value never belongs in the tree, encrypted or not.
+- **No credential, anywhere.** The plugin has no provider to talk to and
+  its models have no credential-shaped field: `key`, `secret` and
+  `api_host` were removed in stage 63 (they had been accepted and never
+  read until 2026-09-25) and are now refused as unknown keys. A credential
+  value never belongs in the tree, encrypted or not.
 
 ## Configuration reference
 
@@ -340,18 +360,16 @@ is every field these two models accept and what, if anything, reads it.
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `org` | str | required | Accepted, not read. |
-| `team` | str | required | Accepted, not read. |
-| `key` | str | `default` | Accepted, not read. Never a credential. |
-| `secret` | str | `default` | Accepted, not read. Never a credential. |
-| `api_host` | str | `default` | Accepted, not read. |
+| `org` | str | required | Required and validated at load; read by nothing (an example field). |
+| `team` | str | required | Required and validated at load; read by nothing (an example field). |
+| `key`, `secret`, `api_host` | -- | -- | GONE (stage 63): an unknown key, refused at load. Until 2026-09-25 each was accepted with the default `default` and read by nothing. |
 
 ### `user_builders:` entry (`DummyUserBuilderModel`)
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `org` | str | required | Accepted, not read. |
-| `team` | str | required | Accepted, not read. |
+| `org` | str | required | Required and validated at load; read by nothing (an example field). |
+| `team` | str | required | Required and validated at load; read by nothing (an example field). |
 | `default_user_email_template` | str | `{{ user.name }}` | Read by the core's template resolution for a user that declares no `email`. |
 | `default_user_description_template` | str | `User {{ user.name }} / {{ user.email }}` | Read by the core's template resolution for a user that declares no description. |
 | `email_domain` | str or null | null | Folded into the email template in place of `{{ builder.email_domain }}` by `get_user_email_template()`; ignored when the template has no placeholder. |
@@ -408,8 +426,10 @@ user builder is `is_default: true`.
 - **Declared versus not declared**: with no `type: dummy` entry the
   builder plugin does nothing at all; the four classes sit in the registry
   and no code path reaches them. With one declared, the load, validation
-  and identity lifecycle succeed and emit nothing for its groups and users
-  (since stage 63 item 1; the lifecycle failed at generation until then).
+  and identity lifecycle succeed; the group builder emits nothing and the
+  user builder one comment-only file under its own root (since stage 63;
+  the lifecycle failed at generation until 2026-09-24, and the user file
+  sat at `Dummy-tf/dummy_users.tf` until 2026-09-25).
 - **One runtime versus another, `--only-runtime`, `--apply-runtime`**:
   no effect. The models carry no `runtime` field and identity builders are
   not runtime-scoped, so a scoped run treats them like any identity
@@ -430,7 +450,10 @@ What is checked around it, and where the verdict lands:
 
 - **At load (pydantic, model construction).** `org` and `team` must be
   present (`org: Field required`); an unknown key is refused
-  (`Unexpected keyword argument`, `extra="forbid"`); the retired
+  (`Unexpected keyword argument`, `extra="forbid"`), and since stage 63
+  that includes `key`, `secret` and `api_host`
+  ([test_v2_defects_dead.py](../../tests/test_v2_defects_dead.py),
+  `test_the_template_models_keep_org_and_team_and_refuse_credentials`); the retired
   `parameters:` key is refused with the stage-26 message; `name` and
   `aliases` are checked for `/`, `\` and the reserved words; the YAML
   reader refuses a duplicate `name` in the list and template markers in
@@ -460,9 +483,13 @@ What is checked around it, and where the verdict lands:
   run summary (`generated/run-summary.json`), in the run's entry in
   `meta-state/runs.yaml` (`error: LifecycleRunError: Validation failed
   with N error(s)`) and in the notifier's line (`"ok": false`).
-- **At generation.** Nothing is verified. The dummy builders' before and
-  after hooks return empty or one asset and no commands; the during step
-  currently fails (below).
+- **At generation.** Nothing is verified. The dummy builders' hooks
+  return empty asset sets, or the user builder's one asset, and no
+  commands. The user builder's file lands under its own root,
+  `generated/identity/<builder>/user-generation/` (stage 63,
+  `test_the_dummy_user_builder_writes_under_its_own_root` in
+  [test_v2_defects_dead.py](../../tests/test_v2_defects_dead.py), which
+  also checks that no `Dummy-tf` directory appears).
 - **At apply.** Nothing. The builders defer no commands, so no runner
   script names them; the `notify` lifecycle has no phases and no script
   and reports `no-script` in the summary's `apply` map.
@@ -538,12 +565,23 @@ Failures that have happened, first.
 
   Fixed in stage 63 item 1 (2026-09-24): both return `AssetSet()`, and a
   declared dummy builder with a group on it now loads, validates and runs
-  the identity lifecycle dry, emitting nothing (`tests/test_v2_defects_low_hanging.py`).
+  the identity lifecycle dry, emitting nothing
+  ([tests/test_v2_defects_low_hanging.py](../../tests/test_v2_defects_low_hanging.py)).
+- **Until 2026-09-25 the user builder wrote outside its own root.** Its
+  one file went to `generated/identity/Dummy-tf/dummy_users.tf`, beside the
+  builder directories, because it built the path from a plugin-local
+  `get_subpath()` instead of `get_path_for_phase()`; a template copied
+  from it taught the wrong layout. Stage 63 moved it to
+  `<builder>/user-generation/<builder>-user-generation-users.tf`.
+- **Declaring `key`, `secret` or `api_host` on a dummy builder is refused
+  at load** (stage 63; accepted and ignored until 2026-09-25). pydantic
+  names the key (`Unexpected keyword argument`); delete it. The template
+  has no credential field on purpose.
+
 ## Related
 
 - Base classes: [group_builder.py](../base/src/cs_image_system/base/models/group_builder.py), [user_builder.py](../base/src/cs_image_system/base/models/user_builder.py), [builder_base.py](../base/src/cs_image_system/base/basic/builder_base.py), [builder_base_group.py](../base/src/cs_image_system/base/basic/builder_base_group.py), [builder_base_user.py](../base/src/cs_image_system/base/basic/builder_base_user.py), [abstract_plugin_metadata.py](../base/src/cs_image_system/base/basic/abstract_plugin_metadata.py).
 - Plugin loading: [loader.py](../base/src/cs_image_system/base/loader.py) (builder plugins), [run_lifecycles.py](../base/src/cs_image_system/base/commands/run_lifecycles.py) (hook plugins and `HookSet`), [lifecycles.py](../base/src/cs_image_system/base/lifecycles.py) (`LifecycleSpec`).
 - The real identity plugin the fixture uses: [okta-opa-plugin](../okta-opa-plugin).
-- [aws-runtime-plugin](../aws-runtime-plugin/README.md) and [gcloud-runtime-plugin](../gcloud-runtime-plugin/README.md), which carry an unregistered copy of the group model.
 - [docs/PLUGINS.md](../../docs/PLUGINS.md) for the package index; [docs/DESIGN.md](../../docs/DESIGN.md) for the design.
 - [The configuration reference](../../docs/CONFIGURATION.md) -- every field of the YAML this plugin reads, with an example.

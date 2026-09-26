@@ -7,24 +7,25 @@ from pydantic.dataclasses import dataclass  # stage 23: validation at constructi
 
 
 
-from cs_image_system.base.constants import DEFAULT
 from cs_image_system.base.models.group_builder import GroupBuilderModel
 from cs_image_system.base.models.user_builder import UserBuilderModel
 
 DUMMY: str = "dummy"  
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
 class DummyGroupBuilderModel(GroupBuilderModel):
-    """Dataclass representing an Dummy group configuration.
+    """The template's group builder model: the shape a group plugin's model
+    takes, and nothing more.
 
     Attributes:
-        Dummy_group_id: The ID of the Dummy group.
+        org, team: two required example fields, validated at load and read
+            by nothing -- they show a plugin author how a builder declares
+            what its provider needs. (Stage 63: the credential-shaped `key`,
+            `secret` and `api_host` were removed, so the template never
+            suggests putting a credential in the tree.)
     """
 
     org: str
     team: str
-    key: str = DEFAULT # TODO: Secrets
-    secret: str = DEFAULT
-    api_host: str = DEFAULT
 
     @classmethod
     def csis_name(cls) -> str:
@@ -32,14 +33,10 @@ class DummyGroupBuilderModel(GroupBuilderModel):
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
 class DummyUserBuilderModel(UserBuilderModel):
-    """Dataclass representing an Dummy user configuration.
-
-    Attributes:
-        Dummy_user_id: The ID of the Dummy user.
-    """    
+    """The template's user builder model; ``org`` and ``team`` as on the
+    group model: required example fields, read by nothing."""
     org: str
-    team: str    
-    type = DUMMY
+    team: str
     
     @classmethod
     def csis_name(cls) -> str:

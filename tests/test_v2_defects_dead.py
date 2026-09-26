@@ -653,3 +653,28 @@ def test_only_providers_splits_a_comma_list_and_force_is_gone(monkeypatch, tmp_p
     assert seen.get("only") == ["aws-east2-runtime", "gcloud-east1"], seen
     result = CliRunner().invoke(climod.app, ["--root-dir", str(tmp_path), "--force", "validate"])
     assert result.exit_code != 0 and "No such option" in result.output, result.output
+
+
+# ------------------------------------------------------ 13. the dummy plugin
+
+def test_the_template_models_keep_org_and_team_and_refuse_credentials():
+    from cs_image_system.dummy_plugin.dummy_models import DummyGroupBuilderModel
+    DummyGroupBuilderModel(name="g", type="dummy", org="o", team="t")
+    for key in ("key", "secret", "api_host"):
+        with pytest.raises(Exception):
+            DummyGroupBuilderModel(name="g", type="dummy", org="o", team="t", **{key: "x"})
+
+
+def test_the_dummy_user_builder_writes_under_its_own_root(tmp_path: Path, monkeypatch):
+    root = copy_config(tmp_path)
+    _edit(root / "cfg" / "group-builders.yml", lambda d: d["user_builders"].append(
+        {"name": "dummy-users", "type": "dummy", "org": "example", "team": "example"}))
+    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    try:
+        assert run.run(["identity"], apply=False).ok
+        rel = [p.relative_to(run.generated) for p in run.generated.rglob("*.tf")]
+        written = [p for p in rel if "dummy" in str(p).lower()]
+        assert written and all(str(p).startswith("identity/dummy-users/") for p in written), written
+        assert not list(run.generated.rglob("Dummy-tf"))
+    finally:
+        run.restore_cwd()
