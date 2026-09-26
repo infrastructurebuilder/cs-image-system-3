@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 import copy
 import logging
 from typing import Any, Sequence, cast

@@ -185,3 +185,65 @@ def test_the_image_query_never_rewrites_the_entrys_own_query(tmp_path: Path, mon
         assert dict(entry.query) == before
     finally:
         reset_singletons()
+
+
+# ------------------------------------------------------ 3. the GCP runtime
+
+def test_query_images_returns_only_the_series_asked_about(tmp_path: Path, monkeypatch):
+    from types import SimpleNamespace
+    from cs_image_system.gcloud_runtime import gcp_utils
+    from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
+    real_query_images = GCPCloudBuilder.query_images      # the harness stubs it
+    stub_environment(monkeypatch)
+    ctx = load_context(copy_config(tmp_path))
+    try:
+        images = [SimpleNamespace(name=n, status="READY", creation_timestamp="t", labels={"csis_series": s})
+                  for n, s in (("a-1", "imgfile-basic-dask"), ("b-1", "basic-rh-10"), ("c-1", "someone-else"))]
+        monkeypatch.setattr(gcp_utils, "_make_images_client",
+                            lambda cfg: SimpleNamespace(list=lambda request: images))
+        got = real_query_images(ctx.runtime_builders["gcloud-east1"], ["imgfile-basic-dask", "basic-rh-10"])
+        assert sorted(i["name"] for i in got) == ["a-1", "b-1"], got
+    finally:
+        reset_singletons()
+
+
+def test_a_tag_key_gce_cannot_take_is_refused_at_validate(tmp_path: Path, monkeypatch):
+    from cs_image_system.base.commands.validate import check_label_keys
+    root = copy_config(tmp_path)
+
+    def edit(d):
+        dask = next(i for i in d["images"] if i["name"] == "imgfile-basic-dask")
+        dask.setdefault("tags", {})["2024"] = "cohort"
+    _edit(root / "images" / "image1.yaml", edit)
+    stub_environment(monkeypatch)
+    ctx = load_context(root)
+    try:
+        errors = [str(e) for e in check_label_keys(ctx)]
+        assert any("image 'imgfile-basic-dask': tag key '2024' on runtime gcloud-east1" in e for e in errors), errors
+        assert not any("aws-east2-runtime" in e for e in errors), "AWS tags take any key"
+    finally:
+        reset_singletons()
+
+
+def test_the_fixture_has_no_label_finding(tmp_path: Path, monkeypatch):
+    from cs_image_system.base.commands.validate import check_label_keys
+    stub_environment(monkeypatch)
+    ctx = load_context(copy_config(tmp_path))
+    try:
+        assert check_label_keys(ctx) == []
+    finally:
+        reset_singletons()
+
+
+def test_a_disk_archive_script_without_a_project_is_refused_at_generation(tmp_path: Path, monkeypatch):
+    from cs_image_system.base.models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED
+    stub_environment(monkeypatch)
+    ctx = load_context(copy_config(tmp_path))
+    try:
+        pd = ctx.storage_builders["gcp-pd"]
+        disk = next(s for s in ctx.storages if s.get_name() == "gce_data")
+        monkeypatch.setattr(type(pd), "_project", lambda self: None)
+        with pytest.raises(ValueError, match="the archive scripts need project"):
+            pd.transition_actions(disk, STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED)
+    finally:
+        reset_singletons()

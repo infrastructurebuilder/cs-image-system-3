@@ -12,7 +12,7 @@ helper, and the S3-backend field dataclasses.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import logging
 from typing import Any, Protocol
 from hcl2 import Builder, FormatterOptions

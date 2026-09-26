@@ -17,7 +17,6 @@ log = logging.getLogger(__name__)
 
 from cs_image_system.base.constants import DEFAULT, OOPS_DEFAULTS, VCT
 from cs_image_system.base.models.cloud_builder import CloudBuilderModel, CloudNetworkingConfig
-from cs_image_system.base.models.group_builder import GroupBuilderModel
 
 
 AWS: str = "aws"
@@ -175,23 +174,3 @@ class AwsCloudBuilderModel(CloudBuilderModel):
             errstr = f"Total number of security groups specified in networking configuration for AWS cloud builder {self.name} is {len(total_sgs)}, which may exceed limits for certain instance types. Please ensure this is intentional and does not exceed limits for your target instance types."
             log.error(errstr)
             raise ValueError(errstr)
-            
-
-        
-            
-
-
-@dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
-class DummyGroupBuilderModel(GroupBuilderModel):
-    """Dataclass representing an Dummy group configuration.
-
-    Attributes:
-        Dummy_group_id: The ID of the Dummy group.
-    """
-
-    org: str
-    team: str
-    key: str = DEFAULT # TODO: Secrets
-    secret: str = DEFAULT
-    api_host: str = DEFAULT
-

@@ -176,9 +176,8 @@ def resolve_projects(
             self_project = resolve_project(session_config)
             if not self_project:
                 raise ValueError(
-                    "Owner 'self' requires a project in the session configuration "
-                    "(set project_id on the runtime builder or use a service "
-                    "account key file that carries project_id)."
+                    "Owner 'self' requires a project: set project_id on the GCP runtime "
+                    "(stage 63: a runtime declares no credentials, so no key file can supply one)."
                 )
             projects.append(self_project)
         elif o.lower() in GCP_OWNER_PROJECT_MAP:
@@ -410,46 +409,6 @@ def get_image_owner(image_info: Mapping[str, Any]) -> dict[str, Any] | None:
     return {"project": project}
 
 
-def get_image_ssh_user(
-    image_name: str,
-    project: str,
-    session_config: dict[str, Any] | None = None,
-    images_client: Any | None = None,
-) -> str | None:
-    """Heuristically determine the default SSH username for an image."""
-    client = images_client or _make_images_client(session_config or {})
-
-    try:
-        image = client.get(project=project, image=image_name)
-    except gcp_exceptions.NotFound:
-        return None
-    combined_text = f"{image.name} {image.family} {image.description}".lower()
-
-    # Order matters: check more specific flavors before generic ones
-    if "ubuntu" in combined_text:
-        return "ubuntu"
-    elif "debian" in combined_text:
-        return "debian"
-    elif "centos" in combined_text:
-        return "centos"
-    elif "fedora" in combined_text:
-        return "fedora"
-    elif "rocky" in combined_text:
-        return "rocky"
-    elif "rhel" in combined_text:
-        return "cloud-user"
-
-    return "packer"  # Default: GCP injects users via metadata/OS Login
-
-
-# stage 24: `image_from_query_result` was removed here. It built a dict with
-# no `runtimes`, and Image has required at least one since 2026-07-03, so the
-# structure call always raised and a bare `except Exception: return None`
-# always swallowed it -- the function never returned an Image on either
-# cloud. Twelve of its seventeen keys were kebab-case against snake-case
-# fields as well, three of them (`source_image`, `primary_disk_size`,
-# `auto_update`) real fields that were plainly meant to land. Ledger 78.
-
 
 def get_network_map_and_default_network(
     session_config: dict[str, Any],
@@ -467,7 +426,7 @@ def get_network_map_and_default_network(
     if not project:
         raise ValueError(
             "A project is required to enumerate GCP networks; set project_id on "
-            "the runtime builder or provide a service account key file."
+            "the GCP runtime."
         )
     try:
         creds = _make_credentials(session_config)

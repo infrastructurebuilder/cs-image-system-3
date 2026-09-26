@@ -50,7 +50,6 @@ checker.
 Present in the package but not registered as a service:
 
 - `AwsProviderSpecificImage` ([aws_provider_specific_image.py](src/cs_image_system/aws_runtime/aws_provider_specific_image.py)), reached through the builder's `provider_specific_image_class()` hook.
-- `DummyGroupBuilderModel`, an unregistered copy of the [dummy plugin](../dummy-plugin/README.md)'s group model, defined at the bottom of the models module on the base `GroupBuilderModel`. Nothing reads it; the package does not import the dummy plugin.
 
 ## Models
 

@@ -623,6 +623,39 @@ def check_bake_users(ctx: GlobalTypeContext) -> list[Exception]:
     return exs
 
 
+def check_label_keys(ctx: GlobalTypeContext) -> list[Exception]:
+    """Every declared tag key that becomes a label on a runtime whose labels
+    have rules (GCE: a lowercase letter first) is refused here, naming the
+    key and who declared it (stage 63; it used to fail at apply). The keys
+    are the tags of each image on each runtime it bakes on, of each instance
+    on its runtime, and of each storage on its builder's runtime."""
+    exs: list[Exception] = []
+
+    def check(runtime: str | None, tags: Any, who: str) -> None:
+        rtb = ctx.runtime_builders.get(str(runtime or ""))
+        if rtb is None:
+            return
+        for key in sorted((tags or {})):
+            why = rtb.label_key_problem(str(key))
+            if why:
+                exs.append(ValueError(f"{who}: tag key {key!r} on runtime {runtime}: {why}; rename the key"))
+
+    for name, image in sorted((ctx.images_map or {}).items()):
+        for runtime in sorted(getattr(image, "_runtime_map", None) or {}):
+            check(runtime, image.get_tags() if hasattr(image, "get_tags") else {}, f"image '{name}'")
+    for instance in (ctx.instances or []):
+        check(getattr(instance, "runtime", None), getattr(instance, "tags", None), f"instance '{instance.get_name()}'")
+    for storage in (ctx.storages or []):
+        builder = ctx.storage_builders.get(str(storage.get_type() or ""))
+        model = getattr(builder, "model", None)
+        try:
+            runtime = model.get_runtime_provider() if model is not None else None
+        except ValueError:
+            runtime = None
+        check(runtime, getattr(storage, "tags", None), f"storage '{storage.get_name()}'")
+    return exs
+
+
 def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     """The configuration checks, with no side effects on generated output:
     unique global ids, executables present and version-compliant, every
@@ -640,4 +673,5 @@ def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     exs.extend(check_canonical_hostnames(ctx))
     exs.extend(check_state_backends_needed(ctx))
     exs.extend(check_bake_users(ctx))
+    exs.extend(check_label_keys(ctx))
     return exs

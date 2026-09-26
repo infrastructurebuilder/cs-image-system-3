@@ -16,11 +16,9 @@ log = logging.getLogger(__name__)
 
 from cs_image_system.base.constants import DEFAULT, OOPS_DEFAULTS, VCT
 from cs_image_system.base.models.cloud_builder import CloudBuilderModel, CloudNetworkingConfig
-from cs_image_system.base.models.group_builder import GroupBuilderModel
 
 
 GCP: str = "gcloud"
-GCP_CLI: str = "gcloud-cli"
 
 @dataclass(config=CSIS_MODEL_CONFIG)
 class GCPCloudNetworkingModel(CloudNetworkingConfig):
@@ -120,7 +118,7 @@ class GCPCloudBuilderModel(CloudBuilderModel):
         if not session_config:
             raise ValueError("Session configuration cannot be None or empty")
         if not gcp_utils.resolve_project(session_config):
-            log.warning(f"No usable GCP project could be resolved for cloud builder {self.get_display_name()} (missing project_id and no readable service account key file). Skipping network validation; image resolution and build execution will not work until valid GCP credentials are configured.")
+            log.warning(f"No usable GCP project could be resolved for cloud builder {self.get_display_name()} (no `project_id` declared on the runtime). Skipping network validation; image resolution and build execution will not work until valid GCP credentials are configured.")
             return
 
         network_map, default_network, allfw = gcp_utils.get_network_map_and_default_network(session_config)
@@ -168,19 +166,3 @@ class GCPCloudBuilderModel(CloudBuilderModel):
         for tag in self.networking.network_tags:
             if tag not in all_target_tags:
                 log.warning(f"Network tag {tag} specified in networking configuration for GCP cloud builder {self.name} is not targeted by any firewall rule in the GCP project.")
-
-
-@dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
-class DummyGroupBuilderModel(GroupBuilderModel):
-    """Dataclass representing an Dummy group configuration.
-
-    Attributes:
-        Dummy_group_id: The ID of the Dummy group.
-    """
-
-    org: str
-    team: str
-    key: str = DEFAULT # TODO: Secrets
-    secret: str = DEFAULT
-    api_host: str = DEFAULT
-

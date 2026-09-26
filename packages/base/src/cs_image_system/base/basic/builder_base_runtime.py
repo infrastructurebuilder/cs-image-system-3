@@ -216,6 +216,11 @@ class RuntimeBuilderBase(BuilderBase[TypeVar("T", bound=RuntimeBuilderModel)]):
         this runtime cannot say, and the resolver refuses."""
         return None
 
+    def label_key_problem(self, key: str) -> str | None:
+        """Why a declared tag key cannot become a label on this runtime, or
+        None (stage 63). Default: any key is fine (AWS tags take anything)."""
+        return None
+
     def one_bake_user_per_chain(self) -> bool:
         """Whether every image of a chain must bake as the SAME user on this
         runtime (GCE, finding 43: the guest agent removes a stale other-name

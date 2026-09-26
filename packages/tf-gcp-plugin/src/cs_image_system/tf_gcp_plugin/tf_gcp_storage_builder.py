@@ -170,6 +170,16 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
     def module_dirname(self) -> str:
         return "gcp_storage_pd"
 
+    def _require_script_inputs(self, storage: Storage, **values: str | None) -> None:
+        """A generated archive/restore script needs its project (and zone);
+        a missing one used to be written as the literal `None` and failed
+        only when gcloud ran (stage 63: refused at generation instead)."""
+        missing = sorted(k for k, v in values.items() if not v)
+        if missing:
+            raise ValueError(f"storage '{storage.get_name()}' on builder {self.get_name()}: the archive "
+                             f"scripts need {' and '.join(missing)}, and the runtime declares none "
+                             "(set `project_id` and `zone` on the GCP runtime)")
+
     def _disk_zone(self, storage: Storage) -> str | None:
         """Where THIS disk lives: the storage's own ``availability_zone`` when
         declared, the runtime's ``zone`` otherwise, as the EBS builder does
@@ -219,6 +229,7 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
         project, zone = self._project(), self._disk_zone(storage)
         gcloud = shlex.quote(self._gcloud())
         if to_state == STORAGE_STATE_ARCHIVED and from_state == STORAGE_STATE_ACTIVE:
+            self._require_script_inputs(storage, project=project, zone=zone)
             # snapshot the disk BEFORE terraform destroys it; a snapshot left by
             # an earlier attempt is reused (the archive is the name)
             return [self._script(storage, f"archive-{disk}.sh",
@@ -227,6 +238,7 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
                 f'{gcloud} compute disks snapshot "{disk}" --snapshot-names "{snap}" --zone "{zone}" '
                 f'--project "{project}" --quiet\n')]
         if to_state == STORAGE_STATE_DESTROYED and from_state == STORAGE_STATE_ARCHIVED:
+            self._require_script_inputs(storage, project=project)
             # the disk is already gone; the archive goes with the demise
             return [self._script(storage, f"unarchive-{disk}.sh",
                 f'{gcloud} compute snapshots delete "{snap}" --project "{project}" --quiet 2>&1 '
@@ -237,6 +249,8 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
                                 to_state: str) -> list[ExecutableModel]:
         disk, snap = self._gce_resource_name(storage.get_name()), self.archive_name(storage)
         project = self._project()
+        if from_state == STORAGE_STATE_ARCHIVED and to_state == STORAGE_STATE_ACTIVE:
+            self._require_script_inputs(storage, project=project)
         gcloud = shlex.quote(self._gcloud())
         if from_state == STORAGE_STATE_ARCHIVED and to_state == STORAGE_STATE_ACTIVE:
             # restored: the data is on the disk again; the archive is deleted
