@@ -61,14 +61,10 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
             region = self.model.get_region()
             if not region:
                 raise ValueError(f"Region must be specified in builder config to resolve image identifier, but got {region}")
-            reg = aws_utils.get_ami_owner(kv)
-            if not reg:
-                raise ValueError(f"Could not get owner for image {retval} in region {region}")
-            _r = reg.get("ImageOwnerAlias", None)
+            # the owner's alias (e.g. `amazon`) when AWS gives one, else the account id
+            _r = kv.get("ImageOwnerAlias") or kv.get("OwnerId")
             if not _r:
-                _r = reg.get("OwnerId", None)
-            if not _r:
-                raise ValueError(f"Could not get owner alias or owner id for image {retval} in region {region}, got {reg}")
+                raise ValueError(f"Could not get owner alias or owner id for image {retval} in region {region}, got {kv}")
             regstr = str(_r)
         return (retval,regstr, kv) if retval else None
 

@@ -362,8 +362,8 @@ image, instance and storage builders) add:
 | --- | --- | --- | --- |
 | `account_id` | str or null | null | the account (a number is coerced to a string) |
 | `state_configuration` | str | `default` | a state backend (section 10); `default` inherits the runtime's, else the default backend |
-| `ena_support` | bool or null | null | accepted; not read -- nothing emits it into a packer source |
-| `sriov_support` | bool or null | null | accepted; not read |
+| `ena_support` | bool or null | null | emitted into the amazon-ebs packer source when declared (stage 63; it was read by nothing); unset, packer's default applies |
+| `sriov_support` | bool or null | null | emitted into the amazon-ebs packer source when declared (stage 63) |
 | `iam_instance_profile` | str or null | null | instance profile attached to build VMs when `session_instance_profile` is unset; with both set the SSM profile wins |
 | `session_mechanism` | str or null | null | `ssm`: bakes and debug sessions go through SSM (the agent is baked into base images) |
 | `session_instance_profile` | str or null | null | the profile attached to launched instances for SSM sessions |
@@ -409,14 +409,14 @@ and warns about a network tag no firewall rule targets.
 | `network` | str | `default` | the VPC id (AWS) or network name (GCP); `default` resolves to the account's default VPC / the project's `default` network |
 | `subnets` | list | required, at least one | exactly one entry must have `is_default: true` |
 | `subnets[].name` | str | the subnet id | label |
-| `subnets[].subnet_id` | str | required | the subnet id (AWS) or `projects/…/subnetworks/…` path (GCP) |
+| `subnets[].subnet_id` | str | required | the subnet id (AWS) or `projects/…/subnetworks/…` path (GCP); on AWS every declared subnet must be in the declared VPC, checked at load against the account (stage 63) |
 | `subnets[].is_default` | bool | `false` | the subnet bakes and instances use |
 | `subnets[].public` | bool | `false` | informational |
 | `subnets[].cidr` | str or null | null | informational |
 | `subnets[].availability_zone` | str or null | null | the subnet's zone, read by `validate`'s zone check (section 12a) |
 | `subnets[].config` | mapping | `{}` | free-form; accepted, not read |
 | `availability_zones` | list | `[]` | entries `{name, is_default}`; on AWS the default zone is passed to the instance root; on GCE the instance root takes the runtime's `zone` and the default here is read by `validate`'s zone check only |
-| `security_group_ids` (aws) | list[str] | `[]` | accepted and counted at load (the total with `addl_security_groups` is validated); emitted nowhere -- an instance wears the root's own security group plus `addl_security_groups`, and SSH ingress references `ssh_ingress_security_group_ids` |
+| `security_group_ids` (aws) | | | refused at load since stage 63: it was counted and emitted nowhere; `addl_security_groups` is the list instances wear |
 | `addl_security_groups` (aws) | list[str] | `[]` | existing groups every instance also wears; never modified |
 | `ssh_ingress_security_group_ids` (aws) | list[str] | `[]` | groups whose members may SSH in; when set, port-22 ingress references only these groups, never a CIDR |
 | `network_tags` (gcloud) | list[str] | `[]` | network tags that select firewall rules |

@@ -86,8 +86,7 @@ Fields it adds:
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `security_group_ids` | `list[str]` | `[]` | Security group ids. Checked against the account at load and counted toward the limit below; no emitter reads them. |
-| `addl_security_groups` | `list[str]` | `[]` | Existing groups every launched instance also wears, unmodified. Checked against the account at load. The instance module's `vpc_security_group_ids` lists them after the generated group; the EFS storage builder uses them as the mount targets' client groups. |
+| `addl_security_groups` | `list[str]` | `[]` | Existing groups every launched instance also wears, unmodified. Checked against the account at load and the only list counted toward the limit of five below. The instance module's `vpc_security_group_ids` lists them after the generated group; the EFS storage builder uses them as the mount targets' client groups. |
 | `ssh_ingress_security_group_ids` | `list[str]` | `[]` | Groups whose members may reach port 22 on launched instances. The generated instance security group's ingress references only these groups, never a CIDR range. Not checked against the account. |
 | `_model_id` | `str \| None` | `None` (not an init field) | Back-reference to the owning runtime model. |
 
@@ -105,7 +104,18 @@ whitespace-only name can reach that check, because the base already
 substitutes the network id for an empty or `default` name).
 `get_subnet_id()` raises when no default subnet exists. It does not accept
 security groups by name, only by id, and it refuses more than five groups in
-`security_group_ids` plus `addl_security_groups` combined.
+`addl_security_groups`.
+
+There is no `security_group_ids` field any more (stage 63). Until
+2026-09-25 the model accepted it, checked its ids against the account and
+counted them toward the limit of five, but no emitter ever read it, so a
+group listed there reached neither the packer source nor the instance and
+storage roots. It was removed rather than wired in, because
+`addl_security_groups` already is the list that reaches the roots. Declaring
+it is now an unknown-key refusal at load (the shared model config forbids
+extra keys), and the error names the key; move the ids into
+`addl_security_groups`. The accessor `get_security_group_ids()` went with
+it; `get_addl_security_groups()` remains.
 
 ### `AwsCloudBuilderModel`
 
@@ -123,8 +133,8 @@ Fields it adds:
 | `account_id` | `str \| None` | `None` | The AWS account. Reported by `runtime describe`; usable in templates as `{{ this.account_id }}`. Nothing else reads it: the account boto3 acts in is the profile's. |
 | `credentials` | `AwsCredentials` | empty | Narrows the base `CredentialsBase`. |
 | `state_configuration` | `str` | `DEFAULT` | Foreign key to a state backend. The second rung of every storage and instance root's backend resolution on this runtime: a root whose own `state_configuration` is `default` inherits this one; `default` here falls through to the default backend (stage 46.2, [orchestrator.py](../base/src/cs_image_system/base/orchestrator.py)). |
-| `ena_support` | `bool \| None` | `None` | Accepted, not read. |
-| `sriov_support` | `bool \| None` | `None` | Accepted, not read. |
+| `ena_support` | `bool \| None` | `None` | When declared, written into the `amazon-ebs` packer source as `ena_support = true\|false`, so the baked AMI's Elastic Network Adapter flag is set explicitly; unset, nothing is written and packer's default applies (stage 63; until 2026-09-25 accepted and read by nothing). |
+| `sriov_support` | `bool \| None` | `None` | When declared, written into the `amazon-ebs` packer source as `sriov_support = true\|false` (enhanced networking through the Intel SR-IOV interface); unset, nothing is written and packer's default applies (stage 63; until 2026-09-25 accepted and read by nothing). |
 | `iam_instance_profile` | `str \| None` | `None` | Instance profile written into the packer source for build instances when `session_instance_profile` is unset (it is also the SSM fallback then). When both are set the SSM profile wins (stage 63 item 9, decided 2026-09-24; until then this one, written after the SSM block, replaced it). Never attached to launched instances. |
 | `session_mechanism` | `str \| None` | `None` | `ssm` (any case, surrounding whitespace ignored) is the only value. Any other string is an error the first time the builder's `session_mechanism()` is called, which is at generation. |
 | `session_instance_profile` | `str \| None` | `None` | The SSM-capable instance profile given to launched instances (through the instance plugin) and to build instances (through the packer source). |
@@ -232,11 +242,22 @@ calls `get_vpc_map_and_default_vpc_id()` in
 - `all_security_groups`: every group by id.
 
 Then it validates the declaration: `network: default` becomes the default
-VPC (an error when the account has none); the VPC must exist; every id in
-`security_group_ids` and `addl_security_groups` must exist; more than five of
+VPC (an error when the account has none); the VPC must exist; every
+declared `subnets[].subnet_id` must be one of that VPC's subnets (stage 63,
+below); every id in `addl_security_groups` must exist; more than five of
 them is an error. The declared `subnets[].public` flag is the operator's
-statement and is not overwritten by the discovered `is_public`; the
-declared subnet ids are not checked against the discovered list. A load
+statement and is not overwritten by the discovered `is_public`.
+
+The subnet check (stage 63) compares each declared `subnet_id` with the
+subnets the account listed for the declared VPC in `vpc_map`. When a
+declared id is not among them the load is refused with
+`Subnet <id> (<name>) in networking configuration for AWS cloud builder
+<runtime> is not in VPC <vpc>.` Until 2026-09-25 the declared subnet ids were
+not checked at all, so a subnet from another VPC (or a typo) passed the load
+and failed only at the first bake or apply. The check makes a claim only
+when the account's answer lists subnets for the VPC: a VPC listed without
+any subnets (an empty VPC, or a session that cannot see them) leaves every
+declared subnet unchecked rather than refusing all of them. A load
 therefore needs a live AWS session even for a dry run, and so does every
 command that loads the configuration for another runtime (the GCE cycle
 included).
@@ -251,12 +272,28 @@ included).
 - `Owners` is the entry's `get_owners()`: the OS builder's owners, then the runtime's `default_owners`, then the entry's own, deduplicated in order (the runtime's were never found before stage 63 item 22).
 - `query.filters` keys are mapped through `AWS_DI_MAP` (snake_case to EC2 filter names, `tag:<key>` kept), booleans lowercased, and `state: available` forced.
 - Keys the map does not know go to a post-query exact-match filter on the result dictionaries.
+- The rewrite works on a deep copy of the entry's `query` (stage 63). `get_query()` hands back the entry's own nested mappings, and until 2026-09-25 the rewrite injected `state: available` into the OS builder entry's own `filters` mapping on every resolution, so the loaded model changed each time an image was resolved. The entry is now left exactly as declared.
 
-`query_image()` pages through `describe_images`, applies the post-query
-filter, and returns the newest `CreationDate`. The builder then reads the
-owner (`ImageOwnerAlias`, else `OwnerId`) and returns `(ImageId, owner,
-raw)`; the base registers an `AwsProviderSpecificImage` in the resolved state.
-No match returns `None`, and the base's resolve step then fails the run.
+`query_image()` in [aws_utils.py](src/cs_image_system/aws_runtime/aws_utils.py)
+runs that `DescribeImages` query (paging through `describe_images`), keeps
+every match that agrees with the post-query filter, and returns the newest
+by `CreationDate`, or `None` when nothing matches. Its docstring says so
+since stage 63; the unreachable `raise` that used to follow the return is
+gone. The builder then reads the owner straight from the AMI record,
+`ImageOwnerAlias` (for example `amazon`) else `OwnerId` (the account id),
+and returns `(ImageId, owner, raw)`; the base registers an
+`AwsProviderSpecificImage` in the resolved state. A record with neither
+field raises `Could not get owner alias or owner id ...`. Before stage 63 a
+second, unreachable `Could not get owner` branch followed that one; it was
+removed on 2026-09-25. No match returns `None`, and the base's resolve step
+then fails the run.
+
+Stage 63 also removed helpers from
+[aws_utils.py](src/cs_image_system/aws_runtime/aws_utils.py) that nothing
+called: `get_ami_owner`, `get_ami_ssh_user`, `remap_for_aws`,
+`_query_by_name` and `_build_ami_filters`. `_query_by_ami_id` (an exact
+lookup by AMI id) is kept for later use; nothing in this package calls it
+yet.
 
 `AwsProviderSpecificImage.get_query_assets()` gives the packer
 `data "amazon-ami"` body:
@@ -332,7 +369,9 @@ The plugin's output is visible in the golden emission under
   [aws_packer_source.py](src/cs_image_system/aws_runtime/aws_packer_source.py):
   `source_ami`, `ami_name`, `instance_type` (the runtime entry's machine
   type, else the runtime default), `region`, `vpc_id`, `subnet_id` (the
-  default subnet), the merged lineage `tags`, `profile`, and, because the
+  default subnet), the merged lineage `tags`, `profile`, `ena_support` and
+  `sriov_support` only when the runtime declares them (stage 63; the
+  fixture declares neither, so the golden source carries neither), and, because the
   runtime declares `session_mechanism: ssm`, `ssh_interface =
   "session_manager"`, `iam_instance_profile`, `associate_public_ip_address =
   false`, `ssh_timeout = "15m"` and a `user_data` script that installs the
@@ -571,8 +610,8 @@ value column means the literal string `default`.
 | `teardown_after` | str or null | null | Default grace for ephemeral instances here: `<number>` then `m`, `h` or `d`. |
 | `default_owners` | list[str] or null | null | Owners added to every vendor-image query on this runtime (stage 63 item 22). |
 | `default_config_username` | str or null | null | The bake SSH user when no image entry, OS entry, `config_username` or runtime `ssh_username` names one (stage 63 item 22). |
-| `ena_support` | bool or null | null | Accepted, not read. |
-| `sriov_support` | bool or null | null | Accepted, not read. |
+| `ena_support` | bool or null | null | Declared `true` or `false`: written as `ena_support = true\|false` in the `amazon-ebs` packer source of every image baked here. Null: not written; packer's default applies (stage 63; until 2026-09-25 accepted and read by nothing). |
+| `sriov_support` | bool or null | null | Declared `true` or `false`: written as `sriov_support = true\|false` in the same source. Null: not written; packer's default applies (stage 63; until 2026-09-25 accepted and read by nothing). |
 | `executable`, `config`, `gitignore` | | | Accepted from `BuilderModel`; this plugin reads none of them. |
 | `profile`, `parameters`, `runtime_classifier`, `executables` | | | Refused (unknown keys); the fixture's comments record the replacements. |
 
@@ -584,16 +623,16 @@ value column means the literal string `default`.
 | `network` | str | `default` | The VPC id; `default` resolves at load to the account's default VPC. Written as the packer `vpc_id`, the instance root's `data "aws_vpc"` id and the EFS builder's `vpc_id`. |
 | `subnets` | list | required, at least one | Exactly one entry with `is_default: true`; the load refuses none. |
 | `subnets[].name` | str | the subnet id | Label. |
-| `subnets[].subnet_id` | str | required | The subnet id. The default one is the packer `subnet_id` and the instance module's `subnet_id`; the EFS builder mounts on every non-public one (one per zone). Not checked against the account. |
+| `subnets[].subnet_id` | str | required | The subnet id. The default one is the packer `subnet_id` and the instance module's `subnet_id`; the EFS builder mounts on every non-public one (one per zone). Checked at load against the subnets the account lists for the declared VPC, and refused when it is not one of them (stage 63; until 2026-09-25 not checked). A VPC the account lists without subnets makes no claim. |
 | `subnets[].is_default` | bool | `false` | The subnet bakes and instances use. |
 | `subnets[].public` | bool | `false` | The operator's statement; not overwritten by discovery. The EFS builder skips public subnets. |
 | `subnets[].cidr` | str or null | null | Informational. |
 | `subnets[].availability_zone` | str or null | null | Declared, never inferred; `validate` refuses a zone incompatible with an instance's zonal storages. The EFS builder uses it to pick one subnet per zone. |
 | `subnets[].config` | mapping | `{}` | Accepted, not read. |
 | `availability_zones` | list | `[]` | `{name, is_default}`; the default one becomes the packer `availability_zone`. |
-| `security_group_ids` | list[str] | `[]` | Checked to exist at load; counted toward the limit of five; read by no emitter. |
-| `addl_security_groups` | list[str] | `[]` | Checked to exist at load; counted; appended to the instance's `vpc_security_group_ids`; the EFS mount targets' client groups. |
+| `addl_security_groups` | list[str] | `[]` | Checked to exist at load; the only list counted toward the limit of five; appended to the instance's `vpc_security_group_ids`; the EFS mount targets' client groups. |
 | `ssh_ingress_security_group_ids` | list[str] | `[]` | Not checked at load. The generated instance group's port-22 source; when empty the ingress is the VPC's own CIDR block instead. |
+| `security_group_ids` | | | Refused (unknown key) since stage 63. Until 2026-09-25 it was checked and counted but reached no emitter; put the ids in `addl_security_groups`. |
 
 ### What other entries contribute
 
@@ -628,7 +667,20 @@ These are not this plugin's fields, but the packer source reads them:
   instances only when the SSM profile is unset.
 - **`networking.network: default`** resolves to the account's default VPC
   at load and is refused when the account has none. **A VPC id** must be one
-  the session can describe.
+  the session can describe. Either way, **a declared subnet in that VPC**
+  loads and **a subnet id from another VPC** (or a mistyped one) is refused
+  at load (stage 63; it used to pass and fail at the first bake or apply);
+  **a VPC the account lists without subnets** leaves the declared subnets
+  unchecked.
+- **Security groups in `addl_security_groups`** are checked, counted
+  (at most five) and worn by every launched instance; **the same ids under
+  `security_group_ids`** are an unknown-key refusal at load (stage 63; until
+  2026-09-25 accepted, checked and counted, but never emitted).
+- **`ena_support` / `sriov_support` declared** (`true` or `false`) are
+  written into the `amazon-ebs` source as that value; **not declared**, the
+  source carries neither line and packer's defaults decide (stage 63; until
+  2026-09-25 the fields were accepted and read by nothing, whatever their
+  value).
 - **`ephemeral: true`** keeps nothing baked here past a successful run;
   **`false`** (the fixture) keeps everything until `retention_keep`, an
   image's `retention` or an explicit `dispose image`.
@@ -676,12 +728,18 @@ These are not this plugin's fields, but the packer source reads them:
   present. `CloudBuilderModel`: `region` present.
 - `update_networking()` (at `finalize`, after the base): discovers the
   account (four describe calls) and refuses a `default` network with no
-  default VPC, a VPC the account does not have, a security group in
-  `security_group_ids` or `addl_security_groups` the account does not have,
-  and more than five groups in those two lists together. Missing
+  default VPC, a VPC the account does not have, a declared
+  `subnets[].subnet_id` that is not among the subnets the account lists for
+  that VPC (stage 63; skipped when the account lists none for it), a
+  security group in `addl_security_groups` the account does not have, and
+  more than five groups in `addl_security_groups`. Missing
   `networking` is a warning, not an error. Every verdict is a `ValueError`
   with the message logged at ERROR first; the load fails and `run` exits 1
   (`validate` exits 1).
+- `security_group_ids` under `networking:` is refused as an unknown key by
+  the shared model config, like any other undeclared key (stage 63; until
+  2026-09-25 it was a field that was validated and counted but never
+  emitted).
 - The AWS CLI version: `validate` and every run look up the checker for
   each declared executable; for the entry named `aws-cli` it is this
   package's, and a missing binary, an unreadable version or one below the
@@ -695,9 +753,11 @@ validation error naming the runtime.
 **At generation.** `session_mechanism()` raises `ValueError` on a value
 other than `ssm`. `amazon_ebs_source()` asserts that the source image has
 query assets (an `AssertionError` naming the image and runtime; it cannot
-fire for a resolved or deferred PSI). Resolution's `query_provider_image`
-raises when the region is unset or the owner cannot be read from the
-result, and returns `None` on no match, which
+fire for a resolved or deferred PSI). `ena_support` and `sriov_support` are
+written into the source only when declared, as the declared boolean; there
+is no further check on them (stage 63). Resolution's `query_provider_image`
+raises when the region is unset or the AMI record carries neither
+`ImageOwnerAlias` nor `OwnerId`, and returns `None` on no match, which
 [resolve.py](../base/src/cs_image_system/base/commands/resolve.py) turns
 into a failed run.
 
@@ -857,11 +917,26 @@ Load (`ValueError`, logged at ERROR, `run`/`validate` exit 1):
 ```text
 No VPC ID specified in networking configuration for AWS cloud builder <name>, and no default VPC found in AWS account. ...
 VPC ID <vpc> specified in networking configuration for AWS cloud builder <name> not found in AWS account.
+Subnet <id> (<name>) in networking configuration for AWS cloud builder <runtime> is not in VPC <vpc>.
 Security group ID <sg> specified in networking configuration for AWS cloud builder <name> not found in AWS account.
 Total number of security groups specified in networking configuration for AWS cloud builder <name> is <n>, which may exceed limits for certain instance types. ...
 AWS Error: <botocore message>
 Networking configuration name cannot be empty for <model>.
 ```
+
+The subnet line (stage 63) means a declared `subnets[].subnet_id` is not one
+of the subnets the account lists for the declared VPC: a typo, a subnet from
+another VPC or account, or a `network: default` that resolved to a VPC other
+than the one the subnets belong to. Fix the subnet id or the `network` in the
+tree. Before 2026-09-25 this passed the load and surfaced at the first bake
+or apply as a packer or tofu error about the subnet. The security-group
+count line counts only `addl_security_groups` since stage 63.
+
+Declaring `networking.security_group_ids` fails the load as an unknown key
+(stage 63), with the shared model config's extra-key error naming
+`security_group_ids`. Until 2026-09-25 the field was accepted, checked and
+counted but never emitted; move its ids into `addl_security_groups`, which
+is the list that reaches the instance and storage roots.
 
 `AWS Error:` wraps every `BotoCoreError`/`ClientError` of the discovery: an
 unknown profile (`The config profile (<p>) could not be found`), an expired

@@ -111,6 +111,13 @@ def amazon_ebs_source(model: AwsCloudBuilderModel, image: Any, *, runtime: str, 
     }
     if profile:
         c["profile"] = profile
+    # stage 63: the runtime's ena_support/sriov_support reach the source when
+    # declared (they were accepted and read by nothing); packer's defaults
+    # apply when they are not
+    for flag in ("ena_support", "sriov_support"):
+        value = getattr(model, flag, None)
+        if value is not None:
+            c[flag] = bool(value)
     # Debug-session parity for BAKES (TODO stage 1 finding, 2026-08-31):
     # this VPC has no internet gateway and operator machines have no route
     # to private IPs, so SSH-from-outside can never reach a build instance.

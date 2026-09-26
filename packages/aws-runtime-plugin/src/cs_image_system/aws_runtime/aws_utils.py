@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import copy
 import logging
 from typing import Any, Sequence, cast
 import boto3  # type: ignore[import-untyped]
@@ -120,57 +121,6 @@ AWS_DI_MAP: dict[str, str] = {
 }
 
 
-def get_ami_owner(ami_info) -> dict[str, Any] | None:
-    owner_id = ami_info.get('OwnerId')
-    owner_alias = ami_info.get('ImageOwnerAlias', None)
-    
-    return {
-        "OwnerId": owner_id,
-        "ImageOwnerAlias": owner_alias
-    }
-    
-def get_ami_ssh_user(ami_id, region="us-east-2"):
-    ec2 = boto3.client('ec2', region_name=region)
-    
-    # 1. Fetch the AMI details
-    response = ec2.describe_images(ImageIds=[ami_id])
-    if not response['Images']:
-        return None
-        
-    ami_name = response['Images'][0].get('Name', '').lower()
-    description = response['Images'][0].get('Description', '').lower()
-    combined_text = f"{ami_name} {description}"
-
-    # 2. Heuristic mapping lookup
-    # Order matters: check more specific flavors before generic ones
-    if "ubuntu" in combined_text:
-        return "ubuntu"
-    elif "debian" in combined_text:
-        return "admin"
-    elif "centos" in combined_text:
-        return "centos"
-    elif "fedora" in combined_text:
-        return "fedora"
-    elif "rocky" in combined_text:
-        return "rocky"
-    elif "bitnami" in combined_text:
-        return "bitnami"
-    elif "amzn" in combined_text or "amazon-linux" in combined_text or "rhel" in combined_text:
-        return "ec2-user"
-        
-    return "ec2-user" # Default fallback for most enterprise/AWS Linux flavors
-
-def remap_for_aws(rc: Mapping[str, Any]) -> dict[str, Any]:
-    q: dict[str, Any] = {}
-    for k,v in rc.items():
-        q[k.replace("_", "-")] = v
-    ret: dict[str, Any] = {}
-    if "filters" in q:
-        ret["filters"] = q["filters"]
-    if "owners" in q:
-        ret["owners"] = q["owners"]
-    return ret
-
 def remap_for_image_query(rc: OSBuilderBaseImageBuilderSubconfig) -> tuple[dict[str, Any], dict[str, Any]]:
     ret: dict[str, Any] = {
         "DryRun": False,
@@ -180,8 +130,10 @@ def remap_for_image_query(rc: OSBuilderBaseImageBuilderSubconfig) -> tuple[dict[
     owners: Sequence[Any] = rc.get_owners() if rc else []
     ret["Owners"] = owners # completely overridden if specified in config
     missed: dict[str, Any] = {}
-    the_query = remap_for_aws(rc.get_query())
-    for topk, topv in rc.get_query().items():
+    # stage 63: a deep copy -- the loop below rewrites the filters mapping in
+    # place, and get_query() hands back the entry's own nested dicts, so the
+    # model's query used to be mutated by every resolution
+    for topk, topv in copy.deepcopy(dict(rc.get_query())).items():
         _key2 = AWS_DI_MAP.get(topk, None)
         if not _key2:
             missed[topk] = topv
@@ -230,91 +182,17 @@ def query_image(
     post_query_filter: dict[str, Any] | None = None,
     session_config: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
-    """
-    Query AWS for a single AMI matching the provided criteria.
+    """The newest AMI matching an EC2 ``DescribeImages`` query.
 
-    This function queries EC2 for AMIs using boto3. It supports multiple query
-    strategies with a prioritized decision path: direct AMI ID lookup, then
-    name-based lookup, then filter-based search. If multiple AMIs match, the
-    most recently created one is returned.
-
-    Parameters
-    ----------
-    query : dict[str, Any]
-        Dictionary containing query parameters. Supported parameters are:
-
-        **Direct Lookup (highest priority):**
-        - ``image_id`` (str): Exact AMI ID to retrieve (e.g., "ami-12345678")
-
-        **Name-Based Lookup (second priority):**
-        - ``image_name`` (str): Exact or pattern AMI name to search for
-
-        **Filter-Based Lookup (third priority):**
-        - ``owner`` (str or list[str]): AMI owner filter. Can be account ID,
-          "amazon", SELF, or "aws-marketplace"
-        - ``architecture`` (str): Machine architecture ("x86_64", "i386", "arm64")
-        - ``root_device_type`` (str): Root device type ("ebs", "instance-store")
-        - ``virtualization_type`` (str): Virtualization type ("hvm", "paravirtual")
-        - ``state`` (str): AMI state ("available", "pending", "failed", "deleted")
-        - ``platform`` (str): Platform type ("windows" for Windows, omitted for Linux)
-        - ``is_public`` (bool): Whether AMI is publicly available
-        - ``description`` (str): AMI description text to match
-        - ``creation_date`` (str): AMI creation date for filtering
-        - ``tag:key`` (str): Tag-based filter (e.g., "tag:Environment")
-        - ``min_image_id`` (str): Lower bound for AMI ID range
-        - ``max_image_id`` (str): Upper bound for AMI ID range
-
-    session_config : dict[str, Any], optional
-        Dictionary containing session configuration parameters such as
-        "profile" and "region_name".
-
-    Returns
-    -------
-    dict[str, Any] | None
-        Dictionary containing the AMI details if found. Key fields include:
-        - "ImageId": The AMI ID
-        - "Name": The AMI name
-        - "Architecture": Machine architecture
-        - "CreationDate": Creation timestamp
-        - "OwnerId": Owner account ID
-        - "RootDeviceType": Root device type
-        - "VirtualizationType": Virtualization type
-        - And other standard EC2 AMI attributes
-        Returns None if no AMI is found matching the query.
-
-    Raises
-    ------
-    AMIQueryError
-        If there is an error communicating with AWS or invalid parameters.
-    ValueError
-        If the query dictionary is empty or contains invalid parameter
-        combinations.
-
-    Examples
-    --------
-    Query by direct AMI ID:
-
-    >>> ami = query_image({"image_id": "ami-12345678"})
-
-    Query by name:
-
-    >>> ami = query_image({"image_name": "amzn2-ami-hvm-*"})
-
-    Query with filters:
-
-    >>> ami = query_image({
-    ...     "owner": "amazon",
-    ...     "architecture": "x86_64",
-    ...     "root_device_type": "ebs",
-    ... }, region="us-west-2")
-
-    Query with multiple filters and tags:
-
-    >>> ami = query_image({
-    ...     "owner": SELF,
-    ...     "tag:Environment": "production",
-    ...     "virtualization_type": "hvm"
-    ... })
+    ``query`` is what ``remap_for_image_query`` builds from an OS builder
+    entry: ``Owners``, ``Filters`` (``[{"Name": ..., "Values": [...]}]``) and
+    the ``DryRun``/``IncludeDisabled``/``IncludeDeprecated`` flags. Every
+    match is kept that agrees with ``post_query_filter`` (a mapping of AMI
+    record keys to required values); the newest by ``CreationDate`` is
+    returned, or None when nothing matches. ``session_config`` is the
+    runtime's boto3 session configuration and is required. A pinned
+    image id does not come through here (stage 63 reads the entry's
+    ``image_id`` through ``query_image_by_id``).
     """
     if not query:
         raise ValueError("Query dictionary cannot be empty")
@@ -330,17 +208,6 @@ def query_image(
     except (BotoCoreError, ClientError) as e:
         raise AMIQueryError(f"Failed to create EC2 client: {e}") from e
 
-    # # Decision Path 1: Direct AMI ID lookup (highest priority)
-    # if "image_id" in query and query["image_id"]:
-    #     return _query_by_ami_id(ec2_client, ami_id=query["image_id"])
-
-    # # Decision Path 2: Name-based lookup
-    # if "image_name" in query and query["image_name"]:
-    #     return _query_by_name(ec2_client, ami_name=query["image_name"])
-
-    # # Decision Path 3: Filter-based lookup
-    # if "filter" in query and query["filter"]:
-    
     results = _query_by_filters(ec2_client, query)
     # Return most recently created AMI if multiple matches
     ilist = []
@@ -360,11 +227,6 @@ def query_image(
         ilist.sort(key=lambda x: x.get("CreationDate", ""), reverse=True)
 
     return cast(dict[str, Any], ilist[0])
-
-    raise AMIQueryError(
-        "No valid query parameters provided. Must include 'image_id', "
-        "'image_name', or 'filter'."
-    )
 
 
 def _query_by_ami_id(ec2_client: Any, ami_id: str) -> dict[str, Any] | None:
@@ -405,45 +267,6 @@ def _query_by_ami_id(ec2_client: Any, ami_id: str) -> dict[str, Any] | None:
 
     return cast(dict[str, Any], response["Images"][0])
 
-
-def _query_by_name(ec2_client: Any, ami_name: str) -> dict[str, Any] | None:
-    """
-    Query for an AMI by name. Supports wildcards (e.g., "amzn2-ami-*").
-
-    Parameters
-    ----------
-    ec2_client : Any
-        Boto3 EC2 client instance
-    ami_name : str
-        The AMI name or pattern (supports wildcards)
-
-    Returns
-    -------
-    dict[str, Any] | None
-        The most recently created AMI matching the name, or None if not found
-
-    Raises
-    ------
-    AMIQueryError
-        If the API call fails
-    """
-    try:
-        response = ec2_client.describe_images(
-            Filters=[{"Name": "name", "Values": [ami_name]}]
-        )
-    except (ClientError, BotoCoreError) as e:
-        raise AMIQueryError(f"Failed to query AMI by name '{ami_name}': {e}") from e
-
-    if not response.get("Images"):
-        return None
-
-    images = response["Images"]
-
-    # Return most recently created AMI if multiple matches
-    if len(images) > 1:
-        images.sort(key=lambda x: x.get("CreationDate", ""), reverse=True)
-
-    return cast(dict[str, Any], images[0])
 
 
 def _query_by_filters(ec2_client: EC2, query: dict[str, Any]) -> list[dict[str, Any]]:
@@ -495,75 +318,6 @@ def _query_by_filters(ec2_client: EC2, query: dict[str, Any]) -> list[dict[str, 
             raise AMIQueryError(f"Failed to query AMI with filters: {e}") from e
     log.info(f"Found {len(ilist)} AMIs matching filters.")
     return ilist
-
-
-def _build_ami_filters(query: dict[str, Any]) -> list[dict[str, Any]]:
-    """
-    Build EC2 describe_images filters from query parameters.
-
-    Only processes recognized AMI filter parameters. Unknown parameters are
-    silently ignored.
-
-    Parameters
-    ----------
-    query : dict[str, Any]
-        Query parameters to convert to EC2 filters
-
-    Returns
-    -------
-    list[dict[str, Any]]
-        List of EC2 filter dictionaries suitable for describe_images API.
-        Each filter has "Name" and "Values" keys.
-    """
-    # Mapping of query parameter names to EC2 filter names
-    standard_filters = {
-        "owner": "owner-id",
-        "name": "name",
-        "root_device_type": "root-device-type",
-        "architecture": "architecture",
-        "virtualization_type": "virtualization-type",
-        "state": "state",
-        "is_public": "is-public",
-        "description": "description",
-        "creation_date": "creation-date",
-        "min_image_id": "image-id",
-        "max_image_id": "image-id",
-        "platform": "platform",
-    }
-
-    filters: list[dict[str, Any]] = []
-
-    for query_key, filter_name in standard_filters.items():        
-        if query_key in query:
-            value = query[query_key]
-
-            # Handle boolean values
-            # if isinstance(value, bool):
-            #     value = str(value).lower()
-
-            # Ensure value is a list for EC2 API
-#            values = value if isinstance(value, list) else [str(value)]
-            values = value if isinstance(value, list) else [value]
-
-            filters.append({"Name": filter_name, "Values": values})
-
-    # Handle tag-based filters (keys starting with "tag:")
-    for key, value in query.items():
-        if key.startswith("tag:"):
-            tag_name = key[4:]  # Remove "tag:" prefix
-            values = value if isinstance(value, list) else [str(value)]
-            filters.append({"Name": f"tag:{tag_name}", "Values": values})
-
-    return filters
-
-
-# stage 24: `image_from_query_result` was removed here. It built a dict with
-# no `runtimes`, and Image has required at least one since 2026-07-03, so the
-# structure call always raised and a bare `except Exception: return None`
-# always swallowed it -- the function never returned an Image on either
-# cloud. Twelve of its seventeen keys were kebab-case against snake-case
-# fields as well, three of them (`source_image`, `primary_disk_size`,
-# `auto_update`) real fields that were plainly meant to land. Ledger 78.
 
 
 

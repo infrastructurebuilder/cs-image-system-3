@@ -32,8 +32,8 @@ runtime_builders:
     on_failure: keep               # 4.2: runtime default for ephemeral instances that fail verification (`keep` or `teardown`)
     teardown_after: 2h             # 4.2: runtime default: a failed ephemeral instance is torn down by the next run after this
     state_configuration: default   # 4.3: the backend every root on this runtime inherits (`default` = the default backend)
-    ena_support: true              # 4.3: passed to the packer source
-    sriov_support: true            # 4.3: accepted; not read
+    ena_support: true              # 4.3: emitted into the amazon-ebs source when declared
+    sriov_support: true            # 4.3: emitted into the amazon-ebs source when declared
     iam_instance_profile: REPLACE-ME-bake-profile   # 4.3: instance profile attached to BUILD VMs
     session_mechanism: ssm         # 4.3: bakes and debug sessions through SSM
     session_instance_profile: REPLACE-ME-ssm-profile   # 4.3: the profile launched INSTANCES wear for SSM sessions
@@ -41,7 +41,6 @@ runtime_builders:
     networking:                    # 4.5, with the AWS additions
       name: main-vpc               # a label (defaults to the network)
       network: vpc-REPLACE-ME-east2   # the VPC id; `default` resolves to the account's default VPC
-      security_group_ids: []       # groups for build VMs and instances (none: the module creates its own)
       addl_security_groups:        # existing groups every instance also wears; never modified
         - sg-REPLACE-ME-gateway
       ssh_ingress_security_group_ids:   # port-22 ingress references only these groups, never a CIDR

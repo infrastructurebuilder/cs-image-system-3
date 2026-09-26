@@ -119,3 +119,69 @@ def test_a_decrypted_backend_setting_is_written_as_its_ciphertext():
     from cs_image_system.hashicorp_utils.collector import render_backend_value
     value = Decrypted("plain-profile", marker="ENC[age:QUJD]")
     assert render_backend_value(value) == '"ENC[age:QUJD]"'
+
+
+# ------------------------------------------------------ 2. the AWS runtime
+
+def _runtime(data: dict, name: str) -> dict:
+    return next(r for r in data["runtime_builders"] if r["name"] == name)
+
+
+def test_ena_and_sriov_reach_the_amazon_ebs_source_when_declared(tmp_path: Path, monkeypatch):
+    root = copy_config(tmp_path)
+    _edit(root / "cfg" / "runtime-builders.yml",
+          lambda d: _runtime(d, "aws-east2-runtime").update(ena_support=True, sriov_support=False))
+    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    try:
+        assert run.run(["base-image"], apply=False).ok
+        src = "".join(p.read_text() for p in run.generated.rglob("*source*.pkr.hcl") if "pckr-ebs-ans" in str(p))
+        assert "ena_support = true" in src and "sriov_support = false" in src, src[:400]
+    finally:
+        run.restore_cwd()
+
+
+def test_security_group_ids_is_refused(tmp_path: Path, monkeypatch):
+    root = copy_config(tmp_path)
+    _edit(root / "cfg" / "runtime-builders.yml",
+          lambda d: _runtime(d, "aws-east2-runtime")["networking"].update(security_group_ids=["sg-1"]))
+    stub_environment(monkeypatch)
+    try:
+        with pytest.raises(Exception) as exc:
+            load_context(root)
+        assert "security_group_ids" in str(exc.value)
+    finally:
+        reset_singletons()
+
+
+def test_a_subnet_outside_the_vpc_is_refused(tmp_path: Path, monkeypatch):
+    from cs_image_system.aws_runtime import aws_utils
+    stub_environment(monkeypatch)
+    real = aws_utils.get_vpc_map_and_default_vpc_id
+
+    def with_subnets(session_config):
+        vpcs, default, sgs = real(session_config)
+        return ({v: {"subnets": [{"subnet_id": "subnet-somewhere-else"}]} for v in vpcs}, default, sgs)
+    monkeypatch.setattr(aws_utils, "get_vpc_map_and_default_vpc_id", with_subnets)
+    try:
+        with pytest.raises(Exception) as exc:
+            load_context(copy_config(tmp_path))
+        assert "is not in VPC" in str(exc.value), str(exc.value)
+    finally:
+        reset_singletons()
+
+
+def test_the_image_query_never_rewrites_the_entrys_own_query(tmp_path: Path, monkeypatch):
+    import copy as _copy
+    from cs_image_system.aws_runtime.aws_utils import remap_for_image_query
+    stub_environment(monkeypatch)
+    ctx = load_context(copy_config(tmp_path))
+    try:
+        osb = ctx.os_builders["basic-rhel-9"]
+        entry = next(e for e in osb.get_configs_for_image_builders().values()
+                     if e.get_image_builder() == "pckr-ebs-ans")
+        before = _copy.deepcopy(dict(entry.query))
+        remap_for_image_query(entry)
+        remap_for_image_query(entry)
+        assert dict(entry.query) == before
+    finally:
+        reset_singletons()
