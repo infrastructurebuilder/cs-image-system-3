@@ -314,10 +314,18 @@ Chain 22-23 was proved by a full GCE cycle (run
 verified, ended empty); chain 20-21 owed none (no live GCE disk declares
 a zone). The bar ran on the two combined (1113 passed).
 
-**Dead fields, dead code and misleading messages** (each a line in the
-READMEs' "accepted, not read" rows or "When it fails" tables; remove the
-field, read it, or fix the message; every entry independent unless it
-names a chain):
+**Dead fields, dead code and misleading messages: DECIDED 2026-09-25**
+(the operator, by quiz, field by field; each was a line in the READMEs'
+"accepted, not read" rows or "When it fails" tables). One branch,
+`feature/defects-dead`, one commit per package bullet below, one bar, one
+squash; the GCP bullet's live proof is ONE full GCE cycle (the operator's,
+torn down), the AWS bullets' a live `state query`. Anything not given a
+decision below has one obvious fix (dead code goes, a wrong message is
+corrected, a bug is fixed with a test) and needs none. Every removed field
+is refused at load naming the field, after the live tree and the three
+example trees are checked and any use dropped in the same commit; the
+schema teams install from the first release (§64) is the one that stays.
+Not started: a plan until the operator says "do".
 
 - `TofuS3StateBuilderModel`: 24 accepted-not-read fields (`assume_role`,
   `endpoints`, the proxies, `access_key`/`secret_key`, the `skip_*`,
@@ -331,6 +339,15 @@ names a chain):
   the backend kinds render a `Decrypted` setting in clear (only the
   plaintext guard catches it); `Registry.get_instance_by_name_or_alias`
   never reads the alias table (a state backend's alias cannot be bound).
+  **Decided:** the 24 fields PASS THROUGH: every one that is a terraform
+  s3-backend argument is emitted into the backend block when set;
+  `access_key`/`secret_key` are REFUSED at load (credentials never live in
+  the tree); `skips_credentials_validation` becomes
+  `skip_credentials_validation`, the old spelling refused by a message
+  naming the new; `executable` on the three state models is
+  version-checked like every other builder's, with `TofuVersionChecker`
+  registered. `LocalBackendKind` refuses `.`/`..` segments and a bare `/`;
+  the alias table is read; the rest as described.
 - `AwsCloudBuilderModel.ena_support`/`sriov_support` read nowhere;
   `security_group_ids` validated, counted, never emitted;
   `update_networking` never checks `subnets[].subnet_id` against the VPC;
@@ -340,6 +357,9 @@ names a chain):
   `_build_ami_filters`, `get_ami_ssh_user` (ignores the profile) and
   `remap_for_aws` unused; `query_provider_image`'s "Could not get owner"
   branch unreachable.
+  **Decided:** `ena_support`/`sriov_support` are READ (emitted into the
+  amazon-ebs source); `security_group_ids` is REMOVED
+  (`addl_security_groups` already means it); the rest as described.
 - `gcp_runtime_builders.query_images(series)` ignores `series`;
   `update_networking`'s warning names a key-file path no field can
   reach; `GCP_CLI`, `get_image_ssh_user` and the stray
@@ -347,6 +367,10 @@ names a chain):
   `gce_label` does not force a leading letter (a tag key `2024` fails at
   apply); the pd scripts embed the literal `None` for a missing
   `project_id`/`zone` instead of refusing at generation.
+  **Decided:** a label GCE cannot take is REFUSED at validate naming the
+  key (never renamed silently); `query_images(series)` honours `series`;
+  the pd scripts refuse at generation; the dead code goes. Proof: one GCE
+  cycle.
 - `default-os-plugin` (chain 22 landed 2026-09-25: `config_username`,
   `default_config_username` and `default_owners` live): the entry's `image_id`, `image_name`,
   `default_primary_disk_size`, `config` and `RhelOsBuilderModel.subscription_id`
@@ -359,12 +383,30 @@ names a chain):
   without `kw_only`; apt commands without `DPkg::Lock::Timeout`;
   `OsBuilderModel.update` typed `dict | None` makes
   `UpdatePolicy.from_config`'s bare-name branch dead.
+  **Decided:** the entry's `image_id` is READ as a fixed vendor image (the
+  query is skipped; reproducible base bakes); `image_name` is REMOVED;
+  `default_primary_disk_size` is READ (a base image's bake disk on that
+  runtime is the entry's value when declared, else the OS builder's; the
+  GCE runtime's `default_disk_size` keeps winning per finding 51; the
+  fingerprint already hashes it, so bake and fingerprint then agree);
+  `config` is READ into the entry's template context (`{{ config.x }}`
+  resolves in its templated fields); `subscription_id` is KEPT, accepted
+  and not read, reserved for a future register step (its README row says
+  so); `update: none` as a bare name stays REFUSED and the dead branch
+  goes; `ImageBuilderModel.default_machine_type` (packer bullet) is READ,
+  making the promised order true: the entry's, else the image builder's,
+  else the runtime's. The rest as described.
 - `packer-plugin`: `PackerEbsImageBuilder.generate_items_before` computes
   `super_items` and drops it; `PackerImageBuilder.generate_items_during`
   names `.pkl.hcl`; `gen_packer.py` dead (the only reader of
   `Image.variables`); `PACKER_EBS` redefined; `image_to_source` fetches
   the subconfig twice; `ImageBuilderModel.default_machine_type` read by
   nothing.
+  **Decided:** `default_machine_type` is READ (see the default-os bullet);
+  `Image.variables` is READ as extra packer variables: each key becomes a
+  `variable` block with that value as its default in the image's build
+  file (a string default quoted, item 3), designed and tested as a
+  feature; `gen_packer.py` goes; the rest as described.
 - `ansible-plugin`: `from zipfile import Path` as an annotation; HCL
   strings unescaped (a `"` in `extra_arguments`, `ansible_connection` or
   a path breaks packer); a missing relative playbook emitted silently;
@@ -372,16 +414,34 @@ names a chain):
   leaves an item a dict when no mod builder is default and the packer
   builder then raises `AttributeError` instead of a named refusal (the
   same orchestrator lines medium item 15 changed; it landed 2026-09-25).
+  **Decided:** `configuration_user` is READ as the ansible provisioner's
+  `user` override: when set it beats the bake-user resolver for that
+  builder's items (documented as the one place a modification connects as
+  someone other than the bake user); HCL strings are escaped; a missing
+  playbook is refused at generation; the item-left-a-dict case becomes a
+  named refusal; `helpers.py` goes.
 - `bash-mod-plugin`: `extra_arguments`/`configuration_user` unread;
   `get_target_deferred_type_by_VCT` no caller; `helpers.py` empty; the
   on-image `inline.sh` carries `script` lines only, never `ensure` lines
   (`csis-mods rerun` does not re-apply the declarative form; the ensure
   model medium item 16 validates, landed 2026-09-25).
+  **Decided:** `configuration_user` is READ: when set, the shell
+  provisioner's `execute_command` runs the script as that user through
+  `sudo su - <user> -c '...'` (the item's lines run as that user, the bake
+  user only launches them); `extra_arguments` is REMOVED
+  (`execute_command` is the way to change the invocation); the on-image
+  `inline.sh` CARRIES the ensure lines before the script lines, the order
+  the bake ran, so `csis-mods rerun` re-applies the declarative form (the
+  bundle's manifest hash moves once; the stage-67 restamp covers it when
+  both land together); the rest as described.
 - `okta-opa-plugin`: `okta_tf_workspace.finalize` cites a "credentials
   runbook in PLAN.md" that no longer exists; `_require_tfvar` is a bare
   `assert` (stripped under `-O`) and runs at load; `retire_server` matches
   `"404"` by string; `api_host` metadata says required with a default;
   `query_existing_users` an empty seam.
+  **Decided:** no field decision needed; every item has its obvious fix
+  (`_require_tfvar` raises `ValueError`; `retire_server` reads the status
+  code; the metadata and the citation are corrected; the empty seam goes).
 - `tf-ebs-instance-plugin`: `TofuS3StorageBuilder._lookup` reads the
   builder's `bucket_name`, never the storage's (two S3 storages on one
   builder report the same bucket); the instance builder's
@@ -395,6 +455,12 @@ names a chain):
   "will be ignored" while `finalize()` then refuses it; `ExecutableModel.execute`
   builds a command list and discards it; `sleep_before_finalization` and
   the model's `dateformat` default read by nothing that runs.
+  **Decided:** `sleep_before_finalization` is KEPT with today's
+  ignored-with-a-message behaviour; `dateformat` becomes ONE field with
+  ONE default, the one that runs today (`%Y%m%d_%H%M%S`): the run's
+  timestamp reads the model field, and `last_updated` with its formatter
+  (marked TODO DEPRECATE) goes; output names are unchanged for every tree
+  that declares nothing. The rest as described.
 - `system`: `encrypt`/`reencrypt` call `recipients_from_config` and
   `identities_from_env` outside their `try` (a traceback instead of the
   message); `--only-providers` help says "comma-separated" for a value
@@ -403,10 +469,18 @@ names a chain):
   `0.0`; `Registry.get_builder()` has no callers (the template's
   `builders_for_models` map is decorative); root `pyproject.toml` lists a
   `packages/dummy-plugin/tests` path that does not exist.
+  **Decided:** `run --force` is REMOVED (the named overrides,
+  `--force-bake` and `gate-plan --allow-destroy`, stay); the rest as
+  described.
 - `dummy-plugin`: `type = DUMMY` class attribute inert; docstrings name
   attributes that do not exist; `key`/`secret`/`api_host`/`org`/`team`
   read nowhere; the user builder emits `Dummy-tf/dummy_users.tf` beside
   the other builders' directories.
+  **Decided:** `org` and `team` are KEPT as the template's example shape
+  (required, validated, read by nothing, and the docstrings say so);
+  `key`, `secret` and `api_host` are REMOVED, so the template never
+  suggests a credential in the tree; the inert `type` attribute goes; the
+  emission path is fixed.
 
 **Records**: the low-hanging group landed on one branch,
 `feature/defects-low-hanging`, one commit per item, squash-merged and kept;
