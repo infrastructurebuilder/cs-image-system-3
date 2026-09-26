@@ -7,7 +7,7 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress** (§63 LANDED 2026-09-26). Next by the operator's word: §67 item 2 (decided), then §64.
+Current stage: **none in progress** (§63 and §67 LANDED 2026-09-26). Next by the operator's word: §64.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
 **§64**, the release that carries everything a configuration repository
@@ -58,8 +58,9 @@ bare name until its first sanctioned replacement, which is the first real
 claims, and §19 step 5 proved §60's meaning live (a sanctioned replacement
 is a new generation with a new name). §59 is deliberately LAST: it overlaps the suffix, and only once
 that is standing can anyone judge whether a name pool is still wanted. §30 waits on the operator's decision and depends
-on none of this. **Hygiene bundle VI (§67) is open since 2026-09-25**;
-the next non-critical hygiene issue joins it.
+on none of this. No hygiene bundle is open (§67, bundle VI, LANDED
+2026-09-26: the parent-fingerprint fix and eight remnants); the next
+non-critical hygiene issue opens bundle VII.
 
 **Nothing in the naming line is left**; §30 waits on the operator's
 decision. Nothing in that shorter path has to be redone -- §58
@@ -113,7 +114,7 @@ Standing decisions (operator):
   documentation contract; a code change it would need is a new stage,
   written as a plan, never a side edit.
 - §30 (the contract package), §64, §65 and §66 are planned, not started; §63
-  landed 2026-09-26; §67 (hygiene bundle VI) is open;
+  landed 2026-09-26, as did §67;
   a stage is a plan in this file until the operator says to execute it
   (2026-09-23). §62 landed 2026-09-24.
 - **Documentation stays current by stage** (operator, 2026-09-23). Once
@@ -461,60 +462,3 @@ release, and never edited at the destination. Then:
 **Sizing**: the recipe and its test half a day; the job an hour; the
 mirrors and tokens are the operator's (an hour); the live proof waits on
 the first final version on PyPI (§41's open call).
-
-## 67. Hygiene bundle VI
-
-**Status: OPEN since 2026-09-25**; item 1 landed 2026-09-26, item 2 decided and waiting. A plan: nothing here starts
-until the operator says which items to do.
-
-1. **A child image on an ephemeral runtime re-bakes on every cycle:
-   LANDED 2026-09-26** (`feature/hygiene-vi-fingerprint`, kept). The
-   fingerprint's parent slot is the parent image's own fingerprint
-   (`lineage.parent_fingerprint`), never a build id; a moved pin was
-   already its own bake reason and a test now pins that. Proved: the GCE
-   cycle `2026_09_26t06_45_39_658174` re-baked dask one last time (its
-   record was the old recipe's) and the next plan, computed against the
-   live tree with the base build disposed, reads `skip: current`. OWED
-   (operator): one `lineage restamp --runtime <rt> --commit` per runtime,
-   which also absorbs the dead-field list's disk-size move; no push to
-   `main` before it. Tests in `tests/test_v2_hygiene_vi.py`.
-2. **Small remnants found while landing §63's dead-field list**
-   (2026-09-25; none threatens function, each is a line or two):
-   - `TofuS3StorageBuilderModel.bucket_name` is required and now read by
-     nothing (the state lookup and the module call use the STORAGE's
-     bucket); `get_bucket_name()` has no callers. **Decided (USER,
-     2026-09-26):** the builder's bucket is the DEFAULT for a storage that
-     names none: a storage's `bucket_name` wins, else the builder's, else
-     the storage's name; the field stays required and means something
-     again, and nothing in the trees changes.
-   - `--only-providers` splits its comma list now, but nothing reads it
-     beyond a load warning ("configuration will still be read in full");
-     its help promises a filter. **Decided (USER, 2026-09-26): RETIRED**,
-     like `--force`; `--only-runtime <rt>` is the runtime filter and the
-     manuals stop promising a second one.
-   - `read_config_and_transform` still takes a `force` argument and stores
-     `"force": False` since the `--force` flag went (obvious: the parameter
-     and the key go, with `only_providers` above).
-   - `GlobalContext._sleep_before_finalization` defaults to 10 while the
-     model's default is 1 (the load overwrites it; only a context built
-     without a configuration sees 10). Obvious: one default, the model's.
-   - `RhelOsBuilderModel.repo_setup_commands` repeats the major-version
-     check the model now makes at load (unreachable, older message);
-     rhel's `get_command_to_update`/`commands_to_update` and the base
-     `OsBuilderModel.get_command_to_update` are reachable only by alpine.
-     Obvious: rhel's duplicate check and its two unreachable hooks go;
-     the base hook stays as alpine's one path, its docstring saying so.
-   - The GCE lookup of a pinned `image_id` does not insist on
-     `status = "READY"` as the vendor query does. Obvious: a pinned image
-     that is not READY is refused by name (a bake from it would fail).
-   - An image's `variables:` become packer variables, but nothing a
-     configuration writes can reference `var.<name>` yet. **Decided (USER,
-     2026-09-26): LEFT AS IS**, carried and documented as not yet consumed;
-     a consumer is a design question for whoever wants one. No code.
-   - `Registry.get_builder()` has no production caller (a base test pins
-     it); the plugin templates' model-to-builder maps it would read are
-     decorative. Obvious: the method and its test go; the maps stay as
-     the template's shape (the README says they are not read).
-   Item 2 is one step: one branch (`feature/hygiene-vi-remnants`), one
-   commit per remnant that changes code, one bar, no live proof beyond a
-   `validate` of the live tree (nothing here reaches a cloud).
