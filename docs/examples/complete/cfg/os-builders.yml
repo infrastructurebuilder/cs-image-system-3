@@ -17,7 +17,7 @@ os_builders:
     admin_user: csisadmin          # the mandatory local admin user (default csisadmin; may not be empty)
     admin_public_keys: null        # per-base override of config.admin_public_keys (null: the global list)
     local_test_image: almalinux:10 # the container standing in for this OS in local mod tests (default derived: almalinux:10)
-    subscription_id: null          # rhel only; accepted, not read
+    subscription_id: null          # rhel only; accepted, not read: reserved for a future register step
     tags:
       OS: "{{ this.family }}"
       Version: "{{ this.family_version }}"
@@ -61,7 +61,7 @@ os_builders:
         image_builder: pckr-ebs-ans
         description: "AlmaLinux 10 on aws-east2"
         default_machine_type: t3.medium   # 4 GB: dnf OOMs a 1 GB bake machine
-        default_primary_disk_size: 100
+        default_primary_disk_size: 100   # the bake disk on this runtime (GB); unset, the OS builder's 200
         auto_update: null          # null inherits the builder's update policy
         ssh_username: ec2-user     # the bake ssh user on this runtime
         tags:                      # merged over the builder's
@@ -74,12 +74,11 @@ os_builders:
             root_device_type: ebs
             architecture: x86_64
             virtualization_type: hvm
-        config: {}                 # accepted; not read
+        config: {}                 # free-form; `{{ config.x }}` in this entry's templated fields reads it
       - name: east1-rh10
         image_builder: pckr-ebs-east1
         # 5.1: a FIXED provider image id instead of a query (REPLACE)
         image_id: ami-REPLACE-ME-east1-alma10
-        image_name: null           # accepted; not read
         ssh_username: ec2-user
       - name: gcp-rh10
         image_builder: pckr-gce-ans

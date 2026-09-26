@@ -43,11 +43,16 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
                                 })
     description: str = " {{ image_builder.name }} runtime configuration for {{ this.name }}"
 #     output_image_name: str  = "{{ os.output_image_name }}-{{ self.runtime }}". #REMOVED
+    # stage 63: a fixed vendor image on this runtime; when set the vendor query
+    # is skipped and this image is looked up by id (AWS: the AMI id; GCE: the
+    # image name, searched in the entry's owner projects)
     image_id: str | None = None
-    image_name: str | None = None
     auto_update: bool | None = None # None inherits the OS builder's auto_update
     default_machine_type: str | None = None # Only for image creation
-    default_primary_disk_size: int = 100
+    # stage 63: the base image's bake disk on this runtime, when declared;
+    # unset, the OS builder's default_primary_disk_size (a runtime's own
+    # default_disk_size still wins, finding 51)
+    default_primary_disk_size: int | None = None
     tags: Mapping[str, str] = field(default_factory=dict)
     owners: list[str] = field(default_factory=list) # Added to parent owners
     query: Mapping[str, Any] = field(default_factory=dict)
@@ -97,15 +102,14 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
     def get_type(self) -> str:
         return self.image_builder
     def get_config(self) -> dict[str, Any]:
-        return {}
+        # stage 63: the entry's own free-form mapping (it answered {} always)
+        return dict(self.config or {})
     def get_description(self) -> str | None:
         return self.description
     def get_image_id_for_runtime(self) -> str | None:
         return self.image_id
-    def get_image_name(self) -> str | None:
-        return self.image_name    
-    def get_default_primary_disk_size(self) -> int:
-        return self.default_primary_disk_size    
+    def get_default_primary_disk_size(self) -> int | None:
+        return self.default_primary_disk_size
     def get_auto_update(self) -> bool:
         if self.auto_update is not None:
             return self.auto_update

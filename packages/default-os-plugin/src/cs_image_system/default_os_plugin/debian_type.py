@@ -17,7 +17,7 @@ DEBIAN_TYPE: str = "debian"
 UBUNTU_TYPE: str = "ubuntu"
 
 
-@dataclass(config=CSIS_MODEL_CONFIG)
+@dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
 class DebianOsBuilderModel(AptOsBuilderModel):
     """Some Debian OS/Source configuration data object."""
     type = DEBIAN_TYPE

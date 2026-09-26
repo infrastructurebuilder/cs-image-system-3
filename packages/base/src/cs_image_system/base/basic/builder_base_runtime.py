@@ -40,6 +40,12 @@ class RuntimeBuilderBase(BuilderBase[TypeVar("T", bound=RuntimeBuilderModel)]):
         # builders (aws, gcloud) override this with real cloud queries.
         return None
 
+    def query_provider_image_by_id(self, os_builder, image_id: str) -> tuple[str, str, Any] | None:
+        """The vendor image an OS builder entry PINS by id (stage 63: the
+        entry's ``image_id``; the vendor query is skipped). Same shape as
+        ``query_provider_image``; None when the provider does not know it."""
+        raise NotImplementedError(f"{self.__class__.__name__} cannot look a vendor image up by id")
+
     def query_images(self, series: list[str]) -> list[dict[str, Any]]:
         """Reality check (EXPLORE state query): every image in this
         runtime that carries the system's lineage tags, ``[{image_id, name,

@@ -68,6 +68,13 @@ def _chain_root_family(image: Any) -> str:
         return ""
 
 
+def _bake_disk(image: Any, runtime: str) -> Any:
+    from cs_image_system.base.global_context import GlobalTypeContext
+    from cs_image_system.base.lineage import bake_disk_size
+    size = bake_disk_size(GlobalTypeContext(), image, runtime)
+    return size if size is not None else image.primary_disk_size
+
+
 def _machine_type(subconfig: Any, model: AwsCloudBuilderModel) -> str:
     for v in (getattr(subconfig, "machine_type", None),
               getattr(subconfig, "default_machine_type", None)):
@@ -159,7 +166,8 @@ def amazon_ebs_source(model: AwsCloudBuilderModel, image: Any, *, runtime: str, 
         "device_name": f'"{_root_device(image, psi)}"',
         "volume_type": '"gp3"',
         "delete_on_termination": True,
-        "volume_size": image.primary_disk_size,
+        # stage 63: the one bake-disk rule the fingerprint also hashes
+        "volume_size": _bake_disk(image, runtime),
     }
     for k, v in c.items():
         if isinstance(v, str) and not (v.startswith("var.") or v.startswith("data.")):

@@ -161,6 +161,7 @@ hooks. In the order a run reaches them:
 | Configuration load | `GCPCloudBuilderModel.finalize()` | Runs `update_networking()` (network discovery below). |
 | Resolution | `provider_specific_image_class()` | Returns `GcpProviderSpecificImage`. |
 | Resolution | `query_provider_image(subconfig)` | Finds the vendor image for one OS-builder runtime entry (image query below). Returns `(image_name, owning_project, raw_result)` or `None`. |
+| Resolution | `query_provider_image_by_id(subconfig, image_id)` | Stage 63: the image an entry pins with `image_id` (a GCE image NAME), searched in the entry's owner projects with the filter `name = "<id>"` instead of the query's filters. Same return shape; `None` when no owner project has an image of that name. |
 | Image generation | `packer_source_type()` | `googlecompute`. |
 | Image generation | `packer_source_blocks(...)` | The `source "googlecompute"` block for one image. |
 | Image generation, `validate` | `session_mechanism()` | `iap` or `None`; raises on any other declared value. Also read by the launch-parameter record (`session`), by the instance builder (no public IP under `iap`) and by `validate`'s dead-end rule (a base image with no admin key AND no session mechanism). |
@@ -261,6 +262,20 @@ firewall rule targets logs a warning.
 filter, and returns the newest `creation_timestamp` with the owning
 `project` added. The builder returns `(name, project, raw)`; the base
 registers a `GcpProviderSpecificImage` in the resolved state.
+
+When the entry declares `image_id` (stage 63), the base's resolve step
+calls `query_provider_image_by_id(entry, image_id)` instead. A GCE image
+is named uniquely within its project, so the id is an image name and is
+searched where the vendor query would search: `remap_for_image_query()`
+builds the same `projects` list (the entry's merged owners, or a
+`query.owners`), then the builder drops the query's `family` and `filter`
+and sets the filter to `name = "<id>"`; the post-query filter is not
+applied, and neither is the forced `status = "READY"`. The owning project
+is read from the result as for the query (else `self`). No match returns
+`None`, and the base stops resolution with `OS builder <name>: image_id
+'<id>' on runtime <rt> is not known to the provider`. Pinning makes the
+base bake reproducible: the same vendor image every time, where the query
+takes the newest match (a vendor family publishes a new image often).
 
 `GcpProviderSpecificImage.get_query_assets()` describes the image as a
 generic query (`filters = { name = "<name>" }` plus `owners` when resolved;
@@ -364,7 +379,9 @@ The plugin's output is visible in the golden emission under
   lineage tags, sanitised), `machine_type` (the runtime entry's, else the
   runtime default), `service_account_email`, `use_iap` and
   `iap_tunnel_launch_wait` (the mechanism is `iap`), `preemptible`,
-  `disk_size` (the runtime's `default_disk_size`), `ssh_username` and
+  `disk_size` (from `lineage.bake_disk_size`, the one rule the input
+  fingerprint also hashes (stage 63); here the runtime's
+  `default_disk_size`), `ssh_username` and
   `subnetwork` (the default subnet). `network` is emitted only when it
   resolves to a non-default name, and `tags` only when `network_tags` are
   declared.
@@ -572,7 +589,7 @@ plugin's model accepts, and who reads it:
 | `project_id` | str or null | null | the project (see above); `runtime describe` reports it |
 | `zone` | str or null | null | the zone of build VMs and instances and the scope of every zonal query; `runtime describe` reports it |
 | `service_account_email` | str or null | null | the packer source's `service_account_email`; instances are not given it |
-| `default_disk_size` | int or null | null | the packer source's `disk_size` in GB; null falls back to the image's `primary_disk_size` |
+| `default_disk_size` | int or null | null | the packer source's `disk_size` in GB, the first step of `lineage.bake_disk_size`; null falls back, for a base image, to its OS builder entry's `default_primary_disk_size` and then the OS builder's, and for an instance image to its `primary_disk_size` (stage 63) |
 | `bake_preemptible` | bool | false | `preemptible = true` on the packer source |
 | `state_configuration` | str | `default` | the state backend rung between a root's own and the default backend |
 | `ssh_username` | str | `default` | the bake's ssh user for images that name none more specifically (step 4 of the bake-user order, CONFIGURATION 5.1.1); with nothing named anywhere, `packer` |
@@ -615,9 +632,11 @@ Fields the plugin reads from YAML it does not own:
 | Where | Field | Read by |
 |---|---|---|
 | the OS builder's runtime entry (`os_builders[].runtimes[]`) | `owners`, `query.filters`, `query.owners` | the image query |
+| the same entry | `image_id` | stage 63: a GCE image name that replaces the query's filters; searched in the entry's owner projects |
+| the same entry | `default_primary_disk_size` | stage 63: a base image's `disk_size` when the runtime declares no `default_disk_size` |
 | the same entry | `machine_type`, `default_machine_type` | the packer source's `machine_type`, before the runtime default |
 | the same entry | `ssh_username` | the packer source's `ssh_username` and the ansible provisioner's `user`, for this OS and every image built on it, whatever the runtime declares |
-| the image | `primary_disk_size` | `disk_size` when the runtime declares no `default_disk_size` |
+| the image | `primary_disk_size` | an instance image's `disk_size` when the runtime declares no `default_disk_size` (a base image's is its entry's `default_primary_disk_size`, else the OS builder's) |
 | the image | `source_image`, `parent_policy`, the pin | `source_image` (pinned or resolved) or `source_image_family` (deferred) |
 | `cfg/executables.yml` | the `gcloud` entry's `binary` and `version` | the version checker |
 | the instance | `runtime`, `image`, `storages`, `tags` | the GCE instance plugin, which reads `zone`, `default_machine_type`, `networking` and `session_mechanism` from this model |
@@ -655,10 +674,19 @@ and any key inside `credentials:`.
   gce_name(<series>)`, which GCE resolves to the newest image of the family.
   `parent_policy: follow` moves the pin after the bake and the post-bake
   retag writes the resolved parent onto the image.
-- **`default_disk_size` set vs null.** Set: every image here bakes at that
-  size and the image's `primary_disk_size` is ignored. Null: the image's
-  own value (which inherits the OS builder's default; 200 GB in the frozen
-  fixture's lineage) is emitted.
+- **`default_disk_size` set vs null.** The packer source's `disk_size`
+  is `lineage.bake_disk_size` (stage 63), the rule the input fingerprint
+  also hashes. Set: every image here bakes at that size and everything
+  else is ignored. Null: a base image takes its OS builder entry's
+  `default_primary_disk_size` for this runtime when declared, else the OS
+  builder's `default_primary_disk_size` (200 GB unset); an instance image
+  takes its own `primary_disk_size`. Stage 63 moved no GCE fingerprint:
+  the runtime's `default_disk_size` already won, and still does.
+- **A queried vs a pinned vendor image.** Without `image_id` on the OS
+  builder's entry, resolution runs the filter query and takes the newest
+  match, so the next base bake may start from a newer vendor image. With
+  `image_id` (stage 63) that one image name is looked up in the entry's
+  owner projects; the id is part of the fingerprint's vendor source.
 - **`ssh_username` set vs `default`.** Either way the packer source and
   the ansible provisioner name the same user, the one the bake-user order
   resolves: an entry's user wins over this field, this field over the
@@ -1012,7 +1040,10 @@ surface:
   '<f>' in project '<p>': <error>` (`ImageQueryError`: permissions or an
   unknown project); `No resolved Image identifiers for OS <name> in
   predefined_resolve` (the base's message when the query matched nothing:
-  loosen `filters`, check the owner and the `status`); `Could not get
+  loosen `filters`, check the owner and the `status`); `OS builder <name>:
+  image_id '<id>' on runtime <rt> is not known to the provider` (stage 63:
+  the pinned `image_id` names no image in the entry's owner projects;
+  check the name and that its project is among the owners); `Could not get
   owning project for image <name>` (a result with neither `project` nor a
   `self_link`; not expected from the API). Each ends the run, exit 1.
 - **The state query.** `state query images/<rt> unavailable: GCP runtime

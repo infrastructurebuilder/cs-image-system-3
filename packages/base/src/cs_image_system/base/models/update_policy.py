@@ -55,10 +55,11 @@ class UpdatePolicy:
     def from_config(cls, cfg: Any, auto_update: bool = False) -> "UpdatePolicy":
         if cfg is None:
             return cls(policy=POLICY_FULL if auto_update else POLICY_NONE)
-        if isinstance(cfg, str):
-            cfg = {"policy": cfg}
+        # a bare policy name (`update: none`) is refused when the structure
+        # loads (the field is a mapping); stage 63 removed the branch that
+        # pretended to accept one here
         if not isinstance(cfg, dict):
-            raise ValueError(f"update: must be a mapping or a policy name, got {type(cfg).__name__}")
+            raise ValueError(f"update: must be a mapping (`update: {{policy: <name>}}`), got {type(cfg).__name__}")
         policy = str(cfg.get("policy", POLICY_FULL if auto_update else POLICY_NONE)).strip().lower()
         pins = cfg.get("pin") or {}
         return cls(

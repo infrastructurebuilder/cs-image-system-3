@@ -68,6 +68,16 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
             regstr = str(_r)
         return (retval,regstr, kv) if retval else None
 
+    def query_provider_image_by_id(self, os_builder: OSBuilderBaseImageBuilderSubconfig,
+                                   image_id: str) -> tuple[str, str, Mapping[str, Any]] | None:
+        """The AMI an entry pins by ``image_id`` (stage 63), looked up with
+        DescribeImages by id; its owner is the alias when AWS gives one."""
+        kv = aws_utils._query_by_ami_id(aws_utils.ec2_client(self.model.self_to_aws_client_config()), image_id)
+        if not kv:
+            return None
+        owner = kv.get("ImageOwnerAlias") or kv.get("OwnerId") or "self"
+        return (str(kv.get("ImageId") or image_id), str(owner), kv)
+
     # def resolve_image_for_os_builder(
     #     self, os_builder: OsBuilderProtocol
     # ) -> Image | None:

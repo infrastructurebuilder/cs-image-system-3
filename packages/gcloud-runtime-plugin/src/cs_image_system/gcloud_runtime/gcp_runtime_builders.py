@@ -66,6 +66,20 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
             ownerstr = str(_p)
         return (retval, ownerstr, kv) if retval else None
 
+    def query_provider_image_by_id(self, os_builder: OSBuilderBaseImageBuilderSubconfig,
+                                   image_id: str) -> tuple[str, str, Mapping[str, Any]] | None:
+        """The image an entry pins by ``image_id`` (stage 63): a GCE image is
+        named uniquely within its project, so the name is searched in the
+        entry's owner projects, as the vendor query is."""
+        q, _missed = remap_for_image_query(os_builder)
+        q = {k: v for k, v in q.items() if k not in ("family", "filter")}
+        q["filter"] = f'name = "{image_id}"'
+        kv = query_image(query=q, session_config=self.model.self_to_gcp_client_config())
+        if not kv:
+            return None
+        owner = gcp_utils.get_image_owner(kv) or {}
+        return (str(kv.get("name") or image_id), str(owner.get("project") or "self"), kv)
+
     # stage 24: `resolve_image_for_os_builder` was removed here. It was defined
     # only on this builder, had no callers and no base-class declaration, and
     # returned image_from_query_result(...) -- which could never return an

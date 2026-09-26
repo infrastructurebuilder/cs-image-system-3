@@ -528,7 +528,7 @@ Types: `rhel` (dnf; adds `subscription_id`), `fedora` (dnf), `debian`
 | `admin_public_keys` | list[str] or null | null | per-base override of `config.admin_public_keys`; public keys only |
 | `local_test_image` | str or null | null | the container standing in for this OS in local mod tests; default derived from family/version (`almalinux:<v>` for rhel 10 and above, `rockylinux:<v>` below) |
 | `tests` | mapping | `{}` | in-bake assertions (5.3) |
-| `subscription_id` (rhel) | str or null | null | accepted; not read |
+| `subscription_id` (rhel) | str or null | null | accepted and not read, reserved for a future step that registers an image (the update commands already use a subscription's repos when the image is registered, the vendor RHUI repos otherwise) |
 | `is_default` | bool | `false` | the base `source_image: default` resolves to |
 
 ### 5.1 `runtimes[]` entries
@@ -542,17 +542,18 @@ Types: `rhel` (dnf; adds `subscription_id`), `fedora` (dnf), `debian`
 | `name` | str or null | null | a label; unique within the builder |
 | `type` | str | the parent's name | set by the loader |
 | `description` | str | templated | free text |
-| `image_id` | str or null | null | accepted, not read; the vendor query is always made |
-| `image_name` | str or null | null | accepted; not read |
+| `image_id` | str or null | null | a fixed vendor image on this runtime: when set the vendor query is skipped and the image is looked up by id (AWS: the AMI id; GCE: the image name, searched in the entry's owner projects); an id the provider does not know stops resolution. Stage 63; it was read by nothing |
+| `image_name` | | | refused at load since stage 63 (it was read by nothing); select by name with `query.filters.name`, pin with `image_id` |
 | `auto_update` | bool or null | null | overrides the builder's `auto_update` for this runtime |
 | `default_machine_type` | str or null | null | machine type for bakes on this runtime; the entry's `machine_type` template resolves to the runtime's default when unset |
-| `default_primary_disk_size` | int | `100` | GB; accepted, not read on the entry (the base image takes the OS builder's value; GCE then prefers the runtime's `default_disk_size`) |
+| `default_primary_disk_size` | int or null | null | GB; the base image's bake disk on this runtime when declared, else the OS builder's `default_primary_disk_size`; a runtime's own `default_disk_size` wins over both (GCE, finding 51). The packer sources and the fingerprint use this one rule (stage 63; the fingerprint hashed the entry's old default 100 while the bake used 200, so AWS base images read DUE once after it lands until `lineage restamp`) |
 | `tags` | mapping[str, str] | `{}` | merged over the builder's tags |
 | `owners` | list[str] | `[]` | appended to the builder's owners |
 | `query` | mapping | `{}` | merged over the builder's query, key by key |
 | `ssh_username` | str | `default` | the bake ssh user on this runtime, for this OS and every image built on it: step 2 of the bake-user order (5.1.1), ahead of anything the runtime says |
 | `tests` | mapping or null | null | when set, **replaces** the builder's `tests` for bakes on this runtime |
-| `tags`, `config` | | | accepted (`config` is not read); `aliases` are refused |
+| `tags` | mapping[str, str] | `{}` | merged over the builder's tags |
+| `config` | mapping | `{}` | free-form; since stage 63 `{{ config.x }}` in the entry's own templated fields (e.g. `description`) resolves from it, shadowing the OS builder's `config` for this entry. `aliases` are refused |
 
 #### 5.1.1 The bake ssh user
 

@@ -183,6 +183,7 @@ hooks. In the order a run reaches them:
 | Configuration load | `AwsCloudBuilderModel.finalize()` | Runs `update_networking()` (network discovery below). |
 | Resolution | `provider_specific_image_class()` | Returns `AwsProviderSpecificImage`. |
 | Resolution | `query_provider_image(subconfig)` | Finds the vendor AMI for one OS-builder runtime entry (image query below). Returns `(ami_id, owner, raw_result)` or `None`. |
+| Resolution | `query_provider_image_by_id(subconfig, image_id)` | Stage 63: the AMI an entry pins with `image_id`, looked up with `DescribeImages` by id (`aws_utils._query_by_ami_id`) instead of the query. Same return shape; `None` when AWS does not know the id. |
 | Image generation | `packer_source_type()` | `amazon-ebs`. |
 | Image generation | `packer_source_blocks(...)` | The `data "amazon-ami"` lookup and the `source "amazon-ebs"` block for one image. |
 | Image generation | `session_mechanism()` | `ssm` or `None`; raises on any other declared value. |
@@ -287,12 +288,29 @@ second, unreachable `Could not get owner` branch followed that one; it was
 removed on 2026-09-25. No match returns `None`, and the base's resolve step
 then fails the run.
 
+When the entry declares `image_id` (stage 63), the base's resolve step
+does not call `query_provider_image()` at all: it calls
+`query_provider_image_by_id(entry, image_id)`, which runs `DescribeImages`
+with `ImageIds=[<id>]` through `_query_by_ami_id` in
+[aws_utils.py](src/cs_image_system/aws_runtime/aws_utils.py), with the
+runtime's own client configuration (profile and region). The entry's
+`owners` and `query` are not consulted. The owner is read from the record
+the same way, `ImageOwnerAlias` else `OwnerId` (else `self`), and the
+result is `(ImageId, owner, raw)`. An id AWS answers
+`InvalidImageID.NotFound` or `InvalidImageID.Malformed` for, or one that
+returns no image, gives `None`, and the base stops resolution with
+`OS builder <name>: image_id '<id>' on runtime <rt> is not known to the
+provider`; any other API refusal raises `AMIQueryError`. An AMI id is
+regional, so a pinned id must exist in this runtime's region. Pinning
+makes the base bake reproducible: the same vendor AMI every time, where
+the query takes the newest match.
+
 Stage 63 also removed helpers from
 [aws_utils.py](src/cs_image_system/aws_runtime/aws_utils.py) that nothing
 called: `get_ami_owner`, `get_ami_ssh_user`, `remap_for_aws`,
 `_query_by_name` and `_build_ami_filters`. `_query_by_ami_id` (an exact
-lookup by AMI id) is kept for later use; nothing in this package calls it
-yet.
+lookup by AMI id) was kept, and since stage 63 it is what
+`query_provider_image_by_id()` calls.
 
 `AwsProviderSpecificImage.get_query_assets()` gives the packer
 `data "amazon-ami"` body:
@@ -380,7 +398,14 @@ The plugin's output is visible in the golden emission under
   `ssh_username` and `default_config_username`, then the family's vendor
   user: `admin` for debian, `ubuntu` for ubuntu, `ec2-user` otherwise). `launch_block_device_mappings` uses the source
   AMI's real `RootDeviceName` (else `/dev/xvda` for debian and amazon roots,
-  `/dev/sda1` otherwise), `gp3`, and the image's `primary_disk_size`.
+  `/dev/sda1` otherwise), `gp3`, and `volume_size` from
+  `lineage.bake_disk_size(ctx, image, runtime)` (stage 63), the one rule the
+  input fingerprint also hashes: this runtime declares no
+  `default_disk_size`, so for a base image it is the OS builder entry's
+  `default_primary_disk_size` for this runtime when declared, else the OS
+  builder's `default_primary_disk_size` (200); for an instance image its
+  own `primary_disk_size`. The fixture's base images bake with
+  `volume_size = 200`.
 - [pckr-ebs-ans-image-generation-block-000-build.pkr.hcl](../../tests/fixtures/v2_golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl):
   the `# debug session mechanism (ssm)` shell provisioner per base image
   (`session_agent_commands`) and the `# verify: SSM agent baked` lines inside
@@ -642,11 +667,30 @@ These are not this plugin's fields, but the packer source reads them:
 | OS builder `runtimes[]` entry | `default_machine_type` | The bake instance type for that base (the fixture bakes on `t3.medium` because a `t2.micro` OOMs). |
 | OS builder `runtimes[]` entry | `ssh_username` | The bake user for that OS on this runtime (step 2 of the bake-user order); unset, the order continues down to the chain root family's vendor user. |
 | OS builder `runtimes[]` entry | `owners`, `query` | The `describe_images` request. |
+| OS builder `runtimes[]` entry | `image_id` | Stage 63: an AMI id that replaces the query; looked up by id with `DescribeImages`. |
+| OS builder `runtimes[]` entry | `default_primary_disk_size` | Stage 63: the base image's `volume_size` on this runtime when declared. |
+| OS builder | `default_primary_disk_size` | The base image's `volume_size` when the entry declares none (200 by default). |
 | image `runtimes[]` entry | `machine_type` | The bake instance type for that instance image. |
-| image | `primary_disk_size` | The root volume size of the bake, in GB. |
+| image | `primary_disk_size` | The root volume size of an instance-image bake, in GB. |
 | instance | `machine_type` | The launched instance type; the runtime default otherwise. |
 
 ### Variations
+
+- **A queried vs a pinned vendor AMI.** Without `image_id` on the OS
+  builder's entry, resolution runs the `describe_images` query and takes
+  the newest match, so the next base bake may start from a newer vendor
+  AMI. With `image_id` (stage 63) the query is skipped and that one AMI is
+  looked up by id; it must exist in this runtime's region, and the id is
+  part of the fingerprint's vendor source.
+- **Where the bake disk comes from.** `volume_size` is
+  `lineage.bake_disk_size` (stage 63): this runtime has no
+  `default_disk_size`, so a base image takes its entry's
+  `default_primary_disk_size`, else the OS builder's (200). Until
+  2026-09-25 the fingerprint hashed the entry's value (then defaulting to
+  100) while the bake used the OS builder's 200; the fingerprint now
+  hashes what is baked, so every AWS base image's recorded fingerprint
+  moved once and reads DUE until `lineage restamp --runtime <rt> --commit`
+  records the new one.
 
 - **`session_mechanism: ssm` declared, with a profile.** The packer source
   gets `ssh_interface = "session_manager"`, the profile as
@@ -758,7 +802,9 @@ is no further check on them (stage 63). Resolution's `query_provider_image`
 raises when the region is unset or the AMI record carries neither
 `ImageOwnerAlias` nor `OwnerId`, and returns `None` on no match, which
 [resolve.py](../base/src/cs_image_system/base/commands/resolve.py) turns
-into a failed run.
+into a failed run. For an entry that pins `image_id`,
+`query_provider_image_by_id` returns `None` when AWS does not know the id,
+and resolve.py stops the run naming the id and the runtime (stage 63).
 
 **At apply.** Nothing in this package runs at apply: packer and tofu do,
 with what this package emitted. Packer's own in-bake verification carries
@@ -954,9 +1000,11 @@ Failed to query AMI with filters: <e>                 (AMIQueryError: a describe
 Region must be specified in builder config to resolve image identifier, but got None
 Could not get owner alias or owner id for image <ami> in region <region>, got <dict>
 No resolved Image identifiers for OS <os builder> in predefined_resolve   (base: the query matched nothing)
+Failed to query AMI by ID: <e>                        (AMIQueryError: a DescribeImages refusal other than NotFound/Malformed, for a pinned image_id)
+OS builder <name>: image_id '<id>' on runtime <rt> is not known to the provider   (base, stage 63: the pinned AMI is not in this region, is deregistered, or is malformed)
 ```
 
-The last one is the usual symptom of a vendor query that is too narrow, an
+The `No resolved Image identifiers` line is the usual symptom of a vendor query that is too narrow, an
 owner id that is wrong, or a vendor image that went away; the request that
 was sent is logged at DEBUG (`Querying for AMI with filters: ...`) and the
 count found at INFO.

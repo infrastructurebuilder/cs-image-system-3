@@ -298,6 +298,11 @@ def _render_scoped(node: Any, base_context: dict, jenv: Environment, ancestors: 
     """
     if isinstance(node, dict):
         new_ancestors = ancestors + [node]
+        if ancestors and isinstance(node.get("config"), dict):
+            # stage 63: a nested item's own `config` shadows the enclosing one
+            # for its subtree, the rule the top-level item already follows
+            # (an OS builder runtime entry's `config` was reachable by nothing)
+            base_context = {**base_context, "config": {**(base_context.get("config") or {}), **node["config"]}}
         return {k: _render_scoped(v, base_context, jenv, new_ancestors) for k, v in node.items()}
     if isinstance(node, list):
         return [_render_scoped(item, base_context, jenv, ancestors) for item in node]

@@ -247,3 +247,104 @@ def test_a_disk_archive_script_without_a_project_is_refused_at_generation(tmp_pa
             pd.transition_actions(disk, STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED)
     finally:
         reset_singletons()
+
+
+# ------------------------------------------------------ 4. the default OS plugin
+
+def _osb_entry(data: dict, osb: str, image_builder: str) -> dict:
+    """The OS builder's entry for an image builder; basic-rhel-9's only entry
+    names it as `default`, so the first entry stands in for it."""
+    o = next(x for x in data["os_builders"] if x["name"] == osb)
+    return next((e for e in o["runtimes"] if e.get("image_builder") == image_builder), o["runtimes"][0])
+
+
+def test_an_entry_image_id_pins_the_vendor_image_and_skips_the_query(tmp_path: Path, monkeypatch):
+    from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
+    root = copy_config(tmp_path)
+    _edit(root / "cfg" / "os-builders.yml",
+          lambda d: _osb_entry(d, "basic-rhel-9", "pckr-ebs-ans").update(image_id="ami-0pinnedvendor0"))
+    asked: list[str] = []
+
+    def by_id(self, entry, image_id):
+        asked.append(image_id)
+        return (image_id, "amazon", {"ImageId": image_id, "RootDeviceName": "/dev/sda1"})
+    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    monkeypatch.setattr(AwsCloudBuilder, "query_provider_image_by_id", by_id)
+    try:
+        assert run.run(["base-image"], apply=False).ok
+        assert asked == ["ami-0pinnedvendor0"]
+        src = "".join(p.read_text() for p in run.generated.rglob("*source-basic-rhel-9*.pkr.hcl"))
+        assert "ami-0pinnedvendor0" in src, src[:300]
+    finally:
+        run.restore_cwd()
+
+
+def test_image_name_on_an_entry_is_refused(tmp_path: Path, monkeypatch):
+    root = copy_config(tmp_path)
+    _edit(root / "cfg" / "os-builders.yml",
+          lambda d: _osb_entry(d, "basic-rhel-9", "pckr-ebs-ans").update(image_name="RHEL-9*"))
+    stub_environment(monkeypatch)
+    try:
+        with pytest.raises(Exception) as exc:
+            load_context(root)
+        assert "image_name" in str(exc.value)
+    finally:
+        reset_singletons()
+
+
+def test_the_entry_disk_size_is_the_bake_disk_and_the_fingerprints(tmp_path: Path, monkeypatch):
+    from cs_image_system.base.lineage import bake_disk_size
+    root = copy_config(tmp_path)
+    _edit(root / "cfg" / "os-builders.yml",
+          lambda d: _osb_entry(d, "basic-rhel-9", "pckr-ebs-ans").update(default_primary_disk_size=150))
+    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    try:
+        ctx = run.ctx
+        rhel9 = ctx.os_builders["basic-rhel-9"]
+        assert bake_disk_size(ctx, rhel9, "aws-east2-runtime") == 150
+        assert bake_disk_size(ctx, ctx.os_builders["basic-rh-10"], "aws-east2-runtime") == 200   # the OS builder's
+        assert bake_disk_size(ctx, ctx.os_builders["basic-rh-10"], "gcloud-east1") == 10          # the runtime wins
+        assert run.run(["base-image"], apply=False).ok
+        src = "".join(p.read_text() for p in run.generated.rglob("*source-basic-rhel-9*.pkr.hcl"))
+        assert "volume_size           = 150" in src or "volume_size = 150" in src, src
+    finally:
+        run.restore_cwd()
+
+
+def test_an_entry_config_reaches_its_own_templates(tmp_path: Path, monkeypatch):
+    root = copy_config(tmp_path)
+    _edit(root / "cfg" / "os-builders.yml",
+          lambda d: _osb_entry(d, "basic-rhel-9", "pckr-ebs-ans").update(
+              config={"label": "from-the-entry"}, description="bake {{ config.label }}"))
+    stub_environment(monkeypatch)
+    ctx = load_context(root)
+    try:
+        osb = ctx.os_builders["basic-rhel-9"]
+        entry = list(osb.get_configs_for_image_builders().values())[0]
+        assert entry.get_description() == "bake from-the-entry"
+        assert entry.get_config() == {"label": "from-the-entry"}
+    finally:
+        reset_singletons()
+
+
+def test_an_unsupported_rhel_major_is_refused_at_load_whatever_the_policy(tmp_path: Path, monkeypatch):
+    root = copy_config(tmp_path)
+
+    def edit(d):
+        o = next(x for x in d["os_builders"] if x["name"] == "basic-rhel-9")
+        o["family_version"] = "7"
+        o["update"] = {"policy": "none"}
+    _edit(root / "cfg" / "os-builders.yml", edit)
+    stub_environment(monkeypatch)
+    try:
+        with pytest.raises(Exception) as exc:
+            load_context(root)
+        assert "Unsupported RHEL version" in str(exc.value)
+    finally:
+        reset_singletons()
+
+
+def test_a_bare_update_policy_name_stays_refused():
+    from cs_image_system.base.models.update_policy import UpdatePolicy
+    with pytest.raises(ValueError, match="must be a mapping"):
+        UpdatePolicy.from_config("none")

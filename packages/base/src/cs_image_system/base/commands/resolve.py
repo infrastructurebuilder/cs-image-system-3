@@ -79,7 +79,15 @@ def predefined_resolve(ctx: GlobalTypeContext,
                 # Base run: query the provider for the vendor image the base
                 # image builds FROM, and hand the base image to the image
                 # builder so packer builds it.
-                x = rtb.query_provider_image(rt)
+                pinned_id = rt.get_image_id_for_runtime()
+                if pinned_id:
+                    # stage 63: the entry pins its vendor image; no query
+                    x = rtb.query_provider_image_by_id(rt, str(pinned_id))
+                    if x is None:
+                        raise Exception(f"OS builder {osb_name}: image_id {pinned_id!r} on runtime "
+                                        f"{rtb.get_name()} is not known to the provider")
+                else:
+                    x = rtb.query_provider_image(rt)
                 if x is None:
                     errstr = (f"No resolved Image identifiers for OS {osb_name} in predefined_resolve")
                     log.error(errstr)

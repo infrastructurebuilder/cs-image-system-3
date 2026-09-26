@@ -212,7 +212,7 @@ Per-kind bases add a contract:
 
 | Base class            | Classification     | Notable members |
 | ----------------------- | -------------------- | ----------------- |
-| `RuntimeBuilderBase`  | `RUNTIME_BUILDER`  | `query_provider_image`, `query_images`, `verify_instance`, `run_session_command`, `inventory`, `dispose_image`, `retag_image`, `packer_source_type`, `packer_source_blocks`, `build_id_from_artifact`, `session_mechanism`, `session_agent_commands`, `session_verify_commands`, `bake_finalize_commands`, `bake_ssh_username(image)`, `default_bake_user(family)` and `one_bake_user_per_chain()` (stage 63: the last step of the bake-user order and the GCE one-user rule), `label_key_problem(key)` (stage 63: why a declared tag key cannot become a label on this runtime; the base says nothing, GCE wants a lowercase letter first), `release_commands`, `session_instance_profile`, `provider_specific_image_class`, `create_provider_specific_image_resolved` / `_deferred`; and the gated reality hooks, each behind a `can_*` predicate so an unsupported cloud makes no claim: `can_query_instance_boot_image` / `query_instance_boot_image`, `can_query_instance_power_state` / `query_instance_power_state` (the vocabulary of [`power_state.py`](src/cs_image_system/base/power_state.py); `None` means "cannot answer", never "stopped"), `can_set_instance_power_state` / `start_instance` / `stop_instance`, `can_query_instance_identity` / `query_instance_identity` (`instance_id`, `provider_hostname`). |
+| `RuntimeBuilderBase`  | `RUNTIME_BUILDER`  | `query_provider_image`, `query_provider_image_by_id(entry, image_id)` (stage 63: the vendor image an OS builder entry pins by `image_id`, same return shape as `query_provider_image`, `None` when the provider does not know it; the base raises `NotImplementedError`, AWS and GCE implement it), `query_images`, `verify_instance`, `run_session_command`, `inventory`, `dispose_image`, `retag_image`, `packer_source_type`, `packer_source_blocks`, `build_id_from_artifact`, `session_mechanism`, `session_agent_commands`, `session_verify_commands`, `bake_finalize_commands`, `bake_ssh_username(image)`, `default_bake_user(family)` and `one_bake_user_per_chain()` (stage 63: the last step of the bake-user order and the GCE one-user rule), `label_key_problem(key)` (stage 63: why a declared tag key cannot become a label on this runtime; the base says nothing, GCE wants a lowercase letter first), `release_commands`, `session_instance_profile`, `provider_specific_image_class`, `create_provider_specific_image_resolved` / `_deferred`; and the gated reality hooks, each behind a `can_*` predicate so an unsupported cloud makes no claim: `can_query_instance_boot_image` / `query_instance_boot_image`, `can_query_instance_power_state` / `query_instance_power_state` (the vocabulary of [`power_state.py`](src/cs_image_system/base/power_state.py); `None` means "cannot answer", never "stopped"), `can_set_instance_power_state` / `start_instance` / `stop_instance`, `can_query_instance_identity` / `query_instance_identity` (`instance_id`, `provider_hostname`). |
 | `CloudBuilderBase` / `ContainerBuilderBase` | runtime | Thin subclasses of `RuntimeBuilderBase`. |
 | `GroupBuilderBase`    | `GROUP_BUILDER`    | `identity_type()`, `gid_policy()` (`config-time`, `creation-only`, `provider-assigned`), `manages_groups()` (stage 63: `False` for a lookup-only builder, whose groups the read-model records `managed: false` and which comes after a managing builder of its type), `managed_groups()`, `enrollment_token_reference()`, `base_image_prerequisites()`, `verify_commands()`, `activation_commands()`, `activation_verify_commands()`, `launch_parameters()`, `query_state()`, `validate_attributes()`, `query_attributes()`, `attribute_conflicts()`, `export_gids()`; the server registry (stage 55): `can_query_servers()`, `registered_servers(group)` (`None` when the provider could not be asked, never an empty list), `retire_servers_named(group, hostname)`; `prune_stale_attachments(tofu, run_id, cwd)` (stage 61, a runner step, default no-op); and the CI login policy (stage 56): `can_manage_workload_access()`, `workload_access_expected(group)`, `workload_access_state(group)`, `ensure_workload_access(group)`. |
 | `UserBuilderBase`     | `USER_BUILDER`     | `add_user_to_builder()` enforces `email_as_username`; `default_managed()`, `is_managed()`, `validate_user()`, `validate_attributes()`, `query_attributes()`. |
@@ -294,7 +294,15 @@ text by the ordered resolution passes:
    date; `execution.dateformat` is the format string.
 2. `scope-this` renders, per plugin key (`runtime_builders`,
    `os_builders`, ...), with `this` bound to the nearest enclosing mapping
-   and `this.parent` to the mapping that owns it.
+   and `this.parent` to the mapping that owns it. `config` is scoped the
+   same way: a top-level item's own `config:` is merged over the
+   document's `config:` for that item, and (stage 63) a NESTED mapping's
+   own `config:` (an OS builder's `runtimes[]` entry, for example) is
+   merged over the enclosing one for its subtree, key by key, so
+   `{{ config.x }}` in the entry's `description` resolves from the entry's
+   own `config` first (`_render_scoped` in
+   [`template_utils.py`](src/cs_image_system/base/template_utils.py)).
+   Until 2026-09-25 a nested item's `config` was reachable by nothing.
 
 Tags that cannot render are kept as written, so a later stage can render
 them.
@@ -480,14 +488,14 @@ live credentials for each.
 | `family` | `str` | required | OS family (see `OSFamilies`). |
 | `family_version` | `str` | required | Version; a number is coerced to text. |
 | `architecture` | `str` | `default` | CPU architecture. |
-| `default_primary_disk_size` | `str \| int` | `200` | Bake disk size in GB when `default`. |
+| `default_primary_disk_size` | `str \| int` | `200` | Bake disk size in GB for the base image, the last step of `lineage.bake_disk_size`: used when the runtime declares no `default_disk_size` and the entry for that runtime no `default_primary_disk_size`. |
 | `tags` | `dict[str, str]` | `{}` | Tags for the base image. |
 | `owners` | `list[str]` | `[]` | Vendor image owners. |
 | `query` | `dict[str, Any]` | `{}` | Vendor image query (provider-specific filters). |
-| `runtimes` | `list[OSBuilderBaseImageBuilderSubconfig]` | required, at least one | One entry per image builder to bake on. `image_builder` must be unique across entries. |
+| `runtimes` | `list[OSBuilderBaseImageBuilderSubconfig]` | required, at least one | One entry per image builder to bake on. `image_builder` must be unique across entries (``two `runtimes` entries name image builder <ib>; one entry per image builder`` at load). |
 | `config_username` | `str \| None` | `None` | Step 3 of the bake-user order: the sudo-capable user on this OS's vendor image, for every runtime whose entry names none. |
 | `auto_update` | `bool` | `False` | Alias for `update.policy: full`. |
-| `update` | `dict \| None` | `None` | Update policy (below); takes precedence over `auto_update`. |
+| `update` | `dict \| None` | `None` | Update policy (below), a mapping; takes precedence over `auto_update`. A bare policy name (`update: none`) is refused at load. |
 | `identity_types` | `list[str]` | `[]` | Identity types this base image carries (see [Capabilities](#capabilities)). |
 | `storage_types` | `list[str]` | `[]` | Storage types this base image carries. |
 | `admin_user` | `str` | `csisadmin` | The mandatory local admin user. |
@@ -503,19 +511,24 @@ live credentials for each.
 | `name` | `str \| None` | `None` | Unique within the OS builder. |
 | `type` | `str` (templated) | the OS builder name | Filled from the parent. |
 | `description` | `str` | templated | Free text. |
-| `image_id` / `image_name` | `str \| None` | `None` | A pinned vendor image instead of a query. |
+| `image_id` | `str \| None` | `None` | A pinned vendor image instead of a query (stage 63; until 2026-09-25 it was accepted and read only by the fingerprint). On the base-image lifecycle `predefined_resolve` skips `query_provider_image` and calls the runtime's `query_provider_image_by_id(entry, image_id)`: on AWS an AMI id, on GCE an image name searched in the entry's owner projects. An id the provider does not know stops resolution. Pinning makes base bakes reproducible. |
 | `auto_update` | `bool \| None` | `None` | `None` inherits the OS builder's. |
 | `default_machine_type` | `str \| None` | `None` | Bake machine type on this runtime. |
-| `default_primary_disk_size` | `int` | `100` | Bake disk size on this runtime. |
+| `default_primary_disk_size` | `int \| None` | `None` | The base image's bake disk on this runtime when declared (stage 63), step 2 of `lineage.bake_disk_size`; the runtime's own `default_disk_size` still wins. Until 2026-09-25 it defaulted to `100` and only the fingerprint read it. |
 | `tags` | mapping | `{}` | Merged over the OS builder's tags. |
 | `owners` | `list[str]` | `[]` | Added to the OS builder's and the runtime's default owners. |
 | `query` | mapping | `{}` | Merged over the OS builder's query. |
 | `ssh_username` | `str` | `default` | Step 2 of the bake-user order; unset, the order continues with the OS builder's `config_username`, the runtime's `ssh_username` and `default_config_username`, then the runtime's family default, and refuses when none answers. The entry's `finalize()` no longer fills it (it had no caller, and would have put `config_username` ahead of the runtime's `ssh_username`). |
 | `tests` | mapping or `None` | `None` | When set, replaces the OS builder's tests for bakes on this runtime. |
+| `config` | mapping | `{}` | Free-form templating values (stage 63): `get_config()` returns it (it returned `{}` always until 2026-09-25), and the string stage lets it shadow the enclosing `config` for the entry's own templated fields. |
 
-Aliases are refused on subconfig entries.
+Aliases are refused on subconfig entries. `image_name` is no longer a
+field (stage 63): it was accepted and read by nothing, so declaring it is
+now an unknown-key refusal at load. The fingerprint's vendor-source record
+still carries an `image_name: null` member, so no fingerprint moved when it
+went.
 
-`UpdatePolicy` (`update:`, a mapping or a bare policy name):
+`UpdatePolicy` (`update:`, always a mapping; `update: none` is refused):
 
 | Field | Type | Default | Meaning |
 | ------- | ------ | --------- | --------- |
@@ -526,7 +539,10 @@ Aliases are refused on subconfig entries.
 | `refresh_days` | `int \| None` | `None` | Re-bake when the series head is at least this old. |
 
 `policy: packages` needs `packages` or `pin`; a package cannot be both
-updated and excluded. The base class realizes only `none` and `full`;
+updated and excluded. `UpdatePolicy.from_config` refuses anything that is
+not a mapping with ``update: must be a mapping (`update: {policy: <name>}`), got <type>``
+(stage 63 removed a branch there that seemed to accept a bare name; the
+field's own type refuses one at load first). The base class realizes only `none` and `full`;
 package-manager families implement the targeted policies. Every bake also
 writes a package manifest to `/var/lib/csis/packages.txt`.
 
@@ -1022,7 +1038,18 @@ build's content: series, effective parent, capability stamp, every
 modification's content hash, the in-bake verification commands, the bake
 disk size, and for base images the declared vendor source, admin user and
 keys, and update policy. Machine type, usernames, run ids and timestamps
-are excluded. `bake_reason(ctx, image, runtime)` decides whether an image
+are excluded. The bake disk size is `bake_disk_size(ctx, image, runtime)`,
+the one rule the packer sources (AWS `volume_size`, GCE `disk_size`) also
+use (stage 63): the runtime's own `default_disk_size` when declared
+(finding 51); else, for a base image, its OS builder entry's
+`default_primary_disk_size` for that runtime when declared, else the OS
+builder's `default_primary_disk_size`; for an instance image, its own
+`primary_disk_size`. Before 2026-09-25 the fingerprint hashed the entry's
+value (then defaulting to 100) while AWS bakes used the OS builder's 200;
+since the fingerprint now hashes what is baked, every AWS base image's
+recorded fingerprint moved once and reads DUE until
+`lineage restamp --runtime <rt> --commit`. GCE was unaffected (its
+runtime's `default_disk_size` already won). `bake_reason(ctx, image, runtime)` decides whether an image
 bakes in this run: forced by `--force-bake`, no build yet on that runtime,
 the parent moved under `parent_policy: follow`, the parent re-bakes this
 run under `follow`, the fingerprint differs from the series head's, or
@@ -1371,7 +1398,7 @@ plugin's README.
 | `parent_policy` | `validate_policies`, `effective_parent_build`, `bake_reason` | `pinned` or `follow`. |
 | `retention` | `validate_policies`, `retention_keep_for`, the retention lifecycle | `{keep: N}`, N a non-negative int. |
 | `release` | `validate_policies`, `declared_release_targets`, the release lifecycle | `{model: <name>}`. |
-| `primary_disk_size` | `_bake_disk_size` (the fingerprint) | Part of the input fingerprint; the bake disk and every boot disk (plugin). |
+| `primary_disk_size` | `bake_disk_size` (the fingerprint and both packer sources) | Part of the input fingerprint; the bake disk and every boot disk (plugin), unless the runtime declares `default_disk_size`. |
 | `tags` | `get_tags` (merged for the sub-config) | Plugin (packer tags). |
 | `architecture` | templated at load | Plugin. |
 | `description`, `config`, `aliases` | the load | `description` defaults to `Image <name> from source image <source>`; aliases register; `config` is template context. |
@@ -1466,7 +1493,9 @@ builder model is its plugin's):
 | OS builder | `admin_user`, `admin_public_keys` | `validate_base_images`, `admin_public_keys`, the fingerprint, the in-bake tests |
 | OS builder | `update`, `auto_update` | `validate_update_policies`, `update_policy_of` (the fingerprint, `refresh_days`) |
 | OS builder | `tests`, `runtimes[].tests` | `validate_test_specs`, the in-bake tests, the fingerprint |
-| OS builder | `runtimes[].image_builder`, `image_id`, `image_name`, `query`, `default_primary_disk_size` | `base_image_runtimes`, `_vendor_source`, `_bake_disk_size` (the fingerprint) |
+| OS builder | `runtimes[].image_builder`, `image_id`, `query`, `default_primary_disk_size` | `base_image_runtimes`, `_vendor_source`, `bake_disk_size` (the fingerprint and the packer sources); `image_id` also `predefined_resolve` (the lookup by id, stage 63) |
+| OS builder | `runtimes[].config` | the string stage (`_render_scoped`), `get_config()` (stage 63) |
+| OS builder | `default_primary_disk_size` | `bake_disk_size`, when neither the runtime nor the entry declares a size |
 | OS builder | `family`, `family_version`, `architecture`, `query` | `_vendor_source` (the fingerprint); the plugins |
 | every builder | `executable` | `check_existence_of_executable`: must name an entry under `executables:` |
 | every builder | `is_default` | the load: exactly one per classification |
@@ -1614,6 +1643,18 @@ builder model is its plugin's):
   the variable is set (CI, the token minted from the job's OIDC token)
   and `as: client` otherwise (the operator's enrolled `sft` client). The
   checks are the same.
+- **A queried vs a pinned vendor image.** Without `image_id` on an OS
+  builder's runtime entry, the base-image lifecycle asks the runtime's
+  `query_provider_image` for the newest image matching the merged
+  `owners` and `query`, so a base bake can start from a newer vendor image
+  each time. With `image_id` (stage 63) it asks
+  `query_provider_image_by_id` for exactly that image instead; an unknown
+  id stops resolution. The id enters the fingerprint's vendor source, so
+  setting or changing it re-bakes that base on that runtime.
+- **Where the bake disk comes from.** The runtime's `default_disk_size`
+  when it declares one; else the entry's `default_primary_disk_size`;
+  else the OS builder's (200). One rule, `bake_disk_size`, for the packer
+  sources and the fingerprint (stage 63).
 - **One runtime vs another.** The core never branches on a cloud's name;
   what differs is which hooks a plugin implements. Block-device names in
   the launch parameters are the one place the core knows two storage
@@ -1654,7 +1695,10 @@ is written.
   `RuntimeBuilderModel` needs `default_machine_type`; networking needs a
   `network`, at least one subnet and exactly one default subnet; an OS
   builder needs at least one `runtimes[]` entry with unique image
-  builders; an image needs `source_image` and at least one `runtimes[]`
+  builders (an OS builder entry may not declare `image_name`, removed in
+  stage 63, nor an `update` that is not a mapping); a `rhel` OS builder's
+  `family_version` major must be 8, 9 or 10 (stage 63, whatever the update
+  policy); an image needs `source_image` and at least one `runtimes[]`
   entry; an instance may not declare `groups`; a storage mapping needs a
   non-empty `mount_point` and a positive `min_size`; a storage refuses
   `ALL`, an unknown `state` and an unknown `share_mode`; a group's `gid`
@@ -1694,7 +1738,7 @@ where they differ.
 | canonical hostnames | `check_canonical_hostnames` | a hostname over 63 characters, with characters outside letters, digits and hyphens, or starting or ending with a hyphen |
 | policies | `validate_policies` | `parent_policy` / `image_policy` not `pinned` or `follow`; `retention` not `{keep: <non-negative int>}`; `release` not `{model: <name>}`; `retention_keep` not a non-negative int; `on_failure` not `keep` or `teardown`; a `teardown_after` not `<n>m|h|d` |
 | test specs | `validate_test_specs` | unknown `tests` keys, a `files` entry without `path`, a `commands` entry without `run`, a `post_bake` that is not a map or has unknown keys, a `mounts` entry that is not absolute |
-| update policies | `validate_update_policies` | an `update` that is neither a mapping nor a policy name; `packages` without packages or pins; a package both updated and excluded; a non-positive `refresh_days` |
+| update policies | `validate_update_policies` | an `update` that is not a mapping (from YAML the load refuses it first); `packages` without packages or pins; a package both updated and excluded; a non-positive `refresh_days` |
 | identity | `validate_identity` | a group the read-model records as managed that is missing from the YAML |
 | storages | `validate_storages` | an unknown allowed group; an instance attaching a group-gated storage its image's group is not allowed (or with no owning group); a data lifecycle the builder cannot realize; a single-attach storage attached by several instances (naming the multi-host builders on that runtime); every illegal transition (a new storage not starting `active`, an illegal pair, a transition while attached, `archived` on a builder without archive support, an undeclared storage whose record names no root, an attachment of an unknown or non-active storage) |
 | image groups | `validate_image_groups` | an image naming an unknown group; an instance whose image has no group |
@@ -1716,9 +1760,10 @@ journaled under `bake_plan`) and applies the scope check.
 ### At generation
 
 - **Resolution** (`predefined_resolve`): a base-image lifecycle asks each
-  runtime for the vendor image; no image builder, no runtime builder, or
-  no resolved identifier for an OS builder raises and the lifecycle is
-  recorded `failed`. Template resolution runs up to five passes; what
+  runtime for the vendor image (by query, or by id when the entry pins an
+  `image_id`, stage 63); no image builder, no runtime builder, no resolved
+  identifier for an OS builder, or a pinned id the provider does not know
+  raises and the lifecycle is recorded `failed`. Template resolution runs up to five passes; what
   still carries `{{` stays as written.
 - **The phases**: a before-hook, generator or after-hook returning false,
   or a build executable exiting non-zero, raises `LifecycleRunError`
@@ -2136,7 +2181,14 @@ code writes it (values in angle brackets).
 - `Image <n> must have at least one runtime specified in the 'runtimes'
   field` / `Image <n> must have either 'os' or 'source_image' specified`.
 - `OS builder <n> must have at least one runtime configuration.` /
-  `Duplicate runtime configuration name <ib> in OS builder <n>`.
+  ``OS builder <n>: two `runtimes` entries name image builder <ib>; one entry per image builder``
+  (stage 63; it used to read `Duplicate runtime configuration name <ib>
+  in OS builder <n>`).
+- `Unsupported RHEL version '<v>' in OS builder <n> (supported: 8, 9, 10)`
+  / `Could not determine RHEL version from family_version '<v>' in OS
+  builder <n>` -- a `type: rhel` OS builder whose major is not 8, 9 or 10,
+  or whose `family_version` does not parse; refused at load since stage 63
+  (until 2026-09-25 only when update commands were generated).
 - `Runtime builder <n> must have a default machine type specified.` /
   `RuntimeNetworkingModel must have a network specified.` /
   `... has no subnets defined.` / `No default subnet defined for network
@@ -2209,7 +2261,9 @@ summary):
   entry needs a path` / `every tests.commands entry needs run` /
   `tests.post_bake must be a map` / `every mounts entry is an absolute mount
   point`.
-- `base image '<n>': update: must be a mapping or a policy name` / the
+- ``base image '<n>': update: must be a mapping (`update: {policy: <name>}`), got <type>``
+  (stage 63; it used to read "must be a mapping or a policy name", though
+  a bare name was never accepted) / the
   update-policy messages (`packages` needs packages or pins; a package
   both updated and excluded; `update.refresh_days must be a positive
   number of days`).
@@ -2277,6 +2331,12 @@ lifecycle `failed` or the apply `failed`; exit 1):
   `No resolved Image identifiers for OS <n> in predefined_resolve` -- the
   vendor query answered nothing (the runtime plugin's filters, owners or
   credentials).
+- `OS builder <n>: image_id '<id>' on runtime <rt> is not known to the
+  provider` -- an OS builder entry pins an `image_id` the runtime's
+  `query_provider_image_by_id` cannot find (an AMI id from another region,
+  a deregistered AMI, a GCE image name not in the entry's owner projects;
+  stage 63). A runtime plugin that does not implement the hook raises
+  `<class> cannot look a vendor image up by id` instead.
 - `[<lc>] before-phase hooks failed for <phase>` / `generation failed for
   <phase>` / `after-phase hooks failed for <phase>` / `Command failed
   before|after phase <phase>: <name> (Return code: <rc>)` -- a builder's
