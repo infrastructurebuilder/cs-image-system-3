@@ -137,22 +137,29 @@ def input_fingerprint(ctx: "GlobalTypeContext", image: Any, runtime: str | None 
     """Hash of everything that determines the build's CONTENT -- the bake
     decision (stage 9) compares it with the series head's recorded value.
 
-    IN: series; the parent build the bake is FROM (the effective pin, so a
-    moved parent changes the fingerprint); the capability stamp; every
-    modification's content hash; the in-bake verification commands; the
-    bake disk size (it becomes every instance's boot-disk size); and for
-    base images the declared vendor source (family/version/architecture,
-    the query, the runtime entry's image id/name), the admin user and keys,
-    and the update policy.
+    IN: series; the PARENT IMAGE's own fingerprint on this runtime (stage 67
+    item 1: the parent's content, computed from the tree, never a build id
+    -- a parent re-baked from identical inputs leaves the child current, a
+    changed parent still marks it due; which BUILD the child bakes from is
+    the pin's business, and a moved pin is its own bake reason); the
+    capability stamp; every modification's content hash; the in-bake
+    verification commands; the bake disk size (it becomes every instance's
+    boot-disk size); and for base images the declared vendor source
+    (family/version/architecture, the query, the runtime entry's image id),
+    the admin user and keys, and the update policy.
     OUT (execution detail, not content): machine type, preemptible, IAP,
-    ssh username, the run id and timestamps. Vendor-family MOVEMENT is
-    also out -- the declared reference is hashed, not what the family
-    resolves to today; `update.refresh_days` is the way to pick that up.
+    ssh username, the run id and timestamps, and the parent's BUILD ID
+    (until 2026-09-26 the effective parent build was hashed, so on an
+    ephemeral runtime -- whose retention disposes the base build every
+    cycle -- the plan and the record could never agree and the child
+    re-baked every cycle). Vendor-family MOVEMENT is also out -- the
+    declared reference is hashed, not what the family resolves to today;
+    `update.refresh_days` is the way to pick that up.
     """
     runtime = runtime or primary_runtime_of(ctx, image)
     payload: dict[str, Any] = {
         "series": series_of(image),
-        "parent": parent_reference(ctx, image, runtime),
+        "parent": parent_fingerprint(ctx, image, runtime),
         "capabilities": capability_stamp(ctx, image, runtime),
         "mods": [{k: v for k, v in r.items() if k != "run"} for r in mod_records(ctx, image)],
         "tests": _verify_commands(ctx, image, runtime),
@@ -298,6 +305,24 @@ def effective_parent_build(ctx: "GlobalTypeContext", image: Any,
         if head_id and head_id != pin:
             return head_id, pin
     return pin, None
+
+
+def parent_fingerprint(ctx: "GlobalTypeContext", image: Any, runtime: str | None = None) -> str:
+    """The fingerprint's parent slot (stage 67 item 1): ``vendor`` for a
+    base image (its vendor source is hashed on its own), else the parent
+    IMAGE's input fingerprint on this runtime -- the base image hashes from
+    its OS builder model, so no lineage record is needed. A parent the tree
+    cannot place (refused at validate as an unresolved reference) keeps a
+    ``series:`` stand-in so the hash still computes."""
+    if is_base_image(ctx, image):
+        return "vendor"
+    src = getattr(image, "source_image", None)
+    if not src or src == SELF:
+        return "vendor"
+    parent = find_image(ctx, str(src), runtime)
+    if parent is None:
+        return f"series:{src}"
+    return input_fingerprint(ctx, parent, runtime)
 
 
 def parent_reference(ctx: "GlobalTypeContext", image: Any, runtime: str | None = None) -> str:

@@ -245,14 +245,22 @@ bake plan (logged, and in `run-summary.json`) names it per
 - no build of the series on that runtime yet;
 - its **inputs changed**: the recorded `input_fingerprint` of the series
   head differs from the one the tree computes now. The fingerprint covers
-  the series, the parent build the bake is from, the capability stamp,
-  every modification's content hash, the in-bake tests and the bake disk
-  size; for base images also the declared vendor source, the admin user
-  and keys, and the update policy. It excludes machine type, preemptible,
-  IAP, ssh username, run ids and timestamps. Vendor-family *movement* is
-  excluded too: the declared reference is hashed, not what it resolves to
-  today;
-- its **parent moved** under `parent_policy: follow`; a parent that bakes
+  the series, the parent image's own fingerprint (its content on that
+  runtime, computed from the tree; stage 67: until 2026-09-26 it was the
+  parent's build id, so on an ephemeral runtime, whose retention disposes
+  the base build every cycle, the plan and the record could never agree
+  and the child re-baked every cycle), the capability stamp, every
+  modification's content hash, the in-bake tests and the bake disk size;
+  for base images also the declared vendor source, the admin user and
+  keys, and the update policy. It excludes machine type, preemptible, IAP,
+  ssh username, run ids and timestamps, and which BUILD of the parent the
+  bake is from: that is the pin's business, and a moved pin is the next
+  reason. Vendor-family *movement* is excluded too: the declared reference
+  is hashed, not what it resolves to today;
+- its **parent moved** under `parent_policy: follow` (the pin behind the
+  parent series' head, the condition the state query reports as `stale`):
+  judged before the fingerprint, so a parent re-baked from identical
+  inputs (a `refresh_days` refresh) is still followed; a parent that bakes
   in the same run counts as a move (`parent … re-bakes this run`);
 - `update.refresh_days` on the OS builder is due: the head is at least
   that many days old (package updates are invisible to the fingerprint);

@@ -24,7 +24,7 @@ source "amazon-ebs" "imgfile-basic-cloudflow" {
         csis_series         = "imgfile-basic-cloudflow",
         csis_parent         = "series:imgfile-basic-dask",
         csis_run            = "2026_08_26t12_00_00",
-        csis_fingerprint    = "09b667110c0f507d",
+        csis_fingerprint    = "6e9fd96fe71e1d4f",
         csis_identity_types = "okta",
         csis_storage_types  = "ebs,efs,gcs,pd,s3",
     }

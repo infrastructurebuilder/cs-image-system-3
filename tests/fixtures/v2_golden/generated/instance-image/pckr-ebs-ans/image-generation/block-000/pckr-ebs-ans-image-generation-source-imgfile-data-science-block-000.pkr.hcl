@@ -24,7 +24,7 @@ source "amazon-ebs" "imgfile-data-science" {
         csis_series         = "imgfile-data-science",
         csis_parent         = "series:my-deb-11",
         csis_run            = "2026_08_26t12_00_00",
-        csis_fingerprint    = "a8cb05be090ae349",
+        csis_fingerprint    = "e21ef5ed1e6ff3da",
         csis_identity_types = "okta",
         csis_storage_types  = "ebs",
     }
