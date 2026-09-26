@@ -1242,14 +1242,6 @@ def main(
         False, "--base-only", help="Run only the base-image lifecycle (what `build-all`/`generate` select "
                                    "with this flag; the same as `run base-image`)"
     ),
-    only_providers: Annotated[
-        list[str],
-        typer.Option(
-            "--only-providers",
-            help="Only use specified runtime providers (repeatable, or comma-separated)",
-        ),
-    ]
-    | None = None,
     dry_run: bool = typer.Option(
         True, "--dry-run/--no-dry-run",
         help="Enumerate the deferred finalization commands (packer builds, "
@@ -1339,9 +1331,6 @@ def main(
         read_config_and_transform(typer_cntx,
                                   root_dir,
                                   verbose,
-                                  # stage 63: a comma list splits (the help promised it)
-                                  [p.strip() for v in (only_providers or []) for p in v.split(",") if p.strip()] or None,
-                                  False,     # `--force` (read by nothing) was removed
                                   dry_run=dry_run,
                                   overlays=[p.resolve() for p in (overlay or [])],
                                   undeclare=list(undeclare or []))

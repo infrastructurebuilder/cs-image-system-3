@@ -179,7 +179,7 @@ class GlobalTypeContext:
     # are read live from the registry by their properties -- not cached here.
     _root_group: Group = None  # type: ignore
 
-    _sleep_before_finalization: int = 10
+    _sleep_before_finalization: int = 1     # the model's default (stage 67; it said 10)
 
     _gitignore_entries: list[str] = []
 
@@ -621,8 +621,6 @@ class GlobalTypeContext:
 
     def __init__(self,
                  verbose: bool = False,
-                 force: bool = False,
-                 only_providers: list[str] | None = None,
                  config_dir: Path | None = None,
                  config_data: IAConfig | None = None,
                  working_path: Path | None = None,
@@ -689,8 +687,6 @@ class GlobalTypeContext:
             # Builder collections live in the registry; the *_builders properties read
             # them. Nothing is cached on the context here anymore.
             self._executables = config_data.executables_as_dict or {} # typer_context.obj.get(EXECUTABLES, None)
-            self.only_providers = only_providers or []
-            self.force = force or False
             self._all_sorted_builders = all_sorted_builders or []
             # self._terraform_provider_setups = typer_context.obj.get(
             #     TERRAFORM_PROVIDER_SETUPS, None
@@ -1006,8 +1002,7 @@ def read_config_and_transform(
     root_dir: Path,
             # config_file: str,
     verbose: bool = False,  # We eventually set verbose in the typer_cntx.obj
-    only_providers: list[str] | None = None,
-    force: bool = False,
+    *,
     dry_run: bool = True,
     overlays: list[Path] | None = None,
     undeclare: list[str] | None = None,
@@ -1024,17 +1019,8 @@ def read_config_and_transform(
         The global configuration instance.
     """
     run_start_time = datetime.now()
-    typer_cntx.obj = {"run_start_time": run_start_time, "force": force}   # the CLI sets "base_only" itself
+    typer_cntx.obj = {"run_start_time": run_start_time}   # the CLI sets "base_only" itself
     env = os.environ.copy()
-    if only_providers is None:
-        only_providers = []
-
-    if only_providers:
-        log.warning(
-            f"Only providers '{only_providers}' specified but "
-            "configuration will still be read in full.  only-providers "
-            "is currently not fully supported."
-        )
     reg = registry.Registry()
     if not root_dir:
         raise ValueError("Root directory must be provided")
@@ -1314,8 +1300,6 @@ def read_config_and_transform(
     )
     ctx = GlobalTypeContext(
         verbose,
-        force,
-        only_providers,
         root_dir,
         config_data,
         wpath,

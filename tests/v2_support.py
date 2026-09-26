@@ -213,7 +213,7 @@ def load_context(config_root: Path, dry_run: bool = True, overlays: list[Path] |
     reset_singletons()
     from cs_image_system.base.global_context import read_config_and_transform
     return read_config_and_transform(cast(Any, types.SimpleNamespace(obj={})),
-                                     config_root, False, [], False, dry_run=dry_run,
+                                     config_root, False, dry_run=dry_run,
                                      overlays=list(overlays or []), undeclare=list(undeclare or []))
 
 
