@@ -342,6 +342,11 @@ directory is an assertion failure naming the phase and the builder class;
 a builder whose `executable` names no entry in `cfg/executables.yml`
 fails inside `get_executable_copy()` with
 `Executable '<key>' not found for builder '<name>' of type '<type>'`.
+That is the only refusal for a missing executable: stage 63 removed a
+second `ValueError` in `terraform_commands` that checked the copy after
+`get_executable_copy()` returned, which could never be reached because
+`get_executable_copy()` raises first, naming the builder (removed
+2026-09-25).
 
 ### The gated plan, gate, apply sequence
 
@@ -439,10 +444,15 @@ builder's own parameters (`labels`).
 `hashicorp.py` holds `FO` (`FormatterOptions(indent_length=4,
 vertically_align_attributes=False)`), `QString(value, quoted=True,
 quote_char='"')` (a `str` subclass whose `str()` quotes the value when
-`quoted` is set, except a `var.` reference, which always stays raw; the
-constructor's effective default is `quoted=True` -- the `__new__` signature
-says `False`, but the dataclass initialiser runs after it and wins, so
-`QString("x")` renders `"x"`), the `TerraformGenerator` protocol
+`quoted` is set, except a `var.` reference, which always stays raw).
+`QString` is still a `str`, so it compares equal to its bare value
+(`QString("abc") == "abc"`). Since stage 63 `__new__` defaults
+`quoted=True`, matching the class attribute, and sets `value` itself, so
+`QString("x")` renders `"x"` and `QString("x", quoted=False)` renders `x`.
+Until 2026-09-25 the `__new__` signature defaulted `quoted` to `False`
+and never assigned `value`, the attribute `__str__` reads, so `str()` of a
+fresh `QString` depended on something else setting it. Then comes the
+`TerraformGenerator` protocol
 (`generate_terraform(setup)` and `generate_terraform_data(setup)` returning
 lines), `packer_variable(builder, name, type, default, description=None,
 env_var=None, sensitive=False, validation=None)` which appends a packer
@@ -490,7 +500,11 @@ redefinition, the state-location tuple and its collisions, the binding
 chain, the rebinding refusal, the backend record, a registration without a
 kind), the packer collector, the root mixin (dry-run and real-run init
 arguments, the runner's own init, the backend path, one executable copy
-per command), the block model and the version helpers. The package's
+per command), the block model and the version helpers. `QString`'s
+default quoting (quoted unless `quoted=False`, stage 63) is pinned by
+[test_v2_defects_dead.py](../../tests/test_v2_defects_dead.py)
+(`test_a_qstring_is_quoted_by_default_and_prints`) in the workspace
+suite. The package's
 tests borrow the S3 kind from `tf-s3-state-plugin` to build registrations,
 so they need that package installed (the workspace always has it).
 

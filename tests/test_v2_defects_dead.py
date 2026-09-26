@@ -587,3 +587,12 @@ def test_an_out_of_scope_instance_root_writes_no_tfvars(tmp_path: Path, monkeypa
         aws_root.post_finalize_phase(ExecutionLifecyclePhase.INSTANCE_GENERATION)
     finally:
         run.restore_cwd()
+
+
+# ------------------------------------------------------ 10. hashicorp-utils
+
+def test_a_qstring_is_quoted_by_default_and_prints():
+    from cs_image_system.hashicorp_utils.hashicorp import QString
+    q = QString("abc")
+    assert q.quoted is True and str(q) == '"abc"' and q == "abc"
+    assert str(QString("abc", quoted=False)) == "abc"

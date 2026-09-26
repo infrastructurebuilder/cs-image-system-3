@@ -40,8 +40,11 @@ class QString(str):
             f"{self.quote_char}{self.value}{self.quote_char}" if self.quoted else self.value
         )
 
-    def __new__(cls, value: str, quoted: bool = False, quote_char: str = '"'):
+    def __new__(cls, value: str, quoted: bool = True, quote_char: str = '"'):
+        # stage 63: the default agrees with the class (quoted); `value` is set,
+        # so __str__ -- which read an attribute nothing assigned -- works
         instance = super().__new__(cls, value)
+        instance.value = str(value)
         instance.quoted = quoted
         instance.quote_char = quote_char
         return instance

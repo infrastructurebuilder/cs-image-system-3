@@ -155,12 +155,7 @@ class TerraformRootMixin(_Base):
         )
         commands: list["ExecutableModel"] = []
         for cmd in arg_lists:
-            e = self.get_executable_copy()
-            if not e:
-                raise ValueError(
-                    f"Executable for {self.__class__.__name__} is not available "
-                    f"but is required to run commands in phase {phase.value}"
-                )
+            e = self.get_executable_copy()      # raises, naming the builder, when none is declared
             e.args = list(cmd)
             e.working_directory = working_directory
             commands.append(e)
