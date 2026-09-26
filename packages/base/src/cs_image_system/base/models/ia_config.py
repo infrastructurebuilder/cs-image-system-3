@@ -5,7 +5,6 @@
 from dataclasses import field
 from .model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
-from datetime import datetime
 from typing import Any
 
 import logging
@@ -32,6 +31,10 @@ from ..constants import  OOPS_DEFAULTS
 reg = Registry()
 
 
+# the run timestamp's format when the configuration names none
+DEFAULT_DATEFORMAT: str = "%Y%m%d_%H%M%S"
+
+
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
 class IAConfig():
     """Global configuration data object.
@@ -42,8 +45,8 @@ class IAConfig():
         The working directory for the application.
         Relative directories are relative to where the
             application is run from.
-    last_updated : datetime
-        The last (generated-commit) updated timestamp.
+    dateformat : str
+        The strftime format of the run's ``execution.timestamp``.
     default_type : str
         default type to use when none is specified.
     executables: list[Executable] # TODO
@@ -84,10 +87,12 @@ class IAConfig():
     """
 
     id: str
-    last_updated: datetime = field(default_factory=datetime.now) # TODO DEPRECATE?
     working_directory: str = "./workdir"
     generation_directory: str | None = "generated"
-    dateformat: str = "%Y-%m-%d-%H%M%S"
+    # stage 63: ONE default, the one the run's timestamp has always used
+    # (execution.timestamp); the model's own default differed and was read only
+    # by a last_updated formatter nothing called, removed with it
+    dateformat: str = DEFAULT_DATEFORMAT
     # Named list of executables required by the application, with
     # optional version requirements and binary paths.
     # List not validated until the validation phase of the lifecycle, except for
@@ -110,10 +115,6 @@ class IAConfig():
     # Arbitrary key-value configuration
     config: dict[str, Any] = field(default_factory=dict)
     
-    @property
-    def last_updated_timestamp_str(self) -> str:
-        return self.last_updated.strftime(self.dateformat)
-
     @property
     def executables_as_dict(self) -> dict[str, ExecutableModel]:
         return { e.name: e for e in self.executables }

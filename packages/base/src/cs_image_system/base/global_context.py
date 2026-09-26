@@ -1044,7 +1044,8 @@ def read_config_and_transform(
         raise ValueError(f"Failed to read configuration from {_config_dir}")
     # Here, we know that none of the "name" elements collide
     original_str = yaml.dump(orig)
-    dtfmt = orig.get("dateformat", "%Y%m%d_%H%M%S")
+    from .models.ia_config import DEFAULT_DATEFORMAT
+    dtfmt = orig.get("dateformat", DEFAULT_DATEFORMAT)     # stage 63: the model's one default
     run_start_date = run_start_time.date()
     timestamp = run_start_time.strftime(dtfmt)
     # TODO: figure out some more runtime values to inject here, like git commit hash, branch, etc

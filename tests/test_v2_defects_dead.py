@@ -596,3 +596,24 @@ def test_a_qstring_is_quoted_by_default_and_prints():
     q = QString("abc")
     assert q.quoted is True and str(q) == '"abc"' and q == "abc"
     assert str(QString("abc", quoted=False)) == "abc"
+
+
+# ------------------------------------------------------ 11. base
+
+def test_dateformat_has_one_default_and_it_is_the_one_the_run_uses():
+    from cs_image_system.base.models.ia_config import DEFAULT_DATEFORMAT, IAConfig
+    assert DEFAULT_DATEFORMAT == "%Y%m%d_%H%M%S"
+    assert IAConfig.__dataclass_fields__["dateformat"].default == DEFAULT_DATEFORMAT
+    assert "last_updated" not in IAConfig.__dataclass_fields__
+
+
+def test_an_executable_builds_its_command_once(monkeypatch, tmp_path: Path):
+    import subprocess
+    from cs_image_system.base.models.executable import ExecutableModel
+    seen: list[list[str]] = []
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: seen.append(list(cmd)) or subprocess.CompletedProcess(cmd, 0, "", ""))
+    e = ExecutableModel(name="tool", type_="executable", binary="/bin/echo")
+    e.prepended_arguments = ["-n"]
+    e.args = ["a"]
+    e.execute("b")
+    assert seen == [["/bin/echo", "-n", "a", "b"]], seen

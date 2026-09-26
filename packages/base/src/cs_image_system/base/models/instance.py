@@ -184,7 +184,10 @@ class Instance(RootItem, SubItemOverrideProtocol, SelfInjectedNameProtocol):
         super().__post_init__() # validates name and aliases, sets name to safe_name, etc
         if not self.image:
             # This might blow up the default description
-            log.warning(f"Instance '{self.get_display_name()}' does not have an image specified. This instance will be ignored during generation.")
+            # stage 63: finalize() refuses it; the warning used to say it "will be
+            # ignored during generation", which never happened
+            log.warning(f"Instance '{self.get_display_name()}' does not have an image specified; "
+                        "the load refuses it when the configuration finalizes.")
             # raise ValueError("Instance must have an image specified.")
 
     def finalize(self):

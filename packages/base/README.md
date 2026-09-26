@@ -290,7 +290,9 @@ text by the ordered resolution passes:
 1. `interpolate` renders Jinja tags against `ENV` (the process
    environment), `execution` and the document's own `config:` map.
    `execution.timestamp` is the run start formatted with the tree's
-   `dateformat` (fallback `%Y%m%d_%H%M%S`); `execution.date` is the ISO
+   `dateformat` (default `%Y%m%d_%H%M%S`, `DEFAULT_DATEFORMAT` in
+   [ia_config.py](src/cs_image_system/base/models/ia_config.py), the same
+   default the model carries since stage 63); `execution.date` is the ISO
    date; `execution.dateformat` is the format string.
 2. `scope-this` renders, per plugin key (`runtime_builders`,
    `os_builders`, ...), with `this` bound to the nearest enclosing mapping
@@ -435,7 +437,10 @@ instances, groups and users. `SubRootItem` adds the parent link
 
 `execute(*args, skips=False)` runs `[binary] + prepended + args + appended`
 with `subprocess.run(check=True, capture_output=True)` in the working
-directory. Names must be unique.
+directory (`skips=True` leaves out the prepended and appended arguments).
+It builds that command list once (stage 63; until 2026-09-25 a first list
+was built and thrown away before the real one, with no effect on what ran).
+Names must be unique.
 
 ### Runtime builders (`cfg/runtime-builders.yml`, key `runtime_builders`)
 
@@ -713,14 +718,13 @@ registers under `PROVIDER_SPECIFIC_IMAGE` with the key
 | Key | Type | Default | Meaning |
 | ----- | ------ | --------- | --------- |
 | `id` | `str` | required | The configuration's identifier. |
-| `last_updated` | datetime | now | Informational. |
 | `working_directory` | `str` | `./workdir` | Superseded by `--root-dir`. |
 | `generation_directory` | `str \| None` | `generated` | Where generated output lands, relative to the root. |
-| `dateformat` | `str` | `%Y-%m-%d-%H%M%S` | Used by `last_updated_timestamp_str`. The string stage reads the raw key with fallback `%Y%m%d_%H%M%S` for `execution.timestamp`. |
+| `dateformat` | `str` | `%Y%m%d_%H%M%S` (`DEFAULT_DATEFORMAT`) | The `strftime` format of the run's `execution.timestamp`. One field, one default (stage 63; the model's own default used to be `%Y-%m-%d-%H%M%S`, read only by a `last_updated` formatter nothing called, until 2026-09-25). |
 | `executables` | list of `ExecutableModel` | `[]` | Tools builders run; names unique. |
 | `runtime_builders`, `image_builders`, `instance_builders`, `os_builders`, `mod_builders`, `storage_builders`, `group_builders`, `user_builders`, `state_backends` | lists in YAML | `[]` | Builder declarations, each with `name` and `type`. Structured per `type` and stored by name. |
 | `gitignore` | `list[str]` | `[]` | Appended to the built-in entries (`target/`, `.terraform/`, `terraform.tfstate`, `terraform.tfstate.backup`, `!.terraform.lock.hcl`); the last occurrence of a duplicate keeps its place. |
-| `sleep_before_finalization` | `int` | `1` | Accepted and ignored; finalization never waits on a terminal. |
+| `sleep_before_finalization` | `int` | `1` | Read into the context, then ignored: finalization never waits on a terminal. A real run with a non-zero value logs `sleep_before_finalization=<n> is ignored: finalization never waits on a terminal (DESIGN §3G)`; a dry run logs nothing about it. Kept by decision in stage 63. |
 | `encryption` | `{recipients: [age1...]}` | `[]` | age public keys every encrypted value is encrypted to. |
 | `public_safe` | `{allow: [...]}` | `[]` | Substrings and `path:<glob>` entries the scanner accepts. |
 | `config` | mapping | `{}` | Free key-value settings, available as `config.<key>` in templates and read by name in code. |
@@ -1328,16 +1332,16 @@ with `extra="forbid"`: an unknown key is refused at load.
 |---|---|---|---|
 | `id` | str | required | The configuration's identifier. Read into `IAConfig.id`; nothing in the core acts on the value. |
 | `generation_directory` | str or null | `generated` | Where a run writes, relative to the root. The CLI resolves it once at load; every `generated/<lifecycle>/`, `run-summary.json`, `state-report.json` and `final_execution.sh` path hangs under it, and `_private/` replaces its NAME beside it (`mirror_path`). |
-| `dateformat` | str | `%Y-%m-%d-%H%M%S` on the model | The `strftime` format of `execution.timestamp` in the string stage. Two readers, two defaults: the string stage reads the RAW key with fallback `%Y%m%d_%H%M%S` when the key is absent; the model's default feeds only the `last_updated_timestamp_str` property, which nothing calls. Declare it explicitly. |
+| `dateformat` | str | `%Y%m%d_%H%M%S` | The `strftime` format of `execution.timestamp` (and the value of `execution.dateformat`) in the string stage, which reads the raw key and falls back to `DEFAULT_DATEFORMAT`, the model's own default. One field, one default since stage 63: until 2026-09-25 the model's default was `%Y-%m-%d-%H%M%S`, read only by a `last_updated_timestamp_str` formatter nothing called (removed with `last_updated`). A tree that declares nothing produces the same output names as before. |
 | `executables` | list of `ExecutableModel` | `[]` | The tools builders run; usually in `cfg/executables.yml`. Names unique and never `default`, `self` or empty; checked for presence and version at `validate` and every run. See [`ExecutableModel`](#executablemodel-cfgexecutablesyml-key-executables). |
 | `runtime_builders`, `state_backends`, `os_builders`, `mod_builders`, `storage_builders`, `group_builders`, `user_builders`, `image_builders`, `instance_builders` | lists | `[]` | The builder declarations, each with `name` and `type`; structured per `type` against the plugin model and stored by name. Accepted at the top level of ANY `cfg/*.yml`; lists are concatenated across files. |
 | `gitignore` | list[str] | `[]` | Appended to the built-in entries (`target/`, `.terraform/`, `terraform.tfstate`, `terraform.tfstate.backup`, `!.terraform.lock.hcl`); a duplicate keeps its LAST position. Written as `.gitignore` into `generated/` (plus the run-local names there) and into every lifecycle directory. |
 | `encryption.recipients` | list[str] | `[]` | age public keys (`age1...`) every `ENC[age:...]` value is encrypted to. Read as TEXT by `encrypt` and `reencrypt` (no identity needed); a marker here is refused. |
 | `public_safe.allow` | list[str] | `[]` | What the scanner lets through by decision: a plain entry is a case-insensitive substring a matched span may contain; `path:<glob>` accepts a file whole (path or basename). Read as text by the commit gate, `public-safe` and the hook; must be a list of strings. A marker here is refused. |
 | `config` | mapping | `{}` | Free settings: available as `config.<key>` in the string stage and on the context as `ctx.config`; the keys the core reads are tabled next. An overlay's `config:` overrides these key by key for one invocation. |
-| `sleep_before_finalization` | int | `1` | Accepted and IGNORED: finalization never waits on a terminal; a real run logs `sleep_before_finalization=<n> is ignored`. |
+| `sleep_before_finalization` | int | `1` | Read (into the context's `sleep_before_finalization`), then IGNORED: finalization never waits on a terminal. A real (`--no-dry-run`) run with a non-zero value logs, at info, `sleep_before_finalization=<n> is ignored: finalization never waits on a terminal (DESIGN §3G)`; a dry run says nothing. Kept with this behaviour by decision in stage 63. |
 | `working_directory` | str | `./workdir` | Accepted, not read: `--root-dir` is the working directory. |
-| `last_updated` | datetime | now | Accepted, not read. |
+| `last_updated` | -- | -- | GONE (stage 63): declaring it is an unknown key, refused at load like any other. Until 2026-09-25 it was accepted and read by nothing but the unused `last_updated_timestamp_str` formatter, removed with it. |
 
 ### `config:` keys the core reads
 
@@ -1704,7 +1708,13 @@ is written.
   `ALL`, an unknown `state` and an unknown `share_mode`; a group's `gid`
   must be an int of at least 1024 or a deferral; a user needs non-blank
   `first_name` and `last_name` and may not have aliases; an executable's
-  name may not be a default placeholder and must be unique.
+  name may not be a default placeholder and must be unique; `last_updated`
+  in `cfg/_config.yml` is now an unknown key (stage 63). An instance with
+  no `image` logs the warning `Instance '<name>' does not have an image
+  specified; the load refuses it when the configuration finalizes.` while
+  it is structured, and its `finalize()` then refuses it (stage 63: the
+  warning used to say the instance "will be ignored during generation",
+  which never happened, until 2026-09-25).
 - **After the items are read**: exactly one group is `is_root: true`;
   every group member is a declared user (`_validate_groups`); every item's
   `type` resolves to a configured builder, or to the registered default
@@ -1872,6 +1882,9 @@ suite pins the rest of what this section describes; the recent ones are
 [`tests/test_v2_provider_aliases.py`](../../tests/test_v2_provider_aliases.py),
 [`tests/test_v2_generations.py`](../../tests/test_v2_generations.py),
 [`tests/test_v2_alias_pool.py`](../../tests/test_v2_alias_pool.py),
+[`tests/test_v2_defects_dead.py`](../../tests/test_v2_defects_dead.py)
+(stage 63: the single `dateformat` default, the command built once, a
+zero-minute session is expired),
 [`tests/test_v2_login_proof.py`](../../tests/test_v2_login_proof.py),
 [`tests/test_v2_workload_access.py`](../../tests/test_v2_workload_access.py)
 and [`tests/test_v2_identity_plan_in_mirror.py`](../../tests/test_v2_identity_plan_in_mirror.py).
@@ -2088,6 +2101,12 @@ and what changed; the tests named pin the fix. Older findings are in
   its GCE instance plan because the AWS SSO session lapsed AFTER the
   preflight had passed; hence `expected_run_minutes` and the blocking
   window.
+- **Until 2026-09-25 (stage 63), a session with exactly zero minutes left
+  was not expired.** The expiry test read `(minutes_left or 1) <= 0`, so
+  `0.0` counted as one minute left. `_expired` in
+  [preflight.py](src/cs_image_system/base/commands/preflight.py) now calls
+  a session expired when its minutes left are known and `<= 0`; one whose
+  expiry cannot be read (`None`) is still not expired.
 - **2026-09-09, a `verify assert` as the runner's last step failed the
   run after the teardown** (ledger 68, `teardown` policy). The records
   then described an instance that no longer existed; the verdict now
@@ -2178,6 +2197,12 @@ code writes it (values in angle brackets).
   a builder.
 - `Instance '<n>' declares 'groups'; V2 removed per-instance groups ...
   Set 'group:' on the image instead.`
+- Warning `Instance '<name>' does not have an image specified; the load
+  refuses it when the configuration finalizes.`, then `Instance '<name>'
+  cannot be finalized without an image specified.` (`ValueError`) -- an
+  instance declares no `image`. Name the image to launch (stage 63: the
+  warning's old wording, "will be ignored during generation", was never
+  true; corrected 2026-09-25).
 - `Image <n> must have at least one runtime specified in the 'runtimes'
   field` / `Image <n> must have either 'os' or 'source_image' specified`.
 - `OS builder <n> must have at least one runtime configuration.` /
