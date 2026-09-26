@@ -471,10 +471,12 @@ What CI's workload login needs from the configuration: for every group
 builder that names the team's workload connection and role, the builder,
 `connection`, `role`, `team` and `api_host`, as JSON. Nothing secret.
 `--env` prints shell exports (`OPA_WORKLOAD_CONNECTION`,
-`OPA_WORKLOAD_ROLE`, `SFT_TEAM`, `OPA_ADDR`) for the first such builder,
-which `just ci-login-proof` evaluates; exit 2 when none names one. This
+`OPA_WORKLOAD_ROLE`, `SFT_TEAM`, `OPA_ADDR`) for the first such builder
+(what `just ci-login-proof` evaluated until stage 64; `workload token`
+reads the configuration itself now); exit 2 when none names one. This
 command loads the configuration (it is deliberately not under `identity`,
-whose group is exempt from loading).
+whose group is exempt from loading; since stage 64 the `workload` group
+loads lazily, and `describe` loads at once).
 
 ### `workload token`
 
@@ -782,20 +784,28 @@ networking against its cloud, so a load needs reachability to AWS and GCP
 query and `prune-attachments` need the identity provider's API;
 `verify login` needs the OPA gateway path `sft` uses.
 
-**Integration points.** `just cli <args>` runs the CLI against
-`CSIS_CONFIG_ROOT` (default: the sibling live checkout); the `cloud-*`
-recipes wrap `runtime describe`, `state query --strict`, `run ...
+**Integration points.** Two Justfiles wrap this CLI (stage 64). The
+system's: `just cli <args>` runs it against `CSIS_CONFIG_ROOT` (default:
+the reference configuration checked out beside), `just preflight` is
+`preflight`, `just test-mods` is `test-mods`, `just fixture-live` runs
+`validate`, `run --all --no-state-query` and `test-mods --strict` over
+the frozen fixture. A configuration repository's, which the release ships
+and `init-config` writes: the `cloud-*` recipes wrap `runtime describe`,
+`state query --strict`, `--locked --no-dry-run run ...
 --only-runtime/--apply-runtime`, `empty`, `verify instance`, `dispose
-image` and `lineage relabel`; `just preflight` and `just cloud-preflight`
-are `preflight` and `state query --strict`. The pre-commit hook both
-repositories carry (`.githooks/pre-commit`, enabled by `just hooks` here
-and `just hooks-live` in the live checkout) runs `cs-image-system
-public-safe --staged --tree <top>`. CI runs `just cli mask`, `just cli validate`,
-`just cloud-preflight`, `just cli run --all [--commit]`, `just
-cloud-perform <rt>` and `just ci-login-proof` (which evaluates `workload
-describe --env`), as [docs/OPERATIONS.md](../../docs/OPERATIONS.md)
-section 3 lists. Terraform calls `identity export-gids` and `decrypt
---json` from the generated roots.
+image` and `lineage relabel`; `record` is `run --all --commit`;
+`config-drift` and `runtime-unchanged` are the commands of those names;
+`ci-login-proof` captures `workload token` into `OPA_TOKEN` and runs
+`verify login`. The pre-commit hook both repositories carry
+(`.githooks/pre-commit`, enabled by `just hooks`, and by `just init` in a
+configuration repository) runs `cs-image-system public-safe --staged
+--tree <top>`. The configuration repository's CI runs `mask`, `just
+validate`, `just config-drift`, `just state-query --strict`, `just
+test-mods --strict`, `just record`, `just runtime-unchanged`, `just
+cloud-perform <rt>` and `just ci-login-proof`; the system's runs `just
+fixture-live`, as [docs/OPERATIONS.md](../../docs/OPERATIONS.md) section 3
+lists. Terraform calls `identity export-gids` and `decrypt --json` from
+the generated roots.
 
 ## Configuration reference
 
@@ -1289,5 +1299,8 @@ warnings and goes on.
   [tf-gcp-plugin](../tf-gcp-plugin/README.md) (`verify instance`,
   `unmount storage`), [hashicorp-utils](../hashicorp-utils/README.md)
   (the gated sequence, `state-migration`).
-- [The Justfile](../../Justfile): `just cli`, `preflight`,
-  `cloud-preflight`, the `cloud-*` recipes and `ci-login-proof`.
+- [The Justfile](../../Justfile): `just cli`, `preflight`, `test-mods`,
+  `fixture-live`; the starter Justfile the release ships
+  ([docs/examples/standard-aws/Justfile](../../docs/examples/standard-aws/Justfile)):
+  the `cloud-*` recipes, `record`, `config-drift`, `runtime-unchanged`,
+  `ci-login-proof`.

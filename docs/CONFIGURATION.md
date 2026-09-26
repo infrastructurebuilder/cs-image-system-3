@@ -1887,7 +1887,7 @@ it is the join key between a roster and an access grant.
 
 | Variable | Read by | Meaning |
 | --- | --- | --- |
-| `CSIS_CONFIG_ROOT` | the Justfile | the live configuration root the `cloud-*`/`gce-*` recipes drive (default: the sibling `cs-image-system-testconfig` checkout); the CLI itself takes `--root-dir` |
+| `CSIS_CONFIG_ROOT` | the system's Justfile | the reference configuration `just cli`, `preflight`, `test-mods` and `full-test` read (default: the sibling `cs-image-system-testconfig` checkout); the CLI itself takes `--root-dir`, and a configuration repository's own Justfile passes its own directory |
 | `CSIS_CONFIG_IDENTITY` | every load; `decrypt`; `reencrypt`; `mask`; `materialize` (the runner's every command) | the age identity (section 13) |
 | `OPA_TOKEN` | `verify login` as the workload | the OPA token minted from the GitHub OIDC token (`cs-image-system workload token`, since stage 64; `scripts/opa-workload-token` before it); absent, the proof runs as the enrolled client |
 | `OPA_WORKLOAD_CONNECTION`, `OPA_WORKLOAD_ROLE`, `SFT_TEAM`, `OPA_ADDR` | `workload token` | the workload connection, role, team and API address to present the run's OIDC token to; any that is missing comes from the configuration's first group builder that names a workload connection |

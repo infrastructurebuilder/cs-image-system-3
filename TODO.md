@@ -58,9 +58,9 @@ bare name until its first sanctioned replacement, which is the first real
 claims, and §19 step 5 proved §60's meaning live (a sanctioned replacement
 is a new generation with a new name). §59 is deliberately LAST: it overlaps the suffix, and only once
 that is standing can anyone judge whether a name pool is still wanted. §30 waits on the operator's decision and depends
-on none of this. No hygiene bundle is open (§67, bundle VI, LANDED
-2026-09-26: the parent-fingerprint fix and eight remnants); the next
-non-critical hygiene issue opens bundle VII.
+on none of this. **Hygiene bundle VII (§68) is open since 2026-09-26**
+(§67, bundle VI, LANDED 2026-09-26); the next non-critical hygiene issue
+joins it.
 
 **Nothing in the naming line is left**; §30 waits on the operator's
 decision. Nothing in that shorter path has to be redone -- §58
@@ -315,6 +315,26 @@ model; both are code, and this is that stage.
 **Sizing**: item 1 a day (package data, the command, the tests); item 2
 half a day; item 3 a day with the live proofs, most of it CI secrets and
 the first performing run; item 4 an hour.
+
+## 68. Hygiene bundle VII
+
+**Status: OPEN since 2026-09-26.** Non-critical hygiene issues join this
+bundle; none is a stage of its own.
+
+1. **The fixture's Debian 11 chain is archived upstream.** `just
+   fixture-live` (stage 64) runs the fixture's modification tests under
+   docker, and `imgfile-data-science/data-science-setup` on `my-deb-11`
+   fails at target preparation: `apt-get` in the `debian:11` container
+   gets `404 Not Found` from `deb.debian.org/debian-security/pool/updates/`
+   (bullseye left the mirrors when its LTS ended; its packages are on
+   `archive.debian.org`). Reproduced twice on 2026-09-26, deterministic.
+   Until this lands the docker leg of `fixture-live`, and so this
+   repository's CI `live` job, is red; `validate` and the dry run pass.
+   Fix: move the fixture's Debian OS builder to `debian-12` (bookworm;
+   the golden moves), or teach the debian target preparation to point an
+   archived release at `archive.debian.org` (a behaviour change worth
+   having anyway, since every release archives eventually). Decide, then
+   do.
 
 ## 65. Walking the daily driver
 
