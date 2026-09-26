@@ -81,18 +81,19 @@ The smallest trees are [`../standard-aws/`](../standard-aws/README.md) and
 
 ## What travels with the tree
 
-This tree is a whole configuration REPOSITORY, not only the YAML. Copy it
-as it stands and every part a team needs is already there:
+This tree is a whole configuration REPOSITORY, not only the YAML. The
+release carries it: `cs-image-system init-config <dir> --from complete`
+writes it out, and every part a team needs is then there:
 
 | Part | What it is |
 | --- | --- |
 | `Justfile` | the single entry point: the five contract targets (`init`, `build`, `test`, `full-test`, `release`) and every daily and cycle recipe, each wrapping the released `cs-image-system` command against this tree |
 | `.github/workflows/ci.yml` | the repository's own CI: `verify` (no secrets), `live` (read-only against the clouds), `perform` (on `main`, under the write role, records pushed back); every `REPLACE-ME` in it is a team value |
 | `.githooks/pre-commit` | the public-safe gate on every commit; `just init` installs it |
-| `tfmodules/` | the terraform modules the emitted roots call, at `module_source_base: tfmodules`; a copy of the release's, byte for byte (a stage makes the release ship them) |
-| `scripts/` | the three helpers the recipes use: one tofu process at a time, the CI login token, the emission normaliser |
+| `tfmodules/` | the terraform modules the emitted roots call, at `module_source_base: tfmodules`; the release's, byte for byte (`cs-image-system init-config` writes them, and refreshes them after an upgrade) |
+| `scripts/` | the tree's own modification scripts; the recipes need no helper (one tofu process at a time, the CI login token and the emission normaliser are commands of the CLI since stage 64) |
 | `.gitignore` | the shell's exports, every credential file, the private mirror, tool residue; `generated/` and `meta-state/` ARE committed |
-| `.csis-version` | absent here: create it with a version to pin the release CI installs |
+| `.csis-version` | the release that wrote the tree, which CI installs; `init-config` writes it (absent in this source copy) |
 
 The system itself is installed from a release, never cloned beside the
 tree: `uv tool install cs-image-system` puts the command on `PATH`, or a

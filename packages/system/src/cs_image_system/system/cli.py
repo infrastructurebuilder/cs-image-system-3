@@ -413,6 +413,89 @@ def materialize_command(
         raise typer.Exit(code=1)
 
 
+@app.command(name="init-config")
+def init_config_command(
+    destination: Annotated[Path, typer.Argument(help="the configuration repository to write (new, empty, or existing)")],
+    starter: Annotated[str, typer.Option("--from", help="the starter tree: standard-aws (the default), standard-gce or complete")] = "standard-aws",
+    force: Annotated[bool, typer.Option("--force", help="overwrite a release-owned file that exists and differs")] = False,
+) -> None:
+    """Write a starter configuration repository from this release (stage 64).
+
+    A destination that does not exist or is empty takes the WHOLE starter: the
+    YAML, the Justfile, the workflow, the hook, .gitignore, the terraform
+    modules (module_source_base: tfmodules) and .csis-version pinned to this
+    release. A destination that already holds a configuration takes only the
+    parts the release owns (the same list without the YAML), so an existing
+    repository gains or refreshes them; a release-owned file that exists and
+    differs is refused by name unless --force. Loads no configuration."""
+    from cs_image_system.system.starters import init_config
+    try:
+        report = init_config(destination, starter, force=force)
+    except ValueError as e:
+        typer.secho(f"init-config: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=2)
+    except (OSError, RuntimeError) as e:
+        typer.secho(f"init-config: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    for line in report.lines():
+        typer.secho(line, fg=None if line.startswith("init-config: the") else typer.colors.RED,
+                    err=not line.startswith("init-config: the"))
+    if not report.ok:
+        raise typer.Exit(code=1)
+    if report.whole_tree:
+        typer.echo("init-config: next: git init, just init, then replace every REPLACE-ME "
+                   "(the tree's README says which values are yours)")
+
+
+@app.command(name="config-drift")
+def config_drift_command(typer_cntx: typer.Context) -> None:
+    """Is the committed emission current with the declarations? (stage 45;
+    a command since stage 64)
+
+    A headless dry `run --all` in a process of its own over a private copy of
+    the configuration (its .git, generated/ and _private/ left out), compared
+    with the generated/ tree committed at HEAD. Tool residue, the run-local
+    files, run ids and the run's date stamp in image names are normalised
+    on both sides; nothing else legitimately differs, so an absolute path in
+    the emission IS drift. Exit 0 when current, 1 with the diff when the
+    committed emission is BEHIND the configuration, 2 when nothing is
+    committed under generated/ or the dry run itself fails. A dry run's init
+    skips the backend, so no state access is needed; the copy's run needs
+    whatever a load needs (the sessions, CSIS_CONFIG_IDENTITY)."""
+    from cs_image_system.base.commands.emission import config_drift
+    root = Path(typer_cntx.obj.get("config_root") or os.getcwd())
+    code, lines = config_drift(root)
+    for line in lines:
+        typer.secho(line, fg=typer.colors.GREEN if code == 0 else typer.colors.RED if line.startswith(
+            ("config-drift: the committed emission is BEHIND", "config-drift: nothing", "config-drift: the dry run")) else None,
+            err=code != 0)
+    if code:
+        raise typer.Exit(code=code)
+
+
+@app.command(name="runtime-unchanged")
+def runtime_unchanged_command(
+    runtime: Annotated[str, typer.Argument(help="the runtime whose emission is compared")],
+    ref: Annotated[str, typer.Option("--ref", help="the git ref to compare against (default HEAD)")] = "HEAD",
+) -> None:
+    """Has a runtime's emission changed since REF? (stage 45; a command since
+    stage 64)
+
+    The runtime's builder directories (`runtime describe` -> `emission`) in
+    the working tree, normalised like config-drift, against the same paths at
+    REF in the configuration repository. Exit 0 when unchanged, 1 with the
+    diff when a declaration of that runtime changed, 2 for an unknown runtime.
+    CI's performing job asks this of the runtime that stays out of CI by the
+    cost decision: a change there fails the job loudly rather than bake."""
+    from cs_image_system.base.commands.emission import runtime_unchanged
+    code, lines = runtime_unchanged(runtime, ref)
+    for line in lines:
+        typer.secho(line, fg=typer.colors.GREEN if code == 0 else typer.colors.RED if line.startswith("runtime-unchanged:") else None,
+                    err=code != 0)
+    if code:
+        raise typer.Exit(code=code)
+
+
 @app.command(name="public-safe")
 def public_safe_command(
     typer_cntx: typer.Context,
@@ -908,6 +991,7 @@ app.add_typer(workload_app, name="workload")
 
 @workload_app.command(name="describe")
 def workload_describe_command(
+    typer_cntx: typer.Context,
     env: Annotated[bool, typer.Option("--env", help="Print shell exports (OPA_WORKLOAD_CONNECTION, "
                                                     "OPA_WORKLOAD_ROLE, SFT_TEAM, OPA_ADDR) for the first builder")] = False,
 ) -> None:
@@ -918,6 +1002,7 @@ def workload_describe_command(
     configuration (export-gids reads stdin), and this needs it loaded."""
     from cs_image_system.base.commands.login_proof import workload_facts
     from cs_image_system.base.global_context import GlobalTypeContext
+    typer_cntx.obj["deferred_load"]()
     facts = workload_facts(GlobalTypeContext())
     if env:
         if not facts:
@@ -930,6 +1015,50 @@ def workload_describe_command(
             typer.echo(f"export {key}={shlex.quote(val)}")
         return
     typer.echo(json.dumps(facts, indent=2, sort_keys=True))
+
+
+@workload_app.command(name="token")
+def workload_token_command(typer_cntx: typer.Context) -> None:
+    """This GitHub Actions run's OIDC token, presented to the team's workload
+    connection; the OPA token it yields is the ONLY thing printed on standard
+    output (stage 56; a command since stage 64, replacing
+    scripts/opa-workload-token).
+
+    Both tokens are masked in the job log (`::add-mask::` lines on standard
+    error, which the runner scans as it scans standard output), the OIDC
+    token's public claims and the client's verdict follow there. The four
+    names -- OPA_WORKLOAD_CONNECTION, OPA_WORKLOAD_ROLE, SFT_TEAM, OPA_ADDR --
+    come from the environment; any that is missing comes from the
+    configuration's first group builder that names a workload connection,
+    which loads the configuration. Needs a job holding `id-token: write`
+    (ACTIONS_ID_TOKEN_REQUEST_URL / _TOKEN) and the `sft` client. Exit 2 when
+    not in such a job or a name cannot be found, 1 when OPA issued nothing."""
+    from cs_image_system.base.commands.workload_token import NAME_VARS, WorkloadNames, WorkloadTokenError, mint_token
+    env = dict(os.environ)
+    names = WorkloadNames.from_environment(env)
+    if names is None:
+        load = typer_cntx.obj.get("deferred_load")
+        if load is not None:
+            load()
+        from cs_image_system.base.commands.login_proof import workload_facts
+        from cs_image_system.base.global_context import GlobalTypeContext
+        facts = workload_facts(GlobalTypeContext())
+        if not facts:
+            typer.secho("workload token: no group builder names a workload connection and role, and the "
+                        f"environment lacks {', '.join(v for v in NAME_VARS if not env.get(v))}",
+                        fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=2)
+        f = facts[0]
+        names = WorkloadNames(connection=env.get("OPA_WORKLOAD_CONNECTION") or f["connection"],
+                              role=env.get("OPA_WORKLOAD_ROLE") or f["role"],
+                              team=env.get("SFT_TEAM") or f["team"],
+                              api_host=env.get("OPA_ADDR") or f["api_host"])
+    try:
+        token = mint_token(names, env, say=lambda line: typer.echo(line, err=True))
+    except WorkloadTokenError as e:
+        typer.secho(f"workload token: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=e.exit_code)
+    typer.echo(token, nl=False)
 
 
 verify_app = typer.Typer(help="Verify launched instances through the runtime (stage 10.2).")
@@ -975,7 +1104,7 @@ def verify_login_command(
         help="Record the verdicts but exit 0 even on failure")] = False,
 ) -> None:
     """Stage 56: log into each standing instance over `sft ssh` -- as the
-    workload when OPA_TOKEN is set (scripts/opa-workload-token), else as the
+    workload when OPA_TOKEN is set (`workload token` mints it), else as the
     enrolled client -- and record the verdict in meta-state/login-proofs.yaml.
     A stopped machine is skipped, never started. Exits 1 on a failed login."""
     from cs_image_system.base.commands.login_proof import LoginProofFailed, login_proof
@@ -1238,6 +1367,11 @@ def main(
         None, "--root-dir", help="Location of root "
     ),
     verbose: Annotated[bool, typer.Option(help="Enable verbose output.")] = False,
+    locked: Annotated[bool, typer.Option("--locked",
+        help="Hold the tofu lock for the whole command: one tofu process at a time on a machine "
+             "(the lock is a directory under TF_PLUGIN_CACHE_DIR, which must be set). A second holder "
+             "is refused with exit 75 and the holder's pid. Every recipe that may execute the roots "
+             "passes it; a dry run never needs it.")] = False,
     base_only: bool = typer.Option(
         False, "--base-only", help="Run only the base-image lifecycle (what `build-all`/`generate` select "
                                    "with this flag; the same as `run base-image`)"
@@ -1276,6 +1410,19 @@ def main(
         Enable verbose output. Default is False.
     """
     setup_rich_logging(verbose)
+    if locked:
+        # stage 64 item 2: what scripts/with-tofu-lock did, held until the
+        # context closes, however the command ends
+        from cs_image_system.base import tofu_lock
+        try:
+            release_lock = tofu_lock.acquire()
+        except tofu_lock.NoCacheDir as e:
+            typer.secho(f"--locked: {e}", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=2)
+        except tofu_lock.LockHeld as e:
+            typer.secho(f"--locked: {e}", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=tofu_lock.EX_TEMPFAIL)
+        typer_cntx.call_on_close(release_lock)
     saved_dir = os.getcwd()
 
     def restore_dir():
@@ -1296,17 +1443,35 @@ def main(
         # plugin, no cloud call; the Justfile's full-test gates on this
         typer_cntx.obj["preflight_args"] = (Path(root_dir or os.getcwd()), [p.resolve() for p in (overlay or [])])
         return
-    if typer_cntx.invoked_subcommand in ("gate-plan", "apply-check", "identity"):
+    if typer_cntx.invoked_subcommand in ("gate-plan", "apply-check", "identity", "init-config"):
         # Utility commands invoked from runner scripts / terraform: no
         # configuration tree is loaded (plugins are loaded on demand;
-        # apply-check reads only cfg/_config.yml itself).
+        # apply-check reads only cfg/_config.yml itself). init-config (stage
+        # 64) writes a tree; there is nothing to load yet.
         return
-    if typer_cntx.invoked_subcommand in ("encrypt", "decrypt", "reencrypt", "public-safe", "materialize", "mask"):
+    if typer_cntx.invoked_subcommand in ("encrypt", "decrypt", "reencrypt", "public-safe", "materialize", "mask",
+                                         "config-drift"):
         # stage 33: value tools -- encrypt reads only cfg/_config.yml's
         # recipients as text, so no identity and no load is needed.
         # stage 49: materialize joins them -- it runs from a generated root,
         # inside a run script, where there is no tree to load and no session.
+        # stage 64: config-drift runs the dry run in a process of its own over
+        # a private copy; this process loads nothing.
         typer_cntx.obj["config_root"] = Path(root_dir or os.getcwd())
+        return
+    if typer_cntx.invoked_subcommand == "workload":
+        # stage 64: `workload token` takes its four names from the environment
+        # (the probe workflow runs on a checkout with no configuration) and
+        # loads the configuration only when one is missing; `workload
+        # describe` loads at once. The group's commands call the load
+        # themselves because click hands the callback no sub-subcommand name.
+        def deferred_load() -> None:
+            load_plugins()
+            from cs_image_system.base.global_context import read_config_and_transform
+            read_config_and_transform(typer_cntx, root_dir or Path(os.getcwd()), verbose, dry_run=dry_run,
+                                      overlays=[p.resolve() for p in (overlay or [])],
+                                      undeclare=list(undeclare or []))
+        typer_cntx.obj["deferred_load"] = deferred_load
         return
     load_plugins()
     if not root_dir:

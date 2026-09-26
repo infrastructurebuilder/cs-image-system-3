@@ -542,8 +542,8 @@ registry (stage 55: a second one would make `sft ssh` reach an arbitrary
 machine); the client resolves the name; `id` runs over `sft ssh`. Each
 verdict, with the Unix account the login landed in, goes to
 `meta-state/login-proofs.yaml`. With `OPA_TOKEN` in the environment the
-login is the workload's (`scripts/opa-workload-token` mints it from the
-Actions run's OIDC token; the recipe does this itself inside a job); run by
+login is the workload's (`cs-image-system workload token` mints it from
+the Actions run's OIDC token; the recipe does this itself inside a job); run by
 hand without one, the enrolled client logs in as you and the record says
 `as: client`. In CI the `perform` job runs it on `main` after the
 performing step, under the read-only role, and the closing record commits
@@ -764,13 +764,15 @@ preemptible build VM; a preempted bake re-runs. The Justfile exports
 `.terraform.lock.hcl` the init needs no network. Runs started outside
 `just` need the variable in their environment to benefit. The cache is
 not safe under concurrent `init`, so one tofu process runs at a time by
-construction: every recipe that may execute the roots (`v2-dry-run`,
-`cloud-bake`, `cloud-cycle`, `cloud-launch`, `gce-decommission` and
-their `gce-*` aliases) goes through `scripts/with-tofu-lock`, which holds
+construction: every recipe of a configuration repository's Justfile
+that may execute the roots (`run`, `release`, `cloud-bake`, `cloud-cycle`,
+`cloud-stand`, `cloud-launch`, `cloud-decommission`, `cloud-upgrade`,
+`cloud-perform`) passes `--locked` to the command (stage 64; the
+`scripts/with-tofu-lock` wrapper before it), which holds
 `.tofu-plugin-cache/.lock` for the command and refuses with exit 75 and
 the holder's pid while another has it. Dry runs enumerate and never
-start tofu, so `config-drift`, `cloud-preflight` and the bar take no
-lock; the suite's one real-tofu test uses a private cache under its
+start tofu, so `record`, `config-drift`, `cloud-preflight` and the bar
+take no lock; the suite's one real-tofu test uses a private cache under its
 temporary directory, seeded by copying the providers it needs, and never
 contends with an operator's run.
 
@@ -1086,7 +1088,13 @@ login --profile <p>` then `just full-test-legs` (never the whole bar).
 `just init` runs `uv sync --all-extras` and installs the pre-commit hook
 (`git config core.hooksPath .githooks`). It is idempotent. Python is run
 as `uv run python`; the CLI as `uv run cs-image-system` (what every recipe
-does).
+does). Since stage 64 (2026-09-26) the Justfile here is the DEVELOPER's:
+the contract, the bar's parts, the golden, the release, and `just cli ...`
+against the reference configuration for the system's own live proofs. The
+cycle recipes (`cloud-*`, `ci-login-proof`, `sft-install`) belong to a
+configuration repository's own Justfile, which the release ships and
+`cs-image-system init-config` writes; the reference configuration has one
+and its cycles run from there (section 4).
 
 ### The bar: `just test`
 
@@ -1108,11 +1116,11 @@ Everything `test` does plus the slow and external legs:
 
 1. the modification tests under docker (`just test-mods --strict`), when
    `docker info` succeeds;
-2. only when the live configuration is present AND `just preflight` finds
-   every runtime session present: a headless dry `run --all` over a
-   private copy of the live configuration (its `.git` and `generated/`
-   excluded, `tfmodules/` copied beside it), followed by `state query
-   --strict` over the copy.
+2. only when the reference configuration is present AND `just preflight`
+   finds every runtime session present: a headless dry `run --all` over a
+   private copy of it (its `.git`, `generated/` and `_private/` excluded;
+   since stage 64 it carries its own `tfmodules/`, so nothing is copied
+   beside it), followed by `state query --strict` over the copy.
 
 A leg whose prerequisite is absent reports `SKIPPED` loudly with its
 reason and does not fail the run; a leg that runs and fails does.
@@ -1137,11 +1145,14 @@ how a defect becomes the expected output. Two traps: provisioned content
 `content_hash` and `csis_fingerprint` and would re-bake images; a copy of
 the configuration needs `tfmodules/` beside it.
 
-### `just config-drift`
+### `config-drift` and `fixture-live`
 
-Is the committed emission current with the declarations? A headless dry
-`run --all` over a private copy of the live configuration, compared with
-the `generated/` tree committed at its HEAD. Tool residue (`.terraform`,
+Is the committed emission current with the declarations? `cs-image-system
+config-drift` (stage 64: a command, `just config-drift` in a configuration
+repository and `just cli config-drift` here; until then a shell recipe
+around `scripts/normalise-emission`) runs a headless dry `run --all` in a
+process of its own over a private copy of the configuration and compares
+it with the `generated/` tree committed at its HEAD. Tool residue (`.terraform`,
 `.terraform.lock.hcl`, `tfplan`, `temp_assets`), the run-local files
 (`run-summary.json`, `state-report.json`, `generated/release/release`,
 `generated/retention/retention`), run ids and the run's date stamp in
@@ -1150,7 +1161,18 @@ machine's absolute path appearing in the emission IS drift. Exit 0 when
 current, 1 with the diff when the committed emission is BEHIND the
 declarations, 2 when nothing is committed under `generated/` or the dry
 run itself fails. A dry run's `init` skips the backend, so no state
-access is needed.
+access is needed. `cs-image-system runtime-unchanged <rt> [--ref REF]`
+is the same comparison for one runtime's emission directories across
+records (what CI's guard uses).
+
+`just fixture-live` (stage 64) is the system's own live proof and what
+this repository's CI `live` job runs: with real sessions (the frozen
+fixture names the real account's networks, project and OPA team) and the
+fixture's committed TEST identity, `validate` over the fixture, a headless
+dry `run --all --no-state-query` over a private copy with `tfmodules/`
+beside it (the state query is off because the fixture's declarations are
+synthetic and reality would read as drift), then `test-mods --strict`
+over the copy under docker (skipped loudly without docker).
 
 ### Public-safe and the hook
 
@@ -1182,21 +1204,29 @@ never the value.
 Where it runs: a `--commit` run scans every file it is about to stage;
 the plain [.githooks/pre-commit](../.githooks/pre-commit) runs
 `public-safe --staged` on every hand commit in both repositories (`just
-hooks` installs it here, `just hooks-live` in the live checkout; the hook
+hooks` installs it here, `just init` (or `just hooks`) in a configuration
+repository, whose Justfile the release ships; the hook
 finds `cs-image-system` on `PATH` or in either checkout's `.venv`); `just
 public-safe` scans this checkout (tracked files plus untracked files that
 are not ignored, with the fixture's allow list) and CI's `verify` job
-runs it; `just public-safe-live` scans the live configuration with its
+runs it; a configuration repository's `just public-safe` scans its tree with its
 own allow list, and runs before any publication. Allow a value by
 decision, never by bypassing the hook.
 
-### The frozen fixture and the live sibling
+### The frozen fixture and the reference configuration
 
-Every recipe that drives a configuration (`cli`, `v2-dry-run`,
-`test-mods`, `preflight`, `config-drift`, `public-safe-live`,
-`hooks-live`, the `cloud-*`/`gce-*` cycle) depends on the private
+Every recipe that reads the reference configuration (`cli`, `test-mods`,
+`preflight`, `reuse-live`, `full-test-legs`) depends on the private
 `config-guard` recipe, which exits 2 with the clone command when
 `<config_root>/cfg/_config.yml` is missing. `just test` never needs it.
+Since stage 64 the reference configuration stands alone: its own
+`Justfile`, workflows, hook, `.gitignore`, `tfmodules/` and
+`.csis-version` came from the release through `init-config`, its
+`module_source_base` is its own `tfmodules`, and its cycles run from its
+checkout (`cd ../cs-image-system-testconfig && just cloud-cycle
+gcloud-east1`, with `CSIS` in its `.envrc` pointing at this checkout's
+venv while the system is developed). `just cli ...` here reads it for the
+system's own proofs and nothing more.
 
 The fixture carries no `meta-state/` and no generated output; its instance
 subjects (`test`, `test2`, `gce-test`) are declared in its own
@@ -1207,8 +1237,9 @@ the fixture's own committed TEST identity (`.age-identity`, public key
 the fixture's allow list names no real domain. Never put a real name in
 the fixture, the golden or a test.
 
-A change that touches the live configuration is committed and pushed on
-that repository's `develop` branch as part of the same piece of work.
+A change that touches the reference configuration is committed and
+pushed on that repository's `develop` branch as part of the same piece
+of work; its `main` is what its own CI performs on.
 
 ### Branches
 
@@ -1324,7 +1355,13 @@ uv pip install --python .venv/bin/python \
 ```
 
 A final version on PyPI installs with `uv pip install
-cs-image-system==<version>` alone. Python 3.13 or later. The tools the
+cs-image-system==<version>` alone, and `uv tool install cs-image-system`
+puts the command on `PATH` (since stage 64 the whole-system package
+declares the console script itself; before it `uv tool install` ended
+with "Failed to install entrypoints", because uv exposes only the
+requested package's executables and this one had none). A configuration
+repository's `Justfile` and workflow install it that way. Python 3.13 or
+later. The tools the
 system drives (`tofu`, `packer`, `gcloud`, `ansible-playbook`, docker) are
 not Python packages and are not installed by this; the configuration's
 `cfg/executables.yml` pins where they are. The same install from the
@@ -1361,72 +1398,95 @@ needs docker and the live configuration, no cloud credentials.
 
 ### Recipe catalogue
 
-`just` alone lists the recipes in file order, the contract first.
+`just` alone lists the recipes in file order, the contract first. Since
+stage 64 this Justfile is the developer's; the second table is a
+configuration repository's, which the release ships.
 
 | Recipe | What it does | Needs |
 | --- | --- | --- |
 | `init` | `uv sync --all-extras`, then `hooks` | nothing |
-| `build` | sdist + wheel of every workspace member under `dist/` | nothing |
+| `build` | sdist + wheel of every workspace member under `dist/` (the system package carries the three starter trees) | nothing |
 | `test` | lint → typecheck → pytest, all blocking (the bar) | nothing |
-| `full-test` | `test` + `test-mods --strict` (docker) + dry `run --all` and `state query --strict` over a copy of the live tree (sessions) | docker, live tree, runtime sessions; each leg skips loudly |
+| `full-test` | `test` + `test-mods --strict` (docker) + dry `run --all` and `state query --strict` over a copy of the reference configuration (sessions) | docker, reference configuration, runtime sessions; each leg skips loudly |
 | `release <part\|version> [test\|pypi] [yes]` | probe (token, index, tag), the bar or `full-test`, `bump-my-version`, `uv lock`, `publish`, commit, tag `v<version>`; `yes` = dry | `UV_PUBLISH_TOKEN`; for `pypi`: clean trees, mod-test evidence, `full-test`'s needs |
 | `publish [test\|pypi]` | clean `dist/`, `build`, `uv publish --index` with the check URL: upload the version in the tree, skip what is there | `UV_PUBLISH_TOKEN` |
+| `full-test-legs` | the live legs of `full-test` alone: `test-mods --strict` under docker, a headless dry run `--all` and a `state query --strict` over a private copy of the reference configuration; re-run these after a session renewal instead of the whole `full-test` | `preflight` gates the two copy legs |
 | `format` | `ruff format packages tests` | nothing |
-| `lint` / `lint-fix` / `lint-unsafe-fix` | ruff check; with safe / unsafe fixes | nothing |
+| `lint` / `lint-fix` / `lint-unsafe-fix` | ruff check and the REUSE lint; with safe / unsafe fixes | nothing |
+| `headers` | the SPDX header on every source file that lacks one | nothing |
+| `reuse-live` | the REUSE lint over the reference configuration | reference configuration |
 | `typecheck` | pyright | nothing |
 | `pytest` | the unit tests alone | nothing |
-| `v2-test` | `tests/test_v2_*.py` alone | nothing |
-| `test-mods *ARGS` | the modification tests in a container | docker, live tree |
+| `test-one *ARGS` / `v2-test` | one pytest expression / `tests/test_v2_*.py` alone | nothing |
+| `test-mods *ARGS` | the modification tests in a container over the reference configuration | docker, reference configuration |
+| `preflight` | the reference configuration's runtime sessions from the caches, no load (0 / 2) | reference configuration |
 | `golden-regen` | rewrite `tests/fixtures/v2_golden` from the fixture | nothing; review the diff |
-| `v2-dry-run *ARGS` | `run --all` (dry) against the live tree | live tree; AWS profile for discovery |
 | `public-safe *ARGS` | scan this checkout with the fixture's allow list | nothing |
-| `public-safe-live *ARGS` | scan the live tree with its allow list | live tree |
 | `publish-tree <root> <dest>` | a publishable copy: tracked files, gate, one commit on `main` | a clean root |
-| `hooks` / `hooks-live` | `core.hooksPath .githooks` here / in the live checkout | (live tree) |
+| `hooks` | `core.hooksPath .githooks` here | nothing |
 | `verify` | alias of `test` | nothing |
 | `clean` / `clean-venv` / `clean-all` | build residue / `.venv` / both plus `uv.lock` | nothing |
-| `config-drift` | is the committed emission current? (0 / 1 behind / 2 failed) | live tree, sessions, `CSIS_CONFIG_IDENTITY` |
-| `cli *ARGS` | the CLI against the live tree, e.g. `just cli validate` | live tree; whatever the command needs |
-| `tofu-cache-dir` | create `TF_PLUGIN_CACHE_DIR` | nothing |
-| `preflight` | the runtime sessions from the caches, no load (0 / 2) | live tree |
-| `cloud-preflight` / `gce-preflight` | `state query --strict` (both clouds) | live tree, AWS + GCP sessions, identity credentials, `CSIS_CONFIG_IDENTITY` |
-| `cloud-describe <rt>` | the configuration's facts about a runtime as JSON | live tree, sessions |
-| `full-test-legs` | the live legs of `full-test` alone: `test-mods --strict` under docker, a headless dry run `--all` and a `state query --strict` over a private copy of the live configuration; re-run these after a session renewal instead of the whole `full-test` | `preflight` gates the two copy legs |
-| `cloud-bake <rt> [yes]` / `gce-bake [yes]` | `run base-image instance-image --only-runtime <rt> --commit`; the storage/instance roots plan and gate only | `cloud-preflight`; real bakes need write credentials |
-| `cloud-cycle <rt> [yes]` / `gce-cycle [yes]` | `run --all --only-runtime <rt> --apply-runtime <rt> --commit`, then `cloud-empty` | `cloud-preflight`; write credentials |
-| `cloud-perform <rt>` | the performing run CI makes on `main`: `--no-dry-run run base-image instance-image release retention --only-runtime <rt> --commit` (bakes due, releases, retention; roots plan and gate only) | `cloud-preflight`; write credentials |
-| `runtime-unchanged <rt> [ref]` | is the runtime's emission (its builders' directories) unchanged since `ref` (default HEAD) in the live configuration, normalised like config-drift? exit 1 with the diff when a declaration of that runtime changed | live tree |
-| `cloud-launch <rt> [yes]` / `gce-launch [yes]` | `run instance-image --only none --apply-runtime <rt> --commit` | `cloud-preflight`; write credentials |
-| `cloud-upgrade <rt> <instance> [to]` | a durable instance's next build as one gated sequence: `upgrade instance` (to the series head, or `to`), `cloud-launch` (the replace), `cloud-verify`, `run release`, `cloud-launch` again (the names); `config.require_released_builds` stays true throughout | `cloud-preflight`; write credentials |
-| `cloud-verify <rt> <instance> [serial\|iap]` / `gce-verify [leg]` | `verify instance <i> --timeout 600`; `iap` adds a `gcloud compute ssh --tunnel-through-iap` probe | live tree, sessions |
-| `cloud-dispose-images <rt> [yes]` / `gce-dispose-images [yes]` | `dispose image --runtime <rt> --all --commit` | live tree; write credentials |
-| `cloud-relabel <rt> [no]` / `gce-relabel [no]` | `lineage relabel --runtime <rt>`; dry by default | live tree; write credentials for `no` |
-| `cloud-empty <rt>` / `gce-empty` | `empty --runtime <rt>` | live tree, sessions |
-| `gce-decommission [yes]` | `--undeclare instance:gce-test run instance-image --only none --apply-runtime gcloud-east1 --commit` | live tree; write credentials |
-| `gce-teardown [yes]` | `gce-decommission` then `gce-dispose-images` | as above |
+| `fixture-live` | the system's live proof over the frozen fixture: validate, a dry run `--all` with the state query off over a private copy, the modification tests under docker (0 / 1) | real sessions, docker for the last leg |
+| `cli *ARGS` | the CLI against the reference configuration, e.g. `just cli validate`, `just cli config-drift`, `just cli state query --strict` | reference configuration; whatever the command needs |
+
+The configuration repository's Justfile (the starter's, byte for byte,
+in `docs/examples/*/Justfile`; `CSIS` names the command, default
+`cs-image-system` on `PATH`; `TF_PLUGIN_CACHE_DIR` is its own
+`.tofu-plugin-cache/`):
+
+| Recipe | What it does | Needs |
+| --- | --- | --- |
+| `init` | the command runs, the hook is installed, the plugin cache exists | a release |
+| `build` | a dry run of every lifecycle (`run --all`) | sessions |
+| `test` | `validate` and `public-safe` | sessions |
+| `full-test` | `test` + `test-mods --strict` (docker) + a dry run `--all` and `state query --strict` over a private copy | docker, sessions |
+| `release <rt>` | the performing run on one runtime, gated on `full-test`, records committed | write credentials |
+| `validate` / `dry [LIFECYCLES]` / `run +LIFECYCLES` | every rule / a dry run / a REAL run (`--locked --no-dry-run ... --commit`) | sessions; write credentials for `run` |
+| `record` | a dry run of EVERY lifecycle, its emission and meta-state committed (what CI's perform job makes first and last) | sessions |
+| `preflight` / `state-query *ARGS` / `cloud-preflight` | the sessions / the state query / `state query --strict` | sessions |
+| `cloud-describe <rt>` | the configuration's facts about a runtime as JSON | sessions |
+| `cloud-bake <rt> [yes]` | `run base-image instance-image --only-runtime <rt> --commit`; the roots plan and gate only | `cloud-preflight`; write credentials |
+| `cloud-perform <rt>` | the performing run (what CI does on `main`): `--no-dry-run run base-image instance-image release retention --only-runtime <rt> --commit` | `cloud-preflight`; write credentials |
+| `cloud-cycle <rt> [yes]` / `cloud-stand <rt> [yes]` | `run --all --only-runtime <rt> --apply-runtime <rt> --commit`, then `cloud-empty` (cycle) or not (stand, for standing instances) | `cloud-preflight`; write credentials |
+| `cloud-launch <rt> [yes]` | `run instance-image --only none --apply-runtime <rt> --commit` | `cloud-preflight`; write credentials |
+| `cloud-decommission <rt> <instance> [yes]` | `--undeclare instance:<name> run instance-image --only none --apply-runtime <rt> --commit`: a leftover standing machine destroyed through the gate | `cloud-preflight`; write credentials |
+| `cloud-verify <rt> <instance> [serial\|sft]` | `verify instance <i> --timeout 600`; `sft` adds the login proof | sessions |
+| `cloud-upgrade <rt> <instance> [to]` | pin, replace (`cloud-launch`), proof (`cloud-verify`), `run release`, `cloud-launch` again for the names; `require_released_builds` stays true | `cloud-preflight`; write credentials |
+| `cloud-empty <rt>` / `cloud-dispose-images <rt> [yes]` / `cloud-relabel <rt> [no]` | `empty` / `dispose image --all` / `lineage relabel` (dry by default) | sessions; write credentials to dispose or relabel |
+| `ci-login-proof *ARGS` | `workload token` into `OPA_TOKEN` inside an Actions job, then `verify login` | `sft`; a job with `id-token: write` for the workload form |
+| `opa-workload-probe` | `workload token` and stop | a job with `id-token: write` |
+| `sft-install` | the OPA client from Okta's apt repository | apt |
+| `test-mods *ARGS` / `public-safe *ARGS` | in a container / the gate over this tree | docker / nothing |
+| `config-drift` / `runtime-unchanged <rt> [ref]` | the commands of those names | sessions, `CSIS_CONFIG_IDENTITY` |
+| `mirror-clean` / `hooks` / `cli *ARGS` | remove `_private/` / install the hook / any command against this tree | nothing |
 
 The second positional `yes` on a cloud recipe means dry run (enumerate,
-plan and gate; nothing executes); `cloud-relabel`/`gce-relabel` are dry
-by default and take `no` to apply. `gce-*` are aliases for the
-`gcloud-east1` runtime and its `gce-test` instance.
+plan and gate; nothing executes); `cloud-relabel` is dry by default and
+takes `no` to apply. The `gce-*` aliases of the system's Justfile
+(`gce-cycle`, `gce-decommission`, `gce-teardown`, ...) left with stage 64:
+the reference configuration's operator runs `just cloud-cycle
+gcloud-east1`, `just cloud-decommission gcloud-east1 gce-test` and `just
+cloud-dispose-images gcloud-east1` from that repository.
 
 ## 3. CI
 
-[ci.yml](../.github/workflows/ci.yml) runs on every push, every pull
-request, a nightly schedule (`23 6 * * *` UTC) and `workflow_dispatch`.
-Every command is a `just` target, so CI and a developer's shell run the
-same thing. Four jobs: `verify` is the bar, `live` reads the live
-configuration, `perform` records the full configuration on `main`,
-performs on the AWS runtime under the write role and records again, and
-`publish` uploads a pushed `v*` tag to the index (stage 41).
-`tests/test_v2_ci_workflow.py` pins the shape below, that `verify` reads
-no secret, that no job anywhere passes `--no-dry-run`, that the only
-write-capable cloud credential is the write role held for the performing
-step, that `perform` records full and unscoped, cannot record off `main`
-and cannot record twice at once, and that `publish` is the only uploader
-and runs on a tag alone.
+Two workflows (stage 64, 2026-09-26). This repository's
+[ci.yml](../.github/workflows/ci.yml) proves the SYSTEM: `verify` is the
+bar, `live` proves the frozen fixture against the real accounts read-only,
+`publish` uploads a pushed `v*` tag to the index (stage 41). A
+configuration repository's `ci.yml`, which the release ships in every
+starter tree and `init-config` writes, proves and performs the
+CONFIGURATION: `verify`, `live`, `perform`. Until stage 64 this
+repository's workflow checked the reference configuration out beside
+itself, recorded it and performed on it (the `live` and `perform` jobs of
+stage 45); that work moved to the reference configuration's own workflow,
+which is the starter's with the team's values. Every command in either is
+a `just` target of its repository, so CI and a person's shell run the
+same thing. `tests/test_v2_ci_workflow.py` pins this repository's
+workflow; `tests/test_docs_examples.py` pins the starter's, jobs and
+perform sequence included.
 
-### The `verify` job
+### This repository: the `verify` job
 
 Runs on every push and pull request, with no configuration and no
 credentials.
@@ -1434,103 +1494,34 @@ credentials.
 | Step | Proves |
 | --- | --- |
 | `actions/checkout`, setup-just, setup-uv (Python 3.13) | the toolchain installs from nothing |
-| `just init` | the workspace syncs |
-| `just verify` | the bar: ruff, pyright (blocking), the suite with the golden, over the frozen fixture |
+| `just init` | the workspace syncs (the editable build copies the starter trees into the system package) |
+| `just verify` | the bar: ruff, pyright (blocking), the suite with the golden, over the frozen fixture; the built wheel is held to `docs/examples/` |
 | `just public-safe` | the checkout holds nothing that must never be public |
 
-It is the standing proof that the suite needs no live tree.
-
-### The `live` job
+### This repository: the `live` job
 
 Runs after `verify` on pushes and the nightly schedule, never on pull
-requests (forks carry no secrets). It reads only: it validates, checks
-drift, queries state and runs the mod tests; it never plans against
-remote state and never applies, because its cloud identities are
-read-only and a plan needs the state bucket. Performing is the `perform`
-job's business, on `main` alone.
+requests (forks carry no secrets). It reads only and never plans against
+remote state. The frozen fixture names the real account's networks and
+project and the real OPA team, so with the read-only identities the
+system is proved against reality without touching the reference
+configuration.
 
 | Step | What it does |
 | --- | --- |
-| Gate on the live-configuration secrets | evaluates the secrets below. None configured: `live: SKIPPED`, `ready=false`, and a job-summary line saying no step ran (a green conclusion is not proof that anything ran). Some configured and some missing or EMPTY: `live: FAILED -- … missing or EMPTY: <names>` and exit 1 -- a secret that exists with no value is a failure, not an absence |
-| Check out the system at `cs-image-system-3` | |
-| Check out the live configuration beside it at `cs-image-system-testconfig` (`develop`) | the Justfile's default root and `module_source_base` both resolve |
-| Federated AWS credentials | `aws-actions/configure-aws-credentials` assumes `AWS_ROLE_ARN` in `us-east-2` via OIDC (`id-token: write`) |
-| Name the federated credentials as the configuration's profile | writes `[profile noaa]` to `~/.aws/config` and `[noaa]` with the exported key, secret and session token to `~/.aws/credentials` (mode 600) |
-| Federated GCP credentials | `google-github-actions/auth` with `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_SERVICE_ACCOUNT` → Application Default Credentials |
-| Install just, uv (3.13), OpenTofu, Packer | |
-| Place the tools where `cfg/executables.yml` pins them | symlinks `tofu`, `packer`, `gcloud`, `ansible-playbook`, `bash`, `docker` into `/usr/local/bin` |
+| Gate on the live secrets | none configured: `live: SKIPPED`, `ready=false`, a job-summary line (a green conclusion is not proof that anything ran); some configured and some missing or EMPTY: `live: FAILED -- ... missing or EMPTY: <names>`, exit 1 |
+| Check out the system | one checkout; no second repository |
+| Federated AWS credentials; the `[noaa]` shim | `AWS_ROLE_ARN`, the read-only role, via OIDC; the profile the fixture's runtimes name |
+| Federated GCP credentials | `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_SERVICE_ACCOUNT`, read-only |
+| Install just, uv, OpenTofu, Packer; place the tools where the fixture's `executables.yml` pins them | `validate` checks every declared tool at its path and version (stage 48) |
 | `just init` | |
-| `just cli validate` | the live tree loads and passes every rule, with the Okta workspace's assertions and the age identity; every declared tool exists at its pinned path and meets its version requirement (stage 48.1), every foreign key resolves (48.3), every root's state location is sound (46) |
-| `just config-drift` | the committed emission is current with the declarations |
-| `just cloud-preflight` | reality matches the records (`state query --strict`, both clouds) |
-| `just test-mods --strict` | every modification applies and is idempotent in a container |
+| `just fixture-live` | `validate` over the fixture with its committed TEST identity, a dry `run --all --no-state-query` over a private copy with `tfmodules/` beside it, `test-mods --strict` over the copy under docker |
 
-Every step after the gate carries `if: steps.gate.outputs.ready == 'true'`;
-until every secret exists the job prints its skip lines and passes.
+No identity secret: the fixture's age identity is committed beside it. No
+mirror to remove: the copy is under the runner's temporary directory and
+removed by the recipe.
 
-### The `perform` job
-
-Two record commits per push to `main` -- the record and the closing
-record -- are by design (stage 48.6): each run on `main` is journaled in
-`meta-state/runs.yaml`, so the closing record is never skipped for
-differing only by run ids and stamps; what a run writes for itself
-(`run-summary.json`, `state-report.json`, packer's `manifest.json`) is
-run-local and never enters a record.
-
-`main` records, performs on the AWS runtime, and records again. It runs
-after `live`, only when the ref is `main` or the run was dispatched by
-hand, and never twice at once (`concurrency: record-live`, which does not
-cancel a run in flight). A dispatch enumerates unless it asks to record,
-and recording is honoured only on `main`.
-
-The shape follows from three facts. **A record must exist whatever
-happens**, so the first thing the job does on `main` is a full, unscoped
-dry run committed and pushed. **The GCE runtime stays out of CI** by the
-cost decision, so before anything performs the job compares the GCE
-emission the record just wrote with the previous record
-(`just runtime-unchanged gcloud-east1 <previous>`): a declaration change on
-that runtime fails the job loudly rather than bake. **A bake that happened
-must never go unrecorded** (an unrecorded image is foreign drift that
-refuses the next run), so the closing record and its push run even when
-the performing step failed -- once the first record was made; a failure
-before it has nothing to close.
-
-The performing step is `just cloud-perform aws-east2-runtime`: a real run
-of `base-image instance-image release retention` under `--only-runtime`,
-committed. It bakes what is due on that runtime, releases the declared
-builds and applies the declared retention there; the instance roots plan
-and gate only, and identity and storage are the record's business. A run
-scoped to one runtime prunes only within its scope (stage 45): the other
-runtime's builder directories -- its roots, blocks and bundles -- stay
-exactly as committed, and its retention command carries `--runtime`. The
-runner scripts describe the scoped run; the closing full record restores
-the complete emission.
-
-| Step | What it does |
-| --- | --- |
-| Gate on the record secrets and decide the mode | the same rule as `live` (none configured skips and says so in the job summary; a partial set fails by name); sets `record=true` only for a push to `main` or a dispatch on `main` asking for it, and there every secret plus the push token is required -- a missing or empty one is a failure, never a green job that did nothing |
-| the two checkouts, the READ-ONLY federated credentials, the `[noaa]` shim, the tools | exactly as `live` does them; the configuration checkout carries the push credential, because `actions/checkout` persists a header that would override a token in a push URL |
-| Name the committer for the record | a runner has no git identity, and the RUN commits: without one `git commit` exits 128 after all the work is done. The bot identity keeps a person's address out of the configuration repository's history |
-| Prove write access to the configuration repository | `git push --dry-run`, before the record is written, so a bad token stops the job early; remembers the configuration's HEAD as `before` for the GCE guard |
-| `just cli run --all --commit` | the full run, recorded: generation across every lifecycle and runtime, then the commit of meta-state and emission |
-| `just cli run --all` | in dry mode instead: the same full run, committing nothing |
-| Push the record | the run commits, the job pushes (`HEAD:develop`); a non-fast-forward fails the job, and nothing is ever forced |
-| `just runtime-unchanged gcloud-east1 <before>` | the GCE guard: the runtime's emission directories in the record, normalised like config-drift, against the previous record; a change fails the job here |
-| Install what a bake needs on the runner | the Session Manager plugin (the emitted AWS sources reach their build instance through Session Manager, with no public IP) and `ansible-core` for the ansible provisioner, placed where `cfg/executables.yml` pins them; after the record is pushed and the guard passed, so a failure here leaves a record and performs nothing |
-| Federated AWS credentials, the WRITE role | `AWS_APPLY_ROLE_ARN`: trusts `main` alone; the bake's EC2 and image actions, Session Manager (`ssm:StartSession` on instances and the SSH and port-forwarding documents, `iam:PassRole` for the SSM instance profile), read/write on this configuration's state prefix; the `[noaa]` shim is rewritten with it |
-| `just cloud-perform aws-east2-runtime` | the performing run: bakes due on the AWS runtime, releases, retention; commits its meta-state |
-| Push what the performing run committed | `always()` once the first record was made: pushed even when the step failed |
-| Federated AWS credentials, the read-only role again | `always()`: the closing record and the state query read with the read-only role, which alone carries the bucket metadata reads |
-| `just cli run --all --commit` | `always()`: the full run, recorded again -- the complete emission after the scoped run, and the bake's lineage |
-| Push the closing record | `always()` |
-| `just cloud-preflight` | the post-condition: reality matches the records |
-
-**Cost.** The performing step can leave AWS resources standing: the AMI
-and snapshot of a bake, and what a release keeps. Retention disposes what
-the declarations no longer keep, on that runtime alone. No CI job holds a
-credential that can create anything on GCP.
-
-### The `publish` job
+### This repository: the `publish` job
 
 Runs after `verify` on a pushed `v*` tag and nowhere else. It checks out
 the tag, `just init`, checks that the tag names the version in the tree
@@ -1547,29 +1538,108 @@ line; a tag that needs a token which is missing or EMPTY fails by name
 holds no cloud credential and no `id-token` permission: trusted
 publishing waits until the package names are stable.
 
+### A configuration repository: the `verify` job
+
+Every push and pull request, no secret: the release named in
+`.csis-version` (else the latest on the index; a development version from
+TestPyPI with PyPI as the extra index) is installed with `uv tool
+install`, the `Justfile` parses, and `just public-safe` passes.
+
+### A configuration repository: the `live` job
+
+After `verify`, on pushes and the nightly schedule, never on pull
+requests. Gated on the repository's secrets with the same rule as above
+(none: SKIPPED and said in the summary; some: FAILED by name). Then the
+release, OpenTofu and Packer are installed and placed where
+`cfg/executables.yml` pins them, the read-only cloud identities are
+federated (the AWS profile the runtimes name is written from them; GCP
+through the auth action and `setup-gcloud`), the age identity is written
+to a file and `cs-image-system mask` hides every encrypted value in the
+log, and then: `just validate`, `just config-drift`, `just state-query
+--strict`, `just test-mods --strict`; `just mirror-clean` runs last, even
+on failure. The Okta key and the team's `TF_VAR_<team>_key` / `_secret`
+are job-level environment from the secrets.
+
+### A configuration repository: the `perform` job
+
+`main` records, performs on the runtime `PERFORM_RUNTIME` names, and
+records again. It runs after `live`, only when the ref is `main` or the
+run was dispatched by hand, never twice at once (`concurrency: perform`,
+never cancelling a run in flight), with `contents: write` so the records
+push back with the job's own token. A dispatch enumerates unless it asks
+to record, and recording is honoured only on `main`; the gate requires
+the write identity (`AWS_APPLY_ROLE_ARN`, and on GCE
+`GCP_APPLY_SERVICE_ACCOUNT`) only when recording.
+
+The shape is the one stage 45 and 56 proved. **A record must exist
+whatever happens**: the committer is named, write access is proved with
+`git push --dry-run` (remembering HEAD as `before`), then `just record`
+(a full, unscoped dry run, committed) and the push. **A runtime CI must
+never bake on** (`GUARD_RUNTIME`, empty for none; the reference
+configuration names `gcloud-east1`, the operator's own money): `just
+runtime-unchanged "$GUARD_RUNTIME" <before>` compares that runtime's
+emission in the record just pushed with the previous record and fails
+the job before anything performs. Then what a bake and the proof need
+(the Session Manager plugin on AWS, `ansible-core`, the OPA client), the
+WRITE identity for one step, `just cloud-perform "$PERFORM_RUNTIME"`.
+**A bake that happened must never go unrecorded**: the push of what the
+performing run committed, the read-only identity again, `just
+ci-login-proof --runtime "$PERFORM_RUNTIME"` (the login proof as a
+workload; skipped after a failed performing step), `just record` again
+and its push all run `always()` once the first record was made; a
+failure before it has nothing to close. `just state-query --strict` is
+the post-condition and `just mirror-clean` the last step.
+
+**Cost.** The performing step can leave resources standing on
+`PERFORM_RUNTIME`: the AMI and snapshot of a bake, and what a release
+keeps. Retention disposes what the declarations no longer keep, on that
+runtime alone. The guarded runtime never receives a write identity from
+CI.
+
+### A configuration repository: the workload probe
+
+`opa-workload-probe.yml`, dispatch only, presents that repository's OIDC
+token to the team's workload connection through `just
+opa-workload-probe` (`cs-image-system workload token`) and stops; against
+a draft connection OPA validates and issues nothing usable. It is how a
+connection is proved before it is activated (WORKLOAD_CONNECTION.md), and
+since stage 64 the repository that logs in as a workload is the
+configuration repository, so the probe lives there and the connection's
+claims name it.
+
 ### The `[noaa]` profile shim
 
 The runtimes declare `credentials.profile_name: noaa`. botocore drops the
 environment credential provider whenever a profile is named explicitly,
 so the profile itself must carry the federated keys the AWS action
 exported (temporary, one hour); the preflight reads a static-key profile
-as present. Without the shim the configuration load would find no
-credentials for the named profile.
+as present. Both workflows write it; the starter's reads the profile name
+from `cfg/runtime-builders.yml`.
 
 ### Repository secrets
 
+This repository:
+
 | Secret | What reads it | Job |
 | --- | --- | --- |
-| `AWS_ROLE_ARN` | the federated-credentials action, then the `[noaa]` shim; a READ-ONLY role: EC2 and EFS describes, the S3 bucket tag and lifecycle reads the state query needs, and read on the state bucket for the configuration load, read on the state bucket, image and volume describes for the state query | live |
-| `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_SERVICE_ACCOUNT` | the GCP auth action: the application-default credentials the gcloud runtime's network discovery and the GCP state query use; read-only | live |
-| `OKTA_API_PRIVATE_KEY` | the load's check that the okta provider can authenticate (`okta_tf_workspace.py`) | live |
-| `TF_VAR_NOS_KEY` → exported as `TF_VAR_nos_coastal_modeling_cloud_sandbox_key` | the load's `_require_tfvar` assertion; the OPA API for gids and the state query (`opa_gids.py`) | live |
-| `TF_VAR_NOS_SECRET` → exported as `TF_VAR_nos_coastal_modeling_cloud_sandbox_secret` | the same two places | live |
-| `CSIS_CONFIG_IDENTITY` | the configuration load, to decrypt `ENC[age:…]` values; the CI age identity | live, perform |
-| `CSIS_CONFIG_PUSH_TOKEN` | the configuration checkout and the push of what the run committed: a fine-grained token with contents:write on the configuration repository and nothing else | perform |
-| `AWS_APPLY_ROLE_ARN` | the federated-credentials action for the performing step alone: the WRITE role, trusting `main` alone | perform |
-| `TEST_PYPI_TOKEN` | `just publish test`, as `UV_PUBLISH_TOKEN`: an account-scoped TestPyPI API token while versions are being deleted and re-cut | publish |
-| `PYPI_TOKEN` | `just publish pypi`, as `UV_PUBLISH_TOKEN`, for a final version | publish |
+| `AWS_ROLE_ARN` | the federated-credentials action, then the `[noaa]` shim; a READ-ONLY role (EC2 describes for the fixture's load) | live |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_SERVICE_ACCOUNT` | the GCP auth action: the application-default credentials the gcloud runtime's network discovery uses; read-only | live |
+| `OKTA_API_PRIVATE_KEY` | the load's check that the okta provider can authenticate | live |
+| `TF_VAR_NOS_KEY`, `TF_VAR_NOS_SECRET` → exported as `TF_VAR_nos_coastal_modeling_cloud_sandbox_key` / `_secret` | the load's `_require_tfvar` assertion (the fixture names the real team) | live |
+| `TEST_PYPI_TOKEN`, `PYPI_TOKEN` | `just publish test` / `pypi`, as `UV_PUBLISH_TOKEN` | publish |
+
+`AWS_APPLY_ROLE_ARN`, `CSIS_CONFIG_IDENTITY` and `CSIS_CONFIG_PUSH_TOKEN`
+on this repository are read by nothing since stage 64.
+
+A configuration repository (the starter's names; the reference
+configuration uses them):
+
+| Secret | What reads it | Job |
+| --- | --- | --- |
+| `AWS_ROLE_ARN` / `GCP_WORKLOAD_IDENTITY_PROVIDER` + `GCP_SERVICE_ACCOUNT` | the read-only cloud identities, for the load, the state query and the records | live, perform |
+| `AWS_APPLY_ROLE_ARN` / `GCP_APPLY_SERVICE_ACCOUNT` | the WRITE identity, for the performing step alone; trusts `main` alone | perform (recording) |
+| `OKTA_API_PRIVATE_KEY`, `TF_VAR_KEY`, `TF_VAR_SECRET` | the Okta key and the OPA API pair, exported under the team's `TF_VAR_<team>_*` names | live, perform |
+| `CSIS_CONFIG_IDENTITY` | the age identity that opens the tree's `ENC[age:...]` values, written to a file on the runner | live, perform |
 
 The gate cannot tell a missing secret from an empty one (both read as
 `''`), so it decides on the set: with none configured the job skips and
@@ -1577,12 +1647,12 @@ says so in its summary; with some configured, every missing or empty one
 is named and the job fails. Three green `live` runs once ran nothing
 because `OKTA_API_PRIVATE_KEY` had been set to the empty string from a
 checkout missing the file it was read from; a job's conclusion is never
-proof that its steps ran. The `verify` job reads none of them. The
-`perform` job reads the same set plus the push token and the write role
-when recording; the `publish` job reads the two index tokens and nothing
-else. The `OKTA_API_CLIENT_ID` / `OKTA_API_PRIVATE_KEY_ID` /
-`OKTA_API_SCOPES` triple exists and is read by nothing: the terraform okta
-provider would need it to plan the identity roots, which no CI run does.
+proof that its steps ran. Every federated identity was created trusting
+the SYSTEM repository's OIDC claims; admitting the configuration
+repository (both AWS roles' trust policies, the GCP provider's attribute
+condition, the OPA workload connection's claims) is the operator's act,
+and until it is done the configuration repository's `live` and `perform`
+jobs fail at the credential step.
 
 ## 4. The operator's cycles
 
@@ -1782,14 +1852,19 @@ roster and an access grant — so a value read only under `name`, `members` or
 
 ### `just cloud-preflight`
 
-`state query --strict` over both clouds, after `tofu-cache-dir`. It
-refuses (exit 1) on hard drift, on any drift class but `stale`, and on a
-session that expires within `config.preflight.expected_run_minutes`.
-Every cycle step (`cloud-bake`, `cloud-cycle`, `cloud-launch`) depends on
-it, so a cycle never starts on a false belief or a lapsing session.
-`just preflight` is the lighter form: the sessions alone, read from the
-caches without loading the configuration (exit 2 when one is absent or
-expired; `--strict` exits 1 on one expiring within the window).
+The recipes of this section are a configuration repository's (stage 64:
+the release ships its Justfile; the reference configuration's operator
+runs them from `../cs-image-system-testconfig`, whose `.envrc` points
+`CSIS` at this checkout's venv while the system is developed).
+
+`state query --strict` over both clouds. It refuses (exit 1) on hard
+drift, on any drift class but `stale`, and on a session that expires
+within `config.preflight.expected_run_minutes`. Every cycle step
+(`cloud-bake`, `cloud-cycle`, `cloud-launch`, `cloud-decommission`)
+depends on it, so a cycle never starts on a false belief or a lapsing
+session. `just preflight` is the lighter form: the sessions alone, read
+from the caches without loading the configuration (exit 2 when one is
+absent or expired; `--strict` exits 1 on one expiring within the window).
 
 ### The cloud change cycle
 
@@ -1817,16 +1892,18 @@ instances). Every recipe wraps sanctioned commands only.
   through the system; `iap` adds `gcloud compute ssh --tunnel-through-iap
   --command 'findmnt -n /mnt && id'` with the project and zone read from
   `runtime describe`.
-- `just gce-decommission` destroys a leftover standing `gce-test` through
-  the gate (`--undeclare instance:gce-test`) instead of re-verifying it; a
-  dry run keeps the record. `just gce-teardown` follows it with
-  `gce-dispose-images`.
+- `just cloud-decommission <rt> <instance>` destroys a leftover standing
+  instance through the gate (`--undeclare instance:<name>`) instead of
+  re-verifying it; a dry run keeps the record. `just cloud-dispose-images
+  <rt>` after it is the runtime's full teardown (what the system's
+  `gce-decommission` and `gce-teardown` aliases did until stage 64).
 - `just cloud-relabel <rt> no` re-tags images whose tags disagree with
   lineage; `just cloud-dispose-images <rt>` disposes of every recorded
   image on the runtime through the recorded path.
 
-`just gce-cycle yes` is the dry form of the GCE cycle (the `empty`
-assertion is skipped in a dry run).
+`just cloud-cycle gcloud-east1 yes` is the dry form of the GCE cycle (the
+`empty` assertion is skipped in a dry run). Every real cycle run passes
+`--locked` to the command: one tofu process at a time on a machine.
 
 ### GCE cost discipline
 
@@ -2059,8 +2136,8 @@ exception is a decision to record, not a bypass.
 - One tofu process at a time on a machine, by construction: the shared
   `TF_PLUGIN_CACHE_DIR` is not safe under concurrent `init`, and two runs
   would race on the same roots and records. The recipes that may execute
-  the roots hold `.tofu-plugin-cache/.lock` (`scripts/with-tofu-lock`) and
-  a second one refuses; the suite never shares the cache.
+  the roots hold `.tofu-plugin-cache/.lock` (`cs-image-system --locked`)
+  and a second one refuses; the suite never shares the cache.
 
 ### Network
 

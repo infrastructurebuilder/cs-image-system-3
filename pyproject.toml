@@ -37,6 +37,14 @@ Repository = "https://github.com/infrastructurebuilder/cs-image-system-3"
 Documentation = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/docs/OPERATIONS.md"
 Configuration = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/docs/CONFIGURATION.md"
 
+# stage 64: `uv tool install cs-image-system` exposes only the requested package's
+# executables, and this package had none (the console script is the system package's),
+# so the install ended with "Failed to install entrypoints" -- found by the reference
+# configuration's first CI run, 2026-09-26. The same script, declared here too, names
+# the module the pinned dependency provides; both declarations point at one function.
+[project.scripts]
+cs-image-system = "cs_image_system.system.cli:app"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

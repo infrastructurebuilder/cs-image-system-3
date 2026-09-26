@@ -7,14 +7,15 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress** (§63 and §67 LANDED 2026-09-26). Next by the operator's word: §64.
+Current stage: **none in progress** (§63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §68 item 1 (decide), §65.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
 **§64**, the release that carries everything a configuration repository
-needs and the reference configuration standing alone, planned and waiting
-on the operator's word (§63, the code defects the documentation found,
-LANDED 2026-09-26 in five squashes: the low-hanging group, the two medium
-branches, the two chains, and the dead-field list); then **§65**, walking the daily driver from a fresh repository
+needs and the reference configuration standing alone, LANDED 2026-09-26
+(one squash; the release that carries it, the sibling's secrets and the
+federation trusts are the operator's, listed in `_uncommitted/`; §63, the
+code defects the documentation found, LANDED the same day in five
+squashes); then **§65**, walking the daily driver from a fresh repository
 against a release, and **§66**, the three starter repositories published
 from `docs/examples/` per release, both planned;
 §30 waits on the operator's decision. (§62, the daily driver, LANDED
@@ -58,9 +59,9 @@ bare name until its first sanctioned replacement, which is the first real
 claims, and §19 step 5 proved §60's meaning live (a sanctioned replacement
 is a new generation with a new name). §59 is deliberately LAST: it overlaps the suffix, and only once
 that is standing can anyone judge whether a name pool is still wanted. §30 waits on the operator's decision and depends
-on none of this. No hygiene bundle is open (§67, bundle VI, LANDED
-2026-09-26: the parent-fingerprint fix and eight remnants); the next
-non-critical hygiene issue opens bundle VII.
+on none of this. **Hygiene bundle VII (§68) is open since 2026-09-26**
+(§67, bundle VI, LANDED 2026-09-26); the next non-critical hygiene issue
+joins it.
 
 **Nothing in the naming line is left**; §30 waits on the operator's
 decision. Nothing in that shorter path has to be redone -- §58
@@ -113,8 +114,8 @@ Standing decisions (operator):
   is markdown, example configuration trees and the tests that hold the
   documentation contract; a code change it would need is a new stage,
   written as a plan, never a side edit.
-- §30 (the contract package), §64, §65 and §66 are planned, not started; §63
-  landed 2026-09-26, as did §67;
+- §30 (the contract package), §65 and §66 are planned, not started; §63,
+  §67 and §64 landed 2026-09-26;
   a stage is a plan in this file until the operator says to execute it
   (2026-09-23). §62 landed 2026-09-24.
 - **Documentation stays current by stage** (operator, 2026-09-23). Once
@@ -260,61 +261,25 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
 
-## 64. The release is the whole system: modules, scripts, starter trees, and a configuration repository that stands alone
+## 68. Hygiene bundle VII
 
-**Status: PLANNED, not started.** Written 2026-09-23 during the daily
-driver's second pass (`feature/daily-driver-redux`), when the operator
-corrected the model: a team INSTALLS a release and OWNS a configuration
-repository with its own Justfile and CI; this repository is where the
-system is developed, not something a user clones beside their tree. The
-documentation now says so, and the three example trees under
-`docs/examples/` are whole repositories a team copies (Justfile, workflow,
-hook, scripts, modules). What the documentation cannot do is make the
-release carry those parts, or move the reference deployment onto that
-model; both are code, and this is that stage.
+**Status: OPEN since 2026-09-26.** Non-critical hygiene issues join this
+bundle; none is a stage of its own.
 
-1. **The release ships what a configuration repository needs.** The
-   `tfmodules/` tree and the three helper scripts (`with-tofu-lock`,
-   `opa-workload-token`, `normalise-emission`) become package data of the
-   `system` package (or a package of their own), and a command
-   `cs-image-system init-config <dir> [--from standard-aws|standard-gce|complete]`
-   scaffolds a configuration repository from a starter tree carried in
-   the release: the tree, `module_source_base: tfmodules`, the hook, the
-   workflow, `.gitignore`, a `.csis-version` pinned to the running
-   release. The example trees in `docs/examples/` become the SOURCE the
-   release is built from, and `tests/test_docs_examples.py` keeps them
-   equal to what the release carries.
-2. **The helper scripts become commands** where a script exists only to
-   wrap the CLI: `with-tofu-lock` as `cs-image-system --locked ...` (or a
-   `lock` subcommand), `normalise-emission` as `config-drift`'s own
-   normaliser, `opa-workload-token` as `workload token`. The starter
-   Justfile then calls the CLI alone and carries no scripts.
-3. **The reference configuration stands alone.** `cs-image-system-testconfig`
-   gains its Justfile, workflow, hook, modules and `.csis-version` from
-   `init-config` (item 1), its `module_source_base` moves to its own
-   `tfmodules`, and its CI performs there: the `live` and `perform` jobs
-   leave this repository's workflow, which keeps `verify` and `publish`
-   and a `live` leg that only proves the fixture. Proved live: the
-   sibling's `verify` job green on a push, its `live` job green with the
-   secrets moved over, one performing run on `main` there, the login
-   proof as a workload from that repository.
-4. **This repository's Justfile shrinks to the developer's**: the five
-   contract targets, the bar, the golden, the release recipe, and `just
-   cli ...` against the reference configuration for the system's own live
-   proofs; the cycle recipes (`cloud-*`, `ci-login-proof`, `sft-install`)
-   move to the starter Justfile alone, since a team runs them from its
-   own repository.
-5. **Records**: DAILY_DRIVER.md section 1.9 loses its "until a release
-   ships them" clause; OPERATIONS sections 2 and 3 describe the two
-   workflows; the root README's layout paragraph says the reference
-   configuration is checked out beside this repository for the system's
-   own proofs only. A live proof of `init-config` on a fresh machine with
-   nothing but `uv`: install, scaffold, `just init`, `just validate`
-   against a real account.
-
-**Sizing**: item 1 a day (package data, the command, the tests); item 2
-half a day; item 3 a day with the live proofs, most of it CI secrets and
-the first performing run; item 4 an hour.
+1. **The fixture's Debian 11 chain is archived upstream.** `just
+   fixture-live` (stage 64) runs the fixture's modification tests under
+   docker, and `imgfile-data-science/data-science-setup` on `my-deb-11`
+   fails at target preparation: `apt-get` in the `debian:11` container
+   gets `404 Not Found` from `deb.debian.org/debian-security/pool/updates/`
+   (bullseye left the mirrors when its LTS ended; its packages are on
+   `archive.debian.org`). Reproduced twice on 2026-09-26, deterministic.
+   Until this lands the docker leg of `fixture-live`, and so this
+   repository's CI `live` job, is red; `validate` and the dry run pass.
+   Fix: move the fixture's Debian OS builder to `debian-12` (bookworm;
+   the golden moves), or teach the debian target preparation to point an
+   archived release at `archive.debian.org` (a behaviour change worth
+   having anyway, since every release archives eventually). Decide, then
+   do.
 
 ## 65. Walking the daily driver
 

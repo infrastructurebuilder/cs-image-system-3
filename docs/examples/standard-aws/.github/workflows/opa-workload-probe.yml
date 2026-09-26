@@ -1,0 +1,57 @@
+name: OPA workload probe
+
+# Prove that GitHub's OIDC token for THIS repository validates against the team's
+# workload connection BEFORE the connection is activated. Dispatch only. It
+# authenticates and stops: against a draft connection OPA validates the token and
+# issues nothing usable, so the run can reach nothing. Inputs reach the recipe
+# through the environment, never interpolated into a shell line.
+# REPLACE-ME: the defaults are the team's names (the system's WORKLOAD_CONNECTION.md
+# says how they are decided); another dispatch may pass others.
+on:
+  workflow_dispatch:
+    inputs:
+      connection:
+        description: "the workload connection's name"
+        type: string
+        default: REPLACE-ME
+      role:
+        description: "the workload role's name (the role hint)"
+        type: string
+        default: REPLACE-ME
+      team:
+        description: "the OPA team"
+        type: string
+        default: REPLACE-ME
+      opa_addr:
+        description: "the OPA address"
+        type: string
+        default: https://REPLACE-ME.pam.okta.com
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write          # GitHub mints the OIDC token the connection validates
+      contents: read
+    env:
+      OPA_WORKLOAD_CONNECTION: ${{ inputs.connection }}
+      OPA_WORKLOAD_ROLE: ${{ inputs.role }}
+      SFT_TEAM: ${{ inputs.team }}
+      OPA_ADDR: ${{ inputs.opa_addr }}
+      CSIS_VERSION_FILE: .csis-version
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v2
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+      - name: Install the released system
+        run: |
+          pin=""; [ -s "$CSIS_VERSION_FILE" ] && pin="==$(cat "$CSIS_VERSION_FILE")"
+          indexes=""
+          case "$pin" in *.dev*) indexes="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/" ;; esac
+          uv tool install $indexes "cs-image-system${pin}"
+      - name: Install the OPA client
+        run: just sft-install
+      - name: Present this run's token to the workload connection
+        run: just opa-workload-probe

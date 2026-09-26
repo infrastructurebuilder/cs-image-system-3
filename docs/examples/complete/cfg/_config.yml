@@ -43,7 +43,7 @@ config:
   use_state_backends: true         # emit backend / remote-state blocks (needs the declared state buckets)
   # a relative path is relative to this tree and rewritten per root depth;
   # an absolute path or a git/registry URL passes through
-  module_source_base: tfmodules   # DECISION: the modules travel with the tree (copied from the release; a stage makes the release ship them)
+  module_source_base: tfmodules   # DECISION: the modules travel with the tree (the release ships them; init-config writes and refreshes them)
   # the mandatory local admin user's PUBLIC keys, ENCRYPTED here (any value
   # may be a marker, section 13): the emission carries the ciphertext and
   # `materialize` substitutes the key where packer runs. It decrypts to a

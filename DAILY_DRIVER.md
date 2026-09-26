@@ -225,9 +225,15 @@ way section 1.1 does (pinned by `.csis-version` when present):
   dry run, the strict state query, then the private mirror removed.
   Pushes and the nightly schedule, never pull requests (forks carry no
   secrets).
-- **`perform`** runs on `main` alone, under the write role: the performing
-  run of the runtime the workflow names (`just cloud-perform`), the login
-  proof as a workload, and the records committed and pushed back.
+- **`perform`** runs on `main` alone. First the record: a dry run of
+  every lifecycle, committed and pushed (`just record`), so a record
+  exists whatever happens next; then the guard (`just runtime-unchanged`
+  on the runtime `GUARD_RUNTIME` names, a runtime CI must never bake on,
+  such as one that is your own money); then, under the write identity
+  alone, the performing run of the runtime the workflow names (`just
+  cloud-perform`); the login proof as a workload (`just ci-login-proof`);
+  the closing record, pushed even when the performing step failed, so
+  nothing baked goes unrecorded; the strict state query last.
 
 Each job is gated on the repository secrets it needs, named in the
 workflow: none configured is SKIPPED and said so in the job summary, some
@@ -238,21 +244,36 @@ workflow is a team value: the runtime it performs on, the region, the
 
 ### 1.9 The configuration repository, from scratch
 
-Copy a starter tree; do not write from nothing.
+Start from a starter tree; do not write from nothing. The release
+carries three and writes one out:
+
+```sh
+cs-image-system init-config my-config                          # standard-aws, the default
+cs-image-system init-config my-config --from standard-gce
+cs-image-system init-config my-config --from complete
+```
+
 [docs/examples/standard-aws/](docs/examples/standard-aws/README.md) is the
 smallest repository that works on the AWS plugin set, one of everything,
 every value you must replace an obvious `REPLACE-ME` and every line that
 is a decision commented; [docs/examples/standard-gce/](docs/examples/standard-gce/README.md)
 is the same for GCE; [docs/examples/complete/](docs/examples/complete/README.md)
 has every plugin, every field and every variation, and is where to look
-when the reference manual's table needs a living example. All three load
-and validate in the system's tests, and their `Justfile`, workflow, hook,
-scripts and modules are held to the release's, so they cannot drift.
-(Until a release ships them, the starter trees are fetched from the
-system repository's `docs/examples/`; the plan for `cs-image-system
-init-config` is in [TODO.md](TODO.md).)
+when the reference manual's table needs a living example. Those three
+directories are the source the release is built from: all three load and
+validate in the system's tests, the built wheel is held to them byte for
+byte, and their `Justfile`, workflow, hook and modules are the release's,
+so a tree written by `init-config` cannot drift from the system that wrote
+it. `.csis-version` in the written tree names that release.
 
-Then, in the copy:
+Run `init-config` again, in the repository, after upgrading the release:
+into a tree that already holds a configuration it writes only the parts
+the release owns (the `Justfile`, the workflow, the hook, `.gitignore`,
+`tfmodules/`, `.csis-version`) and never a line of the YAML; a
+release-owned file you changed is refused by name until you pass
+`--force`.
+
+Then, in the written tree:
 
 1. `git init`, `just init` (the hook, the plugin cache, a check that the
    command runs), and a first commit of the tree as it stands.
@@ -534,7 +555,7 @@ item in the open hygiene bundle in [TODO.md](TODO.md).
 | `Instance x: alias 'y' SKIPPED -- already claimed by <id>` | a stale record holds the name | retire that record; the alias comes back on the next applies-on run |
 | `verify ...: SKIPPED -- the machine is STOPPED`; `login proof ...: SKIPPED` | someone switched the machine off; a note, not drift; nothing is started for a proof | start it if you want the proof, then re-run |
 | `Instance x: not enrolled within 300s of its launch; no alias this run` | the machine booted this run and sftd had not enrolled in time | the next applies-on run gives the names back |
-| `with-tofu-lock: another tofu-using recipe holds ...` (exit 75) | one tofu process at a time; another recipe is running | wait; remove the lock directory only if the process is gone |
+| `--locked: another tofu-using command holds ...` (exit 75) | one tofu process at a time; another recipe is running | wait; remove the lock directory only if the process is gone |
 | `full-test: passed` above `SKIPPED the credential-gated legs` | the legs did not run: a session was absent | not a pass; source the shell, log in, run again |
 | `Meta-state commit: never staging generated/.../instances.auto.tfvars` | the instance root's variable file is where it belongs and is never committed by design; before 2026-09-23 the release and retention runs left stray copies too | nothing; a stray copy under `generated/release/` or `generated/retention/` from an older run is deleted by hand once |
 | `mod tests: N failed` or `not idempotent` | a modification fails, or changes something on its second run | make it idempotent: `ensure`, `unless`, `changed_when: false`; read `meta-state/mod-tests.yaml` |
@@ -684,13 +705,19 @@ docker desktop or OrbStack (maybe PodMan).
 
 Everything above is for a release. Developing the system is this
 repository: `just init`, then `just test` is the bar (lint, types, the
-fast suite over the frozen fixture and its golden emission), `just full-test` 
+fast suite over the frozen fixture and its golden emission), `just full-test`
 adds the docker-backed modification tests and, when the
 sessions are present, a dry run and a strict state query over a private
 copy of the reference configuration, which is checked out BESIDE this
-repository as `cs-image-system-testconfig` for that purpose alone; 
-`just release <part|version> [test|pypi]` cuts a release to the index. The
-recipes here drive that reference configuration through `just cli ...`
-for the system's own live proofs; a team's repository is driven by its own
-`Justfile` and never needs this one. Read [OPERATIONS.md](docs/OPERATIONS.md),
-sections 2 and 3, [GOLDEN.md](GOLDEN.md), and [PARITY.md](PARITY.md).
+repository as `cs-image-system-testconfig` for that purpose alone;
+`just fixture-live` proves the frozen fixture against the real accounts
+(what the system's CI does); `just release <part|version> [test|pypi]`
+cuts a release to the index. The recipes here drive that reference
+configuration only through `just cli ...`, for the system's own live
+proofs; its cycles, like any team's, run from its own `Justfile` (`cd
+../cs-image-system-testconfig && just cloud-cycle gcloud-east1`), which
+the release shipped and `init-config` wrote. The starter trees under
+`docs/examples/` are the source the release is built from: change them
+there, and the tests hold the built wheel to them. Read
+[OPERATIONS.md](docs/OPERATIONS.md), sections 2 and 3,
+[GOLDEN.md](GOLDEN.md), and [PARITY.md](PARITY.md).

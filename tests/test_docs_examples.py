@@ -276,22 +276,27 @@ def test_the_complete_tree_carries_every_variation(tree):
 
 # ------------------------------------------------ the starter parts (stage 62 redux)
 
-STARTER_FILES = ["Justfile", ".github/workflows/ci.yml", ".githooks/pre-commit", ".gitignore",
-                 "scripts/with-tofu-lock", "scripts/opa-workload-token", "scripts/normalise-emission"]
+STARTER_FILES = ["Justfile", ".github/workflows/ci.yml", ".githooks/pre-commit", ".gitignore"]
 
 
 def test_every_example_is_a_whole_repository_a_team_can_copy():
-    """A configuration repository carries its own Justfile, CI, hook, helper
-    scripts and terraform modules; the system is installed from a release,
-    never cloned beside it. The copies must be the release's, byte for byte."""
+    """A configuration repository carries its own Justfile, CI, hook and
+    terraform modules; the system is installed from a release,
+    never cloned beside it. The copies must be the release's, byte for byte,
+    and what the release resolves as its starters must be these trees (stage
+    64: the source the release is built from)."""
     import stat
+    from cs_image_system.system.starters import STARTERS, starters_root
+    assert sorted(STARTERS) == sorted(TREES)
+    assert starters_root().resolve() == EXAMPLES.resolve()          # an editable checkout resolves the source
     for name in TREES:
         root = EXAMPLES / name
         for rel in STARTER_FILES:
             assert (root / rel).is_file(), f"{name} lacks {rel}"
-        for rel in (".githooks/pre-commit", "scripts/with-tofu-lock", "scripts/opa-workload-token", "scripts/normalise-emission"):
+        for rel in (".githooks/pre-commit",):
             assert (root / rel).stat().st_mode & stat.S_IXUSR, f"{name}/{rel} is not executable"
             assert (root / rel).read_bytes() == (REPO / rel).read_bytes(), f"{name}/{rel} differs from the release's"
+        assert not (root / "scripts" / "with-tofu-lock").exists(), f"{name}: the helpers are commands of the CLI (stage 64)"
         ours = sorted(p.relative_to(REPO / "tfmodules") for p in (REPO / "tfmodules").rglob("*") if p.is_file())
         theirs = sorted(p.relative_to(root / "tfmodules") for p in (root / "tfmodules").rglob("*") if p.is_file())
         assert ours == theirs, f"{name}/tfmodules does not carry the release's modules"
@@ -323,4 +328,86 @@ def test_the_starter_workflow_has_the_three_jobs():
         assert doc["jobs"]["live"]["needs"] == "verify" and doc["jobs"]["perform"]["needs"] == "live"
         text = (EXAMPLES / name / ".github/workflows/ci.yml").read_text()
         assert "uv tool install" in text and "cs-image-system" in text, f"{name}: the workflow must install a release"
+        assert "test.pypi.org" in text, f"{name}: a development version installs from TestPyPI"
         assert "just mirror-clean" in text, f"{name}: the mirror must be removed even on failure"
+
+
+def _steps(job: dict) -> list[dict]:
+    return job["steps"]
+
+
+def test_the_starter_perform_job_records_guards_performs_proves_and_records_again():
+    """Stage 64 item 3: the proven shape of a performing job (stage 45, 56)
+    travels with the starter: a full record pushed first, the guarded runtime
+    checked against it, the write identity for the performing step alone,
+    the login proof as a workload, a closing record that runs even after a
+    failed performing step, and the strict state query as the post-condition."""
+    for name in TREES:
+        doc = yaml.safe_load((EXAMPLES / name / ".github/workflows/ci.yml").read_text())
+        perform = doc["jobs"]["perform"]
+        assert "refs/heads/main" in perform["if"] and perform["permissions"]["contents"] == "write"
+        assert perform["concurrency"] == {"group": "perform", "cancel-in-progress": False}
+        names = [s.get("name", "") for s in _steps(perform)]
+        order = ["Prove write access to this repository", "The full run, recorded", "Push the record",
+                 "The guarded runtime stays out of CI, so a change there fails loudly", "The runtime performs",
+                 "Push what the performing run committed", "CI logs in through the managed policy",
+                 "The full run, recorded again", "Push the closing record", "Reality matches the records (state query --strict)"]
+        positions = [names.index(n) for n in order]
+        assert positions == sorted(positions), f"{name}: {names}"
+        runs = {s.get("name", ""): s["run"].strip() for s in _steps(perform) if "run" in s}
+        assert runs["The full run, recorded"] == "just record" and runs["The full run, recorded again"] == "just record"
+        assert runs["The runtime performs"] == 'just cloud-perform "$PERFORM_RUNTIME"'
+        assert runs["CI logs in through the managed policy"] == 'just ci-login-proof --runtime "$PERFORM_RUNTIME"'
+        assert "just runtime-unchanged" in runs["The guarded runtime stays out of CI, so a change there fails loudly"]
+        closing = next(s for s in _steps(perform) if s.get("name") == "The full run, recorded again")
+        assert closing["if"].startswith("always()") and "steps.record.outcome == 'success'" in closing["if"]
+        for s in _steps(perform):
+            if s.get("name", "").startswith("Push"):
+                assert "--force" not in s["run"] and "HEAD:main" in s["run"], f"{name}: {s['name']}"
+        text = yaml.safe_dump(doc)
+        assert "--no-dry-run" not in text and "--only" not in text, f"{name}: a real run is named only inside the Justfile"
+        # the write identity is held for the performing step alone
+        write_creds = [s for s in _steps(perform) if "APPLY" in yaml.safe_dump(s.get("with") or {})]
+        assert write_creds, f"{name}: no write identity"
+        for w in write_creds:
+            assert "steps.gate.outputs.record == 'true'" in w["if"], f"{name}: the write identity is taken only when recording"
+        assert names.index(write_creds[-1]["name"]) < names.index("The runtime performs")
+        # the live job never holds one
+        assert "APPLY" not in yaml.safe_dump(doc["jobs"]["live"]), name
+        # the probe workflow travels with the tree
+        probe = yaml.safe_load((EXAMPLES / name / ".github/workflows/opa-workload-probe.yml").read_text())
+        assert list(probe[True].keys()) == ["workflow_dispatch"]
+        (job,), = [list(probe["jobs"].values())]
+        assert job["permissions"] == {"id-token": "write", "contents": "read"}
+        assert any(s.get("run", "").strip() == "just opa-workload-probe" for s in job["steps"])
+
+
+def test_the_built_release_carries_the_starters_byte_for_byte(tmp_path):
+    """Stage 64 item 1: `just build` (uv build: the sdist, then the wheel FROM
+    the sdist) ships the three trees inside the system package, so a machine
+    that holds nothing but the release can write one out. The wheel is built
+    here and read; every file of every tree is in it, unchanged."""
+    import shutil, subprocess, zipfile
+    uv = shutil.which("uv")
+    if not uv:
+        pytest.skip("uv is not on PATH")
+    out = tmp_path / "dist"
+    subprocess.run([uv, "build", "--package", "cs-image-system-system", "-o", str(out)],
+                   cwd=REPO, capture_output=True, text=True, check=True)
+    wheel = next(out.glob("cs_image_system_system-*.whl"))
+    prefix = "cs_image_system/system/starters/"
+    with zipfile.ZipFile(wheel) as z:
+        carried = {n[len(prefix):]: z.read(n) for n in z.namelist() if n.startswith(prefix)}
+    expected = {}
+    for name in TREES:
+        for p in sorted((EXAMPLES / name).rglob("*")):
+            if p.is_file() and p.name != ".DS_Store":
+                expected[f"{name}/{p.relative_to(EXAMPLES / name)}"] = p.read_bytes()
+    assert set(carried) == set(expected), sorted(set(carried) ^ set(expected))[:20]
+    for rel, content in expected.items():
+        assert carried[rel] == content, rel
+    sdist = next(out.glob("cs_image_system_system-*.tar.gz"))
+    import tarfile
+    with tarfile.open(sdist) as tf:
+        names = tf.getnames()
+    assert any(n.endswith("/starters/complete/cfg/_config.yml") for n in names), "the sdist must carry the source too"

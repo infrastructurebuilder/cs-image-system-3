@@ -39,10 +39,14 @@ names are reserved, in lifecycle order:
 `just` alone lists every recipe, the contract first. `just publish
 [test|pypi]` builds and uploads the version in the tree (TestPyPI by
 default; a pushed `v*` tag makes CI do the same). `just cli …` runs
-the CLI against the live configuration; the `cloud-*` and `gce-*` recipes
-are the sanctioned cloud change cycle; `just public-safe` is the gate that
-keeps secrets and people out of anything published. The manual describes
-each.
+the CLI against the reference configuration for the system's own live
+proofs; `just fixture-live` proves the frozen fixture against the real
+accounts; `just public-safe` is the gate that keeps secrets and people
+out of anything published. The cloud change cycle (`cloud-*`,
+`ci-login-proof`, `sft-install`) is a configuration repository's own
+business: its `Justfile` comes from the release (`cs-image-system
+init-config`), and a team runs those recipes from its own repository. The
+manual describes each.
 
 ## Layout
 
@@ -53,9 +57,13 @@ modifications, Okta identity, terraform storage and instance builders, the
 GCP terraform pieces, the S3 state backend). `tfmodules/` are the terraform
 modules the builders emit calls to. `tests/` is the suite, with the frozen
 fixture configuration under `tests/fixtures/config/` and the golden
-emission under `tests/fixtures/v2_golden/`. The live configuration is its
-own repository, `cs-image-system-testconfig`, checked out beside this one
-(`CSIS_CONFIG_ROOT` overrides); the tests never read it.
+emission under `tests/fixtures/v2_golden/`. `docs/examples/` holds the
+three starter configuration repositories the release ships and
+`init-config` writes out. The reference configuration is its own
+repository, `cs-image-system-testconfig`, which stands alone with its own
+`Justfile` and CI; it is checked out beside this one (`CSIS_CONFIG_ROOT`
+overrides) for the system's own live proofs only, and the tests never
+read it.
 
 ## Licence
 
