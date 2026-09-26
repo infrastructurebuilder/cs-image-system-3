@@ -189,7 +189,7 @@ item's over the builder's.
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `bucket_name` | str | required | Required and validated, but **read by nothing** since stage 63: the module call, the wipe and the state query all take the bucket from the storage item (its `bucket_name`, else its name; see below). Until 2026-09-25 the state query read this field, so two S3 storages on one builder both reported this one bucket. `get_bucket_name()` still returns it and nothing calls it. |
+| `bucket_name` | str | required | The DEFAULT bucket for this builder's storages (stage 67): a storage's own `bucket_name` wins, else this, else the storage's name -- one rule (`_bucket_for`) for the module call, the wipe and the state query. Between 2026-09-25 and 26 it was read by nothing (the state query had read it for every storage, so two S3 storages on one builder both reported this one bucket). `get_bucket_name()` still returns it and nothing calls it. |
 | `variables` | `S3Variables` | `S3Variables()` | `force_destroy`, `tags`. |
 
 ### The `Storage` item the storage builders read

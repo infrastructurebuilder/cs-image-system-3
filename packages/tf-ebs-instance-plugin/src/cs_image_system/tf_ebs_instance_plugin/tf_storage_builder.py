@@ -624,6 +624,14 @@ class TofuS3StorageBuilder(TofuStorageBuilder[B]):
     def attachment_cardinality(self) -> str:
         return CARDINALITY_MANY
 
+    def _bucket_for(self, storage: Storage) -> str:
+        """The bucket a storage lives in, one rule for the module call, the
+        state lookup and the wipe (stage 67): the storage's own `bucket_name`,
+        else the BUILDER's `bucket_name` (the default for storages that name
+        none; since stage 63 it was read by nothing), else the storage's name."""
+        return (getattr(storage, "bucket_name", None) or getattr(self.model, "bucket_name", None)
+                or storage.get_name())
+
     def is_posix(self) -> bool:
         # Object store: "readable by all" maps to a same-account read policy
         # (plugin-owned semantics, N3); groups map to per-group prefixes (N13).
@@ -646,7 +654,7 @@ class TofuS3StorageBuilder(TofuStorageBuilder[B]):
         # stage 63: the STORAGE's bucket, the one its module call creates
         # (bucket_name, else the storage's name); the builder's bucket_name
         # made two S3 storages on one builder report the same bucket
-        bucket = getattr(storage, "bucket_name", None) or storage.get_name()
+        bucket = self._bucket_for(storage)
         # The bucket_name binding already scopes this lookup to one bucket, so
         # presence = the bucket is reachable (found live: our own bucket read
         # as HARD-missing because the module sets no Name tag).
@@ -704,7 +712,7 @@ class TofuS3StorageBuilder(TofuStorageBuilder[B]):
 
     def module_args(self, storage: Storage) -> dict[str, Any]:
         args: dict[str, Any] = dict(self.model.variables.as_module_args())   # stage 26
-        args["bucket_name"] = storage.bucket_name or storage.get_name()
+        args["bucket_name"] = self._bucket_for(storage)
         spec = getattr(storage, "lifecycle", None) or {}
         if spec:
             args["lifecycle_rules"] = [{
@@ -731,7 +739,7 @@ class TofuS3StorageBuilder(TofuStorageBuilder[B]):
         rtb = ctx.runtime_builders.get(self.model.get_runtime_provider(), None)
         creds = rtb.model.get_credentials() if rtb else None
         profile = (creds or {}).get("profile_name")
-        bucket = storage.bucket_name or storage.get_name()
+        bucket = self._bucket_for(storage)
         args = ["s3", "rm", f"s3://{bucket}", "--recursive"]
         if profile:
             args += ["--profile", profile]
