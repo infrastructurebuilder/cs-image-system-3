@@ -539,6 +539,12 @@ class TofuInstanceBuilder(InstanceBuilderBase[Q], TerraformRootMixin):
         ids into an .auto.tfvars so the instance modules use exact artifacts
         instead of the most-recent name-pattern fallback.
         """
+        if not utils.root_in_runtime_scope(self.model.get_runtime_provider()):
+            # stage 63: another runtime's root emitted nothing this run (ledger
+            # 70), so there is no tfvars to write for it (it wrote one anyway,
+            # and logged "No resolved provider-specific images" on every
+            # scoped run)
+            return
         if phase != ExecutionLifecyclePhase.INSTANCE_GENERATION or not self._instances:
             return
         ctx = self._get_context()
@@ -578,6 +584,8 @@ class TofuInstanceBuilder(InstanceBuilderBase[Q], TerraformRootMixin):
         instance to the build it was launched from (first bind, N5)."""
         if phase != ExecutionLifecyclePhase.INSTANCE_GENERATION or not self._instances:
             return
+        if not utils.root_in_runtime_scope(self.model.get_runtime_provider()):
+            return      # stage 63: a root out of this run's scope applied nothing to bind
         if not utils.apply_enabled("instances", self.name, [str(self.model.get_runtime_provider())]):
             return
         ctx = self._get_context()

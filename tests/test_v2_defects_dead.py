@@ -546,3 +546,44 @@ def test_a_missing_opa_key_is_a_real_refusal():
                            "_team_var": lambda self: "t"})()
     with pytest.raises(ValueError, match="TF_VAR_t_key"):
         OktaTfWorkspaceModelMixin._require_tfvar(probe, "key", "default", {})   # type: ignore[arg-type]
+
+
+
+# ------------------------------------------------------ 9. the tofu instance/storage plugin
+
+def test_the_s3_lookup_asks_for_the_storages_own_bucket(tmp_path: Path, monkeypatch):
+    from types import SimpleNamespace
+    from cs_image_system.tf_ebs_instance_plugin.tf_storage_builder import TofuS3StorageBuilder
+    stub_environment(monkeypatch)
+    ctx = load_context(copy_config(tmp_path))
+    try:
+        s3b = ctx.storage_builders["aws-s3"]
+        asked: list[str] = []
+        fake = SimpleNamespace(get_bucket_tagging=lambda Bucket: asked.append(Bucket) or {"TagSet": []})
+        monkeypatch.setattr(TofuS3StorageBuilder, "_aws_client", lambda self, service: fake)
+        storage = next(s for s in ctx.storages if str(s.get_type()) == "aws-s3")
+        TofuS3StorageBuilder._lookup(s3b, storage)
+        expected = getattr(storage, "bucket_name", None) or storage.get_name()
+        assert asked == [expected], asked
+        other = SimpleNamespace(bucket_name="second-bucket", get_name=lambda: "second")
+        TofuS3StorageBuilder._lookup(s3b, other)       # type: ignore[arg-type]
+        assert asked[-1] == "second-bucket", "a second storage on the same builder is its own bucket"
+    finally:
+        reset_singletons()
+
+
+def test_an_out_of_scope_instance_root_writes_no_tfvars(tmp_path: Path, monkeypatch):
+    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+    run = V2Run(tmp_path, monkeypatch)
+    try:
+        ctx = run.ctx
+        ctx.only_runtime_scope = "gcloud-east1"
+        aws_root = ctx.instance_builders["open-tofu"]
+
+        def must_not_look(*a, **kw):
+            raise AssertionError("an out-of-scope root looked for images to write into its tfvars")
+        monkeypatch.setattr(type(ctx), "get_provider_specific_image", must_not_look)
+        aws_root.pre_finalize_phase(ExecutionLifecyclePhase.INSTANCE_GENERATION)
+        aws_root.post_finalize_phase(ExecutionLifecyclePhase.INSTANCE_GENERATION)
+    finally:
+        run.restore_cwd()
