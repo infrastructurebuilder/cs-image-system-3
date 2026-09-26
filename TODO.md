@@ -7,7 +7,7 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress** (§63 LANDED 2026-09-26). Next by the operator's word: §67 item 1 (decided: option one), then §64.
+Current stage: **none in progress** (§63 LANDED 2026-09-26). Next by the operator's word: §67 item 2 (decided), then §64.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
 **§64**, the release that carries everything a configuration repository
@@ -464,60 +464,20 @@ the first final version on PyPI (§41's open call).
 
 ## 67. Hygiene bundle VI
 
-**Status: OPEN since 2026-09-25**, two items. A plan: nothing here starts
+**Status: OPEN since 2026-09-25**; item 1 landed 2026-09-26, item 2 decided and waiting. A plan: nothing here starts
 until the operator says which items to do.
 
-1. **A child image on an ephemeral runtime re-bakes on every cycle.**
-   Found 2026-09-25 across three GCE cycles: `imgfile-basic-dask@gcloud-east1`
-   planned `inputs changed (<recorded> -> 5bb04fa1e631)` every time, and
-   each bake recorded a different fingerprint (`de18cb2753d4` on
-   2026-09-24, `bd1b37a8f0c9` and `d2fa6a3fb603` on 2026-09-25), while the
-   planned one never moved. **Cause** (read in the code, not yet proved by
-   a test): the fingerprint's `parent` is `lineage.parent_reference`,
-   the effective parent BUILD when one exists, else `series:<parent>`. On
-   an ephemeral runtime the closing retention lifecycle disposes the base
-   build, so at the next plan no parent build exists and the reference is
-   `series:basic-rh-10` (constant); at record time the parent is the base
-   build baked in that same run (new each cycle). Plan and record hash
-   different parents, so they can never agree. **Effect**: about six
-   minutes of spot build time and one release per GCE cycle; the released
-   dask image is replaced each time (one still stands, by decision); no
-   drift and no wrong image. **Fix to decide** (USER): either the
-   fingerprint hashes the parent's own fingerprint rather than its build
-   id (a parent rebuilt from identical inputs then leaves the child
-   current; a changed parent still marks it due), or, on an ephemeral
-   runtime, a child whose parent will be re-baked this run is judged
-   against the parent's planned fingerprint. The first is smaller and
-   changes every recorded fingerprint once (every image reads DUE once
-   after it lands, unless the change restamps them); the second touches
-   only ephemeral runtimes. A test first: plan, bake, dispose the parent,
-   plan again, and assert the child is current.
-   **Decided (USER, 2026-09-25): option one**, in three parts. (a) The
-   fingerprint's `parent` becomes the parent image's own input
-   fingerprint on that runtime (computable from the tree with no lineage
-   record, since a base image hashes from its OS builder model), never a
-   build id; `vendor` and `series:` stand-ins go. (b) A follow move
-   becomes its own bake reason: under `parent_policy: follow`, a pin
-   behind the parent series' head on that runtime (the condition the
-   state query already reports as `stale`) bakes the child, so a parent
-   re-baked from identical inputs (`refresh_days`) is still followed; the
-   two live images on `follow` are `imgfile-basic-dask` and
-   `imgfile-coops-model`. (c) Landing it moves every recorded child
-   fingerprint once; the operator absorbs that with one `lineage restamp
-   --runtime <rt> --commit` per runtime (an operator statement, recorded
-   under `fingerprint_restamped`), never a re-bake. The test: plan, bake,
-   dispose the parent, plan again, the child is current; and a follow
-   child whose parent's head moved with an unchanged fingerprint is due.
-   Proof: one GCE cycle whose bake plan shows dask `skip: current`.
-   **Shape (USER, 2026-09-26):** one step, two commits on one branch
-   (`feature/hygiene-vi-fingerprint`: (b) the follow bake reason, then
-   (a) the parent fingerprint), one bar, one squash, the GCE cycle as
-   proof; (a) and (b) never land apart, since (a) alone breaks `follow`
-   for the two live images. (c) is the OPERATOR's: after the squash, ONE
-   `lineage restamp --runtime <rt> --commit` per runtime (aws-east2-runtime,
-   gcloud-east1) absorbs both this change and the dead-field list's
-   disk-size change (the three AWS base images read DUE since 2026-09-26);
-   no push to `main` before it, or the perform job re-bakes them.
+1. **A child image on an ephemeral runtime re-bakes on every cycle:
+   LANDED 2026-09-26** (`feature/hygiene-vi-fingerprint`, kept). The
+   fingerprint's parent slot is the parent image's own fingerprint
+   (`lineage.parent_fingerprint`), never a build id; a moved pin was
+   already its own bake reason and a test now pins that. Proved: the GCE
+   cycle `2026_09_26t06_45_39_658174` re-baked dask one last time (its
+   record was the old recipe's) and the next plan, computed against the
+   live tree with the base build disposed, reads `skip: current`. OWED
+   (operator): one `lineage restamp --runtime <rt> --commit` per runtime,
+   which also absorbs the dead-field list's disk-size move; no push to
+   `main` before it. Tests in `tests/test_v2_hygiene_vi.py`.
 2. **Small remnants found while landing §63's dead-field list**
    (2026-09-25; none threatens function, each is a line or two):
    - `TofuS3StorageBuilderModel.bucket_name` is required and now read by
