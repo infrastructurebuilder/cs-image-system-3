@@ -69,7 +69,13 @@ class AnsiblePackerModBuilder(ModBuilderBase[Q]):
             # The provisioner references the playbook relative to the block dir;
             # copy the (cwd-relative) playbook file next to the generated HCL.
             src = Path(playbook)
-            if not src.is_absolute() and src.is_file():
+            if not src.is_absolute():
+                if not src.is_file():
+                    # stage 63: a missing relative playbook used to be emitted
+                    # anyway and failed only when packer ran
+                    raise FileNotFoundError(
+                        f"modification {mod.name!r}: playbook {playbook!r} does not exist (a relative "
+                        "path is read from the configuration root)")
                 target = gen_root / path.parent / src
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src, target)
@@ -88,7 +94,7 @@ class AnsiblePackerModBuilder(ModBuilderBase[Q]):
             retval.add(path, '}')
             retval.add(path, "provisioner \"ansible\" {")
             retval.add(path, f"  only = [\"{label}\"]")
-            retval.add(path, f"  playbook_file = \"{playbook}\"")
+            retval.add(path, f"  playbook_file = {_hcl(str(playbook))}")
             # finding 48 (found live, Alma dask re-bake): packer's ansible
             # provisioner defaults ansible_user to the OPERATOR'S LOCAL login
             # (found: avery.alpha), never the build VM's ssh user -- so ansible
@@ -101,13 +107,15 @@ class AnsiblePackerModBuilder(ModBuilderBase[Q]):
             rtb = ctx.runtime_builders.get(str(ibb.model.get_runtime_provider())) if ibb else None
             if rtb is not None:
                 bake_user = rtb.bake_ssh_username(image)   # stage 63 item 23: the source's own user
+            if self.model.configuration_user:
+                bake_user = str(self.model.configuration_user)   # stage 63: the builder's override
             if bake_user:
-                retval.add(path, f"  user = \"{bake_user}\"")
+                retval.add(path, f"  user = {_hcl(bake_user)}")
             extra = list(self.model.extra_arguments or [])
             extra += ["-e", "ansible_python_interpreter=/usr/local/bin/csis-ansible-python"]
-            retval.add(path, "  extra_arguments = [" + ", ".join(f'\"{a}\"' for a in extra) + "]")
+            retval.add(path, "  extra_arguments = [" + ", ".join(_hcl(str(a)) for a in extra) + "]")
             if self.model.ansible_connection:
-                retval.add(path, f"  connection_type = \"{self.model.ansible_connection}\"")
+                retval.add(path, f"  connection_type = {_hcl(str(self.model.ansible_connection))}")
             if self.model.expect_disconnect:
                 retval.add(path, "  expect_disconnect = true")
             retval.add(path, "}\n")
@@ -139,3 +147,11 @@ class AnsibleVersionChecker(AbstractVersionChecker):
 
     def get_regex(self) -> str:
         return r"\s+\[core\s([\d\.]+)"
+
+
+def _hcl(text: str) -> str:
+    """An HCL string literal: backslashes and quotes escaped, and packer's
+    template openers doubled (stage 63: a `"` in `extra_arguments`,
+    `ansible_connection` or a path used to break the build file)."""
+    body = text.replace("\\", "\\\\").replace('"', '\\"').replace("${", "$${").replace("%{", "%%{")
+    return f'"{body}"'

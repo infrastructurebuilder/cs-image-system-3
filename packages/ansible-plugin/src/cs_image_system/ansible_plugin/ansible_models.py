@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
-from zipfile import Path
+from pathlib import Path
 log = logging.getLogger(__name__)
 from dataclasses import field
 from cs_image_system.base.models.model_config import CSIS_MODEL_CONFIG
@@ -58,7 +58,10 @@ class AnsibleBuilderModel(ModBuilderModel):
     playbooks are the modification ITEMS' (stage 48.4: the builder-level list
     was copied beside the Packer root and never run, so it is gone)."""
     type = ANSIBLE_BUILDER
-    configuration_user: str | None = None  # Username to use for provisioning (if none use OSBuilder)
+    # stage 63: when set, the ansible provisioner connects as this user for this
+    # builder's items, beating the bake-user resolver (the one place a
+    # modification runs as someone other than the bake user)
+    configuration_user: str | None = None
     extra_arguments: list[str] = field(default_factory=list) # Extra arguments to pass to ansible-playbook command (e.g. --tags, --skip-tags, etc.)
     expect_disconnect: bool = False # Whether to expect a disconnect during provisioning (e.g. due to a reboot)
     # setting ansible_connection changes program flow.  Usually this should be left as None and

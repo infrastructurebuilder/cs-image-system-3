@@ -425,3 +425,55 @@ def test_an_image_builders_machine_type_sits_between_the_entry_and_the_runtime(t
         assert "e2-highmem-2" in src, src
     finally:
         run.restore_cwd()
+
+
+# ------------------------------------------------------ 6. the ansible plugin
+
+def _mod_builder(data: dict, name: str) -> dict:
+    return next(b for b in data["mod_builders"] if b["name"] == name)
+
+
+def test_ansible_strings_are_escaped_and_the_user_override_wins(tmp_path: Path, monkeypatch):
+    root = copy_config(tmp_path)
+    _edit(root / "cfg" / "mod-builders.yml", lambda d: _mod_builder(d, "ansible-default").update(
+        extra_arguments=['--extra-vars', 'motd="hello"'], configuration_user="deployer"))
+    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    try:
+        assert run.run(["base-image", "instance-image"], apply=False).ok
+        text = "".join(p.read_text() for p in run.generated.rglob("*build.pkr.hcl") if "instance-image" in str(p))
+        assert '"motd=\\"hello\\""' in text, "a quote inside an argument is escaped"
+        assert 'user = "deployer"' in text and 'user = "packer"' not in text, "configuration_user wins"
+    finally:
+        run.restore_cwd()
+
+
+def test_a_missing_playbook_is_refused_at_generation(tmp_path: Path, monkeypatch):
+    root = copy_config(tmp_path)
+
+    def edit(d):
+        dask = next(i for i in d["images"] if i["name"] == "imgfile-basic-dask")
+        mod = next(m for m in dask["modifications"] if m.get("playbooks"))
+        mod["playbooks"] = ["no-such-playbook.yml"]
+    _edit(root / "images" / "image1.yaml", edit)
+    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    try:
+        summary = run.run(["base-image", "instance-image"], apply=False)
+        assert not summary.ok and "no-such-playbook.yml" in str(summary.error), summary.error
+    finally:
+        run.restore_cwd()
+
+
+def test_a_modification_with_no_builder_and_no_default_is_a_named_refusal(tmp_path: Path, monkeypatch):
+    root = copy_config(tmp_path)
+    _edit(root / "cfg" / "mod-builders.yml", lambda d: _mod_builder(d, "ansible-default").update(is_default=False))
+    stub_environment(monkeypatch)
+    try:
+        with pytest.raises(Exception) as exc:
+            load_context(root)
+        # refused by name at load (the builder-list check fires first; the
+        # orchestrator's own refusal covers an item that reaches it anyway),
+        # never an AttributeError at generation
+        message = str(exc.value)
+        assert ("names no builder" in message or "No default builder found in mod_builder list" in message), message
+    finally:
+        reset_singletons()

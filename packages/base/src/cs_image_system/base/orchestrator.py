@@ -211,6 +211,14 @@ class TemplateResolver:
                     # Deferred default doesn't get pre-resolved
                     builder_name = reg.get_default_for(deferred_builder_vct)  # Ensure default is loaded
                     if builder_name is None:
+                        if deferred_builder_vct == VCT.MOD_BUILDER_MODEL:
+                            # stage 63: a modification with no `type` and no default
+                            # mod builder was left a plain mapping, and the packer
+                            # builder later died on it with an AttributeError
+                            raise ValueError(
+                                f"modification {mod_data.get('name', '<unnamed>')!r} names no builder "
+                                "(`type`) and no mod builder is `is_default: true`; name one with `type:` "
+                                "or mark a default")
                         log.debug(f"Default builder for VCT '{deferred_builder_vct}' not found in registry.")
                         structured_mods.append(mod_data)
                         continue

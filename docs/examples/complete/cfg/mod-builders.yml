@@ -12,7 +12,7 @@ mod_builders:
     extra_arguments: ["--diff"]    # the provisioner's extra_arguments (the system appends the interpreter)
     ansible_connection: null       # the provisioner's connection_type; normally unset
     expect_disconnect: false       # the provisioner's expect_disconnect
-    configuration_user: null       # accepted; the provisioner's user comes from the bake ssh user
+    configuration_user: null       # set: the ansible provisioner connects as this user for this builder's items, beating the bake-user order
     config:                        # free-form
       key1: value1
   - name: bash-remote
@@ -28,7 +28,6 @@ mod_builders:
     execute_command: null
     environment_vars: ["CSIS_MOD=1"]   # the provisioner's environment_vars
     expect_disconnect: false       # accepted
-    extra_arguments: []            # accepted; not emitted
-    configuration_user: null       # accepted; not emitted
+    configuration_user: null       # set: each item's lines run as this user (`sudo su - <user> -c`); excludes execute_command
     config:
       note: "items give script (inline lines), scripts (files) and/or ensure (declarative)"
