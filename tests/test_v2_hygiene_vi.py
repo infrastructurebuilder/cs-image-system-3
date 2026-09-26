@@ -160,8 +160,8 @@ def test_the_builders_bucket_is_the_default_for_storages_naming_none(tmp_path: P
     try:
         s3b = cast(Any, ctx.storage_builders["aws-s3"])
         bucket = TofuS3StorageBuilder._bucket_for
-        named = SimpleNamespace(bucket_name="its-own", get_name=lambda: "s")
-        unnamed = SimpleNamespace(bucket_name=None, get_name=lambda: "s")
+        named = cast(Any, SimpleNamespace(bucket_name="its-own", get_name=lambda: "s"))
+        unnamed = cast(Any, SimpleNamespace(bucket_name=None, get_name=lambda: "s"))
         assert bucket(s3b, named) == "its-own"
         assert bucket(s3b, unnamed) == s3b.model.bucket_name, "the builder's bucket is the default"
         s3b.model.bucket_name = ""
@@ -208,7 +208,8 @@ def test_a_pinned_gce_image_that_is_not_ready_is_refused(tmp_path: Path, monkeyp
             g.GCPCloudBuilder.query_provider_image_by_id(rtb, entry, "almalinux-10-x")
         monkeypatch.setattr(g, "query_image", lambda **kw: {"name": "almalinux-10-x", "status": "READY",
                                                               "self_link": "https://x/projects/almalinux-cloud/global/images/almalinux-10-x"})
-        assert g.GCPCloudBuilder.query_provider_image_by_id(rtb, entry, "almalinux-10-x")[0] == "almalinux-10-x"
+        found = g.GCPCloudBuilder.query_provider_image_by_id(rtb, entry, "almalinux-10-x")
+        assert found is not None and found[0] == "almalinux-10-x"
     finally:
         reset_singletons()
 
