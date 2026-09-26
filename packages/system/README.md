@@ -247,6 +247,24 @@ when any marker is present; loads no configuration. Exit 1 (`materialize:
 identity or a value that cannot be opened. This is the wrapper every
 deferred command in a runner script runs through.
 
+### `init-config DESTINATION [--from NAME] [--force]`
+
+Write a starter configuration repository from this release (stage 64).
+The release carries three starter trees -- `standard-aws` (the default),
+`standard-gce` and `complete`, the source being the system repository's
+`docs/examples/` -- and `DESTINATION` that does not exist or is empty takes
+the whole one: the YAML, the `Justfile`, the workflow, the public-safe
+hook, `.gitignore`, `tfmodules/` (`module_source_base: tfmodules`) and
+`.csis-version` pinned to the running release. A `DESTINATION` that
+already holds a configuration takes only the parts the release owns (the
+same list without the YAML and the README), so an existing repository
+gains them, or refreshes them after an upgrade, with its own files
+untouched; a release-owned file that exists and differs is `REFUSED` by
+name, exit 1, until `--force` overwrites it, and an identical one is
+kept. Prints what was written and kept. Loads no configuration and needs
+no credential. Exit 2 for an unknown starter or a destination that is a
+file.
+
 ### `public-safe [--staged] [--tree PATH] [--config FILE]`
 
 Scan a tree (tracked plus untracked non-ignored files; default `--root-dir`
@@ -528,7 +546,7 @@ without loading anything.
 
 | Needs | Commands |
 | ------- | ---------- |
-| Nothing | `preflight` (reads local caches only), `gate-plan`, `apply-check`, `public-safe`, `encrypt` (recipients are read from `cfg/_config.yml` as text), `test`, `cleanup`. |
+| Nothing | `preflight` (reads local caches only), `gate-plan`, `apply-check`, `public-safe`, `encrypt` (recipients are read from `cfg/_config.yml` as text), `init-config`, `test`, `cleanup`. |
 | The age identity in `CSIS_CONFIG_IDENTITY` only | `decrypt`, `reencrypt`, `mask`, `materialize` (when a marker is present). |
 | Identity-provider credentials from the environment, and plugins installed | `identity export-gids`. |
 | The age identity when the tree holds encrypted values, and live credentials for every declared cloud runtime | Every command that loads the configuration: `run`, `build-all`, `generate`, `validate`, `upgrade`, `test-mods`, `release`, `runtime describe`, `empty`, `lineage restamp`, `lineage relabel`, `unmount storage`, `workload describe`, `verify instance`, `verify login`, `verify assert`, `forget instance`, `dispose image`, `state query`, `state import`, `state-migration`, `prune-attachments`, `identity-attributes`. Loading constructs every runtime builder, and the cloud plugins validate networking against the cloud in that step. `run` and `state` print the session lines first and exit 1 on an expired session. |
@@ -590,8 +608,8 @@ separator replaced by `_`), not of the process that executes the step.
 | Code | Meaning |
 | ------ | --------- |
 | 0 | Success. |
-| 1 | The operation failed or was refused: a failed run, validation errors, a refused release, a failed verification or login, hard drift, a value that cannot be decrypted or materialized, a public-safe finding, an expired session before a load, a failed load (a traceback), a `state-migration`/`prune-attachments` step that failed (the runner stops). |
-| 2 | Usage: unknown lifecycle or runtime, nothing selected, a missing argument, a retired command, `--migrate-state` under a dry run, `public-safe --staged` outside git, `preflight` with an absent or expired session, an empty credential variable or no runtimes, `empty` on a runtime that cannot answer, `forget instance` on a declared instance, `workload describe --env` with nothing named, a `state-migration` step without its inputs, `prune-attachments` for an unknown builder. |
+| 1 | The operation failed or was refused: a failed run, validation errors, a refused release, a failed verification or login, hard drift, a value that cannot be decrypted or materialized, a public-safe finding, a release-owned file `init-config` refused, an expired session before a load, a failed load (a traceback), a `state-migration`/`prune-attachments` step that failed (the runner stops). |
+| 2 | Usage: unknown lifecycle or runtime, nothing selected, a missing argument, a retired command, `--migrate-state` under a dry run, `public-safe --staged` outside git, `preflight` with an absent or expired session, an empty credential variable or no runtimes, `empty` on a runtime that cannot answer, `forget instance` on a declared instance, `workload describe --env` with nothing named, `init-config` with an unknown starter, a `state-migration` step without its inputs, `prune-attachments` for an unknown builder. |
 | 3 | A gate refused: `gate-plan` (destroy not whitelisted, stale plan file, missing unmount receipt), `apply-check` (flag off, no `_config.yml`, overlay gone), `identity-attributes` provider conflicts. |
 | 4 | `identity-attributes --apply`: writing attributes is disabled. |
 

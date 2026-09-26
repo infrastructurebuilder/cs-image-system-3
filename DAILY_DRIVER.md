@@ -238,21 +238,36 @@ workflow is a team value: the runtime it performs on, the region, the
 
 ### 1.9 The configuration repository, from scratch
 
-Copy a starter tree; do not write from nothing.
+Start from a starter tree; do not write from nothing. The release
+carries three and writes one out:
+
+```sh
+cs-image-system init-config my-config                          # standard-aws, the default
+cs-image-system init-config my-config --from standard-gce
+cs-image-system init-config my-config --from complete
+```
+
 [docs/examples/standard-aws/](docs/examples/standard-aws/README.md) is the
 smallest repository that works on the AWS plugin set, one of everything,
 every value you must replace an obvious `REPLACE-ME` and every line that
 is a decision commented; [docs/examples/standard-gce/](docs/examples/standard-gce/README.md)
 is the same for GCE; [docs/examples/complete/](docs/examples/complete/README.md)
 has every plugin, every field and every variation, and is where to look
-when the reference manual's table needs a living example. All three load
-and validate in the system's tests, and their `Justfile`, workflow, hook,
-scripts and modules are held to the release's, so they cannot drift.
-(Until a release ships them, the starter trees are fetched from the
-system repository's `docs/examples/`; the plan for `cs-image-system
-init-config` is in [TODO.md](TODO.md).)
+when the reference manual's table needs a living example. Those three
+directories are the source the release is built from: all three load and
+validate in the system's tests, the built wheel is held to them byte for
+byte, and their `Justfile`, workflow, hook and modules are the release's,
+so a tree written by `init-config` cannot drift from the system that wrote
+it. `.csis-version` in the written tree names that release.
 
-Then, in the copy:
+Run `init-config` again, in the repository, after upgrading the release:
+into a tree that already holds a configuration it writes only the parts
+the release owns (the `Justfile`, the workflow, the hook, `.gitignore`,
+`tfmodules/`, `.csis-version`) and never a line of the YAML; a
+release-owned file you changed is refused by name until you pass
+`--force`.
+
+Then, in the written tree:
 
 1. `git init`, `just init` (the hook, the plugin cache, a check that the
    command runs), and a first commit of the tree as it stands.

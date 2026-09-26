@@ -413,6 +413,40 @@ def materialize_command(
         raise typer.Exit(code=1)
 
 
+@app.command(name="init-config")
+def init_config_command(
+    destination: Annotated[Path, typer.Argument(help="the configuration repository to write (new, empty, or existing)")],
+    starter: Annotated[str, typer.Option("--from", help="the starter tree: standard-aws (the default), standard-gce or complete")] = "standard-aws",
+    force: Annotated[bool, typer.Option("--force", help="overwrite a release-owned file that exists and differs")] = False,
+) -> None:
+    """Write a starter configuration repository from this release (stage 64).
+
+    A destination that does not exist or is empty takes the WHOLE starter: the
+    YAML, the Justfile, the workflow, the hook, .gitignore, the terraform
+    modules (module_source_base: tfmodules) and .csis-version pinned to this
+    release. A destination that already holds a configuration takes only the
+    parts the release owns (the same list without the YAML), so an existing
+    repository gains or refreshes them; a release-owned file that exists and
+    differs is refused by name unless --force. Loads no configuration."""
+    from cs_image_system.system.starters import init_config
+    try:
+        report = init_config(destination, starter, force=force)
+    except ValueError as e:
+        typer.secho(f"init-config: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=2)
+    except (OSError, RuntimeError) as e:
+        typer.secho(f"init-config: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    for line in report.lines():
+        typer.secho(line, fg=None if line.startswith("init-config: the") else typer.colors.RED,
+                    err=not line.startswith("init-config: the"))
+    if not report.ok:
+        raise typer.Exit(code=1)
+    if report.whole_tree:
+        typer.echo("init-config: next: git init, just init, then replace every REPLACE-ME "
+                   "(the tree's README says which values are yours)")
+
+
 @app.command(name="public-safe")
 def public_safe_command(
     typer_cntx: typer.Context,
@@ -1296,10 +1330,11 @@ def main(
         # plugin, no cloud call; the Justfile's full-test gates on this
         typer_cntx.obj["preflight_args"] = (Path(root_dir or os.getcwd()), [p.resolve() for p in (overlay or [])])
         return
-    if typer_cntx.invoked_subcommand in ("gate-plan", "apply-check", "identity"):
+    if typer_cntx.invoked_subcommand in ("gate-plan", "apply-check", "identity", "init-config"):
         # Utility commands invoked from runner scripts / terraform: no
         # configuration tree is loaded (plugins are loaded on demand;
-        # apply-check reads only cfg/_config.yml itself).
+        # apply-check reads only cfg/_config.yml itself). init-config (stage
+        # 64) writes a tree; there is nothing to load yet.
         return
     if typer_cntx.invoked_subcommand in ("encrypt", "decrypt", "reencrypt", "public-safe", "materialize", "mask"):
         # stage 33: value tools -- encrypt reads only cfg/_config.yml's

@@ -283,8 +283,13 @@ STARTER_FILES = ["Justfile", ".github/workflows/ci.yml", ".githooks/pre-commit",
 def test_every_example_is_a_whole_repository_a_team_can_copy():
     """A configuration repository carries its own Justfile, CI, hook, helper
     scripts and terraform modules; the system is installed from a release,
-    never cloned beside it. The copies must be the release's, byte for byte."""
+    never cloned beside it. The copies must be the release's, byte for byte,
+    and what the release resolves as its starters must be these trees (stage
+    64: the source the release is built from)."""
     import stat
+    from cs_image_system.system.starters import STARTERS, starters_root
+    assert sorted(STARTERS) == sorted(TREES)
+    assert starters_root().resolve() == EXAMPLES.resolve()          # an editable checkout resolves the source
     for name in TREES:
         root = EXAMPLES / name
         for rel in STARTER_FILES:
@@ -324,3 +329,34 @@ def test_the_starter_workflow_has_the_three_jobs():
         text = (EXAMPLES / name / ".github/workflows/ci.yml").read_text()
         assert "uv tool install" in text and "cs-image-system" in text, f"{name}: the workflow must install a release"
         assert "just mirror-clean" in text, f"{name}: the mirror must be removed even on failure"
+
+
+def test_the_built_release_carries_the_starters_byte_for_byte(tmp_path):
+    """Stage 64 item 1: `just build` (uv build: the sdist, then the wheel FROM
+    the sdist) ships the three trees inside the system package, so a machine
+    that holds nothing but the release can write one out. The wheel is built
+    here and read; every file of every tree is in it, unchanged."""
+    import shutil, subprocess, zipfile
+    uv = shutil.which("uv")
+    if not uv:
+        pytest.skip("uv is not on PATH")
+    out = tmp_path / "dist"
+    subprocess.run([uv, "build", "--package", "cs-image-system-system", "-o", str(out)],
+                   cwd=REPO, capture_output=True, text=True, check=True)
+    wheel = next(out.glob("cs_image_system_system-*.whl"))
+    prefix = "cs_image_system/system/starters/"
+    with zipfile.ZipFile(wheel) as z:
+        carried = {n[len(prefix):]: z.read(n) for n in z.namelist() if n.startswith(prefix)}
+    expected = {}
+    for name in TREES:
+        for p in sorted((EXAMPLES / name).rglob("*")):
+            if p.is_file() and p.name != ".DS_Store":
+                expected[f"{name}/{p.relative_to(EXAMPLES / name)}"] = p.read_bytes()
+    assert set(carried) == set(expected), sorted(set(carried) ^ set(expected))[:20]
+    for rel, content in expected.items():
+        assert carried[rel] == content, rel
+    sdist = next(out.glob("cs_image_system_system-*.tar.gz"))
+    import tarfile
+    with tarfile.open(sdist) as tf:
+        names = tf.getnames()
+    assert any(n.endswith("/starters/complete/cfg/_config.yml") for n in names), "the sdist must carry the source too"
