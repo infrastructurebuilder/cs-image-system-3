@@ -134,7 +134,9 @@ class OsBuilderModel(BuilderModel):
                 return rt
         return None
     def get_command_to_update(self) -> list[str]:
-        """Full package-level update (legacy hook; policy 'full')."""
+        """The full update for a family without a package-manager policy
+        model: alpine's one path (stage 67; every dnf and apt family answers
+        through ``commands_for_policy`` and never reaches this)."""
         return []
 
     def effective_update_policy(self) -> UpdatePolicy:

@@ -163,14 +163,15 @@ anything else is a `ValueError` and the configuration does not load. Until
 2026-09-25 the check ran only when update commands were generated, so a
 `policy: none` OS builder with an unsupported major was never refused.
 
-It overrides `repo_setup_commands()` (which repeats the major check): when
+It overrides `repo_setup_commands()` (the major check is the load's, stage 67): when
 the system is registered with `subscription-manager`, it refreshes and
 enables exactly the `baseos`, `appstream` and `codeready-builder`
 repositories for that major; an unregistered system (a vendor RHUI or
 pay-as-you-go image, AlmaLinux, Rocky) prints a note and uses its
-repositories as they are. Its `get_command_to_update()` is the `full`
-policy through those commands; the bake path goes through
-`commands_for_policy()` directly.
+repositories as they are. The bake path goes through
+`commands_for_policy()` directly (stage 67 removed rhel's unreachable
+`get_command_to_update()`/`commands_to_update()`; the base hook remains as
+alpine's one path).
 
 `FedoraOsBuilderModel` (`type: fedora`) adds no fields, no repository
 setup and no methods: every bake goes through the shared dnf

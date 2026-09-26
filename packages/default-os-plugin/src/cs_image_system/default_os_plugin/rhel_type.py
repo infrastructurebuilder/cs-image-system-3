@@ -44,10 +44,7 @@ class RhelOsBuilderModel(DnfOsBuilderModel):
         registered" -- their RHUI repos already serve baseos/appstream and
         security metadata, so on an unregistered system this is a no-op)."""
         v = self.version()
-        if not v:
-            raise ValueError(f"Could not determine RHEL version from family_version '{self.family_version}' in OS builder {self.name}")
-        if v.major not in (8, 9, 10):        # EL10 since stage 13 (AlmaLinux 10 on both clouds)
-            raise ValueError(f"Unsupported RHEL version '{v}' in OS builder {self.name}")
+        assert v is not None, "checked at load (__post_init__)"
         repos = " ".join(f"--enable='rhel-{v.major}-for-x86_64-{r}-rpms'" for r in ("baseos", "appstream"))             + f" --enable='codeready-builder-for-rhel-{v.major}-x86_64-rpms'"
         return [
             "# subscription-managed systems get their repos enabled; RHUI/PAYG images skip",
@@ -57,13 +54,3 @@ class RhelOsBuilderModel(DnfOsBuilderModel):
              f"sudo subscription-manager repos {repos}; "
              "else echo 'not subscription-registered (RHUI image): using vendor repos as-is'; fi"),
         ]
-
-    def commands_to_update(self) -> list[str]:
-        """Full update (policy 'full'): repos + dnf update/upgrade/autoremove."""
-        from cs_image_system.base.models.update_policy import POLICY_FULL, UpdatePolicy
-        return self.commands_for_policy(UpdatePolicy(policy=POLICY_FULL))
-
-
-    def get_command_to_update(self) -> list[str]:
-        """Version-aware update commands (RHEL 8/9 enable different repos)."""
-        return self.commands_to_update()
