@@ -95,7 +95,7 @@ def test_pipeline_loads_and_resolves_builders(monkeypatch, cwd_guard, tmp_path):
     # over a COPY: loading creates the generation directories where it runs,
     # and the frozen fixture must never be written into (stage 28)
     cntx = types.SimpleNamespace(obj={})
-    ctx = read_config_and_transform(cast(Any, cntx), copy_config(tmp_path), False, [], False)
+    ctx = read_config_and_transform(cast(Any, cntx), copy_config(tmp_path), False)
 
     assert set(ctx.runtime_builders) == {"aws-east1", "aws-east2-runtime", "gcloud-east1", "west1"}
     assert "pckr-ebs-ans" in ctx.image_builders
@@ -194,7 +194,7 @@ def test_image_to_source_emits_psi_backed_data_block(monkeypatch, cwd_guard, tmp
         (root / "meta-state" / f).unlink(missing_ok=True)
     from cs_image_system.base.global_context import read_config_and_transform
     ctx = read_config_and_transform(cast(Any, types.SimpleNamespace(obj={})),
-                                    root, False, [], False)
+                                    root, False)
 
     from cs_image_system.base.commands.resolve import predefined_resolve
     from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
@@ -268,7 +268,7 @@ def test_execution_run_defers_base_images_no_query_no_build(monkeypatch, cwd_gua
 
     from cs_image_system.base.global_context import read_config_and_transform
     ctx = read_config_and_transform(cast(Any, types.SimpleNamespace(obj={})),
-                                    root, False, [], False)
+                                    root, False)
 
     from cs_image_system.base.commands.resolve import predefined_resolve
     from cs_image_system.base.lifecycle import ExecutionLifecyclePhase

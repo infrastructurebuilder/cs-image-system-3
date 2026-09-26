@@ -31,7 +31,12 @@ def _builder(variables=None, networking=None) -> Any:
                             get_runtime_provider=lambda: "aws")
     rtb = SimpleNamespace(model=SimpleNamespace(networking=networking)) if networking else None
     ctx = SimpleNamespace(runtime_builders={"aws": rtb} if rtb else {})
-    return SimpleNamespace(model=model, _get_context=lambda: ctx)
+    stub = SimpleNamespace(model=model, _get_context=lambda: ctx)
+    # stage 67: the S3 module call asks the builder for the storage's bucket
+    # (the storage's, else the builder's, else the name); this stub's model
+    # names none, so the storage decides
+    stub._bucket_for = lambda storage: TofuS3StorageBuilder._bucket_for(cast(Any, stub), storage)
+    return stub
 
 
 def _storage(name, *, tags=None, config=None, bucket_name=None) -> Any:

@@ -50,8 +50,9 @@ def test_register_plugin_metadata_registers_model_builder_and_injected(clean_reg
 
     # Service model is registered under its (sanitized) classifier + canonical name.
     assert reg.get_model(VCT.STORAGE_BUILDER_MODEL, "fake-thing") is FakeModel
-    # Builder wired to the model.
-    assert reg.get_builder(FakeModel) is FakeBuilder
+    # Builder wired to the model (stage 67: `get_builder` had no production
+    # caller and is gone; the map itself is what the template's shape shows).
+    assert reg.builders[cast(Any, FakeModel)] is FakeBuilder
     # Injected model registered and set as default for its classifier.
     assert reg.get_model(VCT.STORAGE_MODEL, "fake-injected") is FakeInjected
     assert reg.get_default_for(VCT.STORAGE_MODEL) == "fake-injected"

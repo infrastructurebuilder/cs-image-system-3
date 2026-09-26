@@ -1767,9 +1767,9 @@ Options of `cs-image-system run` ([`cli.py`](../packages/system/src/cs_image_sys
 Global options (before the command): `--root-dir`, `--verbose`,
 `--dry-run/--no-dry-run` (dry run is the default: finalization commands
 are enumerated, not executed), `--overlay`, `--undeclare`,
-`--base-only`, `--only-providers` (repeatable, and since stage 63 a comma
-list is split into names; recorded and warned about, while the
-configuration is still read in full, so it changes no output). There is
+`--base-only`. There is no `--only-providers` (stage 67: it was recorded,
+split and warned about, and read by nothing; `--only-runtime` is the
+runtime filter). There is
 no global `--force` (stage 63): it was stored and read by nothing, and
 passing it is now `No such option` (until 2026-09-25 it was accepted and
 ignored). The overrides that act are named for what they override:

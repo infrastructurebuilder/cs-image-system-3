@@ -77,6 +77,11 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         kv = query_image(query=q, session_config=self.model.self_to_gcp_client_config())
         if not kv:
             return None
+        status = str(kv.get("status") or "")
+        if status and status != "READY":
+            # stage 67: the vendor query insists on READY; a pinned image must too
+            raise ValueError(f"GCP runtime {self.get_name()}: pinned image {image_id!r} is {status}, not READY; "
+                             "a bake from it would fail")
         owner = gcp_utils.get_image_owner(kv) or {}
         return (str(kv.get("name") or image_id), str(owner.get("project") or "self"), kv)
 

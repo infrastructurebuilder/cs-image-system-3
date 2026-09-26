@@ -873,7 +873,7 @@ What it exposes:
 
 | Member | Meaning |
 | -------- | --------- |
-| `dry_run`, `verbose`, `force`, `only_providers` | The invocation's flags. |
+| `dry_run`, `verbose` | The invocation's flags (stage 67: `force` and `only_providers` are gone with the options that set them). |
 | `root_dir`, `working_path` | The configuration root. |
 | `generation_path` | Where generated files land now: `generated/<lifecycle>/` while a lifecycle is current, else `generated/`. |
 | `root_generation_path`, `lifecycle_generation_path(lc)`, `runner_script_path(lc)`, `gating_script_path`, `final_execution_path` | Generated-tree paths. |

@@ -63,7 +63,7 @@ name. Which commands honour which is in the
 | `--overlay FILE` (repeatable) | none | A transient declaration file merged over the tree for this invocation only. `config:` keys override; named `instances:`/`storages:` (and other item) entries update or add; an entry with `undeclare: true` removes the tree's entry. A file that does not exist, is not a mapping, has a top-level key other than `config` and the item collections, or lists an entry without a `name` is refused before anything loads. The tree on disk never changes. |
 | `--undeclare KIND:NAME` (repeatable) | none | Treat a declared tree entry as absent for this invocation, for example `instance:gce-test`. `KIND` is an item collection key (`instances`, `storages`, ...); the singular is accepted; anything else is refused before the load. |
 | `--base-only` | off | Makes `build-all` and `generate` select the base-image lifecycle only. The configuration is still read in full. |
-| `--only-providers NAME[,NAME...]` (repeatable) | none | Recorded on the run context as a list of names, and the load warns `Only providers '<list>' specified but configuration will still be read in full.  only-providers is currently not fully supported.`; nothing else reads it, so it changes no output. Since stage 63 a comma list is split and each name trimmed (`--only-providers "a, b"` is `["a", "b"]`), as the help ("repeatable, or comma-separated") promised; until 2026-09-25 the value was passed through unsplit. |
+| `--only-providers` | | Retired (stage 67, 2026-09-26): it was recorded, split and warned about (`Only providers ... specified but configuration will still be read in full`), and read by nothing; `--only-runtime <rt>` is the runtime filter. Passing it is `No such option`. |
 
 There is no global `--force` (stage 63). It was "Force execution even if
 the system balks", stored on the context and read by nothing; it was
@@ -619,7 +619,7 @@ and [`test_v2_emit_by_reference.py`](../../tests/test_v2_emit_by_reference.py)
 [`test_v2_decommission.py`](../../tests/test_v2_decommission.py)
 (`forget instance`), [`test_v2_post_bake_tests.py`](../../tests/test_v2_post_bake_tests.py)
 (`release`), [`test_v2_defects_dead.py`](../../tests/test_v2_defects_dead.py)
-(stage 63: `--only-providers` splits a comma list, `--force` is `No such
+(stage 63: `--force` is `No such
 option`, `encrypt` without recipients is a message, a zero-minute session
 is expired). [`tests/test_docs_contract.py`](../../tests/test_docs_contract.py)
 holds this README to the four-section contract below and checks every
@@ -736,7 +736,7 @@ base and the plugins ([docs/CONFIGURATION.md](../../docs/CONFIGURATION.md)).
 | `--overlay` | path, repeatable | none | a transient declaration file | every loading command; `preflight` and the `run`/`state` session check (their `config:` keys, for `preflight.expected_run_minutes`); ignored by the value tools, `gate-plan` (which has none), `apply-check` (which has its own), `identity export-gids` |
 | `--undeclare` | `kind:name`, repeatable | none | treat a tree entry as absent | every loading command; ignored elsewhere |
 | `--base-only` | bool | `false` | select the base-image lifecycle alone | `build-all`, `generate` |
-| `--only-providers` | string, repeatable, comma lists split (stage 63) | none | recorded, not otherwise read (a warning at load) | every loading command records it |
+| `--only-providers` | | | retired (stage 67): `No such option`; `--only-runtime` filters runtimes | |
 
 ### Environment variables
 
@@ -765,8 +765,7 @@ base and the plugins ([docs/CONFIGURATION.md](../../docs/CONFIGURATION.md)).
 | `public_safe.allow` | the `--config` file, else the tree's `cfg/_config.yml`, else the fixture's inside the system repository | list | none | `public-safe` |
 | `dateformat`, `working_directory`, `generation_directory` | the merged tree | strings | `%Y%m%d_%H%M%S`, `./workdir`, `generated` | the load (base). The callback always supplies a root (`--root-dir` or the current directory) as the working directory, so `working_directory` is never consulted through the CLI; `generation_directory` is resolved under that root |
 
-Accepted, not read, anywhere in this package: `--only-providers` (split
-and recorded, then only warned about); `apply-check --lifecycle release` (the help lists it;
+Accepted, not read, anywhere in this package: `apply-check --lifecycle release` (the help lists it;
 nothing emits it, and the release lifecycle's cloud marking runs under the
 plugin's own commands); `sleep_before_finalization` in the tree (kept for
 compatibility: the load reads it, and a real run with a non-zero value

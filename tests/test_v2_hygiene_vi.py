@@ -146,3 +146,74 @@ def test_a_child_stays_current_after_retention_disposes_its_parent_build(converg
     assert summary.ok, summary.error
     assert summary.bake_plan[f"{DASK}@{GCE_RT}"].startswith("skip: current"), summary.bake_plan
     assert _pkr_sources(again) == set()
+
+
+# ------------------------------------------------ item 2: the remnants
+
+def test_the_builders_bucket_is_the_default_for_storages_naming_none(tmp_path: Path, monkeypatch):
+    from types import SimpleNamespace
+    from typing import Any, cast
+    from cs_image_system.tf_ebs_instance_plugin.tf_storage_builder import TofuS3StorageBuilder
+    from tests.v2_support import load_context, reset_singletons, stub_environment
+    stub_environment(monkeypatch)
+    ctx = load_context(copy_config(tmp_path))
+    try:
+        s3b = cast(Any, ctx.storage_builders["aws-s3"])
+        bucket = TofuS3StorageBuilder._bucket_for
+        named = cast(Any, SimpleNamespace(bucket_name="its-own", get_name=lambda: "s"))
+        unnamed = cast(Any, SimpleNamespace(bucket_name=None, get_name=lambda: "s"))
+        assert bucket(s3b, named) == "its-own"
+        assert bucket(s3b, unnamed) == s3b.model.bucket_name, "the builder's bucket is the default"
+        s3b.model.bucket_name = ""
+        assert bucket(s3b, unnamed) == "s"
+    finally:
+        reset_singletons()
+
+
+def test_only_providers_is_gone_and_the_context_has_no_force(tmp_path: Path, monkeypatch):
+    from typer.testing import CliRunner
+    from cs_image_system.system import cli as climod
+    from cs_image_system.base.global_context import GlobalTypeContext
+    result = CliRunner().invoke(climod.app, ["--root-dir", str(tmp_path), "--only-providers", "aws", "validate"])
+    assert result.exit_code != 0 and "No such option" in result.output, result.output
+    import inspect
+    from cs_image_system.base import global_context as gc
+    source = inspect.getsource(gc)
+    assert "self.force = " not in source and "self.only_providers = " not in source
+    assert "_sleep_before_finalization: int = 1" in source     # the model's default (it said 10)
+    _ = GlobalTypeContext
+
+
+def test_rhels_unreachable_update_hooks_are_gone_and_the_base_is_alpines():
+    from cs_image_system.default_os_plugin.rhel_type import RhelOsBuilderModel
+    from cs_image_system.base.models.os_builder_model import OsBuilderModel
+    assert "commands_to_update" not in RhelOsBuilderModel.__dict__
+    assert "get_command_to_update" not in RhelOsBuilderModel.__dict__
+    assert "alpine" in (OsBuilderModel.get_command_to_update.__doc__ or "")
+
+
+def test_a_pinned_gce_image_that_is_not_ready_is_refused(tmp_path: Path, monkeypatch):
+    from typing import Any, cast
+    from cs_image_system.gcloud_runtime import gcp_runtime_builders as g
+    from tests.v2_support import load_context, reset_singletons, stub_environment
+    stub_environment(monkeypatch)
+    ctx = load_context(copy_config(tmp_path))
+    try:
+        rtb = cast(Any, ctx.runtime_builders["gcloud-east1"])
+        entry = next(e for e in ctx.os_builders["basic-rh-10"].get_configs_for_image_builders().values()
+                     if e.get_image_builder() == "pckr-gce-ans")
+        monkeypatch.setattr(g, "query_image", lambda **kw: {"name": "almalinux-10-x", "status": "PENDING",
+                                                              "self_link": "https://x/projects/almalinux-cloud/global/images/almalinux-10-x"})
+        with pytest.raises(ValueError, match="is PENDING, not READY"):
+            g.GCPCloudBuilder.query_provider_image_by_id(rtb, entry, "almalinux-10-x")
+        monkeypatch.setattr(g, "query_image", lambda **kw: {"name": "almalinux-10-x", "status": "READY",
+                                                              "self_link": "https://x/projects/almalinux-cloud/global/images/almalinux-10-x"})
+        found = g.GCPCloudBuilder.query_provider_image_by_id(rtb, entry, "almalinux-10-x")
+        assert found is not None and found[0] == "almalinux-10-x"
+    finally:
+        reset_singletons()
+
+
+def test_registry_get_builder_is_gone():
+    from cs_image_system.base.registry import Registry
+    assert not hasattr(Registry, "get_builder")

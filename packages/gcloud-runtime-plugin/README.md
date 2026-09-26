@@ -270,7 +270,9 @@ searched where the vendor query would search: `remap_for_image_query()`
 builds the same `projects` list (the entry's merged owners, or a
 `query.owners`), then the builder drops the query's `family` and `filter`
 and sets the filter to `name = "<id>"`; the post-query filter is not
-applied, and neither is the forced `status = "READY"`. The owning project
+applied, and a match whose status is not `READY` is refused by name
+(stage 67: `GCP runtime <rt>: pinned image '<id>' is <status>, not READY; a
+bake from it would fail`). The owning project
 is read from the result as for the query (else `self`). No match returns
 `None`, and the base stops resolution with `OS builder <name>: image_id
 '<id>' on runtime <rt> is not known to the provider`. Pinning makes the

@@ -107,8 +107,6 @@ class Registry:
             self.models.setdefault(classifier, {})[name] = model_type
             if metadata.is_injected_models_default:
                 self.set_default_for(classifier, name)
-    def get_builder(self, model_type: type) -> type | None:
-        return self.builders.get(model_type, None)
     def get_model(self, classifier: VCT, canonical_name: str) -> type[NameTypedProtocol] | None:
         return self.models.get(classifier, {}).get(canonical_name, None)
     def get_instance(self, classifier: VCT, name_or_alias: str) -> NameTypedProtocol | None:
