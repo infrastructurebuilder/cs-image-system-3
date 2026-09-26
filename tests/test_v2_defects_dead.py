@@ -9,6 +9,7 @@ every test here failed before its fix.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 import yaml
@@ -30,7 +31,7 @@ def _backend(data: dict, name: str) -> dict:
 
 def _s3(**kw):
     from cs_image_system.tf_s3_state_plugin.tf_s3_state_models import TofuS3StateBuilderModel
-    return TofuS3StateBuilderModel(name="s3-x", type="s3", bucket="b", key="k", **kw)
+    return cast(Any, TofuS3StateBuilderModel)(name="s3-x", type="s3", bucket="b", key="k", **kw)
 
 
 def test_s3_backend_arguments_pass_through_when_set_and_stay_silent_at_default():
@@ -69,14 +70,14 @@ def test_refused_s3_keys_name_what_to_do(key, needle):
 def test_a_local_backend_path_has_one_spelling(path):
     from cs_image_system.local_state_plugin.local_state_models import LocalStateBuilderModel
     with pytest.raises(Exception) as exc:
-        LocalStateBuilderModel(name="loc", type="local", path=path)
+        cast(Any, LocalStateBuilderModel)(name="loc", type="local", path=path)
     assert "loc" in str(exc.value)
 
 
 def test_a_local_backend_path_that_is_fine_still_loads():
     from cs_image_system.local_state_plugin.local_state_models import LocalStateBuilderModel
     for path in ("state", "./state", "a/b/", "/var/lib/csis-state", ".", "./"):
-        LocalStateBuilderModel(name="loc", type="local", path=path)
+        cast(Any, LocalStateBuilderModel)(name="loc", type="local", path=path)
 
 
 def test_a_state_backend_alias_binds(tmp_path: Path, monkeypatch):
@@ -201,7 +202,7 @@ def test_query_images_returns_only_the_series_asked_about(tmp_path: Path, monkey
                   for n, s in (("a-1", "imgfile-basic-dask"), ("b-1", "basic-rh-10"), ("c-1", "someone-else"))]
         monkeypatch.setattr(gcp_utils, "_make_images_client",
                             lambda cfg: SimpleNamespace(list=lambda request: images))
-        got = real_query_images(ctx.runtime_builders["gcloud-east1"], ["imgfile-basic-dask", "basic-rh-10"])
+        got = real_query_images(cast(Any, ctx.runtime_builders["gcloud-east1"]), ["imgfile-basic-dask", "basic-rh-10"])
         assert sorted(i["name"] for i in got) == ["a-1", "b-1"], got
     finally:
         reset_singletons()
@@ -497,13 +498,13 @@ def test_bash_configuration_user_runs_the_lines_as_that_user(tmp_path: Path, mon
 def test_bash_configuration_user_and_execute_command_together_are_refused():
     from cs_image_system.bash_mod_plugin.bash_models import BashModBuilderModel
     with pytest.raises(Exception, match="declare one"):
-        BashModBuilderModel(name="b", type="bash-remote", configuration_user="u", execute_command="x")
+        cast(Any, BashModBuilderModel)(name="b", type="bash-remote", configuration_user="u", execute_command="x")
 
 
 def test_bash_extra_arguments_is_refused():
     from cs_image_system.bash_mod_plugin.bash_models import BashModBuilderModel
     with pytest.raises(Exception, match="extra_arguments"):
-        BashModBuilderModel(name="b", type="bash-remote", extra_arguments=["-x"])
+        cast(Any, BashModBuilderModel)(name="b", type="bash-remote", extra_arguments=["-x"])
 
 
 def test_the_on_image_bundle_replays_the_ensure_lines_first(tmp_path: Path, monkeypatch):
@@ -562,11 +563,11 @@ def test_the_s3_lookup_asks_for_the_storages_own_bucket(tmp_path: Path, monkeypa
         fake = SimpleNamespace(get_bucket_tagging=lambda Bucket: asked.append(Bucket) or {"TagSet": []})
         monkeypatch.setattr(TofuS3StorageBuilder, "_aws_client", lambda self, service: fake)
         storage = next(s for s in ctx.storages if str(s.get_type()) == "aws-s3")
-        TofuS3StorageBuilder._lookup(s3b, storage)
+        TofuS3StorageBuilder._lookup(cast(Any, s3b), storage)
         expected = getattr(storage, "bucket_name", None) or storage.get_name()
         assert asked == [expected], asked
         other = SimpleNamespace(bucket_name="second-bucket", get_name=lambda: "second")
-        TofuS3StorageBuilder._lookup(s3b, other)       # type: ignore[arg-type]
+        TofuS3StorageBuilder._lookup(cast(Any, s3b), cast(Any, other))
         assert asked[-1] == "second-bucket", "a second storage on the same builder is its own bucket"
     finally:
         reset_singletons()
@@ -659,10 +660,10 @@ def test_only_providers_splits_a_comma_list_and_force_is_gone(monkeypatch, tmp_p
 
 def test_the_template_models_keep_org_and_team_and_refuse_credentials():
     from cs_image_system.dummy_plugin.dummy_models import DummyGroupBuilderModel
-    DummyGroupBuilderModel(name="g", type="dummy", org="o", team="t")
+    cast(Any, DummyGroupBuilderModel)(name="g", type="dummy", org="o", team="t")
     for key in ("key", "secret", "api_host"):
         with pytest.raises(Exception):
-            DummyGroupBuilderModel(name="g", type="dummy", org="o", team="t", **{key: "x"})
+            cast(Any, DummyGroupBuilderModel)(name="g", type="dummy", org="o", team="t", **{key: "x"})
 
 
 def test_the_dummy_user_builder_writes_under_its_own_root(tmp_path: Path, monkeypatch):

@@ -155,7 +155,8 @@ class AwsCloudBuilderModel(CloudBuilderModel):
         # subnet id from another VPC used to pass the load and fail at the
         # first bake or apply). The check runs when the account answered with
         # the VPC's subnets; a VPC listed without any makes no claim.
-        known = {str(s.get("subnet_id")) for s in (self.vpc_map.get(self.networking.network) or {}).get("subnets", [])}
+        vpc_entry: Any = self.vpc_map.get(self.networking.network) or {}
+        known = {str(s.get("subnet_id")) for s in vpc_entry.get("subnets", [])}
         if known:
             for subnet in getattr(self.networking, "subnets", None) or []:
                 sid = getattr(subnet, "subnet_id", None)
