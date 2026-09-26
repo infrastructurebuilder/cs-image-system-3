@@ -694,7 +694,7 @@ order. The apply step and its gate are described operationally in
      future builds);
    - **bakes are convergent**: an image bakes in a run only when it has
      a reason to — no build on the runtime yet; its **input
-     fingerprint** (parent build, capability stamp, modifications,
+     fingerprint** (the parent image's own fingerprint, capability stamp, modifications,
      in-bake verification commands, disk size, and for base images the
      vendor source, admin user and keys, and update policy) differs from
      the series head's recorded one; its parent moved under

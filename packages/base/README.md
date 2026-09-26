@@ -1038,7 +1038,11 @@ lineage as tags: `csis_series` (the logical image name), `csis_parent`
 input fingerprint), `csis_identity_types` and `csis_storage_types`. After
 a bake `record_build` appends the lineage record and performs the first
 bind of the parent edge. The input fingerprint hashes what determines the
-build's content: series, effective parent, capability stamp, every
+build's content: series, the parent image's own fingerprint on that
+runtime (`parent_fingerprint`, stage 67: never a build id; until
+2026-09-26 the effective parent build was hashed, and a child on an
+ephemeral runtime re-baked every cycle because retention disposed the
+build it was recorded against), capability stamp, every
 modification's content hash, the in-bake verification commands, the bake
 disk size, and for base images the declared vendor source, admin user and
 keys, and update policy. Machine type, usernames, run ids and timestamps
