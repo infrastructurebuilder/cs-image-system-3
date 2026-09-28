@@ -7,7 +7,7 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress** (§63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §68 item 1 (decide), §65.
+Current stage: **none in progress** (§69 LANDED 2026-09-28; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §68 item 1 (decide), §70.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
 **§64**, the release that carries everything a configuration repository
@@ -116,8 +116,9 @@ Standing decisions (operator):
   written as a plan, never a side edit.
 - §30 (the contract package), §65, §66 and §70 (the bootstrap: the one-time
   initialisation as terraform from an interview) are planned, not started;
-  §69 (the CI-from-scratch guide) is in progress on its branch; §63, §67 and §64
-  landed 2026-09-26;
+  §69 (the CI-from-scratch guide) landed 2026-09-28, its step 5 (the
+  reference configuration's secrets and trust, by the guide) the operator's;
+  §63, §67 and §64 landed 2026-09-26;
   a stage is a plan in this file until the operator says to execute it
   (2026-09-23). §62 landed 2026-09-24.
 - **Documentation stays current by stage** (operator, 2026-09-23). Once
@@ -429,163 +430,6 @@ bundle; none is a stage of its own.
    archived release at `archive.debian.org` (a behaviour change worth
    having anyway, since every release archives eventually). Decide, then
    do.
-
-## 69. CI from scratch: the starter-tree README
-
-(the operator, 2026-09-28: "expand the
-README.md in cs-image-system-starter-tree for setting up a CI config from
-scratch; separate sections for GitHub vs GitLab, GitLab TBD").
-
-**Why.** A team that writes a configuration repository with `init-config`
-gets a workflow that names its secrets and gates on them, and nothing that
-says how to make those secrets exist. The committed documents say WHAT is
-needed (DAILY_DRIVER.md 1.3-1.8, OPERATIONS.md section 3, "Repository
-secrets"); only the OPA half has steps (WORKLOAD_CONNECTION.md), and those
-name `cs-image-system-3` as the repository that logs in, which stage 64
-made wrong: the configuration repository is the workload now. The AWS and
-GCP federation this deployment runs on was made by hand, and its steps
-exist only in the operator's uncommitted notes. This stage writes the
-from-scratch guide, for any team, in the starter-tree repository
-(`infrastructurebuilder/cs-image-system-starter-tree`, today one commit, a
-two-line README, branch `master`).
-
-**Status: IN PROGRESS** on `feature/ci-from-scratch` (2026-09-28).
-Steps 1-4 done 2026-09-28: the guide (`docs/examples/*/CI_SETUP.md`,
-release-owned), its tests, WORKLOAD_CONNECTION.md folded and removed, the
-links; the starter-tree repository's README carries the guide on
-`develop` (now its default) and `main` (commit ad4911e), `master` still
-there until the operator says to delete it; the reference configuration
-carries the guide (f7ddcc4, pushed). Step 5, the operator following the
-guide to set the reference configuration's secrets and trust, is owed.
-**Decided 2026-09-28** (the operator, all three as recommended): D1 (a),
-the guide is authored here as `CI_SETUP.md` in every starter tree,
-release-owned and held to the workflow by a test, and the starter-tree
-README carries it; D2, WORKLOAD_CONNECTION.md folds into the guide's OPA
-section and is removed; D3, the starter-tree gets `develop` (default) and
-`main`, and `master` is deleted only on the operator's word.
-
-**Decisions before execution** (asked one at a time when the operator says
-"do 69"):
-
-- **D1, where the text is authored.** §66 decided the starter repositories
-  are generated from `docs/examples/` per release and never edited at the
-  destination, three of them; the starter-tree repository is one, made by
-  hand. Options: (a) author the guide in this repository once (a
-  `CI_SETUP.md` carried in every starter tree, held byte for byte by
-  `test_docs_examples.py` like the hook) and have the starter-tree README
-  carry or link it, so §66's publication and `init-config` ship the same
-  text; (b) the starter-tree README is hand-maintained there and §66 is
-  revised to one template repository; (c) split into a stage-local option
-  step. Recommended: (a), because a guide that names the workflow's secrets
-  must move when the workflow moves, and only this repository's tests can
-  hold it to the workflow.
-- **D2, WORKLOAD_CONNECTION.md.** Its header already says it moves into
-  the documents once the workload login has run on `main`. Fold its steps
-  into the guide's OPA section with the configuration repository as the
-  claim and remove it here, or keep it until §64's live proofs pass on the
-  reference configuration.
-- **D3, the starter-tree's branch.** It is `master`; the published
-  repositories' convention is `develop` default and `main` production, and
-  the starter workflow's `perform` job pushes records to `main`. Rename
-  now, or leave it to §66.
-
-**The README's shape.** Every value that is a team's appears as a
-placeholder (`<owner>`, `<repo>`, `<account-id>`, `<project>`); no real
-account id, ARN, project number or name enters it (public-safe runs on it).
-
-1. **What this repository is**: a starter configuration repository; the
-   release it came from (`.csis-version`); `init-config` as the other way
-   to get the same tree; where the system's manual is.
-2. **Before CI**: the local path first (DAILY_DRIVER.md section 1): the
-   release installed, `just init`, `just validate` green by hand with the
-   operator's own sessions. CI is set up only for a tree that validates.
-3. **GitHub** (in full):
-   1. *The workflows the tree carries*: `ci.yml` (verify, live, perform)
-      and `opa-workload-probe.yml`; every `REPLACE-ME` and what it means
-      (`PERFORM_RUNTIME`, `GUARD_RUNTIME`, `AWS_REGION`, the
-      `TF_VAR_<team>_*` names); `.csis-version` and how a release is taken.
-   2. *The repository*: default branch `develop`, `main` as what `perform`
-      runs on; Actions permissions allowing `id-token: write`; `main`
-      protection that still lets the `perform` job push its records
-      (`contents: write` with the job token); the `repository_id` and
-      owner id, read with `gh api`, because trust conditions pin them.
-   3. *AWS* (skip for a GCE-only tree): the GitHub OIDC identity provider
-      (issuer `token.actions.githubusercontent.com`, audience
-      `sts.amazonaws.com`); the READ-ONLY role (trust: `sub` matching
-      `repo:<owner>/<repo>:*` plus the id pins; permissions: what a load,
-      a dry run and the state query read: EC2/EFS describes, the state
-      bucket's objects and lock, S3 bucket tag and lifecycle reads, image
-      and volume describes); the WRITE role (trust: `ref:refs/heads/main`
-      alone; permissions: the bake's EC2 and image actions, Session
-      Manager start-session on instances and the SSH and port-forwarding
-      documents, `iam:PassRole` for the SSM instance profile, read/write
-      on this tree's state prefix). Policy documents as templates with
-      placeholders, taken from the ones this deployment runs and
-      generalised. The traps, each with its symptom: botocore ignores
-      environment keys once a profile is named (the workflow's profile
-      shim), and a shell that eats `$VAR:word` corrupts an ARN or a
-      subject.
-   4. *GCP* (skip for an AWS-only tree): a workload identity pool and an
-      OIDC provider for GitHub (attribute mapping of `repository`,
-      `repository_id`, `ref`; an attribute condition naming this
-      repository); the read-only service account and its roles (what the
-      runtime's network discovery and the state query read); the
-      `workloadIdentityUser` binding for the principal set; the optional
-      write account (`GCP_APPLY_SERVICE_ACCOUNT`) and when a team wants
-      none (a runtime CI must never bake on is `GUARD_RUNTIME`, and the
-      starter gate needs the secret only when recording: say what to
-      delete from the workflow for a read-only GCP).
-   5. *Okta and OPA*: the Okta API services app (key auth, read scopes,
-      DPoP off) and its private key; the OPA service user's key pair; the
-      workload connection (draft first) and workload role, the claims
-      naming THIS repository, the probe workflow dispatched and green,
-      then activation (from WORKLOAD_CONNECTION.md, corrected per D2);
-      `workload_connection` / `workload_role` on the group builder.
-   6. *The age identity for CI*: generate it, add its public key to
-      `encryption.recipients`, `cs-image-system reencrypt`, the private
-      half as a secret and nowhere else.
-   7. *The secrets*: the table (name, what reads it, which job, where the
-      value comes from) and the `gh secret set <NAME> -R <owner>/<repo>`
-      line for each, reading from a file or stdin, never from a shell
-      argument; the gate's rule (none: SKIPPED; some: FAILED by name; an
-      empty secret reads as missing).
-   8. *The proofs, in order*: `verify` green on a push; `live` green with
-      the secrets (read the job summary: a green job is not proof its steps
-      ran); the probe dispatched against the draft connection; one
-      `perform` on `main` (or a dispatch with `mode: record`); the login
-      proof recorded `as: workload` in `meta-state/login-proofs.yaml`.
-   9. *When it fails*: a table of the messages a first setup meets (the
-      gate's SKIPPED and FAILED lines, `Failed to install entrypoints` from
-      a release before 0.1.1.dev2, an OIDC `sub` that does not match, a
-      role assumed but a profile not found, a draft connection issuing
-      nothing, the push refused on a protected `main`) with cause and fix.
-4. **GitLab**: the same nine sub-headings, each body `TBD`, with one line
-   under the heading saying what is known now: the release ships no
-   `.gitlab-ci.yml`, `workload token` reads GitHub's Actions token
-   endpoint alone, and a GitLab pipeline would present its `id_tokens` to
-   the same AWS, GCP and OPA trust with a different issuer. Writing these
-   sections is a later stage, and so is the code (a GitLab pipeline in
-   the starters, `workload token` for a GitLab token) they would need.
-
-**Steps.**
-
-1. The three decisions, recorded here.
-2. The guide written per D1, and the starter-tree README carrying it
-   (committed and pushed on that repository per D3; the operator pushes
-   if its protection requires).
-3. DAILY_DRIVER.md 1.8, the three starter READMEs and OPERATIONS section 3
-   link the guide; WORKLOAD_CONNECTION.md per D2; the docs contract test
-   covers the new file's links.
-4. A test (under D1 (a)) that every secret name the starter workflow's
-   gates read appears in the guide's GitHub secrets table, and every name
-   in the table is read by a gate, so the guide cannot fall behind the
-   workflow.
-5. The proof: the reference configuration's secrets and trust set by
-   following the guide alone (the operator), and its `live` job green.
-
-**Sizing**: the guide half a day to a day (the AWS and GCP policy
-templates are most of it); the test an hour; the live proof is the
-operator's §64 handover, done by the guide instead.
 
 ## 70. Bootstrap: the one-time initialisation, as terraform from an interview
 
