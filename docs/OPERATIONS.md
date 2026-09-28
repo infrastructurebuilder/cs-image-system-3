@@ -500,9 +500,11 @@ one **workload role**. Both are the operator's, made by hand once in the
 OPA console and named on the okta-tf group builder
 (`workload_connection`, `workload_role`); the checklist with the values,
 the impersonation cases (what a name pin trusts) and the relocation order
-(what to edit, in which order, when the repository moves) is
-[WORKLOAD_CONNECTION.md](../WORKLOAD_CONNECTION.md) until the proof has
-run, after which it folds in here. `just sft-install` puts Okta's client on
+(what to edit, in which order, when the repository moves) are in the
+CI setup guide every starter tree carries,
+[CI_SETUP.md, section 3.5](examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access) (stage 69,
+2026-09-28; until then a checklist of its own at the root of this
+repository, which named this repository as the one that logs in). `just sft-install` puts Okta's client on
 an apt runner; `just opa-workload-probe` (the dispatch-only `OPA workload
 probe` workflow) presents a run's token to the connection and reports the
 client's verdict, masking both tokens -- the test to run against a draft
@@ -1602,7 +1604,7 @@ CI.
 token to the team's workload connection through `just
 opa-workload-probe` (`cs-image-system workload token`) and stops; against
 a draft connection OPA validates and issues nothing usable. It is how a
-connection is proved before it is activated (WORKLOAD_CONNECTION.md), and
+connection is proved before it is activated (CI_SETUP.md, section 3.5), and
 since stage 64 the repository that logs in as a workload is the
 configuration repository, so the probe lives there and the connection's
 claims name it.
@@ -1617,6 +1619,11 @@ as present. Both workflows write it; the starter's reads the profile name
 from `cfg/runtime-builders.yml`.
 
 ### Repository secrets
+
+How a configuration repository's secrets and federated identities are
+made from nothing is the guide every starter tree carries,
+[CI_SETUP.md](examples/standard-aws/CI_SETUP.md) (stage 69); the tables
+below say what each secret is for.
 
 This repository:
 

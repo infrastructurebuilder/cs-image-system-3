@@ -169,7 +169,7 @@ discipline".
 | An Okta API services app with key-based auth and the read scopes, DPoP off, the `*.manage` scopes ungranted | user lookups by the `okta/okta` provider | `OKTA_API_CLIENT_ID`, `OKTA_API_PRIVATE_KEY`, `OKTA_API_PRIVATE_KEY_ID`, `OKTA_API_SCOPES` |
 | An OPA team, and a service user's API key pair | groups, policies, memberships, enrollment tokens, the gid shim, the server registry, the state query | `team:` on the group builder; `TF_VAR_<team>_key` / `TF_VAR_<team>_secret` (the team name with non-alphanumerics as `_`); needed at load, not only at apply |
 | A resource group the system's projects live under, and a gateway | the login projects, the relay | `OKTA_RESOURCE_GROUP`; `okta_gateway_selector` |
-| For CI: a workload connection and a workload role, made by hand once | CI logs in as a workload, never with a key | `workload_connection`, `workload_role` on the group builder; [WORKLOAD_CONNECTION.md](WORKLOAD_CONNECTION.md) is the checklist, step by step |
+| For CI: a workload connection and a workload role, made by hand once | CI logs in as a workload, never with a key | `workload_connection`, `workload_role` on the group builder; [CI_SETUP.md, section 3.5](docs/examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access), which every starter tree carries, is the checklist, step by step |
 | For people: the `sft` client, enrolled in the team (`sft enroll`), with a live session (`sft login`) | `sft ssh <machine>` | your machine |
 
 Enrollment tokens are the system's: one per project, created and rotated
@@ -241,6 +241,15 @@ configured and some missing is a failure that names them. A green job is
 not proof its steps ran, so read the summary. Every `REPLACE-ME` in the
 workflow is a team value: the runtime it performs on, the region, the
 `TF_VAR_<team>` names.
+
+How to make those secrets exist, from nothing, is the guide every starter
+tree carries: [CI_SETUP.md](docs/examples/standard-aws/CI_SETUP.md)
+(the repository's settings, the AWS OIDC provider and its two roles with
+their trust and permission documents, the GCP workload identity pool and
+service accounts, the OPA workload connection and role, CI's age
+identity, the secrets one by one, the proofs in order, and a table of the
+failures a first setup meets). It is written for GitHub; the GitLab
+sections are placeholders.
 
 ### 1.9 The configuration repository, from scratch
 
@@ -549,7 +558,7 @@ item in the open hygiene bundle in [TODO.md](TODO.md).
 | `release: ... no passing post-bake record` | the build has never been verified on a launched machine | verify first (an ephemeral cycle, or the standing machine after the replace) |
 | `changed instance x: booted image ... != pinned build ...` | the pin moved without a replacement, or a replacement is pending (then a `note`, not drift) | `upgrade instance` then `cloud-launch`; or move the pin back |
 | `CI login policy '<g>_v1_security_policy_ci' is absent` | the identity apply has not run since the workload objects were named | `just run identity` with `apply_identity` on; never hard drift |
-| `workload role '...' is not known to OPA` | the operator's object is missing | [WORKLOAD_CONNECTION.md](WORKLOAD_CONNECTION.md), section 2 |
+| `workload role '...' is not known to OPA` | the operator's object is missing | [CI_SETUP.md, section 3.5, step 2](docs/examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access) |
 | `sft resolve ...: exit 126` with nothing on stderr | the `sft` client's session lapsed and `--quiet` forbade the browser (2026-09-23, after a replace: the registration half of the proof had passed) | `sft login`, then the proof again; as the workload, the token was missing or refused |
 | `'<name>' has 2 registrations: ...` in a login proof | two servers answer to one canonical hostname | retire the stale one (a replacement now does this itself); `sft ssh` would reach either |
 | `Instance x: alias 'y' SKIPPED -- already claimed by <id>` | a stale record holds the name | retire that record; the alias comes back on the next applies-on run |

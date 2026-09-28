@@ -1056,7 +1056,7 @@ character replaced by `_` (`nos-coastal-modeling-cloud-sandbox` →
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `gateway_selector` | str or null | null | the resource-group project's `gateway_selector`; falls back to `config.okta_gateway_selector` |
-| `workload_connection` | str or null | null | the team's workload connection, by name, made by hand once (`WORKLOAD_CONNECTION.md`); with `workload_role` it makes the builder keep one CI login policy per managed group (stage 56) |
+| `workload_connection` | str or null | null | the team's workload connection, by name, made by hand once (CI_SETUP.md section 3.5); with `workload_role` it makes the builder keep one CI login policy per managed group (stage 56) |
 | `workload_role` | str or null | null | the team's workload role, by name; the only principal of every CI login policy |
 | `account_discovery` | bool | `true` | the project's `account_discovery` |
 

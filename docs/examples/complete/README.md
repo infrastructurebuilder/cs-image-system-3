@@ -88,6 +88,7 @@ writes it out, and every part a team needs is then there:
 | Part | What it is |
 | --- | --- |
 | `Justfile` | the single entry point: the five contract targets (`init`, `build`, `test`, `full-test`, `release`) and every daily and cycle recipe, each wrapping the released `cs-image-system` command against this tree |
+| `CI_SETUP.md` | setting CI up from scratch: the repository settings, the AWS and GCP federation, the OPA workload objects, CI's age identity, every secret the workflow reads, the proofs in order, and what each first-setup failure means; GitHub in full, GitLab not yet written |
 | `.github/workflows/ci.yml` | the repository's own CI: `verify` (no secrets), `live` (read-only against the clouds), `perform` (on `main`, under the write role, records pushed back); every `REPLACE-ME` in it is a team value |
 | `.githooks/pre-commit` | the public-safe gate on every commit; `just init` installs it |
 | `tfmodules/` | the terraform modules the emitted roots call, at `module_source_base: tfmodules`; the release's, byte for byte (`cs-image-system init-config` writes them, and refreshes them after an upgrade) |

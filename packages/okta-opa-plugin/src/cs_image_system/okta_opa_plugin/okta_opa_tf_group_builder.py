@@ -190,7 +190,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         role = by_name(snap.roles, str(self.model.workload_role))
         if role is None:
             raise RuntimeError(f"workload role {self.model.workload_role!r} is not known to OPA; "
-                               "the operator creates it (WORKLOAD_CONNECTION.md section 2)")
+                               "the operator creates it (CI_SETUP.md section 3.5, step 2)")
         role_id = str(role.get("id") or "")
         if not role_id:
             raise RuntimeError(f"workload role {self.model.workload_role!r} carries no id")

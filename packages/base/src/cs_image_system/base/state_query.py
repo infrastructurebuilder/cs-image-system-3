@@ -304,7 +304,7 @@ def workload_drift(name: str, expected: Any, real: Any) -> list[Drift]:
     if role.get("present") is False:
         return [Drift("group", name, DRIFT_MISSING,
                       f"workload role {expected.get('role')!r} named in the configuration is not known "
-                      "to OPA; the operator creates it (WORKLOAD_CONNECTION.md section 2)")]
+                      "to OPA; the operator creates it (CI_SETUP.md section 3.5, step 2)")]
     if policy.get("present") is False:
         return [Drift("group", name, DRIFT_MISSING,
                       f"CI login policy {expected.get('policy')!r} is absent; an identity run with "
@@ -322,17 +322,17 @@ def workload_drift(name: str, expected: Any, real: Any) -> list[Drift]:
 def workload_notes(groups: dict[str, dict[str, Any]], report: StateReport) -> None:
     """Stage 56: a connection that is present but not active is true, and
     neither drift nor silence -- activating it is the operator's act
-    (WORKLOAD_CONNECTION.md step 6.3) -- so it is a note."""
+    (CI_SETUP.md section 3.5, step 5) -- so it is a note."""
     for name, real in sorted(groups.items()):
         conn = (real.get("workload") or {}).get("connection") if isinstance(real, dict) else None
         if not isinstance(conn, dict):
             continue
         if conn.get("present") is False:
             report.notes.append(f"groups/{name}: the workload connection named in the configuration is not "
-                                "known to OPA; CI cannot log in until it exists (WORKLOAD_CONNECTION.md)")
+                                "known to OPA; CI cannot log in until it exists (CI_SETUP.md section 3.5)")
         elif conn.get("active") is False:
             report.notes.append(f"groups/{name}: the workload connection is still a DRAFT; CI cannot log in "
-                                "until the operator activates it (WORKLOAD_CONNECTION.md step 6.3)")
+                                "until the operator activates it (CI_SETUP.md section 3.5, step 5)")
         elif conn.get("active") is None:
             report.notes.append(f"groups/{name}: the workload connection's status could not be read from "
                                 "its record")

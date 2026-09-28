@@ -123,7 +123,7 @@ def test_drift_names_the_role_the_policy_and_the_connection(world):
     by_name = {d.name: d for d in report.drift if d.kind == "group"}
     role = by_name[names[0]]
     assert role.drift == sq.DRIFT_MISSING and not role.hard and "workload role" in role.detail
-    assert "WORKLOAD_CONNECTION.md" in role.detail          # the operator's object names the checklist
+    assert "CI_SETUP.md section 3.5" in role.detail          # the operator's object names the checklist
     pol = by_name[names[1]]
     assert pol.drift == sq.DRIFT_MISSING and not pol.hard and "CI login policy" in pol.detail
     assert "apply_identity" in pol.detail                    # the system's object names the apply

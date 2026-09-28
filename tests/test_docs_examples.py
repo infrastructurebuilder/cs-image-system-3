@@ -411,3 +411,56 @@ def test_the_built_release_carries_the_starters_byte_for_byte(tmp_path):
     with tarfile.open(sdist) as tf:
         names = tf.getnames()
     assert any(n.endswith("/starters/complete/cfg/_config.yml") for n in names), "the sdist must carry the source too"
+
+
+# ------------------------------------------------ the CI setup guide (stage 69)
+
+GUIDE = "CI_SETUP.md"
+
+
+def _gate_secrets(name: str) -> set[str]:
+    """Every secret a gate of the starter workflow reads (its HAVE_<NAME> lines)."""
+    text = (EXAMPLES / name / ".github" / "workflows" / "ci.yml").read_text()
+    return set(re.findall(r"HAVE_([A-Z0-9_]+):\s*\$\{\{\s*secrets\.\1\s*!= ''", text))
+
+
+def _guide_secrets(text: str, section: str) -> set[str]:
+    """The secret names in the first column of the guide's secrets table in SECTION."""
+    body = text[text.index(section):]
+    body = body[:body.index("\n### ", 1)]
+    return set(re.findall(r"^\| `([A-Z0-9_]+)` \|", body, flags=re.M))
+
+
+def test_every_starter_carries_the_same_ci_guide_and_it_is_release_owned():
+    from cs_image_system.system.starters import RELEASE_OWNED_FILES
+    assert GUIDE in RELEASE_OWNED_FILES, "the guide names the workflow's secrets: it must move with the workflow"
+    texts = {name: (EXAMPLES / name / GUIDE).read_text() for name in TREES}
+    assert len(set(texts.values())) == 1, "the three starters must carry the same guide"
+    for name in TREES:
+        assert GUIDE in (EXAMPLES / name / "README.md").read_text(), f"{name}: the README names the guide"
+    assert not (REPO / "WORKLOAD_CONNECTION.md").exists(), "stage 69: the checklist folded into the guide's OPA section"
+
+
+def test_the_guides_secrets_table_is_the_workflows_gates():
+    """Every secret a starter workflow's gates read is in the guide's GitHub
+    secrets table, and every name in the table is read by some starter's gate,
+    so the guide cannot fall behind the workflow (or run ahead of it)."""
+    text = (EXAMPLES / "complete" / GUIDE).read_text()
+    table = _guide_secrets(text, "### 3.7 The secrets")
+    gates = set().union(*(_gate_secrets(name) for name in TREES))
+    assert gates, "no gate read a secret: the pattern no longer matches the workflow"
+    assert table == gates, {"in the workflow, not the guide": sorted(gates - table),
+                            "in the guide, not the workflow": sorted(table - gates)}
+
+
+def test_the_guide_has_github_in_full_and_gitlab_as_placeholders():
+    text = (EXAMPLES / "complete" / GUIDE).read_text()
+    github = [h for h in re.findall(r"^### (3\.\d) ", text, flags=re.M)]
+    gitlab = [h for h in re.findall(r"^### (4\.\d) ", text, flags=re.M)]
+    assert github == [f"3.{i}" for i in range(1, 10)] and gitlab == [f"4.{i}" for i in range(1, 10)]
+    gl = text[text.index("## 4. GitLab"):]
+    bodies = re.split(r"^### 4\.\d [^\n]*\n", gl, flags=re.M)[1:]
+    assert all(b.strip() == "TBD." for b in bodies), "the GitLab sections are placeholders until a stage writes them"
+    for placeholder in ("<owner>", "<repo>", "<account-id>", "<project>", "<repo-id>"):
+        assert placeholder in text, placeholder
+    assert not re.search(r"\b\d{12}\b", text), "an AWS account id in the guide"
