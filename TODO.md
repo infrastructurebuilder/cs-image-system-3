@@ -430,6 +430,24 @@ bundle; none is a stage of its own.
    archived release at `archive.debian.org` (a behaviour change worth
    having anyway, since every release archives eventually). Decide, then
    do.
+2. **The starter Justfile's `CSIS` override does not reach the callbacks.**
+   Found 2026-09-28 by the first real run from the reference configuration
+   (`just run identity` with `CSIS=<checkout>/.venv/bin/cs-image-system`):
+   the run's own steps call the command back by its bare name
+   (`cs-image-system materialize`, `gate-plan`, `decrypt --json`, the
+   runner scripts), which must be on `PATH`, and a `CSIS` that names a
+   path puts nothing there, so the run failed at the identity phase with
+   `No such file or directory: 'cs-image-system'`. A release installed
+   with `uv tool install` is on `PATH` and never sees this; a development
+   checkout driven through `CSIS` always does. Fix in the starter Justfile:
+   when `csis` names a path, export `PATH` with its directory first
+   (`export PATH := if csis =~ "/" { parent_directory(csis) + ":" + env("PATH") } else { env("PATH") }`),
+   so every recipe's callbacks find the same command the recipe ran;
+   `just init` says which command the callbacks will find. Until it lands
+   the workaround is `export PATH="<checkout>/.venv/bin:$PATH"` in the
+   configuration repository's `.envrc` (the reference configuration's has
+   it from 2026-09-28). The starter's README and CI_SETUP.md section 2 say
+   so.
 
 ## 70. Bootstrap: the one-time initialisation, as terraform from an interview
 
