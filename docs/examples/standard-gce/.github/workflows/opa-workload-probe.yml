@@ -5,7 +5,7 @@ name: OPA workload probe
 # authenticates and stops: against a draft connection OPA validates the token and
 # issues nothing usable, so the run can reach nothing. Inputs reach the recipe
 # through the environment, never interpolated into a shell line.
-# REPLACE-ME: the defaults are the team's names (the system's WORKLOAD_CONNECTION.md
+# REPLACE-ME: the defaults are the team's names (CI_SETUP.md, section 3.5,
 # says how they are decided); another dispatch may pass others.
 on:
   workflow_dispatch:

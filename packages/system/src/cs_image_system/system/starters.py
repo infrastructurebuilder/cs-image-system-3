@@ -44,6 +44,7 @@ RELEASE_OWNED_FILES: tuple[str, ...] = (
     "Justfile",
     ".gitignore",
     ".githooks/pre-commit",
+    "CI_SETUP.md",          # stage 69: the guide names the workflow's secrets, so it moves with the workflow
 )
 RELEASE_OWNED_DIRS: tuple[str, ...] = (".github/workflows", "tfmodules")
 

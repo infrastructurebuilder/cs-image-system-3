@@ -179,7 +179,7 @@ class GroupBuilderBase(BuilderBase[TGROUP]):
     def can_manage_workload_access(self) -> bool:
         """Whether this builder keeps a CI login policy per managed group --
         true only when the configuration names the team's workload
-        connection and role (WORKLOAD_CONNECTION.md), both made by hand
+        connection and role (CI_SETUP.md section 3.5), both made by hand
         once. A provider without workload identity makes no claim."""
         return False
 

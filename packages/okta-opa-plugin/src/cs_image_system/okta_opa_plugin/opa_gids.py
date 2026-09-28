@@ -335,7 +335,7 @@ class OpaGidResolver:
         -- a HYPHEN, unlike every older path; the underscore form answered
         404 live on 2026-09-22, and the path is the one Okta's PAM SDK
         v1.3.48 carries), or None when they could not be read. Roles are the
-        operator's (WORKLOAD_CONNECTION.md section 2); the system only reads
+        operator's (CI_SETUP.md section 3.5, step 2); the system only reads
         them."""
         return self._listing(f"/v1/teams/{self.team}/workload-roles", "workload roles")
 

@@ -6,7 +6,7 @@
 
 CI logs into a group's servers as a workload -- GitHub's own OIDC token,
 presented to the team's workload connection and mapped to the team's one
-workload role (both made by hand once, WORKLOAD_CONNECTION.md). What grants
+workload role (both made by hand once, CI_SETUP.md section 3.5). What grants
 the role reach is a security policy per group, ``<group>_v1_security_policy_ci``,
 kept beside the user policy the terraform module emits
 (``<group>_v1_security_policy_user``). The provider cannot name a workload

@@ -114,7 +114,7 @@ which itself adds nothing to
 |---|---|---|---|
 | `gateway_selector` | `str \| None` | `None` | `gateway_selector` of every group's login project. |
 | `account_discovery` | `bool` | `True` | `account_discovery` of every group's login project. |
-| `workload_connection` | `str \| None` | `None` | The name of the team's OPA workload connection, made by hand once ([WORKLOAD_CONNECTION.md](../../WORKLOAD_CONNECTION.md)). Read only together with `workload_role`. |
+| `workload_connection` | `str \| None` | `None` | The name of the team's OPA workload connection, made by hand once ([CI_SETUP.md, section 3.5](../../docs/examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access)). Read only together with `workload_role`. |
 | `workload_role` | `str \| None` | `None` | The name of the team's one workload role. With both names set, the builder keeps one CI login policy per managed group (`<group>_v1_security_policy_ci`) through the OPA API and reports it in the state query. |
 
 `effective_gateway_selector` returns `gateway_selector` when set, otherwise
@@ -632,7 +632,7 @@ gateway's security group.
 
 **The workload connection and role**, only when CI is to log in: made by
 hand once in the OPA admin console following
-[WORKLOAD_CONNECTION.md](../../WORKLOAD_CONNECTION.md), then named on
+[the CI setup guide, section 3.5](../../docs/examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access), then named on
 the `okta-tf` group builder as `workload_connection` and `workload_role`.
 The system reads both by name and never writes them. `verify login` and
 `just ci-login-proof` additionally need Okta's `sft` client on the machine
@@ -940,7 +940,7 @@ Failures that have happened, oldest first. Each names the symptom as the
 operator saw it, what it meant, where to look and what to do; the dated
 record is in [docs/OPERATIONS.md](../../docs/OPERATIONS.md),
 [docs/history/LEDGER.md](../../docs/history/LEDGER.md),
-[WORKLOAD_CONNECTION.md](../../WORKLOAD_CONNECTION.md) and
+[the CI setup guide](../../docs/examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access) and
 [tests/test_v2_hygiene_five.py](../../tests/test_v2_hygiene_five.py).
 
 - **Memberships that already existed in OPA (stage 1, 2026-08-31 to
@@ -1019,7 +1019,7 @@ record is in [docs/OPERATIONS.md](../../docs/OPERATIONS.md),
   that would create the CI policies was refused because their absence
   was reported as hard drift. Workload drift is now never hard: `missing`
   for an absent role (`workload role '...' named in the configuration is
-  not known to OPA; the operator creates it (WORKLOAD_CONNECTION.md
+  not known to OPA; the operator creates it (CI_SETUP.md section 3.5
   section 2)`) or an absent policy (`CI login policy '...' is absent; an
   identity run with apply_identity creates it ...`), `changed` for a
   policy that no longer mirrors (`... the next identity apply rewrites it
@@ -1108,7 +1108,7 @@ Failures the code raises that have not been seen live:
   confirmed); N change(s) were NOT applied` (exit 4) from
   `identity-attributes`.
 - `workload role '<r>' is not known to OPA; the operator creates it
-  (WORKLOAD_CONNECTION.md section 2)`, `workload role '<r>' carries no
+  (CI_SETUP.md section 3.5, step 2)`, `workload role '<r>' carries no
   id`, `user policy '<g>_v1_security_policy_user' is absent; the identity
   apply creates it, and the CI policy is a copy of it`, `OPA's security
   policies or workload roles could not be read` (`RuntimeError` from
@@ -1209,7 +1209,7 @@ Failures the code raises that have not been seen live:
   ("CI logs in through the policy the system manages", "The state
   query", "Credentials contract", "The gid shim", "Rules: Identity"),
   [docs/DESIGN.md](../../docs/DESIGN.md) (N1, N7, N19, section D),
-  [WORKLOAD_CONNECTION.md](../../WORKLOAD_CONNECTION.md).
+  [the CI setup guide, section 3.5](../../docs/examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access).
 - Tests: [tests/](tests) -- the module call, the workspace mixin, the
   resource emitters, the four builder roots, the gid shim, the server
   registry and the workload policy; the stage 61 runner step in

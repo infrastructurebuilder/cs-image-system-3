@@ -469,7 +469,7 @@ class OktaGroupBuilderModel(GroupBuilderModel):
     gateway_selector: str | None = None
     account_discovery: bool = True
     # Stage 56: CI logs in as a WORKLOAD. Both objects are the team's, made by
-    # hand once (WORKLOAD_CONNECTION.md) and named here; with both named the
+    # hand once (CI_SETUP.md section 3.5) and named here; with both named the
     # builder keeps one CI login policy per managed group beside the user
     # policy, through the OPA API (the provider cannot name a workload role).
     workload_connection: str | None = None

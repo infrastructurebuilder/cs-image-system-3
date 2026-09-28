@@ -7,7 +7,7 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress** (§63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §68 item 1 (decide), §65.
+Current stage: **none in progress** (§69 LANDED 2026-09-28; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §68 item 1 (decide), §70.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
 **§64**, the release that carries everything a configuration repository
@@ -45,8 +45,8 @@ one CI login policy per group -- all five created live at 09:07 -- and the
 `sft ssh` proof ran by hand at 09:35 as the enrolled client. The WORKLOAD
 form of that login runs in the `perform` job the first time `develop`
 reaches `main`; that run proves the CI policy itself and shows which Unix
-account a workload lands in, after which `WORKLOAD_CONNECTION.md` folds
-into OPERATIONS and the operator adds the `ref` pin to the role.) (§57, §55, §58 and
+account a workload lands in, after which the operator adds the `ref` pin to
+the role; the checklist folded into the starters' CI_SETUP.md in §69.) (§57, §55, §58 and
 §60 all LANDED 2026-09-21 -- §55 in two passes, steps 1-3 before §58 and
 step 4 after §60, which is how the three stages' dependency cycle was
 broken. Both live proofs landed 2026-09-21 22:21 in one applies-on
@@ -116,8 +116,9 @@ Standing decisions (operator):
   written as a plan, never a side edit.
 - §30 (the contract package), §65, §66 and §70 (the bootstrap: the one-time
   initialisation as terraform from an interview) are planned, not started;
-  §69 (the CI-from-scratch guide) is in progress on its branch; §63, §67 and §64
-  landed 2026-09-26;
+  §69 (the CI-from-scratch guide) landed 2026-09-28, its step 5 (the
+  reference configuration's secrets and trust, by the guide) the operator's;
+  §63, §67 and §64 landed 2026-09-26;
   a stage is a plan in this file until the operator says to execute it
   (2026-09-23). §62 landed 2026-09-24.
 - **Documentation stays current by stage** (operator, 2026-09-23). Once

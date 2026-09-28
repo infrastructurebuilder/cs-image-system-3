@@ -8,7 +8,7 @@ Every package README ends with the same four sections in the same order,
 so a reader finds prerequisites, configuration, tests and failures in the
 same place in every package (only a Related section may follow them);
 every relative link in DAILY_DRIVER.md, the root README, PLUGINS.md,
-WORKLOAD_CONNECTION.md and the READMEs resolves, so a reader is never sent
+the starter trees' CI_SETUP.md and the READMEs resolves, so a reader is never sent
 to a file that is not there; the daily driver has its chapters and names
 every package; PLUGINS.md names the contract. Documentation only: nothing
 here reads the code, only the words about it.
@@ -29,7 +29,7 @@ CHAPTERS = ["## 1. Before the first command", "## 2. The first run", "## 3. Maki
             "## 7. Every plugin, in one paragraph each", "## 8. The daily habits"]
 LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 DRIVER = REPO / "DAILY_DRIVER.md"
-DOCS = [DRIVER, REPO / "README.md", REPO / "docs" / "PLUGINS.md", REPO / "WORKLOAD_CONNECTION.md",
+DOCS = [DRIVER, REPO / "README.md", REPO / "docs" / "PLUGINS.md", *(REPO / "docs" / "examples" / n / "CI_SETUP.md" for n in ("standard-aws", "standard-gce", "complete")),
         *(p / "README.md" for p in PACKAGES)]
 
 
