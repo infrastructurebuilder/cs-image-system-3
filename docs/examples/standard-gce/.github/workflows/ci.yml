@@ -146,6 +146,7 @@ jobs:
         if: steps.gate.outputs.ready == 'true'
         run: |
           umask 077; printf '%s\n' "${{ secrets.CSIS_CONFIG_IDENTITY }}" > "$RUNNER_TEMP/age-identity"
+          export CSIS_CONFIG_IDENTITY="$RUNNER_TEMP/age-identity"   # this step's own command needs it now; GITHUB_ENV serves the steps after
           echo "CSIS_CONFIG_IDENTITY=$RUNNER_TEMP/age-identity" >> "$GITHUB_ENV"
           cs-image-system --root-dir . mask        # every encrypted value masked in this log before anything prints
       - name: Validate
@@ -267,6 +268,7 @@ jobs:
         if: steps.gate.outputs.ready == 'true'
         run: |
           umask 077; printf '%s\n' "${{ secrets.CSIS_CONFIG_IDENTITY }}" > "$RUNNER_TEMP/age-identity"
+          export CSIS_CONFIG_IDENTITY="$RUNNER_TEMP/age-identity"   # this step's own command needs it now; GITHUB_ENV serves the steps after
           echo "CSIS_CONFIG_IDENTITY=$RUNNER_TEMP/age-identity" >> "$GITHUB_ENV"
           cs-image-system --root-dir . mask        # every encrypted value masked in this log before anything prints
       - name: Name the committer for the record
