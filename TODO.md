@@ -449,6 +449,13 @@ from-scratch guide, for any team, in the starter-tree repository
 two-line README, branch `master`).
 
 **Status: IN PROGRESS** on `feature/ci-from-scratch` (2026-09-28).
+Steps 1-4 done 2026-09-28: the guide (`docs/examples/*/CI_SETUP.md`,
+release-owned), its tests, WORKLOAD_CONNECTION.md folded and removed, the
+links; the starter-tree repository's README carries the guide on
+`develop` (now its default) and `main` (commit ad4911e), `master` still
+there until the operator says to delete it; the reference configuration
+carries the guide (f7ddcc4, pushed). Step 5, the operator following the
+guide to set the reference configuration's secrets and trust, is owed.
 **Decided 2026-09-28** (the operator, all three as recommended): D1 (a),
 the guide is authored here as `CI_SETUP.md` in every starter tree,
 release-owned and held to the workflow by a test, and the starter-tree
