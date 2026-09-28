@@ -263,26 +263,6 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
 
-## 68. Hygiene bundle VII
-
-**Status: OPEN since 2026-09-26.** Non-critical hygiene issues join this
-bundle; none is a stage of its own.
-
-1. **The fixture's Debian 11 chain is archived upstream.** `just
-   fixture-live` (stage 64) runs the fixture's modification tests under
-   docker, and `imgfile-data-science/data-science-setup` on `my-deb-11`
-   fails at target preparation: `apt-get` in the `debian:11` container
-   gets `404 Not Found` from `deb.debian.org/debian-security/pool/updates/`
-   (bullseye left the mirrors when its LTS ended; its packages are on
-   `archive.debian.org`). Reproduced twice on 2026-09-26, deterministic.
-   Until this lands the docker leg of `fixture-live`, and so this
-   repository's CI `live` job, is red; `validate` and the dry run pass.
-   Fix: move the fixture's Debian OS builder to `debian-12` (bookworm;
-   the golden moves), or teach the debian target preparation to point an
-   archived release at `archive.debian.org` (a behaviour change worth
-   having anyway, since every release archives eventually). Decide, then
-   do.
-
 ## 65. Walking the daily driver
 
 **Status: PLANNED, not started** (the operator, 2026-09-24, on accepting
@@ -429,6 +409,26 @@ release, and never edited at the destination. Then:
 **Sizing**: the recipe and its test half a day; the job an hour; the
 mirrors and tokens are the operator's (an hour); the live proof waits on
 the first final version on PyPI (§41's open call).
+
+## 68. Hygiene bundle VII
+
+**Status: OPEN since 2026-09-26.** Non-critical hygiene issues join this
+bundle; none is a stage of its own.
+
+1. **The fixture's Debian 11 chain is archived upstream.** `just
+   fixture-live` (stage 64) runs the fixture's modification tests under
+   docker, and `imgfile-data-science/data-science-setup` on `my-deb-11`
+   fails at target preparation: `apt-get` in the `debian:11` container
+   gets `404 Not Found` from `deb.debian.org/debian-security/pool/updates/`
+   (bullseye left the mirrors when its LTS ended; its packages are on
+   `archive.debian.org`). Reproduced twice on 2026-09-26, deterministic.
+   Until this lands the docker leg of `fixture-live`, and so this
+   repository's CI `live` job, is red; `validate` and the dry run pass.
+   Fix: move the fixture's Debian OS builder to `debian-12` (bookworm;
+   the golden moves), or teach the debian target preparation to point an
+   archived release at `archive.debian.org` (a behaviour change worth
+   having anyway, since every release archives eventually). Decide, then
+   do.
 
 ## 69. CI from scratch: the starter-tree README
 
