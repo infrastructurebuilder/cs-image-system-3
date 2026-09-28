@@ -448,6 +448,17 @@ bundle; none is a stage of its own.
    configuration repository's `.envrc` (the reference configuration's has
    it from 2026-09-28). The starter's README and CI_SETUP.md section 2 say
    so.
+3. **The starter workflow's identity step could not open the tree.** Found
+   2026-09-28 by the reference configuration's first `live` run with its
+   secrets in place (run 36475168588): the step writes the age identity to
+   a file, appends `CSIS_CONFIG_IDENTITY` to `GITHUB_ENV`, and runs
+   `cs-image-system mask` in the SAME step, but `GITHUB_ENV` reaches only
+   the steps after, so `mask` refused with "CSIS_CONFIG_IDENTITY is not
+   set" for six files and the job failed before validate. Fixed the same
+   day on `feature/hygiene-vii-identity-step`: the step exports the
+   variable for its own command as well; the three starters and the
+   reference configuration's workflow carry it, and the starter workflow
+   test holds the export before the mask.
 
 ## 70. Bootstrap: the one-time initialisation, as terraform from an interview
 
