@@ -7,7 +7,7 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress** (§69 LANDED 2026-09-28; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §68 item 1 (decide), §70.
+Current stage: **none in progress** (§69 LANDED 2026-09-28, its step 5 done 2026-09-29; §68 items 3 and 4 LANDED 2026-09-29; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §68 item 1 (decide), §70.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
 **§64**, the release that carries everything a configuration repository
@@ -116,8 +116,10 @@ Standing decisions (operator):
   written as a plan, never a side edit.
 - §30 (the contract package), §65, §66 and §70 (the bootstrap: the one-time
   initialisation as terraform from an interview) are planned, not started;
-  §69 (the CI-from-scratch guide) landed 2026-09-28, its step 5 (the
-  reference configuration's secrets and trust, by the guide) the operator's;
+  §69 (the CI-from-scratch guide) landed 2026-09-28 and its step 5 was done
+  2026-09-29: the operator set the reference configuration's secrets and
+  trust by the guide alone, and its first performing run on `main` was
+  green end to end, the login proof as a workload included;
   §63, §67 and §64 landed 2026-09-26;
   a stage is a plan in this file until the operator says to execute it
   (2026-09-23). §62 landed 2026-09-24.
@@ -448,6 +450,32 @@ bundle; none is a stage of its own.
    configuration repository's `.envrc` (the reference configuration's has
    it from 2026-09-28). The starter's README and CI_SETUP.md section 2 say
    so.
+3. **LANDED 2026-09-29.** The starter workflow's identity step could not open the tree. Found
+   2026-09-28 by the reference configuration's first `live` run with its
+   secrets in place (run 36475168588): the step writes the age identity to
+   a file, appends `CSIS_CONFIG_IDENTITY` to `GITHUB_ENV`, and runs
+   `cs-image-system mask` in the SAME step, but `GITHUB_ENV` reaches only
+   the steps after, so `mask` refused with "CSIS_CONFIG_IDENTITY is not
+   set" for six files and the job failed before validate. Fixed the same
+   day on `feature/hygiene-vii-identity-step`: the step exports the
+   variable for its own command as well; the three starters and the
+   reference configuration's workflow carry it, and the starter workflow
+   test holds the export before the mask.
+4. **LANDED 2026-09-29.** `workload token` did not hand the client its address. Found
+   2026-09-29 by the reference configuration's first performing run on
+   `main` (run 36482289215: the record, the guard, the performing run and
+   the closing record all green; the login proof failed with `error:
+   environment variable OPA_ADDR is not set`). `sft workload authenticate`
+   reads `OPA_ADDR` and the team from its environment; the shell script
+   had them exported by `workload describe --env`, and the stage 64
+   command that replaced it resolved the names but passed only the JWT to
+   the client. Fixed the same day on `feature/hygiene-vii-identity-step`:
+   the client's environment carries `OPA_ADDR` and `SFT_TEAM` from the
+   resolved names, with a test. The fix reaches a configuration repository
+   only through the next release (`.csis-version`); until then the
+   reference configuration's `perform` job carries the two names as job
+   environment, a deviation from the starter to remove when the release
+   lands.
 
 ## 70. Bootstrap: the one-time initialisation, as terraform from an interview
 

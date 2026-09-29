@@ -436,6 +436,29 @@ def test_workload_token_prints_the_token_alone_and_masks_both_on_stderr(monkeypa
     assert "::add-mask::" in result.stderr and "opa-token-value" not in result.stdout.replace("opa-token-value", "", 1)
 
 
+def test_the_client_is_handed_the_address_and_the_team_in_its_environment(monkeypatch):
+    """Hygiene VII item 4: `sft workload authenticate` reads OPA_ADDR (and the
+    team) from its environment; the first performing run from the reference
+    configuration failed with `environment variable OPA_ADDR is not set`."""
+    from cs_image_system.base.commands import workload_token as wt
+    seen: dict = {}
+
+    class _Proc:
+        returncode, stdout, stderr = 0, "tok\n", ""
+
+    def fake_run(cmd, **kw):
+        seen["cmd"] = cmd
+        seen["env"] = kw["env"]
+        return _Proc()
+    monkeypatch.setattr(wt.subprocess, "run", fake_run)
+    monkeypatch.delenv("OPA_ADDR", raising=False)
+    monkeypatch.delenv("SFT_TEAM", raising=False)
+    rc, out, _ = wt.sft_workload_authenticate(wt.WorkloadNames("conn", "role", "team", "https://x.pam.okta.com"), "jwt")
+    assert rc == 0 and out == "tok\n"
+    assert seen["env"]["OPA_ADDR"] == "https://x.pam.okta.com" and seen["env"]["SFT_TEAM"] == "team"
+    assert seen["env"]["GH_OIDC_JWT"] == "jwt" and "--team" in seen["cmd"] and "--role-hint" in seen["cmd"]
+
+
 def test_workload_token_fills_missing_names_from_the_configuration(monkeypatch, tmp_path):
     from v2_support import copy_config, stub_environment
     stub_environment(monkeypatch)

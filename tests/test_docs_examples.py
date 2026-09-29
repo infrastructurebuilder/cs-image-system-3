@@ -330,6 +330,14 @@ def test_the_starter_workflow_has_the_three_jobs():
         assert "uv tool install" in text and "cs-image-system" in text, f"{name}: the workflow must install a release"
         assert "test.pypi.org" in text, f"{name}: a development version installs from TestPyPI"
         assert "just mirror-clean" in text, f"{name}: the mirror must be removed even on failure"
+        # hygiene VII item 3: GITHUB_ENV reaches only the steps after, so the identity
+        # step exports the variable for its own `mask` before using it
+        for job in ("live", "perform"):
+            step = next(s for s in doc["jobs"][job]["steps"] if s.get("name") == "The identity that opens the tree")
+            lines = step["run"].splitlines()
+            exported = next(i for i, ln in enumerate(lines) if ln.startswith("export CSIS_CONFIG_IDENTITY="))
+            masked = next(i for i, ln in enumerate(lines) if "cs-image-system --root-dir . mask" in ln)
+            assert exported < masked, f"{name}/{job}: the identity must be exported before mask runs"
 
 
 def _steps(job: dict) -> list[dict]:
