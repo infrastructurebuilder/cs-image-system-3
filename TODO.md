@@ -7,7 +7,7 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress** (§69 LANDED 2026-09-28, its step 5 done 2026-09-29; §68 items 3 and 4 LANDED 2026-09-29; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §68 item 1 (decide), §70.
+Current stage: **none in progress** (§69 LANDED 2026-09-28, its step 5 done 2026-09-29; §68 items 1, 3 and 4 LANDED 2026-09-29, item 2 open; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §68 item 1 (decide), §70.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
 **§64**, the release that carries everything a configuration repository
@@ -418,7 +418,7 @@ the first final version on PyPI (§41's open call).
 **Status: OPEN since 2026-09-26.** Non-critical hygiene issues join this
 bundle; none is a stage of its own.
 
-1. **The fixture's Debian 11 chain is archived upstream.** `just
+1. **LANDED 2026-09-29 (bookworm).** The fixture's Debian 11 chain is archived upstream. `just
    fixture-live` (stage 64) runs the fixture's modification tests under
    docker, and `imgfile-data-science/data-science-setup` on `my-deb-11`
    fails at target preparation: `apt-get` in the `debian:11` container
