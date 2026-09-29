@@ -7,7 +7,7 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress** (§69 LANDED 2026-09-28, its step 5 done 2026-09-29; §68 items 3 and 4 on their branch; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §68 item 1 (decide), §70.
+Current stage: **none in progress** (§69 LANDED 2026-09-28, its step 5 done 2026-09-29; §68 items 3 and 4 LANDED 2026-09-29; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §68 item 1 (decide), §70.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
 **§64**, the release that carries everything a configuration repository
@@ -450,7 +450,7 @@ bundle; none is a stage of its own.
    configuration repository's `.envrc` (the reference configuration's has
    it from 2026-09-28). The starter's README and CI_SETUP.md section 2 say
    so.
-3. **The starter workflow's identity step could not open the tree.** Found
+3. **LANDED 2026-09-29.** The starter workflow's identity step could not open the tree. Found
    2026-09-28 by the reference configuration's first `live` run with its
    secrets in place (run 36475168588): the step writes the age identity to
    a file, appends `CSIS_CONFIG_IDENTITY` to `GITHUB_ENV`, and runs
@@ -461,7 +461,7 @@ bundle; none is a stage of its own.
    variable for its own command as well; the three starters and the
    reference configuration's workflow carry it, and the starter workflow
    test holds the export before the mask.
-4. **`workload token` did not hand the client its address.** Found
+4. **LANDED 2026-09-29.** `workload token` did not hand the client its address. Found
    2026-09-29 by the reference configuration's first performing run on
    `main` (run 36482289215: the record, the guard, the performing run and
    the closing record all green; the login proof failed with `error:
