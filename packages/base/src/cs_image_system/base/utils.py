@@ -79,7 +79,7 @@ class SetEncoder(json.JSONEncoder):
         return super().default(obj)
 
 
-SYSTEM_CLI = "cs-image-system"
+from .constants import SYSTEM_CLI  # noqa: E402 - re-exported: the name every caller imports from here
 
 
 def system_cli_executable(args: list[str], working_directory: Path | None = None):
