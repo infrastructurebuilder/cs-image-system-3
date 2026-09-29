@@ -7,7 +7,7 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress** (§69 LANDED 2026-09-28; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §68 item 1 (decide), §70.
+Current stage: **none in progress** (§69 LANDED 2026-09-28, its step 5 done 2026-09-29; §68 items 3 and 4 on their branch; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §68 item 1 (decide), §70.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
 **§64**, the release that carries everything a configuration repository
@@ -116,8 +116,10 @@ Standing decisions (operator):
   written as a plan, never a side edit.
 - §30 (the contract package), §65, §66 and §70 (the bootstrap: the one-time
   initialisation as terraform from an interview) are planned, not started;
-  §69 (the CI-from-scratch guide) landed 2026-09-28, its step 5 (the
-  reference configuration's secrets and trust, by the guide) the operator's;
+  §69 (the CI-from-scratch guide) landed 2026-09-28 and its step 5 was done
+  2026-09-29: the operator set the reference configuration's secrets and
+  trust by the guide alone, and its first performing run on `main` was
+  green end to end, the login proof as a workload included;
   §63, §67 and §64 landed 2026-09-26;
   a stage is a plan in this file until the operator says to execute it
   (2026-09-23). §62 landed 2026-09-24.

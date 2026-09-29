@@ -1657,9 +1657,16 @@ checkout missing the file it was read from; a job's conclusion is never
 proof that its steps ran. Every federated identity was created trusting
 the SYSTEM repository's OIDC claims; admitting the configuration
 repository (both AWS roles' trust policies, the GCP provider's attribute
-condition, the OPA workload connection's claims) is the operator's act,
-and until it is done the configuration repository's `live` and `perform`
-jobs fail at the credential step.
+condition, the OPA workload connection's claims) is the operator's act.
+It was done on 2026-09-28 and 2026-09-29 by following the starters'
+CI_SETUP.md alone: a new workload connection and role named for the
+configuration repository, its probe green, the identity lifecycle
+reconciling the five CI policies to the new role, the nine secrets set,
+its `live` job green with every step run, and its first performing run
+on `main` green end to end with the login proof recorded `as: workload`.
+The two defects that run found (the identity step's export and the
+client's environment, hygiene bundle VII items 3 and 4) were fixed the
+same day.
 
 ## 4. The operator's cycles
 
