@@ -7,7 +7,7 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress** (§69 LANDED 2026-09-28, its step 5 done 2026-09-29; §68 items 1, 3 and 4 LANDED 2026-09-29, item 2 open; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §68 item 1 (decide), §70.
+Current stage: **none in progress** (§68, hygiene bundle VII, LANDED whole 2026-09-29; §69 LANDED 2026-09-28, its step 5 done 2026-09-29; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §70.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
 **§64**, the release that carries everything a configuration repository
@@ -59,9 +59,10 @@ bare name until its first sanctioned replacement, which is the first real
 claims, and §19 step 5 proved §60's meaning live (a sanctioned replacement
 is a new generation with a new name). §59 is deliberately LAST: it overlaps the suffix, and only once
 that is standing can anyone judge whether a name pool is still wanted. §30 waits on the operator's decision and depends
-on none of this. **Hygiene bundle VII (§68) is open since 2026-09-26**
-(§67, bundle VI, LANDED 2026-09-26); the next non-critical hygiene issue
-joins it.
+on none of this. No hygiene bundle is open (§68, bundle VII, LANDED
+2026-09-29 in four squashes: bookworm, the CSIS override and the
+callbacks, the identity step, the client's environment; §67, bundle VI,
+LANDED 2026-09-26); the next non-critical hygiene issue opens bundle VIII.
 
 **Nothing in the naming line is left**; §30 waits on the operator's
 decision. Nothing in that shorter path has to be redone -- §58
@@ -412,70 +413,6 @@ release, and never edited at the destination. Then:
 **Sizing**: the recipe and its test half a day; the job an hour; the
 mirrors and tokens are the operator's (an hour); the live proof waits on
 the first final version on PyPI (§41's open call).
-
-## 68. Hygiene bundle VII
-
-**Status: OPEN since 2026-09-26.** Non-critical hygiene issues join this
-bundle; none is a stage of its own.
-
-1. **LANDED 2026-09-29 (bookworm).** The fixture's Debian 11 chain is archived upstream. `just
-   fixture-live` (stage 64) runs the fixture's modification tests under
-   docker, and `imgfile-data-science/data-science-setup` on `my-deb-11`
-   fails at target preparation: `apt-get` in the `debian:11` container
-   gets `404 Not Found` from `deb.debian.org/debian-security/pool/updates/`
-   (bullseye left the mirrors when its LTS ended; its packages are on
-   `archive.debian.org`). Reproduced twice on 2026-09-26, deterministic.
-   Until this lands the docker leg of `fixture-live`, and so this
-   repository's CI `live` job, is red; `validate` and the dry run pass.
-   Fix: move the fixture's Debian OS builder to `debian-12` (bookworm;
-   the golden moves), or teach the debian target preparation to point an
-   archived release at `archive.debian.org` (a behaviour change worth
-   having anyway, since every release archives eventually). Decide, then
-   do.
-2. **The starter Justfile's `CSIS` override does not reach the callbacks.**
-   Found 2026-09-28 by the first real run from the reference configuration
-   (`just run identity` with `CSIS=<checkout>/.venv/bin/cs-image-system`):
-   the run's own steps call the command back by its bare name
-   (`cs-image-system materialize`, `gate-plan`, `decrypt --json`, the
-   runner scripts), which must be on `PATH`, and a `CSIS` that names a
-   path puts nothing there, so the run failed at the identity phase with
-   `No such file or directory: 'cs-image-system'`. A release installed
-   with `uv tool install` is on `PATH` and never sees this; a development
-   checkout driven through `CSIS` always does. Fix in the starter Justfile:
-   when `csis` names a path, export `PATH` with its directory first
-   (`export PATH := if csis =~ "/" { parent_directory(csis) + ":" + env("PATH") } else { env("PATH") }`),
-   so every recipe's callbacks find the same command the recipe ran;
-   `just init` says which command the callbacks will find. Until it lands
-   the workaround is `export PATH="<checkout>/.venv/bin:$PATH"` in the
-   configuration repository's `.envrc` (the reference configuration's has
-   it from 2026-09-28). The starter's README and CI_SETUP.md section 2 say
-   so.
-3. **LANDED 2026-09-29.** The starter workflow's identity step could not open the tree. Found
-   2026-09-28 by the reference configuration's first `live` run with its
-   secrets in place (run 36475168588): the step writes the age identity to
-   a file, appends `CSIS_CONFIG_IDENTITY` to `GITHUB_ENV`, and runs
-   `cs-image-system mask` in the SAME step, but `GITHUB_ENV` reaches only
-   the steps after, so `mask` refused with "CSIS_CONFIG_IDENTITY is not
-   set" for six files and the job failed before validate. Fixed the same
-   day on `feature/hygiene-vii-identity-step`: the step exports the
-   variable for its own command as well; the three starters and the
-   reference configuration's workflow carry it, and the starter workflow
-   test holds the export before the mask.
-4. **LANDED 2026-09-29.** `workload token` did not hand the client its address. Found
-   2026-09-29 by the reference configuration's first performing run on
-   `main` (run 36482289215: the record, the guard, the performing run and
-   the closing record all green; the login proof failed with `error:
-   environment variable OPA_ADDR is not set`). `sft workload authenticate`
-   reads `OPA_ADDR` and the team from its environment; the shell script
-   had them exported by `workload describe --env`, and the stage 64
-   command that replaced it resolved the names but passed only the JWT to
-   the client. Fixed the same day on `feature/hygiene-vii-identity-step`:
-   the client's environment carries `OPA_ADDR` and `SFT_TEAM` from the
-   resolved names, with a test. The fix reaches a configuration repository
-   only through the next release (`.csis-version`); until then the
-   reference configuration's `perform` job carries the two names as job
-   environment, a deviation from the starter to remove when the release
-   lands.
 
 ## 70. Bootstrap: the one-time initialisation, as terraform from an interview
 
