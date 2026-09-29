@@ -17,9 +17,10 @@ from .builder_model import NameTyped
 import os
 from pathlib import Path
 import subprocess
+import sys
 from typing import Annotated, Any
 
-from ..constants import DEFAULT, VCT
+from ..constants import SYSTEM_CLI, DEFAULT, VCT
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
@@ -87,7 +88,19 @@ class ExecutableModel(NameTyped, PluginArtifactProtocol):
         # stage 63: the command is built once (a first list was built and discarded)
         command: list[str] = []
         bin = self.binary or self.name
-        command.append(bin)
+        if bin == SYSTEM_CLI:
+            # hygiene VII item 2 (2026-09-29): a step the running process spawns
+            # itself (materialize, gate-plan, prune-attachments, the identity
+            # steps) is the same code that is running, so it is invoked as the
+            # running interpreter's own module and needs no PATH. The emitted
+            # scripts still name the bare command (a committed script names no
+            # absolute path); whoever runs THEM needs it on PATH. Found live when
+            # a development checkout drove the reference configuration through
+            # CSIS=<venv>/bin/cs-image-system and the first callback failed with
+            # "No such file or directory: 'cs-image-system'".
+            command.extend([sys.executable, "-m", "cs_image_system.system"])
+        else:
+            command.append(bin)
         command.extend(self.prepended_arguments if not skips else [])
         alist: list[str] = list(self.args) if self.args else []
         alist.extend(list(args) if args else [])

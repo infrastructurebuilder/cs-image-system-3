@@ -187,3 +187,9 @@ class ComplianceState(Enum):
     IGNORED = "ignored"
     ACCEPTABLE = "acceptable"
     UNACCEPTABLE = "unacceptable"
+
+# The system's own command, as the emitted runner scripts and the in-process
+# callbacks name it (stage 64 / hygiene VII item 2: a committed script names
+# the bare command, which must be on PATH; a step the running process spawns
+# itself resolves to the running interpreter's own module instead).
+SYSTEM_CLI: str = "cs-image-system"

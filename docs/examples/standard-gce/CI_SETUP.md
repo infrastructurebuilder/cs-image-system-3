@@ -48,7 +48,12 @@ further from you.
    from TestPyPI: add `--index-url https://test.pypi.org/simple/
    --extra-index-url https://pypi.org/simple/`).
 2. `just init`: the public-safe hook, the plugin cache, a check that the
-   command runs.
+   command runs, and a line saying which command a run's callbacks will
+   find. A run's own steps and the runner scripts call the command back
+   by its bare name, so it must be on `PATH`: a release installed with
+   `uv tool install` is; `CSIS="uv run cs-image-system"` puts its venv on
+   the child's `PATH`; a `CSIS` that names a path (a development checkout)
+   is put first on `PATH` by the `Justfile` itself.
 3. Your own sessions for every runtime the tree declares (an AWS profile,
    GCP application-default credentials), the Okta and OPA credentials in
    your shell, and `CSIS_CONFIG_IDENTITY` pointing at your age identity:

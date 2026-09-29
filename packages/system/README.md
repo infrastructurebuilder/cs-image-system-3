@@ -625,8 +625,13 @@ tofu with their own credentials.
 A run writes `generated/<lifecycle>/run-<lifecycle>.sh` per lifecycle
 with deferred work and `generated/final_execution.sh`, which runs each
 script that exists. The scripts call back into this CLI by the bare name
-`cs-image-system`, so it must be on the `PATH` of whoever runs them
-(`just` and `uv run` provide it). Every deferred command that has a
+`cs-image-system` (a committed script names no absolute path), so it must
+be on the `PATH` of whoever runs them: a release installed with `uv tool
+install`, `uv run`, or a configuration repository's `Justfile`, which puts
+a `CSIS` that names a path first on `PATH`. The steps the running process
+spawns itself (`materialize`, `gate-plan`, `prune-attachments`, the
+state-migration steps) are invoked as the running interpreter's own module
+and need no `PATH` (hygiene VII item 2, 2026-09-29). Every deferred command that has a
 working directory is wrapped as
 
 ```sh
