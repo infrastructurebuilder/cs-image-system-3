@@ -4,7 +4,7 @@ build {
   sources = [
 "source.amazon-ebs.basic-rh-10",
   "source.amazon-ebs.basic-rhel-9",
-  "source.amazon-ebs.my-deb-11"
+  "source.amazon-ebs.my-deb-12"
 ]
   # OS update for base image basic-rh-10 (policy=security, packages=['openssl'], exclude=['kernel*'], pin={}, rhel)
   provisioner "shell" {
@@ -183,7 +183,7 @@ build {
   }
   # admin user csisadmin (1 public key(s))
   provisioner "shell" {
-    only   = ["amazon-ebs.my-deb-11"]
+    only   = ["amazon-ebs.my-deb-12"]
     inline = [
       "# mandatory local admin user 'csisadmin' (DESIGN Q2/N9): public keys only",
       "id -u csisadmin >/dev/null 2>&1 || sudo useradd -m -s /bin/bash csisadmin",
@@ -197,7 +197,7 @@ build {
   }
   # identity type 'okta' prerequisites, dormant
   provisioner "shell" {
-    only   = ["amazon-ebs.my-deb-11"]
+    only   = ["amazon-ebs.my-deb-12"]
     inline = [
       "# identity type 'okta' prerequisites (oktagroups): OPA agent, dormant",
       "command -v curl >/dev/null 2>&1 && command -v gpg >/dev/null 2>&1 || { sudo apt-get -o DPkg::Lock::Timeout=600 update -y; sudo apt-get -o DPkg::Lock::Timeout=600 install -y curl gnupg; }",
@@ -211,23 +211,23 @@ build {
   }
   # storage type 'ebs' prerequisites
   provisioner "shell" {
-    only   = ["amazon-ebs.my-deb-11"]
+    only   = ["amazon-ebs.my-deb-12"]
     inline = [
       "# storage type 'ebs' declared: no prerequisites to bake (aws-ebs)",
     ]
   }
   # debug session mechanism (ssm)
   provisioner "shell" {
-    only   = ["amazon-ebs.my-deb-11"]
+    only   = ["amazon-ebs.my-deb-12"]
     inline = [
       "# session mechanism 'ssm' (aws-east2-runtime): SSM agent for debug sessions",
       "command -v amazon-ssm-agent >/dev/null 2>&1 || snap list amazon-ssm-agent >/dev/null 2>&1 || (sudo curl -fsSL https://s3.us-east-2.amazonaws.com/amazon-ssm-us-east-2/latest/debian_amd64/amazon-ssm-agent.deb -o /tmp/ssm-agent-bake.deb && sudo dpkg -i /tmp/ssm-agent-bake.deb)",
       "sudo systemctl enable amazon-ssm-agent",
     ]
   }
-  # in-bake verification for base image my-deb-11: 8 assertion(s)
+  # in-bake verification for base image my-deb-12: 8 assertion(s)
   provisioner "shell" {
-    only   = ["amazon-ebs.my-deb-11"]
+    only   = ["amazon-ebs.my-deb-12"]
     inline = [
       "set -e",
       "# verify: admin user csisadmin",

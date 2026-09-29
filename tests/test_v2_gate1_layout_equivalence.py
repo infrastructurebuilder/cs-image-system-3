@@ -111,6 +111,12 @@ def _normalize(text: str) -> str:
     # baseline is a frozen pre-V2 snapshot, so the rename is declared here
     # (idempotent: the V2 side never contains the old name)
     text = text.replace("basic-rhel-8", "basic-rh-10")
+    # the fixture's Debian builder moved to bookworm (hygiene VII item 1,
+    # 2026-09-29: bullseye left the mirrors and its modification test could
+    # not fetch packages); the baseline froze bullseye (idempotent: the V2
+    # side never contains the old name, filter or tag)
+    text = text.replace("my-deb-11", "my-deb-12").replace("debian-11-amd64-*", "debian-12-amd64-*")
+    text = text.replace('Version             = "11",', 'Version             = "12",')
     # the design record moved out of V2_PLAN.md into docs/DESIGN.md (2026-09-10)
     # and that document is now gone; the baseline is frozen, so it keeps the old
     # spelling and this mapping stays:
@@ -212,6 +218,7 @@ def _is_subsequence(needle: list[str], haystack: list[str]) -> tuple[bool, str |
 def map_v1_path(kind: str, rel: str) -> str | None:
     """V1 snapshot path -> V2 generated path (None = handled separately)."""
     rel = rel.replace("basic-rhel-8", "basic-rh-10")   # series rename (stage 1)
+    rel = rel.replace("my-deb-11", "my-deb-12")        # bookworm (hygiene VII item 1, 2026-09-29)
     parts = Path(rel).parts
     if rel == ".gitignore":
         return None

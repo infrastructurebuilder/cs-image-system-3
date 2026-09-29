@@ -97,8 +97,8 @@ def test_base_image_bakes_admin_user_and_declared_prerequisites_dormant(v2):
     # storage prerequisites for every declared type on rhel-8/9 ...
     assert "amazon-efs-utils" in build
     assert "awscli" in build
-    # ... and nothing for the type my-deb-11 does not declare
-    deb = build.split('only   = ["amazon-ebs.my-deb-11"]')
+    # ... and nothing for the type my-deb-12 does not declare
+    deb = build.split('only   = ["amazon-ebs.my-deb-12"]')
     deb_section = "".join(s.split("provisioner")[0] for s in deb[1:])
     assert "nfs-common" not in deb_section
     # activation NEVER happens on a base image

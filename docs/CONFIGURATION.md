@@ -628,7 +628,7 @@ Assertions run as the last packer provisioner; a failing one fails the bake.
 ### 5.4 Example
 
 [`cfg/os-builders.yml`](../tests/fixtures/config/cfg/os-builders.yml), the
-default base (the fixture also declares `my-deb-11` and `basic-rhel-9`):
+default base (the fixture also declares `my-deb-12` and `basic-rhel-9`):
 
 ```yaml
 ---

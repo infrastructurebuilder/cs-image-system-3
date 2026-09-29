@@ -4,7 +4,7 @@ data "amazon-ami" "imgfile-data-science_aws-east2-runtime" {
         "self",
     ]
     filters = {
-        name                = "my-deb-11-aws-east2-runtime*",
+        name                = "my-deb-12-aws-east2-runtime*",
         root-device-type    = "ebs",
         virtualization-type = "hvm",
         architecture        = "x86_64",
@@ -22,9 +22,9 @@ source "amazon-ebs" "imgfile-data-science" {
     tags = {
         data_science        = "true",
         csis_series         = "imgfile-data-science",
-        csis_parent         = "series:my-deb-11",
+        csis_parent         = "series:my-deb-12",
         csis_run            = "2026_08_26t12_00_00",
-        csis_fingerprint    = "e21ef5ed1e6ff3da",
+        csis_fingerprint    = "0d7a4d7a2c457fbf",
         csis_identity_types = "okta",
         csis_storage_types  = "ebs",
     }

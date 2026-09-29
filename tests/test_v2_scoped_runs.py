@@ -230,7 +230,7 @@ def test_only_scopes_the_bake_surface(v2):
     files = [str(p.relative_to(v2.generated)) for p in v2.generated.rglob("*.pkr.hcl")]
     text = "\n".join((v2.generated / f).read_text() for f in files)
     assert "basic-rh-10" in text
-    for other in ("my-deb-11", "basic-rhel-9"):
+    for other in ("my-deb-12", "basic-rhel-9"):
         assert not any(other in f for f in files)
         assert f'"{other}"' not in text
 
