@@ -76,7 +76,12 @@ def public_claims(jwt: str) -> dict[str, Any]:
 def sft_workload_authenticate(names: WorkloadNames, jwt: str) -> tuple[int, str, str]:
     """The client, as a subprocess; the seam the tests stub. Returns exit,
     stdout (the token), stderr (the verdict)."""
-    env = {**os.environ, "GH_OIDC_JWT": jwt}
+    # hygiene VII item 4: the client reads the OPA address and the team from
+    # its environment (`error: environment variable OPA_ADDR is not set`, the
+    # reference configuration's first performing run, 2026-09-29); the shell
+    # script had them exported by `workload describe --env`, this command
+    # resolves the names itself and must hand them to the client the same way
+    env = {**os.environ, "GH_OIDC_JWT": jwt, "OPA_ADDR": names.api_host, "SFT_TEAM": names.team}
     proc = subprocess.run(["sft", "workload", "authenticate", "--team", names.team,  # noqa: S603,S607
                            "--connection", names.connection, "--role-hint", names.role, "--jwt-env", "GH_OIDC_JWT"],
                           capture_output=True, text=True, env=env, timeout=120)

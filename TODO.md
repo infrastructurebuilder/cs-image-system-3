@@ -459,6 +459,21 @@ bundle; none is a stage of its own.
    variable for its own command as well; the three starters and the
    reference configuration's workflow carry it, and the starter workflow
    test holds the export before the mask.
+4. **`workload token` did not hand the client its address.** Found
+   2026-09-29 by the reference configuration's first performing run on
+   `main` (run 36482289215: the record, the guard, the performing run and
+   the closing record all green; the login proof failed with `error:
+   environment variable OPA_ADDR is not set`). `sft workload authenticate`
+   reads `OPA_ADDR` and the team from its environment; the shell script
+   had them exported by `workload describe --env`, and the stage 64
+   command that replaced it resolved the names but passed only the JWT to
+   the client. Fixed the same day on `feature/hygiene-vii-identity-step`:
+   the client's environment carries `OPA_ADDR` and `SFT_TEAM` from the
+   resolved names, with a test. The fix reaches a configuration repository
+   only through the next release (`.csis-version`); until then the
+   reference configuration's `perform` job carries the two names as job
+   environment, a deviation from the starter to remove when the release
+   lands.
 
 ## 70. Bootstrap: the one-time initialisation, as terraform from an interview
 
