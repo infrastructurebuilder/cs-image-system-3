@@ -56,7 +56,7 @@ def test_the_fixture_resolves_as_it_always_baked(tmp_path: Path, monkeypatch):
     ctx = _ctx(copy_config(tmp_path), monkeypatch)
     try:
         assert _resolve(ctx, "basic-rhel-9", "aws-east2-runtime") == "ec2-user"   # family default
-        assert _resolve(ctx, "my-deb-11", "aws-east2-runtime") == "admin"
+        assert _resolve(ctx, "my-deb-12", "aws-east2-runtime") == "admin"
         assert _resolve(ctx, "basic-rh-10", "gcloud-east1") == "packer"           # the entry
         assert _resolve(ctx, "imgfile-basic-dask", "gcloud-east1") == "packer"    # via its root
         assert _resolve(ctx, "imgfile-data-science", "aws-east2-runtime") == "admin"
@@ -87,7 +87,7 @@ def test_default_config_username_is_the_runtimes_fallback(tmp_path: Path, monkey
     ctx = _ctx(root, monkeypatch)
     try:
         assert _resolve(ctx, "basic-rhel-9", "aws-east2-runtime") == "rocky"
-        assert _resolve(ctx, "my-deb-11", "aws-east2-runtime") == "rocky"
+        assert _resolve(ctx, "my-deb-12", "aws-east2-runtime") == "rocky"
     finally:
         reset_singletons()
 

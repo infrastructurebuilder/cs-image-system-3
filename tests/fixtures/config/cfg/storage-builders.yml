@@ -66,7 +66,7 @@ storage_builders:
     bucket_name: csis-sandbox-86233086783-default-bucket
   # - name: gcp-pd
   #   type: gcp-pd
-  #   runtime: gcp-my-deb-11 # Refers to the runtime builder named gcp-my-deb-11
+  #   runtime: gcp-my-deb-12 # Refers to the runtime builder named gcp-my-deb-12
   #   variables:
   #     volume_type: pd-standard
   #     size: 10 # Size in GB
@@ -76,7 +76,7 @@ storage_builders:
   #       environment: development
   # - name: azure-disk
   #   type: azure-disk
-  #   runtime: azure-my-deb-11 # Refers to the runtime builder named azure-my-deb-11
+  #   runtime: azure-my-deb-12 # Refers to the runtime builder named azure-my-deb-12
   #   variables:
   #     volume_type: Standard_LRS
   #     size: 10 # Size in GB

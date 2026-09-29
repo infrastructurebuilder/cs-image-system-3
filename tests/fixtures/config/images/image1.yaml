@@ -100,7 +100,7 @@ images:
       data_science: "true"
     # stage 22.5 REMOVED -- the builder assigns this at load; valid on an OS base-image subconfig and as a runtime list entry (above), not at image level
     # image_builder: default
-    source_image: my-deb-11
+    source_image: my-deb-12
     description: "Data Science node with pre-installed libraries and tools."
     runtimes:
       - image_builder: pckr-ebs-ans

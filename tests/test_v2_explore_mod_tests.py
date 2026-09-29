@@ -79,8 +79,8 @@ def test_container_image_is_derived_from_the_root_os(v2):
     from cs_image_system.base.mod_tests import test_image_for
     dask = v2.ctx.images_map["imgfile-basic-dask"]           # <- basic-rh-10
     assert test_image_for(v2.ctx, dask) == "almalinux:10"     # family_version 10 since stage 13; AlmaLinux from 10 (§16)
-    ds = v2.ctx.images_map["imgfile-data-science"]           # <- my-deb-11
-    assert test_image_for(v2.ctx, ds) == "debian:11"
+    ds = v2.ctx.images_map["imgfile-data-science"]           # <- my-deb-12
+    assert test_image_for(v2.ctx, ds) == "debian:12"
     v2.ctx.os_builders["basic-rh-10"].model.local_test_image = "registry.example/ubi8"
     assert test_image_for(v2.ctx, dask) == "registry.example/ubi8"
 

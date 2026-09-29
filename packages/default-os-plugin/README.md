@@ -243,7 +243,7 @@ files, under
   all`, `dnf -y update --security --exclude=kernel*` with its retry, the
   `check-update` guarded targeted update of `openssl`, and the package
   manifest. `basic-rhel-9` shows the same without a targeted package.
-  `my-deb-11` declares no policy and gets no update provisioner.
+  `my-deb-12` declares no policy and gets no update provisioner.
 - [pckr-gce-ans-image-generation-block-000-build.pkr.hcl](../../tests/fixtures/v2_golden/generated/base-image/pckr-gce-ans/image-generation/block-000/pckr-gce-ans-image-generation-block-000-build.pkr.hcl):
   the same `basic-rh-10` provisioner scoped to `googlecompute.basic-rh-10`.
 - [pckr-ebs-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl](../../tests/fixtures/v2_golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl):
@@ -316,7 +316,7 @@ os_builders:
 The first entry names no `image_builder`, so it resolves to the default
 runtime's `default_image_builder`. The AWS-only filter keys in its query are
 dropped by the GCE runtime plugin, which is why the second entry can be
-terse. The same file declares `my-deb-11` (`type: debian`, no update policy)
+terse. The same file declares `my-deb-12` (`type: debian`, no update policy)
 and `basic-rhel-9` (`type: rhel`, `security` policy excluding `kernel*`).
 
 ## Prerequisites and integration

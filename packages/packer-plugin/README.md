@@ -258,7 +258,7 @@ images with no mutual dependencies):
 | [...-block-000-ebs-ansible-setup.pkr.hcl](../../tests/fixtures/v2_golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-ebs-ansible-setup.pkr.hcl) | The `locals` block. |
 | [...-block-000-plugins.pkr.hcl](../../tests/fixtures/v2_golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-plugins.pkr.hcl) | `required_plugins` `amazon` and `ansible`. |
 | [...-block-000-vars.pkr.hcl](../../tests/fixtures/v2_golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-vars.pkr.hcl) | `release` and `base_image_version`. |
-| [...-source-basic-rh-10-block-000.pkr.hcl](../../tests/fixtures/v2_golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl), `-source-basic-rhel-9-`, `-source-my-deb-11-` | `data "amazon-ami"` (resolved image id) and `source "amazon-ebs"` (name, instance type, VPC, subnet, tags, SSM session interface, block device). |
+| [...-source-basic-rh-10-block-000.pkr.hcl](../../tests/fixtures/v2_golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl), `-source-basic-rhel-9-`, `-source-my-deb-12-` | `data "amazon-ami"` (resolved image id) and `source "amazon-ebs"` (name, instance type, VPC, subnet, tags, SSM session interface, block device). |
 | [run-base-image.sh](../../tests/fixtures/v2_golden/generated/base-image/run-base-image.sh) | `packer build .` in each block directory. |
 
 The GCE builder `pckr-gce-ans` emits the same set of files under

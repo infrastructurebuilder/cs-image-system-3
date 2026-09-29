@@ -255,7 +255,7 @@ images:
       - ds-node
     tags:
       data_science: "true"
-    source_image: my-deb-11
+    source_image: my-deb-12
     description: "Data Science node with pre-installed libraries and tools."
     runtimes:
       - image_builder: pckr-ebs-ans

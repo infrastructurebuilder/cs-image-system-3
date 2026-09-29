@@ -11,10 +11,10 @@ base_images:
     runtimes: 
     - runtime: aws-east2-runtime  # Use default name from this base image def
     - runtime: aws-west1
-  - name: my-deb-11
+  - name: my-deb-12
     type: debian # This need to be 
     family: debian
-    family_version: 11
+    family_version: 12
     output_image_name: "{{ this.name }}-{{ this.family }}-{{ this.family_version }}"
     tags:
       Project: MyDebianProject
@@ -22,7 +22,7 @@ base_images:
       OS: "{{ this.family }}"
       Version: "{{ this.family_version }}"
     runtimes:
-    -   name: aws-my-deb-11AA # Name is irrelevant but must be unique within this builder
+    -   name: aws-my-deb-12AA # Name is irrelevant but must be unique within this builder
         runtime: aws-east2-runtime
         output_image_name: "AWS-{{ this.name }}-{{ this.os.family }}-{{ this.os.family_version }}-{{ execution.timestamp }}" # Override builder name
         owners:
@@ -31,7 +31,7 @@ base_images:
           - 136693071363        
         query:
           filters:
-            name: "debian-11-amd64-*"
+            name: "debian-12-amd64-*"
             state: available # This is always going to be hard-coded into the query for the image (here for example)
             root_device_type: ebs # This is likely to be overwritten if not an ebs builder
   - name: basic-rhel-9

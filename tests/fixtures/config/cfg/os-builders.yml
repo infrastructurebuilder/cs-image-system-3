@@ -3,14 +3,14 @@
 # whatever runtime they are for.  They also supply coordination for the
 # DAG that is used to generate actual images
 os_builders:
-  - name: my-deb-11
+  - name: my-deb-12
     # V2 capability declaration (DESIGN 3F1): the ONLY identity and storage
     # types usable downstream of this base image (declared, not merely possible).
     identity_types: [okta]
     storage_types: [ebs]
     type: debian
     family: debian
-    family_version: 11
+    family_version: 12   # bookworm; bullseye left the mirrors in 2026-09 (hygiene VII item 1)
     # stage 22.3 REMOVED -- no field on the OS builder model accepts this, so it has always been dropped. Nothing has ever been named from these templates: images carry the _final_name shape instead (AWS basic-rh-10-aws-east2-runtime-<ts>, GCE imgfile-basic-dask-pckr-gce-ans-<ts>). Kept here because the NOSCSB naming intent may return: reviving it means restoring the field AND making the subconfig property use it, which renames every future image on both clouds and is its own stage.
     # output_image_name: "{{ this.name }}-{{ this.family }}-{{ this.family_version }}"
     tags:
@@ -19,7 +19,7 @@ os_builders:
       OS: "{{ this.parent.family }}"
       Version: "{{ this.parent.family_version }}"
     runtimes:
-    -   name: aws-my-deb-11BB # Name is irrelevant but must be unique within this builder
+    -   name: aws-my-deb-12BB # Name is irrelevant but must be unique within this builder
         # Bake on 4 GB (2026-08-31, TODO stage 1): dnf update OOMs a t2.micro
         default_machine_type: t3.medium
         image_builder: pckr-ebs-ans
@@ -32,7 +32,7 @@ os_builders:
           - 136693071363        
         query:
           filters:
-            name: "debian-11-amd64-*"
+            name: "debian-12-amd64-*"
             state: available # This is always going to be hard-coded into the query for the image (here for example)
             root_device_type: ebs
   - name: basic-rhel-9

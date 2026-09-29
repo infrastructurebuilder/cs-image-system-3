@@ -76,8 +76,8 @@ def _assert_alias_full(build: str) -> None:
     # redundant alias of upgrade and RHUI cache flips need the second try
     assert "sudo dnf -y upgrade || { sudo dnf clean all; sudo dnf -y upgrade; }" in blk and "sudo dnf -y autoremove" in blk
     assert "rhel-9-for-x86_64-baseos-rpms" in blk
-    # my-deb-11 declares nothing: no update block at all
-    assert "OS update for base image my-deb-11" not in build
+    # my-deb-12 declares nothing: no update block at all
+    assert "OS update for base image my-deb-12" not in build
 
 
 def test_apt_family_realizes_every_policy():
