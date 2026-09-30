@@ -699,9 +699,38 @@ bundle; none is a stage of its own.
    its live `launch-params.yaml` adopts the key at the first recording run
    on that release. §72 does not depend on it.
 
+3. **OPEN, found 2026-09-30 by §72 Part A.** The runner does not echo
+   tofu's output, so an applying run's log shows `executing ( ... tofu
+   plan ... )`, `( ... gate-plan ... )`, `( ... apply ... )` and nothing of
+   what they said: no `Plan: 0 to add, 1 to change, 0 to destroy`, no
+   gate verdict, no apply summary. The operator "couldn't locate the tofu
+   plan output" because there is none in the log; it was recovered
+   afterwards with `tofu show tfplan` in the root. Fix: the runner logs
+   each executed command's captured output at INFO (tofu's plan and apply
+   summaries, the gate's verdict, packer's build lines), or at least the
+   plan summary line and the gate's verdict; the emitted `run-*.sh` already
+   show everything when run by hand, so this is the in-process path only.
+   A test asserts the plan summary reaches the log.
+
 ## 72. The coops model resized: first in place, then by replacement, the EFS data kept
 
-**Status: PLANNED, not started** (the operator, 2026-09-30: "change the
+**Status: Part A DONE 2026-09-30; Part B waits for the word.** Part A ran
+on release 0.1.1.dev5 from the reference configuration: the edit and its
+record (1fbe021, cb7d981), the dry launch (ca2ac55; it lists the deferred
+commands and plans nothing -- see A.3 as corrected), the launch (8b4559a:
+`Plan: 0 to add, 1 to change, 0 to destroy`, one `~ instance_type`
+update in place, apply 10:21:28-10:22:21 local), and the proof: the same
+`i-0a81c75317dc0bb89` now `t3.xlarge` (uptime 8 minutes after the
+stop/start), the planted file unchanged (0 bytes, mtime Sep 30 11:35,
+the empty-file digest), `/mnt/efs` still `fs-02d658f1561aab44b` through
+`fsap-0fca05c220a8d6dba`, `/mnt/data` still the volume (its NVMe letter
+moved from `nvme0n1` to `nvme1n1` across the restart; mounted by id, so
+nothing cared), generation 3 open and `observed` with its snapshot at
+`t3.xlarge` and the first live `resized` event in its history, the
+record at `t3.xlarge`, the strict query green (one rerun: a read
+timeout at `oauth2.googleapis.com`, environmental), the login proved by
+name as the enrolled client (3daa87b). The perform job on `main` is the
+closing word. (The operator, 2026-09-30: "change the
 running `coops-model` machine from `c5n.4xlarge` to `t3.xlarge` ... walk
 me through the steps that cause the existing machine to be dropped and a
 new machine with the same image to arise with the new instance type. I
@@ -829,14 +858,20 @@ it.
   and `git diff HEAD~1 --stat` shows the YAML, that file and the run
   records only. The commit message names this stage and part.
 - **A.3 Dry launch** (**USER**; nothing changes):
-  `just cloud-launch aws-east2-runtime yes`. The plan is ONE change:
-  `~ update in-place` on the coops-model `aws_instance` with
-  `instance_type: "c5n.4xlarge" -> "t3.xlarge"`; no `-/+` (replace), no
-  destroy, nothing under `storage`, nothing on the attachment. A plan that
-  shows a replacement means the provider decided the change forces one
-  (it does not for `instance_type` on a stopped-and-started Nitro
-  instance, but the plan is the word) -- STOP and reconsider at Part B's
-  route instead of applying.
+  `just cloud-launch aws-east2-runtime yes`. CORRECTED after the run: a
+  dry run never plans against remote state (by design -- `-backend=false`,
+  no generation-time plan), so the dry form lists the ten deferred
+  commands (`rm -f tfplan`, `init`, `plan`, `gate-plan`, `apply-check`,
+  `apply`, and the GCE root's four) and shows no plan. The protection is
+  the gate in the real run: `plan` -> `gate-plan` -> `apply-check` ->
+  `apply`, and a `-/+` replacement counts as a destroy that nothing
+  whitelists, so a provider that decided the type change forces a
+  replacement stops the run with nothing applied. The plan that applied
+  is readable afterwards from the plan file the runner leaves behind:
+  `cd generated/instance-image/open-tofu/instance-generation && tofu show
+  tfplan` -- expected `Plan: 0 to add, 1 to change, 0 to destroy` and one
+  `~ instance_type = "c5n.4xlarge" -> "t3.xlarge"` (what it showed). The
+  runner does not echo tofu's output; hygiene VIII item 3.
 - **A.4 Launch** (**USER**; the machine stops, changes, starts):
   `just cloud-launch aws-east2-runtime`. The apply takes a few minutes
   (the provider waits for the stop, then the start). The run's records
@@ -878,10 +913,13 @@ declaration already says `t3.xlarge`, the machine is `coops-model-003`.
   `ami-06863fb35ff62f9ba`, generation 3, `i-0a81c75317dc0bb89`,
   `coops-model-003`, alias `cod` -- B.6 and B.8 compare against these.
 - **B.3 Dry decommission** (**USER**; nothing changes):
-  `just cloud-decommission aws-east2-runtime coops-model yes`. The plan
-  destroys exactly the instance module (the `aws_instance` and its EBS
-  attachment), the gate's whitelist names that address, nothing under the
-  `storage` root moves, no `replace`. (If the operator wants Part B to move
+  `just cloud-decommission aws-east2-runtime coops-model yes`. A dry run
+  plans nothing (A.3): it lists the deferred commands, and the
+  `gate-plan` line carries `--allow-destroy` naming the instance module's
+  address -- that is what to read. The real run's plan (readable
+  afterwards with `tofu show tfplan` in the root) destroys exactly the
+  instance module (the `aws_instance` and its EBS attachment), nothing
+  under the `storage` root, no `replace`. (If the operator wants Part B to move
   the type as well, the word changes in `instances/instances.yaml` between
   B.4 and B.5, exactly as in A.2 -- the machine is unlaunched then, so
   nothing holds the edit; the predictions below say `t3.xlarge` and read
@@ -899,12 +937,14 @@ declaration already says `t3.xlarge`, the machine is `coops-model-003`.
   validate` passes (an unlaunched instance has no snapshot to hold it) and
   `just record` shows the emission unchanged but for the run records.
 - **B.6 Dry launch** (**USER**; nothing changes):
-  `just cloud-launch aws-east2-runtime yes`. The plan CREATES the instance
-  module (the `aws_instance` and its EBS attachment; the EFS mount is
-  user-data), `instance_type = "t3.xlarge"`, `ami =
-  "ami-06863fb35ff62f9ba"`, hostname `coops-model-004`; the dry run's
-  `pins.yaml` pins `coops-model: ami-06863fb35ff62f9ba` again (the
-  first-bind to the head), and it draws no alias (a dry run never does).
+  `just cloud-launch aws-east2-runtime yes`. A dry run plans nothing
+  (A.3): read the emission and the records it commits instead -- the
+  instance `.tf` carries `instance_type = "t3.xlarge"` and hostname
+  `coops-model-004`, the dry run's `pins.yaml` pins `coops-model:
+  ami-06863fb35ff62f9ba` again (the first-bind to the head), and it draws
+  no alias (a dry run never does). The real run's plan CREATES the
+  instance module (the `aws_instance` and its EBS attachment; the EFS
+  mount is user-data), `ami = "ami-06863fb35ff62f9ba"`.
   If the pin is any OTHER build, STOP: the series head moved (something was
   baked and released since 2026-09-30), and the walk resumes only after the
   operator decides between that build and the old one -- the old one is a
@@ -1038,9 +1078,12 @@ shows anything a step does not predict stops the walk.
    operator confirms nothing outside `/mnt/efs` and `/mnt/data` on the
    machine is wanted (**USER**): the root volume goes with it.
 2. **Dry decommission** (**USER**; nothing changes): `just
-   cloud-decommission aws-east2-runtime coops-model yes`. Exactly the
-   instance module destroyed (the `aws_instance` and its EBS attachment),
-   the whitelist naming it, nothing under `storage`, no `replace`.
+   cloud-decommission aws-east2-runtime coops-model yes`. A dry run plans
+   nothing (§72 A.3): the `gate-plan` line in the deferred commands
+   carries `--allow-destroy` naming the instance module -- that is what to
+   read; the real run's plan destroys exactly that module (the
+   `aws_instance` and its EBS attachment), nothing under `storage`, no
+   `replace`.
 3. **Decommission** (**USER**; the machine is destroyed): `just
    cloud-decommission aws-east2-runtime coops-model`. Records committed:
    `pins.yaml` unpinned with `op: decommission`; `instance-state.yaml`
@@ -1074,11 +1117,13 @@ shows anything a step does not predict stops the walk.
    remote state, by design; the gate's printed plan before the apply is
    the moment to read.)
 7. **Dry launch** (**USER**; nothing changes): `just cloud-launch
-   aws-east2-runtime yes`. The plan CREATES the instance module: the
-   `aws_instance` and its EBS attachment, `instance_type = "t3.xlarge"`,
-   `ami =` the pin from step 1 (the first-bind to the series head; a
-   different build means the head moved -- STOP, same rule as §72 B.6),
-   hostname `coops-model-005`. The emitted instance `.tf` names
+   aws-east2-runtime yes`. A dry run plans nothing (§72 A.3): read the
+   emission and the records -- the instance `.tf` carries `instance_type =
+   "t3.xlarge"` and hostname `coops-model-005`, the dry run's `pins.yaml`
+   pins the build from step 1 (the first-bind to the series head; a
+   different build means the head moved -- STOP, same rule as §72 B.6).
+   The real run's plan CREATES the instance module (the `aws_instance` and
+   its EBS attachment). The emitted instance `.tf` names
    `efs-scratch` and not `efs-storage` under `"efs"` (`grep -c efs-storage
    generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation-instance-coops_model.tf`
    prints 0); the filesystem id itself is read from the storage root's
