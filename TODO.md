@@ -682,180 +682,274 @@ bundle; none is a stage of its own.
    it, changes the type and starts it, same instance id, no ledger event,
    and the ledger's snapshot of what the machine "booted with" is silently
    wrong about its hardware. The machine type belongs in the snapshot,
-   under the same rule as everything else there: a change is a replacement
-   (`upgrade`, or decommission and redeclare), never an in-place edit.
-   Fix: add `machine_type` to the snapshot (the golden and the live
+   and the ledger cannot say when it changed. **Reworded the same day**
+   when §72 was split: the operator wants the in-place resize as an
+   operation (§72 Part A walks it), so the fix RECORDS it rather than
+   refuses it. Add `machine_type` to the snapshot (the golden and the live
    `launch-params.yaml` gain a key; a standing machine's recorded params
-   are adopted, not refused, on the first run that sees the new key -- the
-   exemption `validate_immutability` needs is "the old snapshot has no such
-   key"), a test that a bare `machine_type` edit on a launched instance is
-   refused naming the replacement paths, and an OPERATIONS line under
-   "What is not a new generation". Reaches the reference configuration
-   through a release; §72's walkthrough does not depend on it (it replaces
-   by decommission, which is sanctioned either way).
+   are adopted on the first run that sees the new key -- the exemption
+   `validate_immutability` needs is "the old snapshot has no such key");
+   make a type change the second allowed in-place change beside a mount
+   removal (stage 10.14), so `validate` passes it and the post-apply
+   observation, seeing the SAME instance id with a different type, updates
+   the open generation's snapshot and appends a `resized` event to the
+   history (from, to, run) instead of opening a generation; a test for the
+   refusal of any OTHER launch-parameter change riding along with the
+   type; an OPERATIONS line under "What is not a new generation". Reaches
+   the reference configuration through a release; §72 does not depend on
+   it (Part A runs on the current release, where the edit passes for want
+   of a snapshot key; Part B replaces by decommission, sanctioned either
+   way).
 
-## 72. The coops model resized by replacement: c5n.4xlarge to t3.xlarge, the EFS data kept
+## 72. The coops model resized: first in place, then by replacement, the EFS data kept
 
 **Status: PLANNED, not started** (the operator, 2026-09-30: "change the
-running `coops-model` machine from `c5n.4xlarge` to `t3.xlarge`. This
-stage should walk me through the steps that cause the existing machine to
-be dropped and a new machine with the same image to arise with the new
-instance type. I want to validate that the new image mounts the same EFS
-volume, thus retaining some data between iterations. I created a file
-called `/mnt/efs/ABC/DEF/here_we_are.txt` that should exist in the
-replaced entry"). Every step below runs FROM the reference configuration
-checkout (`cs-image-system-testconfig`, on `main`, with its `.envrc`
-sourced and the `noaa` AWS session live -- read `expiresAt` first; the
-whole walk is under an hour of session time). The applying steps are the
-operator's; the plan is written so each one is a single recipe with its
-own dry form first.
+running `coops-model` machine from `c5n.4xlarge` to `t3.xlarge` ... walk
+me through the steps that cause the existing machine to be dropped and a
+new machine with the same image to arise with the new instance type. I
+want to validate that the new image mounts the same EFS volume, thus
+retaining some data between iterations. I created a file called
+`/mnt/efs/ABC/DEF/here_we_are.txt` that should exist in the replaced
+entry"; then, the same day: "split it into two steps. The first is brand
+new, and is to only change the running instance in place (not destroy and
+remake a new instance). The second is to do what the stage says now,
+where we destroy and replace the instance, thus verifying that the EFS
+volume is persistent. The stage must walk us through that entire process
+beginning to end").
 
-**Why by replacement, not in place.** A `machine_type` edit alone is
-applied in place today: the aws_instance module's lifecycle ignores only
-`ami` and `user_data`, `machine_type` is not in the launch-parameter
-snapshot (hygiene VIII item 2), so `just cloud-launch` after the edit would
-have tofu stop the machine, change its type and start it again -- the same
-instance id, the same generation, no ledger event. That is a resize, and
-it may even be what a team wants some day, but it is not what was asked:
-a NEW machine, from the SAME image, on the new type, with the old one
-gone. The system's word for that is a replacement, and the sanctioned
-replacement that needs no code is **decommission, then redeclare**: the
-gate whitelists the destroy of an instance that is recorded but no longer
-declared (N19), the decommission closes durable generation 3 as
-`decommission` and retires the OPA registration with it (stage 55), and
-the next applying run with the instance declared again launches
-`coops-model-004` -- the durable counter's next number (stage 60) -- and
-draws the next free alias from the pool (`eel`; stage 59). The
-alternative, a code path that makes a sizing change a one-run replacement
-(`upgrade instance --replace`, or an automatic replace when the machine
-type moves) is worth having but is a stage of its own once item 2 of
-hygiene VIII has put the type into the snapshot; this walk does not wait
-for it.
+Two parts, in order, each a complete walk with its own proof:
 
-**Why the data survives.** Both of the instance's storages are DECLARED
-storages, and a cycle never destroys a declared storage: the EFS
-filesystem `efs-storage` (its own root, `storage`, with the coops and
-stofs access points) and the EBS volume `mnt_data`
-(`vol-0fe1e27716f86c2f2`, zone-pinned since stage 52) stand through the
-decommission -- only the instance and its attachment go. The new machine's
-user-data (`user-data-coops_model.sh.tftpl`) mounts the same filesystem
-at `/mnt/efs` and the same volume at `/mnt/data` on first boot, so
-`/mnt/efs/ABC/DEF/here_we_are.txt` is there because the filesystem it
-lives on was never touched; `/mnt/data` comes back with its contents too,
-which the walk checks as a bonus (its filesystem was made at the volume's
-first attachment and is only ever mounted since).
+- **Part A, in place.** The standing machine (`coops-model-003`, durable
+  generation 3, `i-0a81c75317dc0bb89`) changes type from `c5n.4xlarge` to
+  `t3.xlarge` and stays the same machine: same instance id, same
+  generation, same name and alias, same registration; the storages never
+  detach. This is what one edit of `machine_type` does today (see "How
+  each part works"), and the walk proves it is exactly that and nothing
+  more.
+- **Part B, by replacement.** The machine that Part A left standing is
+  dropped and a new one arises from the same image -- `coops-model-004`,
+  durable generation 4 -- and the walk proves the EFS filesystem (and, as
+  a bonus, the EBS volume) came through untouched: the file the operator
+  planted is on the new machine with the same digest and mtime. Part B
+  keeps `t3.xlarge` (the replacement is the thing being proved, not a
+  second type change; the conservative reading of "do what the stage says
+  now"). If the operator wants the second part to show a type move as
+  well, step B.3 is where one word changes (`t3.large`, say) -- said
+  there, decided by the operator at the time.
 
-**The same image.** The instance is pinned to `ami-06863fb35ff62f9ba`
-(the third release, `coops-model-003`'s build). A decommission removes the
-instance pin (`op: decommission`, `to: null`, as on 2026-09-20), and the
-redeclared instance first-binds to its image's series head at the next
-run -- with `require_released_builds` true, the newest RELEASED build,
-which is the same `ami-06863fb35ff62f9ba` today (nothing has been baked or
-released since). Step 3 records the pin before and step 6 checks it after;
-if a bake lands in between and the head moves, the check fails loudly and
-the fallback is named there rather than guessed here.
+Every step runs FROM the reference configuration checkout
+(`cs-image-system-testconfig`, on `main`, `.envrc` sourced, the `noaa`
+AWS session live -- read `expiresAt` first; the two parts together are
+under two hours of session time). The applying steps and every push of
+the sibling's `main` are the operator's (**USER**); each apply has a dry
+form first, and a dry plan that shows anything the step does not predict
+stops the walk.
 
-**Steps.**
+**How each part works.**
 
-1. **Before anything, the machine as it stands** (read-only; the
-   operator may run these, or ask). From the sibling:
-   `just state-query --strict` (reality matches the records),
-   `just preflight` (the AWS session is live and has time left), and the file itself as
-   the enrolled client: `sft ssh coops-model-003 -- ls -l
-   /mnt/efs/ABC/DEF/here_we_are.txt` and `sft ssh coops-model-003 -- sha256sum
-   /mnt/efs/ABC/DEF/here_we_are.txt` -- note the size, mtime and digest;
-   `sft ssh coops-model-003 -- df -h /mnt/efs /mnt/data` (the EFS id in the
-   `Filesystem` column, `fs-…`, is the thing step 7 must show again). Also
-   `sft ssh coops-model-003 -- ls /mnt/data | head` for the EBS bonus check.
-   Anything else on the machine that lives OUTSIDE `/mnt/efs` and
-   `/mnt/data` (home directories, the root volume) is lost with the
-   machine; the operator confirms nothing there is wanted (**USER**).
-2. **Record the pin and the generation** (read-only):
-   `grep -n coops-model meta-state/pins.yaml | head -3` shows
-   `coops-model: ami-06863fb35ff62f9ba`; `grep -n -A6 '^  coops-model:'
-   meta-state/instance-state.yaml` shows generation 3 open, `instance_id:
-   i-0a81c75317dc0bb89`, `hostname: coops-model-003`, `alias: cod`. Write
-   the three down; steps 6 and 8 compare against them.
-3. **Dry decommission** (**USER**; nothing changes):
-   `just cloud-decommission aws-east2-runtime coops-model yes`. Read the
-   printed plan: exactly one module destroyed (the instance module and its
-   attachment), the gate's whitelist naming that address, nothing under
-   the `storage` root, and no `replace`. A plan that touches anything else
-   stops the walk.
-4. **Decommission** (**USER**; the machine is destroyed):
-   `just cloud-decommission aws-east2-runtime coops-model`. The run
-   commits its records on the sibling; `git -C . log --oneline -1` shows
-   the recording commit, `meta-state/pins.yaml` no longer pins
-   `coops-model` and its `upgrades` list ends with `op: decommission`,
-   `meta-state/instance-state.yaml` shows generation 3 closed as
-   `decommission` and no open generation, and the OPA registration for
-   `coops-model-003` is gone (the state query reports registrations).
-   `just state-query --strict` agrees.
-   Push the sibling's `main` (**USER**; `git push origin main`).
-5. **The one edit**: in `instances/instances.yaml`, `coops-model`'s
-   `machine_type: c5n.4xlarge` becomes `machine_type: t3.xlarge`; nothing
-   else moves (the image, the description, the tags and both storages stay
-   as they are). `just validate` passes -- the instance is unlaunched now,
-   so immutability has nothing to hold it to -- and `just record` (a dry
-   generation, committed) shows the emission moving in exactly one place:
-   `instance_type = "t3.xlarge"` in the instance's `.tf`. Commit the edit
-   with the record; the message names the stage.
-6. **Dry launch** (**USER**; nothing changes):
-   `just cloud-launch aws-east2-runtime yes`. The plan creates one
-   instance module (the instance and its two attachments -- the EBS
-   attachment as a resource, the EFS as user-data), `instance_type =
-   "t3.xlarge"`, `ami = "ami-06863fb35ff62f9ba"`, hostname
-   `coops-model-004`; the pin in the dry run's `pins.yaml` is
-   `ami-06863fb35ff62f9ba` again (first-bind to the head). If the pin is
-   any other build, STOP: the series head moved (something was baked and
-   released since 2026-09-30), and the walk continues only after the
-   operator decides between that build and the old one (the old one needs
-   a release-grace decision, since `require_released_builds` stays true --
-   a §-level question, not a step here). A t3.xlarge in the same subnet and
-   zone as the EBS volume (`us-east-2a`) is what the module asks for; a
-   capacity refusal from AWS at apply is environmental and is retried.
-7. **Launch** (**USER**; the new machine arises):
-   `just cloud-launch aws-east2-runtime`. Then `just cloud-verify
-   aws-east2-runtime coops-model` (the post-launch verification on the new
-   machine) and `just ci-login-proof coops-model` (the login by name as the
-   enrolled client; the `sft` alias `cod` is spent, the new record carries
-   the pool's next line, `eel`, and the bare name `coops-model` returns as an
-   `AltNames` alias once the stage-58 write has run -- the second
-   `cloud-launch` a `cloud-upgrade` does, here run once more by hand:
-   `just cloud-launch aws-east2-runtime` again, a no-op apply that writes the
-   names). Records committed by each run; push `main` (**USER**).
-8. **The proof the stage exists for**: as the enrolled client,
-   `sft ssh coops-model-004 -- ls -l /mnt/efs/ABC/DEF/here_we_are.txt`
-   and `sft ssh coops-model-004 -- sha256sum /mnt/efs/ABC/DEF/here_we_are.txt`
-   -- same size, same mtime, same digest as step 1; `sft ssh
-   coops-model-004 -- df -h /mnt/efs /mnt/data` shows the SAME `fs-…` id
-   as step 1 and the same volume at `/mnt/data`; `sft ssh coops-model-004
-   -- ls /mnt/data | head` matches step 1; `sft ssh coops-model-004 --
-   curl -s http://169.254.169.254/latest/meta-data/instance-type` prints
-   `t3.xlarge`. The ledger shows generation 4 open, `how: observed` after the
-   apply, a NEW instance id, `hostname: coops-model-004`, `alias: eel`,
-   and generation 3 in the history closed as `decommission`.
-9. **Close-out**: `just state-query --strict` green; the reference
-   configuration's `perform` job green on the next push of `main` (it logs
-   into `coops-model` by name and proves the registration -- the closing
-   record's strict query is the CI's word that reality matches); a
-   paragraph in the sibling's README "what stands" (the machine is now a
-   t3.xlarge, generation 4) and a line under OPERATIONS "What is not a new
-   generation" / the replacement section here saying that a sizing change
-   is done by decommission and redeclaration until a sanctioned resize
-   exists (docs only, in the documentation stage's list). Memory:
-   `instance-generations-are-observed` gains the fourth generation and the
-   first real alias draw after `cod`.
+*In place (Part A).* `machine_type` is not a launch parameter today
+(hygiene VIII item 2): `compute_launch_params` snapshots the image, build,
+mounts, enrollment, hostname, alias and startup lines but not the type,
+so `validate` has nothing to hold the edit against; and the aws_instance
+module's lifecycle ignores only `ami` and `user_data`, so tofu plans the
+edit as `~ update in-place` on the one `aws_instance` resource
+(`instance_type: "c5n.4xlarge" -> "t3.xlarge"`). The gate whitelists
+nothing because nothing is destroyed; the apply has the AWS provider stop
+the instance, change its type and start it again -- the same instance id,
+which is why the ledger records nothing new: "a stop and start is the same
+machine" (OPERATIONS, "What is not a new generation"), the post-apply
+observation sees the id it knows and generation 3 stays open. The private
+address survives a stop/start inside a VPC (the `ip-10-26-34-156`
+`AltNames` entry stays true); the public address does not, and nothing
+here depends on it. The EBS attachment persists through a stop (a volume
+detaches only when told to); the EFS mount is an fstab entry the new boot
+re-mounts. `sftd` on the machine checks in again after the start, so
+`coops-model-003` resolves as before. Both types are Nitro instances with
+ENA, so the AlmaLinux 10 build boots on either without a change to the
+image. A `t3` is burstable: the model's steady CPU use on it is a cost and
+performance question for the group, not for this stage.
+
+*By replacement (Part B).* The sanctioned replacement that needs no code
+is **decommission, then redeclare**: the gate whitelists the destroy of an
+instance that is recorded but no longer declared (N19); the decommission
+closes durable generation 3 as `decommission`, removes the instance pin
+(`op: decommission`, `to: null`, as on 2026-09-20) and retires the OPA
+registration with the machine (stage 55). The next applying run with the
+instance declared again launches `coops-model-004` -- the durable
+counter's next number (stage 60) -- draws the next free alias from the
+pool (`eel`; stage 59) and first-binds the instance to its image's series
+head: with `require_released_builds` true, the newest RELEASED build,
+which is `ami-06863fb35ff62f9ba` (the third release, the build the machine
+runs today) unless something is baked and released in between; step B.2
+records the pin and step B.6 checks it. The data survives because both
+storages are DECLARED storages, and a cycle never destroys a declared
+storage: the EFS filesystem `efs-storage` (its own root, `storage`, with
+the coops and stofs access points) and the EBS volume `mnt_data`
+(`vol-0fe1e27716f86c2f2`, zone-pinned to `us-east-2a` since stage 52)
+stand through the decommission -- only the instance and its attachment go
+-- and the new machine's user-data (`user-data-coops_model.sh.tftpl`)
+mounts the same filesystem at `/mnt/efs` and the same volume at
+`/mnt/data` on first boot. Everything OUTSIDE those two mounts (the root
+volume, home directories) is lost with the machine, by design. A one-run
+resize-as-replacement (`upgrade instance --replace`, or an automatic
+replace when the type moves) is worth having but is a stage of its own
+after item 2 has put the type into the snapshot; neither part waits for
+it.
+
+**Part A: the resize in place.**
+
+- **A.1 The machine as it stands** (read-only). `just preflight` (the
+  AWS session is live and has time left); `just state-query --strict`
+  (reality matches the records). As the enrolled client:
+  `sft ssh coops-model-003 -- curl -s
+  http://169.254.169.254/latest/meta-data/instance-type` prints
+  `c5n.4xlarge`; `sft ssh coops-model-003 -- sha256sum
+  /mnt/efs/ABC/DEF/here_we_are.txt` and `sft ssh coops-model-003 -- ls -l
+  /mnt/efs/ABC/DEF/here_we_are.txt` -- write down the digest, size and
+  mtime; `sft ssh coops-model-003 -- df -h /mnt/efs /mnt/data` -- write
+  down the `fs-…` id in the `Filesystem` column and the `/mnt/data` device;
+  `sft ssh coops-model-003 -- ls /mnt/data | head` for the EBS bonus.
+  `grep -n coops-model meta-state/pins.yaml | head -3` shows
+  `coops-model: ami-06863fb35ff62f9ba`; `grep -n -A8 '^  coops-model:'
+  meta-state/instance-state.yaml` shows generation 3 open,
+  `instance_id: i-0a81c75317dc0bb89`, `hostname: coops-model-003`,
+  `alias: cod`. Anything running on the machine stops for the minutes
+  the resize takes; the operator picks the moment (**USER**).
+- **A.2 The one edit.** In `instances/instances.yaml`, `coops-model`'s
+  `machine_type: c5n.4xlarge` becomes `machine_type: t3.xlarge`; nothing
+  else moves. `just validate` passes (the type is not in the snapshot);
+  `just record` (a dry generation, committed) moves the emission in
+  exactly one place, `instance_type = "t3.xlarge"` in
+  `generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation-instance-coops_model.tf`,
+  and `git diff HEAD~1 --stat` shows the YAML, that file and the run
+  records only. The commit message names this stage and part.
+- **A.3 Dry launch** (**USER**; nothing changes):
+  `just cloud-launch aws-east2-runtime yes`. The plan is ONE change:
+  `~ update in-place` on the coops-model `aws_instance` with
+  `instance_type: "c5n.4xlarge" -> "t3.xlarge"`; no `-/+` (replace), no
+  destroy, nothing under `storage`, nothing on the attachment. A plan that
+  shows a replacement means the provider decided the change forces one
+  (it does not for `instance_type` on a stopped-and-started Nitro
+  instance, but the plan is the word) -- STOP and reconsider at Part B's
+  route instead of applying.
+- **A.4 Launch** (**USER**; the machine stops, changes, starts):
+  `just cloud-launch aws-east2-runtime`. The apply takes a few minutes
+  (the provider waits for the stop, then the start). The run's records
+  commit on the sibling; `meta-state/instance-state.yaml` still shows
+  generation 3 open with the SAME `instance_id`, `hostname` and `alias`,
+  and the history gained no entry; `meta-state/pins.yaml` is unchanged.
+  `just state-query --strict` is green (a machine that is running on the
+  type its declaration names is not drift). Push `main` (**USER**).
+- **A.5 The proof.** `sft resolve coops-model-003` then `sft ssh
+  coops-model-003 -- curl -s
+  http://169.254.169.254/latest/meta-data/instance-type` prints
+  `t3.xlarge`; `sft ssh coops-model-003 -- curl -s
+  http://169.254.169.254/latest/meta-data/instance-id` prints
+  `i-0a81c75317dc0bb89` (the same machine); `sha256sum` and `ls -l` of
+  `/mnt/efs/ABC/DEF/here_we_are.txt` match A.1; `df -h /mnt/efs /mnt/data`
+  shows the same `fs-…` id and the same device (the mounts came back on
+  boot); `just ci-login-proof coops-model` passes as the enrolled client
+  (the registration survived the stop/start). `just cloud-verify
+  aws-east2-runtime coops-model` is optional here -- the machine did not
+  change image -- and harmless.
+- **A.6 Part A's close.** `just state-query --strict` green; the
+  reference configuration's `perform` job green on the push (its login
+  proof and closing strict query are CI's word). The machine now stands as
+  `coops-model-003` on `t3.xlarge`. Note for hygiene VIII item 2: this walk
+  is the live proof that an in-place resize works and is wanted, so item 2
+  must RECORD a resize (the snapshot's type moves, a ledger event on the
+  same generation), not refuse it; it is reworded accordingly.
+
+**Part B: the replacement.** Part B begins where Part A ended: the
+declaration already says `t3.xlarge`, the machine is `coops-model-003`.
+
+- **B.1 Before the drop** (read-only; repeats A.1's readings so Part B
+  has its own baseline): `just preflight`; `just state-query --strict`;
+  the digest, size and mtime of `/mnt/efs/ABC/DEF/here_we_are.txt`; the
+  `fs-…` id and the `/mnt/data` device from `df -h`; `ls /mnt/data |
+  head`. The operator confirms nothing outside `/mnt/efs` and `/mnt/data`
+  on the machine is wanted (**USER**): the root volume goes with it.
+- **B.2 Record the pin and the generation** (read-only): pin
+  `ami-06863fb35ff62f9ba`, generation 3, `i-0a81c75317dc0bb89`,
+  `coops-model-003`, alias `cod` -- B.6 and B.8 compare against these.
+- **B.3 Dry decommission** (**USER**; nothing changes):
+  `just cloud-decommission aws-east2-runtime coops-model yes`. The plan
+  destroys exactly the instance module (the `aws_instance` and its EBS
+  attachment), the gate's whitelist names that address, nothing under the
+  `storage` root moves, no `replace`. (If the operator wants Part B to move
+  the type as well, the word changes in `instances/instances.yaml` between
+  B.4 and B.5, exactly as in A.2 -- the machine is unlaunched then, so
+  nothing holds the edit; the predictions below say `t3.xlarge` and read
+  the same with another type.)
+- **B.4 Decommission** (**USER**; the machine is destroyed):
+  `just cloud-decommission aws-east2-runtime coops-model`. The run
+  commits its records: `meta-state/pins.yaml` no longer pins `coops-model`
+  and its `upgrades` list ends with `op: decommission`;
+  `meta-state/instance-state.yaml` shows generation 3 closed as
+  `decommission` and no open generation; the registration for
+  `coops-model-003` is retired (the state query reports registrations).
+  `just state-query --strict` agrees. Push `main` (**USER**).
+- **B.5 Redeclare.** Nothing to edit: the declaration never left the
+  tree (the decommission was an `--undeclare` for one invocation). `just
+  validate` passes (an unlaunched instance has no snapshot to hold it) and
+  `just record` shows the emission unchanged but for the run records.
+- **B.6 Dry launch** (**USER**; nothing changes):
+  `just cloud-launch aws-east2-runtime yes`. The plan CREATES the instance
+  module (the `aws_instance` and its EBS attachment; the EFS mount is
+  user-data), `instance_type = "t3.xlarge"`, `ami =
+  "ami-06863fb35ff62f9ba"`, hostname `coops-model-004`; the dry run's
+  `pins.yaml` pins `coops-model: ami-06863fb35ff62f9ba` again (the
+  first-bind to the head), and it draws no alias (a dry run never does).
+  If the pin is any OTHER build, STOP: the series head moved (something was
+  baked and released since 2026-09-30), and the walk resumes only after the
+  operator decides between that build and the old one -- the old one is a
+  release-grace question with `require_released_builds` true, a §-level
+  decision, not a step here. A capacity refusal from AWS at apply
+  (`InsufficientInstanceCapacity`) is environmental: retry.
+- **B.7 Launch** (**USER**; the new machine arises):
+  `just cloud-launch aws-east2-runtime`, then `just cloud-verify
+  aws-east2-runtime coops-model` (the post-launch verification on the new
+  machine), then `just cloud-launch aws-east2-runtime` once more -- the
+  no-op apply that writes the names (stage 58 writes `AltNames` to a
+  RUNNING machine after its launch; `cloud-upgrade` does the same second
+  launch), giving the record the alias `eel`, the bare `coops-model` and
+  the new `ip-…` label -- then `just ci-login-proof coops-model` as the
+  enrolled client. Each run commits its records; push `main` (**USER**).
+- **B.8 The proof the stage exists for.** `sft ssh coops-model-004 --
+  sha256sum /mnt/efs/ABC/DEF/here_we_are.txt` and `... -- ls -l
+  /mnt/efs/ABC/DEF/here_we_are.txt`: same digest, size and mtime as B.1;
+  `... -- df -h /mnt/efs /mnt/data`: the SAME `fs-…` id and the same
+  volume at `/mnt/data`; `... -- ls /mnt/data | head` matches B.1;
+  `... -- curl -s http://169.254.169.254/latest/meta-data/instance-id`
+  prints a NEW id and `.../instance-type` prints `t3.xlarge`. The ledger
+  shows generation 4 open, `how: observed`, that new id,
+  `hostname: coops-model-004`, `alias: eel`, and generation 3 in the
+  history closed as `decommission`; `meta-state/aliases.txt` has `eel`
+  commented out.
+- **B.9 Part B's close.** `just state-query --strict` green; the
+  reference configuration's `perform` job green on the push (it logs into
+  `coops-model` by name and its closing strict query agrees).
+
+**Close-out for the stage (docs, in the documentation stage's list).**
+The sibling's README "what stands": `coops-model-004`, generation 4, a
+`t3.xlarge`. OPERATIONS: under "What is not a new generation", that a
+sizing change applied in place is a stop/start of the same machine
+(proved by Part A); under the replacement section, that a sizing change
+BY replacement is decommission and redeclaration until a one-run resize
+exists (proved by Part B). Memory `instance-generations-are-observed`
+gains the in-place resize, the fourth generation and the first real
+alias draw after `cod`.
 
 **What this stage does not do.** No code changes (hygiene VIII item 2
-carries the snapshot gap; a one-run resize is a later stage); no change
-to the image, the storages or the identity; no new GCP work (the guard
-runtime is untouched; a run that reaches `gcloud-east1` stops the walk,
-per the standing GCP rule). The old machine's root volume and anything
-on it are gone at step 4 by design.
+carries the snapshot gap, reworded by A.6; a one-run resize is a later
+stage); no change to the image, the storages or the identity; no new GCP
+work (a run that reaches `gcloud-east1` stops the walk, per the standing
+GCP rule). The old machine's root volume and anything on it are gone at
+B.4 by design.
 
-**Sizing**: an hour of the operator's time end to end, most of it the two
-applies and the verify (the c5n's decommission is a minute; the t3's
-first boot, enrolment and the verify about ten); a second hour if the
-series head has moved. Cost: the t3.xlarge is roughly a fifth of the
-c5n.4xlarge per hour, so the change pays for itself the same day.
+**Sizing**: Part A twenty minutes of the operator's time (a dry plan,
+one apply of a few minutes, the checks); Part B an hour (the decommission
+is a minute, the t3's first boot, enrolment and verify about ten, the
+second launch and the login proof a few more); a second hour if the
+series head has moved. Cost: a `t3.xlarge` is roughly a fifth of a
+`c5n.4xlarge` per hour, so Part A pays for itself the same day.
