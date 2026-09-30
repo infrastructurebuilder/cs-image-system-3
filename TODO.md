@@ -712,6 +712,26 @@ bundle; none is a stage of its own.
    show everything when run by hand, so this is the in-process path only.
    A test asserts the plan summary reaches the log.
 
+4. **OPEN, found 2026-09-30 by §72 Part A's closing run.** An applying run
+   from the checkout (`just cloud-launch`, `cloud-decommission`,
+   `cloud-upgrade`) commits the emission it executed, and that emission's
+   `run-instance-image.sh` carries the `apply-check` and `tofu apply`
+   lines that only an `--apply-runtime` generation emits. The next
+   `config-drift` (the `live` job's "Is the committed emission current
+   with the declarations?") regenerates without an apply runtime, finds
+   those two lines missing from its own output, and fails the job as
+   "BEHIND the configuration (1 files)" -- run 36739555638 on `main` at
+   3879869, `perform` skipped. Nothing was wrong: the resting emission and
+   the applying emission differ by design, and CI's own perform sequence
+   ends with "the full run, recorded again" for exactly this reason. The
+   operator's walk has to know the rule: **after an applying run, `just
+   record` before the push**. Fix, one of: `config-drift` treats the
+   apply-only lines as volatile (they are a function of the invocation,
+   not the configuration) -- the cleaner one, since the committed script
+   then never lies about what was run; or the `cloud-*` recipes end with
+   a recording run. Until then the walks say `just record` after every
+   apply (§72 A.4/B.4/B.7, §73 steps 3/6/8, amended).
+
 ## 72. The coops model resized: first in place, then by replacement, the EFS data kept
 
 **Status: Part A DONE 2026-09-30; Part B waits for the word.** Part A ran
@@ -880,9 +900,13 @@ it.
   (the provider waits for the stop, then the start). The run's records
   commit on the sibling; `meta-state/instance-state.yaml` still shows
   generation 3 open with the SAME `instance_id`, `hostname` and `alias`,
-  and the history gained no entry; `meta-state/pins.yaml` is unchanged.
-  `just state-query --strict` is green (a machine that is running on the
-  type its declaration names is not drift). Push `main` (**USER**).
+  and the history gained a `resized` event; `meta-state/pins.yaml` is
+  unchanged. `just state-query --strict` is green (a machine that is
+  running on the type its declaration names is not drift). Then `just
+  record` -- the applying run committed the script WITH its apply lines,
+  and `config-drift` on `main` fails on them until a resting generation
+  is committed (hygiene VIII item 4; this bit the first push). Push
+  `main` (**USER**).
 - **A.5 The proof.** `sft resolve coops-model-003` then `sft ssh
   coops-model-003 -- curl -s
   http://169.254.169.254/latest/meta-data/instance-type` prints
@@ -934,7 +958,8 @@ declaration already says `t3.medium`, the machine is `coops-model-003`.
   `meta-state/instance-state.yaml` shows generation 3 closed as
   `decommission` and no open generation; the registration for
   `coops-model-003` is retired (the state query reports registrations).
-  `just state-query --strict` agrees. Push `main` (**USER**).
+  `just state-query --strict` agrees. `just record` (hygiene VIII item 4),
+  then push `main` (**USER**).
 - **B.5 Redeclare.** Nothing to edit: the declaration never left the
   tree (the decommission was an `--undeclare` for one invocation). `just
   validate` passes (an unlaunched instance has no snapshot to hold it) and
@@ -962,7 +987,8 @@ declaration already says `t3.medium`, the machine is `coops-model-003`.
   RUNNING machine after its launch; `cloud-upgrade` does the same second
   launch), giving the record the alias `eel`, the bare `coops-model` and
   the new `ip-…` label -- then `just ci-login-proof coops-model` as the
-  enrolled client. Each run commits its records; push `main` (**USER**).
+  enrolled client. Each run commits its records; `just record` last
+  (hygiene VIII item 4), then push `main` (**USER**).
 - **B.8 The proof the stage exists for.** `sft ssh coops-model-004 --
   sha256sum /mnt/efs/ABC/DEF/here_we_are.txt` and `... -- ls -l
   /mnt/efs/ABC/DEF/here_we_are.txt`: same digest, size and mtime as B.1;
@@ -1092,8 +1118,8 @@ shows anything a step does not predict stops the walk.
    cloud-decommission aws-east2-runtime coops-model`. Records committed:
    `pins.yaml` unpinned with `op: decommission`; `instance-state.yaml`
    generation 4 closed as `decommission`, none open; the registration for
-   `coops-model-004` retired. `just state-query --strict` agrees. Push
-   `main` (**USER**).
+   `coops-model-004` retired. `just state-query --strict` agrees. `just
+   record` (hygiene VIII item 4), then push `main` (**USER**).
 4. **Declare the new storage.** In `storages/storage0.yaml`, after
    `efs-storage`, the `efs-scratch` entry as shaped above (copy the
    `efs-storage` block, rename it, drop `stofs` from its groups; keep the
@@ -1116,7 +1142,8 @@ shows anything a step does not predict stops the walk.
    walk. The run commits: `meta-state/storage-state.yaml` gains
    `efs-scratch` with `to: active`, and `just state-query --strict` shows
    both filesystems. Write down the NEW `fs-…` id from the plan output or
-   the state query (`fs-NEW`). Push `main` (**USER**). (There is no dry
+   the state query (`fs-NEW`). `just record` (hygiene VIII item 4), then
+   push `main` (**USER**). (There is no dry
    form for a storage apply beyond `record`: dry runs never plan against
    remote state, by design; the gate's printed plan before the apply is
    the moment to read.)
@@ -1137,7 +1164,8 @@ shows anything a step does not predict stops the walk.
    aws-east2-runtime`; `just cloud-verify aws-east2-runtime coops-model`;
    `just cloud-launch aws-east2-runtime` once more (the names: alias
    `gar`, bare `coops-model`, the new `ip-…` label, as in §72 B.7); `just
-   ci-login-proof coops-model`. Each run commits; push `main` (**USER**).
+   ci-login-proof coops-model`. Each run commits; `just record` last
+   (hygiene VIII item 4), then push `main` (**USER**).
 9. **The proof the stage exists for.** `sft ssh coops-model-005 -- df -h
    /mnt/efs` shows `fs-NEW`, not `fs-OLD`; `sft ssh coops-model-005 -- ls
    -la /mnt/efs` shows an empty share (the access point's root, owned by
