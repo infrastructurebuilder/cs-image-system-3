@@ -729,8 +729,11 @@ nothing cared), generation 3 open and `observed` with its snapshot at
 `t3.xlarge` and the first live `resized` event in its history, the
 record at `t3.xlarge`, the strict query green (one rerun: a read
 timeout at `oauth2.googleapis.com`, environmental), the login proved by
-name as the enrolled client (3daa87b). The perform job on `main` is the
-closing word. (The operator, 2026-09-30: "change the
+name as the enrolled client (3daa87b). The operator then resized again
+by the same walk, `t3.xlarge` -> `t3.medium` ("because it's cheaper, no
+other reason"; run `2026_09_30t10_43_31_678678`, e7b0a54): a second
+`resized` event on the same generation 3, the record at `t3.medium`.
+The perform job on `main` (3879869) is the closing word. (The operator, 2026-09-30: "change the
 running `coops-model` machine from `c5n.4xlarge` to `t3.xlarge` ... walk
 me through the steps that cause the existing machine to be dropped and a
 new machine with the same image to arise with the new instance type. I
@@ -765,8 +768,8 @@ Two parts, in order, each a complete walk with its own proof:
   durable generation 4 -- and the walk proves the EFS filesystem (and, as
   a bonus, the EBS volume) came through untouched: the file the operator
   planted is on the new machine with the same digest and mtime. Part B
-  keeps `t3.xlarge` (the replacement is the thing being proved, not a
-  second type change; the conservative reading of "do what the stage says
+  keeps the type Part A left (`t3.medium`; the replacement is the thing
+  being proved, not a second type change; the conservative reading of "do what the stage says
   now"). If the operator wants the second part to show a type move as
   well, step B.3 is where one word changes (`t3.large`, say) -- said
   there, decided by the operator at the time.
@@ -901,7 +904,7 @@ it.
   same generation), not refuse it; it is reworded accordingly.
 
 **Part B: the replacement.** Part B begins where Part A ended: the
-declaration already says `t3.xlarge`, the machine is `coops-model-003`.
+declaration already says `t3.medium`, the machine is `coops-model-003`.
 
 - **B.1 Before the drop** (read-only; repeats A.1's readings so Part B
   has its own baseline): `just preflight`; `just state-query --strict`;
@@ -922,7 +925,7 @@ declaration already says `t3.xlarge`, the machine is `coops-model-003`.
   under the `storage` root, no `replace`. (If the operator wants Part B to move
   the type as well, the word changes in `instances/instances.yaml` between
   B.4 and B.5, exactly as in A.2 -- the machine is unlaunched then, so
-  nothing holds the edit; the predictions below say `t3.xlarge` and read
+  nothing holds the edit; the predictions below say `t3.medium` and read
   the same with another type.)
 - **B.4 Decommission** (**USER**; the machine is destroyed):
   `just cloud-decommission aws-east2-runtime coops-model`. The run
@@ -939,7 +942,7 @@ declaration already says `t3.xlarge`, the machine is `coops-model-003`.
 - **B.6 Dry launch** (**USER**; nothing changes):
   `just cloud-launch aws-east2-runtime yes`. A dry run plans nothing
   (A.3): read the emission and the records it commits instead -- the
-  instance `.tf` carries `instance_type = "t3.xlarge"` and hostname
+  instance `.tf` carries `instance_type = "t3.medium"` and hostname
   `coops-model-004`, the dry run's `pins.yaml` pins `coops-model:
   ami-06863fb35ff62f9ba` again (the first-bind to the head), and it draws
   no alias (a dry run never does). The real run's plan CREATES the
@@ -966,7 +969,7 @@ declaration already says `t3.xlarge`, the machine is `coops-model-003`.
   `... -- df -h /mnt/efs /mnt/data`: the SAME `fs-…` id and the same
   volume at `/mnt/data`; `... -- ls /mnt/data | head` matches B.1;
   `... -- curl -s http://169.254.169.254/latest/meta-data/instance-id`
-  prints a NEW id and `.../instance-type` prints `t3.xlarge`. The ledger
+  prints a NEW id and `.../instance-type` prints `t3.medium`. The ledger
   shows generation 4 open, `how: observed`, that new id,
   `hostname: coops-model-004`, `alias: eel`, and generation 3 in the
   history closed as `decommission`; `meta-state/aliases.txt` has `eel`
@@ -977,7 +980,7 @@ declaration already says `t3.xlarge`, the machine is `coops-model-003`.
 
 **Close-out for the stage (docs, in the documentation stage's list).**
 The sibling's README "what stands": `coops-model-004`, generation 4, a
-`t3.xlarge`. OPERATIONS: under "What is not a new generation", that a
+`t3.medium`. OPERATIONS: under "What is not a new generation", that a
 sizing change applied in place is a stop/start of the same machine
 (proved by Part A); under the replacement section, that a sizing change
 BY replacement is decommission and redeclaration until a one-run resize
@@ -996,8 +999,9 @@ B.4 by design.
 one apply of a few minutes, the checks); Part B an hour (the decommission
 is a minute, the t3's first boot, enrolment and verify about ten, the
 second launch and the login proof a few more); a second hour if the
-series head has moved. Cost: a `t3.xlarge` is roughly a fifth of a
-`c5n.4xlarge` per hour, so Part A pays for itself the same day.
+series head has moved. Cost: a `t3.medium` is roughly a twentieth of a
+`c5n.4xlarge` per hour (the walk first landed on `t3.xlarge`, a fifth),
+so Part A paid for itself the same day.
 
 ## 73. The coops model replaced with a different EFS share: the old data NOT attached
 
@@ -1055,7 +1059,7 @@ unapplied storage would fail at plan naming a missing output -- loudly,
 not wrongly, but the walk avoids it.
 
 **Numbers below assume §72 has run** (the machine is `coops-model-004`,
-generation 4, alias `eel`, a `t3.xlarge`); if this stage runs first, read
+generation 4, alias `eel`, a `t3.medium`); if this stage runs first, read
 `coops-model-003` / generation 3 / `cod` / `c5n.4xlarge` for the standing
 machine and `coops-model-004` / `eel` for the new one. Every step runs
 FROM the reference configuration checkout on `main`, `.envrc` sourced,
@@ -1119,7 +1123,7 @@ shows anything a step does not predict stops the walk.
 7. **Dry launch** (**USER**; nothing changes): `just cloud-launch
    aws-east2-runtime yes`. A dry run plans nothing (§72 A.3): read the
    emission and the records -- the instance `.tf` carries `instance_type =
-   "t3.xlarge"` and hostname `coops-model-005`, the dry run's `pins.yaml`
+   "t3.medium"` and hostname `coops-model-005`, the dry run's `pins.yaml`
    pins the build from step 1 (the first-bind to the series head; a
    different build means the head moved -- STOP, same rule as §72 B.6).
    The real run's plan CREATES the instance module (the `aws_instance` and
