@@ -7,7 +7,7 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress** (§71, hygiene bundle VIII, item 1 LANDED 2026-09-30; §68, hygiene bundle VII, LANDED whole 2026-09-29; §69 LANDED 2026-09-28, its step 5 done 2026-09-29; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §70, or §72 (the coops model's resize by replacement, planned 2026-09-30) when the operator wants the machine changed first.
+Current stage: **none in progress** (§71, hygiene bundle VIII, item 1 LANDED 2026-09-30; §68, hygiene bundle VII, LANDED whole 2026-09-29; §69 LANDED 2026-09-28, its step 5 done 2026-09-29; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §70, or §72 then §73 (the coops model resized in place and by replacement, then replaced onto a different EFS share; both planned 2026-09-30) when the operator wants the machine changed first.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
 **§64**, the release that carries everything a configuration repository
@@ -953,3 +953,171 @@ is a minute, the t3's first boot, enrolment and verify about ten, the
 second launch and the login proof a few more); a second hour if the
 series head has moved. Cost: a `t3.xlarge` is roughly a fifth of a
 `c5n.4xlarge` per hour, so Part A pays for itself the same day.
+
+## 73. The coops model replaced with a different EFS share: the old data NOT attached
+
+**Status: PLANNED, not started** (the operator, 2026-09-30: "remove the
+coops-model instance, provision and thus decommission the instance, start
+up an entirely new instance with the same name but with a different
+storage attached so that we do NOT get the current EFS share attached to
+it"). The complement of §72 Part B: there the replacement proved the
+declared EFS filesystem persists across machines; here the replacement
+proves a machine mounts exactly the storage its declaration names, and
+nothing it used to have -- the planted file
+`/mnt/efs/ABC/DEF/here_we_are.txt` is ABSENT on the new machine, whose
+`/mnt/efs` is a different filesystem, while the old filesystem stands
+untouched with the file still on it.
+
+**The shape.** A second EFS storage is declared beside the first; the
+instance's mount moves from the old one to the new one; the machine is
+decommissioned and redeclared, so the new generation boots with the new
+mount. Chosen here (the operator may rename either at the time):
+
+- **The new storage**: `efs-scratch`, `type: aws-efs`, `groups: [coops]`,
+  `share_mode: "2775"`, `lifecycle: {ia_days: 30}` -- the same shape as
+  `efs-storage` minus the stofs access point, declared in
+  `storages/storage0.yaml`. The storage root CREATES the filesystem, its
+  mount targets and the coops access point (as it did for `efs-storage`
+  on 2026-09-01), and records it in `meta-state/storage-state.yaml` as a
+  new active storage. An empty EFS filesystem costs nothing to speak of
+  (per GB stored; the mount targets are free), on the team's AWS account.
+- **The mount**: in `instances/instances.yaml`, `coops-model`'s
+  `- name: efs-storage / mount_point: /mnt/efs` becomes `- name:
+  efs-scratch / mount_point: /mnt/efs`. The SAME mount point, on purpose:
+  the proof is then "the path exists, the file does not", which is
+  stronger than a file missing from a path that was never mounted. The
+  EBS volume `mnt_data` stays attached at `/mnt/data` (the operator asked
+  for a different EFS, not a different everything); dropping it too is one
+  more deleted line at step 5 if wanted.
+- **The old storage stays declared.** `efs-storage` is used by the stofs
+  access point as well, and a declared storage is never destroyed by a
+  cycle; undeclaring it is its demise (OPERATIONS "Storages": the next
+  storage run plans the whitelisted destroy, the file with it). Whether
+  the old filesystem is ever retired is a later **USER** decision, not
+  this stage's.
+
+**Why the order matters.** Mounts ARE launch parameters: a mount change
+on a launched instance is refused by immutability (N26; only a REMOVAL
+is allowed in place, stage 10.14), and a mount removal in place would
+also unmount and detach on the standing machine -- neither is what was
+asked. Decommissioning FIRST leaves the instance unlaunched, so the mount
+edit passes `validate` with nothing to hold it, and the redeclared
+instance launches with the new mount as its first snapshot. The storage
+root must apply BEFORE the instance launch: the instance root reads the
+filesystem and access-point ids from the storage root's state
+(`data "terraform_remote_state" "aws_efs"`), so a launch against an
+unapplied storage would fail at plan naming a missing output -- loudly,
+not wrongly, but the walk avoids it.
+
+**Numbers below assume §72 has run** (the machine is `coops-model-004`,
+generation 4, alias `eel`, a `t3.xlarge`); if this stage runs first, read
+`coops-model-003` / generation 3 / `cod` / `c5n.4xlarge` for the standing
+machine and `coops-model-004` / `eel` for the new one. Every step runs
+FROM the reference configuration checkout on `main`, `.envrc` sourced,
+the `noaa` session live (`expiresAt` read first; about an hour and a
+half of session time). Applying steps and every push of `main` are the
+operator's (**USER**); each apply has a dry form first; a dry plan that
+shows anything a step does not predict stops the walk.
+
+**Steps.**
+
+1. **The machine as it stands** (read-only). `just preflight`; `just
+   state-query --strict`. As the enrolled client: `sft ssh coops-model-004
+   -- sha256sum /mnt/efs/ABC/DEF/here_we_are.txt` (the file is there;
+   write down the digest); `sft ssh coops-model-004 -- df -h /mnt/efs`
+   -- write down the OLD `fs-…` id (call it `fs-OLD`); `grep -n -A8 '^
+   coops-model:' meta-state/instance-state.yaml` -- generation 4 open,
+   its instance id, `hostname: coops-model-004`, `alias: eel`; `grep -n
+   coops-model meta-state/pins.yaml | head -3` -- the pin
+   (`ami-06863fb35ff62f9ba` unless a release has landed since). The
+   operator confirms nothing outside `/mnt/efs` and `/mnt/data` on the
+   machine is wanted (**USER**): the root volume goes with it.
+2. **Dry decommission** (**USER**; nothing changes): `just
+   cloud-decommission aws-east2-runtime coops-model yes`. Exactly the
+   instance module destroyed (the `aws_instance` and its EBS attachment),
+   the whitelist naming it, nothing under `storage`, no `replace`.
+3. **Decommission** (**USER**; the machine is destroyed): `just
+   cloud-decommission aws-east2-runtime coops-model`. Records committed:
+   `pins.yaml` unpinned with `op: decommission`; `instance-state.yaml`
+   generation 4 closed as `decommission`, none open; the registration for
+   `coops-model-004` retired. `just state-query --strict` agrees. Push
+   `main` (**USER**).
+4. **Declare the new storage.** In `storages/storage0.yaml`, after
+   `efs-storage`, the `efs-scratch` entry as shaped above (copy the
+   `efs-storage` block, rename it, drop `stofs` from its groups; keep the
+   comments honest -- say what it is for and when it was declared).
+   `just validate` passes (a new storage has no state to disagree with).
+5. **Move the mount.** In `instances/instances.yaml`, `coops-model`'s
+   `efs-storage` mapping becomes `efs-scratch` at `/mnt/efs`; `mnt_data`
+   stays. `just validate` passes (the instance is unlaunched). `just
+   record` (dry, committed) moves the emission in exactly these places:
+   the storage root gains the new filesystem, mount targets and access
+   point; the instance's `.tf` names `efs-scratch` under `"efs"` and its
+   user-data mounts `/mnt/efs` from `$EFS_ID` of the new one; nothing
+   else. One commit for steps 4 and 5, its message naming this stage.
+6. **Apply the storage root** (**USER**; the filesystem is created):
+   `just run storage`. `apply_storage` is `true` in the live `_config.yml`,
+   so the run plans, gates and applies the storage root: the gated plan
+   CREATES one `aws_efs_file_system`, its mount targets (one per subnet)
+   and one access point, and touches nothing of `efs-storage` (or of any
+   bucket) -- a plan with a `-` or `~` on an existing storage stops the
+   walk. The run commits: `meta-state/storage-state.yaml` gains
+   `efs-scratch` with `to: active`, and `just state-query --strict` shows
+   both filesystems. Write down the NEW `fs-…` id from the plan output or
+   the state query (`fs-NEW`). Push `main` (**USER**). (There is no dry
+   form for a storage apply beyond `record`: dry runs never plan against
+   remote state, by design; the gate's printed plan before the apply is
+   the moment to read.)
+7. **Dry launch** (**USER**; nothing changes): `just cloud-launch
+   aws-east2-runtime yes`. The plan CREATES the instance module: the
+   `aws_instance` and its EBS attachment, `instance_type = "t3.xlarge"`,
+   `ami =` the pin from step 1 (the first-bind to the series head; a
+   different build means the head moved -- STOP, same rule as §72 B.6),
+   hostname `coops-model-005`. The emitted instance `.tf` names
+   `efs-scratch` and not `efs-storage` under `"efs"` (`grep -c efs-storage
+   generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation-instance-coops_model.tf`
+   prints 0); the filesystem id itself is read from the storage root's
+   state at plan time, so it appears in the PLAN's rendered `user_data`
+   (as `fs-NEW`), not in the committed template. No alias drawn (dry).
+8. **Launch** (**USER**; the new machine arises): `just cloud-launch
+   aws-east2-runtime`; `just cloud-verify aws-east2-runtime coops-model`;
+   `just cloud-launch aws-east2-runtime` once more (the names: alias
+   `gar`, bare `coops-model`, the new `ip-…` label, as in §72 B.7); `just
+   ci-login-proof coops-model`. Each run commits; push `main` (**USER**).
+9. **The proof the stage exists for.** `sft ssh coops-model-005 -- df -h
+   /mnt/efs` shows `fs-NEW`, not `fs-OLD`; `sft ssh coops-model-005 -- ls
+   -la /mnt/efs` shows an empty share (the access point's root, owned by
+   the coops gid, mode 2775) and `sft ssh coops-model-005 -- ls
+   /mnt/efs/ABC/DEF/here_we_are.txt` fails with "No such file or
+   directory"; `sft ssh coops-model-005 -- mount | grep -c fs-OLD` prints
+   0 (the old filesystem is mounted nowhere on the machine); `df -h
+   /mnt/data` still shows the EBS volume. The old filesystem still holds
+   the file: nothing mounts it now, so the read-only check is on the
+   account -- `aws --profile noaa efs describe-file-systems
+   --file-system-id fs-OLD --query 'FileSystems[0].[LifeCycleState,SizeInBytes.Value]'`
+   prints `available` and a non-zero size (the file's bytes plus
+   metadata; the size counter lags by hours, so a value equal to step 1's
+   is the expectation, not a smaller one). The ledger: generation 5 open,
+   `how: observed`, `hostname: coops-model-005`, `alias: gar`, its mounts
+   snapshot naming `efs-scratch`; generation 4 closed as `decommission`.
+10. **Close-out.** `just state-query --strict` green; the reference
+    configuration's `perform` job green on the push. Docs, in the
+    documentation stage's list: the sibling's README "what stands" (two
+    EFS filesystems, which one the model mounts, the old one holding the
+    §72 proof file and mounted nowhere); OPERATIONS "Storages" gains the
+    sentence that a mount MOVE is a replacement (decommission, edit,
+    redeclare) and that the un-mounted storage keeps its data until
+    undeclared. Memory `instance-generations-are-observed` gains
+    generation 5 and alias `gar`.
+
+**What this stage does not do.** No code changes; no change to the
+image or the identity; the old `efs-storage` is neither undeclared nor
+emptied (its retirement, and the fate of the proof file, is a later
+**USER** decision -- undeclaring it destroys the filesystem and the file
+in one gated run); no new GCP work. The root volume of the standing
+machine is gone at step 3 by design.
+
+**Sizing**: an hour and a half of the operator's time (the decommission a
+minute; the storage apply a few -- EFS mount targets take a minute each
+to become available; the launch, verify, second launch and login proof
+about fifteen; the checks); a second hour if the series head has moved.
