@@ -415,26 +415,6 @@ release, and never edited at the destination. Then:
 mirrors and tokens are the operator's (an hour); the live proof waits on
 the first final version on PyPI (§41's open call).
 
-## 71. Hygiene bundle VIII
-
-**Status: OPEN since 2026-09-30.** Non-critical hygiene issues join this
-bundle; none is a stage of its own.
-
-1. **LANDED 2026-09-30.** The login proof's client lacked the team and the
-   address as the workload. Found 2026-09-30 by the reference configuration's first
-   performing run on release 0.1.1.dev3 without the `OPA_ADDR` / `SFT_TEAM`
-   job environment (run 36657720253): the token was minted (hygiene VII
-   item 4 holds), the registration check passed, and `sft resolve --quiet`
-   exited 1 in silence. The client reads the team and the OPA address from
-   its environment for every command, not only for `workload authenticate`;
-   the earlier green login (2026-09-29 12:21) had them from the job
-   environment the workaround carried. `verify login` now lays the group
-   builder's `team` and `api_host` over the client's environment when it
-   runs as the workload (the environment's own values win), for `resolve`
-   and `ssh` alike; a test asserts it. Reaches the reference configuration
-   through the next release; until then its `perform` job carries the two
-   names again.
-
 ## 70. Bootstrap: the one-time initialisation, as terraform from an interview
 
 **Status: PLANNED, not started** (the operator, 2026-09-28: "a one-time
@@ -669,3 +649,24 @@ each later step is its own iteration, proved before the next.
 (the AWS one is the longest: the policies are already written in the
 guide); the Okta section depends on D4/D5; the tests a day; iterations
 after the first as the operator finds them.
+
+## 71. Hygiene bundle VIII
+
+**Status: OPEN since 2026-09-30.** Non-critical hygiene issues join this
+bundle; none is a stage of its own.
+
+1. **LANDED 2026-09-30.** The login proof's client lacked the team and the
+   address as the workload. Found 2026-09-30 by the reference configuration's first
+   performing run on release 0.1.1.dev3 without the `OPA_ADDR` / `SFT_TEAM`
+   job environment (run 36657720253): the token was minted (hygiene VII
+   item 4 holds), the registration check passed, and `sft resolve --quiet`
+   exited 1 in silence. The client reads the team and the OPA address from
+   its environment for every command, not only for `workload authenticate`;
+   the earlier green login (2026-09-29 12:21) had them from the job
+   environment the workaround carried. `verify login` now lays the group
+   builder's `team` and `api_host` over the client's environment when it
+   runs as the workload (the environment's own values win), for `resolve`
+   and `ssh` alike; a test asserts it. Reaches the reference configuration
+   through the next release; until then its `perform` job carries the two
+   names again.
+
