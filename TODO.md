@@ -7,7 +7,7 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress** (§68, hygiene bundle VII, LANDED whole 2026-09-29; §69 LANDED 2026-09-28, its step 5 done 2026-09-29; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §70.
+Current stage: **none in progress** (§71, hygiene bundle VIII, item 1 LANDED 2026-09-30; §68, hygiene bundle VII, LANDED whole 2026-09-29; §69 LANDED 2026-09-28, its step 5 done 2026-09-29; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §70.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
 **§64**, the release that carries everything a configuration repository
@@ -420,8 +420,8 @@ the first final version on PyPI (§41's open call).
 **Status: OPEN since 2026-09-30.** Non-critical hygiene issues join this
 bundle; none is a stage of its own.
 
-1. **The login proof's client lacked the team and the address as the
-   workload.** Found 2026-09-30 by the reference configuration's first
+1. **LANDED 2026-09-30.** The login proof's client lacked the team and the
+   address as the workload. Found 2026-09-30 by the reference configuration's first
    performing run on release 0.1.1.dev3 without the `OPA_ADDR` / `SFT_TEAM`
    job environment (run 36657720253): the token was minted (hygiene VII
    item 4 holds), the registration check passed, and `sft resolve --quiet`
