@@ -717,6 +717,13 @@ where we destroy and replace the instance, thus verifying that the EFS
 volume is persistent. The stage must walk us through that entire process
 beginning to end").
 
+NOTE: What we are trying to accomplish here in 72 and 73 is to verify that when we delete 
+a resource from configuration, then re-create it later with new lineage, we
+are not simply rebuilding/reattaching elements that previously existed.  Once
+a resource is removed and the state says it is gone, then returning something
+with the same name probably means building an entire new resource (except
+if we are attaching old storages to it or something similar)
+
 Two parts, in order, each a complete walk with its own proof:
 
 - **Part A, in place.** The standing machine (`coops-model-003`, durable
