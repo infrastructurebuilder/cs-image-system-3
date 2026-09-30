@@ -44,8 +44,9 @@ def world(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(AwsCloudBuilder, "query_instance_power_state", lambda self, n: world["power"])
     monkeypatch.setattr(OktaTfGroupBuilder, "registered_servers", lambda self, group: world["registry"])
 
-    def fake_sft(args, timeout=120):
+    def fake_sft(args, timeout=120, env=None):
         world["calls"].append(list(args))
+        world.setdefault("envs", []).append(dict(env or {}))
         return world["sft"].get(args[0], (0, "uid=1001(cs-image-system-ci) gid=1001 groups=1001\ntest-001\n"))
     monkeypatch.setattr(lp, "run_sft", fake_sft)
     monkeypatch.setenv("OPA_TOKEN", "opa-token")
@@ -138,3 +139,22 @@ def test_workload_facts_come_from_the_builder(world):
     facts = lp.workload_facts(run.ctx)
     assert len(facts) == 1 and facts[0]["connection"] == CONNECTION and facts[0]["role"] == ROLE
     assert facts[0]["team"] and facts[0]["api_host"].startswith("https://")
+
+
+def test_as_the_workload_the_client_is_handed_the_team_and_the_address(world, monkeypatch):
+    """Hygiene VIII item 1: the client reads SFT_TEAM and OPA_ADDR from its
+    environment for every command; as the workload nothing else sets them."""
+    run, w = world
+    monkeypatch.delenv("SFT_TEAM", raising=False)
+    monkeypatch.delenv("OPA_ADDR", raising=False)
+    lp.login_proof(["test"])
+    assert w["calls"][-2][0] == "resolve" and w["calls"][-1][0] == "ssh"
+    for env in w["envs"][-2:]:
+        assert env["SFT_TEAM"] == "nos-coastal-modeling-cloud-sandbox" and env["OPA_ADDR"].endswith(".pam.okta.com")
+    # the environment's own values win, and the enrolled client is left alone
+    monkeypatch.setenv("OPA_ADDR", "https://other.example.invalid")
+    lp.login_proof(["test"])
+    assert "OPA_ADDR" not in w["envs"][-1] and w["envs"][-1]["SFT_TEAM"]
+    monkeypatch.delenv("OPA_TOKEN")
+    lp.login_proof(["test"])
+    assert w["envs"][-1] == {}
