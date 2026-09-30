@@ -753,7 +753,13 @@ name as the enrolled client (3daa87b). The operator then resized again
 by the same walk, `t3.xlarge` -> `t3.medium` ("because it's cheaper, no
 other reason"; run `2026_09_30t10_43_31_678678`, e7b0a54): a second
 `resized` event on the same generation 3, the record at `t3.medium`.
-The perform job on `main` (3879869) is the closing word. (The operator, 2026-09-30: "change the
+The perform job on `main` closed it green at ecee611 (run
+36744362199, rerun of the failed jobs): its first attempt on 3879869 failed
+`config-drift` on the applying run's committed script (hygiene VIII item
+4; a recording run, 731dc49, restored the resting emission), and the
+attempt on 731dc49 failed `config-drift`'s own dry run at `tofu init
+-backend=false` with the error swallowed (item 3) -- environmental, the
+same commit green on `develop` and on the rerun. **Part A is closed.** (The operator, 2026-09-30: "change the
 running `coops-model` machine from `c5n.4xlarge` to `t3.xlarge` ... walk
 me through the steps that cause the existing machine to be dropped and a
 new machine with the same image to arise with the new instance type. I
