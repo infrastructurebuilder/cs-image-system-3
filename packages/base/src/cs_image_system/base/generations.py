@@ -29,7 +29,10 @@ pass upgrades it to ``observed`` when it sees the id, or closes it and opens
 the next when it sees a DIFFERENT id.
 
 **What is not a new generation.** A reboot. A stop and start (stage 57: a
-stopped machine is the same machine). A mount detach. An image pin that
+stopped machine is the same machine). A mount detach. A resize applied in
+place (hygiene VIII item 2: the provider stops the machine, changes its
+type and starts it -- the same id, so the same generation; the snapshot's
+type moves and the history gains a ``resized`` event). An image pin that
 moved but was not applied. And -- the trap -- an identity query that
 returned nothing: "cannot read the id" is never "the id changed". A stopped
 instance may well fail the query; nothing here acts on silence.
@@ -95,6 +98,19 @@ def on_launched(ctx: "GlobalTypeContext", name: str, params: dict[str, Any], *, 
         n = ms.open_generation(name, kind=kind_of(params), run_id=ctx.run_id, how=INFERRED, launch_params=params)
         log.info(f"Instance {name}: {kind_of(params)} generation {n} opened (inferred from the launch; "
                  "the provider's id confirms it after apply)")
+
+
+def on_resized(ctx: "GlobalTypeContext", name: str, from_type: str, to_type: str) -> None:
+    """Called by ``record_resizes`` after an in-place resize applied: the
+    same machine (the provider's id does not move, so no generation does),
+    now on another type. The open generation's snapshot takes the new type
+    and the history keeps the event; with no open generation there is
+    nothing to note it on, and the launch record alone carries the type."""
+    if ctx.meta_state.note_generation_resized(name, run_id=ctx.run_id, from_type=from_type, to_type=to_type):
+        log.info(f"Instance {name}: resized in place {from_type} -> {to_type} (the same machine; "
+                 "its generation stands, the event is in the history)")
+    else:
+        log.info(f"Instance {name}: resized in place {from_type} -> {to_type}; no open generation to note it on")
 
 
 def on_gone(ctx: "GlobalTypeContext", name: str, *, why: str) -> dict[str, Any] | None:

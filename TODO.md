@@ -670,36 +670,34 @@ bundle; none is a stage of its own.
    through the next release; until then its `perform` job carries the two
    names again.
 
-2. **OPEN, found 2026-09-30 while planning §72.** `machine_type` is not a
-   launch parameter. `compute_launch_params`
-   ([launch_params.py](packages/base/src/cs_image_system/base/launch_params.py))
-   snapshots image, build, group, identity, mounts, enrollment, session,
-   hostname, alias, ephemeral and the startup lines, but not the machine
-   type the instance booted on; the aws_instance module's lifecycle ignores
-   only `ami` and `user_data`. So an edit of `machine_type` on a launched
-   instance passes `validate` (N26 has nothing to compare), and the next
-   applying run resizes the machine IN PLACE through the gate -- tofu stops
-   it, changes the type and starts it, same instance id, no ledger event,
-   and the ledger's snapshot of what the machine "booted with" is silently
-   wrong about its hardware. The machine type belongs in the snapshot,
-   and the ledger cannot say when it changed. **Reworded the same day**
-   when §72 was split: the operator wants the in-place resize as an
-   operation (§72 Part A walks it), so the fix RECORDS it rather than
-   refuses it. Add `machine_type` to the snapshot (the golden and the live
-   `launch-params.yaml` gain a key; a standing machine's recorded params
-   are adopted on the first run that sees the new key -- the exemption
-   `validate_immutability` needs is "the old snapshot has no such key");
-   make a type change the second allowed in-place change beside a mount
-   removal (stage 10.14), so `validate` passes it and the post-apply
-   observation, seeing the SAME instance id with a different type, updates
-   the open generation's snapshot and appends a `resized` event to the
-   history (from, to, run) instead of opening a generation; a test for the
-   refusal of any OTHER launch-parameter change riding along with the
-   type; an OPERATIONS line under "What is not a new generation". Reaches
-   the reference configuration through a release; §72 does not depend on
-   it (Part A runs on the current release, where the edit passes for want
-   of a snapshot key; Part B replaces by decommission, sanctioned either
-   way).
+2. **LANDED 2026-09-30.** `machine_type` was not a launch parameter. Found
+   the same day while planning §72: `compute_launch_params` snapshotted
+   image, build, group, identity, mounts, enrollment, session, hostname,
+   alias, ephemeral and the startup lines, but not the type the machine
+   booted on, so an edit of `machine_type` on a launched instance passed
+   `validate` unseen and the next applying run resized the machine in place
+   (the aws_instance module ignores only `ami` and `user_data`) with no
+   record of it. Reworded when §72 was split -- the operator wants the
+   in-place resize as an operation (§72 Part A walks it) -- so the fix
+   RECORDS it rather than refuses it. Now: the effective type (the
+   instance's own, else the runtime's default) is in the snapshot; a type
+   change is the second allowed in-place change beside a mount removal
+   (`validate_immutability` compares everything but the type); the record
+   keeps the type the machine runs on until the apply (a dry run changes
+   only the emission), and a new after-apply hook, `record_resizes`, then
+   writes the new type to the record and the open generation's snapshot
+   and appends a `resized` event (from, to, run) to the ledger's history --
+   the same instance id, so the same generation; a record from before the
+   key existed adopts it on the first run that sees it; any other change
+   riding along with the type is refused as before. Found on the way: the
+   GCE instance builder ignored a declared `machine_type` (always the
+   runtime's default) -- fixed to the AWS builder's rule. Five tests
+   (`tests/test_v2_hygiene_viii.py`); the golden's `launch-params.yaml`
+   gains the key for the three fixture instances; OPERATIONS ("A resize is
+   the same machine"), DESIGN N26 and CONFIGURATION's `machine_type` row
+   say so. Reaches the reference configuration through the next release;
+   its live `launch-params.yaml` adopts the key at the first recording run
+   on that release. §72 does not depend on it.
 
 ## 72. The coops model resized: first in place, then by replacement, the EFS data kept
 

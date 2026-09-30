@@ -290,6 +290,25 @@ class MetaState:
             self.write(INSTANCE_STATE, data)
         return changed
 
+    def note_generation_resized(self, name: str, *, run_id: str, from_type: str, to_type: str) -> bool:
+        """The open generation's machine changed type IN PLACE (hygiene VIII
+        item 2): the same machine, so no generation moves. Its snapshot takes
+        the new type and the history gains a ``resized`` event -- from, to,
+        run -- beside the closed generations. True when something was written."""
+        from datetime import datetime, timezone
+        data = self.read(INSTANCE_STATE)
+        entry = (data.get("instances") or {}).get(name)
+        cur = entry.get("current") if entry else None
+        if not entry or not cur:
+            return False
+        cur.setdefault("launch_params", {})["machine_type"] = to_type
+        entry.setdefault("history", []).append({
+            "event": "resized", "kind": cur.get("kind"), "number": cur.get("number"),
+            "from": from_type, "to": to_type, "run": run_id,
+            "at": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+        self.write(INSTANCE_STATE, data)
+        return True
+
     def close_generation(self, name: str, *, run_id: str, why: str) -> dict[str, Any] | None:
         """The machine is gone (or superseded): the open generation moves
         into the history with the run that closed it and why -- never

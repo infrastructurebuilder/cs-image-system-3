@@ -1448,7 +1448,7 @@ Model: `Instance`
 | `image` | str | required for generation | an instance image; its `group` is the instance's group |
 | `type` | str | `default` | the instance builder (the terraform root) |
 | `runtime` | str | `default` | the runtime |
-| `machine_type` | str | `""` | the instance size; empty uses the runtime's default |
+| `machine_type` | str | `""` | the instance size; empty uses the runtime's default. Recorded among the launch parameters as the effective type, and the one that may change on a launched instance: the next applying run resizes the machine in place (a stop, the change, a start -- the same machine; a `resized` event in the generation ledger) |
 | `storages` | list | `[]` | attachments (11.3.1); a name attached twice keeps the later mapping |
 | `ephemeral` | bool | `false` | launched, verified through the runtime and destroyed in the same run; a failed verification leaves it standing and fails the run |
 | `on_failure` | str or null | null | `keep` (default: left standing, the run fails) or `teardown` (torn down, the run still fails); null inherits the runtime's |

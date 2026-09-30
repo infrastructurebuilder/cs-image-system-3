@@ -370,9 +370,13 @@ only via bind, upgrade and follow operations (§3B).
   bindings* (which storages to mount, enrollment trigger,
   hostname-class values), are generated from validated config, recorded
   in meta-state, and are **immutable after launch** — changing them
-  means instance replacement, an intentional operation. This boundary
-  is what makes N16 (per-instance attachment) and N23 (fully-baked
-  images) compatible.
+  means instance replacement, an intentional operation. Two in-place
+  changes are sanctioned and recorded rather than refused: a mount
+  removal (a detach, unmounted first) and a resize (the machine type,
+  which the provider changes on the stopped machine -- the same machine,
+  its generation's snapshot updated and a `resized` event kept). This
+  boundary is what makes N16 (per-instance attachment) and N23
+  (fully-baked images) compatible.
 
 ---
 

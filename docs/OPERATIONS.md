@@ -473,10 +473,26 @@ decommission closes it as `decommission`, an ephemeral teardown as
 generation is the record that lets stage 55 deregister it honestly.
 
 **What is not a new generation**: a reboot; a stop and start (a stopped
-machine is the same machine); a mount detach; an image pin that moved but
-was not applied; and an identity query that returned nothing -- "cannot
-read the id" is never "the id changed", and a stopped instance may well
-fail the query.
+machine is the same machine); a mount detach; a resize applied in place;
+an image pin that moved but was not applied; and an identity query that
+returned nothing -- "cannot read the id" is never "the id changed", and a
+stopped instance may well fail the query.
+
+**A resize is the same machine.** The machine type is a launch parameter
+(`machine_type` in the record and in the generation's snapshot, the
+instance's own or the runtime's default), and the one that may change in
+place: a launched instance whose declaration names another type passes
+`validate`, and the next applying run has the provider stop the machine,
+change its type and start it again -- the same instance id, so the same
+generation. The record keeps the type the machine RUNS on until that apply
+(a dry run changes nothing but the emission), and then the record and the
+open generation's snapshot take the new type and the ledger's history
+gains a `resized` event (`from`, `to`, `run`) beside the closed
+generations. A record written before the key existed adopts it on the
+first run that sees it; any other launch-parameter change riding along
+with the type is refused as before. To replace the machine instead --
+a new id, a new generation, the old root volume gone -- decommission and
+redeclare, or `upgrade`; a resize never does that.
 
 **What stood before the ledger is adopted, not invented.** A machine that
 was already launched when this record began becomes generation 1 marked
