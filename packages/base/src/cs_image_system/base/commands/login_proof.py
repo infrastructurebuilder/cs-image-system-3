@@ -31,7 +31,7 @@ import os
 import re
 import subprocess
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Mapping
 
 from .. import power_state
 from ..basic.builder_base_group import GroupBuilderBase
@@ -50,12 +50,26 @@ class LoginProofFailed(Exception):
                                      if r["instance"] in failed for c in r.get("checks", []) if not c.get("ok")))
 
 
-def run_sft(args: list[str], timeout: int = 120) -> tuple[int, str]:
+def run_sft(args: list[str], timeout: int = 120, env: Mapping[str, str] | None = None) -> tuple[int, str]:
     """The client, as a subprocess; the seam the tests stub. Output is both
-    streams, so a refusal's reason reaches the record."""
+    streams, so a refusal's reason reaches the record. ``env`` is laid over
+    the process environment: as the workload the client needs the team and
+    the OPA address there for EVERY command, not only for minting the token
+    (hygiene VIII item 1, 2026-09-30: `sft resolve` exited 1 in silence once
+    the perform job stopped carrying them)."""
     proc = subprocess.run(["sft", *args], capture_output=True, text=True, timeout=timeout,  # noqa: S603,S607 - the client by name, arguments from the configuration
-                          env=os.environ.copy())
+                          env={**os.environ, **(env or {})})
     return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+
+
+def client_environment(gb: Any) -> dict[str, str]:
+    """What the client needs beyond the token when it runs as the workload:
+    the team and the OPA address, from the group builder that names the
+    workload objects; the environment's own values win when set."""
+    model = getattr(gb, "model", None)
+    wanted = {"SFT_TEAM": str(getattr(model, "team", "") or ""),
+              "OPA_ADDR": str(getattr(model, "api_host", "") or "")}
+    return {k: v for k, v in wanted.items() if v and not os.environ.get(k)}
 
 
 def workload_facts(ctx: GlobalTypeContext) -> list[dict[str, Any]]:
@@ -150,8 +164,9 @@ def prove_login(inst: Any, *, timeout: int = 120) -> dict[str, Any]:
                                   else f"{hostname!r} has {len(same)} registrations"
                                        + (": " + ", ".join(f"{s.get('id')}@{s.get('address')}" for s in same) if same
                                           else " -- the machine never enrolled, or enrolled under another name"))})
+    client_env = client_environment(gb) if _as() == "workload" else {}
     if checks[-1]["ok"]:
-        rc, out = run_sft(["resolve", "--quiet", hostname], timeout=timeout)
+        rc, out = run_sft(["resolve", "--quiet", hostname], timeout=timeout, env=client_env)
         why = out.strip()[:300]
         if rc == 126 and not why:
             # the client wanted a browser and --quiet forbade it (live 2026-09-22):
@@ -161,7 +176,7 @@ def prove_login(inst: Any, *, timeout: int = 120) -> dict[str, Any]:
         checks.append({"name": "resolves", "ok": rc == 0,
                        "detail": f"sft resolve {hostname}: exit {rc}" + ("" if rc == 0 else f" -- {why}")})
     if checks[-1]["ok"]:
-        rc, out = run_sft(["ssh", hostname, "--command", "id && hostname"], timeout=timeout)
+        rc, out = run_sft(["ssh", hostname, "--command", "id && hostname"], timeout=timeout, env=client_env)
         account = re.search(r"uid=\d+\((?P<u>[^)]+)\)", out)
         ok = rc == 0 and account is not None
         checks.append({"name": "login", "ok": ok,

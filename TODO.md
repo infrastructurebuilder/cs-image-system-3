@@ -7,7 +7,7 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress** (§68, hygiene bundle VII, LANDED whole 2026-09-29; §69 LANDED 2026-09-28, its step 5 done 2026-09-29; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §70.
+Current stage: **none in progress** (§71, hygiene bundle VIII, item 1 LANDED 2026-09-30; §68, hygiene bundle VII, LANDED whole 2026-09-29; §69 LANDED 2026-09-28, its step 5 done 2026-09-29; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §70.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
 **§64**, the release that carries everything a configuration repository
@@ -59,10 +59,11 @@ bare name until its first sanctioned replacement, which is the first real
 claims, and §19 step 5 proved §60's meaning live (a sanctioned replacement
 is a new generation with a new name). §59 is deliberately LAST: it overlaps the suffix, and only once
 that is standing can anyone judge whether a name pool is still wanted. §30 waits on the operator's decision and depends
-on none of this. No hygiene bundle is open (§68, bundle VII, LANDED
+on none of this. **Hygiene bundle VIII (§71) is open since 2026-09-30**; the
+next non-critical hygiene issue joins it. (§68, bundle VII, LANDED
 2026-09-29 in four squashes: bookworm, the CSIS override and the
 callbacks, the identity step, the client's environment; §67, bundle VI,
-LANDED 2026-09-26); the next non-critical hygiene issue opens bundle VIII.
+LANDED 2026-09-26.)
 
 **Nothing in the naming line is left**; §30 waits on the operator's
 decision. Nothing in that shorter path has to be redone -- §58
@@ -413,6 +414,26 @@ release, and never edited at the destination. Then:
 **Sizing**: the recipe and its test half a day; the job an hour; the
 mirrors and tokens are the operator's (an hour); the live proof waits on
 the first final version on PyPI (§41's open call).
+
+## 71. Hygiene bundle VIII
+
+**Status: OPEN since 2026-09-30.** Non-critical hygiene issues join this
+bundle; none is a stage of its own.
+
+1. **LANDED 2026-09-30.** The login proof's client lacked the team and the
+   address as the workload. Found 2026-09-30 by the reference configuration's first
+   performing run on release 0.1.1.dev3 without the `OPA_ADDR` / `SFT_TEAM`
+   job environment (run 36657720253): the token was minted (hygiene VII
+   item 4 holds), the registration check passed, and `sft resolve --quiet`
+   exited 1 in silence. The client reads the team and the OPA address from
+   its environment for every command, not only for `workload authenticate`;
+   the earlier green login (2026-09-29 12:21) had them from the job
+   environment the workaround carried. `verify login` now lays the group
+   builder's `team` and `api_host` over the client's environment when it
+   runs as the workload (the environment's own values win), for `resolve`
+   and `ssh` alike; a test asserts it. Reaches the reference configuration
+   through the next release; until then its `perform` job carries the two
+   names again.
 
 ## 70. Bootstrap: the one-time initialisation, as terraform from an interview
 

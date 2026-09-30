@@ -455,7 +455,9 @@ recorded), else 0.
 
 Log into each standing instance (every launched, non-ephemeral instance,
 or the named ones, or those on `--runtime`) over `sft ssh` -- as the OPA
-workload when `OPA_TOKEN` is set, else as the enrolled client -- after
+workload when `OPA_TOKEN` is set (the client is then handed the group
+builder's `team` and `api_host` as `SFT_TEAM` and `OPA_ADDR`, the
+environment's own values winning), else as the enrolled client -- after
 checking that exactly one server is registered under the hostname and
 that the client resolves it, and record the verdicts in
 `meta-state/login-proofs.yaml`. A stopped machine, or one whose group
