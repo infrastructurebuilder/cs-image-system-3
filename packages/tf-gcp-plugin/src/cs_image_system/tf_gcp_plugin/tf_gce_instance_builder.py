@@ -151,7 +151,11 @@ class TofuGceInstanceBuilder(TofuInstanceBuilder[Q]):
             log.warning(f"No provider-specific image for image {instance.image!r} of instance "
                         f"{instance.get_name()}; the module call will not resolve an image")
         if rtb:
-            args["machine_type"] = rtb.get_default_machine_type()
+            # the instance's own type when declared, else the runtime's default
+            # (the AWS builder's rule; hygiene VIII item 2 found this one
+            # ignoring a declared machine_type)
+            mt = getattr(instance, "machine_type", None)
+            args["machine_type"] = mt if mt else rtb.get_default_machine_type()
             zone = getattr(rtb.model, "zone", None)
             if zone:
                 args["zone"] = zone

@@ -10,6 +10,7 @@ instances:
     identity_type: okta
     image: imgfile-basic-dask
     launched: false
+    machine_type: e2-micro
     mounts:
     - builder: gcp-pd
       device: /dev/disk/by-id/google-gce-data
@@ -33,6 +34,7 @@ instances:
     identity_type: okta
     image: imgfile-basic-cloudflow
     launched: false
+    machine_type: t3.medium
     mounts: []
     run: 2026_08_26t12_00_00
     session: ssm
@@ -48,6 +50,7 @@ instances:
     identity_type: okta
     image: imgfile-basic-dask
     launched: false
+    machine_type: t3.medium
     mounts:
     - builder: aws-ebs
       device: /dev/xvdf

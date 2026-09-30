@@ -122,6 +122,31 @@ def _gce_device_name(value: str) -> str:
     return v or "disk"
 
 
+def effective_machine_type(instance: "Instance", rtb: Any) -> str:
+    """The type the instance launches on: its own ``machine_type``, else the
+    runtime's default -- the same rule as both instance builders apply."""
+    own = str(getattr(instance, "machine_type", "") or "").strip()
+    if own:
+        return own
+    get = getattr(rtb, "get_default_machine_type", None)
+    return str(get() or "").strip() if callable(get) else ""
+
+
+def resize_of(ctx: "GlobalTypeContext", instance: "Instance") -> tuple[str, str] | None:
+    """``(from, to)`` when a LAUNCHED instance's declaration names a different
+    machine type than its record -- the in-place change hygiene VIII item 2
+    allows. None when the instance is unlaunched, the type is unchanged, or
+    the record predates the key (then the key is adopted, not resized)."""
+    old = ctx.meta_state.launch_params().get(instance.get_name()) or {}
+    if not old.get("launched") or not old.get("machine_type"):
+        return None
+    rtb = ctx.runtime_builders.get(instance.runtime) if instance.runtime else None
+    new = effective_machine_type(instance, rtb)
+    if new and new != str(old["machine_type"]):
+        return str(old["machine_type"]), new
+    return None
+
+
 def compute_launch_params(ctx: "GlobalTypeContext", instance: "Instance") -> dict[str, Any]:
     image = ctx.images_map.get(str(instance.image)) if instance.image else None
     group = getattr(image, "group", None) if image is not None else None
@@ -163,9 +188,16 @@ def compute_launch_params(ctx: "GlobalTypeContext", instance: "Instance") -> dic
     hostname = canonical_hostname(ctx, instance)
     from .alias_pool import alias_for
     alias = alias_for(ctx, instance, hostname)     # stage 59: a pool name, spent once, for a new machine
+    machine_type = effective_machine_type(instance, rtb)
     return {
         "image": str(instance.image),
         "build": ctx.meta_state.instance_pin(instance.get_name()) or "unbound",
+        # hygiene VIII item 2: the type the machine booted on -- the ONE launch
+        # parameter that may change in place (a resize: the provider stops the
+        # machine, changes its type and starts it; the same machine, recorded
+        # on the same generation). Present only when resolvable, so a record
+        # from before the key existed is adopted, not refused.
+        **({"machine_type": machine_type} if machine_type else {}),
         "group": group,
         "identity_type": gb.identity_type() if gb is not None else None,
         "mounts": mounts,
@@ -303,6 +335,11 @@ def record_launch_params(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None
         params["launched"] = bool(old.get("launched", False))
         if old.get("launched_run"):
             params["launched_run"] = old["launched_run"]
+        resize = resize_of(ctx, instance)
+        if resize:
+            # truthful recorders: the record keeps the type the machine RUNS
+            # on until the resize applied (record_resizes writes the new one)
+            params["machine_type"] = resize[0]
         ms.record_launch_params(instance.get_name(), params)
     # Decommissioned instances are forgotten AFTER the real apply that
     # destroys them (see forget_decommissioned); doing it here, at
@@ -374,6 +411,31 @@ def record_detachments(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
         ms.record_launch_params(instance.get_name(), params)
         log.info(f"Instance {instance.get_name()}: detached {[m.get('storage') for m in removed]}; "
                  "launch parameters re-recorded without the mount(s)")
+
+
+def record_resizes(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
+    """After the instance-image runner completed for real: a launched
+    instance whose declaration named a different machine type was resized
+    IN PLACE by the apply -- the provider stopped it, changed its type and
+    started it; the same machine (hygiene VIII item 2). Its record and its
+    open generation's snapshot take the new type, and the ledger's history
+    gains a ``resized`` event. Registered before record_detachments, which
+    recomputes the record and would otherwise write the new type unnoticed."""
+    if lifecycle != Lifecycle.INSTANCE_IMAGE:
+        return
+    from .utils import apply_enabled
+    if not apply_enabled("instances"):
+        return
+    ms = ctx.meta_state
+    for instance in ctx.instances:
+        resize = resize_of(ctx, instance)
+        if not resize or not apply_enabled("instances", str(instance.type_), [str(instance.runtime)]):
+            continue
+        name = instance.get_name()
+        rec = dict(ms.launch_params().get(name) or {})
+        rec["machine_type"] = resize[1]
+        ms.record_launch_params(name, rec)
+        generations.on_resized(ctx, name, resize[0], resize[1])
 
 
 def forget_ephemerals(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
@@ -493,14 +555,20 @@ def validate_immutability(ctx: "GlobalTypeContext", requested: list[Lifecycle]) 
         if instance_follow_target(ctx, instance):
             continue   # a policy-driven replacement (stage 9.5) is a replacement
         new = compute_launch_params(ctx, instance)
-        # stage 10.14: a mount REMOVAL is the one in-place change allowed (a
+        old_cmp, new_cmp = _comparable(old), _comparable(new)
+        # hygiene VIII item 2: the machine type may change in place (a resize
+        # -- the same machine, recorded by record_resizes after the apply),
+        # and a record from before the key existed adopts it; either way it
+        # is not what immutability compares
+        old_cmp.pop("machine_type", None)
+        new_cmp.pop("machine_type", None)
+        # stage 10.14: a mount REMOVAL is the other in-place change allowed (a
         # detach, unmounted first); everything else stays immutable
         removed = {str(m.get("storage")) for m in detachments(ctx, instance)}
-        if removed and _without_mounts(old, removed) == _comparable(new):
+        if removed and _without_mounts(old_cmp, removed) == new_cmp:
             continue
-        if _comparable(old) != _comparable(new):
-            changed = sorted(k for k in set(_comparable(old)) | set(_comparable(new))
-                             if _comparable(old).get(k) != _comparable(new).get(k))
+        if old_cmp != new_cmp:
+            changed = sorted(k for k in set(old_cmp) | set(new_cmp) if old_cmp.get(k) != new_cmp.get(k))
             errors.append(
                 f"instance '{name}' was launched (run {old.get('launched_run')}) and its launch "
                 f"parameters changed ({', '.join(changed)}); launch parameters are immutable after "
@@ -591,6 +659,7 @@ def register(runner) -> None:
     runner.register_after_apply(mark_launched)
     runner.register_after_apply(forget_decommissioned)
     runner.register_after_apply(forget_ephemerals)
+    runner.register_after_apply(record_resizes)        # before record_detachments (it recomputes the record)
     runner.register_after_apply(record_detachments)
     runner.register_validator(validate_immutability)
     runner.register_validator(validate_claimed_hostnames)
