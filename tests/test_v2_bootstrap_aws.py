@@ -39,11 +39,23 @@ def _filled(root: Path) -> None:
     sb.write_text(sb.read_text().replace("tfstate-REPLACE-ME", "acme-tfstate").replace("REPLACE-ME-profile", "acme"))
 
 
-def _account(**present: bool):
+def _trust(*subjects: str) -> str:
+    """A role's trust document as `aws iam get-role --query ...` prints it."""
+    import json
+    return json.dumps({"Version": "2012-10-17", "Statement": [{
+        "Effect": "Allow", "Action": "sts:AssumeRoleWithWebIdentity",
+        "Condition": {"StringEquals": {"token.actions.githubusercontent.com:aud": "sts.amazonaws.com"},
+                      "StringLike": {"token.actions.githubusercontent.com:sub": list(subjects)}}}]})
+
+
+def _account(trust: dict[str, str] | None = None, **present: bool):
     """A probe that answers for the account: each of oidc, read, write, bucket,
     profile is present (exit 0), absent (the service's own not-found word) or,
-    when not named at all, unaskable (no credentials)."""
+    when not named at all, unaskable (no credentials). ``trust`` gives an
+    existing role's trust document by role (read, write); the word
+    ``unreadable`` makes reading it fail."""
     calls: list[list[str]] = []
+    trust = trust or {}
 
     def probe(args: list[str], timeout: int = 60) -> tuple[int, str]:
         calls.append(args)
@@ -59,6 +71,8 @@ def _account(**present: bool):
             key = "profile"
         if key is None or key not in present:
             return 255, "Unable to locate credentials. You can configure credentials by running \"aws configure\"."
+        if present[key] and "--query" in args and key in trust:
+            return (255, "AccessDenied") if trust[key] == "unreadable" else (0, trust[key])
         return (0, "{}") if present[key] else (254, absent)
     probe.calls = calls                                        # type: ignore[attr-defined]
     return probe
@@ -144,12 +158,44 @@ def test_the_defaults_look_in_every_cfg_file_as_the_loader_does(tmp_path: Path):
     assert (a["state_bucket"], a["state_prefix"], a["state_region"]) == ("acme-real-tfstate", "statefiles/real", "us-west-2")
 
 
+def test_adopting_a_role_keeps_the_other_subjects_it_already_trusted(tmp_path: Path):
+    """Found by the first live plan of an adoption (2026-10-01): the reference
+    account's READ-ONLY role also serves the system's own repository, and a
+    module that trusts one repository would have removed it and broken that
+    repository's CI. Adoption never narrows a role silently."""
+    root = _starter_copy(tmp_path)
+    _filled(root)
+    mine = ("repo:acme/widgets:*", "repo:acme@4242/widgets@987654:*")
+    theirs = ("repo:acme/other:*", "repo:acme@4242/other@111:*")
+    probe = _account(trust={"read": _trust(*theirs, *mine), "write": _trust("repo:acme/widgets:ref:refs/heads/main")},
+                     oidc=True, read=True, write=True, bucket=True, profile=True)
+    a = bs.run_interview([_section()], _facts(root, probe), quiet=True)["aws"]
+    assert a["read_extra_subjects"] == ",".join(theirs)                 # the other repository's, kept; ours not repeated
+    assert a["write_extra_subjects"] == ""
+    assert aws.trusted_subjects({"Statement": {"Condition": {"StringEquals": {"x:sub": "one"}}}}) == ["one"]
+    bs.write_answers(root / bs.ANSWERS_FILE, {"aws": a})
+    bs.regenerate(root)
+    out = bs.output_dir(root)
+    tfvars = (out / "bootstrap.auto.tfvars").read_text()
+    assert all(f'"{s}"' in tfvars for s in theirs) and re.search(r"aws_write_extra_subjects\s*=\s*\[\]", tfvars)
+    assert "READ role also keeps trusting: `repo:acme/other:*`" in (out / "README.md").read_text()
+    module = (REPO / "tfmodules" / "bootstrap_aws" / "main.tf").read_text()
+    assert "var.read_extra_subjects)" in module and "var.write_extra_subjects)" in module
+    # a role that does not exist has nothing to keep; one whose trust cannot be read is refused, not narrowed blind
+    fresh = _account(oidc=True, read=False, write=False, bucket=True, profile=True)
+    b = bs.run_interview([_section()], _facts(root, fresh), quiet=True)["aws"]
+    assert b["read_extra_subjects"] == "" and b["write_extra_subjects"] == ""
+    blind = _account(trust={"read": "unreadable"}, oidc=True, read=True, write=True, bucket=True, profile=True)
+    with pytest.raises(Refused, match=r"aws\.read_extra_subjects: .* \(the existing role's trust could not be read"):
+        bs.run_interview([_section()], _facts(root, blind), quiet=True)
+
+
 # ----------------------------------------------------------------- the root it makes
 
 def _root(tmp_path: Path, **present: bool) -> tuple[Path, Path]:
     root = _starter_copy(tmp_path)
     _filled(root)
-    facts = _facts(root, _account(**present))
+    facts = _facts(root, _account(None, **present))
     answers = bs.run_interview(bs.discover(), facts, quiet=True)
     bs.write_answers(root / bs.ANSWERS_FILE, answers)
     assert bs.regenerate(root)

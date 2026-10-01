@@ -1716,7 +1716,14 @@ whose default is a PROBE of the account, asked as the profile the runtime
 names: found means a data source (the provider, the instance profile),
 nothing made (the bucket), or an `import` block in the root that ADOPTS
 it (the two roles, so their trust is maintained from then on rather than
-left to drift); the account saying "no such entity" means the resource;
+left to drift). Adoption never narrows a role silently: the interview
+reads an existing role's trust and offers every subject that is not this
+repository's as "other subjects the role keeps trusting" -- kept by
+default, shown at the prompt so a person can drop them, refused under
+`--quiet` when the trust cannot be read. (The first live plan of an
+adoption, 2026-10-01, is why: the reference account's READ-ONLY role also
+serves the system's own repository's CI, and a module trusting one
+repository planned to remove it.) The account saying "no such entity" means the resource;
 an account that cannot be asked (no session, no `aws`) means no default,
 which the interactive interview asks and `--quiet` refuses by name. A
 starter's placeholders (`REPLACE-ME`, the example account id) are no

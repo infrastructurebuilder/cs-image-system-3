@@ -67,7 +67,9 @@ question is a probe of the account as the runtime's profile (`aws iam
 get-open-id-connect-provider`, `get-role`, `get-instance-profile`,
 `s3api head-bucket`): found, absent, or -- with no session -- unanswerable,
 which `--quiet` refuses by name. A role that exists is adopted with an
-`import` block in the root; the root's state binds to the tree's declared
+`import` block in the root, and the subjects it already trusted that are
+not this repository's are read from its trust document and kept (another
+repository may share the role); the root's state binds to the tree's declared
 S3 backend when the bucket exists. See OPERATIONS.md, "The bootstrap".
 
 ## Models

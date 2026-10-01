@@ -29,8 +29,10 @@ locals {
   ids   = "repo:${local.owner}@${var.owner_id}/${local.name}@${var.repo_id}"
   forms = var.subject_forms == "both" ? [local.plain, local.ids] : (var.subject_forms == "ids" ? [local.ids] : [local.plain])
 
-  read_subjects  = [for f in local.forms : "${f}:*"]
-  write_subjects = [for f in local.forms : "${f}:ref:refs/heads/${var.production_branch}"]
+  # ... plus whatever else an ADOPTED role already trusted (another repository
+  # sharing it): adoption never narrows a role silently
+  read_subjects  = concat([for f in local.forms : "${f}:*"], var.read_extra_subjects)
+  write_subjects = concat([for f in local.forms : "${f}:ref:refs/heads/${var.production_branch}"], var.write_extra_subjects)
 
   provider_arn  = var.oidc_provider_exists ? data.aws_iam_openid_connect_provider.github[0].arn : aws_iam_openid_connect_provider.github[0].arn
   instance_role = var.instance_profile_exists ? data.aws_iam_instance_profile.session[0].role_name : aws_iam_role.session[0].name

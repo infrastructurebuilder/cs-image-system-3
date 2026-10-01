@@ -27,6 +27,7 @@ is local and a second interview, the bucket now standing, binds it.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from cs_image_system.base.bootstrap.facts import Facts, default_state_backend, real, runtime_of_type
@@ -81,6 +82,51 @@ def _role_exists(key: str):
         name = answers.get(key)
         return _exists(_aws(facts, answers, "iam", "get-role", "--role-name", str(name)), ("NoSuchEntity",)) if name else None
     return probe
+
+
+def trusted_subjects(document: Any) -> list[str]:
+    """Every OIDC subject a trust document admits, in order, whatever the
+    operator (StringLike, StringEquals) and whether one value or a list."""
+    out: list[str] = []
+    statements = (document or {}).get("Statement") or []
+    for st in statements if isinstance(statements, list) else [statements]:
+        for values in ((st or {}).get("Condition") or {}).values():
+            for key, subs in (values or {}).items():
+                if str(key).endswith(":sub"):
+                    for s in subs if isinstance(subs, list) else [subs]:
+                        if s not in out:
+                            out.append(str(s))
+    return out
+
+
+def _extra_subjects(kind: str):
+    """The subjects an EXISTING role trusts that are not this repository's:
+    another repository's CI may share the role (the reference account's
+    read-only role serves the system's own repository too, and the first
+    live plan of an adoption would have removed it). Adopting a role keeps
+    them by default; the prompt shows them so a person can drop them. A role
+    that does not exist has none; one whose trust cannot be read has no
+    default."""
+    def default(facts: Facts, answers: Answers) -> str | None:
+        if not answers.get(f"{kind}_role_exists"):
+            return ""
+        code, out = _aws(facts, answers, "iam", "get-role", "--role-name", str(answers[f"{kind}_role_name"]),
+                         "--query", "Role.AssumeRolePolicyDocument", "--output", "json")
+        if code != 0:
+            return None
+        try:
+            document = json.loads(out[out.index("{"):out.rindex("}") + 1]) if "{" in out else {}
+        except ValueError:
+            return None
+        repository = str(answers.get("repository") or "")
+        owner, _, name = repository.partition("/")
+        mine = (f"repo:{repository}:", f"repo:{owner}@{answers.get('owner_id')}/{name}@{answers.get('repo_id')}:")
+        return ",".join(s for s in trusted_subjects(document) if not s.startswith(mine))
+    return default
+
+
+def parse_subjects(text: Any) -> list[str]:
+    return [s.strip() for s in str(text or "").split(",") if s.strip()]
 
 
 def _bucket_exists(facts: Facts, answers: Answers) -> bool | None:
@@ -161,9 +207,14 @@ QUESTIONS: tuple[Question, ...] = (
     Question("read_role_name", "The READ-ONLY role's name (AWS_ROLE_ARN)", default="csis-github-readonly"),
     Question("read_role_exists", "Does the READ-ONLY role already exist (it is then adopted by import)?", kind="bool",
              default=_role_exists("read_role_name"), help="the account could not be asked: no AWS session"),
+    Question("read_extra_subjects", "Other OIDC subjects the READ-ONLY role keeps trusting, comma-separated (an "
+             "existing role's subjects that are not this repository's; empty for none)",
+             default=_extra_subjects("read"), help="the existing role's trust could not be read: no AWS session"),
     Question("write_role_name", "The WRITE role's name (AWS_APPLY_ROLE_ARN)", default="csis-github-apply"),
     Question("write_role_exists", "Does the WRITE role already exist (it is then adopted by import)?", kind="bool",
              default=_role_exists("write_role_name"), help="the account could not be asked: no AWS session"),
+    Question("write_extra_subjects", "Other OIDC subjects the WRITE role keeps trusting, comma-separated (empty for none)",
+             default=_extra_subjects("write"), help="the existing role's trust could not be read: no AWS session"),
     Question("state_bucket", "The state bucket's name", default=lambda f, a: _state(f, "bucket"),
              help="the default S3 backend's `bucket` in cfg/state-backends.yml is unset or still the starter's placeholder"),
     Question("state_prefix", "The state key prefix within the bucket", default=_state_prefix,
@@ -219,15 +270,22 @@ def render(answers: Answers) -> Rendered:
     variables = tuple((f"aws_{n}", types.get(n, "string"), described[n]) for n in names) + (
         ("aws_profile", "string", "the AWS profile this root is applied with (empty: the environment's credentials)"),
         ("aws_tags", "map(string)", "tags on everything this root makes"),
+        ("aws_read_extra_subjects", "list(string)", "other OIDC subjects the READ-ONLY role keeps trusting"),
+        ("aws_write_extra_subjects", "list(string)", "other OIDC subjects the WRITE role keeps trusting"),
     )
     tfvars: dict[str, Any] = {f"aws_{n}": (bool(answers[n]) if n in types else str(answers.get(n) or "")) for n in names}
     tfvars["aws_state_prefix"] = prefix
     tfvars["aws_profile"] = profile
     tfvars["aws_tags"] = tags
+    extras = {k: parse_subjects(answers.get(f"{k}_extra_subjects")) for k in ("read", "write")}
+    for k in ("read", "write"):
+        tfvars[f"aws_{k}_extra_subjects"] = extras[k]
     adopted = [answers[f"{k}_role_name"] for k in ("read", "write") if answers.get(f"{k}_role_exists")]
     return Rendered(
         module=MODULE,
-        module_args={n: Raw(f"var.aws_{n}") for n in names},
+        module_args={**{n: Raw(f"var.aws_{n}") for n in names},
+                     "read_extra_subjects": Raw("var.aws_read_extra_subjects"),
+                     "write_extra_subjects": Raw("var.aws_write_extra_subjects")},
         variables=variables,
         tfvars=tfvars,
         outputs=(
@@ -257,6 +315,8 @@ def render(answers: Answers) -> Rendered:
             f"the READ-ONLY role `{answers['read_role_name']}` (any ref of `{answers['repository']}`) and the WRITE role "
             f"`{answers['write_role_name']}` (`{answers['production_branch']}` alone), subject forms: {answers['subject_forms']}"
             + (f"; adopted by import: {', '.join(adopted)}" if adopted else ""),
+            *(f"the {k.upper()} role also keeps trusting: {', '.join(f'`{s}`' for s in extras[k])} (not this repository's; "
+              "kept because the role already trusted them)" for k in ("read", "write") if extras[k]),
             f"the state bucket `{answers['state_bucket']}` " + ("exists: this root's state is bound to it (decision D8)"
                                                                  if bucket_exists else
                                                                  "is CREATED here (versioned, encrypted, private): local state for this first apply"),

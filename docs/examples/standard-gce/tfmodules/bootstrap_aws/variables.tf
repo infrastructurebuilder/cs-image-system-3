@@ -84,3 +84,15 @@ variable "instance_profile_exists" {
   type        = bool
   description = "the instance profile already exists: read it instead of making it"
 }
+
+variable "read_extra_subjects" {
+  type        = list(string)
+  description = "other OIDC subjects the READ-ONLY role keeps trusting (an adopted role's subjects that are not this repository's)"
+  default     = []
+}
+
+variable "write_extra_subjects" {
+  type        = list(string)
+  description = "other OIDC subjects the WRITE role keeps trusting"
+  default     = []
+}
