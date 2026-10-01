@@ -409,6 +409,17 @@ otherwise.
 machines and will not invent facts about them in the one file meant to be
 trustworthy; `pins.yaml.upgrades` keeps what it saw.
 
+*Why a resize is an event, not a generation.* The provider stops the
+machine, changes its type and starts it; the id does not move, so by the
+ruling's own definition the generation does not either. What changed is
+real and dated, so the open generation's snapshot takes the new type and
+the history gains a `resized` event (`from`, `to`, `run`) in the same list
+as the closed generations, in order. The history is therefore the
+machine's biography, not only its obituaries: read it top to bottom and
+every generation's closing and every resize is there with the run that
+did it (hygiene VIII item 2, proved live on `coops-model`'s generation 3,
+which was resized twice before it was decommissioned).
+
 ## 3. The design
 
 ### A. Lifecycle decomposition (the structural core)

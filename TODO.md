@@ -7,7 +7,7 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress** (§71, hygiene bundle VIII, LANDED WHOLE 2026-10-01 -- five items, the last three in one squash 0760084; NO bundle is open, the next hygiene issue opens IX; §68, hygiene bundle VII, LANDED whole 2026-09-29; §69 LANDED 2026-09-28, its step 5 done 2026-09-29; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §70, or §74's docs; a release (dev6) is owed so the reference configuration gets hygiene VIII items 2-5. §73 LANDED 2026-10-01 in its commit on develop: coops-model-005 (generation 5, alias `gar`, the same image) replaced onto the new `efs-scratch` filesystem -- the planted file absent, the old `efs-storage` standing with its data and mounted nowhere. §72 LANDED 2026-09-30 in its commits on develop (fcfaa0c, 9412013, 4352bcc): the coops model resized in place (twice, c5n.4xlarge -> t3.xlarge -> t3.medium, the same machine, two `resized` events) and then replaced (coops-model-004, generation 4, alias `eel`, the same image) with the planted file, the EFS filesystem and the EBS volume all the same on the new machine; its documentation is owed to §74.
+Current stage: **none in progress** (§71, hygiene bundle VIII, LANDED WHOLE 2026-10-01 -- five items, the last three in one squash 0760084; NO bundle is open, the next hygiene issue opens IX; §68, hygiene bundle VII, LANDED whole 2026-09-29; §69 LANDED 2026-09-28, its step 5 done 2026-09-29; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §70; a release (dev6) is owed so the reference configuration gets hygiene VIII items 2-5. §74, the documentation stage covering §71 items 1-5, §72 and §73, LANDED 2026-10-01 (docs only); the next behaviour change opens a new one. §73 LANDED 2026-10-01 in its commit on develop: coops-model-005 (generation 5, alias `gar`, the same image) replaced onto the new `efs-scratch` filesystem -- the planted file absent, the old `efs-storage` standing with its data and mounted nowhere. §72 LANDED 2026-09-30 in its commits on develop (fcfaa0c, 9412013, 4352bcc): the coops model resized in place (twice, c5n.4xlarge -> t3.xlarge -> t3.medium, the same machine, two `resized` events) and then replaced (coops-model-004, generation 4, alias `eel`, the same image) with the planted file, the EFS filesystem and the EBS volume all the same on the new machine; its documentation is owed to §74.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
 **§64**, the release that carries everything a configuration repository
@@ -649,71 +649,3 @@ each later step is its own iteration, proved before the next.
 (the AWS one is the longest: the policies are already written in the
 guide); the Okta section depends on D4/D5; the tests a day; iterations
 after the first as the operator finds them.
-
-## 74. Documentation stage: §71 items 1-5, §72, §73
-
-**Status: OPEN since 2026-09-30, rolling.** The documentation stage the
-operator's rule requires (2026-09-23): every behaviour, configuration,
-test or procedure change since the last one owes an item here, and the
-stage modifies no code -- a needed code change becomes a stage of its
-own, and a docs-vs-code disagreement is fixed in the docs. Between a
-little more explanation and a little less, choose more.
-
-Covers, and what each changed:
-
-- **§71 item 1** (the login proof's client environment as the workload):
-  OPERATIONS' login-proof section should say the client takes `team` and
-  `api_host` from the group builder when it runs as the workload, and
-  that `OPA_ADDR`/`SFT_TEAM` in the job environment are no longer needed
-  (the starters' `ci.yml` and CI_SETUP.md already carry none).
-- **§71 item 2** (the machine type is a launch parameter; an in-place
-  resize is recorded): OPERATIONS "A resize is the same machine", DESIGN
-  N26 and CONFIGURATION's `machine_type` row were written in-stage;
-  verify them against the live walk (§72 Part A) and add the ledger's
-  `history` shape -- closed generations AND `resized` events (`event`,
-  `from`, `to`, `run`, `at`) in one list -- to the meta-state table in
-  OPERATIONS and to DESIGN N27.
-- **§71 items 3-5** (landed 2026-10-01): OPERATIONS gained "What a run's
-  log shows of the commands it ran", the `config-drift` paragraph's
-  sentence on the apply-only lines, and "Spent is spent"'s one exception;
-  verify them against the next applying run's log, and tell the walks in
-  OPERATIONS/DAILY_DRIVER that `just record` before the push is good
-  practice rather than a requirement now, and that an aborted launch
-  leaves nothing to clean up in the pool.
-- **§72** (the coops model resized in place and by replacement): the
-  sibling's README "what stands" (`coops-model-004`, generation 4, a
-  `t3.medium`, alias `eel`, on `ami-06863fb35ff62f9ba`; the EFS filesystem
-  and the EBS volume unchanged); OPERATIONS, under the replacement
-  section, the two walks as procedures -- a sizing change in place (one
-  edit, `cloud-launch`, the same machine, a `resized` event) and a
-  replacement by decommission and redeclaration (the pin first-binds to
-  the series head again; a declared storage persists; the new generation
-  and alias) -- with the three rules learned live: a dry launch plans
-  nothing (the gate in the real run is the protection; `tofu show
-  tfplan` in the root reads the applied plan), `just record` after every
-  applying run before the push (hygiene VIII item 4), and `main` is not
-  pushed between a decommission and the relaunch (the `perform` job would
-  launch from CI). The same three rules belong in the starters'
-  CI_SETUP.md / README where the daily driver describes `cloud-launch`
-  and `cloud-decommission`, and in DAILY_DRIVER.md. Memory
-  `instance-generations-are-observed` already notes the resize and the
-  dry-run lesson.
-- **§73** (the coops model replaced onto a different EFS share, landed
-  2026-10-01): the sibling's README "what stands" (`coops-model-005`,
-  generation 5, alias `gar`, `t3.medium`, on `ami-06863fb35ff62f9ba`;
-  TWO EFS filesystems -- `efs-scratch` `fs-09c4927fd6e539753` is the
-  model's `/mnt/efs`, `efs-storage` `fs-02d658f1561aab44b` holds the §72
-  proof file and is mounted nowhere until the operator decides its fate;
-  the EBS volume unchanged); OPERATIONS "Storages": a mount MOVE is a
-  replacement (decommission, edit, redeclare -- a mount change on a
-  launched instance is refused, only a removal is in-place), the storage
-  root applies before the instance launch (the instance root reads the
-  filesystem ids from the storage root's state), the un-mounted storage
-  keeps its data until undeclared, and the one-line proof shape ("the
-  path exists, the file does not"). CONFIGURATION 11.3.1: the same mount
-  point may name a different storage across generations. The two rules
-  learned here join the walk rules: a provider download can fail
-  `tofu init` at generation (environmental; retry), and an aborted run's
-  on-disk traces (an alias draw, a half-regenerated tree) are not the
-  records (hygiene VIII item 5 is the fix; `git checkout --` the
-  leftovers until then).
