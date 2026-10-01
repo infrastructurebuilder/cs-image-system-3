@@ -17,11 +17,41 @@ import shutil
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import yaml
 
 log = logging.getLogger(__name__)
+
+#: What a starter tree carries where a team's value goes. A default that is
+#: still one of these was never filled in, so it is no default at all.
+PLACEHOLDER_MARKS = ("REPLACE-ME", "REPLACE_ME", "123456789012")
+
+
+def is_placeholder(value: Any) -> bool:
+    return value is None or any(mark in str(value) for mark in PLACEHOLDER_MARKS) or str(value).strip() == ""
+
+
+def real(value: Any) -> str | None:
+    """The value as text, or None when it is empty or a starter placeholder."""
+    return None if is_placeholder(value) else str(value).strip()
+
+
+def run_tool(args: list[str], timeout: int = 60) -> tuple[int, str]:
+    """A read-only probe of the account (``aws iam get-role``, say): the exit
+    code and the output; 127 when the tool is not installed, 124 on a
+    timeout. A section's default asks through ``Facts.probe`` so a test can
+    answer instead."""
+    if shutil.which(args[0]) is None:
+        return 127, ""
+    try:
+        res = subprocess.run(args, capture_output=True, text=True, check=False, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return 124, ""
+    except OSError:
+        return 127, ""
+    return res.returncode, (res.stdout or "") + (res.stderr or "")
+
 
 _REMOTE = re.compile(r"(?:git@github\.com:|https://github\.com/)(?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?/?$")
 
@@ -38,6 +68,8 @@ class Facts:
     runtimes: list[dict[str, Any]] = field(default_factory=list)
     team: str | None = None
     module_source_base: str = "tfmodules"
+    state_backends: list[dict[str, Any]] = field(default_factory=list)
+    probe: Callable[..., tuple[int, str]] = field(default=run_tool, repr=False, compare=False)
 
     @property
     def repository(self) -> str | None:
@@ -84,6 +116,21 @@ def raw_yaml(path: Path) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def collect(cfg: Path, key: str, *, named: bool = True) -> list[dict[str, Any]]:
+    """Every entry under ``key`` in ANY ``cfg/*.yml``, in file-name order. The
+    loader reads the whole directory -- a tree may keep its default state
+    backend in ``state-backends-2.yml`` beside a non-default one in
+    ``state-backends.yml`` (the reference configuration does, and reading
+    the one canonical file named the wrong bucket as the tree's on
+    2026-10-01) -- so the defaults must look where the loader looks."""
+    out: list[dict[str, Any]] = []
+    for path in sorted([*cfg.glob("*.yml"), *cfg.glob("*.yaml")]):
+        entries = raw_yaml(path).get(key)
+        if isinstance(entries, list):
+            out.extend(e for e in entries if isinstance(e, dict) and (e.get("name") or not named))
+    return out
+
+
 def gather(config_root: Path, *, git: bool = True, gh: bool = True) -> Facts:
     root = Path(config_root)
     facts = Facts(config_root=root)
@@ -99,17 +146,27 @@ def gather(config_root: Path, *, git: bool = True, gh: bool = True) -> Facts:
         facts.repo_id = _gh_id(f"repos/{facts.repository}")
         facts.owner_id = _gh_id(f"users/{facts.owner}")
     cfg = root / "cfg"
-    runtimes = raw_yaml(cfg / "runtime-builders.yml").get("runtime_builders")
-    if isinstance(runtimes, list):
-        facts.runtimes = [r for r in runtimes if isinstance(r, dict) and r.get("name")]
-    groups = raw_yaml(cfg / "group-builders.yml").get("group_builders")
-    if isinstance(groups, list):
-        teams = [str(g["team"]) for g in groups if isinstance(g, dict) and g.get("team")]
-        facts.team = teams[0] if teams else None
+    facts.runtimes = collect(cfg, "runtime_builders")
+    teams = [str(g["team"]) for g in collect(cfg, "group_builders", named=False) if g.get("team")]
+    facts.team = teams[0] if teams else None
     config = raw_yaml(cfg / "_config.yml").get("config")
     if isinstance(config, dict) and config.get("module_source_base"):
         facts.module_source_base = str(config["module_source_base"])
+    facts.state_backends = collect(cfg, "state_backends")
     return facts
+
+
+def runtime_of_type(facts: Facts, kind: str) -> dict[str, Any] | None:
+    """The tree's runtime of a cloud (``aws``, ``gcloud``): the default one of
+    that type, else the first."""
+    mine = [r for r in facts.runtimes if str(r.get("type", "")).lower() == kind]
+    return next((r for r in mine if r.get("is_default")), mine[0] if mine else None)
+
+
+def default_state_backend(facts: Facts, kind: str = "s3") -> dict[str, Any] | None:
+    """The tree's declared state backend of a type: the default, else the first."""
+    mine = [b for b in facts.state_backends if str(b.get("type", "")).lower() == kind]
+    return next((b for b in mine if b.get("is_default")), mine[0] if mine else None)
 
 
 def first_runtime_name(facts: Facts, *, prefer: tuple[str, ...] = ("aws",)) -> str | None:

@@ -261,11 +261,16 @@ answers, `set-secrets.sh` that sets each secret from a file named after
 it, and a README listing what remains by hand. Both the answers and the
 tfvars are committed (names and ids, never a value); every run
 regenerates the directory from the answers, so a stale root is drift and
-a clone needs no interview. Iteration one does the GitHub section (the
-branches, the ruleset that still lets `perform` push, Actions
-permissions and variables, the secrets script); the AWS, GCP and Okta
-sections are later iterations -- until then those parts of the guide are
-by hand, as before.
+a clone needs no interview. The GitHub section does the branches, the
+ruleset that still lets `perform` push, Actions permissions and variables
+and the secrets script; the AWS section does the OIDC provider, the two
+roles with the guide's documents, and the state bucket and instance
+profile when the account lacks them -- asking the account what already
+exists when you have a session, adopting roles that stand, and refusing
+under `--quiet` anything it cannot find out. Fill the starter's
+`REPLACE-ME` values first: a placeholder is not a default. The GCP and
+Okta sections are later iterations; until then those parts of the guide
+are by hand, as before.
 
 ### 1.9 The configuration repository, from scratch
 

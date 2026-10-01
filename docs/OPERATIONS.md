@@ -1695,11 +1695,52 @@ enabled with read-only workflow permissions, the Actions variables that
 are not secret, and the secrets script naming all nine of the guide's
 secrets); the clouds' sections come from their plugins through the
 `cs_image_system.bootstrap` entry-point group, each owning the questions
-and the module for its cloud. Iteration one (decision D1) is the
-framework and GitHub alone; AWS, GCP and Okta are later iterations, and
-the guide's table in 3.0 says which parts are by hand until then. The
+and the module for its cloud. Iteration one (decision D1) was the
+framework and GitHub alone; AWS followed (below); GCP and Okta are later
+iterations, and the guide's table in 3.0 says which parts are by hand
+until then. A section's gate ("Do you want the X section?") defaults to
+what the tree says: the AWS section is wanted where the tree declares an
+AWS runtime or keeps its state in S3, so a GCE-only tree's quiet
+interview is not refused on AWS questions.
+
+The AWS section (stage 70 step 4; the AWS runtime plugin, module
+`tfmodules/bootstrap_aws`) writes CI_SETUP.md 3.3 as terraform: the
+GitHub OIDC identity provider, the READ-ONLY role (any ref of the
+repository) and the WRITE role (the production branch alone) with the
+guide's trust and permission documents -- the module's statements are the
+guide's, Sid for Sid, and a test holds them together -- and, only when
+the account lacks them, the state bucket (versioned, encrypted, private)
+and the Session Manager instance profile (a role with
+`AmazonSSMManagedInstanceCore`). Every "existing" question is a fork
+whose default is a PROBE of the account, asked as the profile the runtime
+names: found means a data source (the provider, the instance profile),
+nothing made (the bucket), or an `import` block in the root that ADOPTS
+it (the two roles, so their trust is maintained from then on rather than
+left to drift). Adoption never narrows a role silently: the interview
+reads an existing role's trust and offers every subject that is not this
+repository's as "other subjects the role keeps trusting" -- kept by
+default, shown at the prompt so a person can drop them, refused under
+`--quiet` when the trust cannot be read. (The first live plan of an
+adoption, 2026-10-01, is why: the reference account's READ-ONLY role also
+serves the system's own repository's CI, and a module trusting one
+repository planned to remove it.) The account saying "no such entity" means the resource;
+an account that cannot be asked (no session, no `aws`) means no default,
+which the interactive interview asks and `--quiet` refuses by name. A
+starter's placeholders (`REPLACE-ME`, the example account id) are no
+defaults either. The subject forms the roles trust follow what is known:
+both the plain and the id-bearing form when `gh` gave the ids, the plain
+form alone otherwise (and the id questions are then not asked). The two
+role ARNs become outputs the secrets script reads, replacing the files.
+The network is never touched. The root's state binds to the tree's
+declared S3 backend at `<prefix>/bootstrap.tfstate` when the bucket
+exists (decision D8); when the bootstrap makes the bucket, the first
+apply is local and a second interview, the bucket now standing, binds
+it (`tofu init -migrate-state`). The
 modules ship with the starters like every module (`tfmodules/`, byte for
-byte); `tests/test_v2_bootstrap.py` holds the question model, the quiet
+byte); `tests/test_v2_bootstrap_aws.py` holds the AWS section (the
+probes, the refusals, the forks, the imports, the backend, the guide's
+statements, a real `tofu validate` of both sections together) and
+`tests/test_v2_bootstrap.py` holds the question model, the quiet
 interview, the root (a real `tofu validate`), the regeneration inside a
 run, the commit, `config-drift`, the secrets script, the starters' parts
 and the command.

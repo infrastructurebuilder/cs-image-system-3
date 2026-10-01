@@ -51,6 +51,27 @@ Present in the package but not registered as a service:
 
 - `AwsProviderSpecificImage` ([aws_provider_specific_image.py](src/cs_image_system/aws_runtime/aws_provider_specific_image.py)), reached through the builder's `provider_specific_image_class()` hook.
 
+**The AWS section of the bootstrap** (stage 70 step 4), through the
+`cs_image_system.bootstrap` entry-point group: `aws =
+cs_image_system.aws_runtime.bootstrap:aws_section`. It owns the questions
+and the terraform for this cloud's one-time initialisation -- the GitHub
+OIDC identity provider, the READ-ONLY and WRITE roles of CI_SETUP.md 3.3
+with their trust and permission documents, and the state bucket and the
+Session Manager instance profile when the account lacks them
+(`tfmodules/bootstrap_aws`). The section is wanted by default where the
+tree declares an AWS runtime or an S3 state backend. Its defaults come
+from the raw `cfg/runtime-builders.yml` and `cfg/state-backends.yml`
+(read as YAML, never loaded; a starter's `REPLACE-ME` values and its
+example account id are no defaults), and every "does it already exist?"
+question is a probe of the account as the runtime's profile (`aws iam
+get-open-id-connect-provider`, `get-role`, `get-instance-profile`,
+`s3api head-bucket`): found, absent, or -- with no session -- unanswerable,
+which `--quiet` refuses by name. A role that exists is adopted with an
+`import` block in the root, and the subjects it already trusted that are
+not this repository's are read from its trust document and kept (another
+repository may share the role); the root's state binds to the tree's declared
+S3 backend when the bucket exists. See OPERATIONS.md, "The bootstrap".
+
 ## Models
 
 ### `AwsCredentials`
@@ -848,6 +869,15 @@ stopped ephemeral into a STANDING line. A hook that raises makes an
 `unavailable:` line, never a failure. The verdicts land in
 `generated/state-report.json` (run-local, never committed) and on the
 console; `--strict` exits 1 on anything but `stale`.
+
+`tests/test_v2_bootstrap_aws.py` holds the bootstrap's AWS section: the
+entry point and the tree-derived gate, the starter's placeholders and an
+unaskable account refused by name under `--quiet`, the forks following a
+stubbed account, the subject forms following the ids, the import blocks,
+the backend (the declared bucket when it stands, local when the bootstrap
+makes it, and the second interview that binds it), the module's
+statements held to the guide's Sid for Sid, and a real `tofu validate` of
+a root carrying the GitHub and AWS sections together.
 
 ## When it fails
 
