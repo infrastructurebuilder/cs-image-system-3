@@ -473,6 +473,9 @@ below; this is the order a person meets them.
 | A modification, a test or a package on an image | edit `images/`, `just test-mods --strict`, commit | the bake is due: `just cloud-perform <runtime>` bakes the new build. A durable instance then takes it in ONE command, `just cloud-upgrade <runtime> <instance>`: pin, gated replace, proof on the new machine, release, names, with `require_released_builds` left true throughout. "A model image, end to end: the second release" |
 | The base an image is built from | `parent_policy: follow` re-bakes on its own when the base moves; `pinned` waits for `just cli upgrade image <image>` | then as above |
 | The build an instance runs | `just cli upgrade instance <name> [--to <build>]`, or the `cloud-upgrade` recipe above | `just cloud-launch <runtime>`: the plan carries one `-replace`, the gate whitelists it and the volume attachments; the new machine is the next generation with the next number, the old registration is retired, the names come back once it enrolls |
+| The size of a standing machine | edit `machine_type`; `just validate` passes (the one launch parameter that may change in place) | `just cloud-launch <runtime>`: `0 to add, 1 to change, 0 to destroy`, the provider stops, changes and starts the SAME machine; the ledger records a `resized` event on the open generation. "Resizing a durable instance in place" |
+| The machine itself, from nothing, same image | `just cloud-decommission <runtime> <name>` (the gate whitelists exactly that instance), then nothing to edit | `just cloud-launch <runtime>`: the next generation, `<name>-NNN`, a new alias, the pin first-bound to the series head again; every declared storage comes back with its data. "Replacing a durable instance: decommission and redeclare" |
+| Which storage an instance mounts | decommission first (a mount move on a launched instance is refused), then change the `name` under `storages`, declare the new storage if it is new, `just run storage` | `just cloud-launch <runtime>`: the new machine mounts exactly what its declaration names; the storage it left keeps its data until its entry is deleted. OPERATIONS "Storages", "Moving a mount is a replacement" |
 | A storage's size or type on EBS | declare what exists, or intend a replacement | `volume_type` and `size` force replacement |
 | Detach a storage from a launched instance | remove it from the instance's `storages` | the run unmounts on the machine first and refuses the plan without the receipt; adding it back is a replacement |
 | Archive, restore, destroy a storage | `state: archived` (EBS and pd only), `active` again, `destroyed`, or delete the entry | each goes through the gate; tombstones stay in `storage-state.yaml` |
@@ -484,11 +487,26 @@ below; this is the order a person meets them.
 | Adopt something made by hand | `just cli state import`; for memberships, `tofu import` then a no-op apply | "Adopt out-of-band group membership" |
 | Upgrade the system | `uv tool upgrade cs-image-system` (or bump the pin and `uv lock`); `.csis-version` for CI | `just validate`, `just dry`, and read the diff of `generated/`: an emission change is what a system upgrade looks like |
 
-Two habits keep changes safe. Dry-run first and read the script: a dry
-run shows the plan the real run will gate. And never edit a launched
-instance's declaration expecting an in-place change: launch parameters are
-immutable, and the system will tell you so and name the way, a replacement
-or a detach.
+Three habits keep changes safe. Dry-run first and read the script: a dry
+run regenerates and lists the commands the real run will execute -- it
+does NOT plan against the cloud (no state is touched in a dry run), so
+what you read is the command list (`--allow-destroy` on the gate line
+means a destroy is intended) and the emission and records the dry run
+commits; the plan itself appears in the real run's log, where the runner
+prints tofu's `Plan:` line, the gate's verdict and the apply summary, and
+the gate -- not the dry run -- is what refuses a destroy nothing
+whitelisted. Never edit a launched instance's declaration expecting an
+in-place change, with two exceptions the system makes for you: removing
+a storage (a detach) and changing `machine_type` (a resize of the same
+machine); everything else is immutable, and the system will tell you so
+and name the way, a replacement or a detach. And after any applying
+`cloud-*` run, `just record` before you push: the applying run committed
+the script it executed, and a recording run restores the resting
+emission with the journal's closing entry (CI's `config-drift` ignores
+the apply-only lines since hygiene VIII item 4, so this is tidiness, not
+a requirement). Between a decommission and its relaunch push `develop`
+only -- a push to `main` would have the `perform` job launch the new
+machine from CI.
 
 ## 5. What specifies, and what tests it
 

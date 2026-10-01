@@ -1479,6 +1479,15 @@ grace, so a durable instance can prove a build on itself).
 | `description`, `tags`, `config` | | | accepted |
 | `aliases` | | | ignored with a warning |
 
+The mapping is a launch parameter: on a launched instance a mapping may
+be REMOVED (a detach; OPERATIONS "Storages") but not changed, and the same
+`mount_point` naming a different storage -- a mount move -- is refused
+until the instance is replaced. Across generations it is ordinary: stage
+73 moved the coops model's `/mnt/efs` from one EFS filesystem to a second,
+empty one by decommissioning the machine, editing the `name`, applying the
+storage root and relaunching; the old filesystem kept its data, mounted
+nowhere, still declared.
+
 [`instances/instances.yaml`](../tests/fixtures/config/instances/instances.yaml):
 
 ```yaml

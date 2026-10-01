@@ -563,7 +563,14 @@ verdict, with the Unix account the login landed in, goes to
 login is the workload's (`cs-image-system workload token` mints it from
 the Actions run's OIDC token; the recipe does this itself inside a job); run by
 hand without one, the enrolled client logs in as you and the record says
-`as: client`. In CI the `perform` job runs it on `main` after the
+`as: client`. As the workload the client has no `~/.config/ScaleFT` of
+its own, so `verify login` lays the group builder's `team` and
+`api_host` over the client's environment (`SFT_TEAM`, `OPA_ADDR`) for
+`resolve` and `ssh` alike, the environment's own values winning when set
+(hygiene VIII item 1, 2026-09-30); a job no longer needs to export either
+-- the first performing run on a release without them found `sft resolve
+--quiet` exiting 1 in silence, which is the whole reason the token mint
+and the login both take their names from the configuration now. In CI the `perform` job runs it on `main` after the
 performing step, under the read-only role, and the closing record commits
 the verdicts. What must turn it red: the group's CI policy deactivated or
 absent, the role's condition not matching the run, a machine that never
@@ -628,6 +635,89 @@ $0.86 an hour, some $620 a month while it stands, plus the 100 GiB `gp3`
 volume and the EFS filesystem. Switching it off (the operator's, stage
 57) stops the instance charge and keeps the volume's.
 
+
+### Resizing a durable instance in place
+
+The one launch parameter that may change on a standing machine is its
+type (hygiene VIII item 2; "A resize is the same machine" above). The
+procedure, walked live on 2026-09-30 as stage 72 Part A (`coops-model`,
+`c5n.4xlarge` to `t3.xlarge`, then again to `t3.medium` the same day):
+
+1. Read the machine first, so there is something to compare against:
+   `just preflight`, `just state-query --strict`, and over `sft ssh` the
+   instance id and type from the metadata endpoint (IMDSv2: a token
+   first), a digest of a file on each mount, `df -h` of the mounts.
+2. The one edit: `machine_type:` in `instances/`. `just validate` passes
+   (the type is excluded from the immutability comparison), `just record`
+   commits the dry generation -- the instance `.tf` moves in exactly one
+   place, `instance_type`; the launch record keeps the type the machine
+   RUNS on.
+3. `just cloud-launch <rt> yes` to see the command list (no
+   `--allow-destroy`: nothing is destroyed), then `just cloud-launch <rt>`.
+   The log shows `Plan: 0 to add, 1 to change, 0 to destroy` and one
+   `~ instance_type` on the `aws_instance`; the provider stops the
+   machine, changes it and starts it (a minute); then `resized in place
+   <from> -> <to> (the same machine; its generation stands, the event is
+   in the history)`.
+4. The proof: the same instance id and the new type from the metadata
+   endpoint, the mounts back with the same digests (the EBS device letter
+   may move across the restart -- `nvme0n1` became `nvme1n1`; the fstab
+   mounts by id, so nothing cares), the record at the new type, the open
+   generation's snapshot at the new type with a `resized` event in the
+   history, `just state-query --strict` green, `just ci-login-proof
+   <name>` green (the registration survives a stop/start). `just record`,
+   push.
+
+Anything running on the machine stops for the minutes the resize takes;
+nothing on its disks is touched. The old type's cost stops with it.
+
+### Replacing a durable instance: decommission and redeclare
+
+The sanctioned replacement that needs no code and no new build, for when
+the machine itself must go (a different machine type class, a damaged
+root volume, the "is it really rebuilt from nothing?" question): the
+declared storages persist, everything else about the machine is new.
+Walked live on 2026-09-30 as stage 72 Part B (`coops-model-003` to
+`coops-model-004`):
+
+1. Read the machine (as in the resize, step 1) and the records: the pin,
+   the open generation's number and id, the pool's next free name.
+   Confirm nothing outside the declared mounts is wanted: the root
+   volume goes with the machine.
+2. `just cloud-decommission <rt> <name> yes` (the `gate-plan` line
+   carries `--allow-destroy module.instance_<name>`), then `just
+   cloud-decommission <rt> <name>`: `Plan: 0 to add, 0 to change, 2 to
+   destroy` (the instance and its volume attachment); the generation
+   closes `decommission`, the registration is retired, the pin and the
+   launch record are dropped. The EFS filesystem and the EBS volume stand
+   (`aws efs describe-file-systems`, `aws ec2 describe-volumes`:
+   `available`). Push `develop` only (see "The cloud change cycle").
+3. Nothing to edit: the declaration never left the tree (the decommission
+   was `--undeclare` for one invocation). `just validate`, `just record`:
+   the instance module is re-emitted, the pin first-binds to the series
+   head again -- with `require_released_builds` true, the newest RELEASED
+   build, the same one unless something was released in between (then
+   stop and decide: the old build is a release-grace question) -- and the
+   hostname is the next generation's.
+4. `just cloud-launch <rt> yes` ("would take alias `x` from the pool for
+   `<name>-NNN` (dry run; nothing drawn)"), then `just cloud-launch <rt>`:
+   `2 to add`; the generation opens inferred, the alias is drawn, and
+   once the machine answers the id confirms it (`observed`); the names
+   are written in the same run when `sftd` is up in time, otherwise one
+   more `cloud-launch` writes them. `just cloud-verify <rt> <name>`,
+   `just ci-login-proof <name>`, `just record`, push `develop`, then
+   `main`.
+5. The proof: a NEW id from the metadata endpoint, the same mounts with
+   the same digests (a declared storage persists), the ledger with the
+   new generation open and the old one closed `decommission`, the pool's
+   line commented out with the draw, and every name (`<name>`, the alias,
+   `<name>-NNN`) resolving to the one registration.
+
+A first launch attempt can die at `tofu init` downloading a provider
+(it did on 2026-10-01: `hashicorp/aws v6.67.0` from GitHub, "giving up
+after 3 attempt(s)"); that is environmental -- retry. Since hygiene VIII
+item 5 the retry draws the same alias again: a draw whose run aborted
+before the launch record existed goes back to the pool at the run's end.
 
 ### A pool of names, each spent once
 
@@ -828,6 +918,32 @@ whitelisted as the detach; on GCE it is an in-place update. The launch
 record drops the mount only after the apply. Adding a mount back is a
 replacement.
 
+**Moving a mount is a replacement.** A launched instance whose
+`storages:` entry names a DIFFERENT storage at the same mount point (or
+the same storage at another mount point) is refused by immutability: only
+a removal is an in-place change. The way is decommission, edit,
+redeclare (stage 73, 2026-10-01, is the worked example: the coops model
+moved from `efs-storage` to a second, empty EFS filesystem `efs-scratch`
+at the same `/mnt/efs`). The ORDER matters twice. The decommission goes
+first, so the instance is unlaunched when the mount edit is validated.
+And the storage root applies BEFORE the instance launch (`just run
+storage`, with `apply_storage` true, after the two edits): the instance
+root reads the filesystem and access-point ids from the storage root's
+state (`data "terraform_remote_state"`), so a launch against an unapplied
+storage fails at plan naming a missing output -- loudly, not wrongly, but
+a wasted apply. The storage left behind keeps its data: nothing mounts it,
+it is still declared, and a declared storage is never destroyed by a
+cycle; its retirement is the deliberate act of deleting its entry, which
+destroys the filesystem and everything on it in one gated run. The proof
+that a machine mounts exactly what its declaration names is one line on
+the new machine: the mount point exists on the NEW filesystem id and the
+file that was on the old one is absent (`ls: cannot access ...: No such
+file or directory`) while the old filesystem still shows its bytes on the
+account. Its mirror image -- the SAME storage persisting across a
+destroy-and-recreate of the machine -- is stage 72 Part B: a declared
+storage comes back to the next generation with its data because the
+declaration still names it, not because anything remembered the machine.
+
 **Archiving.** `state: archived` on a storage whose builder can archive
 (GCE pd and AWS EBS; S3, EFS, GCS and Filestore refuse it at validation)
 snapshots it as `csis-<name>-archive` (a GCE snapshot name, or the Name
@@ -915,7 +1031,7 @@ claims reality that no apply produced. The one exception is
 | `launch-params.yaml` | per-instance launch parameters (mounts, group, enrollment kind, session) and the `launched` marker | instance-image lifecycle; marker after a real instance apply |
 | `runs.yaml` | the run journal (bounded to the last 200 runs; git history is the full record): run id, requested lifecycles, dry run or not, outcome, per-lifecycle apply status, error | every run |
 | `verifications.yaml` | instance verification verdicts, ephemeral and durable (last 500) | `verify instance` |
-| `instance-state.yaml` | per name, the durable and ephemeral generation counters, the open generation with its launch-parameter snapshot and provider id, and an append-only history | after a real instance apply (`mark_launched`), decommission |
+| `instance-state.yaml` | per name, the durable and ephemeral generation counters, the open generation with its launch-parameter snapshot and provider id, and an append-only history -- closed generations (with `why`, `closed_run`) and `resized` events (`event: resized`, `from`, `to`, `run`, `at`, on the generation they happened to) in ONE list, in order | after a real instance apply (`mark_launched`), decommission |
 | `login-proofs.yaml` | every login proof: the machine, the checks, as client or as workload | `verify login`, `just ci-login-proof`, the CI job |
 | `aliases.txt` | the pool of memorable names: a person appends lines, a launch that can run comments the first free one out with what took it and when | the run that launches a new durable machine |
 | `image-tests.yaml` | the latest post-bake test result per build | `verify instance` |
@@ -1957,6 +2073,39 @@ instances). Every recipe wraps sanctioned commands only.
 - `just cloud-relabel <rt> no` re-tags images whose tags disagree with
   lineage; `just cloud-dispose-images <rt>` disposes of every recorded
   image on the runtime through the recorded path.
+
+Three rules the first operator walks of these recipes taught (stages 72
+and 73, 2026-09-30 and 2026-10-01), each the kind of thing that is obvious
+afterwards:
+
+- **A dry launch plans nothing.** `just cloud-launch <rt> yes` (and the
+  dry form of every `cloud-*` recipe) regenerates and lists the deferred
+  commands; it never runs `tofu plan` against remote state, by design
+  (`-backend=false`, no generation-time plan). What to read in the dry
+  form is the command list itself -- a `gate-plan` line carrying
+  `--allow-destroy module.instance_<name>` is a decommission or a
+  replacement, one without it is a launch or an in-place change -- and
+  the emission and records the dry run commits (the instance `.tf`, the
+  pin, "would take alias `x`"). The plan is read in the REAL run: the
+  runner logs tofu's plan summary, the gate's verdict and the apply
+  summary (hygiene VIII item 3), and the plan file stays in the root
+  afterwards (`cd generated/<lifecycle>/<root> && tofu show tfplan`). The
+  protection against a plan that does more than expected was never the
+  dry run; it is the gate, which refuses any destroy nothing whitelisted.
+- **An applying run commits the script it executed.** With `apply-check`
+  and `tofu apply` lines in it, which a resting generation does not emit.
+  Since hygiene VIII item 4 `config-drift` ignores those lines, so CI no
+  longer fails on such a commit; `just record` after an applying run,
+  before the push, is still the tidy habit (the committed script then
+  describes a resting generation, and the run journal gets its closing
+  entry).
+- **Between a decommission and the relaunch, push `develop` only.** A push
+  to `main` runs the `perform` job, whose "the runtime performs" step
+  applies the instance root under the write role: with the instance
+  decommissioned but still declared, CI would launch the new machine
+  itself, draw the alias and write the names -- correct, but not the walk
+  you were in the middle of. `main` takes the whole of a replacement at
+  its end.
 
 `just cloud-cycle gcloud-east1 yes` is the dry form of the GCE cycle (the
 `empty` assertion is skipped in a dry run). Every real cycle run passes
