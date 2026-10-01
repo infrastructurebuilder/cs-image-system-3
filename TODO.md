@@ -435,7 +435,21 @@ and the README says how to move the state afterwards; and the one
 committed tfvars is exempted BY PATH from public-safe's refusal (scanned
 like any file) and added to the meta-state commit by name, because a git
 pathspec cannot say "except this one". Step 9, the live proof in the
-reference configuration, is the operator's and OPEN. (The operator, 2026-09-28: "a one-time
+reference configuration, reached its plan on 2026-10-01: `just cli
+bootstrap --quiet` derived every default from the checkout (the
+repository, `develop`/`main`, `aws-east2-runtime`, `us-east-2`), the root
+passed `tofu init` and `validate` (the module copied into the sibling's
+`tfmodules/` by hand, since release dev6 does not ship it), and the
+operator's `tofu plan` with `gh auth token` read the repository and
+planned `5 to add, 0 to change, 0 to destroy`: the Actions permissions,
+`PERFORM_RUNTIME` and `AWS_REGION` (an empty `GUARD_RUNTIME` is omitted by
+design), the default branch and the ruleset on `main` with the Actions
+app as bypass actor; the output `github_repository_id = 1373601874` is
+the id the federation trusts already pin. The apply is the operator's
+decision. The sibling's `bootstrap.yaml` and `generated/bootstrap` stay
+UNCOMMITTED until a release carries the bootstrap (its CI's `config-drift`
+runs the release, which would otherwise report the committed root as
+drift): merge, release, `init-config --force` there, then commit them. (The operator, 2026-09-28: "a one-time
 initialization of assets for using the starter-tree repo ... code that
 lives in the main repo, called by some specific subcommand of
 cs-image-system and produces terraform based on interview questions ...
