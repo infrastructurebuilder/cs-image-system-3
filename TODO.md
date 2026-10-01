@@ -734,7 +734,8 @@ bundle; none is a stage of its own.
 
 ## 72. The coops model resized: first in place, then by replacement, the EFS data kept
 
-**Status: Part A DONE 2026-09-30; Part B waits for the word.** Part A ran
+**Status: Part A DONE 2026-09-30; Part B DONE 2026-09-30 (its perform
+job on `main` is the closing word).** Part A ran
 on release 0.1.1.dev5 from the reference configuration: the edit and its
 record (1fbe021, cb7d981), the dry launch (ca2ac55; it lists the deferred
 commands and plans nothing -- see A.3 as corrected), the launch (8b4559a:
@@ -753,7 +754,32 @@ name as the enrolled client (3daa87b). The operator then resized again
 by the same walk, `t3.xlarge` -> `t3.medium` ("because it's cheaper, no
 other reason"; run `2026_09_30t10_43_31_678678`, e7b0a54): a second
 `resized` event on the same generation 3, the record at `t3.medium`.
-The perform job on `main` closed it green at ecee611 (run
+**Part B ran the same day** on the `t3.medium` machine: the decommission
+(f64ebaa: `Plan: 0 to add, 0 to change, 2 to destroy`, the instance and
+its volume attachment; generation 3 closed `decommission`, the
+registration `coops-model-003` retired, pin and record dropped; the EFS
+filesystem `available` with 30720 bytes on it and the volume `available`
+in us-east-2a through it), the redeclaration (858623a: nothing to edit;
+the first-bind went back to the SAME `ami-06863fb35ff62f9ba`, hostname
+`coops-model-004`), the dry launch (92e07be: `would take alias 'eel'`),
+the launch (e9b120d: `2 to add`; `durable 4 is i-094777aeedf176313
+(observed)`; `eel` drawn, line 2 of the pool), the verification (booted
+image ok, 2 mounts for 2 declared, 4 assertions), the second launch
+(b8d1410: the names -- `sft resolve` of `coops-model`, `eel` and
+`coops-model-004` all answer the one registration with Alt Names
+`coops-model, eel, ip-10-26-35-166`), the login proof by name, the
+closing record (4dbddfa). **The proof: on the NEW machine
+`/mnt/efs/ABC/DEF/here_we_are.txt` is there with the same size, mtime
+and digest; `/mnt/efs` is the same `fs-02d658f1561aab44b` through the
+same `fsap-0fca05c220a8d6dba`; `/mnt/data` is the same volume with
+`coops` on it.** A declared storage persists across a destroy-and-recreate
+of the machine, and the new machine has exactly what its declaration
+names. One more correction learned on the way: `main` is NOT pushed
+between the decommission and the relaunch -- a push to `main` runs the
+`perform` job, whose "the runtime performs" step applies the instance
+root under the write role and would launch the new machine from CI;
+`develop` only until the walk closes (B.4 and §73 step 3 amended). Part
+A's perform job on `main` closed it green at ecee611 (run
 36744362199, rerun of the failed jobs): its first attempt on 3879869 failed
 `config-drift` on the applying run's committed script (hygiene VIII item
 4; a recording run, 731dc49, restored the resting emission), and the
@@ -964,8 +990,9 @@ declaration already says `t3.medium`, the machine is `coops-model-003`.
   `meta-state/instance-state.yaml` shows generation 3 closed as
   `decommission` and no open generation; the registration for
   `coops-model-003` is retired (the state query reports registrations).
-  `just state-query --strict` agrees. `just record` (hygiene VIII item 4),
-  then push `main` (**USER**).
+  `just state-query --strict` agrees. Push `develop` only -- NOT `main`:
+  a push to `main` runs `perform`, which applies the instance root and
+  would launch the new machine from CI (learned live).
 - **B.5 Redeclare.** Nothing to edit: the declaration never left the
   tree (the decommission was an `--undeclare` for one invocation). `just
   validate` passes (an unlaunched instance has no snapshot to hold it) and
@@ -1124,8 +1151,9 @@ shows anything a step does not predict stops the walk.
    cloud-decommission aws-east2-runtime coops-model`. Records committed:
    `pins.yaml` unpinned with `op: decommission`; `instance-state.yaml`
    generation 4 closed as `decommission`, none open; the registration for
-   `coops-model-004` retired. `just state-query --strict` agrees. `just
-   record` (hygiene VIII item 4), then push `main` (**USER**).
+   `coops-model-004` retired. `just state-query --strict` agrees. Push
+   `develop` only -- NOT `main` until step 10 (a push to `main` runs
+   `perform`, which would launch the new machine from CI; §72 B.4).
 4. **Declare the new storage.** In `storages/storage0.yaml`, after
    `efs-storage`, the `efs-scratch` entry as shaped above (copy the
    `efs-storage` block, rename it, drop `stofs` from its groups; keep the
