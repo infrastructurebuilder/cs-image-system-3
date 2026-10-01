@@ -428,6 +428,16 @@ infrastructure ... ask if you want a specific type of resource, like AWS or
 GCP or Okta, and if so ask any questions needed for those. We will
 probably iterate on this several times").
 
+Initially, the user must install the base application (generally using `uv`).
+Then the user would fork and clone the starter repository.  This would give them
+a place to land the bootstrapping code.  They would then start the bootstrapping
+interview, and should end up with a runnable copy of the application, as well
+as a configured set of dependencies, bootstrap code, and target locations for 
+state management (including, possibly, storing state in github [not recommended]).
+
+Once landed, the §70 work should be considered part of the ongoing updates of the application
+and the starter repository, such that any new items are part of the process.
+
 **Why.** §69's guide tells a team what to make by hand before CI can run:
 the OIDC provider and two roles in AWS, the workload identity pool,
 provider and service accounts in GCP, the Okta app and the OPA workload
