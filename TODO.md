@@ -7,7 +7,7 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress** (§71, hygiene bundle VIII, item 1 LANDED 2026-09-30; §68, hygiene bundle VII, LANDED whole 2026-09-29; §69 LANDED 2026-09-28, its step 5 done 2026-09-29; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §70, hygiene VIII items 3-5, or §74's docs. §73 LANDED 2026-10-01 in its commit on develop: coops-model-005 (generation 5, alias `gar`, the same image) replaced onto the new `efs-scratch` filesystem -- the planted file absent, the old `efs-storage` standing with its data and mounted nowhere. §72 LANDED 2026-09-30 in its commits on develop (fcfaa0c, 9412013, 4352bcc): the coops model resized in place (twice, c5n.4xlarge -> t3.xlarge -> t3.medium, the same machine, two `resized` events) and then replaced (coops-model-004, generation 4, alias `eel`, the same image) with the planted file, the EFS filesystem and the EBS volume all the same on the new machine; its documentation is owed to §74.
+Current stage: **none in progress** (§71, hygiene bundle VIII, LANDED WHOLE 2026-10-01 -- five items, the last three in one squash 0760084; NO bundle is open, the next hygiene issue opens IX; §68, hygiene bundle VII, LANDED whole 2026-09-29; §69 LANDED 2026-09-28, its step 5 done 2026-09-29; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §70, or §74's docs; a release (dev6) is owed so the reference configuration gets hygiene VIII items 2-5. §73 LANDED 2026-10-01 in its commit on develop: coops-model-005 (generation 5, alias `gar`, the same image) replaced onto the new `efs-scratch` filesystem -- the planted file absent, the old `efs-storage` standing with its data and mounted nowhere. §72 LANDED 2026-09-30 in its commits on develop (fcfaa0c, 9412013, 4352bcc): the coops model resized in place (twice, c5n.4xlarge -> t3.xlarge -> t3.medium, the same machine, two `resized` events) and then replaced (coops-model-004, generation 4, alias `eel`, the same image) with the planted file, the EFS filesystem and the EBS volume all the same on the new machine; its documentation is owed to §74.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
 **§64**, the release that carries everything a configuration repository
@@ -650,108 +650,7 @@ each later step is its own iteration, proved before the next.
 guide); the Okta section depends on D4/D5; the tests a day; iterations
 after the first as the operator finds them.
 
-## 71. Hygiene bundle VIII
-
-**Status: OPEN since 2026-09-30.** Non-critical hygiene issues join this
-bundle; none is a stage of its own.
-
-1. **LANDED 2026-09-30.** The login proof's client lacked the team and the
-   address as the workload. Found 2026-09-30 by the reference configuration's first
-   performing run on release 0.1.1.dev3 without the `OPA_ADDR` / `SFT_TEAM`
-   job environment (run 36657720253): the token was minted (hygiene VII
-   item 4 holds), the registration check passed, and `sft resolve --quiet`
-   exited 1 in silence. The client reads the team and the OPA address from
-   its environment for every command, not only for `workload authenticate`;
-   the earlier green login (2026-09-29 12:21) had them from the job
-   environment the workaround carried. `verify login` now lays the group
-   builder's `team` and `api_host` over the client's environment when it
-   runs as the workload (the environment's own values win), for `resolve`
-   and `ssh` alike; a test asserts it. Reaches the reference configuration
-   through the next release; until then its `perform` job carries the two
-   names again.
-
-2. **LANDED 2026-09-30.** `machine_type` was not a launch parameter. Found
-   the same day while planning §72: `compute_launch_params` snapshotted
-   image, build, group, identity, mounts, enrollment, session, hostname,
-   alias, ephemeral and the startup lines, but not the type the machine
-   booted on, so an edit of `machine_type` on a launched instance passed
-   `validate` unseen and the next applying run resized the machine in place
-   (the aws_instance module ignores only `ami` and `user_data`) with no
-   record of it. Reworded when §72 was split -- the operator wants the
-   in-place resize as an operation (§72 Part A walks it) -- so the fix
-   RECORDS it rather than refuses it. Now: the effective type (the
-   instance's own, else the runtime's default) is in the snapshot; a type
-   change is the second allowed in-place change beside a mount removal
-   (`validate_immutability` compares everything but the type); the record
-   keeps the type the machine runs on until the apply (a dry run changes
-   only the emission), and a new after-apply hook, `record_resizes`, then
-   writes the new type to the record and the open generation's snapshot
-   and appends a `resized` event (from, to, run) to the ledger's history --
-   the same instance id, so the same generation; a record from before the
-   key existed adopts it on the first run that sees it; any other change
-   riding along with the type is refused as before. Found on the way: the
-   GCE instance builder ignored a declared `machine_type` (always the
-   runtime's default) -- fixed to the AWS builder's rule. Five tests
-   (`tests/test_v2_hygiene_viii.py`); the golden's `launch-params.yaml`
-   gains the key for the three fixture instances; OPERATIONS ("A resize is
-   the same machine"), DESIGN N26 and CONFIGURATION's `machine_type` row
-   say so. Reaches the reference configuration through the next release;
-   its live `launch-params.yaml` adopts the key at the first recording run
-   on that release. §72 does not depend on it.
-
-3. **LANDED 2026-10-01.** The runner did not echo tofu's output. Found
-   2026-09-30 by §72 Part A: an applying run's log showed `executing ( ...
-   tofu plan ... )`, `( ... gate-plan ... )`, `( ... apply ... )` and nothing
-   of what they said -- no `Plan: 0 to add, 1 to change, 0 to destroy`, no
-   gate verdict, no apply summary -- because only a FAILED command's
-   captured output reached the log; the operator "couldn't locate the tofu
-   plan output" and it was recovered afterwards with `tofu show tfplan`.
-   Now every command the running process executes has its captured output
-   logged: the last 40 lines of stdout and of stderr at INFO under the
-   command's name, the whole of it at DEBUG, colour codes stripped (tofu
-   emits them to a pipe; they were in the failure log verbatim). A test
-   runs a command through the model and asserts the plan summary line and
-   the stderr reach INFO without escape codes, and that a long output is
-   cut to its tail with a count. OPERATIONS "What a run's log shows of the
-   commands it ran".
-
-4. **LANDED 2026-10-01.** An applying run's committed script failed
-   `config-drift`. Found 2026-09-30 by §72 Part A's closing run (36739555638
-   on `main`, `perform` skipped): a `cloud-launch` commits the emission it
-   executed, whose `run-instance-image.sh` carries the `apply-check` and
-   `tofu apply` lines only an `--apply-runtime` generation emits; the next
-   `config-drift` regenerated without an apply runtime and reported the
-   committed emission "BEHIND the configuration (1 files)". Those lines are
-   a function of the invocation, not of the configuration, so
-   `normalise_emission` now drops them from the runner scripts
-   (`run-*.sh`, `final_execution.sh`) on both sides before the comparison;
-   a test shows an applying and a resting script compare equal while a
-   real difference still shows, and a non-runner file is untouched. The
-   walks' "`just record` after every apply, before the push" stays good
-   practice (the resting script is the honest committed one) but is no
-   longer required for CI to pass. OPERATIONS' `config-drift` paragraph
-   says so.
-
-5. **LANDED 2026-10-01.** An alias draw survived a run that recorded
-   nothing. Found the same day by §73 step 8: the applying launch drew
-   `gar` for `coops-model-005` at generation, then `tofu init` failed to
-   download the provider (`hashicorp/aws v6.67.0`, GitHub unreachable after
-   3 attempts) and the run aborted with `meta_state_commit: null` -- no
-   plan, no apply, no launch record with the alias -- yet `aliases.txt` on
-   disk had `gar` commented out as taken; a retry would have burned `koi`
-   and left `gar` named for a machine that never existed (recovered by hand
-   with `git checkout --`). A name is now GIVEN only when the instance's
-   launch record is marked launched by this run with that alias; at the
-   run's end (`finally`, before anything is recorded) every other draw of
-   the run goes back: `undraw` restores the line in place, under the pool's
-   lock, only when its record names THAT run, and `release_unlaunched`
-   walks the run's draws. Two tests: a run that dies after generation gives
-   its draw back (the line free again, the log saying why) and a run whose
-   launch gave the name keeps it spent (another run cannot give it back).
-   "Spent is spent" in OPERATIONS gains the one exception that is not a
-   return.
-
-## 74. Documentation stage: §71 items 1-4, §72, §73
+## 74. Documentation stage: §71 items 1-5, §72, §73
 
 **Status: OPEN since 2026-09-30, rolling.** The documentation stage the
 operator's rule requires (2026-09-23): every behaviour, configuration,
@@ -774,8 +673,13 @@ Covers, and what each changed:
   `history` shape -- closed generations AND `resized` events (`event`,
   `from`, `to`, `run`, `at`) in one list -- to the meta-state table in
   OPERATIONS and to DESIGN N27.
-- **§71 items 3 and 4** when they land (the runner echoing tofu's
-  output; `config-drift` and the applying script).
+- **§71 items 3-5** (landed 2026-10-01): OPERATIONS gained "What a run's
+  log shows of the commands it ran", the `config-drift` paragraph's
+  sentence on the apply-only lines, and "Spent is spent"'s one exception;
+  verify them against the next applying run's log, and tell the walks in
+  OPERATIONS/DAILY_DRIVER that `just record` before the push is good
+  practice rather than a requirement now, and that an aborted launch
+  leaves nothing to clean up in the pool.
 - **§72** (the coops model resized in place and by replacement): the
   sibling's README "what stands" (`coops-model-004`, generation 4, a
   `t3.medium`, alias `eel`, on `ami-06863fb35ff62f9ba`; the EFS filesystem
