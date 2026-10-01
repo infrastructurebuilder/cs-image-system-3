@@ -125,7 +125,7 @@ def test_a_quiet_interview_over_a_starter_writes_the_answers_and_the_root(tmp_pa
     facts = bs.gather(root, gh=False)
     assert facts.repository == "acme/widgets" and facts.module_source_base == "tfmodules"
     assert facts.runtimes and facts.runtimes[0]["name"]             # the starter's raw cfg was read without loading
-    answers = bs.run_interview(bs.discover(), facts, quiet=True)
+    answers = bs.run_interview(bs.discover(), facts, quiet=True, only=["github"])
     github = answers["github"]
     assert github["wanted"] and github["repository"] == "acme/widgets" and github["production_branch"] == "main"
     assert github["perform_runtime"] == facts.runtimes[0]["name"] or github["perform_runtime"]
@@ -292,11 +292,12 @@ def test_the_command_runs_without_loading_and_refuses_by_name_under_quiet(tmp_pa
     from typer.testing import CliRunner
     from cs_image_system.system.cli import app
     root = _starter_copy(tmp_path, remote=None)                      # no remote: the repository has no default
-    res = CliRunner().invoke(app, ["--root-dir", str(root), "bootstrap", "--quiet"])
+    quiet = ["--root-dir", str(root), "bootstrap", "--quiet", "--section", "github"]
+    res = CliRunner().invoke(app, quiet)
     assert res.exit_code == 2 and "refused: github.repository" in res.output, res.output
     assert not (root / bs.ANSWERS_FILE).exists()
     _git(root, "remote", "add", "origin", "https://github.com/acme/widgets.git")
-    res = CliRunner().invoke(app, ["--root-dir", str(root), "bootstrap", "--quiet"])
+    res = CliRunner().invoke(app, quiet)
     assert res.exit_code == 0, res.output
     assert "sections wanted: github" in res.output and "wrote generated/bootstrap/main.tf" in res.output
     assert "by hand, still:" in res.output and "tofu init && tofu plan && tofu apply" in res.output
@@ -304,5 +305,5 @@ def test_the_command_runs_without_loading_and_refuses_by_name_under_quiet(tmp_pa
     assert answers["sections"]["github"]["repository"] == "acme/widgets"
     # a second quiet interview keeps the answers (they are the defaults now) and the bytes
     before = _bytes(bs.output_dir(root))
-    res = CliRunner().invoke(app, ["--root-dir", str(root), "bootstrap", "--quiet"])
+    res = CliRunner().invoke(app, quiet)
     assert res.exit_code == 0 and _bytes(bs.output_dir(root)) == before

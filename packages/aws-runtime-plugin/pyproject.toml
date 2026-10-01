@@ -28,6 +28,10 @@ Documentation = "https://github.com/infrastructurebuilder/cs-image-system-3/blob
 [project.entry-points."cs_image_system.plugins.runtime"]
 aws_plugin = "cs_image_system.aws_runtime.main:initialize"
 
+# stage 70 step 4: the AWS section of the bootstrap interview
+[project.entry-points."cs_image_system.bootstrap"]
+aws = "cs_image_system.aws_runtime.bootstrap:aws_section"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

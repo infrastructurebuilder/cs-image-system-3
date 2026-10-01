@@ -101,6 +101,11 @@ class Rendered:
     secrets: tuple[Secret, ...] = ()
     by_hand: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()                                      # README lines about what was generated
+    #: The root's state backend when this section can name one (decision D8:
+    #: the tree's declared backend once its bucket exists): ``(type,
+    #: settings)``. The first section offering one decides; none means local.
+    backend: tuple[str, dict[str, Any]] | None = None
+    root_hcl: str = ""                                               # blocks for the root's main.tf (import blocks, say)
 
 
 @dataclass(frozen=True)
@@ -110,9 +115,17 @@ class Section:
     questions: tuple[Question, ...]
     render: Callable[[Answers], Rendered]
     description: str = ""
+    #: Whether the section is wanted when nobody has said: a cloud's section
+    #: asks the tree (an AWS section is wanted where the tree has an AWS
+    #: runtime or an S3 backend), so a GCE-only tree's quiet interview is not
+    #: refused on AWS questions. None means wanted.
+    wanted: Callable[["Facts"], bool] | None = None
 
     def gate_id(self) -> str:
         return f"want_{self.name}"
+
+    def wanted_default(self, facts: "Facts") -> bool:
+        return True if self.wanted is None else bool(self.wanted(facts))
 
 
 class Raw(str):

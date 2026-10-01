@@ -98,14 +98,27 @@ What the sections do today, and what stays by hand:
 | Section | Terraform does | By hand, still |
 | --- | --- | --- |
 | GitHub (3.2, 3.7) | the default branch; a ruleset on the production branch (no deletion, no force push) that the GitHub Actions app bypasses, so `perform` still pushes its records; Actions enabled with read-only workflow permissions; the Actions variables `PERFORM_RUNTIME`, `GUARD_RUNTIME`, `AWS_REGION` | the secret VALUES (one file each, then the script); the `REPLACE-ME` literals in `ci.yml`, until a release makes the workflow read `vars` |
-| AWS (3.3) | a later iteration of the system: the OIDC provider, the two roles with their trust and permission documents, the optional state bucket and instance profile | everything in 3.3 today |
+| AWS (3.3) | the GitHub OIDC identity provider (read when it exists); the READ-ONLY and WRITE roles with the trust and permission documents of 3.3, the subject forms you chose, your bucket, prefix, region, account and instance profile filled in (a role that exists is ADOPTED by an `import` block, so its trust is maintained from then on); the state bucket and the Session Manager instance profile only when the account lacks them; `AWS_ROLE_ARN` and `AWS_APPLY_ROLE_ARN` set by the script from the applied root's outputs | the network, which is yours and never modified; removing a hand-made inline policy from an adopted role once the plan is clean |
 | GCP (3.4) | a later iteration: the pool, the provider, the service accounts and their bindings | everything in 3.4 today |
 | Okta and OPA (3.5) | a later iteration decides what the providers can make | everything in 3.5 today; the workload connection and role are by hand in any case |
 | The age identity (3.6) | nothing: a key is made on your machine | `age-keygen`, `reencrypt`; the script sets the secret from the file |
 
-The root's state is local for the first apply (`terraform.tfstate` never
-enters a commit); when the tree's state bucket stands, move it there like
-any other root's state.
+Every "does it already exist?" question in the AWS section is answered by
+asking the account when you have a session (`aws iam get-role`,
+`head-bucket` and the like, as the profile your runtime names); with no
+session the interview asks you, and `--quiet` REFUSES that question by
+name rather than guess -- a wrong guess is a failed apply at best. A
+starter's `REPLACE-ME` values and its example account id are no defaults
+either: fill `cfg/runtime-builders.yml` and `cfg/state-backends.yml`
+first, or answer at the prompt.
+
+The root's state follows the bucket. When the state bucket exists, the
+root is bound to the tree's declared S3 backend at
+`<state prefix>/bootstrap.tfstate`, like every other root. When the
+bootstrap is what makes the bucket, the first apply keeps its state in
+`terraform.tfstate` beside the root (never committed); then run `just
+bootstrap` again -- the bucket now exists, so the root binds to it -- and
+`tofu init -migrate-state` in `generated/bootstrap`.
 
 ### 3.1 The workflows this tree carries
 
@@ -267,8 +280,10 @@ role starts sessions and passes the SSM instance profile:
 
 `<state-bucket>` and `<state-prefix>` are your `cfg/state-backends.yml`;
 `<ssm-instance-profile>` is the runtime's `session_instance_profile` (or
-`iam_instance_profile`). The system generates no IAM: these roles are
-made once, by a person, in the account.
+`iam_instance_profile`). The lifecycles generate no IAM. These roles are
+made once: either by the bootstrap (3.0), which writes exactly these
+documents as terraform you apply, or by a person in the console as
+described here.
 
 **Two traps, each with its symptom.**
 

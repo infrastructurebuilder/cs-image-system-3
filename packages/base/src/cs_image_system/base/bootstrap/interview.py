@@ -55,7 +55,7 @@ def run_interview(sections: Iterable[Section], facts: Facts, *, quiet: bool = Fa
             if prev:
                 result[section.name] = prev          # not asked this time: kept as answered before
             continue
-        want_default = bool(prev.get("wanted", True))
+        want_default = bool(prev["wanted"]) if "wanted" in prev else section.wanted_default(facts)
         gate = Question(section.gate_id(), f"Do you want the {section.title} section?", "bool", want_default)
         wanted = want_default if quiet else gate.coerce(ask(gate.prompt, want_default, "bool", ()))
         answers: Answers = {"wanted": bool(wanted)}
