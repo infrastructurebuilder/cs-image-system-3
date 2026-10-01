@@ -447,6 +447,61 @@ def init_config_command(
                    "(the tree's README says which values are yours)")
 
 
+@app.command(name="bootstrap")
+def bootstrap_command(
+    typer_cntx: typer.Context,
+    quiet: Annotated[bool, typer.Option("--quiet", help="take every default; a question whose default cannot be derived is refused by name")] = False,
+    answers: Annotated[Path | None, typer.Option("--answers", help="read earlier answers from this file instead of the tree's bootstrap.yaml")] = None,
+    section: Annotated[list[str] | None, typer.Option("--section", help="interview only these sections (repeatable); the others keep their earlier answers")] = None,
+) -> None:
+    """The one-time initialisation as terraform, from an interview (stage 70).
+
+    Run in a configuration repository. Loads no configuration: the sessions
+    and federation it makes may not exist yet. Reads the checkout (git
+    remote, gh api) and the raw cfg/*.yml for defaults, asks each section's
+    questions (GitHub from base; the clouds' from their plugins), writes the
+    answers to bootstrap.yaml at the root of the tree, and generates
+    generated/bootstrap/ from them: one root module, bootstrap.auto.tfvars,
+    set-secrets.sh and a README. Every run regenerates that directory from
+    the answers; applying it is the operator's act (tofu apply there)."""
+    from cs_image_system.base.bootstrap import (
+        ANSWERS_FILE, Refused, discover, gather, read_answers, regenerate, run_interview, write_answers,
+    )
+    root = Path(typer_cntx.obj.get("config_root") or os.getcwd())
+    if not (root / "cfg").is_dir():
+        typer.secho(f"bootstrap: {root} holds no cfg/ -- run it in a configuration repository", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=2)
+    sections = discover()
+    facts = gather(root)
+    try:
+        prior = read_answers(answers or (root / ANSWERS_FILE))
+        result = run_interview(sections, facts, quiet=quiet, prior=prior, only=section or None)
+    except Refused as e:
+        typer.secho(f"bootstrap: refused: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=2)
+    except ValueError as e:
+        typer.secho(f"bootstrap: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=2)
+    write_answers(root / ANSWERS_FILE, result)
+    written = regenerate(root, sections=sections) or []
+    wanted = [name for name, a in sorted(result.items()) if a.get("wanted")]
+    typer.echo(f"bootstrap: answers in {ANSWERS_FILE}; sections wanted: {', '.join(wanted) or 'none'}")
+    for p in written:
+        typer.echo(f"bootstrap: wrote {p.relative_to(root)}")
+    by_hand: list[str] = []
+    for s in sections:
+        a = result.get(s.name) or {}
+        if a.get("wanted"):
+            by_hand.extend(s.render(a).by_hand)
+    if by_hand:
+        typer.echo("bootstrap: by hand, still:")
+        for line in by_hand:
+            typer.echo(f"  - {line}")
+    typer.echo("bootstrap: next: review generated/bootstrap/README.md, then `cd generated/bootstrap && tofu init && "
+               "tofu plan && tofu apply`, then `bash generated/bootstrap/set-secrets.sh`; commit bootstrap.yaml and "
+               "generated/bootstrap together")
+
+
 @app.command(name="config-drift")
 def config_drift_command(typer_cntx: typer.Context) -> None:
     """Is the committed emission current with the declarations? (stage 45;
@@ -1442,6 +1497,11 @@ def main(
         # stage 16: the sessions alone, from the raw tree -- nothing loads, no
         # plugin, no cloud call; the Justfile's full-test gates on this
         typer_cntx.obj["preflight_args"] = (Path(root_dir or os.getcwd()), [p.resolve() for p in (overlay or [])])
+        return
+    if typer_cntx.invoked_subcommand == "bootstrap":
+        # stage 70: the interview reads the checkout and the raw cfg/*.yml;
+        # the sessions and federation it makes may not exist yet, so nothing loads
+        typer_cntx.obj["config_root"] = Path(root_dir or os.getcwd())
         return
     if typer_cntx.invoked_subcommand in ("gate-plan", "apply-check", "identity", "init-config"):
         # Utility commands invoked from runner scripts / terraform: no

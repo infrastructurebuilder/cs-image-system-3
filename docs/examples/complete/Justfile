@@ -224,6 +224,11 @@ test-mods *ARGS:
 public-safe *ARGS:
 	@{{cli}} public-safe --tree "{{root}}" {{ARGS}}
 
+# The one-time initialisation as terraform, from an interview (stage 70): the answers go to bootstrap.yaml at the
+# root of the tree, generated/bootstrap/ is written from them (and rewritten by every run); applying it is yours
+bootstrap *ARGS:
+	@{{cli}} bootstrap {{ARGS}}
+
 # Is the committed emission current? A dry run over a private copy against generated/ at HEAD (0 / 1 behind / 2 failed)
 config-drift:
 	@{{cli}} config-drift

@@ -37,7 +37,7 @@ import yaml
 
 from .constants import RUN_LOCAL_FILENAMES
 from .encryption import decrypt_tree, decrypted_plaintexts
-from .public_safe import (PRIVATE_DIRNAME, REFUSED_PATHS, PublicSafeError,  # noqa: F401
+from .public_safe import (COMMITTED_TFVARS, PRIVATE_DIRNAME, REFUSED_PATHS, PublicSafeError,  # noqa: F401
                           allow_from_config, assert_public_safe,
                           config_for, refused_path, scan_file, scan_for_plaintexts)
 
@@ -682,6 +682,25 @@ def _commit_staged(top: Path, existing: list[str], run_id: str, lifecycles: list
     # whatever they had staged into a "cs-image-system run" commit
     subprocess.run(["git", "-C", str(top), "commit", "-q", "-m", message, "--", *pathspecs],
                    check=True, capture_output=True, text=True)
+    # stage 70 (decision D3): the bootstrap's tfvars IS committed -- it holds the
+    # interview's answers, names and ids, never a value. The exclude pathspecs
+    # above keep every other tfvars out and a pathspec cannot say "except this
+    # one", so it joins the same commit afterwards, by name, once the gate has
+    # scanned it like any file (refused_path exempts it; scan_file read it).
+    for rel in COMMITTED_TFVARS:
+        file = Path(config_root) / rel
+        if not file.is_file() or never_staged(rel):
+            continue
+        inside = str(file.resolve().relative_to(Path(top).resolve()))
+        tracked = subprocess.run(["git", "-C", str(top), "ls-files", "--error-unmatch", "--", inside],
+                                 check=False, capture_output=True).returncode == 0
+        same = tracked and subprocess.run(["git", "-C", str(top), "diff", "--quiet", "HEAD", "--", inside],
+                                          check=False, capture_output=True).returncode == 0
+        if same:
+            continue
+        subprocess.run(["git", "-C", str(top), "add", "--", inside], check=True, capture_output=True, text=True)
+        subprocess.run(["git", "-C", str(top), "commit", "-q", "--amend", "--no-edit", "--", inside],
+                       check=True, capture_output=True, text=True)
     sha = subprocess.run(["git", "-C", str(top), "rev-parse", "HEAD"],
                          check=True, capture_output=True, text=True).stdout.strip()
     log.info(f"Meta-state committed as {sha}")

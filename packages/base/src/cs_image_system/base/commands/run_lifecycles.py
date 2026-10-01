@@ -544,6 +544,10 @@ def run_lifecycles(requested: list[LifecycleLike], *, apply: bool = True,
             refusal = check_bake_scope(ctx, summary.bake_plan)   # stage 12: before any bake
             if refusal:
                 raise LifecycleRunError(f"run scope: {refusal}")
+        # stage 70 (decision D7): generated/bootstrap from the tree's
+        # bootstrap.yaml, before the lifecycles -- generation only, every run
+        from ..bootstrap.generate import regenerate_in_run
+        regenerate_in_run(ctx)
         for lifecycle in ordered:
             result = generate_lifecycle(ctx, lifecycle)
             summary.lifecycles.append(result)

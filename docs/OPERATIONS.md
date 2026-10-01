@@ -1647,6 +1647,63 @@ same thing. `tests/test_v2_ci_workflow.py` pins this repository's
 workflow; `tests/test_docs_examples.py` pins the starter's, jobs and
 perform sequence included.
 
+### The bootstrap: what CI needs, as terraform from an interview
+
+A configuration repository's CI needs things made before it can run --
+the repository's settings, the federation trusts, the secrets -- and
+CI_SETUP.md says how to make them by hand. `cs-image-system bootstrap`
+(stage 70, `just bootstrap` in a configuration repository) turns the
+guide's sections into terraform the team applies once, from answers it
+gives once. It loads no configuration: the sessions and federation it
+makes may not exist yet, so it reads the checkout (`git remote`, `gh api`
+for the repository and owner ids when `gh` is there) and the raw
+`cfg/*.yml` (plain YAML, never templated) for the interview's defaults.
+Each section opens with "Do you want the X section?"; a question shows
+its default, which is the earlier answer when there is one (a second
+interview re-asks only what a person wants to change); `--quiet` takes
+every default and REFUSES by name a question whose default cannot be
+derived (a repository with no GitHub remote, say) rather than guess;
+`--section` interviews only the named sections and keeps the others'
+answers untouched.
+
+The answers go to `bootstrap.yaml` at the root of the tree, beside
+`cfg/` -- hand-editable, committed, the source. `generated/bootstrap/` is
+generated from it: `main.tf` calling `tfmodules/bootstrap_<section>` for
+each wanted section, `providers.tf` (local state for the first apply, the
+provider blocks), `variables.tf`, `outputs.tf`, `bootstrap.auto.tfvars`
+with every answer that feeds a variable, `set-secrets.sh` (the `gh
+secret set` lines, each reading its value from a file named after the
+secret under the directory the interview named, or from an output of the
+applied root -- no secret value in the tfvars or the state, decision
+D2), `README.md` (what was generated, what remains by hand, the apply
+commands) and a `.gitignore` (tool residue, plans and state out; the
+tfvars in -- the one tfvars this system commits, exempted by path from
+the public-safe refusal and scanned like any file, decision D3). Every
+run, dry or real, regenerates the directory from the answers before the
+lifecycles -- generation only, never a plan or an apply (decision D7) --
+and prunes it when the answers file is absent, so a `--commit` run
+commits it with the rest of the emission (the tfvars added by name after
+the pathspec-limited commit, since a pathspec cannot say "except this
+one"), `config-drift` reports a stale or hand-edited root as drift, and a
+clone regenerates it without an interview. Applying is the operator's act
+in that directory, the same as every other IAM write in this system.
+
+Sections: GitHub lives in base (the default branch, a ruleset on the
+production branch -- no deletion, no force push -- that the GitHub
+Actions app bypasses so `perform` still pushes its records, Actions
+enabled with read-only workflow permissions, the Actions variables that
+are not secret, and the secrets script naming all nine of the guide's
+secrets); the clouds' sections come from their plugins through the
+`cs_image_system.bootstrap` entry-point group, each owning the questions
+and the module for its cloud. Iteration one (decision D1) is the
+framework and GitHub alone; AWS, GCP and Okta are later iterations, and
+the guide's table in 3.0 says which parts are by hand until then. The
+modules ship with the starters like every module (`tfmodules/`, byte for
+byte); `tests/test_v2_bootstrap.py` holds the question model, the quiet
+interview, the root (a real `tofu validate`), the regeneration inside a
+run, the commit, `config-drift`, the secrets script, the starters' parts
+and the command.
+
 ### This repository: the `verify` job
 
 Runs on every push and pull request, with no configuration and no

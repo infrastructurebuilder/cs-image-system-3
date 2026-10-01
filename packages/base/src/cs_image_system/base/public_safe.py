@@ -55,11 +55,19 @@ PRIVATE_DIRNAME = "_private"
 SOFT_EXEMPT = ("*.md", "docs/*", "tests/*.py", "*/tests/*.py", "test_*.py", "conftest.py")
 
 
+#: The one tfvars that IS committed (stage 70, decision D3): the bootstrap's
+#: answers as terraform input -- names, ids and branches, never a secret value
+#: (the secrets script keeps those in files). It is scanned like any file.
+COMMITTED_TFVARS = ("generated/bootstrap/bootstrap.auto.tfvars",)
+
+
 def refused_path(path: str | Path) -> bool:
     """True when ``path`` (any depth) is one nothing may commit."""
     path = Path(path)
     if PRIVATE_DIRNAME in path.parts:
         return True
+    if any(path.as_posix().endswith(c) for c in COMMITTED_TFVARS):
+        return False
     return any(fnmatch.fnmatch(path.name, pat) for pat in REFUSED_PATHS)
 
 
