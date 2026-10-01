@@ -7,7 +7,7 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress** (§71, hygiene bundle VIII, LANDED WHOLE 2026-10-01 -- five items, the last three in one squash 0760084; NO bundle is open, the next hygiene issue opens IX; §68, hygiene bundle VII, LANDED whole 2026-09-29; §69 LANDED 2026-09-28, its step 5 done 2026-09-29; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §70 step 4 (the AWS section of the bootstrap); a release (dev7) is owed so the reference configuration gets the bootstrap and can commit its answers. §74, the documentation stage covering §71 items 1-5, §72 and §73, LANDED 2026-10-01 (docs only); the next behaviour change opens a new one. §73 LANDED 2026-10-01 in its commit on develop: coops-model-005 (generation 5, alias `gar`, the same image) replaced onto the new `efs-scratch` filesystem -- the planted file absent, the old `efs-storage` standing with its data and mounted nowhere. §72 LANDED 2026-09-30 in its commits on develop (fcfaa0c, 9412013, 4352bcc): the coops model resized in place (twice, c5n.4xlarge -> t3.xlarge -> t3.medium, the same machine, two `resized` events) and then replaced (coops-model-004, generation 4, alias `eel`, the same image) with the planted file, the EFS filesystem and the EBS volume all the same on the new machine; its documentation is owed to §74.
+Current stage: **none in progress** (§71, hygiene bundle VIII, LANDED WHOLE 2026-10-01 -- five items, the last three in one squash 0760084; hygiene bundle IX (§71, reusing the number) is OPEN since 2026-10-01 with item 1; §68, hygiene bundle VII, LANDED whole 2026-09-29; §69 LANDED 2026-09-28, its step 5 done 2026-09-29; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §70 step 4 (the AWS section of the bootstrap); a release (dev7) is owed so the reference configuration gets the bootstrap and can commit its answers. §74, the documentation stage covering §71 items 1-5, §72 and §73, LANDED 2026-10-01 (docs only); the next behaviour change opens a new one. §73 LANDED 2026-10-01 in its commit on develop: coops-model-005 (generation 5, alias `gar`, the same image) replaced onto the new `efs-scratch` filesystem -- the planted file absent, the old `efs-storage` standing with its data and mounted nowhere. §72 LANDED 2026-09-30 in its commits on develop (fcfaa0c, 9412013, 4352bcc): the coops model resized in place (twice, c5n.4xlarge -> t3.xlarge -> t3.medium, the same machine, two `resized` events) and then replaced (coops-model-004, generation 4, alias `eel`, the same image) with the planted file, the EFS filesystem and the EBS volume all the same on the new machine; its documentation is owed to §74.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
 **§64**, the release that carries everything a configuration repository
@@ -691,3 +691,26 @@ each later step is its own iteration, proved before the next.
 (the AWS one is the longest: the policies are already written in the
 guide); the Okta section depends on D4/D5; the tests a day; iterations
 after the first as the operator finds them.
+
+## 71. Hygiene bundle IX
+
+**Status: OPEN since 2026-10-01.** Non-critical hygiene issues join this
+bundle; none is a stage of its own.
+
+1. **OPEN, found 2026-10-01 taking release dev7 into the reference
+   configuration.** `init-config --force` overwrites the team's values in
+   `.github/workflows/ci.yml` with the starter's `REPLACE-ME` placeholders
+   (and `.csis-version` with the INSTALLED package's version, which in a
+   development checkout whose venv was not re-synced after the bump was
+   the previous release's). The guide's "refresh the release-owned parts,
+   review the diff, commit" relies on the review to catch both; the
+   first live take after a release that changed the Justfile and the
+   modules caught them only because the diff was read line by line. Fix:
+   `init-config` on an existing tree should preserve the values a team
+   has put where the starter has `REPLACE-ME` (the `PERFORM_RUNTIME`,
+   `GUARD_RUNTIME`, `AWS_REGION` and `TF_VAR_<team>` lines: carry the
+   existing file's value for every line whose starter form is a
+   placeholder), or refuse to overwrite a workflow whose placeholders
+   were filled and say which lines differ; and `.csis-version` should be
+   written only when the destination has none, never moved backwards by
+   a stale installed version. A test for each.
