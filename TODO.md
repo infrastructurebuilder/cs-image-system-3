@@ -732,6 +732,25 @@ bundle; none is a stage of its own.
    a recording run. Until then the walks say `just record` after every
    apply (§72 A.4/B.4/B.7, §73 steps 3/6/8, amended).
 
+5. **OPEN, found 2026-10-01 by §73 step 8.** An alias draw survives a run
+   that recorded nothing. The applying launch drew `gar` for
+   `coops-model-005` ("spent; the line is commented out in aliases.txt")
+   at generation, then `tofu init` failed to download the provider
+   (`hashicorp/aws v6.67.0`, GitHub unreachable after 3 attempts) and the
+   run aborted with `meta_state_commit: null` -- no plan, no apply, no
+   launch record with the alias -- yet `aliases.txt` on disk had `gar`
+   commented out as taken. A retry would have drawn `koi` and left `gar`
+   spent on a machine that never existed, with the pool's comment naming
+   it for `coops-model-005`. Recovered by hand (`git checkout --
+   meta-state/aliases.txt`, with the half-regenerated `generated/
+   instance-image`). The rule stage 59 wrote is "spent is spent" for a
+   name GIVEN to a machine; a draw whose run aborts before the record
+   exists was never given. Fix: either draw at the moment the launch
+   record is written (after generation succeeds, with the record), or
+   roll the draw back when the run aborts before meta-state commits; a
+   test for the abort path. Same family as item 4: an aborted or
+   applying run's on-disk traces are not the records.
+
 ## 73. The coops model replaced with a different EFS share: the old data NOT attached
 
 **Status: PLANNED, not started** (the operator, 2026-09-30: "remove the
