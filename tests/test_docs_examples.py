@@ -465,7 +465,7 @@ def test_the_guide_has_github_in_full_and_gitlab_as_placeholders():
     text = (EXAMPLES / "complete" / GUIDE).read_text()
     github = [h for h in re.findall(r"^### (3\.\d) ", text, flags=re.M)]
     gitlab = [h for h in re.findall(r"^### (4\.\d) ", text, flags=re.M)]
-    assert github == [f"3.{i}" for i in range(1, 10)] and gitlab == [f"4.{i}" for i in range(1, 10)]
+    assert github == [f"3.{i}" for i in range(0, 10)] and gitlab == [f"4.{i}" for i in range(0, 10)]   # 3.0/4.0: the bootstrap (stage 70)
     gl = text[text.index("## 4. GitLab"):]
     bodies = re.split(r"^### 4\.\d [^\n]*\n", gl, flags=re.M)[1:]
     assert all(b.strip() == "TBD." for b in bodies), "the GitLab sections are placeholders until a stage writes them"

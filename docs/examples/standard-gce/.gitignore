@@ -16,6 +16,7 @@ _private
 *.tfstate.backup
 tfplan
 *.tfvars
+!generated/bootstrap/bootstrap.auto.tfvars
 .tofu-plugin-cache/
 YAML_DUMP.yaml
 __pycache__/

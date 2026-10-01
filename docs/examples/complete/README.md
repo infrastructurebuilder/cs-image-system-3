@@ -96,6 +96,14 @@ writes it out, and every part a team needs is then there:
 | `.gitignore` | the shell's exports, every credential file, the private mirror, tool residue; `generated/` and `meta-state/` ARE committed |
 | `.csis-version` | the release that wrote the tree, which CI installs; `init-config` writes it (absent in this source copy) |
 
+Before CI can run, most of what the guide's GitHub section describes can be
+generated: `just bootstrap` interviews you (or takes every default with
+`--quiet`), writes `bootstrap.yaml` at the root of this tree and
+`generated/bootstrap/` from it -- terraform you apply once, a tfvars with
+the answers, a script that sets the secrets from files. Every run
+regenerates that directory from the answers; CI_SETUP.md section 3.0 says
+what it makes and what is still yours.
+
 The system itself is installed from a release, never cloned beside the
 tree: `uv tool install cs-image-system` puts the command on `PATH`, or a
 `pyproject.toml` here that depends on it and `export CSIS="uv run

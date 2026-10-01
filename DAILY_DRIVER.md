@@ -251,6 +251,22 @@ identity, the secrets one by one, the proofs in order, and a table of the
 failures a first setup meets). It is written for GitHub; the GitLab
 sections are placeholders.
 
+Most of its GitHub section can be generated rather than clicked: `just
+bootstrap` (stage 70) interviews you -- or takes every default with
+`--quiet`, refusing by name any it cannot derive -- writes the answers to
+`bootstrap.yaml` at the root of the tree, and generates
+`generated/bootstrap/`: terraform you apply once (`tofu init && tofu
+apply` there; no run ever applies it), `bootstrap.auto.tfvars` with the
+answers, `set-secrets.sh` that sets each secret from a file named after
+it, and a README listing what remains by hand. Both the answers and the
+tfvars are committed (names and ids, never a value); every run
+regenerates the directory from the answers, so a stale root is drift and
+a clone needs no interview. Iteration one does the GitHub section (the
+branches, the ruleset that still lets `perform` push, Actions
+permissions and variables, the secrets script); the AWS, GCP and Okta
+sections are later iterations -- until then those parts of the guide are
+by hand, as before.
+
 ### 1.9 The configuration repository, from scratch
 
 Start from a starter tree; do not write from nothing. The release

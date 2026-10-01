@@ -65,6 +65,48 @@ further from you.
 
 ## 3. GitHub
 
+### 3.0 The bootstrap
+
+Most of sections 3.2 to 3.7 can be generated instead of clicked. From the
+repository root, with the release installed:
+
+```sh
+just bootstrap            # the interview: each question shows its default; --quiet takes them all
+```
+
+It loads no configuration (the sessions and federation it makes may not
+exist yet); it reads the checkout (`git remote`, `gh api` for the ids when
+`gh` is logged in) and the raw `cfg/*.yml` for its defaults, asks whether
+you want each section, writes the answers to `bootstrap.yaml` at the root
+of the tree, and generates `generated/bootstrap/`: one root module calling
+`tfmodules/bootstrap_<section>`, `bootstrap.auto.tfvars` with every answer
+(so the apply needs nothing typed again), `set-secrets.sh`, and a README
+saying what was generated and what is still yours. Both `bootstrap.yaml`
+and the tfvars are committed on purpose -- they hold names, ids and
+branches, never a secret value -- and every run regenerates the directory
+from the answers, so `config-drift` judges it like the rest of the
+emission and a clone needs no interview. Applying is your act, never a
+run's:
+
+```sh
+cd generated/bootstrap && tofu init && tofu plan && tofu apply && cd ../..
+bash generated/bootstrap/set-secrets.sh      # one file per secret under _uncommitted/secrets (or SECRETS_DIR)
+```
+
+What the sections do today, and what stays by hand:
+
+| Section | Terraform does | By hand, still |
+| --- | --- | --- |
+| GitHub (3.2, 3.7) | the default branch; a ruleset on the production branch (no deletion, no force push) that the GitHub Actions app bypasses, so `perform` still pushes its records; Actions enabled with read-only workflow permissions; the Actions variables `PERFORM_RUNTIME`, `GUARD_RUNTIME`, `AWS_REGION` | the secret VALUES (one file each, then the script); the `REPLACE-ME` literals in `ci.yml`, until a release makes the workflow read `vars` |
+| AWS (3.3) | a later iteration of the system: the OIDC provider, the two roles with their trust and permission documents, the optional state bucket and instance profile | everything in 3.3 today |
+| GCP (3.4) | a later iteration: the pool, the provider, the service accounts and their bindings | everything in 3.4 today |
+| Okta and OPA (3.5) | a later iteration decides what the providers can make | everything in 3.5 today; the workload connection and role are by hand in any case |
+| The age identity (3.6) | nothing: a key is made on your machine | `age-keygen`, `reencrypt`; the script sets the secret from the file |
+
+The root's state is local for the first apply (`terraform.tfstate` never
+enters a commit); when the tree's state bucket stands, move it there like
+any other root's state.
+
 ### 3.1 The workflows this tree carries
 
 `.github/workflows/ci.yml` has three jobs:
@@ -447,6 +489,10 @@ token endpoint alone; a GitLab pipeline would present its `id_tokens`
 OPA trusts, each of which accepts a different issuer and claim set.
 Writing these sections is a later stage of the system, and so is the code
 they need.
+
+### 4.0 The bootstrap
+
+TBD.
 
 ### 4.1 The pipeline this tree carries
 
