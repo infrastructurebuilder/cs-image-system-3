@@ -673,7 +673,15 @@ what the other wrote, so two checkouts that both draw merge trivially.
   rejected push on this file as "someone else took that name" -- re-read,
   draw again, never force.
 - **Spent is spent.** A decommission returns nothing; the pool only ever
-  shrinks, and the operator refills it by appending.
+  shrinks, and the operator refills it by appending. One exception, which
+  is not a return: a name is drawn at generation and GIVEN only when the
+  apply launches the machine and the launch record carries it. A run that
+  aborts between the two (a `tofu init` that cannot download a provider,
+  a failed plan) has drawn a name for a machine that never came to exist,
+  and the run's end puts that line back as it was -- the pool file shows
+  no trace, and the retry draws the same name again (hygiene VIII item 5,
+  2026-10-01; before it the retry burned the next name and the pool named
+  the lost one for a machine that never was).
 - **Running out is a warning, not a failure.** `validate` reports how many
   names remain; an empty pool means the launch proceeds without an alias
   and says so.
@@ -1163,6 +1171,20 @@ how a defect becomes the expected output. Two traps: provisioned content
 `content_hash` and `csis_fingerprint` and would re-bake images; a copy of
 the configuration needs `tfmodules/` beside it.
 
+### What a run's log shows of the commands it ran
+
+Every command the running process executes in place of a script line
+(`tofu init`/`plan`/`apply`, `gate-plan`, `apply-check`, `materialize`, a
+packer build) has its captured output in the log: the last 40 lines of
+stdout and of stderr at INFO under the command's name, the whole of it
+at DEBUG, colour codes stripped. That is where tofu's `Plan: 0 to add, 1
+to change, 0 to destroy`, the gate's verdict and `Apply complete!` are
+read during an applying run (hygiene VIII item 3; until 2026-09-30 only a
+FAILED command's output reached the log, and the plan that applied was
+read afterwards with `tofu show tfplan` in the root -- still a way to read
+it, since the runner leaves the plan file behind). A script run by hand
+(`run-*.sh`) shows everything as it always did.
+
 ### `config-drift` and `fixture-live`
 
 Is the committed emission current with the declarations? `cs-image-system
@@ -1174,8 +1196,13 @@ it with the `generated/` tree committed at its HEAD. Tool residue (`.terraform`,
 `.terraform.lock.hcl`, `tfplan`, `temp_assets`), the run-local files
 (`run-summary.json`, `state-report.json`, `generated/release/release`,
 `generated/retention/retention`), run ids and the run's date stamp in
-image names are normalised; nothing else legitimately differs, so a
-machine's absolute path appearing in the emission IS drift. Exit 0 when
+image names are normalised, and the runner scripts lose the two lines
+per root that only an APPLYING run emits (`apply-check` and `tofu apply`;
+an applying run commits the script it executed, and those lines are a
+function of the invocation, not of the configuration -- hygiene VIII
+item 4, after a `cloud-launch`'s commit failed the next `config-drift` as
+"BEHIND"); nothing else legitimately differs, so a machine's absolute
+path appearing in the emission IS drift. Exit 0 when
 current, 1 with the diff when the committed emission is BEHIND the
 declarations, 2 when nothing is committed under `generated/` or the dry
 run itself fails. A dry run's `init` skips the backend, so no state

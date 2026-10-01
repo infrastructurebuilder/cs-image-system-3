@@ -699,57 +699,57 @@ bundle; none is a stage of its own.
    its live `launch-params.yaml` adopts the key at the first recording run
    on that release. §72 does not depend on it.
 
-3. **OPEN, found 2026-09-30 by §72 Part A.** The runner does not echo
-   tofu's output, so an applying run's log shows `executing ( ... tofu
-   plan ... )`, `( ... gate-plan ... )`, `( ... apply ... )` and nothing of
-   what they said: no `Plan: 0 to add, 1 to change, 0 to destroy`, no
-   gate verdict, no apply summary. The operator "couldn't locate the tofu
-   plan output" because there is none in the log; it was recovered
-   afterwards with `tofu show tfplan` in the root. Fix: the runner logs
-   each executed command's captured output at INFO (tofu's plan and apply
-   summaries, the gate's verdict, packer's build lines), or at least the
-   plan summary line and the gate's verdict; the emitted `run-*.sh` already
-   show everything when run by hand, so this is the in-process path only.
-   A test asserts the plan summary reaches the log.
+3. **LANDED 2026-10-01.** The runner did not echo tofu's output. Found
+   2026-09-30 by §72 Part A: an applying run's log showed `executing ( ...
+   tofu plan ... )`, `( ... gate-plan ... )`, `( ... apply ... )` and nothing
+   of what they said -- no `Plan: 0 to add, 1 to change, 0 to destroy`, no
+   gate verdict, no apply summary -- because only a FAILED command's
+   captured output reached the log; the operator "couldn't locate the tofu
+   plan output" and it was recovered afterwards with `tofu show tfplan`.
+   Now every command the running process executes has its captured output
+   logged: the last 40 lines of stdout and of stderr at INFO under the
+   command's name, the whole of it at DEBUG, colour codes stripped (tofu
+   emits them to a pipe; they were in the failure log verbatim). A test
+   runs a command through the model and asserts the plan summary line and
+   the stderr reach INFO without escape codes, and that a long output is
+   cut to its tail with a count. OPERATIONS "What a run's log shows of the
+   commands it ran".
 
-4. **OPEN, found 2026-09-30 by §72 Part A's closing run.** An applying run
-   from the checkout (`just cloud-launch`, `cloud-decommission`,
-   `cloud-upgrade`) commits the emission it executed, and that emission's
-   `run-instance-image.sh` carries the `apply-check` and `tofu apply`
-   lines that only an `--apply-runtime` generation emits. The next
-   `config-drift` (the `live` job's "Is the committed emission current
-   with the declarations?") regenerates without an apply runtime, finds
-   those two lines missing from its own output, and fails the job as
-   "BEHIND the configuration (1 files)" -- run 36739555638 on `main` at
-   3879869, `perform` skipped. Nothing was wrong: the resting emission and
-   the applying emission differ by design, and CI's own perform sequence
-   ends with "the full run, recorded again" for exactly this reason. The
-   operator's walk has to know the rule: **after an applying run, `just
-   record` before the push**. Fix, one of: `config-drift` treats the
-   apply-only lines as volatile (they are a function of the invocation,
-   not the configuration) -- the cleaner one, since the committed script
-   then never lies about what was run; or the `cloud-*` recipes end with
-   a recording run. Until then the walks say `just record` after every
-   apply (§72 A.4/B.4/B.7, §73 steps 3/6/8, amended).
+4. **LANDED 2026-10-01.** An applying run's committed script failed
+   `config-drift`. Found 2026-09-30 by §72 Part A's closing run (36739555638
+   on `main`, `perform` skipped): a `cloud-launch` commits the emission it
+   executed, whose `run-instance-image.sh` carries the `apply-check` and
+   `tofu apply` lines only an `--apply-runtime` generation emits; the next
+   `config-drift` regenerated without an apply runtime and reported the
+   committed emission "BEHIND the configuration (1 files)". Those lines are
+   a function of the invocation, not of the configuration, so
+   `normalise_emission` now drops them from the runner scripts
+   (`run-*.sh`, `final_execution.sh`) on both sides before the comparison;
+   a test shows an applying and a resting script compare equal while a
+   real difference still shows, and a non-runner file is untouched. The
+   walks' "`just record` after every apply, before the push" stays good
+   practice (the resting script is the honest committed one) but is no
+   longer required for CI to pass. OPERATIONS' `config-drift` paragraph
+   says so.
 
-5. **OPEN, found 2026-10-01 by §73 step 8.** An alias draw survives a run
-   that recorded nothing. The applying launch drew `gar` for
-   `coops-model-005` ("spent; the line is commented out in aliases.txt")
-   at generation, then `tofu init` failed to download the provider
-   (`hashicorp/aws v6.67.0`, GitHub unreachable after 3 attempts) and the
-   run aborted with `meta_state_commit: null` -- no plan, no apply, no
-   launch record with the alias -- yet `aliases.txt` on disk had `gar`
-   commented out as taken. A retry would have drawn `koi` and left `gar`
-   spent on a machine that never existed, with the pool's comment naming
-   it for `coops-model-005`. Recovered by hand (`git checkout --
-   meta-state/aliases.txt`, with the half-regenerated `generated/
-   instance-image`). The rule stage 59 wrote is "spent is spent" for a
-   name GIVEN to a machine; a draw whose run aborts before the record
-   exists was never given. Fix: either draw at the moment the launch
-   record is written (after generation succeeds, with the record), or
-   roll the draw back when the run aborts before meta-state commits; a
-   test for the abort path. Same family as item 4: an aborted or
-   applying run's on-disk traces are not the records.
+5. **LANDED 2026-10-01.** An alias draw survived a run that recorded
+   nothing. Found the same day by §73 step 8: the applying launch drew
+   `gar` for `coops-model-005` at generation, then `tofu init` failed to
+   download the provider (`hashicorp/aws v6.67.0`, GitHub unreachable after
+   3 attempts) and the run aborted with `meta_state_commit: null` -- no
+   plan, no apply, no launch record with the alias -- yet `aliases.txt` on
+   disk had `gar` commented out as taken; a retry would have burned `koi`
+   and left `gar` named for a machine that never existed (recovered by hand
+   with `git checkout --`). A name is now GIVEN only when the instance's
+   launch record is marked launched by this run with that alias; at the
+   run's end (`finally`, before anything is recorded) every other draw of
+   the run goes back: `undraw` restores the line in place, under the pool's
+   lock, only when its record names THAT run, and `release_unlaunched`
+   walks the run's draws. Two tests: a run that dies after generation gives
+   its draw back (the line free again, the log saying why) and a run whose
+   launch gave the name keeps it spent (another run cannot give it back).
+   "Spent is spent" in OPERATIONS gains the one exception that is not a
+   return.
 
 ## 74. Documentation stage: §71 items 1-4, §72, §73
 

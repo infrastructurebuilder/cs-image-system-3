@@ -11,8 +11,10 @@ same configuration compare equal: tool residue and the run-local files are
 removed; run ids and the run's date stamp in image names (the configured
 dateformat ``%Y%m%d_%H%M%S``, or the hyphenated form -- an image that is DUE
 for a bake carries the run's stamp until it is baked) become placeholders.
-Nothing else legitimately differs: since stage 38 the emission names no
-absolute path, so a machine's path appearing here IS drift.
+The runner scripts lose the two lines only an applying run emits per root
+(``apply-check`` and ``tofu apply``; hygiene VIII item 4). Nothing else
+legitimately differs: since stage 38 the emission names no absolute path,
+so a machine's path appearing here IS drift.
 
 ``config_drift`` runs a headless dry ``run --all`` over a private copy of the
 configuration and compares its ``generated/`` with the one committed at HEAD.
@@ -48,6 +50,17 @@ RUN_ID = re.compile(rb"[0-9]{4}_[0-9]{2}_[0-9]{2}t[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-
 STAMP = re.compile(rb"[0-9]{8}[-_][0-9]{6}")
 RUN_PLACEHOLDER = b"<RUN>"
 STAMP_PLACEHOLDER = b"<STAMP>"
+# hygiene VIII item 4: an APPLYING run (--apply-runtime) emits, per root, an
+# apply-check line and a `tofu apply` line that a resting generation does not,
+# and commits the script it executed. They are a function of the invocation,
+# not of the configuration, so the comparison drops them from the runner
+# scripts on both sides -- found when a cloud-launch's commit failed the next
+# config-drift as "BEHIND the configuration (1 files)".
+APPLY_ONLY = re.compile(rb"^[^\n]*(?:cs-image-system apply-check |tofu apply -input=false)[^\n]*\n?", re.M)
+
+
+def _is_runner_script(path: Path) -> bool:
+    return path.suffix == ".sh" and (path.name.startswith("run-") or path.name == "final_execution.sh")
 
 DryRun = Callable[[Path], None]
 
@@ -66,6 +79,8 @@ def normalise_emission(directory: Path) -> None:
         if path.is_file() and not path.is_symlink():
             data = path.read_bytes()
             new = STAMP.sub(STAMP_PLACEHOLDER, RUN_ID.sub(RUN_PLACEHOLDER, data))
+            if _is_runner_script(path):
+                new = APPLY_ONLY.sub(b"", new)
             if new != data:
                 path.write_bytes(new)
 

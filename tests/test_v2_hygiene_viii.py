@@ -156,3 +156,96 @@ def test_the_gce_builder_honours_a_declared_machine_type(prepared):
     assert '"e2-small"' in tf and '"e2-micro"' not in tf.split('module "instance_gce_test"', 1)[1].split("\n}", 1)[0]
     by_name = {i.get_name(): i for i in run.ctx.instances}
     assert lp.compute_launch_params(run.ctx, by_name["gce-test"])["machine_type"] == "e2-small"
+
+
+# ------------------------------------------------- item 3: the runner says what a command said
+
+def test_a_command_the_process_ran_has_its_output_logged(caplog):
+    import logging
+    from cs_image_system.base.models.executable import ExecutableModel
+    script = 'printf "x\\n\\033[1mPlan:\\033[0m 0 to add, 1 to change, 0 to destroy.\\n"; echo "a warning" >&2'
+    e = ExecutableModel(name="sh", binary="/bin/sh", args=["-c", script])
+    with caplog.at_level(logging.INFO):
+        res = e.execute()
+    assert res.returncode == 0
+    assert "Plan: 0 to add, 1 to change, 0 to destroy." in caplog.text        # the summary line reaches INFO
+    assert "\x1b[" not in caplog.text                                            # colour codes stripped
+    assert "a warning" in caplog.text                                            # stderr too
+    caplog.clear()
+    long = ExecutableModel(name="sh", binary="/bin/sh", args=["-c", "seq 1 50"])
+    with caplog.at_level(logging.INFO):
+        long.execute()
+    assert "(last 40 of 50 lines; all at DEBUG)" in caplog.text
+    assert "\n50" in caplog.text and "\n5\n" not in caplog.text.split("all at DEBUG")[1]
+
+
+# --------------------------------------- item 4: the applying script is not drift
+
+def test_config_drift_ignores_the_lines_only_an_applying_run_emits(tmp_path):
+    from cs_image_system.base.commands.emission import diff_trees, normalise_emission
+    resting = tmp_path / "resting"; applying = tmp_path / "applying"; other = tmp_path / "other"
+    common = ['( cd "open-tofu/instance-generation" && rm -f tfplan )',
+              '( cd "open-tofu/instance-generation" && /usr/local/bin/tofu plan -input=false -out=tfplan )',
+              '( cd "open-tofu/instance-generation" && cs-image-system gate-plan --planfile tfplan --tofu /usr/local/bin/tofu )']
+    apply_only = ['( cd "open-tofu/instance-generation" && cs-image-system apply-check --lifecycle instances --root open-tofu --root-alias aws-east2-runtime --apply-runtime aws-east2-runtime )',
+                  '( cd "open-tofu/instance-generation" && /usr/local/bin/tofu apply -input=false tfplan )']
+    for root, lines in ((resting, common), (applying, common + apply_only),
+                        (other, common[:1] + ['( cd "x" && /usr/local/bin/tofu plan -input=false -out=other )'] + common[2:])):
+        (root / "instance-image").mkdir(parents=True)
+        (root / "instance-image" / "run-instance-image.sh").write_text("#!/usr/bin/env bash\n" + "\n".join(lines) + "\n")
+        (root / "instance-image" / "notes.sh").write_text("\n".join(apply_only) + "\n")   # not a runner script: untouched
+        normalise_emission(root)
+    assert diff_trees(resting, applying) == []                                  # the apply lines are not drift
+    assert any("plan" in ln for ln in diff_trees(resting, other))               # a real difference still is
+    assert "apply-check" in (applying / "instance-image" / "notes.sh").read_text()
+
+
+# ------------------------------------ item 5: a draw for a machine that never was goes back
+
+def test_an_aborted_run_gives_its_alias_draw_back(tmp_path: Path, monkeypatch, caplog):
+    import logging
+    import subprocess
+    from cs_image_system.base import alias_pool as ap
+    from cs_image_system.base.models.executable import ExecutableModel
+    ap._DRAWN.clear()
+    run = V2Run(tmp_path, monkeypatch, dry_run=False)
+    try:
+        run.ctx.config["apply_instances"] = True
+        pool = ap.pool_path(run.config_root)
+        pool.parent.mkdir(parents=True, exist_ok=True)
+        pool.write_text("gar\nkoi\n")
+        # the apply dies after generation (where the draw happened), as tofu init did on 2026-10-01
+        def dying(self, *args, skips=False):
+            cmd = [self.binary or self.name] + list(self.args or []) + list(args)
+            if "tfplan" in " ".join(cmd) or "init" in cmd:
+                raise subprocess.CalledProcessError(1, cmd, "", "Failed to install provider")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        monkeypatch.setattr(ExecutableModel, "execute", dying)
+        with caplog.at_level(logging.INFO):
+            summary = run.run(["instance-image"], apply=True, only=["none"])
+        assert not summary.ok
+        assert "took alias 'gar'" in caplog.text                                 # it WAS drawn at generation
+        assert "alias 'gar' drawn this run goes back to the pool" in caplog.text
+        assert ap.free_names(pool) == ["gar", "koi"]                             # and it is free again
+        assert not [k for k in ap._DRAWN if k[0] == str(run.ctx.run_id)]
+    finally:
+        run.restore_cwd()
+
+
+def test_a_draw_the_launch_gave_a_machine_stays_spent(tmp_path: Path, monkeypatch):
+    from cs_image_system.base import alias_pool as ap
+    ap._DRAWN.clear()
+    run = V2Run(tmp_path, monkeypatch, dry_run=False)
+    try:
+        run.ctx.config["apply_instances"] = True
+        pool = ap.pool_path(run.config_root)
+        pool.parent.mkdir(parents=True, exist_ok=True)
+        pool.write_text("gar\nkoi\n")
+        summary = run.run(["instance-image"], apply=True, only=["none"])
+        assert summary.ok, summary.validation_errors or summary.error
+        rec = run.ctx.meta_state.launch_params()["test"]
+        assert rec["launched"] and rec["alias"] == "gar"
+        assert "gar" not in ap.free_names(pool)                                  # given, so spent
+        assert ap.undraw(pool, name="gar", run_id="some-other-run") is False     # another run cannot give it back
+    finally:
+        run.restore_cwd()
