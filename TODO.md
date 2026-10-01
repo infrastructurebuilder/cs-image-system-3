@@ -699,18 +699,21 @@ bundle; none is a stage of its own.
    its live `launch-params.yaml` adopts the key at the first recording run
    on that release. §72 does not depend on it.
 
-3. **OPEN, found 2026-09-30 by §72 Part A.** The runner does not echo
-   tofu's output, so an applying run's log shows `executing ( ... tofu
-   plan ... )`, `( ... gate-plan ... )`, `( ... apply ... )` and nothing of
-   what they said: no `Plan: 0 to add, 1 to change, 0 to destroy`, no
-   gate verdict, no apply summary. The operator "couldn't locate the tofu
-   plan output" because there is none in the log; it was recovered
-   afterwards with `tofu show tfplan` in the root. Fix: the runner logs
-   each executed command's captured output at INFO (tofu's plan and apply
-   summaries, the gate's verdict, packer's build lines), or at least the
-   plan summary line and the gate's verdict; the emitted `run-*.sh` already
-   show everything when run by hand, so this is the in-process path only.
-   A test asserts the plan summary reaches the log.
+3. **LANDED 2026-10-01.** The runner did not echo tofu's output. Found
+   2026-09-30 by §72 Part A: an applying run's log showed `executing ( ...
+   tofu plan ... )`, `( ... gate-plan ... )`, `( ... apply ... )` and nothing
+   of what they said -- no `Plan: 0 to add, 1 to change, 0 to destroy`, no
+   gate verdict, no apply summary -- because only a FAILED command's
+   captured output reached the log; the operator "couldn't locate the tofu
+   plan output" and it was recovered afterwards with `tofu show tfplan`.
+   Now every command the running process executes has its captured output
+   logged: the last 40 lines of stdout and of stderr at INFO under the
+   command's name, the whole of it at DEBUG, colour codes stripped (tofu
+   emits them to a pipe; they were in the failure log verbatim). A test
+   runs a command through the model and asserts the plan summary line and
+   the stderr reach INFO without escape codes, and that a long output is
+   cut to its tail with a count. OPERATIONS "What a run's log shows of the
+   commands it ran".
 
 4. **OPEN, found 2026-09-30 by §72 Part A's closing run.** An applying run
    from the checkout (`just cloud-launch`, `cloud-decommission`,

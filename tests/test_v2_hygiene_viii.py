@@ -156,3 +156,24 @@ def test_the_gce_builder_honours_a_declared_machine_type(prepared):
     assert '"e2-small"' in tf and '"e2-micro"' not in tf.split('module "instance_gce_test"', 1)[1].split("\n}", 1)[0]
     by_name = {i.get_name(): i for i in run.ctx.instances}
     assert lp.compute_launch_params(run.ctx, by_name["gce-test"])["machine_type"] == "e2-small"
+
+
+# ------------------------------------------------- item 3: the runner says what a command said
+
+def test_a_command_the_process_ran_has_its_output_logged(caplog):
+    import logging
+    from cs_image_system.base.models.executable import ExecutableModel
+    script = 'printf "x\\n\\033[1mPlan:\\033[0m 0 to add, 1 to change, 0 to destroy.\\n"; echo "a warning" >&2'
+    e = ExecutableModel(name="sh", binary="/bin/sh", args=["-c", script])
+    with caplog.at_level(logging.INFO):
+        res = e.execute()
+    assert res.returncode == 0
+    assert "Plan: 0 to add, 1 to change, 0 to destroy." in caplog.text        # the summary line reaches INFO
+    assert "\x1b[" not in caplog.text                                            # colour codes stripped
+    assert "a warning" in caplog.text                                            # stderr too
+    caplog.clear()
+    long = ExecutableModel(name="sh", binary="/bin/sh", args=["-c", "seq 1 50"])
+    with caplog.at_level(logging.INFO):
+        long.execute()
+    assert "(last 40 of 50 lines; all at DEBUG)" in caplog.text
+    assert "\n50" in caplog.text and "\n5\n" not in caplog.text.split("all at DEBUG")[1]

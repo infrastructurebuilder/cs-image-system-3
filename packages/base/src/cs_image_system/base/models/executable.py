@@ -15,12 +15,46 @@ from ..protocols.plugin_metadata import PluginArtifactProtocol, PluginMetadataPr
 from .builder_model import NameTyped
 
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
 from typing import Annotated, Any
 
 from ..constants import SYSTEM_CLI, DEFAULT, VCT
+
+
+#: hygiene VIII item 3: how much of a successful command's output the log
+#: keeps at INFO (the end is where tofu's ``Plan:`` / ``Apply complete!``
+#: lines, the gate's verdict and packer's artifact line are); the whole of
+#: it at DEBUG.
+OUTPUT_TAIL_LINES = 40
+_ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+def _log_captured(command: list[str], result: subprocess.CompletedProcess[str]) -> None:
+    """A command the running process executed said something: say it. Until
+    hygiene VIII item 3 (2026-09-30) only a FAILED command's output reached
+    the log, so an applying run showed ``executing ( ... tofu plan ... )``
+    and nothing of what tofu planned, the gate decided or the apply did --
+    the operator read the plan afterwards from the plan file. Colour codes
+    are stripped (tofu emits them to a pipe)."""
+    label = Path(command[0]).name
+    if label == Path(sys.executable).name and len(command) > 2 and command[1] == "-m":
+        label = " ".join(command[2:4])
+    elif len(command) > 1:
+        label = f"{label} {command[1]}"
+    for stream, text in (("stdout", result.stdout), ("stderr", result.stderr)):
+        clean = _ANSI.sub("", text or "").rstrip("\n")
+        lines = clean.splitlines()
+        if not lines:
+            continue
+        tail = lines[-OUTPUT_TAIL_LINES:]
+        if len(tail) < len(lines):
+            log.info(f"{label} {stream} (last {len(tail)} of {len(lines)} lines; all at DEBUG):\n" + "\n".join(tail))
+            log.debug(f"{label} {stream} (all {len(lines)} lines):\n{clean}")
+        else:
+            log.info(f"{label} {stream}:\n" + "\n".join(tail))
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
@@ -121,6 +155,7 @@ class ExecutableModel(NameTyped, PluginArtifactProtocol):
                 capture_output=True,
                 text=True,
             )
+            _log_captured(command, result)
             return result
         except subprocess.CalledProcessError as cpe:
             log.error(f"Command '{' '.join(command)}' failed with exit code {cpe.returncode}")

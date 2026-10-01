@@ -1163,6 +1163,20 @@ how a defect becomes the expected output. Two traps: provisioned content
 `content_hash` and `csis_fingerprint` and would re-bake images; a copy of
 the configuration needs `tfmodules/` beside it.
 
+### What a run's log shows of the commands it ran
+
+Every command the running process executes in place of a script line
+(`tofu init`/`plan`/`apply`, `gate-plan`, `apply-check`, `materialize`, a
+packer build) has its captured output in the log: the last 40 lines of
+stdout and of stderr at INFO under the command's name, the whole of it
+at DEBUG, colour codes stripped. That is where tofu's `Plan: 0 to add, 1
+to change, 0 to destroy`, the gate's verdict and `Apply complete!` are
+read during an applying run (hygiene VIII item 3; until 2026-09-30 only a
+FAILED command's output reached the log, and the plan that applied was
+read afterwards with `tofu show tfplan` in the root -- still a way to read
+it, since the runner leaves the plan file behind). A script run by hand
+(`run-*.sh`) shows everything as it always did.
+
 ### `config-drift` and `fixture-live`
 
 Is the committed emission current with the declarations? `cs-image-system
