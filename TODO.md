@@ -417,7 +417,25 @@ the first final version on PyPI (§41's open call).
 
 ## 70. Bootstrap: the one-time initialisation, as terraform from an interview
 
-**Status: PLANNED, not started** (the operator, 2026-09-28: "a one-time
+**Status: ITERATION ONE IN PROGRESS on `feature/bootstrap` since 2026-10-01.**
+Steps 1-3, 7 (its iteration-one parts) and 8 are written: the framework,
+the GitHub section and module, twelve tests (the question model, the quiet
+interview and its refusals, the answers file, the root over a starter copy
+with a real `tofu validate`, the regeneration inside every run and the
+pruning, a `--commit` run staging the root AND its tfvars, `config-drift`
+on an edited root and on a changed answer, the secrets script naming every
+guide secret, the starters' module, recipe and ignore exception,
+public-safe over the root, the command without loading and its refusal
+by name), the docs (CI_SETUP.md 3.0 and a 4.0 placeholder, the starter
+READMEs, DAILY_DRIVER 1.8, the system README, OPERATIONS section 3).
+Two things decided while building, within the plan's letter: the root's
+state is `backend "local"` in iteration one -- D8's "declared backend
+when the bucket exists" needs the AWS section's bucket question (step 4),
+and the README says how to move the state afterwards; and the one
+committed tfvars is exempted BY PATH from public-safe's refusal (scanned
+like any file) and added to the meta-state commit by name, because a git
+pathspec cannot say "except this one". Step 9, the live proof in the
+reference configuration, is the operator's and OPEN. (The operator, 2026-09-28: "a one-time
 initialization of assets for using the starter-tree repo ... code that
 lives in the main repo, called by some specific subcommand of
 cs-image-system and produces terraform based on interview questions ...
