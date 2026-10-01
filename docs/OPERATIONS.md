@@ -1188,8 +1188,13 @@ it with the `generated/` tree committed at its HEAD. Tool residue (`.terraform`,
 `.terraform.lock.hcl`, `tfplan`, `temp_assets`), the run-local files
 (`run-summary.json`, `state-report.json`, `generated/release/release`,
 `generated/retention/retention`), run ids and the run's date stamp in
-image names are normalised; nothing else legitimately differs, so a
-machine's absolute path appearing in the emission IS drift. Exit 0 when
+image names are normalised, and the runner scripts lose the two lines
+per root that only an APPLYING run emits (`apply-check` and `tofu apply`;
+an applying run commits the script it executed, and those lines are a
+function of the invocation, not of the configuration -- hygiene VIII
+item 4, after a `cloud-launch`'s commit failed the next `config-drift` as
+"BEHIND"); nothing else legitimately differs, so a machine's absolute
+path appearing in the emission IS drift. Exit 0 when
 current, 1 with the diff when the committed emission is BEHIND the
 declarations, 2 when nothing is committed under `generated/` or the dry
 run itself fails. A dry run's `init` skips the backend, so no state

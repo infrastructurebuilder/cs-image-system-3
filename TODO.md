@@ -715,25 +715,22 @@ bundle; none is a stage of its own.
    cut to its tail with a count. OPERATIONS "What a run's log shows of the
    commands it ran".
 
-4. **OPEN, found 2026-09-30 by §72 Part A's closing run.** An applying run
-   from the checkout (`just cloud-launch`, `cloud-decommission`,
-   `cloud-upgrade`) commits the emission it executed, and that emission's
-   `run-instance-image.sh` carries the `apply-check` and `tofu apply`
-   lines that only an `--apply-runtime` generation emits. The next
-   `config-drift` (the `live` job's "Is the committed emission current
-   with the declarations?") regenerates without an apply runtime, finds
-   those two lines missing from its own output, and fails the job as
-   "BEHIND the configuration (1 files)" -- run 36739555638 on `main` at
-   3879869, `perform` skipped. Nothing was wrong: the resting emission and
-   the applying emission differ by design, and CI's own perform sequence
-   ends with "the full run, recorded again" for exactly this reason. The
-   operator's walk has to know the rule: **after an applying run, `just
-   record` before the push**. Fix, one of: `config-drift` treats the
-   apply-only lines as volatile (they are a function of the invocation,
-   not the configuration) -- the cleaner one, since the committed script
-   then never lies about what was run; or the `cloud-*` recipes end with
-   a recording run. Until then the walks say `just record` after every
-   apply (§72 A.4/B.4/B.7, §73 steps 3/6/8, amended).
+4. **LANDED 2026-10-01.** An applying run's committed script failed
+   `config-drift`. Found 2026-09-30 by §72 Part A's closing run (36739555638
+   on `main`, `perform` skipped): a `cloud-launch` commits the emission it
+   executed, whose `run-instance-image.sh` carries the `apply-check` and
+   `tofu apply` lines only an `--apply-runtime` generation emits; the next
+   `config-drift` regenerated without an apply runtime and reported the
+   committed emission "BEHIND the configuration (1 files)". Those lines are
+   a function of the invocation, not of the configuration, so
+   `normalise_emission` now drops them from the runner scripts
+   (`run-*.sh`, `final_execution.sh`) on both sides before the comparison;
+   a test shows an applying and a resting script compare equal while a
+   real difference still shows, and a non-runner file is untouched. The
+   walks' "`just record` after every apply, before the push" stays good
+   practice (the resting script is the honest committed one) but is no
+   longer required for CI to pass. OPERATIONS' `config-drift` paragraph
+   says so.
 
 5. **OPEN, found 2026-10-01 by §73 step 8.** An alias draw survives a run
    that recorded nothing. The applying launch drew `gar` for
