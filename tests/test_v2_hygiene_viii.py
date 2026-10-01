@@ -198,3 +198,54 @@ def test_config_drift_ignores_the_lines_only_an_applying_run_emits(tmp_path):
     assert diff_trees(resting, applying) == []                                  # the apply lines are not drift
     assert any("plan" in ln for ln in diff_trees(resting, other))               # a real difference still is
     assert "apply-check" in (applying / "instance-image" / "notes.sh").read_text()
+
+
+# ------------------------------------ item 5: a draw for a machine that never was goes back
+
+def test_an_aborted_run_gives_its_alias_draw_back(tmp_path: Path, monkeypatch, caplog):
+    import logging
+    import subprocess
+    from cs_image_system.base import alias_pool as ap
+    from cs_image_system.base.models.executable import ExecutableModel
+    ap._DRAWN.clear()
+    run = V2Run(tmp_path, monkeypatch, dry_run=False)
+    try:
+        run.ctx.config["apply_instances"] = True
+        pool = ap.pool_path(run.config_root)
+        pool.parent.mkdir(parents=True, exist_ok=True)
+        pool.write_text("gar\nkoi\n")
+        # the apply dies after generation (where the draw happened), as tofu init did on 2026-10-01
+        def dying(self, *args, skips=False):
+            cmd = [self.binary or self.name] + list(self.args or []) + list(args)
+            if "tfplan" in " ".join(cmd) or "init" in cmd:
+                raise subprocess.CalledProcessError(1, cmd, "", "Failed to install provider")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        monkeypatch.setattr(ExecutableModel, "execute", dying)
+        with caplog.at_level(logging.INFO):
+            summary = run.run(["instance-image"], apply=True, only=["none"])
+        assert not summary.ok
+        assert "took alias 'gar'" in caplog.text                                 # it WAS drawn at generation
+        assert "alias 'gar' drawn this run goes back to the pool" in caplog.text
+        assert ap.free_names(pool) == ["gar", "koi"]                             # and it is free again
+        assert not [k for k in ap._DRAWN if k[0] == str(run.ctx.run_id)]
+    finally:
+        run.restore_cwd()
+
+
+def test_a_draw_the_launch_gave_a_machine_stays_spent(tmp_path: Path, monkeypatch):
+    from cs_image_system.base import alias_pool as ap
+    ap._DRAWN.clear()
+    run = V2Run(tmp_path, monkeypatch, dry_run=False)
+    try:
+        run.ctx.config["apply_instances"] = True
+        pool = ap.pool_path(run.config_root)
+        pool.parent.mkdir(parents=True, exist_ok=True)
+        pool.write_text("gar\nkoi\n")
+        summary = run.run(["instance-image"], apply=True, only=["none"])
+        assert summary.ok, summary.validation_errors or summary.error
+        rec = run.ctx.meta_state.launch_params()["test"]
+        assert rec["launched"] and rec["alias"] == "gar"
+        assert "gar" not in ap.free_names(pool)                                  # given, so spent
+        assert ap.undraw(pool, name="gar", run_id="some-other-run") is False     # another run cannot give it back
+    finally:
+        run.restore_cwd()

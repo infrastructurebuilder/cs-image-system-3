@@ -156,6 +156,60 @@ def draw(path: Path, *, taken_by: str, run_id: str, when: datetime | None = None
             fcntl.flock(lk, fcntl.LOCK_UN)
 
 
+def undraw(path: Path, *, name: str, run_id: str) -> bool:
+    """Give a name back: the line ``draw`` burned for ``name`` in run
+    ``run_id`` becomes a free line again, in place, under the same lock.
+    Only a record naming THAT run is restored (a name another run gave a
+    machine is spent for good). True when a line was restored."""
+    if not path.is_file():
+        return False
+    lock = path.with_suffix(path.suffix + ".lock")
+    with open(lock, "w") as lk:
+        fcntl.flock(lk, fcntl.LOCK_EX)
+        try:
+            raw = path.read_text().splitlines(keepends=True)
+            for ln in read_pool(path):
+                if ln.spent and ln.name == name and f" run {run_id}" in raw[ln.index]:
+                    ending = "\n" if raw[ln.index].endswith("\n") else ""
+                    raw[ln.index] = f"{name}{ending}"
+                    tmp = path.with_suffix(path.suffix + ".tmp")
+                    tmp.write_text("".join(raw))
+                    tmp.replace(path)
+                    return True
+            return False
+        finally:
+            fcntl.flock(lk, fcntl.LOCK_UN)
+
+
+def release_unlaunched(ctx: "GlobalTypeContext") -> list[str]:
+    """When a run ends: every name this run drew for a machine that did not
+    come to exist goes back to the pool (hygiene VIII item 5). A draw
+    happens at generation; the machine exists only after the apply, and a
+    run can abort between the two (``tofu init`` failing to download a
+    provider did it on 2026-10-01) with nothing recorded -- the pool file on
+    disk would still show the name spent for a machine that never was, and
+    the retry would burn the next one. A name is GIVEN when the instance's
+    launch record is marked launched by this run with that alias; every
+    other draw of this run is released. Returns the names released."""
+    ms = ctx.meta_state
+    path = pool_path(ctx.working_path)
+    released: list[str] = []
+    for key in [k for k in list(_DRAWN) if k[0] == str(ctx.run_id)]:
+        run_id, name = key
+        drawn = _DRAWN[key]
+        rec = ms.launch_params().get(name) or {}
+        given = bool(rec.get("launched")) and str(rec.get("launched_run") or "") == run_id \
+            and str(rec.get("alias") or "") == drawn
+        if given:
+            continue
+        if undraw(path, name=drawn, run_id=run_id):
+            released.append(drawn)
+            log.warning(f"Instance {name}: alias {drawn!r} drawn this run goes back to the pool -- the "
+                        f"machine it was for never came to exist (the run did not launch it)")
+        _DRAWN.pop(key, None)
+    return released
+
+
 def _new_machine(ctx: "GlobalTypeContext", instance: Any) -> bool:
     """Whether the launch parameters being computed are for a machine that
     does not exist yet: never launched, or a pending/follow replacement."""

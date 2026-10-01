@@ -673,7 +673,15 @@ what the other wrote, so two checkouts that both draw merge trivially.
   rejected push on this file as "someone else took that name" -- re-read,
   draw again, never force.
 - **Spent is spent.** A decommission returns nothing; the pool only ever
-  shrinks, and the operator refills it by appending.
+  shrinks, and the operator refills it by appending. One exception, which
+  is not a return: a name is drawn at generation and GIVEN only when the
+  apply launches the machine and the launch record carries it. A run that
+  aborts between the two (a `tofu init` that cannot download a provider,
+  a failed plan) has drawn a name for a machine that never came to exist,
+  and the run's end puts that line back as it was -- the pool file shows
+  no trace, and the retry draws the same name again (hygiene VIII item 5,
+  2026-10-01; before it the retry burned the next name and the pool named
+  the lost one for a machine that never was).
 - **Running out is a warning, not a failure.** `validate` reports how many
   names remain; an empty pool means the launch proceeds without an alias
   and says so.

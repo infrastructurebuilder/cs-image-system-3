@@ -732,24 +732,24 @@ bundle; none is a stage of its own.
    longer required for CI to pass. OPERATIONS' `config-drift` paragraph
    says so.
 
-5. **OPEN, found 2026-10-01 by §73 step 8.** An alias draw survives a run
-   that recorded nothing. The applying launch drew `gar` for
-   `coops-model-005` ("spent; the line is commented out in aliases.txt")
-   at generation, then `tofu init` failed to download the provider
-   (`hashicorp/aws v6.67.0`, GitHub unreachable after 3 attempts) and the
-   run aborted with `meta_state_commit: null` -- no plan, no apply, no
-   launch record with the alias -- yet `aliases.txt` on disk had `gar`
-   commented out as taken. A retry would have drawn `koi` and left `gar`
-   spent on a machine that never existed, with the pool's comment naming
-   it for `coops-model-005`. Recovered by hand (`git checkout --
-   meta-state/aliases.txt`, with the half-regenerated `generated/
-   instance-image`). The rule stage 59 wrote is "spent is spent" for a
-   name GIVEN to a machine; a draw whose run aborts before the record
-   exists was never given. Fix: either draw at the moment the launch
-   record is written (after generation succeeds, with the record), or
-   roll the draw back when the run aborts before meta-state commits; a
-   test for the abort path. Same family as item 4: an aborted or
-   applying run's on-disk traces are not the records.
+5. **LANDED 2026-10-01.** An alias draw survived a run that recorded
+   nothing. Found the same day by §73 step 8: the applying launch drew
+   `gar` for `coops-model-005` at generation, then `tofu init` failed to
+   download the provider (`hashicorp/aws v6.67.0`, GitHub unreachable after
+   3 attempts) and the run aborted with `meta_state_commit: null` -- no
+   plan, no apply, no launch record with the alias -- yet `aliases.txt` on
+   disk had `gar` commented out as taken; a retry would have burned `koi`
+   and left `gar` named for a machine that never existed (recovered by hand
+   with `git checkout --`). A name is now GIVEN only when the instance's
+   launch record is marked launched by this run with that alias; at the
+   run's end (`finally`, before anything is recorded) every other draw of
+   the run goes back: `undraw` restores the line in place, under the pool's
+   lock, only when its record names THAT run, and `release_unlaunched`
+   walks the run's draws. Two tests: a run that dies after generation gives
+   its draw back (the line free again, the log saying why) and a run whose
+   launch gave the name keeps it spent (another run cannot give it back).
+   "Spent is spent" in OPERATIONS gains the one exception that is not a
+   return.
 
 ## 74. Documentation stage: §71 items 1-4, §72, §73
 

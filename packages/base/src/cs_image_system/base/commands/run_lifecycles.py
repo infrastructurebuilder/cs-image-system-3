@@ -567,6 +567,13 @@ def run_lifecycles(requested: list[LifecycleLike], *, apply: bool = True,
         log.debug(traceback.format_exc())
     finally:
         ctx.current_lifecycle = None
+        # hygiene VIII item 5: a name drawn at generation for a machine this
+        # run did not launch goes back to the pool before anything is recorded
+        try:
+            from ..alias_pool import release_unlaunched
+            release_unlaunched(ctx)
+        except Exception as e:  # the pool must never fail the run's record
+            log.warning(f"alias pool: could not release this run's draws: {e}")
         if summary.meta_state_commit is None:
             _record(ctx, summary, root)
         for hook in _ON_SUMMARY:
