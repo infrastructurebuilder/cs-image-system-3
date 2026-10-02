@@ -42,10 +42,11 @@ resource "github_actions_repository_permissions" "this" {
   allowed_actions = "all"
 }
 
-# The production branch may not be deleted or force-pushed; the GitHub Actions
-# app (integration id 15368) bypasses, so the perform job's own token still
-# pushes its records (a refused push would leave the performing run's records
-# unpushed, and the next run would find images nothing recorded)
+# The production branch may not be deleted or force-pushed. Neither rule stops
+# an ordinary push, so the perform job's own token still pushes its records
+# (fast-forward, always) and no bypass actor is needed -- nor could one be named:
+# GitHub refuses the built-in Actions app as a bypass actor on a repository
+# ruleset (hygiene IX item 3, found by the first live apply).
 resource "github_repository_ruleset" "production" {
   count       = var.protect_production ? 1 : 0
   name        = "cs-image-system: ${var.production_branch}"
@@ -58,12 +59,6 @@ resource "github_repository_ruleset" "production" {
       include = ["refs/heads/${var.production_branch}"]
       exclude = []
     }
-  }
-
-  bypass_actors {
-    actor_id    = 15368
-    actor_type  = "Integration"
-    bypass_mode = "always"
   }
 
   rules {

@@ -1704,8 +1704,10 @@ on every Google data source until it was given the operator's own
 token).
 
 Sections: GitHub lives in base (the default branch, a ruleset on the
-production branch -- no deletion, no force push -- that the GitHub
-Actions app bypasses so `perform` still pushes its records, Actions
+production branch -- no deletion, no force push; an ordinary push, which
+is all `perform` ever does, is unaffected, so no bypass actor is named (GitHub
+refuses the built-in Actions app as one, which the first live apply
+found) -- Actions
 enabled with read-only workflow permissions, the Actions variables that
 are not secret, and the secrets script naming all nine of the guide's
 secrets); the clouds' sections come from their plugins through the

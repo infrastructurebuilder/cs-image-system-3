@@ -312,6 +312,19 @@ def test_the_starters_carry_the_module_the_recipe_and_the_ignore_exception():
         assert ignore.index("*.tfvars") < ignore.index("!generated/bootstrap/bootstrap.auto.tfvars")
 
 
+def test_the_ruleset_names_no_bypass_actor_and_blocks_only_deletion_and_force_pushes():
+    """Hygiene IX item 3: the first live apply was refused -- `422 Actor GitHub
+    Actions integration must be part of the ruleset source or owner
+    organization` -- and the bypass was never needed: neither rule stops an
+    ordinary push, which is all `perform` does."""
+    module = (REPO / "tfmodules" / "bootstrap_github" / "main.tf").read_text()
+    ruleset = module[module.index('resource "github_repository_ruleset"'):]
+    ruleset = ruleset[:ruleset.index("\n}\n") + 3]
+    assert "bypass_actors" not in ruleset and "15368" not in module
+    rules = ruleset[ruleset.index("rules {"):]
+    assert sorted(re.findall(r"^\s*(\w+)\s*=\s*true", rules, flags=re.M)) == ["deletion", "non_fast_forward"]
+
+
 def test_public_safe_passes_over_a_generated_root(tmp_path: Path):
     from cs_image_system.base.public_safe import scan_tree
     root = _starter_copy(tmp_path)
