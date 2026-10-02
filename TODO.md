@@ -714,3 +714,21 @@ bundle; none is a stage of its own.
    were filled and say which lines differ; and `.csis-version` should be
    written only when the destination has none, never moved backwards by
    a stale installed version. A test for each.
+
+
+2. **OPEN, found 2026-10-02 by the operator reading the docs after stage
+   70 step 5.** The credentials the bootstrap's apply needs appear in ONE
+   place: the export lines at the top of the generated root's README
+   ("Apply"), which the generator writes per tree from the wanted sections
+   (`GITHUB_TOKEN` always; `AWS_PROFILE` only when the AWS section answered
+   a profile; `GOOGLE_OAUTH_ACCESS_TOKEN` only with the GCP section). Every
+   other place a person reads the apply shows the bare commands -- the
+   command's own closing line (`bootstrap: next: ... tofu init && tofu
+   plan && tofu apply ...`) and CI_SETUP.md 3.0 -- so someone following
+   either meets the 403 the README fix was meant to prevent. Fix: the
+   closing line prints the export lines for this tree's wanted sections
+   (the same `Rendered.apply_env` the README reads) before the commands;
+   CI_SETUP.md 3.0 says the exports depend on the sections and points at
+   the generated README's Apply block instead of listing commands without
+   them. A test that the closing line carries the GCP token export when
+   the GCP section is wanted and not when it is not.
