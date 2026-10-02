@@ -1681,7 +1681,12 @@ tfvars in -- the one tfvars this system commits, exempted by path from
 the public-safe refusal and scanned like any file, decision D3). Every
 run, dry or real, regenerates the directory from the answers before the
 lifecycles -- generation only, never a plan or an apply (decision D7) --
-and prunes it when the answers file is absent, so a `--commit` run
+and prunes it when the answers file is absent -- in both cases leaving
+what a person's own `tofu` left there (`.terraform/`, the lock file, a
+saved plan, and the STATE of a root still on the local backend: a
+lifecycle's directory is wiped whole because its state is remote, but
+this root's may be right there, and until 2026-10-01 a run would have
+deleted it) -- so a `--commit` run
 commits it with the rest of the emission (the tfvars added by name after
 the pathspec-limited commit, since a pathspec cannot say "except this
 one"), `config-drift` reports a stale or hand-edited root as drift, and a
