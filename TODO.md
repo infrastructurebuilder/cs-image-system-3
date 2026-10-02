@@ -7,7 +7,28 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress** (§71, hygiene bundle VIII, LANDED WHOLE 2026-10-01 -- five items, the last three in one squash 0760084; hygiene bundle IX (§71, reusing the number) is OPEN since 2026-10-01 with item 1; §68, hygiene bundle VII, LANDED whole 2026-09-29; §69 LANDED 2026-09-28, its step 5 done 2026-09-29; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §70 step 6 (the Okta section of the bootstrap, after decisions D4 and D5). Hygiene bundle IX LANDED WHOLE 2026-10-02 (ffd1b89, three items); NO bundle is open, the next hygiene issue opens X. A release (dev9) is owed: it carries the GCP section, the fix that keeps the bootstrap root's state across regenerations (dev7 and dev8 wipe it), and bundle IX -- the reference configuration needs it to commit its GCP answers, and its ruleset re-apply (`1 to add`) needs the module without the bypass actor. §74, the documentation stage covering §71 items 1-5, §72 and §73, LANDED 2026-10-01 (docs only); the next behaviour change opens a new one. §73 LANDED 2026-10-01 in its commit on develop: coops-model-005 (generation 5, alias `gar`, the same image) replaced onto the new `efs-scratch` filesystem -- the planted file absent, the old `efs-storage` standing with its data and mounted nowhere. §72 LANDED 2026-09-30 in its commits on develop (fcfaa0c, 9412013, 4352bcc): the coops model resized in place (twice, c5n.4xlarge -> t3.xlarge -> t3.medium, the same machine, two `resized` events) and then replaced (coops-model-004, generation 4, alias `eel`, the same image) with the planted file, the EFS filesystem and the EBS volume all the same on the new machine; its documentation is owed to §74.
+Current stage: **none in progress**. Next by the operator's word: §70
+step 6, the Okta section of the bootstrap, which opens with decisions D4
+and D5. No hygiene bundle is open (IX LANDED WHOLE 2026-10-02, the next
+issue opens X) and no documentation stage is open (§74 LANDED
+2026-10-01).
+
+Releases: dev9 carries §70 step 5 (the GCP section) and dev10 hygiene
+bundle IX. The reference configuration runs dev10 and has committed its
+bootstrap answers and root; CI regenerates that root and finds it
+current. The re-apply that creates its ruleset (`1 to add`) is the
+operator's.
+
+Recently landed: §73 (2026-10-01), the coops model replaced onto a
+second EFS filesystem -- `coops-model-005`, generation 5, alias `gar`,
+the planted file absent, the old `efs-storage` standing with its data
+and mounted nowhere; §72 (2026-09-30), the coops model resized in place
+twice (`c5n.4xlarge` to `t3.xlarge` to `t3.medium`, the same machine,
+two `resized` events) and then replaced as `coops-model-004` with its
+planted file, EFS filesystem and EBS volume intact; §71, hygiene bundle
+VIII (2026-10-01, five items); §69 (2026-09-28, its step 5 done
+2026-09-29); §68, hygiene bundle VII (2026-09-29); §63, §67 and §64
+(2026-09-26).
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
 **§64**, the release that carries everything a configuration repository
@@ -116,8 +137,9 @@ Standing decisions (operator):
   is markdown, example configuration trees and the tests that hold the
   documentation contract; a code change it would need is a new stage,
   written as a plan, never a side edit.
-- §30 (the contract package), §65, §66 and §70 (the bootstrap: the one-time
-  initialisation as terraform from an interview) are planned, not started;
+- §30 (the contract package), §65 and §66 are planned, not started; §70
+  (the bootstrap: the one-time initialisation as terraform from an
+  interview) has landed three iterations and its Okta step is open;
   §69 (the CI-from-scratch guide) landed 2026-09-28 and its step 5 was done
   2026-09-29: the operator set the reference configuration's secrets and
   trust by the guide alone, and its first performing run on `main` was
@@ -417,48 +439,75 @@ the first final version on PyPI (§41's open call).
 
 ## 70. Bootstrap: the one-time initialisation, as terraform from an interview
 
-**Status: ITERATION ONE LANDED 2026-10-01 (2841591; the reference configuration took it with release dev7 and its `perform` is green with the root regenerated in CI). STEP 4, THE AWS SECTION, LANDED 2026-10-01 (7db183a; the reference configuration took it with release dev8, perform green). STEP 5, THE GCP SECTION, LANDED 2026-10-02 (30f7432, `feature/bootstrap-gcp` kept; the live plan reached `0 to destroy`); the last iteration is step 6, the Okta section, which opens with decisions D4 and D5, by the operator's word.** Step 5 as built: the section in the gcloud runtime plugin through the entry point, `tfmodules/bootstrap_gcp` (shipped in the starters): the pool and provider, the READ-ONLY account and the optional WRITE one, their roles and bindings; probes through `gcloud`, refused under `--quiet` when unaskable; and one deliberate difference from AWS -- what exists is READ as a data source and never rewritten (a provider's condition may admit other repositories), every grant a single member added, a by-hand note when an existing condition does not name this repository. Seven tests; the real `tofu validate` caught `provider` as a reserved module variable name (now `provider_id`). The live quiet interview over the reference project read everything right first time (the shared provider's condition kept verbatim, the bindings naming `repository` because that provider maps no id, no WRITE account since CI performs on AWS), and its three-section root validates. Looking at that tree also exposed a framework bug from iteration one, fixed here with a test: every run WIPED `generated/bootstrap` whole, which would have deleted `terraform.tfstate` of a root on the local backend; regeneration and pruning now keep the state, `.terraform/`, the lock and a saved plan. The operator's first plan then failed on every Google data source with 403: the probes had asked as the active `gcloud` account, but terraform ran with application-default credentials, which on that machine impersonate a runtime's service account that can read no IAM. Each section now declares the credentials its apply needs and the generated README's Apply block prints them as `export` lines (`GITHUB_TOKEN`, `AWS_PROFILE`, `GOOGLE_OAUTH_ACCESS_TOKEN=$(gcloud auth print-access-token)`), so terraform acts as whoever the interview asked as. With the token the plan is `2 to import, 9 to add, 2 to change, 0 to destroy`: the Google reads succeed, the two new lines are the additive role member and `workloadIdentityUser` binding, the shared provider is untouched, and the outputs carry the three GCP secrets' values. Open: the merge word, a release for the sibling; the apply is the operator's decision. Step 4 as built: the section in the AWS runtime plugin through the `cs_image_system.bootstrap` entry point, `tfmodules/bootstrap_aws` (shipped in the starters), every "existing" question a fork whose default probes the account (refused by name under `--quiet` when it cannot be asked; a starter's placeholders are no defaults), roles that exist adopted by `import` blocks, the two role ARNs set as secrets from the root's outputs, and D8 landed -- the root's state binds to the tree's declared S3 backend when the bucket exists, local when the bootstrap makes it. The framework gained a tree-derived gate default per section (AWS is wanted where the tree uses AWS), a section-offered backend and root blocks. Eight tests, the module's statements held to the guide's Sid for Sid; the guide's 3.0 table, OPERATIONS, the daily driver and the plugin README say so. The live interview over the reference configuration (2026-10-01, quiet, the `noaa` session): first REFUSED at `aws.oidc_provider_exists` while the session was lapsed -- the designed behaviour, seen live -- then, with a session, found a defect before anything was applied: the facts reader read `cfg/state-backends.yml` alone and took a non-default sample entry (`my-east1-tfstate-bucket`, absent) for the tree's bucket, which the root would have CREATED; the tree's default is in `cfg/state-backends-2.yml`. The reader now collects runtimes, groups and state backends across every `cfg/*.yml`, as the loader does (a ninth test). With the fix the live answers are right: the real bucket exists and the root binds to it at `statefiles/csia-image-system-test/bootstrap.tfstate` (D8), the OIDC provider and the instance profile are read, both roles are adopted by `import`, subject forms `both` with the real ids. The operator's first `tofu plan` of that root (`2 to import, 7 to add, 2 to change, 0 to destroy`) then caught a second defect before any apply: the READ-ONLY role is shared with the system repository's own CI, and the module, trusting one repository, planned to REMOVE `repo:infrastructurebuilder/cs-image-system-3:*` from its trust. Adoption now preserves what a role already trusted: `read_extra_subjects` / `write_extra_subjects`, defaulted from the existing role's trust document (everything not this repository's), shown at the prompt, refused under `--quiet` when unreadable (a tenth test). The operator's re-plan confirmed it: `2 to import, 7 to add, 2 to change, 0 to destroy`, with NO change to either role's trust (the READ role keeps all four subjects, the WRITE role is `main` alone as before) -- only the descriptions and three tags move on the roles, the two managed policies are added beside the hand-made ones, and the outputs carry the real ARNs. The apply is the operator's decision. Open: the merge word, and a release so the sibling can commit the new answers (its CI's `config-drift` runs the release).
-Steps 1-3, 7 (its iteration-one parts) and 8 are written: the framework,
-the GitHub section and module, twelve tests (the question model, the quiet
-interview and its refusals, the answers file, the root over a starter copy
-with a real `tofu validate`, the regeneration inside every run and the
-pruning, a `--commit` run staging the root AND its tfvars, `config-drift`
-on an edited root and on a changed answer, the secrets script naming every
-guide secret, the starters' module, recipe and ignore exception,
-public-safe over the root, the command without loading and its refusal
-by name), the docs (CI_SETUP.md 3.0 and a 4.0 placeholder, the starter
-READMEs, DAILY_DRIVER 1.8, the system README, OPERATIONS section 3).
-Two things decided while building, within the plan's letter: the root's
-state is `backend "local"` in iteration one -- D8's "declared backend
-when the bucket exists" needs the AWS section's bucket question (step 4),
-and the README says how to move the state afterwards; and the one
-committed tfvars is exempted BY PATH from public-safe's refusal (scanned
-like any file) and added to the meta-state commit by name, because a git
-pathspec cannot say "except this one". Step 9, the live proof in the
-reference configuration, reached its plan on 2026-10-01: `just cli
-bootstrap --quiet` derived every default from the checkout (the
-repository, `develop`/`main`, `aws-east2-runtime`, `us-east-2`), the root
-passed `tofu init` and `validate` (the module copied into the sibling's
-`tfmodules/` by hand, since release dev6 does not ship it), and the
-operator's `tofu plan` with `gh auth token` read the repository and
-planned `5 to add, 0 to change, 0 to destroy`: the Actions permissions,
-`PERFORM_RUNTIME` and `AWS_REGION` (an empty `GUARD_RUNTIME` is omitted by
-design), the default branch and the ruleset on `main` with the Actions
-app as bypass actor; the output `github_repository_id = 1373601874` is
-the id the federation trusts already pin. The apply is the operator's
-decision. The sibling's `bootstrap.yaml` and `generated/bootstrap` stay
-UNCOMMITTED until a release carries the bootstrap (its CI's `config-drift`
-runs the release, which would otherwise report the committed root as
-drift): merge, release, `init-config --force` there, then commit them. (The operator, 2026-09-28: "a one-time
-initialization of assets for using the starter-tree repo ... code that
-lives in the main repo, called by some specific subcommand of
-cs-image-system and produces terraform based on interview questions ...
-a --quiet option that selects all the defaults ... generated/bootstrap ...
-an auto tfvars file ... as much IaC for the initialization effort as is
-possible, per the README in the starter tree, but allow for existing
-infrastructure ... ask if you want a specific type of resource, like AWS or
-GCP or Okta, and if so ask any questions needed for those. We will
-probably iterate on this several times").
+**Status: three iterations LANDED; step 6, the Okta section, is open by
+the operator's word and opens with decisions D4 and D5.**
+
+- **Iteration one, the framework and the GitHub section**, LANDED
+  2026-10-01 (2841591): the question model, the interview with
+  `--quiet`, `--answers` and `--section`, `bootstrap.yaml` at the tree's
+  root, the HCL writer, the `cs_image_system.bootstrap` entry-point
+  group, the `bootstrap` command exempt from loading,
+  `generated/bootstrap` regenerated from the answers inside every run
+  (generation only), the secrets script, and the GitHub module (default
+  branch, production ruleset, Actions permissions and variables). Two
+  decisions taken while building, within the plan's letter: the root's
+  state was `backend "local"` until the AWS section could ask about the
+  bucket (D8 arrived with step 4); and the one committed tfvars is
+  exempted BY PATH from public-safe's refusal (scanned like any file)
+  and added to the meta-state commit by name, because a git pathspec
+  cannot say "except this one". Live: the quiet interview over the
+  reference configuration derived every default from the checkout, and
+  its plan was `5 to add`.
+
+- **Step 4, the AWS section**, LANDED 2026-10-01 (7db183a), in the AWS
+  runtime plugin with `tfmodules/bootstrap_aws`: the OIDC provider, the
+  READ-ONLY and WRITE roles with the guide's documents, the state bucket
+  and instance profile when the account lacks them. Every "existing"
+  question is a fork whose default probes the account (refused by name
+  under `--quiet` when it cannot be asked; a starter's placeholders are
+  no defaults); roles that exist are adopted by `import` blocks; the
+  role ARNs come from the root's outputs; D8, the root's state binds to
+  the tree's declared S3 backend when the bucket exists. Two defects
+  were found live before any apply, and fixed: the facts reader read one
+  `cfg` file and took a non-default sample bucket for the tree's (it now
+  collects across every `cfg/*.yml`, as the loader does); and adoption
+  would have narrowed the shared READ-ONLY role's trust, removing the
+  system repository's own CI (adoption now keeps every subject a role
+  already trusted).
+
+- **Step 5, the GCP section**, LANDED 2026-10-02 (30f7432), in the
+  gcloud runtime plugin with `tfmodules/bootstrap_gcp`: the workload
+  identity pool and provider, the READ-ONLY service account and the
+  optional WRITE one, their roles and `workloadIdentityUser` bindings.
+  One deliberate difference from AWS: what exists is READ as a data
+  source and never rewritten (a provider's condition may admit other
+  repositories; the reference project's admits two), and every grant is
+  a single member added. Found on the way and fixed: `provider` is a
+  reserved module variable name (now `provider_id`); every run WIPED
+  `generated/bootstrap`, which would have deleted local state
+  (regeneration now keeps the state, `.terraform/`, the lock and a saved
+  plan); and terraform acted as a different identity than the interview
+  (the README, and since hygiene IX the command's closing lines, print
+  the `export` lines terraform needs).
+
+- **Applied 2026-10-02 by the operator** in the reference configuration:
+  both roles adopted with no change to their trust, the two managed
+  policies, the GCP role member and binding, the default branch, Actions
+  permissions and two Actions variables. The ruleset was refused (`422`:
+  GitHub will not take the Actions app as a bypass actor); hygiene IX
+  item 3 removed the bypass, which was never needed, and the re-apply
+  after release dev10 is `1 to add`.
+
+**The request** (the operator, 2026-09-28): "a one-time initialization
+of assets for using the starter-tree repo ... code that lives in the
+main repo, called by some specific subcommand of cs-image-system and
+produces terraform based on interview questions ... a --quiet option
+that selects all the defaults ... generated/bootstrap ... an auto tfvars
+file ... as much IaC for the initialization effort as is possible, per
+the README in the starter tree, but allow for existing infrastructure
+... ask if you want a specific type of resource, like AWS or GCP or
+Okta, and if so ask any questions needed for those. We will probably
+iterate on this several times".
 
 Initially, the user must install the base application (generally using `uv`).
 Then the user would fork and clone the starter repository.  This would give them
