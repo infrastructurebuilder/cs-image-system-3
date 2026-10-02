@@ -732,3 +732,25 @@ bundle; none is a stage of its own.
    the generated README's Apply block instead of listing commands without
    them. A test that the closing line carries the GCP token export when
    the GCP section is wanted and not when it is not.
+
+3. **OPEN, found 2026-10-02 by the operator's first apply of the reference
+   bootstrap root.** The ruleset on the production branch cannot be
+   created: `POST .../rulesets: 422 Validation Failed -- Actor GitHub
+   Actions integration must be part of the ruleset source or owner
+   organization`. The module names the GitHub Actions app (integration
+   15368) as a bypass actor, and GitHub accepts an Integration bypass only
+   for an app installed in the repository's owner -- which the built-in
+   Actions app is not. The bypass was never needed: the ruleset's two
+   rules, restrict deletion and block force pushes (`non_fast_forward`),
+   do not block an ordinary push, and `perform` pushes its records
+   fast-forward (a non-fast-forward push already fails it, by design).
+   Everything else in that apply landed (the two roles adopted, their
+   descriptions and tags, the two managed policies, the GCP role member
+   and `workloadIdentityUser` binding, the default branch, Actions
+   permissions, the two Actions variables), and the failed POST created
+   nothing, so state is consistent. Fix: drop the `bypass_actors` block
+   from `tfmodules/bootstrap_github`, and the "the Actions app bypasses
+   it" wording from the module's comments and variable, `github.py`'s
+   note, CI_SETUP.md 3.0's table and OPERATIONS; a test that the module
+   names no bypass actor and that its rules are exactly deletion and
+   non-fast-forward. The re-apply afterwards is `1 to add`, the ruleset.
