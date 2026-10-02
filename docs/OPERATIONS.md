@@ -1691,7 +1691,17 @@ commits it with the rest of the emission (the tfvars added by name after
 the pathspec-limited commit, since a pathspec cannot say "except this
 one"), `config-drift` reports a stale or hand-edited root as drift, and a
 clone regenerates it without an interview. Applying is the operator's act
-in that directory, the same as every other IAM write in this system.
+in that directory, the same as every other IAM write in this system. The
+generated README's "Apply" block opens with the credentials each wanted
+section needs, as `export` lines -- `GITHUB_TOKEN=$(gh auth token)`,
+`AWS_PROFILE=<the profile the interview probed as>`,
+`GOOGLE_OAUTH_ACCESS_TOKEN=$(gcloud auth print-access-token)` -- so
+terraform acts as the same identities the interview asked as. That
+matters most on GCP: application-default credentials are often something
+else (on the reference machine they impersonate a runtime's service
+account, which can read no IAM, and the first live plan failed with 403
+on every Google data source until it was given the operator's own
+token).
 
 Sections: GitHub lives in base (the default branch, a ruleset on the
 production branch -- no deletion, no force push -- that the GitHub

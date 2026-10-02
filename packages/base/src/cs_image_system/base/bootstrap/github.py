@@ -99,7 +99,9 @@ def render(answers: Answers) -> Rendered:
             ("github_repository_node_id", f"module.{MODULE}.node_id", "the repository's node id"),
         ),
         required_providers={"github": {"source": "integrations/github", "version": ">= 6.0"}},
-        provider_blocks='provider "github" {\n  owner = var.github_owner   # the token: GITHUB_TOKEN, or `gh auth token`\n}\n',
+        provider_blocks='provider "github" {\n  owner = var.github_owner   # the token: GITHUB_TOKEN (README.md, "Apply")\n}\n',
+        apply_env=(("GITHUB_TOKEN", "$(gh auth token)", "the github provider's token; `gh` must be logged in as someone "
+                    "who administers the repository"),),
         secrets=SECRETS,
         by_hand=(
             "The nine secrets' VALUES: one file per secret under the secrets directory "

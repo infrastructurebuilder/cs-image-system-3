@@ -187,6 +187,12 @@ def test_the_root_reads_what_exists_adds_single_members_and_sets_the_secrets_fro
                            ("GCP_APPLY_SERVICE_ACCOUNT", "gcp_write_service_account")):
         assert f"from_output {secret} {output}" in script and f"from_file {secret}" not in script
     assert "from_file CSIS_CONFIG_IDENTITY" in script                        # the rest still from files
+    # the README says who terraform acts as: the identities the interview asked as, not whatever ADC happens to be
+    readme = (out / "README.md").read_text()
+    assert "export GOOGLE_OAUTH_ACCESS_TOKEN=$(gcloud auth print-access-token)" in readme
+    assert "export GITHUB_TOKEN=$(gh auth token)" in readme
+    assert readme.index("export GOOGLE_OAUTH_ACCESS_TOKEN") < readme.index("tofu init")
+    assert "application-default" in readme and "can read no IAM" in readme
     # the module: reads what exists, and every grant is one member added -- nothing authoritative
     module = (REPO / "tfmodules" / "bootstrap_gcp" / "main.tf").read_text()
     for needle in ('data "google_iam_workload_identity_pool" "github"', 'data "google_iam_workload_identity_pool_provider" "github"',

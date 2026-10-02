@@ -273,8 +273,17 @@ def render(answers: Answers) -> Rendered:
              "the address CI may write as (the READ-ONLY one when there is no WRITE account): the GCP_APPLY_SERVICE_ACCOUNT secret"),
         ),
         required_providers={"google": {"source": "hashicorp/google", "version": ">= 5.0"}},
-        provider_blocks=('provider "google" {\n  project = var.gcp_project   # the credentials: application default '
-                         '(`gcloud auth application-default login`)\n}\n'),
+        provider_blocks=('provider "google" {\n  project = var.gcp_project   # the credentials: GOOGLE_OAUTH_ACCESS_TOKEN '
+                         '(README.md, "Apply")\n}\n'),
+        # The probes asked as the active `gcloud` account; terraform must act as
+        # the same one. Application-default credentials are often something else
+        # entirely -- on the reference machine they impersonate a runtime's
+        # service account, which can read no IAM, and the first live plan failed
+        # with 403 on every data source.
+        apply_env=(("GOOGLE_OAUTH_ACCESS_TOKEN", "$(gcloud auth print-access-token)",
+                    "your active `gcloud` account's token, which the google provider prefers over application-default "
+                    "credentials (those may impersonate a runtime's service account that can read no IAM); it lasts "
+                    "about an hour"),),
         secrets=(
             Secret("GCP_WORKLOAD_IDENTITY_PROVIDER", "output", "gcp_workload_identity_provider",
                    "the provider's full resource name, from the applied root"),

@@ -299,6 +299,8 @@ def render(answers: Answers) -> Rendered:
         provider_blocks=('provider "aws" {\n  region  = var.aws_region\n'
                          '  profile = var.aws_profile != "" ? var.aws_profile : null\n'
                          '  default_tags {\n    tags = var.aws_tags\n  }\n}\n'),
+        apply_env=(("AWS_PROFILE", profile, "the profile the interview probed the account as; its session must be "
+                    "live (`aws sso login`), and it must be allowed to write IAM"),) if profile else (),
         secrets=(
             Secret("AWS_ROLE_ARN", "output", "aws_read_role_arn", "the READ-ONLY role's ARN, from the applied root"),
             Secret("AWS_APPLY_ROLE_ARN", "output", "aws_write_role_arn", "the WRITE role's ARN, from the applied root"),
