@@ -7,17 +7,18 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress**. Next by the operator's word: §70
-step 6, the Okta section of the bootstrap, which opens with decisions D4
-and D5. No hygiene bundle is open (IX LANDED WHOLE 2026-10-02, the next
-issue opens X) and no documentation stage is open (§74 LANDED
-2026-10-01).
+Current stage: **none in progress**. §70, the bootstrap, LANDED
+2026-10-02 with its step 6 (2a33c6d), all its planned steps done; it
+stays part of the ongoing work by the operator's word (standing
+decisions, below). No hygiene bundle is open (IX LANDED WHOLE
+2026-10-02, the next issue opens X) and no documentation stage is open
+(§74 LANDED 2026-10-01). Next by the operator's word: §65, §66 or §30.
 
-Releases: dev9 carries §70 step 5 (the GCP section) and dev10 hygiene
-bundle IX. The reference configuration runs dev10 and has committed its
-bootstrap answers and root; CI regenerates that root and finds it
-current. The re-apply that creates its ruleset (`1 to add`) is the
-operator's.
+Releases: dev9 carries §70 step 5 (the GCP section), dev10 hygiene
+bundle IX; a release (dev11) is owed for §70 step 6. The reference
+configuration runs dev10 with its GitHub, AWS and GCP answers and root
+committed and current in CI; its Okta answers wait, uncommitted, for
+dev11, and its ruleset re-apply (`1 to add`) is the operator's.
 
 Recently landed: §73 (2026-10-01), the coops model replaced onto a
 second EFS filesystem -- `coops-model-005`, generation 5, alias `gar`,
@@ -139,7 +140,7 @@ Standing decisions (operator):
   written as a plan, never a side edit.
 - §30 (the contract package), §65 and §66 are planned, not started; §70
   (the bootstrap: the one-time initialisation as terraform from an
-  interview) has landed three iterations and its Okta step is open;
+  interview) landed 2026-10-02 in four squashes;
   §69 (the CI-from-scratch guide) landed 2026-09-28 and its step 5 was done
   2026-09-29: the operator set the reference configuration's secrets and
   trust by the guide alone, and its first performing run on `main` was
@@ -158,6 +159,27 @@ Standing decisions (operator):
   and what each changed), so whoever writes the docs has the context.
   The same convention as the hygiene bundle: one open stage, appended to,
   landed as one.
+
+- **The bootstrap is ongoing work** (the operator's own words in §70,
+  kept verbatim when it landed):
+
+  > Initially, the user must install the base application (generally using `uv`).
+  > Then the user would fork and clone the starter repository.  This would give them
+  > a place to land the bootstrapping code.  They would then start the bootstrapping
+  > interview, and should end up with a runnable copy of the application, as well
+  > as a configured set of dependencies, bootstrap code, and target locations for 
+  > state management (including, possibly, storing state in github [not recommended]).
+  >
+  > Once landed, the §70 work should be considered part of the ongoing updates of the application
+  > and the starter repository, such that any new items are part of the process.
+
+  So a new release-owned part, a new runtime or a new secret owes the
+  bootstrap its section, module or question in the same stage. One part
+  of that paragraph is not built: keeping the bootstrap root's state in
+  GitHub ("not recommended" there too). The root's state is the tree's
+  declared S3 backend when its bucket exists, else local for the first
+  apply (decision D8); a GitHub-hosted state would be a stage of its own
+  if it is ever wanted.
 
 ---
 
@@ -436,393 +458,3 @@ release, and never edited at the destination. Then:
 **Sizing**: the recipe and its test half a day; the job an hour; the
 mirrors and tokens are the operator's (an hour); the live proof waits on
 the first final version on PyPI (§41's open call).
-
-## 70. Bootstrap: the one-time initialisation, as terraform from an interview
-
-**Status: three iterations LANDED; step 6, the Okta section, BUILT
-2026-10-02 on `feature/bootstrap-okta` and proved live (below); it waits
-for the merge word, and then for a release before the reference
-configuration commits its Okta answers.**
-
-- **Iteration one, the framework and the GitHub section**, LANDED
-  2026-10-01 (2841591): the question model, the interview with
-  `--quiet`, `--answers` and `--section`, `bootstrap.yaml` at the tree's
-  root, the HCL writer, the `cs_image_system.bootstrap` entry-point
-  group, the `bootstrap` command exempt from loading,
-  `generated/bootstrap` regenerated from the answers inside every run
-  (generation only), the secrets script, and the GitHub module (default
-  branch, production ruleset, Actions permissions and variables). Two
-  decisions taken while building, within the plan's letter: the root's
-  state was `backend "local"` until the AWS section could ask about the
-  bucket (D8 arrived with step 4); and the one committed tfvars is
-  exempted BY PATH from public-safe's refusal (scanned like any file)
-  and added to the meta-state commit by name, because a git pathspec
-  cannot say "except this one". Live: the quiet interview over the
-  reference configuration derived every default from the checkout, and
-  its plan was `5 to add`.
-
-- **Step 4, the AWS section**, LANDED 2026-10-01 (7db183a), in the AWS
-  runtime plugin with `tfmodules/bootstrap_aws`: the OIDC provider, the
-  READ-ONLY and WRITE roles with the guide's documents, the state bucket
-  and instance profile when the account lacks them. Every "existing"
-  question is a fork whose default probes the account (refused by name
-  under `--quiet` when it cannot be asked; a starter's placeholders are
-  no defaults); roles that exist are adopted by `import` blocks; the
-  role ARNs come from the root's outputs; D8, the root's state binds to
-  the tree's declared S3 backend when the bucket exists. Two defects
-  were found live before any apply, and fixed: the facts reader read one
-  `cfg` file and took a non-default sample bucket for the tree's (it now
-  collects across every `cfg/*.yml`, as the loader does); and adoption
-  would have narrowed the shared READ-ONLY role's trust, removing the
-  system repository's own CI (adoption now keeps every subject a role
-  already trusted).
-
-- **Step 5, the GCP section**, LANDED 2026-10-02 (30f7432), in the
-  gcloud runtime plugin with `tfmodules/bootstrap_gcp`: the workload
-  identity pool and provider, the READ-ONLY service account and the
-  optional WRITE one, their roles and `workloadIdentityUser` bindings.
-  One deliberate difference from AWS: what exists is READ as a data
-  source and never rewritten (a provider's condition may admit other
-  repositories; the reference project's admits two), and every grant is
-  a single member added. Found on the way and fixed: `provider` is a
-  reserved module variable name (now `provider_id`); every run WIPED
-  `generated/bootstrap`, which would have deleted local state
-  (regeneration now keeps the state, `.terraform/`, the lock and a saved
-  plan); and terraform acted as a different identity than the interview
-  (the README, and since hygiene IX the command's closing lines, print
-  the `export` lines terraform needs).
-
-- **Applied 2026-10-02 by the operator** in the reference configuration:
-  both roles adopted with no change to their trust, the two managed
-  policies, the GCP role member and binding, the default branch, Actions
-  permissions and two Actions variables. The ruleset was refused (`422`:
-  GitHub will not take the Actions app as a bypass actor); hygiene IX
-  item 3 removed the bypass, which was never needed, and the re-apply
-  after release dev10 is `1 to add`.
-
-- **Step 6, the Okta and OPA section**, BUILT 2026-10-02, by decisions
-  D4, D5, D9 and D10: a section that creates nothing. A read-only spike
-  first settled what can be seen: the OPA listings carry each
-  connection's `status` and `conditions` and each role's `requirements`
-  (connection and `ref` condition), and the Okta services app, asked for
-  a token with its own key as the `okta` provider does, gets exactly
-  `okta.users.read` and `okta.groups.read` but cannot read its own
-  record (no `okta.apps.read`), so a `*.manage` scope or a second auth
-  method is a confirmation for the org's Okta admins, not a check. The
-  section checks the connection (present, ACTIVE, requiring this
-  repository), the role (present, bound, pinned to `refs/heads/main`),
-  the names on the group builder and the app, and turns each failed
-  check into its step of CI_SETUP.md 3.5. The framework gained OBSERVED
-  questions: asked of the world on every interview, the recorded answer
-  only the fallback. Ten tests. The live quiet interview over the
-  reference configuration found everything in place --
-  `github-actions-infrastructurebuilder` active and requiring this
-  repository, `cs-image-system-testconfig-ci` bound and pinned to
-  `main`, both named on `oktagroups`, the app authenticating read-only
-  -- and left two lines by hand: the Okta admins' confirmation and the
-  OPA service user (by decision). Its answers stay uncommitted in the
-  reference configuration until a release carries the section.
-
-**The request** (the operator, 2026-09-28): "a one-time initialization
-of assets for using the starter-tree repo ... code that lives in the
-main repo, called by some specific subcommand of cs-image-system and
-produces terraform based on interview questions ... a --quiet option
-that selects all the defaults ... generated/bootstrap ... an auto tfvars
-file ... as much IaC for the initialization effort as is possible, per
-the README in the starter tree, but allow for existing infrastructure
-... ask if you want a specific type of resource, like AWS or GCP or
-Okta, and if so ask any questions needed for those. We will probably
-iterate on this several times".
-
-Initially, the user must install the base application (generally using `uv`).
-Then the user would fork and clone the starter repository.  This would give them
-a place to land the bootstrapping code.  They would then start the bootstrapping
-interview, and should end up with a runnable copy of the application, as well
-as a configured set of dependencies, bootstrap code, and target locations for 
-state management (including, possibly, storing state in github [not recommended]).
-
-Once landed, the §70 work should be considered part of the ongoing updates of the application
-and the starter repository, such that any new items are part of the process.
-
-**Why.** §69's guide tells a team what to make by hand before CI can run:
-the OIDC provider and two roles in AWS, the workload identity pool,
-provider and service accounts in GCP, the Okta app and the OPA workload
-objects, the repository's settings and secrets. Most of that is
-infrastructure, and infrastructure here is declared and applied through
-gates, never clicked. This stage turns the guide's sections into terraform
-the team applies once, from answers it gives once, with the existing
-pieces of its accounts taken as they are.
-
-**The shape.**
-
-- **The command**: `cs-image-system bootstrap [--quiet] [--section
-  aws|gcp|okta|github ...]`, run in a configuration repository. It loads
-  no configuration (the sessions and federation it makes may not exist
-  yet); it reads the raw tree (`cfg/*.yml`, like `preflight` does) and the
-  checkout (`git remote`, `gh api` for the repository and owner ids when
-  `gh` is present) for the interview's defaults.
-- **The interview** is a declared list of questions, each with an id, a
-  prompt, a type (text, choice, yes/no, path, secret-path), a default (a
-  literal, or a function of the tree and the earlier answers), a
-  `when` condition on earlier answers, and the terraform variable it
-  feeds. Sections open with "Do you want AWS? GCP? Okta and OPA? GitHub?"
-  and each section's questions follow only when it is wanted. Every
-  "existing" question is a fork: "Does the account already have a GitHub
-  OIDC provider?" yes takes its ARN and emits a data source, no emits the
-  resource; the same for the state bucket, the VPC and subnets, the SSM
-  instance profile, the workload identity pool, the service accounts, the
-  Okta app. `--quiet` takes every default; a question whose default cannot
-  be derived (an account id with no session, a repository id with no `gh`)
-  is refused by name under `--quiet` instead of guessed.
-- **Where the questions live**: the framework and the GitHub section in
-  base (`base/bootstrap/`: the question model, the interview runner, the
-  HCL writer); the AWS, GCP and Okta sections contributed by their
-  plugins through a new entry-point group (`cs_image_system.bootstrap`),
-  each plugin owning the questions and the terraform for its cloud, as
-  each owns its runtime today. A section absent from the installed
-  plugins is absent from the interview.
-- **Regenerable, and committed, like the emission** (the operator,
-  2026-09-28: "the command should be able to re-generate the backing setup
-  in the same way that the system itself does; once it generates the
-  bootstrap, it should be committable and retainable within the repo").
-  `bootstrap.yaml` at the root of the tree, beside `cfg/`, is the
-  committed source, as the YAML tree is for the lifecycles (decided
-  2026-09-28: the source is hand-editable, so it lives with the
-  declarations, never under `generated/`, which the system writes and
-  nobody edits; the output stays at `generated/bootstrap/`, so every rule
-  the emission already has -- the commit, config-drift, the `.gitignore`
-  policy, pruning, the mirror -- applies unchanged, and the golden moves
-  only when the frozen fixture carries a `bootstrap.yaml`, which it does
-  not in iteration one); `bootstrap` interviews and writes it, and every
-  `run`, dry or real, regenerates `generated/bootstrap/` from it
-  deterministically
-  (the same answers and tree give the same bytes), generation only: no
-  run ever plans or applies the bootstrap root. So a `--commit` run
-  commits it with the rest of the emission, `config-drift` reports a
-  stale root as drift, and a clone regenerates it without an interview.
-- **The output**, under `generated/bootstrap/` (a new lifecycle-shaped
-  directory beside the lifecycles', with the same `.gitignore` policy:
-  tool residue, plans and state out, everything else in):
-  - `main.tf`, `providers.tf`, `variables.tf`, `outputs.tf`: one root
-    module calling the release's modules `tfmodules/bootstrap_<section>`
-    (shipped with the starters like every module; `module_source_base`
-    reaches them), with `count` toggles from the answers and data sources
-    for what exists;
-  - `bootstrap.auto.tfvars`: every answer, so `tofu init && tofu apply`
-    in that directory needs nothing typed again; regenerated from the
-    saved answers, never edited by hand (`bootstrap` says so in its
-    header); committed;
-  - (the answers are NOT here: `bootstrap.yaml` at the tree's root is
-    the input every regeneration reads and `bootstrap` reads back on a
-    second interview so a team re-answers only what changed; the same
-    shape a `--answers FILE` option takes; edit it, or re-interview, and
-    the next run regenerates this directory);
-  - `set-secrets.sh`: the `gh secret set` lines of guide section 3.7,
-    each reading its value from a file the interview named or from the
-    root's outputs (the role ARNs, the provider name, the service
-    account addresses), so no secret VALUE enters the tfvars or the
-    terraform state;
-  - `README.md`: what was generated, what is left by hand (below), and
-    the apply and verification commands in order.
-- **What terraform makes, per the guide**: AWS, the OIDC identity
-  provider, the read-only role and the write role with their trust
-  documents (the `sub` forms the interview chose: plain, id-bearing, or
-  both) and permission policies (the guide's, with the interview's
-  bucket, prefix, region, account and instance profile filled in), and
-  optionally the state bucket (versioned, encrypted, lock files) and the
-  SSM instance profile when the account lacks them; GCP, the workload
-  identity pool and the GitHub provider with the attribute mapping and
-  condition, the read-only service account and its roles, the optional
-  write account, the `workloadIdentityUser` bindings; GitHub, the
-  repository's default branch, the branch protection or ruleset that
-  lets `github-actions[bot]` push to `main`, Actions permissions, and the
-  variables that are not secret; Okta, the API services app
-  (`okta_app_oauth`, service type, key-based auth, the read scopes
-  granted) with its generated key, when the operator has an admin token
-  to run the provider with. Every resource carries the tags the system's
-  other roots carry.
-- **What stays by hand, and is printed**: the OPA workload connection and
-  role (the oktapam provider has no workload resources; guide section 3.5
-  steps 1-2 and 4-6), the age identity for CI (`age-keygen`, then
-  `reencrypt`; the script does the `gh secret set`), the network rules
-  that are the team's (never modified by the system), and the first
-  performing run. The bootstrap never applies anything itself: the
-  operator runs `tofu apply` in `generated/bootstrap`, the same act as
-  every other IAM write in this system.
-- **The bootstrap's state** binds to the tree's declared backend like
-  every other root when the interview says the state bucket exists; when
-  the bootstrap creates the bucket, the first apply uses local state
-  (ignored: `terraform.tfstate` and `.terraform/` never enter a commit)
-  and the printed next step moves it to the bucket with the system's
-  existing `state-migration` machinery, after which the root is bound
-  like the others. The state holds no secret value by construction (the
-  secrets script keeps them out). A regenerated root and the state
-  carry over, so the root is re-applyable.
-
-**Decided 2026-09-28** (the operator): D1, iteration one is the framework
-and the GitHub section alone (the interview, `--quiet`, `bootstrap.yaml`,
-the tfvars, the secrets script, the repository settings); every cloud
-section is a later step, AWS first; D2, `set-secrets.sh`, no secret value
-in the tfvars or the state; D3, `bootstrap.yaml` and `bootstrap.auto.tfvars`
-are both committed (the answers as `bootstrap.yaml` at the tree's root,
-decided 2026-09-28; the starters' `.gitignore` stops ignoring `*.tfvars`
-under `generated/bootstrap`; public-safe runs on them); D4 and D5, the OPA
-workload objects and the Okta services app are decided when the Okta
-section is built (step 6), not now: iteration one prints nothing about
-Okta; D6, the name is `bootstrap`.
-
-**Decided 2026-09-28, second round** (after the operator's regenerability
-clarification): D7, every run regenerates `generated/bootstrap` from the root's
-`bootstrap.yaml`, generation only, so `--commit` and `config-drift` cover
-it;
-D8, the root's state is the tree's declared backend when the bucket
-exists, else local for the first apply and then migrated with the
-existing `state-migration` machinery.
-
-**Decided 2026-10-02, third round** (step 6, asked after a look at what
-OPA allows: Okta documents creating a JWT workload connection as a
-DevOps-admin act and activating it as a security-admin one, in the
-console only; the system's OPA service user already READS connections
-and roles, `GET /v1/teams/{team}/connections/workloads` and
-`/workload-roles`):
-
-- D4, the OPA workload connection and role: **read and prefill**. The
-  interview reads the team's existing connections and roles through the
-  API the system already uses, defaults the names from what it finds,
-  and checks what it can; creating, activating and the `ref` pin stay in
-  the console and are printed only for what is missing.
-
-- D5, the Okta API services app (`OKTA_API_PRIVATE_KEY`): **check it,
-  create by hand**. The interview asks for the existing app and verifies
-  what can be read about it; creation is printed steps.
-
-- D9, who administers the Okta org: **someone else** (for the reference
-  configuration, NOAA's Okta admins). Nothing in step 6 creates anything
-  in Okta, and its live proof is read-only.
-
-- D10, the OPA service user and its key pair (`TF_VAR_KEY` /
-  `TF_VAR_SECRET`): **by hand**. The bootstrap needs that key to talk to
-  OPA at all, and the API returns a secret once; it stays a printed step
-  and `set-secrets.sh` reads it from a file as now.
-
-**The decisions, as asked** (for the record; D4 and D5 return at step 6):
-
-- **D1, the first iteration's scope.** AWS + GitHub + the interview
-  framework + the tfvars and secrets script (the reference deployment's
-  own shape, provable against its account), with GCP and Okta as steps 2
-  and 3; or all four sections at once.
-- **D2, the GitHub secrets.** The `set-secrets.sh` script (values never in
-  terraform state; recommended) or `github_actions_secret` resources fed
-  by `TF_VAR_*` at apply time (one apply does everything; the local state
-  then holds every secret value in clear).
-- **D3, `bootstrap.yaml` and the tfvars in the repository.** Both under
-  `generated/bootstrap/` and committed (they hold account ids, ARNs,
-  repository names: public-safe must pass, and the starters' `.gitignore`
-  ignores `*.tfvars` today), or ignored and kept by the operator. The
-  secrets script names files by path and never holds a value either way.
-- **D4, the OPA workload objects.** Printed by-hand steps only (the
-  provider cannot make them), or a `bootstrap` that calls the OPA API the
-  way the system already reconciles CI policies (`opa_gids`,
-  `workload_policy`), if the API exposes connection and role creation to
-  the service user; to be checked against the API before deciding.
-- **D5, the Okta API services app.** In scope with the okta provider (an
-  admin token or an existing app with the manage scopes is needed to make
-  it, a chicken-and-egg the interview must ask about), or by hand in
-  iteration one.
-- **D6, the name.** `bootstrap`, or `init-ci`, or a subcommand of
-  `init-config`.
-- **D7, regeneration.** Every run regenerates the root from
-  `bootstrap.yaml`, or only `bootstrap` does, or split.
-- **D8, the root's state.** The declared backend when the bucket exists
-  and local-then-migrate when the bootstrap creates it; or always local;
-  or split.
-
-**Steps.** Iteration one is steps 1-3 and the parts of 7-9 they need;
-each later step is its own iteration, proved before the next.
-
-1. The decisions, recorded here (D4 and D5 at step 6).
-2. The framework in base: the question model, the interview runner (a
-   terminal prompt with the default shown, `--quiet`, `--answers FILE`,
-   `--section`), the answers file, the HCL writer (the root module, the
-   tfvars, the outputs), the entry-point group, the `bootstrap`
-   subcommand exempt from loading the configuration, the regeneration
-   of `generated/bootstrap` from the root's `bootstrap.yaml` inside every run
-   (generation only, before the lifecycles, pruned like theirs when the
-   answers file is absent), the root's backend binding (D8), `just
-   bootstrap` in the starter Justfile, and `generated/bootstrap` known to
-   the emitted `.gitignore` (tfvars and answers in, state and plans out)
-   and to `public-safe`.
-3. The GitHub section and module (repository settings, protection,
-   variables) and the secrets script.
-4. The AWS section and module (`tfmodules/bootstrap_aws`): the provider,
-   the two roles, the optional bucket and instance profile, every
-   "existing" fork.
-5. The GCP section and module (`tfmodules/bootstrap_gcp`).
-6. The Okta section (D4, D5, D9, D10): a read-and-verify section with no
-   terraform module, since nothing in it is created. In the okta-opa
-   plugin through the entry point, wanted where the tree declares an
-   `okta-tf` group builder. Its facts: the team, `api_host` and org from
-   the raw `cfg/group-builders.yml`, and the OPA key pair from the
-   environment the system already reads it from (`TF_VAR_<team>_key` /
-   `_secret`); without them the OPA questions are unaskable and refused
-   by name under `--quiet`.
-   - The workload connection and role: the defaults are the names the
-     group builder already carries (`workload_connection`,
-     `workload_role`), else the team's connection whose required claims
-     name this repository and the role bound to it. The interview
-     checks, through the existing `opa_gids` reads, that the connection
-     exists, is ACTIVE, requires `repository` = `<owner>/<repo>` and
-     `repository_owner` = `<owner>`; that the role exists, is bound to
-     it, and carries the `ref` pin on the production branch. The
-     bootstrap never edits `cfg/`: when the group builder lacks the
-     names, the README and the closing lines print the two lines to add;
-     every check that fails becomes the matching step of CI_SETUP.md 3.5
-     in "By hand, still", and none refuses the interview (a draft
-     connection is a normal state on the way).
-   - The Okta services app: the interview asks for its client id
-     (default: the one the tree's `okta` provider configuration names,
-     if any) and verifies what the app's own credentials can read --
-     that it authenticates with a private key, and its granted scopes,
-     read scopes present and no `*.manage` (a spike at the start of the
-     step settles how much of that the read scopes can see; whatever
-     cannot be read is printed as a check for the Okta admin, not
-     guessed). Creating the app and granting its scopes are printed
-     steps addressed to the org's Okta admins (D9).
-   - The OPA service user and its key: printed steps (D10); the secrets
-     script already reads `TF_VAR_KEY` / `TF_VAR_SECRET` from files.
-   - Tests with a stubbed OPA listing (an active matching connection, a
-     draft, a connection naming another repository, a missing role, a
-     role without the `ref` pin) and a stubbed Okta app; the guide's 3.0
-     table gains the Okta row; the live proof is the quiet interview
-     over the reference configuration, which should find
-     `github-actions-infrastructurebuilder` active and
-     `cs-image-system-testconfig-ci` pinned to `main`, and report
-     nothing by hand for OPA.
-7. Tests: the question model (defaults, `when`, `--quiet` refusals); the
-   fixture's quiet interview against a private copy of a starter tree
-   produces a root that `tofu validate` accepts (the suite's real-tofu
-   pattern, private plugin cache) and a tfvars equal to a pinned snapshot;
-   a run over a fixture copy carrying `bootstrap.yaml` regenerates the same
-   bytes (the frozen fixture carries none, so the golden is still; a
-   later iteration may add one and move the golden by decision), a
-   `--commit` run stages it, and `config-drift` reports an edited root as
-   drift;
-   every guide secret name appears in the secrets script; the modules
-   under `tfmodules/bootstrap_*` are shipped in the starters like the
-   others (`test_docs_examples` already holds `tfmodules/` byte for
-   byte); `public-safe` over a generated `generated/bootstrap`.
-8. Docs: CI_SETUP.md gains "3.0 The bootstrap" saying which of its steps
-   terraform does and which remain by hand, with the apply commands; the
-   starter READMEs and DAILY_DRIVER 1.8; the system README's command
-   entry; OPERATIONS section 3.
-9. The live proof: `bootstrap` in the reference configuration against the
-   NOAA account and the operator's GitHub, with every "existing" answer
-   yes (the provider, the bucket, the roles all exist), so the plan shows
-   nothing to create beyond what the repository lacks; then the guide's
-   proofs (§69 step 5) done by the script. Applying is the operator's
-   act; the harness prepares and never applies IAM.
-
-**Sizing**: the framework a day; each cloud section half a day to a day
-(the AWS one is the longest: the policies are already written in the
-guide); the Okta section depends on D4/D5; the tests a day; iterations
-after the first as the operator finds them.
