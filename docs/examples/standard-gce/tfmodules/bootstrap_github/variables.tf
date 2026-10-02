@@ -19,7 +19,7 @@ variable "production_branch" {
 
 variable "protect_production" {
   type        = bool
-  description = "a ruleset on the production branch: no deletion, no force push; the Actions app bypasses it"
+  description = "a ruleset on the production branch: no deletion, no force push (an ordinary push, the perform job's, is unaffected)"
   default     = true
 }
 

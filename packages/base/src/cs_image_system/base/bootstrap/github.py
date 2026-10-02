@@ -113,7 +113,7 @@ def render(answers: Answers) -> Rendered:
         ),
         notes=(
             f"the repository `{repository}`: default branch `{answers['default_branch']}`, perform on "
-            f"`{answers['production_branch']}`" + (" (protected by a ruleset the Actions app bypasses)"
+            f"`{answers['production_branch']}`" + (" (a ruleset: no deletion, no force push; ordinary pushes, the perform job's included, unaffected)"
                                                     if answers["protect_production"] else " (unprotected)"),
             "Actions enabled for all actions; workflow permissions stay read-only (the workflow asks for what each job needs)",
             "Actions variables: " + (", ".join(f"{k}={v}" for k, v in variables.items()) or "none"),

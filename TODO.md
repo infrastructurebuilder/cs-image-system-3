@@ -697,60 +697,49 @@ after the first as the operator finds them.
 **Status: OPEN since 2026-10-01.** Non-critical hygiene issues join this
 bundle; none is a stage of its own.
 
-1. **OPEN, found 2026-10-01 taking release dev7 into the reference
-   configuration.** `init-config --force` overwrites the team's values in
-   `.github/workflows/ci.yml` with the starter's `REPLACE-ME` placeholders
-   (and `.csis-version` with the INSTALLED package's version, which in a
-   development checkout whose venv was not re-synced after the bump was
-   the previous release's). The guide's "refresh the release-owned parts,
-   review the diff, commit" relies on the review to catch both; the
-   first live take after a release that changed the Justfile and the
-   modules caught them only because the diff was read line by line. Fix:
-   `init-config` on an existing tree should preserve the values a team
-   has put where the starter has `REPLACE-ME` (the `PERFORM_RUNTIME`,
-   `GUARD_RUNTIME`, `AWS_REGION` and `TF_VAR_<team>` lines: carry the
-   existing file's value for every line whose starter form is a
-   placeholder), or refuse to overwrite a workflow whose placeholders
-   were filled and say which lines differ; and `.csis-version` should be
-   written only when the destination has none, never moved backwards by
-   a stale installed version. A test for each.
+1. **LANDED 2026-10-02.** `init-config --force` overwrote a team's
+   workflow. Found taking releases dev7 and dev8 into the reference
+   configuration, where both times the diff was undone by hand: the
+   starter defaulted to `standard-aws` while the tree's workflow is
+   `complete`'s (every GCP step dropped), REPLACE-ME came back where the
+   team's values were, and `.csis-version` moved backwards to the stale
+   version a development venv reports. Now an existing tree is refreshed
+   from the starter its own `.github/workflows/ci.yml` is closest to
+   (`--from` still wins; a new tree still defaults to `standard-aws`);
+   wherever a release workflow has a placeholder and the tree has
+   something else, the tree's lines are kept (`carry_team_values`; a
+   comment naming the placeholders that the team rewrote is kept whole),
+   so a workflow that differs only in the team's values is current and
+   kept without `--force`, and with `--force` the rest becomes the
+   release's and the report counts those lines; and a pin newer than the
+   running release, or one that cannot be compared, is never moved.
+   Proved on a copy of the reference configuration: `--force` changed
+   only `CI_SETUP.md` (the release's real changes) -- both workflows
+   byte-identical, the starter read as `complete`, eleven and six of the
+   team's lines kept, a newer pin kept. Three tests.
 
+2. **LANDED 2026-10-02.** The apply's credentials appeared only in the
+   generated root's README. Found by the operator reading the docs after
+   stage 70 step 5: the command's closing line and CI_SETUP.md 3.0 showed
+   the bare `tofu init && tofu plan && tofu apply`, which meets the 403 the
+   README's export lines exist to prevent. One helper (`hcl.apply_env`)
+   now feeds both the README and the command, whose closing lines print
+   this tree's `export` lines -- `GITHUB_TOKEN` always, `AWS_PROFILE` with
+   a profile, `GOOGLE_OAUTH_ACCESS_TOKEN` with GCP -- before the commands;
+   the guide's 3.0 says the credentials depend on the sections and sends
+   the reader to those lines. Tests: a GitHub-only tree's closing lines
+   carry `GITHUB_TOKEN` and nothing else, ahead of the commands; the guide
+   names the GCP token ahead of its commands.
 
-2. **OPEN, found 2026-10-02 by the operator reading the docs after stage
-   70 step 5.** The credentials the bootstrap's apply needs appear in ONE
-   place: the export lines at the top of the generated root's README
-   ("Apply"), which the generator writes per tree from the wanted sections
-   (`GITHUB_TOKEN` always; `AWS_PROFILE` only when the AWS section answered
-   a profile; `GOOGLE_OAUTH_ACCESS_TOKEN` only with the GCP section). Every
-   other place a person reads the apply shows the bare commands -- the
-   command's own closing line (`bootstrap: next: ... tofu init && tofu
-   plan && tofu apply ...`) and CI_SETUP.md 3.0 -- so someone following
-   either meets the 403 the README fix was meant to prevent. Fix: the
-   closing line prints the export lines for this tree's wanted sections
-   (the same `Rendered.apply_env` the README reads) before the commands;
-   CI_SETUP.md 3.0 says the exports depend on the sections and points at
-   the generated README's Apply block instead of listing commands without
-   them. A test that the closing line carries the GCP token export when
-   the GCP section is wanted and not when it is not.
-
-3. **OPEN, found 2026-10-02 by the operator's first apply of the reference
-   bootstrap root.** The ruleset on the production branch cannot be
-   created: `POST .../rulesets: 422 Validation Failed -- Actor GitHub
-   Actions integration must be part of the ruleset source or owner
-   organization`. The module names the GitHub Actions app (integration
-   15368) as a bypass actor, and GitHub accepts an Integration bypass only
-   for an app installed in the repository's owner -- which the built-in
-   Actions app is not. The bypass was never needed: the ruleset's two
-   rules, restrict deletion and block force pushes (`non_fast_forward`),
-   do not block an ordinary push, and `perform` pushes its records
-   fast-forward (a non-fast-forward push already fails it, by design).
-   Everything else in that apply landed (the two roles adopted, their
-   descriptions and tags, the two managed policies, the GCP role member
-   and `workloadIdentityUser` binding, the default branch, Actions
-   permissions, the two Actions variables), and the failed POST created
-   nothing, so state is consistent. Fix: drop the `bypass_actors` block
-   from `tfmodules/bootstrap_github`, and the "the Actions app bypasses
-   it" wording from the module's comments and variable, `github.py`'s
-   note, CI_SETUP.md 3.0's table and OPERATIONS; a test that the module
-   names no bypass actor and that its rules are exactly deletion and
-   non-fast-forward. The re-apply afterwards is `1 to add`, the ruleset.
+3. **LANDED 2026-10-02.** The ruleset's bypass actor was refused by
+   GitHub, and was never needed. Found by the operator's first apply of
+   the reference bootstrap root (`422 ... Actor GitHub Actions integration
+   must be part of the ruleset source or owner organization`); everything
+   else in that apply landed and the failed POST created nothing. The
+   ruleset's two rules, restrict deletion and block force pushes, never
+   stop an ordinary push, which is all `perform` does, so the
+   `bypass_actors` block is gone from `tfmodules/bootstrap_github` (and the
+   starters' copies), with the wording in the module, `github.py`,
+   CI_SETUP.md 3.0 and OPERATIONS. A test holds the ruleset to no bypass
+   actor and exactly those two rules. The re-apply in the reference
+   configuration, after a release carries this, is `1 to add`.

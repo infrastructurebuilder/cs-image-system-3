@@ -193,6 +193,11 @@ def test_the_root_reads_what_exists_adds_single_members_and_sets_the_secrets_fro
     assert "export GITHUB_TOKEN=$(gh auth token)" in readme
     assert readme.index("export GOOGLE_OAUTH_ACCESS_TOKEN") < readme.index("tofu init")
     assert "application-default" in readme and "can read no IAM" in readme
+    # and the guide sends people to those lines instead of listing bare commands
+    guide = (EXAMPLES / "complete" / "CI_SETUP.md").read_text()
+    section = guide[guide.index("### 3.0 The bootstrap"):guide.index("### 3.1 ")]
+    assert "GOOGLE_OAUTH_ACCESS_TOKEN" in section and "export" in section and '"Apply" block' in section
+    assert section.index("GOOGLE_OAUTH_ACCESS_TOKEN") < section.index("tofu init && tofu plan && tofu apply")
     # the module: reads what exists, and every grant is one member added -- nothing authoritative
     module = (REPO / "tfmodules" / "bootstrap_gcp" / "main.tf").read_text()
     for needle in ('data "google_iam_workload_identity_pool" "github"', 'data "google_iam_workload_identity_pool_provider" "github"',

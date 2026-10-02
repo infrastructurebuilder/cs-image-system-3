@@ -16,6 +16,7 @@ dependencies = [
     "typer>=0.26",
     "rich>=15.0",
     "PyYAML>=6.0",
+    "packaging>=26.2",   # hygiene IX item 1: init-config never moves .csis-version backwards
 ]
 
 [project.urls]

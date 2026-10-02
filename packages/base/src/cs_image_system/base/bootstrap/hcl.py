@@ -44,6 +44,20 @@ def tfv(value: Any, indent: int = 0) -> str:
     return json.dumps(str(value))
 
 
+def apply_env(rendered: Iterable[Rendered]) -> list[tuple[str, str, str]]:
+    """The credentials the apply needs, once each, in section order:
+    ``(NAME, shell expression, why)``. They depend on the wanted sections
+    (GITHUB_TOKEN with GitHub, AWS_PROFILE when the AWS section names a
+    profile, GOOGLE_OAUTH_ACCESS_TOKEN with GCP), which is why the guide
+    cannot list them and the README and the command's closing lines do."""
+    env: list[tuple[str, str, str]] = []
+    for r in rendered:
+        for item in r.apply_env:
+            if item[0] not in [e[0] for e in env]:
+                env.append(item)
+    return env
+
+
 def _aligned(pairs: list[tuple[str, str]], indent: int = 1) -> str:
     pad = "  " * indent
     width = max((len(k) for k, _ in pairs), default=0)
@@ -177,11 +191,7 @@ def _readme(sections: list[tuple[str, Rendered]], secrets: list[Secret], *, repo
     for name, r in sections:
         out.append(f"- **{name}**" + (f" (`tfmodules/{r.module}`)" if r.module else ""))
         out.extend(f"  - {n}" for n in r.notes)
-    env: list[tuple[str, str, str]] = []
-    for _, r in sections:
-        for item in r.apply_env:
-            if item[0] not in [e[0] for e in env]:
-                env.append(item)
+    env = apply_env(r for _, r in sections)
     out += ["", "## Apply", ""]
     if env:
         out += ["Terraform acts as whoever these name -- the same identities the interview asked as:", ""]

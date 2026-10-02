@@ -416,7 +416,7 @@ def materialize_command(
 @app.command(name="init-config")
 def init_config_command(
     destination: Annotated[Path, typer.Argument(help="the configuration repository to write (new, empty, or existing)")],
-    starter: Annotated[str, typer.Option("--from", help="the starter tree: standard-aws (the default), standard-gce or complete")] = "standard-aws",
+    starter: Annotated[str | None, typer.Option("--from", help="the starter tree: standard-aws, standard-gce or complete; a new tree defaults to standard-aws, an existing one to the starter its workflow came from")] = None,
     force: Annotated[bool, typer.Option("--force", help="overwrite a release-owned file that exists and differs")] = False,
 ) -> None:
     """Write a starter configuration repository from this release (stage 64).
@@ -427,7 +427,10 @@ def init_config_command(
     release. A destination that already holds a configuration takes only the
     parts the release owns (the same list without the YAML), so an existing
     repository gains or refreshes them; a release-owned file that exists and
-    differs is refused by name unless --force. Loads no configuration."""
+    differs is refused by name unless --force. An existing tree is refreshed
+    from the starter its workflow came from (--from names another), its
+    values where the release has REPLACE-ME are kept, and its .csis-version
+    is never moved backwards. Loads no configuration."""
     from cs_image_system.system.starters import init_config
     try:
         report = init_config(destination, starter, force=force)
@@ -438,8 +441,8 @@ def init_config_command(
         typer.secho(f"init-config: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
     for line in report.lines():
-        typer.secho(line, fg=None if line.startswith("init-config: the") else typer.colors.RED,
-                    err=not line.startswith("init-config: the"))
+        refused = line.startswith("init-config: REFUSED")
+        typer.secho(line, fg=typer.colors.RED if refused else None, err=refused)
     if not report.ok:
         raise typer.Exit(code=1)
     if report.whole_tree:
@@ -488,18 +491,22 @@ def bootstrap_command(
     typer.echo(f"bootstrap: answers in {ANSWERS_FILE}; sections wanted: {', '.join(wanted) or 'none'}")
     for p in written:
         typer.echo(f"bootstrap: wrote {p.relative_to(root)}")
-    by_hand: list[str] = []
-    for s in sections:
-        a = result.get(s.name) or {}
-        if a.get("wanted"):
-            by_hand.extend(s.render(a).by_hand)
+    from cs_image_system.base.bootstrap.hcl import apply_env
+    rendered = [s.render(result[s.name]) for s in sorted(sections, key=lambda s: s.name)
+                if (result.get(s.name) or {}).get("wanted")]
+    by_hand = [line for r in rendered for line in r.by_hand]
     if by_hand:
         typer.echo("bootstrap: by hand, still:")
         for line in by_hand:
             typer.echo(f"  - {line}")
-    typer.echo("bootstrap: next: review generated/bootstrap/README.md, then `cd generated/bootstrap && tofu init && "
-               "tofu plan && tofu apply`, then `bash generated/bootstrap/set-secrets.sh`; commit bootstrap.yaml and "
-               "generated/bootstrap together")
+    # hygiene IX item 2: the apply acts as whoever these name -- the identities
+    # the interview asked as -- so they are printed here, not left to a 403
+    typer.echo("bootstrap: next: review generated/bootstrap/README.md, then, in this shell:")
+    for name, value, _why in apply_env(rendered):
+        typer.echo(f"  export {name}={value}")
+    typer.echo("  cd generated/bootstrap && tofu init && tofu plan && tofu apply && cd ../..")
+    typer.echo("  bash generated/bootstrap/set-secrets.sh")
+    typer.echo("bootstrap: commit bootstrap.yaml and generated/bootstrap together")
 
 
 @app.command(name="config-drift")
