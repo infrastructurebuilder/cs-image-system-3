@@ -268,9 +268,12 @@ roles with the guide's documents, and the state bucket and instance
 profile when the account lacks them -- asking the account what already
 exists when you have a session, adopting roles that stand, and refusing
 under `--quiet` anything it cannot find out. Fill the starter's
-`REPLACE-ME` values first: a placeholder is not a default. The GCP and
-Okta sections are later iterations; until then those parts of the guide
-are by hand, as before.
+`REPLACE-ME` values first: a placeholder is not a default. The GCP
+section does the workload identity pool and provider, the read-only and
+(when CI performs on GCE) write service accounts and their bindings; what
+already exists there is read and never rewritten, since a provider's
+condition may serve other repositories too. The Okta section is a later
+iteration; until then that part of the guide is by hand, as before.
 
 ### 1.9 The configuration repository, from scratch
 

@@ -99,13 +99,15 @@ What the sections do today, and what stays by hand:
 | --- | --- | --- |
 | GitHub (3.2, 3.7) | the default branch; a ruleset on the production branch (no deletion, no force push) that the GitHub Actions app bypasses, so `perform` still pushes its records; Actions enabled with read-only workflow permissions; the Actions variables `PERFORM_RUNTIME`, `GUARD_RUNTIME`, `AWS_REGION` | the secret VALUES (one file each, then the script); the `REPLACE-ME` literals in `ci.yml`, until a release makes the workflow read `vars` |
 | AWS (3.3) | the GitHub OIDC identity provider (read when it exists); the READ-ONLY and WRITE roles with the trust and permission documents of 3.3, the subject forms you chose, your bucket, prefix, region, account and instance profile filled in (a role that exists is ADOPTED by an `import` block, so its trust is maintained from then on, and every subject it already trusted that is not this repository's -- another repository sharing the role -- is KEPT unless you drop it at the prompt); the state bucket and the Session Manager instance profile only when the account lacks them; `AWS_ROLE_ARN` and `AWS_APPLY_ROLE_ARN` set by the script from the applied root's outputs | the network, which is yours and never modified; removing a hand-made inline policy from an adopted role once the plan is clean |
-| GCP (3.4) | a later iteration: the pool, the provider, the service accounts and their bindings | everything in 3.4 today |
+| GCP (3.4) | the workload identity pool and its GitHub provider (the mapping of 3.4 and a condition admitting this repository alone); the READ-ONLY service account with its project roles, and the WRITE one when CI performs on a GCE runtime; the `workloadIdentityUser` bindings (the write one on the production branch alone); the three GCP secrets set by the script from the applied root's outputs. What already exists is READ, never rewritten, and every role and binding is one member added | the network and firewall, which are yours; adding this repository to an EXISTING provider's condition when it does not name it (the README of the generated root says when) |
 | Okta and OPA (3.5) | a later iteration decides what the providers can make | everything in 3.5 today; the workload connection and role are by hand in any case |
 | The age identity (3.6) | nothing: a key is made on your machine | `age-keygen`, `reencrypt`; the script sets the secret from the file |
 
-Every "does it already exist?" question in the AWS section is answered by
-asking the account when you have a session (`aws iam get-role`,
-`head-bucket` and the like, as the profile your runtime names); with no
+Every "does it already exist?" question in the AWS and GCP sections is
+answered by asking the account when you have a session (`aws iam
+get-role`, `head-bucket` and the like, as the profile your runtime names;
+`gcloud iam workload-identity-pools describe`, `service-accounts
+describe` and the like, as your active `gcloud` account); with no
 session the interview asks you, and `--quiet` REFUSES that question by
 name rather than guess -- a wrong guess is a failed apply at best. A
 starter's `REPLACE-ME` values and its example account id are no defaults
