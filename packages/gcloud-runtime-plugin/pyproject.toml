@@ -29,6 +29,10 @@ Documentation = "https://github.com/infrastructurebuilder/cs-image-system-3/blob
 [project.entry-points."cs_image_system.plugins.runtime"]
 gcloud = "cs_image_system.gcloud_runtime.main:initialize"
 
+# stage 70 step 5: the GCP section of the bootstrap interview
+[project.entry-points."cs_image_system.bootstrap"]
+gcp = "cs_image_system.gcloud_runtime.bootstrap:gcp_section"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

@@ -226,6 +226,7 @@ def test_what_exists_is_read_or_adopted_and_the_state_binds_to_the_bucket_that_s
     assert "from_file AWS_ROLE_ARN" not in script and "from_file TF_VAR_KEY" in script
     readme = (out / "README.md").read_text()
     assert "adopted by import: csis-github-readonly" in readme and "is in the tree's declared backend" in readme
+    assert "export AWS_PROFILE=acme" in readme and "export GITHUB_TOKEN=$(gh auth token)" in readme
 
 
 def test_a_bucket_the_bootstrap_makes_means_local_state_first(tmp_path: Path):

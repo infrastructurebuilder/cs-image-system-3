@@ -106,6 +106,11 @@ class Rendered:
     #: settings)``. The first section offering one decides; none means local.
     backend: tuple[str, dict[str, Any]] | None = None
     root_hcl: str = ""                                               # blocks for the root's main.tf (import blocks, say)
+    #: What the operator's shell must carry to plan and apply this section:
+    #: ``(NAME, shell expression, why)``. Printed as ``export`` lines in the
+    #: README's Apply block, so the identity terraform acts as is the one the
+    #: interview asked as, and nobody discovers it from a 403.
+    apply_env: tuple[tuple[str, str, str], ...] = ()
 
 
 @dataclass(frozen=True)

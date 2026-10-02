@@ -218,6 +218,40 @@ def test_every_run_regenerates_the_root_from_the_answers_and_prunes_without_them
     assert not out.exists()                                           # pruned with the answers
 
 
+def test_a_regeneration_never_deletes_the_state_or_what_tofu_left(tmp_path: Path, caplog):
+    """Found 2026-10-01: every run wiped generated/bootstrap whole, as it does a
+    lifecycle's directory -- and with it terraform.tfstate of a root on the
+    local backend, the record of a first apply. A lifecycle's state is remote;
+    this root's may be right here."""
+    import logging
+    root = _starter_copy(tmp_path)
+    bs.write_answers(root / bs.ANSWERS_FILE, GITHUB_ANSWERS)
+    bs.regenerate(root)
+    out = bs.output_dir(root)
+    (out / "terraform.tfstate").write_text('{"serial": 3}')
+    (out / "terraform.tfstate.backup").write_text('{"serial": 2}')
+    (out / ".terraform.lock.hcl").write_text("# lock\n")
+    (out / ".terraform" / "providers").mkdir(parents=True)
+    (out / "tfplan").write_bytes(b"plan")
+    (out / "stale.tf").write_text("# from an older generation\n")
+    bs.regenerate(root)
+    assert (out / "terraform.tfstate").read_text() == '{"serial": 3}' and (out / "terraform.tfstate.backup").exists()
+    assert (out / ".terraform.lock.hcl").exists() and (out / ".terraform" / "providers").is_dir() and (out / "tfplan").exists()
+    assert not (out / "stale.tf").exists() and (out / "main.tf").exists()       # generation's own files are replaced
+    # the answers gone: the generated files go, the state does not, and the log says why
+    (root / bs.ANSWERS_FILE).unlink()
+    with caplog.at_level(logging.WARNING):
+        assert bs.regenerate(root) is None
+    assert not (out / "main.tf").exists() and (out / "terraform.tfstate").read_text() == '{"serial": 3}'
+    assert "holds terraform STATE" in caplog.text and "left in place" in caplog.text
+    # with no state and nothing of tofu's, the directory goes entirely
+    clean = _starter_copy(tmp_path / "clean")
+    bs.write_answers(clean / bs.ANSWERS_FILE, GITHUB_ANSWERS)
+    bs.regenerate(clean)
+    (clean / bs.ANSWERS_FILE).unlink()
+    assert bs.regenerate(clean) is None and not bs.output_dir(clean).exists()
+
+
 def test_a_commit_run_stages_the_root_and_its_tfvars(world):
     root, make = world
     _git(root, "init", "-q")

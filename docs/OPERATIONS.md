@@ -1681,12 +1681,27 @@ tfvars in -- the one tfvars this system commits, exempted by path from
 the public-safe refusal and scanned like any file, decision D3). Every
 run, dry or real, regenerates the directory from the answers before the
 lifecycles -- generation only, never a plan or an apply (decision D7) --
-and prunes it when the answers file is absent, so a `--commit` run
+and prunes it when the answers file is absent -- in both cases leaving
+what a person's own `tofu` left there (`.terraform/`, the lock file, a
+saved plan, and the STATE of a root still on the local backend: a
+lifecycle's directory is wiped whole because its state is remote, but
+this root's may be right there, and until 2026-10-01 a run would have
+deleted it) -- so a `--commit` run
 commits it with the rest of the emission (the tfvars added by name after
 the pathspec-limited commit, since a pathspec cannot say "except this
 one"), `config-drift` reports a stale or hand-edited root as drift, and a
 clone regenerates it without an interview. Applying is the operator's act
-in that directory, the same as every other IAM write in this system.
+in that directory, the same as every other IAM write in this system. The
+generated README's "Apply" block opens with the credentials each wanted
+section needs, as `export` lines -- `GITHUB_TOKEN=$(gh auth token)`,
+`AWS_PROFILE=<the profile the interview probed as>`,
+`GOOGLE_OAUTH_ACCESS_TOKEN=$(gcloud auth print-access-token)` -- so
+terraform acts as the same identities the interview asked as. That
+matters most on GCP: application-default credentials are often something
+else (on the reference machine they impersonate a runtime's service
+account, which can read no IAM, and the first live plan failed with 403
+on every Google data source until it was given the operator's own
+token).
 
 Sections: GitHub lives in base (the default branch, a ruleset on the
 production branch -- no deletion, no force push -- that the GitHub
@@ -1696,9 +1711,9 @@ are not secret, and the secrets script naming all nine of the guide's
 secrets); the clouds' sections come from their plugins through the
 `cs_image_system.bootstrap` entry-point group, each owning the questions
 and the module for its cloud. Iteration one (decision D1) was the
-framework and GitHub alone; AWS followed (below); GCP and Okta are later
-iterations, and the guide's table in 3.0 says which parts are by hand
-until then. A section's gate ("Do you want the X section?") defaults to
+framework and GitHub alone; AWS and GCP followed (below); Okta is a
+later iteration, and the guide's table in 3.0 says which parts are by
+hand until then. A section's gate ("Do you want the X section?") defaults to
 what the tree says: the AWS section is wanted where the tree declares an
 AWS runtime or keeps its state in S3, so a GCE-only tree's quiet
 interview is not refused on AWS questions.
@@ -1735,9 +1750,46 @@ The network is never touched. The root's state binds to the tree's
 declared S3 backend at `<prefix>/bootstrap.tfstate` when the bucket
 exists (decision D8); when the bootstrap makes the bucket, the first
 apply is local and a second interview, the bucket now standing, binds
-it (`tofu init -migrate-state`). The
+it (`tofu init -migrate-state`).
+
+The GCP section (stage 70 step 5; the gcloud runtime plugin, module
+`tfmodules/bootstrap_gcp`) writes CI_SETUP.md 3.4 as terraform: the
+workload identity pool and its GitHub provider (the guide's attribute
+mapping, and a condition admitting this repository alone -- by its id
+when `gh` gave it, by its name otherwise), the READ-ONLY service account
+with the project roles a load and the state query read, the WRITE
+service account when CI performs on a GCE runtime (by default, when the
+tree's default runtime is one), and the `workloadIdentityUser` bindings,
+the write one narrowed to the production branch. It differs from AWS in
+one deliberate way: what exists is READ, never managed. An existing
+pool, provider or service account becomes a data source, not an import,
+because a provider's attribute condition is a single expression that
+other repositories may share -- the reference project's admits two -- and
+a root that managed it would have to own everyone's access. So an
+existing provider's condition is shown at the prompt as it stands and
+never rewritten; the bindings name an attribute the provider actually
+maps (`repository_id` only when it maps it); and when the condition does
+not name this repository, the generated README says so as a step by
+hand. Every role and binding is a single-member resource
+(`google_project_iam_member`, `google_service_account_iam_member`; a test
+refuses the authoritative forms), so no existing grant is replaced. The
+probes run through `gcloud` as the active account (the project number,
+the pool, the provider with its condition and mapping, the service
+accounts, the bucket); unaskable means no default, refused by name under
+`--quiet`. The three GCP secrets become outputs the script reads; with
+no WRITE account `GCP_APPLY_SERVICE_ACCOUNT` is the READ-ONLY address,
+the guide's first choice. A tree whose state is in GCS binds the root to
+that bucket at `<prefix>/bootstrap` when it stands. The first real `tofu
+validate` of the module caught that `provider` is a reserved variable
+name inside a module, which is why the module calls it `provider_id`.
+
+The
 modules ship with the starters like every module (`tfmodules/`, byte for
-byte); `tests/test_v2_bootstrap_aws.py` holds the AWS section (the
+byte); `tests/test_v2_bootstrap_gcp.py` holds the GCP section (the
+tree-derived gates across both clouds, the probes and refusals, a fresh
+project and a shared provider, the by-hand note, the additive-only
+module held to the guide's mapping, a real `tofu validate`),
+`tests/test_v2_bootstrap_aws.py` holds the AWS section (the
 probes, the refusals, the forks, the imports, the backend, the guide's
 statements, a real `tofu validate` of both sections together) and
 `tests/test_v2_bootstrap.py` holds the question model, the quiet

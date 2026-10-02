@@ -177,8 +177,19 @@ def _readme(sections: list[tuple[str, Rendered]], secrets: list[Secret], *, repo
     for name, r in sections:
         out.append(f"- **{name}**" + (f" (`tfmodules/{r.module}`)" if r.module else ""))
         out.extend(f"  - {n}" for n in r.notes)
-    out += ["", "## Apply", "", "```sh",
-            "cd generated/bootstrap",
+    env: list[tuple[str, str, str]] = []
+    for _, r in sections:
+        for item in r.apply_env:
+            if item[0] not in [e[0] for e in env]:
+                env.append(item)
+    out += ["", "## Apply", ""]
+    if env:
+        out += ["Terraform acts as whoever these name -- the same identities the interview asked as:", ""]
+        out += [f"- `{name}`: {why}" for name, _, why in env]
+        out += [""]
+    out += ["```sh"]
+    out += [f"export {name}={value}" for name, value, _ in env]
+    out += ["cd generated/bootstrap",
             "tofu init                      # " + ("the tree's declared backend" if remote_state else "local state for the first apply"),
             "tofu plan                      # read it: nothing here is gated by the system",
             "tofu apply",

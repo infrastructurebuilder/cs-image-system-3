@@ -59,6 +59,25 @@ bottom of the models module, and the `get_image_ssh_user` helper in
 `gcp_utils.py`, which nothing called (the bake user comes from the
 bake-user order, see `bake_ssh_username` below).
 
+**The GCP section of the bootstrap** (stage 70 step 5), through the
+`cs_image_system.bootstrap` entry-point group: `gcp =
+cs_image_system.gcloud_runtime.bootstrap:gcp_section`. It owns the
+questions and the terraform for this cloud's one-time initialisation --
+the workload identity pool and GitHub provider of CI_SETUP.md 3.4, the
+READ-ONLY service account and the optional WRITE one, their project
+roles and `workloadIdentityUser` bindings (`tfmodules/bootstrap_gcp`).
+The section is wanted by default where the tree declares a GCE runtime
+or a `gcs` state backend. Its defaults come from the raw
+`cfg/runtime-builders.yml` and `cfg/state-backends.yml` (a starter's
+placeholders are no defaults), and every "does it already exist?"
+question is a probe through `gcloud` as the active account (`projects
+describe`, `iam workload-identity-pools [providers] describe`, `iam
+service-accounts describe`, `storage buckets describe`): found, absent,
+or -- with no credentials -- unanswerable, which `--quiet` refuses by
+name. What exists is read as a data source and never rewritten (a
+provider's condition may admit other repositories); every role and
+binding is one member added. See OPERATIONS.md, "The bootstrap".
+
 ## Models
 
 ### `GCPCloudNetworkingModel`
@@ -861,6 +880,15 @@ cannot answer exits 2.
 **In retention and `dispose image`.** `dispose_image` reports
 `deleted=True|False` per build in the log (`False` when GCE already had no
 such image); the lineage record is dropped either way.
+
+`tests/test_v2_bootstrap_gcp.py` holds the bootstrap's GCP section: the
+entry point and the tree-derived gates (a GCE-only tree's quiet interview
+asks nothing of AWS), placeholders and an unaskable project refused by
+name, a fresh project getting the guide's pool, provider and accounts, an
+existing shared provider read as it stands and deciding which attribute
+the bindings name, the by-hand note when its condition does not name
+this repository, the module held to the guide's attribute mapping and to
+single-member grants only, and a real `tofu validate`.
 
 ## When it fails
 
