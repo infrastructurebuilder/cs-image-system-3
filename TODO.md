@@ -7,7 +7,7 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress** (§71, hygiene bundle VIII, LANDED WHOLE 2026-10-01 -- five items, the last three in one squash 0760084; hygiene bundle IX (§71, reusing the number) is OPEN since 2026-10-01 with item 1; §68, hygiene bundle VII, LANDED whole 2026-09-29; §69 LANDED 2026-09-28, its step 5 done 2026-09-29; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §70 step 6 (the Okta section of the bootstrap, after decisions D4 and D5), or hygiene IX item 1; a release (dev9) is owed: it carries the GCP section and the fix that keeps the bootstrap root's state across regenerations (dev7 and dev8 wipe it), and the reference configuration needs it to commit its GCP answers. §74, the documentation stage covering §71 items 1-5, §72 and §73, LANDED 2026-10-01 (docs only); the next behaviour change opens a new one. §73 LANDED 2026-10-01 in its commit on develop: coops-model-005 (generation 5, alias `gar`, the same image) replaced onto the new `efs-scratch` filesystem -- the planted file absent, the old `efs-storage` standing with its data and mounted nowhere. §72 LANDED 2026-09-30 in its commits on develop (fcfaa0c, 9412013, 4352bcc): the coops model resized in place (twice, c5n.4xlarge -> t3.xlarge -> t3.medium, the same machine, two `resized` events) and then replaced (coops-model-004, generation 4, alias `eel`, the same image) with the planted file, the EFS filesystem and the EBS volume all the same on the new machine; its documentation is owed to §74.
+Current stage: **none in progress** (§71, hygiene bundle VIII, LANDED WHOLE 2026-10-01 -- five items, the last three in one squash 0760084; hygiene bundle IX (§71, reusing the number) is OPEN since 2026-10-01 with item 1; §68, hygiene bundle VII, LANDED whole 2026-09-29; §69 LANDED 2026-09-28, its step 5 done 2026-09-29; §63, §67 and §64 LANDED 2026-09-26). Next by the operator's word: §70 step 6 (the Okta section of the bootstrap, after decisions D4 and D5). Hygiene bundle IX LANDED WHOLE 2026-10-02 (ffd1b89, three items); NO bundle is open, the next hygiene issue opens X. A release (dev9) is owed: it carries the GCP section, the fix that keeps the bootstrap root's state across regenerations (dev7 and dev8 wipe it), and bundle IX -- the reference configuration needs it to commit its GCP answers, and its ruleset re-apply (`1 to add`) needs the module without the bypass actor. §74, the documentation stage covering §71 items 1-5, §72 and §73, LANDED 2026-10-01 (docs only); the next behaviour change opens a new one. §73 LANDED 2026-10-01 in its commit on develop: coops-model-005 (generation 5, alias `gar`, the same image) replaced onto the new `efs-scratch` filesystem -- the planted file absent, the old `efs-storage` standing with its data and mounted nowhere. §72 LANDED 2026-09-30 in its commits on develop (fcfaa0c, 9412013, 4352bcc): the coops model resized in place (twice, c5n.4xlarge -> t3.xlarge -> t3.medium, the same machine, two `resized` events) and then replaced (coops-model-004, generation 4, alias `eel`, the same image) with the planted file, the EFS filesystem and the EBS volume all the same on the new machine; its documentation is owed to §74.
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
 **§64**, the release that carries everything a configuration repository
@@ -691,55 +691,3 @@ each later step is its own iteration, proved before the next.
 (the AWS one is the longest: the policies are already written in the
 guide); the Okta section depends on D4/D5; the tests a day; iterations
 after the first as the operator finds them.
-
-## 71. Hygiene bundle IX
-
-**Status: OPEN since 2026-10-01.** Non-critical hygiene issues join this
-bundle; none is a stage of its own.
-
-1. **LANDED 2026-10-02.** `init-config --force` overwrote a team's
-   workflow. Found taking releases dev7 and dev8 into the reference
-   configuration, where both times the diff was undone by hand: the
-   starter defaulted to `standard-aws` while the tree's workflow is
-   `complete`'s (every GCP step dropped), REPLACE-ME came back where the
-   team's values were, and `.csis-version` moved backwards to the stale
-   version a development venv reports. Now an existing tree is refreshed
-   from the starter its own `.github/workflows/ci.yml` is closest to
-   (`--from` still wins; a new tree still defaults to `standard-aws`);
-   wherever a release workflow has a placeholder and the tree has
-   something else, the tree's lines are kept (`carry_team_values`; a
-   comment naming the placeholders that the team rewrote is kept whole),
-   so a workflow that differs only in the team's values is current and
-   kept without `--force`, and with `--force` the rest becomes the
-   release's and the report counts those lines; and a pin newer than the
-   running release, or one that cannot be compared, is never moved.
-   Proved on a copy of the reference configuration: `--force` changed
-   only `CI_SETUP.md` (the release's real changes) -- both workflows
-   byte-identical, the starter read as `complete`, eleven and six of the
-   team's lines kept, a newer pin kept. Three tests.
-
-2. **LANDED 2026-10-02.** The apply's credentials appeared only in the
-   generated root's README. Found by the operator reading the docs after
-   stage 70 step 5: the command's closing line and CI_SETUP.md 3.0 showed
-   the bare `tofu init && tofu plan && tofu apply`, which meets the 403 the
-   README's export lines exist to prevent. One helper (`hcl.apply_env`)
-   now feeds both the README and the command, whose closing lines print
-   this tree's `export` lines -- `GITHUB_TOKEN` always, `AWS_PROFILE` with
-   a profile, `GOOGLE_OAUTH_ACCESS_TOKEN` with GCP -- before the commands;
-   the guide's 3.0 says the credentials depend on the sections and sends
-   the reader to those lines. Tests: a GitHub-only tree's closing lines
-   carry `GITHUB_TOKEN` and nothing else, ahead of the commands; the guide
-   names the GCP token ahead of its commands.
-
-3. **LANDED 2026-10-02.** The ruleset's bypass actor was refused by
-   GitHub, and was never needed. Found by the operator's first apply of
-   the reference bootstrap root (`422 ... Actor GitHub Actions integration
-   must be part of the ruleset source or owner organization`); everything
-   else in that apply landed and the failed POST created nothing. The
-   ruleset's two rules, restrict deletion and block force pushes, never
-   stop an ordinary push, which is all `perform` does, so the
-   `bypass_actors` block is gone from `tfmodules/bootstrap_github` (and the
-   starters' copies), with the wording in the module, `github.py`,
-   CI_SETUP.md 3.0 and OPERATIONS. A test holds the ruleset to no bypass
-   actor and exactly those two rules. The re-apply in the reference
-   configuration, after a release carries this, is `1 to add`.
