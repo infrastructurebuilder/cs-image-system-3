@@ -439,8 +439,9 @@ the first final version on PyPI (§41's open call).
 
 ## 70. Bootstrap: the one-time initialisation, as terraform from an interview
 
-**Status: three iterations LANDED; step 6, the Okta section, is open by
-the operator's word and opens with decisions D4 and D5.**
+**Status: three iterations LANDED; step 6, the Okta section, is PLANNED
+-- its decisions D4, D5, D9 and D10 taken 2026-10-02 (below) -- and
+waits for the operator's word.**
 
 - **Iteration one, the framework and the GitHub section**, LANDED
   2026-10-01 (2841591): the question model, the interview with
@@ -654,6 +655,32 @@ D8, the root's state is the tree's declared backend when the bucket
 exists, else local for the first apply and then migrated with the
 existing `state-migration` machinery.
 
+**Decided 2026-10-02, third round** (step 6, asked after a look at what
+OPA allows: Okta documents creating a JWT workload connection as a
+DevOps-admin act and activating it as a security-admin one, in the
+console only; the system's OPA service user already READS connections
+and roles, `GET /v1/teams/{team}/connections/workloads` and
+`/workload-roles`):
+
+- D4, the OPA workload connection and role: **read and prefill**. The
+  interview reads the team's existing connections and roles through the
+  API the system already uses, defaults the names from what it finds,
+  and checks what it can; creating, activating and the `ref` pin stay in
+  the console and are printed only for what is missing.
+
+- D5, the Okta API services app (`OKTA_API_PRIVATE_KEY`): **check it,
+  create by hand**. The interview asks for the existing app and verifies
+  what can be read about it; creation is printed steps.
+
+- D9, who administers the Okta org: **someone else** (for the reference
+  configuration, NOAA's Okta admins). Nothing in step 6 creates anything
+  in Okta, and its live proof is read-only.
+
+- D10, the OPA service user and its key pair (`TF_VAR_KEY` /
+  `TF_VAR_SECRET`): **by hand**. The bootstrap needs that key to talk to
+  OPA at all, and the API returns a secret once; it stays a printed step
+  and `set-secrets.sh` reads it from a file as now.
+
 **The decisions, as asked** (for the record; D4 and D5 return at step 6):
 
 - **D1, the first iteration's scope.** AWS + GitHub + the interview
@@ -707,11 +734,46 @@ each later step is its own iteration, proved before the next.
    the two roles, the optional bucket and instance profile, every
    "existing" fork.
 5. The GCP section and module (`tfmodules/bootstrap_gcp`).
-6. The Okta section, after D4 (the OPA workload objects: printed
-   by-hand steps, or a spike against the OPA API the system already uses
-   for CI policies, then creation through it) and D5 (the services app:
-   by hand, or `okta_app_oauth` with an admin credential used once) are
-   asked, and the printed by-hand remainder.
+6. The Okta section (D4, D5, D9, D10): a read-and-verify section with no
+   terraform module, since nothing in it is created. In the okta-opa
+   plugin through the entry point, wanted where the tree declares an
+   `okta-tf` group builder. Its facts: the team, `api_host` and org from
+   the raw `cfg/group-builders.yml`, and the OPA key pair from the
+   environment the system already reads it from (`TF_VAR_<team>_key` /
+   `_secret`); without them the OPA questions are unaskable and refused
+   by name under `--quiet`.
+   - The workload connection and role: the defaults are the names the
+     group builder already carries (`workload_connection`,
+     `workload_role`), else the team's connection whose required claims
+     name this repository and the role bound to it. The interview
+     checks, through the existing `opa_gids` reads, that the connection
+     exists, is ACTIVE, requires `repository` = `<owner>/<repo>` and
+     `repository_owner` = `<owner>`; that the role exists, is bound to
+     it, and carries the `ref` pin on the production branch. The
+     bootstrap never edits `cfg/`: when the group builder lacks the
+     names, the README and the closing lines print the two lines to add;
+     every check that fails becomes the matching step of CI_SETUP.md 3.5
+     in "By hand, still", and none refuses the interview (a draft
+     connection is a normal state on the way).
+   - The Okta services app: the interview asks for its client id
+     (default: the one the tree's `okta` provider configuration names,
+     if any) and verifies what the app's own credentials can read --
+     that it authenticates with a private key, and its granted scopes,
+     read scopes present and no `*.manage` (a spike at the start of the
+     step settles how much of that the read scopes can see; whatever
+     cannot be read is printed as a check for the Okta admin, not
+     guessed). Creating the app and granting its scopes are printed
+     steps addressed to the org's Okta admins (D9).
+   - The OPA service user and its key: printed steps (D10); the secrets
+     script already reads `TF_VAR_KEY` / `TF_VAR_SECRET` from files.
+   - Tests with a stubbed OPA listing (an active matching connection, a
+     draft, a connection naming another repository, a missing role, a
+     role without the `ref` pin) and a stubbed Okta app; the guide's 3.0
+     table gains the Okta row; the live proof is the quiet interview
+     over the reference configuration, which should find
+     `github-actions-infrastructurebuilder` active and
+     `cs-image-system-testconfig-ci` pinned to `main`, and report
+     nothing by hand for OPA.
 7. Tests: the question model (defaults, `when`, `--quiet` refusals); the
    fixture's quiet interview against a private copy of a starter tree
    produces a root that `tofu validate` accepts (the suite's real-tofu
