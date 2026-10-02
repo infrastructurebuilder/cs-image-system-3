@@ -634,7 +634,14 @@ gateway's security group.
 hand once in the OPA admin console following
 [the CI setup guide, section 3.5](../../docs/examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access), then named on
 the `okta-tf` group builder as `workload_connection` and `workload_role`.
-The system reads both by name and never writes them. `verify login` and
+The system reads both by name and never writes them. The bootstrap's
+Okta and OPA section (stage 70 step 6, `okta =
+cs_image_system.okta_opa_plugin.bootstrap:okta_section` in the
+`cs_image_system.bootstrap` entry-point group) checks them -- present,
+ACTIVE, requiring this repository, the role bound and pinned to the
+production branch -- and checks the Okta API services app by asking for
+a token with its own key and scopes (`okta_app_check`), so the generated
+README lists exactly what is still by hand. `verify login` and
 `just ci-login-proof` additionally need Okta's `sft` client on the machine
 that runs them (and `OPA_TOKEN` to log in as the workload).
 
@@ -933,6 +940,15 @@ failing line fails the bake.
 `unix_gid` makes the command exit 1 with `export-gids: identity plugin
 'okta' reported no gid for groups [...]`, which fails the plan or apply
 that asked. Nothing is ever invented.
+
+`tests/test_v2_bootstrap_okta.py` holds the bootstrap's Okta and OPA
+section: the entry point and the gate (wanted where an `okta-tf` group
+builder is), placeholders refused by name, the reference shape reading
+clean, names found by what they require, every failed check becoming its
+guide step, nothing standing, observed checks asked again and refused
+when the world cannot be asked, the root gaining no terraform, the
+client assertion verified with the public key, and the app check's three
+outcomes.
 
 ## When it fails
 

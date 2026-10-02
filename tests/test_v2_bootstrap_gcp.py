@@ -90,7 +90,7 @@ FRESH = dict(number=True, pool=False, provider=False, read=False, write=False, b
 # ------------------------------------------------------------- the section itself
 
 def test_the_gcloud_plugin_contributes_the_section_and_the_tree_decides(tmp_path: Path):
-    assert [s.name for s in bs.discover()] == ["github", "aws", "gcp"]       # GitHub first, then the plugins' by name
+    assert [s.name for s in bs.discover()] == ["github", "aws", "gcp", "okta"]   # GitHub first, then the plugins' by name
     gce = bs.gather(_tree(tmp_path), gh=False)
     assert _section().wanted_default(gce) is True
     aws_section = next(s for s in bs.discover() if s.name == "aws")
@@ -99,7 +99,8 @@ def test_the_gcloud_plugin_contributes_the_section_and_the_tree_decides(tmp_path
     shutil.copytree(EXAMPLES / "standard-aws", other)
     assert _section().wanted_default(bs.gather(other, git=False, gh=False)) is False
     # so a quiet interview over a GCE tree asks GitHub and GCP and never refuses on an AWS question
-    out = bs.run_interview(bs.discover(), _facts(_tree(tmp_path / "again"), _project(None, **FRESH)), quiet=True)
+    out = bs.run_interview(bs.discover(), _facts(_tree(tmp_path / "again"), _project(None, **FRESH)), quiet=True,
+                           only=["github", "aws", "gcp"])                       # the starter's Okta placeholders aside
     assert out["aws"] == {"wanted": False} and out["gcp"]["wanted"] and out["github"]["wanted"]
 
 
@@ -154,7 +155,7 @@ def test_an_existing_provider_is_read_as_it_stands_and_decides_the_attribute(tmp
 
 def _root(tmp_path: Path, record: dict | None = None, want_write: bool | None = None, **present: bool) -> tuple[Path, Path]:
     root = _tree(tmp_path)
-    answers = bs.run_interview(bs.discover(), _facts(root, _project(record, **present)), quiet=True)
+    answers = bs.run_interview(bs.discover(), _facts(root, _project(record, **present)), quiet=True, only=["github", "gcp"])
     if want_write is not None:
         answers["gcp"]["want_write"] = want_write
         for k in ("write_account", "write_account_exists", "write_roles"):

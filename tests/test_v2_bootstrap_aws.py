@@ -196,7 +196,7 @@ def _root(tmp_path: Path, **present: bool) -> tuple[Path, Path]:
     root = _starter_copy(tmp_path)
     _filled(root)
     facts = _facts(root, _account(None, **present))
-    answers = bs.run_interview(bs.discover(), facts, quiet=True)
+    answers = bs.run_interview(bs.discover(), facts, quiet=True, only=["github", "aws"])
     bs.write_answers(root / bs.ANSWERS_FILE, answers)
     assert bs.regenerate(root)
     return root, bs.output_dir(root)
@@ -243,7 +243,8 @@ def test_a_bucket_the_bootstrap_makes_means_local_state_first(tmp_path: Path):
     facts = _facts(root, _account(oidc=True, read=True, write=True, bucket=True, profile=True))
     prior = bs.read_answers(root / bs.ANSWERS_FILE)
     prior["aws"].pop("state_bucket_exists")                                     # the operator re-asks that one question
-    bs.write_answers(root / bs.ANSWERS_FILE, bs.run_interview(bs.discover(), facts, quiet=True, prior=prior))
+    bs.write_answers(root / bs.ANSWERS_FILE, bs.run_interview(bs.discover(), facts, quiet=True, prior=prior,
+                                                              only=["github", "aws"]))
     bs.regenerate(root)
     assert 'backend "s3" {' in (out / "providers.tf").read_text()
     assert bs.read_answers(root / bs.ANSWERS_FILE)["aws"]["read_role_exists"] is False   # an earlier answer is kept, not re-probed

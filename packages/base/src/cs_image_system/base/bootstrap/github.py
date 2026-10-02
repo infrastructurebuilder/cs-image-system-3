@@ -106,7 +106,6 @@ def render(answers: Answers) -> Rendered:
         by_hand=(
             "The nine secrets' VALUES: one file per secret under the secrets directory "
             f"(`{answers.get('secrets_dir')}`, never committed), then `bash set-secrets.sh` (CI_SETUP.md 3.7).",
-            "The OPA workload connection and role (CI_SETUP.md 3.5 steps 1-2 and 4-6): the oktapam provider has no workload resources.",
             "The age identity for CI (CI_SETUP.md 3.6): `age-keygen`, the public key into encryption.recipients, `reencrypt`.",
             "The values in `.github/workflows/ci.yml` still marked REPLACE-ME: PERFORM_RUNTIME, GUARD_RUNTIME and AWS_REGION "
             "are set as Actions variables by this root, but the workflow reads its own literals until a release makes it read `vars`.",

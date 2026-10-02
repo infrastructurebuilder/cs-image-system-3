@@ -43,6 +43,11 @@ class Question:
     when: Callable[[Answers], bool] | None = None
     var: str | None = None                            # the terraform variable this answer feeds
     help: str = ""
+    #: An OBSERVATION of the world (is the connection active?), not a choice:
+    #: every interview asks the world again and the earlier answer is only the
+    #: fallback when the world cannot be asked. A choice keeps its earlier
+    #: answer as its default.
+    observed: bool = False
 
     def __post_init__(self) -> None:
         if self.kind not in KINDS:

@@ -272,8 +272,10 @@ under `--quiet` anything it cannot find out. Fill the starter's
 section does the workload identity pool and provider, the read-only and
 (when CI performs on GCE) write service accounts and their bindings; what
 already exists there is read and never rewritten, since a provider's
-condition may serve other repositories too. The Okta section is a later
-iteration; until then that part of the guide is by hand, as before.
+condition may serve other repositories too. The Okta and OPA section
+creates nothing: it checks the OPA workload connection and role and the
+Okta API services app, and turns each check that fails into its step of
+the guide, so a team sees exactly what its admins still have to do.
 
 ### 1.9 The configuration repository, from scratch
 
