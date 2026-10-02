@@ -1713,9 +1713,8 @@ are not secret, and the secrets script naming all nine of the guide's
 secrets); the clouds' sections come from their plugins through the
 `cs_image_system.bootstrap` entry-point group, each owning the questions
 and the module for its cloud. Iteration one (decision D1) was the
-framework and GitHub alone; AWS and GCP followed (below); Okta is a
-later iteration, and the guide's table in 3.0 says which parts are by
-hand until then. A section's gate ("Do you want the X section?") defaults to
+framework and GitHub alone; AWS, GCP and Okta followed (below), and the
+guide's table in 3.0 says what each does and what stays by hand. A section's gate ("Do you want the X section?") defaults to
 what the tree says: the AWS section is wanted where the tree declares an
 AWS runtime or keeps its state in S3, so a GCE-only tree's quiet
 interview is not refused on AWS questions.
@@ -1784,6 +1783,32 @@ the guide's first choice. A tree whose state is in GCS binds the root to
 that bucket at `<prefix>/bootstrap` when it stands. The first real `tofu
 validate` of the module caught that `provider` is a reserved variable
 name inside a module, which is why the module calls it `provider_id`.
+
+The Okta and OPA section (stage 70 step 6; the okta-opa plugin, no
+module) creates nothing, by decision: the OPA workload connection and
+role are console acts of a DevOps and a security admin, the Okta API
+services app belongs to the org's Okta admins, and the OPA service user
+and its key pair are made by hand. What it does instead is look. It
+names the connection and role from the `okta-tf` group builder, or finds
+them by what they require (the connection whose conditions name this
+repository, the role bound to it), or suggests `github-<repo>` and
+`<repo>-ci`; it reads them through the OPA API the system already uses
+and checks that the connection exists, is ACTIVE and requires
+`repository` and `repository_owner`, and that the role is bound to it
+and pinned to the production branch's `ref`; and it asks the Okta token
+endpoint for a token as the services app, signing a private-key JWT with
+`OKTA_API_PRIVATE_KEY` for exactly `OKTA_API_SCOPES`, as the `okta`
+provider does. A token proves the app, its key and its scopes; whether
+it also holds a `*.manage` scope or another auth method is visible only
+with `okta.apps.read`, so when its own record is not readable that
+becomes a confirmation to ask of the org's Okta admins, never a guess.
+Every check is an OBSERVED question -- asked of the world on every
+interview, the recorded answer only the fallback when the world cannot
+be asked, refused by name under `--quiet` when neither is there -- and
+each one that fails becomes its step of CI_SETUP.md 3.5 under "By hand,
+still". None refuses the interview: a draft connection is a normal state
+on the way. The bootstrap never edits `cfg/`; names the group builder
+lacks are printed as the two lines to add.
 
 The
 modules ship with the starters like every module (`tfmodules/`, byte for

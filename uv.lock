@@ -701,6 +701,7 @@ name = "cs-image-system-okta-opa-plugin"
 version = "0.1.1.dev10"
 source = { editable = "packages/okta-opa-plugin" }
 dependencies = [
+    { name = "cryptography" },
     { name = "cs-image-system-hashicorp-utils" },
     { name = "cs-image-system-system" },
     { name = "pydantic" },
@@ -708,6 +709,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cryptography", specifier = ">=49.0" },
     { name = "cs-image-system-hashicorp-utils", editable = "packages/hashicorp-utils" },
     { name = "cs-image-system-system", editable = "packages/system" },
     { name = "pydantic", specifier = ">=2.13" },

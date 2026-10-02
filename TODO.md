@@ -439,9 +439,10 @@ the first final version on PyPI (§41's open call).
 
 ## 70. Bootstrap: the one-time initialisation, as terraform from an interview
 
-**Status: three iterations LANDED; step 6, the Okta section, is PLANNED
--- its decisions D4, D5, D9 and D10 taken 2026-10-02 (below) -- and
-waits for the operator's word.**
+**Status: three iterations LANDED; step 6, the Okta section, BUILT
+2026-10-02 on `feature/bootstrap-okta` and proved live (below); it waits
+for the merge word, and then for a release before the reference
+configuration commits its Okta answers.**
 
 - **Iteration one, the framework and the GitHub section**, LANDED
   2026-10-01 (2841591): the question model, the interview with
@@ -498,6 +499,29 @@ waits for the operator's word.**
   GitHub will not take the Actions app as a bypass actor); hygiene IX
   item 3 removed the bypass, which was never needed, and the re-apply
   after release dev10 is `1 to add`.
+
+- **Step 6, the Okta and OPA section**, BUILT 2026-10-02, by decisions
+  D4, D5, D9 and D10: a section that creates nothing. A read-only spike
+  first settled what can be seen: the OPA listings carry each
+  connection's `status` and `conditions` and each role's `requirements`
+  (connection and `ref` condition), and the Okta services app, asked for
+  a token with its own key as the `okta` provider does, gets exactly
+  `okta.users.read` and `okta.groups.read` but cannot read its own
+  record (no `okta.apps.read`), so a `*.manage` scope or a second auth
+  method is a confirmation for the org's Okta admins, not a check. The
+  section checks the connection (present, ACTIVE, requiring this
+  repository), the role (present, bound, pinned to `refs/heads/main`),
+  the names on the group builder and the app, and turns each failed
+  check into its step of CI_SETUP.md 3.5. The framework gained OBSERVED
+  questions: asked of the world on every interview, the recorded answer
+  only the fallback. Ten tests. The live quiet interview over the
+  reference configuration found everything in place --
+  `github-actions-infrastructurebuilder` active and requiring this
+  repository, `cs-image-system-testconfig-ci` bound and pinned to
+  `main`, both named on `oktagroups`, the app authenticating read-only
+  -- and left two lines by hand: the Okta admins' confirmation and the
+  OPA service user (by decision). Its answers stay uncommitted in the
+  reference configuration until a release carries the section.
 
 **The request** (the operator, 2026-09-28): "a one-time initialization
 of assets for using the starter-tree repo ... code that lives in the

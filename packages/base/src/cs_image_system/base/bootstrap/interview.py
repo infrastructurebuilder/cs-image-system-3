@@ -65,7 +65,11 @@ def run_interview(sections: Iterable[Section], facts: Facts, *, quiet: bool = Fa
         for q in section.questions:
             if not q.applies(answers):
                 continue
-            default = prev[q.id] if q.id in prev else q.default_for(facts, answers)
+            if q.observed:                        # asked of the world again; the earlier answer only as fallback
+                probed = q.default_for(facts, answers)
+                default = probed if probed is not None else prev.get(q.id)
+            else:
+                default = prev[q.id] if q.id in prev else q.default_for(facts, answers)
             if quiet:
                 if default is None or default == "" and q.kind in ("path", "secret-path"):
                     raise Refused(f"{section.name}.{q.id}: {q.prompt} -- no default can be derived"
