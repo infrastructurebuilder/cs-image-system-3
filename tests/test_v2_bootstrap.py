@@ -335,6 +335,10 @@ def test_the_command_runs_without_loading_and_refuses_by_name_under_quiet(tmp_pa
     assert res.exit_code == 0, res.output
     assert "sections wanted: github" in res.output and "wrote generated/bootstrap/main.tf" in res.output
     assert "by hand, still:" in res.output and "tofu init && tofu plan && tofu apply" in res.output
+    # hygiene IX item 2: the closing lines say who terraform acts as -- for THIS tree's sections, before the commands
+    assert "  export GITHUB_TOKEN=$(gh auth token)" in res.output
+    assert "GOOGLE_OAUTH_ACCESS_TOKEN" not in res.output and "AWS_PROFILE" not in res.output     # GitHub alone
+    assert res.output.index("export GITHUB_TOKEN") < res.output.index("cd generated/bootstrap && tofu init")
     answers = yaml.safe_load((root / bs.ANSWERS_FILE).read_text())
     assert answers["sections"]["github"]["repository"] == "acme/widgets"
     # a second quiet interview keeps the answers (they are the defaults now) and the bytes

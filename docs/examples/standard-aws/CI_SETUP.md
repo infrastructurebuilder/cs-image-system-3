@@ -88,6 +88,15 @@ from the answers, so `config-drift` judges it like the rest of the
 emission and a clone needs no interview. Applying is your act, never a
 run's:
 
+Terraform acts as whoever your shell's credentials name, and which ones it
+needs depends on the sections you wanted: `GITHUB_TOKEN` always,
+`AWS_PROFILE` with the AWS section, `GOOGLE_OAUTH_ACCESS_TOKEN` with the
+GCP section (application-default credentials are often another identity
+entirely -- a runtime's service account that can read no IAM, say). The
+`bootstrap` command prints the exact `export` lines for your tree when it
+finishes, and so does the "Apply" block of `generated/bootstrap/README.md`;
+run them first, then:
+
 ```sh
 cd generated/bootstrap && tofu init && tofu plan && tofu apply && cd ../..
 bash generated/bootstrap/set-secrets.sh      # one file per secret under _uncommitted/secrets (or SECRETS_DIR)

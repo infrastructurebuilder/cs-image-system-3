@@ -718,22 +718,18 @@ bundle; none is a stage of its own.
    byte-identical, the starter read as `complete`, eleven and six of the
    team's lines kept, a newer pin kept. Three tests.
 
-2. **OPEN, found 2026-10-02 by the operator reading the docs after stage
-   70 step 5.** The credentials the bootstrap's apply needs appear in ONE
-   place: the export lines at the top of the generated root's README
-   ("Apply"), which the generator writes per tree from the wanted sections
-   (`GITHUB_TOKEN` always; `AWS_PROFILE` only when the AWS section answered
-   a profile; `GOOGLE_OAUTH_ACCESS_TOKEN` only with the GCP section). Every
-   other place a person reads the apply shows the bare commands -- the
-   command's own closing line (`bootstrap: next: ... tofu init && tofu
-   plan && tofu apply ...`) and CI_SETUP.md 3.0 -- so someone following
-   either meets the 403 the README fix was meant to prevent. Fix: the
-   closing line prints the export lines for this tree's wanted sections
-   (the same `Rendered.apply_env` the README reads) before the commands;
-   CI_SETUP.md 3.0 says the exports depend on the sections and points at
-   the generated README's Apply block instead of listing commands without
-   them. A test that the closing line carries the GCP token export when
-   the GCP section is wanted and not when it is not.
+2. **LANDED 2026-10-02.** The apply's credentials appeared only in the
+   generated root's README. Found by the operator reading the docs after
+   stage 70 step 5: the command's closing line and CI_SETUP.md 3.0 showed
+   the bare `tofu init && tofu plan && tofu apply`, which meets the 403 the
+   README's export lines exist to prevent. One helper (`hcl.apply_env`)
+   now feeds both the README and the command, whose closing lines print
+   this tree's `export` lines -- `GITHUB_TOKEN` always, `AWS_PROFILE` with
+   a profile, `GOOGLE_OAUTH_ACCESS_TOKEN` with GCP -- before the commands;
+   the guide's 3.0 says the credentials depend on the sections and sends
+   the reader to those lines. Tests: a GitHub-only tree's closing lines
+   carry `GITHUB_TOKEN` and nothing else, ahead of the commands; the guide
+   names the GCP token ahead of its commands.
 
 3. **OPEN, found 2026-10-02 by the operator's first apply of the reference
    bootstrap root.** The ruleset on the production branch cannot be

@@ -491,18 +491,22 @@ def bootstrap_command(
     typer.echo(f"bootstrap: answers in {ANSWERS_FILE}; sections wanted: {', '.join(wanted) or 'none'}")
     for p in written:
         typer.echo(f"bootstrap: wrote {p.relative_to(root)}")
-    by_hand: list[str] = []
-    for s in sections:
-        a = result.get(s.name) or {}
-        if a.get("wanted"):
-            by_hand.extend(s.render(a).by_hand)
+    from cs_image_system.base.bootstrap.hcl import apply_env
+    rendered = [s.render(result[s.name]) for s in sorted(sections, key=lambda s: s.name)
+                if (result.get(s.name) or {}).get("wanted")]
+    by_hand = [line for r in rendered for line in r.by_hand]
     if by_hand:
         typer.echo("bootstrap: by hand, still:")
         for line in by_hand:
             typer.echo(f"  - {line}")
-    typer.echo("bootstrap: next: review generated/bootstrap/README.md, then `cd generated/bootstrap && tofu init && "
-               "tofu plan && tofu apply`, then `bash generated/bootstrap/set-secrets.sh`; commit bootstrap.yaml and "
-               "generated/bootstrap together")
+    # hygiene IX item 2: the apply acts as whoever these name -- the identities
+    # the interview asked as -- so they are printed here, not left to a 403
+    typer.echo("bootstrap: next: review generated/bootstrap/README.md, then, in this shell:")
+    for name, value, _why in apply_env(rendered):
+        typer.echo(f"  export {name}={value}")
+    typer.echo("  cd generated/bootstrap && tofu init && tofu plan && tofu apply && cd ../..")
+    typer.echo("  bash generated/bootstrap/set-secrets.sh")
+    typer.echo("bootstrap: commit bootstrap.yaml and generated/bootstrap together")
 
 
 @app.command(name="config-drift")
