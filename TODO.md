@@ -697,24 +697,26 @@ after the first as the operator finds them.
 **Status: OPEN since 2026-10-01.** Non-critical hygiene issues join this
 bundle; none is a stage of its own.
 
-1. **OPEN, found 2026-10-01 taking release dev7 into the reference
-   configuration.** `init-config --force` overwrites the team's values in
-   `.github/workflows/ci.yml` with the starter's `REPLACE-ME` placeholders
-   (and `.csis-version` with the INSTALLED package's version, which in a
-   development checkout whose venv was not re-synced after the bump was
-   the previous release's). The guide's "refresh the release-owned parts,
-   review the diff, commit" relies on the review to catch both; the
-   first live take after a release that changed the Justfile and the
-   modules caught them only because the diff was read line by line. Fix:
-   `init-config` on an existing tree should preserve the values a team
-   has put where the starter has `REPLACE-ME` (the `PERFORM_RUNTIME`,
-   `GUARD_RUNTIME`, `AWS_REGION` and `TF_VAR_<team>` lines: carry the
-   existing file's value for every line whose starter form is a
-   placeholder), or refuse to overwrite a workflow whose placeholders
-   were filled and say which lines differ; and `.csis-version` should be
-   written only when the destination has none, never moved backwards by
-   a stale installed version. A test for each.
-
+1. **LANDED 2026-10-02.** `init-config --force` overwrote a team's
+   workflow. Found taking releases dev7 and dev8 into the reference
+   configuration, where both times the diff was undone by hand: the
+   starter defaulted to `standard-aws` while the tree's workflow is
+   `complete`'s (every GCP step dropped), REPLACE-ME came back where the
+   team's values were, and `.csis-version` moved backwards to the stale
+   version a development venv reports. Now an existing tree is refreshed
+   from the starter its own `.github/workflows/ci.yml` is closest to
+   (`--from` still wins; a new tree still defaults to `standard-aws`);
+   wherever a release workflow has a placeholder and the tree has
+   something else, the tree's lines are kept (`carry_team_values`; a
+   comment naming the placeholders that the team rewrote is kept whole),
+   so a workflow that differs only in the team's values is current and
+   kept without `--force`, and with `--force` the rest becomes the
+   release's and the report counts those lines; and a pin newer than the
+   running release, or one that cannot be compared, is never moved.
+   Proved on a copy of the reference configuration: `--force` changed
+   only `CI_SETUP.md` (the release's real changes) -- both workflows
+   byte-identical, the starter read as `complete`, eleven and six of the
+   team's lines kept, a newer pin kept. Three tests.
 
 2. **OPEN, found 2026-10-02 by the operator reading the docs after stage
    70 step 5.** The credentials the bootstrap's apply needs appear in ONE

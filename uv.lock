@@ -744,6 +744,7 @@ version = "0.1.1.dev9"
 source = { editable = "packages/system" }
 dependencies = [
     { name = "cs-image-system-base" },
+    { name = "packaging" },
     { name = "pyyaml" },
     { name = "rich" },
     { name = "typer" },
@@ -752,6 +753,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "cs-image-system-base", editable = "packages/base" },
+    { name = "packaging", specifier = ">=26.2" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=15.0" },
     { name = "typer", specifier = ">=0.26" },

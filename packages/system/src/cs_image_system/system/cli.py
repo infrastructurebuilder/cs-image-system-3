@@ -416,7 +416,7 @@ def materialize_command(
 @app.command(name="init-config")
 def init_config_command(
     destination: Annotated[Path, typer.Argument(help="the configuration repository to write (new, empty, or existing)")],
-    starter: Annotated[str, typer.Option("--from", help="the starter tree: standard-aws (the default), standard-gce or complete")] = "standard-aws",
+    starter: Annotated[str | None, typer.Option("--from", help="the starter tree: standard-aws, standard-gce or complete; a new tree defaults to standard-aws, an existing one to the starter its workflow came from")] = None,
     force: Annotated[bool, typer.Option("--force", help="overwrite a release-owned file that exists and differs")] = False,
 ) -> None:
     """Write a starter configuration repository from this release (stage 64).
@@ -427,7 +427,10 @@ def init_config_command(
     release. A destination that already holds a configuration takes only the
     parts the release owns (the same list without the YAML), so an existing
     repository gains or refreshes them; a release-owned file that exists and
-    differs is refused by name unless --force. Loads no configuration."""
+    differs is refused by name unless --force. An existing tree is refreshed
+    from the starter its workflow came from (--from names another), its
+    values where the release has REPLACE-ME are kept, and its .csis-version
+    is never moved backwards. Loads no configuration."""
     from cs_image_system.system.starters import init_config
     try:
         report = init_config(destination, starter, force=force)
@@ -438,8 +441,8 @@ def init_config_command(
         typer.secho(f"init-config: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
     for line in report.lines():
-        typer.secho(line, fg=None if line.startswith("init-config: the") else typer.colors.RED,
-                    err=not line.startswith("init-config: the"))
+        refused = line.startswith("init-config: REFUSED")
+        typer.secho(line, fg=typer.colors.RED if refused else None, err=refused)
     if not report.ok:
         raise typer.Exit(code=1)
     if report.whole_tree:

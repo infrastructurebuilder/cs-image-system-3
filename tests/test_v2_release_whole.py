@@ -133,6 +133,84 @@ def test_init_config_refuses_a_release_owned_file_that_differs_unless_forced(tmp
     assert (dest / ".csis-version").read_text() == starters.release_version() + "\n"
 
 
+def _filled_complete(dest: Path) -> dict[str, str]:
+    """An existing tree whose workflow is the ``complete`` starter's with the
+    team's values in it, as the reference configuration's is."""
+    (dest / "cfg").mkdir(parents=True)
+    (dest / "cfg" / "_config.yml").write_text("config: {}\n")
+    for rel in starters.release_owned_paths(EXAMPLES / "complete"):
+        (dest / rel).parent.mkdir(parents=True, exist_ok=True)
+        (dest / rel).write_bytes((EXAMPLES / "complete" / rel).read_bytes())
+    wf = dest / ".github" / "workflows" / "ci.yml"
+    text = wf.read_text()
+    values = {
+        "  PERFORM_RUNTIME: aws-REPLACE-ME": "  PERFORM_RUNTIME: aws-east2-runtime",
+        "TF_VAR_REPLACE_ME_key: ${{ secrets.TF_VAR_KEY }}": "TF_VAR_acme_team_key: ${{ secrets.TF_VAR_KEY }}",
+        "TF_VAR_REPLACE_ME_secret: ${{ secrets.TF_VAR_SECRET }}": "TF_VAR_acme_team_secret: ${{ secrets.TF_VAR_SECRET }}",
+    }
+    for a, b in values.items():
+        assert a in text, a
+        text = text.replace(a, b)
+    head = [ln for ln in text.splitlines() if ln.startswith("# REPLACE-ME:")]
+    assert head, "the starter workflow's header names its placeholders"
+    text = text.replace(head[0], "# The team's values: two lines of our own words")    # a rewritten placeholder comment
+    wf.write_text(text)
+    (dest / ".csis-version").write_text(starters.release_version() + "\n")
+    return values
+
+
+def test_refreshing_a_tree_keeps_its_starter_and_its_values(tmp_path):
+    """Hygiene IX item 1: taking releases dev7 and dev8 into the reference
+    configuration, `init-config . --force` refreshed a `complete` workflow
+    from `standard-aws` (every GCP step gone) and put REPLACE-ME back where
+    the team's values were; both times the diff was undone by hand."""
+    dest = tmp_path / "team"
+    values = _filled_complete(dest)
+    before = (dest / ".github" / "workflows" / "ci.yml").read_text()
+    # different from the release only in the team's values: current, kept, no --force needed
+    result = _invoke(str(dest))
+    assert result.exit_code == 0, result.output
+    assert "the release-owned parts of complete" in result.output and "was read from the tree's" in result.output
+    assert "your values kept in" in result.output and "REFUSED" not in result.output
+    assert (dest / ".github" / "workflows" / "ci.yml").read_text() == before
+    # an older workflow (a step the release has since changed): --force takes the release's lines, keeps the values
+    wf = dest / ".github" / "workflows" / "ci.yml"
+    release_line = next(ln for ln in before.splitlines() if "Install the released system" in ln)
+    wf.write_text(before.replace(release_line, release_line + " (an older wording)", 1))   # one job's step
+    refused = _invoke(str(dest))
+    assert refused.exit_code == 1 and "REFUSED .github/workflows/ci.yml" in refused.output
+    forced = _invoke(str(dest), "--force")
+    assert forced.exit_code == 0, forced.output
+    after = wf.read_text()
+    assert after == before                                                      # the release's line back, every value kept
+    assert all(b in after for b in values.values()) and "REPLACE_ME_key" not in after
+    assert "# The team's values: two lines of our own words" in after
+    assert "google-github-actions/auth" in after                                # complete's GCP steps, still there
+    assert "1 other line(s) now read as the release's" in forced.output
+    # --from still wins over the inference
+    chosen = _invoke(str(dest), "--from", "standard-aws", "--force")
+    assert chosen.exit_code == 0 and "of standard-aws" in chosen.output and "was read from" not in chosen.output
+
+
+def test_the_version_pin_is_never_moved_backwards(tmp_path):
+    dest = tmp_path / "team"
+    _filled_complete(dest)
+    running = starters.release_version()
+    (dest / ".csis-version").write_text("999.0.0\n")                             # a pin newer than this install
+    forced = _invoke(str(dest), "--force")
+    assert forced.exit_code == 0, forced.output
+    assert (dest / ".csis-version").read_text() == "999.0.0\n"
+    assert f"kept at 999.0.0: newer than this install's {running}; a pin is never moved backwards" in forced.output
+    (dest / ".csis-version").write_text("0.0.1\n")                               # an older one moves forward
+    assert _invoke(str(dest), "--force").exit_code == 0
+    assert (dest / ".csis-version").read_text() == running + "\n"
+    assert starters.carry_team_values("a\nX: REPLACE-ME\nb\n", "a\nX: ours\nb\nextra\n") == ("a\nX: ours\nb\n", 1, 1)
+    # a comment that names the placeholders, rewritten by the team, is kept whole -- not spliced line by line
+    release = "# REPLACE-ME: the runtime,\n# the region and the names.\nX: 1\n"
+    ours = "# Our values: the runtime and\n# the region, in our words.\nX: 1\n"
+    assert starters.carry_team_values(release, ours) == (ours, 2, 0)
+
+
 def test_init_config_refuses_an_unknown_starter_and_a_file_destination(tmp_path):
     result = _invoke(str(tmp_path / "x"), "--from", "nope")
     assert result.exit_code == 2 and "no starter named 'nope'" in result.output and "standard-gce" in result.output
