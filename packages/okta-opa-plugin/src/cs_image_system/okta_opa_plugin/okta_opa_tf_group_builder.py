@@ -163,6 +163,11 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
     def can_manage_workload_access(self) -> bool:
         return bool(self.model.workload_connection and self.model.workload_role)
 
+    # gids by reference into this builder's identity root (N7; stage 75 step 3
+    # made it the builder's answer instead of every consumer's assumption)
+    def gid_workspace(self) -> str | None:
+        return self.get_name()
+
     # the login proof (stage 75 step 2: moved from the core, unchanged): there
     # is a CI login to prove exactly when the workload objects are named
     def can_prove_login(self) -> bool:

@@ -164,18 +164,23 @@ class TofuStorageBuilder(StorageBuilderBase[Q], TerraformRootMixin):
         for storage in self.live_storages():
             for group in _groups(storage):
                 gb = self._group_builder_for(group)
-                if gb is not None:
-                    out[gb.get_name()] = gb
+                ws = gb.gid_workspace() if gb is not None else None   # stage 75 step 3
+                if gb is not None and ws is not None:
+                    out[ws] = gb
         return out
 
     def gid_reference(self, group: str) -> HclRaw:
-        """``data.terraform_remote_state.<identity ws>.outputs.group_gids["<group>"]``
-        -- the ONLY way a gid ever appears in generated storage IaC (N7)."""
+        """The group builder's ``gid_expression`` (stage 75 step 3): for an
+        identity root, ``data.terraform_remote_state.<identity ws>.outputs.
+        group_gids["<group>"]`` (N7); for a configuration-time gid, the number."""
         gb = self._group_builder_for(group)
         if gb is None:
             raise ValueError(f"Storage builder {self.name}: group {group!r} has no identity builder")
-        ws = utils.super_safe_name(gb.get_name())
-        return HclRaw(f'data.terraform_remote_state.{ws}.outputs.group_gids["{group}"]')
+        gid = gb.gid_expression(group)          # stage 75 step 3: the group builder writes it
+        if gid is None:
+            raise ValueError(f"Storage builder {self.name}: group {group!r}'s identity builder {gb.get_name()} "
+                             f"supplies no gid")
+        return HclRaw(gid)
 
     def group_subtrees(self, storage: Storage) -> dict[str, dict[str, Any]]:
         """N13/N15: one root-level subtree per allowed group, gid by reference,

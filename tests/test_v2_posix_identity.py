@@ -87,3 +87,46 @@ def test_a_group_builder_proves_no_login_unless_it_says_so():
     assert GroupBuilderBase.can_prove_login(object.__new__(GroupBuilderBase)) is False   # type: ignore[arg-type]
     with pytest.raises(NotImplementedError, match="cannot prove a login"):
         GroupBuilderBase.login_checks(object.__new__(GroupBuilderBase), "g", "h")         # type: ignore[arg-type]
+
+
+# ------------------------------------------------- step 3: gids in generated IaC
+
+def test_the_okta_builder_answers_the_gid_reference_the_consumers_used_to_assume():
+    from tests.v2_support import FIXTURE_CONFIG, load_context, reset_singletons, stub_environment
+    from pytest import MonkeyPatch
+    mp = MonkeyPatch()
+    stub_environment(mp)
+    try:
+        ctx = load_context(FIXTURE_CONFIG)
+        gb = ctx.group_builders["oktagroups"]
+        assert gb.gid_workspace() == "oktagroups"
+        assert gb.gid_expression("coops") == 'data.terraform_remote_state.oktagroups.outputs.group_gids["coops"]'
+    finally:
+        reset_singletons()
+        mp.undo()
+
+
+def test_a_group_builder_without_an_identity_root_supplies_no_gid_by_default():
+    gb = object.__new__(GroupBuilderBase)
+    assert GroupBuilderBase.gid_workspace(gb) is None and GroupBuilderBase.gid_expression(gb, "g") is None  # type: ignore[arg-type]
+
+
+def test_a_literal_gid_reaches_the_roots_and_no_identity_state_is_read(tmp_path, monkeypatch):
+    """The seam posix uses: a builder whose gids are configuration answers
+    with the number and no workspace -- the storage and instance roots then
+    carry the number and declare no remote state of an identity root."""
+    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
+    from tests.v2_support import V2Run
+    monkeypatch.setattr(OktaTfGroupBuilder, "gid_workspace", lambda self: None)
+    monkeypatch.setattr(OktaTfGroupBuilder, "gid_expression", lambda self, group: "4242")
+    run = V2Run(tmp_path, monkeypatch)
+    try:
+        assert run.run(["storage", "instance-image"], apply=False).ok
+        texts = {p: p.read_text() for sub in ("storage", "instance-image")
+                 for p in (run.generated / sub).rglob("*.tf")}
+        joined = "\n".join(texts.values())
+        assert "4242" in joined, "the literal gid reached no root"
+        assert "outputs.group_gids" not in joined
+        assert not [p for p, t in texts.items() if 'data "terraform_remote_state" "oktagroups"' in t]
+    finally:
+        run.restore_cwd()

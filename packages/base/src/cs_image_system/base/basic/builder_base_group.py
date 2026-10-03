@@ -175,6 +175,25 @@ class GroupBuilderBase(BuilderBase[TGROUP]):
         its plan. A provider with no such notion does nothing."""
         return 0
 
+    # ------------------------------------ gids in generated IaC (stage 75 step 3)
+    def gid_workspace(self) -> str | None:
+        """The terraform workspace whose ``group_gids`` output carries this
+        builder's gids -- a root that needs one declares that workspace's
+        remote state -- or None when the gids are known without one (a
+        configuration-time gid, written literally). Default: None."""
+        return None
+
+    def gid_expression(self, group: str) -> str | None:
+        """How generated IaC writes ``group``'s gid (N7): by reference into
+        ``gid_workspace()``'s outputs when the builder has one, else None --
+        a builder whose gids are configuration overrides this to write the
+        number."""
+        ws = self.gid_workspace()
+        if ws is None:
+            return None
+        from .. import utils
+        return f'data.terraform_remote_state.{utils.super_safe_name(ws)}.outputs.group_gids["{group}"]'
+
     # ------------------------------------- the login proof (stage 75 step 2)
     def can_prove_login(self) -> bool:
         """Whether ``verify login`` can log into a standing machine of this
