@@ -36,6 +36,11 @@ group_builders:
       - name: okta
         source: okta/okta
         version: '>= 6.0'
+  # posix (stage 75): groups as POSIX accounts on the machines, with the gid
+  # declared on the group; no terraform root, no credentials. One group sits
+  # on it (groups/group-pxgroup.yaml), owning one image (images/image4.yaml).
+  - name: posix-local
+    type: posix
 # User builders handle users
 user_builders:
   # okta-tf-ro: read-only. Emits only `data "okta_user"` lookups of existing
@@ -61,3 +66,8 @@ user_builders:
       - name: okta
         source: okta/okta
         version: '>= 6.0'
+  # posix (stage 75): users as POSIX accounts, each with a declared uid, a
+  # user-private group of the same name and id, and its public keys. Two
+  # personas sit on it (the end of groups/users.yaml).
+  - name: posix-users
+    type: posix

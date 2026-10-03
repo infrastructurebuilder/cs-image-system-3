@@ -5,7 +5,8 @@ build {
 "source.amazon-ebs.imgfile-basic-cloudflow-two",
   "source.amazon-ebs.imgfile-basic-dask",
   "source.amazon-ebs.imgfile-basic-dask-two",
-  "source.amazon-ebs.imgfile-data-science"
+  "source.amazon-ebs.imgfile-data-science",
+  "source.amazon-ebs.imgfile-posix"
 ]
   # identity activation for owning group 'tcmet' (okta)
   provisioner "shell" {
@@ -165,6 +166,38 @@ provisioner "ansible" {
       "# verify: activated for group 'stofs'",
       "grep -q 'tx.group: stofs' /etc/sft/sftd.yaml",
       "systemctl is-enabled sftd >/dev/null 2>&1",
+    ]
+  }
+  # identity activation for owning group 'pxgroup' (posix)
+  provisioner "shell" {
+    only   = ["amazon-ebs.imgfile-posix"]
+    inline = [
+      "# identity activation for group 'pxgroup' (posix) on image imgfile-posix",
+      "sudo bash -s <<'CSIS_POSIX_ACCOUNTS'",
+      "#!/usr/bin/env bash",
+      "# cs-image-system posix accounts (stage 75): idempotent; adopts what is equal, refuses what differs",
+      "set -euo pipefail",
+      "conflict() { echo \"posix accounts: $*\" >&2; exit 3; }",
+      "# group pxgroup (gid 3101)",
+      "if getent group pxgroup >/dev/null; then",
+      "  have=$(getent group pxgroup | cut -d: -f3)",
+      "  [ \"$have\" = 3101 ] || conflict \"group pxgroup has gid $have here; the configuration says 3101\"",
+      "else",
+      "  if other=$(getent group 3101 | cut -d: -f1) && [ -n \"$other\" ]; then",
+      "    conflict \"gid 3101 belongs to group $other here; the configuration gives it to pxgroup\"",
+      "  fi",
+      "  groupadd -g 3101 pxgroup",
+      "fi",
+      "CSIS_POSIX_ACCOUNTS",
+    ]
+  }
+  # in-bake verification for instance image imgfile-posix: 1 assertion(s)
+  provisioner "shell" {
+    only   = ["amazon-ebs.imgfile-posix"]
+    inline = [
+      "set -e",
+      "# verify: group 'pxgroup' stands with gid 3101",
+      "test \"$(getent group pxgroup | cut -d: -f3)\" = '3101'",
     ]
   }
   post-processor "manifest" {

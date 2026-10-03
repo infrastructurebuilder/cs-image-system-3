@@ -1,0 +1,13 @@
+groups:
+  # stage 75: a posix group -- it exists as a POSIX group on the machines of
+  # the images it owns (images/image4.yaml), with this gid; its members and
+  # admins are the two posix personas at the end of users.yaml.
+  - name: pxgroup
+    type: posix-local
+    gid: 3101
+    description: "{{ group.name }} group"
+    members:
+      - taylor_tango
+      - unity_uniform
+    admins:
+      - taylor_tango

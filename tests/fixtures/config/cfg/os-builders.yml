@@ -36,7 +36,7 @@ os_builders:
             state: available # This is always going to be hard-coded into the query for the image (here for example)
             root_device_type: ebs
   - name: basic-rhel-9
-    identity_types: [okta]
+    identity_types: [okta, posix]   # stage 75: imgfile-posix (images/image4.yaml) belongs to a posix group
     storage_types: [ebs, efs, s3]
     type: rhel
     family: rhel

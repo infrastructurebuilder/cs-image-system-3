@@ -118,6 +118,16 @@ class PosixGroupBuilder(_NoGeneration, GroupBuilderBase[PosixGroupBuilderModel])
         return [f"# verify: group '{group.get_name()}' stands with gid {gid}",
                 f"test \"$(getent group {group.get_name()} | cut -d: -f3)\" = '{gid}'"]
 
+    # ------------------------------------------------------- the state query
+    def query_state(self) -> dict[str, dict[str, Any]]:
+        """No provider to ask: a posix group lives on the machines of its
+        images, not in a directory, so there is no central record to compare
+        and the state query's group rules pass these groups by (an empty
+        answer, not "cannot be queried" -- nothing is missing from the
+        picture). Each machine's own copy is checked by the accounts script,
+        which adopts what is equal and refuses what differs."""
+        return {}
+
     # ------------------------------------------------------- attributes
     def validate_attributes(self, group: Any, attributes: dict[str, Any]) -> list[str]:
         return [f"group '{group.get_name()}': a posix group declares its id as `gid:`, not as attributes "

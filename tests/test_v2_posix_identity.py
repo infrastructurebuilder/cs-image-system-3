@@ -176,25 +176,25 @@ def test_two_names_on_one_id_are_refused_within_a_kind_but_a_users_private_group
 # ------------------------------------------------ step 3: the plugin in a loaded tree
 
 def _posix_tree(tmp_path, *, gid=3101, uids=(3201, 3202), extra_group=None):
-    """A fixture copy with a posix group builder and user builder, a group
-    and two users -- the shape step 3d puts in the frozen fixture."""
+    """A copy of the frozen fixture, whose posix shape (since step 3d: the
+    builders, pxgroup and the two personas) is adjusted for one case."""
     from tests.v2_support import copy_config
     root = copy_config(tmp_path)
-    gb = root / "cfg" / "group-builders.yml"
-    data = yaml.safe_load(gb.read_text())
-    data["group_builders"].append({"name": "posix-local", "type": "posix"})
-    data["user_builders"].append({"name": "posix-users", "type": "posix"})
-    gb.write_text(yaml.safe_dump(data, sort_keys=False))
-    groups = [{"name": "pxgroup", "type": "posix-local", "gid": gid,
-               "members": ["taylor_tango", "uma_uniform"], "admins": ["taylor_tango"]}]
+    gpath = root / "groups" / "group-pxgroup.yaml"
+    groups = yaml.safe_load(gpath.read_text())
+    groups["groups"][0]["gid"] = gid
     if extra_group:
-        groups.append(extra_group)
-    (root / "groups" / "group-posix.yaml").write_text(yaml.safe_dump({"groups": groups}, sort_keys=False))
-    users = yaml.safe_load((root / "groups" / "users.yaml").read_text())
-    for name, first, last, uid in (("taylor_tango", "Taylor", "Tango", uids[0]), ("uma_uniform", "Uma", "Uniform", uids[1])):
-        users["users"].append({"name": name, "type": "posix-users", "first_name": first, "last_name": last,
-                               "uid": uid, "public_keys": [f"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI{last} {name}@example.invalid"]})
-    (root / "groups" / "users.yaml").write_text(yaml.safe_dump(users, sort_keys=False))
+        groups["groups"].append(extra_group)
+    gpath.write_text(yaml.safe_dump(groups, sort_keys=False))
+    upath = root / "groups" / "users.yaml"
+    text = upath.read_text()
+    for name, uid, default in (("taylor_tango", uids[0], 3201), ("unity_uniform", uids[1], 3202)):
+        old = f"  - name: {name}\n    type: posix-users\n"
+        assert old in text
+        head, tail = text.split(old, 1)
+        tail = tail.replace(f"    uid: {default}\n", f"    uid: {uid}\n" if uid is not None else "", 1)
+        text = head + old + tail
+    upath.write_text(text)                  # textual: the other users' markers stay byte-for-byte
     return root
 
 
@@ -224,7 +224,7 @@ def test_a_posix_tree_loads_and_its_ids_resolve_cleanly(tmp_path, monkeypatch):
         assert "sudo bash -s <<'CSIS_POSIX_ACCOUNTS'" in bake and "groupadd -g 3101 pxgroup" in bake
         assert gb.activation_verify_commands(image, group)[-1] == "test \"$(getent group pxgroup | cut -d: -f3)\" = '3101'"
         users = {u.get_name(): u.uid for u in ctx.user_builders["posix-users"].get_users_for_builder()}
-        assert users == {"taylor_tango": 3201, "uma_uniform": 3202}
+        assert users == {"taylor_tango": 3201, "unity_uniform": 3202}
     finally:
         reset_singletons()
 
@@ -232,7 +232,7 @@ def test_a_posix_tree_loads_and_its_ids_resolve_cleanly(tmp_path, monkeypatch):
 @pytest.mark.parametrize("change,needle", [
     ({"gid": None}, "group pxgroup: no side supplies its id"),
     ({"uids": (1000, 3202)}, "user taylor_tango: the configuration declares id 1000, below 1024"),
-    ({"uids": (3201, 3201)}, "users taylor_tango, uma_uniform all have id 3201"),
+    ({"uids": (3201, 3201)}, "users taylor_tango, unity_uniform all have id 3201"),
     ({"extra_group": {"name": "taylor_tango", "type": "posix-local", "gid": 3300}},
      "group taylor_tango: the configuration supplies id 3300 and the configuration (user-private group) supplies 3201"),
     ({"extra_group": {"name": "Bad.Name", "type": "posix-local", "gid": 3300}}, None),
@@ -265,7 +265,7 @@ def test_a_posix_group_or_user_declaring_attributes_is_refused(tmp_path, monkeyp
     from cs_image_system.base.identity_attributes import validate_identity_items
     from tests.v2_support import load_context, reset_singletons, stub_environment
     root = _posix_tree(tmp_path)
-    for rel, key, name in (("groups/group-posix.yaml", "groups", "pxgroup"), ("groups/users.yaml", "users", "uma_uniform")):
+    for rel, key, name in (("groups/group-pxgroup.yaml", "groups", "pxgroup"), ("groups/users.yaml", "users", "unity_uniform")):
         data = yaml.safe_load((root / rel).read_text())
         next(i for i in data[key] if i["name"] == name)["attributes"] = {"unix_gid" if key == "groups" else "unix_uid": 4000}
         (root / rel).write_text(yaml.safe_dump(data, sort_keys=False))
@@ -275,4 +275,4 @@ def test_a_posix_group_or_user_declaring_attributes_is_refused(tmp_path, monkeyp
     finally:
         reset_singletons()
     assert any("group 'pxgroup': a posix group declares its id as `gid:`" in e for e in errors), errors
-    assert any("user 'uma_uniform': a posix user declares its id as `uid:`" in e for e in errors), errors
+    assert any("user 'unity_uniform': a posix user declares its id as `uid:`" in e for e in errors), errors

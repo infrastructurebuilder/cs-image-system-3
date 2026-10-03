@@ -162,7 +162,7 @@ def test_group_drift(world):
     model = ctx.meta_state.identity_read_model()["groups"]
     # managed groups only: a lookup-only group (the fixture's `readers`,
     # stage 63 item 18) never drifts, whatever the provider says
-    names = sorted(n for n, rec in model.items() if rec["managed"])
+    names = sorted(n for n, rec in model.items() if rec["managed"] and rec["identity_type"] == "okta")   # stage 75: not posix
     root_admins = {a for rec in model.values() if rec["is_root"] for a in rec["admins"]}
     reality["groups"] = {
         names[0]: {"present": False},

@@ -1,0 +1,13 @@
+images:
+  # stage 75: an instance image owned by a posix group -- its bake creates
+  # pxgroup with its declared gid (adopted if the base already has it equal,
+  # refused if the base has it different)
+  - name: imgfile-posix
+    group: pxgroup # owning group (V2 Q4): identifies the identity type via the group's builder
+    tags:
+      posix: "true"
+    source_image: basic-rhel-9
+    description: "A posix-owned image: the owning group exists on the machine."
+    type: pckr-ebs-ans
+    runtimes:
+      - image_builder: pckr-ebs-ans
