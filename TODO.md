@@ -831,13 +831,15 @@ half there:
   their own `__post_init__` (a user's `name` is re-declared as an
   encrypted string).
 
-**One decision to ask first (R1).** Which words are reserved as names.
-Default this plan assumes: exactly `OOPS_DEFAULTS` with `none` added, as
-the operator said, and `INVALID_CONFIG_KEYS` deleted as dead. The
-alternative is to reserve that longer list too (`this`, `same`, `any`,
-`null`, `runtime`, `os`, `config`, ...), which would refuse names a team
-may already use and needs a search of the reference configuration before
-it is chosen.
+**Decided (operator, 2026-10-03).** The reserved names are exactly
+`OOPS_DEFAULTS` with `none` added: for any configuration item, of any
+kind, the `name` field cannot be one of those values.
+`INVALID_CONFIG_KEYS` is dead and is deleted; its longer list is not
+reserved. And the rule for values: **code where a configuration value
+COULD BE `none` deals with that value explicitly.** Membership in
+`OOPS_DEFAULTS` never gives the word a meaning; a field that accepts
+`none` (the update policy, §75's `posix`) tests for it by name, before
+any "is it unset" test.
 
 **Steps.**
 
@@ -845,31 +847,35 @@ it is chosen.
    about forty sites, and most test a VALUE, not a name: a network, a
    runtime, an ssh username, an image owner, an architecture, a foreign
    key. Adding `none` makes the string unset at every one. Each site is
-   read and listed in the stage with its verdict: unaffected, wanted, or
-   to be exempted. Known legitimate uses of the word that must keep
-   working: the update policy `policy: none`
+   read and listed in the stage with one of two verdicts. Where `none`
+   has no meaning for the field, unset is right and nothing changes.
+   Where `none` COULD BE a real value, the site is rewritten to handle
+   the word explicitly, by name, so it no longer depends on what the
+   list holds. Known cases: the update policy `policy: none`
    ([update_policy.py:34](packages/base/src/cs_image_system/base/models/update_policy.py#L34),
    declared in the `complete` starter) and `--only none` on the command
-   line.
+   line; the audit finds the rest.
 2. **The word.** `none` joins `OOPS_DEFAULTS`; any site step 1 marked
    "to be exempted" is changed in the same commit. Golden
    byte-identical.
 3. **The read-time check, restored.** Where each configuration file is
-   seen with its own path, a `name` (and each alias) in the reserved
-   list is refused with the file, the list it sits in and the word,
-   before any model is built. The model check stays as the backstop for
-   objects built in code. `INVALID_CONFIG_KEYS` is removed or becomes
-   the list, per R1.
-4. **The tests.** Parametrised over every word in the list, in its case
-   and spacing variants: (a) each registered named model class refuses
-   it as a name and as an alias, the class list taken from the registry
-   so a new model is covered without editing the test; (b) a copy of the
-   frozen fixture with one item renamed `none`, per kind (group, user,
-   storage, image, instance, each builder kind), fails `validate` naming
-   the file and the word; (c) a reference written as `none` is unset,
-   not a dangling key; (d) `policy: none` and `--only none` still mean
-   what they meant; (e) a test that fails if `OOPS_DEFAULTS` loses a
-   word.
+   seen with its own path, a `name` (and each alias) in `OOPS_DEFAULTS`
+   is refused with the file, the list it sits in and the word, before
+   any model is built -- for every kind of item, with no exception. The
+   model check stays as the backstop for objects built in code.
+   `INVALID_CONFIG_KEYS` is deleted.
+4. **The tests.** Parametrised over every word in `OOPS_DEFAULTS`, in
+   its case and spacing variants: (a) each registered named model class
+   refuses it as a name and as an alias, the class list taken from the
+   registry so a new model is covered without editing the test; (b) a
+   copy of the frozen fixture with one item renamed to the word, per
+   kind (group, user, storage, image, instance, each builder kind),
+   fails `validate` naming the file and the word; (c) a reference
+   written as `none` where the field gives it no meaning is unset, not a
+   dangling key; (d) every site the audit rewrote keeps its explicit
+   meaning -- `policy: none` and `--only none` among them -- and a test
+   per site fails if the handling is removed; (e) a test that fails if
+   `OOPS_DEFAULTS` loses a word.
 5. **Records.** CONFIGURATION names the reserved words where it
    describes `name`; an item goes to the documentation stage (opened
    here if none is open); the release notes say a tree with an item
