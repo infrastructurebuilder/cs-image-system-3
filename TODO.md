@@ -795,11 +795,12 @@ standing mandate: a new secret owes the bootstrap its question).
 
 ## 76. `none` is a reserved name, and the reserved-name rule is tested
 
-**Status: PLANNED 2026-10-03; nothing runs until the operator says "do
-76".** (The operator, 2026-10-03: "Create a new stage to exclude the
-string 'none' as a name within the system ... There should be validators
-that check 'name' against OOPS_DEFAULTS and tests that validate that
-validation." Branch `feature/reserved-names`. §75 step 5 depends on it.)
+**Status: IN PROGRESS since 2026-10-03 on `feature/reserved-names` (the
+operator: "do 76"). Step 1 (the audit) done; steps 2-6 open.** (The
+operator, 2026-10-03: "Create a new stage to exclude the string 'none'
+as a name within the system ... There should be validators that check
+'name' against OOPS_DEFAULTS and tests that validate that validation."
+§75 step 5 depends on it.)
 
 **What stands today** (read and probed 2026-10-03, not assumed). The
 operator remembered a check that refused the words of `OOPS_DEFAULTS` as
@@ -900,6 +901,58 @@ step 6 finds out.
    never needed. Whatever is decided is done with its tests in this
    stage; until then the list and the commented function are not
    touched.
+
+**The audit (step 1, 2026-10-03).** Every site that reads
+`OOPS_DEFAULTS`, read in place, and every model class the frozen fixture
+loads (31), probed with each word as a name and an alias. No field reads
+the word `none` through the list as a value it means, so NO site is
+rewritten and step 2 changes only the list. The verdicts:
+
+- **Name checks -- `none` now refused too, as wanted.** `NameTyped` and
+  `RootItem` (name and aliases),
+  [global_context.py:1339](packages/base/src/cs_image_system/base/global_context.py#L1339)
+  (a builder),
+  [ia_config.py:126](packages/base/src/cs_image_system/base/models/ia_config.py#L126)
+  (an executable),
+  [registry.py:240](packages/base/src/cs_image_system/base/registry.py#L240)
+  (a registered default). `RuntimeNetworkingModel`'s own `name`
+  ([runtime.py:74](packages/base/src/cs_image_system/base/models/runtime.py#L74))
+  and `ImageImageBuilderSubconfig`'s are DERIVED when unset (from the
+  network, from the image builder), so their effective name is never
+  reserved. `utils.validate_names` reads the list and has no caller.
+- **References -- `none` now means "not written", as `default` does.** A
+  foreign key
+  ([orchestrator.py:745](packages/base/src/cs_image_system/base/orchestrator.py#L745):
+  no longer recorded as dangling), an item's `type`
+  ([global_context.py:602](packages/base/src/cs_image_system/base/global_context.py#L602):
+  the default builder), a runtime and its state backend
+  ([orchestrator.py:56-60](packages/base/src/cs_image_system/base/orchestrator.py#L56-L60),
+  [collector.py:369](packages/hashicorp-utils/src/cs_image_system/hashicorp_utils/collector.py#L369)),
+  an image's `image_builder` (image.py:92, global_context.py:1515), a
+  builder's `runtime` (builder_model.py:285, which refuses it there).
+- **Values with a fallback -- `none` now takes the fallback.** The bake
+  user (bake_user.py:48), `ssh_username`
+  (os_builder_runtime_config.py:185), the machine type
+  (builder_base_os.py:136-140, both packer sources), a runtime's network
+  and subnet (both runtime models, gcp_packer_source.py:123-126,
+  tf_gcp_storage_builder.py:331, tf_instance_builder.py:39), an image
+  owner (gcp_packer_source.py:66), an architecture (resolve.py:150), a
+  user's email (user.py:149: derived from the template), the OPA
+  credentials and `api_host` (okta_tf_workspace.py:189, :208).
+- **Fields that give `none` a meaning -- explicit already, by name, and
+  the list never reaches them.** The update policy
+  ([update_policy.py:34](packages/base/src/cs_image_system/base/models/update_policy.py#L34),
+  `POLICY_NONE`) and `--only none`
+  ([run_lifecycles.py:488](packages/base/src/cs_image_system/base/commands/run_lifecycles.py#L488),
+  set by the CLI and by retention). §75's `posix: none` will be the
+  third.
+
+**The one change in behaviour, stated.** A value written `none` used to
+pass through as a literal: a foreign key named `none` was refused by
+stage 48 as naming nothing, a network `none` reached the provider and
+failed there. Now it reads as unset and takes the default. No tree
+carries such a value (searched: the fixture, the three starters, the
+reference configuration), so nothing that loads today changes.
 
 **Sizing**: the audit half a day; the word, the refusal and the tests a
 day; the `config:` probe two hours, then the operator's answer. Proof:
