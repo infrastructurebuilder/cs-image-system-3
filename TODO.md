@@ -716,11 +716,11 @@ standing mandate: a new secret owes the bootstrap its question).
    after apply; the launch assertion; `group_gid` as a packer variable
    and the run-script line; the bake and machine moments of the
    resolver.
-5. **Beside Okta.** `none` joins `OOPS_DEFAULTS` and the reserved
-   after any word in that list; `posix:`
+5. **Beside Okta.** `none` joins `OOPS_DEFAULTS`, and `validate`
+   refuses an item named after any word in that list. `posix:`
    (required, no default, a foreign key whose target must be of type
-   `posix`) and `posix_ssh_keys:` on the `okta-tf` builder, groups only,
-   the wait for synced accounts. The fixture and the three starters
+   `posix`) and `posix_ssh_keys:` go on the `okta-tf` group builder:
+   groups only, with the wait for synced accounts. The fixture and the three starters
    gain a posix builder and the line in this same commit, or they no
    longer validate (golden moves once, reviewed by hand). Tests: absent,
    `none`, an undeclared name and a non-posix target are each refused
