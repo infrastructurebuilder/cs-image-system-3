@@ -510,13 +510,14 @@ the first final version on PyPI (§41's open call).
 
 ## 75. A POSIX identity plugin, alone and beside Okta
 
-**Status: PLANNED 2026-10-03; nothing runs until the operator says
-"do 75".** (The operator, 2026-10-03, on finding the owning group absent
-on a live machine: "Plan a second plugin", with the decisions recorded
-below. Branch `feature/posix-identity`.)
+**Status: IN PROGRESS since 2026-10-03 on `feature/posix-identity` (the
+operator: "start 75"). Step 1 is the operator's observation on
+coops-model-005; step 2 proceeds meanwhile, since it depends on nothing
+step 1 can find.** (The operator, 2026-10-03, on finding the owning
+group absent on a live machine: "Plan a second plugin", with the
+decisions recorded below.)
 
 ### Context
-
 
 **The defect (observed live by the operator, 2026-10-03).** On
 `coops-model-005`, `getent group coops` returns nothing. Users synced by
@@ -638,13 +639,12 @@ team's decision:
   beside `default`, `self`, the empty string and null. That is what
   makes `posix: none` unambiguous: it can never be the name of a
   builder.
-- The rule that refuses the NAME is not this stage's: it is §76, which
-  lands first. (An earlier revision of this plan said nothing refuses
-  such a name today. That was wrong: `NameTyped` and `RootItem` refuse a
-  name or alias in `OOPS_DEFAULTS` at construction; what is missing is
-  the word `none` in the list, and any test of the rule.) Foreign keys
-  read the same list as "no reference written"
-  ([orchestrator.py:745](packages/base/src/cs_image_system/base/orchestrator.py#L745)).
+- The rule that refuses the NAME is §76's, LANDED 2026-10-03: `none` is
+  in `OOPS_DEFAULTS`, a reserved name is refused where its file is read,
+  and a REFERENCE written `none` is refused at `validate` (a foreign key
+  takes its default only by equality with the field's own, so `none`
+  names nothing). So this field must declare that it accepts the word
+  and handle it before the generic foreign-key check does.
 - Because null and `none` are both in that list, the required check
   reads the value AS WRITTEN: a missing line is refused, the word `none`
   is the opt-out. The two are never folded together.
@@ -785,10 +785,9 @@ standing mandate: a new secret owes the bootstrap its question).
   group builder must write the `posix:` line when it takes the release
   that carries step 5 -- a builder's name, or `none`. Today that is the
   reference configuration alone.
-- **`none` is reserved system-wide**, not only for this field: no item
-  may carry the name, and a reference written as `none` is unset
-  everywhere except where a field, like this one, gives the word a
-  meaning.
+- **`none` is reserved system-wide** (§76): no item may carry the name,
+  and a reference written `none` is refused everywhere except where a
+  field, like this one, gives the word a meaning and says so.
 - **`posix: none` keeps the defect, on purpose and in sight**: the
   owning group stays absent on those machines. The note is the only
   thing that says so.
