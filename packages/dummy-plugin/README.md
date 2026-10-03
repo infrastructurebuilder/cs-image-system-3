@@ -345,7 +345,7 @@ is every field these two models accept and what, if anything, reads it.
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `name` | str | required | The builder's name; normalised by `safe_name`, must not contain `/` or `\`, must not be `default`, `self` or empty, and must be unique within its list. Users and groups name it in their own `type:` to attach to it. |
+| `name` | str | required | The builder's name; normalised by `safe_name`, must not contain `/` or `\`, must not be a reserved word (`default`, `self`, `none`, empty or null, in any case), and must be unique within its list. Users and groups name it in their own `type:` to attach to it. |
 | `type` | str | required | Must be `dummy` to select this plugin's pair. Any other value selects another plugin or is unknown. |
 | `description` | str or null | null | Accepted, not read by anything in this plugin's path. |
 | `aliases` | set of str | empty | Alternative names, normalised like `name` and registered at load; an alias already registered under the same classification is refused. |
@@ -454,7 +454,9 @@ What is checked around it, and where the verdict lands:
   ([test_v2_defects_dead.py](../../tests/test_v2_defects_dead.py),
   `test_the_template_models_keep_org_and_team_and_refuse_credentials`); the retired
   `parameters:` key is refused with the stage-26 message; `name` and
-  `aliases` are checked for `/`, `\` and the reserved words; the YAML
+  `aliases` are checked for `/`, `\` and the reserved words (`default`,
+  `self`, `none`, empty, null -- refused first where the file is read,
+  naming the file and the entry); the YAML
   reader refuses a duplicate `name` in the list and template markers in
   `name` or `type`. After construction the context refuses two defaults
   (`Multiple default builders found`), no default

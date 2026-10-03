@@ -370,6 +370,18 @@ allowed, and a record afterwards. The rhythm is always the same: declare,
 `just validate`, `just dry`, read the script, `just run`, push, `just
 state-query --strict`.
 
+Names are yours to choose, with one rule the load enforces: `default`,
+`self`, `none`, the empty string and null are reserved, in any case,
+because each means "not set" wherever a value is read. Nothing may be
+named after one, and no alias may be one; the refusal names the file,
+the entry and the word. The same words written as a VALUE are a
+different thing: `type: default` asks for the builder marked
+`is_default`, while a reference written `none` names nothing and
+`validate` says what to write instead. A few fields give `none` a
+meaning of their own and say so where they are described
+(`update: {policy: none}`, `--only none`).
+[CONFIGURATION.md](docs/CONFIGURATION.md) 1.2 is the whole rule.
+
 ### 3.1 A group and its access
 
 Declare users and the group in `groups/` ([CONFIGURATION.md](docs/CONFIGURATION.md),

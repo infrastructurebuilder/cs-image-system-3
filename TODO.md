@@ -801,10 +801,10 @@ standing mandate: a new secret owes the bootstrap its question).
 
 ## 77. Documentation stage: reserved names
 
-**Status: OPEN since 2026-10-03** (opened by §76, by the standing rule
-that a stage which changes behaviour owes the documentation an update; a
-documentation stage changes no code). Later stages that land
-undocumented changes append here until it lands.
+**Status: DONE on `feature/docs-reserved-names` 2026-10-03 (the
+operator: "do 77"); waiting for the operator's word to merge.** (Opened
+by §76, by the standing rule that a stage which changes behaviour owes
+the documentation an update; a documentation stage changes no code.)
 
 **What changed, by stage:**
 
@@ -820,16 +820,30 @@ undocumented changes append here until it lands.
   refused as keys of a document's `config:` mapping. CONFIGURATION 1.2,
   2.3 and the `name` rows were updated in §76 itself.
 
-**Owed:**
+**Done:**
 
-1. `DAILY_DRIVER.md` section 6 lists failures that happened in the
-   reference deployment, so the three new refusals (a reserved name at
-   load, a reference written `none`, a guarded `config:` key) get a row
-   when one is first met; until then each message names its file and
-   what to write.
-2. The starters' comments, where they describe `name:` or `config:`, are
-   checked against the rule; OPERATIONS is searched for any sentence
-   that says only `default` and `self` are reserved.
-3. A team taking the release with an item named `none` (none known) is
-   told by the refusal itself; the walk (§65) is the proof that the
-   message is enough.
+1. The failure rows: `DAILY_DRIVER.md` section 6 lists failures met in
+   the reference deployment, and none of the new refusals has been met,
+   so it gains no row (one is added when one is). Instead the daily
+   driver's "Making things" opens with the naming rule a new team needs
+   before it names anything, pointing at CONFIGURATION 1.2; and the base
+   README's failure list gains the four new messages with their
+   remedies, and tf-s3-state-plugin's failure table the two that touch a
+   backend (its old row quoted the models' message, which a
+   configuration no longer meets first).
+2. The search: no starter comment describes `name:` rules or `config:`
+   keys, and no OPERATIONS sentence says only `default` and `self` are
+   reserved -- nothing to change there. Twelve passages in the package
+   READMEs stated the old reserved set or the old backend sentinels and
+   now state the new one: base (naming rules, the registry's defaults,
+   executables, the load and `validate` check lists, the module table
+   gains `reserved_names.py`, the `config:` keys section), dummy-plugin,
+   gcs-state-plugin, local-state-plugin, tf-s3-state-plugin,
+   tf-gcp-plugin (`networking.network` with `none`), hashicorp-utils
+   (the backend chain: `none` refused before it); CONFIGURATION's
+   backend chain likewise.
+3. The method-name collision the §76 probe found (`{{ config.items }}`
+   renders the method) is unguarded by the operator's decision, so
+   CONFIGURATION 2.3 and the base README now say to avoid those keys.
+4. Still owed, by design: the walk (§65) is the proof that a refusal's
+   message is enough for a team that meets one.

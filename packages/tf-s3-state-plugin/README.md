@@ -62,7 +62,7 @@ Inherited from the base:
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `name` | str | required | Backend name; normalized (trimmed, lowercased, spaces and `:` to `_`). `/` and `\` are refused; `default`, `self` and the empty string are refused. |
+| `name` | str | required | Backend name; normalized (trimmed, lowercased, spaces and `:` to `_`). `/` and `\` are refused; the reserved words `default`, `self`, `none`, the empty string and null are refused, in any case. |
 | `type` | str | required | `s3`; also the terraform backend type. |
 | `description` | str \| None | None | Free text. |
 | `aliases` | set[str] | {} | Extra names, normalized like `name`, checked for collisions within the class; a `state_configuration:` may name one (stage 63). |
@@ -465,7 +465,7 @@ and nothing else ever looks at it -- a typo in such a field is refused
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `name` | str | required | The backend's name; what `state_configuration:` names. Trimmed, lowercased, spaces and `:` to `_`; `/` and `\` refused; `default`, `self` and `""` refused. Read by the collector (registration key), the `.tfbackend.hcl` header comment and the location record. |
+| `name` | str | required | The backend's name; what `state_configuration:` names. Trimmed, lowercased, spaces and `:` to `_`; `/` and `\` refused; `default`, `self`, `none`, `""` and null refused. Read by the collector (registration key), the `.tfbackend.hcl` header comment and the location record. |
 | `type` | str | required | `s3`. Read by the loader (selects this model) and written as the terraform backend type in `backend "s3" {}` and every remote-state `backend = "s3"`. |
 | `description` | str or null | null | Accepted, not read. |
 | `aliases` | list[str] | `[]` | Extra names the backend answers to: `state_configuration: <alias>` binds to it (stage 63). An alias equal to another entry's name or alias is refused at load. |
@@ -577,7 +577,8 @@ Fields the plugin reads from **other** YAML:
 **At load (pydantic, every entry, every command that loads the
 configuration).** Unknown keys are refused (`extra="forbid"`); `parameters:`
 is refused with the `variables:` message; `name` and each alias are
-checked for `/` and `\`, for `default`/`self`/empty, and normalised; an
+checked for `/` and `\`, for the reserved words (`default`, `self`,
+`none`, empty, null), and normalised; an
 empty `key` is refused; `key` gains its trailing slash; nested `endpoints`,
 `assume_role` and `assume_role_with_web_identity` values must fit their
 dataclasses (each needs a `name`). The loader then refuses a duplicate name
@@ -690,7 +691,8 @@ Failures the code raises that have not happened live.
 | `<field>` / `Unexpected keyword argument` at load | a key the model does not have (a typo, or a terraform backend argument this model never had) | the entry | fix the spelling or delete the key; see the field table |
 | `` `parameters` was retired (stage 26) `` at load | `parameters:` on the entry | the entry | delete it |
 | `Name '<name>' contains invalid characters: {'/', '\\'}` at load | a `/` or `\` in `name` or an alias | the entry | rename |
-| `Name cannot be in '['default', None, '', 'self']'` at load | the name (or an alias) is a reserved sentinel | the entry | rename |
+| `<file>: state_backends[<i>].name: a name may not be '<word>'` at load (or `...aliases[<j>]: an alias may not be ...`) | the name or an alias is a reserved word (`default`, `self`, `none`, empty, null), refused where the file is read; a backend built in code meets the models' own `Name cannot be in '[...]'` instead | the entry | rename |
+| `workspace '<ws>' names state backend 'none', which names nothing` at `validate` | a root's (or its runtime's) `state_configuration` is `none`, which would otherwise read as unset and put its state on the default backend | the builder or the runtime | declare a backend of type `local` for state on disk, or leave the field out |
 | `Default value for type 'state_backend_model' is already set to '<a>'. Cannot override with '<b>'.` at load | two entries with `is_default: true` | every `cfg/state-backends*.yml` | keep one default |
 | `two TofuS3StateBuilderModel entries collide on the registry key 's3_east2': 'S3-East2' and 's3-east2' (a TofuS3StateBuilderModel) normalise to the same name; rename one` at load | two entries share a name after normalisation (until stage 63 item 5, 2026-09-24, this was a misleading `has no unique 'id' or 'name'` message followed by the whole model dump, `access_key` and `secret_key` included) | every `cfg/state-backends*.yml` | rename one |
 | `Alias '<x>' is already registered under classification ...` at load | an alias equals another entry's name or alias | the entries | remove the alias |

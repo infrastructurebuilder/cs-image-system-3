@@ -691,7 +691,7 @@ fails at load.
 | `region` | `provider "google" { region }`; the GCS `location` when the builder declares none |
 | `zone` | `provider "google" { zone }`; `zone` of the instance and Filestore module calls; the pd's `zone`, `--zone` of its archive script and its state query's zone when the storage declares no `availability_zone` (with neither, archiving a pd is refused at generation, stage 63) |
 | `networking.subnets[]` (the `is_default: true` one) | `subnetwork` of the instance module call |
-| `networking.network` | Filestore `network`, unless it is `default`, empty, null or `self` (`OOPS_DEFAULTS`), in which case the module's own default `default` applies. Not read by the instance root |
+| `networking.network` | Filestore `network`, unless it is `default`, `none`, empty, null or `self` (`OOPS_DEFAULTS`), in which case the module's own default `default` applies. Not read by the instance root |
 | `networking.network_tags` | `network_tags` of the instance module call, when any |
 | `session_mechanism` | `public_ip = false` when `iap`; any other non-empty value raises `ValueError` from the runtime plugin at generation |
 | `default_machine_type` | `machine_type` of the instance module call |

@@ -170,7 +170,7 @@ Two more enums live in `constants.py`: `OSFamilies` (`rhel`, `ubuntu`,
 | `instances`               | `VCT`, then name or alias         | Built objects: builder models, builders, items. Cloud and container builders are mirrored under the runtime classifications. |
 | `instances_by_global_id`  | `global_id`                       | The same objects by `<classification>::<model_id>::<name>`. |
 | `aliases` / `classified_aliases` | `VCT`                      | Builder aliases; a duplicate alias within a classification is an error. |
-| `defaults_registry`       | `VCT`                             | The name of the default builder per classification. A default may not be `default`, `self`, empty or `None`. |
+| `defaults_registry`       | `VCT`                             | The name of the default builder per classification. A default may not be a reserved word (`default`, `self`, `none`, empty or `None`). |
 
 `get_instance_by_name_or_alias(vct, "default")` resolves to the registered
 default. `reset()` clears everything, which is how tests and repeated loads
@@ -376,9 +376,25 @@ OS builder's tags, `systemuser: "{{ ENV.USER }}"` in `config:`.
 
 `safe_name()` strips whitespace, replaces spaces and `:` with `_`, and
 lower-cases. Every `name` and alias is normalized this way; `display_name`
-keeps the original spelling for output. A name or alias may not be
-`default`, `self`, empty or `None`, and may not contain `/` or `\`. An
-alias equal to the name is dropped. `super_safe_name()` additionally
+keeps the original spelling for output. A name or alias may not contain
+`/` or `\`, and may not be one of the reserved words of
+`OOPS_DEFAULTS` -- `default`, `self`, `none`, empty or `None` -- in any
+case or spacing, because those words mean "not set" wherever a value is
+read: an item named after one would be unreachable, and a reference to
+it would mean something else (stage 76). The rule is held twice:
+[`reserved_names.py`](src/cs_image_system/base/reserved_names.py)
+refuses such a `name:` at any depth, and such an `aliases:` entry, where
+each configuration file is read -- every `cfg/` file, every item file
+after decryption, every overlay -- naming the file, the entry's place
+and the word; and `NameTyped` / `RootItem` refuse it again when a model
+is built, the backstop for objects made in code. A REFERENCE written
+`none` is a different matter: a foreign key takes its default only when
+the value equals the field's own default (`field_set_to_default`), so
+`default` resolves and `none` names nothing -- `validate` refuses it
+(`check_foreign_keys`, `check_state_locations`) with what to write
+instead. A field that gives `none` a meaning of its own (`update:
+{policy: none}`, `--only none`) tests for the word by name, never
+through the list. An alias equal to the name is dropped. `super_safe_name()` additionally
 replaces `+ . / \ - @` with `_`; it names terraform workspaces and state
 files.
 
@@ -1188,6 +1204,7 @@ lines. `admin_public_keys` returns a base image's own list when set, else
 | [`alias_pool.py`](src/cs_image_system/base/alias_pool.py) | The pool of pre-approved names in `meta-state/aliases.txt` (stage 59): a new durable machine's alias is the first free line, burnt in place under an exclusive lock by the run that can launch it. |
 | [`provider_aliases.py`](src/cs_image_system/base/provider_aliases.py) | After a real instance-image apply, gives each launched, running instance back the names it lost at boot (the bare declared name, the pool alias, the provider's `ip-...` label) as an `AltNames` block in `/etc/sft/sftd.yaml`, skipping every collision and every silent registry; and the `reality.instances` entries and notes of the state report. |
 | [`workload_access.py`](src/cs_image_system/base/workload_access.py) | After a real identity apply, reconciles each managed group's CI login policy through the group builder (stage 56) and records the outcome in the identity read-model. |
+| [`reserved_names.py`](src/cs_image_system/base/reserved_names.py) | The read-time refusals of stage 76: `refuse_reserved_names` (a `name:` at any depth, or an `aliases:` entry, that is a word of `OOPS_DEFAULTS` in any case or spacing, every one listed with the file, the entry's place and the word, `ReservedNameError`) and `refuse_invalid_config_keys` (a key of a document's top-level `config:` that is in `INVALID_CONFIG_KEYS`, `InvalidConfigKeyError`). Called by `read_and_process` for each `cfg/` file, by the item-file reader after decryption, and by `load_overlay`; pure functions of the parsed document, no identity or network. |
 | [`materialize.py`](src/cs_image_system/base/materialize.py) | The private mirror `_private/` beside `generated/`, at the same depth: a root is copied there with every `ENC[age:...]` marker replaced by its plaintext before a deferred command runs, incrementally; only `.terraform.lock.hcl` is ever copied back. `ensure_ignored` appends `_private/` to the configuration root's `.gitignore`. |
 | [`commands/login_proof.py`](src/cs_image_system/base/commands/login_proof.py) | `verify login`: for each standing instance of a group that names a workload connection and role, checks the machine is running, exactly one registration answers to its hostname, `sft resolve` resolves it and `sft ssh ... id` logs in; every verdict goes to `meta-state/login-proofs.yaml`. |
 | [`commands/state_migration.py`](src/cs_image_system/base/commands/state_migration.py) | The runner steps of `--migrate-state` (`begin`, `finish`) and the same-day state `backup` a runner takes into `_private/state-backups/` before any `state rm` it decided on. |
@@ -1337,7 +1354,7 @@ with `extra="forbid"`: an unknown key is refused at load.
 | `id` | str | required | The configuration's identifier. Read into `IAConfig.id`; nothing in the core acts on the value. |
 | `generation_directory` | str or null | `generated` | Where a run writes, relative to the root. The CLI resolves it once at load; every `generated/<lifecycle>/`, `run-summary.json`, `state-report.json` and `final_execution.sh` path hangs under it, and `_private/` replaces its NAME beside it (`mirror_path`). |
 | `dateformat` | str | `%Y%m%d_%H%M%S` | The `strftime` format of `execution.timestamp` (and the value of `execution.dateformat`) in the string stage, which reads the raw key and falls back to `DEFAULT_DATEFORMAT`, the model's own default. One field, one default since stage 63: until 2026-09-25 the model's default was `%Y-%m-%d-%H%M%S`, read only by a `last_updated_timestamp_str` formatter nothing called (removed with `last_updated`). A tree that declares nothing produces the same output names as before. |
-| `executables` | list of `ExecutableModel` | `[]` | The tools builders run; usually in `cfg/executables.yml`. Names unique and never `default`, `self` or empty; checked for presence and version at `validate` and every run. See [`ExecutableModel`](#executablemodel-cfgexecutablesyml-key-executables). |
+| `executables` | list of `ExecutableModel` | `[]` | The tools builders run; usually in `cfg/executables.yml`. Names unique and never a reserved word (`default`, `self`, `none`, empty); checked for presence and version at `validate` and every run. See [`ExecutableModel`](#executablemodel-cfgexecutablesyml-key-executables). |
 | `runtime_builders`, `state_backends`, `os_builders`, `mod_builders`, `storage_builders`, `group_builders`, `user_builders`, `image_builders`, `instance_builders` | lists | `[]` | The builder declarations, each with `name` and `type`; structured per `type` against the plugin model and stored by name. Accepted at the top level of ANY `cfg/*.yml`; lists are concatenated across files. |
 | `gitignore` | list[str] | `[]` | Appended to the built-in entries (`target/`, `.terraform/`, `terraform.tfstate`, `terraform.tfstate.backup`, `!.terraform.lock.hcl`); a duplicate keeps its LAST position. Written as `.gitignore` into `generated/` (plus the run-local names there) and into every lifecycle directory. |
 | `encryption.recipients` | list[str] | `[]` | age public keys (`age1...`) every `ENC[age:...]` value is encrypted to. Read as TEXT by `encrypt` and `reencrypt` (no identity needed); a marker here is refused. |
@@ -1348,6 +1365,20 @@ with `extra="forbid"`: an unknown key is refused at load.
 | `last_updated` | -- | -- | GONE (stage 63): declaring it is an unknown key, refused at load like any other. Until 2026-09-25 it was accepted and read by nothing but the unused `last_updated_timestamp_str` formatter, removed with it. |
 
 ### `config:` keys the core reads
+
+Any other key is carried on the context for plugins, except seventeen
+that are refused where the file is read (`INVALID_CONFIG_KEYS`:
+`self`, `this`, `same`, `runtime`, `os`, `default`, `defaults`, `any`,
+`anything`, `none`, `null`, the empty string, `timestamp`, `date`,
+`datetime`, `config`, `configuration`, in any case;
+`refuse_invalid_config_keys` in
+[`reserved_names.py`](src/cs_image_system/base/reserved_names.py)).
+The guard was written in 2026-07 and switched on in stage 76; a probe
+that day found none of the seventeen collides with the template context.
+The collision that does exist is not guarded: a key named after a mapping
+method (`items`, `keys`, `values`, `get`, `update`, `copy`, `pop`)
+renders the method in `{{ config.<key> }}`, not the value -- so avoid
+those names.
 
 | Key | Type | Default | Read by | Effect |
 |---|---|---|---|---|
@@ -1688,15 +1719,21 @@ is written.
   list is refused; a `name` or `type` containing `{{` is refused; a marker
   standing where one may not (a mapping key, an `EXEMPT_PATHS` value, a
   declaration's `name` or `type`) is refused by path, with no identity
-  needed (`refuse_markers_at`).
+  needed (`refuse_markers_at`); a `name:` at any depth or an `aliases:`
+  entry that is a reserved word is refused, every one listed with the
+  file, its place and the word (`refuse_reserved_names`, which also runs
+  on each item file after decryption and on each overlay); a key of the
+  document's `config:` that is one of the seventeen words of
+  `INVALID_CONFIG_KEYS` is refused naming the file and the key
+  (`refuse_invalid_config_keys`, also on each overlay).
 - **Decryption** (`decrypt_tree`): every whole-value marker opens with an
   identity from `CSIS_CONFIG_IDENTITY`; no identity, or no identity that
   opens the value, or a marker embedded in a longer string, is refused
   naming the value's path.
 - **Every model** (`CSIS_MODEL_CONFIG`): unknown keys are refused; a
   `parameters` key on a builder is refused naming `variables:`; names and
-  aliases may not be `default`, `self`, empty or `None`, nor contain `/`
-  or `\`; each plugin key's entries need `name` and `type`; an unknown
+  aliases may not be a reserved word (`default`, `self`, `none`, empty or
+  `None`), nor contain `/` or `\`; each plugin key's entries need `name` and `type`; an unknown
   `type` is a `KeyError`; exactly one `is_default` per classification
   (`No default builder found` / `Multiple default builders found`); a
   duplicate builder name; a builder's `runtime` must resolve; a
@@ -1742,8 +1779,8 @@ where they differ.
 |---|---|---|
 | unique global ids | `check_name_uniquness` | two OS builders, runtime configurations or images with one id |
 | executables | `check_executables_exist_and_versions` | a declared binary not found; a version that cannot be read or parsed; a version outside its requirement; a builder's `executable` naming no entry. What passed is one INFO line, `Executables: <name> <version> ok (...)` |
-| state locations | `check_state_locations` | a root naming an undeclared backend; two roots sharing one state object; a root whose location moved while resources stand in it (the fix is `--migrate-state`) |
-| foreign keys | `check_foreign_keys` | a field that names no object of its classification, naming the object, field, value and what is declared |
+| state locations | `check_state_locations` | a root (or its runtime) naming state backend `none`, which would otherwise read as unset and put the state on the DEFAULT backend -- there is no "no backend": declare one of type `local`, or leave the field out; a root naming an undeclared backend; two roots sharing one state object; a root whose location moved while resources stand in it (the fix is `--migrate-state`) |
+| foreign keys | `check_foreign_keys` | a field that names no object of its classification, naming the object, field, value and what is declared; a field written `none`, which names nothing (it is not the field's default, which resolves only by equality), with the remedy: leave the field out, or write `default` |
 | availability zones | `check_availability_zones` | a zonal storage in a zone other than its runtime's; an instance, its zonal storages and its runtime's subnet asking for more than one zone |
 | bake users | `check_bake_users` | an OS builder entry or image entry whose bake user nothing names; on a runtime with one user per chain (GCE), an image naming a user other than its chain root's |
 | label keys | `check_label_keys` | a tag key on an image, instance or storage that its runtime cannot take as a label (GCE: a lowercase letter first), named with who declared it |
@@ -2188,7 +2225,21 @@ code writes it (values in angle brackets).
   builders found: <a> and <b>` -- mark exactly one `is_default: true` per
   builder class.
 - `Duplicate builder name found: <n>` / `Builder with default name found`
-  -- rename; `default`, `self` and empty are reserved.
+  -- rename; `default`, `self`, `none` and empty are reserved.
+- `<file>: <list>[<i>].name: a name may not be '<word>'` (or `...aliases[<j>]:
+  an alias may not be ...`, or `... may not be empty (null)`), every one
+  in the file at once, `ReservedNameError` at load -- rename the entry or
+  drop the alias; the reserved words are `default`, `self`, `none`, the
+  empty string and null, in any case.
+- ``<file>: config.<key>: '<key>' may not be a `config:` key``,
+  `InvalidConfigKeyError` at load -- rename the key; the message lists
+  all seventeen guarded words.
+- ``<Class> '<name>': field '<f>' names 'none', which is no <target> ...
+  -- `none` names nothing and is not this field's default`` at
+  `validate` -- leave the field out, or write `default`, for the default.
+- `workspace '<ws>' names state backend 'none', which names nothing` at
+  `validate` -- declare a backend of type `local` for state on disk, or
+  leave `state_configuration` out for the default backend.
 - `Type Collision` (`ValueError` from the registry) -- two installed
   plugins register one canonical name; a packaging problem, not a
   configuration one.
