@@ -300,7 +300,8 @@ the chain and the collision rule in full.
 - **At load (pydantic, `__post_init__`).** `path` empty or whitespace is
   refused; the value is stripped. The common checks apply: `name` with
   `/` or `\` is refused, a name in the reserved set (`default`, `self`,
-  ...) is refused, an unknown key is refused, `parameters` is refused.
+  `none`, empty, null; refused where the file is read, naming it) is
+  refused, an unknown key is refused, `parameters` is refused.
   Since stage 63, a `path` whose normalised form has a `.` or `..`
   segment, or is the bare `/`, is refused too (messages under "When it
   fails").

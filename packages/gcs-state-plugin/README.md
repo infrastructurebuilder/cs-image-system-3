@@ -175,7 +175,7 @@ naming `variables:`. Field names are exact: `type` in YAML is the model's
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `name` | str | required | what a root's or runtime's `state_configuration` names; normalised (lowercase, spaces to `_`); `/` and `\` are refused, and so are `default`, `self` and the empty name |
+| `name` | str | required | what a root's or runtime's `state_configuration` names; normalised (lowercase, spaces to `_`); `/` and `\` are refused, and so are the reserved words `default`, `self`, `none`, the empty name and null, in any case |
 | `type` | str | required | `gcs`; also the terraform backend type written into consumers' `backend "gcs" {}` block |
 | `description` | str or null | null | free text; not read |
 | `aliases` | set[str] | `{}` | other names the backend answers to (stage 63): they travel on the `BackendRegistration`, and `resolve_backend` tries the backend names first and then every backend's aliases, so a root's or runtime's `state_configuration` may name an alias and `validate` accepts it. Until 2026-09-25 they were registered and never read, and binding to an alias was refused as not declared |
@@ -284,7 +284,8 @@ other plugins, decide whether any of it is used:
 - **At load (pydantic, then `__post_init__`).** `bucket` present and
   non-empty after trimming; `prefix` a string (trimmed of `/` and
   whitespace); unknown keys and `parameters:` refused; `name` free of `/`
-  and `\` and not `default`, `self` or empty. A failure is a
+  and `\` and not a reserved word (`default`, `self`, `none`, empty;
+  refused where the file is read, naming it). A failure is a
   `ValidationError` naming the field, raised while the configuration
   loads, so `validate` and every run stop with exit 1 before anything is
   generated. Then `finalize()` -- called once per model at load, after

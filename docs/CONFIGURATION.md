@@ -185,8 +185,11 @@ Any key is accepted under `config:` except seventeen: `self`, `this`,
 `none`, `null`, the empty string, `timestamp`, `date`, `datetime`,
 `config` and `configuration`, in any case. The load refuses one where the
 file is read, naming the file and the key (the guard `INVALID_CONFIG_KEYS`,
-written in 2026-07 and switched on in stage 76). Of the rest, these are the
-ones the system reads.
+written in 2026-07 and switched on in stage 76). Avoid, too, a key named
+after a mapping method (`items`, `keys`, `values`, `get`, `update`,
+`copy`, `pop`): it is accepted, but `{{ config.items }}` in the string
+stage renders the method, not your value, and says nothing. Of the rest,
+these are the ones the system reads.
 Everything else is carried on the context for plugins (it is not a
 template scope: `{{ config.x }}` does not resolve in model fields).
 
@@ -1181,7 +1184,10 @@ backend a root uses resolves through a chain: the root's own
 `state_configuration` (declared on both runtime types: "everything on this
 runtime keeps its state in that bucket"), else the single backend marked
 `is_default`. "Names a backend" means a value outside the loader's absent
-sentinels (`default`, `self`, empty, unset). The key prefix is normalised
+sentinels (`default`, `self`, empty, unset). `none` is refused at
+`validate` rather than read as one of them: it would put the root's state
+on the default backend, the opposite of what it says, and there is no "no
+state backend" -- declare one of type `local` for state on disk (1.2). The key prefix is normalised
 before anything is emitted or compared -- repeated slashes collapsed,
 leading and trailing ones stripped, case kept, `.` and `..` refused -- so
 the doubled slash can never reach a `.tfbackend.hcl`. The operator's
