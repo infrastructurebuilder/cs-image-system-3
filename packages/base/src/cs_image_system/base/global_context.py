@@ -41,6 +41,7 @@ from . import registry
 from .utils import super_safe_name
 from .template_utils import cycle_main_yaml, read_and_preprocess_yaml_files
 from .encryption import decrypt_tree, decrypted_plaintexts, refuse_markers_at
+from .reserved_names import refuse_invalid_config_keys, refuse_reserved_names
 from .materialize import ensure_ignored, materialize, mirror_path, sync_back
 
 log = logging.getLogger(__name__)
@@ -890,30 +891,6 @@ def get_files_by_extensions(
     return sorted(files)
 
 
-# def validate_initial_cycled(cycled: str) -> None:
-#     """Perform some basic validation on the cycled YAML to catch common mistakes early."""
-#     try:
-#         dct = yaml.safe_load(cycled)
-#         if not isinstance(dct, dict):
-#             raise ValueError("Cycled YAML must be a dictionary at the top level.")
-#         if not "runtime_builders" in dct:
-#             raise ValueError(
-#                 "Cycled YAML must contain at least one 'runtime_builders' key."
-#             )
-#         q = dct.get("config", {})
-#         if not isinstance(q, dict):
-#             raise ValueError(
-#                 "Cycled YAML 'config' key must be a dictionary if present."
-#             )
-#         if any(k.lower() in q for k in INVALID_CONFIG_KEYS):
-#             raise ValueError(
-#                 "Cycled YAML 'config' cannot contain any key in the invalid keys list,"
-#                 f" {INVALID_CONFIG_KEYS}, as it may cause issues with templating."
-#             )
-#     except yaml.YAMLError as e:
-#         log.error(f"Validation failed for cycled YAML: {e}")
-#         raise ValueError(f"Validation failed for cycled YAML: {e}")
-
 def apply_overlays(ctx: Any, spec: ItemKind, read_dict: dict[str, Any]) -> None:
     """Merge every overlay's entries for this kind over the tree's: a named
     entry that exists is updated key by key (``state: destroyed`` on a
@@ -994,6 +971,8 @@ def load_overlay(path: Path) -> dict[str, Any]:
             continue
         if not isinstance(value, list) or any(not isinstance(i, dict) or not i.get("name") for i in value):
             raise ValueError(f"Overlay {path}: '{key}' must be a list of named entries")
+    refuse_reserved_names(data, str(path))          # stage 76: an overlay names items too
+    refuse_invalid_config_keys(data, str(path))     # and carries a `config:` mapping
     return data
 
 
@@ -1055,7 +1034,6 @@ def read_config_and_transform(
     if verbose:
         with open("./YAML_DUMP.yaml", "w+") as f:
             f.write(cycled)
-    # validate_initial_cycled(cycled)  # Raises errors if things go awry
 
     # generic_yaml = template_utils.process_keys( yaml.unsafe_load(config_str))
     # _ddd: dict = {}
@@ -1424,6 +1402,11 @@ def read_and_process(dir: Path) -> dict[str, Any] | None:
                     # stage 49: needs NO identity -- a structural check, so it
                     # still runs where nothing could be decrypted
                     refuse_markers_at(data, str(file))
+                    # stage 76: nothing may be named after a word that means "not
+                    # set"; refused here so the message names the file and entry
+                    refuse_reserved_names(data, str(file))
+                    # stage 76 step 6: the `config:` key guard, switched on as written
+                    refuse_invalid_config_keys(data, str(file))
                     ret = _extend_lists(ret, data)
         except Exception as e:
             log.error(f"Error reading or processing file {file}: {e}")

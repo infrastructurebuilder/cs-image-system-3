@@ -83,8 +83,19 @@ current directory). The Justfile drives the live tree named by
   backend's aliases are the exception: `state_configuration` resolves
   registration names only, and an alias there is refused by `validate` as
   not declared). Aliases must be
-  unique within the class; `default`, `self` and the empty string are not
-  allowed as a name or an alias; `/` and `\` are refused.
+  unique within the class; `/` and `\` are refused.
+- **Reserved words.** `default`, `self`, `none`, the empty string and a
+  YAML null mean "not set" wherever a value is read, so nothing may be
+  NAMED after one: no `name:`, at any depth of any file, and no entry of
+  any `aliases:` list, in any case or with surrounding space (`Default`,
+  ` none `). The load refuses the tree where the file is read, naming the
+  file, the entry and the word, before anything is built. A reference
+  written `none` is refused too, at `validate`: unlike `default` it is not
+  a field's default, so it names nothing (leave the field out, or write
+  `default`, for the default). A field that gives `none` a meaning of its
+  own says so where it is described: `update: {policy: none}` (5.2) and
+  `--only none` on the command line. A value with a fallback (a machine
+  type, a network, an ssh user) written `none` takes the fallback.
 - Names are normalized: trimmed, lower-cased, spaces and colons replaced by
   `_`. The original spelling survives as the display name and is what an
   output artifact is named from.
@@ -169,7 +180,13 @@ any `cfg/` file; they are documented in their own sections.
 
 ### 2.3 `config` keys the code reads
 
-Any key is accepted under `config:`; these are the ones the system reads.
+Any key is accepted under `config:` except seventeen: `self`, `this`,
+`same`, `runtime`, `os`, `default`, `defaults`, `any`, `anything`,
+`none`, `null`, the empty string, `timestamp`, `date`, `datetime`,
+`config` and `configuration`, in any case. The load refuses one where the
+file is read, naming the file and the key (the guard `INVALID_CONFIG_KEYS`,
+written in 2026-07 and switched on in stage 76). Of the rest, these are the
+ones the system reads.
 Everything else is carried on the context for plugins (it is not a
 template scope: `{{ config.x }}` does not resolve in model fields).
 
@@ -241,7 +258,7 @@ Builders refer to an executable by its `name` (`executable: open-tofu-1`).
 
 | Field | Type | Default | Meaning and allowed values |
 | --- | --- | --- | --- |
-| `name` | str | required | the name builders reference; non-empty, unique; not `default`/`self` |
+| `name` | str | required | the name builders reference; unique; not a reserved word (1.2) |
 | `type` | str | `executable` | selects the version checker; `default` means "same as `name`" |
 | `version` | str or null | null | a version requirement (`">=1.14"`, `">1,<2"`), a PEP 440 specifier set checked by `validate` and every run |
 | `binary` | str or null | the name | path or command to run |
@@ -405,7 +422,7 @@ and warns about a network tag no firewall rule targets.
 
 | Field | Type | Default | Meaning and allowed values |
 | --- | --- | --- | --- |
-| `name` | str | the network | a label; must not be empty after templating |
+| `name` | str | the network | a label; not a reserved word (1.2); must not be empty after templating |
 | `network` | str | `default` | the VPC id (AWS) or network name (GCP); `default` resolves to the account's default VPC / the project's `default` network |
 | `subnets` | list | required, at least one | exactly one entry must have `is_default: true` |
 | `subnets[].name` | str | the subnet id | label |
@@ -539,7 +556,7 @@ Types: `rhel` (dnf; adds `subscription_id`), `fedora` (dnf), `debian`
 | Field | Type | Default | Meaning and allowed values |
 | --- | --- | --- | --- |
 | `image_builder` | str | `default` | the image builder (section 6) that bakes this base on its runtime |
-| `name` | str or null | null | a label; unique within the builder |
+| `name` | str | set by the loader | a label; unique within the builder; leave it out rather than write null, which is a reserved word (1.2) |
 | `type` | str | the parent's name | set by the loader |
 | `description` | str | templated | free text |
 | `image_id` | str or null | null | a fixed vendor image on this runtime: when set the vendor query is skipped and the image is looked up by id (AWS: the AMI id; GCE: the image name, searched in the entry's owner projects); an id the provider does not know stops resolution. Stage 63; it was read by nothing |

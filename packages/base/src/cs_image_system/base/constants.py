@@ -14,7 +14,12 @@ DEFAULT_CONFIG_FILE: str = "./image-actions.yml"
 DEFAULT: str = "default"
 ALL: str = "ALL" # ALL CAPS 'ALL' is a magic value that means "all groups, everywhere".  Use with caution.  This is basically saying "I don't care about groups, anyone can use it"
 SELF = "self"
-OOPS_DEFAULTS: list[str | None] = [DEFAULT, None, "",SELF]
+NONE = "none"
+# The words that mean "not set" wherever a value is read, so nothing may be NAMED
+# after one of them (stage 76). A field that gives one of them a meaning of its own
+# (the update policy's `none`, `--only none`) tests for it by name, never through
+# this list.
+OOPS_DEFAULTS: list[str | None] = [DEFAULT, None, "", SELF, NONE]
 SOURCE_MODEL: str = "SourceModel"
 
 

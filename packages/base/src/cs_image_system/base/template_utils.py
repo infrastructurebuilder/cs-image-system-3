@@ -16,6 +16,7 @@ from jinja2 import Environment, Undefined, nodes, Template
 
 from .constants import NAME, PLUGIN_TYPES
 from .encryption import decrypt_tree, decrypted_plaintexts
+from .reserved_names import refuse_reserved_names
 from .helpers import resolution_stages
 
 
@@ -648,6 +649,9 @@ def read_and_preprocess_yaml_files(
                 # carry their ciphertext onward for the emission to write back.
                 file_data = decrypt_tree(file_data, source=str(yaml_file),
                                          collect=decrypted_plaintexts())
+                # stage 76: after decryption, so an encrypted name is checked as
+                # its plaintext; before structuring, so the message names the file
+                refuse_reserved_names(file_data, str(yaml_file))
                 if not (sub_key and isinstance(file_data, dict)):
                     raise ValueError(
                         f"YAML file {yaml_file} does not contain a top-level "

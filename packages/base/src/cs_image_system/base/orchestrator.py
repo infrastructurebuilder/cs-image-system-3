@@ -18,7 +18,7 @@ from .protocols.parent_property_holding_protocol import ParentPropertyHoldingPro
 from dataclasses import MISSING, fields, is_dataclass
 from typing import Any
 import jinja2
-from .constants import DEFAULT, DEFERRED_BUILDER_VCT, DEFERRED_ITEM_VCT, FK_ALSO_SET_ON_UPDATE, FK_TARGET, IS_DEFERRED_LIST_FK, IS_DEFERRED_LIST_GENERATED, IS_FK, IS_REPLACE, OOPS_DEFAULTS, STATE_BACKEND_FIELD, VCT, REPLACE_VALUE
+from .constants import DEFAULT, DEFERRED_BUILDER_VCT, DEFERRED_ITEM_VCT, FK_ALSO_SET_ON_UPDATE, FK_TARGET, IS_DEFERRED_LIST_FK, IS_DEFERRED_LIST_GENERATED, IS_FK, IS_REPLACE, NONE, OOPS_DEFAULTS, STATE_BACKEND_FIELD, VCT, REPLACE_VALUE
 
 from .singleton import singleton
 
@@ -742,7 +742,12 @@ class _FkFieldHandler(field_kinds.FieldKindHandler):
             # recorded here and refused by `validate` (a `default` that has no default
             # is not one: the consumer decides). The raw id stays in the context so
             # templates still render and the run reaches the refusal.
-            if fk_id not in OOPS_DEFAULTS:
+            # Stage 76: `none` is in OOPS_DEFAULTS so nothing can be NAMED `none`,
+            # but a reference written `none` is not left at its default either --
+            # a foreign key resolves its default only by equality with the field's
+            # own (field_set_to_default) -- so it names nothing and is refused like
+            # any other. A field that gives `none` a meaning handles it before this.
+            if fk_id == NONE or fk_id not in OOPS_DEFAULTS:
                 record_unresolved_fk(type(obj).__name__, str(getattr(obj, "name", "") or ""), f.name, str(fk_id), str(target))
             log.debug(f"foreign key '{f.name}' = {fk_id!r} (target {target}) resolves to nothing; the raw id stays in the context")
             ctx[f.name] = fk_id
