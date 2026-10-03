@@ -802,9 +802,9 @@ that check 'name' against OOPS_DEFAULTS and tests that validate that
 validation." Branch `feature/reserved-names`. §75 step 5 depends on it.)
 
 **What stands today** (read and probed 2026-10-03, not assumed). The
-operator remembered a check at the configuration read that refused the
-words of `OOPS_DEFAULTS` as identifiers, and believed it lost. It is
-half there:
+operator remembered a check that refused the words of `OOPS_DEFAULTS` as
+identifiers, and believed it lost. The check is there; what is missing
+is the word, the tests, and a message that says where:
 
 - The MODEL check stands. `NameTyped.__post_init__`
   ([builder_model.py:60-66](packages/base/src/cs_image_system/base/models/builder_model.py#L60-L66))
@@ -818,14 +818,9 @@ half there:
   the Python value `None` is in it, the string `none` is not.
 - NO TEST holds the rule. Nothing under `tests/` or any package's tests
   asserts either refusal, which is how it could vanish unseen.
-- The READ-time check is gone. `INVALID_CONFIG_KEYS`
-  ([constants.py:85-89](packages/base/src/cs_image_system/base/constants.py#L85-L89):
-  `self`, `this`, `same`, `runtime`, `os`, `default`, `defaults`, `any`,
-  `anything`, `none`, `null`, the empty string, `timestamp`, `date`,
-  `datetime`, `config`, `configuration`) is referenced nowhere: the list
-  survived, its caller did not. So a reserved name is refused only when
-  the model is constructed, as a pydantic error that names neither the
-  file nor the entry.
+- The refusal is a pydantic error raised when the model is constructed:
+  it names neither the file nor the entry. There has never been a name
+  check at the read itself.
 - Whether every named model reaches the check is unproved: 79 classes
   derive from `NameTyped`, `RootItem` or a builder model, some with
   their own `__post_init__` (a user's `name` is re-declared as an
@@ -833,13 +828,29 @@ half there:
 
 **Decided (operator, 2026-10-03).** The reserved names are exactly
 `OOPS_DEFAULTS` with `none` added: for any configuration item, of any
-kind, the `name` field cannot be one of those values.
-`INVALID_CONFIG_KEYS` is dead and is deleted; its longer list is not
-reserved. And the rule for values: **code where a configuration value
-COULD BE `none` deals with that value explicitly.** Membership in
-`OOPS_DEFAULTS` never gives the word a meaning; a field that accepts
-`none` (the update policy, §75's `posix`) tests for it by name, before
-any "is it unset" test.
+kind, the `name` field cannot be one of those values. And the rule for
+values: **code where a configuration value COULD BE `none` deals with
+that value explicitly.** Membership in `OOPS_DEFAULTS` never gives the
+word a meaning; a field that accepts `none` (the update policy, §75's
+`posix`) tests for it by name, before any "is it unset" test.
+
+**`INVALID_CONFIG_KEYS` is a different check, and is left alone.** (An
+earlier revision of this plan called it the lost name check and planned
+to delete it. Both were wrong.) The list
+([constants.py:85-89](packages/base/src/cs_image_system/base/constants.py#L85-L89):
+`self`, `this`, `same`, `runtime`, `os`, `default`, `defaults`, `any`,
+`anything`, `none`, `null`, the empty string, `timestamp`, `date`,
+`datetime`, `config`, `configuration`) guards the KEYS of the top-level
+`config:` mapping, not names: its one caller, `validate_initial_cycled`
+([global_context.py:893-914](packages/base/src/cs_image_system/base/global_context.py#L893-L914)),
+refused a `config:` holding such a key "as it may cause issues with
+templating". It has never run in the recorded history: the list, the
+function and its call arrived together on 2026-07-03 with the function
+and the call already commented out, and the unused import was removed
+the next day. It is not a casualty of pydantic. The concern may still be
+real, since `config:` keys are still merged into the template context
+([template_utils.py:305](packages/base/src/cs_image_system/base/template_utils.py#L305));
+step 6 finds out.
 
 **Steps.**
 
@@ -858,12 +869,12 @@ any "is it unset" test.
 2. **The word.** `none` joins `OOPS_DEFAULTS`; any site step 1 marked
    "to be exempted" is changed in the same commit. Golden
    byte-identical.
-3. **The read-time check, restored.** Where each configuration file is
-   seen with its own path, a `name` (and each alias) in `OOPS_DEFAULTS`
-   is refused with the file, the list it sits in and the word, before
-   any model is built -- for every kind of item, with no exception. The
-   model check stays as the backstop for objects built in code.
-   `INVALID_CONFIG_KEYS` is deleted.
+3. **A read-time refusal, added.** Where each configuration file is seen
+   with its own path, a `name` (and each alias) in `OOPS_DEFAULTS` is
+   refused with the file, the list it sits in and the word, before any
+   model is built -- for every kind of item, with no exception. It is
+   new, not restored: it exists so the message says where. The model
+   check stays as the backstop for objects built in code.
 4. **The tests.** Parametrised over every word in `OOPS_DEFAULTS`, in
    its case and spacing variants: (a) each registered named model class
    refuses it as a name and as an alias, the class list taken from the
@@ -880,7 +891,17 @@ any "is it unset" test.
    describes `name`; an item goes to the documentation stage (opened
    here if none is open); the release notes say a tree with an item
    named `none` no longer loads.
+6. **The `config:` key guard: test, then ask.** For each word in
+   `INVALID_CONFIG_KEYS`, a probe declares it as a key under `config:`
+   in a fixture copy and renders templates that use the context,
+   recording which words really shadow or break something today. The
+   result is put to the operator as a decision (USER): switch the guard
+   on for the words that collide, for the whole list, or delete it as
+   never needed. Whatever is decided is done with its tests in this
+   stage; until then the list and the commented function are not
+   touched.
 
-**Sizing**: the audit half a day; the word, the check and the tests a
-day. Proof: the bar green with the golden unchanged, and the reference
-configuration validating on the branch.
+**Sizing**: the audit half a day; the word, the refusal and the tests a
+day; the `config:` probe two hours, then the operator's answer. Proof:
+the bar green with the golden unchanged, and the reference configuration
+validating on the branch.
