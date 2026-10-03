@@ -41,6 +41,7 @@ from . import registry
 from .utils import super_safe_name
 from .template_utils import cycle_main_yaml, read_and_preprocess_yaml_files
 from .encryption import decrypt_tree, decrypted_plaintexts, refuse_markers_at
+from .reserved_names import refuse_reserved_names
 from .materialize import ensure_ignored, materialize, mirror_path, sync_back
 
 log = logging.getLogger(__name__)
@@ -994,6 +995,7 @@ def load_overlay(path: Path) -> dict[str, Any]:
             continue
         if not isinstance(value, list) or any(not isinstance(i, dict) or not i.get("name") for i in value):
             raise ValueError(f"Overlay {path}: '{key}' must be a list of named entries")
+    refuse_reserved_names(data, str(path))          # stage 76: an overlay names items too
     return data
 
 
@@ -1424,6 +1426,9 @@ def read_and_process(dir: Path) -> dict[str, Any] | None:
                     # stage 49: needs NO identity -- a structural check, so it
                     # still runs where nothing could be decrypted
                     refuse_markers_at(data, str(file))
+                    # stage 76: nothing may be named after a word that means "not
+                    # set"; refused here so the message names the file and entry
+                    refuse_reserved_names(data, str(file))
                     ret = _extend_lists(ret, data)
         except Exception as e:
             log.error(f"Error reading or processing file {file}: {e}")
