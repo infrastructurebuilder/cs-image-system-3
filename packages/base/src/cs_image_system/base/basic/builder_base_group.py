@@ -175,6 +175,20 @@ class GroupBuilderBase(BuilderBase[TGROUP]):
         its plan. A provider with no such notion does nothing."""
         return 0
 
+    # --------------------------------- accounts on machines (stage 75 step 4)
+    def accounts_script(self, group: str) -> str | None:
+        """The script that makes ``group``'s accounts true on a machine of
+        one of its images -- run as root, idempotent, after an applying
+        instance run, over the runtime's session -- or None when this
+        builder puts nothing on machines after launch. Default: None."""
+        return None
+
+    def configuration_errors(self) -> list[str]:
+        """What is wrong with this builder's declarations that only the
+        plugin can see (a posix group's member with no account to create).
+        `validate` refuses each. Default: nothing."""
+        return []
+
     # ------------------------------------------ POSIX ids (stage 75 step 3)
     def posix_id_claims(self) -> list[Any]:
         """What this builder knows about POSIX ids: ``posix_ids.Claim`` per

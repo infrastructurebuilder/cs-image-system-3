@@ -118,6 +118,47 @@ class PosixGroupBuilder(_NoGeneration, GroupBuilderBase[PosixGroupBuilderModel])
         return [f"# verify: group '{group.get_name()}' stands with gid {gid}",
                 f"test \"$(getent group {group.get_name()} | cut -d: -f3)\" = '{gid}'"]
 
+    # ------------------------------------------- accounts on machines (step 4)
+    def _group(self, group: str) -> Group | None:
+        return next((g for g in self.get_groups_for_builder() if g.get_name() == group), None)
+
+    def _posix_users(self) -> dict[str, User]:
+        """Every user of a posix user builder, by name."""
+        ctx = self._get_context()
+        return {u.get_name(): u for ub in ctx.user_builders.values() if isinstance(ub, PosixUserBuilder)
+                for u in ub.get_users_for_builder()}
+
+    def accounts_script(self, group: str) -> str | None:
+        """The group with its gid; every member and admin as an account (a
+        user-private group, a home, the declared uid) with exactly its
+        declared keys; the members (admins among them) as the group's
+        members; NOPASSWD sudo for the admins unless ``admin_sudo: false``."""
+        found = self._group(group)
+        gid = _declared_gid(found) if found is not None else None
+        if found is None or gid is None:
+            return None
+        people = self._posix_users()
+        admins = sorted(str(a) for a in found.admins)
+        everyone = sorted({str(m) for m in found.members} | set(admins))
+        users = {n: int(u.uid) for n in everyone if (u := people.get(n)) is not None and u.uid is not None}
+        keys = {n: [str(k) for k in people[n].public_keys] for n in users}
+        return accounts.accounts_script(groups={group: gid}, users=users, members={group: everyone}, keys=keys,
+                                        admins={group: admins} if self.model.admin_sudo else None,
+                                        shell=self.model.shell)
+
+    def configuration_errors(self) -> list[str]:
+        """A posix group's members and admins are accounts this plugin
+        creates, so each must be a user of a posix user builder with a uid."""
+        people = self._posix_users()
+        errors: list[str] = []
+        for g in self.get_groups_for_builder():
+            for who in sorted({str(m) for m in g.members} | {str(a) for a in g.admins}):
+                user = people.get(who)
+                if user is None or user.uid is None:
+                    errors.append(f"posix group {g.get_name()}: {who} has no posix account -- declare it as a user "
+                                  f"of a `type: posix` user builder, with a `uid:`")
+        return errors
+
     # ------------------------------------------------------- the state query
     def query_state(self) -> dict[str, dict[str, Any]]:
         """No provider to ask: a posix group lives on the machines of its

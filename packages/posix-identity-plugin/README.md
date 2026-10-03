@@ -33,12 +33,22 @@ What it does, and when:
 - **`validate`** resolves every POSIX id the configuration claims (see
   "Configuration reference").
 
-The accounts script that also creates users (each with a user-private group
-of the same name and id), sets each group's members exactly, writes
-`authorized_keys` from `public_keys:` and gives the group's admins sudo is
-built here ([`accounts.py`](src/cs_image_system/posix_identity_plugin/accounts.py))
-and tested on EL10 and Debian; running it on a launched machine is stage 75's
-next step and is not wired yet.
+- **After every applying instance run**, each launched, RUNNING machine of
+  a posix group gets the group's accounts script over the runtime's session
+  (SSM on AWS, the guest session on GCE), run as root: every member and
+  admin as an account (its `uid:`, a user-private group of the same name
+  and id, a home, exactly its `public_keys:` as `authorized_keys`), the
+  members (admins among them) as the group's members, and NOPASSWD sudo
+  for the admins unless `admin_sudo: false`. The script is
+  [`accounts.py`](src/cs_image_system/posix_identity_plugin/accounts.py)'s;
+  it is idempotent, adopts what stands equal and refuses what stands
+  different. It runs after launch rather than in the launch script on
+  purpose: the launch script is the machine's immutable snapshot, so a
+  membership change there would mean a new machine; here it means the next
+  applying run. A machine that is off waits for a run that finds it
+  running; a machine that booted this run is waited for (bounded).
+  A failure is logged as an error naming the machine and never stops the
+  run; the next applying run tries again.
 
 ## Prerequisites and integration
 
@@ -117,7 +127,9 @@ A posix group or user that declares `attributes:` is refused: the ids are
   exist; for an instance image, the owning group stands with its gid
   (`getent group <name>`).
 - **At `validate`**: the id rules above, every one named with the sides
-  that disagree.
+  that disagree; and every member or admin of a posix group must be a
+  user of a posix user builder with a `uid:` (the accounts the script
+  creates).
 - **Its tests**: [`tests/test_posix_accounts.py`](tests/test_posix_accounts.py)
   holds the script's parts as text and checks the whole script parses;
   the system's `tests/test_v2_posix_identity.py` holds the builders, the
@@ -135,3 +147,6 @@ A posix group or user that declares `attributes:` is refused: the ids are
 | `posix accounts: group <g> has gid <x> here; the configuration says <y>` in a bake's output (exit 3) | the base image already has that group with another gid | change the declared gid, or the base |
 | `posix accounts: gid <n> belongs to group <h> here; the configuration gives it to <g>` (exit 3) | the base image already uses that gid for another group | choose a free gid |
 | `command -v visudo` fails in a base bake | the family lacks sudo | install it in the OS builder's packages |
+| `posix group <g>: <u> has no posix account` at `validate` | a member or admin of a posix group is not a posix user with a uid | declare it on a `type: posix` user builder with a `uid:`, or take it out of the group |
+| `Instance <i>: the accounts script of group <g> FAILED (exit <n>)` in a run's log, with the script's `posix accounts:` lines above it | the machine refused (a group or user standing with another id) or could not be reached | read the lines; fix the id or the machine; the next applying run tries again |
+| `Instance <i>: <u> has no account here yet; not a member of <g> until it does` (a warning) | a member's account does not stand yet | nothing: the next run adds it once the account exists |

@@ -758,10 +758,25 @@ standing mandate: a new secret owes the bootstrap its question).
    the state query with nothing (it has no provider; each machine is
    checked by the script), and the tests that meant "every OPA group"
    now say so.
-4. **The post-launch task and the bake variable.** `reconcile_accounts`
-   after apply; the launch assertion; `group_gid` as a packer variable
-   and the run-script line; the bake and machine moments of the
-   resolver.
+4. **The post-launch task.** Done 2026-10-03. `accounts_reconcile`, a
+   core post-apply hook beside the provider aliases: after an applying
+   instance run, every launched, RUNNING machine whose group builder
+   renders an accounts script (the new contract
+   `accounts_script(group)`; the posix builder's is the whole script, as
+   root) gets it over the runtime's session; a machine off waits, one
+   that booted this run is waited for, a failure is an error that never
+   stops the run. `validate` gains `configuration_errors()` per group
+   builder: a posix group's member must be a posix user with a uid. Two
+   plan items are NOT here, on purpose. The launch assertion (baked gid
+   equals `${group_gid}`) is dropped: it would change the launch script,
+   whose hash is every machine's recorded launch parameter --
+   coops-model-005 would read as changed -- and for a posix group it
+   compares a number with itself. The `group_gid` packer variable is
+   only needed when a provider assigns the gid, so it moves to step 5.
+   Noted: the script travels as SSM command text, so usernames and
+   public keys stand in the account's SSM command history for its
+   retention (public keys are not secret; the names are on the machine
+   anyway; CI masks decrypted values in its logs).
 5. **Beside Okta** (after §76, which reserves `none` and refuses a
    reference written `none` at `validate`, so the `posix` field declares
    that it accepts the word and handles it before the foreign key does).

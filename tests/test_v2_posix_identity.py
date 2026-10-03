@@ -276,3 +276,138 @@ def test_a_posix_group_or_user_declaring_attributes_is_refused(tmp_path, monkeyp
         reset_singletons()
     assert any("group 'pxgroup': a posix group declares its id as `gid:`" in e for e in errors), errors
     assert any("user 'unity_uniform': a posix user declares its id as `uid:`" in e for e in errors), errors
+
+
+# --------------------------------------------- step 4: accounts on machines
+
+def test_the_posix_group_renders_its_whole_accounts_script(monkeypatch):
+    from tests.v2_support import FIXTURE_CONFIG, load_context, reset_singletons, stub_environment
+    stub_environment(monkeypatch)
+    try:
+        gb = load_context(FIXTURE_CONFIG).group_builders["posix-local"]
+        script = gb.accounts_script("pxgroup")
+        assert script is not None
+        for needle in ("useradd -m -u 3201 -g 3201 -s /bin/bash taylor_tango",
+                       "useradd -m -u 3202 -g 3202 -s /bin/bash unity_uniform",
+                       "groupadd -g 3101 pxgroup", "# members of pxgroup: taylor_tango, unity_uniform",
+                       "# authorized keys of taylor_tango: 1", "taylor_tango ALL=(ALL) NOPASSWD:ALL"):
+            assert needle in script, needle
+        assert "unity_uniform ALL=(ALL)" not in script, "a member who is not an admin gets no sudo"
+        monkeypatch.setattr(gb.model, "admin_sudo", False)
+        assert "NOPASSWD" not in (gb.accounts_script("pxgroup") or "")
+        assert gb.accounts_script("no-such-group") is None
+        assert gb.configuration_errors() == []
+    finally:
+        reset_singletons()
+
+
+def test_a_posix_group_member_without_a_posix_account_is_refused(tmp_path, monkeypatch):
+    from cs_image_system.base.commands.validate import check_group_builders
+    from tests.v2_support import load_context, reset_singletons, stub_environment
+    root = _posix_tree(tmp_path, extra_group={"name": "pxextra", "type": "posix-local", "gid": 3102,
+                                              "members": ["blake.bravo"]})
+    stub_environment(monkeypatch)
+    try:
+        errors = [str(e) for e in check_group_builders(load_context(root))]
+    finally:
+        reset_singletons()
+    assert errors == ["posix group pxextra: blake.bravo has no posix account -- declare it as a user of a "
+                      "`type: posix` user builder, with a `uid:`"]
+
+
+class _Session:
+    """The AWS runtime's power state and session command, faked."""
+
+    def __init__(self, monkeypatch, *, state="running", rc=0, out="posix accounts: in place\n"):
+        from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
+        self.sent: list[tuple[str, str]] = []
+        monkeypatch.setattr(AwsCloudBuilder, "can_query_instance_power_state", lambda s: True)
+        monkeypatch.setattr(AwsCloudBuilder, "query_instance_power_state", lambda s, n: state)
+        monkeypatch.setattr(AwsCloudBuilder, "run_session_command",
+                            lambda s, n, script, timeout=300: self.sent.append((n, script)) or (rc, out))
+
+
+def _posix_instance_run(tmp_path, monkeypatch):
+    """A fixture copy whose `test` instance is a machine of imgfile-posix
+    (no storages: pxgroup is allowed on none), launched."""
+    from tests.v2_support import V2Run, copy_config
+    root = copy_config(tmp_path)
+    path = root / "instances" / "instances.yaml"
+    data = yaml.safe_load(path.read_text())
+    inst = next(i for i in data["instances"] if i["name"] == "test")
+    inst["image"] = "imgfile-posix"
+    inst.pop("storages", None)
+    path.write_text(yaml.safe_dump(data, sort_keys=False))
+    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    ms = run.ctx.meta_state
+    ms.record_launch_params("test", dict(ms.launch_params().get("test") or {"hostname": "test", "group": "pxgroup"})
+                            | {"launched": True})
+    run.ctx.config["apply_instances"] = True
+    return run
+
+
+def test_a_launched_running_machine_of_a_posix_group_gets_its_accounts(tmp_path, monkeypatch):
+    from cs_image_system.base import accounts_reconcile
+    from cs_image_system.base.lifecycles import Lifecycle
+    session = _Session(monkeypatch)
+    run = _posix_instance_run(tmp_path, monkeypatch)
+    try:
+        accounts_reconcile.reconcile_accounts(run.ctx, Lifecycle.INSTANCE_IMAGE)
+        assert [n for n, _ in session.sent] == ["test"]
+        sent = session.sent[0][1]
+        assert sent.startswith("sudo bash -s <<'CSIS_ACCOUNTS'\n") and sent.rstrip().endswith("CSIS_ACCOUNTS")
+        assert "useradd -m -u 3201" in sent and "groupadd -g 3101 pxgroup" in sent
+    finally:
+        run.restore_cwd()
+
+
+@pytest.mark.parametrize("why", ["not launched", "applies off", "wrong lifecycle", "stopped"])
+def test_no_accounts_are_sent_when_they_should_not_be(tmp_path, monkeypatch, why):
+    from cs_image_system.base import accounts_reconcile
+    from cs_image_system.base.lifecycles import Lifecycle
+    session = _Session(monkeypatch, state="stopped" if why == "stopped" else "running")
+    run = _posix_instance_run(tmp_path, monkeypatch)
+    try:
+        lifecycle = Lifecycle.BASE_IMAGE if why == "wrong lifecycle" else Lifecycle.INSTANCE_IMAGE
+        if why == "not launched":
+            ms = run.ctx.meta_state
+            ms.record_launch_params("test", dict(ms.launch_params()["test"]) | {"launched": False})
+        if why == "applies off":
+            run.ctx.config["apply_instances"] = False
+        accounts_reconcile.reconcile_accounts(run.ctx, lifecycle)
+        assert session.sent == []
+    finally:
+        run.restore_cwd()
+
+
+def test_an_okta_group_machine_gets_no_accounts_script(tmp_path, monkeypatch):
+    """Okta's builder renders none (step 5 gives it the posix delegate)."""
+    from cs_image_system.base import accounts_reconcile
+    from cs_image_system.base.lifecycles import Lifecycle
+    from tests.v2_support import V2Run
+    session = _Session(monkeypatch)
+    run = V2Run(tmp_path, monkeypatch)
+    try:
+        ms = run.ctx.meta_state
+        ms.record_launch_params("test", dict(ms.launch_params().get("test") or {"hostname": "test"}) | {"launched": True})
+        run.ctx.config["apply_instances"] = True
+        accounts_reconcile.reconcile_accounts(run.ctx, Lifecycle.INSTANCE_IMAGE)
+        assert session.sent == []
+    finally:
+        run.restore_cwd()
+
+
+def test_a_refused_script_is_logged_as_an_error_and_never_stops_the_run(tmp_path, monkeypatch, caplog):
+    import logging
+    from cs_image_system.base import accounts_reconcile
+    from cs_image_system.base.lifecycles import Lifecycle
+    _Session(monkeypatch, rc=1, out="posix accounts: group pxgroup has gid 4000 here; the configuration says 3101\n")
+    run = _posix_instance_run(tmp_path, monkeypatch)
+    try:
+        with caplog.at_level(logging.INFO):
+            accounts_reconcile.reconcile_accounts(run.ctx, Lifecycle.INSTANCE_IMAGE)    # returns, raises nothing
+        errors = [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
+        assert any("group pxgroup has gid 4000 here; the configuration says 3101" in e for e in errors), errors
+        assert any("the accounts script of group pxgroup FAILED (exit 1)" in e for e in errors), errors
+    finally:
+        run.restore_cwd()

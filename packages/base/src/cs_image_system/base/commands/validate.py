@@ -372,6 +372,13 @@ def check_posix_ids(ctx: GlobalTypeContext) -> list[Exception]:
     return [Exception(m) for m in messages]
 
 
+def check_group_builders(ctx: GlobalTypeContext) -> list[Exception]:
+    """Stage 75 step 4: what each group builder finds wrong with its own
+    declarations that only the plugin can see (``configuration_errors``) --
+    a posix group's member with no account to create."""
+    return [Exception(e) for gb in ctx.group_builders.values() for e in gb.configuration_errors()]
+
+
 def check_foreign_keys(ctx: GlobalTypeContext) -> list[Exception]:
     """Stage 48.3: a field declared as a foreign key that names nothing is an
     error, with the object, the field, the value and the target named -- the
@@ -713,6 +720,7 @@ def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     exs.extend(check_state_locations(ctx))
     exs.extend(check_foreign_keys(ctx))
     exs.extend(check_posix_ids(ctx))
+    exs.extend(check_group_builders(ctx))
     exs.extend(check_availability_zones(ctx))
     exs.extend(check_alias_pool(ctx))
     exs.extend(check_canonical_hostnames(ctx))
