@@ -796,11 +796,12 @@ standing mandate: a new secret owes the bootstrap its question).
 ## 76. `none` is a reserved name, and the reserved-name rule is tested
 
 **Status: IN PROGRESS since 2026-10-03 on `feature/reserved-names` (the
-operator: "do 76"). Step 1 (the audit) done; steps 2-6 open.** (The
-operator, 2026-10-03: "Create a new stage to exclude the string 'none'
-as a name within the system ... There should be validators that check
-'name' against OOPS_DEFAULTS and tests that validate that validation."
-§75 step 5 depends on it.)
+operator: "do 76"). Steps 1-5 done; step 6 decided by the operator (the
+guard switched on, whole list) and being done.** (The operator,
+2026-10-03: "Create a new stage to exclude the string 'none' as a name
+within the system ... There should be validators that check 'name'
+against OOPS_DEFAULTS and tests that validate that validation." §75 step
+5 depends on it.)
 
 **What stands today** (read and probed 2026-10-03, not assumed). The
 operator remembered a check that refused the words of `OOPS_DEFAULTS` as
@@ -967,3 +968,36 @@ today changes.
 day; the `config:` probe two hours, then the operator's answer. Proof:
 the bar green with the golden unchanged, and the reference configuration
 validating on the branch.
+
+## 77. Documentation stage: reserved names
+
+**Status: OPEN since 2026-10-03** (opened by §76, by the standing rule
+that a stage which changes behaviour owes the documentation an update; a
+documentation stage changes no code). Later stages that land
+undocumented changes append here until it lands.
+
+**What changed, by stage:**
+
+- **§76, reserved names.** `none` joined `OOPS_DEFAULTS` (`default`,
+  `self`, `none`, the empty string, null). Nothing may be named after
+  one: the load refuses any `name:` at any depth and any `aliases:`
+  entry, in any case or spacing, naming the file, the place and the
+  word. A reference written `none` (a foreign key, a state backend) is
+  refused at `validate`, with what to write instead; a value with a
+  fallback written `none` takes the fallback; the update policy `none`
+  and `--only none` keep their meaning. The `config:` key guard
+  (`INVALID_CONFIG_KEYS`) was switched on: its seventeen words are
+  refused as keys of a document's `config:` mapping. CONFIGURATION 1.2,
+  2.3 and the `name` rows were updated in §76 itself.
+
+**Owed:**
+
+1. `DAILY_DRIVER.md` section 6 gains rows for the three new refusals (a
+   reserved name at load, a reference written `none`, a guarded
+   `config:` key): symptom, meaning, remedy.
+2. The starters' comments, where they describe `name:` or `config:`, are
+   checked against the rule; OPERATIONS is searched for any sentence
+   that says only `default` and `self` are reserved.
+3. A team taking the release with an item named `none` (none known) is
+   told by the refusal itself; the walk (§65) is the proof that the
+   message is enough.
