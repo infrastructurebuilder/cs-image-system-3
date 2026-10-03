@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .constants import OOPS_DEFAULTS
+from .constants import INVALID_CONFIG_KEYS, OOPS_DEFAULTS
 
 NAME_KEY = "name"
 ALIASES_KEY = "aliases"
@@ -90,3 +90,32 @@ def refuse_reserved_names(doc: Any, source: str) -> None:
     if problems:
         raise ReservedNameError("\n".join(problems) + f"\n({WHY})")
 
+
+# ------------------------------------------------- the document `config:` keys
+
+class InvalidConfigKeyError(ValueError):
+    """A document's ``config:`` mapping holds a key from INVALID_CONFIG_KEYS."""
+
+
+def invalid_config_key_problems(doc: Any, source: str) -> list[str]:
+    """The keys of ``doc``'s top-level ``config:`` mapping that are in
+    :data:`~cs_image_system.base.constants.INVALID_CONFIG_KEYS`, folded the
+    same way as names. The guard was written on 2026-07-03 and never switched
+    on; the operator switched it on as written in stage 76 (a probe that
+    day found none of its words collides with the template context today)."""
+    config = doc.get("config") if isinstance(doc, dict) else None
+    if config is None:
+        return []
+    if not isinstance(config, dict):
+        return [f"{source}: config: must be a mapping, got {type(config).__name__}"]
+    words = {str(w).strip().lower() for w in INVALID_CONFIG_KEYS}
+    return [f"{source}: config.{key}: '{key}' may not be a `config:` key"
+            for key in config if str(key).strip().lower() in words]
+
+
+def refuse_invalid_config_keys(doc: Any, source: str) -> None:
+    problems = invalid_config_key_problems(doc, source)
+    if problems:
+        raise InvalidConfigKeyError(
+            "\n".join(problems) + "\n(the words refused as `config:` keys: "
+            + ", ".join(repr(w) for w in INVALID_CONFIG_KEYS) + ")")

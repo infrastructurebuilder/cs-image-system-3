@@ -280,3 +280,44 @@ def test_only_none_is_an_explicitly_empty_bake_surface(tmp_path, monkeypatch):
         run.restore_cwd()
         reset_singletons()
 
+# ------------------- step 6: the `config:` key guard, switched on as written
+
+def test_every_word_of_the_guard_is_refused_as_a_document_config_key():
+    from cs_image_system.base.constants import INVALID_CONFIG_KEYS
+    from cs_image_system.base.reserved_names import invalid_config_key_problems
+    for word in INVALID_CONFIG_KEYS:
+        for key in {word, word.upper(), f" {word} "}:
+            problems = invalid_config_key_problems({"config": {key: 1, "ordinary": 2}}, "cfg/_config.yml")
+            assert problems == [f"cfg/_config.yml: config.{key}: '{key}' may not be a `config:` key"], (key, problems)
+    assert invalid_config_key_problems({"config": {"module_source_base": "x", "selfish": 1}}, "f") == []
+    assert invalid_config_key_problems({"runtime_builders": []}, "f") == []           # no config: nothing to check
+    assert invalid_config_key_problems({"config": ["a"]}, "f") == ["f: config: must be a mapping, got list"]
+
+
+def test_a_config_key_from_the_guard_is_refused_where_its_file_is_read(tmp_path, monkeypatch):
+    from cs_image_system.base.reserved_names import InvalidConfigKeyError
+    root = copy_config(tmp_path)
+    _edit_yaml(root / "cfg" / "_config.yml", lambda d: d["config"].__setitem__("runtime", "x"))
+    stub_environment(monkeypatch)
+    try:
+        with pytest.raises(InvalidConfigKeyError, match=r"_config\.yml: config\.runtime: 'runtime' may not be"):
+            load_context(root)
+    finally:
+        reset_singletons()
+
+
+def test_an_overlay_config_key_from_the_guard_is_refused(tmp_path):
+    from cs_image_system.base.global_context import load_overlay
+    from cs_image_system.base.reserved_names import InvalidConfigKeyError
+    overlay = tmp_path / "overlay.yaml"
+    overlay.write_text(yaml.safe_dump({"config": {"self": 1}}))
+    with pytest.raises(InvalidConfigKeyError, match=r"config\.self"):
+        load_overlay(overlay)
+
+
+def test_no_tree_the_system_ships_or_tests_uses_a_guarded_config_key():
+    from cs_image_system.base.reserved_names import invalid_config_key_problems
+    roots = [FIXTURE_CONFIG, *sorted((FIXTURE_CONFIG.parents[2] / "docs" / "examples").iterdir())]
+    for root in roots:
+        for f in sorted((root / "cfg").glob("*.y*ml")):
+            assert invalid_config_key_problems(yaml.safe_load(f.read_text()), str(f)) == []

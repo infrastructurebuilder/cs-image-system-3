@@ -725,15 +725,18 @@ standing mandate: a new secret owes the bootstrap its question).
    after apply; the launch assertion; `group_gid` as a packer variable
    and the run-script line; the bake and machine moments of the
    resolver.
-5. **Beside Okta** (after §76, which reserves `none`). `posix:`
-   (required, no default; a declared posix builder's name, or `none` for
-   no posix configuration) and `posix_ssh_keys:` go on the `okta-tf`
-   group builder: groups only, with the wait for synced accounts. The
-   fixture and the three starters gain a posix builder and the line in
-   this same commit, or they no longer validate (golden moves once,
-   reviewed by hand). Tests: the line absent, an undeclared name and a
-   non-posix target are each refused with the line to add; `posix: none`
-   validates, changes nothing in the emission and carries its note.
+5. **Beside Okta** (after §76, which reserves `none` and refuses a
+   reference written `none` at `validate`, so the `posix` field declares
+   that it accepts the word and handles it before the foreign key does).
+   `posix:` (required, no default; a declared posix builder's name, or
+   `none` for no posix configuration) and `posix_ssh_keys:` go on the
+   `okta-tf` group builder: groups only, with the wait for synced
+   accounts. The fixture and the three starters gain a posix builder and
+   the line in this same commit, or they no longer validate (golden
+   moves once, reviewed by hand). Tests: the line absent, an undeclared
+   name and a non-posix target are each refused with the line to add;
+   `posix: none` validates, changes nothing in the emission and carries
+   its note.
 6. **Real SSH.** `ssh_proxy_command` on both runtimes, the posix
    `prove_login`, `CSIS_PROOF_SSH_KEY`, the bootstrap question and
    `set-secrets.sh`.
@@ -795,13 +798,12 @@ standing mandate: a new secret owes the bootstrap its question).
 
 ## 76. `none` is a reserved name, and the reserved-name rule is tested
 
-**Status: IN PROGRESS since 2026-10-03 on `feature/reserved-names` (the
-operator: "do 76"). Steps 1-5 done; step 6 decided by the operator (the
-guard switched on, whole list) and being done.** (The operator,
-2026-10-03: "Create a new stage to exclude the string 'none' as a name
-within the system ... There should be validators that check 'name'
-against OOPS_DEFAULTS and tests that validate that validation." §75 step
-5 depends on it.)
+**Status: DONE on `feature/reserved-names` 2026-10-03, all six steps;
+waiting for the operator's word to merge.** (The operator, 2026-10-03:
+"Create a new stage to exclude the string 'none' as a name within the
+system ... There should be validators that check 'name' against
+OOPS_DEFAULTS and tests that validate that validation." §75 step 5
+depends on it.)
 
 **What stands today** (read and probed 2026-10-03, not assumed). The
 operator remembered a check that refused the words of `OOPS_DEFAULTS` as
@@ -836,7 +838,7 @@ that value explicitly.** Membership in `OOPS_DEFAULTS` never gives the
 word a meaning; a field that accepts `none` (the update policy, §75's
 `posix`) tests for it by name, before any "is it unset" test.
 
-**`INVALID_CONFIG_KEYS` is a different check, and is left alone.** (An
+**`INVALID_CONFIG_KEYS` is a different check; step 6 switched it on.** (An
 earlier revision of this plan called it the lost name check and planned
 to delete it. Both were wrong.) The list
 ([constants.py:85-89](packages/base/src/cs_image_system/base/constants.py#L85-L89):
@@ -852,7 +854,7 @@ and the call already commented out, and the unused import was removed
 the next day. It is not a casualty of pydantic. The concern may still be
 real, since `config:` keys are still merged into the template context
 ([template_utils.py:305](packages/base/src/cs_image_system/base/template_utils.py#L305));
-step 6 finds out.
+step 6 found out.
 
 **Steps.**
 
@@ -893,15 +895,25 @@ step 6 finds out.
    describes `name`; an item goes to the documentation stage (opened
    here if none is open); the release notes say a tree with an item
    named `none` no longer loads.
-6. **The `config:` key guard: test, then ask.** For each word in
-   `INVALID_CONFIG_KEYS`, a probe declares it as a key under `config:`
-   in a fixture copy and renders templates that use the context,
-   recording which words really shadow or break something today. The
-   result is put to the operator as a decision (USER): switch the guard
-   on for the words that collide, for the whole list, or delete it as
-   never needed. Whatever is decided is done with its tests in this
-   stage; until then the list and the commented function are not
-   touched.
+6. **The `config:` key guard: test, then ask.** Done 2026-10-03. The
+   probe: each of the seventeen words as a key of the fixture's document
+   `config:`, one full dry generation each, against a baseline -- all
+   seventeen loaded and generated, 117 of 118 files byte-identical, the
+   118th the run-local `run-summary.json` differing only by its
+   temporary path; and `{{ config.<word> }}` rendered through the real
+   template context gives the word's own value for every one. So none of
+   them collides today. What DOES collide is a key named after a mapping
+   method (`items`, `keys`, `values`, `get`, `update`, `copy`, `pop`):
+   `{{ config.items }}` renders the method, silently. The operator's
+   decision on that evidence: **switch the guard on, the whole list**
+   (method names stay unguarded). Done: the seventeen words are refused
+   as keys of a document's top-level `config:` -- each `cfg/` file and
+   each overlay, where it is read, naming the file and the key, in any
+   case -- as the original guard checked the merged document's `config:`
+   (its unrelated `runtime_builders` requirement was not carried over).
+   The commented-out original is removed; CONFIGURATION 2.3 lists the
+   words. No tree carries one (fixture, starters, reference
+   configuration).
 
 **The audit (step 1, 2026-10-03; corrected in step 2).** Every site that
 reads `OOPS_DEFAULTS`, read in place, and every model class the frozen
@@ -992,9 +1004,11 @@ undocumented changes append here until it lands.
 
 **Owed:**
 
-1. `DAILY_DRIVER.md` section 6 gains rows for the three new refusals (a
-   reserved name at load, a reference written `none`, a guarded
-   `config:` key): symptom, meaning, remedy.
+1. `DAILY_DRIVER.md` section 6 lists failures that happened in the
+   reference deployment, so the three new refusals (a reserved name at
+   load, a reference written `none`, a guarded `config:` key) get a row
+   when one is first met; until then each message names its file and
+   what to write.
 2. The starters' comments, where they describe `name:` or `config:`, are
    checked against the rule; OPERATIONS is searched for any sentence
    that says only `default` and `self` are reserved.

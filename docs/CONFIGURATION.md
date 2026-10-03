@@ -180,7 +180,13 @@ any `cfg/` file; they are documented in their own sections.
 
 ### 2.3 `config` keys the code reads
 
-Any key is accepted under `config:`; these are the ones the system reads.
+Any key is accepted under `config:` except seventeen: `self`, `this`,
+`same`, `runtime`, `os`, `default`, `defaults`, `any`, `anything`,
+`none`, `null`, the empty string, `timestamp`, `date`, `datetime`,
+`config` and `configuration`, in any case. The load refuses one where the
+file is read, naming the file and the key (the guard `INVALID_CONFIG_KEYS`,
+written in 2026-07 and switched on in stage 76). Of the rest, these are the
+ones the system reads.
 Everything else is carried on the context for plugins (it is not a
 template scope: `{{ config.x }}` does not resolve in model fields).
 
