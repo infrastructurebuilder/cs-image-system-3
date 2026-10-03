@@ -34,6 +34,15 @@ group_builders:
     # a CI login policy beside its user policy, kept through the OPA API.
     workload_connection: REPLACE-ME-workload-connection
     workload_role: REPLACE-ME-workload-role
+  # stage 75: groups as POSIX accounts on the machines, with ids this
+  # configuration declares (`gid:` on the group). No terraform root, no
+  # credentials: the owning group is baked into its instance images. A
+  # group names it with `type: posix-local`; none does here.
+  # Reference: ../../../../packages/posix-identity-plugin/README.md
+  - name: posix-local
+    type: posix
+    shell: /bin/bash               # the login shell of the accounts it creates (the default)
+    admin_sudo: true               # a group's admins get NOPASSWD sudo (the default)
 user_builders:
   - name: okta-tf-users
     type: okta-tf-ro               # read-only: only `data "okta_user"` lookups; `managed: true` on a user is refused
@@ -53,6 +62,11 @@ user_builders:
       - name: okta
         source: okta/okta
         version: ">= 6.0"
+  # stage 75: users as POSIX accounts, each with a declared `uid:`, a
+  # user-private group of the same name and id, and its `public_keys:` as the
+  # only way in. A user names it with `type: posix-users`; none does here.
+  - name: posix-users
+    type: posix
   - name: okta-tf-managed
     type: okta-tf                  # managed: an okta_user resource plus the lookup; users name it with `type: okta-tf-managed`
     executable: open-tofu-1

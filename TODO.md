@@ -730,11 +730,26 @@ standing mandate: a new secret owes the bootstrap its question).
    The runtime's `ssh_proxy_command` is NOT added here: it is an
    addition, not a move, and lands in step 6 with its first user and its
    tests.
-3. **The plugin, standalone.** Package, model, script parts, validate
-   rules, `resolve_posix_ids` (configuration moment), the EL10 and
-   Debian container tests of the script (idempotence, adoption,
-   collision refusal, `visudo`), a fixture group `pxgroup` with two
-   personas and its golden.
+3. **The plugin, standalone.** In progress, in four commits. (1) DONE:
+   the gid seam -- the group builder answers `gid_workspace()` and
+   `gid_expression(group)`, which the AWS and GCE instance builders and
+   the storage builders used to assume (a remote-state reference into an
+   identity root every group builder was taken to own); Okta's output is
+   byte-identical. (2) DONE: the package `posix-identity-plugin` -- a
+   group AND a user builder, both `type: posix` (the plan named only the
+   group builder, but every user names its builder, and a standalone
+   tree needs one to declare uids and keys); a new `uid:` field on
+   `User`, the twin of `Group.gid` (not OPA-style `attributes`, which
+   would drag posix users into the OPA attribute plan); the accounts
+   script's parts; the core resolver `posix_ids.resolve_posix_ids` and
+   `validate`'s `check_posix_ids`, with the id floor the `Group` model
+   already enforces (1024, not the plan's 1000). Found on the way and
+   fixed: the foreign-key handler put the owning `builder` into the
+   template context only when a `type:` was DEFAULTED, so a user that
+   wrote its `type:` could not render its email template (no user did
+   until now). The `complete` starter declares both builders, as it
+   declares every type the release ships. (3) the container leg (EL10,
+   Debian), (4) the fixture's `pxgroup` and its golden.
 4. **The post-launch task and the bake variable.** `reconcile_accounts`
    after apply; the launch assertion; `group_gid` as a packer variable
    and the run-script line; the bake and machine moments of the

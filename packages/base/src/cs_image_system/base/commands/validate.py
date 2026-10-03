@@ -341,6 +341,37 @@ def check_state_locations(ctx: GlobalTypeContext) -> list[Exception]:
     return errors
 
 
+def check_posix_ids(ctx: GlobalTypeContext) -> list[Exception]:
+    """Stage 75: every POSIX id the configuration's builders claim, resolved
+    by the operator's rule (``posix_ids.resolve_posix_ids``): one name with
+    two ids is refused naming both sides, a name no side supplies an id for
+    is refused, two names on one id are refused. An id the configuration
+    declares must be a regular one (at least ``FIRST_REGULAR_ID``), and every
+    claimed name must be one a machine accepts (``NAME_RE``). A configuration
+    whose builders claim nothing -- no posix builder -- is not checked."""
+    from ..posix_ids import FIRST_REGULAR_ID, NAME_RE, Claim, resolve_posix_ids, supplied_id
+    claims: list[Claim] = []
+    for gb in ctx.group_builders.values():
+        claims += gb.posix_id_claims()
+    for ub in ctx.user_builders.values():
+        claims += ub.posix_id_claims()
+    if not claims:
+        return []
+    messages: list[str] = list(resolve_posix_ids(claims).problems)
+    for kind, name in sorted({(c.kind, str(c.name)) for c in claims if not c.derived}):
+        if not NAME_RE.match(name):
+            messages.append(f"{kind} {name}: not a name a machine accepts -- lower case, a letter or "
+                            f"underscore first, at most 32 characters, `.`, `_` and `-` allowed")
+    for c in claims:
+        i = supplied_id(c)
+        if c.derived or i is None:
+            continue
+        if i < FIRST_REGULAR_ID:
+            messages.append(f"{c.kind} {c.name}: {c.side} declares id {i}, below {FIRST_REGULAR_ID} "
+                            f"-- those belong to the system's own accounts")
+    return [Exception(m) for m in messages]
+
+
 def check_foreign_keys(ctx: GlobalTypeContext) -> list[Exception]:
     """Stage 48.3: a field declared as a foreign key that names nothing is an
     error, with the object, the field, the value and the target named -- the
@@ -681,6 +712,7 @@ def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     exs.extend(check_executables_exist_and_versions(ctx))
     exs.extend(check_state_locations(ctx))
     exs.extend(check_foreign_keys(ctx))
+    exs.extend(check_posix_ids(ctx))
     exs.extend(check_availability_zones(ctx))
     exs.extend(check_alias_pool(ctx))
     exs.extend(check_canonical_hostnames(ctx))

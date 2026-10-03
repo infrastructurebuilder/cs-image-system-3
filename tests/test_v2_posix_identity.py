@@ -15,6 +15,7 @@ user-data hash is recorded.
 from __future__ import annotations
 
 import inspect
+from typing import Any
 
 import pytest
 import yaml
@@ -130,3 +131,148 @@ def test_a_literal_gid_reaches_the_roots_and_no_identity_state_is_read(tmp_path,
         assert not [p for p, t in texts.items() if 'data "terraform_remote_state" "oktagroups"' in t]
     finally:
         run.restore_cwd()
+
+
+# ------------------------------------------------ step 3: the ids, by the operator's rule
+
+def _claims(*rows):
+    from cs_image_system.base.posix_ids import Claim
+    return [Claim(*row) if len(row) > 4 else Claim(*row) for row in rows]
+
+
+def test_two_sides_that_supply_different_ids_for_one_name_are_a_configuration_error():
+    from cs_image_system.base.posix_ids import Claim, resolve_posix_ids
+    r = resolve_posix_ids([Claim("OPA", "group", "coops", 60123, rank=10),
+                           Claim("the configuration", "group", "coops", 3000, rank=20)])
+    assert r.ids == {} and r.problems == [
+        "group coops: OPA supplies id 60123 and the configuration supplies 3000 "
+        "-- one name, two ids is a configuration error"]
+
+
+def test_a_side_with_only_the_name_takes_the_other_sides_id_in_serial_order():
+    from cs_image_system.base.posix_ids import Claim, resolve_posix_ids
+    r = resolve_posix_ids([Claim("the configuration", "group", "coops", None, rank=20),
+                           Claim("OPA", "group", "coops", 60123, rank=10),
+                           Claim("the machine", "group", "coops", None, rank=90)])
+    assert r.ids == {("group", "coops"): 60123} and r.problems == []
+
+
+def test_a_name_no_side_supplies_is_refused_unless_a_side_will_supply_it_later():
+    from cs_image_system.base.posix_ids import DEFERRED, Claim, resolve_posix_ids
+    r = resolve_posix_ids([Claim("the configuration", "group", "lonely", None)])
+    assert r.problems == ["group lonely: no side supplies its id (the configuration); declare one (`gid:`)"]
+    r = resolve_posix_ids([Claim("OPA", "group", "coops", DEFERRED, rank=10),
+                           Claim("the configuration", "group", "coops", None, rank=20)])
+    assert r.problems == [] and r.deferred == {("group", "coops")}
+
+
+def test_two_names_on_one_id_are_refused_within_a_kind_but_a_users_private_group_may_share_its_uid():
+    from cs_image_system.base.posix_ids import Claim, resolve_posix_ids
+    r = resolve_posix_ids([Claim("cfg", "group", "a", 3001), Claim("cfg", "group", "b", 3001),
+                           Claim("cfg", "user", "u", 3001)])
+    assert r.problems == ["groups a, b all have id 3001 -- a machine could not tell them apart"]
+
+
+# ------------------------------------------------ step 3: the plugin in a loaded tree
+
+def _posix_tree(tmp_path, *, gid=3101, uids=(3201, 3202), extra_group=None):
+    """A fixture copy with a posix group builder and user builder, a group
+    and two users -- the shape step 3d puts in the frozen fixture."""
+    from tests.v2_support import copy_config
+    root = copy_config(tmp_path)
+    gb = root / "cfg" / "group-builders.yml"
+    data = yaml.safe_load(gb.read_text())
+    data["group_builders"].append({"name": "posix-local", "type": "posix"})
+    data["user_builders"].append({"name": "posix-users", "type": "posix"})
+    gb.write_text(yaml.safe_dump(data, sort_keys=False))
+    groups = [{"name": "pxgroup", "type": "posix-local", "gid": gid,
+               "members": ["taylor_tango", "uma_uniform"], "admins": ["taylor_tango"]}]
+    if extra_group:
+        groups.append(extra_group)
+    (root / "groups" / "group-posix.yaml").write_text(yaml.safe_dump({"groups": groups}, sort_keys=False))
+    users = yaml.safe_load((root / "groups" / "users.yaml").read_text())
+    for name, first, last, uid in (("taylor_tango", "Taylor", "Tango", uids[0]), ("uma_uniform", "Uma", "Uniform", uids[1])):
+        users["users"].append({"name": name, "type": "posix-users", "first_name": first, "last_name": last,
+                               "uid": uid, "public_keys": [f"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI{last} {name}@example.invalid"]})
+    (root / "groups" / "users.yaml").write_text(yaml.safe_dump(users, sort_keys=False))
+    return root
+
+
+def _posix_errors(root, monkeypatch) -> list[str]:
+    from cs_image_system.base.commands.validate import check_posix_ids
+    from tests.v2_support import load_context, reset_singletons, stub_environment
+    stub_environment(monkeypatch)
+    try:
+        return [str(e) for e in check_posix_ids(load_context(root))]
+    finally:
+        reset_singletons()
+
+
+def test_a_posix_tree_loads_and_its_ids_resolve_cleanly(tmp_path, monkeypatch):
+    from tests.v2_support import load_context, reset_singletons, stub_environment
+    root = _posix_tree(tmp_path)
+    assert _posix_errors(root, monkeypatch) == []
+    stub_environment(monkeypatch)
+    try:
+        ctx = load_context(root)
+        gb = ctx.group_builders["posix-local"]
+        assert gb.identity_type() == "posix" and gb.gid_policy() == "config-time"
+        assert gb.gid_workspace() is None and gb.gid_expression("pxgroup") == "3101"
+        group = next(g for g in gb.get_groups_for_builder() if g.get_name() == "pxgroup")
+        image: Any = type("I", (), {"get_name": lambda self: "img"})()      # only its name is read
+        bake = "\n".join(gb.activation_commands(image, group))
+        assert "sudo bash -s <<'CSIS_POSIX_ACCOUNTS'" in bake and "groupadd -g 3101 pxgroup" in bake
+        assert gb.activation_verify_commands(image, group)[-1] == "test \"$(getent group pxgroup | cut -d: -f3)\" = '3101'"
+        users = {u.get_name(): u.uid for u in ctx.user_builders["posix-users"].get_users_for_builder()}
+        assert users == {"taylor_tango": 3201, "uma_uniform": 3202}
+    finally:
+        reset_singletons()
+
+
+@pytest.mark.parametrize("change,needle", [
+    ({"gid": None}, "group pxgroup: no side supplies its id"),
+    ({"uids": (1000, 3202)}, "user taylor_tango: the configuration declares id 1000, below 1024"),
+    ({"uids": (3201, 3201)}, "users taylor_tango, uma_uniform all have id 3201"),
+    ({"extra_group": {"name": "taylor_tango", "type": "posix-local", "gid": 3300}},
+     "group taylor_tango: the configuration supplies id 3300 and the configuration (user-private group) supplies 3201"),
+    ({"extra_group": {"name": "Bad.Name", "type": "posix-local", "gid": 3300}}, None),
+])
+def test_validate_refuses_each_id_problem_by_name(tmp_path, monkeypatch, change, needle):
+    root = _posix_tree(tmp_path, **change)
+    errors = _posix_errors(root, monkeypatch)
+    if needle is None:                       # names are lower-cased on load: `Bad.Name` is `bad.name`, a fine name
+        assert errors == []
+    else:
+        assert any(needle in e for e in errors), errors
+
+
+def test_a_gid_below_the_floor_is_refused_when_the_group_loads(tmp_path, monkeypatch):
+    """The Group model's own rule, older than this stage: the posix check
+    uses the same floor for uids."""
+    from tests.v2_support import load_context, reset_singletons, stub_environment
+    root = _posix_tree(tmp_path, gid=999)
+    stub_environment(monkeypatch)
+    try:
+        with pytest.raises(Exception, match="gid must be at least 1024"):
+            load_context(root)
+    finally:
+        reset_singletons()
+
+
+def test_a_posix_group_or_user_declaring_attributes_is_refused(tmp_path, monkeypatch):
+    """Their ids are `gid:` and `uid:`: provider attributes would drag them
+    into the OPA attribute plan, which asks a provider the posix plugin is not."""
+    from cs_image_system.base.identity_attributes import validate_identity_items
+    from tests.v2_support import load_context, reset_singletons, stub_environment
+    root = _posix_tree(tmp_path)
+    for rel, key, name in (("groups/group-posix.yaml", "groups", "pxgroup"), ("groups/users.yaml", "users", "uma_uniform")):
+        data = yaml.safe_load((root / rel).read_text())
+        next(i for i in data[key] if i["name"] == name)["attributes"] = {"unix_gid" if key == "groups" else "unix_uid": 4000}
+        (root / rel).write_text(yaml.safe_dump(data, sort_keys=False))
+    stub_environment(monkeypatch)
+    try:
+        errors = validate_identity_items(load_context(root), [])
+    finally:
+        reset_singletons()
+    assert any("group 'pxgroup': a posix group declares its id as `gid:`" in e for e in errors), errors
+    assert any("user 'uma_uniform': a posix user declares its id as `uid:`" in e for e in errors), errors

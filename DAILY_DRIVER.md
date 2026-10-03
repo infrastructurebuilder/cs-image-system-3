@@ -710,6 +710,15 @@ declares.
   [configuration](packages/okta-opa-plugin/README.md#configuration-reference) ·
   [tests](packages/okta-opa-plugin/README.md#what-it-tests-and-verifies) ·
   [failures](packages/okta-opa-plugin/README.md#when-it-fails)
+- [posix-identity-plugin](packages/posix-identity-plugin/README.md): groups
+  and users as POSIX accounts on the machines, with the ids the
+  configuration declares (`gid:`, `uid:`): the owning group baked into an
+  instance image, the ids resolved at `validate`, the accounts script
+  (users, memberships, keys, sudo) tested on EL10 and Debian.
+  [prerequisites](packages/posix-identity-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](packages/posix-identity-plugin/README.md#configuration-reference) ·
+  [tests](packages/posix-identity-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](packages/posix-identity-plugin/README.md#when-it-fails)
 - [tf-ebs-instance-plugin](packages/tf-ebs-instance-plugin/README.md):
   terraform/tofu-backed instances and storages on AWS: the instance root, EBS, EFS and S3,
   attachments, detaches, archives, the gate's whitelist, the release
