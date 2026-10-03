@@ -56,6 +56,16 @@ class OktaTfGroupRoBuilder(OktaTfGroupBuilder):
         never made, so asking would read every one as missing [HARD]."""
         return {}
 
+    # stage 75: a lookup root manages no groups, so `posix:` is neither required nor read
+    def posix_delegate(self) -> Any:
+        return None
+
+    def configuration_errors(self) -> list[str]:
+        return []
+
+    def configuration_notes(self) -> list[str]:
+        return []
+
     def enrollment_token_reference(self, group: str) -> str | None:
         """No token: the lookup root emits no ``group_enrollment_tokens``
         output for an instance to reference."""

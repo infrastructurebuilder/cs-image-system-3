@@ -511,11 +511,10 @@ the first final version on PyPI (§41's open call).
 ## 75. A POSIX identity plugin, alone and beside Okta
 
 **Status: IN PROGRESS since 2026-10-03 on `feature/posix-identity` (the
-operator: "start 75", "resume step 5"). Steps 1-4 done; step 5 in two
-parts, 5a (the posix side: the login hook and the groups-only script)
-done, 5b (the Okta side) next.** (The operator, 2026-10-03, on finding
-the owning group absent on a live machine: "Plan a second plugin", with
-the decisions recorded below.)
+operator: "start 75", "resume step 5"). Steps 1-5 done; step 6 (real
+SSH) next.** (The operator, 2026-10-03, on finding the owning group
+absent on a live machine: "Plan a second plugin", with the decisions
+recorded below.)
 
 ### Context
 
@@ -831,10 +830,23 @@ standing mandate: a new secret owes the bootstrap its question).
    `GroupBuilderBase`. Proved in the container leg on both families: a
    member is added at login, dropped by `userdel`, and added again at
    the next login; an unlisted user never is; the PAM line is written
-   once; keys are installed. **5b, next:** the Okta side -- the required
-   `posix:` line and its checks, the hook baked into Okta-owned images,
-   the group created after apply with OPA's gid, the fixture, the
-   starters, the golden and the docs.
+   once; keys are installed. **5b, done 2026-10-03:** `posix:` and
+   `posix_ssh_keys:` on the `okta-tf` group model; the Okta builder's
+   `configuration_errors` refuse the line absent or empty, an undeclared
+   name and a non-posix builder, and its `configuration_notes` name each
+   group `posix: none` keeps off its machines (printed by `validate`,
+   carried by the state query); the read-only builder neither requires
+   nor reads it. With a delegate, Okta-owned instance images bake the
+   login hook (two in-bake checks), and the after-apply script asks OPA
+   for the gid (read-only) and has the delegate make the group, its
+   member list (members and admins, root admins merged as OPA has them)
+   and today's present members -- and install the hook again,
+   idempotently, so a machine that stands and is never re-baked
+   (coops-model-005) is healed by one applying run. An OPA that cannot
+   be asked is an error, never fatal. The fixture's `oktagroups` and the
+   three starters name `posix-local`; the golden moved once (the seven
+   Okta-owned images gain the hook and its checks; their fingerprints
+   move).
 6. **Real SSH.** `ssh_proxy_command` on both runtimes, the posix
    `prove_login`, `CSIS_PROOF_SSH_KEY`, the bootstrap question and
    `set-secrets.sh`.

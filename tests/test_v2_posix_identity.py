@@ -380,23 +380,6 @@ def test_no_accounts_are_sent_when_they_should_not_be(tmp_path, monkeypatch, why
         run.restore_cwd()
 
 
-def test_an_okta_group_machine_gets_no_accounts_script(tmp_path, monkeypatch):
-    """Okta's builder renders none (step 5 gives it the posix delegate)."""
-    from cs_image_system.base import accounts_reconcile
-    from cs_image_system.base.lifecycles import Lifecycle
-    from tests.v2_support import V2Run
-    session = _Session(monkeypatch)
-    run = V2Run(tmp_path, monkeypatch)
-    try:
-        ms = run.ctx.meta_state
-        ms.record_launch_params("test", dict(ms.launch_params().get("test") or {"hostname": "test"}) | {"launched": True})
-        run.ctx.config["apply_instances"] = True
-        accounts_reconcile.reconcile_accounts(run.ctx, Lifecycle.INSTANCE_IMAGE)
-        assert session.sent == []
-    finally:
-        run.restore_cwd()
-
-
 def test_a_refused_script_is_logged_as_an_error_and_never_stops_the_run(tmp_path, monkeypatch, caplog):
     import logging
     from cs_image_system.base import accounts_reconcile
@@ -409,5 +392,175 @@ def test_a_refused_script_is_logged_as_an_error_and_never_stops_the_run(tmp_path
         errors = [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
         assert any("group pxgroup has gid 4000 here; the configuration says 3101" in e for e in errors), errors
         assert any("the accounts script of group pxgroup FAILED (exit 1)" in e for e in errors), errors
+    finally:
+        run.restore_cwd()
+
+
+# --------------------------------------------- step 5: beside Okta
+
+def _okta_posix(root, value):
+    """Set the fixture's oktagroups `posix:` line: a name, `none`, or None (absent)."""
+    path = root / "cfg" / "group-builders.yml"
+    text = path.read_text()
+    old = "    posix: posix-local\n    # key:"
+    assert old in text
+    path.write_text(text.replace(old, ("" if value is None else f"    posix: {value}\n") + "    # key:"))
+
+
+def _okta_findings(root, monkeypatch):
+    from cs_image_system.base.commands.validate import check_group_builders
+    from tests.v2_support import load_context, reset_singletons, stub_environment
+    stub_environment(monkeypatch)
+    try:
+        ctx = load_context(root)
+        gb: Any = ctx.group_builders["oktagroups"]      # the Okta builder: posix_delegate is its own
+        return [str(e) for e in check_group_builders(ctx)], gb.configuration_notes(), gb
+    finally:
+        reset_singletons()
+
+
+@pytest.mark.parametrize("value,needle", [
+    (None, "group builder oktagroups: `posix:` is required -- write `posix: <name>`"),
+    ("nosuch", "group builder oktagroups: `posix: nosuch` names no declared group builder"),
+    ("okta-groups-ro", "`posix: okta-groups-ro` names a group builder of identity type 'okta'; it must be of type posix"),
+])
+def test_the_okta_posix_line_is_required_and_must_name_a_posix_builder(tmp_path, monkeypatch, value, needle):
+    from tests.v2_support import copy_config
+    root = copy_config(tmp_path)
+    _okta_posix(root, value)
+    errors, _, _ = _okta_findings(root, monkeypatch)
+    assert any(needle in e for e in errors), errors
+
+
+def test_posix_none_is_valid_and_says_what_it_keeps_off_the_machines(tmp_path, monkeypatch):
+    from tests.v2_support import copy_config
+    root = copy_config(tmp_path)
+    _okta_posix(root, "none")
+    errors, notes, gb = _okta_findings(root, monkeypatch)
+    assert errors == [] and gb.posix_delegate() is None
+    assert any(n.startswith("group coops: its builder oktagroups says `posix: none`, so the group does not exist")
+               for n in notes), notes
+
+
+def test_the_read_only_okta_builder_neither_requires_nor_reads_posix(monkeypatch):
+    from tests.v2_support import FIXTURE_CONFIG, load_context, reset_singletons, stub_environment
+    stub_environment(monkeypatch)
+    try:
+        ro: Any = load_context(FIXTURE_CONFIG).group_builders["okta-groups-ro"]
+        assert ro.configuration_errors() == [] and ro.configuration_notes() == [] and ro.posix_delegate() is None
+    finally:
+        reset_singletons()
+
+
+def _bake_lines(root, monkeypatch) -> tuple[str, list[str]]:
+    """coops' activation and in-bake checks, rendered inside the loaded tree."""
+    from tests.v2_support import load_context, reset_singletons, stub_environment
+    stub_environment(monkeypatch)
+    try:
+        gb = load_context(root).group_builders["oktagroups"]
+        image: Any = type("I", (), {"get_name": lambda self: "img"})()
+        coops = next(g for g in gb.get_groups_for_builder() if g.get_name() == "coops")
+        return "\n".join(gb.activation_commands(image, coops)), gb.activation_verify_commands(image, coops)
+    finally:
+        reset_singletons()
+
+
+def test_an_okta_image_bakes_the_login_hook_only_with_a_delegate(tmp_path, monkeypatch):
+    from tests.v2_support import copy_config
+    bake, checks = _bake_lines(copy_config(tmp_path), monkeypatch)            # the fixture: posix: posix-local
+    assert "/usr/local/sbin/csis-group-login" in bake and "pam_exec.so" in bake
+    assert "test -x /usr/local/sbin/csis-group-login" in checks
+    root = copy_config(tmp_path / "none")
+    _okta_posix(root, "none")
+    bake, checks = _bake_lines(root, monkeypatch)
+    assert "csis-group-login" not in bake and "test -x /usr/local/sbin/csis-group-login" not in checks
+
+
+class _Opa:
+    """OPA's gid lookup, faked at the builder's resolver."""
+
+    def __init__(self, monkeypatch, gids=None, error=None):
+        from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
+        self.asked: list[list[str]] = []
+        gids = {"coops": 180007} if gids is None else gids
+
+        def resolve(groups):
+            self.asked.append(list(groups))
+            if error:
+                raise error
+            return {g: gids[g] for g in groups if g in gids}
+        monkeypatch.setattr(OktaTfGroupBuilder, "_resolver", lambda s: type("R", (), {"resolve": staticmethod(resolve)})())
+
+
+def test_the_okta_accounts_script_makes_the_group_with_opas_gid_and_lists_its_people(monkeypatch):
+    from tests.v2_support import FIXTURE_CONFIG, load_context, reset_singletons, stub_environment
+    opa = _Opa(monkeypatch)
+    stub_environment(monkeypatch)
+    try:
+        ctx = load_context(FIXTURE_CONFIG)
+        gb = ctx.group_builders["oktagroups"]
+        coops = next(g for g in gb.get_groups_for_builder() if g.get_name() == "coops")
+        script = gb.accounts_script("coops") or ""
+        assert opa.asked == [["coops"]]
+        assert "groupadd -g 180007 coops" in script and "/etc/csis/groups/coops.members" in script
+        assert "useradd" not in script and "# the keys of" not in script     # no keys file: not opted in
+        people = {str(m) for m in coops.members} | {str(a) for a in coops.admins} | {str(a) for a in ctx.root_group.admins}
+        assert all(p in script for p in people), "members, admins and the root group's admins, as OPA has them"
+    finally:
+        reset_singletons()
+
+
+def test_an_okta_machine_gets_its_group_after_apply(tmp_path, monkeypatch):
+    from cs_image_system.base import accounts_reconcile
+    from cs_image_system.base.lifecycles import Lifecycle
+    from tests.v2_support import V2Run
+    _Opa(monkeypatch)
+    session = _Session(monkeypatch)
+    run = V2Run(tmp_path, monkeypatch)
+    try:
+        ms = run.ctx.meta_state
+        ms.record_launch_params("test", dict(ms.launch_params().get("test") or {"hostname": "test"}) | {"launched": True})
+        run.ctx.config["apply_instances"] = True
+        accounts_reconcile.reconcile_accounts(run.ctx, Lifecycle.INSTANCE_IMAGE)
+        assert [n for n, _ in session.sent] == ["test"] and "groupadd -g 180007 coops" in session.sent[0][1]
+    finally:
+        run.restore_cwd()
+
+
+def test_posix_none_sends_an_okta_machine_nothing(tmp_path, monkeypatch):
+    from cs_image_system.base import accounts_reconcile
+    from cs_image_system.base.lifecycles import Lifecycle
+    from tests.v2_support import V2Run, copy_config
+    root = copy_config(tmp_path)
+    _okta_posix(root, "none")
+    session = _Session(monkeypatch)
+    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    try:
+        ms = run.ctx.meta_state
+        ms.record_launch_params("test", dict(ms.launch_params().get("test") or {"hostname": "test"}) | {"launched": True})
+        run.ctx.config["apply_instances"] = True
+        accounts_reconcile.reconcile_accounts(run.ctx, Lifecycle.INSTANCE_IMAGE)
+        assert session.sent == []
+    finally:
+        run.restore_cwd()
+
+
+def test_an_opa_that_cannot_be_asked_is_an_error_not_a_crash(tmp_path, monkeypatch, caplog):
+    import logging
+    from cs_image_system.base import accounts_reconcile
+    from cs_image_system.base.lifecycles import Lifecycle
+    from tests.v2_support import V2Run
+    _Opa(monkeypatch, error=RuntimeError("HTTP 401 from OPA"))
+    session = _Session(monkeypatch)
+    run = V2Run(tmp_path, monkeypatch)
+    try:
+        ms = run.ctx.meta_state
+        ms.record_launch_params("test", dict(ms.launch_params().get("test") or {"hostname": "test"}) | {"launched": True})
+        run.ctx.config["apply_instances"] = True
+        with caplog.at_level(logging.INFO):
+            accounts_reconcile.reconcile_accounts(run.ctx, Lifecycle.INSTANCE_IMAGE)
+        assert session.sent == []
+        assert any("the accounts script of group coops could not be made: HTTP 401 from OPA" in r.getMessage()
+                   for r in caplog.records if r.levelno >= logging.ERROR)
     finally:
         run.restore_cwd()

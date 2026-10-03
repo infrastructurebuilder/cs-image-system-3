@@ -1079,6 +1079,8 @@ character replaced by `_` (`nos-coastal-modeling-cloud-sandbox` →
 | `workload_connection` | str or null | null | the team's workload connection, by name, made by hand once (CI_SETUP.md section 3.5); with `workload_role` it makes the builder keep one CI login policy per managed group (stage 56) |
 | `workload_role` | str or null | null | the team's workload role, by name; the only principal of every CI login policy |
 | `account_discovery` | bool | `true` | the project's `account_discovery` |
+| `posix` | str | **required** on `okta-tf`, no default | stage 75: a `type: posix` group builder that makes these groups exist on their machines (created after each applying run with OPA's gid; members join at each login through a baked PAM hook), or `none` for no posix configuration (`validate` and the state query note what that keeps off the machines). Absent, empty, an undeclared name or a non-posix builder is refused at `validate`. Not read by `okta-tf-ro` |
+| `posix_ssh_keys` | bool | `false` | stage 75, opt-in: the login hook also installs each member's declared `public_keys:` as their `authorized_keys` |
 
 For every managed group `<g>` the `okta-tf` builder emits: the `oktapam`
 groups `<g>_user` and `<g>_admin`; the resource group `<g>_rg`, delegated

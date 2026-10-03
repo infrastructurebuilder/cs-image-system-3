@@ -50,6 +50,35 @@ What it does, and when:
   A failure is logged as an error naming the machine and never stops the
   run; the next applying run tries again.
 
+## Beside Okta
+
+An `okta-tf` group builder names a posix group builder as its `posix:`
+delegate (required since stage 75; `posix: none` is the explicit way to
+have none). Its groups stay OPA's -- created there, members kept there --
+and the delegate makes them exist on the machines:
+
+- **OPA's agent makes accounts just-in-time**: it creates an account at a
+  login and deletes it later, and `userdel` drops every supplementary
+  group (observed on coops-model-005, stage 75 step 1). A membership
+  written after an apply would not hold, so the delegate installs a
+  **login hook**: an `optional` `pam_exec` session line in
+  `/etc/pam.d/sshd` runs `/usr/local/sbin/csis-group-login`, which adds
+  the logging-in user to every group whose member list
+  (`/etc/csis/groups/<group>.members`) names them. It never fails a login.
+- **The hook is baked** into every instance image of an Okta group whose
+  builder names a delegate, and **installed again by every applying run**
+  (idempotently), so a machine that stands and is never re-baked gets it.
+- **After each applying instance run**, each running machine of such a
+  group gets the group with OPA's gid (the Okta builder asks OPA,
+  read-only), its member list (members and admins, the root group's
+  admins merged as OPA has them), and the members whose accounts stand at
+  that moment joined at once. No account is created: OPA's agent makes
+  those.
+- **`posix_ssh_keys: true`** on the Okta builder also writes each
+  member's declared `public_keys:` to `/etc/csis/keys/<user>`, which the
+  hook installs at login -- a key path beside OPA's certificates, off by
+  default.
+
 ## Prerequisites and integration
 
 - **Installed** with the release (it is one of the packages `cs-image-system`

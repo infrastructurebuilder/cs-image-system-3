@@ -98,9 +98,11 @@ def test_the_groups_script_makes_groups_and_lists_but_no_accounts():
     script = accounts.groups_script(groups={"coops": 180007}, members={"coops": ["mykel.alvis", "avery.alpha"]})
     _bash_n(script)
     assert "groupadd -g 180007 coops" in script and "/etc/csis/groups/coops.members" in script
-    assert "useradd" not in script and "sudoers" not in script and "/etc/csis/keys" not in script
+    assert "useradd" not in script and "sudoers" not in script and "# the keys of" not in script   # no keys file
     assert "has no account here yet" not in script, "beside Okta an absent account is the normal state"
     assert "join it at their next login" in script
+    assert script.index("/usr/local/sbin/csis-group-login") < script.index("groupadd -g 180007 coops"), \
+        "a machine baked before the hook gets it from its next applying run"
     with_keys = accounts.groups_script(groups={"coops": 180007}, members={"coops": ["mykel.alvis"]},
                                        keys={"mykel.alvis": ["ssh-ed25519 AAAA mykel"]})
-    assert "/etc/csis/keys/mykel.alvis" in with_keys
+    assert "# the keys of mykel.alvis" in with_keys and "/etc/csis/keys/mykel.alvis" in with_keys

@@ -376,6 +376,9 @@ def check_group_builders(ctx: GlobalTypeContext) -> list[Exception]:
     """Stage 75 step 4: what each group builder finds wrong with its own
     declarations that only the plugin can see (``configuration_errors``) --
     a posix group's member with no account to create."""
+    for gb in ctx.group_builders.values():
+        for note in gb.configuration_notes():
+            log.warning(f"note: {note}")
     return [Exception(e) for gb in ctx.group_builders.values() for e in gb.configuration_errors()]
 
 

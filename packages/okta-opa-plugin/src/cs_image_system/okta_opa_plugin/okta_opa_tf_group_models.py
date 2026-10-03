@@ -17,6 +17,15 @@ class OktaTfGroupBuilderModel(OktaTfWorkspaceModelMixin, OktaGroupBuilderModel):
     transform_provider, finalize) comes from OktaTfWorkspaceModelMixin.
     """
     type = OKTATF
+    # stage 75: the posix group builder that creates this builder's groups on
+    # the machines of their images. REQUIRED and without a default: a group
+    # builder's name, or `none` for no posix configuration. Read as written by
+    # the builder's configuration_errors (absent or null is refused; `none` is
+    # the opt-out), not as a foreign key, which refuses `none` (stage 76).
+    posix: str | None = None
+    # stage 75: opt-in -- the login hook also installs each member's declared
+    # `public_keys:` as their authorized_keys (a key path beside OPA's certificates)
+    posix_ssh_keys: bool = False
 
     @classmethod
     def csis_name(cls) -> str:

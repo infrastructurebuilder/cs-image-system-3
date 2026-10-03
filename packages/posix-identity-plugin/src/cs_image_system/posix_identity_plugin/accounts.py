@@ -232,11 +232,13 @@ def keys_file_part(user: str, keys: list[str]) -> list[str]:
 
 def groups_script(*, groups: dict[str, int], members: dict[str, list[str]],
                   keys: dict[str, list[str]] | None = None) -> str:
-    """For groups another provider owns (Okta): each group with its gid,
-    its member list for the login hook, and the members whose accounts
-    stand now joined at once; optionally the keys the hook installs. No
-    account is created -- the provider makes those."""
-    lines = header()
+    """For groups another provider owns (Okta): the login hook (installed
+    here too, idempotently, so a machine baked before it -- one that stands
+    and is never re-baked -- gets it from its next applying run), each
+    group with its gid, its member list for the hook, and the members whose
+    accounts stand now joined at once; optionally the keys the hook
+    installs. No account is created -- the provider makes those."""
+    lines = header() + login_hook_part()
     for name, gid in sorted(groups.items()):
         lines += group_part(name, gid)
     for group, ms in sorted(members.items()):

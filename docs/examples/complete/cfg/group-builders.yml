@@ -13,6 +13,11 @@ group_builders:
     # ---- 9.1: the workspace
     org: REPLACE-ME-org            # the Okta org name (`okta` provider org_name)
     team: REPLACE-ME-team          # the OPA team; also names TF_VAR_<team>_key / _secret
+    # ---- stage 75: REQUIRED -- the posix group builder that makes these groups
+    # exist on the machines (created after each applying run with OPA's gid,
+    # members joined at each login); `none` keeps them off the machines
+    posix: posix-local
+    posix_ssh_keys: false          # opt-in: the login hook also installs each member's declared public_keys
     # the OPA API pair as literal ENC[age:...] values, emitted by reference
     # (section 13); left at `default` they would come from the environment.
     # These decrypt to placeholders.
@@ -37,7 +42,8 @@ group_builders:
   # stage 75: groups as POSIX accounts on the machines, with ids this
   # configuration declares (`gid:` on the group). No terraform root, no
   # credentials: the owning group is baked into its instance images. A
-  # group names it with `type: posix-local`; none does here.
+  # group names it with `type: posix-local` (none does here), and
+  # `oktagroups` names it as its `posix:` delegate above.
   # Reference: ../../../../packages/posix-identity-plugin/README.md
   - name: posix-local
     type: posix

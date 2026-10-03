@@ -66,7 +66,11 @@ def reconcile_accounts(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
             continue
         group = _group_of(ctx, instance)
         gb = group_builder_of(ctx, group) if group else None
-        script = gb.accounts_script(group) if gb is not None else None
+        try:
+            script = gb.accounts_script(group) if gb is not None else None
+        except Exception as e:  # noqa: BLE001 - a provider that cannot be asked (OPA's gid): reported, never fatal
+            log.error(f"Instance {name}: the accounts script of group {group} could not be made: {e}")
+            continue
         if not script:
             continue
         rtb = ctx.runtime_builders.get(str(instance.runtime)) if instance.runtime else None
