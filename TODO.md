@@ -902,12 +902,11 @@ step 6 finds out.
    stage; until then the list and the commented function are not
    touched.
 
-**The audit (step 1, 2026-10-03).** Every site that reads
-`OOPS_DEFAULTS`, read in place, and every model class the frozen fixture
-loads (31), probed with each word as a name and an alias. No field reads
-the word `none` through the list as a value it means, so NO site is
-rewritten and step 2 changes only the list. The verdicts:
-
+**The audit (step 1, 2026-10-03; corrected in step 2).** Every site that
+reads `OOPS_DEFAULTS`, read in place, and every model class the frozen
+fixture loads (31), probed with each word as a name and an alias. The
+first reading said no site needed rewriting; probing the references
+proved two did, and step 2 rewrites them. The verdicts:
 - **Name checks -- `none` now refused too, as wanted.** `NameTyped` and
   `RootItem` (name and aliases),
   [global_context.py:1339](packages/base/src/cs_image_system/base/global_context.py#L1339)
@@ -920,16 +919,25 @@ rewritten and step 2 changes only the list. The verdicts:
   and `ImageImageBuilderSubconfig`'s are DERIVED when unset (from the
   network, from the image builder), so their effective name is never
   reserved. `utils.validate_names` reads the list and has no caller.
-- **References -- `none` now means "not written", as `default` does.** A
-  foreign key
-  ([orchestrator.py:745](packages/base/src/cs_image_system/base/orchestrator.py#L745):
-  no longer recorded as dangling), an item's `type`
-  ([global_context.py:602](packages/base/src/cs_image_system/base/global_context.py#L602):
-  the default builder), a runtime and its state backend
-  ([orchestrator.py:56-60](packages/base/src/cs_image_system/base/orchestrator.py#L56-L60),
-  [collector.py:369](packages/hashicorp-utils/src/cs_image_system/hashicorp_utils/collector.py#L369)),
-  an image's `image_builder` (image.py:92, global_context.py:1515), a
-  builder's `runtime` (builder_model.py:285, which refuses it there).
+- **References -- `none` is REFUSED, explicitly (rewritten in step 2).**
+  A reference resolves its default only by equality with the field's own
+  (`field_set_to_default`,
+  [orchestrator.py:141-147](packages/base/src/cs_image_system/base/orchestrator.py#L141-L147)),
+  so `default` takes the default builder but `none` names nothing. With
+  the word in the list, the generic foreign key
+  ([orchestrator.py:745](packages/base/src/cs_image_system/base/orchestrator.py#L745))
+  would have stopped recording it as dangling, and the state-backend
+  chain
+  ([collector.py:369](packages/hashicorp-utils/src/cs_image_system/hashicorp_utils/collector.py#L369))
+  would have put the root's state on the DEFAULT backend -- the opposite
+  of `none`. Both now refuse it by name at `validate` (which every run
+  calls first), with what to write instead. An item's `type` written
+  `none` was and stays refused at load ("builder 'none' ... not
+  configured"). The rest take their default and are unaffected in
+  practice: an image's `image_builder` (image.py:92,
+  global_context.py:1515), the default runtime for a state backend
+  (orchestrator.py:56-60), a builder's `runtime` (builder_model.py:285,
+  which refuses it there).
 - **Values with a fallback -- `none` now takes the fallback.** The bake
   user (bake_user.py:48), `ssh_username`
   (os_builder_runtime_config.py:185), the machine type
@@ -947,12 +955,13 @@ rewritten and step 2 changes only the list. The verdicts:
   set by the CLI and by retention). §75's `posix: none` will be the
   third.
 
-**The one change in behaviour, stated.** A value written `none` used to
-pass through as a literal: a foreign key named `none` was refused by
-stage 48 as naming nothing, a network `none` reached the provider and
-failed there. Now it reads as unset and takes the default. No tree
-carries such a value (searched: the fixture, the three starters, the
-reference configuration), so nothing that loads today changes.
+**The one change in behaviour, stated.** A VALUE written `none` in a
+field with a fallback used to pass through as a literal (a network
+`none` reached the provider and failed there); now it reads as unset and
+takes the fallback. A REFERENCE written `none` was refused and still is,
+with a clearer message. No tree carries either (searched: the fixture,
+the three starters, the reference configuration), so nothing that loads
+today changes.
 
 **Sizing**: the audit half a day; the word, the refusal and the tests a
 day; the `config:` probe two hours, then the operator's answer. Proof:

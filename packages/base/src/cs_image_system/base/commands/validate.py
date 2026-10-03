@@ -13,7 +13,7 @@ import shutil
 from pathlib import Path
 log = logging.getLogger(__name__)
 
-from ..constants import VCT, ComplianceState, STATE_BACKEND_FIELD
+from ..constants import NONE, VCT, ComplianceState, STATE_BACKEND_FIELD
 from .. import registry
 from ..basic.abstract_version_checker import AbstractVersionChecker
 from ..basic.builder_base import BuilderBase
@@ -291,6 +291,16 @@ def check_state_locations(ctx: GlobalTypeContext) -> list[Exception]:
     errors: list[Exception] = []
     resolved: dict[str, StateLocation] = {}
     for workspace, (own, runtime_value) in terraform_workspaces(ctx).items():
+        # stage 76: `none` reads as unset in the chain below (it is in
+        # OOPS_DEFAULTS so nothing can be named after it), which would put this
+        # root's state on the default backend -- the opposite of what `none`
+        # says. There is no "no state backend", so the word is refused here.
+        if NONE in (own, runtime_value):
+            errors.append(Exception(
+                f"workspace '{workspace}' names state backend 'none', which names nothing -- there is "
+                f"no 'no state backend': declare one of type `local` for state on disk, or leave the "
+                f"field out for the default backend"))
+            continue
         name = col.effective_backend_name(own, runtime_value)
         try:
             reg = col.resolve_backend(name)
@@ -347,7 +357,10 @@ def check_foreign_keys(ctx: GlobalTypeContext) -> list[Exception]:
             declared = []
         errors.append(Exception(
             f"{cls_name} '{obj_name}': field '{field_name}' names '{value}', which is no {target}"
-            + (f" (declared: {', '.join(declared)})" if declared else "")))
+            + (f" (declared: {', '.join(declared)})" if declared else "")
+            # stage 76: nothing may be named `none`, and this field gives the word no meaning
+            + (" -- `none` names nothing and is not this field's default: leave the field out "
+               "(or write `default`) for the default" if value == NONE else "")))
     return errors
 
 
