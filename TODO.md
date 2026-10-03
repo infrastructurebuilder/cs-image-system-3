@@ -505,3 +505,227 @@ release, and never edited at the destination. Then:
 **Sizing**: the recipe and its test half a day; the job an hour; the
 mirrors and tokens are the operator's (an hour); the live proof waits on
 the first final version on PyPI (§41's open call).
+
+## 75. A POSIX identity plugin, alone and beside Okta
+
+**Status: PLANNED 2026-10-03; nothing runs until the operator says
+"do 75".** (The operator, 2026-10-03, on finding the owning group absent
+on a live machine: "Plan a second plugin", with the decisions recorded
+below. Branch `feature/posix-identity`.)
+
+### Context
+
+
+**The defect (observed live by the operator, 2026-10-03).** On
+`coops-model-005`, `getent group coops` returns nothing. Users synced by
+Okta exist, each with their own group (`mykel.alvis:x:150006:`), but the
+group that OWNS the instance is absent. The system never creates it:
+the instance image bakes only the `tx.group` label
+([okta_opa_tf_group_builder.py:111-121](packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/okta_opa_tf_group_builder.py#L111-L121)),
+and the launch script only `chgrp`s the group's storage subtree to a
+NUMBER ([launch_params.py:284-288](packages/base/src/cs_image_system/base/launch_params.py#L284-L288)).
+So the `2770` subtree is owned by a gid no account is a member of.
+
+**The structural finding.** Identity is a plugin by design
+([builder_base_group.py](packages/base/src/cs_image_system/base/basic/builder_base_group.py),
+DESIGN N1/N20), but Okta is the only implementation and the core knows
+`sftd` by name: the launch lines, the ansible launch, the alias script,
+the login proof (`sft ssh`) and the workload token.
+
+**The operator's decisions (2026-10-03).**
+- A second identity plugin: POSIX groups, users and sudo for admins.
+- It must also run BESIDE the Okta plugin handling ONLY groups; the Okta
+  plugin uses it to create its groups, and may call it to inject SSH
+  keys after users are synced from Okta.
+- The group is baked; the users come at launch.
+- For Okta groups the bake learns the gid through a packer variable
+  filled by the existing gid shim.
+- Login proof for the new plugin: real SSH with a proof key.
+- Proved by fixture, live, and a starter.
+- **Id collisions**: a name known to two sides whose supplied ids differ
+  is a CONFIGURATION ERROR; a side that supplies only a name takes the
+  other side's id; resolution runs in serial order, id-supplying sides
+  (Okta) first, sides that need not supply ids after.
+
+### The design
+
+#### The plugin
+
+New package `packages/posix-identity-plugin` (entry point
+`cs_image_system.plugins.group`, type `posix`, identity type `posix`,
+gid policy `config-time`). Its whole output is ONE idempotent shell
+script, `accounts_script(...)`, built from four parts it also exposes
+separately:
+
+| Part | Does | Standalone | Beside Okta |
+|---|---|---|---|
+| group | `groupadd -g <gid> <name>`, or adopt an equal one | yes | yes |
+| users | `useradd -u <uid>`, user-private primary group | yes | no (Okta's) |
+| membership | members become supplementary members of the group | yes | yes |
+| keys | `authorized_keys` from the user's `public_keys` | yes | opt-in |
+| sudo | `/etc/sudoers.d/60-csis-<group>` for the group's admins, `visudo -cf` checked | yes | no |
+
+`User.public_keys` and `Group.gid` already exist
+([user.py](packages/base/src/cs_image_system/base/models/user.py),
+[group.py:62](packages/base/src/cs_image_system/base/models/group.py#L62)).
+Usernames and keys are emitted with `emit()` (stage 49), so the
+committed emission carries markers.
+
+#### When
+
+- **Bake (instance image)**: the group part, through the existing
+  `activation_commands` hook
+  ([v2_provisioners.py:131-143](packages/packer-plugin/src/cs_image_system/packer_plugin/v2_provisioners.py#L131-L143)).
+  Standalone: the declared gid, literal. Beside Okta: packer variable
+  `group_gid`, filled by the bake's run script from
+  `cs-image-system identity-gids`
+  ([identity_gids.py](packages/base/src/cs_image_system/base/commands/identity_gids.py))
+  just before packer; a dry run touches nothing.
+- **Launch (after apply)**: the whole script, as a post-launch task over
+  the runtime's session, on the pattern of `register_provider_aliases`
+  ([provider_aliases.py:169](packages/base/src/cs_image_system/base/provider_aliases.py#L169),
+  `runner.register_after_apply`, `rtb.run_session_command`). Not in
+  user-data, on purpose: user-data is 16 KB, and a member list inside it
+  would make every membership change a terraform change to the machine.
+  It runs on every applying run against RUNNING machines, so a
+  membership change is neither a re-bake nor a replacement, and a
+  standing machine (coops-model-005) is healed in place. Beside Okta it
+  waits (bounded) for a synced account before adding it; an account not
+  yet synced is a `note`, finished by the next run.
+- The launch script's own `chgrp` is unchanged, plus one assertion: the
+  baked group's gid equals `${group_gid}`, else the startup fails.
+
+#### Composition with Okta
+
+Declared, not imported -- no plugin imports another:
+
+```yaml
+group_builders:
+  - name: oktagroups
+    type: okta-tf
+    posix: posix-local          # creates this builder's groups on machines
+    posix_ssh_keys: false       # opt-in: keys after the Okta sync
+  - name: posix-local
+    type: posix
+```
+
+`GroupBuilderBase` gains a small accounts protocol (default: nothing)
+that the posix builder implements and the Okta builder calls through
+`ctx.group_builders`. Base images declare `identity_types: [okta, posix]`.
+
+#### Id resolution (the operator's rule)
+
+One core pass, `resolve_posix_ids`, used at three moments. Sides are
+ordered by the existing `gid_policy()` constants: `creation-only` and
+`provider-assigned` first (Okta/OPA), `config-time` after (the
+configuration), the machine last.
+
+1. Collect `(side, id or none)` per name (groups: gid; users: uid).
+2. Two supplied ids that differ: **refused**, naming both sides.
+3. One supplied id: every side takes it.
+4. None supplied: **refused** -- a standalone name must declare its id
+   (shared storage is owned by number, so ids must be the same on every
+   machine). Conservative reading; say so if allocation is wanted.
+
+Moments: `validate` (configuration against configuration, no network);
+bake execution (the shim's OPA gid against a declared one, before
+packer); on the machine (the script: an existing entry with a different
+id exits non-zero with both ids; an equal one is adopted).
+
+#### The decoupling this needs (and no more)
+
+Moved out of the base into the Okta plugin, behind contract methods,
+with the emitted text BYTE-IDENTICAL (the golden is the proof):
+
+- `launch_script_lines(params)` / `launch_variables()` replace the
+  `"sftd-token"` branches in
+  [launch_params.py:290-305](packages/base/src/cs_image_system/base/launch_params.py#L290-L305)
+  and [ansible_launch.py:82-90](packages/base/src/cs_image_system/base/ansible_launch.py#L82-L90).
+- `prove_login(instance, ...)`: `login_proof` dispatches to the group's
+  builder; today's `sft resolve`/`sft ssh` code
+  ([login_proof.py:134-190](packages/base/src/cs_image_system/base/commands/login_proof.py#L134-L190))
+  becomes Okta's implementation.
+- Runtime contract: `ssh_proxy_command(instance)` (AWS:
+  `aws ssm start-session --document-name AWS-StartSSHSession`; GCE:
+  `gcloud compute start-iap-tunnel --listen-on-stdin`). CI already
+  installs session-manager-plugin and the write role already allows the
+  document.
+
+NOT moved here (they stay named for §30): the alias script, the
+workload token, the user model's Okta wire shape.
+
+#### The proof key
+
+A declared service-account user (`is_service_account: true`) with a
+public key; the private key reaches the proof as
+`CSIS_PROOF_SSH_KEY` (the PEM or a path, as `OKTA_API_PRIVATE_KEY`
+does). `verify login` for a posix group runs `ssh -o ProxyCommand=…
+<proof user>@<instance> id` and checks the group is in the answer. The
+bootstrap's GitHub section and `set-secrets.sh` gain the secret (the
+standing mandate: a new secret owes the bootstrap its question).
+
+### Steps (one commit each; merge on the operator's word at step ends)
+
+1. **Observe.** USER: on coops-model-005, `getent group coops`,
+   `id <a member>`, `ls -ldn` and `ls -ld` of each mount's group
+   subtree, and whether sftd rewrites `/etc/group`. Recorded in the
+   stage; it fixes what the reconcile must tolerate.
+2. **Decoupling.** The three contract moves above. Bar green with the
+   golden unchanged.
+3. **The plugin, standalone.** Package, model, script parts, validate
+   rules, `resolve_posix_ids` (configuration moment), the EL10 and
+   Debian container tests of the script (idempotence, adoption,
+   collision refusal, `visudo`), a fixture group `pxgroup` with two
+   personas and its golden.
+4. **The post-launch task and the bake variable.** `reconcile_accounts`
+   after apply; the launch assertion; `group_gid` as a packer variable
+   and the run-script line; the bake and machine moments of the
+   resolver.
+5. **Beside Okta.** `posix:` / `posix_ssh_keys:` on the Okta builders,
+   groups only, the wait for synced accounts; the fixture's Okta groups
+   gain the delegate (golden moves once, reviewed by hand).
+6. **Real SSH.** `ssh_proxy_command` on both runtimes, the posix
+   `prove_login`, `CSIS_PROOF_SSH_KEY`, the bootstrap question and
+   `set-secrets.sh`.
+7. **The starter.** `docs/examples/standard-aws-posix` (no Okta: no
+   3.5, no OPA secrets), `init-config --from standard-aws-posix`,
+   `CI_SETUP.md` and the starter tests extended to four trees.
+8. **Live, beside Okta** (sibling `develop`; applying runs are the
+   operator's). Declare `posix-local`, set `posix:` on `oktagroups`;
+   one applying run heals coops-model-005 in place. Proof:
+   `getent group coops` shows OPA's gid, members listed, the subtree
+   shows the name, `sft ssh` still works, `perform` green.
+9. **Live, standalone** (sibling `develop` only, removed before `main`
+   moves). One ephemeral AWS instance on a posix group: baked group,
+   users at launch, sudo for the admin, `verify login` over real SSH,
+   torn down in its run. Nothing on GCP (the GCE proxy command is
+   unit-tested and read, not run).
+10. **Records.** Plugin README, CONFIGURATION, OPERATIONS and DESIGN
+    N20 updated here (they describe the new plugin); a documentation
+    stage is opened for the behaviour changes to existing docs
+    (`DAILY_DRIVER.md`, the guide); memory updated.
+
+### Verification
+
+- `just test` after every code step (exit code checked); golden
+  byte-identical after step 2, moved once each in steps 3 and 5.
+- Container tests run the script twice (second run changes nothing),
+  against a pre-existing equal group (adopted) and a differing one
+  (refused with both ids).
+- `just full-test` before the stage is declared done.
+- Live: steps 8 and 9 above; the reference configuration's strict state
+  query and `perform` stay green; a release carries it and the sibling
+  takes the release.
+
+### Open risks, stated
+
+- **sftd and a foreign `/etc/group` entry** is unobserved: step 1
+  exists to find out, before any code depends on it.
+- **Membership of a not-yet-existing account**: whether the group line
+  may name it early or must wait is decided by step 1 and the container
+  test; the plan assumes waiting.
+- **Size**: about ten working days. Steps 2-4 are useful on their own
+  (the defect is fixed for standalone); step 8 is the one that fixes
+  coops.
+- **Order against §65**: the walk would be simpler on the Okta-free
+  starter this stage produces; that is the operator's call, not assumed.
