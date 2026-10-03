@@ -8,20 +8,19 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 system must not take itself.
 
 Current stage: **none in progress**. §76, reserved names, LANDED
-2026-10-03 (980963e): `none` joined `OOPS_DEFAULTS`, a reserved name is
+2026-10-03 (980963e, released in dev12, the reference configuration
+performing on it): `none` joined `OOPS_DEFAULTS`, a reserved name is
 refused where its file is read, a reference written `none` is refused at
-`validate`, and the `config:` key guard is switched on. §77, the
-documentation stage it opened, is OPEN. No hygiene bundle is open (IX
-LANDED WHOLE 2026-10-02, the next issue opens X). Planned, by the
-operator's word: §75 (the POSIX identity plugin; its step 5 relies on
-§76), §65, §66 and §30.
+`validate`, and the `config:` key guard is switched on. §77, its
+documentation stage, LANDED the same day (63fc128). No hygiene bundle
+and no documentation stage is open (the next issue opens hygiene bundle
+X; the next undocumented change opens a documentation stage). Planned,
+by the operator's word: §75 (the POSIX identity plugin; its step 5
+relies on §76), §65, §66 and §30.
 
-Releases: dev11 (2026-10-02) carries §70 step 6; the reference
-configuration runs it with all four bootstrap sections committed and its
-bootstrap root applied, the ruleset included. A release is owed for §76,
-and it is breaking by decision: a tree that names anything `none`, or
-uses a guarded word as a `config:` key, no longer loads (the reference
-configuration validates on it).
+Releases: dev12 (2026-10-03) carries §76 and is the reference
+configuration's (its `perform` green on it, closing record 266db26); §77
+changed only documentation and needs no release of its own.
 
 Recently landed: §73 (2026-10-01), the coops model replaced onto a
 second EFS filesystem -- `coops-model-005`, generation 5, alias `gar`,
@@ -798,52 +797,3 @@ standing mandate: a new secret owes the bootstrap its question).
   coops.
 - **Order against §65**: the walk would be simpler on the Okta-free
   starter this stage produces; that is the operator's call, not assumed.
-
-## 77. Documentation stage: reserved names
-
-**Status: DONE on `feature/docs-reserved-names` 2026-10-03 (the
-operator: "do 77"); waiting for the operator's word to merge.** (Opened
-by §76, by the standing rule that a stage which changes behaviour owes
-the documentation an update; a documentation stage changes no code.)
-
-**What changed, by stage:**
-
-- **§76, reserved names.** `none` joined `OOPS_DEFAULTS` (`default`,
-  `self`, `none`, the empty string, null). Nothing may be named after
-  one: the load refuses any `name:` at any depth and any `aliases:`
-  entry, in any case or spacing, naming the file, the place and the
-  word. A reference written `none` (a foreign key, a state backend) is
-  refused at `validate`, with what to write instead; a value with a
-  fallback written `none` takes the fallback; the update policy `none`
-  and `--only none` keep their meaning. The `config:` key guard
-  (`INVALID_CONFIG_KEYS`) was switched on: its seventeen words are
-  refused as keys of a document's `config:` mapping. CONFIGURATION 1.2,
-  2.3 and the `name` rows were updated in §76 itself.
-
-**Done:**
-
-1. The failure rows: `DAILY_DRIVER.md` section 6 lists failures met in
-   the reference deployment, and none of the new refusals has been met,
-   so it gains no row (one is added when one is). Instead the daily
-   driver's "Making things" opens with the naming rule a new team needs
-   before it names anything, pointing at CONFIGURATION 1.2; and the base
-   README's failure list gains the four new messages with their
-   remedies, and tf-s3-state-plugin's failure table the two that touch a
-   backend (its old row quoted the models' message, which a
-   configuration no longer meets first).
-2. The search: no starter comment describes `name:` rules or `config:`
-   keys, and no OPERATIONS sentence says only `default` and `self` are
-   reserved -- nothing to change there. Twelve passages in the package
-   READMEs stated the old reserved set or the old backend sentinels and
-   now state the new one: base (naming rules, the registry's defaults,
-   executables, the load and `validate` check lists, the module table
-   gains `reserved_names.py`, the `config:` keys section), dummy-plugin,
-   gcs-state-plugin, local-state-plugin, tf-s3-state-plugin,
-   tf-gcp-plugin (`networking.network` with `none`), hashicorp-utils
-   (the backend chain: `none` refused before it); CONFIGURATION's
-   backend chain likewise.
-3. The method-name collision the §76 probe found (`{{ config.items }}`
-   renders the method) is unguarded by the operator's decision, so
-   CONFIGURATION 2.3 and the base README now say to avoid those keys.
-4. Still owed, by design: the walk (§65) is the proof that a refusal's
-   message is enough for a team that meets one.
