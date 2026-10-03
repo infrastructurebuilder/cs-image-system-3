@@ -636,16 +636,13 @@ team's decision:
   beside `default`, `self`, the empty string and null. That is what
   makes `posix: none` unambiguous: it can never be the name of a
   builder.
-- What that list does today, read from the code: every foreign key
-  treats its words as "no reference written"
-  ([orchestrator.py:745](packages/base/src/cs_image_system/base/orchestrator.py#L745),
-  [registry.py:240](packages/base/src/cs_image_system/base/registry.py#L240)).
-  It does NOT yet refuse an item NAMED after one of them (such an item
-  is merely unreachable), so adding the string alone does not deliver
-  the rule above. This stage adds it to `validate`: no declared item may
-  be named `none`, `default`, `self` or the empty string. Checked
-  2026-10-03: no fixture, starter or reference-configuration item is
-  named so.
+- The rule that refuses the NAME is not this stage's: it is §76, which
+  lands first. (An earlier revision of this plan said nothing refuses
+  such a name today. That was wrong: `NameTyped` and `RootItem` refuse a
+  name or alias in `OOPS_DEFAULTS` at construction; what is missing is
+  the word `none` in the list, and any test of the rule.) Foreign keys
+  read the same list as "no reference written"
+  ([orchestrator.py:745](packages/base/src/cs_image_system/base/orchestrator.py#L745)).
 - Because null and `none` are both in that list, the required check
   reads the value AS WRITTEN: a missing line is refused, the word `none`
   is the opt-out. The two are never folded together.
@@ -728,17 +725,15 @@ standing mandate: a new secret owes the bootstrap its question).
    after apply; the launch assertion; `group_gid` as a packer variable
    and the run-script line; the bake and machine moments of the
    resolver.
-5. **Beside Okta.** `none` joins `OOPS_DEFAULTS`, and `validate` refuses
-   an item named after any word in that list. `posix:` (required, no
-   default; a declared posix builder's name, or `none` for no posix
-   configuration) and `posix_ssh_keys:` go on the `okta-tf` group
-   builder: groups only, with the wait for synced accounts. The fixture
-   and the three starters gain a posix builder and the line in this same
-   commit, or they no longer validate (golden moves once, reviewed by
-   hand). Tests: the line absent, an undeclared name and a non-posix
-   target are each refused with the line to add; `posix: none`
-   validates, changes nothing in the emission and carries its note; an
-   item named `none` is refused.
+5. **Beside Okta** (after §76, which reserves `none`). `posix:`
+   (required, no default; a declared posix builder's name, or `none` for
+   no posix configuration) and `posix_ssh_keys:` go on the `okta-tf`
+   group builder: groups only, with the wait for synced accounts. The
+   fixture and the three starters gain a posix builder and the line in
+   this same commit, or they no longer validate (golden moves once,
+   reviewed by hand). Tests: the line absent, an undeclared name and a
+   non-posix target are each refused with the line to add; `posix: none`
+   validates, changes nothing in the emission and carries its note.
 6. **Real SSH.** `ssh_proxy_command` on both runtimes, the posix
    `prove_login`, `CSIS_PROOF_SSH_KEY`, the bootstrap question and
    `set-secrets.sh`.
@@ -797,3 +792,89 @@ standing mandate: a new secret owes the bootstrap its question).
   coops.
 - **Order against §65**: the walk would be simpler on the Okta-free
   starter this stage produces; that is the operator's call, not assumed.
+
+## 76. `none` is a reserved name, and the reserved-name rule is tested
+
+**Status: PLANNED 2026-10-03; nothing runs until the operator says "do
+76".** (The operator, 2026-10-03: "Create a new stage to exclude the
+string 'none' as a name within the system ... There should be validators
+that check 'name' against OOPS_DEFAULTS and tests that validate that
+validation." Branch `feature/reserved-names`. §75 step 5 depends on it.)
+
+**What stands today** (read and probed 2026-10-03, not assumed). The
+operator remembered a check at the configuration read that refused the
+words of `OOPS_DEFAULTS` as identifiers, and believed it lost. It is
+half there:
+
+- The MODEL check stands. `NameTyped.__post_init__`
+  ([builder_model.py:60-66](packages/base/src/cs_image_system/base/models/builder_model.py#L60-L66))
+  and `RootItem.__post_init__`
+  ([root_item.py:34-43](packages/base/src/cs_image_system/base/models/root_item.py#L34-L43))
+  refuse a name or an alias in `OOPS_DEFAULTS`, after `safe_name`, so
+  `Default` and ` self ` are refused too. Probed: `default`, `self` and
+  the empty string are refused; `none` is ACCEPTED.
+- `OOPS_DEFAULTS` is `[default, None, "", self]`
+  ([constants.py:17](packages/base/src/cs_image_system/base/constants.py#L17)):
+  the Python value `None` is in it, the string `none` is not.
+- NO TEST holds the rule. Nothing under `tests/` or any package's tests
+  asserts either refusal, which is how it could vanish unseen.
+- The READ-time check is gone. `INVALID_CONFIG_KEYS`
+  ([constants.py:85-89](packages/base/src/cs_image_system/base/constants.py#L85-L89):
+  `self`, `this`, `same`, `runtime`, `os`, `default`, `defaults`, `any`,
+  `anything`, `none`, `null`, the empty string, `timestamp`, `date`,
+  `datetime`, `config`, `configuration`) is referenced nowhere: the list
+  survived, its caller did not. So a reserved name is refused only when
+  the model is constructed, as a pydantic error that names neither the
+  file nor the entry.
+- Whether every named model reaches the check is unproved: 79 classes
+  derive from `NameTyped`, `RootItem` or a builder model, some with
+  their own `__post_init__` (a user's `name` is re-declared as an
+  encrypted string).
+
+**One decision to ask first (R1).** Which words are reserved as names.
+Default this plan assumes: exactly `OOPS_DEFAULTS` with `none` added, as
+the operator said, and `INVALID_CONFIG_KEYS` deleted as dead. The
+alternative is to reserve that longer list too (`this`, `same`, `any`,
+`null`, `runtime`, `os`, `config`, ...), which would refuse names a team
+may already use and needs a search of the reference configuration before
+it is chosen.
+
+**Steps.**
+
+1. **The audit, before the word is added.** `OOPS_DEFAULTS` is read at
+   about forty sites, and most test a VALUE, not a name: a network, a
+   runtime, an ssh username, an image owner, an architecture, a foreign
+   key. Adding `none` makes the string unset at every one. Each site is
+   read and listed in the stage with its verdict: unaffected, wanted, or
+   to be exempted. Known legitimate uses of the word that must keep
+   working: the update policy `policy: none`
+   ([update_policy.py:34](packages/base/src/cs_image_system/base/models/update_policy.py#L34),
+   declared in the `complete` starter) and `--only none` on the command
+   line.
+2. **The word.** `none` joins `OOPS_DEFAULTS`; any site step 1 marked
+   "to be exempted" is changed in the same commit. Golden
+   byte-identical.
+3. **The read-time check, restored.** Where each configuration file is
+   seen with its own path, a `name` (and each alias) in the reserved
+   list is refused with the file, the list it sits in and the word,
+   before any model is built. The model check stays as the backstop for
+   objects built in code. `INVALID_CONFIG_KEYS` is removed or becomes
+   the list, per R1.
+4. **The tests.** Parametrised over every word in the list, in its case
+   and spacing variants: (a) each registered named model class refuses
+   it as a name and as an alias, the class list taken from the registry
+   so a new model is covered without editing the test; (b) a copy of the
+   frozen fixture with one item renamed `none`, per kind (group, user,
+   storage, image, instance, each builder kind), fails `validate` naming
+   the file and the word; (c) a reference written as `none` is unset,
+   not a dangling key; (d) `policy: none` and `--only none` still mean
+   what they meant; (e) a test that fails if `OOPS_DEFAULTS` loses a
+   word.
+5. **Records.** CONFIGURATION names the reserved words where it
+   describes `name`; an item goes to the documentation stage (opened
+   here if none is open); the release notes say a tree with an item
+   named `none` no longer loads.
+
+**Sizing**: the audit half a day; the word, the check and the tests a
+day. Proof: the bar green with the golden unchanged, and the reference
+configuration validating on the branch.
