@@ -512,10 +512,10 @@ the first final version on PyPI (§41's open call).
 
 **Status: IN PROGRESS since 2026-10-03 on `feature/posix-identity` (the
 operator: "start 75"). Steps 1-4 done (step 1 by the operator,
-2026-10-03); step 5 waits for the operator's choice of how members are
-added at login, which step 1 showed is the only time they can be.** (The
-operator, 2026-10-03, on finding the owning group absent on a live
-machine: "Plan a second plugin", with the decisions recorded below.)
+2026-10-03); step 5's membership design is decided (below) and the step
+is paused at the operator's "stop for now".** (The operator, 2026-10-03,
+on finding the owning group absent on a live machine: "Plan a second
+plugin", with the decisions recorded below.)
 
 ### Context
 
@@ -804,7 +804,17 @@ standing mandate: a new secret owes the bootstrap its question).
    moves once, reviewed by hand). Tests: the line absent, an undeclared
    name and a non-posix target are each refused with the line to add;
    `posix: none` validates, changes nothing in the emission and carries
-   its note.
+   its note. **Membership at login (operator, 2026-10-03, after step
+   1):** a PAM session hook baked into the image -- an `optional`
+   `pam_exec` line in `/etc/pam.d/sshd` runs a small script at each
+   login that adds the user to every group whose member list names them;
+   the lists (one file per group, e.g. `/etc/csis/groups/coops.members`)
+   are kept current by the after-apply run, which also creates the group
+   with its OPA gid. It acts in the same login, survives `sftd`'s
+   delete-and-recreate of every account, and a failing hook never blocks
+   a login. Not chosen: a path unit on `/etc/passwd` and a periodic
+   timer (both race the login, so a first session can miss the group),
+   and the group alone (members still could not use the 2770 subtree).
 6. **Real SSH.** `ssh_proxy_command` on both runtimes, the posix
    `prove_login`, `CSIS_PROOF_SSH_KEY`, the bootstrap question and
    `set-secrets.sh`.
