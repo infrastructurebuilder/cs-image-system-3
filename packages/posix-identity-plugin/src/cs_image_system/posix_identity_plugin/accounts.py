@@ -77,16 +77,18 @@ def user_part(name: str, uid: int, shell: str = "/bin/bash") -> list[str]:
     ]
 
 
-def membership_part(group: str, members: list[str]) -> list[str]:
-    """Make ``group``'s supplementary members exactly ``members`` (sorted);
-    a member whose account does not stand yet is left out and named, so a
-    later run adds it (beside Okta the accounts arrive by sync)."""
+def membership_part(group: str, members: list[str], *, note_absent: bool = True) -> list[str]:
+    """Make ``group``'s supplementary members exactly the ``members`` whose
+    accounts stand (sorted). An absent member is left out -- and named when
+    ``note_absent``, so a later run adds it; beside Okta absence is the
+    normal state (accounts are made at login) and the login hook adds them."""
     g = _q(group)
     wanted = sorted(set(members))
     lines = [f"# members of {group}: {', '.join(wanted) or 'none'}", "present=()"]
     for m in wanted:
-        lines += [f"if getent passwd {_q(m)} >/dev/null; then present+=({_q(m)}); "
-                  f"else echo \"posix accounts: {m} has no account here yet; not a member of {group} until it does\" >&2; fi"]
+        absent = (f"echo \"posix accounts: {m} has no account here yet; not a member of {group} until it does\" >&2"
+                  if note_absent else ":")
+        lines += [f"if getent passwd {_q(m)} >/dev/null; then present+=({_q(m)}); else {absent}; fi"]
     lines += ["want=$(IFS=,; echo \"${present[*]:-}\")",
               f"have=$(getent group {g} | cut -d: -f4)",
               f"[ \"$have\" = \"$want\" ] || gpasswd -M \"$want\" {g} >/dev/null"]
@@ -151,5 +153,97 @@ def accounts_script(*, groups: dict[str, int], users: dict[str, int] | None = No
         lines += keys_part(user, ks)
     for group, ads in sorted((admins or {}).items()):
         lines += sudo_part(group, ads)
+    lines += ["echo 'posix accounts: in place'"]
+    return "\n".join(lines) + "\n"
+
+
+# ------------------------------------------------- membership at login (step 5)
+#
+# Beside Okta, OPA's agent makes each account at a login and deletes it later
+# (`userdel` drops every supplementary group), so a membership written after an
+# apply would not hold (stage 75 step 1, observed on coops-model-005). The
+# image carries a PAM session hook instead: at each login it adds the user to
+# every group whose member list names them. The lists are files the
+# after-apply run keeps current; the hook only reads them.
+
+GROUPS_DIR = "/etc/csis/groups"
+KEYS_DIR = "/etc/csis/keys"
+LOGIN_HOOK = "/usr/local/sbin/csis-group-login"
+PAM_FILE = "/etc/pam.d/sshd"
+PAM_LINE = f"session optional pam_exec.so quiet {LOGIN_HOOK}"
+
+#: the hook itself: never fails a login (pam_exec is `optional`, and it exits 0)
+LOGIN_HOOK_SCRIPT = f"""#!/bin/bash
+# cs-image-system (stage 75): at each login, join the user to every group whose
+# member list ({GROUPS_DIR}/<group>.members, one name a line) names them, and
+# install their keys when {KEYS_DIR}/<user> exists. Run by pam_exec; never fails.
+[ "${{PAM_TYPE:-}}" = "open_session" ] || exit 0
+user="${{PAM_USER:-}}"
+[ -n "$user" ] && getent passwd "$user" >/dev/null || exit 0
+for list in {GROUPS_DIR}/*.members; do
+  [ -e "$list" ] || continue
+  group=$(basename "$list" .members)
+  grep -qxF -- "$user" "$list" || continue
+  getent group "$group" >/dev/null || continue
+  id -nG "$user" | tr ' ' '\\n' | grep -qxF -- "$group" || gpasswd -a "$user" "$group" >/dev/null 2>&1 || true
+done
+if [ -f "{KEYS_DIR}/$user" ]; then
+  home=$(getent passwd "$user" | cut -d: -f6)
+  install -d -m 0700 -o "$user" -g "$(id -g "$user")" "$home/.ssh" 2>/dev/null &&
+    install -m 0600 -o "$user" -g "$(id -g "$user")" "{KEYS_DIR}/$user" "$home/.ssh/authorized_keys" 2>/dev/null || true
+fi
+exit 0
+"""
+
+
+def login_hook_part() -> list[str]:
+    """Install the hook and its PAM line (idempotent; baked into an image)."""
+    return [
+        "# the login hook: members join their groups at each login (stage 75)",
+        f"install -d -m 0755 {GROUPS_DIR}",
+        f"install -d -m 0700 {KEYS_DIR}",
+        f"cat > {LOGIN_HOOK} <<'CSIS_LOGIN_HOOK'",
+        *LOGIN_HOOK_SCRIPT.rstrip("\n").splitlines(),
+        "CSIS_LOGIN_HOOK",
+        f"chmod 0755 {LOGIN_HOOK}",
+        f"grep -qxF {_q(PAM_LINE)} {PAM_FILE} || echo {_q(PAM_LINE)} >> {PAM_FILE}",
+    ]
+
+
+def member_list_part(group: str, members: list[str]) -> list[str]:
+    """``group``'s member list for the login hook is exactly ``members``."""
+    body = "".join(f"{m}\n" for m in sorted(set(members)))
+    path = _q(f"{GROUPS_DIR}/{group}.members")
+    return [f"# the member list of {group}, read by the login hook",
+            f"install -d -m 0755 {GROUPS_DIR}",
+            f"printf '%s' {_q(body)} > {path}.csis && install -m 0644 {path}.csis {path} && rm -f {path}.csis"]
+
+
+def keys_file_part(user: str, keys: list[str]) -> list[str]:
+    """``user``'s keys for the login hook to install (written only when declared)."""
+    body = "".join(k.strip() + "\n" for k in keys if k.strip())
+    if not body:
+        return []
+    path = _q(f"{KEYS_DIR}/{user}")
+    return [f"# the keys of {user}, installed by the login hook",
+            f"install -d -m 0700 {KEYS_DIR}",
+            f"printf '%s' {_q(body)} > {path}.csis && install -m 0600 {path}.csis {path} && rm -f {path}.csis"]
+
+
+def groups_script(*, groups: dict[str, int], members: dict[str, list[str]],
+                  keys: dict[str, list[str]] | None = None) -> str:
+    """For groups another provider owns (Okta): each group with its gid,
+    its member list for the login hook, and the members whose accounts
+    stand now joined at once; optionally the keys the hook installs. No
+    account is created -- the provider makes those."""
+    lines = header()
+    for name, gid in sorted(groups.items()):
+        lines += group_part(name, gid)
+    for group, ms in sorted(members.items()):
+        lines += member_list_part(group, ms)
+        lines += membership_part(group, ms, note_absent=False)
+        lines += [f"# members of {group} without an account here join it at their next login (the login hook)"]
+    for user, ks in sorted((keys or {}).items()):
+        lines += keys_file_part(user, ks)
     lines += ["echo 'posix accounts: in place'"]
     return "\n".join(lines) + "\n"

@@ -146,6 +146,14 @@ class PosixGroupBuilder(_NoGeneration, GroupBuilderBase[PosixGroupBuilderModel])
                                         admins={group: admins} if self.model.admin_sudo else None,
                                         shell=self.model.shell)
 
+    # ----------------------------------- beside another provider (step 5)
+    def login_hook_commands(self) -> list[str]:
+        return [f"sudo bash -s <<'{HEREDOC}'", *accounts.header(), *accounts.login_hook_part(), HEREDOC]
+
+    def groups_script(self, groups: dict[str, int], members: dict[str, list[str]],
+                      keys: dict[str, list[str]] | None = None) -> str | None:
+        return accounts.groups_script(groups=groups, members=members, keys=keys)
+
     def configuration_errors(self) -> list[str]:
         """A posix group's members and admins are accounts this plugin
         creates, so each must be a user of a posix user builder with a uid."""

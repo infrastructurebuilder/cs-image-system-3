@@ -125,3 +125,50 @@ def test_beside_okta_a_member_without_an_account_waits_and_the_next_run_adds_it(
     assert "SCRIPT_EXIT=0" in proc.stdout and "SECOND_EXIT=0" in proc.stdout, proc.stdout
     assert "coops:x:60123:avery.alpha\n" in proc.stdout and "coops:x:60123:avery.alpha,blake.bravo" in proc.stdout, proc.stdout
     assert "blake.bravo has no account here yet; not a member of coops until it does" in proc.stderr, proc.stderr
+
+
+# ------------------------------------------------- beside Okta (step 5)
+
+def _hook_install() -> str:
+    return "\n".join(accounts.header() + accounts.login_hook_part()) + "\n"
+
+
+def _login(user: str) -> str:
+    return f"PAM_TYPE=open_session PAM_USER={user} {accounts.LOGIN_HOOK}; echo HOOK_EXIT=$?"
+
+
+@pytest.mark.parametrize("family", FAMILIES)
+def test_the_login_hook_survives_the_agents_delete_and_recreate(family):
+    """sftd makes an account at a login and deletes it later, and userdel
+    drops it from every group (stage 75 step 1). The hook puts it back at
+    the next login; a user the list does not name is never added."""
+    groups = accounts.groups_script(groups={"coops": 60123}, members={"coops": ["avery.alpha"]})
+    after = "\n".join([
+        "bash /tmp/install.sh && bash /tmp/install.sh; echo INSTALL_EXIT=$?",
+        "echo PAM_LINES=$(grep -c csis-group-login /etc/pam.d/sshd)",
+        "useradd -m avery.alpha; useradd -m blake.bravo",           # as the agent would, at a login
+        _login("avery.alpha"), _login("blake.bravo"),
+        "getent group coops",
+        "userdel -r avery.alpha 2>/dev/null; getent group coops",   # the agent deletes it ...
+        "useradd -m avery.alpha", _login("avery.alpha"),            # ... and makes it again at the next login
+        "getent group coops",
+        "PAM_TYPE=close_session PAM_USER=blake.bravo " + accounts.LOGIN_HOOK + "; echo CLOSE_EXIT=$?",
+    ])
+    setup = "\n".join(["cat > /tmp/install.sh <<'CSIS_INSTALL'", _hook_install().rstrip("\n"), "CSIS_INSTALL"])
+    out = _run(family, setup, groups, after).stdout
+    assert "SCRIPT_EXIT=0" in out and "INSTALL_EXIT=0" in out and "PAM_LINES=1" in out, out
+    assert out.count("HOOK_EXIT=0") == 3 and "CLOSE_EXIT=0" in out, out
+    lines = [ln for ln in out.splitlines() if ln.startswith("coops:")]
+    assert lines == ["coops:x:60123:avery.alpha", "coops:x:60123:", "coops:x:60123:avery.alpha"], out
+
+
+@pytest.mark.parametrize("family", FAMILIES)
+def test_the_login_hook_installs_declared_keys(family):
+    key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHookHookHookHookHookHookHookHookHook0000 avery"
+    groups = accounts.groups_script(groups={"coops": 60123}, members={"coops": ["avery.alpha"]},
+                                    keys={"avery.alpha": [key]})
+    setup = "\n".join(["cat > /tmp/install.sh <<'CSIS_INSTALL'", _hook_install().rstrip("\n"), "CSIS_INSTALL"])
+    after = "\n".join(["bash /tmp/install.sh", "useradd -m avery.alpha", _login("avery.alpha"),
+                       "cat ~avery.alpha/.ssh/authorized_keys", "stat -c '%a %U' ~avery.alpha/.ssh/authorized_keys"])
+    out = _run(family, setup, groups, after).stdout
+    assert "SCRIPT_EXIT=0" in out and key in out and "600 avery.alpha" in out, out

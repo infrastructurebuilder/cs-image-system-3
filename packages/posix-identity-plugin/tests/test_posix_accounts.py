@@ -79,3 +79,28 @@ def test_whatever_reaches_the_script_is_quoted(hostile):
     script = accounts.accounts_script(groups={hostile: 3101})
     _bash_n(script)
     assert f"groupadd -g 3101 {hostile}" not in script
+
+
+# ------------------------------------------------- beside Okta (step 5)
+
+def test_the_login_hook_is_installed_idempotently_and_never_fails_a_login():
+    text = "\n".join(accounts.login_hook_part())
+    _bash_n("\n".join(accounts.header() + accounts.login_hook_part()) + "\n")
+    _bash_n(accounts.LOGIN_HOOK_SCRIPT)
+    assert f"grep -qxF '{accounts.PAM_LINE}' /etc/pam.d/sshd || echo '{accounts.PAM_LINE}' >> /etc/pam.d/sshd" in text
+    assert accounts.PAM_LINE == "session optional pam_exec.so quiet /usr/local/sbin/csis-group-login"
+    hook = accounts.LOGIN_HOOK_SCRIPT
+    assert '[ "${PAM_TYPE:-}" = "open_session" ] || exit 0' in hook and hook.rstrip().endswith("exit 0")
+    assert "|| true" in hook                                   # a failing gpasswd or install never fails the login
+
+
+def test_the_groups_script_makes_groups_and_lists_but_no_accounts():
+    script = accounts.groups_script(groups={"coops": 180007}, members={"coops": ["mykel.alvis", "avery.alpha"]})
+    _bash_n(script)
+    assert "groupadd -g 180007 coops" in script and "/etc/csis/groups/coops.members" in script
+    assert "useradd" not in script and "sudoers" not in script and "/etc/csis/keys" not in script
+    assert "has no account here yet" not in script, "beside Okta an absent account is the normal state"
+    assert "join it at their next login" in script
+    with_keys = accounts.groups_script(groups={"coops": 180007}, members={"coops": ["mykel.alvis"]},
+                                       keys={"mykel.alvis": ["ssh-ed25519 AAAA mykel"]})
+    assert "/etc/csis/keys/mykel.alvis" in with_keys

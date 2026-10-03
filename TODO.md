@@ -511,11 +511,11 @@ the first final version on PyPI (§41's open call).
 ## 75. A POSIX identity plugin, alone and beside Okta
 
 **Status: IN PROGRESS since 2026-10-03 on `feature/posix-identity` (the
-operator: "start 75"). Steps 1-4 done (step 1 by the operator,
-2026-10-03); step 5's membership design is decided (below) and the step
-is paused at the operator's "stop for now".** (The operator, 2026-10-03,
-on finding the owning group absent on a live machine: "Plan a second
-plugin", with the decisions recorded below.)
+operator: "start 75", "resume step 5"). Steps 1-4 done; step 5 in two
+parts, 5a (the posix side: the login hook and the groups-only script)
+done, 5b (the Okta side) next.** (The operator, 2026-10-03, on finding
+the owning group absent on a live machine: "Plan a second plugin", with
+the decisions recorded below.)
 
 ### Context
 
@@ -542,7 +542,11 @@ the login proof (`sft ssh`) and the workload token.
   keys after users are synced from Okta.
 - The group is baked; the users come at launch.
 - For Okta groups the bake learns the gid through a packer variable
-  filled by the existing gid shim.
+  filled by the existing gid shim. SUPERSEDED 2026-10-03 after step 1:
+  the group is created by the after-apply run only (which must visit
+  every machine anyway for the member lists, and is the only thing that
+  heals a standing machine); only the login hook is baked, and it needs
+  no gid.
 - Login proof for the new plugin: real SSH with a proof key.
 - Proved by fixture, live, and a starter.
 - **Id collisions**: a name known to two sides whose supplied ids differ
@@ -815,6 +819,22 @@ standing mandate: a new secret owes the bootstrap its question).
    a login. Not chosen: a path unit on `/etc/passwd` and a periodic
    timer (both race the login, so a first session can miss the group),
    and the group alone (members still could not use the 2770 subtree).
+   **5a, done 2026-10-03:** the posix plugin's login hook
+   (`/usr/local/sbin/csis-group-login`, an `optional` `pam_exec` session
+   line in `/etc/pam.d/sshd`, both installed idempotently by
+   `login_hook_commands()`), the member lists
+   `/etc/csis/groups/<group>.members` and optional keys files
+   `/etc/csis/keys/<user>`, and `groups_script()` for groups another
+   builder owns (the group with its gid, its list, present members
+   joined now, no account created); the contract methods
+   `login_hook_commands`, `groups_script` and `configuration_notes` on
+   `GroupBuilderBase`. Proved in the container leg on both families: a
+   member is added at login, dropped by `userdel`, and added again at
+   the next login; an unlisted user never is; the PAM line is written
+   once; keys are installed. **5b, next:** the Okta side -- the required
+   `posix:` line and its checks, the hook baked into Okta-owned images,
+   the group created after apply with OPA's gid, the fixture, the
+   starters, the golden and the docs.
 6. **Real SSH.** `ssh_proxy_command` on both runtimes, the posix
    `prove_login`, `CSIS_PROOF_SSH_KEY`, the bootstrap question and
    `set-secrets.sh`.

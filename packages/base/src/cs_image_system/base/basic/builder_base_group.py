@@ -183,6 +183,27 @@ class GroupBuilderBase(BuilderBase[TGROUP]):
         builder puts nothing on machines after launch. Default: None."""
         return None
 
+    def login_hook_commands(self) -> list[str]:
+        """Bake commands that make members join their groups at each login
+        (a builder another provider's builder delegates POSIX groups to).
+        Default: none."""
+        return []
+
+    def groups_script(self, groups: dict[str, int], members: dict[str, list[str]],
+                      keys: dict[str, list[str]] | None = None) -> str | None:
+        """A root script for groups ANOTHER builder owns (beside Okta): each
+        group with its gid and its member list for the login hook, the
+        members whose accounts stand joined now; no account is created.
+        None when this builder cannot. Default: None."""
+        return None
+
+    def configuration_notes(self) -> list[str]:
+        """True things about this builder's declarations that are neither
+        errors nor drift (a choice the team made that keeps something off
+        the machines). `validate` and the state query print them. Default:
+        nothing."""
+        return []
+
     def configuration_errors(self) -> list[str]:
         """What is wrong with this builder's declarations that only the
         plugin can see (a posix group's member with no account to create).
