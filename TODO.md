@@ -613,6 +613,41 @@ group_builders:
 that the posix builder implements and the Okta builder calls through
 `ctx.group_builders`. Base images declare `identity_types: [okta, posix]`.
 
+**`posix` is REQUIRED on an `okta-tf` builder and has no default**
+(operator, 2026-10-03). An opt-in fix would leave the defect as the
+silent default, so there is no way to run the managed Okta builder
+without it:
+
+- The field is a foreign key to a group builder, declared with
+  `fk_field`, so stage 48's rule applies: a name that resolves to no
+  declared builder is refused at `validate`. One more check refuses a
+  target whose type is not `posix`.
+- Absent is refused, naming the builder and the line to add. There is
+  no escape value: **`none` is an excluded identifier**. The string
+  joins `OOPS_DEFAULTS`
+  ([constants.py:17](packages/base/src/cs_image_system/base/constants.py#L17)),
+  which already holds `default`, `self`, the empty string and null, so
+  `posix: none` reads as unset and is refused like an absent line.
+- That list is read by every foreign key in the system
+  ([orchestrator.py:745](packages/base/src/cs_image_system/base/orchestrator.py#L745),
+  [registry.py:240](packages/base/src/cs_image_system/base/registry.py#L240)),
+  so the exclusion is system-wide: a reference to `none` is unset
+  wherever it is written. Nothing refuses an item NAMED after one of
+  those words today (such an item is merely unreachable), so this
+  stage adds that rule to `validate`: no declared item may be named
+  `none`, `default`, `self` or the empty string. Checked 2026-10-03:
+  no fixture, starter or reference-configuration item is named so.
+- It is the `okta-tf` GROUP builder that requires it. The user builder
+  of the same type and the lookup-only builder (`okta-tf-ro`), which
+  manages no groups, are left as they are: the field is neither
+  required nor read there.
+- The cost, stated: a tree with an `okta-tf` builder fails `validate`
+  on the release that carries this until it declares a posix builder
+  and names it. `cfg/` is the team's, so `init-config` cannot add the
+  lines; the refusal's message carries them, the release notes say so,
+  and the fixture, the three Okta-bearing starters and the reference
+  configuration gain them in the steps below.
+
 #### Id resolution (the operator's rule)
 
 One core pass, `resolve_posix_ids`, used at three moments. Sides are
@@ -681,9 +716,15 @@ standing mandate: a new secret owes the bootstrap its question).
    after apply; the launch assertion; `group_gid` as a packer variable
    and the run-script line; the bake and machine moments of the
    resolver.
-5. **Beside Okta.** `posix:` / `posix_ssh_keys:` on the Okta builders,
-   groups only, the wait for synced accounts; the fixture's Okta groups
-   gain the delegate (golden moves once, reviewed by hand).
+5. **Beside Okta.** `none` joins `OOPS_DEFAULTS` and the reserved
+   after any word in that list; `posix:`
+   (required, no default, a foreign key whose target must be of type
+   `posix`) and `posix_ssh_keys:` on the `okta-tf` builder, groups only,
+   the wait for synced accounts. The fixture and the three starters
+   gain a posix builder and the line in this same commit, or they no
+   longer validate (golden moves once, reviewed by hand). Tests: absent,
+   `none`, an undeclared name and a non-posix target are each refused
+   with the line to add.
 6. **Real SSH.** `ssh_proxy_command` on both runtimes, the posix
    `prove_login`, `CSIS_PROOF_SSH_KEY`, the bootstrap question and
    `set-secrets.sh`.
@@ -691,8 +732,10 @@ standing mandate: a new secret owes the bootstrap its question).
    3.5, no OPA secrets), `init-config --from standard-aws-posix`,
    `CI_SETUP.md` and the starter tests extended to four trees.
 8. **Live, beside Okta** (sibling `develop`; applying runs are the
-   operator's). Declare `posix-local`, set `posix:` on `oktagroups`;
-   one applying run heals coops-model-005 in place. Proof:
+   operator's). The sibling takes the release and, in the SAME commit,
+   declares `posix-local` and sets `posix:` on `oktagroups` -- the
+   release alone would fail its `validate`, so the two never land
+   apart. One applying run heals coops-model-005 in place. Proof:
    `getent group coops` shows OPA's gid, members listed, the subtree
    shows the name, `sft ssh` still works, `perform` green.
 9. **Live, standalone** (sibling `develop` only, removed before `main`
@@ -724,6 +767,11 @@ standing mandate: a new secret owes the bootstrap its question).
 - **Membership of a not-yet-existing account**: whether the group line
   may name it early or must wait is decided by step 1 and the container
   test; the plan assumes waiting.
+- **A breaking release, by decision**: every tree with an `okta-tf`
+  builder must add two declarations when it takes the release that
+  carries step 5. Today that is the reference configuration alone.
+- **`none` as a reserved word is system-wide**, not only for this
+  field; a YAML `null` was already unset, the string now is too.
 - **Size**: about ten working days. Steps 2-4 are useful on their own
   (the defect is fixed for standalone); step 8 is the one that fixes
   coops.
