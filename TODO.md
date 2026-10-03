@@ -7,18 +7,21 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress**. §70, the bootstrap, LANDED
-2026-10-02 with its step 6 (2a33c6d), all its planned steps done; it
-stays part of the ongoing work by the operator's word (standing
-decisions, below). No hygiene bundle is open (IX LANDED WHOLE
-2026-10-02, the next issue opens X) and no documentation stage is open
-(§74 LANDED 2026-10-01). Next by the operator's word: §65, §66 or §30.
+Current stage: **none in progress**. §76, reserved names, LANDED
+2026-10-03 (980963e): `none` joined `OOPS_DEFAULTS`, a reserved name is
+refused where its file is read, a reference written `none` is refused at
+`validate`, and the `config:` key guard is switched on. §77, the
+documentation stage it opened, is OPEN. No hygiene bundle is open (IX
+LANDED WHOLE 2026-10-02, the next issue opens X). Planned, by the
+operator's word: §75 (the POSIX identity plugin; its step 5 relies on
+§76), §65, §66 and §30.
 
-Releases: dev9 carries §70 step 5 (the GCP section), dev10 hygiene
-bundle IX; a release (dev11) is owed for §70 step 6. The reference
-configuration runs dev10 with its GitHub, AWS and GCP answers and root
-committed and current in CI; its Okta answers wait, uncommitted, for
-dev11, and its ruleset re-apply (`1 to add`) is the operator's.
+Releases: dev11 (2026-10-02) carries §70 step 6; the reference
+configuration runs it with all four bootstrap sections committed and its
+bootstrap root applied, the ruleset included. A release is owed for §76,
+and it is breaking by decision: a tree that names anything `none`, or
+uses a guarded word as a `config:` key, no longer loads (the reference
+configuration validates on it).
 
 Recently landed: §73 (2026-10-01), the coops model replaced onto a
 second EFS filesystem -- `coops-model-005`, generation 5, alias `gar`,
@@ -795,193 +798,6 @@ standing mandate: a new secret owes the bootstrap its question).
   coops.
 - **Order against §65**: the walk would be simpler on the Okta-free
   starter this stage produces; that is the operator's call, not assumed.
-
-## 76. `none` is a reserved name, and the reserved-name rule is tested
-
-**Status: DONE on `feature/reserved-names` 2026-10-03, all six steps;
-waiting for the operator's word to merge.** The reference configuration
-validates on the branch (the operator's `just cli validate`, 2026-10-03
-06:21: "Validation successful.", 19 users, 5 groups, 6 storages, 7
-images, 2 instances). (The operator, 2026-10-03: "Create a new stage to
-exclude the string 'none' as a name within the system ... There should
-be validators that check 'name' against OOPS_DEFAULTS and tests that
-validate that validation." §75 step 5 depends on it.)
-
-**What stands today** (read and probed 2026-10-03, not assumed). The
-operator remembered a check that refused the words of `OOPS_DEFAULTS` as
-identifiers, and believed it lost. The check is there; what is missing
-is the word, the tests, and a message that says where:
-
-- The MODEL check stands. `NameTyped.__post_init__`
-  ([builder_model.py:60-66](packages/base/src/cs_image_system/base/models/builder_model.py#L60-L66))
-  and `RootItem.__post_init__`
-  ([root_item.py:34-43](packages/base/src/cs_image_system/base/models/root_item.py#L34-L43))
-  refuse a name or an alias in `OOPS_DEFAULTS`, after `safe_name`, so
-  `Default` and ` self ` are refused too. Probed: `default`, `self` and
-  the empty string are refused; `none` is ACCEPTED.
-- `OOPS_DEFAULTS` is `[default, None, "", self]`
-  ([constants.py:17](packages/base/src/cs_image_system/base/constants.py#L17)):
-  the Python value `None` is in it, the string `none` is not.
-- NO TEST holds the rule. Nothing under `tests/` or any package's tests
-  asserts either refusal, which is how it could vanish unseen.
-- The refusal is a pydantic error raised when the model is constructed:
-  it names neither the file nor the entry. There has never been a name
-  check at the read itself.
-- Whether every named model reaches the check is unproved: 79 classes
-  derive from `NameTyped`, `RootItem` or a builder model, some with
-  their own `__post_init__` (a user's `name` is re-declared as an
-  encrypted string).
-
-**Decided (operator, 2026-10-03).** The reserved names are exactly
-`OOPS_DEFAULTS` with `none` added: for any configuration item, of any
-kind, the `name` field cannot be one of those values. And the rule for
-values: **code where a configuration value COULD BE `none` deals with
-that value explicitly.** Membership in `OOPS_DEFAULTS` never gives the
-word a meaning; a field that accepts `none` (the update policy, §75's
-`posix`) tests for it by name, before any "is it unset" test.
-
-**`INVALID_CONFIG_KEYS` is a different check; step 6 switched it on.** (An
-earlier revision of this plan called it the lost name check and planned
-to delete it. Both were wrong.) The list
-([constants.py:85-89](packages/base/src/cs_image_system/base/constants.py#L85-L89):
-`self`, `this`, `same`, `runtime`, `os`, `default`, `defaults`, `any`,
-`anything`, `none`, `null`, the empty string, `timestamp`, `date`,
-`datetime`, `config`, `configuration`) guards the KEYS of the top-level
-`config:` mapping, not names: its one caller, `validate_initial_cycled`
-([global_context.py:893-914](packages/base/src/cs_image_system/base/global_context.py#L893-L914)),
-refused a `config:` holding such a key "as it may cause issues with
-templating". It has never run in the recorded history: the list, the
-function and its call arrived together on 2026-07-03 with the function
-and the call already commented out, and the unused import was removed
-the next day. It is not a casualty of pydantic. The concern may still be
-real, since `config:` keys are still merged into the template context
-([template_utils.py:305](packages/base/src/cs_image_system/base/template_utils.py#L305));
-step 6 found out.
-
-**Steps.**
-
-1. **The audit, before the word is added.** `OOPS_DEFAULTS` is read at
-   about forty sites, and most test a VALUE, not a name: a network, a
-   runtime, an ssh username, an image owner, an architecture, a foreign
-   key. Adding `none` makes the string unset at every one. Each site is
-   read and listed in the stage with one of two verdicts. Where `none`
-   has no meaning for the field, unset is right and nothing changes.
-   Where `none` COULD BE a real value, the site is rewritten to handle
-   the word explicitly, by name, so it no longer depends on what the
-   list holds. Known cases: the update policy `policy: none`
-   ([update_policy.py:34](packages/base/src/cs_image_system/base/models/update_policy.py#L34),
-   declared in the `complete` starter) and `--only none` on the command
-   line; the audit finds the rest.
-2. **The word.** `none` joins `OOPS_DEFAULTS`; any site step 1 marked
-   "to be exempted" is changed in the same commit. Golden
-   byte-identical.
-3. **A read-time refusal, added.** Where each configuration file is seen
-   with its own path, a `name` (and each alias) in `OOPS_DEFAULTS` is
-   refused with the file, the list it sits in and the word, before any
-   model is built -- for every kind of item, with no exception. It is
-   new, not restored: it exists so the message says where. The model
-   check stays as the backstop for objects built in code.
-4. **The tests.** Parametrised over every word in `OOPS_DEFAULTS`, in
-   its case and spacing variants: (a) each registered named model class
-   refuses it as a name and as an alias, the class list taken from the
-   registry so a new model is covered without editing the test; (b) a
-   copy of the frozen fixture with one item renamed to the word, per
-   kind (group, user, storage, image, instance, each builder kind),
-   fails `validate` naming the file and the word; (c) a reference
-   written as `none` where the field gives it no meaning is unset, not a
-   dangling key; (d) every site the audit rewrote keeps its explicit
-   meaning -- `policy: none` and `--only none` among them -- and a test
-   per site fails if the handling is removed; (e) a test that fails if
-   `OOPS_DEFAULTS` loses a word.
-5. **Records.** CONFIGURATION names the reserved words where it
-   describes `name`; an item goes to the documentation stage (opened
-   here if none is open); the release notes say a tree with an item
-   named `none` no longer loads.
-6. **The `config:` key guard: test, then ask.** Done 2026-10-03. The
-   probe: each of the seventeen words as a key of the fixture's document
-   `config:`, one full dry generation each, against a baseline -- all
-   seventeen loaded and generated, 117 of 118 files byte-identical, the
-   118th the run-local `run-summary.json` differing only by its
-   temporary path; and `{{ config.<word> }}` rendered through the real
-   template context gives the word's own value for every one. So none of
-   them collides today. What DOES collide is a key named after a mapping
-   method (`items`, `keys`, `values`, `get`, `update`, `copy`, `pop`):
-   `{{ config.items }}` renders the method, silently. The operator's
-   decision on that evidence: **switch the guard on, the whole list**
-   (method names stay unguarded). Done: the seventeen words are refused
-   as keys of a document's top-level `config:` -- each `cfg/` file and
-   each overlay, where it is read, naming the file and the key, in any
-   case -- as the original guard checked the merged document's `config:`
-   (its unrelated `runtime_builders` requirement was not carried over).
-   The commented-out original is removed; CONFIGURATION 2.3 lists the
-   words. No tree carries one (fixture, starters, reference
-   configuration).
-
-**The audit (step 1, 2026-10-03; corrected in step 2).** Every site that
-reads `OOPS_DEFAULTS`, read in place, and every model class the frozen
-fixture loads (31), probed with each word as a name and an alias. The
-first reading said no site needed rewriting; probing the references
-proved two did, and step 2 rewrites them. The verdicts:
-- **Name checks -- `none` now refused too, as wanted.** `NameTyped` and
-  `RootItem` (name and aliases),
-  [global_context.py:1339](packages/base/src/cs_image_system/base/global_context.py#L1339)
-  (a builder),
-  [ia_config.py:126](packages/base/src/cs_image_system/base/models/ia_config.py#L126)
-  (an executable),
-  [registry.py:240](packages/base/src/cs_image_system/base/registry.py#L240)
-  (a registered default). `RuntimeNetworkingModel`'s own `name`
-  ([runtime.py:74](packages/base/src/cs_image_system/base/models/runtime.py#L74))
-  and `ImageImageBuilderSubconfig`'s are DERIVED when unset (from the
-  network, from the image builder), so their effective name is never
-  reserved. `utils.validate_names` reads the list and has no caller.
-- **References -- `none` is REFUSED, explicitly (rewritten in step 2).**
-  A reference resolves its default only by equality with the field's own
-  (`field_set_to_default`,
-  [orchestrator.py:141-147](packages/base/src/cs_image_system/base/orchestrator.py#L141-L147)),
-  so `default` takes the default builder but `none` names nothing. With
-  the word in the list, the generic foreign key
-  ([orchestrator.py:745](packages/base/src/cs_image_system/base/orchestrator.py#L745))
-  would have stopped recording it as dangling, and the state-backend
-  chain
-  ([collector.py:369](packages/hashicorp-utils/src/cs_image_system/hashicorp_utils/collector.py#L369))
-  would have put the root's state on the DEFAULT backend -- the opposite
-  of `none`. Both now refuse it by name at `validate` (which every run
-  calls first), with what to write instead. An item's `type` written
-  `none` was and stays refused at load ("builder 'none' ... not
-  configured"). The rest take their default and are unaffected in
-  practice: an image's `image_builder` (image.py:92,
-  global_context.py:1515), the default runtime for a state backend
-  (orchestrator.py:56-60), a builder's `runtime` (builder_model.py:285,
-  which refuses it there).
-- **Values with a fallback -- `none` now takes the fallback.** The bake
-  user (bake_user.py:48), `ssh_username`
-  (os_builder_runtime_config.py:185), the machine type
-  (builder_base_os.py:136-140, both packer sources), a runtime's network
-  and subnet (both runtime models, gcp_packer_source.py:123-126,
-  tf_gcp_storage_builder.py:331, tf_instance_builder.py:39), an image
-  owner (gcp_packer_source.py:66), an architecture (resolve.py:150), a
-  user's email (user.py:149: derived from the template), the OPA
-  credentials and `api_host` (okta_tf_workspace.py:189, :208).
-- **Fields that give `none` a meaning -- explicit already, by name, and
-  the list never reaches them.** The update policy
-  ([update_policy.py:34](packages/base/src/cs_image_system/base/models/update_policy.py#L34),
-  `POLICY_NONE`) and `--only none`
-  ([run_lifecycles.py:488](packages/base/src/cs_image_system/base/commands/run_lifecycles.py#L488),
-  set by the CLI and by retention). §75's `posix: none` will be the
-  third.
-
-**The one change in behaviour, stated.** A VALUE written `none` in a
-field with a fallback used to pass through as a literal (a network
-`none` reached the provider and failed there); now it reads as unset and
-takes the fallback. A REFERENCE written `none` was refused and still is,
-with a clearer message. No tree carries either (searched: the fixture,
-the three starters, the reference configuration), so nothing that loads
-today changes.
-
-**Sizing**: the audit half a day; the word, the refusal and the tests a
-day; the `config:` probe two hours, then the operator's answer. Proof:
-the bar green with the golden unchanged, and the reference configuration
-validating on the branch.
 
 ## 77. Documentation stage: reserved names
 
