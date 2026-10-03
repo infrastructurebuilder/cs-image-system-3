@@ -799,11 +799,13 @@ standing mandate: a new secret owes the bootstrap its question).
 ## 76. `none` is a reserved name, and the reserved-name rule is tested
 
 **Status: DONE on `feature/reserved-names` 2026-10-03, all six steps;
-waiting for the operator's word to merge.** (The operator, 2026-10-03:
-"Create a new stage to exclude the string 'none' as a name within the
-system ... There should be validators that check 'name' against
-OOPS_DEFAULTS and tests that validate that validation." §75 step 5
-depends on it.)
+waiting for the operator's word to merge.** The reference configuration
+validates on the branch (the operator's `just cli validate`, 2026-10-03
+06:21: "Validation successful.", 19 users, 5 groups, 6 storages, 7
+images, 2 instances). (The operator, 2026-10-03: "Create a new stage to
+exclude the string 'none' as a name within the system ... There should
+be validators that check 'name' against OOPS_DEFAULTS and tests that
+validate that validation." §75 step 5 depends on it.)
 
 **What stands today** (read and probed 2026-10-03, not assumed). The
 operator remembered a check that refused the words of `OOPS_DEFAULTS` as
