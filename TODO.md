@@ -511,11 +511,11 @@ the first final version on PyPI (§41's open call).
 ## 75. A POSIX identity plugin, alone and beside Okta
 
 **Status: IN PROGRESS since 2026-10-03 on `feature/posix-identity` (the
-operator: "start 75"). Step 1 is the operator's observation on
-coops-model-005; step 2 proceeds meanwhile, since it depends on nothing
-step 1 can find.** (The operator, 2026-10-03, on finding the owning
-group absent on a live machine: "Plan a second plugin", with the
-decisions recorded below.)
+operator: "start 75"). Steps 1-4 done (step 1 by the operator,
+2026-10-03); step 5 waits for the operator's choice of how members are
+added at login, which step 1 showed is the only time they can be.** (The
+operator, 2026-10-03, on finding the owning group absent on a live
+machine: "Plan a second plugin", with the decisions recorded below.)
 
 ### Context
 
@@ -712,10 +712,26 @@ standing mandate: a new secret owes the bootstrap its question).
 
 ### Steps (one commit each; merge on the operator's word at step ends)
 
-1. **Observe.** USER: on coops-model-005, `getent group coops`,
-   `id <a member>`, `ls -ldn` and `ls -ld` of each mount's group
-   subtree, and whether sftd rewrites `/etc/group`. Recorded in the
-   stage; it fixes what the reconcile must tolerate.
+1. **Observe.** Done 2026-10-03 by the operator on coops-model-005. (a)
+   `getent group coops` exits 2: the group is absent; `/mnt/data/coops`
+   (2770) and `/mnt/efs` are owned by the bare gid 180007 (OPA's gid for
+   coops), which no account is in -- the operator's own account (uid/gid
+   150006, groups 150006 and `sft-admin` 90000) cannot use the group's
+   subtree except through sudo. (b) Accounts live in the local files
+   (`nsswitch`: `files`, `files [SUCCESS=merge] systemd` for groups; no
+   OPA NSS module), written by `sftd`'s "osedit" through `groupadd`,
+   `useradd`, `userdel` -- targeted edits, never a rewrite of
+   `/etc/group`. (c) The accounts are JUST-IN-TIME: `sftd` created
+   `mykel.alvis` at a login (22:20:39) and had deleted it that morning
+   (09:07:26); the CI workload account
+   `wl_cs_image_system_testconfig_ci` lived from 12:58:47 to 13:00:26.
+   On creation it adds the user to its own `sft-admin` only; `userdel`
+   removes the user from every supplementary group. What this fixes: a
+   group the system creates stands (nothing in `sftd` touches it), but a
+   MEMBERSHIP written at apply time does not hold -- at apply time most
+   members have no account, and every account `sftd` deletes loses its
+   supplementary groups. Beside Okta, members must be added at login,
+   not at apply (step 5).
 2. **Decoupling.** Done 2026-10-03. The launch steps: a group builder's
    enrollment KIND (recorded in the launch parameters, unchanged) is
    rendered by whichever plugin registered it in the new core module
