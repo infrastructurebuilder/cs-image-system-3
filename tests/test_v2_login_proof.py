@@ -7,8 +7,9 @@ over `sft ssh` through the managed CI policy and records the verdict. A
 stopped machine is a skip and is never started; a silent registry, a
 duplicate hostname, a name the client cannot resolve and a refused login
 are each a named failed check; a group without workload names has nothing
-to prove. The client is stubbed at `run_sft`; the registry and the power
-state at the builder seams.
+to prove. The client is stubbed at `run_sft` (in the Okta plugin's
+`sft_login` since stage 75); the registry and the power state at the
+builder seams.
 """
 from __future__ import annotations
 
@@ -18,6 +19,7 @@ import pytest
 
 from cs_image_system.base import power_state as ps
 from cs_image_system.base.commands import login_proof as lp
+from cs_image_system.okta_opa_plugin import sft_login
 from tests.v2_support import V2Run
 
 CONNECTION, ROLE = "github-cs-image-system", "cs-image-system-ci"
@@ -48,7 +50,7 @@ def world(tmp_path: Path, monkeypatch):
         world["calls"].append(list(args))
         world.setdefault("envs", []).append(dict(env or {}))
         return world["sft"].get(args[0], (0, "uid=1001(cs-image-system-ci) gid=1001 groups=1001\ntest-001\n"))
-    monkeypatch.setattr(lp, "run_sft", fake_sft)
+    monkeypatch.setattr(sft_login, "run_sft", fake_sft)   # stage 75 step 2: the client seam moved to the plugin
     monkeypatch.setenv("OPA_TOKEN", "opa-token")
     try:
         yield run, world

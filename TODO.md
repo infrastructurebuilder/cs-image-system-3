@@ -716,8 +716,20 @@ standing mandate: a new secret owes the bootstrap its question).
    `id <a member>`, `ls -ldn` and `ls -ld` of each mount's group
    subtree, and whether sftd rewrites `/etc/group`. Recorded in the
    stage; it fixes what the reconcile must tolerate.
-2. **Decoupling.** The three contract moves above. Bar green with the
-   golden unchanged.
+2. **Decoupling.** Done 2026-10-03. The launch steps: a group builder's
+   enrollment KIND (recorded in the launch parameters, unchanged) is
+   rendered by whichever plugin registered it in the new core module
+   `launch_enrollment`; both renderers ask it, and a kind nothing
+   renders is refused rather than skipped. The Okta plugin's
+   `sftd_launch` registers `sftd-token` with the lines and tasks moved
+   there unchanged to the byte (the golden is unchanged, so every
+   machine's recorded user-data hash holds). The login proof: the core
+   keeps the targets, the skips and the record and asks the group
+   builder (`can_prove_login`, `login_identity`, `login_checks`); OPA's
+   checks and the `sft` client seam moved to the plugin's `sft_login`.
+   The runtime's `ssh_proxy_command` is NOT added here: it is an
+   addition, not a move, and lands in step 6 with its first user and its
+   tests.
 3. **The plugin, standalone.** Package, model, script parts, validate
    rules, `resolve_posix_ids` (configuration moment), the EL10 and
    Debian container tests of the script (idempotence, adoption,

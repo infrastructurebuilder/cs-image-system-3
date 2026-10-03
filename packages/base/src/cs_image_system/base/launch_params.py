@@ -23,6 +23,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from .capabilities import group_builder_of, storage_type_of
+from .launch_enrollment import enrollment_kind_for
 from . import generations
 from .lifecycles import Lifecycle
 
@@ -220,7 +221,9 @@ def user_data_template(params: dict[str, Any]) -> str:
     ``group_gid`` (number), ``efs`` (map storage -> {file_system_id,
     access_point_id}), ``filestore`` (map storage -> {ip_address,
     share_name}), ``sft_enrollment_token`` (sensitive; empty when no
-    enrollment). Shell parameter expansion is written ``$${...}`` so
+    enrollment; the name is historical -- it carries whatever credential
+    the group's identity plugin enrolls a machine with, and that plugin's
+    registered enrollment kind renders the lines that use it). Shell parameter expansion is written ``$${...}`` so
     terraform passes it through.
     """
     lines = [
@@ -287,23 +290,12 @@ def user_data_template(params: dict[str, Any]) -> str:
                 f"chgrp \"$GID\" '{mp}/{group}'",
                 f"chmod {m['share_mode']} '{mp}/{group}'",
             ]
-    enrollment = params.get("enrollment") or {}
-    if enrollment.get("enrollment") == "sftd-token":
-        lines += [
-            "# advertise the reachable private address: the auto-discovered public",
-            "# IP is unroutable when the VPC has no internet gateway (found live)",
-            "PRIV_IP=$(hostname -I | awk '{print $1}')",
-            "mkdir -p /etc/sft",
-            "grep -q '^AccessAddress:' /etc/sft/sftd.yaml 2>/dev/null"
-            " || printf 'AccessAddress: %s\\n' \"$PRIV_IP\" >> /etc/sft/sftd.yaml",
-            "# identity enrollment trigger (token supplied at apply time, never recorded)",
-            "%{ if sft_enrollment_token != \"\" }",
-            "mkdir -p /var/lib/sftd",
-            "printf '%s' '${sft_enrollment_token}' > /var/lib/sftd/enrollment.token",
-            "chmod 0600 /var/lib/sftd/enrollment.token",
-            "systemctl restart sftd || systemctl start sftd",
-            "%{ endif }",
-        ]
+    # stage 75 step 2: the identity plugin that issued the enrollment renders
+    # its steps (OPA's `sftd-token`: the agent's address and the token); the
+    # core names no agent, and a kind nothing renders is refused
+    kind = enrollment_kind_for(params)
+    if kind is not None:
+        lines += kind.script_lines(params)
     # Completion marker (stage 11.1): the last act of the script under `set -e`,
     # so its presence means every launch parameter above was applied. The
     # AWS verification reads it over SSM; GCE has the guest agent's own line.

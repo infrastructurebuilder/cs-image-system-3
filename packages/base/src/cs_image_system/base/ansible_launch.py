@@ -23,6 +23,8 @@ from typing import Any
 
 import yaml
 
+from .launch_enrollment import enrollment_kind_for
+
 EXTRA_VARS = ("group_gid", "efs", "sft_enrollment_token")
 
 
@@ -79,16 +81,10 @@ def launch_playbook(params: dict[str, Any], inventory_name: str | None = None) -
                               "src": "{{ efs['" + name + "'].file_system_id }}:/",
                               "opts": "_netdev,tls,accesspoint={{ efs['" + name + "'].access_point_id }},nofail",
                               "state": "mounted"}})
-    enrollment = params.get("enrollment") or {}
-    if enrollment.get("enrollment") == "sftd-token":
-        tasks += [
-            {"name": "sftd enrollment token (supplied at run time, never recorded)",
-             "ansible.builtin.copy": {"dest": "/var/lib/sftd/enrollment.token",
-                                      "content": "{{ sft_enrollment_token }}", "mode": "0600"},
-             "when": "sft_enrollment_token | default('') | length > 0", "no_log": True},
-            {"name": "start sftd", "ansible.builtin.service": {"name": "sftd", "state": "restarted"},
-             "when": "sft_enrollment_token | default('') | length > 0"},
-        ]
+    # stage 75 step 2: the identity plugin that issued the enrollment renders its tasks
+    kind = enrollment_kind_for(params)
+    if kind is not None:
+        tasks += kind.ansible_tasks(params)
     play = {
         "name": f"cs-image-system launch parameters for {host} (N26; immutable after launch)",
         "hosts": target,

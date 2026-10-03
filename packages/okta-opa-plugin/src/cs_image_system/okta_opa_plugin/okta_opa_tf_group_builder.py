@@ -22,6 +22,8 @@ from cs_image_system.hashicorp_utils.roots import TerraformRootMixin
 from .okta_opa_tf_group_models import OktaTfGroupBuilderModel
 from .okta_tf_models import OKTATF
 from .opa_attributes import OPA_GROUP_ATTRIBUTES, validate_opa_attributes
+from . import sft_login
+from .sftd_launch import SFTD_TOKEN   # importing it registers the kind's launch steps (stage 75)
 from .opa_gids import ADMIN_GROUP_SUFFIX, GROUP_NAME_ATTRIBUTE, USER_GROUP_SUFFIX, OpaGidResolver, credentials_from_env
 from .workload_policy import (WorkloadSnapshot, by_name, ci_policy_from, ci_policy_name, policies_equal,
                               user_policy_name, workload_state)
@@ -121,7 +123,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         ]
 
     def launch_parameters(self, group: Group) -> dict[str, str]:
-        return {"enrollment": "sftd-token", "server_label": f"sftd.tx.group={group.get_name()}"}
+        return {"enrollment": SFTD_TOKEN, "server_label": f"sftd.tx.group={group.get_name()}"}
 
     @classmethod
     def export_gids(cls, query: dict[str, str], groups: list[str]) -> dict[str, int]:
@@ -160,6 +162,17 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
     # ------------------------------------------- CI login policy (stage 56)
     def can_manage_workload_access(self) -> bool:
         return bool(self.model.workload_connection and self.model.workload_role)
+
+    # the login proof (stage 75 step 2: moved from the core, unchanged): there
+    # is a CI login to prove exactly when the workload objects are named
+    def can_prove_login(self) -> bool:
+        return self.can_manage_workload_access()
+
+    def login_identity(self) -> str:
+        return sft_login.login_identity()
+
+    def login_checks(self, group: str, hostname: str, *, timeout: int = 120) -> tuple[list[dict[str, Any]], list[str]]:
+        return sft_login.login_checks(self, group, hostname, timeout=timeout)
 
     def workload_access_expected(self, group: str) -> dict[str, Any] | None:
         if not self.can_manage_workload_access():

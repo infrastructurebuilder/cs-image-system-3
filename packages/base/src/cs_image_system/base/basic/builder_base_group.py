@@ -175,6 +175,25 @@ class GroupBuilderBase(BuilderBase[TGROUP]):
         its plan. A provider with no such notion does nothing."""
         return 0
 
+    # ------------------------------------- the login proof (stage 75 step 2)
+    def can_prove_login(self) -> bool:
+        """Whether ``verify login`` can log into a standing machine of this
+        builder's groups the way a person does, and so prove access, not
+        only health. A provider without a login it can drive makes no claim
+        and its machines are skipped, never failed."""
+        return False
+
+    def login_identity(self) -> str:
+        """Who the proof logs in as, for the record's ``as`` field."""
+        return "client"
+
+    def login_checks(self, group: str, hostname: str, *, timeout: int = 120) -> tuple[list[dict[str, Any]], list[str]]:
+        """The proof's checks for one running machine of ``group`` known as
+        ``hostname``, each ``{name, ok, detail}``, stopping at the first that
+        fails; and a few lines of the login's output as evidence. The core
+        has already decided the machine is a target and is running."""
+        raise NotImplementedError(f"{self.__class__.__name__} cannot prove a login")
+
     # ------------------------------------------- CI login policy (stage 56)
     def can_manage_workload_access(self) -> bool:
         """Whether this builder keeps a CI login policy per managed group --
