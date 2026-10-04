@@ -511,12 +511,11 @@ the first final version on PyPI (§41's open call).
 ## 75. A POSIX identity plugin, alone and beside Okta
 
 **Status: steps 1-7 and 10 MERGED 2026-10-04 (c02511d; the branch
-`feature/posix-identity` kept). Open: step 8 (live, beside Okta, healing
-coops-model-005) and step 9 (live, standalone: the operator chose a
-dedicated EL10 proof base declaring `[posix]`, one posix image, one
-DURABLE proof machine -- `verify login` proves durable machines only --
-launched, proved, decommissioned, its images disposed; on the sibling's
-develop only). Both wait for a release carrying the merge.** (The
+`feature/posix-identity` kept), released in 0.1.1.dev13, taken by the
+sibling's develop (bceb31b, CI green). Step 8 DONE 2026-10-04 on the
+machine (coops-model-005 healed in place; see step 8), owing only
+`perform` green, which waits for the operator to move the sibling's
+main (that run bakes the six due AWS Okta images). Open: step 9.** (The
 operator, 2026-10-03, on finding the owning group absent on a live
 machine: "Plan a second plugin", with the decisions recorded below.)
 
@@ -888,13 +887,28 @@ standing mandate: a new secret owes the bootstrap its question).
    operator's). The sibling takes the release and, in the SAME commit,
    declares `posix-local` and sets `posix:` on `oktagroups` -- the
    release alone would fail its `validate` (the line is required), so
-   the two never land apart. One applying run heals coops-model-005 in place. Proof:
-   `getent group coops` shows OPA's gid, members listed, the subtree
-   shows the name, `sft ssh` still works, `perform` green.
+   the two never land apart. One applying run heals coops-model-005 in
+   place. Proof: `getent group coops` shows OPA's gid, members listed,
+   the subtree shows the name, `sft ssh` still works, `perform` green.
+   DONE 2026-10-04 but for `perform`: the operator's
+   `just cloud-launch aws-east2-runtime` (run 2026_10_04t08_13_18_847966,
+   `ok`, no new generation -- the machine was not replaced), then
+   `just record`; read over `sft ssh coops-model-005`:
+   `coops:x:180007:mykel.alvis`; `coops.members` lists both members
+   (the second has no account there yet and joins at first login, by
+   the hook); the `pam_exec` session line and the hook in place;
+   `/mnt/data/coops` and `/mnt/efs` show group `coops`, not a number;
+   the login's own `id` carries `180007(coops)`. The run keeps no log
+   of the reconcile's lines (the terminal's scrollback is all there
+   is), so the machine itself is the record.
 9. **Live, standalone** (sibling `develop` only, removed before `main`
-   moves). One ephemeral AWS instance on a posix group: baked group,
-   users at launch, sudo for the admin, `verify login` over real SSH,
-   torn down in its run. Nothing on GCP (the GCE proxy command is
+   moves). The operator chose (2026-10-04) a dedicated EL10 proof base
+   declaring `[posix]` (same vendor image as `basic-rh-10`, AWS only),
+   one posix group with a proof user, one posix image and one DURABLE
+   proof machine -- `verify login` proves durable machines only --
+   baked and launched in scoped runs, proved over real SSH
+   (`CSIS_PROOF_SSH_KEY`), then decommissioned and its two series'
+   images disposed. Nothing on GCP (the GCE proxy command is
    unit-tested and read, not run).
 10. **Records.** Done 2026-10-04, as far as the code goes: the posix
     plugin's README (standalone, beside Okta, the login proof, its
