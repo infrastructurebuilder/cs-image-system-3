@@ -50,7 +50,8 @@ def world(tmp_path: Path, monkeypatch):
 def _managed(ctx) -> list[str]:
     from cs_image_system.base.read_models import identity_read_model
     model = identity_read_model(ctx)["groups"]
-    return sorted(n for n, r in model.items() if r.get("managed", True))
+    # the OPA groups: a posix group (stage 75) is managed too, and has no CI login policy
+    return sorted(n for n, r in model.items() if r.get("managed", True) and r.get("identity_type") == "okta")
 
 
 def test_the_read_model_records_what_each_group_expects(world):

@@ -29,7 +29,7 @@ CHAPTERS = ["## 1. Before the first command", "## 2. The first run", "## 3. Maki
             "## 7. Every plugin, in one paragraph each", "## 8. The daily habits"]
 LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 DRIVER = REPO / "DAILY_DRIVER.md"
-DOCS = [DRIVER, REPO / "README.md", REPO / "docs" / "PLUGINS.md", *(REPO / "docs" / "examples" / n / "CI_SETUP.md" for n in ("standard-aws", "standard-gce", "complete")),
+DOCS = [DRIVER, REPO / "README.md", REPO / "docs" / "PLUGINS.md", *(REPO / "docs" / "examples" / n / "CI_SETUP.md" for n in ("standard-aws", "standard-gce", "complete", "standard-aws-posix")),
         *(p / "README.md" for p in PACKAGES)]
 
 

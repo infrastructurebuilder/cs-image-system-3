@@ -127,6 +127,14 @@ build {
       "sudo rm -f /var/lib/sftd/enrollment.token",
     ]
   }
+  # identity type 'posix' prerequisites, dormant
+  provisioner "shell" {
+    only   = ["amazon-ebs.basic-rhel-9"]
+    inline = [
+      "# identity type 'posix' prerequisites (posix-local): the shadow tools and sudo, present on every supported family -- checked, not installed",
+      "command -v groupadd >/dev/null && command -v useradd >/dev/null && command -v gpasswd >/dev/null && command -v visudo >/dev/null",
+    ]
+  }
   # storage type 'ebs' prerequisites
   provisioner "shell" {
     only   = ["amazon-ebs.basic-rhel-9"]
@@ -159,7 +167,7 @@ build {
       "sudo systemctl enable amazon-ssm-agent",
     ]
   }
-  # in-bake verification for base image basic-rhel-9: 10 assertion(s)
+  # in-bake verification for base image basic-rhel-9: 14 assertion(s)
   provisioner "shell" {
     only   = ["amazon-ebs.basic-rhel-9"]
     inline = [
@@ -172,6 +180,11 @@ build {
       "command -v sftd >/dev/null 2>&1 || test -x /usr/sbin/sftd || test -x /usr/bin/sftd",
       "! systemctl is-enabled sftd >/dev/null 2>&1",
       "test ! -e /var/lib/sftd/enrollment.token",
+      "# verify: groupadd, useradd, gpasswd, visudo present",
+      "command -v groupadd >/dev/null",
+      "command -v useradd >/dev/null",
+      "command -v gpasswd >/dev/null",
+      "command -v visudo >/dev/null",
       "# verify: EFS/NFS mount tooling present",
       "command -v mount.efs >/dev/null 2>&1 || command -v mount.nfs >/dev/null 2>&1 || command -v mount.nfs4 >/dev/null 2>&1",
       "# verify: AWS CLI present",

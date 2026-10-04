@@ -280,22 +280,26 @@ the guide, so a team sees exactly what its admins still have to do.
 ### 1.9 The configuration repository, from scratch
 
 Start from a starter tree; do not write from nothing. The release
-carries three and writes one out:
+carries four and writes one out:
 
 ```sh
 cs-image-system init-config my-config                          # standard-aws, the default
 cs-image-system init-config my-config --from standard-gce
 cs-image-system init-config my-config --from complete
+cs-image-system init-config my-config --from standard-aws-posix   # AWS, people as POSIX accounts, no Okta
 ```
 
 [docs/examples/standard-aws/](docs/examples/standard-aws/README.md) is the
 smallest repository that works on the AWS plugin set, one of everything,
 every value you must replace an obvious `REPLACE-ME` and every line that
 is a decision commented; [docs/examples/standard-gce/](docs/examples/standard-gce/README.md)
-is the same for GCE; [docs/examples/complete/](docs/examples/complete/README.md)
+is the same for GCE; [docs/examples/standard-aws-posix/](docs/examples/standard-aws-posix/README.md)
+is `standard-aws` with no Okta: its people are POSIX accounts on the machines
+(the posix identity plugin, stage 75), and CI's login proof uses a key;
+[docs/examples/complete/](docs/examples/complete/README.md)
 has every plugin, every field and every variation, and is where to look
 when the reference manual's table needs a living example. Those three
-directories are the source the release is built from: all three load and
+directories are the source the release is built from: all four load and
 validate in the system's tests, the built wheel is held to them byte for
 byte, and their `Justfile`, workflow, hook and modules are the release's,
 so a tree written by `init-config` cannot drift from the system that wrote
@@ -710,6 +714,15 @@ declares.
   [configuration](packages/okta-opa-plugin/README.md#configuration-reference) ·
   [tests](packages/okta-opa-plugin/README.md#what-it-tests-and-verifies) ·
   [failures](packages/okta-opa-plugin/README.md#when-it-fails)
+- [posix-identity-plugin](packages/posix-identity-plugin/README.md): groups
+  and users as POSIX accounts on the machines, with the ids the
+  configuration declares (`gid:`, `uid:`): the owning group baked into an
+  instance image, the ids resolved at `validate`, the accounts script
+  (users, memberships, keys, sudo) tested on EL10 and Debian.
+  [prerequisites](packages/posix-identity-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](packages/posix-identity-plugin/README.md#configuration-reference) ·
+  [tests](packages/posix-identity-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](packages/posix-identity-plugin/README.md#when-it-fails)
 - [tf-ebs-instance-plugin](packages/tf-ebs-instance-plugin/README.md):
   terraform/tofu-backed instances and storages on AWS: the instance root, EBS, EFS and S3,
   attachments, detaches, archives, the gate's whitelist, the release

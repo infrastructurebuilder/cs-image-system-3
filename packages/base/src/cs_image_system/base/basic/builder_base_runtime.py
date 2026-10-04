@@ -63,6 +63,14 @@ class RuntimeBuilderBase(BuilderBase[TypeVar("T", bound=RuntimeBuilderModel)]):
         NotImplementedError (ephemeral instances refuse there)."""
         raise NotImplementedError(f"{self.__class__.__name__} cannot verify instances")
 
+    def ssh_proxy_command(self, instance_name: str) -> list[str] | None:
+        """An ssh ``ProxyCommand`` (argv, ``%p`` for the port) that reaches a
+        launched instance through this runtime's session mechanism -- no
+        public address, no inbound rule (stage 75 step 6: AWS SSM's
+        ``AWS-StartSSHSession``, the path packer already bakes through; GCE
+        an IAP tunnel). None when the runtime has none."""
+        return None
+
     def run_session_command(self, instance_name: str, script: str, timeout: int = 300) -> tuple[int, str]:
         """Run a shell script ON a launched instance through this runtime's
         session mechanism (stage 10.14: the unmount before a detach) and

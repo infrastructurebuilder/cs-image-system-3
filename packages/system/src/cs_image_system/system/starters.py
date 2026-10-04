@@ -55,7 +55,7 @@ from pathlib import Path
 
 from packaging.version import InvalidVersion, Version
 
-STARTERS: tuple[str, ...] = ("standard-aws", "standard-gce", "complete")
+STARTERS: tuple[str, ...] = ("standard-aws", "standard-gce", "complete", "standard-aws-posix")
 DEFAULT_STARTER = "standard-aws"
 VERSION_FILE = ".csis-version"
 

@@ -22,6 +22,13 @@ from cs_image_system.hashicorp_utils.roots import TerraformRootMixin
 from .okta_opa_tf_group_models import OktaTfGroupBuilderModel
 from .okta_tf_models import OKTATF
 from .opa_attributes import OPA_GROUP_ATTRIBUTES, validate_opa_attributes
+from . import sft_login
+from .sftd_launch import SFTD_TOKEN   # importing it registers the kind's launch steps (stage 75)
+from cs_image_system.base.constants import NONE
+
+#: the identity type a `posix:` delegate must be (the posix identity plugin's;
+#: named, never imported -- no plugin imports another)
+POSIX_IDENTITY_TYPE = "posix"
 from .opa_gids import ADMIN_GROUP_SUFFIX, GROUP_NAME_ATTRIBUTE, USER_GROUP_SUFFIX, OpaGidResolver, credentials_from_env
 from .workload_policy import (WorkloadSnapshot, by_name, ci_policy_from, ci_policy_name, policies_equal,
                               user_policy_name, workload_state)
@@ -102,10 +109,14 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         ]
 
     def activation_verify_commands(self, image: Any, group: Group) -> list[str]:
+        hook = (["# verify: the posix login hook is installed (stage 75)",
+                 "test -x /usr/local/sbin/csis-group-login",
+                 "grep -q csis-group-login /etc/pam.d/sshd"] if self.posix_delegate() is not None else [])
         return [
             f"# verify: activated for group '{group.get_name()}'",
             f"grep -q 'tx.group: {group.get_name()}' /etc/sft/sftd.yaml",
             "systemctl is-enabled sftd >/dev/null 2>&1",
+            *hook,
         ]
 
     def activation_commands(self, image: Any, group: Group) -> list[str]:
@@ -118,10 +129,90 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
             "sudo mkdir -p /etc/sft",
             f"printf 'Labels:\\n  tx.group: {label}\\n' | sudo tee /etc/sft/sftd.yaml",
             "sudo systemctl enable sftd",
+            # stage 75: OPA's agent makes each account at a login and drops its
+            # groups when it deletes it; the posix delegate's login hook adds the
+            # user to the group at every login (the group itself and its member
+            # list arrive after apply, with OPA's gid)
+            *(delegate.login_hook_commands() if (delegate := self.posix_delegate()) is not None else []),
         ]
 
     def launch_parameters(self, group: Group) -> dict[str, str]:
-        return {"enrollment": "sftd-token", "server_label": f"sftd.tx.group={group.get_name()}"}
+        return {"enrollment": SFTD_TOKEN, "server_label": f"sftd.tx.group={group.get_name()}"}
+
+    # ------------------------------------- beside posix (stage 75 step 5)
+    def _posix_written(self) -> str | None:
+        value = getattr(self.model, "posix", None)
+        return None if value is None or not str(value).strip() else str(value).strip()
+
+    def posix_delegate(self) -> GroupBuilderBase | None:
+        """The posix group builder `posix:` names, or None for `posix: none`
+        (or a name the configuration checks refuse)."""
+        written = self._posix_written()
+        if written is None or written.lower() == NONE:
+            return None
+        gb = self._get_context().group_builders.get(utils.safe_name(written))
+        return gb if isinstance(gb, GroupBuilderBase) and gb.identity_type() == POSIX_IDENTITY_TYPE else None
+
+    def configuration_errors(self) -> list[str]:
+        written = self._posix_written()
+        if written is None:
+            return [f"group builder {self.get_name()}: `posix:` is required -- write `posix: <name>` (a group "
+                    f"builder of type posix, which creates this builder's groups on the machines of their "
+                    f"images) or `posix: none` (no posix configuration: the groups stay absent on the machines)"]
+        if written.lower() == NONE:
+            return []
+        builders = self._get_context().group_builders
+        gb = builders.get(utils.safe_name(written))
+        if gb is None:
+            return [f"group builder {self.get_name()}: `posix: {written}` names no declared group builder "
+                    f"(declared: {', '.join(sorted(builders))})"]
+        if gb.identity_type() != POSIX_IDENTITY_TYPE:
+            return [f"group builder {self.get_name()}: `posix: {written}` names a group builder of identity type "
+                    f"{gb.identity_type()!r}; it must be of type posix"]
+        return []
+
+    def configuration_notes(self) -> list[str]:
+        written = self._posix_written()
+        if written is None or written.lower() != NONE:
+            return []
+        ctx = self._get_context()
+        mine = {g.get_name() for g in self.get_groups_for_builder()}
+        owning: dict[str, list[str]] = {}
+        for image in getattr(ctx, "images", None) or []:
+            group = str(getattr(image, "group", None) or "")
+            if group in mine:
+                owning.setdefault(group, []).append(image.get_name())
+        return [f"group {g}: its builder {self.get_name()} says `posix: none`, so the group does not exist on the "
+                f"machines of {', '.join(sorted(imgs))} (their storage subtrees stay owned by a bare gid)"
+                for g, imgs in sorted(owning.items())]
+
+    def _people(self, group: Group) -> list[str]:
+        """Members and admins, the root group's admins merged in unless the
+        group opts out -- the rule the identity module applies in OPA."""
+        people = {str(m) for m in group.members or set()} | {str(a) for a in group.admins or set()}
+        if getattr(group, "include_root_group_in_admins", True):
+            root = getattr(self._get_context(), "root_group", None)
+            people |= {str(a) for a in (getattr(root, "admins", None) or set())}
+        return sorted(people)
+
+    def accounts_script(self, group: str) -> str | None:
+        """Beside posix: the group with OPA's gid (asked read-only, now), its
+        member list for the login hook, and the members whose accounts stand
+        joined at once -- rendered by the delegate. No account is made: OPA's
+        agent makes those at a login."""
+        delegate = self.posix_delegate()
+        found = next((g for g in self.get_groups_for_builder() if g.get_name() == group), None)
+        if delegate is None or found is None:
+            return None
+        gid = self._resolver().resolve([group]).get(group)
+        if gid is None:
+            raise ValueError(f"OPA carries no unix_gid for group {group}; its posix group cannot be made")
+        people = self._people(found)
+        keys: dict[str, list[str]] | None = None
+        if self.model.posix_ssh_keys:
+            users = {u.get_name(): u for u in self._get_context().users}
+            keys = {n: [str(k) for k in users[n].public_keys] for n in people if n in users and users[n].public_keys}
+        return delegate.groups_script({group: int(gid)}, {group: people}, keys)
 
     @classmethod
     def export_gids(cls, query: dict[str, str], groups: list[str]) -> dict[str, int]:
@@ -160,6 +251,26 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
     # ------------------------------------------- CI login policy (stage 56)
     def can_manage_workload_access(self) -> bool:
         return bool(self.model.workload_connection and self.model.workload_role)
+
+    # gids by reference into this builder's identity root (N7; stage 75 step 3
+    # made it the builder's answer instead of every consumer's assumption)
+    def gid_workspace(self) -> str | None:
+        return self.get_name()
+
+    # the login proof (stage 75 step 2: moved from the core, unchanged): there
+    # is a CI login to prove exactly when the workload objects are named
+    def can_prove_login(self, group: str | None = None) -> bool:
+        return self.can_manage_workload_access()
+
+    def login_unprovable_reason(self, group: str) -> str:
+        return f"group {group} names no workload connection and role; there is no CI login to prove"
+
+    def login_identity(self) -> str:
+        return sft_login.login_identity()
+
+    def login_checks(self, group: str, hostname: str, *, timeout: int = 120, instance_name: str | None = None,
+                     runtime: Any = None) -> tuple[list[dict[str, Any]], list[str]]:
+        return sft_login.login_checks(self, group, hostname, timeout=timeout)
 
     def workload_access_expected(self, group: str) -> dict[str, Any] | None:
         if not self.can_manage_workload_access():

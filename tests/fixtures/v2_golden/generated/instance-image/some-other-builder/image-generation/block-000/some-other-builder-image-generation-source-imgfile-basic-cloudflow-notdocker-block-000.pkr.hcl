@@ -24,8 +24,8 @@ source "amazon-ebs" "imgfile-basic-cloudflow-notdocker" {
         csis_series         = "imgfile-basic-cloudflow-notdocker",
         csis_parent         = "series:basic-rhel-9",
         csis_run            = "2026_08_26t12_00_00",
-        csis_fingerprint    = "551666a9367fb15b",
-        csis_identity_types = "okta",
+        csis_fingerprint    = "a805b20e4e0a0187",
+        csis_identity_types = "okta,posix",
         csis_storage_types  = "ebs,efs,s3",
     }
     associate_public_ip_address = false

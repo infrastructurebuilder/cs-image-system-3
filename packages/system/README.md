@@ -251,8 +251,9 @@ deferred command in a runner script runs through.
 ### `init-config DESTINATION [--from NAME] [--force]`
 
 Write a starter configuration repository from this release (stage 64).
-The release carries three starter trees -- `standard-aws` (the default),
-`standard-gce` and `complete`, the source being the system repository's
+The release carries four starter trees -- `standard-aws` (the default),
+`standard-gce`, `complete` and `standard-aws-posix` (no Okta; the posix
+identity plugin, stage 75), the source being the system repository's
 `docs/examples/` -- and `DESTINATION` that does not exist or is empty takes
 the whole one: the YAML, the `Justfile`, the workflow, the public-safe
 hook, `.gitignore`, `tfmodules/` (`module_source_base: tfmodules`) and

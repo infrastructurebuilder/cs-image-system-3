@@ -70,6 +70,9 @@ class User(RootItem, SelfInjectedNameProtocol, ParentPropertyHoldingProtocol):
     # Provider attributes to hold on the identity (e.g. OPA unix_uid,
     # unix_user_name); names/types validated by the user builder's plugin.
     attributes: dict[str, Any] | None = None
+    # stage 75: a POSIX uid the configuration declares (the posix user builder);
+    # the twin of Group.gid. None: no id declared here (another side may own it)
+    uid: int | None = None
     public_keys: list[str] = field(default_factory=list)
     mobile_phone: str | None = None
     honorific_prefix: str | None = None

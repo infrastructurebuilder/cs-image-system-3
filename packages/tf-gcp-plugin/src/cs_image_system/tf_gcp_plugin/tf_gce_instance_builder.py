@@ -181,11 +181,10 @@ class TofuGceInstanceBuilder(TofuInstanceBuilder[Q]):
     def _launch_args(self, ctx, label: str, params: dict[str, Any]) -> dict[str, Any]:
         out: dict[str, Any] = {}
         group = params.get("group")
-        identity_ws = self._identity_workspace_for(group)
+        gid = self._gid_expression_for(group)          # stage 75 step 3: the group builder writes it
         template_vars: dict[str, Any] = {}
-        if group and identity_ws:
-            template_vars["group_gid"] = HclRaw(
-                f'data.terraform_remote_state.{utils.super_safe_name(identity_ws)}.outputs.group_gids["{group}"]')
+        if gid is not None:
+            template_vars["group_gid"] = HclRaw(gid)
         disks: dict[str, Any] = {}
         filestore: dict[str, Any] = {}
         for m in params.get("mounts", []):

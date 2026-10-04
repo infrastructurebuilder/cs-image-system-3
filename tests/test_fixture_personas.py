@@ -26,9 +26,11 @@ from v2_support import FIXTURE_CONFIG
 MARKER = re.compile(r"ENC\[age:[A-Za-z0-9+/=]+\]")
 # phonetic-alphabet surnames, gender-neutral first names: obviously nobody
 SURNAMES = {"Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf", "Hotel", "India", "Juliett",
-            "Kilo", "Lima", "Mike", "November", "Oscar", "Papa", "Quebec", "Romeo", "Sierra"}
+            "Kilo", "Lima", "Mike", "November", "Oscar", "Papa", "Quebec", "Romeo", "Sierra",
+            "Tango", "Uniform"}                                            # stage 75: the posix personas
 FIRST_NAMES = {"Avery", "Blake", "Casey", "Dakota", "Emerson", "Finley", "Greer", "Harper", "Indigo", "Jordan",
-               "Kendall", "Lennox", "Morgan", "Noel", "Oakley", "Parker", "Quinn", "Riley", "Sawyer"}
+               "Kendall", "Lennox", "Morgan", "Noel", "Oakley", "Parker", "Quinn", "Riley", "Sawyer",
+               "Taylor", "Unity"}
 EXAMPLE_DOMAINS = ("example.com", "example.net", "example.org", ".invalid", ".test")
 
 

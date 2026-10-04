@@ -3,7 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """Stage 56 steps 4 and 5: CI logs into a standing instance through the
-policy the system manages, and that is the proof.
+policy the system manages, and that is the proof. Since stage 75 step 2
+the core keeps what is the same for every identity plugin -- the targets,
+the skips, the record -- and the group's builder runs the checks
+(``login_checks``); OPA's, described below, live in the Okta plugin's
+``sft_login`` module.
 
 Verifying an instance over SSM proves the box is healthy and says nothing
 about access. This command logs in the way a scientist does -- ``sft
@@ -27,11 +31,8 @@ proof and no other, because the policies are per group.
 from __future__ import annotations
 
 import logging
-import os
-import re
-import subprocess
 from datetime import datetime, timezone
-from typing import Any, Mapping
+from typing import Any
 
 from .. import power_state
 from ..basic.builder_base_group import GroupBuilderBase
@@ -48,28 +49,6 @@ class LoginProofFailed(Exception):
         super().__init__(f"login proof FAILED for {', '.join(failed)}: "
                          + "; ".join(f"{c['name']}: {c.get('detail')}" for r in records
                                      if r["instance"] in failed for c in r.get("checks", []) if not c.get("ok")))
-
-
-def run_sft(args: list[str], timeout: int = 120, env: Mapping[str, str] | None = None) -> tuple[int, str]:
-    """The client, as a subprocess; the seam the tests stub. Output is both
-    streams, so a refusal's reason reaches the record. ``env`` is laid over
-    the process environment: as the workload the client needs the team and
-    the OPA address there for EVERY command, not only for minting the token
-    (hygiene VIII item 1, 2026-09-30: `sft resolve` exited 1 in silence once
-    the perform job stopped carrying them)."""
-    proc = subprocess.run(["sft", *args], capture_output=True, text=True, timeout=timeout,  # noqa: S603,S607 - the client by name, arguments from the configuration
-                          env={**os.environ, **(env or {})})
-    return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
-
-
-def client_environment(gb: Any) -> dict[str, str]:
-    """What the client needs beyond the token when it runs as the workload:
-    the team and the OPA address, from the group builder that names the
-    workload objects; the environment's own values win when set."""
-    model = getattr(gb, "model", None)
-    wanted = {"SFT_TEAM": str(getattr(model, "team", "") or ""),
-              "OPA_ADDR": str(getattr(model, "api_host", "") or "")}
-    return {k: v for k, v in wanted.items() if v and not os.environ.get(k)}
 
 
 def workload_facts(ctx: GlobalTypeContext) -> list[dict[str, Any]]:
@@ -118,17 +97,17 @@ def standing_instances(ctx: GlobalTypeContext, *, runtime: str | None = None,
     return out
 
 
-def _skip(ctx: GlobalTypeContext, inst: Any, hostname: str, group: str, why: str) -> dict[str, Any]:
+def _as(gb: Any) -> str:
+    return gb.login_identity() if isinstance(gb, GroupBuilderBase) else "client"
+
+
+def _skip(ctx: GlobalTypeContext, inst: Any, hostname: str, group: str, why: str, gb: Any = None) -> dict[str, Any]:
     log.info(f"login proof {inst.get_name()}: SKIPPED -- {why}. Nothing is proved: no verdict was reached.")
     return {"instance": inst.get_name(), "runtime": str(getattr(inst, "runtime", "") or ""),
-            "hostname": hostname, "group": group, "run": ctx.run_id, "as": _as(),
+            "hostname": hostname, "group": group, "run": ctx.run_id, "as": _as(gb),
             "time": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "ok": False, "skipped": True, "checks": [{"name": "precondition", "ok": False, "detail": why}],
             "evidence": []}
-
-
-def _as() -> str:
-    return "workload" if os.environ.get("OPA_TOKEN") else "client"
 
 
 def prove_login(inst: Any, *, timeout: int = 120) -> dict[str, Any]:
@@ -139,52 +118,22 @@ def prove_login(inst: Any, *, timeout: int = 120) -> dict[str, Any]:
     group = _group_of(ctx, inst)
     hostname = canonical_hostname(ctx, inst)
     gb = group_builder_of(ctx, group) if group else None
-    if gb is None or not gb.can_manage_workload_access():
+    if gb is None or not gb.can_prove_login(group):
         return _skip(ctx, inst, hostname, group,
-                     f"group {group or '?'} names no workload connection and role; there is no CI login to prove")
+                     gb.login_unprovable_reason(group) if gb is not None
+                     else f"group {group or '?'} has no group builder; there is no login to prove", gb)
     rtb = ctx.runtime_builders.get(rt)
     if rtb is not None and rtb.can_query_instance_power_state():
         state = rtb.query_instance_power_state(name)
         if state is not None and state != power_state.RUNNING:
             return _skip(ctx, inst, hostname, group,
                          f"the machine is {power_state.describe(state)}; a login needs it running and "
-                         "the power state is the operator's (stage 57)")
-    checks: list[dict[str, Any]] = []
-    evidence: list[str] = []
-    # stage 55: exactly one server may answer to the name, or the login below
-    # reaches an arbitrary one of them and proves nothing
-    registered = gb.registered_servers(group) if gb.can_query_servers() else None
-    if registered is None:
-        checks.append({"name": "one registration", "ok": False,
-                       "detail": "the group's server registry could not be asked (silence is not one server)"})
-    else:
-        same = [s for s in registered if s.get("hostname") == hostname]
-        checks.append({"name": "one registration", "ok": len(same) == 1,
-                       "detail": (f"{hostname!r} is registered once ({same[0].get('id')})" if len(same) == 1
-                                  else f"{hostname!r} has {len(same)} registrations"
-                                       + (": " + ", ".join(f"{s.get('id')}@{s.get('address')}" for s in same) if same
-                                          else " -- the machine never enrolled, or enrolled under another name"))})
-    client_env = client_environment(gb) if _as() == "workload" else {}
-    if checks[-1]["ok"]:
-        rc, out = run_sft(["resolve", "--quiet", hostname], timeout=timeout, env=client_env)
-        why = out.strip()[:300]
-        if rc == 126 and not why:
-            # the client wanted a browser and --quiet forbade it (live 2026-09-22):
-            # by hand that is an expired client session; as the workload, no token
-            why = ("the client has no session (as the enrolled client: run `sft login`; as the "
-                   "workload: OPA_TOKEN is missing or was refused)")
-        checks.append({"name": "resolves", "ok": rc == 0,
-                       "detail": f"sft resolve {hostname}: exit {rc}" + ("" if rc == 0 else f" -- {why}")})
-    if checks[-1]["ok"]:
-        rc, out = run_sft(["ssh", hostname, "--command", "id && hostname"], timeout=timeout, env=client_env)
-        account = re.search(r"uid=\d+\((?P<u>[^)]+)\)", out)
-        ok = rc == 0 and account is not None
-        checks.append({"name": "login", "ok": ok,
-                       "detail": (f"logged in as {account.group('u')} over sft ssh" if ok and account
-                                  else f"sft ssh {hostname} --command id: exit {rc} -- {out.strip()[:300]}")})
-        evidence = [line for line in out.strip().splitlines()[-5:]]
+                         "the power state is the operator's (stage 57)", gb)
+    # stage 75 step 2: the identity plugin's own checks (OPA: one registration,
+    # the client resolves the name, `id` over `sft ssh`)
+    checks, evidence = gb.login_checks(group, hostname, timeout=timeout, instance_name=name, runtime=rtb)
     record = {"instance": name, "runtime": rt, "hostname": hostname, "group": group, "run": ctx.run_id,
-              "as": _as(), "time": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+              "as": _as(gb), "time": datetime.now(timezone.utc).isoformat(timespec="seconds"),
               "ok": all(c["ok"] for c in checks), "checks": checks, "evidence": evidence}
     for c in checks:
         log.info(f"login proof {name}: {c['name']}: {'ok' if c['ok'] else 'FAILED'} -- {c['detail']}")

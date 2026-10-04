@@ -93,5 +93,6 @@ narrative, from the first command on.
   `Justfile`, workflows, hook, scripts and modules to the release's, so it
   stays a working starter as the code moves.
 
-The GCE twin is [`../standard-gce/`](../standard-gce/README.md); every field
-and variation is in [`../complete/`](../complete/README.md).
+The GCE twin is [`../standard-gce/`](../standard-gce/README.md), the twin
+with no Okta [`../standard-aws-posix/`](../standard-aws-posix/README.md); every
+field and variation is in [`../complete/`](../complete/README.md).

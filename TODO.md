@@ -510,13 +510,14 @@ the first final version on PyPI (§41's open call).
 
 ## 75. A POSIX identity plugin, alone and beside Okta
 
-**Status: PLANNED 2026-10-03; nothing runs until the operator says
-"do 75".** (The operator, 2026-10-03, on finding the owning group absent
-on a live machine: "Plan a second plugin", with the decisions recorded
-below. Branch `feature/posix-identity`.)
+**Status: IN PROGRESS since 2026-10-03 on `feature/posix-identity` (the
+operator: "start 75", "resume step 5", "do step 6-10"). Steps 1-7 done;
+steps 8-9 are live and need the branch merged, a release, and the
+operator's applying runs; step 10 is the records.** (The operator,
+2026-10-03, on finding the owning group absent on a live machine: "Plan
+a second plugin", with the decisions recorded below.)
 
 ### Context
-
 
 **The defect (observed live by the operator, 2026-10-03).** On
 `coops-model-005`, `getent group coops` returns nothing. Users synced by
@@ -541,7 +542,11 @@ the login proof (`sft ssh`) and the workload token.
   keys after users are synced from Okta.
 - The group is baked; the users come at launch.
 - For Okta groups the bake learns the gid through a packer variable
-  filled by the existing gid shim.
+  filled by the existing gid shim. SUPERSEDED 2026-10-03 after step 1:
+  the group is created by the after-apply run only (which must visit
+  every machine anyway for the member lists, and is the only thing that
+  heals a standing machine); only the login hook is baked, and it needs
+  no gid.
 - Login proof for the new plugin: real SSH with a proof key.
 - Proved by fixture, live, and a starter.
 - **Id collisions**: a name known to two sides whose supplied ids differ
@@ -638,13 +643,12 @@ team's decision:
   beside `default`, `self`, the empty string and null. That is what
   makes `posix: none` unambiguous: it can never be the name of a
   builder.
-- The rule that refuses the NAME is not this stage's: it is §76, which
-  lands first. (An earlier revision of this plan said nothing refuses
-  such a name today. That was wrong: `NameTyped` and `RootItem` refuse a
-  name or alias in `OOPS_DEFAULTS` at construction; what is missing is
-  the word `none` in the list, and any test of the rule.) Foreign keys
-  read the same list as "no reference written"
-  ([orchestrator.py:745](packages/base/src/cs_image_system/base/orchestrator.py#L745)).
+- The rule that refuses the NAME is §76's, LANDED 2026-10-03: `none` is
+  in `OOPS_DEFAULTS`, a reserved name is refused where its file is read,
+  and a REFERENCE written `none` is refused at `validate` (a foreign key
+  takes its default only by equality with the field's own, so `none`
+  names nothing). So this field must declare that it accepts the word
+  and handle it before the generic foreign-key check does.
 - Because null and `none` are both in that list, the required check
   reads the value AS WRITTEN: a missing line is refused, the word `none`
   is the opt-out. The two are never folded together.
@@ -712,21 +716,87 @@ standing mandate: a new secret owes the bootstrap its question).
 
 ### Steps (one commit each; merge on the operator's word at step ends)
 
-1. **Observe.** USER: on coops-model-005, `getent group coops`,
-   `id <a member>`, `ls -ldn` and `ls -ld` of each mount's group
-   subtree, and whether sftd rewrites `/etc/group`. Recorded in the
-   stage; it fixes what the reconcile must tolerate.
-2. **Decoupling.** The three contract moves above. Bar green with the
-   golden unchanged.
-3. **The plugin, standalone.** Package, model, script parts, validate
-   rules, `resolve_posix_ids` (configuration moment), the EL10 and
-   Debian container tests of the script (idempotence, adoption,
-   collision refusal, `visudo`), a fixture group `pxgroup` with two
-   personas and its golden.
-4. **The post-launch task and the bake variable.** `reconcile_accounts`
-   after apply; the launch assertion; `group_gid` as a packer variable
-   and the run-script line; the bake and machine moments of the
-   resolver.
+1. **Observe.** Done 2026-10-03 by the operator on coops-model-005. (a)
+   `getent group coops` exits 2: the group is absent; `/mnt/data/coops`
+   (2770) and `/mnt/efs` are owned by the bare gid 180007 (OPA's gid for
+   coops), which no account is in -- the operator's own account (uid/gid
+   150006, groups 150006 and `sft-admin` 90000) cannot use the group's
+   subtree except through sudo. (b) Accounts live in the local files
+   (`nsswitch`: `files`, `files [SUCCESS=merge] systemd` for groups; no
+   OPA NSS module), written by `sftd`'s "osedit" through `groupadd`,
+   `useradd`, `userdel` -- targeted edits, never a rewrite of
+   `/etc/group`. (c) The accounts are JUST-IN-TIME: `sftd` created
+   `mykel.alvis` at a login (22:20:39) and had deleted it that morning
+   (09:07:26); the CI workload account
+   `wl_cs_image_system_testconfig_ci` lived from 12:58:47 to 13:00:26.
+   On creation it adds the user to its own `sft-admin` only; `userdel`
+   removes the user from every supplementary group. What this fixes: a
+   group the system creates stands (nothing in `sftd` touches it), but a
+   MEMBERSHIP written at apply time does not hold -- at apply time most
+   members have no account, and every account `sftd` deletes loses its
+   supplementary groups. Beside Okta, members must be added at login,
+   not at apply (step 5).
+2. **Decoupling.** Done 2026-10-03. The launch steps: a group builder's
+   enrollment KIND (recorded in the launch parameters, unchanged) is
+   rendered by whichever plugin registered it in the new core module
+   `launch_enrollment`; both renderers ask it, and a kind nothing
+   renders is refused rather than skipped. The Okta plugin's
+   `sftd_launch` registers `sftd-token` with the lines and tasks moved
+   there unchanged to the byte (the golden is unchanged, so every
+   machine's recorded user-data hash holds). The login proof: the core
+   keeps the targets, the skips and the record and asks the group
+   builder (`can_prove_login`, `login_identity`, `login_checks`); OPA's
+   checks and the `sft` client seam moved to the plugin's `sft_login`.
+   The runtime's `ssh_proxy_command` is NOT added here: it is an
+   addition, not a move, and lands in step 6 with its first user and its
+   tests.
+3. **The plugin, standalone.** DONE 2026-10-03, in four commits. (1) the
+   gid seam -- the group builder answers `gid_workspace()` and
+   `gid_expression(group)`, which the AWS and GCE instance builders and
+   the storage builders used to assume (a remote-state reference into an
+   identity root every group builder was taken to own); Okta's output is
+   byte-identical. (2) The package `posix-identity-plugin` -- a group
+   AND a user builder, both `type: posix` (the plan named only the group
+   builder, but every user names its builder, and a standalone tree
+   needs one to declare uids and keys); a new `uid:` field on `User`,
+   the twin of `Group.gid` (not OPA-style `attributes`, which would drag
+   posix users into the OPA attribute plan); the accounts script's
+   parts; the core resolver `posix_ids.resolve_posix_ids` and
+   `validate`'s `check_posix_ids`, with the id floor the `Group` model
+   already enforces (1024, not the plan's 1000). Found on the way and
+   fixed: the foreign-key handler put the owning `builder` into the
+   template context only when a `type:` was DEFAULTED, so a user that
+   wrote its `type:` could not render its email template (no user did
+   until now). The `complete` starter declares both builders, as it
+   declares every type the release ships. (3) The container leg: the
+   script on almalinux:10 and debian:12, twice, adopting and refusing, a
+   member waiting for its account (`just test-posix-accounts`, a
+   `full-test` leg). (4) The fixture: the two builders, `pxgroup` (gid
+   3101), the personas Taylor Tango and Unity Uniform, `basic-rhel-9`
+   declaring `[okta, posix]`, `imgfile-posix` owned by `pxgroup`; the
+   golden moved once, reviewed by hand. The posix group builder answers
+   the state query with nothing (it has no provider; each machine is
+   checked by the script), and the tests that meant "every OPA group"
+   now say so.
+4. **The post-launch task.** Done 2026-10-03. `accounts_reconcile`, a
+   core post-apply hook beside the provider aliases: after an applying
+   instance run, every launched, RUNNING machine whose group builder
+   renders an accounts script (the new contract
+   `accounts_script(group)`; the posix builder's is the whole script, as
+   root) gets it over the runtime's session; a machine off waits, one
+   that booted this run is waited for, a failure is an error that never
+   stops the run. `validate` gains `configuration_errors()` per group
+   builder: a posix group's member must be a posix user with a uid. Two
+   plan items are NOT here, on purpose. The launch assertion (baked gid
+   equals `${group_gid}`) is dropped: it would change the launch script,
+   whose hash is every machine's recorded launch parameter --
+   coops-model-005 would read as changed -- and for a posix group it
+   compares a number with itself. The `group_gid` packer variable is
+   only needed when a provider assigns the gid, so it moves to step 5.
+   Noted: the script travels as SSM command text, so usernames and
+   public keys stand in the account's SSM command history for its
+   retention (public keys are not secret; the names are on the machine
+   anyway; CI masks decrypted values in its logs).
 5. **Beside Okta** (after §76, which reserves `none` and refuses a
    reference written `none` at `validate`, so the `posix` field declares
    that it accepts the word and handles it before the foreign key does).
@@ -738,13 +808,79 @@ standing mandate: a new secret owes the bootstrap its question).
    moves once, reviewed by hand). Tests: the line absent, an undeclared
    name and a non-posix target are each refused with the line to add;
    `posix: none` validates, changes nothing in the emission and carries
-   its note.
-6. **Real SSH.** `ssh_proxy_command` on both runtimes, the posix
-   `prove_login`, `CSIS_PROOF_SSH_KEY`, the bootstrap question and
-   `set-secrets.sh`.
-7. **The starter.** `docs/examples/standard-aws-posix` (no Okta: no
-   3.5, no OPA secrets), `init-config --from standard-aws-posix`,
-   `CI_SETUP.md` and the starter tests extended to four trees.
+   its note. **Membership at login (operator, 2026-10-03, after step
+   1):** a PAM session hook baked into the image -- an `optional`
+   `pam_exec` line in `/etc/pam.d/sshd` runs a small script at each
+   login that adds the user to every group whose member list names them;
+   the lists (one file per group, e.g. `/etc/csis/groups/coops.members`)
+   are kept current by the after-apply run, which also creates the group
+   with its OPA gid. It acts in the same login, survives `sftd`'s
+   delete-and-recreate of every account, and a failing hook never blocks
+   a login. Not chosen: a path unit on `/etc/passwd` and a periodic
+   timer (both race the login, so a first session can miss the group),
+   and the group alone (members still could not use the 2770 subtree).
+   **5a, done 2026-10-03:** the posix plugin's login hook
+   (`/usr/local/sbin/csis-group-login`, an `optional` `pam_exec` session
+   line in `/etc/pam.d/sshd`, both installed idempotently by
+   `login_hook_commands()`), the member lists
+   `/etc/csis/groups/<group>.members` and optional keys files
+   `/etc/csis/keys/<user>`, and `groups_script()` for groups another
+   builder owns (the group with its gid, its list, present members
+   joined now, no account created); the contract methods
+   `login_hook_commands`, `groups_script` and `configuration_notes` on
+   `GroupBuilderBase`. Proved in the container leg on both families: a
+   member is added at login, dropped by `userdel`, and added again at
+   the next login; an unlisted user never is; the PAM line is written
+   once; keys are installed. **5b, done 2026-10-03:** `posix:` and
+   `posix_ssh_keys:` on the `okta-tf` group model; the Okta builder's
+   `configuration_errors` refuse the line absent or empty, an undeclared
+   name and a non-posix builder, and its `configuration_notes` name each
+   group `posix: none` keeps off its machines (printed by `validate`,
+   carried by the state query); the read-only builder neither requires
+   nor reads it. With a delegate, Okta-owned instance images bake the
+   login hook (two in-bake checks), and the after-apply script asks OPA
+   for the gid (read-only) and has the delegate make the group, its
+   member list (members and admins, root admins merged as OPA has them)
+   and today's present members -- and install the hook again,
+   idempotently, so a machine that stands and is never re-baked
+   (coops-model-005) is healed by one applying run. An OPA that cannot
+   be asked is an error, never fatal. The fixture's `oktagroups` and the
+   three starters name `posix-local`; the golden moved once (the seven
+   Okta-owned images gain the hook and its checks; their fingerprints
+   move).
+6. **Real SSH.** Done 2026-10-04. The runtime contract gains
+   `ssh_proxy_command(instance)`: AWS `aws ssm start-session --target
+   <id> --document-name AWS-StartSSHSession --parameters portNumber=%p`
+   (the path packer bakes through in this account's private subnets: no
+   public address, no inbound rule), GCE `gcloud compute
+   start-iap-tunnel <name> %p --listen-on-stdin`. The login-proof
+   contract widens: `can_prove_login(group)`,
+   `login_unprovable_reason(group)`, and `login_checks` receives the
+   instance and its runtime. The posix builder proves a group's login as
+   its proof user (a posix service-account member with a uid and a key)
+   over real ssh through that tunnel, with the private key from
+   `CSIS_PROOF_SSH_KEY`: four checks (key, tunnel, login, in its group),
+   recorded `as: proof key`; a group without a proof user is skipped
+   naming why. The starter workflows hand the secret to the perform
+   job's login-proof step (no gate reads it), CI_SETUP.md documents it
+   beside the gated table, and the bootstrap's `set-secrets.sh` sets it
+   from a file when one is there (the existing rule: a missing file is
+   skipped).
+7. **The starter.** Done 2026-10-04. `docs/examples/standard-aws-posix`:
+   `standard-aws` with the identity swapped -- a posix group builder and
+   user builder (both default), one root group `team` with a declared
+   gid, two personas and the service-account proof user `csis_proof`,
+   the base declaring `identity_types: [posix]`; a workflow with no Okta
+   or OPA secrets, gates or client, its login-proof step logging in as
+   the proof user; no OPA workload probe; the same guide, Justfile, hook
+   and modules as every starter (release-owned, byte-identical). The
+   shared Justfile's `ci-login-proof` now mints an OPA token only when a
+   builder names a workload connection (`workload describe` is not
+   `[]`), so a posix-only tree's proof is not stopped by a token it has
+   no use for; trees with Okta behave as before. `init-config --from
+   standard-aws-posix`; the release and the wheel carry four starters;
+   the daily driver, the system README and the two other READMEs name
+   it; the starter tests cover four trees.
 8. **Live, beside Okta** (sibling `develop`; applying runs are the
    operator's). The sibling takes the release and, in the SAME commit,
    declares `posix-local` and sets `posix:` on `oktagroups` -- the
@@ -757,10 +893,14 @@ standing mandate: a new secret owes the bootstrap its question).
    users at launch, sudo for the admin, `verify login` over real SSH,
    torn down in its run. Nothing on GCP (the GCE proxy command is
    unit-tested and read, not run).
-10. **Records.** Plugin README, CONFIGURATION, OPERATIONS and DESIGN
-    N20 updated here (they describe the new plugin); a documentation
-    stage is opened for the behaviour changes to existing docs
-    (`DAILY_DRIVER.md`, the guide); memory updated.
+10. **Records.** Done 2026-10-04, as far as the code goes: the posix
+    plugin's README (standalone, beside Okta, the login proof, its
+    failures), the Okta README and CONFIGURATION 9.2 (`posix:`,
+    `posix_ssh_keys:`), the guide (`CSIS_PROOF_SSH_KEY`), DESIGN N20
+    (two identity types), and OPERATIONS' identity rules (ids, what the
+    accounts script never deletes, membership at login, the proof key).
+    The documentation stage §78 is opened for what the daily driver
+    owes. The live results of steps 8-9 are added here when they stand.
 
 ### Verification
 
@@ -785,10 +925,9 @@ standing mandate: a new secret owes the bootstrap its question).
   group builder must write the `posix:` line when it takes the release
   that carries step 5 -- a builder's name, or `none`. Today that is the
   reference configuration alone.
-- **`none` is reserved system-wide**, not only for this field: no item
-  may carry the name, and a reference written as `none` is unset
-  everywhere except where a field, like this one, gives the word a
-  meaning.
+- **`none` is reserved system-wide** (§76): no item may carry the name,
+  and a reference written `none` is refused everywhere except where a
+  field, like this one, gives the word a meaning and says so.
 - **`posix: none` keeps the defect, on purpose and in sight**: the
   owning group stays absent on those machines. The note is the only
   thing that says so.
@@ -797,3 +936,39 @@ standing mandate: a new secret owes the bootstrap its question).
   coops.
 - **Order against §65**: the walk would be simpler on the Okta-free
   starter this stage produces; that is the operator's call, not assumed.
+
+## 78. Documentation stage: posix identity
+
+**Status: OPEN since 2026-10-04** (opened by §75 step 10, by the
+standing rule that a stage which changes behaviour owes the
+documentation an update; a documentation stage changes no code). Later
+stages that land undocumented changes append here until it lands.
+
+**What changed, by stage:**
+
+- **§75, a POSIX identity plugin, alone and beside Okta.** A second
+  identity type, `posix`: groups with a declared `gid:` and users with a
+  `uid:` and their keys, made on the machines (the group baked into the
+  image; accounts, keys and sudo after each applying run). Beside Okta,
+  every `okta-tf` group builder must write `posix:` (a posix builder, or
+  `none`): its groups then exist on their machines with OPA's gid, and
+  members join at each login through a PAM hook. A posix group's login
+  proof logs in as its proof user over ssh through the runtime's session
+  tunnel, with `CSIS_PROOF_SSH_KEY`. A fourth starter,
+  `standard-aws-posix`. Already documented in §75: the plugin README,
+  the Okta README, CONFIGURATION 9.2, the guide, DESIGN N20, OPERATIONS'
+  identity rules, the daily driver's starter list and plugin chapter.
+
+**Owed:**
+
+1. `DAILY_DRIVER.md` 3.1 (a group and its access): the `posix:` line on
+   an Okta group builder and what it does on the machines; a posix
+   group's `gid:`, a posix user's `uid:` and keys; the proof user.
+2. `DAILY_DRIVER.md` section 4 (changing things): a membership change
+   reaches the machines at the next applying instance run (and, beside
+   Okta, at each member's next login) -- not by a re-bake.
+3. `DAILY_DRIVER.md` 1.x: what the release that carries §75 requires of
+   an existing tree (the `posix:` line, in the same commit as the
+   release) -- once that release exists.
+4. `DAILY_DRIVER.md` section 6 gains a row for each of §75's refusals
+   when one is first met in the reference deployment.

@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+[project]
+name = "cs-image-system-posix-identity-plugin"
+version = "0.1.1.dev12"
+description = "The posix identity plugin: groups, users, memberships, keys and sudo as POSIX accounts on the machines, with ids the configuration declares; alone, or beside Okta for groups"
+readme = "README.md"
+authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.13"
+dependencies = [
+    "cs-image-system-system==0.1.1.dev12",
+    "pydantic>=2.13",
+]
+
+[project.urls]
+Repository = "https://github.com/infrastructurebuilder/cs-image-system-3"
+Documentation = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/docs/OPERATIONS.md"
+"Package README" = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/packages/posix-identity-plugin/README.md"
+
+[project.entry-points."cs_image_system.plugins.group"]
+posix_identity_plugin = "cs_image_system.posix_identity_plugin.main:initialize"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cs_image_system"]
+exclude = ["*.code-workspace"]

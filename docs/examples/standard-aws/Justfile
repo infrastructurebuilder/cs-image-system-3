@@ -189,8 +189,15 @@ ci-login-proof *ARGS:
 	#!/usr/bin/env bash
 	set -euo pipefail
 	if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
-		OPA_TOKEN=$({{cli}} workload token)
-		export OPA_TOKEN
+		named=$({{cli}} workload describe)
+		if [ "$named" != "[]" ]; then
+			OPA_TOKEN=$({{cli}} workload token)
+			export OPA_TOKEN
+		else
+			# stage 75: no group builder names an OPA workload connection (a posix-only tree):
+			# no token to mint; a posix group's proof logs in with CSIS_PROOF_SSH_KEY
+			echo "ci-login-proof: no workload connection is named -- no OPA token to mint" >&2
+		fi
 	else
 		echo "ci-login-proof: not a GitHub Actions job -- logging in as the enrolled client, not the workload" >&2
 	fi

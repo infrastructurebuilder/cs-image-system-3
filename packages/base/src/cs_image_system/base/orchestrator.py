@@ -727,16 +727,20 @@ class _FkFieldHandler(field_kinds.FieldKindHandler):
         if key and key in ctx._flat_map:
             # Now e.g. 'runtime' in Jinja refers to the RuntimeModel instance
             ctx[f.name] = ctx._flat_map[key]
-            if update_this_field:
-                newf = f.metadata.get(FK_ALSO_SET_ON_UPDATE, None)
-                if newf:
-                    setattr(obj, newf, key)
-                    bldr = reg.get_instance_by_global_id(key)
-                    if bldr:
-                        if ctx.get("builder", None) is None:
-                            ctx["builder"] = bldr
-                        else:
-                            log.warning(f"Context already has a 'builder' entry. Skipping setting it to {bldr} for field '{f.name}' in object '{obj}'.")
+            newf = f.metadata.get(FK_ALSO_SET_ON_UPDATE, None)
+            if update_this_field and newf:
+                setattr(obj, newf, key)
+            if newf:
+                # stage 75: the owning builder enters the context whether the
+                # foreign key was defaulted or WRITTEN -- a user whose `type:`
+                # named its builder rendered `{{ builder.get_user_email_template() }}`
+                # against no builder at all (no user wrote one until posix users)
+                bldr = reg.get_instance_by_global_id(key)
+                if bldr:
+                    if ctx.get("builder", None) is None:
+                        ctx["builder"] = bldr
+                    elif ctx.get("builder") is not bldr:
+                        log.warning(f"Context already has a 'builder' entry. Skipping setting it to {bldr} for field '{f.name}' in object '{obj}'.")
         else:
             # stage 48.3: a foreign key that names nothing is a configuration error,
             # recorded here and refused by `validate` (a `default` that has no default

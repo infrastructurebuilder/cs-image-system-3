@@ -389,7 +389,11 @@ jobs:
         if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
         # as the WORKLOAD: this run's OIDC token, the team's connection and role from the
         # configuration; a stopped machine is skipped, never started; the verdicts are recorded
-        # and the closing record commits them
+        # and the closing record commits them. A posix group logs in as its proof user over ssh
+        # through the runtime's session tunnel instead (stage 75), with this key; unset, a posix
+        # proof fails its first check and an Okta proof never reads it
+        env:
+          CSIS_PROOF_SSH_KEY: ${{ secrets.CSIS_PROOF_SSH_KEY }}
         run: just ci-login-proof --runtime "$PERFORM_RUNTIME"
       - name: The full run, recorded again
         if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'

@@ -176,8 +176,10 @@ full-test-legs:
 	if docker info >/dev/null 2>&1; then
 		echo "full-test: modification tests under docker (test-mods --strict)"
 		just test-mods --strict || { echo "full-test: FAILED test-mods"; status=1; }
+		echo "full-test: the posix accounts script under docker (test-posix-accounts)"
+		just test-posix-accounts -q || { echo "full-test: FAILED test-posix-accounts"; status=1; }
 	else
-		echo "full-test: SKIPPED test-mods -- docker is not available"
+		echo "full-test: SKIPPED test-mods and test-posix-accounts -- docker is not available"
 	fi
 	if [ ! -f "{{config_root}}/cfg/_config.yml" ]; then
 		echo "full-test: SKIPPED the live-configuration legs (dry run --all, state query --strict) -- no live configuration at {{config_root}} (see: just config-guard)"
@@ -256,6 +258,13 @@ v2-test:
 # idempotence); needs docker. Results: <config_root>/meta-state/mod-tests.yaml
 test-mods *ARGS: config-guard
 	@{{live_cli}} test-mods {{ARGS}}
+
+# Stage 75: the posix accounts script on AlmaLinux 10 and Debian 12, under
+# docker -- run twice, against an equal and a differing pre-existing group, a
+# member with no account yet, sudo through visudo. A leg of `full-test`; under
+# `just test` the same file is skipped.
+test-posix-accounts *ARGS:
+	@CSIS_CONTAINER_TESTS=1 uv run pytest tests/test_v2_posix_containers.py {{ARGS}}
 
 # The credential sessions the reference configuration's runtimes need, read from the caches without
 # loading the configuration (exit 0: every one present; 2: one absent or expired) -- full-test's gate

@@ -125,8 +125,9 @@ module call then omits the argument).
 
 Defined in
 [okta_opa_tf_group_models.py](src/cs_image_system/okta_opa_plugin/okta_opa_tf_group_models.py).
-`OktaTfWorkspaceModelMixin` + `OktaGroupBuilderModel`; adds no fields. The
-managed group root: it expects `oktapam` in `required_providers`.
+`OktaTfWorkspaceModelMixin` + `OktaGroupBuilderModel`, plus `posix` (required
+since stage 75) and `posix_ssh_keys`. The managed group root: it expects
+`oktapam` in `required_providers`.
 
 ### `OktaTfGroupRoBuilderModel` (`okta-tf-ro`)
 
@@ -685,6 +686,8 @@ A `required_providers` entry:
 | `gateway_selector` | `str \| None` | `None` | The login project's `gateway_selector` in every module call; `None` falls back to `config.okta_gateway_selector`, and with neither the argument is omitted. Accepted, not read by `okta-tf-ro` (no module call). |
 | `account_discovery` | `bool` | `True` | The login project's `account_discovery`. Accepted, not read by `okta-tf-ro`. |
 | `workload_connection` | `str \| None` | `None` | The team's workload connection, by name. Read only when `workload_role` is set too. |
+| `posix` | `str \| None` | none: **required** on `okta-tf` | Stage 75. The posix group builder that makes this builder's groups exist on the machines of their images, by name, or `none` for no posix configuration. Absent or empty is refused at `validate`, as is a name that is no declared group builder or one not of type posix. With a name: every instance image of these groups bakes the delegate's login hook, and every applying instance run creates each group on its running machines with OPA's gid (asked read-only) and writes its member list -- members and admins, the root group's admins merged as OPA has them; OPA's agent makes each account at a login and drops its groups when it deletes it, so the hook adds the user at every login. With `none`, `validate` and the state query note each group that stays off its machines. Not read by `okta-tf-ro`. |
+| `posix_ssh_keys` | `bool` | `False` | Stage 75, opt-in: the login hook also installs each member's declared `public_keys:` as their `authorized_keys` -- a key path beside OPA's certificates. |
 | `workload_role` | `str \| None` | `None` | The team's workload role, by name. With both set the builder manages one CI login policy per managed group and reports the three objects in the state query. |
 
 ### User builders (`okta-tf`, `okta-tf-ro`)
@@ -951,6 +954,16 @@ client assertion verified with the public key, and the app check's three
 outcomes.
 
 ## When it fails
+
+Two refusals come first because every tree meets them once, on the
+release that carries stage 75:
+
+| Symptom | Meaning | Do |
+|---|---|---|
+| ``group builder <b>: `posix:` is required`` at `validate` | the `okta-tf` group builder has no `posix:` line | add `posix: <a posix group builder>` (declare one: `- name: posix-local`, `type: posix`) or `posix: none` |
+| ``group builder <b>: `posix: <x>` names no declared group builder`` / ``... names a group builder of identity type '<t>'`` | the name is wrong, or names a builder that is not posix | name a declared `type: posix` group builder |
+| `Instance <i>: the accounts script of group <g> could not be made: ...` in an applying run's log | OPA could not be asked for the group's gid (the key pair, the network) | fix the credentials; the next applying run makes the group |
+| `note: group <g>: its builder <b> says `posix: none` ...` | the team chose no posix configuration | nothing, if that is the choice; the group's storage subtree stays owned by a bare gid |
 
 Failures that have happened, oldest first. Each names the symptom as the
 operator saw it, what it meant, where to look and what to do; the dated

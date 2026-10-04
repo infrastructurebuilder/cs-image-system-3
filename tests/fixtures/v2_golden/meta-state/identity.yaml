@@ -20,6 +20,17 @@ groups:
     members:
     - avery.alpha
     - casey.charlie
+  pxgroup:
+    admins:
+    - taylor_tango
+    builder: posix-local
+    gid_policy: config-time
+    identity_type: posix
+    is_root: false
+    managed: true
+    members:
+    - taylor_tango
+    - unity_uniform
   readers:
     admins: []
     builder: okta-groups-ro
@@ -71,6 +82,7 @@ note: structural facts only; gids flow by terraform remote-state reference (N7)
 run: 2026_08_26t12_00_00
 user_builders:
   okta-tf-users: okta-tf-ro
+  posix-users: posix
 users:
 - avery.alpha
 - blake.bravo
@@ -91,3 +103,5 @@ users:
 - quinn_quebec
 - rileyr
 - sawyer
+- taylor_tango
+- unity_uniform

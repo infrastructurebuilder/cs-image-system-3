@@ -175,6 +175,93 @@ class GroupBuilderBase(BuilderBase[TGROUP]):
         its plan. A provider with no such notion does nothing."""
         return 0
 
+    # --------------------------------- accounts on machines (stage 75 step 4)
+    def accounts_script(self, group: str) -> str | None:
+        """The script that makes ``group``'s accounts true on a machine of
+        one of its images -- run as root, idempotent, after an applying
+        instance run, over the runtime's session -- or None when this
+        builder puts nothing on machines after launch. Default: None."""
+        return None
+
+    def login_hook_commands(self) -> list[str]:
+        """Bake commands that make members join their groups at each login
+        (a builder another provider's builder delegates POSIX groups to).
+        Default: none."""
+        return []
+
+    def groups_script(self, groups: dict[str, int], members: dict[str, list[str]],
+                      keys: dict[str, list[str]] | None = None) -> str | None:
+        """A root script for groups ANOTHER builder owns (beside Okta): each
+        group with its gid and its member list for the login hook, the
+        members whose accounts stand joined now; no account is created.
+        None when this builder cannot. Default: None."""
+        return None
+
+    def configuration_notes(self) -> list[str]:
+        """True things about this builder's declarations that are neither
+        errors nor drift (a choice the team made that keeps something off
+        the machines). `validate` and the state query print them. Default:
+        nothing."""
+        return []
+
+    def configuration_errors(self) -> list[str]:
+        """What is wrong with this builder's declarations that only the
+        plugin can see (a posix group's member with no account to create).
+        `validate` refuses each. Default: nothing."""
+        return []
+
+    # ------------------------------------------ POSIX ids (stage 75 step 3)
+    def posix_id_claims(self) -> list[Any]:
+        """What this builder knows about POSIX ids: ``posix_ids.Claim`` per
+        group or user name (an id, the name only, or an id it will supply
+        later). `validate` resolves every builder's claims together by the
+        operator's rule. Default: no claims."""
+        return []
+
+    # ------------------------------------ gids in generated IaC (stage 75 step 3)
+    def gid_workspace(self) -> str | None:
+        """The terraform workspace whose ``group_gids`` output carries this
+        builder's gids -- a root that needs one declares that workspace's
+        remote state -- or None when the gids are known without one (a
+        configuration-time gid, written literally). Default: None."""
+        return None
+
+    def gid_expression(self, group: str) -> str | None:
+        """How generated IaC writes ``group``'s gid (N7): by reference into
+        ``gid_workspace()``'s outputs when the builder has one, else None --
+        a builder whose gids are configuration overrides this to write the
+        number."""
+        ws = self.gid_workspace()
+        if ws is None:
+            return None
+        from .. import utils
+        return f'data.terraform_remote_state.{utils.super_safe_name(ws)}.outputs.group_gids["{group}"]'
+
+    # ------------------------------------- the login proof (stage 75 step 2)
+    def can_prove_login(self, group: str | None = None) -> bool:
+        """Whether ``verify login`` can log into a standing machine of this
+        builder's groups (of ``group``, when named) the way a person does, and
+        so prove access, not only health. A provider without a login it can
+        drive makes no claim and its machines are skipped, never failed."""
+        return False
+
+    def login_unprovable_reason(self, group: str) -> str:
+        """Why ``group`` has no login to prove (the skip's detail)."""
+        return f"group {group}: its builder {self.get_name()} has no login it can prove"
+
+    def login_identity(self) -> str:
+        """Who the proof logs in as, for the record's ``as`` field."""
+        return "client"
+
+    def login_checks(self, group: str, hostname: str, *, timeout: int = 120, instance_name: str | None = None,
+                     runtime: Any = None) -> tuple[list[dict[str, Any]], list[str]]:
+        """The proof's checks for one running machine of ``group`` known as
+        ``hostname`` (declared as ``instance_name``, on the runtime builder
+        ``runtime``), each ``{name, ok, detail}``, stopping at the first that
+        fails; and a few lines of the login's output as evidence. The core
+        has already decided the machine is a target and is running."""
+        raise NotImplementedError(f"{self.__class__.__name__} cannot prove a login")
+
     # ------------------------------------------- CI login policy (stage 56)
     def can_manage_workload_access(self) -> bool:
         """Whether this builder keeps a CI login policy per managed group --

@@ -1,0 +1,22 @@
+---
+# docs/examples/standard-aws-posix/groups/groups.yaml -- the ONE group.
+# Reference: ../../../CONFIGURATION.md section 11.5. Every member and admin
+# must be a declared user. The posix builder bakes the group into its
+# instance image with this gid, and every applying run makes its members'
+# accounts, keys and sudo true on each running machine.
+groups:
+  - name: team                   # REPLACE: your group's name (a POSIX name: lower case, a letter first)
+    # DECISION: exactly one group in a tree must be the root/admin group, and
+    # this tree has only one, so it is both the root group and the group that
+    # owns the image and the storage.
+    is_root: true
+    gid: 3000                    # REPLACE: the group's gid on every machine (at least 1024; storage is owned by it)
+    description: "{{ group.name }}: the team's one group"
+    members:
+      - avery_alpha
+      - casey_charlie
+      - csis_proof               # the proof user: CI logs in as it to prove the group's access
+    admins:
+      - avery_alpha
+    tags:
+      environment: development

@@ -304,10 +304,19 @@ only via bind, upgrade and follow operations (§3B).
   - Cross-cutting: gated applies whitelist only operation-driven
     destroys (upgrade, instance decommission, a storage's requested or
     undeclared demise); any other destroy is a gate failure.
-- **N20 — Other identity types are deferred.** Okta is the only live
-  identity type; `manual-add` joins LDAP/AD in §H. The multi-type
-  machinery (declarations, prerequisite injection, validation) is
-  proven by tests rather than by a second live provider.
+- **N20 — Two identity types (revised by stage 75).** Okta was the only
+  identity type until stage 75 added `posix`: POSIX groups and users on
+  the machines, with ids the configuration declares (gid policy
+  `config-time`), no provider, no identity root. It stands alone (a tree
+  with no Okta: the `standard-aws-posix` starter) or beside Okta, where an
+  `okta-tf` group builder names it as its `posix:` delegate (required;
+  `none` is the explicit opt-out) and it makes OPA's groups exist on their
+  machines -- created after each applying run with OPA's gid, members
+  joined at each login by a PAM hook, because OPA's agent makes accounts
+  just-in-time and drops their groups when it deletes them. The core names
+  neither provider's agent: the launch steps, the login proof and the gid
+  in generated IaC are each the group builder's answer. LDAP/AD and
+  `manual-add` stay deferred (§H).
 
 ---
 

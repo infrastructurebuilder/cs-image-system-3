@@ -1,6 +1,6 @@
 # The packages
 
-The uv workspace is sixteen packages under `packages/`. Each has its own
+The uv workspace is seventeen packages under `packages/`. Each has its own
 README that describes it on its own terms: what it registers, its models
 and how they extend the base models, its builder's hooks, what it emits,
 and one example configuration. The core and the CLI are packages too.
@@ -34,6 +34,7 @@ registers model and builder classes under the classifications it claims.
 | [ansible-plugin](../packages/ansible-plugin/README.md) | modifications | `ansible` (playbooks) |
 | [bash-mod-plugin](../packages/bash-mod-plugin/README.md) | modifications | `bash-remote` (script, scripts, ensure) |
 | [okta-opa-plugin](../packages/okta-opa-plugin/README.md) | groups and users | the OPA group builder, the managed and read-only user builders |
+| [posix-identity-plugin](../packages/posix-identity-plugin/README.md) | groups and users | `posix` (a group and a user builder: POSIX accounts with declared ids; stage 75) |
 | [tf-ebs-instance-plugin](../packages/tf-ebs-instance-plugin/README.md) | instances and storages | the terraform instance and storage builders |
 | [tf-gcp-plugin](../packages/tf-gcp-plugin/README.md) | GCE terraform pieces | see its README for exactly what it registers |
 | [tf-s3-state-plugin](../packages/tf-s3-state-plugin/README.md) | state backends | `s3` |

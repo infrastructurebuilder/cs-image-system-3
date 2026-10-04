@@ -75,7 +75,14 @@ class TofuInstanceBuilder(InstanceBuilderBase[Q], TerraformRootMixin):
         if not group:
             return None
         gb = group_builder_of(self._get_context(), group)
-        return gb.get_name() if gb is not None else None
+        # stage 75 step 3: the group builder says where its gids live, if anywhere
+        return gb.gid_workspace() if gb is not None else None
+
+    def _gid_expression_for(self, group: str | None) -> str | None:
+        if not group:
+            return None
+        gb = group_builder_of(self._get_context(), group)
+        return gb.gid_expression(group) if gb is not None else None
 
     def _storage_builder_name(self, storage_name: str) -> str | None:
         for s in self._get_context().storages:
@@ -306,12 +313,10 @@ class TofuInstanceBuilder(InstanceBuilderBase[Q], TerraformRootMixin):
         EBS attachments -- every runtime value by terraform reference."""
         out: dict[str, Any] = {}
         group = params.get("group")
-        identity_ws = self._identity_workspace_for(group)
+        gid = self._gid_expression_for(group)
         template_vars: dict[str, Any] = {}
-        if group and identity_ws:
-            template_vars["group_gid"] = HclRaw(
-                f'data.terraform_remote_state.{utils.super_safe_name(identity_ws)}'
-                f'.outputs.group_gids["{group}"]')
+        if gid is not None:
+            template_vars["group_gid"] = HclRaw(gid)
         efs: dict[str, Any] = {}
         ebs: dict[str, Any] = {}
         for m in params.get("mounts", []):

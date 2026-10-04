@@ -40,6 +40,39 @@ provisioner "shell" {
       "sudo mkdir -p /etc/sft",
       "printf 'Labels:\\n  tx.group: coops\\n' | sudo tee /etc/sft/sftd.yaml",
       "sudo systemctl enable sftd",
+      "sudo bash -s <<'CSIS_POSIX_ACCOUNTS'",
+      "#!/usr/bin/env bash",
+      "# cs-image-system posix accounts (stage 75): idempotent; adopts what is equal, refuses what differs",
+      "set -euo pipefail",
+      "conflict() { echo \"posix accounts: $*\" >&2; exit 3; }",
+      "# the login hook: members join their groups at each login (stage 75)",
+      "install -d -m 0755 /etc/csis/groups",
+      "install -d -m 0700 /etc/csis/keys",
+      "cat > /usr/local/sbin/csis-group-login <<'CSIS_LOGIN_HOOK'",
+      "#!/bin/bash",
+      "# cs-image-system (stage 75): at each login, join the user to every group whose",
+      "# member list (/etc/csis/groups/<group>.members, one name a line) names them, and",
+      "# install their keys when /etc/csis/keys/<user> exists. Run by pam_exec; never fails.",
+      "[ \"$${PAM_TYPE:-}\" = \"open_session\" ] || exit 0",
+      "user=\"$${PAM_USER:-}\"",
+      "[ -n \"$user\" ] && getent passwd \"$user\" >/dev/null || exit 0",
+      "for list in /etc/csis/groups/*.members; do",
+      "  [ -e \"$list\" ] || continue",
+      "  group=$(basename \"$list\" .members)",
+      "  grep -qxF -- \"$user\" \"$list\" || continue",
+      "  getent group \"$group\" >/dev/null || continue",
+      "  id -nG \"$user\" | tr ' ' '\\n' | grep -qxF -- \"$group\" || gpasswd -a \"$user\" \"$group\" >/dev/null 2>&1 || true",
+      "done",
+      "if [ -f \"/etc/csis/keys/$user\" ]; then",
+      "  home=$(getent passwd \"$user\" | cut -d: -f6)",
+      "  install -d -m 0700 -o \"$user\" -g \"$(id -g \"$user\")\" \"$home/.ssh\" 2>/dev/null &&",
+      "    install -m 0600 -o \"$user\" -g \"$(id -g \"$user\")\" \"/etc/csis/keys/$user\" \"$home/.ssh/authorized_keys\" 2>/dev/null || true",
+      "fi",
+      "exit 0",
+      "CSIS_LOGIN_HOOK",
+      "chmod 0755 /usr/local/sbin/csis-group-login",
+      "grep -qxF 'session optional pam_exec.so quiet /usr/local/sbin/csis-group-login' /etc/pam.d/sshd || echo 'session optional pam_exec.so quiet /usr/local/sbin/csis-group-login' >> /etc/pam.d/sshd",
+      "CSIS_POSIX_ACCOUNTS",
     ]
   }
   # local modification bundle for imgfile-basic-dask -> /opt/csis/mods (re-run with `csis-mods rerun`)
@@ -61,7 +94,7 @@ provisioner "shell" {
       "sudo chmod -R go-w /opt/csis/mods",
     ]
   }
-  # in-bake verification for instance image imgfile-basic-dask: 5 assertion(s)
+  # in-bake verification for instance image imgfile-basic-dask: 7 assertion(s)
   provisioner "shell" {
     only   = ["googlecompute.imgfile-basic-dask"]
     inline = [
@@ -69,6 +102,9 @@ provisioner "shell" {
       "# verify: activated for group 'coops'",
       "grep -q 'tx.group: coops' /etc/sft/sftd.yaml",
       "systemctl is-enabled sftd >/dev/null 2>&1",
+      "# verify: the posix login hook is installed (stage 75)",
+      "test -x /usr/local/sbin/csis-group-login",
+      "grep -q csis-group-login /etc/pam.d/sshd",
       "if ! rpm -q git >/dev/null 2>&1 && ! { command -v dpkg >/dev/null 2>&1 && dpkg -s git >/dev/null 2>&1; }; then printf 'package %s is not installed\\n' git >&2; exit 1; fi",
       "( git --version ) 2>&1 | grep -q -- 'git version'",
       "id -u csisadmin >/dev/null 2>&1",

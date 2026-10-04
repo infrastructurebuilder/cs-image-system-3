@@ -31,7 +31,7 @@ from cs_image_system.base.bootstrap.questions import Question, Refused, Rendered
 
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLES = REPO / "docs" / "examples"
-TREES = ("standard-aws", "standard-gce", "complete")
+TREES = ("standard-aws", "standard-gce", "complete", "standard-aws-posix")
 
 GITHUB_ANSWERS = {"github": {
     "wanted": True, "repository": "acme/widgets", "default_branch": "develop", "production_branch": "main",

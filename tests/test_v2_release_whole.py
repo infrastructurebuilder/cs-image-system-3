@@ -41,7 +41,7 @@ def _invoke(*args: str):
 
 def test_the_release_carries_the_three_starters_and_the_source_is_docs_examples():
     root = starters.starters_root()
-    assert sorted(starters.STARTERS) == ["complete", "standard-aws", "standard-gce"]
+    assert sorted(starters.STARTERS) == ["complete", "standard-aws", "standard-aws-posix", "standard-gce"]
     for name in starters.STARTERS:
         assert (root / name / "cfg" / "_config.yml").is_file(), name
         # what the package resolves is byte for byte the source under docs/examples

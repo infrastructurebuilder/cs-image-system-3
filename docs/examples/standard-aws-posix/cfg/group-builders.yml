@@ -1,0 +1,16 @@
+---
+# docs/examples/standard-aws-posix/cfg/group-builders.yml -- the identity
+# builders: groups and users as POSIX accounts on the machines, with the ids
+# this tree declares. No Okta, no OPA, no identity root, no credentials.
+# Reference: ../../../CONFIGURATION.md section 9, and the posix identity
+# plugin's README (packages/posix-identity-plugin/README.md in the system).
+group_builders:
+  - name: posix-local
+    type: posix                  # DECISION: groups exist on the machines of their images, with a declared gid
+    is_default: true
+    shell: /bin/bash             # the login shell of the accounts it creates (the default)
+    admin_sudo: true             # DECISION: a group's admins get NOPASSWD sudo (their accounts have no password)
+user_builders:
+  - name: posix-users
+    type: posix                  # DECISION: users are POSIX accounts: a declared uid, a private group, their keys
+    is_default: true

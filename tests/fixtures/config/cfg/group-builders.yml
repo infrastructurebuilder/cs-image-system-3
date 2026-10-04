@@ -13,6 +13,9 @@ group_builders:
     state_configuration: local-dev   # stage 47: the identity roots keep their state on disk
     org: "noaa"
     team: "nos-coastal-modeling-cloud-sandbox"
+    # stage 75: REQUIRED -- the posix builder that makes these groups exist on
+    # their machines (after apply, with OPA's gid; members join at login)
+    posix: posix-local
     # key: "test-key"
     # secret: "test-secret"
     # stage 22.5 REMOVED -- a field on the USER builder, not the group builder; group-builders.yml uses it correctly further down under user_builders
@@ -36,6 +39,13 @@ group_builders:
       - name: okta
         source: okta/okta
         version: '>= 6.0'
+  # posix (stage 75): groups as POSIX accounts on the machines, with the gid
+  # declared on the group; no terraform root, no credentials. One group sits
+  # on it (groups/group-pxgroup.yaml), owning one image (images/image4.yaml).
+  # oktagroups names it as its `posix:` delegate: OPA's groups exist on their
+  # machines too (step 5).
+  - name: posix-local
+    type: posix
 # User builders handle users
 user_builders:
   # okta-tf-ro: read-only. Emits only `data "okta_user"` lookups of existing
@@ -61,3 +71,8 @@ user_builders:
       - name: okta
         source: okta/okta
         version: '>= 6.0'
+  # posix (stage 75): users as POSIX accounts, each with a declared uid, a
+  # user-private group of the same name and id, and its public keys. Two
+  # personas sit on it (the end of groups/users.yaml).
+  - name: posix-users
+    type: posix

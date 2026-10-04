@@ -515,6 +515,8 @@ def query_state(ctx: "GlobalTypeContext") -> StateReport:
     from .provider_aliases import instance_identity_notes
     instance_identity_notes(ctx, report)   # stage 58: what each machine answers to
     workload_notes(groups, report)         # stage 56: the connection behind CI's login
+    for gb in ctx.group_builders.values():          # stage 75: e.g. `posix: none`
+        report.notes += gb.configuration_notes()
     return report
 
 

@@ -88,3 +88,19 @@ users:
     first_name: Sawyer
     last_name: Sierra
     email: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBuRXVCTEpqVGRZU3NrWXd4UjBFMVJYNFViREtGeGp5a2IxenZGY0I4emg0CmxrRU5BM3ZxZElqdzF3TzIwK1k1eCtEMEkzdHVjV0dHd2htOFoyQWE4WEUKLS0tIHZqVjJnRFRSU3hQeXVjM0VRZC9LRXY4WjUrUVQ1anlxaXkzMUpwU2ZNQ2cK+dsRK5Rw/gY6a0LKodqmLIJIWRdP1/1+tJuYnjsJsMQTdYxNu181LR+AqPKuBiHZEnM=]
+  # stage 75: two posix personas -- POSIX accounts with a declared uid and
+  # their keys (synthetic: these keys open nothing)
+  - name: taylor_tango
+    type: posix-users
+    first_name: Taylor
+    last_name: Tango
+    uid: 3201
+    public_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureTaylorTangoKeyOpensNothingAtAll00 taylor_tango-fixture
+  - name: unity_uniform
+    type: posix-users
+    first_name: Unity
+    last_name: Uniform
+    uid: 3202
+    public_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureUnityUniformKeyOpensNothingAtAll0 unity_uniform-fixture

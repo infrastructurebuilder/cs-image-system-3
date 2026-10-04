@@ -261,6 +261,21 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
                     if re.search(r"startup|XFS|google_metadata_script_runner", ln)][-20:]
         return {"ok": all(c["ok"] for c in checks), "checks": checks, "evidence": evidence}
 
+    def ssh_proxy_command(self, instance_name: str) -> list[str] | None:
+        """An IAP TCP tunnel to the instance's port, on stdin/stdout: no
+        public address, the IAP firewall rule and grant the session
+        mechanism already needs (stage 75 step 6)."""
+        from .gcp_packer_source import gce_name
+        from .gcp_utils import resolve_project
+        if self.session_mechanism() != self.IAP:
+            return None
+        project = resolve_project(self.model.self_to_gcp_client_config())
+        zone = getattr(self.model, "zone", None)
+        if not project or not zone:
+            return None
+        return [self.gcloud_binary(), "compute", "start-iap-tunnel", gce_name(instance_name), "%p",
+                "--listen-on-stdin", "--project", str(project), "--zone", str(zone)]
+
     def run_session_command(self, instance_name: str, script: str, timeout: int = 300) -> tuple[int, str]:
         """``gcloud compute ssh --tunnel-through-iap --command`` as the
         operator's gcloud account (the IAP grant, stage 2)."""
