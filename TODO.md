@@ -893,10 +893,14 @@ standing mandate: a new secret owes the bootstrap its question).
    users at launch, sudo for the admin, `verify login` over real SSH,
    torn down in its run. Nothing on GCP (the GCE proxy command is
    unit-tested and read, not run).
-10. **Records.** Plugin README, CONFIGURATION, OPERATIONS and DESIGN
-    N20 updated here (they describe the new plugin); a documentation
-    stage is opened for the behaviour changes to existing docs
-    (`DAILY_DRIVER.md`, the guide); memory updated.
+10. **Records.** Done 2026-10-04, as far as the code goes: the posix
+    plugin's README (standalone, beside Okta, the login proof, its
+    failures), the Okta README and CONFIGURATION 9.2 (`posix:`,
+    `posix_ssh_keys:`), the guide (`CSIS_PROOF_SSH_KEY`), DESIGN N20
+    (two identity types), and OPERATIONS' identity rules (ids, what the
+    accounts script never deletes, membership at login, the proof key).
+    The documentation stage §78 is opened for what the daily driver
+    owes. The live results of steps 8-9 are added here when they stand.
 
 ### Verification
 
@@ -932,3 +936,39 @@ standing mandate: a new secret owes the bootstrap its question).
   coops.
 - **Order against §65**: the walk would be simpler on the Okta-free
   starter this stage produces; that is the operator's call, not assumed.
+
+## 78. Documentation stage: posix identity
+
+**Status: OPEN since 2026-10-04** (opened by §75 step 10, by the
+standing rule that a stage which changes behaviour owes the
+documentation an update; a documentation stage changes no code). Later
+stages that land undocumented changes append here until it lands.
+
+**What changed, by stage:**
+
+- **§75, a POSIX identity plugin, alone and beside Okta.** A second
+  identity type, `posix`: groups with a declared `gid:` and users with a
+  `uid:` and their keys, made on the machines (the group baked into the
+  image; accounts, keys and sudo after each applying run). Beside Okta,
+  every `okta-tf` group builder must write `posix:` (a posix builder, or
+  `none`): its groups then exist on their machines with OPA's gid, and
+  members join at each login through a PAM hook. A posix group's login
+  proof logs in as its proof user over ssh through the runtime's session
+  tunnel, with `CSIS_PROOF_SSH_KEY`. A fourth starter,
+  `standard-aws-posix`. Already documented in §75: the plugin README,
+  the Okta README, CONFIGURATION 9.2, the guide, DESIGN N20, OPERATIONS'
+  identity rules, the daily driver's starter list and plugin chapter.
+
+**Owed:**
+
+1. `DAILY_DRIVER.md` 3.1 (a group and its access): the `posix:` line on
+   an Okta group builder and what it does on the machines; a posix
+   group's `gid:`, a posix user's `uid:` and keys; the proof user.
+2. `DAILY_DRIVER.md` section 4 (changing things): a membership change
+   reaches the machines at the next applying instance run (and, beside
+   Okta, at each member's next login) -- not by a re-bake.
+3. `DAILY_DRIVER.md` 1.x: what the release that carries §75 requires of
+   an existing tree (the `posix:` line, in the same commit as the
+   release) -- once that release exists.
+4. `DAILY_DRIVER.md` section 6 gains a row for each of §75's refusals
+   when one is first met in the reference deployment.

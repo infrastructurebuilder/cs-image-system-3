@@ -2488,6 +2488,34 @@ exception is a decision to record, not a bypass.
   system's and is rewritten from the user policy on every identity apply;
   edit the module's rule, never the copy. The workload connection and role
   it names are the operator's and are never written by the system.
+- **POSIX groups and accounts (stage 75).** A posix group's `gid:` and a
+  posix user's `uid:` are the configuration's and the same on every
+  machine (storage is owned by number); `validate` refuses one name with
+  two ids, two names with one id, an id below 1024, and a posix group's
+  member with no posix account.
+- The accounts script never deletes an account or a group. It adopts
+  what stands equal, stops (exit 3, both ids named) on what stands
+  different, and rewrites only what it owns: a managed group's member
+  list, the files under `/etc/csis/`, its
+  `/etc/sudoers.d/60-csis-<group>`.
+- Every `okta-tf` group builder writes `posix:` -- a posix group
+  builder, or `none`. With a delegate, each applying instance run makes
+  the groups exist on their running machines with OPA's gid and installs
+  the login hook; a machine that is off waits for a run that finds it
+  running. With `none`, `validate` and the state query note what stays
+  off the machines.
+- Membership beside Okta is applied at LOGIN (the PAM hook), never only
+  at apply: OPA's agent makes each account at a login and `userdel`
+  drops its groups. A member added to the YAML joins at their next login
+  after the next applying run. One removed leaves the list: the next
+  applying run takes them out of the group if their account stands then,
+  and the hook never adds them again (the hook itself only ever adds).
+- A posix group's login proof logs in as its proof user over ssh through
+  the runtime's session tunnel (SSM's `AWS-StartSSHSession`, IAP on
+  GCE): no public address is ever needed. The proof key
+  (`CSIS_PROOF_SSH_KEY`) is made for the proof user alone and is a CI
+  secret; rotating it is a new key pair, the public half in
+  `public_keys:` and an applying run.
 
 ### Applies
 
