@@ -1791,8 +1791,8 @@ Options of `cs-image-system run` ([`cli.py`](../packages/system/src/cs_image_sys
 
 | Option | Effect |
 | --- | --- |
-| `--only <image>[@<runtime>]` (repeatable) | restrict the **bake** surface to the named images (an OS builder or an image name; with `@<runtime>`, on that runtime only). Terraform roots are untouched. An unknown name fails. `--only none` bakes nothing. |
-| `--only-runtime <rt>` | `--only <img>@<rt>` for every image baked on that runtime; the terraform roots of other runtimes emit nothing |
+| `--only <image>[@<runtime>]` (repeatable) | restrict the **bake** surface to the named images (an OS builder or an image name; with `@<runtime>`, on that runtime only). Terraform roots are untouched (beside `--only-runtime`: that runtime's alone). An unknown name fails. `--only none` bakes nothing. |
+| `--only-runtime <rt>` | the terraform roots of other runtimes emit nothing. Alone: `--only <img>@<rt>` for every image baked on that runtime. Beside `--only` it **narrows**: the named images on that runtime, never the runtime's others; a name not baked there, a name `@` another runtime, or `none` beside names is refused (exit 2). Stage 79: until 2026-10-04 the pair was a union, and a run naming two images also planned every due image of the runtime |
 | `--apply-runtime <rt>` | sets `apply_storage` and `apply_instances` to `[<rt>]` for the run (the generated `apply-check` carries it) **and** implies `--only-runtime <rt>` unless `--only`/`--only-runtime` is given |
 | `--allow-unscoped-bakes` | let a `--no-dry-run` run bake on runtimes outside its apply scope (a list-valued `apply_*` flag or `--apply-runtime`); without it such a run refuses |
 | `--force-bake <image>` (repeatable; `all`) | bake even when current; otherwise an image bakes only when its inputs changed, its parent moved under `parent_policy: follow`, or `update.refresh_days` is due |

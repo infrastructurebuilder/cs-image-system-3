@@ -97,10 +97,21 @@ export CSIS="uv run cs-image-system"     # the Justfile reads CSIS; every recipe
 
 CI installs the release the same way, pinned by the content of
 `.csis-version` when that file exists (section 1.8). Upgrading the system
-is upgrading the package; the configuration repository does not change.
-The versions on the index, and what each carries, are the system
+is upgrading the package; the configuration repository usually does not
+change. The versions on the index, and what each carries, are the system
 repository's releases ([OPERATIONS.md](docs/OPERATIONS.md), "Installing a
 release").
+
+Some releases do ask something of the tree, and then `validate` refuses
+the tree until it is given, so the release and the change land in ONE
+commit. The first was 0.1.1.dev13 (2026-10-04, the POSIX identity
+plugin): every group builder of `type: okta-tf` must now carry a
+`posix:` line -- the name of a `type: posix` group builder, which makes
+the Okta groups exist on their machines, or `none`, which keeps them
+off (section 3.1). The reference configuration took it as one commit:
+`.csis-version` raised, `init-config --force` for the release-owned
+files, a `posix-local` group builder declared, and `posix: posix-local`
+on its Okta group builder.
 
 ### 1.2 Tools and their floors
 
@@ -411,6 +422,51 @@ membership removed in OPA first is pruned from terraform state by the
 runner itself, after a backup, so the plan does not trip on it (section
 4, "Who may log in").
 
+**The group on its machines.** OPA lets a member in; it does not make
+the group exist on the machine. Every `okta-tf` group builder therefore
+names, in `posix:`, a group builder of `type: posix` that does
+([CONFIGURATION.md](docs/CONFIGURATION.md), 9.2). With one named, each
+applying instance run (`just cloud-launch <runtime>`) creates every
+group on its running machines with OPA's gid and writes its member list
+under `/etc/csis/groups/`, and a PAM hook -- baked into the image and
+installed again by that run -- adds each listed member to the group at
+every login. The hook is needed because OPA's agent makes an account
+only when someone logs in and drops its groups when it deletes it, so a
+membership written once would not last. Afterwards `getent group <g>`
+answers on the machine, the group's storage subtrees show its name
+rather than a bare number, and a member's `id` carries it.
+`posix: none` keeps all of that off, and `validate` notes what it
+keeps off. A machine that is switched off waits for a run that finds
+it running.
+
+**A group without Okta.** A group whose builder is itself `type: posix`
+lives on its machines alone ([CONFIGURATION.md](docs/CONFIGURATION.md),
+11.5 and 11.6; the starter `standard-aws-posix` is a whole tree of
+them). The group declares its `gid:`; each member is a user of a
+`type: posix` user builder with a `uid:` and `public_keys:`. Both ids
+are the configuration's, at least 1024 and the same on every machine,
+because shared storage is owned by number. The group is baked into its
+images with that gid, and after each applying instance run the users,
+their private groups, their keys and the admins' sudo are made true on
+every running machine. Two declarations of one name with different ids
+are refused at `validate`; a machine where the name already stands with
+a different id stops the run there and names both ids. Nothing is ever
+deleted on a machine: an account removed from the YAML stays until it
+is removed by hand, and a group the system once managed stays in the
+YAML, marked `unmanaged: true`, when it is retired (section 4).
+
+**The proof user.** `just ci-login-proof <instance>` proves a posix
+group's access by logging in as its proof user: a member declared
+`is_service_account: true`, with a `uid:` and one public key made for
+it alone, whose private half reaches the proof as `CSIS_PROOF_SSH_KEY`
+(the key itself, or a path to it; in CI a repository secret,
+[CI_SETUP.md](docs/examples/standard-aws-posix/CI_SETUP.md), 3.7). The
+login is real ssh through the runtime's session tunnel -- SSM's
+`AWS-StartSSHSession` on AWS, an IAP tunnel on GCE -- so no machine
+needs a public address, and the proof passes only when the group is
+among the account's groups. It was first proved on 2026-10-04, on a
+posix-only AlmaLinux 10 machine in a private subnet.
+
 ### 3.2 A storage
 
 Declare it in `storages/` with its type (EBS, EFS, S3 on AWS; a persistent
@@ -464,11 +520,14 @@ just test-mods --strict         # every modification twice in a container: apply
 just cloud-perform <runtime>    # the due bakes, the declared releases and retention, on that runtime
 ```
 
-The in-bake tests fail the bake; a build is recorded only on success. The
-release lifecycle records the build as the model's current release only
-once its post-bake tests have passed on a launched machine, which for a
-brand-new image means launching an instance of it first. Read
-[OPERATIONS.md](docs/OPERATIONS.md), "Post-bake tests and releases".
+The in-bake tests fail the bake; a build is recorded only on success,
+and when one bake of a run fails, the bakes that completed before it
+are still recorded ([OPERATIONS.md](docs/OPERATIONS.md), "When a bake
+fails"). The release lifecycle records the build as the model's
+current release only once its post-bake tests have passed on a
+launched machine, which for a brand-new image means launching an
+instance of it first. Read [OPERATIONS.md](docs/OPERATIONS.md),
+"Post-bake tests and releases".
 
 ### 3.5 An instance
 
@@ -522,12 +581,13 @@ below; this is the order a person meets them.
 | Detach a storage from a launched instance | remove it from the instance's `storages` | the run unmounts on the machine first and refuses the plan without the receipt; adding it back is a replacement |
 | Archive, restore, destroy a storage | `state: archived` (EBS and pd only), `active` again, `destroyed`, or delete the entry | each goes through the gate; tombstones stay in `storage-state.yaml` |
 | Who may log in | edit `members` or `admins` | `just run identity`. A removal OPA still holds is a destroy the plan shows. A membership already gone from OPA (removed in the console, or a roster conformed to OPA by hand) is pruned from terraform state by the runner's `prune-attachments` step, after a backup to `_private/state-backups/`, so the provider's refresh error never blocks the plan |
-| Stop managing a group | `unmanaged: true` | released from state, never destroyed; deleting the entry is a validation failure |
+| Who is in a group on its machines | edit `members` or `admins`; beside Okta, `just run identity` first, as above | the next applying instance run, `just cloud-launch <runtime>`, rewrites the member list on every running machine (beside Okta) or makes the accounts, keys and sudo true (a posix group). Beside Okta a member added joins at their next login after that run, and one removed is taken out of the group if their account stands then. Never a re-bake, and nothing is deleted: an account dropped from the YAML stays on the machine. Section 3.1; OPERATIONS "Identity" |
+| Stop managing a group | `unmanaged: true` | released from state, never destroyed; deleting the entry is a validation failure. A retired posix group stays the same way, and needs no members (2026-10-04: the posix proof's group, its gid still claimed by the name) |
 | Decommission an instance | delete the entry, or `just cli --undeclare instance:<name> run instance-image --only none --apply-runtime <runtime> --commit` for one run | the gate whitelists exactly its destroy; the launch record, pin and OPA registration are forgotten; the pool name it took stays spent |
 | Rotate the admin key | add the new key, bake, upgrade every instance, remove the old key, repeat | "Rotate the admin key" |
 | Move a root's state | change `state_configuration`, `just cli --no-dry-run run <lifecycle> --migrate-state <root>` | backs up, copies, accepts only a clean plan at the new location, records the move |
-| Adopt something made by hand | `just cli state import`; for memberships, `tofu import` then a no-op apply | "Adopt out-of-band group membership" |
-| Upgrade the system | `uv tool upgrade cs-image-system` (or bump the pin and `uv lock`); `.csis-version` for CI | `just validate`, `just dry`, and read the diff of `generated/`: an emission change is what a system upgrade looks like |
+| Adopt something made by hand | `just cli state import`; for memberships, `tofu import` then a no-op apply | "Adopt out-of-band group membership". An adopted image counts as current when its tagged fingerprint matches today's inputs, so it is not baked again; it carries no in-bake record, so the release grace does not cover it |
+| Upgrade the system | `uv tool upgrade cs-image-system` (or bump the pin and `uv lock`); `.csis-version` for CI | `just validate`, `just dry`, and read the diff of `generated/`: an emission change is what a system upgrade looks like. A release that asks something of the tree is refused by `validate` until it is given: make the change in the same commit (section 1.1) |
 
 Three habits keep changes safe. Dry-run first and read the script: a dry
 run regenerates and lists the commands the real run will execute -- it
@@ -630,6 +690,9 @@ item in the open hygiene bundle in [TODO.md](TODO.md).
 | `mod tests: N failed` or `not idempotent` | a modification fails, or changes something on its second run | make it idempotent: `ensure`, `unless`, `changed_when: false`; read `meta-state/mod-tests.yaml` |
 | `rpm -q vim` fails on AlmaLinux 10; `dnf install amazon-efs-utils` finds nothing | the package is `vim-enhanced`; efs-utils is not in AlmaLinux's repositories | name the real package; build efs-utils from source as the reference image does |
 | `public-safe: ... <file>:<line>` from the hook | a committed line looks like a secret, a key, a plan or a state file | never bypass the hook; encrypt the value, or allow it BY DECISION in `cfg/_config.yml` `public_safe.allow` |
+| `Build '<image>' errored after 20 minutes ...: Timeout waiting for SSH.` with `ssm error: ... StartSession, context canceled` | the bake machine booted and its SSM agent ran, but packer's session through SSM never connected (2026-10-04, `perform` run 37212963588: `imgfile-basic-cloudflow` on an EL8 parent pinned since 2026-08-31, while five EL10 bakes in the same run went through) | the run fails; since stage 79 the builds that completed before it are recorded anyway (a warning names them). Run the bake again; if it repeats, move the series off the old parent (`just cli upgrade image <image>`) |
+| `foreign image <id>: ... tagged series=<s> run=<r> is not in lineage` | an image the system tagged and lineage does not record: a bake still running in another process (2026-10-04: `just full-test`'s strict query raced CI's `perform`), or one a failed run baked before stage 79, when a failed run recorded nothing | if a run is still baking, wait for it to finish and record. Otherwise `just cli state import --no-storages` adopts it (2026-10-04: five images), then `just record`; the adopted build counts as current, so it is not baked again |
+| `identity: group '<g>' was managed by the system but is missing from the YAML; groups never leave the configuration` | a group the system once managed was deleted from the YAML (2026-10-04: removing the posix proof's declarations after the proof) | put the entry back with `unmanaged: true`; its members may go. The records stay, and its gid stays claimed by the name |
 | the `live` or `perform` job green with `SKIPPED` in its summary | no secret was configured, so nothing ran | not a pass: set the secrets the workflow names |
 
 ## 7. Every plugin, in one paragraph each

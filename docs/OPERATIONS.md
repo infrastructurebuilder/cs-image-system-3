@@ -190,9 +190,15 @@ bake control.
   images: sources, build blocks and bake scripts exist for nothing else.
   Unknown names fail loudly. `--only none` bakes nothing: the terraform
   roots alone, for a launch or teardown that must not re-bake.
-- `--only-runtime <rt>` restricts the bake surface to every image baked on
-  that runtime, and generates and plans **no other runtime's** storage or
-  instance root (their plans can only fail or waste time). A list-valued
+- `--only-runtime <rt>` generates and plans **no other runtime's** storage
+  or instance root (their plans can only fail or waste time). Alone, it
+  makes the bake surface every image baked on that runtime. Beside
+  `--only` it **narrows**: the bake surface is the named images on that
+  runtime and nothing else, and a name it cannot honour -- not baked on
+  that runtime, written `@` another runtime, or `none` beside names -- is
+  refused before anything is generated (exit 2), every such name listed
+  at once. Until 2026-10-04 (stage 79) the pair was a union: a run naming
+  two images also planned every due image of the runtime. A list-valued
   `apply_*` flag alone is not such a scope: under it every root still
   plans and gates.
 - `--apply-runtime <rt>` lets that runtime's storage and instance roots
@@ -215,6 +221,22 @@ bake control.
   base-image lifecycle alone, the same as `run base-image`.
 - `--force-bake <image>` (repeatable; `all` = the run's whole surface)
   bakes even when current.
+
+Baking a few named images on one runtime, with only that runtime's roots
+planned, is the two flags together (the dry form first, as always):
+
+```sh
+just cli --locked --dry-run run base-image instance-image \
+  --only basic-rh-10-posix --only imgfile-posix-proof --only-runtime aws-east2-runtime
+just cli --locked --no-dry-run run base-image instance-image \
+  --only basic-rh-10-posix --only imgfile-posix-proof --only-runtime aws-east2-runtime --commit
+```
+
+The bake plan then says `bake:` for the two series and `skip: not
+selected (--only)` for everything else. Stage 75's live proof
+(2026-10-04) predates the narrowing, so it wrote `--only
+<image>@aws-east2-runtime` alone, which bakes the same two but plans
+every runtime's roots.
 
 ### Transient declarations
 
@@ -256,7 +278,10 @@ bake plan (logged, and in `run-summary.json`) names it per
   ssh username, run ids and timestamps, and which BUILD of the parent the
   bake is from: that is the pin's business, and a moved pin is the next
   reason. Vendor-family *movement* is excluded too: the declared reference
-  is hashed, not what it resolves to today;
+  is hashed, not what it resolves to today. A build adopted with `state
+  import` records only the first 16 characters of the fingerprint (its
+  tag's) and counts as current when they match (stage 79; before, every
+  adopted series re-baked on every run);
 - its **parent moved** under `parent_policy: follow` (the pin behind the
   parent series' head, the condition the state query reports as `stale`):
   judged before the fingerprint, so a parent re-baked from identical
@@ -274,6 +299,40 @@ After a change to the fingerprint recipe itself,
 tree's current fingerprint on each series head whose recorded one predates
 the change (the previous value kept under `fingerprint_restamped`) and
 re-tags the cloud image, so unchanged images are not re-baked once.
+
+### When a bake fails
+
+A packer build that fails stops its lifecycle: the run ends `Apply
+failed for lifecycle <lifecycle>` and exits 1, and nothing after the
+failed command runs. The builds that completed before it are kept
+anyway (stage 79). Packer writes a build into its block's manifest only
+after the build -- its in-bake tests included -- succeeded, so after the
+failure every builder records what its manifests hold, exactly as a
+successful phase would. A warning names them:
+
+```text
+<image builder>: the phase failed; recorded the <n> build(s) that completed before it did: <image> -> <build id>, ...
+```
+
+The failed series gets no build and stays due, so the next run bakes it
+again; nothing is left foreign. Each bake first removes the manifests
+earlier runs left in its block directories -- the private mirror keeps
+what the tools wrote between runs, and a failed block writes no new
+manifest -- so an old run's artifacts can never be recorded as this
+run's.
+
+A failed run does not commit: its records are in `meta-state/` on disk,
+and `just record` (in CI, the `perform` job's closing record) commits
+them, as after any run.
+
+Before stage 79 a failed phase recorded nothing, and every image it had
+already baked stood in the cloud unrecorded -- `foreign` to the state
+query, which then refused every strict preflight. That happened on
+2026-10-04 (the reference configuration's `perform`, run 37212963588:
+five images baked, then `imgfile-basic-cloudflow` timed out on SSH over
+SSM). The way out for such images is `state import` ("The state
+query"), which adopts them; an adopted build of today's inputs then
+counts as current and is not baked again.
 
 ### Parent and image policies
 
@@ -1142,7 +1201,7 @@ repository tracked them from an older tree removes them from the index
 | Command | Exit | Meaning |
 | --- | --- | --- |
 | `run` | 1 | any failure (validation, generation, apply, hard drift, an expired session before the load); a configuration that fails to LOAD exits 1 too, as `Error reading config file : <e>` followed by the traceback |
-| `run` | 2 | no or unknown lifecycle; unknown `--apply-runtime`/`--only-runtime` |
+| `run` | 2 | no or unknown lifecycle; unknown `--apply-runtime`/`--only-runtime`; an `--only` name that `--only-runtime` cannot honour (not baked on that runtime, written `@` another, or `none` beside names) |
 | `validate` | 1 | any rule fails; generates nothing |
 | `preflight` | 2 | a session absent or expired (the configuration could not load), or a credential-shaped environment variable (`AWS_*`, `GOOGLE_*`, `OKTA_*`, `TF_VAR_*`, `CSIS_*`) that is set but EMPTY -- reported by name, never by value |
 | `preflight --strict` | 1 | a session expires within `config.preflight.expected_run_minutes` (default 30) |
@@ -1206,7 +1265,16 @@ as it does for an unreachable cloud.
 
 `state import [--no-images] [--no-storages]` adopts *foreign* artifacts
 into meta-state. It writes meta-state only, never the cloud, OPA or tofu
-state; importing into tofu state stays a deliberate human step.
+state; importing into tofu state stays a deliberate human step. An
+adopted image's lineage record is built from its tags (`imported:
+true`): series, run, parent and the first 16 characters of the input
+fingerprint, with no mods and no in-bake record. It counts as current
+when that prefix matches the tree's fingerprint today, so adopting a
+build of today's inputs stops it being baked again; it is not covered
+by the release grace, which needs the in-bake record, so a durable
+instance is upgraded onto a baked build, not an adopted one.
+Adopting is also the way out for images a failed run baked before
+stage 79 ("When a bake fails"); 2026-10-04 adopted five that way.
 
 **Sessions.** `state query`, every run, `preflight` and `just
 cloud-preflight` read the credential caches, never a credential value,
