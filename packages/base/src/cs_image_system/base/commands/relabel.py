@@ -43,10 +43,10 @@ class Relabel:
 
 def record_tags(record: dict[str, Any]) -> dict[str, str]:
     """The lineage tags a record says its image must carry."""
-    from ..lineage import TAG_PREFIX
+    from ..lineage import FINGERPRINT_TAG_LENGTH, TAG_PREFIX
     from ..state_query import _TAGGED_FACTS
     tags = {f"{TAG_PREFIX}{fact}": str(record.get(fact) or "") for fact in _TAGGED_FACTS}
-    tags[f"{TAG_PREFIX}fingerprint"] = str(record.get("input_fingerprint") or "")[:16]
+    tags[f"{TAG_PREFIX}fingerprint"] = str(record.get("input_fingerprint") or "")[:FINGERPRINT_TAG_LENGTH]
     return {k: v for k, v in tags.items() if v}
 
 

@@ -81,10 +81,16 @@ class BuilderBase(ABC, Generic[C]):
     # Finalization hooks: final_execute() calls these around each phase's
     # deferred executables. pre fires before the phase's commands run (e.g.
     # write tfvars from now-resolved provider-specific images); post fires
-    # after they succeed (e.g. parse packer build manifests). No-ops here.
+    # after they succeed (e.g. parse packer build manifests); post_failed
+    # fires INSTEAD of post when one of them failed (hygiene X item 2): a
+    # builder records there what demonstrably completed before the failure
+    # (packer: the builds in a manifest this run wrote) and nothing else.
+    # No-ops here.
     def pre_finalize_phase(self, phase: ExecutionLifecyclePhase) -> None:
         return None
     def post_finalize_phase(self, phase: ExecutionLifecyclePhase) -> None:
+        return None
+    def post_failed_phase(self, phase: ExecutionLifecyclePhase) -> None:
         return None
     def _get_context(self) -> "GlobalTypeContext":
         from ..global_context import GlobalTypeContext
