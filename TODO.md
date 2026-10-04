@@ -10,17 +10,26 @@ system must not take itself.
 Current stage: **§75**, the POSIX identity plugin. Steps 1-7 and 10
 merged 2026-10-04 (c02511d) and released in dev13; steps 8 and 9 are
 done live the same day (coops-model-005 healed in place; the standalone
-proof logged in over real ssh and was torn down). It lands once the
-sibling's main moves and `perform` is green, after `just full-test`.
-Open beside it:
-§78, the documentation stage for §75, and §79, hygiene bundle X (one
-item, a plan). Planned, by the operator's word: §65, §66 and §30.
+proof logged in over real ssh and was torn down). The sibling's first
+`perform` on dev13 failed (run 37212963588: `imgfile-basic-cloudflow`
+timed out on SSH over SSM on its EL8 parent, and the five builds that
+had completed went unrecorded); the five were adopted (sibling
+9846a62), and the three defects it exposed are §79, landed. By the
+operator's word the sibling's main moves again only after a release
+carries §79 and the sibling takes it; §75 lands when that `perform` is
+green. Open beside it: §78, the documentation stage for §75 and §79. No
+hygiene bundle is open (the next issue opens XI). Planned, by the
+operator's word: §65, §66 and §30.
 
-Releases: dev13 (2026-10-04) carries §75 steps 1-7 and 10 and is on the
-sibling's develop (bceb31b, CI green); the sibling's main is still on
-dev12 (2026-10-03, §76), performing on it (closing record 266db26).
+Releases: dev13 (2026-10-04) carries §75 steps 1-7 and 10; the sibling
+is on it (develop and main). The next release (dev14, the operator's)
+carries §79.
 
-Recently landed: §76 (2026-10-03, 980963e), reserved names -- `none`
+Recently landed: §79, hygiene bundle X (2026-10-04, fffef2a; the branch
+`feature/hygiene-x` kept): `--only` beside `--only-runtime` narrows a
+bake, a failed packer block keeps the records of the builds that
+completed, and an adopted build counts as current; §76 (2026-10-03,
+980963e), reserved names -- `none`
 joined `OOPS_DEFAULTS`, a reserved name is refused where its file is
 read, a reference written `none` is refused at `validate`, the
 `config:` key guard is on -- and §77, its documentation stage (63fc128);
@@ -518,9 +527,11 @@ sibling's develop (bceb31b, CI green). Step 9 DONE 2026-10-04: the
 standalone proof logged in over real ssh, all four checks ok, and was
 torn down the same day. Step 8 DONE 2026-10-04 on the machine
 (coops-model-005 healed in place), owing only `perform` green, which
-waits for the operator to move the sibling's main (that run bakes the
-six due AWS Okta images). Left before the stage lands: that `perform`,
-and `just full-test`.** (The
+waits for the sibling's main. Its first `perform` (run 37212963588)
+failed on `imgfile-basic-cloudflow`'s EL8 parent and exposed the three
+defects of §79, landed; main moves again after a release carries §79.
+`just full-test` passed 2026-10-04 on the tree with §79 merged. Left
+before the stage lands: that `perform`, green.** (The
 operator, 2026-10-03, on finding the owning group absent on a live
 machine: "Plan a second plugin", with the decisions recorded below.)
 
@@ -1043,65 +1054,3 @@ stages that land undocumented changes append here until it lands.
 7. §79 item 3: wherever `state import` is described (OPERATIONS), say
    that an adopted build counts as current when its tagged fingerprint
    matches today's inputs, so adopting stops a re-bake.
-
-## 79. Hygiene bundle X
-
-**Status: IN PROGRESS 2026-10-04 on `feature/hygiene-x` (the operator:
-"execute 79"; then §78). Items 1-3 built and tested; the bar, `just
-full-test` and the merge follow, then a release (the operator's) that
-the sibling takes before its main moves again (operator, 2026-10-04).**
-
-1. **`--only` and `--only-runtime` together widen a bake; they never
-   narrow it.** Found 2026-10-04 while preparing §75 step 9: a dry run
-   of `run base-image instance-image --only basic-rh-10-posix --only
-   imgfile-posix-proof --only-runtime aws-east2-runtime` planned the two
-   named series AND every due image of the runtime -- the six Okta
-   images whose inputs §75 moved. The CLI appends every image of the
-   runtime to `--only`
-   ([cli.py:151-163](packages/system/src/cs_image_system/system/cli.py#L151-L163)),
-   as its help says, so the pair is a union; nobody who writes both
-   flags means that, and the run would have baked six images nobody
-   asked for. The form used instead (`--only <image>@<runtime>` alone)
-   bakes only what it names, but then generates and plans EVERY
-   runtime's terraform roots, which is what `--only-runtime` exists to
-   prevent (ledger 70: a GCE plan 404'd during a scoped AWS bake).
-   Fixed looks like: with `--only` given, `--only-runtime` scopes the
-   roots and narrows the named images to that runtime (an
-   intersection), and never adds to them; a named image not baked on
-   that runtime is refused; the help says so; a test pins both forms
-   (`--only-runtime` alone keeps today's meaning). The operator chose
-   the narrowing reading, 2026-10-04. DONE: `runtime_bake_selection`
-   ([runtime_facts.py](packages/base/src/cs_image_system/base/commands/runtime_facts.py))
-   is what the CLI asks; refusals exit 2 and name every entry at
-   once; the `--only-runtime` and `--only` help say it narrows;
-   [test_v2_hygiene_x.py](tests/test_v2_hygiene_x.py).
-2. **A failed packer block discarded the records of the builds that
-   completed.** Found 2026-10-04 in the sibling's `perform` (run
-   37212963588): block-000 baked five images, block-001's one build
-   (`imgfile-basic-cloudflow`, on its EL8 parent pin) timed out on
-   SSH over SSM, and the phase's `post_finalize_phase` -- the only
-   place manifests become lineage -- never ran, so five AMIs stood
-   unrecorded (foreign) and every strict preflight refused until
-   they were adopted with `state import`. DONE: a failed phase calls
-   every builder's new `post_failed_phase` instead (both runners,
-   via `after_failed_phase` on the context; one failing hook never
-   hides another or the failure); the packer builder records what
-   its manifests hold. Safe because `pre_finalize_phase` now removes
-   every earlier manifest before the bake: the private mirror is
-   incremental, and a failed block writes none, so an old one would
-   otherwise be read as this run's. A build in a manifest finished
-   its in-bake verification, so `in_bake: true` stays true.
-3. **A build adopted with `state import` never counted as current.**
-   Found 2026-10-04 adopting item 2's five AMIs: the bake plan still
-   said `inputs changed (531831f5d092 -> 531831f5d092)` for each. The
-   adopted record holds the image tag's fingerprint, its first 16
-   characters, and the bake decision compared it with the whole one,
-   so every adopted series re-baked on every run (the state query and
-   `lineage relabel` already compared by prefix). DONE: `same_inputs`
-   in [lineage.py](packages/base/src/cs_image_system/base/lineage.py)
-   -- an `imported: true` record matches when it is a prefix of at
-   least `FINGERPRINT_TAG_LENGTH` (16) characters; a baked record still
-   matches only whole. The tag length is one named constant now, not
-   four literals. `restamp` still sees an adopted head as changed and
-   would write the whole fingerprint into it: harmless, and a manual
-   way to complete such a record.
