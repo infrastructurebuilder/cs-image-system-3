@@ -17,32 +17,32 @@ had completed went unrecorded); the five were adopted (sibling
 9846a62), and the three defects it exposed are §79, landed. By the
 operator's word the sibling's main moves again only after a release
 carries §79 and the sibling takes it; §75 lands when that `perform` is
-green. Open beside it: §78, the documentation stage for §75 and §79. No
-hygiene bundle is open (the next issue opens XI). Planned, by the
-operator's word: §65, §66 and §30.
+green. No documentation stage is open (the next undocumented change
+opens one) and no hygiene bundle is open (the next issue opens XI).
+Planned, by the operator's word: §65, §66 and §30.
 
 Releases: dev13 (2026-10-04) carries §75 steps 1-7 and 10; the sibling
 is on it (develop and main). The next release (dev14, the operator's)
 carries §79.
 
-Recently landed: §79, hygiene bundle X (2026-10-04, fffef2a; the branch
-`feature/hygiene-x` kept): `--only` beside `--only-runtime` narrows a
-bake, a failed packer block keeps the records of the builds that
-completed, and an adopted build counts as current; §76 (2026-10-03,
-980963e), reserved names -- `none`
-joined `OOPS_DEFAULTS`, a reserved name is refused where its file is
-read, a reference written `none` is refused at `validate`, the
-`config:` key guard is on -- and §77, its documentation stage (63fc128);
-§73 (2026-10-01), the coops model replaced onto a
-second EFS filesystem -- `coops-model-005`, generation 5, alias `gar`,
-the planted file absent, the old `efs-storage` standing with its data
-and mounted nowhere; §72 (2026-09-30), the coops model resized in place
-twice (`c5n.4xlarge` to `t3.xlarge` to `t3.medium`, the same machine,
-two `resized` events) and then replaced as `coops-model-004` with its
-planted file, EFS filesystem and EBS volume intact; §71, hygiene bundle
-VIII (2026-10-01, five items); §69 (2026-09-28, its step 5 done
-2026-09-29); §68, hygiene bundle VII (2026-09-29); §63, §67 and §64
-(2026-09-26).
+Recently landed: §78, the documentation stage for §75 and §79
+(2026-10-04, 4e40043); §79, hygiene bundle X (2026-10-04, fffef2a; the
+branch `feature/hygiene-x` kept): `--only` beside `--only-runtime`
+narrows a bake, a failed packer block keeps the records of the builds
+that completed, and an adopted build counts as current; §76 (2026-10-03,
+980963e), reserved names -- `none` joined `OOPS_DEFAULTS`, a reserved
+name is refused where its file is read, a reference written `none` is
+refused at `validate`, the `config:` key guard is on -- and §77, its
+documentation stage (63fc128); §73 (2026-10-01), the coops model
+replaced onto a second EFS filesystem -- `coops-model-005`, generation
+5, alias `gar`, the planted file absent, the old `efs-storage` standing
+with its data and mounted nowhere; §72 (2026-09-30), the coops model
+resized in place twice (`c5n.4xlarge` to `t3.xlarge` to `t3.medium`, the
+same machine, two `resized` events) and then replaced as
+`coops-model-004` with its planted file, EFS filesystem and EBS volume
+intact; §71, hygiene bundle VIII (2026-10-01, five items); §69
+(2026-09-28, its step 5 done 2026-09-29); §68, hygiene bundle VII
+(2026-09-29); §63, §67 and §64 (2026-09-26).
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
 **§64**, the release that carries everything a configuration repository
@@ -996,61 +996,3 @@ standing mandate: a new secret owes the bootstrap its question).
   coops.
 - **Order against §65**: the walk would be simpler on the Okta-free
   starter this stage produces; that is the operator's call, not assumed.
-
-## 78. Documentation stage: posix identity
-
-**Status: OPEN since 2026-10-04** (opened by §75 step 10, by the
-standing rule that a stage which changes behaviour owes the
-documentation an update; a documentation stage changes no code). Later
-stages that land undocumented changes append here until it lands.
-
-**What changed, by stage:**
-
-- **§75, a POSIX identity plugin, alone and beside Okta.** A second
-  identity type, `posix`: groups with a declared `gid:` and users with a
-  `uid:` and their keys, made on the machines (the group baked into the
-  image; accounts, keys and sudo after each applying run). Beside Okta,
-  every `okta-tf` group builder must write `posix:` (a posix builder, or
-  `none`): its groups then exist on their machines with OPA's gid, and
-  members join at each login through a PAM hook. A posix group's login
-  proof logs in as its proof user over ssh through the runtime's session
-  tunnel, with `CSIS_PROOF_SSH_KEY`. A fourth starter,
-  `standard-aws-posix`. Already documented in §75: the plugin README,
-  the Okta README, CONFIGURATION 9.2, the guide, DESIGN N20, OPERATIONS'
-  identity rules, the daily driver's starter list and plugin chapter.
-- **§79, hygiene bundle X.** `--only` beside `--only-runtime` now
-  NARROWS the bake to the named images on that runtime and never adds
-  the runtime's others (it was a union); a name it cannot honour is
-  refused with exit 2. A failed packer block no longer discards the
-  records of the builds that completed: they are recorded (a warning
-  names them), and earlier runs' manifests are removed before a bake.
-  Already documented in §79: the CLI help of both flags.
-
-**Owed:**
-
-1. `DAILY_DRIVER.md` 3.1 (a group and its access): the `posix:` line on
-   an Okta group builder and what it does on the machines; a posix
-   group's `gid:`, a posix user's `uid:` and keys; the proof user.
-2. `DAILY_DRIVER.md` section 4 (changing things): a membership change
-   reaches the machines at the next applying instance run (and, beside
-   Okta, at each member's next login) -- not by a re-bake.
-3. `DAILY_DRIVER.md` 1.x: what the release that carries §75 requires of
-   an existing tree (the `posix:` line, in the same commit as the
-   release) -- once that release exists.
-4. `DAILY_DRIVER.md` section 6 gains a row for each of §75's refusals
-   when one is first met in the reference deployment.
-5. §79 item 1: `CONFIGURATION.md` 13.x (the `--only-runtime` row says
-   "`--only <img>@<rt>` for every image baked on that runtime" -- true
-   alone, wrong beside `--only`), `OPERATIONS.md`'s scoping rules
-   (`--only-runtime <rt>` restricts the bake surface...) and its exit
-   codes table (`run` 2: a name `--only-runtime` cannot honour), and a
-   worked example: baking named images on one runtime, with that
-   runtime's roots alone, is `--only <image> --only-runtime <rt>`.
-6. §79 item 2: `OPERATIONS.md`, after a failed bake -- the builds that
-   completed are in lineage (the warning line names them), the failed
-   series is not, nothing is foreign; record it with `just record` as
-   after any run. And for a tree that met the old behaviour: adopt the
-   unrecorded images with `state import` (what was done 2026-10-04).
-7. §79 item 3: wherever `state import` is described (OPERATIONS), say
-   that an adopted build counts as current when its tagged fingerprint
-   matches today's inputs, so adopting stops a re-bake.
