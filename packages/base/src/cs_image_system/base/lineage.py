@@ -36,6 +36,10 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 TAG_PREFIX = "csis_"
+#: An image's fingerprint TAG holds this many leading characters of the
+#: input fingerprint; lineage records the whole of it. A build adopted with
+#: `state import` has only the tag to go on (hygiene X item 3).
+FINGERPRINT_TAG_LENGTH = 16
 
 # Convergent bakes (stage 9)
 POLICY_PINNED = "pinned"
@@ -449,7 +453,7 @@ def lineage_tags(ctx: "GlobalTypeContext", image: Any, runtime: str | None = Non
         f"{TAG_PREFIX}series": series_of(image),
         f"{TAG_PREFIX}parent": parent_reference(ctx, image, runtime),
         f"{TAG_PREFIX}run": ctx.run_id,
-        f"{TAG_PREFIX}fingerprint": input_fingerprint(ctx, image, runtime)[:16],
+        f"{TAG_PREFIX}fingerprint": input_fingerprint(ctx, image, runtime)[:FINGERPRINT_TAG_LENGTH],
         f"{TAG_PREFIX}identity_types": ",".join(caps["identity_types"]),
         f"{TAG_PREFIX}storage_types": ",".join(caps["storage_types"]),
     }
@@ -575,6 +579,22 @@ def _head_age_days(ctx: "GlobalTypeContext", head: dict[str, Any]) -> float | No
     return (datetime.now() - built).total_seconds() / 86400.0
 
 
+def same_inputs(record: dict[str, Any], fingerprint: str) -> bool:
+    """Whether a recorded build was baked from these inputs. A baked build
+    records the whole fingerprint and must equal it. A build adopted with
+    `state import` (``imported: true``) records only what its image's tag
+    held, the first FINGERPRINT_TAG_LENGTH characters, and counts as the
+    same when it is that prefix -- before hygiene X item 3 (2026-10-04) an
+    adopted series never counted as current and re-baked on every run.
+    Sixteen hex characters are 64 bits: a false match is not a practical
+    risk."""
+    recorded = str(record.get("input_fingerprint") or "")
+    if recorded == fingerprint:
+        return True
+    return (bool(record.get("imported")) and len(recorded) >= FINGERPRINT_TAG_LENGTH
+            and fingerprint.startswith(recorded))
+
+
 def _bake_reason(ctx: "GlobalTypeContext", image: Any, runtime: str | None) -> str | None:
     name = series_of(image)
     forced = getattr(ctx, "force_bake", None)
@@ -599,7 +619,7 @@ def _bake_reason(ctx: "GlobalTypeContext", image: Any, runtime: str | None) -> s
         return f"parent {build} re-bakes this run (parent_policy: follow)"
     fp = input_fingerprint(ctx, image, runtime)
     recorded = str(head.get("input_fingerprint") or "")
-    if recorded != fp:
+    if not same_inputs(head, fp):
         return f"inputs changed ({recorded[:12] or 'unrecorded'} -> {fp[:12]})"
     policy = update_policy_of(ctx, image) or {}
     days = policy.get("refresh_days")

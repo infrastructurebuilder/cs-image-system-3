@@ -1007,6 +1007,13 @@ stages that land undocumented changes append here until it lands.
   `standard-aws-posix`. Already documented in §75: the plugin README,
   the Okta README, CONFIGURATION 9.2, the guide, DESIGN N20, OPERATIONS'
   identity rules, the daily driver's starter list and plugin chapter.
+- **§79, hygiene bundle X.** `--only` beside `--only-runtime` now
+  NARROWS the bake to the named images on that runtime and never adds
+  the runtime's others (it was a union); a name it cannot honour is
+  refused with exit 2. A failed packer block no longer discards the
+  records of the builds that completed: they are recorded (a warning
+  names them), and earlier runs' manifests are removed before a bake.
+  Already documented in §79: the CLI help of both flags.
 
 **Owed:**
 
@@ -1021,11 +1028,28 @@ stages that land undocumented changes append here until it lands.
    release) -- once that release exists.
 4. `DAILY_DRIVER.md` section 6 gains a row for each of §75's refusals
    when one is first met in the reference deployment.
+5. §79 item 1: `CONFIGURATION.md` 13.x (the `--only-runtime` row says
+   "`--only <img>@<rt>` for every image baked on that runtime" -- true
+   alone, wrong beside `--only`), `OPERATIONS.md`'s scoping rules
+   (`--only-runtime <rt>` restricts the bake surface...) and its exit
+   codes table (`run` 2: a name `--only-runtime` cannot honour), and a
+   worked example: baking named images on one runtime, with that
+   runtime's roots alone, is `--only <image> --only-runtime <rt>`.
+6. §79 item 2: `OPERATIONS.md`, after a failed bake -- the builds that
+   completed are in lineage (the warning line names them), the failed
+   series is not, nothing is foreign; record it with `just record` as
+   after any run. And for a tree that met the old behaviour: adopt the
+   unrecorded images with `state import` (what was done 2026-10-04).
+7. §79 item 3: wherever `state import` is described (OPERATIONS), say
+   that an adopted build counts as current when its tagged fingerprint
+   matches today's inputs, so adopting stops a re-bake.
 
 ## 79. Hygiene bundle X
 
-**Status: OPEN 2026-10-04, one item; a plan -- nothing here runs until
-the operator says "do 79".**
+**Status: IN PROGRESS 2026-10-04 on `feature/hygiene-x` (the operator:
+"execute 79"; then §78). Items 1-3 built and tested; the bar, `just
+full-test` and the merge follow, then a release (the operator's) that
+the sibling takes before its main moves again (operator, 2026-10-04).**
 
 1. **`--only` and `--only-runtime` together widen a bake; they never
    narrow it.** Found 2026-10-04 while preparing §75 step 9: a dry run
@@ -1045,5 +1069,39 @@ the operator says "do 79".**
    roots and narrows the named images to that runtime (an
    intersection), and never adds to them; a named image not baked on
    that runtime is refused; the help says so; a test pins both forms
-   (`--only-runtime` alone keeps today's meaning). **USER**: confirm the
-   intersection reading -- the conservative one -- before it is built.
+   (`--only-runtime` alone keeps today's meaning). The operator chose
+   the narrowing reading, 2026-10-04. DONE: `runtime_bake_selection`
+   ([runtime_facts.py](packages/base/src/cs_image_system/base/commands/runtime_facts.py))
+   is what the CLI asks; refusals exit 2 and name every entry at
+   once; the `--only-runtime` and `--only` help say it narrows;
+   [test_v2_hygiene_x.py](tests/test_v2_hygiene_x.py).
+2. **A failed packer block discarded the records of the builds that
+   completed.** Found 2026-10-04 in the sibling's `perform` (run
+   37212963588): block-000 baked five images, block-001's one build
+   (`imgfile-basic-cloudflow`, on its EL8 parent pin) timed out on
+   SSH over SSM, and the phase's `post_finalize_phase` -- the only
+   place manifests become lineage -- never ran, so five AMIs stood
+   unrecorded (foreign) and every strict preflight refused until
+   they were adopted with `state import`. DONE: a failed phase calls
+   every builder's new `post_failed_phase` instead (both runners,
+   via `after_failed_phase` on the context; one failing hook never
+   hides another or the failure); the packer builder records what
+   its manifests hold. Safe because `pre_finalize_phase` now removes
+   every earlier manifest before the bake: the private mirror is
+   incremental, and a failed block writes none, so an old one would
+   otherwise be read as this run's. A build in a manifest finished
+   its in-bake verification, so `in_bake: true` stays true.
+3. **A build adopted with `state import` never counted as current.**
+   Found 2026-10-04 adopting item 2's five AMIs: the bake plan still
+   said `inputs changed (531831f5d092 -> 531831f5d092)` for each. The
+   adopted record holds the image tag's fingerprint, its first 16
+   characters, and the bake decision compared it with the whole one,
+   so every adopted series re-baked on every run (the state query and
+   `lineage relabel` already compared by prefix). DONE: `same_inputs`
+   in [lineage.py](packages/base/src/cs_image_system/base/lineage.py)
+   -- an `imported: true` record matches when it is a prefix of at
+   least `FINGERPRINT_TAG_LENGTH` (16) characters; a baked record still
+   matches only whole. The tag length is one named constant now, not
+   four literals. `restamp` still sees an adopted head as changed and
+   would write the whole fingerprint into it: harmless, and a manual
+   way to complete such a record.

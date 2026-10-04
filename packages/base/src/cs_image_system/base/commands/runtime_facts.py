@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from ..constants import NONE
 from ..global_context import GlobalTypeContext
 
 log = logging.getLogger(__name__)
@@ -33,6 +34,41 @@ def images_on_runtime(ctx: GlobalTypeContext, runtime: str) -> list[str]:
             if image is not None and image.get_name() not in out:
                 out.append(image.get_name())
     return out
+
+
+def runtime_bake_selection(ctx: GlobalTypeContext, runtime: str, only: list[str] | None) -> list[str]:
+    """The bake surface of a run given ``--only-runtime <runtime>``, as the
+    ``--only`` entries the run takes (hygiene X item 1, operator decision
+    2026-10-04).
+
+    Alone, every series baked on the runtime, each as ``<series>@<runtime>``
+    (a runtime that bakes nothing: ``none``). Beside ``--only`` it NARROWS:
+    each named series must be baked on the runtime and is selected there
+    alone, and nothing is ever added. ``none`` stays the empty surface. The
+    two flags used to make a union -- found preparing stage 75 step 9, when a
+    run naming two images also planned every due image of the runtime.
+
+    Raises ``ValueError`` naming every entry it cannot honour."""
+    baked = images_on_runtime(ctx, runtime)
+    if not only:
+        return [f"{img}@{runtime}" for img in baked] or [NONE]
+    if all(entry.lower() == NONE for entry in only):
+        return [NONE]
+    selected: list[str] = []
+    problems: list[str] = []
+    for entry in only:
+        name, _, named_runtime = entry.partition("@")
+        if name.lower() == NONE:
+            problems.append(f"--only {NONE} (bake nothing) cannot be given beside image names")
+        elif named_runtime and named_runtime != runtime:
+            problems.append(f"--only {entry} names runtime {named_runtime!r}, outside --only-runtime {runtime!r}")
+        elif name not in baked:
+            problems.append(f"--only {name} is not baked on {runtime!r}")
+        elif f"{name}@{runtime}" not in selected:
+            selected.append(f"{name}@{runtime}")
+    if problems:
+        raise ValueError("; ".join(problems) + f" (baked on {runtime}: {', '.join(baked) or 'nothing'})")
+    return selected
 
 
 def declared_storage_names(ctx: GlobalTypeContext, runtime: str) -> dict[str, dict[str, Any]]:

@@ -410,12 +410,15 @@ def _execute_in_process(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> boo
                     res = executable.execute(skips=False)
                 except Exception as e:
                     log.error(f"[{lifecycle.value}/{phase.value}] command failed: {e}")
+                    os.chdir(pwd)
+                    ctx.after_failed_phase(phase)     # hygiene X item 2: keep what completed
                     return False
                 finally:
                     os.chdir(pwd)
                 if not res or res.returncode != 0:
                     log.error(f"[{lifecycle.value}/{phase.value}] command returned "
                               f"{res.returncode if res else 'None'}")
+                    ctx.after_failed_phase(phase)
                     return False
             for builder in ctx.all_sorted_builders:
                 builder.post_finalize_phase(phase)

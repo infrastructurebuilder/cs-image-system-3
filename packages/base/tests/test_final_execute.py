@@ -47,6 +47,9 @@ class StubBuilder:
     def post_finalize_phase(self, phase):
         self._journal.append(f"post:{phase.value}")
 
+    def post_failed_phase(self, phase):
+        self._journal.append(f"failed:{phase.value}")
+
 
 def _stub_ctx(finalization, journal, tmp_path, dry_run=False):
     ctx = SimpleNamespace(
@@ -58,6 +61,7 @@ def _stub_ctx(finalization, journal, tmp_path, dry_run=False):
     )
     ctx.write_final_execution_script = (
         lambda: _gtc_cls().write_final_execution_script(ctx))
+    ctx.after_failed_phase = lambda phase: _gtc_cls().after_failed_phase(ctx, phase)
     return ctx
 
 
@@ -94,7 +98,8 @@ def test_fail_fast_on_nonzero_returncode(tmp_path):
         ExecutionLifecyclePhase.INSTANCE_GENERATION: [StubExecutable("tofu-plan", journal)],
     }, journal, tmp_path)
     assert ok is False
-    assert journal == ["pre:image-generation", "packer-000"]
+    # hygiene X item 2: the failure hook replaces the post hook, and nothing later runs
+    assert journal == ["pre:image-generation", "packer-000", "failed:image-generation"]
 
 
 def test_fail_fast_on_exception(tmp_path):
@@ -105,7 +110,7 @@ def test_fail_fast_on_exception(tmp_path):
         ],
     }, journal, tmp_path)
     assert ok is False
-    assert journal == ["pre:image-generation", "packer-000"]
+    assert journal == ["pre:image-generation", "packer-000", "failed:image-generation"]
 
 
 def test_empty_phases_skip_hooks(tmp_path):

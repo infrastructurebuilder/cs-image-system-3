@@ -257,6 +257,34 @@ class PackerEbsImageBuilder(PackerImageBuilder[PackerEbsImageBuilderModel]):
                         items.add(build_path, "}")
         return items
 
+    def _manifest_paths(self, ctx: GlobalTypeContext, phase: ExecutionLifecyclePhase,
+                        block: Any) -> list[Path]:
+        """Where packer may have written a block's manifest: the private
+        mirror it builds in (stage 49) first, then the generated root."""
+        block_dir = ctx.generation_path / self.get_block_directory_for_phase(phase, block=block)
+        paths = [block_dir / MANIFEST_FILENAME]
+        working = getattr(ctx, "working_path", None)
+        if working:
+            paths.insert(0, mirror_path(Path(working), block_dir) / MANIFEST_FILENAME)
+        return paths
+
+    def pre_finalize_phase(self, phase: ExecutionLifecyclePhase) -> None:
+        """Before this builder's packer builds run, remove every manifest an
+        earlier run left (hygiene X item 2). The private mirror is
+        incremental -- what the tools wrote there survives between runs -- and
+        a block that fails writes no manifest, so without this an earlier
+        run's artifacts would be read as this run's. Afterwards a manifest
+        that exists was written by THIS run."""
+        if phase != ExecutionLifecyclePhase.IMAGE_GENERATION:
+            return
+        ctx = GlobalTypeContext()
+        blocks, _ = self.get_blocks()
+        for block in blocks:
+            for manifest in self._manifest_paths(ctx, phase, block):
+                if manifest.is_file():
+                    manifest.unlink()
+                    log.debug(f"removed an earlier run's packer manifest {manifest}")
+
     def post_finalize_phase(self, phase: ExecutionLifecyclePhase) -> None:
         """After this builder's packer builds ran, resolve PSIs from manifests.
 
@@ -267,12 +295,34 @@ class PackerEbsImageBuilder(PackerImageBuilder[PackerEbsImageBuilderModel]):
         """
         if phase != ExecutionLifecyclePhase.IMAGE_GENERATION:
             return
+        self._record_built_images(phase)
+
+    def post_failed_phase(self, phase: ExecutionLifecyclePhase) -> None:
+        """A packer build of the phase FAILED (hygiene X item 2): record the
+        builds that completed anyway. Packer writes a build into its block's
+        manifest only after the build -- its in-bake verification included --
+        succeeded, and :meth:`pre_finalize_phase` removed every earlier
+        manifest, so what a manifest holds now is exactly what this run
+        built. Found live 2026-10-04: one block's SSH timeout discarded the
+        records of five builds that had succeeded in the block before it, and
+        the five AMIs stood unrecorded (foreign) until adopted by hand."""
+        if phase != ExecutionLifecyclePhase.IMAGE_GENERATION:
+            return
+        recorded = self._record_built_images(phase)
+        if recorded:
+            log.warning(f"{self.get_display_name()}: the phase failed; recorded the "
+                        f"{len(recorded)} build(s) that completed before it did: "
+                        + ", ".join(f"{name} -> {ami}" for name, ami in sorted(recorded.items())))
+
+    def _record_built_images(self, phase: ExecutionLifecyclePhase) -> dict[str, str]:
+        """Read this builder's manifests, resolve each built image's PSI and
+        record its lineage. Returns ``{image name: build id}``."""
         ctx = GlobalTypeContext()
         rtb = ctx.runtime_builders.get(self.model.get_runtime_provider(), None)
         if rtb is None:
             log.warning(f"No runtime builder for {self.get_display_name()}; "
                         "cannot resolve built images from manifests")
-            return
+            return {}
         blocks, block_map = self.get_blocks()
         images_by_name: dict[str, Image | BaseImage] = {
             img.get_name(): img for imgs in block_map.values() for img in imgs}
@@ -281,11 +331,8 @@ class PackerEbsImageBuilder(PackerImageBuilder[PackerEbsImageBuilderModel]):
             # packer wrote the manifest where it BUILT: the private mirror
             # (stage 49), falling back to the generated root for a build that
             # predates the mirror or ran without one.
-            block_dir = (ctx.generation_path
-                         / self.get_block_directory_for_phase(phase, block=block))
-            manifest = mirror_path(Path(ctx.working_path), block_dir) / MANIFEST_FILENAME
-            if not manifest.is_file():
-                manifest = block_dir / MANIFEST_FILENAME
+            candidates = self._manifest_paths(ctx, phase, block)
+            manifest = next((p for p in candidates if p.is_file()), candidates[-1])
             for image_name, ami in parse_packer_manifest(manifest, rtb).items():
                 log.info(f"Built image {image_name} -> {ami} (from {manifest})")
                 rtb.create_provider_specific_image_resolved(
@@ -306,7 +353,7 @@ class PackerEbsImageBuilder(PackerImageBuilder[PackerEbsImageBuilderModel]):
             psi = ctx.get_provider_specific_image(series, rtb.get_name())
             return psi.identifier if psi is not None and psi.is_resolved() else None
 
-        from cs_image_system.base.lineage import TAG_PREFIX
+        from cs_image_system.base.lineage import FINGERPRINT_TAG_LENGTH, TAG_PREFIX
         for image_name, ami in built.items():
             image = images_by_name.get(image_name)
             if image is None:
@@ -322,8 +369,9 @@ class PackerEbsImageBuilder(PackerImageBuilder[PackerEbsImageBuilderModel]):
             if record:
                 rtb.retag_image(ami, {
                     f"{TAG_PREFIX}parent": str(record.get("parent", "")),
-                    f"{TAG_PREFIX}fingerprint": str(record.get("input_fingerprint", ""))[:16],
+                    f"{TAG_PREFIX}fingerprint": str(record.get("input_fingerprint", ""))[:FINGERPRINT_TAG_LENGTH],
                 })
+        return built
 
     def get_commands_to_run_after(
         self, phase: ExecutionLifecyclePhase

@@ -82,14 +82,16 @@ def run_command(
     only: Annotated[list[str] | None, typer.Option("--only",
         help="Restrict the BAKE surface to the named image(s) (repeatable): sources, "
              "build blocks and bake runner scripts exist for nothing else. Terraform "
-             "roots are untouched -- instances stay declarative. Unknown names fail. "
-             "'--only none' bakes nothing: the terraform roots alone.")] = None,
+             "roots are untouched -- instances stay declarative (beside --only-runtime, "
+             "that runtime's roots alone, and the names narrowed to it). Unknown names "
+             "fail. '--only none' bakes nothing: the terraform roots alone.")] = None,
     only_runtime: Annotated[str | None, typer.Option("--only-runtime",
-        help="Restrict the run to this runtime: the BAKE surface becomes every image baked "
-             "on it (the configuration-driven form of --only <image>@<runtime> ...) AND only "
-             "its terraform roots (storage, instance) are generated and planned -- the roots "
-             "of every other runtime emit nothing. Implied by --apply-runtime unless --only "
-             "is given.")] = None,
+        help="Restrict the run to this runtime: only its terraform roots (storage, instance) "
+             "are generated and planned -- the roots of every other runtime emit nothing. "
+             "Alone, the BAKE surface becomes every image baked on it (the configuration-driven "
+             "form of --only <image>@<runtime> ...); beside --only it NARROWS the named images "
+             "to this runtime and never adds to them (a named image not baked here is refused). "
+             "Implied by --apply-runtime unless --only is given.")] = None,
     apply_runtime: Annotated[str | None, typer.Option("--apply-runtime",
         help="Let the storage and instance roots of this runtime apply (apply_storage / "
              "apply_instances as if they listed it); the generated apply-check carries it. "
@@ -149,13 +151,17 @@ def run_command(
             only_runtime = apply_runtime
             gctx.implied_scope = apply_runtime
     if only_runtime:
-        from cs_image_system.base.commands.runtime_facts import images_on_runtime
+        from cs_image_system.base.commands.runtime_facts import runtime_bake_selection
         if only_runtime not in gctx.runtime_builders:
             typer.secho(f"--only-runtime: unknown runtime {only_runtime!r}", fg=typer.colors.RED, err=True)
             raise typer.Exit(code=2)
-        only = list(only or []) + [f"{img}@{only_runtime}" for img in images_on_runtime(gctx, only_runtime)]
-        if not only:
-            only = ["none"]
+        # hygiene X item 1: beside --only it narrows the named images to the
+        # runtime; it never adds the runtime's other images to them
+        try:
+            only = runtime_bake_selection(gctx, only_runtime, only)
+        except ValueError as e:
+            typer.secho(f"--only-runtime: {e}", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=2)
         # ledger 70: a run scoped to one runtime's images plans no OTHER
         # runtime's terraform roots either (their plans can only fail or waste
         # time -- the GCE instance root's image-family lookup 404'd during a

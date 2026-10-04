@@ -68,7 +68,7 @@ def restamp_plan(ctx: GlobalTypeContext, runtime: str, series: list[str] | None 
 
 
 def restamp(runtime: str, series: list[str] | None = None) -> list[Restamp]:
-    from ..lineage import TAG_PREFIX
+    from ..lineage import FINGERPRINT_TAG_LENGTH, TAG_PREFIX
     ctx = GlobalTypeContext()
     ms = ctx.meta_state
     plan = restamp_plan(ctx, runtime, series)
@@ -87,7 +87,7 @@ def restamp(runtime: str, series: list[str] | None = None) -> list[Restamp]:
                     {"run": ctx.run_id, "previous": r.previous, "reason": "fingerprint recipe change (stage 9/§11.2)"})
         ms.write("lineage.yaml", data)
         try:
-            r.retagged = bool(rtb.retag_image(r.build_id, {f"{TAG_PREFIX}fingerprint": r.current[:16]}))
+            r.retagged = bool(rtb.retag_image(r.build_id, {f"{TAG_PREFIX}fingerprint": r.current[:FINGERPRINT_TAG_LENGTH]}))
         except Exception as e:  # noqa: BLE001 - the record is right; the tag can be fixed by the next retag pass
             log.warning(f"restamp: could not retag {r.build_id}: {e}")
             r.retagged = False

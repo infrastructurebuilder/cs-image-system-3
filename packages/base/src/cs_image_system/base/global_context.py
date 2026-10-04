@@ -499,6 +499,18 @@ class GlobalTypeContext:
         ]
         return write_script(self.gating_script_path, lines)
 
+    def after_failed_phase(self, phase: ExecutionLifecyclePhase) -> None:
+        """A command of ``phase`` failed: every builder's ``post_failed_phase``
+        records what completed before it (hygiene X item 2). Each hook runs
+        on its own; one that fails is logged and never hides the failure that
+        stopped the phase."""
+        for builder in self.all_sorted_builders:
+            try:
+                builder.post_failed_phase(phase)
+            except Exception as e:  # noqa: BLE001 - recording after a failure is best effort
+                log.error(f"after the failed phase {phase.value}: {builder.get_display_name()} "
+                          f"could not record what completed: {e}")
+
     def final_execute(self) -> bool:
         """Run all deferred (finalize) executables, phase by phase, fail-fast.
 
@@ -544,6 +556,8 @@ class GlobalTypeContext:
                             f"Final execution failed for command in phase {phase.value}: "
                             f"{executable.binary} {' '.join(executable.args)} ({e})"
                         )
+                        os.chdir(pwd)
+                        self.after_failed_phase(phase)
                         return False
                     finally:
                         os.chdir(pwd)
@@ -554,6 +568,7 @@ class GlobalTypeContext:
                             f"{executable.binary} {' '.join(executable.args)} "
                             f"(Return code: {rc})"
                         )
+                        self.after_failed_phase(phase)
                         return False
                 for builder in self.all_sorted_builders:
                     builder.post_finalize_phase(phase)
