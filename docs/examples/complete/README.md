@@ -76,8 +76,9 @@ part ways; each is worked around here and commented at the spot:
   `{{ .Path }}`: every string under `cfg/` is rendered with Jinja
   ([`cfg/mod-builders.yml`](cfg/mod-builders.yml)).
 
-The smallest trees are [`../standard-aws/`](../standard-aws/README.md) and
-[`../standard-gce/`](../standard-gce/README.md).
+The smallest trees are [`../standard-aws/`](../standard-aws/README.md),
+[`../standard-gce/`](../standard-gce/README.md) and, with no Okta,
+[`../standard-aws-posix/`](../standard-aws-posix/README.md).
 
 ## What travels with the tree
 

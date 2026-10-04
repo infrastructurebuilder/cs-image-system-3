@@ -511,11 +511,11 @@ the first final version on PyPI (§41's open call).
 ## 75. A POSIX identity plugin, alone and beside Okta
 
 **Status: IN PROGRESS since 2026-10-03 on `feature/posix-identity` (the
-operator: "start 75", "resume step 5", "do step 6-10"). Steps 1-6 done;
-step 7 (the starter) next; steps 8-9 are live and need a release and the
-operator's applying runs.** (The operator, 2026-10-03, on finding the
-owning group absent on a live machine: "Plan a second plugin", with the
-decisions recorded below.)
+operator: "start 75", "resume step 5", "do step 6-10"). Steps 1-7 done;
+steps 8-9 are live and need the branch merged, a release, and the
+operator's applying runs; step 10 is the records.** (The operator,
+2026-10-03, on finding the owning group absent on a live machine: "Plan
+a second plugin", with the decisions recorded below.)
 
 ### Context
 
@@ -866,9 +866,21 @@ standing mandate: a new secret owes the bootstrap its question).
    beside the gated table, and the bootstrap's `set-secrets.sh` sets it
    from a file when one is there (the existing rule: a missing file is
    skipped).
-7. **The starter.** `docs/examples/standard-aws-posix` (no Okta: no
-   3.5, no OPA secrets), `init-config --from standard-aws-posix`,
-   `CI_SETUP.md` and the starter tests extended to four trees.
+7. **The starter.** Done 2026-10-04. `docs/examples/standard-aws-posix`:
+   `standard-aws` with the identity swapped -- a posix group builder and
+   user builder (both default), one root group `team` with a declared
+   gid, two personas and the service-account proof user `csis_proof`,
+   the base declaring `identity_types: [posix]`; a workflow with no Okta
+   or OPA secrets, gates or client, its login-proof step logging in as
+   the proof user; no OPA workload probe; the same guide, Justfile, hook
+   and modules as every starter (release-owned, byte-identical). The
+   shared Justfile's `ci-login-proof` now mints an OPA token only when a
+   builder names a workload connection (`workload describe` is not
+   `[]`), so a posix-only tree's proof is not stopped by a token it has
+   no use for; trees with Okta behave as before. `init-config --from
+   standard-aws-posix`; the release and the wheel carry four starters;
+   the daily driver, the system README and the two other READMEs name
+   it; the starter tests cover four trees.
 8. **Live, beside Okta** (sibling `develop`; applying runs are the
    operator's). The sibling takes the release and, in the SAME commit,
    declares `posix-local` and sets `posix:` on `oktagroups` -- the

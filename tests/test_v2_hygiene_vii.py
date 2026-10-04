@@ -55,7 +55,7 @@ def test_the_emitted_scripts_still_name_the_bare_command(tmp_path, monkeypatch):
 
 
 def test_the_starter_justfile_puts_a_csis_path_first_on_path():
-    for name in ("standard-aws", "standard-gce", "complete"):
+    for name in ("standard-aws", "standard-gce", "complete", "standard-aws-posix"):
         text = (EXAMPLES / name / "Justfile").read_text()
         m = re.search(r'^export PATH := if csis =~ "/" \{ parent_directory\(csis\) \+ ":" \+ env\("PATH"\) \} else \{ env\("PATH"\) \}$',
                       text, flags=re.M)

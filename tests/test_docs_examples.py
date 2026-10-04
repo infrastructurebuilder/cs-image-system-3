@@ -10,6 +10,7 @@ Three trees, each in the shape of a real configuration root:
 * ``standard-aws`` -- the smallest tree for the AWS plugin set: one group,
   one storage, one base image, one instance image, one instance;
 * ``standard-gce`` -- the same for the GCE plugin set;
+* ``standard-aws-posix`` -- ``standard-aws`` with no Okta: the posix identity plugin;
 * ``complete`` -- every plugin the workspace ships, every documented field,
   every variation, plus the alias pool and a storage-state record so the
   archived and destroyed requests are legal.
@@ -34,7 +35,7 @@ from v2_support import load_context, stub_environment
 
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLES = REPO / "docs" / "examples"
-STANDARD = ["standard-aws", "standard-gce"]
+STANDARD = ["standard-aws", "standard-gce", "standard-aws-posix"]
 TREES = [*STANDARD, "complete"]
 
 # The `type:` keys each plugin package answers to (docs/PLUGINS.md and the
@@ -166,7 +167,7 @@ def test_the_standard_trees_are_minimal(tree):
 
 
 def test_the_standard_trees_use_their_cloud_alone():
-    for name, runtime in (("standard-aws", "aws"), ("standard-gce", "gcloud")):
+    for name, runtime in (("standard-aws", "aws"), ("standard-gce", "gcloud"), ("standard-aws-posix", "aws")):
         types = {r.get("type") for r in _runtimes(EXAMPLES / name)}
         assert types == {runtime}, f"{name} declares runtimes of types {types}"
 
@@ -357,16 +358,18 @@ def test_the_starter_perform_job_records_guards_performs_proves_and_records_agai
         assert "refs/heads/main" in perform["if"] and perform["permissions"]["contents"] == "write"
         assert perform["concurrency"] == {"group": "perform", "cancel-in-progress": False}
         names = [s.get("name", "") for s in _steps(perform)]
+        # the posix starter logs in as its group's proof user, not through OPA's managed policy (stage 75)
+        login = "CI logs in as the group's proof user" if name == "standard-aws-posix" else "CI logs in through the managed policy"
         order = ["Prove write access to this repository", "The full run, recorded", "Push the record",
                  "The guarded runtime stays out of CI, so a change there fails loudly", "The runtime performs",
-                 "Push what the performing run committed", "CI logs in through the managed policy",
+                 "Push what the performing run committed", login,
                  "The full run, recorded again", "Push the closing record", "Reality matches the records (state query --strict)"]
         positions = [names.index(n) for n in order]
         assert positions == sorted(positions), f"{name}: {names}"
         runs = {s.get("name", ""): s["run"].strip() for s in _steps(perform) if "run" in s}
         assert runs["The full run, recorded"] == "just record" and runs["The full run, recorded again"] == "just record"
         assert runs["The runtime performs"] == 'just cloud-perform "$PERFORM_RUNTIME"'
-        assert runs["CI logs in through the managed policy"] == 'just ci-login-proof --runtime "$PERFORM_RUNTIME"'
+        assert runs[login] == 'just ci-login-proof --runtime "$PERFORM_RUNTIME"'
         assert "just runtime-unchanged" in runs["The guarded runtime stays out of CI, so a change there fails loudly"]
         closing = next(s for s in _steps(perform) if s.get("name") == "The full run, recorded again")
         assert closing["if"].startswith("always()") and "steps.record.outcome == 'success'" in closing["if"]
@@ -383,8 +386,13 @@ def test_the_starter_perform_job_records_guards_performs_proves_and_records_agai
         assert names.index(write_creds[-1]["name"]) < names.index("The runtime performs")
         # the live job never holds one
         assert "APPLY" not in yaml.safe_dump(doc["jobs"]["live"]), name
-        # the probe workflow travels with the tree
-        probe = yaml.safe_load((EXAMPLES / name / ".github/workflows/opa-workload-probe.yml").read_text())
+        # the probe workflow travels with the tree -- with every tree that has OPA (stage 75: the
+        # posix starter has no OPA workload connection to probe, and carries no probe)
+        probe_path = EXAMPLES / name / ".github/workflows/opa-workload-probe.yml"
+        if name == "standard-aws-posix":
+            assert not probe_path.exists(), name
+            continue
+        probe = yaml.safe_load(probe_path.read_text())
         assert list(probe[True].keys()) == ["workflow_dispatch"]
         (job,), = [list(probe["jobs"].values())]
         assert job["permissions"] == {"id-token": "write", "contents": "read"}
