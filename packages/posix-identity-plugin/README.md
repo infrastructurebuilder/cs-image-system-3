@@ -50,6 +50,30 @@ What it does, and when:
   A failure is logged as an error naming the machine and never stops the
   run; the next applying run tries again.
 
+## The login proof
+
+`verify login` (CI's perform job runs it) logs into each standing machine
+of a posix group as the group's **proof user** and checks it is in the
+group -- access proved, not only health:
+
+- **The proof user** is a member or admin declared on a posix user
+  builder with `is_service_account: true`, a `uid:` and its public key in
+  `public_keys:` (the first such member by name). A group without one is
+  skipped, naming why.
+- **Its private key** reaches the proof as `CSIS_PROOF_SSH_KEY` (the key
+  itself, or a path to it; in CI a repository secret no gate reads).
+- **ssh never touches the machine's address.** The runtime gives a
+  tunnel (`ssh_proxy_command`): on AWS, Session Manager's
+  `AWS-StartSSHSession` -- the path packer already bakes through, so a
+  private subnet with no public address and no inbound rule is fine, given
+  `ssm:StartSession` on the instance and the document and the
+  session-manager plugin; on GCE, an IAP tunnel. The host key is accepted
+  into a throwaway known-hosts file: the tunnel already chose the machine
+  by its instance id.
+- **The checks**, stopping at the first that fails: the proof key is
+  there; the runtime gives a tunnel; the login succeeds as the proof user;
+  the group is among its groups. The record says `as: proof key`.
+
 ## Beside Okta
 
 An `okta-tf` group builder names a posix group builder as its `posix:`
@@ -178,4 +202,8 @@ A posix group or user that declares `attributes:` is refused: the ids are
 | `command -v visudo` fails in a base bake | the family lacks sudo | install it in the OS builder's packages |
 | `posix group <g>: <u> has no posix account` at `validate` | a member or admin of a posix group is not a posix user with a uid | declare it on a `type: posix` user builder with a `uid:`, or take it out of the group |
 | `Instance <i>: the accounts script of group <g> FAILED (exit <n>)` in a run's log, with the script's `posix accounts:` lines above it | the machine refused (a group or user standing with another id) or could not be reached | read the lines; fix the id or the machine; the next applying run tries again |
+| `login proof <i>: proof key: FAILED -- CSIS_PROOF_SSH_KEY is not set` | the proof user's private key is not in the environment (CI: the secret is unset) | set the secret, or take `is_service_account` off if no proof is wanted |
+| `login proof <i>: tunnel: FAILED -- the runtime gives no ssh tunnel to <i>` | the machine is not running, or the runtime has no session mechanism | start it, or declare the runtime's `session_mechanism` |
+| `login proof <i>: login: FAILED -- ssh <u>@<i> id: exit 255 ...` | the key was refused, or the tunnel could not open (AWS: `ssm:StartSession` on `AWS-StartSSHSession`, the session-manager plugin) | read the tail; check the key pairs with `public_keys:` and the role's grant |
+| `login proof <i>: in its group: FAILED` | the account stands but is not in the group | an applying instance run brings membership back; read its accounts log |
 | `Instance <i>: <u> has no account here yet; not a member of <g> until it does` (a warning) | a member's account does not stand yet | nothing: the next run adds it once the account exists |

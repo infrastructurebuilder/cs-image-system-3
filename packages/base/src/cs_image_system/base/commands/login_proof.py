@@ -118,9 +118,10 @@ def prove_login(inst: Any, *, timeout: int = 120) -> dict[str, Any]:
     group = _group_of(ctx, inst)
     hostname = canonical_hostname(ctx, inst)
     gb = group_builder_of(ctx, group) if group else None
-    if gb is None or not gb.can_prove_login():
+    if gb is None or not gb.can_prove_login(group):
         return _skip(ctx, inst, hostname, group,
-                     f"group {group or '?'} names no workload connection and role; there is no CI login to prove", gb)
+                     gb.login_unprovable_reason(group) if gb is not None
+                     else f"group {group or '?'} has no group builder; there is no login to prove", gb)
     rtb = ctx.runtime_builders.get(rt)
     if rtb is not None and rtb.can_query_instance_power_state():
         state = rtb.query_instance_power_state(name)
@@ -130,7 +131,7 @@ def prove_login(inst: Any, *, timeout: int = 120) -> dict[str, Any]:
                          "the power state is the operator's (stage 57)", gb)
     # stage 75 step 2: the identity plugin's own checks (OPA: one registration,
     # the client resolves the name, `id` over `sft ssh`)
-    checks, evidence = gb.login_checks(group, hostname, timeout=timeout)
+    checks, evidence = gb.login_checks(group, hostname, timeout=timeout, instance_name=name, runtime=rtb)
     record = {"instance": name, "runtime": rt, "hostname": hostname, "group": group, "run": ctx.run_id,
               "as": _as(gb), "time": datetime.now(timezone.utc).isoformat(timespec="seconds"),
               "ok": all(c["ok"] for c in checks), "checks": checks, "evidence": evidence}

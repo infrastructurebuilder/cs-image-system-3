@@ -28,6 +28,7 @@ SECRETS: tuple[Secret, ...] = (
     Secret("TF_VAR_KEY", "file", comment="the OPA service user's key (3.5)"),
     Secret("TF_VAR_SECRET", "file", comment="the OPA service user's secret (3.5)"),
     Secret("CSIS_CONFIG_IDENTITY", "file", comment="CI's age identity, the whole file (3.6)"),
+    Secret("CSIS_PROOF_SSH_KEY", "file", comment="a posix group's proof user's private key, PEM (3.7; only with one)"),
 )
 
 

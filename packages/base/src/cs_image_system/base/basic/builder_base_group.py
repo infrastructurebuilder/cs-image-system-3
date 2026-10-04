@@ -238,20 +238,26 @@ class GroupBuilderBase(BuilderBase[TGROUP]):
         return f'data.terraform_remote_state.{utils.super_safe_name(ws)}.outputs.group_gids["{group}"]'
 
     # ------------------------------------- the login proof (stage 75 step 2)
-    def can_prove_login(self) -> bool:
+    def can_prove_login(self, group: str | None = None) -> bool:
         """Whether ``verify login`` can log into a standing machine of this
-        builder's groups the way a person does, and so prove access, not
-        only health. A provider without a login it can drive makes no claim
-        and its machines are skipped, never failed."""
+        builder's groups (of ``group``, when named) the way a person does, and
+        so prove access, not only health. A provider without a login it can
+        drive makes no claim and its machines are skipped, never failed."""
         return False
+
+    def login_unprovable_reason(self, group: str) -> str:
+        """Why ``group`` has no login to prove (the skip's detail)."""
+        return f"group {group}: its builder {self.get_name()} has no login it can prove"
 
     def login_identity(self) -> str:
         """Who the proof logs in as, for the record's ``as`` field."""
         return "client"
 
-    def login_checks(self, group: str, hostname: str, *, timeout: int = 120) -> tuple[list[dict[str, Any]], list[str]]:
+    def login_checks(self, group: str, hostname: str, *, timeout: int = 120, instance_name: str | None = None,
+                     runtime: Any = None) -> tuple[list[dict[str, Any]], list[str]]:
         """The proof's checks for one running machine of ``group`` known as
-        ``hostname``, each ``{name, ok, detail}``, stopping at the first that
+        ``hostname`` (declared as ``instance_name``, on the runtime builder
+        ``runtime``), each ``{name, ok, detail}``, stopping at the first that
         fails; and a few lines of the login's output as evidence. The core
         has already decided the machine is a target and is running."""
         raise NotImplementedError(f"{self.__class__.__name__} cannot prove a login")

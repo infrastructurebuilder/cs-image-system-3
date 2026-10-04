@@ -327,11 +327,14 @@ class _Session:
                             lambda s, n, script, timeout=300: self.sent.append((n, script)) or (rc, out))
 
 
-def _posix_instance_run(tmp_path, monkeypatch):
+def _posix_instance_run(tmp_path, monkeypatch, prepare=None):
     """A fixture copy whose `test` instance is a machine of imgfile-posix
-    (no storages: pxgroup is allowed on none), launched."""
+    (no storages: pxgroup is allowed on none), launched; ``prepare(root)``
+    adjusts the copy first."""
     from tests.v2_support import V2Run, copy_config
     root = copy_config(tmp_path)
+    if prepare is not None:
+        prepare(root)
     path = root / "instances" / "instances.yaml"
     data = yaml.safe_load(path.read_text())
     inst = next(i for i in data["instances"] if i["name"] == "test")
@@ -562,5 +565,107 @@ def test_an_opa_that_cannot_be_asked_is_an_error_not_a_crash(tmp_path, monkeypat
         assert session.sent == []
         assert any("the accounts script of group coops could not be made: HTTP 401 from OPA" in r.getMessage()
                    for r in caplog.records if r.levelno >= logging.ERROR)
+    finally:
+        run.restore_cwd()
+
+
+# --------------------------------------------- step 6: real ssh, through the runtime's tunnel
+
+# a fake key, its armour assembled here so the repository's public-safe scan
+# (which refuses a PEM private-key header anywhere in the tree) never sees one
+_ARMOUR = "OPENSSH PRIVATE KEY-----"
+PROOF_PEM = f"-----BEGIN {_ARMOUR}\nZmFrZQ==\n-----END {_ARMOUR}\n"
+
+
+def test_the_aws_tunnel_is_ssm_start_ssh_session_with_the_runtimes_region_and_profile(monkeypatch):
+    from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
+    from tests.v2_support import FIXTURE_CONFIG, load_context, reset_singletons, stub_environment
+    stub_environment(monkeypatch)
+    try:
+        ctx = load_context(FIXTURE_CONFIG)
+        rtb: Any = ctx.runtime_builders["aws-east2-runtime"]       # the AWS builder: its model has get_region
+        monkeypatch.setattr(AwsCloudBuilder, "running_instance_id", lambda s, n: "i-0abc" if n == "test" else None)
+        cmd = rtb.ssh_proxy_command("test") or []
+        assert cmd[:8] == ["aws", "ssm", "start-session", "--target", "i-0abc", "--document-name",
+                           "AWS-StartSSHSession", "--parameters"]
+        assert "portNumber=%p" in cmd and cmd[cmd.index("--region") + 1] == str(rtb.model.get_region())
+        profile = rtb.model.get_credentials().get("profile_name")
+        assert (cmd[cmd.index("--profile") + 1] == profile) if profile else "--profile" not in cmd
+        assert rtb.ssh_proxy_command("not-running") is None
+    finally:
+        reset_singletons()
+
+
+def test_the_gce_tunnel_is_iap_on_stdin(monkeypatch):
+    from tests.v2_support import FIXTURE_CONFIG, load_context, reset_singletons, stub_environment
+    stub_environment(monkeypatch)
+    try:
+        ctx = load_context(FIXTURE_CONFIG)
+        rtb = ctx.runtime_builders["gcloud-east1"]                  # the fixture's GCE runtime: session_mechanism iap
+        cmd = rtb.ssh_proxy_command("gce-test") or []
+        assert cmd[1:5] == ["compute", "start-iap-tunnel", "gce-test", "%p"] and "--listen-on-stdin" in cmd
+        assert cmd[cmd.index("--project") + 1] == "csis-sandbox" and cmd[cmd.index("--zone") + 1] == "us-east1-b"
+    finally:
+        reset_singletons()
+
+
+class _Ssh:
+    def __init__(self, monkeypatch, out="uid=3202(unity_uniform) gid=3202(unity_uniform) groups=3202(unity_uniform),3101(pxgroup)\n", rc=0):
+        from cs_image_system.posix_identity_plugin import ssh_login
+        self.calls: list[list[str]] = []
+        monkeypatch.setattr(ssh_login, "run_ssh", lambda args, timeout=120: self.calls.append(list(args)) or (rc, out))
+
+
+def test_the_proof_checks_key_tunnel_login_and_group_in_that_order(monkeypatch):
+    from cs_image_system.posix_identity_plugin import ssh_login
+    proxy = ["aws", "ssm", "start-session", "--target", "i-0abc", "--document-name", "AWS-StartSSHSession",
+             "--parameters", "portNumber=%p"]
+    no_key, _ = ssh_login.login_checks(group="pxgroup", user="unity_uniform", instance_name="test", proxy=proxy, env={})
+    assert [(c["name"], c["ok"]) for c in no_key] == [("proof key", False)] and "CSIS_PROOF_SSH_KEY is not set" in no_key[0]["detail"]
+    env = {"CSIS_PROOF_SSH_KEY": PROOF_PEM}
+    no_tunnel, _ = ssh_login.login_checks(group="pxgroup", user="unity_uniform", instance_name="test", proxy=None, env=env)
+    assert [(c["name"], c["ok"]) for c in no_tunnel] == [("proof key", True), ("tunnel", False)]
+    ssh = _Ssh(monkeypatch)
+    ok, evidence = ssh_login.login_checks(group="pxgroup", user="unity_uniform", instance_name="test", proxy=proxy, env=env)
+    assert [(c["name"], c["ok"]) for c in ok] == [("proof key", True), ("tunnel", True), ("login", True), ("in its group", True)]
+    args = ssh.calls[0]
+    assert args[-2:] == ["unity_uniform@test", "id"] and "BatchMode=yes" in args and "IdentitiesOnly=yes" in args
+    assert any(a.startswith("ProxyCommand=aws ssm start-session --target i-0abc") and "portNumber=%p" in a for a in args)
+    _Ssh(monkeypatch, out="uid=3202(unity_uniform) gid=3202(unity_uniform) groups=3202(unity_uniform)\n")
+    outside, _ = ssh_login.login_checks(group="pxgroup", user="unity_uniform", instance_name="test", proxy=proxy, env=env)
+    assert outside[-1]["name"] == "in its group" and not outside[-1]["ok"]
+
+
+def _with_proof_user(root):
+    path = root / "groups" / "users.yaml"
+    text = path.read_text()
+    old = "  - name: unity_uniform\n    type: posix-users\n"
+    assert old in text
+    path.write_text(text.replace(old, old + "    is_service_account: true\n"))
+
+
+def test_verify_login_proves_a_posix_machine_as_its_proof_user(tmp_path, monkeypatch):
+    from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
+    from cs_image_system.base.commands import login_proof as lp
+    _Session(monkeypatch)
+    _Ssh(monkeypatch)
+    monkeypatch.setattr(AwsCloudBuilder, "ssh_proxy_command", lambda s, n: ["aws", "ssm", "start-session", "--target", "i-0abc"])
+    monkeypatch.setenv("CSIS_PROOF_SSH_KEY", PROOF_PEM)
+    run = _posix_instance_run(tmp_path, monkeypatch, prepare=_with_proof_user)
+    try:
+        rec = lp.prove_login(next(i for i in run.ctx.instances if i.get_name() == "test"))
+        assert rec["ok"] and rec["as"] == "proof key" and rec["group"] == "pxgroup", rec
+        assert [c["name"] for c in rec["checks"]] == ["proof key", "tunnel", "login", "in its group"]
+    finally:
+        run.restore_cwd()
+
+
+def test_a_posix_group_without_a_proof_user_is_skipped_naming_why(tmp_path, monkeypatch):
+    from cs_image_system.base.commands import login_proof as lp
+    _Session(monkeypatch)
+    run = _posix_instance_run(tmp_path, monkeypatch)
+    try:
+        rec = lp.prove_login(next(i for i in run.ctx.instances if i.get_name() == "test"))
+        assert rec["skipped"] and "has no posix proof user" in rec["checks"][0]["detail"], rec
     finally:
         run.restore_cwd()

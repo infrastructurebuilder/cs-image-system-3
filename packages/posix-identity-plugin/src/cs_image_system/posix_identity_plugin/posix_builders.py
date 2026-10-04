@@ -31,7 +31,7 @@ from cs_image_system.base.models.group import Group
 from cs_image_system.base.models.user import User
 from cs_image_system.base.posix_ids import Claim
 
-from . import accounts
+from . import accounts, ssh_login
 from .posix_models import POSIX, PosixGroupBuilderModel, PosixUserBuilderModel
 
 TOOLS = ("groupadd", "useradd", "gpasswd", "visudo")
@@ -166,6 +166,40 @@ class PosixGroupBuilder(_NoGeneration, GroupBuilderBase[PosixGroupBuilderModel])
                     errors.append(f"posix group {g.get_name()}: {who} has no posix account -- declare it as a user "
                                   f"of a `type: posix` user builder, with a `uid:`")
         return errors
+
+    # ------------------------------------------------- the login proof (step 6)
+    def _proof_user(self, group: str) -> User | None:
+        """The group's proof user: a member or admin that is a posix service
+        account with a uid and a public key (the first by name)."""
+        found = self._group(group)
+        if found is None:
+            return None
+        people = self._posix_users()
+        for name in sorted({str(m) for m in found.members} | {str(a) for a in found.admins}):
+            user = people.get(name)
+            if user is not None and user.is_service_account and user.uid is not None and user.public_keys:
+                return user
+        return None
+
+    def can_prove_login(self, group: str | None = None) -> bool:
+        return group is not None and self._proof_user(group) is not None
+
+    def login_unprovable_reason(self, group: str) -> str:
+        return (f"group {group} has no posix proof user (a member declared `is_service_account: true` on a "
+                f"posix user builder, with a `uid:` and a public key); there is no login to prove")
+
+    def login_identity(self) -> str:
+        return "proof key"
+
+    def login_checks(self, group: str, hostname: str, *, timeout: int = 120, instance_name: str | None = None,
+                     runtime: Any = None) -> tuple[list[dict[str, Any]], list[str]]:
+        user = self._proof_user(group)
+        if user is None:
+            return [{"name": "proof user", "ok": False, "detail": self.login_unprovable_reason(group)}], []
+        target = instance_name or hostname
+        proxy = runtime.ssh_proxy_command(target) if runtime is not None else None
+        return ssh_login.login_checks(group=group, user=user.get_name(), instance_name=target, proxy=proxy,
+                                      timeout=timeout)
 
     # ------------------------------------------------------- the state query
     def query_state(self) -> dict[str, dict[str, Any]]:

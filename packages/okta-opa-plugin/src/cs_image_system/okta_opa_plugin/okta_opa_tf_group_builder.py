@@ -259,13 +259,17 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
 
     # the login proof (stage 75 step 2: moved from the core, unchanged): there
     # is a CI login to prove exactly when the workload objects are named
-    def can_prove_login(self) -> bool:
+    def can_prove_login(self, group: str | None = None) -> bool:
         return self.can_manage_workload_access()
+
+    def login_unprovable_reason(self, group: str) -> str:
+        return f"group {group} names no workload connection and role; there is no CI login to prove"
 
     def login_identity(self) -> str:
         return sft_login.login_identity()
 
-    def login_checks(self, group: str, hostname: str, *, timeout: int = 120) -> tuple[list[dict[str, Any]], list[str]]:
+    def login_checks(self, group: str, hostname: str, *, timeout: int = 120, instance_name: str | None = None,
+                     runtime: Any = None) -> tuple[list[dict[str, Any]], list[str]]:
         return sft_login.login_checks(self, group, hostname, timeout=timeout)
 
     def workload_access_expected(self, group: str) -> dict[str, Any] | None:

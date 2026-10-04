@@ -289,6 +289,29 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
                            "detail": f"{mounted} mount(s) under /mnt, {expect_mounts} declared"})
         return {"ok": all(c["ok"] for c in checks), "checks": checks, "evidence": out.splitlines()[-20:]}
 
+    def running_instance_id(self, instance_name: str) -> str | None:
+        """The id of the RUNNING instance whose Name tag is ``instance_name``."""
+        ec2 = aws_utils.ec2_client(self.model.self_to_aws_client_config())
+        res = ec2.describe_instances(Filters=[{"Name": "tag:Name", "Values": [instance_name]},
+                                              {"Name": "instance-state-name", "Values": ["running"]}])
+        ids = [i["InstanceId"] for r in res.get("Reservations", []) for i in r.get("Instances", [])]
+        return ids[0] if ids else None
+
+    def ssh_proxy_command(self, instance_name: str) -> list[str] | None:
+        """SSH over Session Manager (``AWS-StartSSHSession``): the instance's
+        SSM agent holds an outbound connection, so a machine in a private
+        subnet with no public address is reached with no inbound rule. The
+        path packer bakes through in this account; the caller needs
+        ``ssm:StartSession`` on the instance and the document, and the
+        session-manager plugin beside the aws CLI."""
+        instance_id = self.running_instance_id(instance_name)
+        if instance_id is None:
+            return None
+        cmd = ["aws", "ssm", "start-session", "--target", instance_id, "--document-name", "AWS-StartSSHSession",
+               "--parameters", "portNumber=%p", "--region", str(self.model.get_region())]
+        profile = self.model.get_credentials().get("profile_name")
+        return cmd + (["--profile", str(profile)] if profile else [])
+
     def run_session_command(self, instance_name: str, script: str, timeout: int = 300) -> tuple[int, str]:
         """SSM ``AWS-RunShellScript`` on the instance named by its Name tag
         (the session mechanism instances are reached by, stage 1)."""

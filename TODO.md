@@ -511,10 +511,11 @@ the first final version on PyPI (§41's open call).
 ## 75. A POSIX identity plugin, alone and beside Okta
 
 **Status: IN PROGRESS since 2026-10-03 on `feature/posix-identity` (the
-operator: "start 75", "resume step 5"). Steps 1-5 done; step 6 (real
-SSH) next.** (The operator, 2026-10-03, on finding the owning group
-absent on a live machine: "Plan a second plugin", with the decisions
-recorded below.)
+operator: "start 75", "resume step 5", "do step 6-10"). Steps 1-6 done;
+step 7 (the starter) next; steps 8-9 are live and need a release and the
+operator's applying runs.** (The operator, 2026-10-03, on finding the
+owning group absent on a live machine: "Plan a second plugin", with the
+decisions recorded below.)
 
 ### Context
 
@@ -847,9 +848,24 @@ standing mandate: a new secret owes the bootstrap its question).
    three starters name `posix-local`; the golden moved once (the seven
    Okta-owned images gain the hook and its checks; their fingerprints
    move).
-6. **Real SSH.** `ssh_proxy_command` on both runtimes, the posix
-   `prove_login`, `CSIS_PROOF_SSH_KEY`, the bootstrap question and
-   `set-secrets.sh`.
+6. **Real SSH.** Done 2026-10-04. The runtime contract gains
+   `ssh_proxy_command(instance)`: AWS `aws ssm start-session --target
+   <id> --document-name AWS-StartSSHSession --parameters portNumber=%p`
+   (the path packer bakes through in this account's private subnets: no
+   public address, no inbound rule), GCE `gcloud compute
+   start-iap-tunnel <name> %p --listen-on-stdin`. The login-proof
+   contract widens: `can_prove_login(group)`,
+   `login_unprovable_reason(group)`, and `login_checks` receives the
+   instance and its runtime. The posix builder proves a group's login as
+   its proof user (a posix service-account member with a uid and a key)
+   over real ssh through that tunnel, with the private key from
+   `CSIS_PROOF_SSH_KEY`: four checks (key, tunnel, login, in its group),
+   recorded `as: proof key`; a group without a proof user is skipped
+   naming why. The starter workflows hand the secret to the perform
+   job's login-proof step (no gate reads it), CI_SETUP.md documents it
+   beside the gated table, and the bootstrap's `set-secrets.sh` sets it
+   from a file when one is there (the existing rule: a missing file is
+   skipped).
 7. **The starter.** `docs/examples/standard-aws-posix` (no Okta: no
    3.5, no OPA secrets), `init-config --from standard-aws-posix`,
    `CI_SETUP.md` and the starter tests extended to four trees.

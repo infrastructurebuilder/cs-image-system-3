@@ -458,6 +458,15 @@ prints.
 A tree with one cloud has the gate lines for that cloud alone; the
 starter for that cloud already leaves the other's secrets out.
 
+One secret no gate reads: **`CSIS_PROOF_SSH_KEY`**, the private key of a
+posix group's proof user (stage 75) -- a member declared
+`is_service_account: true` on a posix user builder, with a `uid:` and its
+public key in `public_keys:`. The perform job's login proof logs in as
+that user over ssh, through the runtime's session tunnel (SSM on AWS, IAP
+on GCE: no public address), and checks the group. A tree with no posix
+proof user needs no such secret; a posix proof without it fails its first
+check, naming the secret.
+
 Set each from a file or standard input, never as a command-line argument
 (it would land in your shell history):
 
