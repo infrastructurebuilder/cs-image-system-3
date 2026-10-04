@@ -8,9 +8,11 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 system must not take itself.
 
 Current stage: **§75**, the POSIX identity plugin. Steps 1-7 and 10
-merged 2026-10-04 (c02511d) and released in dev13; step 8 is done live
-on coops-model-005 the same day (only its `perform` waits, for the
-sibling's main); step 9, the standalone proof, is next. Open beside it:
+merged 2026-10-04 (c02511d) and released in dev13; steps 8 and 9 are
+done live the same day (coops-model-005 healed in place; the standalone
+proof logged in over real ssh and was torn down). It lands once the
+sibling's main moves and `perform` is green, after `just full-test`.
+Open beside it:
 §78, the documentation stage for §75, and §79, hygiene bundle X (one
 item, a plan). Planned, by the operator's word: §65, §66 and §30.
 
@@ -512,10 +514,13 @@ the first final version on PyPI (§41's open call).
 
 **Status: steps 1-7 and 10 MERGED 2026-10-04 (c02511d; the branch
 `feature/posix-identity` kept), released in 0.1.1.dev13, taken by the
-sibling's develop (bceb31b, CI green). Step 8 DONE 2026-10-04 on the
-machine (coops-model-005 healed in place; see step 8), owing only
-`perform` green, which waits for the operator to move the sibling's
-main (that run bakes the six due AWS Okta images). Open: step 9.** (The
+sibling's develop (bceb31b, CI green). Step 9 DONE 2026-10-04: the
+standalone proof logged in over real ssh, all four checks ok, and was
+torn down the same day. Step 8 DONE 2026-10-04 on the machine
+(coops-model-005 healed in place), owing only `perform` green, which
+waits for the operator to move the sibling's main (that run bakes the
+six due AWS Okta images). Left before the stage lands: that `perform`,
+and `just full-test`.** (The
 operator, 2026-10-03, on finding the owning group absent on a live
 machine: "Plan a second plugin", with the decisions recorded below.)
 
@@ -910,6 +915,33 @@ standing mandate: a new secret owes the bootstrap its question).
    (`CSIS_PROOF_SSH_KEY`), then decommissioned and its two series'
    images disposed. Nothing on GCP (the GCE proxy command is
    unit-tested and read, not run).
+   DONE 2026-10-04, every applying run the operator's, on the sibling's
+   develop (declared af5c3b5, removed ed7b9c4):
+   - **Bake** (`--only <series>@aws-east2-runtime` for the two series
+     alone; `--only-runtime` beside `--only` would have widened it, see
+     §79): base `ami-0237e65c0f8a30b22` (posix only, 9 in-bake
+     assertions) and image `ami-0ec88a61e731d36a0` (2, among them
+     `getent group pxproof` = `pxproof:x:3101:`) -- the group baked
+     with its declared gid.
+   - **Launch** (`just cloud-launch aws-east2-runtime`):
+     `posix-proof-001`, durable generation 1, `i-0d09fa2a1b5a5cf30`,
+     alias `koi`, private subnet only, no enrollment; the reconcile
+     made `csis_proof` (uid 3999, its key) on it, and coops-model's
+     accounts stood again, untouched.
+   - **Proof** (`CSIS_PROOF_SSH_KEY=~/.ssh/csis_proof just
+     ci-login-proof posix-proof`): proof key, tunnel (`aws ssm`
+     `AWS-StartSSHSession`), login as `csis_proof`, in its group --
+     all ok; evidence `uid=3999(csis_proof) gid=3999(csis_proof)
+     groups=3999(csis_proof),3101(pxproof)`; recorded in the sibling's
+     `meta-state/login-proofs.yaml`.
+   - **Teardown**: `cloud-decommission` closed generation 1 (`why:
+     decommission`; EC2 reports it terminated), then `dispose image`
+     deregistered both AMIs and deleted their snapshots.
+   - **Found**: removing the declarations was refused by DESIGN N19 --
+     a group the system once managed never leaves the configuration --
+     so `pxproof` stays in the sibling as an `unmanaged: true` entry
+     with no members (its gid 3101 stays claimed by the name); the
+     rest left.
 10. **Records.** Done 2026-10-04, as far as the code goes: the posix
     plugin's README (standalone, beside Okta, the login proof, its
     failures), the Okta README and CONFIGURATION 9.2 (`posix:`,
