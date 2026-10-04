@@ -510,12 +510,15 @@ the first final version on PyPI (§41's open call).
 
 ## 75. A POSIX identity plugin, alone and beside Okta
 
-**Status: IN PROGRESS since 2026-10-03 on `feature/posix-identity` (the
-operator: "start 75", "resume step 5", "do step 6-10"). Steps 1-7 done;
-steps 8-9 are live and need the branch merged, a release, and the
-operator's applying runs; step 10 is the records.** (The operator,
-2026-10-03, on finding the owning group absent on a live machine: "Plan
-a second plugin", with the decisions recorded below.)
+**Status: steps 1-7 and 10 MERGED 2026-10-04 (c02511d; the branch
+`feature/posix-identity` kept). Open: step 8 (live, beside Okta, healing
+coops-model-005) and step 9 (live, standalone: the operator chose a
+dedicated EL10 proof base declaring `[posix]`, one posix image, one
+DURABLE proof machine -- `verify login` proves durable machines only --
+launched, proved, decommissioned, its images disposed; on the sibling's
+develop only). Both wait for a release carrying the merge.** (The
+operator, 2026-10-03, on finding the owning group absent on a live
+machine: "Plan a second plugin", with the decisions recorded below.)
 
 ### Context
 
