@@ -7,22 +7,22 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress**. §76, reserved names, LANDED
-2026-10-03 (980963e, released in dev12, the reference configuration
-performing on it): `none` joined `OOPS_DEFAULTS`, a reserved name is
-refused where its file is read, a reference written `none` is refused at
-`validate`, and the `config:` key guard is switched on. §77, its
-documentation stage, LANDED the same day (63fc128). No hygiene bundle
-and no documentation stage is open (the next issue opens hygiene bundle
-X; the next undocumented change opens a documentation stage). Planned,
-by the operator's word: §75 (the POSIX identity plugin; its step 5
-relies on §76), §65, §66 and §30.
+Current stage: **§75**, the POSIX identity plugin. Steps 1-7 and 10
+merged 2026-10-04 (c02511d) and released in dev13; step 8 is done live
+on coops-model-005 the same day (only its `perform` waits, for the
+sibling's main); step 9, the standalone proof, is next. Open beside it:
+§78, the documentation stage for §75, and §79, hygiene bundle X (one
+item, a plan). Planned, by the operator's word: §65, §66 and §30.
 
-Releases: dev12 (2026-10-03) carries §76 and is the reference
-configuration's (its `perform` green on it, closing record 266db26); §77
-changed only documentation and needs no release of its own.
+Releases: dev13 (2026-10-04) carries §75 steps 1-7 and 10 and is on the
+sibling's develop (bceb31b, CI green); the sibling's main is still on
+dev12 (2026-10-03, §76), performing on it (closing record 266db26).
 
-Recently landed: §73 (2026-10-01), the coops model replaced onto a
+Recently landed: §76 (2026-10-03, 980963e), reserved names -- `none`
+joined `OOPS_DEFAULTS`, a reserved name is refused where its file is
+read, a reference written `none` is refused at `validate`, the
+`config:` key guard is on -- and §77, its documentation stage (63fc128);
+§73 (2026-10-01), the coops model replaced onto a
 second EFS filesystem -- `coops-model-005`, generation 5, alias `gar`,
 the planted file absent, the old `efs-storage` standing with its data
 and mounted nowhere; §72 (2026-09-30), the coops model resized in place
@@ -989,3 +989,29 @@ stages that land undocumented changes append here until it lands.
    release) -- once that release exists.
 4. `DAILY_DRIVER.md` section 6 gains a row for each of §75's refusals
    when one is first met in the reference deployment.
+
+## 79. Hygiene bundle X
+
+**Status: OPEN 2026-10-04, one item; a plan -- nothing here runs until
+the operator says "do 79".**
+
+1. **`--only` and `--only-runtime` together widen a bake; they never
+   narrow it.** Found 2026-10-04 while preparing §75 step 9: a dry run
+   of `run base-image instance-image --only basic-rh-10-posix --only
+   imgfile-posix-proof --only-runtime aws-east2-runtime` planned the two
+   named series AND every due image of the runtime -- the six Okta
+   images whose inputs §75 moved. The CLI appends every image of the
+   runtime to `--only`
+   ([cli.py:151-163](packages/system/src/cs_image_system/system/cli.py#L151-L163)),
+   as its help says, so the pair is a union; nobody who writes both
+   flags means that, and the run would have baked six images nobody
+   asked for. The form used instead (`--only <image>@<runtime>` alone)
+   bakes only what it names, but then generates and plans EVERY
+   runtime's terraform roots, which is what `--only-runtime` exists to
+   prevent (ledger 70: a GCE plan 404'd during a scoped AWS bake).
+   Fixed looks like: with `--only` given, `--only-runtime` scopes the
+   roots and narrows the named images to that runtime (an
+   intersection), and never adds to them; a named image not baked on
+   that runtime is refused; the help says so; a test pins both forms
+   (`--only-runtime` alone keeps today's meaning). **USER**: confirm the
+   intersection reading -- the conservative one -- before it is built.
