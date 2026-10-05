@@ -483,3 +483,4 @@ the daily driver's words at the end of the stage, or filed as code.
 | F5 | 1.2 lists the tools and floors, not how to install any of them | words |
 | F6 | `init-config` in a cloned repository writes no configuration: only a directory with no entries counts as new, and a clone has `.git` | code |
 | F7 | after the identity is replaced, `.age-recipient` and the comments that call the recipient the TEST one are left behind; no page says to tidy them | words |
+| F8 | every YAML file of a starter opens with a comment naming its path in the SYSTEM repository (`docs/examples/standard-aws/...`) and a relative link (`../../../CONFIGURATION.md`) that points nowhere in a team's own tree | words |
