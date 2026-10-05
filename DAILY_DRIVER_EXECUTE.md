@@ -418,6 +418,89 @@ login proof by hand, much later.
 
 **Report:** `stage 7 done`.
 
+## Stage 8 -- GitHub from the container (CI_SETUP 3.1, 3.2)
+
+Read CI_SETUP.md sections 3.1 and 3.2 in the tree first.
+
+**8a. Finish stage 7** if you have not: remove `.age-recipient` and
+commit (the two lines at the end of stage 7).
+
+**8b. A token.** The container has no browser and no SSH key, so `git`
+and `gh` use a token. On github.com: Settings, Developer settings,
+Fine-grained tokens, Generate new token.
+
+- Resource owner `infrastructurebuilder`; repository access: only
+  `cs-image-system-walk`.
+- Repository permissions: Contents, Workflows, Administration, Secrets,
+  Variables, Actions and Environments read-and-write; Metadata read.
+  (Contents and Workflows are for pushing; the rest is what the
+  bootstrap's GitHub section sets at stage 9.)
+- Expiry: a week covers the walk.
+
+Add two lines to `.envrc` with the editor, then allow it:
+
+```sh
+export GH_TOKEN=github_pat_...          # gh reads this
+export GITHUB_TOKEN=$GH_TOKEN           # the bootstrap's terraform reads this
+```
+
+```sh
+direnv allow
+gh auth status                           # "Logged in to github.com ... (GH_TOKEN)"
+gh auth setup-git                        # git over https uses the token
+git config --global url."https://github.com/".insteadOf "git@github.com:"   # your clone's remote is ssh; this rewrites it in the container only
+git ls-remote origin | head -3           # proves git can reach the repository
+```
+
+**8c. The ids** (CI_SETUP 3.2 step 4; keep the output for stage 9):
+
+```sh
+gh api repos/infrastructurebuilder/cs-image-system-walk --jq .id
+gh api users/infrastructurebuilder --jq .id
+gh api orgs/infrastructurebuilder/actions/oidc/customization/sub
+```
+
+**8d. The workflow's values.** In `.github/workflows/ci.yml`:
+
+| Line | Value |
+| --- | --- |
+| `PERFORM_RUNTIME` | `aws-main` (the starter's one runtime; check its `name:` in `cfg/runtime-builders.yml`) |
+| `GUARD_RUNTIME` | `""` (leave empty until the GCE leg, stage 15) |
+| `AWS_REGION` | `us-east-2` |
+| `TF_VAR_REPLACE_ME_key` (twice) | `TF_VAR_nos_coastal_modeling_cloud_sandbox_key` |
+| `TF_VAR_REPLACE_ME_secret` (twice) | `TF_VAR_nos_coastal_modeling_cloud_sandbox_secret` |
+
+Only the variable NAMES on the left of the colon change; the
+`${{ secrets.TF_VAR_KEY }}` on the right stays. In
+`.github/workflows/opa-workload-probe.yml` set the address default to
+`https://noaa.pam.okta.com` and the team default to
+`nos-coastal-modeling-cloud-sandbox`; the connection and role defaults
+stay `REPLACE-ME` until stage 10 makes them.
+
+**8e. The first push.** `develop` only: `main` is what `perform` runs
+on, and it waits for stage 11.
+
+```sh
+just dry                                 # the workflow is not part of the emission, but prove the tree still generates
+git add -A && git commit -m "The workflow's values"
+git push -u origin develop
+gh run watch                             # or: gh run list --branch develop
+```
+
+Expected (CI_SETUP 3.8 step 1): the `verify` job green -- the release
+installs from TestPyPI, the `Justfile` parses, the tree is public-safe.
+`live` and `perform` report SKIPPED, because no secret exists yet; read
+the job summaries, which must say so.
+
+**Report:** `stage 8 done`, with the three ids' output and how the run
+ended (`gh run view --json conclusion,jobs --jq '.conclusion, (.jobs[] |
+"\(.name): \(.conclusion)")'`).
+
+**Not yet, and why.** Stage 9 (the bootstrap) is ready to write, but
+anything that bakes or runs the strict state query waits for the fix of
+finding F11 (stage 82: an image says which configuration owns it), a
+release that carries it, and the walk tree taking that release.
+
 ## Stage 8 onward -- written when you reach them
 
 These stages depend on what the earlier ones produce (the bootstrap's
@@ -426,7 +509,6 @@ this page as each one comes up. The order, and the page each follows:
 
 | Stage | What | Follows |
 | --- | --- | --- |
-| 8 | GitHub from the container: a token, `gh`, pushing `develop` and `main`; the workflow's `REPLACE-ME` values | CI_SETUP 3.1, 3.2 |
 | 9 | `just bootstrap`: the interview, the apply that CREATES the walk's two roles and its state bucket, the state migration, the secrets script | DAILY_DRIVER 1.8; CI_SETUP 3.0, 3.3, 3.7 |
 | 10 | The OPA workload connection and role, in the console, from what the bootstrap prints | CI_SETUP 3.5 |
 | 11 | CI green: `verify`, `live`, the probe, one `perform` | CI_SETUP 3.8 |
@@ -516,3 +598,4 @@ the daily driver's words at the end of the stage, or filed as code.
 | F8 | every YAML file of a starter opens with a comment naming its path in the SYSTEM repository (`docs/examples/standard-aws/...`) and a relative link (`../../../CONFIGURATION.md`) that points nowhere in a team's own tree | words |
 | F9 | 1.7 says "the recipes assume no direnv, so every session starts `source .envrc`"; the operator wants direnv, and the page neither offers it nor says what an `.envrc` for it needs (`direnv allow` after each edit) | words |
 | F10 | a missing OPA credential ends `validate` with a 60-line traceback under a good one-line message; and section 6's row quotes a message (`OPA credentials for team '<t>' not found in the environment`) the system does not print (`Okta builder <b> is missing a key value. Expected to find environment variable TF_VAR_<team>_key ...`) | code and words |
+| F11 | two configurations in one account see each other's images as `foreign` (no tag says whose an image is): the walk's first state query reported the reference configuration's 36 AMIs | code: stage 82 |
