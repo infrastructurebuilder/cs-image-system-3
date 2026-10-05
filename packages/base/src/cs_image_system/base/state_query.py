@@ -377,6 +377,17 @@ def group_drift(ctx: "GlobalTypeContext", groups: dict[str, dict[str, Any]],
             log.warning(f"state query groups/{name} unavailable: {real['error']}")
             continue
         if not real.get("present", True):
+            if not rec.get("seen"):
+                # hygiene XII item 3: a declared group the provider has never
+                # been seen to carry is not missing -- it is not created yet.
+                # A new tree's first dry run recorded its group as managed,
+                # and every later run (the one that would create it included)
+                # refused on hard drift. Once seen, an absence is hard again.
+                if report is not None:
+                    report.notes.append(
+                        f"groups/{name}: declared and not created yet -- the identity lifecycle has "
+                        "not applied it (apply_identity)")
+                continue
             drift.append(Drift("group", name, DRIFT_MISSING,
                                "managed group is not known to the identity provider", hard=True))
             continue

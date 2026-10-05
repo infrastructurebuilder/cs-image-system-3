@@ -154,11 +154,21 @@ def test_storage_drift_classes(world):
     assert by_name[tomb].drift == sq.DRIFT_STALE and "still exists" in by_name[tomb].detail
 
 
+def _all_seen(ctx) -> None:
+    """Mark every recorded group as SEEN in the provider (hygiene XII item 3):
+    only then is its absence hard drift rather than "not created yet"."""
+    model = ctx.meta_state.identity_read_model()
+    for rec in model["groups"].values():
+        rec["seen"] = True
+    ctx.meta_state.write_identity_read_model(model)
+
+
 def test_group_drift(world):
     run, reality = world
     ctx = run.ctx
     from cs_image_system.base.read_models import identity_read_model
     ctx.meta_state.write_identity_read_model(identity_read_model(ctx))
+    _all_seen(ctx)
     model = ctx.meta_state.identity_read_model()["groups"]
     # managed groups only: a lookup-only group (the fixture's `readers`,
     # stage 63 item 18) never drifts, whatever the provider says

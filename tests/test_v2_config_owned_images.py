@@ -107,3 +107,51 @@ def test_relabel_adds_the_tag_to_a_recorded_image_that_lacks_it(run, monkeypatch
     monkeypatch.setattr(AwsCloudBuilder, "query_images",
                         lambda self, series: [_image("ami-0mine00001", "basic-rh-10", OURS)])
     assert relabel_plan(run.ctx, AWS) == []                                  # tagged: nothing left to do
+
+
+# ---------------- hygiene XII item 3 (walk finding F14): not created yet
+
+def _managed(run, seen: bool) -> None:
+    model = {"run": "r", "groups": {"walk_team": {"builder": "oktagroups", "identity_type": "okta",
+                                                   "managed": True, "is_root": False, "members": [], "admins": []}}}
+    if seen:
+        model["groups"]["walk_team"]["seen"] = True
+    run.ctx.meta_state.write_identity_read_model(model)
+
+
+def test_a_declared_group_never_seen_in_the_provider_is_a_note_not_drift(run):
+    """The live case: a new tree's first dry run recorded its group as
+    managed, and every later run refused on `missing group ... [HARD]`."""
+    from cs_image_system.base import state_query as sq
+    _managed(run, seen=False)
+    report = sq.StateReport(run="r")
+    assert sq.group_drift(run.ctx, {"walk_team": {"present": False}}, report) == []
+    assert report.notes == ["groups/walk_team: declared and not created yet -- the identity lifecycle has "
+                            "not applied it (apply_identity)"]
+
+
+def test_once_seen_an_absent_group_is_hard_drift_again(run):
+    from cs_image_system.base import state_query as sq
+    _managed(run, seen=True)
+    report = sq.StateReport(run="r")
+    drift = sq.group_drift(run.ctx, {"walk_team": {"present": False}}, report)
+    assert [(d.name, d.drift, d.hard) for d in drift] == [("walk_team", sq.DRIFT_MISSING, True)]
+    assert report.notes == []
+
+
+def test_the_read_model_marks_a_group_seen_from_the_state_query_and_keeps_it(run):
+    from cs_image_system.base import state_query as sq
+    from cs_image_system.base.read_models import identity_read_model
+    names = sorted(identity_read_model(run.ctx)["groups"])
+    assert names and not any(g.get("seen") for g in identity_read_model(run.ctx)["groups"].values())
+    first = names[0]
+    report = sq.StateReport(run="r", reality={"images": {}, "storages": {}, "groups": {
+        first: {"present": True}, names[-1]: {"present": False}}})
+    sq.write_state_report(run.ctx, report)
+    model = identity_read_model(run.ctx)
+    assert model["groups"][first].get("seen") is True
+    if names[-1] != first:
+        assert "seen" not in model["groups"][names[-1]]
+    run.ctx.meta_state.write_identity_read_model(model)
+    sq.state_report_path(run.ctx).unlink()                    # the next run could not ask: the mark stays
+    assert identity_read_model(run.ctx)["groups"][first].get("seen") is True
