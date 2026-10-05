@@ -16,6 +16,7 @@ source "amazon-ebs" "basic-rhel-9" {
     vpc_id = "vpc-0c78d0d63b7a100df"
     subnet_id = "subnet-09f79018af845358a"
     tags = {
+        csis_config         = "cs-image-action-test",
         csis_series         = "basic-rhel-9",
         csis_parent         = "vendor",
         csis_run            = "2026_08_26t12_00_00",

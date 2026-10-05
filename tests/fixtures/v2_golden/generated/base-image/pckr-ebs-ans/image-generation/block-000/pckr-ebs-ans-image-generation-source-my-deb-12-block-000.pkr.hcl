@@ -20,6 +20,7 @@ source "amazon-ebs" "my-deb-12" {
         OS                  = "debian",
         Project             = "MyDebianProject",
         Version             = "12",
+        csis_config         = "cs-image-action-test",
         csis_series         = "my-deb-12",
         csis_parent         = "vendor",
         csis_run            = "2026_08_26t12_00_00",

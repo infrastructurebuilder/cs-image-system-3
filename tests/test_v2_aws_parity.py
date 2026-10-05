@@ -217,10 +217,10 @@ def _real_images(dask_parent="series-basic-rh-10", dask_fp="293d6de5ab5f3b4f"):
     return [
         {"image_id": "base-1", "name": "base-1", "state": "READY", "created": "", "tags": {
             "csis_series": "basic-rh-10", "csis_parent": "vendor", "csis_run": "2026_09_08t12_48_23_888542",
-            "csis_fingerprint": "e792c328f39cd099"}},
+            "csis_fingerprint": "e792c328f39cd099", "csis_config": "cs-image-action-test"}},
         {"image_id": "dask-1", "name": "dask-1", "state": "READY", "created": "", "tags": {
             "csis_series": "imgfile-basic-dask", "csis_parent": dask_parent, "csis_run": "2026_09_08t12_48_23_888542",
-            "csis_fingerprint": dask_fp}},
+            "csis_fingerprint": dask_fp, "csis_config": "cs-image-action-test"}},
     ]
 
 
@@ -245,7 +245,8 @@ def test_relabel_retags_only_the_images_whose_tags_disagree_with_their_record(tm
         assert results[0].retagged is True
         assert retags[-1] == ("dask-1", {"csis_series": "imgfile-basic-dask", "csis_parent": "base-1",
                                          "csis_run": "2026_09_08t12_48_23_888542",
-                                         "csis_fingerprint": "1733b718d8c52101"})
+                                         "csis_fingerprint": "1733b718d8c52101",
+                                         "csis_config": "cs-image-action-test"})    # stage 82
         monkeypatch.setattr(GCPCloudBuilder, "query_images",
                             lambda self, series: _real_images("base-1", "1733b718d8c52101"))
         assert relabel_plan(run.ctx, "gcloud-east1") == []                 # reality now matches
