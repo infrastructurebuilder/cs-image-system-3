@@ -375,7 +375,16 @@ carries no secret).
 
 ## Stage 7 -- Okta and OPA in the shell (DAILY_DRIVER 1.5, 1.7)
 
-Add to `.envrc`, with the editor, the names section 1.5's table lists.
+**7a. Two things left from stage 6** (Claude's check of the tree):
+
+- `storages/storages.yaml`, under `groups:`, still says `team`; make it
+  `walk_team` (validation would refuse a storage that allows a group
+  that does not exist).
+- `.age-recipient` is still there and nothing is committed since the
+  starter: `git rm -q --cached .age-recipient; rm .age-recipient`.
+  The commit comes at the end of this stage.
+
+**7b. The credentials.** Add to `.envrc`, with the editor, the names section 1.5's table lists.
 The values are the reference configuration's; copy them by hand from
 its `.envrc` on the Mac, never through the chat:
 
@@ -389,8 +398,18 @@ export TF_VAR_nos_coastal_modeling_cloud_sandbox_key=...
 export TF_VAR_nos_coastal_modeling_cloud_sandbox_secret=...
 ```
 
-Then `source .envrc`, `just validate`, `just dry`, and commit
-`generated/` and `meta-state/` with the tree.
+Then:
+
+```sh
+direnv allow                 # .envrc changed; without this direnv refuses to load it
+just validate
+just dry
+git add -A && git commit -m "The walk's values, its one person, and the first dry run"
+```
+
+`just validate` should end `Validation successful.` Read what `just
+dry` wrote, as section 2 says, before committing; `generated/` and
+`meta-state/` are part of the commit.
 
 The `sft` client's own enrollment (`sft enroll`, `sft login`) wants a
 browser. Whether it offers a URL to open on the Mac from inside a
@@ -496,3 +515,4 @@ the daily driver's words at the end of the stage, or filed as code.
 | F7 | after the identity is replaced, `.age-recipient` and the comments that call the recipient the TEST one are left behind; no page says to tidy them | words |
 | F8 | every YAML file of a starter opens with a comment naming its path in the SYSTEM repository (`docs/examples/standard-aws/...`) and a relative link (`../../../CONFIGURATION.md`) that points nowhere in a team's own tree | words |
 | F9 | 1.7 says "the recipes assume no direnv, so every session starts `source .envrc`"; the operator wants direnv, and the page neither offers it nor says what an `.envrc` for it needs (`direnv allow` after each edit) | words |
+| F10 | a missing OPA credential ends `validate` with a 60-line traceback under a good one-line message; and section 6's row quotes a message (`OPA credentials for team '<t>' not found in the environment`) the system does not print (`Okta builder <b> is missing a key value. Expected to find environment variable TF_VAR_<team>_key ...`) | code and words |
