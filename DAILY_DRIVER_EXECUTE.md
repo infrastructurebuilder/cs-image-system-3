@@ -269,15 +269,31 @@ you for.
 
 ## Stage 6 -- the values, then validate and dry (DAILY_DRIVER 1.9 steps 3-4, section 2)
 
-Every `REPLACE-ME` in the YAML becomes a real value
-(`grep -rn REPLACE-ME cfg groups`). The reference account's values are
-public in the reference configuration; the walk's own names are new.
+**6a. Finish stage 5's leftovers.** Three things the pages do not
+mention (finding F7):
+
+```sh
+cd /walk/cs-image-system-walk && source .envrc
+git rm -q .age-recipient         # the TEST public key; nothing reads it once the test identity is gone
+```
+
+In `cfg/_config.yml`, the comment above `encryption:` still says the
+recipient is the TEST one, and the line itself ends `# REPLACE: ...`.
+Reword both to say it is the walk's own key. Then commit:
+
+```sh
+git add -A && git commit -m "The walk's own age identity; the test identity removed"
+```
+
+**6b. The plain values.** Every `REPLACE-ME` becomes a real value
+(`grep -rn REPLACE-ME cfg groups` lists them; ignore the workflows
+until stage 8).
 
 | File | Field | Value |
 | --- | --- | --- |
 | `cfg/_config.yml` | `id` | `cs-image-system-walk` |
 | | `okta_gateway_selector` | `environment=staging` |
-| | `admin_public_keys` | a public key of yours (an ssh key pair made for the walk: `ssh-keygen -t ed25519 -f ~/.ssh/walk_admin -N ''`) |
+| | `admin_public_keys` | the public key of a pair made for the walk (below) |
 | `cfg/runtime-builders.yml` | `profile_name` | `noaa` |
 | | `session_instance_profile` | `AmazonSSMRoleForInstancesQuickSetup` |
 | | `tags.Project` | `cs-image-system-walk` |
@@ -285,30 +301,66 @@ public in the reference configuration; the walk's own names are new.
 | | both security group lists | `sg-03015ec107ae5f81a` (the Okta gateway's) |
 | | `subnet_id` | `subnet-09f79018af845358a` (us-east-2a, private) |
 | `cfg/storage-builders.yml` | `tags.Project` | `cs-image-system-walk` |
-| `cfg/state-backends.yml` | `bucket` | `csis-walk-tfstate-514190660293` (it does not exist yet: the bootstrap creates it, decision W2) |
+| `cfg/state-backends.yml` | `bucket` | `csis-walk-tfstate-514190660293` (it does not exist yet: the bootstrap creates it at stage 9) |
+| | `key` | `statefiles/cs-image-system-walk/` |
 | | `profile` | `noaa` |
-| `cfg/group-builders.yml` | `org` (both) | `noaa` |
-| | `team` (both) | `nos-coastal-modeling-cloud-sandbox` |
-| `groups/groups.yaml` | the group's `name` | `walk_team` (decision W3: nothing the reference configuration manages) |
-| `groups/users.yaml`, and the group's members/admins | the people | one real Okta user: you. Claude gives the exact `encrypt` commands at this stage |
+| `cfg/group-builders.yml` | `org` (twice) | `noaa` |
+| | `team` (twice) | `nos-coastal-modeling-cloud-sandbox` |
 
-The names inside the tree that follow the group (`images/`,
-`storages/`, `instances/`) change with it; Claude lists them when you
-get here. Leave every `apply_*` flag `false`. The workflow's
-`REPLACE-ME` values are stage 8.
+The admin key pair (no passphrase; the private half stays in the
+container's home):
+
+```sh
+ssh-keygen -t ed25519 -f ~/.ssh/walk_admin -N '' -C csis-walk-admin
+cat ~/.ssh/walk_admin.pub        # this whole line replaces the placeholder key in admin_public_keys
+```
+
+Check each subnet/zone line beside the ones you replaced: the starter's
+`availability_zone` must say `us-east-2a` for that subnet.
+
+**6c. The names that are the walk's.** Nothing here may collide with
+the reference configuration in the same account and OPA team.
+
+| File | Change |
+| --- | --- |
+| `groups/groups.yaml` | the group's `name`: `team` becomes `walk_team` |
+| `images/images.yaml` | `group: team` becomes `group: walk_team` |
+| `storages/storages.yaml` | under `groups:`, `team` becomes `walk_team` |
+| `instances/instances.yaml` | the instance's `name`: `team-node-1` becomes `walk-node-1` (it is the hostname OPA will know) |
+
+**6d. The one person: you.** The roster's two personas are replaced by
+your Okta account. Each identifying value is committed encrypted; the
+commands start with a SPACE so the values stay out of the history.
+
+```sh
+ just cli encrypt 'YOUR-OPA-USERNAME'       # prints one ENC[age:...] marker
+ just cli encrypt 'YOUR-ORG-MAIL-DOMAIN'    # the part after @ in your Okta login
+```
+
+- `groups/users.yaml`: delete both personas; write one user whose
+  `name:` is the first marker, with your `first_name` and `last_name`.
+  Fix the comment that names the personas.
+- `groups/groups.yaml`: delete the `members:` block; under `admins:`
+  put the SAME first marker (run `encrypt` once and paste it twice: two
+  runs give two different markers, and that is fine too).
+- `cfg/group-builders.yml`: `email_domain:` takes the second marker in
+  place of `example.invalid`.
+
+**6e. Validate and dry.** Leave every `apply_*` flag `false`.
 
 ```sh
 source .envrc && export AWS_PROFILE=noaa AWS_REGION=us-east-2
 just preflight
 just validate
-just dry
 ```
 
-Expect `validate` to refuse until the OPA credentials exist in the
-shell (the daily driver says they are needed at load); that is stage 7.
-Read what `just dry` wrote, as section 2 says, then commit.
+`validate` is expected to stop on the OPA credentials (the daily driver,
+1.5: they are needed at load, not only at apply). If that is the only
+complaint, stage 6 is done; `just dry` and the commit come at the end
+of stage 7. Any OTHER complaint is a value to fix here.
 
-**Report:** `stage 6 done`, or the validation errors.
+**Report:** `stage 6 done` and what `validate` said (paste it; it
+carries no secret).
 
 ## Stage 7 -- Okta and OPA in the shell (DAILY_DRIVER 1.5, 1.7)
 
@@ -430,3 +482,4 @@ the daily driver's words at the end of the stage, or filed as code.
 | F4 | the starter's own public-safe hook refuses the first commit of the tree `init-config` wrote | code |
 | F5 | 1.2 lists the tools and floors, not how to install any of them | words |
 | F6 | `init-config` in a cloned repository writes no configuration: only a directory with no entries counts as new, and a clone has `.git` | code |
+| F7 | after the identity is replaced, `.age-recipient` and the comments that call the recipient the TEST one are left behind; no page says to tidy them | words |
