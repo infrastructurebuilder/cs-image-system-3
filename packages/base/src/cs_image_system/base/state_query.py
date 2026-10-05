@@ -60,7 +60,7 @@ from .basic.builder_base_group import GroupBuilderBase
 from .basic.builder_base_runtime import RuntimeBuilderBase
 from .basic.builder_base_storage import StorageBuilderBase
 from .constants import STATE_REPORT_FILENAME
-from .lineage import TAG_PREFIX
+from .lineage import CONFIG_TAG, TAG_PREFIX, belongs_to_another_configuration
 from .meta_state import assert_public_safe
 from . import power_state
 from .models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_DESTROYED
@@ -227,13 +227,23 @@ def image_drift(ctx: "GlobalTypeContext", images: dict[str, list[dict[str, Any]]
                 diffs.append("fingerprint differs")
             if diffs:
                 drift.append(Drift("image", bid, DRIFT_CHANGED, "; ".join(diffs)))
+        elsewhere: dict[str, int] = {}
         for iid, real in sorted(by_id.items()):
             if iid not in recorded_ids:
                 tags = real.get("tags") or {}
+                if belongs_to_another_configuration(ctx, tags):
+                    # stage 82: another configuration's image in the same
+                    # account is not ours to call foreign, or to adopt
+                    owner = str(tags.get(CONFIG_TAG))
+                    elsewhere[owner] = elsewhere.get(owner, 0) + 1
+                    continue
                 drift.append(Drift("image", iid, DRIFT_FOREIGN,
                                    f"{runtime} image {real.get('name') or ''} tagged "
                                    f"series={tags.get(TAG_PREFIX + 'series')} "
                                    f"run={tags.get(TAG_PREFIX + 'run')} is not in lineage"))
+        for owner, count in sorted(elsewhere.items()):
+            log.info(f"state query: {count} image(s) on {runtime} belong to configuration "
+                     f"{owner!r} ({CONFIG_TAG}); not this configuration's, left alone")
     # Convergent bakes (stage 9): a pinned child whose parent series has a
     # newer head is `stale` -- informational, never hard; `upgrade image`
     # or parent_policy: follow moves it.
@@ -367,6 +377,17 @@ def group_drift(ctx: "GlobalTypeContext", groups: dict[str, dict[str, Any]],
             log.warning(f"state query groups/{name} unavailable: {real['error']}")
             continue
         if not real.get("present", True):
+            if not rec.get("seen"):
+                # hygiene XII item 3: a declared group the provider has never
+                # been seen to carry is not missing -- it is not created yet.
+                # A new tree's first dry run recorded its group as managed,
+                # and every later run (the one that would create it included)
+                # refused on hard drift. Once seen, an absence is hard again.
+                if report is not None:
+                    report.notes.append(
+                        f"groups/{name}: declared and not created yet -- the identity lifecycle has "
+                        "not applied it (apply_identity)")
+                continue
             drift.append(Drift("group", name, DRIFT_MISSING,
                                "managed group is not known to the identity provider", hard=True))
             continue
@@ -563,8 +584,8 @@ def import_foreign(ctx: "GlobalTypeContext", report: StateReport, *,
                     continue
                 tags = real.get("tags") or {}
                 series = tags.get(f"{TAG_PREFIX}series")
-                if not series:
-                    continue
+                if not series or belongs_to_another_configuration(ctx, tags):
+                    continue                              # stage 82: never adopt another configuration's image
                 ms.add_build({
                     "build_id": iid,
                     "series": str(series),

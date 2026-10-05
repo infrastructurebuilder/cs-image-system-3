@@ -6,6 +6,7 @@ source "googlecompute" "imgfile-basic-dask" {
     image_name = "imgfile-basic-dask-pckr-gce-ans-20260826-120000"
     image_family = "imgfile-basic-dask"
     image_labels = {
+        csis_config         = "cs-image-action-test",
         csis_fingerprint    = "6b3b96d5d12beb79",
         csis_identity_types = "okta",
         csis_parent         = "series-basic-rh-10",

@@ -21,6 +21,7 @@ source "amazon-ebs" "imgfile-basic-cloudflow" {
     subnet_id = "subnet-09f79018af845358a"
     tags = {
         cloudflow           = "true",
+        csis_config         = "cs-image-action-test",
         csis_series         = "imgfile-basic-cloudflow",
         csis_parent         = "series:imgfile-basic-dask",
         csis_run            = "2026_08_26t12_00_00",

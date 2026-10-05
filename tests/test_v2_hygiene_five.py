@@ -59,6 +59,10 @@ def _http(code: int, reason: str) -> urllib.error.HTTPError:
 def test_a_group_the_provider_could_not_be_asked_about_is_unavailable_not_missing(run):
     ctx = run.ctx
     ctx.meta_state.write_identity_read_model(identity_read_model(ctx))
+    seen = ctx.meta_state.identity_read_model()          # hygiene XII item 3: an absence is hard
+    for rec in seen["groups"].values():                 # only for a group the provider was SEEN to carry
+        rec["seen"] = True
+    ctx.meta_state.write_identity_read_model(seen)
     names = sorted(ctx.meta_state.identity_read_model()["groups"])
     groups = {names[0]: {"present": False, "error": "HTTP 401 Unauthorized"},
               names[1]: {"present": False}}

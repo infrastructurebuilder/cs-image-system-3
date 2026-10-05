@@ -21,6 +21,7 @@ source "amazon-ebs" "imgfile-data-science" {
     subnet_id = "subnet-09f79018af845358a"
     tags = {
         data_science        = "true",
+        csis_config         = "cs-image-action-test",
         csis_series         = "imgfile-data-science",
         csis_parent         = "series:my-deb-12",
         csis_run            = "2026_08_26t12_00_00",

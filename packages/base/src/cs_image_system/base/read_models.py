@@ -26,8 +26,23 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
+def _groups_seen(ctx: "GlobalTypeContext") -> set[str]:
+    """Groups the identity provider has been SEEN to carry (hygiene XII item
+    3): those the previous read-model already marked, and those the run's
+    own state query just found present. Observation, never inference: a
+    group is not "seen" because an apply was requested."""
+    from .state_query import read_state_report
+    previous = (ctx.meta_state.identity_read_model() or {}).get("groups", {}) or {}
+    seen = {name for name, rec in previous.items() if isinstance(rec, dict) and rec.get("seen")}
+    reality = ((read_state_report(ctx) or {}).get("reality") or {}).get("groups") or {}
+    seen |= {name for name, real in reality.items()
+             if isinstance(real, dict) and real.get("present") and not real.get("error")}
+    return seen
+
+
 def identity_read_model(ctx: "GlobalTypeContext") -> dict[str, Any]:
     groups: dict[str, Any] = {}
+    seen = _groups_seen(ctx)
     for builder in ctx.group_builders.values():
         if not isinstance(builder, GroupBuilderBase):
             continue
@@ -41,6 +56,10 @@ def identity_read_model(ctx: "GlobalTypeContext") -> dict[str, Any]:
                 "members": sorted(g.members or set()),
                 "admins": sorted(g.admins or set()),
             }
+            if g.get_name() in seen:
+                # absent until the provider is seen to carry the group; then
+                # its absence is hard drift (state_query.group_drift)
+                groups[g.get_name()]["seen"] = True
             expected = builder.workload_access_expected(g.get_name())   # stage 56
             if expected is not None:
                 groups[g.get_name()]["workload"] = expected
