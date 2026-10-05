@@ -325,11 +325,11 @@ plugin 1–2 days. Call it three weeks, done as three branches.
 ## 65. Walking the daily driver
 
 **Status: PLANNED, refreshed 2026-10-05 (first refreshed 2026-10-02);
-nothing runs until the operator says "do 65", and the walk's decisions
-(W1-W6, below) are asked first.** (The operator, 2026-09-24, on
-accepting §62: "make a new stage for walking through the daily driver
-docs"; refreshed on the operator's word after §70 landed and again after
-§80.)
+the walk's decisions W1-W6 answered by the operator the same day;
+nothing runs until the operator says "do 65".** (The operator,
+2026-09-24, on accepting §62: "make a new stage for walking through the
+daily driver docs"; refreshed on the operator's word after §70 landed
+and again after §80.)
 
 **Why.** Every proof so far ran in the reference configuration, which
 already had its roles, its workload identity pool, its OPA connection
@@ -359,8 +359,8 @@ stage changes no code. The walk log (`_uncommitted/walk-log.md`, every
 step with the exact text followed and what happened) is the stage's
 evidence, summarised in its squash message.
 
-**The decisions to ask before "do 65"** (each with the default this plan
-assumes):
+**The decisions** (answered by the operator, 2026-10-05; W1, W2, W3
+and W5 took the default, W4 and W6 did not):
 
 - W1, where the walk repository lives. Default: a new repository
   `infrastructurebuilder/cs-image-system-walk`, public like the other
@@ -388,24 +388,31 @@ assumes):
   walk's groups, their policies, the connection and the role are removed
   by hand in the OPA console (USER), after the walk's tree releases
   them.
-- W4, the GCE leg. Default: SKIPPED -- GCP is the operator's money, and
-  the GCP section's create paths are the only thing it would add; the
-  GCE starter is read rather than walked. The alternative is one
-  `standard-gce` walk on the operator's project, one cycle, torn down,
-  with what it leaves standing reported (it should be nothing).
+- W4, the GCE leg. **Decided: walked**, one cycle, in the SAME walk
+  repository after the AWS walk: the GCE runtime added to the tree the
+  way `complete` declares it, the bootstrap's GCP section re-run (the
+  operator's project already has the workload pool and provider, which
+  the section only reads; what it creates is the walk repository's own
+  bindings and grants), one base and one image bake on the project, an
+  EPHEMERAL instance launched, verified and torn down in its cycle,
+  then the walk's GCE images disposed. GCP is the operator's money:
+  anything left standing at the end of a GCE step is reported (what,
+  id, cost) the moment it is seen; it should be nothing.
 - W5, how fresh "fresh" is. Default: the operator's Mac under a clean
   shell -- a scratch `HOME`, `UV_TOOL_DIR` and plugin cache, no `CSIS`
   override, no checkout of this repository on `PATH` (today the
   operator's `cs-image-system` IS this repository's `.venv`) -- rather
   than a new machine; the tools of 1.2 as installed. A container is the
   alternative, at the cost of the browser-based logins.
-- W6, which starter is walked. Default: `standard-aws` (Okta and OPA,
-  with its `posix: posix-local` delegate): the path the team uses, and
-  the only one that walks the bootstrap's Okta section and the console
-  steps. The alternatives: `standard-aws-posix` alone (no OPA: no
-  console, the proof over ssh with `CSIS_PROOF_SSH_KEY`; shorter, proves
-  less of the team's path), or both, the posix one as a second, shorter
-  walk on the same AWS roles afterwards.
+- W6, which starter is walked. **Decided: both**, `standard-aws` first
+  (Okta and OPA, with its `posix: posix-local` delegate: the path the
+  team uses, and the only one that walks the bootstrap's Okta section
+  and the console steps), then `standard-aws-posix` as a second,
+  shorter walk: its own repository
+  (`infrastructurebuilder/cs-image-system-walk-posix`, USER), whose
+  bootstrap ADOPTS the first walk's AWS roles and adds its own trust
+  -- so the adopt path is walked too -- with no OPA, the proof over ssh
+  with `CSIS_PROOF_SSH_KEY`, and one durable posix machine.
 
 **Steps.**
 
@@ -442,6 +449,18 @@ assumes):
    **Changing things** (section 4) for two changes: a modification,
    re-baked; a membership, reaching the machine at the next applying
    instance run and the member's next login.
+5a. **The GCE leg** (W4): the GCE runtime and its storage declared in
+   the walk tree from CONFIGURATION and the `complete` starter, the
+   bootstrap's GCP section re-interviewed and applied (USER), `just
+   cloud-cycle <gce runtime>` once -- bakes, the ephemeral instance,
+   its verification and teardown in one run -- then the walk's GCE
+   images disposed and `just cloud-empty <gce runtime>` (GCE has an
+   inventory, so emptiness is provable there).
+5b. **The posix walk** (W6): steps 2-5 again, shorter, from
+   `init-config walk-posix --from standard-aws-posix`: the bootstrap
+   adopting the walk roles, `CSIS_PROOF_SSH_KEY` among the secrets, a
+   posix group with its proof user, one durable machine, `perform`'s
+   login proof over ssh.
 6. **The failure walk** (section 6): provoke rows on purpose and check
    each one's symptom, meaning and remedy -- an expired session, an
    unsourced shell, a destroy the gate must refuse, a pin to an
@@ -453,20 +472,20 @@ assumes):
    CI guide's GitLab section (section 4: "Not written yet" -- a finding
    only if any page claims more); the developer chapter (section 9)
    against this repository's `just test` and `just release ... yes`.
-8. **Teardown, and its proof**: the durable instance through `just
-   cloud-decommission`; the walk's images through `just
-   cloud-dispose-images` (the walk repository's lineage holds only the
-   walk's builds); the storage undeclared through the gate; the walk's
-   OPA groups released (`unmanaged: true`) and then removed by hand with
-   their policies, the connection and the role (W3, USER, console); the
-   bootstrap root destroyed (USER: roles, bucket, GitHub settings); the
-   repository deleted or archived (USER). `just cloud-empty` cannot
-   prove an AWS runtime empty (it has no inventory there), so the proof
-   is the walk's strict state query with nothing declared, plus a read
-   of the account for anything tagged with the walk's names.
-   Afterwards the reference configuration's strict state query and its
-   `perform` stay green, which is the proof the walk touched nothing of
-   it.
+8. **Teardown, and its proof** (both walk repositories): the durable
+   instances through `just cloud-decommission`; the walk's images
+   through `just cloud-dispose-images` (the walk repository's lineage
+   holds only the walk's builds); the storage undeclared through the
+   gate; the walk's OPA groups released (`unmanaged: true`) and then
+   removed by hand with their policies, the connection and the role (W3,
+   USER, console); the bootstrap roots destroyed (USER: roles, bucket,
+   the GCP bindings and grants, GitHub settings); both repositories
+   deleted or archived (USER). `just cloud-empty` cannot prove an AWS
+   runtime empty (it has no inventory there), so the proof is the walk's
+   strict state query with nothing declared, plus a read of the account
+   for anything tagged with the walk's names. Afterwards the reference
+   configuration's strict state query and its `perform` stay green,
+   which is the proof the walk touched nothing of it.
 9. **The fixes and the records**: every finding in the walk log is fixed
    here (words) or filed (code); `DAILY_DRIVER.md` gains a dated line at
    the top -- walked on <date>, against release <version> -- and so do
@@ -474,9 +493,11 @@ assumes):
 
 **Sizing**: the repository and bootstrap half a day; CI half a day, most
 of it secrets and the console; section 3 a day, most of it bakes; the
-failure walk two hours; teardown two hours; the fixes a day. Costs: two
-bakes and one t3.medium standing for the walk's days on AWS; nothing on
-GCP unless W4 says otherwise; a second, shorter walk if W6 says both.
+failure walk two hours; the GCE leg half a day; the posix walk half a
+day; teardown three hours; the fixes a day -- about five working days.
+Costs: on AWS four bakes and two t3.medium machines standing for the
+walk's days; on GCP (the operator's) two bakes, one ephemeral machine
+for its cycle, and the images until they are disposed.
 
 ## 66. Starter repositories a team can use from GitHub
 
