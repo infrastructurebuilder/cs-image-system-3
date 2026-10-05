@@ -324,11 +324,12 @@ plugin 1–2 days. Call it three weeks, done as three branches.
 
 ## 65. Walking the daily driver
 
-**Status: PLANNED, refreshed 2026-10-02; nothing runs until the operator
-says "do 65", and the walk's decisions (W1-W5, below) are asked first.**
-(The operator, 2026-09-24, on accepting §62: "make a new stage for
-walking through the daily driver docs"; refreshed on the operator's word
-after §70 landed.)
+**Status: PLANNED, refreshed 2026-10-05 (first refreshed 2026-10-02);
+nothing runs until the operator says "do 65", and the walk's decisions
+(W1-W6, below) are asked first.** (The operator, 2026-09-24, on
+accepting §62: "make a new stage for walking through the daily driver
+docs"; refreshed on the operator's word after §70 landed and again after
+§80.)
 
 **Why.** Every proof so far ran in the reference configuration, which
 already had its roles, its workload identity pool, its OPA connection
@@ -336,20 +337,27 @@ and its secrets. Nobody has gone from nothing -- a release on the index,
 an empty directory -- to a green `perform` the way a new team would, and
 much has changed since `DAILY_DRIVER.md` was accepted as one attempt:
 the release model and `init-config` (§64), the CI guide (§69), the
-bootstrap (§70), the refresh rules of hygiene IX. In particular the
+bootstrap with its four sections (§70: GitHub, AWS, GCP, Okta and OPA),
+the refresh rules of hygiene IX, the POSIX identity plugin (§75: a
+required `posix:` line on every Okta group builder, the login hook, a
+fourth starter `standard-aws-posix`, the proof key
+`CSIS_PROOF_SSH_KEY`), the reserved names (§76), the narrowing of
+`--only` beside `--only-runtime` and the records a failed bake now keeps
+(§79), and the starters' t3.medium bake hosts (§80). In particular the
 bootstrap's CREATE paths -- new IAM roles, a new state bucket, local
 state then migrated, the Okta section's guidance on a repository whose
 OPA objects do not exist yet -- have passed `tofu validate` and never an
-apply. The walk is the proof, and every place the text and reality
-differ is a finding.
+apply: the reference configuration's bootstrap root was applied, but
+ADOPTING what stood. The walk is the proof, and every place the text and
+reality differ is a finding.
 
 **What it changes.** Words only. Findings that are words are fixed in
 this stage (the daily driver, the guide, the starters' READMEs and
-comments); findings that are code go to hygiene bundle X (opened by the
-first one) or to a new stage, never made here -- a documentation stage
-changes no code. The walk log (`_uncommitted/walk-log.md`, every step
-with the exact text followed and what happened) is the stage's evidence,
-summarised in its squash message.
+comments); findings that are code go to hygiene bundle XII (opened by
+the first one) or to a new stage, never made here -- a documentation
+stage changes no code. The walk log (`_uncommitted/walk-log.md`, every
+step with the exact text followed and what happened) is the stage's
+evidence, summarised in its squash message.
 
 **The decisions to ask before "do 65"** (each with the default this plan
 assumes):
@@ -362,17 +370,24 @@ assumes):
   (`csis-walk-readonly`, `csis-walk-apply`; the OIDC provider is
   account-wide and stands, so it is read) and a NEW state bucket, so the
   local-state-then-migrate path is walked; one base bake, one
-  instance-image bake and one EPHEMERAL instance (launched, verified,
-  torn down in its run). All of it destroyed at the end.
+  instance-image bake (both on the starter's t3.medium bake host) and
+  one DURABLE instance -- durable because the login proof skips
+  ephemeral machines and CI's `perform` proves only standing ones --
+  launched by `just cloud-launch`, standing for the walk (a t3.medium,
+  cents an hour), decommissioned at the end. All of it destroyed at the
+  end.
 - W3, OPA. Default: the same team, with walk-prefixed group names
   (`walk_*`) so nothing the reference configuration manages is touched;
   a new workload connection and role for the walk repository, made in
   the console by the operator from what the bootstrap's Okta section
   prints -- which is that section's proof on a repository with nothing
-  yet; the walk's groups, policies, connection and role removed at the
-  end. The Okta services app and the OPA service user are the reference
+  yet. The Okta services app and the OPA service user are the reference
   configuration's, reused (read-only lookups; nothing in Okta is
-  created).
+  created). At the end: the system never destroys an OPA group (a group
+  once managed stays in the YAML, `unmanaged: true`, DESIGN N19), so the
+  walk's groups, their policies, the connection and the role are removed
+  by hand in the OPA console (USER), after the walk's tree releases
+  them.
 - W4, the GCE leg. Default: SKIPPED -- GCP is the operator's money, and
   the GCP section's create paths are the only thing it would add; the
   GCE starter is read rather than walked. The alternative is one
@@ -380,56 +395,78 @@ assumes):
   with what it leaves standing reported (it should be nothing).
 - W5, how fresh "fresh" is. Default: the operator's Mac under a clean
   shell -- a scratch `HOME`, `UV_TOOL_DIR` and plugin cache, no `CSIS`
-  override, no checkout of this repository on `PATH` -- rather than a
-  new machine; the tools of 1.2 as installed. A container is the
+  override, no checkout of this repository on `PATH` (today the
+  operator's `cs-image-system` IS this repository's `.venv`) -- rather
+  than a new machine; the tools of 1.2 as installed. A container is the
   alternative, at the cost of the browser-based logins.
+- W6, which starter is walked. Default: `standard-aws` (Okta and OPA,
+  with its `posix: posix-local` delegate): the path the team uses, and
+  the only one that walks the bootstrap's Okta section and the console
+  steps. The alternatives: `standard-aws-posix` alone (no OPA: no
+  console, the proof over ssh with `CSIS_PROOF_SSH_KEY`; shorter, proves
+  less of the team's path), or both, the posix one as a second, shorter
+  walk on the same AWS roles afterwards.
 
 **Steps.**
 
 1. **The release and the shell.** The walk installs the newest release
-   on TestPyPI, pinned in `.csis-version`, through `uv tool install`
-   exactly as 1.1 says, in the W5 shell. A release cut during the walk
-   is not taken mid-walk.
-2. **The repository, from nothing** (1.9, the AWS starter):
+   on TestPyPI (0.1.1.dev14 today), pinned in `.csis-version`, through
+   `uv tool install` exactly as 1.1 says, in the W5 shell. A release
+   cut during the walk is not taken mid-walk.
+2. **The repository, from nothing** (1.9, the W6 starter):
    `cs-image-system init-config walk --from standard-aws`, `git init`,
    the GitHub repository (W1, USER), `just init`. Every `REPLACE-ME`
-   filled from the reference account and the W3 names, a fresh age
+   filled from the reference account and the W3 names (the Okta group
+   builder's `posix:` line stays as the starter writes it), a fresh age
    identity and `reencrypt`, `just validate`, `just dry`, the emission
    read, the first commit -- typing only what the page says.
 3. **The bootstrap, where it can create** (1.8, CI_SETUP.md 3.0): `just
-   bootstrap` interactively, every question read against the page; the
-   apply with the README's exports (USER) creating the W2 roles and
-   bucket on local state; the re-interview that binds the root to the
-   new bucket and `tofu init -migrate-state`; `set-secrets.sh` with the
-   walk's secret files (USER); the Okta section's by-hand list followed
-   to make the walk's OPA connection and role (USER, console), then
-   `just bootstrap` again until that list is empty but for what is by
-   hand by decision.
+   bootstrap` interactively, every question read against the page (the
+   GCP section answered "none" under W4); the apply with the README's
+   exports (USER) creating the W2 roles and bucket on local state; the
+   re-interview that binds the root to the new bucket and `tofu init
+   -migrate-state`; `set-secrets.sh` with the walk's secret files
+   (USER), `CSIS_PROOF_SSH_KEY` among them if W6 walks the posix
+   starter; the Okta section's by-hand list followed to make the walk's
+   OPA connection and role (USER, console), then `just bootstrap` again
+   until that list is empty but for what is by hand by decision.
 4. **CI** (1.8, CI_SETUP.md 3.8): `verify` green on the first push,
    `live` green once the secrets exist, the probe, one `perform` on
-   `main` with its records pushed back and the login proof as a
-   workload.
+   `main` with its records pushed back.
 5. **Making things** (section 3, within W2/W3): one walk group of one
    test user, one storage, one base image, one instance image with one
-   modification and one post-bake test, the ephemeral instance through
-   `just cloud-launch`, the login proof. **Changing things** (section 4)
-   for one change: a modification, re-baked.
-6. **The failure walk** (section 6): provoke five rows on purpose -- an
-   expired session, an unsourced shell, a destroy the gate must refuse,
-   a pin to an unreleased build outside the grace, a stopped machine --
-   and check each row's symptom, meaning and remedy.
+   modification and one post-bake test, the durable instance through
+   `just cloud-launch`; on the machine, the group exists with OPA's gid
+   and the member's `id` carries it (3.1, "The group on its machines");
+   the login proof by hand, then as the workload in the next `perform`.
+   **Changing things** (section 4) for two changes: a modification,
+   re-baked; a membership, reaching the machine at the next applying
+   instance run and the member's next login.
+6. **The failure walk** (section 6): provoke rows on purpose and check
+   each one's symptom, meaning and remedy -- an expired session, an
+   unsourced shell, a destroy the gate must refuse, a pin to an
+   unreleased build outside the grace, a stopped machine, a reserved
+   name (`name: none`) refused at load, an `--only` name that
+   `--only-runtime` cannot honour.
 7. **Read rather than walked**: the pyproject install form of 1.1; the
-   GCE starter if W4 skips it; the developer chapter (section 9) against
-   this repository's `just test` and `just release ... yes`.
-8. **Teardown, and its proof**: the walk's AWS images and storage
-   through the system (`cloud-dispose-images`, the storage undeclared),
-   `just cloud-empty` on the walk's runtime; the walk's OPA groups and
-   policies through the identity lifecycle with their declarations
-   removed; the bootstrap root destroyed (USER: roles, bucket, GitHub
-   settings); the OPA connection and role removed and the repository
-   deleted or archived (USER). Afterwards the reference configuration's
-   strict state query and its `perform` stay green, which is the proof
-   the walk touched nothing of it.
+   GCE starter if W4 skips it; the other starter if W6 picks one; the
+   CI guide's GitLab section (section 4: "Not written yet" -- a finding
+   only if any page claims more); the developer chapter (section 9)
+   against this repository's `just test` and `just release ... yes`.
+8. **Teardown, and its proof**: the durable instance through `just
+   cloud-decommission`; the walk's images through `just
+   cloud-dispose-images` (the walk repository's lineage holds only the
+   walk's builds); the storage undeclared through the gate; the walk's
+   OPA groups released (`unmanaged: true`) and then removed by hand with
+   their policies, the connection and the role (W3, USER, console); the
+   bootstrap root destroyed (USER: roles, bucket, GitHub settings); the
+   repository deleted or archived (USER). `just cloud-empty` cannot
+   prove an AWS runtime empty (it has no inventory there), so the proof
+   is the walk's strict state query with nothing declared, plus a read
+   of the account for anything tagged with the walk's names.
+   Afterwards the reference configuration's strict state query and its
+   `perform` stay green, which is the proof the walk touched nothing of
+   it.
 9. **The fixes and the records**: every finding in the walk log is fixed
    here (words) or filed (code); `DAILY_DRIVER.md` gains a dated line at
    the top -- walked on <date>, against release <version> -- and so do
@@ -438,8 +475,8 @@ assumes):
 **Sizing**: the repository and bootstrap half a day; CI half a day, most
 of it secrets and the console; section 3 a day, most of it bakes; the
 failure walk two hours; teardown two hours; the fixes a day. Costs: two
-bakes and one short-lived instance on AWS; nothing on GCP unless W4 says
-otherwise.
+bakes and one t3.medium standing for the walk's days on AWS; nothing on
+GCP unless W4 says otherwise; a second, shorter walk if W6 says both.
 
 ## 66. Starter repositories a team can use from GitHub
 
