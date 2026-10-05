@@ -1003,3 +1003,31 @@ standing mandate: a new secret owes the bootstrap its question).
   coops.
 - **Order against §65**: the walk would be simpler on the Okta-free
   starter this stage produces; that is the operator's call, not assumed.
+
+## 80. Hygiene bundle XI
+
+**Status: OPEN 2026-10-05, one item; a plan -- nothing here runs until
+the operator says "do 80".**
+
+1. **The reference configuration bakes on a 1 GB t2.micro by default.**
+   Found 2026-10-05 while proving §75: the three SSH-over-SSM bake
+   timeouts of the sibling's `perform` runs (37212963588, 37290586415,
+   37296813122) were all on t2.micro bake hosts -- an instance image
+   that names no `machine_type` on its runtime entry falls back to its
+   runtime's `default_machine_type`, which is `t2.micro` on the
+   sibling's AWS runtimes. The same RHEL 9 parent that timed out under
+   `imgfile-basic-cloudflow-notdocker` baked two other images on an
+   r5.4xlarge the day before, and the bake machine's SSM agent was
+   Online during a timeout. The system already knows the shape: the
+   instance model records a t2.micro OOM-killing the SSM agent
+   ([instance.py](packages/base/src/cs_image_system/base/models/instance.py)),
+   and every starter ships `default_machine_type: t3.medium` with "`dnf
+   update` OOMs a 1 GB t2.micro during a bake". The sibling predates the
+   starters. Done for notdocker alone, by the operator's choice
+   (sibling 3c1638f: `machine_type: t3.medium` on its runtime entry).
+   Fixed looks like: **USER** -- the sibling's AWS runtimes declare
+   `default_machine_type: t3.medium` as the starters do (it touches only
+   bakes and instances that name no machine type; machine type is
+   outside the fingerprint, so nothing re-bakes for it). Optional, also
+   the operator's call: `validate` notes a bake host that falls back to
+   a runtime default, so the choice is visible where it is made.
