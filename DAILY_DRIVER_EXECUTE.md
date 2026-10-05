@@ -38,6 +38,7 @@ is not watching between your messages; it looks when you write.
 | Container | `csis-walk`, image `csis-walk:fedora43` (Fedora 43, `dnf -y update` applied at build) |
 | User | `mykel.alvis` (uid 1000), `sudo` without a password, an otherwise untouched home |
 | Preinstalled | nothing the daily driver asks for: no `git`, no `just`, no `cs-image-system` |
+| `direnv` | installed and hooked for every interactive shell, `root` and `mykel.alvis` (your request, finding F9); the repository's `.envrc` is allowed for both |
 | The volume | host `/Volumes/MiniSSD/git/Work/Lynker/cs-image-system-walk` is `/walk/cs-image-system-walk` in the container |
 | Lifetime | runs until removed; survives `docker stop`/`start` and a restart of OrbStack |
 | Definition | `_uncommitted/walk-container/` (`Dockerfile`, `run.sh`); `run.sh` rebuilds it from nothing, which discards the home directory and every installed tool |
@@ -45,6 +46,16 @@ is not watching between your messages; it looks when you write.
 The home directory lives in the container, not on the volume: tools,
 `~/.aws`, the age identity and the installed release are lost if the
 container is removed. The repository is on the volume and is not.
+
+**direnv.** Entering the repository's directory loads `.envrc` by
+itself; the `source .envrc` lines in the stages below are then
+harmless and unnecessary. After EVERY edit of `.envrc`, run `direnv
+allow` in the repository, or direnv refuses to load it and says so.
+A shell that was open before direnv was installed needs to be left
+and entered again. The non-secret lines `export AWS_PROFILE=noaa` and
+`export AWS_REGION=us-east-2` can live in `.envrc` too. As `root` the
+file loads as well, but its `$HOME` paths then point at root's home,
+where there is no age identity: run the walk as `mykel.alvis`.
 
 The container cannot reach the host's Docker. `just test-mods` (the
 modification tests) needs Docker, so that step is a decision when the
@@ -484,3 +495,4 @@ the daily driver's words at the end of the stage, or filed as code.
 | F6 | `init-config` in a cloned repository writes no configuration: only a directory with no entries counts as new, and a clone has `.git` | code |
 | F7 | after the identity is replaced, `.age-recipient` and the comments that call the recipient the TEST one are left behind; no page says to tidy them | words |
 | F8 | every YAML file of a starter opens with a comment naming its path in the SYSTEM repository (`docs/examples/standard-aws/...`) and a relative link (`../../../CONFIGURATION.md`) that points nowhere in a team's own tree | words |
+| F9 | 1.7 says "the recipes assume no direnv, so every session starts `source .envrc`"; the operator wants direnv, and the page neither offers it nor says what an `.envrc` for it needs (`direnv allow` after each edit) | words |
