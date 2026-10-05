@@ -635,3 +635,19 @@ another configuration's images, and the reference configuration's
    The words (CONFIGURATION's `id`, OPERATIONS' state query, the daily
    driver's foreign row) are written in §65, which is a documentation
    stage and is open.
+
+(§81 item 3, added 2026-10-05 and BUILT the same day on
+`feature/config-owned-images` by the operator's choice "fix it now, in
+the same release"; it lands with §82.)
+
+3. **A group that was never created is reported as hard `missing`.**
+   The walk's finding F14: a new tree's first dry run records its
+   declared group in `meta-state/identity.yaml` as managed; every later
+   run's state query then finds the provider has no such group and
+   refuses on hard drift -- the run that would create it included. The
+   reference configuration never met it because its groups existed
+   before the rule did. Fixed: the identity read-model marks a group
+   `seen` once a state query finds the provider carrying it (observed,
+   never inferred from an apply); until then an absent group is a note,
+   "declared and not created yet", and after it an absence is hard
+   drift as before.
