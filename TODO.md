@@ -7,10 +7,12 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress**. No hygiene bundle is open (the
-next issue opens XII) and no documentation stage is open (the next
-undocumented change opens one). Planned, by the operator's word: §65,
-§66 and §30.
+Current stage: **§65**, walking the daily driver, started 2026-10-05
+on `feature/walk-daily-driver`: the operator types each stage from
+[DAILY_DRIVER_EXECUTE.md](DAILY_DRIVER_EXECUTE.md) on a Fedora 43
+container. §81, hygiene bundle XII, is open (two items the walk
+found, a plan). No documentation stage is open. Planned, by the
+operator's word: §66 and §30.
 
 Releases: dev14 (2026-10-04) carries §79 and is the reference
 configuration's, develop and main, performing green on it (run
@@ -324,9 +326,14 @@ plugin 1–2 days. Call it three weeks, done as three branches.
 
 ## 65. Walking the daily driver
 
-**Status: PLANNED, refreshed 2026-10-05 (first refreshed 2026-10-02);
-the walk's decisions W1-W6 answered by the operator the same day;
-nothing runs until the operator says "do 65".** (The operator,
+**Status: IN PROGRESS since 2026-10-05 ("do 65"). W5 was replaced by
+the operator the same day: the walk runs on a Fedora 43 container
+(`csis-walk`), as user `mykel.alvis`, on the operator's clone of the
+walk repository mounted as a volume, with AWS access keys supplied
+by hand; the operator types each stage from
+[DAILY_DRIVER_EXECUTE.md](DAILY_DRIVER_EXECUTE.md) and Claude reads
+the shell history and the tree. Findings F1-F6 so far (the walk
+log); the code ones are §81.** (The operator,
 2026-09-24, on accepting §62: "make a new stage for walking through the
 daily driver docs"; refreshed on the operator's word after §70 landed
 and again after §80.)
@@ -573,3 +580,28 @@ release, and never edited at the destination. Then:
 **Sizing**: the recipe and its test half a day; the job an hour; the
 mirrors and tokens are the operator's (an hour); the live proof waits on
 the first final version on PyPI (§41's open call).
+
+## 81. Hygiene bundle XII
+
+**Status: OPEN 2026-10-05, two items, both found by the §65 walk; a
+plan -- nothing here runs until the operator says "do 81".**
+
+1. **A starter's own hook refuses its first commit.** The tree
+   `init-config` writes carries the copyright holder's address in the
+   SPDX header of every release-owned file (`tfmodules/*`,
+   `.githooks/pre-commit`), and the starter's `public_safe.allow` does
+   not allow it: `git commit` of the untouched tree is REFUSED with 46
+   findings. The reference configuration allows the address by hand, so
+   nothing caught it. Fixed looks like: every starter's allow list
+   carries the address with its reason (or the scan exempts SPDX header
+   lines), and a test runs public-safe over each starter as written.
+2. **`init-config` in a cloned repository writes no configuration.**
+   Only a directory with no entries counts as new
+   ([starters.py](packages/system/src/cs_image_system/system/starters.py)),
+   and a clone always has `.git`, so a team that creates its repository
+   on GitHub and clones it -- the usual order -- gets the release-owned
+   files and no `cfg/`, with a message that reads like success. Fixed
+   looks like: a directory holding only `.git` (**USER**: and a README
+   or LICENSE GitHub made?) takes the whole starter; the message of the
+   release-owned form says no configuration was written; a test for
+   both.
