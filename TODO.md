@@ -605,3 +605,33 @@ plan -- nothing here runs until the operator says "do 81".**
    or LICENSE GitHub made?) takes the whole starter; the message of the
    release-owned form says no configuration was written; a test for
    both.
+
+## 82. An image says which configuration owns it
+
+**Status: IN PROGRESS 2026-10-05 on `feature/config-owned-images` (the
+operator, on the walk's finding F11: "Fix it in the system now").**
+
+**Why.** Two configuration repositories in one AWS account and region
+see each other's images as `foreign`: an image carries the system's
+lineage tags but nothing that says WHOSE lineage. The walk's first dry
+run reported the reference configuration's 36 AMIs as foreign, so its
+strict state query can never pass, `state import` there would adopt
+another configuration's images, and the reference configuration's
+`perform` would go red the moment the walk baked.
+
+1. Every bake tags its image `csis_config=<the configuration's id>`
+   (AWS tag, GCE label; the id made label-safe). The top-level `id:` of
+   `cfg/_config.yml` therefore names something now, and two trees in one
+   account must not share one.
+2. The state query leaves alone an image whose `csis_config` names
+   ANOTHER configuration: not foreign, not adopted by `state import`,
+   counted in one informational line. An image with no `csis_config`
+   (every image baked before this stage) is treated as before.
+3. `lineage relabel` writes the tag onto recorded images that lack it,
+   so an existing tree marks its images once (**USER**: the reference
+   configuration, `just cloud-relabel aws-east2-runtime no`, after it
+   takes the release).
+4. Tests; the golden regenerated (every packer source gains one tag).
+   The words (CONFIGURATION's `id`, OPERATIONS' state query, the daily
+   driver's foreign row) are written in §65, which is a documentation
+   stage and is open.
