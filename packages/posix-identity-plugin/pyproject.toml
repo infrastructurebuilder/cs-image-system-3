@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-posix-identity-plugin"
-version = "0.1.1.dev13"
+version = "0.1.1.dev14"
 description = "The posix identity plugin: groups, users, memberships, keys and sudo as POSIX accounts on the machines, with ids the configuration declares; alone, or beside Okta for groups"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
@@ -12,7 +12,7 @@ license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
-    "cs-image-system-system==0.1.1.dev13",
+    "cs-image-system-system==0.1.1.dev14",
     "pydantic>=2.13",
 ]
 
