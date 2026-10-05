@@ -7,36 +7,39 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress**. §80, hygiene bundle XI, is open
-(one item, a plan: the reference tree bakes on a t2.micro). No
-documentation stage is open (the next undocumented change opens one).
-Planned, by the operator's word: §65, §66 and §30.
+Current stage: **none in progress**. No hygiene bundle is open (the
+next issue opens XII) and no documentation stage is open (the next
+undocumented change opens one). Planned, by the operator's word: §65,
+§66 and §30.
 
 Releases: dev14 (2026-10-04) carries §79 and is the reference
 configuration's, develop and main, performing green on it (run
 37301986059, 2026-10-05); dev13 carries §75.
 
-Recently landed: §75, a POSIX identity plugin, alone and beside Okta
-(2026-10-05; merged c02511d, released in dev13): OPA's groups exist on
-their machines with their gid and members join at login, and a
-posix-only group is proved over real ssh; §78, the documentation stage
-for §75 and §79 (2026-10-04, 4e40043); §79, hygiene bundle X
-(2026-10-04, fffef2a; the branch `feature/hygiene-x` kept): `--only`
-beside `--only-runtime` narrows a bake, a failed packer block keeps the
-records of the builds that completed, and an adopted build counts as
-current; §76 (2026-10-03, 980963e), reserved names -- `none` joined
-`OOPS_DEFAULTS`, a reserved name is refused where its file is read, a
-reference written `none` is refused at `validate`, the `config:` key
-guard is on -- and §77, its documentation stage (63fc128); §73
-(2026-10-01), the coops model replaced onto a second EFS filesystem --
-`coops-model-005`, generation 5, alias `gar`, the planted file absent,
-the old `efs-storage` standing with its data and mounted nowhere; §72
-(2026-09-30), the coops model resized in place twice (`c5n.4xlarge` to
-`t3.xlarge` to `t3.medium`, the same machine, two `resized` events) and
-then replaced as `coops-model-004` with its planted file, EFS filesystem
-and EBS volume intact; §71, hygiene bundle VIII (2026-10-01, five
-items); §69 (2026-09-28, its step 5 done 2026-09-29); §68, hygiene
-bundle VII (2026-09-29); §63, §67 and §64 (2026-09-26).
+Recently landed: §80, hygiene bundle XI (2026-10-05, cf186de): the
+reference tree's AWS runtimes default to a t3.medium, and the daily
+driver's SSH-timeout row names the bake host's size; §75, a POSIX
+identity plugin, alone and beside Okta (2026-10-05; merged c02511d,
+released in dev13): OPA's groups exist on their machines with their gid
+and members join at login, and a posix-only group is proved over real
+ssh; §78, the documentation stage for §75 and §79 (2026-10-04, 4e40043);
+§79, hygiene bundle X (2026-10-04, fffef2a; the branch
+`feature/hygiene-x` kept): `--only` beside `--only-runtime` narrows a
+bake, a failed packer block keeps the records of the builds that
+completed, and an adopted build counts as current; §76 (2026-10-03,
+980963e), reserved names -- `none` joined `OOPS_DEFAULTS`, a reserved
+name is refused where its file is read, a reference written `none` is
+refused at `validate`, the `config:` key guard is on -- and §77, its
+documentation stage (63fc128); §73 (2026-10-01), the coops model
+replaced onto a second EFS filesystem -- `coops-model-005`, generation
+5, alias `gar`, the planted file absent, the old `efs-storage` standing
+with its data and mounted nowhere; §72 (2026-09-30), the coops model
+resized in place twice (`c5n.4xlarge` to `t3.xlarge` to `t3.medium`, the
+same machine, two `resized` events) and then replaced as
+`coops-model-004` with its planted file, EFS filesystem and EBS volume
+intact; §71, hygiene bundle VIII (2026-10-01, five items); §69
+(2026-09-28, its step 5 done 2026-09-29); §68, hygiene bundle VII
+(2026-09-29); §63, §67 and §64 (2026-09-26).
 
 Open stages and their order (revised 2026-09-22, when §59 landed):
 **§64**, the release that carries everything a configuration repository
@@ -512,41 +515,3 @@ release, and never edited at the destination. Then:
 **Sizing**: the recipe and its test half a day; the job an hour; the
 mirrors and tokens are the operator's (an hour); the live proof waits on
 the first final version on PyPI (§41's open call).
-
-## 80. Hygiene bundle XI
-
-**Status: DONE 2026-10-05 on `feature/hygiene-xi` (the operator: "do
-80"); the optional `validate` note was left out, the conservative
-reading of the request.**
-
-1. **The reference configuration bakes on a 1 GB t2.micro by default.**
-   Found 2026-10-05 while proving §75: the three SSH-over-SSM bake
-   timeouts of the sibling's `perform` runs (37212963588, 37290586415,
-   37296813122) were all on t2.micro bake hosts -- an instance image
-   that names no `machine_type` on its runtime entry falls back to its
-   runtime's `default_machine_type`, which is `t2.micro` on the
-   sibling's AWS runtimes. The same RHEL 9 parent that timed out under
-   `imgfile-basic-cloudflow-notdocker` baked two other images on an
-   r5.4xlarge the day before, and the bake machine's SSM agent was
-   Online during a timeout. The system already knows the shape: the
-   instance model records a t2.micro OOM-killing the SSM agent
-   ([instance.py](packages/base/src/cs_image_system/base/models/instance.py)),
-   and every starter ships `default_machine_type: t3.medium` with "`dnf
-   update` OOMs a 1 GB t2.micro during a bake". The sibling predates the
-   starters. Done for notdocker alone, by the operator's choice
-   (sibling 3c1638f: `machine_type: t3.medium` on its runtime entry).
-   Fixed looks like: **USER** -- the sibling's AWS runtimes declare
-   `default_machine_type: t3.medium` as the starters do (it touches only
-   bakes and instances that name no machine type; machine type is
-   outside the fingerprint, so nothing re-bakes for it). Optional, also
-   the operator's call: `validate` notes a bake host that falls back to
-   a runtime default, so the choice is visible where it is made.
-   DONE: the sibling's three AWS runtimes declare `default_machine_type:
-   t3.medium` (sibling 1d77981); its dry run showed no bake newly due
-   and coops-model's launch parameters unchanged.
-2. **The daily driver's SSH-timeout row blamed the wrong thing.** §78
-   wrote, for `Timeout waiting for SSH` with `StartSession, context
-   canceled`, "move the series off the old parent"; the cause was the
-   1 GB t2.micro bake host (item 1). DONE: the row in
-   [DAILY_DRIVER.md](DAILY_DRIVER.md) section 6 now names the bake
-   host's size and the fix.
