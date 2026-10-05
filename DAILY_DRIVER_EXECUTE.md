@@ -468,8 +468,12 @@ git ls-remote origin | head -3           # proves git can reach the repository
 ```sh
 gh api repos/infrastructurebuilder/cs-image-system-walk --jq .id
 gh api users/infrastructurebuilder --jq .id
-gh api orgs/infrastructurebuilder/actions/oidc/customization/sub
+gh api repos/infrastructurebuilder/cs-image-system-walk/actions/oidc/customization/sub
 ```
+
+(The guide's third command asks the ORGANISATION, which a token scoped
+to one repository may not read: 403, finding F13. The repository form
+above answers with the permissions you have.)
 
 **8d. The workflow's values.** In `.github/workflows/ci.yml`:
 
@@ -611,3 +615,4 @@ the daily driver's words at the end of the stage, or filed as code.
 | F10 | a missing OPA credential ends `validate` with a 60-line traceback under a good one-line message; and section 6's row quotes a message (`OPA credentials for team '<t>' not found in the environment`) the system does not print (`Okta builder <b> is missing a key value. Expected to find environment variable TF_VAR_<team>_key ...`) | code and words |
 | F11 | two configurations in one account see each other's images as `foreign` (no tag says whose an image is): the walk's first state query reported the reference configuration's 36 AMIs | code: stage 82 |
 | F12 | no page says which permissions a fine-grained GitHub token needs; CI_SETUP 3.0 names `GITHUB_TOKEN` and the bootstrap suggests `$(gh auth token)`, which assumes a browser login | words |
+| F13 | CI_SETUP 3.2 step 4's third command (`gh api orgs/<owner>/actions/oidc/customization/sub`) answers 403 to a repository-scoped fine-grained token; the page offers no repository form | words |
