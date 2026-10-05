@@ -515,8 +515,9 @@ the first final version on PyPI (§41's open call).
 
 ## 80. Hygiene bundle XI
 
-**Status: OPEN 2026-10-05, one item; a plan -- nothing here runs until
-the operator says "do 80".**
+**Status: DONE 2026-10-05 on `feature/hygiene-xi` (the operator: "do
+80"); the optional `validate` note was left out, the conservative
+reading of the request.**
 
 1. **The reference configuration bakes on a 1 GB t2.micro by default.**
    Found 2026-10-05 while proving §75: the three SSH-over-SSM bake
@@ -540,3 +541,12 @@ the operator says "do 80".**
    outside the fingerprint, so nothing re-bakes for it). Optional, also
    the operator's call: `validate` notes a bake host that falls back to
    a runtime default, so the choice is visible where it is made.
+   DONE: the sibling's three AWS runtimes declare `default_machine_type:
+   t3.medium` (sibling 1d77981); its dry run showed no bake newly due
+   and coops-model's launch parameters unchanged.
+2. **The daily driver's SSH-timeout row blamed the wrong thing.** §78
+   wrote, for `Timeout waiting for SSH` with `StartSession, context
+   canceled`, "move the series off the old parent"; the cause was the
+   1 GB t2.micro bake host (item 1). DONE: the row in
+   [DAILY_DRIVER.md](DAILY_DRIVER.md) section 6 now names the bake
+   host's size and the fix.
