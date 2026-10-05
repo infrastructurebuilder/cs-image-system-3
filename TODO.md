@@ -529,9 +529,16 @@ torn down the same day. Step 8 DONE 2026-10-04 on the machine
 (coops-model-005 healed in place), owing only `perform` green, which
 waits for the sibling's main. Its first `perform` (run 37212963588)
 failed on `imgfile-basic-cloudflow`'s EL8 parent and exposed the three
-defects of §79, landed; main moves again after a release carries §79.
-`just full-test` passed 2026-10-04 on the tree with §79 merged. Left
-before the stage lands: that `perform`, green.** (The
+defects of §79, landed and released in dev14 (the sibling took it,
+b8a6983). The second `perform` (run 37290586415, 2026-10-05) failed
+the same way: `imgfile-basic-cloudflow` timed out on SSH over SSM
+from its EL8 parent pin although the bake machine's SSM agent was
+Online; nothing else was baked, nothing left foreign. By the
+operator's choice its pin moved to `imgfile-basic-dask`'s EL10 head
+(sibling fbbda37). `just full-test` passed 2026-10-04 on the tree
+with §79 merged. Left before the stage lands: a green `perform`,
+whose login proof of coops-model has not yet run in CI on dev13 or
+dev14.** (The
 operator, 2026-10-03, on finding the owning group absent on a live
 machine: "Plan a second plugin", with the decisions recorded below.)
 
