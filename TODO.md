@@ -651,3 +651,14 @@ the same release"; it lands with §82.)
    never inferred from an apply); until then an absent group is a note,
    "declared and not created yet", and after it an absence is hard
    drift as before.
+4. **A starter's `.gitignore` names a few secret files, not the
+   shape of one.** The walk's finding F15: the operator dropped a
+   `.gh_token` beside the tree and it was one `git add -A` from a
+   public commit. BUILT with item 3 by the operator's word ("do
+   it"): every starter's `.gitignore` ignores every dotfile at any
+   depth unless named (the tree's own `.gitignore`, `.github`,
+   `.githooks`, `.csis-version`, the lock files, the shipped test
+   identity), `*.pem` for key files that are not dotfiles, and the
+   non-dot entries as before; a test asks git itself over each
+   starter. The walk tree carries the same file without the two
+   test-identity lines.
