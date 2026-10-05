@@ -431,10 +431,21 @@ Fine-grained tokens, Generate new token.
 
 - Resource owner `infrastructurebuilder`; repository access: only
   `cs-image-system-walk`.
-- Repository permissions: Contents, Workflows, Administration, Secrets,
-  Variables, Actions and Environments read-and-write; Metadata read.
-  (Contents and Workflows are for pushing; the rest is what the
-  bootstrap's GitHub section sets at stage 9.)
+- Repository permissions, each derived from what the walk's commands
+  touch (no page lists them: finding F12):
+
+  | Permission | Access | Why |
+  | --- | --- | --- |
+  | Metadata | read | every API call; GitHub adds it by itself |
+  | Contents | read and write | `git push` |
+  | Workflows | read and write | pushing `.github/workflows/` |
+  | Administration | read and write | the bootstrap's default branch, Actions permissions and ruleset on `main` |
+  | Variables | read and write | the bootstrap's Actions variables |
+  | Secrets | read and write | `set-secrets.sh` |
+  | Actions | read and write | `gh run watch`; starting the dispatch-only OPA probe (stage 10) |
+
+  If the bootstrap's apply (stage 9) answers 403, the error names the
+  call; add the permission it lacks and tell Claude.
 - Expiry: a week covers the walk.
 
 Add two lines to `.envrc` with the editor, then allow it:
@@ -599,3 +610,4 @@ the daily driver's words at the end of the stage, or filed as code.
 | F9 | 1.7 says "the recipes assume no direnv, so every session starts `source .envrc`"; the operator wants direnv, and the page neither offers it nor says what an `.envrc` for it needs (`direnv allow` after each edit) | words |
 | F10 | a missing OPA credential ends `validate` with a 60-line traceback under a good one-line message; and section 6's row quotes a message (`OPA credentials for team '<t>' not found in the environment`) the system does not print (`Okta builder <b> is missing a key value. Expected to find environment variable TF_VAR_<team>_key ...`) | code and words |
 | F11 | two configurations in one account see each other's images as `foreign` (no tag says whose an image is): the walk's first state query reported the reference configuration's 36 AMIs | code: stage 82 |
+| F12 | no page says which permissions a fine-grained GitHub token needs; CI_SETUP 3.0 names `GITHUB_TOKEN` and the bootstrap suggests `$(gh auth token)`, which assumes a browser login | words |
