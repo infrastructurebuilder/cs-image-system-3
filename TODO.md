@@ -18,8 +18,9 @@ had completed went unrecorded); the five were adopted (sibling
 operator's word the sibling's main moves again only after a release
 carries §79 and the sibling takes it; §75 lands when that `perform` is
 green. No documentation stage is open (the next undocumented change
-opens one) and no hygiene bundle is open (the next issue opens XI).
-Planned, by the operator's word: §65, §66 and §30.
+opens one). §80, hygiene bundle XI, is open (one item, a plan: the
+reference tree bakes on a t2.micro). Planned, by the operator's word:
+§65, §66 and §30.
 
 Releases: dev13 (2026-10-04) carries §75 steps 1-7 and 10; the sibling
 is on it (develop and main). The next release (dev14, the operator's)
