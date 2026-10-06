@@ -623,9 +623,16 @@ default; press Enter to take it unless the table says otherwise. A
 question the table does not list: take the default if it is plainly
 right, otherwise stop and ask.
 
+The interview has FOUR sections, and each opens by asking whether you
+want it (`[Y/n]`, the capital is the default). The walk's answers are
+yes, yes, **no**, yes:
+
+**Section: GitHub** -- "Do you want the GitHub section?" answer `y`
+(the repository's branches, ruleset, Actions settings and the
+secrets script).
+
 | Question | Answer |
 | --- | --- |
-| Do you want the GitHub section? | `y` |
 | The GitHub repository | `infrastructurebuilder/cs-image-system-walk` |
 | The default branch | **`develop`** (the offer may be `master`: GitHub's default today) |
 | The branch the perform job runs on | `main` |
@@ -634,7 +641,12 @@ right, otherwise stop and ask.
 | GUARD_RUNTIME | empty |
 | AWS_REGION | `us-east-2` |
 | The directory holding one file per secret | **`/home/mykel.alvis/walk-secrets`** |
-| Do you want the AWS section? | `y` |
+
+**Section: AWS** -- "Do you want the AWS section?" answer `y`
+(the two roles CI assumes, and the state bucket).
+
+| Question | Answer |
+| --- | --- |
 | The AWS account id | `514190660293` |
 | The region; the profile | `us-east-2`; `noaa` |
 | The branch the WRITE role trusts | `main` |
@@ -652,8 +664,17 @@ right, otherwise stop and ask.
 | The instance profile | `AmazonSSMRoleForInstancesQuickSetup` |
 | Does that instance profile already exist | `y` |
 | Tags | the default |
-| Do you want the GCP section? | **`n`** (the GCE leg is stage 15) |
-| Do you want the Okta and OPA section? | `y` |
+
+**Section: GCP** -- "Do you want the GCP section?" answer **`n`**
+(the workload identity pool and service accounts; the GCE leg is
+stage 15). It asks nothing more.
+
+**Section: Okta and OPA** -- "Do you want the Okta and OPA section?"
+answer `y` (it creates nothing: it CHECKS the workload connection,
+the role and the Okta app, and lists what is still by hand).
+
+| Question | Answer |
+| --- | --- |
 | The group builder; org; base domain; team; API host | `opa-groups`; `noaa`; `okta.com`; `nos-coastal-modeling-cloud-sandbox`; `https://noaa.pam.okta.com` |
 | The branch the workload role is pinned to | `main` |
 | The OPA workload connection | **`github-cs-image-system-walk`** (it does not exist yet; stage 10 makes it) |
