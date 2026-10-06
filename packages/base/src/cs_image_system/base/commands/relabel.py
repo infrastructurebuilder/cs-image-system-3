@@ -11,8 +11,11 @@ generation time by packer). ``lineage restamp`` fixes the RECORD side
 when the fingerprint recipe changed; ``lineage relabel --runtime <rt>``
 fixes the TAG side: every recorded build on the runtime whose real tags
 differ on the drift rule's facts (``series``, ``parent``, ``run``, the
-fingerprint prefix) is re-tagged through the runtime's retag hook. No
-meta-state changes. Under the global ``--dry-run`` it only reports.
+fingerprint prefix) is re-tagged through the runtime's retag hook. One
+tag is ADDED when absent: ``csis_config``, which says the image belongs to
+this configuration (stage 82) -- every image baked before that stage lacks
+it, and another configuration in the same account would call it foreign.
+No meta-state changes. Under the global ``--dry-run`` it only reports.
 """
 from __future__ import annotations
 
@@ -51,7 +54,7 @@ def record_tags(record: dict[str, Any]) -> dict[str, str]:
 
 
 def relabel_plan(ctx: GlobalTypeContext, runtime: str, builds: list[str] | None = None) -> list[Relabel]:
-    from ..lineage import TAG_PREFIX
+    from ..lineage import CONFIG_TAG, TAG_PREFIX, configuration_tag
     ms = ctx.meta_state
     if runtime not in ctx.runtime_builders:
         raise ValueError(f"relabel: unknown runtime {runtime!r}; known: {sorted(ctx.runtime_builders)}")
@@ -72,6 +75,15 @@ def relabel_plan(ctx: GlobalTypeContext, runtime: str, builds: list[str] | None 
         tags = image.get("tags") or {}
         wanted = record_tags(b)
         diffs = []
+        # stage 82: a recorded image is this configuration's, and its tag must
+        # say so -- the one tag relabel ADDS when absent, since every image
+        # baked before the stage lacks it and another configuration in the
+        # account would otherwise call it foreign
+        owner = configuration_tag(ctx)
+        if owner:
+            wanted[CONFIG_TAG] = owner
+            if tags.get(CONFIG_TAG) is None:
+                diffs.append(f"config: tag absent, record's configuration is {owner}")
         for key, value in wanted.items():
             have = tags.get(key)
             if have is None:

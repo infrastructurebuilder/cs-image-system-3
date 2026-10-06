@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -447,9 +448,34 @@ def pinned_parent_build(ctx: "GlobalTypeContext", image: Any, runtime: str | Non
     return None
 
 
+#: The tag that says WHICH configuration an image belongs to (stage 82). Two
+#: configuration repositories may share an account: each sees the other's
+#: images, and without this tag could only call them foreign.
+CONFIG_TAG = f"{TAG_PREFIX}config"
+
+
+def configuration_tag(ctx: "GlobalTypeContext") -> str:
+    """The value of ``csis_config`` for this configuration: the top-level
+    ``id`` of ``cfg/_config.yml``, made safe for the strictest carrier (a
+    GCE label value: lower case letters, digits, ``_`` and ``-``, at most 63
+    characters). Empty when the context carries no configuration."""
+    raw = str(getattr(getattr(ctx, "_read_config", None), "id", "") or "")
+    return re.sub(r"[^a-z0-9_-]", "-", raw.strip().lower())[:63]
+
+
+def belongs_to_another_configuration(ctx: "GlobalTypeContext", tags: dict[str, Any]) -> bool:
+    """An image tagged for a configuration that is not this one. An image
+    with no ``csis_config`` (baked before stage 82) answers False: it is
+    judged as it always was."""
+    owner = str((tags or {}).get(CONFIG_TAG) or "")
+    return bool(owner) and owner != configuration_tag(ctx)
+
+
 def lineage_tags(ctx: "GlobalTypeContext", image: Any, runtime: str | None = None) -> dict[str, str]:
     caps = capability_stamp(ctx, image, runtime)
+    owner = configuration_tag(ctx)
     return {
+        **({CONFIG_TAG: owner} if owner else {}),
         f"{TAG_PREFIX}series": series_of(image),
         f"{TAG_PREFIX}parent": parent_reference(ctx, image, runtime),
         f"{TAG_PREFIX}run": ctx.run_id,
