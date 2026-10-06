@@ -15,7 +15,8 @@ found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15; the reference configuration takes it and
 relabels its images next. No documentation stage is open. Planned,
-by the operator's word: §66 and §30.
+by the operator's word: §66, §30 and §83 (a release asks its
+publish target before it starts).
 
 Releases: dev15 (2026-10-06) carries §82 and hygiene XII items 3
 and 4; dev14 (2026-10-04) carries §79 and is still the reference
@@ -639,3 +640,88 @@ starter's `.gitignore` ignores every dotfile unless named.)
    ignores `_uncommitted/`. Fixed looks like: the starters ignore
    `_uncommitted/`, and `set-secrets.sh` (or the interview) refuses a
    secrets directory git would track.
+
+## 83. A release asks its publish target before it starts
+
+**Status: PLANNED 2026-10-06, not started -- a plan; nothing here runs
+until the operator says "do 83".** (The operator, 2026-10-06, after an
+index outage cost a release attempt: "a stage that checks to see if the
+publish url is available before starting a release (this is probably
+conditional on type of target publish location)".)
+
+**Why.** Across the night of 2026-10-05 TestPyPI was partly down for
+more than nine hours: its upload endpoint and most project pages
+answered 503 while a few pages still answered 200. `just release dev
+test` passed every probe it has -- the token is set, the tag is free,
+and `scripts/index-knows` read the ONE page it asks for,
+`cs-image-system`'s, which happened to be among those answering -- then
+ran the whole bar, bumped, locked, and failed at the upload, printing
+the index's HTML error page. The operator learned after the bar what one
+request to the right URL would have said at once, and was left with an
+uncommitted bump to discard. Nothing was damaged: the upload comes
+before the commit and the tag, by design. The cost was the wait, and the
+certainty that a retry would repeat it.
+
+**What it adds.** A probe of the target a release publishes TO, chosen
+by the target's type, run before anything else.
+
+1. **The probe, by type.** `scripts/publish-target-ready <target>`,
+   beside `index-knows`: exit 0 ready, 75 not ready (the code `--locked`
+   already uses for "try again later"), 2 a target it does not know. One
+   checker per TYPE of target:
+   - *A package index of the PyPI kind* (`test` and `pypi`, the only
+     type today). The endpoints are read from the target's
+     `[[tool.uv.index]]` entry in `pyproject.toml`, never restated in
+     the Justfile. Its `publish-url` (TestPyPI's `/legacy/`, PyPI's
+     `upload.pypi.org/legacy/`) must answer below 500 to a request that
+     uploads nothing. Its `url`, the simple index, must answer for EVERY
+     project the release uploads (eighteen today, the names read from
+     the workspace), not for one. The same pass says which projects
+     already hold the version: none (a fresh release), all (what
+     `index-knows` refuses today), or some (a partial upload, which a
+     `publish` re-run completes).
+   - *Anything else.* A type with no checker is refused by name, never
+     passed. §66's template mirrors are git remotes, and their checker
+     is `git ls-remote` with the push token; a private or static index,
+     if one is ever declared, is a third. A new publish target owes its
+     checker in the stage that adds it.
+   What it cannot check: that the token will be accepted. The index
+   offers no call that says so without an upload, and the probe says
+   that it did not check.
+2. **Where it runs.**
+   - `just release`: first of the probes, before the bar; and AGAIN
+     after the bar, immediately before the bump. The bar takes twenty
+     minutes, and an index that went down meanwhile then leaves a clean
+     tree, not a bump to discard.
+   - `just release ... yes`: the dry form reports it with the other
+     probes.
+   - `just publish`: first, so CI's `publish` job (a pushed tag) and a
+     re-run after a partial upload say "the index cannot take an upload"
+     in one line.
+   - `just index-ready [test|pypi]`: the probe alone, one line per
+     endpoint. **USER**: with a `wait` form that polls until the target
+     is ready -- the loop that was run by hand until the index came
+     back?
+3. **What a failure says.** One line: the target, the URL, the status,
+   that nothing was changed, and that it is the index's condition, not
+   the release's. `publish` stops printing the index's error page: a
+   failed upload prints the status and the first lines of the body. (Its
+   closing message also still counts "sixteen packages"; there are
+   seventeen.)
+4. **Tests.** The checker against a local HTTP server answering by path:
+   all up; the upload endpoint 503; one project page 503; nothing
+   listening; an unknown target. The recipes' order held by the Justfile
+   contract test: the probe before the bar and again before the bump,
+   and `publish` begins with it.
+5. **Records.** OPERATIONS' release section and the developer chapter of
+   the daily driver (section 9) say what the probe checks and what exit
+   75 means; the words are written in the open documentation stage.
+
+**Not in this stage**, named so it is not lost: a configuration
+repository's CI installs from the same index, so an outage also fails
+every consumer's `verify` job (the walk's finding F16). That needs a
+different answer -- a final release on PyPI, or a mirror -- and is not a
+probe.
+
+**Sizing**: the script and its tests half a day; the recipes and the
+contract test two hours.
