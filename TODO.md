@@ -10,16 +10,17 @@ system must not take itself.
 Current stage: **§65**, walking the daily driver, started 2026-10-05
 on `feature/walk-daily-driver`: the operator types each stage from
 [DAILY_DRIVER_EXECUTE.md](DAILY_DRIVER_EXECUTE.md) on a Fedora 43
-container. §81, hygiene bundle XII, is open (four items the walk
-found; 3 and 4 landed with §82, 1 and 2 a plan). §82, an image says
-which configuration owns it, LANDED 2026-10-05 (0d1850c): the
-release that carries it (dev15) is the operator's, and the reference
-configuration then relabels its images. No documentation stage is
-open. Planned, by the operator's word: §66 and §30.
+container. §81, hygiene bundle XII, is open (six items the walk
+found; 3 and 4 landed with §82, the rest a plan). §82, an image
+says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
+is released in dev15; the reference configuration takes it and
+relabels its images next. No documentation stage is open. Planned,
+by the operator's word: §66 and §30.
 
-Releases: dev14 (2026-10-04) carries §79 and is the reference
-configuration's, develop and main, performing green on it (run
-37301986059, 2026-10-05); dev13 carries §75.
+Releases: dev15 (2026-10-06) carries §82 and hygiene XII items 3
+and 4; dev14 (2026-10-04) carries §79 and is still the reference
+configuration's, develop and main (perform green, run 37301986059,
+2026-10-05).
 
 Recently landed: §80, hygiene bundle XI (2026-10-05, cf186de): the
 reference tree's AWS runtimes default to a t3.medium, and the daily
@@ -586,10 +587,10 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, four items found by the §65 walk. Items 3
-and 4 LANDED with §82 (0d1850c, 2026-10-05) by the operator's word;
-items 1 and 2 are a plan -- nothing more runs until the operator says
-"do 81".**
+**Status: OPEN 2026-10-05, six items found by the §65 walk. Items 3
+and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
+the operator's word; items 1, 2, 5 and 6 are a plan -- nothing more
+runs until the operator says "do 81".**
 
 1. **A starter's own hook refuses its first commit.** The tree
    `init-config` writes carries the copyright holder's address in the
@@ -610,3 +611,31 @@ items 1 and 2 are a plan -- nothing more runs until the operator says
    or LICENSE GitHub made?) takes the whole starter; the message of the
    release-owned form says no configuration was written; a test for
    both.
+
+(Items 3 and 4 landed with §82, 0d1850c: a declared group the provider
+has never been seen to carry is a note, not hard drift; every
+starter's `.gitignore` ignores every dotfile unless named.)
+
+5. **The bootstrap's create path would strip the state bucket it
+   made.** The walk's finding F17, read from the code before the walk
+   reached it (the walk's stage 9f tests it live). When the bootstrap
+   creates the state bucket, the guide has the operator run the
+   interview again so the root binds to it. But `state_bucket_exists`
+   is a choice, not an observation, so the second interview still
+   offers "no"; and answering "yes" makes the module's four bucket
+   resources `count = 0` while they sit in the root's state, so the
+   next plan destroys the bucket's versioning, encryption and
+   public-access block before failing on the bucket. Fixed looks like
+   (**USER** chooses): the root KEEPS managing a bucket it made (a
+   recorded fact, "made here", decides the resources; whether the
+   bucket stands, observed at each interview, decides the backend) --
+   or the rebind emits `removed` blocks that forget without
+   destroying. Either way a test renders the second interview and
+   asserts no bucket resource leaves the plan, and the guide says what
+   the operator sees.
+6. **The interview's default secrets directory is inside the tree and
+   not ignored.** The walk's finding F18: `_uncommitted/secrets` is
+   offered as "never committed", and no starter's `.gitignore`
+   ignores `_uncommitted/`. Fixed looks like: the starters ignore
+   `_uncommitted/`, and `set-secrets.sh` (or the interview) refuses a
+   secrets directory git would track.
