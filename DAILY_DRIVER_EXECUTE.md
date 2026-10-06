@@ -511,12 +511,221 @@ the job summaries, which must say so.
 ended (`gh run view --json conclusion,jobs --jq '.conclusion, (.jobs[] |
 "\(.name): \(.conclusion)")'`).
 
-**Not yet, and why.** Stage 9 (the bootstrap) is ready to write, but
-anything that bakes or runs the strict state query waits for the fix of
-finding F11 (stage 82: an image says which configuration owns it), a
-release that carries it, and the walk tree taking that release.
+**Since then.** The fix for finding F11 (and two more the walk found)
+is released as 0.1.1.dev15; stage 9 starts by taking it.
 
-## Stage 8 onward -- written when you reach them
+## Stage 9 -- the new release, then the bootstrap (DAILY_DRIVER 1.8; CI_SETUP 3.0, 3.3, 3.6, 3.7)
+
+Read CI_SETUP.md sections 3.0, 3.3, 3.6 and 3.7 in the tree first. This
+is the stage that has never been done for real anywhere: the bootstrap
+CREATING roles and a state bucket. Report at each **Report** line; do
+not run ahead past 9d's plan.
+
+Before you start, check the AWS keys are still live (`aws sts
+get-caller-identity`); refresh them as in stage 3 if not.
+
+**9a. Two repairs to stage 8.**
+
+1. Re-run the CI run that failed on the TestPyPI outage:
+
+   ```sh
+   cd /walk/cs-image-system-walk
+   gh run rerun 37406191915 && gh run watch 37406191915
+   ```
+
+   Expected: `verify` green; `live` and `perform` skipped, their
+   summaries saying no secret is configured.
+
+2. The workflow's two OPA variable names came out doubled
+   (`..._sandbox_key_key`, `..._sandbox_key_secret`): the placeholder is
+   `REPLACE_ME` alone, and the team name goes in its place.
+
+   ```sh
+   sed -i 's/cloud_sandbox_key_key/cloud_sandbox_key/; s/cloud_sandbox_key_secret/cloud_sandbox_secret/' .github/workflows/ci.yml
+   grep -n 'TF_VAR_' .github/workflows/ci.yml      # four lines: ..._sandbox_key and ..._sandbox_secret, twice each
+   ```
+
+**9b. Take release 0.1.1.dev15** (it carries the fixes the walk asked
+for: images say which configuration owns them, a group not created yet
+is a note, every dotfile is ignored).
+
+```sh
+uv tool install --index-url https://test.pypi.org/simple/ \
+  --extra-index-url https://pypi.org/simple/ "cs-image-system==0.1.1.dev15"
+uv tool list                               # cs-image-system v0.1.1.dev15  (if it still says dev14: add --reinstall)
+cs-image-system init-config .              # expect two REFUSED lines: .gitignore and .csis-version differ
+cs-image-system init-config . --force      # "2 written, 50 kept"; your workflow values are kept
+git diff --stat                            # .csis-version, .gitignore, and 9a's ci.yml
+just validate && just dry
+git add -A && git commit -m "Take cs-image-system 0.1.1.dev15; the workflow's variable names" && git push
+```
+
+Expected from `just dry`: no refusal about `walk_team` any more (a note,
+"declared and not created yet"). The state line may still count
+`foreign: 36` until the reference configuration marks its images, which
+Claude arranges; a dry run does not refuse on it.
+
+**Report:** `stage 9b done`, and what `gh run watch` and `just dry`
+said.
+
+**9c. The secret files.** The interview will offer
+`_uncommitted/secrets` INSIDE the repository, and the tree's
+`.gitignore` does not ignore `_uncommitted/` (finding F18). Keep them
+in the container's home instead:
+
+```sh
+mkdir -p ~/walk-secrets && chmod 700 ~/walk-secrets
+```
+
+One file per secret, named exactly after it. The commands that read a
+value start with a SPACE.
+
+| File | What goes in it |
+| --- | --- |
+| `OKTA_API_PRIVATE_KEY` | the services app's private key, PEM: a copy of the file your `.envrc` names |
+| `TF_VAR_KEY` | ` printf '%s' "$TF_VAR_nos_coastal_modeling_cloud_sandbox_key" > ~/walk-secrets/TF_VAR_KEY` |
+| `TF_VAR_SECRET` | ` printf '%s' "$TF_VAR_nos_coastal_modeling_cloud_sandbox_secret" > ~/walk-secrets/TF_VAR_SECRET` |
+| `CSIS_CONFIG_IDENTITY` | CI's OWN age identity, made now (CI_SETUP 3.6), below |
+
+`AWS_ROLE_ARN` and `AWS_APPLY_ROLE_ARN` need no file: the script reads
+them from the applied root. The GCP and proof-key secrets have no file
+and are skipped by name.
+
+CI's identity (3.6), as a second recipient:
+
+```sh
+age-keygen -o ~/walk-secrets/CSIS_CONFIG_IDENTITY        # prints "Public key: age1..."
+```
+
+Add that public key as a SECOND line under `encryption:` /
+`recipients:` in `cfg/_config.yml` (keep yours), then:
+
+```sh
+just cli reencrypt
+chmod 600 ~/walk-secrets/*
+git add -A && git commit -m "CI's age identity is a recipient"
+```
+
+**9d. The interview.** `just bootstrap`. Each question shows its
+default; press Enter to take it unless the table says otherwise. A
+question the table does not list: take the default if it is plainly
+right, otherwise stop and ask.
+
+| Question | Answer |
+| --- | --- |
+| Do you want the GitHub section? | `y` |
+| The GitHub repository | `infrastructurebuilder/cs-image-system-walk` |
+| The default branch | **`develop`** (the offer may be `master`: GitHub's default today) |
+| The branch the perform job runs on | `main` |
+| Protect the production branch | `y` |
+| PERFORM_RUNTIME | `aws-main` |
+| GUARD_RUNTIME | empty |
+| AWS_REGION | `us-east-2` |
+| The directory holding one file per secret | **`/home/mykel.alvis/walk-secrets`** |
+| Do you want the AWS section? | `y` |
+| The AWS account id | `514190660293` |
+| The region; the profile | `us-east-2`; `noaa` |
+| The branch the WRITE role trusts | `main` |
+| Which OIDC subject forms | **`ids`** (stage 8c: this repository's tokens carry the id-bearing subject) |
+| The owner's id; the repository's id | `50206755`; `1405776703` |
+| Does the account already have the GitHub OIDC provider | `y` (it asks the account; the reference configuration uses it) |
+| The READ-ONLY role's name | **`csis-walk-readonly`** (NOT the default, which is the reference configuration's role) |
+| Does the READ-ONLY role already exist | `n` |
+| Other subjects the READ-ONLY role keeps trusting | empty |
+| The WRITE role's name | **`csis-walk-apply`** |
+| Does the WRITE role already exist | `n` |
+| Other subjects the WRITE role keeps trusting | empty |
+| The state bucket; prefix; region | `csis-walk-tfstate-514190660293`; `statefiles/cs-image-system-walk/`; `us-east-2` |
+| Does the state bucket already exist | `n` (the bootstrap makes it) |
+| The instance profile | `AmazonSSMRoleForInstancesQuickSetup` |
+| Does that instance profile already exist | `y` |
+| Tags | the default |
+| Do you want the GCP section? | **`n`** (the GCE leg is stage 15) |
+| Do you want the Okta and OPA section? | `y` |
+| The group builder; org; base domain; team; API host | `opa-groups`; `noaa`; `okta.com`; `nos-coastal-modeling-cloud-sandbox`; `https://noaa.pam.okta.com` |
+| The branch the workload role is pinned to | `main` |
+| The OPA workload connection | **`github-cs-image-system-walk`** (it does not exist yet; stage 10 makes it) |
+| The OPA workload role | **`cs-image-system-walk-ci`** |
+| every "Does ... exist / Is it ..." question after those | the default it shows (it asks OPA and Okta itself) |
+
+When it ends it prints the `export` lines for the apply and writes
+`bootstrap.yaml` and `generated/bootstrap/`. Read
+`generated/bootstrap/README.md`: what it made, and under "by hand" the
+OPA steps that become stage 10.
+
+**9e. The first apply, on local state.** Run the `export` lines it
+printed (`GITHUB_TOKEN` and `AWS_PROFILE` are already in your shell if
+`.envrc` has them), then PLAN first:
+
+```sh
+cd generated/bootstrap
+tofu init
+tofu plan
+```
+
+Read the plan before anything else. It must say `0 to destroy`. It
+should CREATE the two roles with their policies, the bucket with its
+versioning, encryption and public-access block, the repository's
+default branch, Actions permissions, the ruleset on `main` and three
+Actions variables; it should only READ the OIDC provider and the
+instance profile. A 403 from GitHub here names a permission the token
+lacks (finding F12): add it to the token and plan again.
+
+```sh
+tofu apply                 # type yes after reading the same plan again
+cd ../..
+```
+
+**Report:** `stage 9e done` with the `Plan:` line and the `Apply
+complete!` line, or the error. STOP here.
+
+**9f. The state moves into the bucket -- with a known trap.** The page
+says to run `just bootstrap` again, "the bucket now exists, so the root
+binds to it", then `tofu init -migrate-state`. Reading the code says
+two things the page does not (finding F17), and this step finds out
+whether they are true:
+
+- the second interview does NOT notice the bucket by itself: "Does the
+  state bucket already exist?" still offers `n`, and you must answer
+  `y`;
+- answering `y` tells the root the bucket is someone else's, so the
+  next plan would DESTROY the bucket's versioning, encryption and
+  public-access block, and then fail on the bucket itself.
+
+```sh
+just bootstrap             # Enter at every question EXCEPT: "Does the state bucket already exist?" -> y
+cd generated/bootstrap
+tofu init -migrate-state   # yes, copy the state to the bucket
+tofu plan                  # PLAN ONLY. Do not apply.
+```
+
+**Report:** `stage 9f plan` with the `Plan:` line and every line that
+says `will be destroyed`. Never apply a plan here that destroys
+anything. If it is as predicted, Claude gives the four `tofu state rm`
+lines that make the root forget the bucket without touching it; if the
+plan is clean, the prediction was wrong and the finding is withdrawn.
+
+**9g. The secrets, and the push** (after 9f is settled):
+
+```sh
+cd /walk/cs-image-system-walk
+bash generated/bootstrap/set-secrets.sh        # sets six; says "skipped" for the four with no file
+gh secret list                                 # names only
+just dry                                       # regenerates generated/bootstrap from bootstrap.yaml
+git add -A && git status --short               # bootstrap.yaml and generated/bootstrap/ are committed; no secret file is listed
+git commit -m "The bootstrap: roles, state bucket, repository settings" && git push
+gh run watch
+```
+
+Expected: `verify` green, and `live` now RUNS, because its secrets
+exist. Whether `live` is green depends on the reference configuration
+having marked its images first (Claude says when); `perform` still
+waits for `main`, which is stage 11.
+
+**Report:** `stage 9 done`, with `gh run view --json conclusion,jobs
+--jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'`.
+
+## Stage 10 onward -- written when you reach them
 
 These stages depend on what the earlier ones produce (the bootstrap's
 interview, the names it prints), so their exact commands are added to
@@ -524,7 +733,6 @@ this page as each one comes up. The order, and the page each follows:
 
 | Stage | What | Follows |
 | --- | --- | --- |
-| 9 | `just bootstrap`: the interview, the apply that CREATES the walk's two roles and its state bucket, the state migration, the secrets script | DAILY_DRIVER 1.8; CI_SETUP 3.0, 3.3, 3.7 |
 | 10 | The OPA workload connection and role, in the console, from what the bootstrap prints | CI_SETUP 3.5 |
 | 11 | CI green: `verify`, `live`, the probe, one `perform` | CI_SETUP 3.8 |
 | 12 | Making things: identity, storage, a base image, an instance image, the durable machine, the group on it, the login proof | DAILY_DRIVER 3 |
@@ -616,3 +824,9 @@ the daily driver's words at the end of the stage, or filed as code.
 | F11 | two configurations in one account see each other's images as `foreign` (no tag says whose an image is): the walk's first state query reported the reference configuration's 36 AMIs | code: stage 82 |
 | F12 | no page says which permissions a fine-grained GitHub token needs; CI_SETUP 3.0 names `GITHUB_TOKEN` and the bootstrap suggests `$(gh auth token)`, which assumes a browser login | words |
 | F13 | CI_SETUP 3.2 step 4's third command (`gh api orgs/<owner>/actions/oidc/customization/sub`) answers 403 to a repository-scoped fine-grained token; the page offers no repository form | words |
+| F14 | a declared group that was never created is hard `missing`, so a new tree refuses every run after its first | code: fixed in dev15 |
+| F15 | the starter's `.gitignore` names a few secret files, not the shape of one: a token dropped beside the tree is one `git add -A` from a commit | starter: fixed in dev15 |
+| F16 | a tree pinned to a development release cannot pass even `verify` while TestPyPI is down | words |
+| F17 | the bootstrap's create path: the second interview does not notice the bucket it made, and answering that it exists plans the destruction of the bucket's protections (predicted from the code; stage 9f tests it) | code |
+| F18 | the interview's default secrets directory, `_uncommitted/secrets`, is inside the tree and not ignored by the starter's `.gitignore` | starter |
+| F19 | nothing checks the workflow's `TF_VAR_<team>_*` names against the group builder's team: a doubled suffix was pushed unnoticed | code, minor |
