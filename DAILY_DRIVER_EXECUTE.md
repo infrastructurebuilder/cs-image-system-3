@@ -504,8 +504,10 @@ gh run watch                             # or: gh run list --branch develop
 
 Expected (CI_SETUP 3.8 step 1): the `verify` job green -- the release
 installs from TestPyPI, the `Justfile` parses, the tree is public-safe.
-`live` and `perform` report SKIPPED, because no secret exists yet; read
-the job summaries, which must say so.
+`live` runs its gate alone and says SKIPPED, because no secret exists
+yet (`gh run view --log | grep 'SKIPPED --'`, or the run's web page:
+`gh run watch` does not show it); `perform` is skipped whole off
+`main`.
 
 **Report:** `stage 8 done`, with the three ids' output and how the run
 ended (`gh run view --json conclusion,jobs --jq '.conclusion, (.jobs[] |
@@ -533,8 +535,18 @@ get-caller-identity`); refresh them as in stage 3 if not.
    gh run rerun 37406191915 && gh run watch 37406191915
    ```
 
-   Expected: `verify` green; `live` and `perform` skipped, their
-   summaries saying no secret is configured.
+   Expected: `verify` green with every step run. `live` green too,
+   but only its gate ran: the other steps show `-`, and the job
+   says why. `gh run watch` shows neither the reason nor the job
+   summary (finding F20); read it with
+
+   ```sh
+   gh run view 37406191915 --log | grep 'SKIPPED --'
+   ```
+
+   or on the run's web page, under "live summary". `perform` shows
+   `-` with no steps and no summary at all: the whole job is
+   skipped, since it runs on `main` alone.
 
 2. The workflow's two OPA variable names came out doubled
    (`..._sandbox_key_key`, `..._sandbox_key_secret`): the placeholder is
@@ -830,3 +842,4 @@ the daily driver's words at the end of the stage, or filed as code.
 | F17 | the bootstrap's create path: the second interview does not notice the bucket it made, and answering that it exists plans the destruction of the bucket's protections (predicted from the code; stage 9f tests it) | code |
 | F18 | the interview's default secrets directory, `_uncommitted/secrets`, is inside the tree and not ignored by the starter's `.gitignore` | starter |
 | F19 | nothing checks the workflow's `TF_VAR_<team>_*` names against the group builder's team: a doubled suffix was pushed unnoticed | code, minor |
+| F20 | the pages say "read the job summary" but not where: `gh run watch` shows neither the summary nor the gate's `SKIPPED` line, and a skipped `perform` job has no summary at all | words |
