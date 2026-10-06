@@ -10,9 +10,12 @@ system must not take itself.
 Current stage: **§65**, walking the daily driver, started 2026-10-05
 on `feature/walk-daily-driver`: the operator types each stage from
 [DAILY_DRIVER_EXECUTE.md](DAILY_DRIVER_EXECUTE.md) on a Fedora 43
-container. §81, hygiene bundle XII, is open (two items the walk
-found, a plan). No documentation stage is open. Planned, by the
-operator's word: §66 and §30.
+container. §81, hygiene bundle XII, is open (four items the walk
+found; 3 and 4 landed with §82, 1 and 2 a plan). §82, an image says
+which configuration owns it, LANDED 2026-10-05 (0d1850c): the
+release that carries it (dev15) is the operator's, and the reference
+configuration then relabels its images. No documentation stage is
+open. Planned, by the operator's word: §66 and §30.
 
 Releases: dev14 (2026-10-04) carries §79 and is the reference
 configuration's, develop and main, performing green on it (run
@@ -583,8 +586,10 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, two items, both found by the §65 walk; a
-plan -- nothing here runs until the operator says "do 81".**
+**Status: OPEN 2026-10-05, four items found by the §65 walk. Items 3
+and 4 LANDED with §82 (0d1850c, 2026-10-05) by the operator's word;
+items 1 and 2 are a plan -- nothing more runs until the operator says
+"do 81".**
 
 1. **A starter's own hook refuses its first commit.** The tree
    `init-config` writes carries the copyright holder's address in the
@@ -605,60 +610,3 @@ plan -- nothing here runs until the operator says "do 81".**
    or LICENSE GitHub made?) takes the whole starter; the message of the
    release-owned form says no configuration was written; a test for
    both.
-
-## 82. An image says which configuration owns it
-
-**Status: IN PROGRESS 2026-10-05 on `feature/config-owned-images` (the
-operator, on the walk's finding F11: "Fix it in the system now").**
-
-**Why.** Two configuration repositories in one AWS account and region
-see each other's images as `foreign`: an image carries the system's
-lineage tags but nothing that says WHOSE lineage. The walk's first dry
-run reported the reference configuration's 36 AMIs as foreign, so its
-strict state query can never pass, `state import` there would adopt
-another configuration's images, and the reference configuration's
-`perform` would go red the moment the walk baked.
-
-1. Every bake tags its image `csis_config=<the configuration's id>`
-   (AWS tag, GCE label; the id made label-safe). The top-level `id:` of
-   `cfg/_config.yml` therefore names something now, and two trees in one
-   account must not share one.
-2. The state query leaves alone an image whose `csis_config` names
-   ANOTHER configuration: not foreign, not adopted by `state import`,
-   counted in one informational line. An image with no `csis_config`
-   (every image baked before this stage) is treated as before.
-3. `lineage relabel` writes the tag onto recorded images that lack it,
-   so an existing tree marks its images once (**USER**: the reference
-   configuration, `just cloud-relabel aws-east2-runtime no`, after it
-   takes the release).
-4. Tests; the golden regenerated (every packer source gains one tag).
-   The words (CONFIGURATION's `id`, OPERATIONS' state query, the daily
-   driver's foreign row) are written in §65, which is a documentation
-   stage and is open.
-
-(§81 item 3, added 2026-10-05 and BUILT the same day on
-`feature/config-owned-images` by the operator's choice "fix it now, in
-the same release"; it lands with §82.)
-
-3. **A group that was never created is reported as hard `missing`.**
-   The walk's finding F14: a new tree's first dry run records its
-   declared group in `meta-state/identity.yaml` as managed; every later
-   run's state query then finds the provider has no such group and
-   refuses on hard drift -- the run that would create it included. The
-   reference configuration never met it because its groups existed
-   before the rule did. Fixed: the identity read-model marks a group
-   `seen` once a state query finds the provider carrying it (observed,
-   never inferred from an apply); until then an absent group is a note,
-   "declared and not created yet", and after it an absence is hard
-   drift as before.
-4. **A starter's `.gitignore` names a few secret files, not the
-   shape of one.** The walk's finding F15: the operator dropped a
-   `.gh_token` beside the tree and it was one `git add -A` from a
-   public commit. BUILT with item 3 by the operator's word ("do
-   it"): every starter's `.gitignore` ignores every dotfile at any
-   depth unless named (the tree's own `.gitignore`, `.github`,
-   `.githooks`, `.csis-version`, the lock files, the shipped test
-   identity), `*.pem` for key files that are not dotfiles, and the
-   non-dot entries as before; a test asks git itself over each
-   starter. The walk tree carries the same file without the two
-   test-identity lines.
