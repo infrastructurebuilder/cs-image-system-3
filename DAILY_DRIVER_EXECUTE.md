@@ -699,9 +699,10 @@ tofu plan
 Read the plan before anything else. It must say `0 to destroy`. It
 should CREATE the two roles with their policies, the bucket with its
 versioning, encryption and public-access block, the repository's
-default branch, Actions permissions, the ruleset on `main` and three
-Actions variables; it should only READ the OIDC provider and the
-instance profile. A 403 from GitHub here names a permission the token
+default branch, Actions permissions, the ruleset on `main` and two
+Actions variables (an empty `GUARD_RUNTIME` is not created) -- 13
+resources; it should only READ the OIDC provider and the instance
+profile. A 403 from GitHub here names a permission the token
 lacks (finding F12): add it to the token and plan again.
 
 ```sh
