@@ -10,7 +10,7 @@ system must not take itself.
 Current stage: **§65**, walking the daily driver, started 2026-10-05
 on `feature/walk-daily-driver`: the operator types each stage from
 [DAILY_DRIVER_EXECUTE.md](DAILY_DRIVER_EXECUTE.md) on a Fedora 43
-container. §81, hygiene bundle XII, is open (eight items the walk
+container. §81, hygiene bundle XII, is open (nine items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15, taken by the reference configuration, its
@@ -596,11 +596,11 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, eight items found by the §65 walk. Items
+**Status: OPEN 2026-10-05, nine items found by the §65 walk. Items
 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
-the operator's word; items 1, 2, 5, 6, 7 and 8 are a plan -- nothing
-more runs until the operator says "do 81". Item 7(a) has a date:
-2026-10-19.**
+the operator's word; items 1, 2, 5, 6, 7, 8 and 9 are a plan --
+nothing more runs until the operator says "do 81". Item 7(a) has a
+date: 2026-10-19.**
 
 1. **A starter's own hook refuses its first commit.** The tree
    `init-config` writes carries the copyright holder's address in the
@@ -685,6 +685,30 @@ starter's `.gitignore` ignores every dotfile unless named.)
    complete!`, `Plan:`, `No changes.`) are always shown, wherever
    they stand, ahead of the tail; a test with an apply whose outputs
    are longer than the tail. The whole output stays at DEBUG.
+9. **The first `perform` of a new tree fails after its bakes.** The
+   walk's finding F26: PREDICTED, not run (the operator chose,
+   2026-10-07, to apply the storage first and walk on). An instance
+   root reads its storage root's state, and its group's identity
+   root's, through `terraform_remote_state`. A tree made from the
+   starter declares the instance and its storage from the first
+   commit with `apply_storage: false`, and the guide's order
+   (CI_SETUP 3.8 step 4, before the daily driver's section 3) reaches
+   `perform` before any storage run. A performing run plans the
+   instance root though it does not apply it; the storage root has
+   no state object, and the plan stops with "Unable to find remote
+   state ... No stored state was found" -- after both images have
+   baked. Reproduced on a scratch root; the walk's bucket held no
+   `aws_ebs.tfstate`. `just cloud-bake` plans the same root, and a
+   storage root reads its identity root the same way. Fixed looks
+   like (**USER** chooses, one or both): a run that only PLANS a root
+   skips it, loudly, while a root it reads was never applied
+   ("instance root not planned: the storage root `aws-ebs` has no
+   state yet; run the storage lifecycle"), and `validate` or the
+   state query says so before anything bakes; the guide and the
+   daily driver put the first `perform` after identity and storage
+   have applied once. A test: a tree whose storage root has no
+   state, a performing run, the bakes recorded and the run green
+   with the note.
 
 ## 83. A release asks its publish target before it starts
 

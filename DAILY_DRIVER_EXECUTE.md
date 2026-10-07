@@ -907,11 +907,10 @@ is longer than its work and its boxes are not all still to do:
 | the releases 0.1.1.dev16 and 0.1.1.dev17 | cut; both are on the index |
 | "10c, the run, on 0.1.1.dev17" | done 2026-10-07: `walk_team` exists in OPA; CI green |
 | "The reference configuration's proof" (your local machine) | done 2026-10-07: `No changes`; its `main` is on 0.1.1.dev17 |
-| **10f** (the container) | **NEXT: start there**; it is the last box of the stage |
+| 10f | done 2026-10-07: a third interview changed only the Okta section's words; CI green |
 
-Your next command is in the box titled "10f. Let the bootstrap check
-again"; every box above it is finished or superseded and is kept as
-the record of what happened.
+**Stage 10 is DONE (2026-10-07).** Every box below is the record of
+what happened; your next command is in stage 11.
 
 **10a. The workload connection, as a DRAFT** (you, in the OPA console;
 it needs the DevOps-admin role). DevOps Administration, Workload
@@ -1376,7 +1375,169 @@ to see that a third interview leaves the root alone.
 differed from the table (or `brackets as the table`), the lines the
 `grep` printed, and what the `gh run view` line printed.
 
-## Stage 11 onward -- written when you reach them
+## Stage 11 -- the storage, then the first `perform` on `main` (DAILY_DRIVER 3.2; CI_SETUP 3.8 step 4)
+
+Read the daily driver's 3.2 and the CI guide's 3.8 first. Of 3.8's
+five proofs, three are behind you: `verify` and `live` are green on
+`develop`, and the probe ran and the connection is active. The
+fourth is one `perform`: the job that runs on `main` alone, records,
+bakes what is due under the WRITE role, and pushes its records back.
+This will be the first time anything bakes in this tree, and the
+first time the role the bootstrap made is used for it.
+
+**Why the storage comes first** (finding F26, your decision
+2026-10-07). The guide puts the first `perform` before the daily
+driver's "Making things". In this tree that order would fail: the
+instance `walk-node-1` mounts the storage `data`, so its terraform
+root reads the storage root's state, and a performing run PLANS the
+instance root even though it does not apply it. The storage has
+never been applied, its state does not exist, and the plan would
+stop with `Unable to find remote state ... No stored state was found`
+after both images had baked. So the storage is made first, by you,
+the way 3.2 says; then `perform` has a state to read.
+
+| Part | State |
+| --- | --- |
+| **11a. The storage** (the container) | **NEXT: start there** |
+| 11b. The first `perform` | after 11a |
+
+**11a. The storage.** In the container. One 100 GB encrypted gp3
+EBS volume named `data`, in the availability zone of the runtime's
+subnet. The size and type are the starter's, in
+`cfg/storage-builders.yml` (`size: 100`); if you want another size,
+change it BEFORE step 2: afterwards it is a change to a standing
+volume. It stands until teardown (stage 17).
+
+1. In `cfg/_config.yml`, set `apply_storage: true`. Leave
+   `apply_instances` `false`.
+
+2. The rhythm of section 3:
+
+   ```sh
+   cd /walk/cs-image-system-walk
+   aws sts get-caller-identity                # keys live?
+   just validate
+   just dry storage
+   tail -3 generated/storage/run-storage.sh   # it now ends with gate-plan, apply-check and tofu apply
+   just run storage
+   ```
+
+   The plan should add ONE resource, the volume (the module holds one
+   `aws_ebs_volume`), and destroy nothing; then the gate's verdict,
+   the apply, and `Run ... completed: storage` with a meta-state
+   commit. Claude has not seen a storage run in this tree, so the
+   lines around those are not promised: paste the `Plan:` line as you
+   see it. If the run fails, STOP and paste the error; do not go on.
+
+3. Record it and let CI look. The run committed `generated/` and
+   `meta-state/` itself; the flag you edited is yours to commit:
+
+   ```sh
+   git status --short                         # expect exactly one line: M cfg/_config.yml
+   git add cfg/_config.yml && git commit -m "The storage is applied: apply_storage on"
+   git push
+   run=""
+   for i in $(seq 12); do
+     sleep 5
+     run=$(gh run list --branch develop --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+     [ -n "$run" ] && break
+   done
+   echo "run ${run:-NOT FOUND after 60 seconds}"
+   [ -n "$run" ] && gh run watch "$run"
+   gh run view "$run" --json conclusion,jobs --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'
+   just state-query --strict                  # the storage `data` present and recorded; no drift
+   ```
+
+   If `git status --short` lists anything besides `cfg/_config.yml`,
+   paste it before you commit.
+
+**Report:** `stage 11a done` with the `Plan:` line, the last line of
+the run, what the `gh run view` line printed and the last line of
+the state query; or the error. STOP there: Claude checks that the
+storage's state is in the bucket before the `perform`.
+
+**11b. The first `perform`.** In the container. Only after Claude
+says 11a is confirmed.
+
+GitHub has no `main` branch for this repository yet: the bootstrap
+set the default branch and the ruleset that will protect `main`, and
+the branch itself comes into being with this push. (The guide says
+"merge `develop` into `main`"; with no `main` to merge into, the
+first time is a push of `develop` AS `main`, which is the same
+fast-forward. The branch `master` you see on GitHub is the one the
+repository was created with; nothing uses it. Both are finding F27.)
+
+1. Start it, and watch. The same commit already has a run on
+   `develop`, so these lines ask for the run on `main` by name:
+
+   ```sh
+   cd /walk/cs-image-system-walk
+   git status -sb                             # develop...origin/develop, nothing listed, not ahead
+   git push origin develop:main
+   run=""
+   for i in $(seq 12); do
+     sleep 5
+     run=$(gh run list --branch main --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+     [ -n "$run" ] && break
+   done
+   echo "run ${run:-NOT FOUND after 60 seconds}"
+   [ -n "$run" ] && gh run watch "$run"
+   gh run view "$run" --json conclusion,jobs --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'
+   ```
+
+   It is long: two bakes, each a build machine started, provisioned
+   and imaged. Claude has not timed this tree; the reference
+   configuration's bakes take ten to twenty minutes each. `gh run
+   watch` stays on the screen until the run ends. The `perform` job's
+   steps, in the order the workflow has them:
+
+   - `The full run, recorded` and `Push the record`: a dry run of
+     everything, committed to `main` before anything performs;
+   - `The guarded runtime stays out of CI ...`: says no runtime is
+     guarded;
+   - `Federated AWS credentials, the WRITE role`: the first use of
+     `csis-walk-apply`, from `main`;
+   - `The runtime performs`: `just cloud-perform aws-main`. It bakes
+     the base image `el10`, then the image `team-node` with its two
+     modifications and its in-bake tests, then plans and gates the
+     instance root (one machine to add, NOT applied: `apply_instances`
+     is `false`);
+   - `Push what the performing run committed`;
+   - `CI logs in through the managed policy`: mints an OPA token as
+     the workload, from `main` for the first time, and then finds no
+     standing machine to log into: nothing to prove yet;
+   - `The full run, recorded again` and `Push the closing record`;
+   - `Reality matches the records (state query --strict)`.
+
+   If the run ends red, do NOT re-run it. Paste what this prints, and
+   stop (GitHub masks secret values in its logs):
+
+   ```sh
+   gh run view "$run" --json jobs --jq '.jobs[] | select(.conclusion == "failure") | .name, (.steps[] | select(.conclusion == "failure") | "  step: \(.name)")'
+   gh run view "$run" --log-failed | tail -60
+   ```
+
+2. Only after a green run: `develop` takes the records `perform`
+   pushed to `main`, so the two branches do not part.
+
+   ```sh
+   git fetch origin
+   git log --oneline -4 origin/main           # the closing record, the performing run, the first record, then your commit
+   git merge --ff-only origin/main
+   git push
+   grep -E 'build_id:|series:' meta-state/lineage.yaml   # two builds, each its ami id: series el10 and series team-node
+   just state-query --strict
+   ```
+
+**Report:** `stage 11 done` with what the `gh run view` line
+printed, the first three lines of the `git log`, and the last line
+of the state query; or the failed step and its log tail.
+
+The fifth proof of 3.8, the login proof AS the workload and then the
+branch pin on the role, needs a machine to log into: it is in stage
+12, after the launch.
+
+## Stage 12 onward -- written when you reach them
 
 These stages depend on what the earlier ones produce (the bootstrap's
 interview, the names it prints), so their exact commands are added to
@@ -1384,8 +1545,7 @@ this page as each one comes up. The order, and the page each follows:
 
 | Stage | What | Follows |
 | --- | --- | --- |
-| 11 | CI green: `verify`, `live`, the probe, one `perform` | CI_SETUP 3.8 |
-| 12 | Making things: identity, storage, a base image, an instance image, the durable machine, the group on it, the login proof | DAILY_DRIVER 3 |
+| 12 | Making things, the rest: the images `perform` baked read back, the durable machine launched, the group on it, the login proof by hand and then as the workload, the branch pin on the role | DAILY_DRIVER 3.3-3.5; CI_SETUP 3.8 step 5 |
 | 13 | Changing things: a modification re-baked; a membership | DAILY_DRIVER 4 |
 | 14 | The failure walk | DAILY_DRIVER 6 |
 | 15 | The GCE leg, one cycle (credentials below) | DAILY_DRIVER 1.4; CONFIGURATION |
@@ -1486,4 +1646,6 @@ the daily driver's words at the end of the stage, or filed as code.
 | F22 | the system cannot create a NEW group in OPA: the identity root looks the group's gid up at plan time, before the group exists, and the creating plan fails | code: stage 84 |
 | F23 | the guide (3.5 step 4) and the probe workflow's header say a DRAFT connection "validates the token and issues nothing usable"; run against a draft, the probe's own success line says the connection "accepted this run's token and issued one" | words |
 | F24 | the first identity apply of a new tree stops at the prune step: a root with no state yet makes `tofu state list` fail ("No state file was found"), and the step treats that as an error | code: stage 85, released in 0.1.1.dev17 |
+| F26 | PREDICTED, not run (the operator chose to apply the storage first): the first `perform` of a tree made from the starter fails after its bakes. The instance root reads its storage root's state, a performing run plans the instance root, and the guide's order (CI_SETUP 3.8 step 4 before the daily driver's section 3) reaches `perform` before any storage run, so the plan stops with `Unable to find remote state`. Reproduced on a scratch root; the walk's bucket held no storage state | code and words: hygiene XII item 9 |
+| F27 | CI_SETUP 3.2 and 3.8 say "merge `develop` into `main`"; a repository made from nothing has no `main` on GitHub (the bootstrap sets the default branch and the ruleset, it does not create the branch), so the first `perform` is a push that creates it; and the branch the repository was created with (`master` here) stays behind, unused and unmentioned | words |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
