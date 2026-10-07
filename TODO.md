@@ -15,16 +15,20 @@ found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15, taken by the reference configuration, its
 images relabelled. §84, a new group can be created (the gid lookup
-waits for its group; walk finding F22), LANDED 2026-10-07 (4fb338b):
-the release that carries it (dev16) is the operator's, and its live
-proof is the walk's identity run. No documentation stage is open.
+waits for its group; walk finding F22), LANDED 2026-10-07 (4fb338b)
+and is released in dev16. §85, the first identity apply of a new
+tree has nothing to prune (a root with no state yet is not a failed
+`state list`; walk finding F24), LANDED 2026-10-07 (b0494fa): the
+release that carries it (dev17) is the operator's, and the live
+proof of both is the walk's identity run. No documentation stage is
+open.
 Planned, by the operator's word: §66, §30 and §83 (a release asks
 its publish target before it starts).
 
 Releases: dev15 (2026-10-06) carries §82 and hygiene XII items 3
-and 4 and is the reference configuration's, develop and main
-(perform green, run 37576368769, 2026-10-07). The next, dev16,
-carries §84.
+and 4 and is the reference configuration's `main` (perform green,
+run 37576368769, 2026-10-07). dev16 (2026-10-07) carries §84 and is
+the reference's `develop` (CI green). The next, dev17, carries §85.
 
 Recently landed: §80, hygiene bundle XI (2026-10-05, cf186de): the
 reference tree's AWS runtimes default to a t3.medium, and the daily
@@ -751,25 +755,3 @@ probe.
 
 **Sizing**: the script and its tests half a day; the recipes and the
 contract test two hours.
-
-## 85. The first identity apply of a new tree: nothing to prune is not a failure
-
-**Status: BUILT 2026-10-07 on `feature/first-apply-prune`, the bar
-running; the walk's finding F24, the second defect of the same first run
-after §84. Whether it is released at once or with the walk's next
-findings is the operator's call.**
-
-**Why.** The identity runner's prune step (stage 61 item 3) lists the
-root's terraform state before the plan. A root nothing was ever applied
-in has no state, and `tofu state list` then exits non-zero with "No
-state file was found". The step took that for a failure, so the run that
-would create a new tree's first group stopped one step after §84 let its
-plan through (`just run identity`, 2026-10-07, on 0.1.1.dev16). The
-reference configuration's roots had state long before the step existed.
-
-1. `prune_stale_attachments` treats that one answer as "the root's first
-   apply: nothing to prune" and returns 0; any other failure of `state
-   list` still stops the runner. It is the only `state list` in a run's
-   path.
-2. Tests: a stand-in `tofu` that gives each answer. Proof: the walk's
-   `just run identity` creates `walk_team`.
