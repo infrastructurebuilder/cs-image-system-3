@@ -906,13 +906,12 @@ is longer than its work and its boxes are not all still to do:
 | 10d, 10e | done |
 | the releases 0.1.1.dev16 and 0.1.1.dev17 | cut; both are on the index |
 | "10c, the run, on 0.1.1.dev17" | done 2026-10-07: `walk_team` exists in OPA; CI green |
-| **"The reference configuration's proof"** (your local machine) | step 1 done 2026-10-07 (`No changes`); **NEXT: its step 2** |
-| 10f | last |
+| "The reference configuration's proof" (your local machine) | done 2026-10-07: `No changes`; its `main` is on 0.1.1.dev17 |
+| **10f** (the container) | **NEXT: start there**; it is the last box of the stage |
 
-Your next command is in the box titled "On your local machine (the
-host, NOT the container): the reference configuration's proof";
-every box above it is finished or superseded and is kept as the
-record of what happened.
+Your next command is in the box titled "10f. Let the bootstrap check
+again"; every box above it is finished or superseded and is kept as
+the record of what happened.
 
 **10a. The workload connection, as a DRAFT** (you, in the OPA console;
 it needs the DevOps-admin role). DevOps Administration, Workload
@@ -1238,7 +1237,9 @@ and the second moves its `main`.
    for its CI), so a plan with additions or changes is applied as it
    is shown; the gate refuses destroys.
 
-2. Only after `No changes`: push the run's record and move `main`.
+2. (DONE 2026-10-07: the reference's `develop` and `main` are both
+   682b41c.) Only after `No changes`: push the run's record and move
+   `main`.
 
    ```sh
    git push
@@ -1267,24 +1268,106 @@ there, and the operator did not find it: the page was wrong about
 what the log shows, not the run about what it did. That is finding
 F25, and step 1's list above now says what is really printed.
 
-**10f. Let the bootstrap check again.** `just bootstrap`, Enter at
-every question (the Okta section asks OPA again; the bucket question
-now offers `y`). Then:
+**10f. Let the bootstrap check again.** In the container. The
+interview of 9d asks everything once more, and this time you change
+nothing: press Enter at every question. What moves is the Okta and
+OPA section, whose yes/no questions are not remembered answers but
+what OPA says NOW, and OPA now has the connection, the role and the
+group builder's names.
 
-```sh
-just dry
-git add -A && git commit -m "The workload connection and role are named and stand" && git push
-```
+1. The interview:
 
-`generated/bootstrap/README.md` should now say the connection exists,
-is active, and that the builder names both.
+   ```sh
+   cd /walk/cs-image-system-walk
+   aws sts get-caller-identity                # keys live?
+   just bootstrap
+   ```
+
+   Enter at every question, and READ the yes/no ones as they pass.
+   The capital letter in the brackets is what Enter takes. They come
+   in this order (the questions between them show a name or an id;
+   Enter keeps it):
+
+   | The question | Brackets | Why |
+   | --- | --- | --- |
+   | Do you want the GitHub section? | `[Y/n]` | as before |
+   | Protect the production branch with a ruleset ...? | `[Y/n]` | as before |
+   | Do you want the AWS section? | `[Y/n]` | as before |
+   | Does the account already have the GitHub OIDC identity provider ...? | `[Y/n]` | as before |
+   | Does the READ-ONLY role already exist (it is then adopted by import)? | `[y/N]` | your answer of 9d, remembered. The role exists NOW because this root made it, and "no" is what keeps it this root's |
+   | Does the WRITE role already exist (it is then adopted by import)? | `[y/N]` | the same |
+   | Does the state bucket already exist? | `[Y/n]` | your `y` of 9f, remembered |
+   | Does that instance profile already exist? | `[Y/n]` | as before |
+   | Do you want the GCP section? | `[y/N]` | as before |
+   | Do you want the Okta and OPA section? | `[Y/n]` | as before |
+   | Does the group builder already name that connection and role? | `[Y/n]` | was no: 10c step 1 |
+   | Does that workload connection exist? | `[Y/n]` | was no: 10a |
+   | Does it require `repository` and `repository_owner` to be this repository's? | `[Y/n]` | a new question: asked only of a connection that exists |
+   | Is it ACTIVE (not a draft)? | `[Y/n]` | new: 10e |
+   | Does that workload role exist? | `[Y/n]` | was no: 10b |
+   | Is the role bound to that connection? | `[Y/n]` | new |
+   | Is the role pinned to the production branch ...? | `[y/N]` | new; the pin comes in stage 12 |
+   | Does the Okta API services app authenticate with its private key and scopes? | `[Y/n]` | as before |
+   | Were its granted scopes read scopes only (no *.manage)? | `[Y/n]` | as before |
+   | Can the app read its own record ...? | `[y/N]` | as before |
+
+   If a question shows brackets other than the table's, do NOT type
+   the answer you expected: press Ctrl-C (nothing is written until
+   the last question is answered) and paste the question as it was
+   shown. A wrong default is a finding, and for the two role
+   questions a typed `y` would turn roles this root made into roles
+   it adopts. An Okta-section question that shows `[y/N]` where the
+   table says `[Y/n]` most likely means OPA could not be asked: the
+   interview then falls back to the old answer.
+
+   It ends with `bootstrap: answers in bootstrap.yaml; sections
+   wanted: aws, github, okta` and the files it wrote.
+
+2. What changed must be the Okta section's words and nothing else:
+
+   ```sh
+   git status --short                         # expect two lines: M bootstrap.yaml and M generated/bootstrap/README.md
+   git diff --stat -- generated/bootstrap     # only README.md: no .tf, no tfvars, no set-secrets.sh
+   grep -n -A3 '^- \*\*okta\*\*' generated/bootstrap/README.md
+   ```
+
+   The `grep` should show the connection `exists (active: yes;
+   requires this repository: yes)` and the role `exists (bound to
+   ...: yes; pinned to `main`: no); named on `opa-groups`: yes`. If
+   `git status` lists any other file under `generated/bootstrap/`,
+   stop and paste it: the root itself would have changed, and
+   nothing in this stage should change it.
+
+3. Record it and let CI look:
+
+   ```sh
+   just dry
+   git add -A && git commit -m "The workload connection and role are named and stand"
+   git push
+   run=""
+   for i in $(seq 12); do
+     sleep 5
+     run=$(gh run list --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+     [ -n "$run" ] && break
+   done
+   echo "run ${run:-NOT FOUND after 60 seconds}"
+   [ -n "$run" ] && gh run watch "$run"
+   gh run view "$run" --json conclusion,jobs --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'
+   ```
+
+   `just dry` is a dry run of every lifecycle, so the commit also
+   carries its regenerated emission and records.
 
 The branch pin on the role (`ref` Equals `refs/heads/main`, CI_SETUP
 3.5 step 6) comes after the first green login proof from `main`, in
-stage 12.
+stage 12. The short form of this check, for another day, is `just
+bootstrap --section okta`: it asks only that section and keeps the
+others' answers as they are. The walk takes the long form on purpose,
+to see that a third interview leaves the root alone.
 
-**Report:** `stage 10 done` with how the probe ended and what the
-README's okta lines say.
+**Report:** `stage 10 done` with: any question whose brackets
+differed from the table (or `brackets as the table`), the lines the
+`grep` printed, and what the `gh run view` line printed.
 
 ## Stage 11 onward -- written when you reach them
 
