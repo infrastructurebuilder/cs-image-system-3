@@ -952,12 +952,25 @@ just state-query                            # walk_team: admins, a gid, the toke
 **Report:** `stage 10c done` with the `Plan:` line, the `CI login
 policy` line and the last line of the run; or the error. STOP here.
 
+**What happened (2026-10-07): the run FAILED, and it was the system's
+fault** (finding F22). The plan looks the group's gid up in OPA
+before the group exists, finds none (`export-gids: identity plugin
+'okta' reported no gid for groups ['walk_team']`), and stops. Nothing
+was created. No release before 0.1.1.dev16 can create a new OPA group;
+the fix is being released. Until then:
+
+- leave the tree as it is, with 10c's three edits uncommitted;
+- do 10d and 10e below now: neither needs the group;
+- when Claude says dev16 is out, the box "10c again, on 0.1.1.dev16"
+  after 10e takes the release and repeats the run.
+
 **10d. The probe.** It presents this repository's GitHub token to the
 draft connection and stops; against a draft OPA validates the token and
 issues nothing usable.
 
 ```sh
-gh workflow run opa-workload-probe.yml --ref develop
+gh workflow run opa-workload-probe.yml --ref develop \
+  -f connection=github-cs-image-system-walk -f role=cs-image-system-walk-ci
 sleep 2                                     # GitHub takes a moment to start the run
 run=$(gh run list --workflow opa-workload-probe.yml --limit 1 --json databaseId --jq '.[0].databaseId'); echo "run $run"
 gh run watch "$run"
@@ -969,6 +982,27 @@ Green is the proof the claims match.
 **10e. Activate the connection** (you, in the console). From here the
 system refuses the login proof when either object is absent or the
 connection is still a draft.
+
+**10c again, on 0.1.1.dev16** (only after Claude says the release is
+out). In the container:
+
+```sh
+cd /walk/cs-image-system-walk
+uv tool install --index-url https://test.pypi.org/simple/ \
+  --extra-index-url https://pypi.org/simple/ "cs-image-system==0.1.1.dev16"
+uv tool list                               # cs-image-system v0.1.1.dev16
+cs-image-system init-config . --force      # .csis-version; anything else it names
+aws sts get-caller-identity                # keys live?
+just validate
+just dry identity
+just run identity
+```
+
+The plan now defers the gid lookup (`group_gids` shows `(known after
+apply)`), the apply creates the group and THEN reads its gid; if OPA
+needs a moment to assign one the run says `OPA carries no gid yet
+... asking again` for up to 30 seconds. Everything else is as 10c
+says, including its Report line.
 
 **10f. Let the bootstrap check again.** `just bootstrap`, Enter at
 every question (the Okta section asks OPA again; the bucket question
@@ -1096,3 +1130,4 @@ the daily driver's words at the end of the stage, or filed as code.
 | F19 | nothing checks the workflow's `TF_VAR_<team>_*` names against the group builder's team: a doubled suffix was pushed unnoticed | code, minor |
 | F20 | the pages say "read the job summary" but not where: `gh run watch` shows neither the summary nor the gate's `SKIPPED` line, and a skipped `perform` job has no summary at all | words |
 | F21 | the starter workflows are ageing: `ubuntu-latest` moves to Ubuntu 26 from 2026-10-19 (unproved there), five actions target the deprecated Node 20, and `setup-uv`'s cache key matches no file in a configuration repository | starter: hygiene XII item 7 |
+| F22 | the system cannot create a NEW group in OPA: the identity root looks the group's gid up at plan time, before the group exists, and the creating plan fails | code: stage 84 |
