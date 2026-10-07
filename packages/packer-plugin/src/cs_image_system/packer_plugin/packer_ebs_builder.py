@@ -174,6 +174,15 @@ class PackerEbsImageBuilder(PackerImageBuilder[PackerEbsImageBuilderModel]):
                         items.add(build_path, "]")
                         # TODO Add mod targets
                         for image in block_list:
+                            # stage 86: before anything else the build machine
+                            # settles (its own first boot, the account's fleet
+                            # management) and gets the step runner.
+                            from .v2_provisioners import settle_provisioner
+                            settle_osb = ctx.os_builders.get(image.get_name(), None)
+                            items.add_list(build_path, settle_provisioner(
+                                ctx, f"{self.get_packer_source_type()}.{image.get_name()}",
+                                self.model.get_runtime_provider(),
+                                settle_osb.get_family() if settle_osb is not None else None))
                             if isinstance(image, BaseImage):
                                 # Base images receive no modification elements —
                                 # at most the OS-provided package-level update.

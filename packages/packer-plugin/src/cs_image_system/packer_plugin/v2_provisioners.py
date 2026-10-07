@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from cs_image_system.base.models.base_image import BaseImage
     from cs_image_system.base.models.image import Image
 
+from cs_image_system.base.bake_steps import execute_command_line, settle_commands
 from cs_image_system.base.encryption import emit
 
 log = logging.getLogger(__name__)
@@ -45,16 +46,35 @@ def _quote(cmd: str) -> str:
 
 
 def shell_provisioner(source_label: str, comment: str, commands: Iterable[str],
-                      indent: str = "  ") -> list[str]:
+                      indent: str = "  ", runner: bool = True) -> list[str]:
+    """One ``provisioner "shell"`` block. Its script runs through the bake's
+    step runner (stage 86: a step that fails on a held package database is
+    run again), which the settle step writes -- and so does not use itself."""
     cmds = [c for c in commands if c is not None]
     if not cmds:
         return []
     lines = [f"{indent}# {comment}", f'{indent}provisioner "shell" {{',
-             f'{indent}  only   = ["{source_label}"]', f"{indent}  inline = ["]
+             f'{indent}  only   = ["{source_label}"]']
+    if runner:
+        lines.append(execute_command_line(f"{indent}  "))
+    lines.append(f"{indent}  inline = [")
     for c in cmds:
         lines.append(f"{indent}    {_quote(c)},")
     lines += [f"{indent}  ]", f"{indent}}}"]
     return lines
+
+
+def settle_provisioner(ctx: "GlobalTypeContext", source_label: str, runtime_name: str,
+                       os_family: str | None = None) -> list[str]:
+    """The FIRST provisioner of every bake, base and instance image alike
+    (stage 86): the machine's own first-boot script has ended, whatever the
+    runtime says acts on a new machine has gone quiet, and the step runner
+    is written. A build machine is not the bake's alone: the account's fleet
+    management may be using the package database the next step needs."""
+    rtb = ctx.runtime_builders.get(runtime_name)
+    runtime_cmds = rtb.bake_settle_commands(os_family) if rtb is not None else []
+    return shell_provisioner(source_label, f"before anything else: the build machine settles ({runtime_name})",
+                             settle_commands(runtime_cmds), runner=False)
 
 
 def _runtime_of(builder: Any) -> str | None:

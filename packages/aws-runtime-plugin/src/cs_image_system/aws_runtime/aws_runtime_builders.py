@@ -405,6 +405,41 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
         return [f"# session mechanism 'ssm' ({self.get_name()}): SSM agent for debug sessions"] + install + [
             "sudo systemctl enable amazon-ssm-agent"]
 
+    #: stage 86: how long a bake waits for Systems Manager to leave a new
+    #: machine alone -- quiet for QUIET checks in a row, STEP seconds apart;
+    #: never judged before the machine is MIN_AGE seconds old (the
+    #: associations start about forty seconds after launch); LIMIT at most.
+    SETTLE_QUIET_CHECKS = 3
+    SETTLE_STEP_SECONDS = 10
+    SETTLE_MIN_AGE_SECONDS = 90
+    SETTLE_LIMIT_SECONDS = 600
+
+    def bake_settle_commands(self, os_family: str | None = None) -> list[str]:
+        """An account's Systems Manager may hold associations that target
+        EVERY instance (Quick Setup's host management: the agent's update,
+        a patch scan, inventory). They run on a build machine the moment its
+        agent registers, as documents under ``ssm-document-worker`` and, for
+        the agent's own update, a detached updater -- and they use the
+        package database while the bake does (found walking the daily
+        driver, stage 65, finding F29). The brackets keep the search from
+        finding itself in the process list."""
+        if self.session_mechanism() != self.SSM:
+            return []
+        quiet, step = self.SETTLE_QUIET_CHECKS, self.SETTLE_STEP_SECONDS
+        age, limit = self.SETTLE_MIN_AGE_SECONDS, self.SETTLE_LIMIT_SECONDS
+        return [
+            f"# session mechanism 'ssm' ({self.get_name()}): Systems Manager may act on every new machine (agent "
+            f"updates, patch scans, inventory); wait until it has been quiet for {quiet * step}s, {limit}s at most",
+            "quiet=0; waited=0",
+            f'while [ "$quiet" -lt {quiet} ] && [ "$waited" -lt {limit} ]; do '
+            f'if [ "$(cut -d. -f1 /proc/uptime)" -lt {age} ] || sudo grep -Eaqs '
+            "'ssm-document-work[e]r|amazon-ssm-agent-updat[e]r' /proc/[0-9]*/cmdline; "
+            f"then quiet=0; else quiet=$((quiet + 1)); fi; sleep {step}; waited=$((waited + {step})); done",
+            f'if [ "$quiet" -lt {quiet} ]; then echo "csis: Systems Manager was still acting on this machine after '
+            '$waited seconds; going on (a package step waits out a held database)"; '
+            'else echo "csis: Systems Manager is quiet on this machine (waited $waited seconds)"; fi',
+        ]
+
     def session_verify_commands(self, os_family: str | None = None) -> list[str]:
         if self.session_mechanism() != self.SSM:
             return []

@@ -16,8 +16,9 @@ os_builders:
     update:
       policy: security           # DECISION: security patches only; `full` upgrades everything, `none` bakes the vendor image as is
       exclude: ["kernel*"]
+    # a base test asserts only what the base bake installs or the vendor image ships
     tests:
-      packages: [git, google-guest-agent]   # the guest agent is what makes a GCE image bootable with keys
+      packages: [google-guest-agent]   # the guest agent is what makes a GCE image bootable with keys
       commands:
         - run: "id -u csisadmin"
     runtimes:

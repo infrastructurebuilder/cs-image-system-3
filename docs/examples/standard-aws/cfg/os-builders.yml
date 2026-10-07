@@ -21,9 +21,11 @@ os_builders:
     update:
       policy: security
       exclude: ["kernel*"]
-    # in-bake assertions: the bake fails if any fails
+    # in-bake assertions: the bake fails if any fails. A base test can assert
+    # only what the BASE bake installs or the vendor image ships: a base takes
+    # no modifications (a package an image's playbook installs is tested there).
     tests:
-      packages: [git]
+      packages: [scaleft-server-tools]   # the OPA agent, which `identity_types: [okta]` bakes in (dormant)
       commands:
         - run: "id -u csisadmin"      # the mandatory local admin user exists
     runtimes:

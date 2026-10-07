@@ -4,9 +4,41 @@ build {
   sources = [
 "source.googlecompute.imgfile-basic-dask"
 ]
+  # before anything else: the build machine settles (gcloud-east1)
+  provisioner "shell" {
+    only   = ["googlecompute.imgfile-basic-dask"]
+    inline = [
+      "# before any package work: the machine's own first-boot script has ended (bounded)",
+      "if command -v cloud-init >/dev/null 2>&1; then timeout 300 cloud-init status --wait >/dev/null 2>&1 || true; fi",
+      "# the step runner: a step that fails on a held package database is run again (never in the image: /run is a tmpfs)",
+      "sudo tee /run/csis-step >/dev/null <<'CSIS_STEP'",
+      "#!/bin/sh",
+      "# cs-image-system: runs ONE step of a bake. A step that fails while the package",
+      "# database is held by another process is run again after a wait; any other",
+      "# failure is the step's own and is returned at once.",
+      "tries=\"$${CSIS_STEP_TRIES:-10}\"",
+      "pause=\"$${CSIS_STEP_WAIT:-30}\"",
+      "out=\"$(mktemp)\" || exit 1",
+      "trap 'rm -f \"$out\" \"$out.rc\"' EXIT",
+      "n=1",
+      "while :; do",
+      "  { \"$@\" 2>&1; echo \"$?\" > \"$out.rc\"; } | tee \"$out\"",
+      "  rc=\"$(cat \"$out.rc\")\"",
+      "  [ \"$rc\" = 0 ] && exit 0",
+      "  [ \"$n\" -ge \"$tries\" ] && exit \"$rc\"",
+      "  grep -Eq 'transaction lock|Could not get lock|dpkg frontend lock|Unable to lock the administration directory' \"$out\" || exit \"$rc\"",
+      "  echo \"csis-step: the package database was held by another process (attempt $n of $tries); this step runs again in $pause seconds\"",
+      "  n=$((n + 1))",
+      "  sleep \"$pause\"",
+      "done",
+      "CSIS_STEP",
+      "sudo chmod 0755 /run/csis-step",
+    ]
+  }
 # Modifications for dask-setup-jeffy of type ansible-default
 provisioner "shell" {
   only = ["googlecompute.imgfile-basic-dask"]
+  execute_command = "chmod +x {{ .Path }}; if [ -r /run/csis-step ]; then {{ .Vars }} sh /run/csis-step {{ .Path }}; else {{ .Vars }} {{ .Path }}; fi"
   inline = [
     "test -x /usr/local/bin/csis-ansible-python || { for v in 3.12 3.11 3.9; do command -v python$v >/dev/null 2>&1 && break; sudo dnf -y install python$v >/dev/null 2>&1 && break; done; P=$(ls /usr/bin/python3.[0-9]* 2>/dev/null | grep -v config | sort -V | tail -1); [ -n \"$P\" ] || P=$(command -v python3); sudo ln -sf \"$P\" /usr/local/bin/csis-ansible-python; }",
   ]
@@ -21,6 +53,7 @@ provisioner "ansible" {
 provisioner "shell" {
   only = ["googlecompute.imgfile-basic-dask"]
   scripts = ["mod_image.sh"]
+  execute_command = "chmod +x {{ .Path }}; if [ -r /run/csis-step ]; then {{ .Vars }} sh /run/csis-step {{ .Path }}; else {{ .Vars }} {{ .Path }}; fi"
 }
 provisioner "shell" {
   only = ["googlecompute.imgfile-basic-dask"]
@@ -31,10 +64,12 @@ provisioner "shell" {
     "echo 'derivative setup'",
     "sudo mkdir -p /opt/derivative && echo 1.0.0 | sudo tee /opt/derivative/VERSION",
   ]
+  execute_command = "chmod +x {{ .Path }}; if [ -r /run/csis-step ]; then {{ .Vars }} sh /run/csis-step {{ .Path }}; else {{ .Vars }} {{ .Path }}; fi"
 }
   # identity activation for owning group 'coops' (okta)
   provisioner "shell" {
     only   = ["googlecompute.imgfile-basic-dask"]
+    execute_command = "chmod +x {{ .Path }}; if [ -r /run/csis-step ]; then {{ .Vars }} sh /run/csis-step {{ .Path }}; else {{ .Vars }} {{ .Path }}; fi"
     inline = [
       "# identity activation for group 'coops' (okta) on image imgfile-basic-dask",
       "sudo mkdir -p /etc/sft",

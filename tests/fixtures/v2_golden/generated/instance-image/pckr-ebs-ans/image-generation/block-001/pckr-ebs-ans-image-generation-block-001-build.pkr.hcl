@@ -4,9 +4,45 @@ build {
   sources = [
 "source.amazon-ebs.imgfile-basic-cloudflow"
 ]
+  # before anything else: the build machine settles (aws-east2-runtime)
+  provisioner "shell" {
+    only   = ["amazon-ebs.imgfile-basic-cloudflow"]
+    inline = [
+      "# before any package work: the machine's own first-boot script has ended (bounded)",
+      "if command -v cloud-init >/dev/null 2>&1; then timeout 300 cloud-init status --wait >/dev/null 2>&1 || true; fi",
+      "# session mechanism 'ssm' (aws-east2-runtime): Systems Manager may act on every new machine (agent updates, patch scans, inventory); wait until it has been quiet for 30s, 600s at most",
+      "quiet=0; waited=0",
+      "while [ \"$quiet\" -lt 3 ] && [ \"$waited\" -lt 600 ]; do if [ \"$(cut -d. -f1 /proc/uptime)\" -lt 90 ] || sudo grep -Eaqs 'ssm-document-work[e]r|amazon-ssm-agent-updat[e]r' /proc/[0-9]*/cmdline; then quiet=0; else quiet=$((quiet + 1)); fi; sleep 10; waited=$((waited + 10)); done",
+      "if [ \"$quiet\" -lt 3 ]; then echo \"csis: Systems Manager was still acting on this machine after $waited seconds; going on (a package step waits out a held database)\"; else echo \"csis: Systems Manager is quiet on this machine (waited $waited seconds)\"; fi",
+      "# the step runner: a step that fails on a held package database is run again (never in the image: /run is a tmpfs)",
+      "sudo tee /run/csis-step >/dev/null <<'CSIS_STEP'",
+      "#!/bin/sh",
+      "# cs-image-system: runs ONE step of a bake. A step that fails while the package",
+      "# database is held by another process is run again after a wait; any other",
+      "# failure is the step's own and is returned at once.",
+      "tries=\"$${CSIS_STEP_TRIES:-10}\"",
+      "pause=\"$${CSIS_STEP_WAIT:-30}\"",
+      "out=\"$(mktemp)\" || exit 1",
+      "trap 'rm -f \"$out\" \"$out.rc\"' EXIT",
+      "n=1",
+      "while :; do",
+      "  { \"$@\" 2>&1; echo \"$?\" > \"$out.rc\"; } | tee \"$out\"",
+      "  rc=\"$(cat \"$out.rc\")\"",
+      "  [ \"$rc\" = 0 ] && exit 0",
+      "  [ \"$n\" -ge \"$tries\" ] && exit \"$rc\"",
+      "  grep -Eq 'transaction lock|Could not get lock|dpkg frontend lock|Unable to lock the administration directory' \"$out\" || exit \"$rc\"",
+      "  echo \"csis-step: the package database was held by another process (attempt $n of $tries); this step runs again in $pause seconds\"",
+      "  n=$((n + 1))",
+      "  sleep \"$pause\"",
+      "done",
+      "CSIS_STEP",
+      "sudo chmod 0755 /run/csis-step",
+    ]
+  }
   # identity activation for owning group 'coops' (okta)
   provisioner "shell" {
     only   = ["amazon-ebs.imgfile-basic-cloudflow"]
+    execute_command = "chmod +x {{ .Path }}; if [ -r /run/csis-step ]; then {{ .Vars }} sh /run/csis-step {{ .Path }}; else {{ .Vars }} {{ .Path }}; fi"
     inline = [
       "# identity activation for group 'coops' (okta) on image imgfile-basic-cloudflow",
       "sudo mkdir -p /etc/sft",

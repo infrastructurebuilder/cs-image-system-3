@@ -178,8 +178,10 @@ full-test-legs:
 		just test-mods --strict || { echo "full-test: FAILED test-mods"; status=1; }
 		echo "full-test: the posix accounts script under docker (test-posix-accounts)"
 		just test-posix-accounts -q || { echo "full-test: FAILED test-posix-accounts"; status=1; }
+		echo "full-test: a bake's step runner against a held package database, under docker (test-bake-steps)"
+		just test-bake-steps -q || { echo "full-test: FAILED test-bake-steps"; status=1; }
 	else
-		echo "full-test: SKIPPED test-mods and test-posix-accounts -- docker is not available"
+		echo "full-test: SKIPPED test-mods, test-posix-accounts and test-bake-steps -- docker is not available"
 	fi
 	if [ ! -f "{{config_root}}/cfg/_config.yml" ]; then
 		echo "full-test: SKIPPED the live-configuration legs (dry run --all, state query --strict) -- no live configuration at {{config_root}} (see: just config-guard)"
@@ -265,6 +267,13 @@ test-mods *ARGS: config-guard
 # `just test` the same file is skipped.
 test-posix-accounts *ARGS:
 	@CSIS_CONTAINER_TESTS=1 uv run pytest tests/test_v2_posix_containers.py {{ARGS}}
+
+# Stage 86: a bake's settle step and step runner on AlmaLinux 10 and Debian 12,
+# under docker, with the package database REALLY held by another process (rpm's
+# transaction lock, dpkg's frontend lock). A leg of `full-test`; under `just
+# test` the same file is skipped.
+test-bake-steps *ARGS:
+	@CSIS_CONTAINER_TESTS=1 uv run pytest tests/test_v2_bake_steps_containers.py {{ARGS}}
 
 # The credential sessions the reference configuration's runtimes need, read from the caches without
 # loading the configuration (exit 0: every one present; 2: one absent or expired) -- full-test's gate
