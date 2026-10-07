@@ -14,9 +14,10 @@ container. §86, a bake waits for the package database (the
 first provisioner settles the build machine, a package step waits
 out a held database, and the starters' base tests name what a base
 carries; walk findings F29 and F28), LANDED 2026-10-07 (c6af4b2):
-the release that carries it (dev18) is the operator's, and its live
-proof is the walk's third `perform`. §81, hygiene bundle XII, is
-open (eleven items the walk
+the release that carries it is dev19, the operator's to cut from
+`develop` (dev18 was cut from the walk branch by mistake and is on
+the index, unused), and its live proof is the walk's third
+`perform`. §81, hygiene bundle XII, is open (twelve items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15, taken by the reference configuration, its
@@ -602,12 +603,12 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, eleven items found by the §65 walk. Items
+**Status: OPEN 2026-10-05, twelve items found by the §65 walk. Items
 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
 the operator's word. Items 10 and 11 LANDED as §86 (c6af4b2,
-2026-10-07, "Fix now, starters too"). Items 1, 2 and 5 to 9 are a
-plan -- nothing more runs until the operator says "do 81". Item 7(a)
-has a date: 2026-10-19.**
+2026-10-07, "Fix now, starters too"). Items 1, 2, 5 to 9 and 12 are
+a plan -- nothing more runs until the operator says "do 81". Item
+7(a) has a date: 2026-10-19.**
 
 1. **A starter's own hook refuses its first commit.** The tree
    `init-config` writes carries the copyright holder's address in the
@@ -717,6 +718,25 @@ starter's `.gitignore` ignores every dotfile unless named.)
    state, a performing run, the bakes recorded and the run green
    with the note.
 10. (Items 10 and 11 landed as §86, c6af4b2, 2026-10-07.)
+12. **`init-config --force` writes over a repository that is not a
+    configuration repository.** The walk's finding F32 (2026-10-07):
+    a step meant for the walk's container was typed in the system
+    repository's root, and `cs-image-system init-config . --force`
+    replaced its `Justfile`, `.gitignore` and `.github/workflows/
+    ci.yml` with a starter's and wrote `.csis-version`, `CI_SETUP.md`
+    and the probe workflow. The new `.gitignore` no longer ignored
+    the checkout's private directory; a `git add -A` would have
+    staged it. Nothing was staged, and git gave the three files back;
+    outside git they would be gone. The command read "the starter
+    complete ... from the tree's .github/workflows/ci.yml" and asked
+    nothing. Fixed looks like: `--force` refreshes a tree that IS a
+    configuration repository -- it has `cfg/_config.yml`, or a
+    `.csis-version` this command wrote -- and refuses any other
+    directory by name, saying what it looked for; a first write into
+    a directory that holds other things stays the business of
+    `--from <starter>` and its own checks. A test: the command in a
+    repository with its own Justfile and no `cfg/` is refused and
+    changes nothing.
 
 ## 83. A release asks its publish target before it starts
 
@@ -802,3 +822,13 @@ probe.
 
 **Sizing**: the script and its tests half a day; the recipes and the
 contract test two hours.
+
+**Added 2026-10-07 (the walk's finding F31): the branch is a probe
+too.** `just release dev test` was run with the checkout on the walk
+branch: it probed the token, the index, the version and the clean
+tree, cut 0.1.1.dev18 there, and committed and tagged on that branch;
+`develop` stayed a version behind and the next release had to be
+named by hand. The release refuses, with its other probes and before
+anything changes, a branch that is not the integration branch
+(`develop`; a final release may want `main`: **USER** decides), and
+the dry form says which branch it stands on.
