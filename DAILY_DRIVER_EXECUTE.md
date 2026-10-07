@@ -735,9 +735,36 @@ tofu plan                  # PLAN ONLY. Do not apply.
 
 **Report:** `stage 9f plan` with the `Plan:` line and every line that
 says `will be destroyed`. Never apply a plan here that destroys
-anything. If it is as predicted, Claude gives the four `tofu state rm`
-lines that make the root forget the bucket without touching it; if the
-plan is clean, the prediction was wrong and the finding is withdrawn.
+anything.
+
+**What happened (2026-10-06): `Plan: 0 to add, 0 to change, 4 to
+destroy`.** The prediction held: finding F17 is confirmed. The way
+out makes the root FORGET the bucket's four resources; nothing in
+AWS is touched, and the bucket keeps its versioning, encryption and
+public-access block.
+
+```sh
+cd /walk/cs-image-system-walk/generated/bootstrap
+aws sts get-caller-identity                 # keys live?
+tofu state list | grep aws_s3_bucket        # exactly the four addresses below
+tofu state rm \
+  'module.bootstrap_aws.aws_s3_bucket_public_access_block.state[0]' \
+  'module.bootstrap_aws.aws_s3_bucket_server_side_encryption_configuration.state[0]' \
+  'module.bootstrap_aws.aws_s3_bucket_versioning.state[0]' \
+  'module.bootstrap_aws.aws_s3_bucket.state[0]'
+tofu plan                                   # must end: No changes.
+aws s3 ls s3://csis-walk-tfstate-514190660293/statefiles/cs-image-system-walk/   # bootstrap.tfstate is in the bucket
+cd ../..
+```
+
+From here the bucket is the walk's but no root manages it, like the
+reference configuration's: at teardown it is emptied and removed by
+hand. The local `terraform.tfstate` and its `.backup` beside the root
+are leftovers of the first apply (the root reads the bucket now);
+leave them until Claude says, they are ignored by git.
+
+**Report:** `stage 9f done` with the last line of that `tofu plan`
+and the `aws s3 ls` line.
 
 **9g. The secrets, and the push** (after 9f is settled):
 
@@ -861,7 +888,7 @@ the daily driver's words at the end of the stage, or filed as code.
 | F14 | a declared group that was never created is hard `missing`, so a new tree refuses every run after its first | code: fixed in dev15 |
 | F15 | the starter's `.gitignore` names a few secret files, not the shape of one: a token dropped beside the tree is one `git add -A` from a commit | starter: fixed in dev15 |
 | F16 | a tree pinned to a development release cannot pass even `verify` while TestPyPI is down | words |
-| F17 | the bootstrap's create path: the second interview does not notice the bucket it made, and answering that it exists plans the destruction of the bucket's protections (predicted from the code; stage 9f tests it) | code |
+| F17 | the bootstrap's create path: the second interview does not notice the bucket it made, and answering that it exists plans the destruction of the bucket and its protections. CONFIRMED live at stage 9f: `Plan: 0 to add, 0 to change, 4 to destroy` | code |
 | F18 | the interview's default secrets directory, `_uncommitted/secrets`, is inside the tree and not ignored by the starter's `.gitignore` | starter |
 | F19 | nothing checks the workflow's `TF_VAR_<team>_*` names against the group builder's team: a doubled suffix was pushed unnoticed | code, minor |
 | F20 | the pages say "read the job summary" but not where: `gh run watch` shows neither the summary nor the gate's `SKIPPED` line, and a skipped `perform` job has no summary at all | words |
