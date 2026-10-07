@@ -630,6 +630,9 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
                                                       "admins": admins})
         return out
 
+    #: What tofu and terraform both say when a root has no state at all.
+    NO_STATE_YET = "No state file was found"
+
     def prune_stale_attachments(self, tofu: str, run_id: str, cwd: Path) -> int:
         """Stage 61 item 3, at EXECUTION time in the initialised root.
 
@@ -646,8 +649,19 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         unreachable OPA removes nothing and the plan decides."""
         listed = subprocess.run([tofu, "state", "list"], cwd=cwd, capture_output=True, text=True, check=False)
         if listed.returncode != 0:
+            said = (listed.stderr or listed.stdout).strip()
+            if self.NO_STATE_YET in said:
+                # stage 85: a root nothing was ever applied in has no state, and
+                # `state list` says so with a non-zero exit. That is the FIRST
+                # apply of a new tree, not a failure: with no state there is no
+                # attachment to prune. (Found walking the daily driver: a new
+                # tree's first identity run stopped here; the reference
+                # configuration's roots had state long before this step existed.)
+                log.info(f"Identity builder {self.name}: the root has no state yet (its first apply); "
+                         "nothing to prune")
+                return 0
             log.error(f"Identity builder {self.name}: `state list` failed in {cwd}; nothing is removed from state:\n"
-                      f"{(listed.stderr or listed.stdout).strip()}")
+                      f"{said}")
             return 1
         declared = self._declared_memberships()
         dropped: list[tuple[str, Group, str, str]] = []           # (address, group, kind, user)
