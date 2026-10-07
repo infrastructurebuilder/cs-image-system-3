@@ -1412,7 +1412,9 @@ the way 3.2 says; then `perform` has a state to read.
 | the fix for F29 and F28 (stage 86) | merged 2026-10-07; it needs release 0.1.1.dev18 |
 | 11d, first attempt | 0.1.1.dev18 was cut from the walk branch, and step 2 was typed on the local machine (F31, F32); repaired, nothing lost |
 | 11d, step 1 (release 0.1.1.dev19 from `develop`) | done 2026-10-07: cut on `develop`, tagged there, all 18 packages on the index; the stray tool is gone from your machine |
-| **11d, step 2** (the container: the walk takes 0.1.1.dev19) | **NEXT: start there**, then steps 3 and 4 |
+| 11d, step 2 (the walk takes 0.1.1.dev19) | done 2026-10-07: commit 4e735f1, CI green |
+| 11d, step 3 (the third `perform`) | done 2026-10-07: GREEN. Both images baked; nothing left behind |
+| **11d, step 4** (the container: `develop` takes the records) | **NEXT: start there**; it ends stage 11 |
 
 **11a. The storage.** In the container. One 100 GB encrypted gp3
 EBS volume named `data`, in the availability zone of the runtime's
@@ -1862,6 +1864,39 @@ fingerprint changes, so nothing that stands needs to bake again.
 **Report:** `stage 11 done` with what the two `gh run view` lines
 printed, the first three lines of the `git log`, and the last line
 of the state query; or `red`.
+
+**What happened at 11d's steps 2 and 3 (2026-10-07): it worked.**
+Run 37702632991 on `main`: `verify`, `live` and `perform` all green.
+
+- The base image `el10` baked in 10 minutes 2 seconds:
+  `ami-0f3c5c4c637ccff19`, ten in-bake assertions passed. The image
+  `team-node` baked from it in 5 minutes 56 seconds:
+  `ami-03a8cef5e12cd1b50`, its two modifications applied, seven
+  assertions passed. AWS shows both `available` and tagged for this
+  configuration; `meta-state/lineage.yaml` on `main` records both.
+- No step met a held package database: the words `transaction lock`
+  are nowhere in the run. AWS's own record says why. Systems Manager
+  fired on both build machines again, about half a minute after
+  launch, and this time its patch scan and its agent update ended
+  `Success` on both, where they had ended `Failed` on the two earlier
+  runs' machines: the bake stood aside until they were done.
+- What the log does NOT show is the settle step saying so. The log
+  keeps the last 40 lines of a command that succeeds (`packer build
+  stdout (last 40 of 304 lines; all at DEBUG)`), and the settle is the
+  first thing a bake prints: finding F25 again, for bakes.
+- The instance root planned `3 to add, 0 to change, 0 to destroy`,
+  passed the gate and was NOT applied (`apply_instances` is `false`).
+- `CI logs in through the managed policy` minted an OPA token as the
+  workload, from `main`, for the first time (`sft workload
+  authenticate exit 0; stdout carried a token`), and found `no
+  standing instance to log into`: nothing to prove yet.
+- The strict state query said `no drift: meta-state agrees with
+  reality`. `perform` pushed its three records; `main` is three
+  commits ahead of `develop` until step 4.
+
+Stage 86 is proved by the run it was written for, and with it the
+WRITE role the bootstrap made: it launched, reached, imaged and
+removed two build machines.
 
 The fifth proof of 3.8, the login proof AS the workload and then the
 branch pin on the role, needs a machine to log into: it is in stage

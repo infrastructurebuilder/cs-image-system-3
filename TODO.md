@@ -14,10 +14,11 @@ container. §86, a bake waits for the package database (the
 first provisioner settles the build machine, a package step waits
 out a held database, and the starters' base tests name what a base
 carries; walk findings F29 and F28), LANDED 2026-10-07 (c6af4b2):
-the release that carries it is dev19, the operator's to cut from
-`develop` (dev18 was cut from the walk branch by mistake and is on
-the index, unused), and its live proof is the walk's third
-`perform`. §81, hygiene bundle XII, is open (twelve items the walk
+released in dev19 (dev18 was cut from the walk branch by mistake and
+is on the index, unused) and PROVED live: the walk's third `perform`
+baked both its images under the bootstrap-made write role, Systems
+Manager finishing its work on each build machine undisturbed. §81,
+hygiene bundle XII, is open (twelve items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15, taken by the reference configuration, its
@@ -33,10 +34,11 @@ Planned, by the operator's word: §66, §30 and §83 (a release asks
 its publish target before it starts).
 
 Releases: dev15 (2026-10-06) carries §82 and hygiene XII items 3
-and 4. dev16 (2026-10-07) carries §84. dev17 (2026-10-07) carries
-§85 and is the walk's `develop` and the reference configuration's,
-`develop` and `main` (its identity run said no changes; perform
-green on it, run 37635442502, 2026-10-07).
+and 4. dev16 carries §84, dev17 §85 (the reference configuration's
+`main`: perform green on it, run 37635442502). dev18 is on the index
+and unused. dev19 (2026-10-07) carries §86 and is the walk's
+`develop` and `main` and the reference's `develop` (CI green); the
+reference's `main` moves to it on the operator's word.
 
 Recently landed: §80, hygiene bundle XI (2026-10-05, cf186de): the
 reference tree's AWS runtimes default to a t3.medium, and the daily
@@ -693,6 +695,11 @@ starter's `.gitignore` ignores every dotfile unless named.)
    complete!`, `Plan:`, `No changes.`) are always shown, wherever
    they stand, ahead of the tail; a test with an apply whose outputs
    are longer than the tail. The whole output stays at DEBUG.
+   The same tail hides a successful BAKE's steps (seen 2026-10-07:
+   `packer build stdout (last 40 of 304 lines)`): the settle step's
+   own line, how long it waited, and any step the runner ran twice
+   are among the lines cut. A bake's settle and runner lines belong
+   with the verdict lines that are always shown.
 9. **The first `perform` of a new tree fails after its bakes.** The
    walk's finding F26: PREDICTED, not run (the operator chose,
    2026-10-07, to apply the storage first and walk on). An instance
