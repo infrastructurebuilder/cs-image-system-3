@@ -748,3 +748,34 @@ probe.
 
 **Sizing**: the script and its tests half a day; the recipes and the
 contract test two hours.
+
+## 84. A new group can be created: the gid lookup waits for its group
+
+**Status: IN PROGRESS 2026-10-07 on `feature/new-group-gid` (the
+operator, on the walk's finding F22: "Fix it in the system now").**
+
+**Why.** The system cannot create a NEW group in OPA. The identity root
+publishes each managed group's gid through a `data "external"` lookup
+(`cs-image-system identity export-gids`, DESIGN N7), and that lookup has
+no dependency on the group's module: terraform runs it at PLAN time,
+before the group exists, the lookup finds no gid and fails loudly, as it
+should for a group that stands. So the plan that would create the group
+can never succeed. The walk met it at its first real run (`just run
+identity`, 2026-10-07: `export-gids: identity plugin 'okta' reported no
+gid for groups ['walk_team']`). The reference configuration never did:
+its five groups existed before the lookup was written.
+
+1. The lookup `depends_on` every managed group's module, so terraform
+   reads it at plan time when nothing in those modules is changing (as
+   today) and DURING THE APPLY when a group is being created or changed,
+   after the group stands.
+2. The lookup waits, bounded, for OPA to give a new group its gid: a
+   group that answers with no `unix_gid` is asked again for up to 30
+   seconds (`CSIS_GID_WAIT_SECONDS`; 0 for none) before the loud
+   refusal. Whether OPA assigns the gid at once is not known; the walk's
+   run is the proof.
+3. Tests: the emitted block names every managed group's module; the wait
+   asks again and stops at its bound. The golden gains the `depends_on`
+   lines.
+4. Proof: the walk's `just run identity` creates `walk_team` through the
+   gate; the reference configuration's plan stays "No changes".
