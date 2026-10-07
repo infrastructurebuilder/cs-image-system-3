@@ -13,15 +13,18 @@ on `feature/walk-daily-driver`: the operator types each stage from
 container. §81, hygiene bundle XII, is open (seven items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
-is released in dev15; the reference configuration takes it and
-relabels its images next. No documentation stage is open. Planned,
-by the operator's word: §66, §30 and §83 (a release asks its
-publish target before it starts).
+is released in dev15, taken by the reference configuration, its
+images relabelled. §84, a new group can be created (the gid lookup
+waits for its group; walk finding F22), LANDED 2026-10-07 (4fb338b):
+the release that carries it (dev16) is the operator's, and its live
+proof is the walk's identity run. No documentation stage is open.
+Planned, by the operator's word: §66, §30 and §83 (a release asks
+its publish target before it starts).
 
 Releases: dev15 (2026-10-06) carries §82 and hygiene XII items 3
-and 4; dev14 (2026-10-04) carries §79 and is still the reference
-configuration's, develop and main (perform green, run 37301986059,
-2026-10-05).
+and 4 and is the reference configuration's, develop and main
+(perform green, run 37576368769, 2026-10-07). The next, dev16,
+carries §84.
 
 Recently landed: §80, hygiene bundle XI (2026-10-05, cf186de): the
 reference tree's AWS runtimes default to a t3.medium, and the daily
@@ -748,34 +751,3 @@ probe.
 
 **Sizing**: the script and its tests half a day; the recipes and the
 contract test two hours.
-
-## 84. A new group can be created: the gid lookup waits for its group
-
-**Status: IN PROGRESS 2026-10-07 on `feature/new-group-gid` (the
-operator, on the walk's finding F22: "Fix it in the system now").**
-
-**Why.** The system cannot create a NEW group in OPA. The identity root
-publishes each managed group's gid through a `data "external"` lookup
-(`cs-image-system identity export-gids`, DESIGN N7), and that lookup has
-no dependency on the group's module: terraform runs it at PLAN time,
-before the group exists, the lookup finds no gid and fails loudly, as it
-should for a group that stands. So the plan that would create the group
-can never succeed. The walk met it at its first real run (`just run
-identity`, 2026-10-07: `export-gids: identity plugin 'okta' reported no
-gid for groups ['walk_team']`). The reference configuration never did:
-its five groups existed before the lookup was written.
-
-1. The lookup `depends_on` every managed group's module, so terraform
-   reads it at plan time when nothing in those modules is changing (as
-   today) and DURING THE APPLY when a group is being created or changed,
-   after the group stands.
-2. The lookup waits, bounded, for OPA to give a new group its gid: a
-   group that answers with no `unix_gid` is asked again for up to 30
-   seconds (`CSIS_GID_WAIT_SECONDS`; 0 for none) before the loud
-   refusal. Whether OPA assigns the gid at once is not known; the walk's
-   run is the proof.
-3. Tests: the emitted block names every managed group's module; the wait
-   asks again and stops at its bound. The golden gains the `depends_on`
-   lines.
-4. Proof: the walk's `just run identity` creates `walk_team` through the
-   gate; the reference configuration's plan stays "No changes".
