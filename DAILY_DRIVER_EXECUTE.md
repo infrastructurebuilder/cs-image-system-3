@@ -1398,8 +1398,9 @@ the way 3.2 says; then `perform` has a state to read.
 
 | Part | State |
 | --- | --- |
-| **11a. The storage** (the container) | **NEXT: start there** |
-| 11b. The first `perform` | after 11a |
+| 11a, steps 1-2 (the flag, the run) | done 2026-10-07: the volume exists and its state is in the bucket |
+| **11a, step 3** (commit the flag, push, CI, the state query) | **NEXT: start there** |
+| 11b. The first `perform` | straight after, if step 3 is green |
 
 **11a. The storage.** In the container. One 100 GB encrypted gp3
 EBS volume named `data`, in the availability zone of the runtime's
@@ -1453,11 +1454,20 @@ volume. It stands until teardown (stage 17).
 
 **Report:** `stage 11a done` with the `Plan:` line, the last line of
 the run, what the `gh run view` line printed and the last line of
-the state query; or the error. STOP there: Claude checks that the
-storage's state is in the bucket before the `perform`.
+the state query; or the error.
 
-**11b. The first `perform`.** In the container. Only after Claude
-says 11a is confirmed.
+**What happened at steps 1-2 (2026-10-07): it worked.** `Plan: 1 to
+add, 0 to change, 0 to destroy`; run `2026_10_07t15_26_24_332664`,
+its record committed as 446c70c. AWS has the volume: `data`, 100 GB,
+gp3, encrypted, `available`, in us-east-2a. `aws_ebs.tfstate` is in
+the bucket beside the identity root's, which is what the instance
+root's plan needs (F26): Claude has checked it, so you need not wait
+for a word between 11a and 11b. If step 3 ends with CI `success` and
+a state query that reports no drift, go straight on to 11b and
+report both together; if either is anything else, stop and paste it.
+
+**11b. The first `perform`.** In the container. Only after 11a's
+step 3 ended with CI `success` and no drift.
 
 GitHub has no `main` branch for this repository yet: the bootstrap
 set the default branch and the ruleset that will protect `main`, and
