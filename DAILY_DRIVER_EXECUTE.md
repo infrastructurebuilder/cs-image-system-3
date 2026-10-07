@@ -1626,6 +1626,15 @@ installed): that is the package to assert.
 
    Go on only if it prints `success`.
 
+   (2026-10-07: `just validate` stopped here with `Error reading
+   config file : AWS Error: An error occurred (RequestExpired) when
+   calling the DescribeVpcs operation: Request has expired` under a
+   long traceback. That is expired access keys, not the tree and not
+   your edit: the keys in `~/.aws/credentials` were an hour and
+   twenty minutes old. Refresh them the way stage 3 says, see
+   `aws sts get-caller-identity` answer, and start this step again
+   at `just validate`. Finding F30.)
+
 4. The second `perform`. `main` exists now, so this push is an
    ordinary fast-forward:
 
@@ -1780,4 +1789,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F27 | CI_SETUP 3.2 and 3.8 say "merge `develop` into `main`"; a repository made from nothing has no `main` on GitHub (the bootstrap sets the default branch and the ruleset, it does not create the branch), so the first `perform` is a push that creates it; and the branch the repository was created with (`master` here) stays behind, unused and unmentioned | words |
 | F28 | the starters `standard-aws`, `standard-aws-posix` and `standard-gce` test their BASE image for the package `git`, which nothing installs on a base (the vendor's AlmaLinux 10 image has none; a base takes no modifications; git comes from the image's playbook). The first base bake of a tree made from them fails its own test after five minutes: `package git is not installed`. Seen in the walk's first `perform` | starter: hygiene XII item 10 |
 | F29 | a bake's first package operation can race the build machine's own boot script: the update's first attempt failed its key import on `can't create transaction lock on /usr/lib/sysimage/rpm/.rpm.lock` and the bake survived only because that one step retries once; no other step does | code: hygiene XII item 11 |
+| F30 | expired access keys reach the operator as `Error reading config file : AWS Error: ... (RequestExpired) ... Request has expired` under a hundred-line traceback: the words blame the configuration, and the daily driver's failure table (section 6, the expired-session row) shows `Token has expired` and `a session has EXPIRED` but not `RequestExpired`, which is what temporary keys in the environment or a credentials file produce | words (and the traceback: hygiene XII, with stage 6's) |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
