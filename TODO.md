@@ -18,17 +18,19 @@ images relabelled. §84, a new group can be created (the gid lookup
 waits for its group; walk finding F22), LANDED 2026-10-07 (4fb338b)
 and is released in dev16. §85, the first identity apply of a new
 tree has nothing to prune (a root with no state yet is not a failed
-`state list`; walk finding F24), LANDED 2026-10-07 (b0494fa): the
-release that carries it (dev17) is the operator's, and the live
-proof of both is the walk's identity run. No documentation stage is
-open.
+`state list`; walk finding F24), LANDED 2026-10-07 (b0494fa) and is
+released in dev17. Both are PROVED live: the walk's identity run on
+dev17 created its first group (8 added, 0 destroyed; its CI green
+with no drift). No documentation stage is open.
 Planned, by the operator's word: §66, §30 and §83 (a release asks
 its publish target before it starts).
 
 Releases: dev15 (2026-10-06) carries §82 and hygiene XII items 3
 and 4 and is the reference configuration's `main` (perform green,
-run 37576368769, 2026-10-07). dev16 (2026-10-07) carries §84 and is
-the reference's `develop` (CI green). The next, dev17, carries §85.
+run 37576368769, 2026-10-07). dev16 (2026-10-07) carries §84.
+dev17 (2026-10-07) carries §85 and is the `develop` of both the walk
+and the reference configuration (both CI green); the reference's
+`main` moves to it on the operator's word.
 
 Recently landed: §80, hygiene bundle XI (2026-10-05, cf186de): the
 reference tree's AWS runtimes default to a t3.medium, and the daily

@@ -905,13 +905,14 @@ is longer than its work and its boxes are not all still to do:
 | 10c, step 4 (the run) | failed twice: F22 on 0.1.1.dev15, F24 on 0.1.1.dev16 |
 | 10d, 10e | done |
 | the releases 0.1.1.dev16 and 0.1.1.dev17 | cut; both are on the index |
-| **"10c, the run, on 0.1.1.dev17"** | **NEXT: start there** |
-| the reference configuration's proof | after that run succeeds |
+| "10c, the run, on 0.1.1.dev17" | done 2026-10-07: `walk_team` exists in OPA; CI green |
+| **"The reference configuration's proof"** (your local machine) | **NEXT: start there** |
 | 10f | last |
 
-Your next command is in the box titled "10c, the run, on
-0.1.1.dev17"; every box above it is finished or superseded and is
-kept as the record of what happened.
+Your next command is in the box titled "On your local machine (the
+host, NOT the container): the reference configuration's proof";
+every box above it is finished or superseded and is kept as the
+record of what happened.
 
 **10a. The workload connection, as a DRAFT** (you, in the OPA console;
 it needs the DevOps-admin role). DevOps Administration, Workload
@@ -1105,7 +1106,8 @@ git checkout feature/walk-daily-driver                     # brings this documen
 **Report:** `dev17 pushed`. Claude then confirms the release on the
 index and takes it into the reference configuration.
 
-**10c, the run, on 0.1.1.dev17.** In the container. The release is
+**10c, the run, on 0.1.1.dev17.** (DONE 2026-10-07; what happened
+is under its Report line.) In the container. The release is
 out (all 18 packages are on the index, 2026-10-07). 10c's three edits
 are already in the tree and pushed; what is left is its step 4, the
 run, and the new release comes first.
@@ -1176,33 +1178,66 @@ run, and the new release comes first.
 policy` line, the last line of the run, and what the `gh run view`
 line printed; or the error.
 
-**On your local machine (the host, NOT the container), after "10c,
-the run, on 0.1.1.dev17" succeeds: the reference configuration
-proves the two fixes changed nothing for groups that stand.** Its
-`develop` is on 0.1.1.dev17 (Claude did that, 2026-10-07; its CI is
-green). Two steps there, both yours because one can apply and the
-other moves `main`:
+**What happened (2026-10-07): it worked.** `Plan: 8 to add, 0 to
+change, 0 to destroy`, then `Group walk_team: CI login policy
+walk_team_v1_security_policy_ci created` and `Run
+2026_10_07t13_47_50_739856 completed: identity`. The walk's first
+group exists in OPA: stages 84 and 85 are proved by the run they
+were written for. The run's own commit (8618631) and the version pin
+(b400eb3) are pushed; CI run 37631775218 is green on them, installed
+0.1.1.dev17 from the index, and its strict state query said `no
+drift: meta-state agrees with reality`.
 
-```sh
-aws sso login --profile noaa                 # if your local session has lapsed
-cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-testconfig    # the reference configuration's checkout (this walk's path)
-git pull --ff-only
-source .envrc && export AWS_PROFILE=noaa
-just run identity                            # expect: No changes. for both identity roots
-git push
-git fetch origin && git push origin origin/develop:main
-```
+**On your local machine (the host, NOT the container): the reference
+configuration's proof.** The two fixes must have changed nothing for
+a tree whose groups already stand. The reference configuration's
+`develop` is on 0.1.1.dev17 (Claude did that, 2026-10-07; b65b6c6,
+its CI green). Both steps are yours: the first is a real run there
+and the second moves its `main`.
 
-`just run identity` is a real run, but its five groups stand, so the
-gid lookup is read at plan time exactly as before and the plan must
-say `No changes`; the prune step lists a state that exists, as it
-always has. If the run shows ANY change, stop and paste it: that
-would mean a fix altered a standing tree. The last line moves the
-reference's `main`; its `perform` then runs on dev17 with nothing to
-bake.
+1. Run its identity lifecycle for real, and read the plan:
+
+   ```sh
+   aws sso login --profile noaa                 # your local machine's own session; it HAD lapsed when this was written
+   cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-testconfig    # the reference configuration's checkout (this walk's path)
+   git status -sb                               # develop; nothing listed under it
+   git pull --ff-only                           # Already up to date.
+   source .envrc && export AWS_PROFILE=noaa
+   just run identity
+   ```
+
+   That tree has ONE identity root (`oktagroups`), so there is one
+   plan. Expect, in this order:
+
+   - `every membership attachment in state is still declared;
+     nothing to prune`: the prune step lists a state that exists, as
+     it always has;
+   - `No changes. Your infrastructure matches the configuration.`:
+     the five groups stand, so their gids are read at plan time
+     exactly as before;
+   - the gate's verdict, `Apply complete! Resources: 0 added, 0
+     changed, 0 destroyed.`, then `Run ... completed: identity` and a
+     meta-state commit.
+
+   If the plan says anything but `No changes`, STOP: do not do step
+   2, and paste the `Plan:` line with the resource lines above it. It
+   would mean a fix altered a standing tree. Know that the run does
+   not wait for you: `apply_identity` is on in that tree (as it is
+   for its CI), so a plan with additions or changes is applied as it
+   is shown; the gate refuses destroys.
+
+2. Only after `No changes`: push the run's record and move `main`.
+
+   ```sh
+   git push
+   git fetch origin && git push origin origin/develop:main
+   ```
+
+   The second line starts the reference's `perform` job on
+   0.1.1.dev17; nothing is due to bake there.
 
 **Report:** `reference identity: no changes` and `reference main
-moved`.
+moved`; or the plan you saw.
 
 **10f. Let the bootstrap check again.** `just bootstrap`, Enter at
 every question (the Okta section asks OPA again; the bucket question
