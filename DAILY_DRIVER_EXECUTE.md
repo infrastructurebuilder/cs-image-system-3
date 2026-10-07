@@ -574,8 +574,9 @@ git add -A && git commit -m "Take cs-image-system 0.1.1.dev15; the workflow's va
 
 Expected from `just dry`: no refusal about `walk_team` any more (a note,
 "declared and not created yet"). The state line may still count
-`foreign: 36` until the reference configuration marks its images, which
-Claude arranges; a dry run does not refuse on it.
+`foreign: 36` until the reference configuration marks its images
+(YOUR step on the Mac, written out before 9g); a dry run does not
+refuse on it.
 
 **Report:** `stage 9b done`, and what `gh run watch` and `just dry`
 said.
@@ -766,6 +767,42 @@ leave them until Claude says, they are ignored by git.
 **Report:** `stage 9f done` with the last line of that `tofu plan`
 and the `aws s3 ls` line.
 
+**On the Mac, before 9g: the reference configuration marks its
+images.** Not in the container, and not in the walk tree: this is one
+command in the OTHER configuration repository, and it is yours because
+it writes to AWS.
+
+Why: release 0.1.1.dev15 tags every NEW image with the configuration
+that owns it (`csis_config`), and a configuration ignores images
+tagged for another. The reference configuration's 36 images were
+baked before that, so they carry no such tag, and the walk's state
+query still counts them `foreign: 36`. A dry run only reports that;
+the STRICT state query in CI's `live` job fails on it. The relabel
+writes the one missing tag on each of the 36. It changes nothing
+else about any image and nothing in either tree.
+
+```sh
+aws sso login --profile noaa                 # the Mac's own session
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-testconfig
+source .envrc && export AWS_PROFILE=noaa
+just cloud-relabel aws-east2-runtime         # dry: "36 image(s) would be relabelled"
+just cloud-relabel aws-east2-runtime no      # writes csis_config=cs-image-action-test on the 36
+just cloud-relabel aws-east2-runtime         # dry again: nothing left to relabel
+```
+
+Then, still on the Mac, move the reference configuration's `main`
+to its `develop` (which is on dev15, CI green), so its own CI runs
+the release that ignores the WALK's images once the walk bakes:
+
+```sh
+git fetch origin && git push origin origin/develop:main
+```
+
+That push starts its `perform` job; nothing is due to bake there.
+
+**Report:** `relabel done` (and `reference main moved`). Claude
+confirms both before you push in 9g.
+
 **9g. The secrets, and the push** (after 9f is settled):
 
 ```sh
@@ -779,9 +816,9 @@ gh run watch
 ```
 
 Expected: `verify` green, and `live` now RUNS, because its secrets
-exist. Whether `live` is green depends on the reference configuration
-having marked its images first (Claude says when); `perform` still
-waits for `main`, which is stage 11.
+exist. `live` is green only once the relabel above is done (`just
+dry` then says `foreign: 0`); `perform` still waits for `main`, which
+is stage 11.
 
 **Report:** `stage 9 done`, with `gh run view --json conclusion,jobs
 --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'`.
