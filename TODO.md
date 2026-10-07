@@ -10,7 +10,7 @@ system must not take itself.
 Current stage: **§65**, walking the daily driver, started 2026-10-05
 on `feature/walk-daily-driver`: the operator types each stage from
 [DAILY_DRIVER_EXECUTE.md](DAILY_DRIVER_EXECUTE.md) on a Fedora 43
-container. §81, hygiene bundle XII, is open (six items the walk
+container. §81, hygiene bundle XII, is open (seven items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15; the reference configuration takes it and
@@ -588,10 +588,11 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, six items found by the §65 walk. Items 3
-and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
-the operator's word; items 1, 2, 5 and 6 are a plan -- nothing more
-runs until the operator says "do 81".**
+**Status: OPEN 2026-10-05, seven items found by the §65 walk. Items
+3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
+the operator's word; items 1, 2, 5, 6 and 7 are a plan -- nothing
+more runs until the operator says "do 81". Item 7(a) has a date:
+2026-10-19.**
 
 1. **A starter's own hook refuses its first commit.** The tree
    `init-config` writes carries the copyright holder's address in the
@@ -644,6 +645,24 @@ starter's `.gitignore` ignores every dotfile unless named.)
    ignores `_uncommitted/`. Fixed looks like: the starters ignore
    `_uncommitted/`, and `set-secrets.sh` (or the interview) refuses a
    secrets directory git would track.
+7. **The workflows' runner and actions are ageing.** The walk's
+   finding F21: the first full `live` run of a tree made from the
+   starter (2026-10-07) passed with three annotations, and every
+   workflow here and in the four starters has the same lines.
+   (a) `runs-on: ubuntu-latest` everywhere, and GitHub moves that label
+   to Ubuntu 26 from **2026-10-19**: nothing has run there. Okta's apt
+   repository already answers for the new release, so `sft-install`
+   should survive; the rest is unproved. Fixed looks like (**USER**
+   chooses): pin `ubuntu-24.04` until a run on 26 is green, or run the
+   workflows once on `ubuntu-26.04` before the label moves.
+   (b) `actions/checkout@v4`, `astral-sh/setup-uv@v5`,
+   `extractions/setup-just@v2`, `aws-actions/configure-aws-credentials@v4`
+   and `opentofu/setup-opentofu@v1` target Node 20, deprecated and
+   forced onto Node 24: move each to its Node 24 version.
+   (c) `setup-uv` warns "No file matched to [**/uv.lock,
+   **/requirements*.txt]. The cache will never get invalidated": a
+   configuration repository has neither file. Key the cache on
+   `.csis-version`, or turn it off.
 
 ## 83. A release asks its publish target before it starts
 

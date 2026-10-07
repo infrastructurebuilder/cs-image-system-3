@@ -1073,3 +1073,4 @@ the daily driver's words at the end of the stage, or filed as code.
 | F18 | the interview's default secrets directory, `_uncommitted/secrets`, is inside the tree and not ignored by the starter's `.gitignore` | starter |
 | F19 | nothing checks the workflow's `TF_VAR_<team>_*` names against the group builder's team: a doubled suffix was pushed unnoticed | code, minor |
 | F20 | the pages say "read the job summary" but not where: `gh run watch` shows neither the summary nor the gate's `SKIPPED` line, and a skipped `perform` job has no summary at all | words |
+| F21 | the starter workflows are ageing: `ubuntu-latest` moves to Ubuntu 26 from 2026-10-19 (unproved there), five actions target the deprecated Node 20, and `setup-uv`'s cache key matches no file in a configuration repository | starter: hygiene XII item 7 |
