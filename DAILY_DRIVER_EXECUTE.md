@@ -786,7 +786,132 @@ waits for `main`, which is stage 11.
 **Report:** `stage 9 done`, with `gh run view --json conclusion,jobs
 --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'`.
 
-## Stage 10 onward -- written when you reach them
+## Stage 10 -- OPA: the workload objects, the first real run, the probe (CI_SETUP 3.5; DAILY_DRIVER 3.1)
+
+Read CI_SETUP.md section 3.5 and the daily driver's 3.1 first. The
+"By hand, still" list in `generated/bootstrap/README.md` says the same
+steps with your names in them.
+
+This stage makes the walk's first real changes outside AWS and GitHub:
+two objects you create in the OPA console, and then the system creates
+the walk's group in OPA. Everything it creates is named `walk_team_...`;
+nothing of the reference configuration's is touched. The system never
+destroys an OPA group, so these are removed by hand at teardown
+(decision W3).
+
+**10a. The workload connection, as a DRAFT** (you, in the OPA console;
+it needs the DevOps-admin role). DevOps Administration, Workload
+connections, Create Workload Connection:
+
+| Field | Value |
+| --- | --- |
+| Type | GitHub Actions |
+| GitHub Owner | `infrastructurebuilder` |
+| Name | `github-cs-image-system-walk` |
+| Token TTL | 1 hour |
+| JWKS URL | `https://token.actions.githubusercontent.com/.well-known/jwks` (if the form did not fill it) |
+| Required claim | `repository` Equals `infrastructurebuilder/cs-image-system-walk` |
+| Required claim | `repository_owner` Equals `infrastructurebuilder` |
+| `ref` claim | none here |
+
+Create it. Do NOT activate it yet.
+
+**10b. The workload role** (you; it needs the security-admin role).
+Security Administration, Workload roles: name
+`cs-image-system-walk-ci`, the connection above selected, no
+conditions yet. Do not create any security policy by hand: the system
+makes one per group.
+
+**10c. The names into the tree, and the first real run.**
+
+1. In `cfg/group-builders.yml`, on the `opa-groups` builder, beside
+   `team:`, add:
+
+   ```yaml
+       workload_connection: "github-cs-image-system-walk"
+       workload_role: "cs-image-system-walk-ci"
+   ```
+
+2. In `.github/workflows/opa-workload-probe.yml`, replace the two
+   remaining `REPLACE-ME` defaults: `connection` becomes
+   `github-cs-image-system-walk`, `role` becomes
+   `cs-image-system-walk-ci`.
+3. In `cfg/_config.yml`, set `apply_identity: true` (a convergent flag,
+   safe to leave on: it applies only what the YAML says, and the gate
+   refuses destroys). Leave `apply_storage` and `apply_instances`
+   `false`.
+4. The rhythm of section 3: validate, dry, read the script, run.
+
+   ```sh
+   cd /walk/cs-image-system-walk
+   aws sts get-caller-identity                # keys live? the roots' state is in the bucket
+   just validate
+   just dry identity
+   tail -5 generated/identity/run-identity.sh # it now ends with apply-check and tofu apply
+   just run identity
+   ```
+
+What `just run identity` does, for real: looks your user up in Okta,
+then plans, gates and applies the group root. Expected in its output:
+
+- a `Plan:` line with only additions, `0 to destroy`: the OPA groups
+  `walk_team_user` and `walk_team_admin`, your membership as an admin,
+  the resource group `walk_team_rg`, the project `walk_team_rg_login`
+  with its enrollment token, and the policies
+  `walk_team_v1_security_policy_user` and `..._admin`;
+- the gate's verdict, then `Apply complete!`;
+- a line `Group walk_team: CI login policy
+  walk_team_v1_security_policy_ci created` (it copies the user policy
+  for the workload role; if the role of 10b is missing it says `NOT
+  reconciled` and the run still ends);
+- `Run ... completed: identity` and a meta-state commit.
+
+Then:
+
+```sh
+git push
+just state-query                            # walk_team: admins, a gid, the token live, the CI policy; a note that the connection is a DRAFT
+```
+
+**Report:** `stage 10c done` with the `Plan:` line, the `CI login
+policy` line and the last line of the run; or the error. STOP here.
+
+**10d. The probe.** It presents this repository's GitHub token to the
+draft connection and stops; against a draft OPA validates the token and
+issues nothing usable.
+
+```sh
+gh workflow run opa-workload-probe.yml --ref develop
+gh run watch                                # pick the "OPA workload probe" run
+gh run view --log | grep -iE 'claim|verdict|valid|refus|error' | tail -20
+```
+
+Green is the proof the claims match.
+
+**10e. Activate the connection** (you, in the console). From here the
+system refuses the login proof when either object is absent or the
+connection is still a draft.
+
+**10f. Let the bootstrap check again.** `just bootstrap`, Enter at
+every question (the Okta section asks OPA again; the bucket question
+now offers `y`). Then:
+
+```sh
+just dry
+git add -A && git commit -m "The workload connection and role are named and stand" && git push
+```
+
+`generated/bootstrap/README.md` should now say the connection exists,
+is active, and that the builder names both.
+
+The branch pin on the role (`ref` Equals `refs/heads/main`, CI_SETUP
+3.5 step 6) comes after the first green login proof from `main`, in
+stage 12.
+
+**Report:** `stage 10 done` with how the probe ended and what the
+README's okta lines say.
+
+## Stage 11 onward -- written when you reach them
 
 These stages depend on what the earlier ones produce (the bootstrap's
 interview, the names it prints), so their exact commands are added to
@@ -794,7 +919,6 @@ this page as each one comes up. The order, and the page each follows:
 
 | Stage | What | Follows |
 | --- | --- | --- |
-| 10 | The OPA workload connection and role, in the console, from what the bootstrap prints | CI_SETUP 3.5 |
 | 11 | CI green: `verify`, `live`, the probe, one `perform` | CI_SETUP 3.8 |
 | 12 | Making things: identity, storage, a base image, an instance image, the durable machine, the group on it, the login proof | DAILY_DRIVER 3 |
 | 13 | Changing things: a modification re-baked; a membership | DAILY_DRIVER 4 |
