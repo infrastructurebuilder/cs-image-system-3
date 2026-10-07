@@ -1053,11 +1053,64 @@ needs a moment to assign one the run says `OPA carries no gid yet
 ... asking again` for up to 30 seconds. Everything else is as 10c
 says, including its Report line.
 
-**On your local machine (the host, NOT the container), after "10c
-again" succeeds: the reference configuration proves the fix changed
-nothing for groups that stand.** Its `develop` is already on
-0.1.1.dev16 (Claude did that; CI checks it). Two steps there, both
-yours because one can apply and the other moves `main`:
+**What happened (2026-10-07): the run FAILED again, one step earlier,
+and again it was the system's fault** (finding F24). Before it plans,
+the identity runner asks the root's terraform state which attachments
+are stale (the `prune-attachments` line). A tree that has never
+applied has no state at all; `tofu state list` then answers `No state
+file was found!`, and the step took that for a failure. Nothing was
+created and nothing was removed. The reference configuration never met
+this: its roots had state long before the prune step existed. The fix
+(stage 85: no state yet means nothing to prune) is in 0.1.1.dev17.
+Leave the tree as it is.
+
+**On your local machine (the host, NOT the container): cut release
+0.1.1.dev17** (only after Claude says stage 85 is merged). The dev16
+box above, one number on; again the system repository's checkout, not
+the walk tree:
+
+```sh
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3      # the system repository (this walk's path)
+git checkout develop && git pull
+git status --short                                         # nothing listed
+git log --oneline -1                                       # the stage 85 squash: "The first identity apply ... nothing to prune"
+curl -s -o /dev/null -w '%{http_code}\n' https://test.pypi.org/legacy/   # 200: the index can take an upload
+just release dev test yes                                  # dry: it would cut 0.1.1.dev17
+just release dev test                                      # the bar (about 25 minutes), the upload, the commit, the tag
+git push --follow-tags
+git checkout feature/walk-daily-driver                     # brings this document back
+```
+
+**Report:** `dev17 pushed`. Claude then confirms the release on the
+index and takes it into the reference configuration.
+
+**10c a third time, on 0.1.1.dev17** (only after Claude says the
+release is out). In the container:
+
+```sh
+cd /walk/cs-image-system-walk
+uv tool install --index-url https://test.pypi.org/simple/ \
+  --extra-index-url https://pypi.org/simple/ "cs-image-system==0.1.1.dev17"
+uv tool list                               # cs-image-system v0.1.1.dev17
+cs-image-system init-config . --force      # .csis-version; anything else it names
+aws sts get-caller-identity                # keys live?
+just validate
+just dry identity
+just run identity
+```
+
+What is new this time: where the last run stopped, this one says
+`the root has no state yet (its first apply); nothing to prune` and
+goes on to the plan. From there it is the run described above: the
+gid lookup deferred to the apply, then everything 10c says, including
+its Report line (say `stage 10c done`).
+
+**On your local machine (the host, NOT the container), after "10c a
+third time" succeeds: the reference configuration proves the two
+fixes changed nothing for groups that stand.** Its `develop` is on
+0.1.1.dev17 by then (Claude does that when the release is out; CI
+checks it). Two steps there, both yours because one can apply and the
+other moves `main`:
 
 ```sh
 aws sso login --profile noaa                 # if your local session has lapsed
@@ -1071,9 +1124,10 @@ git fetch origin && git push origin origin/develop:main
 
 `just run identity` is a real run, but its five groups stand, so the
 gid lookup is read at plan time exactly as before and the plan must
-say `No changes`. If it shows ANY change, stop and paste it: that
-would mean the fix altered a standing tree. The last line moves the
-reference's `main`; its `perform` then runs on dev16 with nothing to
+say `No changes`; the prune step lists a state that exists, as it
+always has. If the run shows ANY change, stop and paste it: that
+would mean a fix altered a standing tree. The last line moves the
+reference's `main`; its `perform` then runs on dev17 with nothing to
 bake.
 
 **Report:** `reference identity: no changes` and `reference main
@@ -1207,4 +1261,4 @@ the daily driver's words at the end of the stage, or filed as code.
 | F21 | the starter workflows are ageing: `ubuntu-latest` moves to Ubuntu 26 from 2026-10-19 (unproved there), five actions target the deprecated Node 20, and `setup-uv`'s cache key matches no file in a configuration repository | starter: hygiene XII item 7 |
 | F22 | the system cannot create a NEW group in OPA: the identity root looks the group's gid up at plan time, before the group exists, and the creating plan fails | code: stage 84 |
 | F23 | the guide (3.5 step 4) and the probe workflow's header say a DRAFT connection "validates the token and issues nothing usable"; run against a draft, the probe's own success line says the connection "accepted this run's token and issued one" | words |
-| F24 | the first identity apply of a new tree stops at the prune step: a root with no state yet makes `tofu state list` fail ("No state file was found"), and the step treats that as an error | code: stage 85 |
+| F24 | the first identity apply of a new tree stops at the prune step: a root with no state yet makes `tofu state list` fail ("No state file was found"), and the step treats that as an error | code: stage 85, released in 0.1.1.dev17 |
