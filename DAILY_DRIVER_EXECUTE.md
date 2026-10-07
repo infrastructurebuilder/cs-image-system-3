@@ -1027,6 +1027,32 @@ needs a moment to assign one the run says `OPA carries no gid yet
 ... asking again` for up to 30 seconds. Everything else is as 10c
 says, including its Report line.
 
+**On your local machine (the host, NOT the container), after "10c
+again" succeeds: the reference configuration proves the fix changed
+nothing for groups that stand.** Its `develop` is already on
+0.1.1.dev16 (Claude did that; CI checks it). Two steps there, both
+yours because one can apply and the other moves `main`:
+
+```sh
+aws sso login --profile noaa                 # if your local session has lapsed
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-testconfig    # the reference configuration's checkout (this walk's path)
+git pull --ff-only
+source .envrc && export AWS_PROFILE=noaa
+just run identity                            # expect: No changes. for both identity roots
+git push
+git fetch origin && git push origin origin/develop:main
+```
+
+`just run identity` is a real run, but its five groups stand, so the
+gid lookup is read at plan time exactly as before and the plan must
+say `No changes`. If it shows ANY change, stop and paste it: that
+would mean the fix altered a standing tree. The last line moves the
+reference's `main`; its `perform` then runs on dev16 with nothing to
+bake.
+
+**Report:** `reference identity: no changes` and `reference main
+moved`.
+
 **10f. Let the bootstrap check again.** `just bootstrap`, Enter at
 every question (the Okta section asks OPA again; the bucket question
 now offers `y`). Then:
