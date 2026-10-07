@@ -906,7 +906,7 @@ is longer than its work and its boxes are not all still to do:
 | 10d, 10e | done |
 | the releases 0.1.1.dev16 and 0.1.1.dev17 | cut; both are on the index |
 | "10c, the run, on 0.1.1.dev17" | done 2026-10-07: `walk_team` exists in OPA; CI green |
-| **"The reference configuration's proof"** (your local machine) | **NEXT: start there** |
+| **"The reference configuration's proof"** (your local machine) | step 1 done 2026-10-07 (`No changes`); **NEXT: its step 2** |
 | 10f | last |
 
 Your next command is in the box titled "On your local machine (the
@@ -1195,7 +1195,9 @@ a tree whose groups already stand. The reference configuration's
 its CI green). Both steps are yours: the first is a real run there
 and the second moves its `main`.
 
-1. Run its identity lifecycle for real, and read the plan:
+1. (DONE 2026-10-07: `No changes`; what happened is under the
+   Report line.) Run its identity lifecycle for real, and read the
+   plan:
 
    ```sh
    aws sso login --profile noaa                 # your local machine's own session; it HAD lapsed when this was written
@@ -1238,6 +1240,17 @@ and the second moves its `main`.
 
 **Report:** `reference identity: no changes` and `reference main
 moved`; or the plan you saw.
+
+**What happened at step 1 (2026-10-07): no changes.** The plan read
+the five gids at plan time (`data.external.group_gids: Read
+complete`), said `No changes. Your infrastructure matches the
+configuration.`, passed the gate and applied nothing; each group's
+CI login policy was `unchanged`; `Run 2026_10_07t09_03_31_416124
+completed: identity`, its record committed as 682b41c. The run's
+summary counts `stale: 3` and `unavailable: 1`: both stood before
+the run (the dry run that took dev17 counted the same) and neither
+is drift. Neither fix altered a standing tree. Step 2 is what is
+left.
 
 **10f. Let the bootstrap check again.** `just bootstrap`, Enter at
 every question (the Okta section asks OPA again; the bucket question
