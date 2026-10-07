@@ -1331,12 +1331,19 @@ group builder's names.
    grep -n -A3 '^- \*\*okta\*\*' generated/bootstrap/README.md
    ```
 
-   The `grep` should show the connection `exists (active: yes;
-   requires this repository: yes)` and the role `exists (bound to
-   ...: yes; pinned to `main`: no); named on `opa-groups`: yes`. If
-   `git status` lists any other file under `generated/bootstrap/`,
-   stop and paste it: the root itself would have changed, and
-   nothing in this stage should change it.
+   The `grep` prints the heading and three lines. Two have changed:
+   the connection `exists (active: yes; requires this repository:
+   yes)`, and the role `exists (bound to ...: yes; pinned to `main`:
+   no); named on `opa-groups`: yes`. The third is the Okta API
+   services app's, and it reads as it did before: `authenticates
+   with its key; read scopes only: yes; its own record readable:
+   no`. That `no` is expected and is not a fault: the app holds only
+   read scopes for users and groups, so it cannot read its own
+   record (the README's "By hand, still" list keeps the request to
+   the org's Okta admins that follows from it). If `git status`
+   lists any other file under `generated/bootstrap/`, stop and paste
+   it: the root itself would have changed, and nothing in this stage
+   should change it.
 
 3. Record it and let CI look:
 
