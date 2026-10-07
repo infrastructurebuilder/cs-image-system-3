@@ -622,9 +622,9 @@ starter's `.gitignore` ignores every dotfile unless named.)
    reached it and CONFIRMED live at the walk's stage 9f (2026-10-06:
    `Plan: 0 to add, 0 to change, 4 to destroy`; not applied -- the
    walk made the root forget the four with `tofu state rm`). When the
-   bootstrap
-   creates the state bucket, the guide has the operator run the
-   interview again so the root binds to it. But `state_bucket_exists`
+   bootstrap creates the state bucket, the guide has the operator run
+   the interview again so the root binds to it. But
+   `state_bucket_exists`
    is a choice, not an observation, so the second interview still
    offers "no"; and answering "yes" makes the module's four bucket
    resources `count = 0` while they sit in the root's state, so the
