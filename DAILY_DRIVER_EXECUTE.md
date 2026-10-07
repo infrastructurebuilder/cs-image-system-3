@@ -1411,7 +1411,8 @@ the way 3.2 says; then `perform` has a state to read.
 | 11c, step 4 (the second `perform`) | ran 2026-10-07 and ended RED in the base image's bake again, for another reason (finding F29); nothing was left behind |
 | the fix for F29 and F28 (stage 86) | merged 2026-10-07; it needs release 0.1.1.dev18 |
 | 11d, first attempt | 0.1.1.dev18 was cut from the walk branch, and step 2 was typed on the local machine (F31, F32); repaired, nothing lost |
-| **11d. Release 0.1.1.dev19 from `develop`, take it, the third `perform`** | **NEXT: start there** (its step 1 is on your local machine) |
+| 11d, step 1 (release 0.1.1.dev19 from `develop`) | done 2026-10-07: cut on `develop`, tagged there, all 18 packages on the index; the stray tool is gone from your machine |
+| **11d, step 2** (the container: the walk takes 0.1.1.dev19) | **NEXT: start there**, then steps 3 and 4 |
 
 **11a. The storage.** In the container. One 100 GB encrypted gp3
 EBS volume named `data`, in the availability zone of the runtime's
@@ -1782,8 +1783,13 @@ fingerprint changes, so nothing that stands needs to bake again.
    index and that it is on `develop` this time, takes it into the
    reference configuration, then says go for step 2.
 
-2. **In the container: the walk takes the release.** Only after
-   Claude says the release is out. Open the container the way stage
+   (DONE 2026-10-07: release commit 1ad6978 is on `develop` with the
+   tag `v0.1.1.dev19`; 18 of 18 packages are on the index. Go for
+   step 2. The reference configuration takes the release separately
+   and nothing in steps 2 to 4 waits for it.)
+
+2. **In the container: the walk takes the release.** The release is
+   out (see above). Open the container the way stage
    1 does (`docker exec -it -u mykel.alvis csis-walk bash -l`, from
    your local terminal); its prompt reads `[mykel.alvis@csis-walk
    ...]$`. `develop` first takes the two records the second failed
