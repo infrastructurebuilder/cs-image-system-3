@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TypeVar, cast
 
 from cs_image_system.base.basic.asset import AssetSet
+from cs_image_system.base.bake_steps import execute_command_line
 
 from .ansible_models import ANSIBLE_BUILDER, ANSIBLE_EXECUTABLE, AnsibleBuilderModel, AnsibleModItemModel, AnsiblePackerModBuilderModel
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
@@ -88,6 +89,7 @@ class AnsiblePackerModBuilder(ModBuilderBase[Q]):
             # the docker mod-test harness).
             retval.add(path, 'provisioner "shell" {')
             retval.add(path, f'  only = ["{label}"]')
+            retval.add(path, execute_command_line("  "))     # stage 86: a held package database is waited out
             retval.add(path, '  inline = [')
             retval.add(path, '    "test -x /usr/local/bin/csis-ansible-python || { for v in 3.12 3.11 3.9; do command -v python$v >/dev/null 2>&1 && break; sudo dnf -y install python$v >/dev/null 2>&1 && break; done; P=$(ls /usr/bin/python3.[0-9]* 2>/dev/null | grep -v config | sort -V | tail -1); [ -n \\\"$P\\\" ] || P=$(command -v python3); sudo ln -sf \\\"$P\\\" /usr/local/bin/csis-ansible-python; }",')
             retval.add(path, '  ]')

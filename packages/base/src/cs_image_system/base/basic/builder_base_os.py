@@ -272,6 +272,7 @@ class OsBuilderBase(BuilderBase[TOS]):
         hook outright (e.g. an ansible-based update).
         """
         items = AssetSet()
+        from ..bake_steps import execute_command_line
         from ..models.update_policy import POLICY_FULL, UpdatePolicy, manifest_commands
         subconfig = image.get_image_runtime_subconfig_for_runtime(
             image_builder.model.get_runtime_provider())
@@ -300,6 +301,7 @@ class OsBuilderBase(BuilderBase[TOS]):
             f"pin={dict(policy.pin)}, {self.get_type()})",
             '  provisioner "shell" {',
             f'    only   = ["{build_target_label_of(image_builder, image)}"]',
+            execute_command_line("    "),      # stage 86: a held package database is waited out
             f"    inline = [{quoted}]",
             "  }",
         ])
