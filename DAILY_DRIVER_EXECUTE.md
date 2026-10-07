@@ -24,22 +24,30 @@ machine says so in its first words, and says that it is NOT the
 container.
 
 **Watching CI.** After a `git push` or a `gh workflow run`, GitHub
-takes a moment to start the run, so this page waits (`sleep 5`) and
-then PICKS the run itself, by the commit you just pushed, and names it
-to every later command. Never run a bare `gh run watch` or `gh run
-view`: with no run named, `gh` asks you to choose among the recent
-runs, and they look alike. The three lines, wherever they appear:
+takes several seconds to register the run. So this page never asks you
+to wait and look: its commands wait themselves, asking every five
+seconds for up to a minute until the run for the commit you just
+pushed exists, and only then watch it. Wherever a push is followed by
+CI, these are the lines:
 
 ```sh
-sleep 5
-run=$(gh run list --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId'); echo "run $run"
-gh run watch "$run"
+run=""
+for i in $(seq 12); do
+  sleep 5
+  run=$(gh run list --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+  [ -n "$run" ] && break
+done
+echo "run ${run:-NOT FOUND after 60 seconds}"
+[ -n "$run" ] && gh run watch "$run"
 ```
 
-Five seconds is the least that works: with two, the run was often not
-there yet. If `echo` still prints `run` with no number, wait a few
-seconds more and repeat the `run=` line. If you are ever at the
-chooser anyway, the right run is the TOP one whose title is your last
+They never call `gh run watch` without a run, so `gh` never shows its
+chooser of recent runs (which look alike). If they print `run NOT
+FOUND after 60 seconds`, no run started for that commit: the push did
+not trigger the workflow, and that is worth reporting. `$run` stays
+set for the `gh run view "$run"` lines that follow. Never run a bare
+`gh run watch` or `gh run view`; if you are ever at the chooser
+anyway, the right run is the TOP one whose title is your last
 commit's message.
 
 **What Claude can see.** Every command you type in an interactive shell
@@ -527,9 +535,14 @@ on, and it waits for stage 11.
 just dry                                 # the workflow is not part of the emission, but prove the tree still generates
 git add -A && git commit -m "The workflow's values"
 git push -u origin develop
-sleep 5                                  # GitHub takes a moment to start the run
-run=$(gh run list --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId'); echo "run $run"
-gh run watch "$run"
+run=""
+for i in $(seq 12); do
+  sleep 5
+  run=$(gh run list --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+  [ -n "$run" ] && break
+done
+echo "run ${run:-NOT FOUND after 60 seconds}"
+[ -n "$run" ] && gh run watch "$run"
 ```
 
 Expected (CI_SETUP 3.8 step 1): the `verify` job green -- the release
@@ -847,9 +860,14 @@ gh secret list                                 # names only
 just dry                                       # regenerates generated/bootstrap from bootstrap.yaml
 git add -A && git status --short               # bootstrap.yaml and generated/bootstrap/ are committed; no secret file is listed
 git commit -m "The bootstrap: roles, state bucket, repository settings" && git push
-sleep 5                                        # GitHub takes a moment to start the run
-run=$(gh run list --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId'); echo "run $run"
-gh run watch "$run"
+run=""
+for i in $(seq 12); do
+  sleep 5
+  run=$(gh run list --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+  [ -n "$run" ] && break
+done
+echo "run ${run:-NOT FOUND after 60 seconds}"
+[ -n "$run" ] && gh run watch "$run"
 ```
 
 Expected: `verify` green, and `live` now RUNS, because its secrets
@@ -966,15 +984,22 @@ the fix is being released. Until then:
   after 10e takes the release and repeats the run.
 
 **10d. The probe.** It presents this repository's GitHub token to the
-draft connection and stops; against a draft OPA validates the token and
-issues nothing usable.
+draft connection and stops. (The guide says a draft "issues nothing
+usable"; when this was run, the draft did return a token: finding
+F23.)
 
 ```sh
+start=$(date -u +%Y-%m-%dT%H:%M:%SZ)          # only a run created after this is the one you dispatch
 gh workflow run opa-workload-probe.yml --ref develop \
   -f connection=github-cs-image-system-walk -f role=cs-image-system-walk-ci
-sleep 5                                     # GitHub takes a moment to start the run
-run=$(gh run list --workflow opa-workload-probe.yml --limit 1 --json databaseId --jq '.[0].databaseId'); echo "run $run"
-gh run watch "$run"
+run=""
+for i in $(seq 12); do
+  sleep 5
+  run=$(gh run list --workflow opa-workload-probe.yml --limit 1 --json databaseId,createdAt --jq "[.[] | select(.createdAt >= \"$start\")][0].databaseId // empty")
+  [ -n "$run" ] && break
+done
+echo "run ${run:-NOT FOUND after 60 seconds}"
+[ -n "$run" ] && gh run watch "$run"
 gh run view "$run" --log | grep -iE 'claim|verdict|valid|refus|error' | tail -20
 ```
 
