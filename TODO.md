@@ -10,7 +10,9 @@ system must not take itself.
 Current stage: **§65**, walking the daily driver, started 2026-10-05
 on `feature/walk-daily-driver`: the operator types each stage from
 [DAILY_DRIVER_EXECUTE.md](DAILY_DRIVER_EXECUTE.md) on a Fedora 43
-container. §81, hygiene bundle XII, is open (eleven items the walk
+container. §86, a bake waits for the package database, is IN
+PROGRESS (the walk's second `perform` failed on it). §81, hygiene
+bundle XII, is open (eleven items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15, taken by the reference configuration, its
@@ -598,11 +600,10 @@ the first final version on PyPI (§41's open call).
 
 **Status: OPEN 2026-10-05, eleven items found by the §65 walk. Items
 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
-the operator's word; items 1, 2 and 5 to 11 are a plan -- nothing
-more runs until the operator says "do 81". Item 7(a) has a date:
-2026-10-19. Item 10 stands in the way of the walk's second
-repository (`standard-aws-posix`) unless that tree is edited by hand
-as the first was.**
+the operator's word. Items 10 and 11 were taken out of the plan by
+the operator on 2026-10-07 ("Fix now, starters too") and are being
+built as §86. Items 1, 2 and 5 to 9 are a plan -- nothing more runs
+until the operator says "do 81". Item 7(a) has a date: 2026-10-19.**
 
 1. **A starter's own hook refuses its first commit.** The tree
    `init-config` writes carries the copyright holder's address in the
@@ -711,35 +712,7 @@ starter's `.gitignore` ignores every dotfile unless named.)
    have applied once. A test: a tree whose storage root has no
    state, a performing run, the bakes recorded and the run green
    with the note.
-10. **Three starters test their base image for a package no base
-    has.** The walk's finding F28, seen in its first `perform`
-    (run 37645069158, 2026-10-07): `standard-aws`,
-    `standard-aws-posix` and `standard-gce` declare `tests:
-    packages: [git]` on the OS builder. A base image takes no
-    modifications and the vendor's AlmaLinux 10 image carries no
-    git, so the first base bake of any tree made from them fails its
-    own in-bake test after five minutes ("package git is not
-    installed"); git is installed by the image's playbook, where the
-    image's test already checks it. No starter was ever baked, so
-    nothing caught it. Fixed looks like: each starter's base test
-    names what its own bake installs (`scaleft-server-tools` where
-    `identity_types` has `okta`, the session agent in the posix
-    starter, `google-guest-agent` alone on GCE), CONFIGURATION 5.3
-    says a base test may assert only what the base bake or the
-    vendor image provides, and a contract test refuses a starter
-    whose base test names a package nothing on the base provides
-    (the provisioners know what they install).
-11. **A bake's first package step races the build machine's boot
-    script.** The walk's finding F29, same run: the boot script
-    installs the session agent with `dnf`, the agent starts inside
-    that transaction, packer connects at once, and the update's
-    first attempt failed its key import on "can't create transaction
-    lock on /usr/lib/sysimage/rpm/.rpm.lock". It passed because the
-    update step alone retries once; a tree whose update policy is
-    `none` meets the lock in a step that does not. Fixed looks like:
-    the first provisioner waits, bounded, for the boot script to end
-    (`cloud-init status --wait`, or the lock free) before any
-    package work, on every family; a container test of the wait.
+10. (Taken as §86, with item 11, on 2026-10-07.)
 
 ## 83. A release asks its publish target before it starts
 
@@ -825,3 +798,57 @@ probe.
 
 **Sizing**: the script and its tests half a day; the recipes and the
 contract test two hours.
+
+## 86. A bake waits for the package database
+
+**Status: IN PROGRESS 2026-10-07 on `feature/bake-waits-for-packages`,
+by the operator's word ("Fix now, starters too") after the walk's
+second `perform` failed on it. It carries hygiene XII items 10 and 11
+(the walk's findings F28 and F29); the release that carries it is
+dev18.**
+
+**Why.** The walk's first two `perform` runs both lost their base
+bake. The second (run 37652881489, 2026-10-07) stopped at `rpm
+--import`: "can't create transaction lock on
+/usr/lib/sysimage/rpm/.rpm.lock (Resource temporarily unavailable)".
+The account's Systems Manager holds "Quick Setup" associations that
+target every instance -- `AWS-UpdateSSMAgent` twice,
+`AWS-RunPatchBaselineAssociation`, `AWS-GatherSoftwareInventory` --
+and AWS's record shows them firing on each build machine within forty
+seconds of launch, while packer provisions. `rpm` waits for a held
+transaction lock only when stdin is a terminal, so in a bake it fails
+at once. The first run (37645069158) met the same lock in the update
+step, which alone tries twice, and then failed on the starter's base
+test (F28). The reference configuration bakes in the same account
+under the same associations: its bakes have been winning a race.
+
+1. **Every bake settles first.** The first provisioner of every build
+   block, base and instance image, waits, bounded, for the machine's
+   own first-boot script (`cloud-init status --wait`) and for the
+   runtime's fleet management to go quiet: a new runtime hook,
+   `bake_settle_commands`, which the AWS runtime answers for Session
+   Manager (no document worker and no agent updater for thirty
+   seconds, and never before the machine is ninety seconds old). On
+   its bound it says so and goes on.
+2. **A package step waits out a busy database.** The same first
+   provisioner writes a small step runner to `/run` (a tmpfs: never in
+   the image), and every shell provisioner the system emits runs its
+   script through it. A step that fails AND whose output says the
+   package database was held (`transaction lock`, `Could not get
+   lock`, the dpkg frontend lock) is run again after a wait, a bounded
+   number of times; any other failure fails at once, as today. A
+   modification that names its own `execute_command` keeps it.
+3. **The starters' base tests** (item 10): `standard-aws` asserts the
+   OPA agent's package, `standard-aws-posix` the session agent's,
+   `standard-gce` the guest agent alone; none asserts `git`, which no
+   base carries. A test holds every starter to it.
+4. Tests: the step runner against a step that fails busy twice and
+   then passes, one that fails for another reason, one that never
+   stops being busy; the settle against a stand-in `/proc`; the golden
+   moves once, read by hand. Proof: the walk's third `perform` bakes
+   both images.
+
+Not in this stage: an ansible task that meets the lock inside a
+playbook (the settle makes it unlikely; the playbook is the team's).
+The words -- OPERATIONS, "When a bake fails", and the daily driver's
+failure table -- are owed by §65.

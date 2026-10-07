@@ -1400,7 +1400,9 @@ the way 3.2 says; then `perform` has a state to read.
 | --- | --- |
 | 11a. The storage | done 2026-10-07: the volume exists, its state is in the bucket, CI green |
 | 11b. The first `perform` | ran 2026-10-07 and ended RED in the base image's bake (finding F28); nothing was left behind |
-| **11c. The base image's test, then the second `perform`** (the container) | **NEXT: start there** |
+| 11c, steps 1-3 (the records, the base test, CI on `develop`) | done 2026-10-07 |
+| 11c, step 4 (the second `perform`) | ran 2026-10-07 and ended RED in the base image's bake again, for another reason (finding F29); nothing was left behind |
+| **Nothing for you yet** | Claude is fixing F29 in the system (stage 86, your decision); the next box, 11d, is written when the fix is merged |
 
 **11a. The storage.** In the container. One 100 GB encrypted gp3
 EBS volume named `data`, in the availability zone of the runtime's
@@ -1672,6 +1674,39 @@ installed): that is the package to assert.
 printed, the first three lines of the `git log`, and the last line
 of the state query; or `red`.
 
+**What happened at 11c (2026-10-07): steps 1-3 worked, and the
+second `perform` ended red, again the system's fault** (finding
+F29). Run 37652881489 on `main`. The base image's bake got through
+its update, made the admin user, and then its third step, the one
+that installs the OPA agent, stopped at its first package command:
+`error: can't create transaction lock on
+/usr/lib/sysimage/rpm/.rpm.lock (Resource temporarily unavailable)`.
+Packer stopped after 3 minutes 37 seconds and removed everything;
+AWS shows no machine and no image left. The closing record was
+pushed: `main` is again two record commits ahead of `develop`. Your
+edit was right, and the run never reached the test it changed.
+
+Who held the lock: this AWS account. Its Systems Manager has
+"Quick Setup" associations that target EVERY instance: two that
+update the session agent, one that scans for patches, one that takes
+inventory. On both build machines they fired within forty seconds of
+boot (AWS's own record shows them, on each machine, at the second),
+which is while packer is provisioning, and they use the package
+database the bake is using. `rpm` waits for a busy database only
+when a person is at a terminal; in a bake it gives up at once. The
+first `perform` met the same collision in its update step and passed
+it only because that one step tries twice.
+
+The steps of a bake are written by the system, not by your tree, so
+there is nothing here for you to edit. By your decision (2026-10-07,
+"Fix now, starters too") the fix is being made now: stage 86. A bake
+will first wait for the machine's own first-boot work and the
+account's fleet management to finish, and every package step will
+wait out a busy database instead of failing. The starters' base test
+(F28) is corrected in the same release, 0.1.1.dev18. When it is
+merged, a box 11d appears here: you cut the release on your local
+machine, the walk takes it, and the third `perform` follows.
+
 The fifth proof of 3.8, the login proof AS the workload and then the
 branch pin on the role, needs a machine to log into: it is in stage
 12, after the launch.
@@ -1788,6 +1823,6 @@ the daily driver's words at the end of the stage, or filed as code.
 | F26 | PREDICTED, not run (the operator chose to apply the storage first): the first `perform` of a tree made from the starter fails after its bakes. The instance root reads its storage root's state, a performing run plans the instance root, and the guide's order (CI_SETUP 3.8 step 4 before the daily driver's section 3) reaches `perform` before any storage run, so the plan stops with `Unable to find remote state`. Reproduced on a scratch root; the walk's bucket held no storage state | code and words: hygiene XII item 9 |
 | F27 | CI_SETUP 3.2 and 3.8 say "merge `develop` into `main`"; a repository made from nothing has no `main` on GitHub (the bootstrap sets the default branch and the ruleset, it does not create the branch), so the first `perform` is a push that creates it; and the branch the repository was created with (`master` here) stays behind, unused and unmentioned | words |
 | F28 | the starters `standard-aws`, `standard-aws-posix` and `standard-gce` test their BASE image for the package `git`, which nothing installs on a base (the vendor's AlmaLinux 10 image has none; a base takes no modifications; git comes from the image's playbook). The first base bake of a tree made from them fails its own test after five minutes: `package git is not installed`. Seen in the walk's first `perform` | starter: hygiene XII item 10 |
-| F29 | a bake's first package operation can race the build machine's own boot script: the update's first attempt failed its key import on `can't create transaction lock on /usr/lib/sysimage/rpm/.rpm.lock` and the bake survived only because that one step retries once; no other step does | code: hygiene XII item 11 |
+| F29 | a bake's package steps race the AWS account's own fleet management. Systems Manager "Quick Setup" associations that target every instance (agent update, patch scan, inventory) fire on a build machine within forty seconds of boot and hold the package database; `rpm` does not wait for it without a terminal. The walk's first `perform` survived it once (the update step alone retries); the second failed on it: `can't create transaction lock on /usr/lib/sysimage/rpm/.rpm.lock` | code: stage 86 (was hygiene XII item 11) |
 | F30 | expired access keys reach the operator as `Error reading config file : AWS Error: ... (RequestExpired) ... Request has expired` under a hundred-line traceback: the words blame the configuration, and the daily driver's failure table (section 6, the expired-session row) shows `Token has expired` and `a session has EXPIRED` but not `RequestExpired`, which is what temporary keys in the environment or a credentials file produce | words (and the traceback: hygiene XII, with stage 6's) |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
