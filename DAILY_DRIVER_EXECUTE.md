@@ -894,6 +894,25 @@ nothing of the reference configuration's is touched. The system never
 destroys an OPA group, so these are removed by hand at teardown
 (decision W3).
 
+**Where stage 10 stands (2026-10-07).** The stage was interrupted
+twice by defects in the system, each fixed by a release, so its text
+is longer than its work and its boxes are not all still to do:
+
+| Part | State |
+| --- | --- |
+| 10a, 10b | done |
+| 10c, steps 1-3 (the three edits) | done, committed and pushed |
+| 10c, step 4 (the run) | failed twice: F22 on 0.1.1.dev15, F24 on 0.1.1.dev16 |
+| 10d, 10e | done |
+| the releases 0.1.1.dev16 and 0.1.1.dev17 | cut; both are on the index |
+| **"10c, the run, on 0.1.1.dev17"** | **NEXT: start there** |
+| the reference configuration's proof | after that run succeeds |
+| 10f | last |
+
+Your next command is in the box titled "10c, the run, on
+0.1.1.dev17"; every box above it is finished or superseded and is
+kept as the record of what happened.
+
 **10a. The workload connection, as a DRAFT** (you, in the OPA console;
 it needs the DevOps-admin role). DevOps Administration, Workload
 connections, Create Workload Connection:
@@ -917,7 +936,10 @@ Security Administration, Workload roles: name
 conditions yet. Do not create any security policy by hand: the system
 makes one per group.
 
-**10c. The names into the tree, and the first real run.**
+**10c. The names into the tree, and the first real run.** (Steps 1-3
+are DONE and pushed. Step 4's run is NOT repeated from here: it needs
+a newer release than this box installs. Go to "10c, the run, on
+0.1.1.dev17" below, which installs the release and then runs.)
 
 1. In `cfg/group-builders.yml`, on the `opa-groups` builder, beside
    `team:`, add:
@@ -1010,7 +1032,7 @@ system refuses the login proof when either object is absent or the
 connection is still a draft.
 
 **On your local machine (the host, NOT the container): cut release
-0.1.1.dev16.** The fix for F22 is merged to the system repository's
+0.1.1.dev16.** (DONE 2026-10-07.) The fix for F22 is merged to the system repository's
 `develop` (stage 84); a release carries it to the walk. This is the
 system repository's checkout, not the walk tree:
 
@@ -1032,8 +1054,8 @@ into the release: if it does not print 200, do not start.
 **Report:** `dev16 pushed`. Claude then confirms the release on the
 index and takes it into the reference configuration.
 
-**10c again, on 0.1.1.dev16** (only after Claude says the release is
-out). In the container:
+**10c again, on 0.1.1.dev16.** (DONE 2026-10-07: it failed, see
+below. Do not repeat it; 0.1.1.dev17 replaces it.) In the container:
 
 ```sh
 cd /walk/cs-image-system-walk
@@ -1065,9 +1087,8 @@ this: its roots had state long before the prune step existed. The fix
 Leave the tree as it is.
 
 **On your local machine (the host, NOT the container): cut release
-0.1.1.dev17** (only after Claude says stage 85 is merged). The dev16
-box above, one number on; again the system repository's checkout, not
-the walk tree:
+0.1.1.dev17.** (DONE 2026-10-07.) The dev16 box above, one number
+on; again the system repository's checkout, not the walk tree:
 
 ```sh
 cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3      # the system repository (this walk's path)
@@ -1084,32 +1105,82 @@ git checkout feature/walk-daily-driver                     # brings this documen
 **Report:** `dev17 pushed`. Claude then confirms the release on the
 index and takes it into the reference configuration.
 
-**10c a third time, on 0.1.1.dev17** (only after Claude says the
-release is out). In the container:
+**10c, the run, on 0.1.1.dev17.** In the container. The release is
+out (all 18 packages are on the index, 2026-10-07). 10c's three edits
+are already in the tree and pushed; what is left is its step 4, the
+run, and the new release comes first.
 
-```sh
-cd /walk/cs-image-system-walk
-uv tool install --index-url https://test.pypi.org/simple/ \
-  --extra-index-url https://pypi.org/simple/ "cs-image-system==0.1.1.dev17"
-uv tool list                               # cs-image-system v0.1.1.dev17
-cs-image-system init-config . --force      # .csis-version; anything else it names
-aws sts get-caller-identity                # keys live?
-just validate
-just dry identity
-just run identity
-```
+1. Take the release. The tool in the container is still 0.1.1.dev16
+   and `.csis-version` says the same; these lines move both:
 
-What is new this time: where the last run stopped, this one says
-`the root has no state yet (its first apply); nothing to prune` and
-goes on to the plan. From there it is the run described above: the
-gid lookup deferred to the apply, then everything 10c says, including
-its Report line (say `stage 10c done`).
+   ```sh
+   cd /walk/cs-image-system-walk
+   uv tool install --index-url https://test.pypi.org/simple/ \
+     --extra-index-url https://pypi.org/simple/ "cs-image-system==0.1.1.dev17"
+   uv tool list                               # cs-image-system v0.1.1.dev17
+   cs-image-system init-config . --force      # writes .csis-version; names anything else it writes
+   cat .csis-version                          # 0.1.1.dev17
+   ```
 
-**On your local machine (the host, NOT the container), after "10c a
-third time" succeeds: the reference configuration proves the two
-fixes changed nothing for groups that stand.** Its `develop` is on
-0.1.1.dev17 by then (Claude does that when the release is out; CI
-checks it). Two steps there, both yours because one can apply and the
+   If `uv tool list` or `cat` still shows dev16, stop and say so.
+
+2. The run, with the rhythm of section 3:
+
+   ```sh
+   aws sts get-caller-identity                # keys live? the roots' state is in the bucket
+   just validate
+   just dry identity
+   just run identity
+   ```
+
+   Where the last run stopped, this one says `the root has no state
+   yet (its first apply); nothing to prune` and goes on. Then, as 10c
+   describes it:
+
+   - a `Plan:` line with only additions and `0 to destroy`, in which
+     `group_gids` shows `(known after apply)`: the gid lookup now
+     waits for the group;
+   - the gate's verdict, then `Apply complete!` (if OPA needs a
+     moment to assign the gid the run says `OPA carries no gid yet
+     ... asking again`, for up to 30 seconds);
+   - a line `Group walk_team: CI login policy
+     walk_team_v1_security_policy_ci created`;
+   - `Run ... completed: identity` and a meta-state commit.
+
+   If the run fails, STOP and paste the error. Do not go on to step 3.
+
+3. Record it and let CI look. The run committed `generated/` and
+   `meta-state/` itself. The version pin is yours to commit, and CI
+   installs the release that file names, so it must go with them:
+
+   ```sh
+   git status --short                         # expect exactly one line: M .csis-version
+   git add .csis-version && git commit -m "Take release 0.1.1.dev17"
+   git push
+   run=""
+   for i in $(seq 12); do
+     sleep 5
+     run=$(gh run list --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+     [ -n "$run" ] && break
+   done
+   echo "run ${run:-NOT FOUND after 60 seconds}"
+   [ -n "$run" ] && gh run watch "$run"
+   gh run view "$run" --json conclusion,jobs --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'
+   just state-query                           # walk_team: admins, a gid, the token live, the CI policy
+   ```
+
+   If `git status --short` lists anything besides `.csis-version`,
+   paste it before you commit.
+
+**Report:** `stage 10c done` with the `Plan:` line, the `CI login
+policy` line, the last line of the run, and what the `gh run view`
+line printed; or the error.
+
+**On your local machine (the host, NOT the container), after "10c,
+the run, on 0.1.1.dev17" succeeds: the reference configuration
+proves the two fixes changed nothing for groups that stand.** Its
+`develop` is on 0.1.1.dev17 (Claude did that, 2026-10-07; its CI is
+green). Two steps there, both yours because one can apply and the
 other moves `main`:
 
 ```sh
