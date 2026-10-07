@@ -983,6 +983,29 @@ Green is the proof the claims match.
 system refuses the login proof when either object is absent or the
 connection is still a draft.
 
+**On your local machine (the host, NOT the container): cut release
+0.1.1.dev16.** The fix for F22 is merged to the system repository's
+`develop` (stage 84); a release carries it to the walk. This is the
+system repository's checkout, not the walk tree:
+
+```sh
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3      # the system repository (this walk's path)
+git checkout develop && git pull
+git status --short                                         # nothing listed
+curl -s -o /dev/null -w '%{http_code}\n' https://test.pypi.org/legacy/   # 200: the index can take an upload
+just release dev test yes                                  # dry: it would cut 0.1.1.dev16
+just release dev test                                      # the bar (about 25 minutes), the upload, the commit, the tag
+git push --follow-tags
+git checkout feature/walk-daily-driver                     # brings this document back
+```
+
+While you are on `develop` this document is not in the working tree;
+that is expected. The `curl` line is the check stage 83 will build
+into the release: if it does not print 200, do not start.
+
+**Report:** `dev16 pushed`. Claude then confirms the release on the
+index and takes it into the reference configuration.
+
 **10c again, on 0.1.1.dev16** (only after Claude says the release is
 out). In the container:
 
