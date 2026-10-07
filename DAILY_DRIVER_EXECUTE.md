@@ -1402,7 +1402,8 @@ the way 3.2 says; then `perform` has a state to read.
 | 11b. The first `perform` | ran 2026-10-07 and ended RED in the base image's bake (finding F28); nothing was left behind |
 | 11c, steps 1-3 (the records, the base test, CI on `develop`) | done 2026-10-07 |
 | 11c, step 4 (the second `perform`) | ran 2026-10-07 and ended RED in the base image's bake again, for another reason (finding F29); nothing was left behind |
-| **Nothing for you yet** | Claude is fixing F29 in the system (stage 86, your decision); the next box, 11d, is written when the fix is merged |
+| the fix for F29 and F28 (stage 86) | merged 2026-10-07; it needs release 0.1.1.dev18 |
+| **11d. Release 0.1.1.dev18, take it, the third `perform`** | **NEXT: start there** (its step 1 is on your local machine) |
 
 **11a. The storage.** In the container. One 100 GB encrypted gp3
 EBS volume named `data`, in the availability zone of the runtime's
@@ -1707,6 +1708,107 @@ wait out a busy database instead of failing. The starters' base test
 merged, a box 11d appears here: you cut the release on your local
 machine, the walk takes it, and the third `perform` follows.
 
+**11d. Release 0.1.1.dev18, take it, the third `perform`.** Stage
+86 is merged. What it changes in a bake, so you know what you are
+looking at: every bake now begins with a step that waits for the
+build machine to settle (its first-boot script, and on AWS Systems
+Manager going quiet: about half a minute on a calm machine, ten
+minutes at the very most), and every package step waits out a busy
+package database instead of failing on it. No image's fingerprint
+changes, so nothing that stands needs to bake again.
+
+1. **On your local machine (the host, NOT the container): cut
+   release 0.1.1.dev18.** The system repository's checkout, not the
+   walk tree:
+
+   ```sh
+   cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3      # the system repository (this walk's path)
+   git checkout develop && git pull
+   git status --short                                         # nothing listed
+   git log --oneline -1                                       # the stage 86 squash: "A bake waits for the package database ..."
+   curl -s -o /dev/null -w '%{http_code}\n' https://test.pypi.org/legacy/   # 200: the index can take an upload
+   just release dev test yes                                  # dry: it would cut 0.1.1.dev18
+   just release dev test                                      # the bar (about 25 minutes), the upload, the commit, the tag
+   git push --follow-tags
+   git checkout feature/walk-daily-driver                     # brings this document back
+   ```
+
+   While you are on `develop` this document is not in the working
+   tree; that is expected.
+
+   **Report:** `dev18 pushed`. Claude confirms the release on the
+   index and takes it into the reference configuration, then says
+   go for step 2.
+
+2. **In the container: the walk takes the release.** Only after
+   Claude says the release is out. `develop` first takes the two
+   records the second failed run pushed to `main`:
+
+   ```sh
+   cd /walk/cs-image-system-walk
+   git status -sb                             # develop...origin/develop, nothing listed
+   git fetch origin
+   git merge --ff-only origin/main            # Fast-forward: two record commits
+   uv tool install --index-url https://test.pypi.org/simple/ \
+     --extra-index-url https://pypi.org/simple/ "cs-image-system==0.1.1.dev18"
+   uv tool list                               # cs-image-system v0.1.1.dev18
+   cs-image-system init-config . --force      # writes .csis-version; names anything else it writes
+   cat .csis-version                          # 0.1.1.dev18
+   aws sts get-caller-identity                # keys live? refresh them first if they are near an hour old
+   just validate
+   just dry
+   grep -c 'the build machine settles' generated/base-image/packer-ebs/image-generation/block-000/*-build.pkr.hcl generated/instance-image/packer-ebs/image-generation/block-000/*-build.pkr.hcl   # 1 and 1: each bake begins with the settle
+   git add -A && git commit -m "Take release 0.1.1.dev18: a bake waits for the package database"
+   git push
+   run=""
+   for i in $(seq 12); do
+     sleep 5
+     run=$(gh run list --branch develop --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+     [ -n "$run" ] && break
+   done
+   echo "run ${run:-NOT FOUND after 60 seconds}"
+   [ -n "$run" ] && gh run watch "$run"
+   gh run view "$run" --json conclusion,jobs --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'
+   ```
+
+   Your own edit to `cfg/os-builders.yml` stays: `cfg/` is yours,
+   and `init-config` does not rewrite it. If `init-config` names any
+   file other than `.csis-version`, say which. Go on only if the
+   last line prints `success`.
+
+3. **The third `perform`:**
+
+   ```sh
+   git push origin develop:main
+   run=""
+   for i in $(seq 12); do
+     sleep 5
+     run=$(gh run list --branch main --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+     [ -n "$run" ] && break
+   done
+   echo "run ${run:-NOT FOUND after 60 seconds}"
+   [ -n "$run" ] && gh run watch "$run"
+   gh run view "$run" --json conclusion,jobs --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'
+   ```
+
+   Claude watches the same run from the host and reads its log. If
+   it ends red, say `red` and stop; do not re-run it.
+
+4. Only after a green run, `develop` takes the records:
+
+   ```sh
+   git fetch origin
+   git log --oneline -4 origin/main           # the closing record, the performing run, the first record, then your commit
+   git merge --ff-only origin/main
+   git push
+   grep -E 'build_id:|series:' meta-state/lineage.yaml   # two builds, each its ami id: series el10 and series team-node
+   just state-query --strict
+   ```
+
+**Report:** `stage 11 done` with what the two `gh run view` lines
+printed, the first three lines of the `git log`, and the last line
+of the state query; or `red`.
+
 The fifth proof of 3.8, the login proof AS the workload and then the
 branch pin on the role, needs a machine to log into: it is in stage
 12, after the launch.
@@ -1822,7 +1924,7 @@ the daily driver's words at the end of the stage, or filed as code.
 | F24 | the first identity apply of a new tree stops at the prune step: a root with no state yet makes `tofu state list` fail ("No state file was found"), and the step treats that as an error | code: stage 85, released in 0.1.1.dev17 |
 | F26 | PREDICTED, not run (the operator chose to apply the storage first): the first `perform` of a tree made from the starter fails after its bakes. The instance root reads its storage root's state, a performing run plans the instance root, and the guide's order (CI_SETUP 3.8 step 4 before the daily driver's section 3) reaches `perform` before any storage run, so the plan stops with `Unable to find remote state`. Reproduced on a scratch root; the walk's bucket held no storage state | code and words: hygiene XII item 9 |
 | F27 | CI_SETUP 3.2 and 3.8 say "merge `develop` into `main`"; a repository made from nothing has no `main` on GitHub (the bootstrap sets the default branch and the ruleset, it does not create the branch), so the first `perform` is a push that creates it; and the branch the repository was created with (`master` here) stays behind, unused and unmentioned | words |
-| F28 | the starters `standard-aws`, `standard-aws-posix` and `standard-gce` test their BASE image for the package `git`, which nothing installs on a base (the vendor's AlmaLinux 10 image has none; a base takes no modifications; git comes from the image's playbook). The first base bake of a tree made from them fails its own test after five minutes: `package git is not installed`. Seen in the walk's first `perform` | starter: hygiene XII item 10 |
-| F29 | a bake's package steps race the AWS account's own fleet management. Systems Manager "Quick Setup" associations that target every instance (agent update, patch scan, inventory) fire on a build machine within forty seconds of boot and hold the package database; `rpm` does not wait for it without a terminal. The walk's first `perform` survived it once (the update step alone retries); the second failed on it: `can't create transaction lock on /usr/lib/sysimage/rpm/.rpm.lock` | code: stage 86 (was hygiene XII item 11) |
+| F28 | the starters `standard-aws`, `standard-aws-posix` and `standard-gce` test their BASE image for the package `git`, which nothing installs on a base (the vendor's AlmaLinux 10 image has none; a base takes no modifications; git comes from the image's playbook). The first base bake of a tree made from them fails its own test after five minutes: `package git is not installed`. Seen in the walk's first `perform` | starter: stage 86, released in 0.1.1.dev18 (was hygiene XII item 10) |
+| F29 | a bake's package steps race the AWS account's own fleet management. Systems Manager "Quick Setup" associations that target every instance (agent update, patch scan, inventory) fire on a build machine within forty seconds of boot and hold the package database; `rpm` does not wait for it without a terminal. The walk's first `perform` survived it once (the update step alone retries); the second failed on it: `can't create transaction lock on /usr/lib/sysimage/rpm/.rpm.lock` | code: stage 86, released in 0.1.1.dev18 (was hygiene XII item 11) |
 | F30 | expired access keys reach the operator as `Error reading config file : AWS Error: ... (RequestExpired) ... Request has expired` under a hundred-line traceback: the words blame the configuration, and the daily driver's failure table (section 6, the expired-session row) shows `Token has expired` and `a session has EXPIRED` but not `RequestExpired`, which is what temporary keys in the environment or a credentials file produce | words (and the traceback: hygiene XII, with stage 6's) |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
