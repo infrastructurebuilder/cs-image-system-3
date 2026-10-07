@@ -1398,9 +1398,9 @@ the way 3.2 says; then `perform` has a state to read.
 
 | Part | State |
 | --- | --- |
-| 11a, steps 1-2 (the flag, the run) | done 2026-10-07: the volume exists and its state is in the bucket |
-| **11a, step 3** (commit the flag, push, CI, the state query) | **NEXT: start there** |
-| 11b. The first `perform` | straight after, if step 3 is green |
+| 11a. The storage | done 2026-10-07: the volume exists, its state is in the bucket, CI green |
+| 11b. The first `perform` | ran 2026-10-07 and ended RED in the base image's bake (finding F28); nothing was left behind |
+| **11c. The base image's test, then the second `perform`** (the container) | **NEXT: start there** |
 
 **11a. The storage.** In the container. One 100 GB encrypted gp3
 EBS volume named `data`, in the availability zone of the runtime's
@@ -1543,6 +1543,126 @@ repository was created with; nothing uses it. Both are finding F27.)
 printed, the first three lines of the `git log`, and the last line
 of the state query; or the failed step and its log tail.
 
+**What happened at 11b (2026-10-07): the run ended red, and it was
+the starter's fault** (finding F28). Run 37645069158 on `main`:
+`verify` and `live` green; in `perform`, the record was made and
+pushed, the WRITE role was assumed (its first use, and it worked),
+and `The runtime performs` started the base image's bake. The build
+machine came up, was reached through Session Manager, updated, got
+the OPA agent and the SSM agent, and then failed the LAST step, the
+base image's own in-bake tests, with one line: `package git is not
+installed`. Packer stopped after 5 minutes 24 seconds and removed
+the machine, its security group and its key pair; AWS shows no
+machine and no image left. The closing record was still pushed, so
+`main` is two record commits ahead of `develop`, and its
+`meta-state/runs.yaml` says `base-image: failed`.
+
+Why: `cfg/os-builders.yml`, exactly as the starter writes it, tests
+the BASE image for the package `git`. Nothing installs git on the
+base: the vendor's AlmaLinux 10 image does not carry it, and a base
+image takes no modifications. git arrives one level up, in the image
+`team-node`, whose playbook installs it and whose own test checks
+it. So the base's test asserts something only the image can make
+true, and every tree made from this starter fails its first base
+bake. You did nothing wrong, and nothing you typed caused it.
+
+One more thing the log shows, which did NOT fail the run (finding
+F29): the update's first attempt lost a race for the package
+database's lock (`can't create transaction lock`) against the
+machine's own boot script, and passed only because the step retries
+once.
+
+**11c. The base image's test, then the second `perform`.** In the
+container. The test is yours to state: it is a team value in
+`cfg/`, which no release rewrites. It should name something the
+BASE bake itself puts there. This tree's base declares
+`identity_types: [okta]`, so its bake installs the OPA agent's
+package, `scaleft-server-tools` (the failed run's log shows it
+installed): that is the package to assert.
+
+1. `develop` first takes the two records the failed run pushed to
+   `main`, so the branches do not part:
+
+   ```sh
+   cd /walk/cs-image-system-walk
+   git status -sb                             # develop...origin/develop, nothing listed
+   git fetch origin
+   git merge --ff-only origin/main            # Fast-forward: two record commits
+   ```
+
+2. In `cfg/os-builders.yml`, in the `tests:` of `el10`, change
+
+   ```yaml
+         packages: [git]
+   ```
+
+   to
+
+   ```yaml
+         packages: [scaleft-server-tools]     # what the base bake installs for `identity_types: [okta]`
+   ```
+
+   Leave the `commands:` test under it as it is.
+
+3. Validate, regenerate, commit, and let CI look on `develop`:
+
+   ```sh
+   aws sts get-caller-identity                # keys live?
+   just validate
+   just dry
+   grep -n 'is not installed' generated/base-image/packer-ebs/image-generation/block-000/*-build.pkr.hcl   # one line, and it names scaleft-server-tools, not git
+   git add -A && git commit -m "The base image's test names a package the base carries"
+   git push
+   run=""
+   for i in $(seq 12); do
+     sleep 5
+     run=$(gh run list --branch develop --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+     [ -n "$run" ] && break
+   done
+   echo "run ${run:-NOT FOUND after 60 seconds}"
+   [ -n "$run" ] && gh run watch "$run"
+   gh run view "$run" --json conclusion,jobs --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'
+   ```
+
+   Go on only if it prints `success`.
+
+4. The second `perform`. `main` exists now, so this push is an
+   ordinary fast-forward:
+
+   ```sh
+   git push origin develop:main
+   run=""
+   for i in $(seq 12); do
+     sleep 5
+     run=$(gh run list --branch main --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+     [ -n "$run" ] && break
+   done
+   echo "run ${run:-NOT FOUND after 60 seconds}"
+   [ -n "$run" ] && gh run watch "$run"
+   gh run view "$run" --json conclusion,jobs --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'
+   ```
+
+   The base bake got as far as its tests in about five minutes last
+   time; past them it images the machine, and then the bake of
+   `team-node` starts. Claude watches the same run from the host and
+   reads its log, so if it ends red you need paste nothing: say `red`
+   and stop. Do not re-run it.
+
+5. Only after a green run, `develop` takes the records again:
+
+   ```sh
+   git fetch origin
+   git log --oneline -4 origin/main           # the closing record, the performing run, the first record, then your commit
+   git merge --ff-only origin/main
+   git push
+   grep -E 'build_id:|series:' meta-state/lineage.yaml   # two builds, each its ami id: series el10 and series team-node
+   just state-query --strict
+   ```
+
+**Report:** `stage 11 done` with what the two `gh run view` lines
+printed, the first three lines of the `git log`, and the last line
+of the state query; or `red`.
+
 The fifth proof of 3.8, the login proof AS the workload and then the
 branch pin on the role, needs a machine to log into: it is in stage
 12, after the launch.
@@ -1658,4 +1778,6 @@ the daily driver's words at the end of the stage, or filed as code.
 | F24 | the first identity apply of a new tree stops at the prune step: a root with no state yet makes `tofu state list` fail ("No state file was found"), and the step treats that as an error | code: stage 85, released in 0.1.1.dev17 |
 | F26 | PREDICTED, not run (the operator chose to apply the storage first): the first `perform` of a tree made from the starter fails after its bakes. The instance root reads its storage root's state, a performing run plans the instance root, and the guide's order (CI_SETUP 3.8 step 4 before the daily driver's section 3) reaches `perform` before any storage run, so the plan stops with `Unable to find remote state`. Reproduced on a scratch root; the walk's bucket held no storage state | code and words: hygiene XII item 9 |
 | F27 | CI_SETUP 3.2 and 3.8 say "merge `develop` into `main`"; a repository made from nothing has no `main` on GitHub (the bootstrap sets the default branch and the ruleset, it does not create the branch), so the first `perform` is a push that creates it; and the branch the repository was created with (`master` here) stays behind, unused and unmentioned | words |
+| F28 | the starters `standard-aws`, `standard-aws-posix` and `standard-gce` test their BASE image for the package `git`, which nothing installs on a base (the vendor's AlmaLinux 10 image has none; a base takes no modifications; git comes from the image's playbook). The first base bake of a tree made from them fails its own test after five minutes: `package git is not installed`. Seen in the walk's first `perform` | starter: hygiene XII item 10 |
+| F29 | a bake's first package operation can race the build machine's own boot script: the update's first attempt failed its key import on `can't create transaction lock on /usr/lib/sysimage/rpm/.rpm.lock` and the bake survived only because that one step retries once; no other step does | code: hygiene XII item 11 |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |

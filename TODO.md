@@ -10,7 +10,7 @@ system must not take itself.
 Current stage: **§65**, walking the daily driver, started 2026-10-05
 on `feature/walk-daily-driver`: the operator types each stage from
 [DAILY_DRIVER_EXECUTE.md](DAILY_DRIVER_EXECUTE.md) on a Fedora 43
-container. §81, hygiene bundle XII, is open (nine items the walk
+container. §81, hygiene bundle XII, is open (eleven items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15, taken by the reference configuration, its
@@ -596,11 +596,13 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, nine items found by the §65 walk. Items
+**Status: OPEN 2026-10-05, eleven items found by the §65 walk. Items
 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
-the operator's word; items 1, 2, 5, 6, 7, 8 and 9 are a plan --
-nothing more runs until the operator says "do 81". Item 7(a) has a
-date: 2026-10-19.**
+the operator's word; items 1, 2 and 5 to 11 are a plan -- nothing
+more runs until the operator says "do 81". Item 7(a) has a date:
+2026-10-19. Item 10 stands in the way of the walk's second
+repository (`standard-aws-posix`) unless that tree is edited by hand
+as the first was.**
 
 1. **A starter's own hook refuses its first commit.** The tree
    `init-config` writes carries the copyright holder's address in the
@@ -709,6 +711,35 @@ starter's `.gitignore` ignores every dotfile unless named.)
    have applied once. A test: a tree whose storage root has no
    state, a performing run, the bakes recorded and the run green
    with the note.
+10. **Three starters test their base image for a package no base
+    has.** The walk's finding F28, seen in its first `perform`
+    (run 37645069158, 2026-10-07): `standard-aws`,
+    `standard-aws-posix` and `standard-gce` declare `tests:
+    packages: [git]` on the OS builder. A base image takes no
+    modifications and the vendor's AlmaLinux 10 image carries no
+    git, so the first base bake of any tree made from them fails its
+    own in-bake test after five minutes ("package git is not
+    installed"); git is installed by the image's playbook, where the
+    image's test already checks it. No starter was ever baked, so
+    nothing caught it. Fixed looks like: each starter's base test
+    names what its own bake installs (`scaleft-server-tools` where
+    `identity_types` has `okta`, the session agent in the posix
+    starter, `google-guest-agent` alone on GCE), CONFIGURATION 5.3
+    says a base test may assert only what the base bake or the
+    vendor image provides, and a contract test refuses a starter
+    whose base test names a package nothing on the base provides
+    (the provisioners know what they install).
+11. **A bake's first package step races the build machine's boot
+    script.** The walk's finding F29, same run: the boot script
+    installs the session agent with `dnf`, the agent starts inside
+    that transaction, packer connects at once, and the update's
+    first attempt failed its key import on "can't create transaction
+    lock on /usr/lib/sysimage/rpm/.rpm.lock". It passed because the
+    update step alone retries once; a tree whose update policy is
+    `none` meets the lock in a step that does not. Fixed looks like:
+    the first provisioner waits, bounded, for the boot script to end
+    (`cloud-init status --wait`, or the lock free) before any
+    package work, on every family; a container test of the wait.
 
 ## 83. A release asks its publish target before it starts
 
