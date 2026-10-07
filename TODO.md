@@ -10,7 +10,7 @@ system must not take itself.
 Current stage: **§65**, walking the daily driver, started 2026-10-05
 on `feature/walk-daily-driver`: the operator types each stage from
 [DAILY_DRIVER_EXECUTE.md](DAILY_DRIVER_EXECUTE.md) on a Fedora 43
-container. §81, hygiene bundle XII, is open (seven items the walk
+container. §81, hygiene bundle XII, is open (eight items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15, taken by the reference configuration, its
@@ -597,9 +597,9 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, seven items found by the §65 walk. Items
+**Status: OPEN 2026-10-05, eight items found by the §65 walk. Items
 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
-the operator's word; items 1, 2, 5, 6 and 7 are a plan -- nothing
+the operator's word; items 1, 2, 5, 6, 7 and 8 are a plan -- nothing
 more runs until the operator says "do 81". Item 7(a) has a date:
 2026-10-19.**
 
@@ -672,6 +672,20 @@ starter's `.gitignore` ignores every dotfile unless named.)
    **/requirements*.txt]. The cache will never get invalidated": a
    configuration repository has neither file. Key the cache on
    `.csis-version`, or turn it off.
+8. **An applying run's log can cut the line that says what was
+   applied.** The walk's finding F25. The log keeps the last 40 lines
+   of a command's output (hygiene VIII item 3, `OUTPUT_TAIL_LINES`),
+   on the premise that "the end is where tofu's `Plan:` / `Apply
+   complete!` lines are". For an apply that is not so: tofu prints
+   `Apply complete! Resources: ...` and THEN the root's outputs. The
+   reference configuration's identity root has 40 lines of outputs,
+   so its apply's 45 lines lose exactly the five that hold the
+   verdict; the operator, told to expect the line, did not find it
+   (2026-10-07). A one-group tree shows it, which is why nothing
+   caught this. Fixed looks like: tofu's verdict lines (`Apply
+   complete!`, `Plan:`, `No changes.`) are always shown, wherever
+   they stand, ahead of the tail; a test with an apply whose outputs
+   are longer than the tail. The whole output stays at DEBUG.
 
 ## 83. A release asks its publish target before it starts
 

@@ -1217,9 +1217,19 @@ and the second moves its `main`.
    - `No changes. Your infrastructure matches the configuration.`:
      the five groups stand, so their gids are read at plan time
      exactly as before;
-   - the gate's verdict, `Apply complete! Resources: 0 added, 0
-     changed, 0 destroyed.`, then `Run ... completed: identity` and a
-     meta-state commit.
+   - the gate's verdict (`Plan passes the apply gate.`), then the
+     apply. In THIS tree you will not see tofu's `Apply complete!
+     Resources: 0 added, 0 changed, 0 destroyed.` line (finding F25):
+     the log shows the last 40 lines of each command's output, tofu
+     prints that line BEFORE the root's outputs, and this root's
+     outputs are exactly 40 lines. What you see is `tofu apply stdout
+     (last 40 of 45 lines; all at DEBUG)` and then the outputs
+     (`group_gids`, `groups`). The plan's `No changes` is the
+     evidence that nothing was applied;
+   - five lines `Group <name>: CI login policy ... unchanged`,
+     warnings that the other lifecycles' scripts were SKIPPED (they
+     were not requested), `Meta-state committed as ...`, the run's
+     summary, and `Run ... completed: identity`.
 
    If the plan says anything but `No changes`, STOP: do not do step
    2, and paste the `Plan:` line with the resource lines above it. It
@@ -1251,6 +1261,11 @@ summary counts `stale: 3` and `unavailable: 1`: both stood before
 the run (the dry run that took dev17 counted the same) and neither
 is drift. Neither fix altered a standing tree. Step 2 is what is
 left.
+
+This page had promised an `Apply complete! ... 0 destroyed` line
+there, and the operator did not find it: the page was wrong about
+what the log shows, not the run about what it did. That is finding
+F25, and step 1's list above now says what is really printed.
 
 **10f. Let the bootstrap check again.** `just bootstrap`, Enter at
 every question (the Okta section asks OPA again; the bucket question
@@ -1381,3 +1396,4 @@ the daily driver's words at the end of the stage, or filed as code.
 | F22 | the system cannot create a NEW group in OPA: the identity root looks the group's gid up at plan time, before the group exists, and the creating plan fails | code: stage 84 |
 | F23 | the guide (3.5 step 4) and the probe workflow's header say a DRAFT connection "validates the token and issues nothing usable"; run against a draft, the probe's own success line says the connection "accepted this run's token and issued one" | words |
 | F24 | the first identity apply of a new tree stops at the prune step: a root with no state yet makes `tofu state list` fail ("No state file was found"), and the step treats that as an error | code: stage 85, released in 0.1.1.dev17 |
+| F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
