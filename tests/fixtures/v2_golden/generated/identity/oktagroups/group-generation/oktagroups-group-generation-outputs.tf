@@ -5,6 +5,13 @@
 # gid shim: {group: gid} for every managed group
 data "external" "group_gids" {
     provider = external.oktagroups
+    depends_on = [
+        module.group_basic,
+        module.group_coops,
+        module.group_secofs,
+        module.group_stofs,
+        module.group_tcmet,
+    ]
     program = [
         "cs-image-system",
         "identity",

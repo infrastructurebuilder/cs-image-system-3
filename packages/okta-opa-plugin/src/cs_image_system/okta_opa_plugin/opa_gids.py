@@ -32,6 +32,7 @@ import json
 import logging
 import os
 import re
+import time
 import urllib.error
 import urllib.request
 from typing import Any, Callable, Mapping
@@ -377,3 +378,44 @@ class OpaGidResolver:
             if attrs.get(GROUP_NAME_ATTRIBUTE):
                 out[name] = str(attrs[GROUP_NAME_ATTRIBUTE])
         return out
+
+
+#: How long the gid shim waits for OPA to give a group its gid (stage 84), and
+#: how often it asks. A group terraform has just created may not carry
+#: ``unix_gid`` in the instant after its creation; a group that stands answers
+#: at once, so nothing waits in the ordinary run. ``CSIS_GID_WAIT_SECONDS``
+#: overrides the bound (0: ask once).
+GID_WAIT_SECONDS = 30.0
+GID_WAIT_STEP = 5.0
+GID_WAIT_ENV = "CSIS_GID_WAIT_SECONDS"
+
+
+def gid_wait_seconds(env: Mapping[str, str] | None = None) -> float:
+    raw = (env if env is not None else os.environ).get(GID_WAIT_ENV)
+    if raw is None or str(raw).strip() == "":
+        return GID_WAIT_SECONDS
+    try:
+        return max(0.0, float(raw))
+    except ValueError:
+        raise ValueError(f"{GID_WAIT_ENV} must be a number of seconds, not {raw!r}") from None
+
+
+def resolve_waiting(resolver: "OpaGidResolver", groups: list[str], *, wait_seconds: float | None = None,
+                    step: float = GID_WAIT_STEP, sleep: Callable[[float], None] = time.sleep,
+                    clock: Callable[[], float] = time.monotonic) -> dict[str, int]:
+    """``resolver.resolve(groups)``, asking again for the groups that came
+    back with no gid until every one has one or the bound is spent. What is
+    still missing then is simply absent from the answer, and the caller
+    refuses loudly as before: the wait never invents a gid (N1)."""
+    bound = gid_wait_seconds() if wait_seconds is None else max(0.0, wait_seconds)
+    result = resolver.resolve(groups)
+    deadline = clock() + bound
+    missing = [g for g in groups if g not in result]
+    while missing and clock() < deadline:
+        left = max(0.0, deadline - clock())
+        log.warning(f"export-gids: OPA carries no gid yet for {missing}; asking again "
+                    f"(up to {left:.0f}s more; {GID_WAIT_ENV} bounds the wait)")
+        sleep(min(step, left) if left > 0 else 0)
+        result.update(resolver.resolve(missing))
+        missing = [g for g in groups if g not in result]
+    return result
