@@ -26,11 +26,10 @@ Planned, by the operator's word: §66, §30 and §83 (a release asks
 its publish target before it starts).
 
 Releases: dev15 (2026-10-06) carries §82 and hygiene XII items 3
-and 4 and is the reference configuration's `main` (perform green,
-run 37576368769, 2026-10-07). dev16 (2026-10-07) carries §84.
-dev17 (2026-10-07) carries §85 and is the `develop` of both the walk
-and the reference configuration (both CI green); the reference's
-`main` moves to it on the operator's word.
+and 4. dev16 (2026-10-07) carries §84. dev17 (2026-10-07) carries
+§85 and is the walk's `develop` and the reference configuration's,
+`develop` and `main` (its identity run said no changes; perform
+green on it, run 37635442502, 2026-10-07).
 
 Recently landed: §80, hygiene bundle XI (2026-10-05, cf186de): the
 reference tree's AWS runtimes default to a t3.medium, and the daily
