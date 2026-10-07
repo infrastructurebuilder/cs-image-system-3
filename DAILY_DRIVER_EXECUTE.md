@@ -24,20 +24,21 @@ machine says so in its first words, and says that it is NOT the
 container.
 
 **Watching CI.** After a `git push` or a `gh workflow run`, GitHub
-takes a moment to start the run, so this page waits (`sleep 2`) and
+takes a moment to start the run, so this page waits (`sleep 5`) and
 then PICKS the run itself, by the commit you just pushed, and names it
 to every later command. Never run a bare `gh run watch` or `gh run
 view`: with no run named, `gh` asks you to choose among the recent
 runs, and they look alike. The three lines, wherever they appear:
 
 ```sh
-sleep 2
+sleep 5
 run=$(gh run list --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId'); echo "run $run"
 gh run watch "$run"
 ```
 
-If `echo` prints `run` with no number, the run has not started yet:
-wait a few seconds and repeat the `run=` line. If you are ever at the
+Five seconds is the least that works: with two, the run was often not
+there yet. If `echo` still prints `run` with no number, wait a few
+seconds more and repeat the `run=` line. If you are ever at the
 chooser anyway, the right run is the TOP one whose title is your last
 commit's message.
 
@@ -526,7 +527,7 @@ on, and it waits for stage 11.
 just dry                                 # the workflow is not part of the emission, but prove the tree still generates
 git add -A && git commit -m "The workflow's values"
 git push -u origin develop
-sleep 2                                  # GitHub takes a moment to start the run
+sleep 5                                  # GitHub takes a moment to start the run
 run=$(gh run list --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId'); echo "run $run"
 gh run watch "$run"
 ```
@@ -846,7 +847,7 @@ gh secret list                                 # names only
 just dry                                       # regenerates generated/bootstrap from bootstrap.yaml
 git add -A && git status --short               # bootstrap.yaml and generated/bootstrap/ are committed; no secret file is listed
 git commit -m "The bootstrap: roles, state bucket, repository settings" && git push
-sleep 2                                        # GitHub takes a moment to start the run
+sleep 5                                        # GitHub takes a moment to start the run
 run=$(gh run list --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId'); echo "run $run"
 gh run watch "$run"
 ```
@@ -971,7 +972,7 @@ issues nothing usable.
 ```sh
 gh workflow run opa-workload-probe.yml --ref develop \
   -f connection=github-cs-image-system-walk -f role=cs-image-system-walk-ci
-sleep 2                                     # GitHub takes a moment to start the run
+sleep 5                                     # GitHub takes a moment to start the run
 run=$(gh run list --workflow opa-workload-probe.yml --limit 1 --json databaseId --jq '.[0].databaseId'); echo "run $run"
 gh run watch "$run"
 gh run view "$run" --log | grep -iE 'claim|verdict|valid|refus|error' | tail -20
