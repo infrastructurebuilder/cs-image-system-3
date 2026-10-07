@@ -24,9 +24,22 @@ machine says so in its first words, and says that it is NOT the
 container.
 
 **Watching CI.** After a `git push` or a `gh workflow run`, GitHub
-takes a moment to start the run, so every `gh run watch` in this page
-is preceded by `sleep 2`. If it still says no run is in progress,
-the run may already be over: `gh run list --limit 3`.
+takes a moment to start the run, so this page waits (`sleep 2`) and
+then PICKS the run itself, by the commit you just pushed, and names it
+to every later command. Never run a bare `gh run watch` or `gh run
+view`: with no run named, `gh` asks you to choose among the recent
+runs, and they look alike. The three lines, wherever they appear:
+
+```sh
+sleep 2
+run=$(gh run list --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId'); echo "run $run"
+gh run watch "$run"
+```
+
+If `echo` prints `run` with no number, the run has not started yet:
+wait a few seconds and repeat the `run=` line. If you are ever at the
+chooser anyway, the right run is the TOP one whose title is your last
+commit's message.
 
 **What Claude can see.** Every command you type in an interactive shell
 is appended to `~/.bash_history` in the container as it runs, with its
@@ -514,7 +527,8 @@ just dry                                 # the workflow is not part of the emiss
 git add -A && git commit -m "The workflow's values"
 git push -u origin develop
 sleep 2                                  # GitHub takes a moment to start the run
-gh run watch                             # or: gh run list --branch develop
+run=$(gh run list --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId'); echo "run $run"
+gh run watch "$run"
 ```
 
 Expected (CI_SETUP 3.8 step 1): the `verify` job green -- the release
@@ -525,8 +539,11 @@ yet (`gh run view --log | grep 'SKIPPED --'`, or the run's web page:
 `main`.
 
 **Report:** `stage 8 done`, with the three ids' output and how the run
-ended (`gh run view --json conclusion,jobs --jq '.conclusion, (.jobs[] |
-"\(.name): \(.conclusion)")'`).
+ended:
+
+```sh
+gh run view "$run" --json conclusion,jobs --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'
+```
 
 **Since then.** The fix for finding F11 (and two more the walk found)
 is released as 0.1.1.dev15; stage 9 starts by taking it.
@@ -830,7 +847,8 @@ just dry                                       # regenerates generated/bootstrap
 git add -A && git status --short               # bootstrap.yaml and generated/bootstrap/ are committed; no secret file is listed
 git commit -m "The bootstrap: roles, state bucket, repository settings" && git push
 sleep 2                                        # GitHub takes a moment to start the run
-gh run watch
+run=$(gh run list --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId'); echo "run $run"
+gh run watch "$run"
 ```
 
 Expected: `verify` green, and `live` now RUNS, because its secrets
@@ -838,8 +856,11 @@ exist. `live` is green only once the relabel above is done (`just
 dry` then says `foreign: 0`); `perform` still waits for `main`, which
 is stage 11.
 
-**Report:** `stage 9 done`, with `gh run view --json conclusion,jobs
---jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'`.
+**Report:** `stage 9 done`, with:
+
+```sh
+gh run view "$run" --json conclusion,jobs --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'
+```
 
 ## Stage 10 -- OPA: the workload objects, the first real run, the probe (CI_SETUP 3.5; DAILY_DRIVER 3.1)
 
@@ -938,8 +959,9 @@ issues nothing usable.
 ```sh
 gh workflow run opa-workload-probe.yml --ref develop
 sleep 2                                     # GitHub takes a moment to start the run
-gh run watch                                # pick the "OPA workload probe" run
-gh run view --log | grep -iE 'claim|verdict|valid|refus|error' | tail -20
+run=$(gh run list --workflow opa-workload-probe.yml --limit 1 --json databaseId --jq '.[0].databaseId'); echo "run $run"
+gh run watch "$run"
+gh run view "$run" --log | grep -iE 'claim|verdict|valid|refus|error' | tail -20
 ```
 
 Green is the proof the claims match.
