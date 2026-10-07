@@ -146,6 +146,16 @@ class RuntimeBuilderBase(BuilderBase[TypeVar("T", bound=RuntimeBuilderModel)]):
         """Shell assertions proving the session agent is baked."""
         return []
 
+    def bake_settle_commands(self, os_family: str | None = None) -> list[str]:
+        """Shell commands emitted in the FIRST provisioner of every bake on
+        this runtime, before any package work (stage 86): wait, bounded,
+        for whatever this cloud does to a NEW machine on its own -- fleet
+        management that updates agents, scans for patches or takes
+        inventory uses the package database the bake is about to use. The
+        commands must end on their own; a bound reached is said and the
+        bake goes on. Default: none."""
+        return []
+
     def bake_finalize_commands(self, os_family: str | None = None) -> list[str]:
         """Shell commands emitted as the LAST provisioner of every bake on
         this runtime (base and instance images alike) — cloud-specific

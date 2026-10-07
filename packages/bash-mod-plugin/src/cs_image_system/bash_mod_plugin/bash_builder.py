@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TypeVar, cast
 
 from cs_image_system.base.basic.asset import AssetSet
+from cs_image_system.base.bake_steps import execute_command_line
 
 from .bash_models import BASH_BUILDER, BASH_EXECUTABLE, BashBuilderModel, BashModItemModel, BashModBuilderModel
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
@@ -83,6 +84,11 @@ class BashModBuilder(ModBuilderBase[Q]):
             command = self.model.effective_execute_command()     # stage 63: configuration_user
             if command:
                 lines.append(f"  execute_command = {_hcl_string(command)}")
+            else:
+                # stage 86: through the bake's step runner, so `ensure: packages`
+                # and a script's own installs wait out a held package database;
+                # a builder that says how its script runs keeps its own command
+                lines.append(execute_command_line("  "))
             if self.model.environment_vars:
                 lines.append("  environment_vars = [" + ", ".join(_hcl_string(v) for v in self.model.environment_vars) + "]")
             if self.model.expect_disconnect:
