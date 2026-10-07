@@ -751,3 +751,25 @@ probe.
 
 **Sizing**: the script and its tests half a day; the recipes and the
 contract test two hours.
+
+## 85. The first identity apply of a new tree: nothing to prune is not a failure
+
+**Status: BUILT 2026-10-07 on `feature/first-apply-prune`, the bar
+running; the walk's finding F24, the second defect of the same first run
+after §84. Whether it is released at once or with the walk's next
+findings is the operator's call.**
+
+**Why.** The identity runner's prune step (stage 61 item 3) lists the
+root's terraform state before the plan. A root nothing was ever applied
+in has no state, and `tofu state list` then exits non-zero with "No
+state file was found". The step took that for a failure, so the run that
+would create a new tree's first group stopped one step after §84 let its
+plan through (`just run identity`, 2026-10-07, on 0.1.1.dev16). The
+reference configuration's roots had state long before the step existed.
+
+1. `prune_stale_attachments` treats that one answer as "the root's first
+   apply: nothing to prune" and returns 0; any other failure of `state
+   list` still stops the runner. It is the only `state list` in a run's
+   path.
+2. Tests: a stand-in `tofu` that gives each answer. Proof: the walk's
+   `just run identity` creates `walk_team`.
