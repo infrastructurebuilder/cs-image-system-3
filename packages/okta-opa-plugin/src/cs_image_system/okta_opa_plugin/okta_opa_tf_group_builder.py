@@ -29,7 +29,8 @@ from cs_image_system.base.constants import NONE
 #: the identity type a `posix:` delegate must be (the posix identity plugin's;
 #: named, never imported -- no plugin imports another)
 POSIX_IDENTITY_TYPE = "posix"
-from .opa_gids import ADMIN_GROUP_SUFFIX, GROUP_NAME_ATTRIBUTE, USER_GROUP_SUFFIX, OpaGidResolver, credentials_from_env
+from .opa_gids import (ADMIN_GROUP_SUFFIX, GROUP_NAME_ATTRIBUTE, USER_GROUP_SUFFIX, OpaGidResolver,
+                       credentials_from_env, resolve_waiting)
 from .workload_policy import (WorkloadSnapshot, by_name, ci_policy_from, ci_policy_name, policies_equal,
                               user_policy_name, workload_state)
 
@@ -221,7 +222,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         if not team or not api_host:
             raise ValueError("okta gid shim query must carry 'team' and 'api_host'")
         key, secret = credentials_from_env(team)
-        return OpaGidResolver(api_host, team, key, secret).resolve(groups)
+        return resolve_waiting(OpaGidResolver(api_host, team, key, secret), groups)
 
     # ----------------------------------------------- server registry (stage 55)
     # (_resolver, further down, already builds the client these use)
@@ -498,6 +499,14 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         ref = self._external_provider_ref()
         if ref:
             args["provider"] = Raw(ref)
+        # stage 84: the lookup waits for its groups. With nothing in their
+        # modules changing terraform reads it at plan time, as before; when a
+        # group is being CREATED it reads it during the apply, after the group
+        # stands. Without this the lookup ran at plan time for a group that
+        # did not exist yet, found no gid, and the creating plan could never
+        # succeed -- a new group could not be made at all (found walking the
+        # daily driver, 2026-10-07; the reference groups pre-date the lookup).
+        args["depends_on"] = [Raw(f"module.group_{utils.super_safe_name(name)}") for name in names]
         args["program"] = [utils.SYSTEM_CLI, "identity", "export-gids"]
         args["query"] = query
         specs: list[BlockSpec] = [DataSpec(EXTERNAL_PROVIDER, GID_SHIM_LABEL, args,
