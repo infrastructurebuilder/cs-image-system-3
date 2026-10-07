@@ -626,7 +626,8 @@ starter's `.gitignore` ignores every dotfile unless named.)
    the interview again so the root binds to it. But
    `state_bucket_exists`
    is a choice, not an observation, so the second interview still
-   offers "no"; and answering "yes" makes the module's four bucket
+   offers "no" (seen live: `[y/N]`); and answering "yes" makes the
+   module's four bucket
    resources `count = 0` while they sit in the root's state, so the
    next plan destroys the bucket's versioning, encryption and
    public-access block before failing on the bucket. Fixed looks like

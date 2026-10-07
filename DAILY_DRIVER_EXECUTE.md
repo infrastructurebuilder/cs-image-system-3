@@ -888,7 +888,7 @@ the daily driver's words at the end of the stage, or filed as code.
 | F14 | a declared group that was never created is hard `missing`, so a new tree refuses every run after its first | code: fixed in dev15 |
 | F15 | the starter's `.gitignore` names a few secret files, not the shape of one: a token dropped beside the tree is one `git add -A` from a commit | starter: fixed in dev15 |
 | F16 | a tree pinned to a development release cannot pass even `verify` while TestPyPI is down | words |
-| F17 | the bootstrap's create path: the second interview does not notice the bucket it made, and answering that it exists plans the destruction of the bucket and its protections. CONFIRMED live at stage 9f: `Plan: 0 to add, 0 to change, 4 to destroy` | code |
+| F17 | the bootstrap's create path: the second interview does not notice the bucket it made, and answering that it exists plans the destruction of the bucket and its protections. CONFIRMED live at stage 9f: the second interview offered `Does the state bucket already exist? [y/N]`, and after `y` the plan said `0 to add, 0 to change, 4 to destroy` | code |
 | F18 | the interview's default secrets directory, `_uncommitted/secrets`, is inside the tree and not ignored by the starter's `.gitignore` | starter |
 | F19 | nothing checks the workflow's `TF_VAR_<team>_*` names against the group builder's team: a doubled suffix was pushed unnoticed | code, minor |
 | F20 | the pages say "read the job summary" but not where: `gh run watch` shows neither the summary nor the gate's `SKIPPED` line, and a skipped `perform` job has no summary at all | words |
