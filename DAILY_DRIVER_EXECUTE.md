@@ -23,6 +23,11 @@ terminal, your browser, your other checkouts. A step for your local
 machine says so in its first words, and says that it is NOT the
 container.
 
+**Watching CI.** After a `git push` or a `gh workflow run`, GitHub
+takes a moment to start the run, so every `gh run watch` in this page
+is preceded by `sleep 2`. If it still says no run is in progress,
+the run may already be over: `gh run list --limit 3`.
+
 **What Claude can see.** Every command you type in an interactive shell
 is appended to `~/.bash_history` in the container as it runs, with its
 time. Claude reads that file and the repository on the mounted volume
@@ -508,6 +513,7 @@ on, and it waits for stage 11.
 just dry                                 # the workflow is not part of the emission, but prove the tree still generates
 git add -A && git commit -m "The workflow's values"
 git push -u origin develop
+sleep 2                                  # GitHub takes a moment to start the run
 gh run watch                             # or: gh run list --branch develop
 ```
 
@@ -823,6 +829,7 @@ gh secret list                                 # names only
 just dry                                       # regenerates generated/bootstrap from bootstrap.yaml
 git add -A && git status --short               # bootstrap.yaml and generated/bootstrap/ are committed; no secret file is listed
 git commit -m "The bootstrap: roles, state bucket, repository settings" && git push
+sleep 2                                        # GitHub takes a moment to start the run
 gh run watch
 ```
 
@@ -930,6 +937,7 @@ issues nothing usable.
 
 ```sh
 gh workflow run opa-workload-probe.yml --ref develop
+sleep 2                                     # GitHub takes a moment to start the run
 gh run watch                                # pick the "OPA workload probe" run
 gh run view --log | grep -iE 'claim|verdict|valid|refus|error' | tail -20
 ```
