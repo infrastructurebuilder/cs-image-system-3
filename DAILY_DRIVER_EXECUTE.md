@@ -15,6 +15,14 @@ little, this page gives the missing command and marks it as a finding.*
    stage or explains the failure, logs any finding, and names the next
    stage.
 
+**Two places.** Every command in this page runs in one of two places,
+and each step says which. *The container* is `csis-walk`: every stage
+runs there unless it says otherwise. *Your local machine* is the host
+the container runs on, whatever its operating system: your own
+terminal, your browser, your other checkouts. A step for your local
+machine says so in its first words, and says that it is NOT the
+container.
+
 **What Claude can see.** Every command you type in an interactive shell
 is appended to `~/.bash_history` in the container as it runs, with its
 time. Claude reads that file and the repository on the mounted volume
@@ -39,8 +47,8 @@ is not watching between your messages; it looks when you write.
 | User | `mykel.alvis` (uid 1000), `sudo` without a password, an otherwise untouched home |
 | Preinstalled | nothing the daily driver asks for: no `git`, no `just`, no `cs-image-system` |
 | `direnv` | installed and hooked for every interactive shell, `root` and `mykel.alvis` (your request, finding F9); the repository's `.envrc` is allowed for both |
-| The volume | host `/Volumes/MiniSSD/git/Work/Lynker/cs-image-system-walk` is `/walk/cs-image-system-walk` in the container |
-| Lifetime | runs until removed; survives `docker stop`/`start` and a restart of OrbStack |
+| The volume | the directory `/Volumes/MiniSSD/git/Work/Lynker/cs-image-system-walk` on your local machine (this walk's path) is `/walk/cs-image-system-walk` in the container |
+| Lifetime | runs until removed; survives `docker stop`/`start` and a restart of the Docker runtime on your local machine |
 | Definition | `_uncommitted/walk-container/` (`Dockerfile`, `run.sh`); `run.sh` rebuilds it from nothing, which discards the home directory and every installed tool |
 
 The home directory lives in the container, not on the volume: tools,
@@ -63,7 +71,8 @@ walk reaches it.
 
 ## Stage 1 -- enter the container
 
-From any terminal on the Mac:
+From any terminal on your local machine (the host, not the
+container):
 
 ```sh
 docker exec -it -u mykel.alvis -w /walk/cs-image-system-walk csis-walk bash -l
@@ -154,9 +163,9 @@ on the state backend), and when a profile is named the AWS SDK ignores
 the credentials file UNDER THAT PROFILE'S NAME. The walk uses the
 profile name `noaa`, as the reference configuration does.
 
-1. In a browser on the Mac: the AWS access portal, the account, the
-   role, "Access keys". Copy the three values (access key id, secret
-   access key, session token).
+1. In a browser on your local machine: the AWS access portal, the
+   account, the role, "Access keys". Copy the three values (access
+   key id, secret access key, session token).
 2. In the container (the editor is `vi`; nothing here goes in the
    history):
 
@@ -386,7 +395,7 @@ carries no secret).
 
 **7b. The credentials.** Add to `.envrc`, with the editor, the names section 1.5's table lists.
 The values are the reference configuration's; copy them by hand from
-its `.envrc` on the Mac, never through the chat:
+its `.envrc` on your local machine, never through the chat:
 
 ```sh
 export OKTA_API_CLIENT_ID=...
@@ -412,9 +421,9 @@ dry` wrote, as section 2 says, before committing; `generated/` and
 `meta-state/` are part of the commit.
 
 The `sft` client's own enrollment (`sft enroll`, `sft login`) wants a
-browser. Whether it offers a URL to open on the Mac from inside a
-container is something this stage finds out; it is needed only for the
-login proof by hand, much later.
+browser. Whether it offers a URL to open in a browser on your local
+machine, from inside a container, is something this stage finds out;
+it is needed only for the login proof by hand, much later.
 
 **Report:** `stage 7 done`.
 
@@ -575,8 +584,8 @@ git add -A && git commit -m "Take cs-image-system 0.1.1.dev15; the workflow's va
 Expected from `just dry`: no refusal about `walk_team` any more (a note,
 "declared and not created yet"). The state line may still count
 `foreign: 36` until the reference configuration marks its images
-(YOUR step on the Mac, written out before 9g); a dry run does not
-refuse on it.
+(YOUR step on your local machine, written out before 9g); a dry run
+does not refuse on it.
 
 **Report:** `stage 9b done`, and what `gh run watch` and `just dry`
 said.
@@ -767,10 +776,11 @@ leave them until Claude says, they are ignored by git.
 **Report:** `stage 9f done` with the last line of that `tofu plan`
 and the `aws s3 ls` line.
 
-**On the Mac, before 9g: the reference configuration marks its
-images.** Not in the container, and not in the walk tree: this is one
-command in the OTHER configuration repository, and it is yours because
-it writes to AWS.
+**On your local machine (the host, NOT the container), before 9g:
+the reference configuration marks its images.** Not in the container,
+and not in the walk tree: this is one command in the OTHER
+configuration repository, in its checkout on your local machine, and
+it is yours because it writes to AWS.
 
 Why: release 0.1.1.dev15 tags every NEW image with the configuration
 that owns it (`csis_config`), and a configuration ignores images
@@ -782,17 +792,18 @@ writes the one missing tag on each of the 36. It changes nothing
 else about any image and nothing in either tree.
 
 ```sh
-aws sso login --profile noaa                 # the Mac's own session
-cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-testconfig
+aws sso login --profile noaa                 # your local machine's own AWS session
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-testconfig    # the reference configuration's checkout (this walk's path)
 source .envrc && export AWS_PROFILE=noaa
 just cloud-relabel aws-east2-runtime         # dry: "36 image(s) would be relabelled"
 just cloud-relabel aws-east2-runtime no      # writes csis_config=cs-image-action-test on the 36
 just cloud-relabel aws-east2-runtime         # dry again: nothing left to relabel
 ```
 
-Then, still on the Mac, move the reference configuration's `main`
-to its `develop` (which is on dev15, CI green), so its own CI runs
-the release that ignores the WALK's images once the walk bakes:
+Then, still on your local machine and in that checkout, move the
+reference configuration's `main` to its `develop` (which is on dev15,
+CI green), so its own CI runs the release that ignores the WALK's
+images once the walk bakes:
 
 ```sh
 git fetch origin && git push origin origin/develop:main
@@ -1003,7 +1014,7 @@ export GOOGLE_CLOUD_PROJECT=<project> CLOUDSDK_CORE_PROJECT=<project>
 
 The file is one of two things:
 
-- **A copy of your Mac's Application Default Credentials**
+- **A copy of your local machine's Application Default Credentials**
   (`~/.config/gcloud/application_default_credentials.json`, the file
   `gcloud auth application-default login --impersonate-service-account=...`
   wrote). It holds your refresh token and the impersonation of the
@@ -1016,15 +1027,16 @@ The file is one of two things:
   must be deleted when the walk ends.
 
 **3. Logging in inside the container** (`gcloud auth login
---no-launch-browser`, which prints a URL to open on the Mac). Not what
-you asked for, listed for completeness.
+--no-launch-browser`, which prints a URL to open in a browser on your
+local machine). Not what you asked for, listed for completeness.
 
 **For the walk's GCE leg (stage 15)** the recommendation is way 2 with
-a copy of your Mac's ADC file: it is the same identity your Mac already
-uses, it creates nothing, and it serves every tool. You place the file
-in the container's home yourself; it never goes on the volume and
-Claude does not open it. IAP sessions additionally need an SSH key in
-the container without a passphrase; that is set up at stage 15.
+a copy of your local machine's ADC file: it is the same identity your
+local machine already uses, it creates nothing, and it serves every
+tool. You place the file in the container's home yourself; it never
+goes on the volume and Claude does not open it. IAP sessions
+additionally need an SSH key in the container without a passphrase;
+that is set up at stage 15.
 
 ## Findings so far
 
