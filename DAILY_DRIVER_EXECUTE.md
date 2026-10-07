@@ -534,7 +534,7 @@ gh run watch "$run"
 Expected (CI_SETUP 3.8 step 1): the `verify` job green -- the release
 installs from TestPyPI, the `Justfile` parses, the tree is public-safe.
 `live` runs its gate alone and says SKIPPED, because no secret exists
-yet (`gh run view --log | grep 'SKIPPED --'`, or the run's web page:
+yet (`gh run view "$run" --log | grep 'SKIPPED --'`, or the run's web page:
 `gh run watch` does not show it); `perform` is skipped whole off
 `main`.
 
