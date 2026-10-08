@@ -1924,9 +1924,9 @@ enrolled in OPA with the project's token under the label
 | Part | State |
 | --- | --- |
 | 12a, step 1 (the dry form) | done 2026-10-08: the script ends with plan, gate, apply-check and apply; nothing launched |
-| **12a, step 2** (the launch itself, in the container) | **NEXT: start there**, then step 3 |
-| 12b. Verify the machine | written after 12a, from what the launch said |
-| 12c. Enroll the `sft` client; the group on the machine; the login proof by hand | after 12b |
+| 12a, steps 2-3 (the launch, its records, CI) | done 2026-10-08: the machine stands; CI green; no drift |
+| **12b. Verify the machine** (the container) | **NEXT: start there** |
+| 12c. Enroll the `sft` client; the group on the machine; the login proof by hand | straight after 12b, if it says `verified` |
 | 12d. The login proof as the workload: one more `perform` | after 12c |
 | 12e. The branch pin on the workload role (the OPA console) | last |
 
@@ -2021,6 +2021,126 @@ allowed to apply for this one run; `apply_instances` stays `false` in
 the `gh run view` line printed, and the state query's lines; or the
 error. STOP there: Claude reads the machine from AWS and the records,
 and writes 12b and 12c with the names the launch really gave it.
+
+**What happened at 12a (2026-10-08): it worked, first time.** `Plan:
+3 to add, 0 to change, 0 to destroy`, `Apply complete! Resources: 3
+added`, and then, on the machine itself through Session Manager:
+`Instance walk-node-1: now also answers to ['walk-node-1',
+'ip-10-26-35-48'] (sftd restarted)` and `Instance walk-node-1: the
+accounts of group walk_team are in place`. `Run
+2026_10_08t00_40_35_658425 completed: instance-image`, committed as
+c2ce743 and pushed; CI green; the strict state query says `no drift`
+and the `unavailable` line is gone, as it should be now that there
+is a machine to ask.
+
+What AWS says of it, read by Claude: instance `i-03903ef85cecb0dc2`,
+`running`, a t3.medium in us-east-2a on the image
+`ami-03a8cef5e12cd1b50` (the pinned build of `team-node`), private
+address 10.26.35.48 and NO public address, the session profile
+attached, and the volume `data` on `/dev/xvdf`. The records agree:
+`meta-state/instance-state.yaml` opened generation 1 of
+`walk-node-1` with that instance id, `observed`.
+
+Three names reach it: its hostname `walk-node-1-001`, and the two
+the launch added, `walk-node-1` and `ip-10-26-35-48`.
+
+**12b. Verify the machine.** In the container. The system asks the
+machine itself, through Session Manager: did its startup script run
+to its end, is it on the image its pin names, are its mounts there.
+The verdict is recorded in `meta-state/verifications.yaml`.
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+aws sts get-caller-identity                # keys live? refresh them first if they are near an hour old
+just cloud-verify aws-main walk-node-1 2>&1 | tee ~/verify-12b.log | tail -30
+```
+
+It prints the record as JSON, one entry per check (`startup
+scripts`, `booted image`, the mounts), and ends `instance walk-node-1
+verified`. If it ends any other way, STOP and paste what the `tail`
+showed; do not go on to 12c.
+
+**12c. The `sft` client, the group on the machine, the login proof
+by hand.** In the container, straight after a `verified`.
+
+OPA lets a PERSON in through a client that is enrolled for them. Your
+local machine's client is enrolled; the container's never was, and
+the walk's tools live in the container, so this one is enrolled now.
+Enrollment and login each want a browser, which the container does
+not have: the client should print a link instead. Open it in the
+browser of your local machine, where you are signed in to Okta, and
+approve. Do NOT paste the link into the chat: it authorises a client
+as you. Whether this works from a container at all is what stage 7
+left to find out; if the client does anything but print a link,
+paste its words (never a link) and stop.
+
+1. Enroll and log in:
+
+   ```sh
+   cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+   sft enroll --url https://noaa.pam.okta.com --team nos-coastal-modeling-cloud-sandbox
+   sft login
+   sft list-teams                             # your user, the team, STATUS a time remaining, not "Expired"
+   sft resolve walk-node-1                    # one server: the machine of 12a
+   ```
+
+2. The group on its machine (the daily driver's 3.1). The first
+   login is also what makes your account on the machine:
+
+   ```sh
+   sft ssh walk-node-1 --command 'hostname; id; getent group walk_team; ls -ldn /mnt/data/walk_team; ls -ld /mnt/data/walk_team; df -h /mnt/data | tail -1'
+   ```
+
+   What the page promises, line by line: the hostname
+   `walk-node-1-001`; an `id` whose groups include `walk_team`; a
+   `getent` line for `walk_team` with a number (OPA's gid) and you as
+   a member; the group's subtree owned by that same number and shown
+   by NAME in the second listing, mode `drwxrws---`; and a filesystem
+   of about 100G on `/mnt/data`.
+
+   If `id` does NOT list `walk_team` this first time, run the very
+   same line once more and report both outputs: a member is added to
+   the group when they log in, and whether the FIRST login already
+   carries it is something the page does not say.
+
+3. The login proof by hand. The same login, made by the system and
+   recorded:
+
+   ```sh
+   just ci-login-proof walk-node-1 2>&1 | tee ~/proof-12c.log | tail -20
+   ```
+
+   It says it is `not a GitHub Actions job -- logging in as the
+   enrolled client, not the workload`, logs in, and records the
+   verdict in `meta-state/login-proofs.yaml`.
+
+4. Record both verdicts and let CI look. Neither command commits, so
+   the record does (a dry run of every lifecycle, committed):
+
+   ```sh
+   git status --short                         # meta-state/verifications.yaml and meta-state/login-proofs.yaml, modified or new
+   just record
+   git status --short                         # nothing listed
+   git push
+   run=""
+   for i in $(seq 12); do
+     sleep 5
+     run=$(gh run list --branch develop --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+     [ -n "$run" ] && break
+   done
+   echo "run ${run:-NOT FOUND after 60 seconds}"
+   [ -n "$run" ] && gh run watch "$run"
+   gh run view "$run" --json conclusion,jobs --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'
+   ```
+
+   If the second `git status --short` still lists a file, paste it
+   before you push.
+
+**Report:** `stage 12c done` with the last line of the verify, what
+the `sft ssh` line printed (all of it: it holds no secret), the last
+five lines of the proof, and what the `gh run view` line printed; or
+the words of whatever stopped you. Then STOP: 12d is one more
+`perform`, where CI makes the same login as the workload.
 
 ## Stage 13 onward -- written when you reach them
 
@@ -2138,4 +2258,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F31 | `just release` cuts from whatever branch is checked out: 0.1.1.dev18 was cut on the walk branch, its bump and tag landed there, and `develop` was left a version behind. The recipe probes the token, the index, the version and a clean tree, and never the branch | code: stage 83 (the release's probes) |
 | F32 | `cs-image-system init-config . --force` does not check that it stands in a configuration repository: run in the system repository's root it replaced that repository's `Justfile`, `.gitignore` and CI workflow with a starter's and wrote `.csis-version`, `CI_SETUP.md` and the probe workflow beside them; the new `.gitignore` stopped ignoring the checkout's private directory. It guessed a starter from a workflow file and asked nothing | code: hygiene XII item 12 |
 | F33 | a declared instance that was never launched reads, once its image has a build, as `unavailable: instances/<name>: booted image (runtime <r> could not answer)` in every state query: the bake pins the instance, the query asks the cloud for a machine that does not exist, and the words blame the cloud. The records know it was never launched (no generation in the ledger; `launched: false`) | code: hygiene XII item 13 |
+| F34 | observation, not yet a finding: a launched machine carries its `Name` and no `csis_config` tag (the images do, since stage 82), so nothing in AWS says which configuration a machine or its security group belongs to; a teardown that reads the account by tag would not find them | to be judged at teardown (stage 17) |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
