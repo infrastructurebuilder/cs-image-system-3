@@ -10,6 +10,13 @@ requested state is ``destroyed``. Any other planned destroy fails the gate,
 so a generated root can never delete something merely because it stopped
 being described.
 
+One kind of destroy IS a declaration's to ask for, and is known only when
+the runner looks at the state it is bound to: a membership the YAML dropped
+(stage 88). The runner's own step names each such address in a file beside
+the plan, and ``--allow-destroy-from`` reads it. Those entries match an
+address EXACTLY, never as a prefix: a file can sanction the attachments it
+lists and nothing around them.
+
 Runs over ``tofu show -json <planfile>`` output so the check is a pure file
 operation (no cloud, no credentials) and can sit inside a runner script.
 """
@@ -30,15 +37,32 @@ def planned_destroys(plan: dict[str, Any]) -> list[str]:
     return out
 
 
-def gate_plan(plan_json: Path | dict[str, Any], allow_destroy: list[str]) -> list[str]:
+def sanctioned_addresses(path: Path) -> list[str]:
+    """The addresses a runner's own step sanctioned for destruction, one a
+    line (stage 88). A file that is not there sanctions nothing: the step
+    that writes it did not run, and silence is not permission."""
+    p = Path(path)
+    if not p.is_file():
+        return []
+    lines = (line.strip() for line in p.read_text().splitlines())
+    return [line for line in lines if line and not line.startswith("#")]
+
+
+def gate_plan(plan_json: Path | dict[str, Any], allow_destroy: list[str],
+              allow_exact: list[str] | None = None) -> list[str]:
     """Return the non-whitelisted destroys (empty = the plan passes).
 
     A whitelist entry matches an address exactly or as a prefix followed by
     ``.`` or ``[`` (so ``module.instance_x`` covers everything inside it).
+    An ``allow_exact`` entry matches the one address it spells and nothing
+    else (stage 88: what a file sanctions is never widened).
     """
     plan = json.loads(Path(plan_json).read_text()) if not isinstance(plan_json, dict) else plan_json
+    exact = set(allow_exact or [])
     violations: list[str] = []
     for address in planned_destroys(plan):
+        if address in exact:
+            continue
         if not any(address == a or address.startswith(a + ".") or address.startswith(a + "[")
                    for a in allow_destroy):
             violations.append(address)
