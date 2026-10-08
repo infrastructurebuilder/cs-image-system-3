@@ -2413,7 +2413,8 @@ may log in", "Who is in a group on its machines").
 | 13c, steps 1-2 (the edits undone; the identity run) | done 2026-10-08: the gate REFUSED the run, by design, and nothing changed (finding F38) |
 | 13c, step 2b, first half (the person removed in the OPA console) | done 2026-10-08 |
 | the fix for F38 (stage 88) | merged 2026-10-08 (20206e8); it needs release 0.1.1.dev21 |
-| **13c, step 2b, second half** (the container: the identity run again) | **NEXT in the container: start there**, then steps 3 and 4 |
+| 13c, step 2b, second half (the container: the identity run again) | done 2026-10-08: the prune step took the attachment out of state, the runner's plan said `No changes`, the run completed (3ce4cc6) |
+| **13c, steps 3 and 4** (the launch run and the count; record, push, `main`) | **NEXT in the container** |
 | **13d, step 1** (your local machine: release 0.1.1.dev21 from `develop`) | **NEXT on the host.** It does not wait for 13c: its half hour can run while you do 13c in the container |
 | 13d, steps 2-6 (the walk on 0.1.1.dev21: the second person back in, and out again by the YAML alone) | after 13c and the release |
 
@@ -3011,6 +3012,28 @@ back.
    holds it`, the console change has not reached OPA's API yet: wait
    a minute and run the two lines again.
 
+   (2026-10-08: it did, line for line. `state backup for workspace
+   'opa-groups': serial 2, 10 resource(s)`; then `member 'SECOND'
+   was dropped from group 'walk_team' and OPA no longer holds it;
+   its attachment leaves tofu state before the plan: state rm ...`;
+   the runner's plan said `No changes`, the gate `Plan passes the
+   apply gate`, the apply `0 added, 0 changed, 0 destroyed`, and the
+   run completed and committed its record, 3ce4cc6.
+
+   Your `grep` also shows, EARLIER in the log, `Plan: 0 to add, 0 to
+   change, 1 to destroy`. That plan was not applied, and nothing
+   was destroyed. An applying run plans the group root twice. The
+   first is a preview, made while the run writes the root: it is
+   not saved (tofu's own note under it says `You didn't use the
+   -out option`), it does not refresh, and nothing reads it. The
+   second is the runner's, made after the prune step and saved; it
+   is the one the gate reads and the apply takes. The preview came
+   before the prune step, so it still saw the attachment in state.
+   The operations guide says this in a clause under "Drop a
+   membership"; the daily driver does not say it at all, and the
+   log gives the reader a destroy that never happens (finding
+   F39).)
+
 3. The launch run, and the machine's list:
 
    ```sh
@@ -3131,8 +3154,9 @@ that is clean and pushed, after `stage 13c done`.
    grep -nE 'Plan:|Apply complete|No changes\.|completed:|FAILED' ~/identity-13d-add.log | cut -c1-160
    ```
 
-   As in 13b: `Plan: 1 to add, 0 to change, 0 to destroy` and `Apply
-   complete! Resources: 1 added`. They are a member of
+   As in 13b: `Plan: 1 to add, 0 to change, 0 to destroy`, probably
+   twice (the preview, then the runner's own plan; see 13c step 2b),
+   and `Apply complete! Resources: 1 added`. They are a member of
    `walk_team_user` in OPA again. No launch run follows, on purpose:
    the machine's own list is not rewritten, and stays as 13c left it.
 
@@ -3156,7 +3180,9 @@ that is clean and pushed, after `stage 13c done`.
      'walk_team' and OPA still holds it; the plan will show the
      destroy of its attachment, which the declaration asks for and
      the gate allows`;
-   - the plan: `Plan: 0 to add, 0 to change, 1 to destroy`;
+   - the plan: `Plan: 0 to add, 0 to change, 1 to destroy`, twice,
+     the preview before the prune step's line and the runner's own
+     after it, and this time the second one is real;
    - the gate: `Destroy sanctioned by the declaration:
      module.group_walk_team.oktapam_user_group_attachment.
      members["SECOND"]`, then `Plan passes the apply gate.`;
@@ -3318,4 +3344,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F36 | a user's `name` is declared as an `ENC[age:...]` marker in `groups/` and committed in CLEAR by the run: `meta-state/identity.yaml`, the identity roots' HCL (the roster lists, resource names, the local part of the mail address), and the login proofs. In a public configuration repository a person's username is public from the first identity run and stays in the history; only the mail domain is protected. The marker suggests otherwise, and nothing in the guide or the starter says so | words, and a decision: hygiene XII item 15 |
 | F37 | beside Okta, a member whose account name on a machine differs from their OPA username logs in and never joins the group. OPA makes the account under the user's `unix_user_name` attribute; the login hook matches the account against the member list name for name; the list was written in OPA usernames. Seen when the walk's second person logged in: on the list, not in the group. The reference configuration is exposed the same way | code: stage 87, released in 0.1.1.dev20 |
 | F38 | removing a member the way the pages describe FAILS, and they do not say it will. The daily driver (3.1; section 4, "Who may log in") and the operations guide ("Drop a membership") say that for a removal OPA still holds "the plan shows the destroy and the gate sees it". The gate refuses it: `DESTROY NOT WHITELISTED`, exit 3, the run FAILED, by the design rule "membership removals only by explicit decision". The procedure that works, remove the person in the OPA console first and let the next run prune its state, is written nowhere as a procedure, and the refusal does not name it. The operator, on reading it: the rule was a mistake; the system adds members and must be able to remove them | code: stage 88 (20206e8, was hygiene XII item 16), to be released in 0.1.1.dev21 and proved by 13d. Words: the daily driver's 3.1 and section 4, the operations guide's "The apply gate", "Drop a membership" and "Identity", and the design where it states the old rule; and a caution the pages do not yet carry: an edit that empties a roster by mistake now removes people, a dry run cannot show it, and the applying run's prune step and plan name each person first |
+| F39 | an applying identity run's log shows the group root's plan twice, and the first is not the one applied. The run plans the root once as it writes it (a preview: not saved, not refreshed, read by nothing) and once in the runner, after the prune step. For a membership already gone from OPA the preview says `1 to destroy`, the prune step then takes the attachment out of state, and the runner's plan says `No changes`: a reader of the log meets a destroy that never happens (seen 2026-10-08, 13c). The operations guide says it in one clause under "Drop a membership"; the daily driver's 3.1 and its row "Who may log in" do not say there are two plans or which one counts | words |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
