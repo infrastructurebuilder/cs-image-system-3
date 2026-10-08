@@ -138,7 +138,9 @@ def test_unmanaged_group_is_state_rm_never_destroyed(tmp_path, monkeypatch):
         assert "UNMANAGED" in gen["oktagroups-group-generation-group-tcmet.tf"]
         cmds = command_lines((run.generated / "identity" / "run-identity.sh").read_text())
         assert any("tofu state rm module.group_tcmet" in c for c in cmds)
-        assert not any("destroy" in c for c in cmds)
+        # nothing destroys, and no operation's allowance is on the gate; the file
+        # the gate reads (stage 88) names dropped MEMBERSHIPS of managed groups only
+        assert not any("tofu destroy" in c or " -destroy" in c or "--allow-destroy " in c for c in cmds)
         model = yaml.safe_load((run.meta_state / "identity.yaml").read_text())
         assert model["groups"]["tcmet"]["managed"] is False
     finally:

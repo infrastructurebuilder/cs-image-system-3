@@ -780,13 +780,17 @@ def gate_plan_command(
     allow_destroy: Annotated[list[str] | None, typer.Option("--allow-destroy",
         help="Resource address (or address prefix) whose destruction is operation-driven "
              "and therefore whitelisted")] = None,
+    allow_destroy_from: Annotated[list[Path] | None, typer.Option("--allow-destroy-from",
+        help="A file of addresses, one a line, that this root's own runner step sanctioned (a membership "
+             "the declaration dropped); each matches exactly, and a missing file sanctions nothing")] = None,
     require_unmounted: Annotated[list[str] | None, typer.Option("--require-unmounted",
         help="<instance>:<storage> pairs whose detach this plan carries; each needs a successful "
              "unmount receipt in ./unmount-receipts (stage 10.14)")] = None,
 ) -> None:
     """Apply gate: fail unless every planned destroy is whitelisted (DESIGN N19)
     and every detach was unmounted first (stage 10.14)."""
-    from cs_image_system.base.commands.gate import gate_plan, plan_json_from_planfile, planfile_is_stale
+    from cs_image_system.base.commands.gate import (
+        gate_plan, plan_json_from_planfile, planfile_is_stale, planned_destroys, sanctioned_addresses)
     from cs_image_system.base.commands.unmount import read_receipt
     missing = []
     for pair in require_unmounted or []:
@@ -812,11 +816,16 @@ def gate_plan_command(
     else:
         typer.secho("gate-plan: pass a plan JSON file or --planfile", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=2)
-    violations = gate_plan(plan, allow_destroy or [])
+    sanctioned = [a for f in allow_destroy_from or [] for a in sanctioned_addresses(f)]
+    violations = gate_plan(plan, allow_destroy or [], allow_exact=sanctioned)
     for v in violations:
         typer.secho(f"DESTROY NOT WHITELISTED: {v}", fg=typer.colors.RED, err=True)
     if violations:
         raise typer.Exit(code=3)
+    document = plan if isinstance(plan, dict) else json.loads(Path(plan).read_text())
+    for address in planned_destroys(document):
+        if address in sanctioned:
+            typer.secho(f"Destroy sanctioned by the declaration: {address}", fg=typer.colors.YELLOW)
     typer.secho("Plan passes the apply gate.", fg=typer.colors.GREEN)
 
 
