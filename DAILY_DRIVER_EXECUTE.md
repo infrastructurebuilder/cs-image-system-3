@@ -1414,7 +1414,10 @@ the way 3.2 says; then `perform` has a state to read.
 | 11d, step 1 (release 0.1.1.dev19 from `develop`) | done 2026-10-07: cut on `develop`, tagged there, all 18 packages on the index; the stray tool is gone from your machine |
 | 11d, step 2 (the walk takes 0.1.1.dev19) | done 2026-10-07: commit 4e735f1, CI green |
 | 11d, step 3 (the third `perform`) | done 2026-10-07: GREEN. Both images baked; nothing left behind |
-| **11d, step 4** (the container: `develop` takes the records) | **NEXT: start there**; it ends stage 11 |
+| 11d, step 4 (`develop` takes the records) | done 2026-10-08: `develop` and `main` are level |
+
+**Stage 11 is DONE (2026-10-08).** Every box below is the record of
+what happened; your next command is in stage 12.
 
 **11a. The storage.** In the container. One 100 GB encrypted gp3
 EBS volume named `data`, in the availability zone of the runtime's
@@ -1902,7 +1905,117 @@ The fifth proof of 3.8, the login proof AS the workload and then the
 branch pin on the role, needs a machine to log into: it is in stage
 12, after the launch.
 
-## Stage 12 onward -- written when you reach them
+## Stage 12 -- the machine: launch, verify, the group on it, the login proof (DAILY_DRIVER 3.5, 3.1; CI_SETUP 3.8 step 5)
+
+Read the daily driver's 3.5 and, in 3.1, "The group on its machines".
+Of section 3, the group (stage 10), the storage (11a) and both images
+(the third `perform`) exist. What is left is the instance
+`walk-node-1`: one t3.medium machine that STANDS until teardown
+(stage 17), built from `team-node`, with the volume `data` at
+`/mnt/data`. This is the first machine the walk owns.
+
+The records already say what the launch will make of it
+(`meta-state/launch-params.yaml`): hostname `walk-node-1-001`, the
+first generation of that name; build `ami-03a8cef5e12cd1b50`;
+enrolled in OPA with the project's token under the label
+`sftd.tx.group=walk_team`; the volume on `/dev/xvdf`, mounted at
+`/mnt/data` with the group's subtree `2770`.
+
+| Part | State |
+| --- | --- |
+| **12a. The launch** (the container) | **NEXT: start there** |
+| 12b. Verify the machine | written after 12a, from what the launch said |
+| 12c. Enroll the `sft` client; the group on the machine; the login proof by hand | after 12b |
+| 12d. The login proof as the workload: one more `perform` | after 12c |
+| 12e. The branch pin on the workload role (the OPA console) | last |
+
+One line you will keep seeing until the machine exists, from every
+state query and from the launch's own preflight:
+
+```
+unavailable: instances/walk-node-1: booted image (runtime aws-main could not answer)
+```
+
+It is not a failure and stops nothing (the strict query passes on
+it). The bake pinned `walk-node-1` to its image, the query asks AWS
+which image the machine booted, and there is no machine yet; the
+words blame the cloud for a machine that was simply never launched.
+Finding F33.
+
+**12a. The launch.** In the container. `just cloud-launch` is the
+instance-image lifecycle with nothing baking and this runtime's roots
+allowed to apply for this one run; `apply_instances` stays `false` in
+`cfg/_config.yml`, and you edit nothing.
+
+1. The dry form first, and read what it would run:
+
+   ```sh
+   cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+   git status -sb                             # develop...origin/develop, nothing listed
+   aws sts get-caller-identity                # keys live? refresh them first if they are near an hour old
+   just cloud-launch aws-main yes
+   tail -4 generated/instance-image/run-instance-image.sh
+   ```
+
+   The script's last lines should be the instance root's `tofu plan`,
+   `gate-plan`, `apply-check` and `tofu apply`. A dry launch plans
+   nothing against AWS and launches nothing.
+
+2. The launch:
+
+   ```sh
+   just cloud-launch aws-main 2>&1 | tee ~/launch-12a.log
+   ```
+
+   The `tee` keeps the whole output in your home directory in the
+   container (not in the repository), because Claude cannot see your
+   screen and this run says several things worth reading afterwards.
+   What should happen, in order; Claude has not seen a launch in this
+   tree, so the exact lines are not promised:
+
+   - the preflight (a strict state query), with the `unavailable`
+     line above;
+   - the instance root's plan, `3 to add, 0 to change, 0 to destroy`
+     (the machine, its security group, the volume's attachment), the
+     gate's verdict, the apply;
+   - after the apply, work ON the machine through Session Manager,
+     which needs it running and its agent answering: its other names
+     (lines beginning `Instance walk-node-1:`) and the group
+     `walk_team` made on it. If the machine is not ready in time,
+     those lines say so and the next launch run does them: that is
+     not a failure;
+   - `Run ... completed: instance-image` and a meta-state commit.
+
+   If the run fails, STOP and paste the last thirty lines (`tail -30
+   ~/launch-12a.log`). Do not run it again: a half-made machine is
+   something to look at first.
+
+3. Record it and let CI look:
+
+   ```sh
+   git status --short                         # nothing listed: the run committed its records
+   git push
+   run=""
+   for i in $(seq 12); do
+     sleep 5
+     run=$(gh run list --branch develop --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+     [ -n "$run" ] && break
+   done
+   echo "run ${run:-NOT FOUND after 60 seconds}"
+   [ -n "$run" ] && gh run watch "$run"
+   gh run view "$run" --json conclusion,jobs --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'
+   just state-query --strict
+   grep -nE 'Plan:|Apply complete|Instance walk-node-1|walk_team|alias|WARNING|ERROR|completed:' ~/launch-12a.log | cut -c1-200
+   ```
+
+   If `git status --short` lists anything, paste it before you push.
+
+**Report:** `stage 12a done` with what the last `grep` printed, what
+the `gh run view` line printed, and the state query's lines; or the
+error. STOP there: Claude reads the machine from AWS and the records,
+and writes 12b and 12c with the names the launch really gave it.
+
+## Stage 13 onward -- written when you reach them
 
 These stages depend on what the earlier ones produce (the bootstrap's
 interview, the names it prints), so their exact commands are added to
@@ -1910,7 +2023,6 @@ this page as each one comes up. The order, and the page each follows:
 
 | Stage | What | Follows |
 | --- | --- | --- |
-| 12 | Making things, the rest: the images `perform` baked read back, the durable machine launched, the group on it, the login proof by hand and then as the workload, the branch pin on the role | DAILY_DRIVER 3.3-3.5; CI_SETUP 3.8 step 5 |
 | 13 | Changing things: a modification re-baked; a membership | DAILY_DRIVER 4 |
 | 14 | The failure walk | DAILY_DRIVER 6 |
 | 15 | The GCE leg, one cycle (credentials below) | DAILY_DRIVER 1.4; CONFIGURATION |
@@ -2018,4 +2130,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F30 | expired access keys reach the operator as `Error reading config file : AWS Error: ... (RequestExpired) ... Request has expired` under a hundred-line traceback: the words blame the configuration, and the daily driver's failure table (section 6, the expired-session row) shows `Token has expired` and `a session has EXPIRED` but not `RequestExpired`, which is what temporary keys in the environment or a credentials file produce | words (and the traceback: hygiene XII, with stage 6's) |
 | F31 | `just release` cuts from whatever branch is checked out: 0.1.1.dev18 was cut on the walk branch, its bump and tag landed there, and `develop` was left a version behind. The recipe probes the token, the index, the version and a clean tree, and never the branch | code: stage 83 (the release's probes) |
 | F32 | `cs-image-system init-config . --force` does not check that it stands in a configuration repository: run in the system repository's root it replaced that repository's `Justfile`, `.gitignore` and CI workflow with a starter's and wrote `.csis-version`, `CI_SETUP.md` and the probe workflow beside them; the new `.gitignore` stopped ignoring the checkout's private directory. It guessed a starter from a workflow file and asked nothing | code: hygiene XII item 12 |
+| F33 | a declared instance that was never launched reads, once its image has a build, as `unavailable: instances/<name>: booted image (runtime <r> could not answer)` in every state query: the bake pins the instance, the query asks the cloud for a machine that does not exist, and the words blame the cloud. The records know it was never launched (no generation in the ledger; `launched: false`) | code: hygiene XII item 13 |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
