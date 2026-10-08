@@ -2406,7 +2406,8 @@ may log in", "Who is in a group on its machines").
 | --- | --- |
 | 13a. A modification: re-bake, and the machine takes the new build | done 2026-10-08: baked from the container, the machine replaced, its data intact, `perform` green |
 | 13b, steps 1-5 (the second person declared, OPA and the machine told, their login) | done 2026-10-08, and it found a defect: they logged in and did NOT join the group (finding F37) |
-| **Nothing for you yet** | Claude is fixing F37 in the system (stage 87, your decision); the next box, 13b-again, is written when the fix is merged |
+| the fix for F37 (stage 87) | merged 2026-10-08; it needs release 0.1.1.dev20 |
+| **13b again: release 0.1.1.dev20, take it, the list rewritten** | **NEXT: start there** (its step 1 is on your local machine) |
 | 13c. The second person leaves it again | after that |
 
 For 13b you chose to add a second person. While 13a runs, settle who:
@@ -2740,6 +2741,103 @@ name is computed from another by any rule. A person whose attribute
 OPA does not give stops the list from being rewritten at all, and
 the machine stays as it stands.
 
+**13b again: release 0.1.1.dev20, take it, the list rewritten.**
+Stage 87 is merged. Where 13b stands in the walk tree: the two runs
+of 13b committed their records (two commits, not pushed), and your
+two edits to `groups/` are NOT committed yet: a run commits
+`generated/` and `meta-state/`, never your declarations, and 13b's
+step 6, which this page wrote without the line that commits them,
+was not reached. Step 2 below commits them. Nothing with the second
+person's name has left the container so far.
+
+1. **On your local machine (the host, NOT the container): cut
+   release 0.1.1.dev20 from `develop`.** `develop` says dev19 now, so
+   the plain `dev` form is right again. Line by line; the guarded
+   lines print `OK` or `STOP`:
+
+   ```sh
+   cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+   git status --short                         # nothing listed
+   git checkout develop && git pull
+   [ "$(git branch --show-current)" = develop ] && echo "OK: on develop, at: $(git log --oneline -1)" || echo "STOP: not on develop"
+   ```
+
+   The second `OK` line must end with the stage 87 squash, `A group
+   on a machine lists its members by account name (stage 87)`. Then:
+
+   ```sh
+   curl -s -o /dev/null -w '%{http_code}\n' https://test.pypi.org/legacy/   # 200: the index can take an upload
+   [ "$(git branch --show-current)" = develop ] && just release dev test yes || echo "STOP: not on develop"   # dry: 0.1.1.dev19 would become 0.1.1.dev20
+   [ "$(git branch --show-current)" = develop ] && just release dev test || echo "STOP: not on develop"       # the bar (about 28 minutes), the upload, the commit, the tag
+   git log --oneline -1                       # release 0.1.1.dev20
+   git push --follow-tags
+   git checkout feature/walk-daily-driver     # brings this document back
+   ```
+
+   **Report:** `dev20 pushed`. Claude confirms it is on `develop` and
+   on the index, takes it into the reference configuration, and says
+   go for step 2.
+
+2. **In the container: your declarations, then the release.** Only
+   after Claude says the release is out:
+
+   ```sh
+   cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+   git status --short                         # expect exactly: M groups/groups.yaml and M groups/users.yaml
+   git add groups/groups.yaml groups/users.yaml && git commit -m "A second member of walk_team"
+   uv tool install --index-url https://test.pypi.org/simple/ \
+     --extra-index-url https://pypi.org/simple/ "cs-image-system==0.1.1.dev20"
+   uv tool list                               # cs-image-system v0.1.1.dev20
+   [ "$(pwd)" = /walk/cs-image-system-walk ] && [ -f cfg/_config.yml ] && cs-image-system init-config . --force || echo "STOP: not the walk tree in the container"
+   cat .csis-version                          # 0.1.1.dev20
+   aws sts get-caller-identity                # keys live? refresh them first if they are near an hour old
+   just validate
+   just dry
+   git add -A && git commit -m "Take release 0.1.1.dev20: a group's members are listed by account name"
+   ```
+
+3. **The launch run again, and the count.** This is the run that
+   rewrites the member list on the machine, now in account names:
+
+   ```sh
+   just cloud-launch aws-main 2>&1 | tee ~/launch-13b2.log | tail -3
+   grep -nE 'Plan:|No changes\.|accounts of group|could not be made|completed:|FAILED' ~/launch-13b2.log | cut -c1-160
+   sft ssh walk-node-1 --command 'sudo wc -l < /etc/csis/groups/walk_team.members; getent group walk_team | cut -d: -f4 | tr "," "\n" | grep -c .'
+   ```
+
+   The `grep` should show `the accounts of group walk_team are in
+   place` and no `could not be made`. The two numbers should be `2`
+   and `2`: the script also joins, at once, every listed person whose
+   account stands on the machine, and the second person's does since
+   their login. If they read `2` and `1`, the account has gone in the
+   meantime (OPA's agent removes accounts it made); ask the second
+   person to log in once more and run the count again. Either way
+   report the numbers you saw, in order.
+
+4. **Record, push, CI**, on `develop` only:
+
+   ```sh
+   just record
+   git status --short                         # nothing listed
+   git push
+   run=""
+   for i in $(seq 12); do
+     sleep 5
+     run=$(gh run list --branch develop --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+     [ -n "$run" ] && break
+   done
+   echo "run ${run:-NOT FOUND after 60 seconds}"
+   [ -n "$run" ] && gh run watch "$run"
+   echo "CI on develop: $(gh run view "$run" --json conclusion,headSha --jq '"\(.conclusion) at \(.headSha[0:7])"')"
+   ```
+
+   This is the push that publishes the second person's username, as
+   they agreed.
+
+**Report:** `stage 13b done` with step 3's `grep` output, the numbers
+(and whether a second login was needed), and the `CI on develop:`
+line. Then STOP: 13c takes them out again.
+
 ## Stage 14 onward -- written when you reach them
 
 These stages depend on what the earlier ones produce (the bootstrap's
@@ -2858,5 +2956,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F34 | observation, not yet a finding: a launched machine carries its `Name` and no `csis_config` tag (the images do, since stage 82), so nothing in AWS says which configuration a machine or its security group belongs to; a teardown that reads the account by tag would not find them | to be judged at teardown (stage 17) |
 | F35 | nothing proves the workload role's branch pin. The guide's 3.5 ends at "add the branch pin to the role" and offers no check; the probe authenticates to the CONNECTION and passes the role only as a hint, so it says `accepted ... and issued one` from any branch, pinned or not (seen 2026-10-08: `success` on `develop` with the pin read back from OPA). A team cannot tell a pin that holds from one that does not | words and code: hygiene XII item 14 |
 | F36 | a user's `name` is declared as an `ENC[age:...]` marker in `groups/` and committed in CLEAR by the run: `meta-state/identity.yaml`, the identity roots' HCL (the roster lists, resource names, the local part of the mail address), and the login proofs. In a public configuration repository a person's username is public from the first identity run and stays in the history; only the mail domain is protected. The marker suggests otherwise, and nothing in the guide or the starter says so | words, and a decision: hygiene XII item 15 |
-| F37 | beside Okta, a member whose account name on a machine differs from their OPA username logs in and never joins the group. OPA makes the account under the user's `unix_user_name` attribute; the login hook matches the account against the member list name for name; the list was written in OPA usernames. Seen when the walk's second person logged in: on the list, not in the group. The reference configuration is exposed the same way | code: stage 87 |
+| F37 | beside Okta, a member whose account name on a machine differs from their OPA username logs in and never joins the group. OPA makes the account under the user's `unix_user_name` attribute; the login hook matches the account against the member list name for name; the list was written in OPA usernames. Seen when the walk's second person logged in: on the list, not in the group. The reference configuration is exposed the same way | code: stage 87, released in 0.1.1.dev20 |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
