@@ -12,10 +12,10 @@ on `feature/walk-daily-driver`: the operator types each stage from
 [DAILY_DRIVER_EXECUTE.md](DAILY_DRIVER_EXECUTE.md) on a Fedora 43
 container. §87, the group on a machine lists its members by their
 account names (each read from OPA's `unix_user_name`, never derived;
-walk finding F37), LANDED 2026-10-08 (9655327): the release that
-carries it (dev20) is the operator's, and its live proof is the
-walk's second person joining the group. §86, a bake waits for the
-package database (the
+walk finding F37), LANDED 2026-10-08 (9655327), is released in
+dev20 and PROVED live: the walk's second person, whose two names
+differ, logged in and their session carried the group. §86, a bake
+waits for the package database (the
 first provisioner settles the build machine, a package step waits
 out a held database, and the starters' base tests name what a base
 carries; walk findings F29 and F28), LANDED 2026-10-07 (c6af4b2):

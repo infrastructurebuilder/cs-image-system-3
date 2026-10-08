@@ -2408,8 +2408,9 @@ may log in", "Who is in a group on its machines").
 | 13b, steps 1-5 (the second person declared, OPA and the machine told, their login) | done 2026-10-08, and it found a defect: they logged in and did NOT join the group (finding F37) |
 | the fix for F37 (stage 87) | merged 2026-10-08; it needs release 0.1.1.dev20 |
 | 13b again, step 1 (release 0.1.1.dev20 from `develop`) | done 2026-10-08: cut on `develop`, tagged there, all 18 packages on the index |
-| **13b again, step 2** (the container: commit your `groups/` edits, take 0.1.1.dev20) | **NEXT: start there**, then steps 3 and 4 |
-| 13c. The second person leaves it again | after that |
+| 13b again, steps 2-3b (the walk on 0.1.1.dev20, the list rewritten, the second person's login) | done 2026-10-08: their own session carries `walk_team`. Stage 87 is proved |
+| **13b again, step 4** (the container: record, push, CI) | **NEXT: start there** |
+| 13c. The second person leaves the group again (the container) | straight after, if CI is green |
 
 For 13b you chose to add a second person. While 13a runs, settle who:
 a real Okta account in the same team, whose owner agrees to be a
@@ -2884,8 +2885,107 @@ person's name has left the container so far.
 
 **Report:** `stage 13b done` with step 3's `grep` output, the numbers
 (and whether a second login was needed), what the three looks of
-step 3b printed, and the `CI on develop:` line. Then STOP: 13c takes
-them out again.
+step 3b printed, and the `CI on develop:` line. If CI says `success`,
+go straight on to 13c.
+
+**What happened at "13b again" (2026-10-08): stage 87 is proved by
+the login it was written for.** The second person's own session,
+asked whether it carries `walk_team`, answered `1`. Before the fix
+they logged in and were not in the group; after it, their login
+joins it.
+
+Your two lines straight afterwards read `account-stands`,
+`no-account`, then `2` and `1`, and that is right too; it was this
+page's expectation of `2` and `2` that was wrong. OPA's agent makes a
+person's account for their session and takes it away again when they
+are gone: by the time you looked, theirs no longer stood, so
+`getent` had nobody to show beside you. A person is visible in the
+group on a machine only while they are on it. You would see `2` and
+`2` only by looking while they are still logged in, and nothing
+needs that look now. (Earlier you remarked that Okta seems to take a
+minute or three to push accounts down; this page cannot say which
+part of that is the agent learning of a new member and which is the
+account itself. What it can say is what was seen: an account that
+stood during a session and not after it.)
+
+**13c. The second person leaves the group again.** In the container.
+The daily driver's row "Who may log in" in reverse: the membership
+goes from the YAML, the identity run takes it out of OPA, a launch
+run takes the name off the machine's list. Their username stays in
+this repository's history, as they agreed; nothing can take that
+back.
+
+1. Two edits, with the editor, undoing 13b's. In
+   `groups/groups.yaml`, delete the whole `members:` list of
+   `walk_team` (the `members:` line and the marker under it). In
+   `groups/users.yaml`, delete the second person's entry (the `-
+   name:` line and the lines under it, down to but not including
+   yours or the end of the file). Then:
+
+   ```sh
+   cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+   git status --short                         # expect exactly: M groups/groups.yaml and M groups/users.yaml
+   git diff --stat                            # deletions only
+   aws sts get-caller-identity                # keys live? refresh them first if they are near an hour old
+   just validate
+   git add groups/groups.yaml groups/users.yaml && git commit -m "walk_team has one person again"
+   ```
+
+2. The identity run. This time the plan DESTROYS one thing, the
+   person's attachment to `walk_team_user`, and the gate has to let
+   exactly that through. Claude has not seen a membership removed in
+   this tree; whatever the gate says is what this step is for:
+
+   ```sh
+   just dry identity
+   grep -n 'gate-plan' generated/identity/run-identity.sh | cut -c1-220    # does the gate line name a destroy it will allow?
+   just run identity 2>&1 | tee ~/identity-13c.log | tail -3
+   grep -nE 'Plan:|gate|REFUS|refus|Apply complete|No changes\.|completed:|FAILED' ~/identity-13c.log | cut -c1-200
+   ```
+
+   If the gate refuses the plan, STOP and paste the `grep`'s lines,
+   with `SECOND` in place of any name: nothing was changed, and that
+   refusal is a finding, not an error of yours.
+
+3. The launch run, and the machine's list:
+
+   ```sh
+   just cloud-launch aws-main 2>&1 | tee ~/launch-13c.log | tail -3
+   grep -nE 'No changes\.|accounts of group|could not be made|completed:|FAILED' ~/launch-13c.log | cut -c1-160
+   sft ssh walk-node-1 --command 'sudo wc -l < /etc/csis/groups/walk_team.members; getent group walk_team | cut -d: -f4 | tr "," "\n" | grep -c .'
+   ```
+
+   Expect `the accounts of group walk_team are in place`, then `1`
+   and `1`: one name on the list, yours, and you in the group.
+
+   If the second person is willing, one last thing from their own
+   machine: `sft ssh walk-node-1` should now be REFUSED. OPA may take
+   a few minutes to stop honouring an access it has just withdrawn.
+   Say what they saw, or that it was not tried.
+
+4. Record, push, and let `main` see it:
+
+   ```sh
+   just record
+   git status --short                         # nothing listed
+   git push
+   git push origin develop:main
+   run=""
+   for i in $(seq 12); do
+     sleep 5
+     run=$(gh run list --branch main --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+     [ -n "$run" ] && break
+   done
+   echo "run ${run:-NOT FOUND after 60 seconds}"
+   [ -n "$run" ] && gh run watch "$run"
+   echo "perform on main: $(gh run view "$run" --json conclusion,headSha --jq '"\(.conclusion) at \(.headSha[0:7])"')"
+   git fetch origin && git merge --ff-only origin/main && git push
+   ```
+
+**Report:** `stage 13 done` with the `CI on develop:` line of 13b's
+step 4, step 2's two `grep` outputs, step 3's `grep` and numbers,
+what the second person saw (or `not tried`), and the `perform on
+main:` line.
 
 ## Stage 14 onward -- written when you reach them
 
