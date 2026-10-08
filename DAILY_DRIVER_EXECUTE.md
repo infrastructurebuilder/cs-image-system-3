@@ -2407,7 +2407,8 @@ may log in", "Who is in a group on its machines").
 | 13a. A modification: re-bake, and the machine takes the new build | done 2026-10-08: baked from the container, the machine replaced, its data intact, `perform` green |
 | 13b, steps 1-5 (the second person declared, OPA and the machine told, their login) | done 2026-10-08, and it found a defect: they logged in and did NOT join the group (finding F37) |
 | the fix for F37 (stage 87) | merged 2026-10-08; it needs release 0.1.1.dev20 |
-| **13b again: release 0.1.1.dev20, take it, the list rewritten** | **NEXT: start there** (its step 1 is on your local machine) |
+| 13b again, step 1 (release 0.1.1.dev20 from `develop`) | done 2026-10-08: cut on `develop`, tagged there, all 18 packages on the index |
+| **13b again, step 2** (the container: commit your `groups/` edits, take 0.1.1.dev20) | **NEXT: start there**, then steps 3 and 4 |
 | 13c. The second person leaves it again | after that |
 
 For 13b you chose to add a second person. While 13a runs, settle who:
@@ -2778,8 +2779,12 @@ person's name has left the container so far.
    on the index, takes it into the reference configuration, and says
    go for step 2.
 
-2. **In the container: your declarations, then the release.** Only
-   after Claude says the release is out:
+   (DONE 2026-10-08: release commit 8c0a822 is on `develop` with the
+   tag `v0.1.1.dev20`; 18 of 18 packages are on the index. Go for
+   step 2.)
+
+2. **In the container: your declarations, then the release.** The
+   release is out (see above):
 
    ```sh
    cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
