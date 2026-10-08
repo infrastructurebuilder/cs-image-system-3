@@ -2819,6 +2819,49 @@ person's name has left the container so far.
    person to log in once more and run the count again. Either way
    report the numbers you saw, in order.
 
+   (2026-10-08: the launch run said `No changes` and `the accounts of
+   group walk_team are in place`, and the numbers read `2` and `1`.
+   That alone does not say whether the fix works: `getent` shows a
+   person only while their account stands on the machine, and OPA's
+   agent removes an account some time after its owner has gone. Step
+   3b tells the two cases apart.)
+
+3b. **Is the listed name an account, and does a login carry the
+   group?** Three looks, none of which prints a name.
+
+   First, you, in the container: for each name on the list, does an
+   account of exactly that name stand on the machine now?
+
+   ```sh
+   sft ssh walk-node-1 --command 'for n in $(sudo cat /etc/csis/groups/walk_team.members); do getent passwd "$n" >/dev/null && echo account-stands || echo no-account; done'
+   ```
+
+   Two lines. One is yours and says `account-stands`. If the other
+   says `no-account`, the second person has no account on the
+   machine at this moment, which is why they are not in the group.
+
+   Second, the second person, from their own machine, logs in and
+   asks their own session whether it carries the group:
+
+   ```sh
+   sft ssh walk-node-1 --command 'id -nG | tr " " "\n" | grep -c "^walk_team$"'
+   ```
+
+   `1` is the proof of stage 87: their login joined the group. `0`
+   means it did not.
+
+   Third, you again, straight after their login, the first line of
+   this step once more and then the count:
+
+   ```sh
+   sft ssh walk-node-1 --command 'for n in $(sudo cat /etc/csis/groups/walk_team.members); do getent passwd "$n" >/dev/null && echo account-stands || echo no-account; done'
+   sft ssh walk-node-1 --command 'sudo wc -l < /etc/csis/groups/walk_team.members; getent group walk_team | cut -d: -f4 | tr "," "\n" | grep -c .'
+   ```
+
+   Now both lines should say `account-stands`: the name on the list
+   IS their account's name, which before the fix it was not. And the
+   count should read `2` and `2`.
+
 4. **Record, push, CI**, on `develop` only:
 
    ```sh
@@ -2840,8 +2883,9 @@ person's name has left the container so far.
    they agreed.
 
 **Report:** `stage 13b done` with step 3's `grep` output, the numbers
-(and whether a second login was needed), and the `CI on develop:`
-line. Then STOP: 13c takes them out again.
+(and whether a second login was needed), what the three looks of
+step 3b printed, and the `CI on develop:` line. Then STOP: 13c takes
+them out again.
 
 ## Stage 14 onward -- written when you reach them
 
