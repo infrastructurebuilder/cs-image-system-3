@@ -1927,9 +1927,9 @@ enrolled in OPA with the project's token under the label
 | 12a, steps 2-3 (the launch, its records, CI) | done 2026-10-08: the machine stands; CI green; no drift |
 | 12b. Verify the machine | done 2026-10-08: `instance walk-node-1 verified` |
 | 12c, steps 1-3 (the `sft` client, the group on the machine, the proof by hand) | done 2026-10-08: `login proved for walk-node-1` |
-| **12c, step 4** (the record, the push, CI) | **NEXT: start there** |
-| 12d. The login proof as the workload: one more `perform` | straight after, if CI is green |
-| 12e. The branch pin on the workload role (the OPA console) | last; after a green 12d |
+| 12c, step 4 (the record, the push, CI) | done 2026-10-08: both verdicts committed (483385c), CI green |
+| 12d. The login proof as the workload | done 2026-10-08: GREEN; `as: workload` is on `main` |
+| **12e. The branch pin on the workload role** (the OPA console, then the container) | **NEXT: start there**; it ends stage 12 |
 
 One line you will keep seeing until the machine exists, from every
 state query and from the launch's own preflight:
@@ -2204,10 +2204,29 @@ connection of 10a, becomes the role of 10b, and logs in through
 and what the `grep` printed; or `red`. Then STOP: Claude confirms the
 proof on `main` before the role is pinned to it.
 
-**12e. The branch pin on the workload role.** Only after Claude says
-12d is confirmed (CI_SETUP 3.5 step 6: "after the first green login
-proof from `main`"). Until now any branch of this repository could
-become the role; from here only `main` can.
+**What happened at 12d (2026-10-08): it worked, and Claude confirms
+the proof on `main`.** Run 37711188808: `verify`, `live` and
+`perform` green, in about two minutes of performing. Nothing baked
+(both images `skip: current`); the instance root's plan said `No
+changes. Your infrastructure matches the configuration`, which is
+the first time a plan has looked at the standing machine and found
+it as declared. Then `CI logs in through the managed policy`:
+`workload token: sft workload authenticate exit 0`, and `logged in
+as wl_cs_image_system_walk_ci over sft ssh`, `login proved for
+walk-node-1`.
+
+`meta-state/login-proofs.yaml` on `main` now holds two entries for
+`walk-node-1`. Yours, `as: client`: `uid=150006(mykel.alvis)` with
+the groups `sft-admin` and `walk_team`. CI's, `as: workload`:
+`uid=150034(wl_cs_image_system_walk_ci)` with no group but its own.
+That difference is the design showing: the CI policy lets the
+workload in and gives it nothing, no sudo and no place in the team's
+group. It is the fifth and last proof of the CI guide's 3.8.
+
+**12e. The branch pin on the workload role.** 12d is confirmed
+(CI_SETUP 3.5 step 6: "after the first green login proof from
+`main`"). Until now any branch of this repository could become the
+role; from here only `main` can.
 
 1. You, in the OPA console (it needs the security-admin role):
    Security Administration, Workload roles, `cs-image-system-walk-ci`,
