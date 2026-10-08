@@ -1929,7 +1929,9 @@ enrolled in OPA with the project's token under the label
 | 12c, steps 1-3 (the `sft` client, the group on the machine, the proof by hand) | done 2026-10-08: `login proved for walk-node-1` |
 | 12c, step 4 (the record, the push, CI) | done 2026-10-08: both verdicts committed (483385c), CI green |
 | 12d. The login proof as the workload | done 2026-10-08: GREEN; `as: workload` is on `main` |
-| **12e. The branch pin on the workload role** (the OPA console, then the container) | **NEXT: start there**; it ends stage 12 |
+| 12e, steps 1-2 (the pin in the console; the bootstrap sees it) | done 2026-10-08: the role reads back from OPA with `ref` Equals `refs/heads/main` |
+| 12e, step 3 (the probe from both sides) | superseded: the probe cannot see the pin (F35) |
+| **12e, step 4** (the container: one `perform` on `main` with the pin in place) | **NEXT: start there**, then step 5; step 6 after Claude has read the run |
 
 One line you will keep seeing until the machine exists, from every
 state query and from the launch's own preflight:
@@ -2263,31 +2265,111 @@ role; from here only `main` can.
    git push
    ```
 
-3. Prove the pin from both sides with the probe: `main` is let in,
-   `develop` is not. The second run is MEANT to fail:
+3. (SUPERSEDED 2026-10-08: this step asked the probe to show the
+   pin, `main` let in and `develop` kept out. It cannot. Both probes
+   said `success`, and both were right: see "What happened" below.
+   Steps 4 to 6 are the proof.)
+
+**What happened at 12e's steps 1-3 (2026-10-08).** The pin is set
+correctly: Claude read the role back from OPA, and it holds one
+requirement, the connection `github-cs-image-system-walk`, with the
+one condition `ref` Equals `refs/heads/main`; the connection keeps
+its two claims and no `ref`. The bootstrap saw the same (`pinned to
+`main`: yes`), committed as 41daa01.
+
+Then the probe ran on `main` and on `develop`, and said `success`
+both times: `the connection accepted this run's token and issued
+one`. Claude had written that a success on `develop` would mean the
+pin was not holding. That was wrong, and it was Claude's invention,
+not the guide's. The probe authenticates to the CONNECTION, which
+asks only whether a token is this repository's; the role is passed
+to the client as a hint ("the desired role the workload will assume,
+if authorized"), and being issued a token says nothing about having
+been given the role. So the probe cannot see the pin at all, from
+either side (finding F35). What is still unproven is the thing that
+matters: that a workload from another branch is REFUSED. By your
+decision ("Prove it now") the next three steps show it with a real
+login attempt.
+
+4. The pin must not have locked `main` out. `develop` holds the
+   bootstrap's commit of step 2, which `main` does not have yet, so
+   pushing it makes one more `perform`, and its login is the first
+   made as the workload WITH the pin in place. In the container:
 
    ```sh
-   for ref in main develop; do
-     start=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-     gh workflow run opa-workload-probe.yml --ref "$ref"
-     run=""
-     for i in $(seq 12); do
-       sleep 5
-       run=$(gh run list --workflow opa-workload-probe.yml --limit 1 --json databaseId,createdAt --jq "[.[] | select(.createdAt >= \"$start\")][0].databaseId // empty")
-       [ -n "$run" ] && break
-     done
-     echo "probe on $ref: run ${run:-NOT FOUND after 60 seconds}"
-     [ -n "$run" ] && gh run watch "$run" >/dev/null 2>&1
-     [ -n "$run" ] && echo "probe on $ref: $(gh run view "$run" --json conclusion --jq .conclusion)"
+   cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+   git status -sb                             # develop...origin/develop, not ahead; one untracked file: .github/workflows/pin-proof.yml
+   git push origin develop:main
+   run=""
+   for i in $(seq 12); do
+     sleep 5
+     run=$(gh run list --branch main --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+     [ -n "$run" ] && break
    done
+   echo "run ${run:-NOT FOUND after 60 seconds}"
+   [ -n "$run" ] && gh run watch "$run"
+   echo "perform on main, pinned: $(gh run view "$run" --json conclusion,headSha --jq '"\(.conclusion) at \(.headSha[0:7])"')"
+   git fetch origin && git merge --ff-only origin/main && git push
+   grep -c '^- as: workload' meta-state/login-proofs.yaml    # 2: the proof before the pin, and this one after it
    ```
 
-   Expected: `probe on main: success` and `probe on develop:
-   failure`. A `success` on `develop` would mean the pin is not
-   holding: say so at once.
+   The untracked file is the temporary workflow Claude wrote into
+   the tree for step 5; leave it where it is and do NOT `git add`
+   it here. If the run is not `success`, STOP and say `red`: a pin
+   that locks `main` out is to be taken off before anything else.
 
-**Report:** `stage 12 done` with the two `probe on ...` lines and
-what the `grep` of the README printed.
+5. The refusal. A throwaway branch, `pin-proof`, carries one extra
+   file, `.github/workflows/pin-proof.yml`: on a push to that branch
+   it makes the very login `perform` makes on `main`, `just
+   ci-login-proof` as the workload, from a ref that is not `main`.
+   Its job is GREEN when OPA issues the connection's token and then
+   REFUSES the login (the pin holds), and RED when the login succeeds
+   (the pin does not hold) or the attempt could not be judged. Read
+   the file first if you like; nothing in it writes anywhere.
+
+   ```sh
+   cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+   git status --short                         # exactly one line: ?? .github/workflows/pin-proof.yml
+   git checkout -b pin-proof
+   git add .github/workflows/pin-proof.yml && git commit -m "TEMPORARY: prove the workload role's branch pin (never for main)"
+   git push -u origin pin-proof
+   run=""
+   for i in $(seq 12); do
+     sleep 5
+     run=$(gh run list --branch pin-proof --commit "$(git rev-parse HEAD)" --json databaseId,workflowName --jq '[.[] | select(.workflowName == "TEMPORARY pin proof")][0].databaseId // empty')
+     [ -n "$run" ] && break
+   done
+   echo "run ${run:-NOT FOUND after 60 seconds}"
+   [ -n "$run" ] && gh run watch "$run"
+   echo "pin proof: $(gh run view "$run" --json conclusion --jq .conclusion)"
+   gh run view "$run" --log | grep -E 'this run.s ref:|PIN HOLDS|PIN DOES NOT HOLD|INCONCLUSIVE|login proof FAILED|ci-login-proof exit' | cut -d$'\t' -f3- | cut -c30-260
+   git checkout develop
+   git status -sb                             # develop...origin/develop, nothing listed
+   ```
+
+   The push also starts the ordinary `CI` workflow on that branch
+   (`verify` and `live`); it is not the run these lines watch (they
+   pick the run named `TEMPORARY pin proof`), and its result does not
+   matter here. The temporary workflow uses the READ-ONLY AWS role,
+   which trusts every branch of this repository; the WRITE role
+   trusts `main` alone and is not touched. Expected: `pin proof: success`
+   and a line `PIN HOLDS: OPA issued the connection's token to
+   refs/heads/pin-proof and then refused the login`. If it prints
+   `PIN DOES NOT HOLD`, say so at once. Either way, do not go on to
+   step 6 until Claude has read the run.
+
+6. Remove the throwaway branch. Only after Claude says the run is
+   read. It never reached `develop` or `main`:
+
+   ```sh
+   cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+   [ "$(git branch --show-current)" = develop ] && git push origin --delete pin-proof && git branch -D pin-proof || echo "STOP: not on develop"
+   git branch -a | grep -c pin-proof          # 0
+   ls .github/workflows/                      # ci.yml and opa-workload-probe.yml: the temporary file went with its branch
+   ```
+
+**Report:** `stage 12 done` with the `perform on main, pinned:` line,
+the `pin proof:` line and the lines the last `grep` of step 5 printed.
 
 ## Stage 13 onward -- written when you reach them
 
@@ -2406,4 +2488,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F32 | `cs-image-system init-config . --force` does not check that it stands in a configuration repository: run in the system repository's root it replaced that repository's `Justfile`, `.gitignore` and CI workflow with a starter's and wrote `.csis-version`, `CI_SETUP.md` and the probe workflow beside them; the new `.gitignore` stopped ignoring the checkout's private directory. It guessed a starter from a workflow file and asked nothing | code: hygiene XII item 12 |
 | F33 | a declared instance that was never launched reads, once its image has a build, as `unavailable: instances/<name>: booted image (runtime <r> could not answer)` in every state query: the bake pins the instance, the query asks the cloud for a machine that does not exist, and the words blame the cloud. The records know it was never launched (no generation in the ledger; `launched: false`) | code: hygiene XII item 13 |
 | F34 | observation, not yet a finding: a launched machine carries its `Name` and no `csis_config` tag (the images do, since stage 82), so nothing in AWS says which configuration a machine or its security group belongs to; a teardown that reads the account by tag would not find them | to be judged at teardown (stage 17) |
+| F35 | nothing proves the workload role's branch pin. The guide's 3.5 ends at "add the branch pin to the role" and offers no check; the probe authenticates to the CONNECTION and passes the role only as a hint, so it says `accepted ... and issued one` from any branch, pinned or not (seen 2026-10-08: `success` on `develop` with the pin read back from OPA). A team cannot tell a pin that holds from one that does not | words and code: hygiene XII item 14 |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
