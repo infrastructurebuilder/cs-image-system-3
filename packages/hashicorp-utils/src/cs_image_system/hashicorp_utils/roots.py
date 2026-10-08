@@ -176,6 +176,7 @@ class TerraformRootMixin(_Base):
         pre_commands: Sequence["ExecutableModel"] = (),
         require_unmounted: Sequence[str] = (),
         pre_plan_backup: bool = False,
+        allow_destroy_from: Sequence[str] = (),
     ) -> list["ExecutableModel"]:
         """The deferred plan -> gate -> (apply) sequence for a terraform root
         (DESIGN §3C/N19).
@@ -195,7 +196,11 @@ class TerraformRootMixin(_Base):
         pre-command that removes state (the identity runner's prune step)
         takes its own backup, so a run never pulls state twice for one
         removal and never backs up a run that removes nothing (stage 63
-        item 4, decided 2026-09-24).
+        item 4, decided 2026-09-24). ``allow_destroy_from`` names files, in
+        the root, that one of the runner's own steps writes before the plan:
+        the addresses a declaration asks to have destroyed and that only the
+        state can name (stage 88: a membership the YAML dropped). The gate
+        matches them exactly.
         """
         from cs_image_system.base.global_context import GlobalTypeContext
         from cs_image_system.base.models.executable import ExecutableModel
@@ -243,6 +248,8 @@ class TerraformRootMixin(_Base):
         gate_args = ["gate-plan", "--planfile", "tfplan", "--tofu", tofu_bin]
         for addr in list(allow_destroy) + list(replace):
             gate_args += ["--allow-destroy", addr]
+        for name in allow_destroy_from:
+            gate_args += ["--allow-destroy-from", name]
         for pair in require_unmounted:
             gate_args += ["--require-unmounted", pair]
         commands.append(system_cli_executable(gate_args, working_directory))

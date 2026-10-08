@@ -668,6 +668,16 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
     #: What tofu and terraform both say when a root has no state at all.
     NO_STATE_YET = "No state file was found"
 
+    #: stage 88: where the prune step names, for the gate, the destroys this
+    #: run's DECLARATION asks for -- the attachment of each membership the YAML
+    #: dropped and the state still carries. One address a line, in the root the
+    #: runner works in (its private mirror: never committed), rewritten by
+    #: every run so an earlier run's list can sanction nothing.
+    SANCTIONED_REMOVALS = "csis-sanctioned-removals.txt"
+
+    def _sanction(self, cwd: Path, addresses: list[str]) -> None:
+        (Path(cwd) / self.SANCTIONED_REMOVALS).write_text("".join(f"{a}\n" for a in addresses))
+
     def prune_stale_attachments(self, tofu: str, run_id: str, cwd: Path) -> int:
         """Stage 61 item 3, at EXECUTION time in the initialised root.
 
@@ -679,9 +689,21 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         outlived a failed runner on 2026-09-23 and said the membership was
         already gone), keeps every attachment the declaration still has,
         asks OPA about each one it dropped, and removes from state -- after
-        a backup -- only those OPA no longer holds. One OPA still holds is
-        left to the plan (the destroy shows, the gate sees it); a silent or
-        unreachable OPA removes nothing and the plan decides."""
+        a backup -- only those OPA no longer holds. A silent or unreachable
+        OPA removes nothing from state and the plan decides.
+
+        Stage 88 (the operator, 2026-10-08: "The system can add users to an
+        oktapam group. It should be able to remove them from that group, as
+        well"): a membership the YAML dropped and OPA still holds is REMOVED
+        by the run. The plan shows the destroy of its attachment, and this
+        step sanctions exactly that address for the gate
+        (``SANCTIONED_REMOVALS``). Until then the gate whitelisted no
+        membership destroy, the run failed, and a person had to be removed
+        in the OPA console first. What is sanctioned is narrow on purpose: an
+        attachment, of a managed group of this builder, for a person its
+        declaration no longer names in that role. Never a group, a user, a
+        policy or a token."""
+        self._sanction(cwd, [])                     # an earlier run's list sanctions nothing
         listed = subprocess.run([tofu, "state", "list"], cwd=cwd, capture_output=True, text=True, check=False)
         if listed.returncode != 0:
             said = (listed.stderr or listed.stdout).strip()
@@ -715,10 +737,13 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
             resolver = self._resolver()
         except Exception as e:
             log.warning(f"Identity builder {self.name}: {len(dropped)} attachment(s) in state are no longer "
-                        f"declared but OPA cannot be asked whether it still holds them ({e}); nothing is removed")
+                        f"declared but OPA cannot be asked whether it still holds them ({e}); nothing is removed "
+                        "from state, and the plan's destroy of each is the declaration's to ask for")
+            self._sanction(cwd, [addr for addr, _, _, _ in dropped])
             return 0
         held_by: dict[str, list[str] | None] = {}
         remove: list[tuple[str, Group, str, str]] = []
+        sanctioned: list[str] = []
         for addr, group, kind, user in dropped:
             server_group = f"{group.get_name()}{USER_GROUP_SUFFIX if kind == 'members' else ADMIN_GROUP_SUFFIX}"
             if server_group not in held_by:
@@ -727,11 +752,15 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
             if held is None:
                 log.warning(f"Identity builder {self.name}: OPA did not answer for group {server_group!r}; "
                             f"{kind[:-1]} {user!r} stays in state for the plan to decide")
+                sanctioned.append(addr)
             elif user in held:
                 log.info(f"Identity builder {self.name}: {kind[:-1]} {user!r} was dropped from group "
-                         f"{group.get_name()!r} but OPA still holds it; the plan will show the destroy")
+                         f"{group.get_name()!r} and OPA still holds it; the plan will show the destroy of its "
+                         "attachment, which the declaration asks for and the gate allows")
+                sanctioned.append(addr)
             else:
                 remove.append((addr, group, kind, user))
+        self._sanction(cwd, sanctioned)
         if not remove:
             return 0
         from cs_image_system.base.commands.state_migration import backup
@@ -782,9 +811,12 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
              "--run", str(self._get_context().run_id)], wd)
         # Per-root apply scoping (stage 7): the identity root is its builder name;
         # a pre-plan state rm is preceded by a state backup (stage 61 item 3)
+        # stage 88: the gate reads the removals that step sanctioned (a membership
+        # the YAML dropped), each by its exact address
         deferred = self.gated_apply_commands(
             phase, wd, apply=utils.apply_enabled("identity", self.name), pre_plan=pre_plan,
-            pre_commands=[prune], apply_flag_key="identity", apply_root=self.name, pre_plan_backup=True)
+            pre_commands=[prune], apply_flag_key="identity", apply_root=self.name, pre_plan_backup=True,
+            allow_destroy_from=[self.SANCTIONED_REMOVALS])
         # EXPLORE identity: attributes travel outside terraform. When
         # anything is declared, the runner probes (read-only) after the
         # apply and shows what an attribute apply would change; the write
