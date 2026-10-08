@@ -2412,8 +2412,10 @@ may log in", "Who is in a group on its machines").
 | 13b again, step 4 (record, push, CI) | done 2026-10-08: 2a99d31, CI green |
 | 13c, steps 1-2 (the edits undone; the identity run) | done 2026-10-08: the gate REFUSED the run, by design, and nothing changed (finding F38) |
 | 13c, step 2b, first half (the person removed in the OPA console) | done 2026-10-08 |
-| **13c, step 2b, second half** (the container: the identity run again) | **NEXT: start there**, then steps 3 and 4 |
-| 13d. The same removal by the YAML alone, on 0.1.1.dev21 | after stage 88 is released (see below); written then |
+| the fix for F38 (stage 88) | merged 2026-10-08 (20206e8); it needs release 0.1.1.dev21 |
+| **13c, step 2b, second half** (the container: the identity run again) | **NEXT in the container: start there**, then steps 3 and 4 |
+| **13d, step 1** (your local machine: release 0.1.1.dev21 from `develop`) | **NEXT on the host.** It does not wait for 13c: its half hour can run while you do 13c in the container |
+| 13d, steps 2-6 (the walk on 0.1.1.dev21: the second person back in, and out again by the YAML alone) | after 13c and the release |
 
 For 13b you chose to add a second person. While 13a runs, settle who:
 a real Okta account in the same team, whose owner agrees to be a
@@ -2978,8 +2980,8 @@ back.
    those through. Nothing else becomes destroyable: not a group, a
    user, a policy or a token, and not a person the YAML still names.
    Step 2b below is still the way on TODAY's release, and it is half
-   done already; 13d will repeat the removal on the new release, by
-   the YAML alone.
+   done already. Stage 88 is merged (20206e8); 13d, below, repeats the
+   removal on the new release, by the YAML alone.
 
 2b. **The explicit decision, then the run again.**
 
@@ -3044,9 +3046,157 @@ back.
    git fetch origin && git merge --ff-only origin/main && git push
    ```
 
-**Report:** `stage 13 done` with step 2b's `grep` output, step 3's
+**Report:** `stage 13c done` with step 2b's `grep` output, step 3's
 `grep` and numbers, what the second person saw (or `not tried`), and
-the `perform on main:` line.
+the `perform on main:` line. 13d follows.
+
+**13d. The same removal, by the YAML alone (the proof of stage 88).**
+Stage 88 is merged: a membership the YAML drops is removed from the
+OPA group by the identity run itself. This part proves it where 13c
+found the need: the second person goes back into `walk_team` for one
+run and comes out again by an edit and a run, with nobody opening
+the OPA console. Tell them first; it is the same membership they
+agreed to, for a few minutes more. Nothing is typed with their name
+in it: both edits are taken from this repository's own history.
+
+Step 1, the release, is on your local machine and does not wait for
+13c. Steps 2 to 6 do: they start, in the container, from a walk tree
+that is clean and pushed, after `stage 13c done`.
+
+1. **On your local machine (the host, NOT the container): cut
+   release 0.1.1.dev21 from `develop`.** `develop` says dev20 now, so
+   the plain `dev` form is right. Line by line; the guarded lines
+   print `OK` or `STOP`:
+
+   ```sh
+   cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+   git status --short                         # nothing listed
+   git checkout develop && git pull
+   [ "$(git branch --show-current)" = develop ] && echo "OK: on develop, at: $(git log --oneline -1)" || echo "STOP: not on develop"
+   ```
+
+   The second `OK` line must end with the stage 88 squash, `A
+   membership the YAML dropped is removed by the run (stage 88)`.
+   Then:
+
+   ```sh
+   curl -s -o /dev/null -w '%{http_code}\n' https://test.pypi.org/legacy/   # 200: the index can take an upload
+   [ "$(git branch --show-current)" = develop ] && just release dev test yes || echo "STOP: not on develop"   # dry: 0.1.1.dev20 would become 0.1.1.dev21
+   [ "$(git branch --show-current)" = develop ] && just release dev test || echo "STOP: not on develop"       # the bar (about 28 minutes), the upload, the commit, the tag
+   git log --oneline -1                       # release 0.1.1.dev21
+   git push --follow-tags
+   git checkout feature/walk-daily-driver     # brings this document back
+   aws sso login --profile noaa               # Claude's local session ended at 21:34 UTC on 2026-10-08; the reference configuration's dry run needs one
+   ```
+
+   **Report:** `dev21 pushed`. Claude confirms it is on `develop` and
+   on the index, takes it into the reference configuration, and says
+   go for step 2.
+
+2. **In the container: take the release.**
+
+   ```sh
+   cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+   git status -sb                             # develop, level with origin, nothing listed (13c is done and pushed)
+   uv tool install --index-url https://test.pypi.org/simple/ \
+     --extra-index-url https://pypi.org/simple/ "cs-image-system==0.1.1.dev21"
+   uv tool list                               # cs-image-system v0.1.1.dev21
+   [ "$(pwd)" = /walk/cs-image-system-walk ] && [ -f cfg/_config.yml ] && cs-image-system init-config . --force || echo "STOP: not the walk tree in the container"
+   cat .csis-version                          # 0.1.1.dev21
+   aws sts get-caller-identity                # keys live? refresh them first if they are near an hour old
+   just validate
+   just dry
+   grep -n 'gate-plan' generated/identity/run-identity.sh | cut -c1-260
+   git add -A && git commit -m "Take release 0.1.1.dev21: a membership the YAML dropped is removed by the run"
+   ```
+
+   The `grep` is the first sight of the change. The gate line of
+   the root `opa-groups/group-generation` should now end
+   `--allow-destroy-from csis-sanctioned-removals.txt`, and the
+   `okta-users` root's gate line should not have it: the file is
+   where the runner's own step names, at run time, the attachment of
+   each membership the YAML dropped, and only the root that holds
+   memberships reads one.
+
+3. **The second person back in, from history.** The commit `9c8bc06`
+   ("A second member of walk_team") holds both files as they were
+   with two people:
+
+   ```sh
+   git checkout 9c8bc06 -- groups/groups.yaml groups/users.yaml
+   git status --short                         # expect exactly: M  groups/groups.yaml and M  groups/users.yaml
+   just validate
+   git commit -m "A second member of walk_team, for one run"
+   just run identity 2>&1 | tee ~/identity-13d-add.log | tail -3
+   grep -nE 'Plan:|Apply complete|No changes\.|completed:|FAILED' ~/identity-13d-add.log | cut -c1-160
+   ```
+
+   As in 13b: `Plan: 1 to add, 0 to change, 0 to destroy` and `Apply
+   complete! Resources: 1 added`. They are a member of
+   `walk_team_user` in OPA again. No launch run follows, on purpose:
+   the machine's own list is not rewritten, and stays as 13c left it.
+
+4. **And out again, by the YAML alone.** `9c8bc06~1` is the commit
+   before that one: both files with you alone.
+
+   ```sh
+   git checkout 9c8bc06~1 -- groups/groups.yaml groups/users.yaml
+   git status --short                         # expect exactly: M  groups/groups.yaml and M  groups/users.yaml
+   just validate
+   git commit -m "walk_team has one person again, by the YAML alone"
+   just run identity 2>&1 | tee ~/identity-13d.log | tail -3
+   grep -nE 'Plan:|still holds|sanctioned|NOT WHITELISTED|passes the apply gate|Apply complete|completed:|FAILED' ~/identity-13d.log | sed -E 's/(member|admin) .[^ ]*. was/\1 SECOND was/; s/\["[^"]*"\]/["SECOND"]/g' | cut -c1-220
+   ```
+
+   This is the run that failed at 13c. What stage 88's tests say it
+   prints now, none of it seen in this tree yet, which is what the
+   step is for:
+
+   - the prune step: `member 'SECOND' was dropped from group
+     'walk_team' and OPA still holds it; the plan will show the
+     destroy of its attachment, which the declaration asks for and
+     the gate allows`;
+   - the plan: `Plan: 0 to add, 0 to change, 1 to destroy`;
+   - the gate: `Destroy sanctioned by the declaration:
+     module.group_walk_team.oktapam_user_group_attachment.
+     members["SECOND"]`, then `Plan passes the apply gate.`;
+   - the apply: `Apply complete! Resources: 0 added, 0 changed, 1
+     destroyed`, and the run `completed: identity`.
+
+   The `sed` writes `SECOND` where the log names the person; look
+   the output over all the same before you paste it. If the gate
+   says `DESTROY NOT WHITELISTED` instead, STOP and paste the lines:
+   nothing was changed, and the fix does not do what its tests say.
+
+5. **OPA's own word.** In the OPA console, open the group
+   `walk_team_user`: the second person is not in it, and you did not
+   take them out. Say what you see. (Claude reads the same group
+   from OPA's API, a count and no names, when you report.) If the
+   second person is willing, `sft ssh walk-node-1` from their own
+   machine should be refused, perhaps only after a few minutes.
+
+6. Record, push, and let `main` see it:
+
+   ```sh
+   just record
+   git status --short                         # nothing listed
+   git push
+   git push origin develop:main
+   run=""
+   for i in $(seq 12); do
+     sleep 5
+     run=$(gh run list --branch main --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+     [ -n "$run" ] && break
+   done
+   echo "run ${run:-NOT FOUND after 60 seconds}"
+   [ -n "$run" ] && gh run watch "$run"
+   echo "perform on main: $(gh run view "$run" --json conclusion,headSha --jq '"\(.conclusion) at \(.headSha[0:7])"')"
+   git fetch origin && git merge --ff-only origin/main && git push
+   ```
+
+**Report:** `stage 13 done` with step 2's `grep` (the gate lines),
+step 3's `grep`, step 4's `grep`, what the console shows, what the
+second person saw (or `not tried`), and the `perform on main:` line.
 
 ## Stage 14 onward -- written when you reach them
 
@@ -3167,5 +3317,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F35 | nothing proves the workload role's branch pin. The guide's 3.5 ends at "add the branch pin to the role" and offers no check; the probe authenticates to the CONNECTION and passes the role only as a hint, so it says `accepted ... and issued one` from any branch, pinned or not (seen 2026-10-08: `success` on `develop` with the pin read back from OPA). A team cannot tell a pin that holds from one that does not | words and code: hygiene XII item 14 |
 | F36 | a user's `name` is declared as an `ENC[age:...]` marker in `groups/` and committed in CLEAR by the run: `meta-state/identity.yaml`, the identity roots' HCL (the roster lists, resource names, the local part of the mail address), and the login proofs. In a public configuration repository a person's username is public from the first identity run and stays in the history; only the mail domain is protected. The marker suggests otherwise, and nothing in the guide or the starter says so | words, and a decision: hygiene XII item 15 |
 | F37 | beside Okta, a member whose account name on a machine differs from their OPA username logs in and never joins the group. OPA makes the account under the user's `unix_user_name` attribute; the login hook matches the account against the member list name for name; the list was written in OPA usernames. Seen when the walk's second person logged in: on the list, not in the group. The reference configuration is exposed the same way | code: stage 87, released in 0.1.1.dev20 |
-| F38 | removing a member the way the pages describe FAILS, and they do not say it will. The daily driver (3.1; section 4, "Who may log in") and the operations guide ("Drop a membership") say that for a removal OPA still holds "the plan shows the destroy and the gate sees it". The gate refuses it: `DESTROY NOT WHITELISTED`, exit 3, the run FAILED, by the design rule "membership removals only by explicit decision". The procedure that works, remove the person in the OPA console first and let the next run prune its state, is written nowhere as a procedure, and the refusal does not name it. The operator, on reading it: the rule was a mistake; the system adds members and must be able to remove them | code: stage 88 (was hygiene XII item 16), and words |
+| F38 | removing a member the way the pages describe FAILS, and they do not say it will. The daily driver (3.1; section 4, "Who may log in") and the operations guide ("Drop a membership") say that for a removal OPA still holds "the plan shows the destroy and the gate sees it". The gate refuses it: `DESTROY NOT WHITELISTED`, exit 3, the run FAILED, by the design rule "membership removals only by explicit decision". The procedure that works, remove the person in the OPA console first and let the next run prune its state, is written nowhere as a procedure, and the refusal does not name it. The operator, on reading it: the rule was a mistake; the system adds members and must be able to remove them | code: stage 88 (20206e8, was hygiene XII item 16), to be released in 0.1.1.dev21 and proved by 13d. Words: the daily driver's 3.1 and section 4, the operations guide's "The apply gate", "Drop a membership" and "Identity", and the design where it states the old rule; and a caution the pages do not yet carry: an edit that empties a roster by mistake now removes people, a dry run cannot show it, and the applying run's prune step and plan name each person first |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
