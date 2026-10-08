@@ -205,15 +205,50 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         found = next((g for g in self.get_groups_for_builder() if g.get_name() == group), None)
         if delegate is None or found is None:
             return None
-        gid = self._resolver().resolve([group]).get(group)
+        resolver = self._resolver()
+        gid = resolver.resolve([group]).get(group)
         if gid is None:
             raise ValueError(f"OPA carries no unix_gid for group {group}; its posix group cannot be made")
         people = self._people(found)
+        accounts = self._account_names(resolver, people)
         keys: dict[str, list[str]] | None = None
         if self.model.posix_ssh_keys:
             users = {u.get_name(): u for u in self._get_context().users}
-            keys = {n: [str(k) for k in users[n].public_keys] for n in people if n in users and users[n].public_keys}
-        return delegate.groups_script({group: int(gid)}, {group: people}, keys)
+            keys = {accounts[n]: [str(k) for k in users[n].public_keys]
+                    for n in people if n in users and users[n].public_keys}
+        return delegate.groups_script({group: int(gid)}, {group: sorted(set(accounts.values()))}, keys)
+
+    def _account_names(self, resolver: Any, people: list[str]) -> dict[str, str]:
+        """``{OPA username: account name on a machine}`` (stage 87).
+
+        OPA's agent makes a person's account under their ``unix_user_name``
+        ATTRIBUTE. It is a value of its own, set in OPA or pushed from Okta,
+        and need not be their OPA username: found walking the daily driver
+        (stage 65, finding F37), where a member whose two names differed
+        logged in and never joined the group -- the login hook compares the
+        account that logs in with the member list, name for name, and the
+        list carried usernames. So the list (and a key file's name) is
+        written in account names, each READ from OPA now.
+
+        Nothing is derived or guessed: one name is never computed from the
+        other, by any rule of spelling. A person whose attribute cannot be
+        read, or who has none, stops the script from being made -- the
+        caller reports it and leaves the machine exactly as it stands,
+        because a list written without them would take a standing member
+        OUT of the group, and a guessed name could let the wrong account
+        in."""
+        names: dict[str, str] = {}
+        for person in people:
+            try:
+                unix = (resolver.user_attributes(person) or {}).get("unix_user_name")
+            except Exception as e:  # noqa: BLE001 - credentials, network, a user OPA does not have
+                raise ValueError(f"OPA's unix_user_name of {person!r} could not be read ({e}); the member list "
+                                 "is not rewritten without it") from e
+            if not unix:
+                raise ValueError(f"OPA carries no unix_user_name for {person!r}; the member list is not "
+                                 "rewritten without it")
+            names[person] = str(unix)
+        return names
 
     @classmethod
     def export_gids(cls, query: dict[str, str], groups: list[str]) -> dict[str, int]:

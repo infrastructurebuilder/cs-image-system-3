@@ -15,7 +15,7 @@ user-data hash is recorded.
 from __future__ import annotations
 
 import inspect
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import yaml
@@ -480,19 +480,32 @@ def test_an_okta_image_bakes_the_login_hook_only_with_a_delegate(tmp_path, monke
 
 
 class _Opa:
-    """OPA's gid lookup, faked at the builder's resolver."""
+    """OPA's gid lookup and its users' attributes, faked at the builder's
+    resolver. Every person's ``unix_user_name`` is their OPA username unless
+    ``unix_names`` says otherwise; a name mapped to None has no attribute, and
+    ``attribute_error`` makes every read fail."""
 
-    def __init__(self, monkeypatch, gids=None, error=None):
+    def __init__(self, monkeypatch, gids=None, error=None, unix_names=None, attribute_error=None):
         from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
         self.asked: list[list[str]] = []
+        self.attributes_asked: list[str] = []
         gids = {"coops": 180007} if gids is None else gids
+        unix_names = dict(unix_names or {})
 
         def resolve(groups):
             self.asked.append(list(groups))
             if error:
                 raise error
             return {g: gids[g] for g in groups if g in gids}
-        monkeypatch.setattr(OktaTfGroupBuilder, "_resolver", lambda s: type("R", (), {"resolve": staticmethod(resolve)})())
+
+        def user_attributes(name):
+            self.attributes_asked.append(name)
+            if attribute_error:
+                raise attribute_error
+            unix = unix_names.get(name, name)
+            return {"unix_uid": 150001} | ({"unix_user_name": unix} if unix else {})
+        monkeypatch.setattr(OktaTfGroupBuilder, "_resolver", lambda s: type(
+            "R", (), {"resolve": staticmethod(resolve), "user_attributes": staticmethod(user_attributes)})())
 
 
 def test_the_okta_accounts_script_makes_the_group_with_opas_gid_and_lists_its_people(monkeypatch):
@@ -511,6 +524,108 @@ def test_the_okta_accounts_script_makes_the_group_with_opas_gid_and_lists_its_pe
         assert all(p in script for p in people), "members, admins and the root group's admins, as OPA has them"
     finally:
         reset_singletons()
+
+
+def _coops_people(ctx, gb) -> list[str]:
+    coops = next(g for g in gb.get_groups_for_builder() if g.get_name() == "coops")
+    return sorted({str(m) for m in coops.members} | {str(a) for a in coops.admins}
+                  | {str(a) for a in ctx.root_group.admins})
+
+
+def _member_list(script: str, group: str = "coops") -> list[str]:
+    """The names the script writes to the group's member list, read from the
+    script the way a shell would: the quoted body of its `printf` (the body
+    holds a name a line, so the command spans lines)."""
+    import re
+    import shlex
+    found = re.search(rf"^printf '%s' (.*?) > \S*/etc/csis/groups/{group}\.members\.csis", script, re.S | re.M)
+    assert found, "the script writes the member list with printf"
+    (body,) = shlex.split(found.group(1))
+    return [name for name in body.splitlines() if name.strip()]
+
+
+def test_the_member_list_is_written_in_account_names_read_from_opa(monkeypatch):
+    """Stage 87 (the walk's finding F37): the login hook compares the ACCOUNT
+    that logs in with the list, name for name, and OPA makes each account
+    under the person's `unix_user_name` attribute -- which need not be their
+    username. The list carries the attribute's value as OPA gives it."""
+    from tests.v2_support import FIXTURE_CONFIG, load_context, reset_singletons, stub_environment
+    stub_environment(monkeypatch)
+    try:
+        ctx = load_context(FIXTURE_CONFIG)
+        gb = ctx.group_builders["oktagroups"]
+        people = _coops_people(ctx, gb)
+        assert len(people) >= 2
+        odd, plain = people[0], people[1]
+        opa = _Opa(monkeypatch, unix_names={odd: "an-account-nothing-like-the-username"})
+        listed = _member_list(gb.accounts_script("coops") or "")
+        assert sorted(opa.attributes_asked) == people, "every person is asked of OPA, once"
+        assert "an-account-nothing-like-the-username" in listed and odd not in listed
+        assert plain in listed, "a person whose two names agree is listed as before"
+        assert len(listed) == len(people)
+    finally:
+        reset_singletons()
+
+
+@pytest.mark.parametrize("username, account", [("pat.papa", "pat_papa"), ("pat_papa", "pat.papa"),
+                                               ("pat.papa", "ppapa"), ("pat.papa", "pat.papa")])
+def test_no_account_name_is_ever_derived_from_a_username(monkeypatch, username, account):
+    """Operator, 2026-10-08: "You cannot depend on translating _ to . and
+    vice versa." Whatever the two names look like beside each other, the one
+    written is the one OPA answered with, untouched."""
+    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
+
+    class Resolver:
+        @staticmethod
+        def user_attributes(name):
+            return {"unix_user_name": account}
+    names = cast(Any, OktaTfGroupBuilder)._account_names(type("B", (), {"name": "b"})(), Resolver(), [username])
+    assert names == {username: account}
+
+
+@pytest.mark.parametrize("opa, needle", [
+    ({"attribute_error": RuntimeError("HTTP 503 from OPA")}, "could not be read"),
+    ({"unix_names": None}, "carries no unix_user_name"),
+])
+def test_a_name_opa_does_not_give_stops_the_list_and_guesses_nothing(monkeypatch, opa, needle):
+    """A list written without a member would take a standing member OUT of the
+    group; a guessed name could let another account in. So the script is not
+    made at all, and the error names who."""
+    from tests.v2_support import FIXTURE_CONFIG, load_context, reset_singletons, stub_environment
+    stub_environment(monkeypatch)
+    try:
+        ctx = load_context(FIXTURE_CONFIG)
+        gb = ctx.group_builders["oktagroups"]
+        first = _coops_people(ctx, gb)[0]
+        kwargs = dict(opa)
+        if "unix_names" in kwargs:
+            kwargs["unix_names"] = {first: None}
+        _Opa(monkeypatch, **kwargs)
+        with pytest.raises(ValueError, match=needle) as refused:
+            gb.accounts_script("coops")
+        assert repr(first) in str(refused.value) and "not rewritten" in str(refused.value)
+    finally:
+        reset_singletons()
+
+
+def test_a_machine_is_left_as_it_stands_when_an_account_name_cannot_be_read(tmp_path, monkeypatch, caplog):
+    import logging
+    from cs_image_system.base import accounts_reconcile
+    from cs_image_system.base.lifecycles import Lifecycle
+    from tests.v2_support import V2Run
+    _Opa(monkeypatch, attribute_error=RuntimeError("HTTP 503 from OPA"))
+    session = _Session(monkeypatch)
+    run = V2Run(tmp_path, monkeypatch)
+    try:
+        ms = run.ctx.meta_state
+        ms.record_launch_params("test", dict(ms.launch_params().get("test") or {"hostname": "test"}) | {"launched": True})
+        run.ctx.config["apply_instances"] = True
+        with caplog.at_level(logging.ERROR):
+            accounts_reconcile.reconcile_accounts(run.ctx, Lifecycle.INSTANCE_IMAGE)
+        assert session.sent == [], "nothing is sent to the machine"
+        assert "could not be made" in caplog.text and "unix_user_name" in caplog.text
+    finally:
+        run.restore_cwd()
 
 
 def test_an_okta_machine_gets_its_group_after_apply(tmp_path, monkeypatch):
