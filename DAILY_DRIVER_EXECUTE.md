@@ -2405,7 +2405,8 @@ may log in", "Who is in a group on its machines").
 | Part | State |
 | --- | --- |
 | 13a. A modification: re-bake, and the machine takes the new build | done 2026-10-08: baked from the container, the machine replaced, its data intact, `perform` green |
-| **13b. A membership change** | **waits for your decision** (see "Before 13b" below): a declared username is public in this repository |
+| **13b. A second person joins the group** (the container) | **NEXT: start there**, once the person has agreed (see "Before 13b") |
+| 13c. The second person leaves it again | written after 13b, from what its runs said |
 
 For 13b you chose to add a second person. While 13a runs, settle who:
 a real Okta account in the same team, whose owner agrees to be a
@@ -2586,6 +2587,126 @@ first identity run on, for good; only their mail DOMAIN stays
 encrypted. That is theirs to agree to, knowing it, not something the
 walk should do to a colleague on the strength of a marker. Claude
 asks you how to go on before writing 13b.
+
+(Your decision, 2026-10-08: "Second person, with consent". So the
+person is told exactly the paragraph above before they are named, and
+says yes to THAT.)
+
+**13b. A second person joins the group.** In the container. The
+person needs an Okta account in your org and an OPA user in the team
+`nos-coastal-modeling-cloud-sandbox`; their `name` here is their bare
+OPA username, as yours is. They are added as a MEMBER: they may log
+in, without sudo. Their name is never typed into the chat, and the
+lines below are written so that what you paste back to Claude does
+not carry it; before you paste anything, look it over, and where a
+name shows write `SECOND` in its place.
+
+1. Three markers. Each command starts with a SPACE, so the values
+   stay out of the shell history:
+
+   ```sh
+   cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+    just cli encrypt 'THEIR-OPA-USERNAME'
+    just cli encrypt 'THEIR-FIRST-NAME'
+    just cli encrypt 'THEIR-LAST-NAME'
+   ```
+
+   If their Okta login does NOT end in the same mail domain as yours,
+   a fourth: ` just cli encrypt 'THEIR-WHOLE-OKTA-LOGIN'` (again with
+   the leading space).
+
+2. Two edits, with the editor.
+
+   In `groups/users.yaml`, a second entry under `users:`, shaped like
+   yours:
+
+   ```yaml
+     - name: ENC[age:...]              # the first marker
+       first_name: ENC[age:...]        # the second
+       last_name: ENC[age:...]         # the third
+   ```
+
+   and, only if you made the fourth marker, one more line in that
+   entry: `    email: ENC[age:...]`.
+
+   In `groups/groups.yaml`, in `walk_team`, a `members:` list beside
+   `admins:` (same indentation as `admins:`), holding the first
+   marker again:
+
+   ```yaml
+       members:
+         - ENC[age:...]                # the first marker
+   ```
+
+3. The identity run: OPA learns the membership.
+
+   ```sh
+   aws sts get-caller-identity                # keys live? refresh them first if they are near an hour old
+   just validate
+   just dry identity
+   just run identity 2>&1 | tee ~/identity-13b.log | tail -3
+   grep -nE 'Plan:|Apply complete|No changes\.|CI login policy|completed:|FAILED' ~/identity-13b.log | cut -c1-160
+   ```
+
+   The plan should add ONE thing and destroy nothing: the person's
+   attachment to the OPA group `walk_team_user`. Claude has not seen
+   a member added in this tree; paste the `grep`'s lines as they are
+   (they carry no name). If the run fails, the reason is probably a
+   name: a person Okta does not find under `<name>@<your domain>`
+   (then make the fourth marker of step 1), or one OPA does not have
+   in this team. Say which the error names, without the name.
+
+4. The launch run: the machine learns the member list. Nothing is
+   launched; an applying instance run is simply what carries a
+   membership to the machines that stand.
+
+   ```sh
+   just cloud-launch aws-main 2>&1 | tee ~/launch-13b.log | tail -3
+   grep -nE 'Plan:|No changes\.|Apply complete|accounts of group|completed:|FAILED' ~/launch-13b.log | cut -c1-160
+   ```
+
+   Expect the instance plan to say `No changes`, and `Instance
+   walk-node-1: the accounts of group walk_team are in place`.
+
+5. On the machine. The group's member list is a file, one name a
+   line, which the login hook reads; these lines count without
+   printing a name:
+
+   ```sh
+   sft ssh walk-node-1 --command 'sudo wc -l < /etc/csis/groups/walk_team.members; getent group walk_team | cut -d: -f4 | tr "," "\n" | grep -c .'
+   ```
+
+   Two numbers. The first should be `2`: you and the second person
+   are on the list. The second should still be `1`: the daily driver
+   says a member added "joins at their next login after that run",
+   and they have not logged in. If they are willing to log in once
+   from their own machine (`sft ssh walk-node-1`, nothing more), run
+   the line again afterwards and the second number should be `2`;
+   if not, say so and that half stays read, not walked.
+
+6. Record it and let CI look, on `develop` only for now:
+
+   ```sh
+   just record
+   git status --short                         # nothing listed
+   git push
+   run=""
+   for i in $(seq 12); do
+     sleep 5
+     run=$(gh run list --branch develop --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+     [ -n "$run" ] && break
+   done
+   echo "run ${run:-NOT FOUND after 60 seconds}"
+   [ -n "$run" ] && gh run watch "$run"
+   echo "CI on develop: $(gh run view "$run" --json conclusion,headSha --jq '"\(.conclusion) at \(.headSha[0:7])"')"
+   ```
+
+   This is the push that publishes the person's username.
+
+**Report:** `stage 13b done` with the two `grep` outputs (steps 3 and
+4), the numbers of step 5 (and whether the person logged in), and the
+`CI on develop:` line. Then STOP: 13c, taking them out again, is
+written from what these runs said.
 
 ## Stage 14 onward -- written when you reach them
 
