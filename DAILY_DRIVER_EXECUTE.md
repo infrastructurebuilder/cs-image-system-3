@@ -2396,7 +2396,157 @@ connection, and only one from `main` is given the role. The
 throwaway branch is gone from GitHub and from the container, and the
 temporary workflow with it; `develop` and `main` are level.
 
-## Stage 13 onward -- written when you reach them
+## Stage 13 -- changing things: a modification, then a member (DAILY_DRIVER 4)
+
+Read the daily driver's section 4: its first row ("A modification, a
+test or a package on an image") and its two membership rows ("Who
+may log in", "Who is in a group on its machines").
+
+| Part | State |
+| --- | --- |
+| **13a. A modification: re-bake, and the machine takes the new build** (the container) | **NEXT: start there** |
+| 13b. A second person: added to the group, seen on the machine, removed again | written after 13a |
+
+For 13b you chose to add a second person. While 13a runs, settle who:
+a real Okta account in the same team, whose owner agrees to be a
+member of `walk_team` for a day. You will need their OPA username
+(as you needed your own in stage 6) and to know whether their Okta
+login has the same mail domain as yours. Do not put either in the
+chat; say only `second person ready`, and whether the domain is the
+same.
+
+**13a. A modification.** In the container. The image `team-node`
+gets a second line in its configuration file and a test that reads
+it. That changes the image's inputs, so a new build is due; this
+time the bake is made from the container, with your keys, which is
+the daily driver's own way (`just cloud-perform`) and the first bake
+of the walk that is not CI's. The standing machine then takes the
+new build in one command, which REPLACES it: `walk-node-1-001` goes
+and `walk-node-1-002` comes, with the same volume and its data.
+
+1. Leave a mark on the storage, to find again on the new machine:
+
+   ```sh
+   cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+   sft list-teams                             # STATUS a time remaining; if it says Expired: sft login (a link, as in 12c)
+   sft ssh walk-node-1 --command 'echo "planted on $(hostname) at $(date -u +%FT%TZ)" > /mnt/data/walk_team/planted-13a; cat /mnt/data/walk_team/planted-13a'
+   ```
+
+   It prints the line it wrote, naming `walk-node-1-001`.
+
+2. The change, in `images/images.yaml`, two places in `team-node`.
+   Under `site-files`, the file's content gains a line:
+
+   ```yaml
+               content: "role=worker\nwalk=13\n"
+   ```
+
+   (it was `"role=worker\n"`). And under `tests:`, `commands:` gains
+   a second entry after the `python3` one, at the same indentation:
+
+   ```yaml
+           - run: "cat /etc/team-node.conf"
+             contains: "walk=13"
+   ```
+
+3. Validate, see that a bake is due, commit, and let CI prove the
+   modification offline (its `live` job runs every modification twice
+   in a container; the walk's container has no docker, so `just
+   test-mods` is CI's here):
+
+   ```sh
+   aws sts get-caller-identity                # keys live? refresh them first if they are near an hour old
+   just validate
+   just dry
+   grep -A3 '"bake_plan"' generated/run-summary.json    # el10: skip: current; team-node: bake: inputs changed
+   git add -A && git commit -m "team-node: its config file gains a line, and a test reads it"
+   git push
+   run=""
+   for i in $(seq 12); do
+     sleep 5
+     run=$(gh run list --branch develop --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+     [ -n "$run" ] && break
+   done
+   echo "run ${run:-NOT FOUND after 60 seconds}"
+   [ -n "$run" ] && gh run watch "$run"
+   echo "CI on develop: $(gh run view "$run" --json conclusion,headSha --jq '"\(.conclusion) at \(.headSha[0:7])"')"
+   ```
+
+   Go on only if it says `success`. Push `develop` only: a push to
+   `main` now would have CI make this bake instead of you.
+
+4. The bake, from here. Expect six to ten minutes, most of it
+   silence while packer works; the first minute or so is the settle
+   step of stage 86 waiting for the build machine:
+
+   ```sh
+   aws sts get-caller-identity                # the keys must outlast the bake: refresh them now if they are past half an hour
+   just cloud-perform aws-main 2>&1 | tee ~/bake-13a.log
+   grep -nE "Build '.*' (finished|errored)|AMI: |csis|Plan:|No changes|completed:|ERROR" ~/bake-13a.log | cut -c1-200
+   ```
+
+   What should be among the `grep`'s lines: `Build
+   'packer-ebs-block-000.amazon-ebs.team-node' finished after ...`,
+   an `AMI:` line, `No changes` for the instance root (the machine
+   stays on its pinned build until step 5), and `Run ... completed`.
+   Claude has not seen a bake from this container: if it fails, STOP
+   and paste `tail -40 ~/bake-13a.log`.
+
+5. The machine takes the build. One command, four runs inside it:
+   the pin moves to the new build, a gated launch REPLACES the
+   machine, the new one is verified, and a last launch gives it its
+   names. Expect eight to fifteen minutes:
+
+   ```sh
+   aws sts get-caller-identity                # again: this must not meet an expiry half way
+   just cloud-upgrade aws-main walk-node-1 2>&1 | tee ~/upgrade-13a.log
+   grep -nE 'Plan:|Apply complete|Instance walk-node-1|verified|completed:|cloud-upgrade:|ERROR' ~/upgrade-13a.log | cut -c1-200
+   ```
+
+   If it stops part way, do NOT run it again: paste the `grep`'s
+   lines and `tail -30 ~/upgrade-13a.log`. A replacement that stopped
+   between its steps is something to read first.
+
+6. Look at the new machine, and prove the login again:
+
+   ```sh
+   sft ssh walk-node-1 --command 'hostname; cat /etc/team-node.conf; cat /mnt/data/walk_team/planted-13a; id; getent group walk_team'
+   just ci-login-proof walk-node-1 2>&1 | tail -4
+   ```
+
+   What the page promises: the hostname `walk-node-1-002`; the two
+   lines `role=worker` and `walk=13`; the mark of step 1, still
+   naming `walk-node-1-001`; your `id` with `walk_team`; the group.
+   If `sft ssh walk-node-1` cannot find the machine, try `sft ssh
+   walk-node-1-002` and say which worked.
+
+7. Record it, push, and let `main` see it:
+
+   ```sh
+   just record
+   git status --short                         # nothing listed
+   git push
+   git push origin develop:main
+   run=""
+   for i in $(seq 12); do
+     sleep 5
+     run=$(gh run list --branch main --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+     [ -n "$run" ] && break
+   done
+   echo "run ${run:-NOT FOUND after 60 seconds}"
+   [ -n "$run" ] && gh run watch "$run"
+   echo "perform on main: $(gh run view "$run" --json conclusion,headSha --jq '"\(.conclusion) at \(.headSha[0:7])"')"
+   git fetch origin && git merge --ff-only origin/main && git push
+   ```
+
+   That `perform` has nothing to bake (your build is recorded) and
+   logs in to the NEW machine as the workload.
+
+**Report:** `stage 13a done` with the two `grep` outputs (steps 4 and
+5), everything step 6 printed, and the `perform on main:` line; or
+the words of whatever stopped you.
+
+## Stage 14 onward -- written when you reach them
 
 These stages depend on what the earlier ones produce (the bootstrap's
 interview, the names it prints), so their exact commands are added to
@@ -2404,7 +2554,6 @@ this page as each one comes up. The order, and the page each follows:
 
 | Stage | What | Follows |
 | --- | --- | --- |
-| 13 | Changing things: a modification re-baked; a membership | DAILY_DRIVER 4 |
 | 14 | The failure walk | DAILY_DRIVER 6 |
 | 15 | The GCE leg, one cycle (credentials below) | DAILY_DRIVER 1.4; CONFIGURATION |
 | 16 | The second walk, `standard-aws-posix`, in its own repository (needs a second mounted volume: Claude re-creates the container from a snapshot of this one) | DAILY_DRIVER 1.9, 3.1 |
