@@ -18,7 +18,7 @@ released in dev19 (dev18 was cut from the walk branch by mistake and
 is on the index, unused) and PROVED live: the walk's third `perform`
 baked both its images under the bootstrap-made write role, Systems
 Manager finishing its work on each build machine undisturbed. §81,
-hygiene bundle XII, is open (fourteen items the walk
+hygiene bundle XII, is open (fifteen items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15, taken by the reference configuration, its
@@ -605,11 +605,11 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, fourteen items found by the §65 walk. Items
+**Status: OPEN 2026-10-05, fifteen items found by the §65 walk. Items
 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
 the operator's word. Items 10 and 11 LANDED as §86 (c6af4b2,
 2026-10-07, "Fix now, starters too"). Items 1, 2, 5 to 9 and 12 to
-14 are a plan -- nothing more runs until the operator says "do 81".
+15 are a plan -- nothing more runs until the operator says "do 81".
 Item 7(a) has a date: 2026-10-19.**
 
 1. **A starter's own hook refuses its first commit.** The tree
@@ -782,6 +782,27 @@ starter's `.gitignore` ignores every dotfile unless named.)
     the connection's token and `sft resolve` of the machine then
     exits 125. That exit, after a token was issued, is the signal a
     role-aware probe can report.
+15. **A declared username is encrypted in the roster and clear in
+    what the run commits.** The walk's finding F36 (2026-10-08,
+    noticed when a second, real person was about to be declared in a
+    PUBLIC configuration repository). `groups/users.yaml` holds
+    `name` as an `ENC[age:...]` marker; the same name is written in
+    clear to `meta-state/identity.yaml` (`members`, `admins`), to the
+    identity roots' HCL (`admins = ["..."]`, `data "okta_user"
+    "<name>"`, `"<name>@ENC[...]"`), and to
+    `meta-state/login-proofs.yaml`. The reference configuration has
+    carried its roster that way all along. Nothing leaks that the
+    tree's owner did not put there, but the marker reads as a promise
+    the system does not keep, and a person added to a public tree is
+    published without being told. **USER** decides which it is: (a)
+    usernames are public by design -- then the starters stop
+    encrypting them, CONFIGURATION 11.6 and 13 say what is and is not
+    protected (the mail domain is; the name is not), and the daily
+    driver's 3.1 says a declared person's username is committed in
+    clear; or (b) usernames are private -- then the read-model, the
+    emission and the proofs carry them by reference as every other
+    encrypted value is carried (stage 49), which touches terraform
+    resource addresses and is a stage of its own.
 
 ## 83. A release asks its publish target before it starts
 

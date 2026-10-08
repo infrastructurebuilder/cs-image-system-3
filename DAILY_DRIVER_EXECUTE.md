@@ -2404,8 +2404,8 @@ may log in", "Who is in a group on its machines").
 
 | Part | State |
 | --- | --- |
-| **13a. A modification: re-bake, and the machine takes the new build** (the container) | **NEXT: start there** |
-| 13b. A second person: added to the group, seen on the machine, removed again | written after 13a |
+| 13a. A modification: re-bake, and the machine takes the new build | done 2026-10-08: baked from the container, the machine replaced, its data intact, `perform` green |
+| **13b. A membership change** | **waits for your decision** (see "Before 13b" below): a declared username is public in this repository |
 
 For 13b you chose to add a second person. While 13a runs, settle who:
 a real Okta account in the same team, whose owner agrees to be a
@@ -2546,6 +2546,47 @@ and `walk-node-1-002` comes, with the same volume and its data.
 5), everything step 6 printed, and the `perform on main:` line; or
 the words of whatever stopped you.
 
+**What happened at 13a (2026-10-08): the daily driver's first row of
+section 4, end to end, from a person's machine.**
+
+- The bake, from the container with your keys: `Build
+  'packer-ebs-block-000.amazon-ebs.team-node' finished after 7
+  minutes 11 seconds`, `ami-04bb9df333af05e5b`; the instance root
+  said `No changes` because the machine's pin still named the old
+  build. No package-lock trouble: stage 86 holds outside CI too.
+- The upgrade, about six and a half minutes: `Plan: 2 to add, 0 to
+  change, 2 to destroy` (the machine and its volume attachment),
+  through the gate; generation 1 closed `replaced`, its OPA
+  registration retired; generation 2 is `i-0792ba0408f0e1388`,
+  `walk-node-1-002`, with its two other names and the group's
+  accounts in place in the same run; verified; `cloud-upgrade:
+  walk-node-1 stands on its released build`.
+- On the new machine: `walk-node-1-002`; `role=worker` and
+  `walk=13`; `planted on walk-node-1-001 at 2026-10-08T10:26:08Z`,
+  the mark of a machine that no longer exists; your `id` with the
+  same uid and `180049(walk_team)`; `login proved for walk-node-1`.
+- On `main`: run 37773784906, `perform` green with nothing to bake
+  (the build you made is `skip: current` for CI), the instance plan
+  `No changes`, and the workload logged in to `walk-node-1-002`.
+  `meta-state/login-proofs.yaml` holds five proofs: three of the
+  first machine, two of the second.
+
+**Before 13b: a declared username is public here** (finding F36).
+You chose to add a second person. Before anyone is named, know what
+declaring them does. `groups/users.yaml` holds a person's `name` as
+an `ENC[age:...]` marker, and that suggests the name is private. It
+is not. The run writes the same name in clear into what it commits:
+`meta-state/identity.yaml` (the `members:` and `admins:` lists), the
+identity roots' HCL (`admins = ["..."]`, a resource named after the
+person, the local part of their mail address), and, once they log
+in, `meta-state/login-proofs.yaml`. This repository is PUBLIC, and
+its history keeps what was once committed. Your own username is in
+all of those files already. A second person's would be too, from the
+first identity run on, for good; only their mail DOMAIN stays
+encrypted. That is theirs to agree to, knowing it, not something the
+walk should do to a colleague on the strength of a marker. Claude
+asks you how to go on before writing 13b.
+
 ## Stage 14 onward -- written when you reach them
 
 These stages depend on what the earlier ones produce (the bootstrap's
@@ -2663,4 +2704,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F33 | a declared instance that was never launched reads, once its image has a build, as `unavailable: instances/<name>: booted image (runtime <r> could not answer)` in every state query: the bake pins the instance, the query asks the cloud for a machine that does not exist, and the words blame the cloud. The records know it was never launched (no generation in the ledger; `launched: false`) | code: hygiene XII item 13 |
 | F34 | observation, not yet a finding: a launched machine carries its `Name` and no `csis_config` tag (the images do, since stage 82), so nothing in AWS says which configuration a machine or its security group belongs to; a teardown that reads the account by tag would not find them | to be judged at teardown (stage 17) |
 | F35 | nothing proves the workload role's branch pin. The guide's 3.5 ends at "add the branch pin to the role" and offers no check; the probe authenticates to the CONNECTION and passes the role only as a hint, so it says `accepted ... and issued one` from any branch, pinned or not (seen 2026-10-08: `success` on `develop` with the pin read back from OPA). A team cannot tell a pin that holds from one that does not | words and code: hygiene XII item 14 |
+| F36 | a user's `name` is declared as an `ENC[age:...]` marker in `groups/` and committed in CLEAR by the run: `meta-state/identity.yaml`, the identity roots' HCL (the roster lists, resource names, the local part of the mail address), and the login proofs. In a public configuration repository a person's username is public from the first identity run and stays in the history; only the mail domain is protected. The marker suggests otherwise, and nothing in the guide or the starter says so | words, and a decision: hygiene XII item 15 |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
