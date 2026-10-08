@@ -2228,10 +2228,25 @@ group. It is the fifth and last proof of the CI guide's 3.8.
 `main`"). Until now any branch of this repository could become the
 role; from here only `main` can.
 
-1. You, in the OPA console (it needs the security-admin role):
-   Security Administration, Workload roles, `cs-image-system-walk-ci`,
-   and on the connection `github-cs-image-system-walk` add the
-   condition `ref` Equals `refs/heads/main`. Save.
+1. You, in the OPA console (it needs the security-admin role). The
+   pin goes in ONE place, the ROLE: Security Administration, Workload
+   roles, `cs-image-system-walk-ci`. The role lists the connection it
+   is bound to, `github-cs-image-system-walk`; in the role's entry
+   for that connection, add the condition `ref` Equals
+   `refs/heads/main`, and save.
+
+   Do NOT touch the connection itself (DevOps Administration,
+   Workload connections): its Required Claims stay `repository` and
+   `repository_owner` and it gets no `ref` claim, as 10a said. The
+   connection answers "is this token from this repository?"; the
+   role answers "and from which branch may it become me?". The
+   bootstrap looks for the pin in the role and nowhere else, so a
+   `ref` claim put on the connection would be read as "not pinned",
+   and it would also turn away the probe from every other branch
+   before it could say why.
+
+   (This step first read "on the role ..., and on the connection
+   ...", which sounded like two places. It is one.)
 
 2. In the container, let the bootstrap see it. This asks the Okta
    and OPA section alone; Enter at every question. The one answer
