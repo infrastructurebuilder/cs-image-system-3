@@ -10,7 +10,9 @@ system must not take itself.
 Current stage: **§65**, walking the daily driver, started 2026-10-05
 on `feature/walk-daily-driver`: the operator types each stage from
 [DAILY_DRIVER_EXECUTE.md](DAILY_DRIVER_EXECUTE.md) on a Fedora 43
-container. §86, a bake waits for the package database (the
+container. §87, the group on a machine lists its members by their
+account names, is IN PROGRESS (the walk's second person logged in
+and did not join the group). §86, a bake waits for the package database (the
 first provisioner settles the build machine, a package step waits
 out a held database, and the starters' base tests name what a base
 carries; walk findings F29 and F28), LANDED 2026-10-07 (c6af4b2):
@@ -898,3 +900,42 @@ named by hand. The release refuses, with its other probes and before
 anything changes, a branch that is not the integration branch
 (`develop`; a final release may want `main`: **USER** decides), and
 the dry form says which branch it stands on.
+
+## 87. The group on a machine lists its members by their account names
+
+**Status: IN PROGRESS 2026-10-08 on `feature/unix-names-on-machines`,
+by the operator's word ("Fix it in the system now") after the walk's
+second person logged in and did not join the group (finding F37). The
+release that carries it is dev20.**
+
+**Why.** Beside Okta (stage 75), an applying instance run writes each
+group's member list to its machines, and a PAM hook joins a person to
+the group at login when the account logging in is on the list, name
+for name. The list was written in OPA usernames. OPA's agent makes
+the account under the user's `unix_user_name`, an attribute of its
+own (set in OPA or pushed from Okta) that need not be the username:
+for the walk's second person the two differ, so their account was
+never on the list (2026-10-08: two names listed, one member of the
+group, before and after their login). The walk's first person, and
+every test, had names that agree. The reference configuration's
+machine has the same lists.
+
+1. `OktaTfGroupBuilder.accounts_script` writes the member list, and
+   names a key file, by each person's `unix_user_name`, read from
+   OPA's user attributes at that moment.
+2. Nothing is derived (operator: "You cannot depend on translating _
+   to . and vice versa"): no name is computed from another. A person
+   whose attribute cannot be read, or who has none, stops the script
+   from being made; the caller reports it and the machine is left as
+   it stands, because a list without them would take a standing
+   member out of the group and a guessed name could let another
+   account in.
+3. Tests: an account name unlike its username is the one listed; four
+   pairs of names in which none is derived; an unreadable and an
+   absent attribute refuse; a machine is sent nothing then. Proof:
+   the walk's launch run rewrites the list and the second person's
+   next login carries the group.
+
+The words are owed by §65: the daily driver's 3.1 ("The group on its
+machines") and CONFIGURATION 9.2 say the list is of account names and
+where they come from.

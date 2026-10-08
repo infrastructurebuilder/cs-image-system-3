@@ -2405,8 +2405,9 @@ may log in", "Who is in a group on its machines").
 | Part | State |
 | --- | --- |
 | 13a. A modification: re-bake, and the machine takes the new build | done 2026-10-08: baked from the container, the machine replaced, its data intact, `perform` green |
-| **13b. A second person joins the group** (the container) | **NEXT: start there**, once the person has agreed (see "Before 13b") |
-| 13c. The second person leaves it again | written after 13b, from what its runs said |
+| 13b, steps 1-5 (the second person declared, OPA and the machine told, their login) | done 2026-10-08, and it found a defect: they logged in and did NOT join the group (finding F37) |
+| **Nothing for you yet** | Claude is fixing F37 in the system (stage 87, your decision); the next box, 13b-again, is written when the fix is merged |
+| 13c. The second person leaves it again | after that |
 
 For 13b you chose to add a second person. While 13a runs, settle who:
 a real Okta account in the same team, whose owner agrees to be a
@@ -2708,6 +2709,37 @@ name shows write `SECOND` in its place.
 `CI on develop:` line. Then STOP: 13c, taking them out again, is
 written from what these runs said.
 
+**What happened at 13b (2026-10-08): the membership reached OPA and
+the machine's list, the person logged in, and the group did not take
+them. It was the system's fault** (finding F37).
+
+- `just run identity`: `Plan: 1 to add, 0 to change, 0 to destroy`,
+  `Apply complete! Resources: 1 added`; the CI policy `unchanged`.
+- After the launch run, the count on the machine: `2` names on the
+  member list, `1` member of the group, as expected before a login.
+- The second person then logged in with `sft ssh walk-node-1`, and
+  the count stayed `2` and `1`. They were in, and not in the group.
+
+Why. OPA's agent makes a person's account on a machine under their
+`unix_user_name`, an ATTRIBUTE OPA keeps for each user, set there or
+pushed from Okta; it is a value of its own and need not be the
+person's OPA username. For you the two are the same word. For the
+second person they are not. The login hook joins a person to a group
+when the account that logs in is on the group's member list, name
+for name; the list was written in OPA usernames; their account's
+name was not on it. Nothing in the walk before this could have shown
+it, because the walk had one person, whose two names agree. The
+reference configuration carries the same exposure for the same
+reason.
+
+By your decision ("Fix it in the system now") this is stage 87: the
+member list, and a key file's name, are written in account names,
+each READ from OPA at that moment. Nothing is derived: your word was
+"You cannot depend on translating _ to . and vice versa", and no
+name is computed from another by any rule. A person whose attribute
+OPA does not give stops the list from being rewritten at all, and
+the machine stays as it stands.
+
 ## Stage 14 onward -- written when you reach them
 
 These stages depend on what the earlier ones produce (the bootstrap's
@@ -2826,4 +2858,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F34 | observation, not yet a finding: a launched machine carries its `Name` and no `csis_config` tag (the images do, since stage 82), so nothing in AWS says which configuration a machine or its security group belongs to; a teardown that reads the account by tag would not find them | to be judged at teardown (stage 17) |
 | F35 | nothing proves the workload role's branch pin. The guide's 3.5 ends at "add the branch pin to the role" and offers no check; the probe authenticates to the CONNECTION and passes the role only as a hint, so it says `accepted ... and issued one` from any branch, pinned or not (seen 2026-10-08: `success` on `develop` with the pin read back from OPA). A team cannot tell a pin that holds from one that does not | words and code: hygiene XII item 14 |
 | F36 | a user's `name` is declared as an `ENC[age:...]` marker in `groups/` and committed in CLEAR by the run: `meta-state/identity.yaml`, the identity roots' HCL (the roster lists, resource names, the local part of the mail address), and the login proofs. In a public configuration repository a person's username is public from the first identity run and stays in the history; only the mail domain is protected. The marker suggests otherwise, and nothing in the guide or the starter says so | words, and a decision: hygiene XII item 15 |
+| F37 | beside Okta, a member whose account name on a machine differs from their OPA username logs in and never joins the group. OPA makes the account under the user's `unix_user_name` attribute; the login hook matches the account against the member list name for name; the list was written in OPA usernames. Seen when the walk's second person logged in: on the list, not in the group. The reference configuration is exposed the same way | code: stage 87 |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
