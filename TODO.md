@@ -776,7 +776,12 @@ starter's `.gitignore` ignores every dotfile unless named.)
     beside the first as `role: granted` or `role: not granted`; the
     guide's step 6 then says to run it from `main` (granted) and from
     another branch (not granted); F23's wording about a draft
-    connection is corrected in the same place.
+    connection is corrected in the same place. What the by-hand proof
+    showed (2026-10-08, runs 37759023233 and 37760563336): from
+    `main` the workload logs in; from another branch OPA still issues
+    the connection's token and `sft resolve` of the machine then
+    exits 125. That exit, after a token was issued, is the signal a
+    role-aware probe can report.
 
 ## 83. A release asks its publish target before it starts
 

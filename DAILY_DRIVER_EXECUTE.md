@@ -1931,7 +1931,10 @@ enrolled in OPA with the project's token under the label
 | 12d. The login proof as the workload | done 2026-10-08: GREEN; `as: workload` is on `main` |
 | 12e, steps 1-2 (the pin in the console; the bootstrap sees it) | done 2026-10-08: the role reads back from OPA with `ref` Equals `refs/heads/main` |
 | 12e, step 3 (the probe from both sides) | superseded: the probe cannot see the pin (F35) |
-| **12e, step 4** (the container: one `perform` on `main` with the pin in place) | **NEXT: start there**, then step 5; step 6 after Claude has read the run |
+| 12e, steps 4-6 (the pin proved from both sides; the throwaway branch removed) | done 2026-10-08: `main` gets in, another branch is refused |
+
+**Stage 12 is DONE (2026-10-08).** Every box below is the record of
+what happened; your next command is in stage 13.
 
 One line you will keep seeing until the machine exists, from every
 state query and from the launch's own preflight:
@@ -2370,6 +2373,28 @@ login attempt.
 
 **Report:** `stage 12 done` with the `perform on main, pinned:` line,
 the `pin proof:` line and the lines the last `grep` of step 5 printed.
+
+**What happened at 12e's steps 4-6 (2026-10-08): the pin holds, and
+it is proved from both sides.**
+
+- From `main`, with the pin in place: run 37759023233 at 41daa01,
+  `perform` green. `meta-state/login-proofs.yaml` on `main` gained a
+  third entry, `as: workload`, `logged in as
+  wl_cs_image_system_walk_ci over sft ssh`, at 09:51:29Z. The pin did
+  not lock `main` out.
+- From another branch: run 37760563336, `TEMPORARY pin proof` on
+  `refs/heads/pin-proof`. OPA issued the connection's token
+  (`workload token: sft workload authenticate exit 0`), exactly as it
+  had for the probe; and then the workload could not so much as find
+  the machine: `sft resolve walk-node-1-001: exit 125`, `login proof
+  FAILED for walk-node-1`. The job's verdict: `PIN HOLDS: OPA issued
+  the connection's token to refs/heads/pin-proof and then refused the
+  login`.
+
+So a token from any branch of this repository is accepted by the
+connection, and only one from `main` is given the role. The
+throwaway branch is gone from GitHub and from the container, and the
+temporary workflow with it; `develop` and `main` are level.
 
 ## Stage 13 onward -- written when you reach them
 
