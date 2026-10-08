@@ -1923,7 +1923,8 @@ enrolled in OPA with the project's token under the label
 
 | Part | State |
 | --- | --- |
-| **12a. The launch** (the container) | **NEXT: start there** |
+| 12a, step 1 (the dry form) | done 2026-10-08: the script ends with plan, gate, apply-check and apply; nothing launched |
+| **12a, step 2** (the launch itself, in the container) | **NEXT: start there**, then step 3 |
 | 12b. Verify the machine | written after 12a, from what the launch said |
 | 12c. Enroll the `sft` client; the group on the machine; the login proof by hand | after 12b |
 | 12d. The login proof as the workload: one more `perform` | after 12c |
@@ -1959,7 +1960,13 @@ allowed to apply for this one run; `apply_instances` stays `false` in
 
    The script's last lines should be the instance root's `tofu plan`,
    `gate-plan`, `apply-check` and `tofu apply`. A dry launch plans
-   nothing against AWS and launches nothing.
+   nothing against AWS and launches nothing. It does commit its own
+   record (`cs-image-system dry-run generation ...: instance-image`),
+   so `develop` is one commit ahead of GitHub until step 3 pushes.
+
+   (DONE 2026-10-08: exactly that. The dry form is not the launch:
+   AWS has no machine yet and the records still say `launched:
+   false`. Step 2 is the launch.)
 
 2. The launch:
 
