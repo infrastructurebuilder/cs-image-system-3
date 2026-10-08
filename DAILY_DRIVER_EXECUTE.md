@@ -1925,10 +1925,11 @@ enrolled in OPA with the project's token under the label
 | --- | --- |
 | 12a, step 1 (the dry form) | done 2026-10-08: the script ends with plan, gate, apply-check and apply; nothing launched |
 | 12a, steps 2-3 (the launch, its records, CI) | done 2026-10-08: the machine stands; CI green; no drift |
-| **12b. Verify the machine** (the container) | **NEXT: start there** |
-| 12c. Enroll the `sft` client; the group on the machine; the login proof by hand | straight after 12b, if it says `verified` |
-| 12d. The login proof as the workload: one more `perform` | after 12c |
-| 12e. The branch pin on the workload role (the OPA console) | last |
+| 12b. Verify the machine | done 2026-10-08: `instance walk-node-1 verified` |
+| 12c, steps 1-3 (the `sft` client, the group on the machine, the proof by hand) | done 2026-10-08: `login proved for walk-node-1` |
+| **12c, step 4** (the record, the push, CI) | **NEXT: start there** |
+| 12d. The login proof as the workload: one more `perform` | straight after, if CI is green |
+| 12e. The branch pin on the workload role (the OPA console) | last; after a green 12d |
 
 One line you will keep seeing until the machine exists, from every
 state query and from the launch's own preflight:
@@ -2139,8 +2140,120 @@ paste its words (never a link) and stop.
 **Report:** `stage 12c done` with the last line of the verify, what
 the `sft ssh` line printed (all of it: it holds no secret), the last
 five lines of the proof, and what the `gh run view` line printed; or
-the words of whatever stopped you. Then STOP: 12d is one more
-`perform`, where CI makes the same login as the workload.
+the words of whatever stopped you. If CI printed `success`, go
+straight on to 12d and report both together.
+
+**What happened at 12b and 12c's steps 1-3 (2026-10-08): all of it
+worked.** The verify recorded three checks, all `ok`: the startup
+script ran to its end, the machine booted the image its pin names,
+its one declared mount is there. Enrolling the `sft` client from a
+container, the question stage 7 left open, works: each command prints
+a link, and both opened on your local machine. The first login showed
+every line the daily driver's 3.1 promises, at once:
+`walk-node-1-001`; an `id` with `180049(walk_team)`; `walk_team:x:
+180049:mykel.alvis`; the group's subtree owned by 180049, named
+`walk_team`, mode `drwxrws---`; 100G at `/mnt/data`. And the system's
+own proof: `logged in as mykel.alvis over sft ssh`, `login proved for
+walk-node-1`.
+
+**12d. The login proof as the workload.** In the container. CI makes
+the same login you just made, with no key and no person: the
+`perform` job on `main` presents GitHub's token for this run to the
+connection of 10a, becomes the role of 10b, and logs in through
+`walk_team_v1_security_policy_ci`, the policy the identity run of
+10c made for it. Nothing is due to bake, so this run is short.
+
+1. Start it and watch:
+
+   ```sh
+   cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+   git status -sb                             # develop...origin/develop, nothing listed, not ahead
+   git push origin develop:main
+   run=""
+   for i in $(seq 12); do
+     sleep 5
+     run=$(gh run list --branch main --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+     [ -n "$run" ] && break
+   done
+   echo "run ${run:-NOT FOUND after 60 seconds}"
+   [ -n "$run" ] && gh run watch "$run"
+   gh run view "$run" --json conclusion,jobs --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'
+   ```
+
+   In `perform`, the step to look at is `CI logs in through the
+   managed policy`. Claude watches the same run from the host and
+   reads its log. If it ends red, say `red` and stop; do not re-run
+   it.
+
+2. Only after a green run, `develop` takes the records, and the
+   proof is read back:
+
+   ```sh
+   cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+   git fetch origin
+   git merge --ff-only origin/main
+   git push
+   grep -nE '^- as:|^  (instance|ok|time):' meta-state/login-proofs.yaml
+   ```
+
+   Two entries, four lines each. The first is yours of 12c: `- as:
+   client`. The second is CI's: `- as: workload`, `instance:
+   walk-node-1`, `ok: true`.
+
+**Report:** `stage 12d done` with what the `gh run view` line printed
+and what the `grep` printed; or `red`. Then STOP: Claude confirms the
+proof on `main` before the role is pinned to it.
+
+**12e. The branch pin on the workload role.** Only after Claude says
+12d is confirmed (CI_SETUP 3.5 step 6: "after the first green login
+proof from `main`"). Until now any branch of this repository could
+become the role; from here only `main` can.
+
+1. You, in the OPA console (it needs the security-admin role):
+   Security Administration, Workload roles, `cs-image-system-walk-ci`,
+   and on the connection `github-cs-image-system-walk` add the
+   condition `ref` Equals `refs/heads/main`. Save.
+
+2. In the container, let the bootstrap see it. This asks the Okta
+   and OPA section alone; Enter at every question. The one answer
+   that should have changed is the last of the role's: `Is the role
+   pinned to the production branch ...?` now offers `[Y/n]`. If it
+   still shows `[y/N]`, press Ctrl-C and say so.
+
+   ```sh
+   cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+   just bootstrap --section okta
+   git status --short                         # expect two lines: M bootstrap.yaml and M generated/bootstrap/README.md
+   grep -n -A3 '^- \*\*okta\*\*' generated/bootstrap/README.md   # the role's line now ends: pinned to `main`: yes
+   git add -A && git commit -m "The workload role is pinned to main"
+   git push
+   ```
+
+3. Prove the pin from both sides with the probe: `main` is let in,
+   `develop` is not. The second run is MEANT to fail:
+
+   ```sh
+   for ref in main develop; do
+     start=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+     gh workflow run opa-workload-probe.yml --ref "$ref"
+     run=""
+     for i in $(seq 12); do
+       sleep 5
+       run=$(gh run list --workflow opa-workload-probe.yml --limit 1 --json databaseId,createdAt --jq "[.[] | select(.createdAt >= \"$start\")][0].databaseId // empty")
+       [ -n "$run" ] && break
+     done
+     echo "probe on $ref: run ${run:-NOT FOUND after 60 seconds}"
+     [ -n "$run" ] && gh run watch "$run" >/dev/null 2>&1
+     [ -n "$run" ] && echo "probe on $ref: $(gh run view "$run" --json conclusion --jq .conclusion)"
+   done
+   ```
+
+   Expected: `probe on main: success` and `probe on develop:
+   failure`. A `success` on `develop` would mean the pin is not
+   holding: say so at once.
+
+**Report:** `stage 12 done` with the two `probe on ...` lines and
+what the `grep` of the README printed.
 
 ## Stage 13 onward -- written when you reach them
 
