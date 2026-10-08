@@ -10,7 +10,9 @@ system must not take itself.
 Current stage: **§65**, walking the daily driver, started 2026-10-05
 on `feature/walk-daily-driver`: the operator types each stage from
 [DAILY_DRIVER_EXECUTE.md](DAILY_DRIVER_EXECUTE.md) on a Fedora 43
-container. §87, the group on a machine lists its members by their
+container. §88, a membership the YAML dropped is removed by the
+run, is IN PROGRESS (the gate refused the walk's removal). §87, the
+group on a machine lists its members by their
 account names (each read from OPA's `unix_user_name`, never derived;
 walk finding F37), LANDED 2026-10-08 (9655327), is released in
 dev20 and PROVED live: the walk's second person, whose two names
@@ -613,9 +615,11 @@ the first final version on PyPI (§41's open call).
 **Status: OPEN 2026-10-05, sixteen items found by the §65 walk. Items
 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
 the operator's word. Items 10 and 11 LANDED as §86 (c6af4b2,
-2026-10-07, "Fix now, starters too"). Items 1, 2, 5 to 9 and 12 to
-16 are a plan -- nothing more runs until the operator says "do 81".
-Item 7(a) has a date: 2026-10-19.**
+2026-10-07, "Fix now, starters too"). Item 16 was taken out of the
+plan by the operator on 2026-10-08 ("we should correct this
+situation as soon as possible") and is being built as §88. Items 1,
+2, 5 to 9 and 12 to 15 are a plan -- nothing more runs until the
+operator says "do 81". Item 7(a) has a date: 2026-10-19.**
 
 1. **A starter's own hook refuses its first commit.** The tree
    `init-config` writes carries the copyright holder's address in the
@@ -808,25 +812,7 @@ starter's `.gitignore` ignores every dotfile unless named.)
     emission and the proofs carry them by reference as every other
     encrypted value is carried (stage 49), which touches terraform
     resource addresses and is a stage of its own.
-16. **Removing a member is refused, and nothing says how it is
-    done.** The walk's finding F38 (2026-10-08). A member dropped
-    from the YAML while OPA still holds them makes the identity plan
-    destroy one attachment; the gate whitelists no membership destroy
-    (`DESTROY NOT WHITELISTED`, exit 3) and the run FAILS. That is
-    the design ("membership removals only by explicit decision",
-    OPERATIONS "Identity"), but the daily driver's 3.1 and section 4
-    and OPERATIONS "Drop a membership" say only that "the plan shows
-    the destroy and the gate sees it", and the failure names neither
-    the rule nor the way out. The way out exists and works by parts:
-    remove the person in the OPA console, run identity again, and the
-    prune step takes the attachment out of state. Fixed looks like
-    (words first): the three passages say that the run is REFUSED
-    while OPA holds the membership, and give the procedure in order
-    (console, then the run, what the prune step prints); and the
-    refusal of a `*_user_group_attachment` destroy says, beside the
-    address, "remove <user> from <group> in OPA, then run identity
-    again". **USER** decides whether a run-level flag for one named
-    removal is wanted as well; the conservative answer is no.
+16. (Taken as §88 on 2026-10-08.)
 
 ## 83. A release asks its publish target before it starts
 
@@ -922,3 +908,47 @@ named by hand. The release refuses, with its other probes and before
 anything changes, a branch that is not the integration branch
 (`develop`; a final release may want `main`: **USER** decides), and
 the dry form says which branch it stands on.
+
+## 88. A membership the YAML dropped is removed by the run
+
+**Status: IN PROGRESS 2026-10-08 on `feature/membership-removal`, by
+the operator's word after the gate refused the walk's removal of its
+second person (finding F38): "The system can add users to an oktapam
+group. It should be able to remove them from that group, as well.
+This is a new finding, and we should correct this situation as soon
+as possible." The release that carries it is dev21.**
+
+**Why.** A member added through the YAML could not be taken out the
+same way. The identity plan showed the destroy of their attachment,
+the gate whitelisted no membership destroy (`DESTROY NOT WHITELISTED`,
+exit 3) and the run failed until a person removed them in the OPA
+console, after which the prune step dropped the attachment from
+state. The rule behind it ("membership removals only by explicit
+decision", OPERATIONS "Identity") is withdrawn by the operator: the
+declaration is the decision, in both directions.
+
+1. The identity runner's prune step, which already lists the state it
+   is bound to and knows which attachments the declaration dropped,
+   names in a file beside the plan (`csis-sanctioned-removals.txt`, in
+   the root's private mirror, rewritten by every run) each one the
+   plan will destroy: dropped and still held by OPA, or dropped and
+   OPA could not say. One OPA no longer holds leaves state as before.
+2. `gate-plan --allow-destroy-from <file>` reads it. Each entry
+   sanctions the ONE address it spells, never a prefix; a file that
+   is not there sanctions nothing. The okta-tf root's gate line
+   carries it; no other root's does. The gate says which destroys the
+   declaration sanctioned.
+3. Nothing else becomes destroyable: a group, a policy, a token, a
+   resource group, or the attachment of a person the YAML still
+   names, are refused as before.
+4. Tests: what the prune step sanctions in each case; the list
+   rewritten by every run; the gate with and without it; no entry
+   widening; the command; the emission (the golden moves by one gate
+   line). Proof: the walk removes a second person by the YAML alone.
+
+The words are owed by §65: the daily driver's 3.1 and section 4 ("Who
+may log in"), OPERATIONS "The apply gate", "Drop a membership" and
+"Identity", and DESIGN where it states the old rule. A mass removal by
+a mistaken edit is now possible where it was not: the dry run cannot
+show it (it does not read state), the real run's plan and the prune
+step's log name every person, and the pages should say to read them.
