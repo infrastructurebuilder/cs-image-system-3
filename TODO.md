@@ -23,7 +23,7 @@ released in dev19 (dev18 was cut from the walk branch by mistake and
 is on the index, unused) and PROVED live: the walk's third `perform`
 baked both its images under the bootstrap-made write role, Systems
 Manager finishing its work on each build machine undisturbed. §81,
-hygiene bundle XII, is open (fifteen items the walk
+hygiene bundle XII, is open (sixteen items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15, taken by the reference configuration, its
@@ -610,11 +610,11 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, fifteen items found by the §65 walk. Items
+**Status: OPEN 2026-10-05, sixteen items found by the §65 walk. Items
 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
 the operator's word. Items 10 and 11 LANDED as §86 (c6af4b2,
 2026-10-07, "Fix now, starters too"). Items 1, 2, 5 to 9 and 12 to
-15 are a plan -- nothing more runs until the operator says "do 81".
+16 are a plan -- nothing more runs until the operator says "do 81".
 Item 7(a) has a date: 2026-10-19.**
 
 1. **A starter's own hook refuses its first commit.** The tree
@@ -808,6 +808,25 @@ starter's `.gitignore` ignores every dotfile unless named.)
     emission and the proofs carry them by reference as every other
     encrypted value is carried (stage 49), which touches terraform
     resource addresses and is a stage of its own.
+16. **Removing a member is refused, and nothing says how it is
+    done.** The walk's finding F38 (2026-10-08). A member dropped
+    from the YAML while OPA still holds them makes the identity plan
+    destroy one attachment; the gate whitelists no membership destroy
+    (`DESTROY NOT WHITELISTED`, exit 3) and the run FAILS. That is
+    the design ("membership removals only by explicit decision",
+    OPERATIONS "Identity"), but the daily driver's 3.1 and section 4
+    and OPERATIONS "Drop a membership" say only that "the plan shows
+    the destroy and the gate sees it", and the failure names neither
+    the rule nor the way out. The way out exists and works by parts:
+    remove the person in the OPA console, run identity again, and the
+    prune step takes the attachment out of state. Fixed looks like
+    (words first): the three passages say that the run is REFUSED
+    while OPA holds the membership, and give the procedure in order
+    (console, then the run, what the prune step prints); and the
+    refusal of a `*_user_group_attachment` destroy says, beside the
+    address, "remove <user> from <group> in OPA, then run identity
+    again". **USER** decides whether a run-level flag for one named
+    removal is wanted as well; the conservative answer is no.
 
 ## 83. A release asks its publish target before it starts
 

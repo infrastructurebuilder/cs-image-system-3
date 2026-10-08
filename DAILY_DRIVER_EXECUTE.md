@@ -2409,8 +2409,9 @@ may log in", "Who is in a group on its machines").
 | the fix for F37 (stage 87) | merged 2026-10-08; it needs release 0.1.1.dev20 |
 | 13b again, step 1 (release 0.1.1.dev20 from `develop`) | done 2026-10-08: cut on `develop`, tagged there, all 18 packages on the index |
 | 13b again, steps 2-3b (the walk on 0.1.1.dev20, the list rewritten, the second person's login) | done 2026-10-08: their own session carries `walk_team`. Stage 87 is proved |
-| **13b again, step 4** (the container: record, push, CI) | **NEXT: start there** |
-| 13c. The second person leaves the group again (the container) | straight after, if CI is green |
+| 13b again, step 4 (record, push, CI) | done 2026-10-08: 2a99d31, CI green |
+| 13c, steps 1-2 (the edits undone; the identity run) | done 2026-10-08: the gate REFUSED the run, by design, and nothing changed (finding F38) |
+| **13c, step 2b** (the OPA console, then the container: the identity run again) | **NEXT: start there**, then steps 3 and 4 |
 
 For 13b you chose to add a second person. While 13a runs, settle who:
 a real Okta account in the same team, whose owner agrees to be a
@@ -2947,6 +2948,52 @@ back.
    with `SECOND` in place of any name: nothing was changed, and that
    refusal is a finding, not an error of yours.
 
+   (2026-10-08: it refused. The runner's prune step said `member
+   'SECOND' was dropped from group 'walk_team' but OPA still holds
+   it; the plan will show the destroy`; the plan said `0 to add, 0 to
+   change, 1 to destroy`; and the gate stopped the run: `DESTROY NOT
+   WHITELISTED: module.group_walk_team.oktapam_user_group_attachment.
+   members["SECOND"]`, exit 3, `Run ... FAILED: LifecycleRunError:
+   Apply failed for lifecycle identity`. Nothing was applied.)
+
+   This is the system doing what it is built to do, and the pages
+   not saying so (finding F38). The system never takes a person's
+   access away on the strength of a YAML edit alone: the operations
+   guide's own rule is "membership removals only by explicit
+   decision", and the gate allows no destroy of a membership at all.
+   The decision is made where the membership lives, in OPA, by a
+   person; the system then tidies its own state. The daily driver
+   says of a removal that "the plan shows the destroy and the gate
+   sees it", which reads as though it goes through. It does not.
+
+2b. **The explicit decision, then the run again.**
+
+   You, in the OPA console: open the group `walk_team_user` (the
+   members' group of `walk_team`; `walk_team_admin` is the admins'
+   and is not touched) and remove the second person from it.
+
+   Then, in the container, the identity run once more:
+
+   ```sh
+   cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+   git status -sb                             # develop, ahead 1 (your commit of step 1), nothing else listed
+   aws sts get-caller-identity                # keys live? refresh them first if they are near an hour old
+   just run identity 2>&1 | tee ~/identity-13c2.log | tail -3
+   grep -nE 'Plan:|No changes\.|no longer holds|still holds|state rm|backup|NOT WHITELISTED|Apply complete|completed:|FAILED' ~/identity-13c2.log | sed -E 's/(member|admin) .[^ ]*. was/\1 SECOND was/; s/\["[^"]*"\]/["SECOND"]/g' | cut -c1-200
+   ```
+
+   What should happen now, by the operations guide ("Drop a
+   membership"): the prune step finds that OPA no longer holds the
+   membership, backs the state up, and takes the attachment out of
+   terraform state itself (`... and OPA no longer holds it; its
+   attachment leaves tofu state before the plan: state rm ...`); the
+   plan then says `No changes`, the gate has nothing to refuse, and
+   the run completes. The `sed` in the last line writes `SECOND`
+   where the log names the person; look the output over all the same
+   before you paste it. If the prune step still says `OPA still
+   holds it`, the console change has not reached OPA's API yet: wait
+   a minute and run the two lines again.
+
 3. The launch run, and the machine's list:
 
    ```sh
@@ -2982,10 +3029,9 @@ back.
    git fetch origin && git merge --ff-only origin/main && git push
    ```
 
-**Report:** `stage 13 done` with the `CI on develop:` line of 13b's
-step 4, step 2's two `grep` outputs, step 3's `grep` and numbers,
-what the second person saw (or `not tried`), and the `perform on
-main:` line.
+**Report:** `stage 13 done` with step 2b's `grep` output, step 3's
+`grep` and numbers, what the second person saw (or `not tried`), and
+the `perform on main:` line.
 
 ## Stage 14 onward -- written when you reach them
 
@@ -3106,4 +3152,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F35 | nothing proves the workload role's branch pin. The guide's 3.5 ends at "add the branch pin to the role" and offers no check; the probe authenticates to the CONNECTION and passes the role only as a hint, so it says `accepted ... and issued one` from any branch, pinned or not (seen 2026-10-08: `success` on `develop` with the pin read back from OPA). A team cannot tell a pin that holds from one that does not | words and code: hygiene XII item 14 |
 | F36 | a user's `name` is declared as an `ENC[age:...]` marker in `groups/` and committed in CLEAR by the run: `meta-state/identity.yaml`, the identity roots' HCL (the roster lists, resource names, the local part of the mail address), and the login proofs. In a public configuration repository a person's username is public from the first identity run and stays in the history; only the mail domain is protected. The marker suggests otherwise, and nothing in the guide or the starter says so | words, and a decision: hygiene XII item 15 |
 | F37 | beside Okta, a member whose account name on a machine differs from their OPA username logs in and never joins the group. OPA makes the account under the user's `unix_user_name` attribute; the login hook matches the account against the member list name for name; the list was written in OPA usernames. Seen when the walk's second person logged in: on the list, not in the group. The reference configuration is exposed the same way | code: stage 87, released in 0.1.1.dev20 |
+| F38 | removing a member the way the pages describe FAILS, and they do not say it will. The daily driver (3.1; section 4, "Who may log in") and the operations guide ("Drop a membership") say that for a removal OPA still holds "the plan shows the destroy and the gate sees it". The gate refuses it: `DESTROY NOT WHITELISTED`, exit 3, the run FAILED, by the design rule "membership removals only by explicit decision". The procedure that works, remove the person in the OPA console first and let the next run prune its state, is written nowhere as a procedure, and the refusal does not name it | words, and the gate's message: hygiene XII item 16 |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
