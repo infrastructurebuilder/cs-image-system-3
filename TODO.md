@@ -992,6 +992,23 @@ starter's `.gitignore` ignores every dotfile unless named.)
     the record from a modification that FAILED; and the daily
     driver's section 6 gains the row.
 
+    What the same evening added. The job was run again twice (20:58,
+    21:19 and 21:41 UTC in all) and failed the same way each time,
+    eighteen silent seconds and then the traceback; at 21:44 a pull
+    of the same image from the operator's machine failed with
+    `auth.docker.io/token ...: context deadline exceeded`, and at
+    21:47 it worked. So the likeliest cause was Docker Hub's sign-in
+    service not answering for about an hour (not proved: the
+    runner's message is what was lost). That shows a second thing
+    for the plan to weigh: every run on `main` pulls a test image
+    from Docker Hub, without an account, at the moment it runs, and
+    `perform` waits behind that job, so an outage of a registry the
+    configuration never names stops every bake. The retry above is
+    part of the answer; whether `live` should also say "the
+    registry did not answer" and let `perform` go on, or a
+    configuration may name a mirror for test images, is the
+    operator's to decide when this item is taken up.
+
 ## 83. A release asks its publish target before it starts
 
 **Status: PLANNED 2026-10-06, not started -- a plan; nothing here runs

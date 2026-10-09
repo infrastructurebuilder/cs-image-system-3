@@ -5024,7 +5024,7 @@ home, your secrets in it. Neither leaves your machine.
 | 16a | the tree from the starter: the files, git, the hook's allowance, the holder's key | done 2026-10-09: two commits, the test identity gone |
 | 16b | the values, the people, then validate and dry | done 2026-10-09: the tree validates against your account and dry-runs; three commits |
 | 16c | a GitHub repository of its own, the bootstrap, CI | done 2026-10-09: the repository is public, the bootstrap added nine things and destroyed none, four secrets, CI green at 1614796 after the storage was renamed (finding F53) |
-| 16d | the storage, the bake, a machine, and a login by real SSH with a proof key | **YOU ARE HERE** |
+| 16d | the storage, the bake, a machine, and a login by real SSH with a proof key | **YOU ARE HERE: step 4, the box that runs the failed job again.** Steps 1 to 3 are done; the walk stopped for the day on 2026-10-09 with CI on `main` red three times, for a cause outside this tree |
 
 Every box of this stage begins with a line that says `OK: the
 container, the posix tree`. The first walk's tree is beside it in
@@ -5666,15 +5666,44 @@ echo "perform on main: $(gh run view "$run" --json conclusion,headSha --jq '"\(.
 `perform on main: success at` and a commit. Anything else, STOP and
 say `red`; Claude reads the log.
 
-(2026-10-09, 20:55 UTC: `failure at 85006af`, and `perform` never
+(2026-10-09, 20:58 UTC: `failure at 85006af`, and `perform` never
 started. The `live` job failed in its step "Modification tests
 under docker": `docker run -d --rm almalinux:10 ...` returned exit
 status 125 on GitHub's runner, which is docker failing to start a
 container, most often because the image could not be pulled. The
-same step passed for the same commit on `develop` five minutes
+same step passed for the same commit on `develop` eleven minutes
 before. What docker itself said is not in the log: the system
 captured it and showed a traceback instead (finding F54). Nothing
-was baked and nothing changed. The failed job is run again, and
+was baked and nothing changed.
+
+It was run again twice, at 21:19 and 21:41 UTC, and failed the same
+way both times, and there the walk stopped for the day. What is
+known about the cause, and what is not:
+
+- Each time the step said nothing for eighteen seconds and then
+  failed. That is the length of a wait that ran out, not of a
+  refusal: a pull that Docker Hub turns away for being over its
+  limit fails at once.
+- At 21:44 UTC the same image could not be pulled from your local
+  machine either. There docker did say why: Docker Hub's sign-in
+  service (`auth.docker.io`) did not answer in time. At 21:47 it
+  answered and the pull worked.
+- Docker's status page named no incident at 21:47, and GitHub's
+  named none for Actions.
+
+So the likeliest cause is Docker Hub's sign-in service failing to
+answer for about an hour, which is nothing this tree declares. It is
+not proved, because the runner's own message is the one thing the
+log does not hold (F54 again). What the evening did show is a
+dependency worth knowing: every run on `main` starts a test
+container from an image it pulls from Docker Hub at that moment,
+without an account, and `perform` waits behind that job. When
+Docker Hub does not answer, nothing can be baked, and the system
+does not say why.
+
+**When you come back, this box is your next step.** It needs no AWS
+keys of yours (CI brings its own), only the GitHub token your
+`.envrc` already exports. The failed job is run again, and
 `perform` follows it:
 
 ```sh
@@ -5686,8 +5715,11 @@ echo "perform on main: $(gh run view 37990431249 --json conclusion,headSha --jq 
 ```
 
 `perform on main: success at 85006af`, after about twenty-five
-minutes of baking. If `live` fails the same way again, STOP and say
-so.)
+minutes of baking. If it says `failure` again within two minutes,
+it is the same step: STOP and say `red again`; do not run it a
+fifth time. Then the box below, and step 5, which does need your
+AWS keys, and they have lapsed since you stopped: paste fresh ones
+before it.)
 
 ```sh
 cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
@@ -5923,5 +5955,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F51 | a bootstrap that shares an existing CI account would co-own its grants, and the interview cannot be told otherwise. For an existing read-only service account the GCP section still manages a project role binding for each of `read_roles`, which defaults to `roles/compute.viewer`; an empty answer at the terminal takes the default, so "none" cannot be said there. A second configuration that reads the same account (the walk beside the reference) would hold the same grant in its own state, and destroying its bootstrap root would take the grant from every repository that uses the account. Also, re-asking the interview asks the cloud its "does it exist" questions again as whoever the shell is. Seen 2026-10-09 by reading and on a scratch clone (15e); the walk wrote the answers into `bootstrap.yaml` with `read_roles` empty | code: hygiene XII item 23, and words |
 | F52 | stage 88's list of sanctioned removals is committed, and it names the person. The identity runner's prune step writes `csis-sanctioned-removals.txt` beside the plan; stage 88 said that was the root's private mirror, never committed. In the walk tree it stood in `generated/identity/opa-groups/group-generation/` and the run committed it: empty after the add (45367f2), with ONE line, the removed member's attachment address and so their username, after the removal (bd0c0d7), then empty, then deleted by a dry run (4014cd2), so it also churns the emission. No new disclosure here (F36: usernames are committed in clear anyway, and this person agreed), but the file is in the wrong place and the claim was false. Seen 2026-10-09 (15e step 12, from the commit's own listing) | code: hygiene XII item 24 |
 | F53 | two configurations in one AWS account that give a storage, or a machine, the same name see each other's. The system finds a declared storage's volume, and a declared instance's machine, in the account by the `Name` tag alone. The posix walk's tree kept its starter's storage name, `data`, which is also the first walk's; its first real state query in CI said `foreign storage data: ebs vol-0b3a53a0e871906c5 exists but meta-state has no record of it`, and that volume is the first walk's. Had the second volume been made, the first walk's CI would have met two answering to one name. Every starter ships the same names (`data`, `team-node-1`), so two teams that each take a starter into one account collide on day one. Seen 2026-10-09 (16c step 11). It is F47 on AWS: images carry `csis_config` since stage 82, nothing else does | code: hygiene XII item 20, which now covers both clouds |
-| F54 | when a modification test cannot start its container, the system shows a traceback and not docker's own words. In CI's `live` job on `main`, `docker run -d --rm almalinux:10 ...` returned exit status 125 (seen 2026-10-09, 16d step 4; the same step had passed on `develop` minutes before, so most likely a failed pull on the runner). The command's error output is captured and discarded, the run ends in `CalledProcessError` under eighty lines of traceback, and the reader cannot tell a rate limit from a missing image from a dead daemon. The whole `perform` was skipped for it | code: hygiene XII item 26 |
+| F54 | when a modification test cannot start its container, the system shows a traceback and not docker's own words. In CI's `live` job on `main`, `docker run -d --rm almalinux:10 ...` returned exit status 125 (seen 2026-10-09, 16d step 4; the same step had passed on `develop` minutes before, so most likely a failed pull on the runner). The command's error output is captured and discarded, the run ends in `CalledProcessError` under eighty lines of traceback, and the reader cannot tell a rate limit from a missing image from a dead daemon. The whole `perform` was skipped for it. It failed three times in forty-five minutes, eighteen silent seconds each; a pull from the local machine failed at the same hour with a timeout from Docker Hub's sign-in service, so that is the likeliest cause and it is not proved. Every run on `main` pulls its test image from Docker Hub at that moment, and `perform` waits behind it | code: hygiene XII item 26 |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
