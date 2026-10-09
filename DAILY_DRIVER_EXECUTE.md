@@ -3830,7 +3830,7 @@ it must be nothing.
 | 15b | the tree gains its GCE declarations; validate, dry run, a local commit | done 2026-10-09: commit e40f23a, 77 files, local and NOT pushed |
 | 15c | the cycle: a disk, two bakes, a machine launched, verified and torn down | done 2026-10-09 in eighteen minutes: everything it should have done, and the emptiness check failed on the reference's three names and no other. **One 10 GB disk of the walk's, `walk-data`, stands on GCP** |
 | 15d | the GCE disk's end, and emptiness judged by hand | done 2026-10-09: the disk destroyed through the gate, the AWS volume untouched, and the project identical to the picture of 15a. **Nothing of the walk's stands on GCP** |
-| 15e | CI for a tree of two clouds (the workflow, the bootstrap's GCP section), the push, and `main`, where AWS re-bakes | steps 1-12 done 2026-10-09: the provider names three repositories, the plan was `2 to add` and applied, nine secrets are set, commit 4014cd2. **YOU ARE HERE: step 13 (push `develop`, CI), then step 14 (`main`, the `perform` that re-bakes on AWS), then step 15** |
+| 15e | CI for a tree of two clouds (the workflow, the bootstrap's GCP section), the push, and `main`, where AWS re-bakes | done 2026-10-09: CI on `develop` green with Google asked from your repository; `perform` on `main` green in thirty minutes, both AWS images re-baked, nothing baked on GCP. **Stage 15 is done** |
 
 **15a. Google credentials in the container.** The container has had
 `gcloud` since stage 2 and no Google credentials. As you asked at
@@ -4946,6 +4946,40 @@ branch names and no file under it.
 
 **Report:** `stage 15 done` with what steps 2, 5, 8, 9 and 11
 printed, the `CI on develop:` line and the `perform on main:` line.
+
+(STAGE 15 DONE 2026-10-09, 14:57 UTC.
+
+- Step 2: the provider's condition names three repositories. Step
+  5: the root regenerated with no roles for the read-only account.
+  Step 8, second time: `Plan: 2 to add, 0 to change, 0 to destroy`,
+  the binding and the variable. Step 9: `Apply complete! Resources:
+  2 added, 0 changed, 0 destroyed.` Step 11: nine secrets, three of
+  them Google's.
+- `CI on develop: success at 4014cd2`: `verify` and `live`, and
+  `live` said `no drift: meta-state agrees with reality`, having
+  become the read-only account on Google from your repository.
+- `perform on main: success at 4014cd2`, 14:26 to 14:56 UTC. Its
+  plan: `el10@aws-main: bake: inputs changed`, `team-node@aws-main:
+  bake: inputs changed`, and both GCE images due and NOT baked. It
+  made `ami-034fad2b1a7973b4e` (`el10`) and `ami-000b24224c3d284c2`
+  (`team-node`); the guard said `the emission of gcp-main is
+  unchanged`; `login proof walk-node-1: login: ok`; `no drift`. The
+  closing record calls both AWS images `skip: current`.
+  `walk-node-1` stands on the build it was pinned to,
+  `ami-04bb9df333af05e5b`.
+- The walk's `develop`, `origin/develop` and `origin/main` agree at
+  c66c578.
+
+**What stands because of this stage.** On GCP: no resource of the
+walk's (read again from your local machine: no instance, the disk
+`gce-data`, the one image, the bucket: the reference's). Free, and
+to be taken away at teardown: the third name in the provider's
+condition, the walk's binding on `csis-github-readonly`, the
+`GUARD_RUNTIME` variable, three secrets. On AWS: two more images
+and their snapshots, a few cents a month, which teardown disposes
+with the rest. In the tree: a GCE runtime with nothing on it, a
+disk declared `destroyed`, and a machine declared `ephemeral` that
+is not standing.)
 **What of the walk's stands on GCP after stage 15: no resource at
 all.** What remains there is free and is named above: your
 repository's line in the provider's condition and its binding on
@@ -4959,7 +4993,7 @@ this page as each one comes up. The order, and the page each follows:
 
 | Stage | What | Follows |
 | --- | --- | --- |
-| 16 | The second walk, `standard-aws-posix`, in its own repository (needs a second mounted volume: Claude re-creates the container from a snapshot of this one) | DAILY_DRIVER 1.9, 3.1 |
+| 16 | NEXT. The second walk, `standard-aws-posix`, in its own repository (needs a second mounted volume: Claude re-creates the container from a snapshot of this one) | DAILY_DRIVER 1.9, 3.1 |
 | 17 | Teardown and its proof | stage 65, step 8 |
 
 ## Google Cloud credentials through the environment
