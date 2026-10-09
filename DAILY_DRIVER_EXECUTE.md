@@ -3685,8 +3685,11 @@ seconds.` You stopped the machine at 10:25 and started it once, at
 about 10:27:45. The boot at 10:26:40 is not yours: it falls inside
 the verify's fifty-three seconds, 10:26:23 to 10:27:16. **Finding
 F44 is settled by sight: the verify started your machine and
-stopped it again.** The audit trail was not read, the keys having
-lapsed (`ExpiredTokenException`); it is no longer needed.)
+stopped it again.** The audit trail, read once the keys were fresh,
+says the same in four events where you made two: `StopInstances`
+at 10:25:11 (yours), `StartInstances` at 10:26:26 and
+`StopInstances` at 10:27:00 (the system's), `StartInstances` at
+10:27:37 (yours).)
 
 Then undo what the cancelled run left. A run writes its entry in
 `meta-state/runs.yaml` however it ends, and the one you cancelled
