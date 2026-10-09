@@ -4744,6 +4744,92 @@ the count is anything but `2 to add, 0 to change, 0 to destroy`,
 STOP and paste the lines.** This root holds the roles your CI runs
 as. Claude has not seen this plan against your state.
 
+**What happened at step 8 (2026-10-09, 13:55 UTC): the plan FAILED
+with four errors, and changed nothing.** A plan that fails makes no
+change and saves no plan file. Two causes, one of them this page's.
+
+- **Google refused the runner, three times**: `Permission
+  'iam.workloadIdentityPools.get' denied`, the same for the provider,
+  and `'iam.serviceAccounts.get' denied`. The token in the shell was
+  not yours. Step 6's `gcloud auth print-access-token` is in the
+  CONTAINER's history: there, `gcloud` is the runner, so the token
+  it prints is the runner's, and the runner may not read those.
+  Step 6 has to be typed on your local machine. The box below
+  tells the two kinds of token apart before the plan is tried.
+- **GitHub refused the token**: `failed to lookup organization
+  "infrastructurebuilder": ... 401 Bad credentials`. Claude's guess,
+  and it is this page's fault if so: 15a's step 4 added three lines
+  to the END of `.envrc` without first making sure the file ended
+  with a line break. If it did not, the first new line was joined
+  to your last one, and a GitHub token with `export` stuck to its
+  end is no token. `gh` worked at 10:47 UTC, before that edit, and
+  nothing has used the token since. Claude does not open `.envrc`,
+  so the first box below asks the file, without showing a value.
+
+**Step 8 again, in five boxes.** First, in the container: is the
+GitHub token whole? This prints two lengths and a count, no value:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+echo "GH_TOKEN ${#GH_TOKEN} characters; GITHUB_TOKEN ${#GITHUB_TOKEN} characters"
+grep -c '[^ ]export GOOGLE_APPLICATION_CREDENTIALS=' .envrc
+```
+
+Two lengths that are the SAME (a fine-grained token is 93
+characters), and `0`. If the count is `1`, or the lengths differ, or
+one is 0 or 99, the lines are joined: run the next box. If the
+lengths are equal and the count is `0`, skip the next box.
+
+Only if they are joined: the line break goes back in. This changes
+nothing unless `export GOOGLE_APPLICATION_CREDENTIALS=` directly
+follows another character on its line:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+sed -i 's/\([^ ]\)export GOOGLE_APPLICATION_CREDENTIALS=/\1\nexport GOOGLE_APPLICATION_CREDENTIALS=/' .envrc
+direnv allow
+grep -c '[^ ]export GOOGLE_APPLICATION_CREDENTIALS=' .envrc
+```
+
+`0`. Then press Enter once on an empty line, so direnv loads the
+file again.
+
+Does GitHub take the token now?
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+echo "GH_TOKEN ${#GH_TOKEN} characters; GITHUB_TOKEN ${#GITHUB_TOKEN} characters"
+gh api user --jq .login
+```
+
+Two equal lengths and your GitHub login. If `gh` says `401` or `Bad
+credentials` with equal lengths and no joined line, the token itself
+has ended: STOP and say so (stage 8 made it; it can be made again).
+
+**On your local machine (the host, NOT the container):** step 6
+again. The prompt there is not the container's
+`[mykel.alvis@csis-walk ...]$`:
+
+```sh
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+gcloud auth print-access-token
+```
+
+The first line says `OK: local machine`, the second is the token.
+Copy it. In the container, type step 7's line again with the new
+token (a SPACE before `export`), then ask Google whose it is; this
+shows no token and no address:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+curl -s "https://oauth2.googleapis.com/tokeninfo?access_token=$GOOGLE_OAUTH_ACCESS_TOKEN" | jq -r 'if .error then "STOP: Google does not know this token (expired, or not pasted whole)" elif ((.email // "") | endswith("gserviceaccount.com")) then "STOP: this is a service account token: it was printed in the container, not on your local machine" elif (.email // "") != "" then "OK: the token of a person, \(.expires_in) seconds left" else "STOP: no person is named on this token: was it printed on your local machine?" end'
+```
+
+`OK: the token of a person` and a number of seconds. A `STOP` line
+says which mistake it is. Only on `OK`, run step 8's box again, the
+one above with `tofu ... init` and `tofu ... plan`, and read its
+result against the same three expected lines.
+
 **Step 9, in the container:** the apply, of that saved plan and
 nothing else, so it asks no question:
 
