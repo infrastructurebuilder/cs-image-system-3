@@ -3753,6 +3753,32 @@ printed (they are cut to a few lines each on purpose), and the
 `perform on main:` line. For 14a say `skipped, keys were live` if it
 was. Where a part stopped you, say which line, and stop there.
 
+(STAGE 14 DONE 2026-10-09. `perform on main: success at 6bec954`,
+all three jobs; its login proof `login: ok`; `no drift` before and
+after. The cancelled run's entry is not in the ledger. The walk's
+`develop`, `origin/develop` and `origin/main` agree at bd7c3be.
+
+What the failure walk found, held against the daily driver's
+section 6:
+
+| Part | The page | Finding |
+| --- | --- | --- |
+| 14a lapsed keys | symptom and remedy are an SSO profile's; `preflight` greens dead keys | F40 (new), F30 again |
+| 14b no `.envrc` | no row for the missing age identity; the OPA row quotes another sentence | F41 (new), F10 again |
+| 14c `name: none` | refused as section 3 promises; a traceback, and no row | F42 (new) |
+| 14d `--only` beside `--only-runtime` | three clean one-line refusals; no row, none needed | none |
+| 14e unreleased pin | the row holds, grace and refusal both; the starter hides the key | F43 (new) |
+| 14f machine off | state query and login proof as written; `verify` STARTS the machine | F44 (new) |
+| 14g | a cancelled run records `ok: true` | F45 (new) |
+| at 13c | `DESTROY NOT WHITELISTED`, the row's | F38, fixed by stage 88 |
+
+Three of this page's own instructions were wrong on the way and
+are corrected above: the `stopped` check of 14f could not see a
+start that was undone; the journal line of 14g could not list an
+earlier boot; and 14g put a record straight under a status that had
+to be read first, which is where your rule "a check ends its box"
+comes from.)
+
 ## Stage 15 onward -- written when you reach them
 
 These stages depend on what the earlier ones produce (the bootstrap's
