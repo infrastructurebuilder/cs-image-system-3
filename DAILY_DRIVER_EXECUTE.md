@@ -5023,8 +5023,8 @@ home, your secrets in it. Neither leaves your machine.
 | --- | --- | --- |
 | 16a | the tree from the starter: the files, git, the hook's allowance, the holder's key | done 2026-10-09: two commits, the test identity gone |
 | 16b | the values, the people, then validate and dry | done 2026-10-09: the tree validates against your account and dry-runs; three commits |
-| 16c | a GitHub repository of its own, the bootstrap, CI | **YOU ARE HERE**: step 1 is in your browser |
-| 16d | the people, the bake, a machine, and a login by real SSH with a proof key | written when 16c reports |
+| 16c | a GitHub repository of its own, the bootstrap, CI | done 2026-10-09: the repository is public, the bootstrap added nine things and destroyed none, four secrets, CI green at 1614796 after the storage was renamed (finding F53) |
+| 16d | the storage, the bake, a machine, and a login by real SSH with a proof key | **YOU ARE HERE** |
 
 Every box of this stage begins with a line that says `OK: the
 container, the posix tree`. The first walk's tree is beside it in
@@ -5550,6 +5550,211 @@ echo "CI on develop: $(gh run view "$run" --json conclusion,headSha --jq '"\(.co
 **Report:** `stage 16c done` with what steps 5, 8, 9 and 10 printed
 and the two `CI on develop:` lines. **What this part makes in AWS:
 two IAM roles, which cost nothing.**
+
+**16d. The storage, the bake, a machine, and a login by real SSH.**
+In the container. This part makes things in AWS that stand until
+teardown, and says so where it does: a 10 GB volume (step 2, about
+80 cents a month) and a second `t3.medium` (step 5, about a dollar a
+day). The bake is CI's, on `main`.
+
+Claude has seen none of this in this tree: not a posix bake, not
+the accounts being made, not a login through the session tunnel.
+
+**Step 1.** Two small things before the storage. The starter's
+volume is 100 GB; the walk needs none of it, so it becomes 10. And
+the proof user's key is named in this tree's shell, where `just
+ci-login-proof` looks for it (a path, not the key):
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+sed -i 's/^    size: 100 /    size: 10  /' cfg/storage-builders.yml
+printf 'export CSIS_PROOF_SSH_KEY=$HOME/walk-posix-secrets/CSIS_PROOF_SSH_KEY\n' >> .envrc
+direnv allow
+git diff --stat
+```
+
+`cfg/storage-builders.yml | 2 +-`, one file. Then press Enter once
+on an empty line.
+
+**Step 2.** The storage, first, as at stage 11 and for the same
+reason (the machine's root reads the storage's state). The plan is
+read before it is applied:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+aws sts get-caller-identity --query Account --output text
+just validate 2>&1 | tail -1 | cut -c1-200
+git add -A && git commit -q -m "The posix walk's volume is 10 GB"
+just dry storage 2>&1 | tee ~/dry-16d.log | tail -1 | cut -c1-200
+grep -n 'gate-plan' generated/storage/run-storage.sh | cut -c1-220
+```
+
+`Validation successful.`, the hook's line, `Run ... completed:
+storage`, and ONE gate line, for `aws-ebs/storage-generation`, with
+no `--allow-destroy` on it. If it allows a destroy, STOP.
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+just run storage 2>&1 | tee ~/storage-16d.log | tail -2 | cut -c1-200
+grep -nE 'Plan:|No changes\.|Apply complete|NOT WHITELISTED|passes the apply gate|completed:|FAILED' ~/storage-16d.log | cut -c1-200
+```
+
+`Plan: 1 to add, 0 to change, 0 to destroy` (perhaps twice), `Plan
+passes the apply gate.`, `Apply complete! Resources: 1 added, 0
+changed, 0 destroyed.`, `Run ... completed: storage`. Anything that
+says `destroy` with a number other than 0, STOP. **Standing in AWS
+from here: the volume `posix-data`, 10 GB.**
+
+**Step 3.** The same question CI asks, asked here, then `develop`:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+just state-query --strict 2>&1 | tail -3 | cut -c1-200
+```
+
+`no drift: meta-state agrees with reality`. Anything `foreign`,
+`missing` or `changed`, STOP and paste it.
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+git status --short | wc -l
+git push
+run=""
+for i in $(seq 12); do
+  sleep 5
+  run=$(gh run list --branch develop --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+  [ -n "$run" ] && break
+done
+echo "run ${run:-NOT FOUND after 60 seconds}"
+[ -n "$run" ] && gh run watch "$run"
+echo "CI on develop: $(gh run view "$run" --json conclusion,headSha --jq '"\(.conclusion) at \(.headSha[0:7])"')"
+```
+
+`0`, then `CI on develop: success at` and a commit. Anything else,
+STOP.
+
+**Step 4.** `main`, and the first `perform` of this tree. It bakes
+the base and the image, about twenty-five minutes; there is no
+machine yet, so it has no login to prove:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+git push origin develop:main
+run=""
+for i in $(seq 12); do
+  sleep 5
+  run=$(gh run list --branch main --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+  [ -n "$run" ] && break
+done
+echo "run ${run:-NOT FOUND after 60 seconds}"
+[ -n "$run" ] && gh run watch "$run"
+echo "perform on main: $(gh run view "$run" --json conclusion,headSha --jq '"\(.conclusion) at \(.headSha[0:7])"')"
+```
+
+`perform on main: success at` and a commit. Anything else, STOP and
+say `red`; Claude reads the log.
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+git fetch origin && git merge --ff-only origin/main && git push
+git status -sb
+```
+
+`## develop...origin/develop` and no file under it.
+
+**Step 5.** The machine. Refresh your AWS keys first if they are
+near an hour old:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+aws sts get-caller-identity --query Account --output text
+just cloud-launch aws-main 2>&1 | tee ~/launch-16d.log | tail -2 | cut -c1-200
+grep -nE 'Plan:|Apply complete|accounts of group|could not be made|not reachable|completed:|FAILED' ~/launch-16d.log | cut -c1-200
+```
+
+`Plan: ... to add, 0 to change, 0 to destroy`, `Apply complete!`, a
+line saying the accounts of group `walk_posix` are in place, and
+`Run ... completed: instance-image`. If it says the accounts `could
+not be made`, paste the lines: that is the heart of this starter.
+**Standing in AWS from here: the machine `team-node-1`, a
+`t3.medium`.**
+
+**Step 6.** The system's own verification:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+just cloud-verify aws-main team-node-1 2>&1 | tail -2 | cut -c1-200
+```
+
+`instance team-node-1 verified`.
+
+**Step 7.** You, logging in as `walker`, by real SSH through the
+session tunnel, with the key 16b made. No page gives a person this
+line (the pages give it for the proof user, inside the system); it
+is put together from what the system itself runs:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+id=$(grep -m1 'instance_id:' meta-state/instance-state.yaml | awk '{print $2}'); echo "$id"
+ssh -i ~/.ssh/walk_posix -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/walk-posix-known-hosts -o ProxyCommand="aws ssm start-session --target $id --document-name AWS-StartSSHSession --parameters portNumber=%p --region us-east-2 --profile noaa" walker@"$id" 'id -un; id -nG | tr " " "\n" | grep -c "^walk_posix$"; sudo -n true && echo "sudo: yes" || echo "sudo: no"; findmnt -no SOURCE,TARGET /mnt/data; ls -ld /mnt/data/walk_posix | awk "{print \$1, \$3, \$4}"'
+```
+
+An instance id, then five lines from the machine: `walker`; `1`
+(the account is in `walk_posix`); `sudo: yes` (it is the group's
+admin); a device and `/mnt/data`; and the group's subtree, `drwxrws---`
+with the group `walk_posix`. Whatever differs is a finding: paste
+all of it.
+
+**Step 8.** The proof, as CI makes it: the system logs in as the
+proof user with the key named in step 1:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+just ci-login-proof team-node-1 2>&1 | tail -4 | cut -c1-200
+```
+
+`login proved for team-node-1`, or its record with `ok: true`.
+
+**Step 9.** Record, push, and `main`, where CI makes the same
+proof with the repository's secret:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+just record 2>&1 | tail -1 | cut -c1-200
+git status --short | wc -l
+```
+
+`Run ... completed:` and `0`.
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+git push
+git push origin develop:main
+run=""
+for i in $(seq 12); do
+  sleep 5
+  run=$(gh run list --branch main --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+  [ -n "$run" ] && break
+done
+echo "run ${run:-NOT FOUND after 60 seconds}"
+[ -n "$run" ] && gh run watch "$run"
+echo "perform on main: $(gh run view "$run" --json conclusion,headSha --jq '"\(.conclusion) at \(.headSha[0:7])"')"
+```
+
+`perform on main: success at` and a commit.
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+git fetch origin && git merge --ff-only origin/main && git push
+git status -sb
+```
+
+`## develop...origin/develop` and no file under it.
+
+**Report:** `stage 16 done` with what steps 2, 5, 7 and 8 printed and
+the two `perform on main:` lines. **What of this tree stands in AWS
+after stage 16: one `t3.medium`, one 10 GB volume, two images, two
+IAM roles.** Teardown is stage 17.
 
 ## Stage 17 -- written when you reach it
 
