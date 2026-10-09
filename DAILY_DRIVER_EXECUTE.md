@@ -3828,8 +3828,8 @@ it must be nothing.
 | --- | --- | --- |
 | 15a | Google credentials in the container; what stands in the project | done 2026-10-09: `gcloud` in the container acts as the runner through the file; the picture before is the reference's three things and no instance |
 | 15b | the tree gains its GCE declarations; validate, dry run, a local commit | done 2026-10-09: commit e40f23a, 77 files, local and NOT pushed |
-| 15c | the cycle: a disk, two bakes, a machine launched, verified and torn down | **NEXT** |
-| 15d | the GCE disk's end, and emptiness judged by hand | written when 15c reports |
+| 15c | the cycle: a disk, two bakes, a machine launched, verified and torn down | done 2026-10-09 in eighteen minutes: everything it should have done, and the emptiness check failed on the reference's three names and no other. **One 10 GB disk of the walk's, `walk-data`, stands on GCP** |
+| 15d | the GCE disk's end, and emptiness judged by hand | **NEXT** |
 | 15e | CI for a tree of two clouds (the workflow, the bootstrap's GCP section), the push, and `main`, where AWS re-bakes | written when 15d reports |
 
 **15a. Google credentials in the container.** The container has had
@@ -4352,6 +4352,163 @@ step 3's last twelve lines). **What of the walk's stands on GCP
 after 15c: one 10 GB standard disk, `walk-data`, at about 40 cents a
 month.** 15d ends it.
 
+**What happened at 15c (2026-10-09, 12:21 to 12:39 UTC; read by
+Claude from your log and from the project while it ran): the cycle
+did everything, first time, in eighteen minutes.**
+
+- The dry form planned the two GCE bakes and said of both AWS
+  images `skip: not selected (--only)`; its runners held GCE roots
+  only; the machine's teardown gate allowed exactly
+  `module.instance_walk_gce_1`.
+- The real run: the disk, `Plan: 1 to add`, `1 added`. The base,
+  `A disk image was created in the 'csis-sandbox' project:
+  el10-gcp-main-20261009-122116`. The image,
+  `team-node-packer-gce-20261009-122116`. The machine, `1 added`,
+  then `instance walk-gce-1 verified`, then `Plan: 0 to add, 0 to
+  change, 1 to destroy` and `1 destroyed`: `Ephemeral instance
+  walk-gce-1: verified and torn down this run`. Then `disposed 2
+  image(s)`, both the walk's. `Run 2026_10_09t12_21_20_389938
+  completed: identity, storage, base-image, instance-image, release,
+  retention`. No warning and no error in the log.
+- The emptiness check, as predicted to the letter: `empty: no
+  instances`; images, disks and buckets `still present on
+  gcp-main`, naming `imgfile-basic-dask-pckr-gce-ans-20260926-064527`,
+  `gce-data` and `csis-sandbox-86233086783-default-bucket`; exit 1.
+  Three names, all the reference configuration's, none the walk's.
+- The project afterwards, read from your local machine: no
+  instance; the disks `gce-data` and `walk-data`; the reference's
+  one image; the reference's bucket. **So one thing of the walk's
+  stands on GCP: `walk-data`, 10 GB standard, `us-east1-b`, about
+  40 cents a month**, declared by this tree. 15d ends it.
+- One thing for the list (finding F50): the machine's verification
+  recorded `4 clean XFS mount(s) on the console, 1 declared` and
+  passed. The disk did mount (the record's evidence shows `XFS
+  (sdb): Ending clean mount` and the disk being formatted), but
+  the check would have passed without it: it counts every XFS
+  mount the kernel reports, and on this image the system's own
+  filesystems are XFS.
+
+The walk tree is three commits ahead of `origin` and clean; nothing
+is pushed.
+
+**15d. The GCE disk's end, and emptiness judged by hand.** In the
+container. The disk goes the way the daily driver says a storage
+goes: its declaration says `destroyed`, and a storage run destroys
+it through the gate. One edit comes with it: the machine
+`walk-gce-1` must stop naming the disk, because the system refuses a
+tree in which an instance attaches a destroyed storage (tried on the
+starter: `instances ['walk-gce-1'] attach storage 'walk-data' which
+is destroyed`). The machine is not standing, so nothing is detached.
+
+Both edits were tried in your container on throwaway copies of the
+two files.
+
+**Step 1.** The two edits:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+sed -i '/^    storages:$/{N;/\n      - name: walk-data$/{N;d}}' instances/instances.yaml
+sed -i '/^  - name: walk-data$/,$ s/^    state: active$/    state: destroyed/' storages/storages.yaml
+git diff --stat
+```
+
+`instances/instances.yaml | 3 ---`, `storages/storages.yaml | 2 +-`,
+and `2 files changed, 1 insertion(+), 4 deletions(-)`. Anything else,
+STOP.
+
+**Step 2.** Does the tree still load?
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+aws sts get-caller-identity --query Account --output text
+just validate 2>&1 | tail -4 | cut -c1-220
+```
+
+`Validation successful.` as the last line. Anything else, STOP and
+paste it.
+
+**Step 3.** The declaration is yours to commit (a run commits only
+what it generates):
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+git add instances/instances.yaml storages/storages.yaml && git commit -m "The GCE leg's disk is declared destroyed; its machine no longer names it"
+git status -sb
+```
+
+`## develop...origin/develop [ahead 4]` and no file under it.
+
+**Step 4.** What the storage run means to do, before it does it:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just dry storage 2>&1 | tail -2 | cut -c1-200
+grep -n 'gate-plan' generated/storage/run-storage.sh | cut -c1-260
+```
+
+Two gate lines. The one for `gcp-pd/storage-generation` must end
+`--allow-destroy module.storage_walk_data`: a storage declared
+`destroyed` is an operation the gate knows. The one for
+`aws-ebs/storage-generation` must allow NOTHING. If the AWS line
+carries an `--allow-destroy`, STOP: that is your `data` volume.
+
+**Step 5.** The storage run. Refresh your AWS keys first if they are
+near an hour old:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+aws sts get-caller-identity --query Account --output text
+just run storage 2>&1 | tee ~/storage-15d.log | tail -3 | cut -c1-200
+grep -nE 'Plan:|No changes\.|Apply complete|NOT WHITELISTED|passes the apply gate|completed:|FAILED' ~/storage-15d.log | cut -c1-200
+```
+
+For the AWS volume, `No changes`. For the GCE disk, `Plan: 0 to add,
+0 to change, 1 to destroy` (perhaps twice: a preview, then the
+runner's own), `Plan passes the apply gate.`, and `Apply complete!
+Resources: 0 added, 0 changed, 1 destroyed.` Then `Run ... completed:
+storage`. If any line says a destroy on AWS, or `NOT WHITELISTED`, or
+`FAILED`, STOP and paste the lines.
+
+**Step 6.** The system's own emptiness check, which fails as before:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just cloud-empty gcp-main 2>&1 | tail -6 | cut -c1-200
+```
+
+`empty: no instances`, and the same three names as at 15c: the
+image `imgfile-basic-dask-pckr-gce-ans-20260926-064527`, the disk
+`gce-data`, the bucket `csis-sandbox-86233086783-default-bucket`;
+then `just` saying exit code 1. If `walk-data` is named, the disk is
+still there: STOP.
+
+**Step 7.** Emptiness by hand, which is your decision's own proof:
+the project now, against the picture of 15a.
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+{ echo "== instances"; gcloud compute instances list --format='value(name,zone.basename(),status)'; echo "== disks"; gcloud compute disks list --format='value(name,zone.basename(),sizeGb)'; echo "== images"; gcloud compute images list --no-standard-images --format='value(name,family)'; echo "== buckets"; gcloud storage buckets list --format='value(name)'; } 2>&1 | tee ~/gcp-after-15d.txt
+sort ~/gcp-before.txt > /tmp/gcp-b; sort ~/gcp-after-15d.txt > /tmp/gcp-a; echo "== different from 15a:"; comm -3 /tmp/gcp-b /tmp/gcp-a; echo "== end"
+```
+
+Nothing between `== different from 15a:` and `== end`. The project
+holds what it held before the walk touched it, and nothing of the
+walk's. A line between the two is something that came or went:
+STOP and paste it.
+
+**Step 8.** The tree, still not pushed:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+git status -sb
+```
+
+`## develop...origin/develop [ahead 5]` and no file under it (the
+storage run committed its own record). Do NOT push: 15e first.
+
+**Report:** `stage 15d done` with what steps 4, 5, 6 and 7 printed.
+**What of the walk's stands on GCP after 15d: nothing.**
+
 ## Stage 16 onward -- written when you reach them
 
 These stages depend on what the earlier ones produce (the bootstrap's
@@ -4481,4 +4638,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F47 | two configurations in one GCP project cannot both prove a runtime empty. `cloud-empty` (and so the end of every `cloud-cycle`) counts every instance and disk in the zone, every custom image and every bucket in the PROJECT, less this tree's own declared storages and released builds. The reference configuration keeps a disk and a bucket standing in `csis-sandbox`, so the walk's cycle there must end in a failing emptiness check that names them, and the reference's would name the walk's. Stage 82 gave IMAGES a label that says whose they are; instances, disks and buckets carry none. Found 2026-10-09 by reading, before anything was spent; the operator's decision: walk the leg and judge emptiness by hand | code: hygiene XII item 20 |
 | F48 | the hook refuses a GCE runner's address, and the GCE starter does not allow it. `public-safe` reads `csis-runner@<project>.iam.gserviceaccount.com` as an email and refuses the commit: once in `cfg/runtime-builders.yml`, once in each GCE packer source. `complete` and the reference configuration carry `".iam.gserviceaccount.com"` in `public_safe.allow` ("an identifier, not a person"); `standard-gce` does not, so a team that fills in its runner's real address cannot make its first commit, and neither can a tree grown to GCE. Nothing in the daily driver's 1.4 says so. Seen 2026-10-09 (15b) | the starters and words: hygiene XII item 1, which is the same refusal for another address |
 | F49 | a storage type added to a base re-bakes that base on EVERY cloud. To attach a GCE disk the shared base `el10` needed `pd` in `storage_types`; the dry run then found `el10@aws-main` and `team-node@aws-main` due (`inputs changed`), though nothing about an AWS image changes: `pd` contributes a comment to the bake and no package. `storage_types` is one list for the whole base, it is in the fingerprint of every bake of it, and a runtime cannot declare its own. Seen 2026-10-09 (15b); tried on the starter, where it is the only one of the GCE additions that moves an AWS fingerprint. The reference configuration avoids it only by having listed every type from the start | code: hygiene XII item 21, and words |
+| F50 | on GCE, the verification's "data disks mounted" cannot fail. It counts the kernel's `XFS (...): Ending clean mount` lines on the serial console and passes when there are at least as many as declared data disks. On an image whose own filesystems are XFS (AlmaLinux 10, the starters' base) the system's mounts are counted too: the walk's machine recorded `4 clean XFS mount(s) on the console, 1 declared` and passed. The disk had mounted, as the evidence shows, but a machine whose data disk never mounted would have passed the same. On AWS the check asks the machine (`1 mount(s) under /mnt, 1 declared`). Seen 2026-10-09 (15c) | code: hygiene XII item 22 |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |

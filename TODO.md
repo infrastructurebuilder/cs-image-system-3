@@ -31,7 +31,7 @@ released in dev19 (dev18 was cut from the walk branch by mistake and
 is on the index, unused) and PROVED live: the walk's third `perform`
 baked both its images under the bootstrap-made write role, Systems
 Manager finishing its work on each build machine undisturbed. §81,
-hygiene bundle XII, is open (twenty-one items the walk
+hygiene bundle XII, is open (twenty-two items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15, taken by the reference configuration, its
@@ -618,13 +618,13 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, twenty-one items found by the §65 walk. Items
+**Status: OPEN 2026-10-05, twenty-two items found by the §65 walk. Items
 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
 the operator's word. Items 10 and 11 LANDED as §86 (c6af4b2,
 2026-10-07, "Fix now, starters too"). Item 16 LANDED as §88
 (20206e8, 2026-10-08; the operator: "we should correct this
 situation as soon as possible"). Items 1,
-2, 5 to 9, 12 to 15 and 17 to 21 are a plan -- nothing more runs until the
+2, 5 to 9, 12 to 15 and 17 to 22 are a plan -- nothing more runs until the
 operator says "do 81". Item 7(a) has a date: 2026-10-19.**
 
 1. **A starter's own hook refuses its first commit.** The tree
@@ -907,6 +907,17 @@ starter's `.gitignore` ignores every dotfile unless named.)
     capability a build records stays what it carries, and
     CONFIGURATION says that a base shared between clouds re-bakes
     everywhere when a shared field changes.
+22. **On GCE the verification's mount check cannot fail.** The
+    walk's finding F50 (2026-10-09, stage 15c). `verify_instance`
+    on GCE counts `XFS (...): Ending clean mount` on the serial
+    console and passes at `>=` the declared data disks; an image
+    whose own filesystems are XFS brings its count with it (`4
+    clean XFS mount(s) on the console, 1 declared`). Plan: the
+    check names the declared disks (the launch parameters carry
+    each device and mount point) and passes only when each one's
+    own mount is reported -- from the startup script's own line
+    per mount, which it can be made to print -- and a test gives it
+    a console with the system's XFS mounts and no data disk.
 
 ## 83. A release asks its publish target before it starts
 
