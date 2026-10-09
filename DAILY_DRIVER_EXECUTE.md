@@ -3830,7 +3830,7 @@ it must be nothing.
 | 15b | the tree gains its GCE declarations; validate, dry run, a local commit | done 2026-10-09: commit e40f23a, 77 files, local and NOT pushed |
 | 15c | the cycle: a disk, two bakes, a machine launched, verified and torn down | done 2026-10-09 in eighteen minutes: everything it should have done, and the emptiness check failed on the reference's three names and no other. **One 10 GB disk of the walk's, `walk-data`, stands on GCP** |
 | 15d | the GCE disk's end, and emptiness judged by hand | done 2026-10-09: the disk destroyed through the gate, the AWS volume untouched, and the project identical to the picture of 15a. **Nothing of the walk's stands on GCP** |
-| 15e | CI for a tree of two clouds (the workflow, the bootstrap's GCP section), the push, and `main`, where AWS re-bakes | written when 15d reports |
+| 15e | CI for a tree of two clouds (the workflow, the bootstrap's GCP section), the push, and `main`, where AWS re-bakes | **NEXT** |
 
 **15a. Google credentials in the container.** The container has had
 `gcloud` since stage 2 and no Google credentials. As you asked at
@@ -4553,6 +4553,313 @@ the same of the disk: `walk-data`, `active` from the cycle's run,
 `destroyed` by this one. The walk tree is five commits ahead of
 `origin`, clean, and not pushed.)
 
+**15e. CI for a tree of two clouds, the push, and `main`.** Your
+tree is five commits ahead and GitHub has seen none of them, because
+its CI could not load a tree with a GCE runtime: the workflow is the
+AWS starter's, and Google does not know your repository. This part
+gives CI a read-only way into `csis-sandbox`, pushes, and lets
+`main` run its `perform`, which this time re-bakes both AWS images
+(finding F49, your decision).
+
+CI will only ever READ on GCP. It performs on `aws-main` alone, and
+`gcp-main` becomes the workflow's guarded runtime, as the reference
+configuration has its own: a change that would make CI bake there
+fails the job first.
+
+Three things were tried before this was written (2026-10-09): the
+workflow switch and the bootstrap's answers on a scratch clone of
+your tree, where the root regenerated as it does in a run; and the
+box that edits `bootstrap.yaml`, in your container on a throwaway
+copy. What was NOT tried is anything that writes: the provider's
+condition, the plan against your state, the secrets, CI itself.
+
+**What this part makes, all of it free:** one line in a shared
+identity provider's condition (by you, by hand), one binding that
+lets your repository act as the project's existing read-only CI
+account, one Actions variable, three Actions secrets. Teardown
+(stage 17) takes each of them away again.
+
+**Step 1, on your local machine (the host, NOT the container):** the
+provider's condition as it stands. It is shared with the system
+repository and the reference configuration:
+
+```sh
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+gcloud iam workload-identity-pools providers describe github --project csis-sandbox --location global --workload-identity-pool github --format='value(attributeCondition)'
+```
+
+Exactly `assertion.repository in
+['infrastructurebuilder/cs-image-system-3',
+'infrastructurebuilder/cs-image-system-testconfig']`. If it is
+anything else, STOP: the next box replaces the whole condition, and
+it must not drop a name it does not know.
+
+**Step 2, still on your local machine:** your repository joins it.
+This is an IAM write, yours to make; it keeps both names that are
+there and adds one. The bootstrap never rewrites a provider that
+exists, and says so:
+
+```sh
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+gcloud iam workload-identity-pools providers update-oidc github --project csis-sandbox --location global --workload-identity-pool github --attribute-condition="assertion.repository in ['infrastructurebuilder/cs-image-system-3', 'infrastructurebuilder/cs-image-system-testconfig', 'infrastructurebuilder/cs-image-system-walk']"
+gcloud iam workload-identity-pools providers describe github --project csis-sandbox --location global --workload-identity-pool github --format='value(attributeCondition)'
+```
+
+The last line now names three repositories, the third
+`infrastructurebuilder/cs-image-system-walk`. If the update is
+refused, STOP and paste what it says.
+
+**Step 3, in the container:** the workflow of a tree with two
+clouds. A tree's workflow is its starter's; `--from complete` changes
+it for the one that knows both clouds, and keeps your own values.
+Then `gcp-main` becomes the guarded runtime:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+[ "$(pwd)" = /walk/cs-image-system-walk ] && [ -f cfg/_config.yml ] && cs-image-system init-config . --force --from complete 2>&1 | tail -4 | cut -c1-200 || echo "STOP: not the walk tree in the container"
+sed -i 's/^  GUARD_RUNTIME: ""/  GUARD_RUNTIME: "gcp-main"/' .github/workflows/ci.yml
+grep -n '^  GUARD_RUNTIME:\|^  PERFORM_RUNTIME:' .github/workflows/ci.yml | cut -c1-90
+git status --short
+```
+
+`init-config` should say `1 written, 51 kept`, that your values were
+kept in 5 lines of `ci.yml`, and that 6 other lines now read as the
+release's (they are the header and the lists of secret names, which
+differ between the starters). Then `PERFORM_RUNTIME: aws-main` and
+`GUARD_RUNTIME: "gcp-main"`. Then exactly one line, ` M
+.github/workflows/ci.yml`. Anything else listed, STOP.
+
+**Step 4, in the container:** the bootstrap's answers for Google,
+written into `bootstrap.yaml` and not asked in the interview, for
+two reasons. The interview cannot be told "no roles": it offers
+`roles/compute.viewer` for the read-only account and an empty answer
+takes the offer; this tree would then co-own a grant on an account
+the reference configuration's CI also uses, and tearing this tree's
+bootstrap down would take the grant from all of them (finding F51).
+And its "does it exist" questions ask Google again as whoever the
+shell is, which in your container is the runner. So the answers are
+written as they are: everything exists and is only read, there are
+no roles to add, and there is no write account.
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+cat > /tmp/gcp-section.yml <<'EOF'
+    attribute_condition: "assertion.repository in ['infrastructurebuilder/cs-image-system-3', 'infrastructurebuilder/cs-image-system-testconfig', 'infrastructurebuilder/cs-image-system-walk']"
+    labels: environment=development,project=walk
+    pool: github
+    pool_exists: true
+    principal_attribute: repository
+    production_branch: main
+    project: csis-sandbox
+    project_number: '86233086783'
+    provider: github
+    provider_exists: true
+    read_account: csis-github-readonly
+    read_account_exists: true
+    read_roles: ''
+    repository: infrastructurebuilder/cs-image-system-walk
+    state_bucket: ''
+    want_write: false
+    wanted: true
+EOF
+sed -i -e '/^  gcp:$/r /tmp/gcp-section.yml' -e '/^  gcp:$/{n;d}' bootstrap.yaml
+sed -i "s/^    guard_runtime: ''$/    guard_runtime: gcp-main/" bootstrap.yaml
+git diff --stat -- bootstrap.yaml
+```
+
+`bootstrap.yaml | 20`, with `18 insertions(+), 2 deletions(-)`.
+Anything else, STOP.
+
+**Step 5, in the container:** the bootstrap root, regenerated from
+the answers by a dry run (every run rewrites it):
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+aws sts get-caller-identity --query Account --output text
+just dry 2>&1 | tee ~/dry-15e.log | tail -2 | cut -c1-200
+grep -n 'gcp_read_roles\|gcp_want_write\|gcp_principal_value\|GUARD_RUNTIME' generated/bootstrap/bootstrap.auto.tfvars | cut -c1-120
+git status --short -- .github bootstrap.yaml generated/bootstrap
+```
+
+`Run ... completed:` with the six lifecycles. Then four lines of the
+variables file: the principal `infrastructurebuilder/cs-image-system-walk`,
+`gcp_read_roles = []`, `gcp_want_write = false`, and `"GUARD_RUNTIME"
+= "gcp-main"`. Then nine lines of status: the workflow,
+`bootstrap.yaml`, and seven files under `generated/bootstrap/`
+(`README.md`, `bootstrap.auto.tfvars`, `main.tf`, `outputs.tf`,
+`providers.tf`, `set-secrets.sh`, `variables.tf`). If `gcp_read_roles`
+is not empty, STOP.
+
+**Step 6, on your local machine:** a token of your OWN Google
+identity, for the apply. The binding is a grant on a service
+account, which the runner in your container may not make; you may.
+This prints a secret that lasts an hour. Copy it; it never goes into
+the chat:
+
+```sh
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+gcloud auth print-access-token
+```
+
+One long line. Nothing to check but that it printed.
+
+**Step 7, in the container:** the token, for this one shell. Type
+this line yourself with a SPACE before `export`, so the history
+skips it, and the token in place of the dots:
+
+```
+ export GOOGLE_OAUTH_ACCESS_TOKEN=...
+```
+
+Then, that it is there, by its length alone:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+[ -n "$GOOGLE_OAUTH_ACCESS_TOKEN" ] && echo "token set: ${#GOOGLE_OAUTH_ACCESS_TOKEN} characters" || echo "STOP: no token in this shell"
+```
+
+`token set:` and a number over a hundred.
+
+**Step 8, in the container:** the plan, saved to a file in your
+home so that step 9 applies exactly what you read here. The root's
+state is the local file it has had since stage 9:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+tofu -chdir=generated/bootstrap init -input=false 2>&1 | tail -4 | cut -c1-160
+tofu -chdir=generated/bootstrap plan -input=false -no-color -out="$HOME/bootstrap-15e.tfplan" 2>&1 | tee ~/bootstrap-15e-plan.log | grep -nE 'will be|must be|Plan:|No changes|Error' | cut -c1-200
+```
+
+`OpenTofu has been successfully initialized!`, then exactly two
+resources to be created and the count (the order may differ):
+
+```
+# module.bootstrap_gcp.google_service_account_iam_member.read will be created
+# module.bootstrap_github.github_actions_variable.this["GUARD_RUNTIME"] will be created
+Plan: 2 to add, 0 to change, 0 to destroy.
+```
+
+**If any line says `destroyed`, `replaced` or `updated in-place`, or
+the count is anything but `2 to add, 0 to change, 0 to destroy`,
+STOP and paste the lines.** This root holds the roles your CI runs
+as. Claude has not seen this plan against your state.
+
+**Step 9, in the container:** the apply, of that saved plan and
+nothing else, so it asks no question:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+tofu -chdir=generated/bootstrap apply -input=false -no-color "$HOME/bootstrap-15e.tfplan" 2>&1 | tee ~/bootstrap-15e-apply.log | grep -nE 'Apply complete|Error|error:' | cut -c1-200
+```
+
+`Apply complete! Resources: 2 added, 0 changed, 0 destroyed.` An
+`Error` instead, STOP and paste it. (If it says the plan is stale
+or the token has expired, nothing was changed: repeat steps 6 to 8.)
+
+**Step 10, in the container:** the token leaves the shell, so that
+everything after this is the runner again:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+unset GOOGLE_OAUTH_ACCESS_TOKEN
+[ -z "${GOOGLE_OAUTH_ACCESS_TOKEN:-}" ] && echo "token gone" || echo "STOP: the token is still set"
+```
+
+`token gone`.
+
+**Step 11, in the container:** the secrets. The script reads the
+three Google ones from the root's outputs; a value that comes from a
+file is skipped, and says so, if the file is no longer in
+`~/walk-secrets`, which changes nothing that is already set:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+bash generated/bootstrap/set-secrets.sh 2>&1 | cut -c1-150
+gh secret list --json name --jq '[.[].name] | sort | join(" ")'
+```
+
+Among the script's lines: `GCP_WORKLOAD_IDENTITY_PROVIDER set from
+output ...`, `GCP_SERVICE_ACCOUNT set from output ...`,
+`GCP_APPLY_SERVICE_ACCOUNT set from output ...`. And the last line,
+nine names: `AWS_APPLY_ROLE_ARN AWS_ROLE_ARN CSIS_CONFIG_IDENTITY
+GCP_APPLY_SERVICE_ACCOUNT GCP_SERVICE_ACCOUNT
+GCP_WORKLOAD_IDENTITY_PROVIDER OKTA_API_PRIVATE_KEY TF_VAR_KEY
+TF_VAR_SECRET`. If a `GCP_` name is missing, STOP.
+
+**Step 12, in the container:** the commit:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+git add -A && git commit -m "CI for two clouds: the complete workflow, the bootstrap's GCP section, gcp-main guarded"
+git status -sb
+```
+
+`## develop...origin/develop [ahead 6]` and no file under it. If the
+hook refuses the commit, STOP and paste what it names.
+
+**Step 13, in the container:** the push to `develop`, and CI. Its
+`live` job is the proof of steps 2, 9 and 11: it becomes the
+read-only account on Google from YOUR repository, loads the tree and
+asks both clouds:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+git push
+run=""
+for i in $(seq 12); do
+  sleep 5
+  run=$(gh run list --branch develop --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+  [ -n "$run" ] && break
+done
+echo "run ${run:-NOT FOUND after 60 seconds}"
+[ -n "$run" ] && gh run watch "$run"
+echo "CI on develop: $(gh run view "$run" --json conclusion,headSha --jq '"\(.conclusion) at \(.headSha[0:7])"')"
+```
+
+`CI on develop: success at` and a commit. If it says anything else,
+STOP and say so; do not go on to `main`. Claude reads the run's log.
+
+**Step 14, in the container:** `main`, and the `perform` that
+re-bakes on AWS. It bakes `el10` and `team-node` again there, so it
+takes about half an hour; `walk-node-1` keeps the build it is pinned
+to:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+git push origin develop:main
+run=""
+for i in $(seq 12); do
+  sleep 5
+  run=$(gh run list --branch main --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+  [ -n "$run" ] && break
+done
+echo "run ${run:-NOT FOUND after 60 seconds}"
+[ -n "$run" ] && gh run watch "$run"
+echo "perform on main: $(gh run view "$run" --json conclusion,headSha --jq '"\(.conclusion) at \(.headSha[0:7])"')"
+```
+
+`perform on main: success at` and a commit. If it says anything
+else, STOP and say `red`: the last box is not for a red run, and
+Claude reads the log.
+
+**Step 15, in the container:** CI's own records, taken back:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+git fetch origin && git merge --ff-only origin/main && git push
+git status -sb
+```
+
+One line, `## develop...origin/develop`, with nothing after the
+branch names and no file under it.
+
+**Report:** `stage 15 done` with what steps 2, 5, 8, 9 and 11
+printed, the `CI on develop:` line and the `perform on main:` line.
+**What of the walk's stands on GCP after stage 15: no resource at
+all.** What remains there is free and is named above: your
+repository's line in the provider's condition and its binding on
+the read-only account, until teardown.
+
 ## Stage 16 onward -- written when you reach them
 
 These stages depend on what the earlier ones produce (the bootstrap's
@@ -4683,4 +4990,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F48 | the hook refuses a GCE runner's address, and the GCE starter does not allow it. `public-safe` reads `csis-runner@<project>.iam.gserviceaccount.com` as an email and refuses the commit: once in `cfg/runtime-builders.yml`, once in each GCE packer source. `complete` and the reference configuration carry `".iam.gserviceaccount.com"` in `public_safe.allow` ("an identifier, not a person"); `standard-gce` does not, so a team that fills in its runner's real address cannot make its first commit, and neither can a tree grown to GCE. Nothing in the daily driver's 1.4 says so. Seen 2026-10-09 (15b) | the starters and words: hygiene XII item 1, which is the same refusal for another address |
 | F49 | a storage type added to a base re-bakes that base on EVERY cloud. To attach a GCE disk the shared base `el10` needed `pd` in `storage_types`; the dry run then found `el10@aws-main` and `team-node@aws-main` due (`inputs changed`), though nothing about an AWS image changes: `pd` contributes a comment to the bake and no package. `storage_types` is one list for the whole base, it is in the fingerprint of every bake of it, and a runtime cannot declare its own. Seen 2026-10-09 (15b); tried on the starter, where it is the only one of the GCE additions that moves an AWS fingerprint. The reference configuration avoids it only by having listed every type from the start | code: hygiene XII item 21, and words |
 | F50 | on GCE, the verification's "data disks mounted" cannot fail. It counts the kernel's `XFS (...): Ending clean mount` lines on the serial console and passes when there are at least as many as declared data disks. On an image whose own filesystems are XFS (AlmaLinux 10, the starters' base) the system's mounts are counted too: the walk's machine recorded `4 clean XFS mount(s) on the console, 1 declared` and passed. The disk had mounted, as the evidence shows, but a machine whose data disk never mounted would have passed the same. On AWS the check asks the machine (`1 mount(s) under /mnt, 1 declared`). Seen 2026-10-09 (15c) | code: hygiene XII item 22 |
+| F51 | a bootstrap that shares an existing CI account would co-own its grants, and the interview cannot be told otherwise. For an existing read-only service account the GCP section still manages a project role binding for each of `read_roles`, which defaults to `roles/compute.viewer`; an empty answer at the terminal takes the default, so "none" cannot be said there. A second configuration that reads the same account (the walk beside the reference) would hold the same grant in its own state, and destroying its bootstrap root would take the grant from every repository that uses the account. Also, re-asking the interview asks the cloud its "does it exist" questions again as whoever the shell is. Seen 2026-10-09 by reading and on a scratch clone (15e); the walk wrote the answers into `bootstrap.yaml` with `read_roles` empty | code: hygiene XII item 23, and words |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |

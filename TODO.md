@@ -31,7 +31,7 @@ released in dev19 (dev18 was cut from the walk branch by mistake and
 is on the index, unused) and PROVED live: the walk's third `perform`
 baked both its images under the bootstrap-made write role, Systems
 Manager finishing its work on each build machine undisturbed. §81,
-hygiene bundle XII, is open (twenty-two items the walk
+hygiene bundle XII, is open (twenty-three items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15, taken by the reference configuration, its
@@ -618,13 +618,13 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, twenty-two items found by the §65 walk. Items
+**Status: OPEN 2026-10-05, twenty-three items found by the §65 walk. Items
 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
 the operator's word. Items 10 and 11 LANDED as §86 (c6af4b2,
 2026-10-07, "Fix now, starters too"). Item 16 LANDED as §88
 (20206e8, 2026-10-08; the operator: "we should correct this
 situation as soon as possible"). Items 1,
-2, 5 to 9, 12 to 15 and 17 to 22 are a plan -- nothing more runs until the
+2, 5 to 9, 12 to 15 and 17 to 23 are a plan -- nothing more runs until the
 operator says "do 81". Item 7(a) has a date: 2026-10-19.**
 
 1. **A starter's own hook refuses its first commit.** The tree
@@ -918,6 +918,22 @@ starter's `.gitignore` ignores every dotfile unless named.)
     own mount is reported -- from the startup script's own line
     per mount, which it can be made to print -- and a test gives it
     a console with the system's XFS mounts and no data disk.
+23. **A bootstrap that shares an existing account co-owns its
+    grants.** The walk's finding F51 (2026-10-09, stage 15e, by
+    reading and on a scratch clone). With `read_account_exists`
+    true the GCP section still makes a `google_project_iam_member`
+    for each of `read_roles` (default `roles/compute.viewer`); two
+    configurations that read the same account each hold that grant
+    in their own state, and destroying either root takes it from
+    both. The interview cannot answer "none" where a default
+    exists (an empty line takes the default). Plan: for an account
+    that exists the default of its roles is EMPTY and the question
+    says why (what it holds was granted by whoever made it); the
+    interview accepts `none` as the empty answer for any question
+    whose answer may be empty, and says so in the prompt; the same
+    for the AWS section's adopted roles, checked against item 5;
+    the generated README lists what a `tofu destroy` of the root
+    would remove that the root did not create.
 
 ## 83. A release asks its publish target before it starts
 
