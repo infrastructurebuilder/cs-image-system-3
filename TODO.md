@@ -892,6 +892,16 @@ starter's `.gitignore` ignores every dotfile unless named.)
     its own when the operator calls for it. The operator's decision
     for the walk (2026-10-09): run the leg and judge emptiness by
     hand from the leftover list.
+    The same on AWS, met the same day (finding F53, stage 16c):
+    a declared storage's volume and a declared instance's machine
+    are found by the `Name` tag across the whole account, so two
+    configurations with a storage called `data` (every starter's
+    name) each see the other's volume: `foreign storage data: ebs
+    vol-... exists but meta-state has no record of it`, in CI.
+    The plan above therefore covers AWS volumes and instances
+    too: they carry `csis_config`, every lookup by name filters
+    on it, and until then `validate` could at least say so when
+    a declared name already answers in the account.
 21. **A storage type added to a base re-bakes it on every cloud.**
     The walk's finding F49 (2026-10-09, stage 15b). `storage_types`
     is one list on the OS builder, it is in the input fingerprint of
