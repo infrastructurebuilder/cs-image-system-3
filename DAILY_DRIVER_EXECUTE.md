@@ -89,11 +89,11 @@ is not watching between your messages; it looks when you write.
 
 | What | Value |
 | --- | --- |
-| Container | `csis-walk`, image `csis-walk:fedora43` (Fedora 43, `dnf -y update` applied at build) |
+| Container | `csis-walk`. Since 2026-10-09 (stage 16) it runs from `csis-walk:snapshot-20261009`, a snapshot of itself, to gain a second volume; before that, image `csis-walk:fedora43` (Fedora 43, `dnf -y update` applied at build). The earlier container is kept, stopped, as `csis-walk-before-16` |
 | User | `mykel.alvis` (uid 1000), `sudo` without a password, an otherwise untouched home |
 | Preinstalled | nothing the daily driver asks for: no `git`, no `just`, no `cs-image-system` |
 | `direnv` | installed and hooked for every interactive shell, `root` and `mykel.alvis` (your request, finding F9); the repository's `.envrc` is allowed for both |
-| The volume | the directory `/Volumes/MiniSSD/git/Work/Lynker/cs-image-system-walk` on your local machine (this walk's path) is `/walk/cs-image-system-walk` in the container |
+| The volumes | the directory `/Volumes/MiniSSD/git/Work/Lynker/cs-image-system-walk` on your local machine (this walk's path) is `/walk/cs-image-system-walk` in the container; since stage 16, `/Volumes/MiniSSD/git/Work/Lynker/cs-image-system-walk-posix` is `/walk/cs-image-system-walk-posix` |
 | Lifetime | runs until removed; survives `docker stop`/`start` and a restart of the Docker runtime on your local machine |
 | Definition | `_uncommitted/walk-container/` (`Dockerfile`, `run.sh`); `run.sh` rebuilds it from nothing, which discards the home directory and every installed tool |
 
@@ -4999,7 +4999,122 @@ all.** What remains there is free and is named above: your
 repository's line in the provider's condition and its binding on
 the read-only account, until teardown.
 
-## Stage 16 onward -- written when you reach them
+## Stage 16 -- the second walk: people as POSIX accounts (DAILY_DRIVER 1.9, 3.1; the `standard-aws-posix` starter)
+
+Your decision W6 was to walk both AWS starters. This is the second:
+`standard-aws-posix`, where a group's people are POSIX accounts the
+system makes on the machine, with their SSH keys, and there is no
+Okta and no OPA at all. It is walked in a tree of its own,
+`/walk/cs-image-system-walk-posix`, shorter than the first walk: the
+parts that are the same are named and not explained again.
+
+**The container was made again for this** (2026-10-09, on your `do
+16`). It is the same container from a snapshot, with a second
+volume: `/walk/cs-image-system-walk-posix` is the new directory
+`/Volumes/MiniSSD/git/Work/Lynker/cs-image-system-walk-posix` on your
+local machine. Every tool, your home, the first walk's tree and
+direnv's allowance came across. Two things stand on your local
+machine because of it and go at teardown: the old container,
+stopped, as `csis-walk-before-16`; and the image
+`csis-walk:snapshot-20261009`, which holds a copy of the container's
+home, your secrets in it. Neither leaves your machine.
+
+| Part | What | State |
+| --- | --- | --- |
+| 16a | the tree from the starter: the files, git, the hook's allowance, the holder's key | **NEXT** |
+| 16b | the values, then validate and dry | written when 16a reports |
+| 16c | a GitHub repository of its own, the bootstrap, CI | written when 16b reports; you will make the repository then |
+| 16d | the people, the bake, a machine, and a login by real SSH with a proof key | written when 16c reports |
+
+Every box of this stage begins with a line that says `OK: the
+container, the posix tree`. The first walk's tree is beside it in
+the same container, and a box typed there would change the wrong
+repository: if the line says `STOP`, run nothing under it.
+
+**16a. The tree from the starter.** In the container.
+
+**Step 1.** Is the directory empty? `init-config` writes a whole
+starter only into a directory with nothing in it (finding F6):
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+ls -A | wc -l
+```
+
+`0`. Anything else, STOP and say what is there.
+
+**Step 2.** The starter, git, and the hook:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+[ "$(pwd)" = /walk/cs-image-system-walk-posix ] && [ -z "$(ls -A)" ] && cs-image-system init-config . --from standard-aws-posix 2>&1 | tail -2 | cut -c1-200 || echo "STOP: not the posix tree, or it is not empty"
+git init -q -b develop
+just init 2>&1 | tail -3 | cut -c1-160
+git status --short | wc -l
+```
+
+`init-config: the whole tree of standard-aws-posix (0.1.1.dev21) ->
+...` with a count of files written, and its `next:` line. Then
+`init: core.hooksPath = .githooks (the public-safe gate)` among
+`just init`'s lines. Then `19`.
+
+**Step 3.** The first commit. The starter's own hook refuses it as
+the tree stands, as it did in the first walk (finding F4, still
+open): the copyright holder's address is in the header of every
+file the release wrote. Tried on a copy today: 46 findings without
+this line, none with it:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+sed -i 's/^    - "path:.age-identity".*$/&\n    - "mykelalvis@infrastructurebuilder.org"   # the copyright holder in the SPDX header of every release-owned file: public by intent/' cfg/_config.yml
+git add -A && git commit -q -m "The standard-aws-posix starter, as init-config wrote it (cs-image-system 0.1.1.dev21)"
+git log --oneline | wc -l; git status --short | wc -l
+```
+
+The hook's line, `public-safe: ... hold nothing that must not be
+public`, then `1` and `0`. If the hook says `REFUSED`, STOP and paste
+its last lines.
+
+**Step 4.** The holder's key. This tree opens to the same age
+identity as the first walk (one person, one key; a team would list
+each holder). Its PUBLIC key replaces the starter's test key, the
+values are rotated to it, and the test identity leaves the tree:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+pub=$(age-keygen -y ~/.config/cs-image-system/age/walk.age-identity); echo "$pub"
+sed -i "s/^    - age1hl95vsankapyxyyejhdejmywuwc4ddvpjmflj0hf0y8xjtuk3vystd9ang .*\$/    - $pub   # the holder of this tree: the same identity as the first walk/" cfg/_config.yml
+CSIS_CONFIG_IDENTITY=.age-identity just cli reencrypt 2>&1 | tail -1
+git rm -q .age-identity .age-recipient
+sed -i '/^    - "path:.age-identity"/d' cfg/_config.yml
+git status --short
+```
+
+A line beginning `age1` (a public key: it may be pasted). Then
+`rotated 0 values to 1 recipient`: this starter encrypts nothing as
+it comes, which is itself worth knowing. Then three lines of status:
+`D  .age-identity`, `D  .age-recipient` and ` M cfg/_config.yml`.
+Anything else, STOP.
+
+**Step 5.** The shell file for this tree, and the commit. The file
+is new, is ignored by git, and holds no secret; this tree needs no
+Okta or OPA values:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+printf 'export CSIS_CONFIG_IDENTITY=$HOME/.config/cs-image-system/age/walk.age-identity\nexport AWS_PROFILE=noaa\nexport AWS_REGION=us-east-2\n' > .envrc
+direnv allow
+git add -A && git commit -q -m "This tree opens to its holder's key; the test identity is gone"
+git log --oneline | wc -l; git status --short | wc -l
+```
+
+The hook's line again, then `2` and `0`.
+
+**Report:** `stage 16a done` with what steps 2 and 4 printed (the
+public key included; it is public). Nothing has left the container:
+there is no GitHub repository for this tree yet.
+
+## Stage 17 -- written when you reach it
 
 These stages depend on what the earlier ones produce (the bootstrap's
 interview, the names it prints), so their exact commands are added to
@@ -5007,7 +5122,6 @@ this page as each one comes up. The order, and the page each follows:
 
 | Stage | What | Follows |
 | --- | --- | --- |
-| 16 | NEXT. The second walk, `standard-aws-posix`, in its own repository (needs a second mounted volume: Claude re-creates the container from a snapshot of this one) | DAILY_DRIVER 1.9, 3.1 |
 | 17 | Teardown and its proof | stage 65, step 8 |
 
 ## Google Cloud credentials through the environment
