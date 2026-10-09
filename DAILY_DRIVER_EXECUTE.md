@@ -3830,7 +3830,7 @@ it must be nothing.
 | 15b | the tree gains its GCE declarations; validate, dry run, a local commit | done 2026-10-09: commit e40f23a, 77 files, local and NOT pushed |
 | 15c | the cycle: a disk, two bakes, a machine launched, verified and torn down | done 2026-10-09 in eighteen minutes: everything it should have done, and the emptiness check failed on the reference's three names and no other. **One 10 GB disk of the walk's, `walk-data`, stands on GCP** |
 | 15d | the GCE disk's end, and emptiness judged by hand | done 2026-10-09: the disk destroyed through the gate, the AWS volume untouched, and the project identical to the picture of 15a. **Nothing of the walk's stands on GCP** |
-| 15e | CI for a tree of two clouds (the workflow, the bootstrap's GCP section), the push, and `main`, where AWS re-bakes | **NEXT** |
+| 15e | CI for a tree of two clouds (the workflow, the bootstrap's GCP section), the push, and `main`, where AWS re-bakes | steps 1-7 done 2026-10-09; step 8's plan failed and changed nothing; `.envrc` is repaired. **YOU ARE HERE: "Step 8 again, in five boxes", at its THIRD box (the GitHub token), then its fourth and fifth, then step 8's plan box, then steps 9 to 15** |
 
 **15a. Google credentials in the container.** The container has had
 `gcloud` since stage 2 and no Google credentials. As you asked at
@@ -4766,8 +4766,13 @@ change and saves no plan file. Two causes, one of them this page's.
   nothing has used the token since. Claude does not open `.envrc`,
   so the first box below asks the file, without showing a value.
 
-**Step 8 again, in five boxes.** First, in the container: is the
-GitHub token whole? This prints two lengths and a count, no value:
+**Step 8 again, in five boxes.** (2026-10-09, 14:06 UTC: the join
+was there, on the `GITHUB_TOKEN` line, and you repaired it by hand
+and ran `direnv allow`. So the first two boxes are DONE: start at
+the third, "Does GitHub take the token now?".)
+
+First, in the container: is the GitHub token whole? This prints two
+lengths and a count, no value:
 
 ```sh
 cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
