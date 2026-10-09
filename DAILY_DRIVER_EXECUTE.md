@@ -5021,8 +5021,8 @@ home, your secrets in it. Neither leaves your machine.
 
 | Part | What | State |
 | --- | --- | --- |
-| 16a | the tree from the starter: the files, git, the hook's allowance, the holder's key | **NEXT** |
-| 16b | the values, then validate and dry | written when 16a reports |
+| 16a | the tree from the starter: the files, git, the hook's allowance, the holder's key | done 2026-10-09: two commits, the test identity gone |
+| 16b | the values, the people, then validate and dry | **YOU ARE HERE** |
 | 16c | a GitHub repository of its own, the bootstrap, CI | written when 16b reports; you will make the repository then |
 | 16d | the people, the bake, a machine, and a login by real SSH with a proof key | written when 16c reports |
 
@@ -5113,6 +5113,131 @@ The hook's line again, then `2` and `0`.
 **Report:** `stage 16a done` with what steps 2 and 4 printed (the
 public key included; it is public). Nothing has left the container:
 there is no GitHub repository for this tree yet.
+
+**16b. The values, the people, then validate and dry.** In the
+container. The first walk filled its values by hand from a table;
+this one sets them by command, because they are the same account,
+network and bucket and you have typed them once. What is new to
+this tree, and chosen by Claude so that you can change it before
+step 3 if you want another: the configuration's id
+`cs-image-system-walk-posix`; its state under its own prefix in the
+first walk's bucket; the group `walk_posix` (gid 3000); and ONE
+person, the account `walker` (uid 3001), who is you on the machine.
+The starter's two personas go; its proof user `csis_proof` stays.
+The machine keeps the starter's name, `team-node-1`, and the volume
+its name, `data`.
+
+Both boxes of values were run in your container on a throwaway
+clone of this tree with throwaway keys, and the tree they left
+loaded, validated and dry-ran on a copy with the cloud stubbed.
+
+**Step 1.** Two key pairs, neither with a passphrase. One is yours,
+for the account `walker`. The other is the proof user's: its private
+half becomes the repository secret `CSIS_PROOF_SSH_KEY` at 16c, so
+it is made where that secret's file is looked for:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+mkdir -p ~/walk-posix-secrets && chmod 700 ~/walk-posix-secrets
+[ -f ~/.ssh/walk_posix ] || ssh-keygen -q -t ed25519 -f ~/.ssh/walk_posix -N '' -C walker
+[ -f ~/walk-posix-secrets/CSIS_PROOF_SSH_KEY ] || ssh-keygen -q -t ed25519 -f ~/walk-posix-secrets/CSIS_PROOF_SSH_KEY -N '' -C csis_proof
+ls -l ~/.ssh/walk_posix ~/.ssh/walk_posix.pub ~/walk-posix-secrets/CSIS_PROOF_SSH_KEY ~/walk-posix-secrets/CSIS_PROOF_SSH_KEY.pub | awk '{print $1, $NF}'
+```
+
+Four lines; the two without `.pub` begin `-rw-------`.
+
+**Step 2.** The values that are the first walk's too: the account,
+the profile, the instance profile, the network, the gateway's
+security group, the subnet, the bucket, your admin key (read from
+the first tree), and the runtime CI performs on:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+adm=$(grep -m1 -o '"ssh-ed25519 [^"]*"' /walk/cs-image-system-walk/cfg/_config.yml)
+sed -i 's/^id: my-team-images-REPLACE-ME .*$/id: cs-image-system-walk-posix/' cfg/_config.yml
+sed -i "s|^    - \"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPlaceholderKey[^\"]*\".*\$|    - $adm   # the operator's public key, the same as the first walk's|" cfg/_config.yml
+sed -i -e 's/^    account_id: "123456789012".*$/    account_id: "514190660293"/' -e 's/^      profile_name: REPLACE-ME-profile$/      profile_name: noaa/' -e 's/^    session_instance_profile: REPLACE-ME-ssm-instance-profile.*$/    session_instance_profile: AmazonSSMRoleForInstancesQuickSetup/' -e 's/^      Project: REPLACE-ME$/      Project: cs-image-system-walk-posix/' -e 's/^      network: vpc-REPLACE-ME .*$/      network: vpc-0c78d0d63b7a100df/' -e 's/^        - sg-REPLACE-ME-gateway.*$/        - sg-03015ec107ae5f81a/' -e 's/^          subnet_id: subnet-REPLACE-ME-a.*$/          subnet_id: subnet-09f79018af845358a/' cfg/runtime-builders.yml
+sed -i 's/^        Project: REPLACE-ME$/        Project: cs-image-system-walk-posix/' cfg/storage-builders.yml
+sed -i -e 's/^    bucket: tfstate-REPLACE-ME .*$/    bucket: csis-walk-tfstate-514190660293/' -e 's|^    key: statefiles/my-team-images/ .*$|    key: statefiles/cs-image-system-walk-posix/|' -e 's/^    profile: REPLACE-ME-profile .*$/    profile: noaa/' cfg/state-backends.yml
+sed -i 's/^  PERFORM_RUNTIME: aws-REPLACE-ME /  PERFORM_RUNTIME: aws-main /' .github/workflows/ci.yml
+git diff --stat
+```
+
+Five files, and `5 files changed, 15 insertions(+), 15
+deletions(-)`. Anything else, STOP.
+
+**Step 3.** The people and the group's name. The roster is written
+whole, with the two public keys of step 1 in it:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+wp=$(awk '{print $1, $2}' ~/.ssh/walk_posix.pub); pp=$(awk '{print $1, $2}' ~/walk-posix-secrets/CSIS_PROOF_SSH_KEY.pub)
+cat > groups/users.yaml <<EOF
+---
+# The roster of the posix walk: one person and the proof user. Each is a
+# POSIX account on the group's machines, with exactly these keys as the way in.
+users:
+  - name: walker
+    first_name: Walker
+    last_name: Operator
+    uid: 3001
+    public_keys:
+      - $wp walker
+  - name: csis_proof
+    first_name: Proof
+    last_name: User
+    is_service_account: true
+    uid: 3999
+    public_keys:
+      - $pp csis_proof
+EOF
+sed -i -e 's/^  - name: team .*$/  - name: walk_posix/' -e 's/^      - avery_alpha$/      - walker/' -e '/^      - casey_charlie$/d' groups/groups.yaml
+sed -i 's/^    group: team /    group: walk_posix /' images/images.yaml
+sed -i 's/^      - team$/      - walk_posix/' storages/storages.yaml
+grep -rn 'REPLACE-ME' cfg groups storages instances images | grep -v ':[0-9]*:#' | wc -l
+git diff --stat -- groups images storages
+```
+
+`0` (no placeholder is left outside a comment), then four files and
+`4 files changed, 14 insertions(+), 29 deletions(-)`. Anything else,
+STOP.
+
+**Step 4.** Does the tree load? This one asks AWS and nobody else:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+aws sts get-caller-identity --query Account --output text
+just validate 2>&1 | tee ~/validate-16b.log | tail -4 | cut -c1-220
+```
+
+`Validation successful.` as the last line. Anything else, STOP and
+paste it: this is the first time this tree meets your account.
+
+**Step 5.** The dry run, and what it wrote:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+just dry 2>&1 | tee ~/dry-16b.log | tail -2 | cut -c1-200
+ls -d generated/base-image/packer-ebs generated/instance-image/packer-ebs generated/instance-image/tofu-aws generated/storage/aws-ebs
+```
+
+`Run ... completed:` and then the four directories, none with `No
+such file`. There is no `generated/identity/` in this tree: its
+people are not made by terraform.
+
+**Step 6.** The commit:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+git add -A && git commit -q -m "The posix walk's values and people; the first dry run"
+git log --oneline | wc -l; git status --short | wc -l
+```
+
+The hook's line, then `3` and `0`. If the hook refuses, STOP and
+paste what it names.
+
+**Report:** `stage 16b done` with what steps 4 and 5 printed.
+Nothing has left the container, and nothing is made in AWS yet.
 
 ## Stage 17 -- written when you reach it
 
