@@ -2417,7 +2417,7 @@ may log in", "Who is in a group on its machines").
 | 13c, steps 3 and 4 (the launch run and the count; record, push, `main`) | done 2026-10-08: the launch run completed (c3cbaad); `perform` on `main` green at b1cce04, its login proof `ok`, no drift. The second person's refusal: not tried |
 | 13d, step 1 (your local machine: release 0.1.1.dev21 from `develop`) | done 2026-10-08: release commit 40f3efc on `develop`, tag `v0.1.1.dev21`, 18 of 18 packages on the index; the reference configuration has taken it |
 | 13d, steps 2-5 (the walk on 0.1.1.dev21: the second person back in, and out again by the YAML alone) | done 2026-10-09 (00:56 UTC): they went in by a run and came out by a run; the gate sanctioned exactly their attachment; OPA's console and its API both say `walk_team_user` has no members. **Stage 88 is proved** |
-| **13d, step 6** (record, push, `main`) | **NEXT in the container**, then `stage 13 done` |
+| 13d, step 6 (record, push, `main`) | done 2026-10-09: `perform` on `main` green at 753bb65, on 0.1.1.dev21. **Stage 13 is done; stage 14 is next** |
 
 For 13b you chose to add a second person. While 13a runs, settle who:
 a real Okta account in the same team, whose owner agrees to be a
@@ -3269,6 +3269,16 @@ that is clean and pushed, after `stage 13c done`.
 **Report:** `stage 13 done` with step 2's `grep` (the gate lines),
 step 3's `grep`, step 4's `grep`, what the console shows, what the
 second person saw (or `not tried`), and the `perform on main:` line.
+
+(STAGE 13 DONE 2026-10-09. `perform on main: success at 753bb65`:
+its three jobs each installed `cs-image-system==0.1.1.dev21`; the
+workload's proof says `login proof walk-node-1: login: ok`; the
+strict state query says `no drift: meta-state agrees with reality`
+before and after. The walk's `develop`, `origin/develop` and
+`origin/main` agree at f4ff216, and `walk_team` has its one person.
+The second person's refused login was not tried in 13c or 13d: that
+a removed member can no longer log in is read from OPA's group, not
+walked.)
 
 ## Stage 14 -- the failure walk (DAILY_DRIVER 6)
 
