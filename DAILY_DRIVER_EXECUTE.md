@@ -3635,19 +3635,53 @@ mount, the group, the member list and the registration with OPA all
 survive a stop and a start, and by then the machine had been
 through two of each, the first of them the system's own.)
 
-**14g. Record, push, and let `main` see it.** First the machine's
-own account of how often it has started, which settles finding F44
-by sight (one line per boot, newest last; expect a boot near 10:26
-UTC, the system's, and one near 10:28, yours):
+**14g. Record, push, and let `main` see it.** First, how often the
+machine has started, which settles finding F44 by sight.
+
+(2026-10-09: this page first asked the machine's journal, `sudo
+journalctl --list-boots`, and promised two boots. It listed ONE,
+from 10:27:45 UTC to now: your own start. The journal on this
+machine keeps only the boot it is in; the launch of 2026-10-08 is
+not in it either. The line could never have shown what this page
+said it would. The block after it then ran `just record` before
+you meant it to, and you cancelled it with Ctrl-C. That was right,
+and it leaves one thing to undo: see the second box.)
+
+Two looks that do outlive a restart. The first asks the machine's
+cloud-init log, which gains a line at every boot; the second asks
+AWS's own audit trail for every stop and start of this instance in
+those fifteen minutes. Claude has seen neither on your machine or
+account: if one prints nothing, or AWS refuses the second, say so.
 
 ```sh
 cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
-sft ssh walk-node-1 --command 'sudo journalctl --list-boots --no-pager | tail -4'
+sft ssh walk-node-1 --command 'sudo grep -h "running .init-local. at" /var/log/cloud-init.log | sed -E "s/^.*running .init-local. at //" | tail -4'
+id=$(grep -m1 'instance_id:' meta-state/instance-state.yaml | awk '{print $2}'); echo "$id"    # i-0792ba0408f0e1388
+aws cloudtrail lookup-events --lookup-attributes AttributeKey=ResourceName,AttributeValue="$id" --start-time 2026-10-09T10:20:00Z --end-time 2026-10-09T10:35:00Z --query 'Events[].[EventTime,EventName]' --output text | sort
 ```
 
-Then the record. The proofs of 14f wrote theirs into `meta-state/`:
+If the system started the machine, the first shows a boot near
+10:26 UTC and another near 10:27:45, and the second shows FOUR
+events where you made two: your stop near 10:25, a `StartInstances`
+and a `StopInstances` you did not type, and your start.
+
+Then undo what the cancelled run left. A run writes its entry in
+`meta-state/runs.yaml` however it ends, and the one you cancelled
+after five seconds wrote `ok: true` (finding F45). The file had no
+other change, so putting it back removes exactly that entry:
 
 ```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+git diff --stat -- meta-state/runs.yaml    # 12 insertions: the cancelled run, 2026_10_09t10_33_44_483423
+git checkout -- meta-state/runs.yaml
+git status --short                         # exactly: M meta-state/login-proofs.yaml and M meta-state/verifications.yaml
+```
+
+Then the record, when you mean it. The proofs of 14f wrote theirs
+into `meta-state/`:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
 git status --short                         # only files under meta-state/ (the proofs' records); nothing under cfg/ or instances/
 just record
 git status --short                         # nothing listed
@@ -3799,4 +3833,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F42 | a reserved name is refused correctly and section 6 does not know the refusal. `name: none` on an instance stops `validate` with `ReservedNameError: <file>: instances[0].name: a name may not be 'none'` and the reason, exactly as section 3 promises (file, entry, word). But it comes under a traceback, not as a line under `Validation failed with N error(s)`, which is the only form section 6's table gives a rule that failed before anything was generated; and the table has no row for it (seen 2026-10-09, 14c, provoked on purpose) | words (and the traceback, with F10's, F30's and F41's) |
 | F43 | the starter does not show the keys the page tells a team to settle. The daily driver's 1.9 (step 3) lists `require_released_builds`, `require_image_tests` and `preflight.expected_run_minutes` among `cfg/_config.yml`'s decisions; the `standard-aws` starter's file carries none of them, not even as a comment, and its image declares no `release:`. So section 6's row for an unreleased pin cannot happen in a starter tree until someone adds a key the tree never mentions, and once it is on, the grace's own advice (`verify it, then release it`) has no declared release to make. Seen 2026-10-09 (14e): the walk had to write the key in by hand to reach the row, which then behaved exactly as written | words and the starters: hygiene XII item 18 |
 | F44 | `verify` does not skip a machine that is switched off: it STARTS it, verifies it and stops it again. Section 6's row gives `verify ...: SKIPPED -- the machine is STOPPED` and says "nothing is started for a proof". On AWS, with `walk-node-1` stopped by its operator, `just cloud-verify` printed `instance walk-node-1 verified` and recorded `ok: true` with three checks only a running machine can answer, in 53 seconds against 4 on the running machine; the login proof straight after was `SKIPPED`, and the machine was `stopped` again when looked at (seen 2026-10-09, 14f). The code does this on purpose (stage 57: a bounded task that needs a running machine may start one and must put it back, saying so both times) and skips only where the runtime cannot start machines. So the row is wrong for one of its two proofs, the two proofs differ and no page says so, and an operator who switched a machine off to save money is not told that verifying it boots it | words; and a question for the operator: which of the two is the mistake, the page or the start |
+| F45 | a run its operator cancels is journalled as a success. `just record` was interrupted with Ctrl-C five seconds in, before anything was generated, and `meta-state/runs.yaml` gained an entry for it: `ok: true`, `error: null`, `apply: {}` (seen 2026-10-09, 14g; run 2026_10_09t10_33_44_483423). The run writes its entry on the way out however it ends, and an interrupt sets no error. Nothing was committed, so the entry was removed by restoring the file; left alone, the next record would have committed it, and the ledger would say a run that never ran was good | code: hygiene XII item 19 |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |

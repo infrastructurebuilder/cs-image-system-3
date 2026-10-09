@@ -31,7 +31,7 @@ released in dev19 (dev18 was cut from the walk branch by mistake and
 is on the index, unused) and PROVED live: the walk's third `perform`
 baked both its images under the bootstrap-made write role, Systems
 Manager finishing its work on each build machine undisturbed. §81,
-hygiene bundle XII, is open (eighteen items the walk
+hygiene bundle XII, is open (nineteen items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15, taken by the reference configuration, its
@@ -618,13 +618,13 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, eighteen items found by the §65 walk. Items
+**Status: OPEN 2026-10-05, nineteen items found by the §65 walk. Items
 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
 the operator's word. Items 10 and 11 LANDED as §86 (c6af4b2,
 2026-10-07, "Fix now, starters too"). Item 16 LANDED as §88
 (20206e8, 2026-10-08; the operator: "we should correct this
 situation as soon as possible"). Items 1,
-2, 5 to 9, 12 to 15, 17 and 18 are a plan -- nothing more runs until the
+2, 5 to 9, 12 to 15 and 17 to 19 are a plan -- nothing more runs until the
 operator says "do 81". Item 7(a) has a date: 2026-10-19.**
 
 1. **A starter's own hook refuses its first commit.** The tree
@@ -852,6 +852,18 @@ starter's `.gitignore` ignores every dotfile unless named.)
     carries a commented `release:` beside its tests; the starter
     tests read them. A starter tree must still validate and dry-run
     unchanged (the keys at their defaults change no emission).
+19. **A run its operator cancels is journalled as a success.** The
+    walk's finding F45 (2026-10-09, stage 14g). `just record`,
+    interrupted with Ctrl-C five seconds in, left an entry in
+    `meta-state/runs.yaml` saying `ok: true`, `error: null`, `apply:
+    {}`. `run_lifecycles` records in a `finally`, and an interrupt
+    is no `Exception`, so the summary still holds its starting
+    values. Plan: an interrupted run (Ctrl-C, SIGTERM) is recorded
+    `ok: false` with an `error` that says it was interrupted and in
+    which lifecycle, its summary file says the same, and the
+    process ends non-zero as it does now; a test interrupts a run
+    and reads the entry. The daily driver's section 6 gains the
+    row.
 
 ## 83. A release asks its publish target before it starts
 
