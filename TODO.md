@@ -31,7 +31,7 @@ released in dev19 (dev18 was cut from the walk branch by mistake and
 is on the index, unused) and PROVED live: the walk's third `perform`
 baked both its images under the bootstrap-made write role, Systems
 Manager finishing its work on each build machine undisturbed. §81,
-hygiene bundle XII, is open (twenty-three items the walk
+hygiene bundle XII, is open (twenty-four items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15, taken by the reference configuration, its
@@ -618,13 +618,13 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, twenty-three items found by the §65 walk. Items
+**Status: OPEN 2026-10-05, twenty-four items found by the §65 walk. Items
 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
 the operator's word. Items 10 and 11 LANDED as §86 (c6af4b2,
 2026-10-07, "Fix now, starters too"). Item 16 LANDED as §88
 (20206e8, 2026-10-08; the operator: "we should correct this
 situation as soon as possible"). Items 1,
-2, 5 to 9, 12 to 15 and 17 to 23 are a plan -- nothing more runs until the
+2, 5 to 9, 12 to 15 and 17 to 24 are a plan -- nothing more runs until the
 operator says "do 81". Item 7(a) has a date: 2026-10-19.**
 
 1. **A starter's own hook refuses its first commit.** The tree
@@ -934,6 +934,22 @@ starter's `.gitignore` ignores every dotfile unless named.)
     for the AWS section's adopted roles, checked against item 5;
     the generated README lists what a `tofu destroy` of the root
     would remove that the root did not create.
+24. **Stage 88's sanction list is committed with the emission.** The
+    walk's finding F52 (2026-10-09, stage 15e). The prune step's
+    `csis-sanctioned-removals.txt` ends up in
+    `generated/identity/<builder>/group-generation/` and `--commit`
+    stages it: one line per removed membership (the attachment's
+    address, which holds the username) after a removal, an empty
+    file after any other applying run, and a deletion at the next
+    dry run. Stage 88's text and squash message say it stays in the
+    private mirror; it does not. Plan: find how it reaches
+    `generated/` (the step's working directory, or the copy between
+    the emission and the mirror), keep it out of the committed tree
+    (the generated `.gitignore`'s built-in list, and written where
+    the plan file is), a test that an applying identity run leaves
+    no such file staged, and the stage 88 words corrected. Whether
+    the copies already in the reference's and the walk's history
+    matter is F36's question, not a new one.
 
 ## 83. A release asks its publish target before it starts
 
