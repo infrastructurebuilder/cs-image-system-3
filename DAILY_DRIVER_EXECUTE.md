@@ -3394,6 +3394,25 @@ team <team> in org <org>`. Neither is the sentence in the page's
 row, and the first has no row. Both name variables, never a value;
 look the lines over before you paste them all the same.
 
+(DONE 2026-10-09: both said what the copy said, each under a
+traceback, exit 1, and the tree stayed clean. Held against the
+page:
+
+- **The empty shell:** `MissingIdentityError:
+  /walk/cs-image-system-walk/cfg: user_builders[0].email_domain: an
+  encrypted value is present but CSIS_CONFIG_IDENTITY is not set --
+  export the age identity (...)`. This is the FIRST thing a shell
+  without `.envrc` meets in any tree that holds an encrypted value,
+  which every starter's does, and section 6 has no row for it
+  (finding F41). The sentence itself says what to do, and doing it
+  (your own shell, with `.envrc` loaded) is the remedy.
+- **Without the OPA pair:** `ValueError: Okta builder opa-groups is
+  missing a key value. Expected to find environment variable
+  TF_VAR_nos_coastal_modeling_cloud_sandbox_key for team ... in org
+  noaa`. The row's meaning and remedy are right; the sentence it
+  quotes is not the one printed. That is finding F10, from stage 7,
+  met again on purpose.)
+
 **14c. A reserved name.** One instance is renamed `none` in the
 working tree, and put back:
 
@@ -3666,4 +3685,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F38 | removing a member the way the pages describe FAILS, and they do not say it will. The daily driver (3.1; section 4, "Who may log in") and the operations guide ("Drop a membership") say that for a removal OPA still holds "the plan shows the destroy and the gate sees it". The gate refuses it: `DESTROY NOT WHITELISTED`, exit 3, the run FAILED, by the design rule "membership removals only by explicit decision". The procedure that works, remove the person in the OPA console first and let the next run prune its state, is written nowhere as a procedure, and the refusal does not name it. The operator, on reading it: the rule was a mistake; the system adds members and must be able to remove them | code: stage 88 (20206e8, was hygiene XII item 16), released in 0.1.1.dev21 and PROVED live by 13d (2026-10-09: added by a run, removed by a run, OPA holding nobody afterwards). Words: the daily driver's 3.1 and section 4, the operations guide's "The apply gate", "Drop a membership" and "Identity", and the design where it states the old rule; and a caution the pages do not yet carry: an edit that empties a roster by mistake now removes people, a dry run cannot show it, and the applying run's prune step and plan name each person first |
 | F39 | an applying identity run's log shows the group root's plan twice, and the first is not the one applied. The run plans the root once as it writes it (a preview: not saved, not refreshed, read by nothing) and once in the runner, after the prune step. For a membership already gone from OPA the preview says `1 to destroy`, the prune step then takes the attachment out of state, and the runner's plan says `No changes`: a reader of the log meets a destroy that never happens (seen 2026-10-08, 13c). The operations guide says it in one clause under "Drop a membership"; the daily driver's 3.1 and its row "Who may log in" do not say there are two plans or which one counts | words |
 | F40 | `just preflight` says `every session present` over keys that have lapsed. For a profile that is not an SSO profile it can read no expiry (`profile 'noaa' is not an SSO profile (no expiry readable)`), counts the session as present, and closes in green; it makes no cloud call, by design. The next command that reaches AWS then fails with `RequestExpired` under a traceback (F30). Seen 2026-10-09 (14a), provoked on purpose. A team working from pasted keys gets a green line that means "not judged", and the daily driver's expired-session row gives it neither the symptom nor the remedy (fresh keys, not `aws sso login`) | words and code: hygiene XII item 17 |
+| F41 | the first thing an unsourced shell meets has no row. In a tree that holds any encrypted value (every starter's does), a shell that never loaded `.envrc` stops at `MissingIdentityError: <tree>/cfg: user_builders[0].email_domain: an encrypted value is present but CSIS_CONFIG_IDENTITY is not set -- export the age identity (...)`, under a traceback, before anything is asked of OPA or AWS (seen 2026-10-09, 14b, provoked on purpose). Section 6's table has rows for the OPA pair and for a 401, none for this; 1.7 names the variable but not the symptom | words (and the traceback, with F10's and F30's) |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
