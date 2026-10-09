@@ -3828,9 +3828,9 @@ it must be nothing.
 | --- | --- | --- |
 | 15a | Google credentials in the container; what stands in the project | done 2026-10-09: `gcloud` in the container acts as the runner through the file; the picture before is the reference's three things and no instance |
 | 15b | the tree gains its GCE declarations; validate, dry run, a local commit | steps 1-6 done 2026-10-09; the commit was refused by the hook; **NEXT: "step 7 again"**, three boxes |
-| 15c | CI for a tree of two clouds (the workflow, the bootstrap's GCP section) | written when 15b reports |
-| 15d | the cycle: two bakes, a machine launched, verified and torn down | written when 15c reports |
-| 15e | the GCE disk's end, and emptiness judged by hand | written when 15d reports |
+| 15c | the cycle: a disk, two bakes, a machine launched, verified and torn down | written; after 15b |
+| 15d | the GCE disk's end, and emptiness judged by hand | written when 15c reports |
+| 15e | CI for a tree of two clouds (the workflow, the bootstrap's GCP section), the push, and `main`, where AWS re-bakes | written when 15d reports |
 
 **15a. Google credentials in the container.** The container has had
 `gcloud` since stage 2 and no Google credentials. As you asked at
@@ -4233,6 +4233,119 @@ push: CI cannot reach Google until 15c.
 
 **Report:** `stage 15b done` with what the second box printed.
 Nothing of the walk's stands on GCP: nothing was applied.
+
+**15c. The cycle.** In the container, and nothing of it needs
+GitHub, which is why it comes before CI: by the time CI first looks
+at the GCE runtime (15e), nothing of the walk's will stand on it.
+`just cloud-cycle gcp-main` is ONE run of every lifecycle, scoped and
+applied to that runtime: the disk `walk-data` is made, `el10` and
+`team-node` are baked on GCE, `walk-gce-1` is launched, verified and
+torn down, and the two images are disposed because the runtime is
+declared `ephemeral`. Then the recipe asserts the runtime empty,
+and that assertion WILL FAIL, naming the reference configuration's
+three things (finding F47, your decision to judge by hand).
+
+Claude has not seen any of this run in your tree: not a bake on
+GCE, not a session through IAP as the runner, not an enrolment of a
+GCE machine in your OPA project. Each box says what to do if it
+stops, and the one rule over all of them: **if the real run fails
+part of the way, STOP and run the listing of step 5 at once**, so
+that we know what stands on GCP while it stands.
+
+**Step 1.** The dry form. It reads both clouds, changes nothing in
+either, and commits its emission here:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+aws sts get-caller-identity --query Account --output text
+just cloud-cycle gcp-main yes 2>&1 | tee ~/cycle-15c-dry.log | tail -4 | cut -c1-200
+```
+
+A line `Run ... completed:` naming all six lifecycles, and `dry run:
+empty assertion skipped`. If it stops before that (the recipe first
+asks the strict state query, on both clouds now), STOP and paste the
+four lines.
+
+**Step 2.** What the dry run means to do:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+jq -r '.bake_plan' generated/run-summary.json
+grep -n 'gate-plan' generated/storage/run-storage.sh generated/instance-image/run-instance-image.sh | cut -c1-260
+git status -sb
+```
+
+Paste all of it; Claude does not know its exact shape for a run
+scoped to one runtime. What matters: the plan names `el10@gcp-main`
+and `team-node@gcp-main` as due; the gate line of
+`tofu-gce/instance-generation` allows the destroy of
+`module.instance_walk_gce_1` (the teardown of an ephemeral machine
+is an operation the gate knows); and the branch line says `[ahead
+2]`, with no file under it. If a gate line for an AWS root allows a
+destroy, STOP.
+
+**Step 3.** The real cycle. It takes perhaps forty minutes, and its
+state is in S3, so your AWS keys must outlast it: **refresh them
+now, as in stage 3, even if they still work**. Then:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+aws sts get-caller-identity --query Account --output text
+just cloud-cycle gcp-main 2>&1 | tee ~/cycle-15c.log | tail -12 | cut -c1-200
+```
+
+What a good ending looks like, by this page's reading of the code:
+a line `Run ... completed: identity, storage, base-image,
+instance-image, release, retention`, then four lines from the
+emptiness check and two from `just` saying the recipe failed with
+exit code 1:
+
+```
+empty: no instances
+empty: images still present on gcp-main: imgfile-basic-dask-pckr-gce-ans-20260926-064527
+empty: disks still present on gcp-main: gce-data
+empty: buckets still present on gcp-main: csis-sandbox-86233086783-default-bucket
+```
+
+Those three names are the reference configuration's, the ones in
+`~/gcp-before.txt`. That ending is the expected one. Any OTHER name
+in those lines is the walk's and is standing: STOP and say so. And
+if the run itself stopped (`FAILED`, a traceback, no `completed:`
+line), STOP and go straight to step 5.
+
+The first session to a GCE machine makes an SSH key for `gcloud` in
+your container's home, without a passphrase; that is `gcloud`'s
+doing and nothing is asked of you.
+
+**Step 4.** The run's own account of itself, from its log:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+grep -nE 'Plan:|Apply complete|artifact|verified|SKIPPED|dispos|accounts of group|could not|completed:|FAILED|^empty:' ~/cycle-15c.log | cut -c1-200 | tail -60
+```
+
+Paste it as it is. It should show a plan and an apply for the disk,
+two bakes ending in an image each, the machine made, `instance
+walk-gce-1 verified`, the machine destroyed, and the two images
+disposed.
+
+**Step 5.** What stands on GCP now, and what is new since 15a:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+{ echo "== instances"; gcloud compute instances list --format='value(name,zone.basename(),status)'; echo "== disks"; gcloud compute disks list --format='value(name,zone.basename(),sizeGb)'; echo "== images"; gcloud compute images list --no-standard-images --format='value(name,family)'; echo "== buckets"; gcloud storage buckets list --format='value(name)'; } 2>&1 | tee ~/gcp-after-cycle.txt
+sort ~/gcp-before.txt > /tmp/gcp-b; sort ~/gcp-after-cycle.txt > /tmp/gcp-a; echo "== new since 15a:"; comm -13 /tmp/gcp-b /tmp/gcp-a
+```
+
+Under `== new since 15a:` there must be exactly ONE line: `walk-data
+us-east1-b 10`, the disk this tree declares. No instance, and no
+image of the walk's. Anything else under that heading is the walk's
+and is costing money: STOP and paste it.
+
+**Report:** `stage 15c done` with what steps 2, 4 and 5 printed (and
+step 3's last twelve lines). **What of the walk's stands on GCP
+after 15c: one 10 GB standard disk, `walk-data`, at about 40 cents a
+month.** 15d ends it.
 
 ## Stage 16 onward -- written when you reach them
 
