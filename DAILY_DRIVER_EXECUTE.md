@@ -5022,8 +5022,8 @@ home, your secrets in it. Neither leaves your machine.
 | Part | What | State |
 | --- | --- | --- |
 | 16a | the tree from the starter: the files, git, the hook's allowance, the holder's key | done 2026-10-09: two commits, the test identity gone |
-| 16b | the values, the people, then validate and dry | **YOU ARE HERE** |
-| 16c | a GitHub repository of its own, the bootstrap, CI | written when 16b reports; you will make the repository then |
+| 16b | the values, the people, then validate and dry | done 2026-10-09: the tree validates against your account and dry-runs; three commits |
+| 16c | a GitHub repository of its own, the bootstrap, CI | **YOU ARE HERE**: step 1 is in your browser |
 | 16d | the people, the bake, a machine, and a login by real SSH with a proof key | written when 16c reports |
 
 Every box of this stage begins with a line that says `OK: the
@@ -5238,6 +5238,235 @@ paste what it names.
 
 **Report:** `stage 16b done` with what steps 4 and 5 printed.
 Nothing has left the container, and nothing is made in AWS yet.
+
+**16c. A repository of its own, the bootstrap, CI.** The same ground
+as stages 8 and 9, shorter. This tree gets its own GitHub
+repository, its own two AWS roles for CI, and its own secrets. It
+SHARES with the first walk, and only reads: the account's GitHub
+OIDC provider, the instance profile, and the state bucket, in which
+it has a prefix of its own.
+
+**Step 1, in your browser, on github.com.** Two things, both yours:
+
+- Make a new, EMPTY repository `infrastructurebuilder/cs-image-system-walk-posix`:
+  no README, no licence, no `.gitignore`. Public, as the first
+  walk's is, unless you would rather not.
+- Give your token the new repository. The walk's fine-grained token
+  covers one repository (stage 8b): Settings, Developer settings,
+  Fine-grained tokens, that token, Repository access, add
+  `cs-image-system-walk-posix`. Its permissions and its value stay
+  as they are.
+
+**Step 2, in the container:** the token in this tree's shell. Its
+two lines are copied from the first tree's `.envrc` into this one's
+by a command that shows neither:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+grep -E '^export (GH_TOKEN|GITHUB_TOKEN)=' /walk/cs-image-system-walk/.envrc >> .envrc
+direnv allow
+grep -c '^export' .envrc
+```
+
+`5`: the three lines 16a wrote and the two new ones. Then press
+Enter once on an empty line, so direnv loads them.
+
+**Step 3, in the container:** does GitHub know the token and the
+repository?
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+echo "GH_TOKEN ${#GH_TOKEN} characters; GITHUB_TOKEN ${#GITHUB_TOKEN} characters"
+git remote add origin https://github.com/infrastructurebuilder/cs-image-system-walk-posix.git
+gh api repos/infrastructurebuilder/cs-image-system-walk-posix --jq '"\(.full_name) \(.visibility) id \(.id)"'
+```
+
+Two equal lengths, then `infrastructurebuilder/cs-image-system-walk-posix`,
+its visibility and its id. A `404` means the repository is not there
+or the token does not cover it yet: STOP and look at step 1 again.
+
+**Step 4, in the container:** the first push, `develop` only, and
+CI. No secret exists yet, so its `live` job runs its gate alone and
+says SKIPPED; `verify` is the one that proves something:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+git push -u origin develop
+run=""
+for i in $(seq 12); do
+  sleep 5
+  run=$(gh run list --branch develop --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+  [ -n "$run" ] && break
+done
+echo "run ${run:-NOT FOUND after 60 seconds}"
+[ -n "$run" ] && gh run watch "$run"
+echo "CI on develop: $(gh run view "$run" --json conclusion,headSha --jq '"\(.conclusion) at \(.headSha[0:7])"')"
+```
+
+`CI on develop: success at` and a commit. Anything else, STOP.
+
+**Step 5, in the container:** which form of subject do this
+repository's tokens carry? The roles of step 8 trust the form the
+first walk's carry (`ids`), so the two must agree:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+for r in cs-image-system-walk cs-image-system-walk-posix; do echo "$r: $(gh api repos/infrastructurebuilder/$r/actions/oidc/customization/sub --jq tostring)"; done
+```
+
+Two lines whose text after the name is the same. If they differ,
+STOP and paste both: the answers of the next step would be wrong.
+
+**Step 6, in the container:** the bootstrap's answers, written and
+not asked. At the first walk you answered the interview; it offers
+the reference configuration's role names as defaults and asks
+"does it exist" as a choice (findings F17 and F51), so here the
+answers are a file you can read before anything is made. They say:
+two NEW roles, `csis-walk-posix-readonly` and
+`csis-walk-posix-apply`; the OIDC provider, the instance profile and
+the state bucket EXIST and are only read; no Google, no Okta:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+rid=$(gh api repos/infrastructurebuilder/cs-image-system-walk-posix --jq .id); echo "repository id: $rid"
+cat > bootstrap.yaml <<EOF
+# cs-image-system bootstrap: the answers (stage 70). Written whole for the
+# posix walk and not asked, so that no default is taken unread; a run
+# regenerates generated/bootstrap/ from this file.
+version: 1
+sections:
+  aws:
+    account_id: '514190660293'
+    instance_profile: AmazonSSMRoleForInstancesQuickSetup
+    instance_profile_exists: true
+    oidc_provider_exists: true
+    owner_id: '50206755'
+    production_branch: main
+    profile: noaa
+    read_extra_subjects: ''
+    read_role_exists: false
+    read_role_name: csis-walk-posix-readonly
+    region: us-east-2
+    repo_id: '$rid'
+    repository: infrastructurebuilder/cs-image-system-walk-posix
+    state_bucket: csis-walk-tfstate-514190660293
+    state_bucket_exists: true
+    state_prefix: statefiles/cs-image-system-walk-posix/
+    state_region: us-east-2
+    subject_forms: ids
+    tags: Environment=development,Project=cs-image-system-walk-posix
+    wanted: true
+    write_extra_subjects: ''
+    write_role_exists: false
+    write_role_name: csis-walk-posix-apply
+  gcp:
+    wanted: false
+  github:
+    aws_region: us-east-2
+    default_branch: develop
+    guard_runtime: ''
+    perform_runtime: aws-main
+    production_branch: main
+    protect_production: true
+    repository: infrastructurebuilder/cs-image-system-walk-posix
+    secrets_dir: /home/mykel.alvis/walk-posix-secrets
+    wanted: true
+  okta:
+    wanted: false
+EOF
+git status --short
+```
+
+A line `repository id:` with a number, then exactly `??
+bootstrap.yaml`. If the id is empty, STOP.
+
+**Step 7, in the container:** the two secrets that are files. CI's
+age identity is the first walk's, copied, and becomes this tree's
+second recipient; the proof user's key is already where 16b made
+it:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+cp ~/walk-secrets/CSIS_CONFIG_IDENTITY ~/walk-posix-secrets/CSIS_CONFIG_IDENTITY && chmod 600 ~/walk-posix-secrets/CSIS_CONFIG_IDENTITY
+ci=$(age-keygen -y ~/walk-posix-secrets/CSIS_CONFIG_IDENTITY); echo "$ci"
+sed -i "s/^\(    - age1.*the holder of this tree.*\)\$/\1\n    - $ci   # CI's identity, the same as the first walk's/" cfg/_config.yml
+just cli reencrypt 2>&1 | tail -1
+ls ~/walk-posix-secrets | tr '\n' ' '; echo
+```
+
+A public key beginning `age1`; `rotated 0 values to 2 recipients`;
+and three names: `CSIS_CONFIG_IDENTITY CSIS_PROOF_SSH_KEY
+CSIS_PROOF_SSH_KEY.pub`.
+
+**Step 8, in the container:** the root, regenerated by a dry run,
+and its plan, saved:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+aws sts get-caller-identity --query Account --output text
+just dry 2>&1 | tee ~/dry-16c.log | tail -1 | cut -c1-200
+tofu -chdir=generated/bootstrap init -input=false 2>&1 | tail -4 | cut -c1-160
+tofu -chdir=generated/bootstrap plan -input=false -no-color -out="$HOME/bootstrap-16c.tfplan" 2>&1 | tee ~/bootstrap-16c-plan.log | grep -nE 'will be|must be|Plan:|No changes|Error' | cut -c1-200
+```
+
+`Run ... completed:`, `OpenTofu has been successfully initialized!`,
+then a list of things that `will be created` and `Plan: N to add, 0
+to change, 0 to destroy.` Claude expects nine: two roles, their two
+policies, and five settings of the repository (its default branch,
+its Actions permissions, the ruleset on `main`, two variables). The
+number matters less than this: **nothing `destroyed`, `replaced` or
+`updated`, and no line naming `aws_s3_bucket`.** Otherwise STOP and
+paste the lines. An `Error` naming a GitHub permission is the
+token: step 1's second half.
+
+**Step 9, in the container:** the apply, of that saved plan:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+tofu -chdir=generated/bootstrap apply -input=false -no-color "$HOME/bootstrap-16c.tfplan" 2>&1 | tee ~/bootstrap-16c-apply.log | grep -nE 'Apply complete|Error|error:' | cut -c1-200
+```
+
+`Apply complete! Resources: N added, 0 changed, 0 destroyed.` with
+the plan's number. An `Error`, STOP and paste it.
+
+**Step 10, in the container:** the secrets:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+bash generated/bootstrap/set-secrets.sh 2>&1 | cut -c1-150
+gh secret list --json name --jq '[.[].name] | sort | join(" ")'
+```
+
+The script sets four and says `skipped` for the six that have no
+file here (Google's, Okta's and OPA's: this tree has none). The
+last line: `AWS_APPLY_ROLE_ARN AWS_ROLE_ARN CSIS_CONFIG_IDENTITY
+CSIS_PROOF_SSH_KEY`.
+
+**Step 11, in the container:** the commit, the push, and CI with
+its secrets. This time `live` runs for real: it becomes the
+read-only role, validates the tree and asks AWS:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+git add -A && git commit -q -m "The bootstrap of the posix walk: its two roles, the repository's settings, CI's key"
+git push
+run=""
+for i in $(seq 12); do
+  sleep 5
+  run=$(gh run list --branch develop --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+  [ -n "$run" ] && break
+done
+echo "run ${run:-NOT FOUND after 60 seconds}"
+[ -n "$run" ] && gh run watch "$run"
+echo "CI on develop: $(gh run view "$run" --json conclusion,headSha --jq '"\(.conclusion) at \(.headSha[0:7])"')"
+```
+
+`CI on develop: success at` and a commit. Anything else, STOP and
+say so; Claude reads the log. `main` waits for 16d.
+
+**Report:** `stage 16c done` with what steps 5, 8, 9 and 10 printed
+and the two `CI on develop:` lines. **What this part makes in AWS:
+two IAM roles, which cost nothing.**
 
 ## Stage 17 -- written when you reach it
 
