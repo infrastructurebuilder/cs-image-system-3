@@ -3460,6 +3460,18 @@ unknown runtime 'nosuch'`. Each ended with exit code 2, which here
 `git status` does list files, one of them was not refused: say so,
 and `git checkout -- generated meta-state` puts them back.
 
+(DONE 2026-10-09: three refusals, one line each, exit 2, the tree
+clean. `--only-runtime: --only team-node@elsewhere names runtime
+'elsewhere', outside --only-runtime 'aws-main' (baked on aws-main:
+el10, team-node)`; `--only-runtime: --only nosuch is not baked on
+'aws-main' (baked on aws-main: el10, team-node)`; `--only-runtime:
+unknown runtime 'nosuch'`. No finding. These are the best-behaved
+refusals of the stage: no traceback, each says what is wrong and
+what the runtime does bake, and nothing was written. Section 6 has
+no row for them and they need none; the flags themselves are the
+operations guide's, and the daily driver's recipes never ask you
+to type them.)
+
 **14e. A pin to an unreleased build.** This tree does not use the
 rule. The starter leaves `require_released_builds` out of
 `cfg/_config.yml`, and its image declares no `release:`, so the
