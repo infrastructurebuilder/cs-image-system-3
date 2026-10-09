@@ -3826,8 +3826,8 @@ it must be nothing.
 
 | Part | What | State |
 | --- | --- | --- |
-| 15a | Google credentials in the container; what stands in the project | **NEXT** |
-| 15b | the tree gains its GCE declarations; validate, dry run, a local commit | written; after 15a |
+| 15a | Google credentials in the container; what stands in the project | done 2026-10-09: `gcloud` in the container acts as the runner through the file; the picture before is the reference's three things and no instance |
+| 15b | the tree gains its GCE declarations; validate, dry run, a local commit | **NEXT** |
 | 15c | CI for a tree of two clouds (the workflow, the bootstrap's GCP section) | written when 15b reports |
 | 15d | the cycle: two bakes, a machine launched, verified and torn down | written when 15c reports |
 | 15e | the GCE disk's end, and emptiness judged by hand | written when 15d reports |
@@ -3935,6 +3935,19 @@ stands in your project that this page does not know.
 
 **Report:** `stage 15a done` with what steps 3, 5 and 6 printed.
 Nothing of the walk's stands on GCP after 15a: it only read.
+
+(DONE 2026-10-09. Step 1 was first typed in the container, where
+the guard said `STOP` and `ls` said `No such file`; on your local
+machine the file was there. The copy stands in the container's home
+as `-rw-------`, yours. Step 5 answered what this page did not
+know: `gcloud` does take an impersonating credentials file through
+`CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE`. Step 6, kept in
+`~/gcp-before.txt`: no instance; the disk `gce-data` (`us-east1-b`,
+30 GB); the image
+`imgfile-basic-dask-pckr-gce-ans-20260926-064527`; the bucket
+`csis-sandbox-86233086783-default-bucket`. Exactly the reference
+configuration's three things, as Claude read them from your local
+machine. That list is what the end of the stage is judged against.)
 
 **15b. The tree gains its GCE declarations.** In the container. Nine
 files change. Seven gain an entry at their end, each a list that the
