@@ -3429,6 +3429,17 @@ brackets (the words `default`, `self`, `none`, the empty string and
 null mean "not set" wherever a value is read). Yours should say
 `instances[0]`.
 
+(DONE 2026-10-09: `ReservedNameError:
+/walk/cs-image-system-walk/instances/instances.yaml:
+instances[0].name: a name may not be 'none'`, the reason in
+brackets, exit 1; the file put back, the tree clean. The daily
+driver's section 3 promises that "the refusal names the file, the
+entry and the word", and it does, all three. Two things for the
+words: section 6 has no row for it, and it arrives under a
+traceback and not as a line under `Validation failed with N
+error(s)`, which is how that table says a rule that failed before
+anything was generated shows itself (finding F42).)
+
 **14d. `--only` beside `--only-runtime`.** Three refused commands.
 They are dry runs (no `--no-dry-run`), so even one that was not
 refused would execute nothing:
@@ -3686,4 +3697,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F39 | an applying identity run's log shows the group root's plan twice, and the first is not the one applied. The run plans the root once as it writes it (a preview: not saved, not refreshed, read by nothing) and once in the runner, after the prune step. For a membership already gone from OPA the preview says `1 to destroy`, the prune step then takes the attachment out of state, and the runner's plan says `No changes`: a reader of the log meets a destroy that never happens (seen 2026-10-08, 13c). The operations guide says it in one clause under "Drop a membership"; the daily driver's 3.1 and its row "Who may log in" do not say there are two plans or which one counts | words |
 | F40 | `just preflight` says `every session present` over keys that have lapsed. For a profile that is not an SSO profile it can read no expiry (`profile 'noaa' is not an SSO profile (no expiry readable)`), counts the session as present, and closes in green; it makes no cloud call, by design. The next command that reaches AWS then fails with `RequestExpired` under a traceback (F30). Seen 2026-10-09 (14a), provoked on purpose. A team working from pasted keys gets a green line that means "not judged", and the daily driver's expired-session row gives it neither the symptom nor the remedy (fresh keys, not `aws sso login`) | words and code: hygiene XII item 17 |
 | F41 | the first thing an unsourced shell meets has no row. In a tree that holds any encrypted value (every starter's does), a shell that never loaded `.envrc` stops at `MissingIdentityError: <tree>/cfg: user_builders[0].email_domain: an encrypted value is present but CSIS_CONFIG_IDENTITY is not set -- export the age identity (...)`, under a traceback, before anything is asked of OPA or AWS (seen 2026-10-09, 14b, provoked on purpose). Section 6's table has rows for the OPA pair and for a 401, none for this; 1.7 names the variable but not the symptom | words (and the traceback, with F10's and F30's) |
+| F42 | a reserved name is refused correctly and section 6 does not know the refusal. `name: none` on an instance stops `validate` with `ReservedNameError: <file>: instances[0].name: a name may not be 'none'` and the reason, exactly as section 3 promises (file, entry, word). But it comes under a traceback, not as a line under `Validation failed with N error(s)`, which is the only form section 6's table gives a rule that failed before anything was generated; and the table has no row for it (seen 2026-10-09, 14c, provoked on purpose) | words (and the traceback, with F10's, F30's and F41's) |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
