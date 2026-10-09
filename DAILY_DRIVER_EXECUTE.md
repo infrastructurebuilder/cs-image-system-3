@@ -5701,8 +5701,22 @@ without an account, and `perform` waits behind that job. When
 Docker Hub does not answer, nothing can be baked, and the system
 does not say why.
 
-**When you come back, this box is your next step.** It needs no AWS
-keys of yours (CI brings its own), only the GitHub token your
+**When you come back, first let the container go again.** It was
+paused on 2026-10-09 at your word: nothing in it runs, and a
+terminal that was open in it does not answer, until this is done.
+On your local machine, NOT in the container:
+
+```sh
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+docker unpause csis-walk
+docker ps --filter name=csis-walk --format '{{.Names}}: {{.Status}}'
+```
+
+`csis-walk: Up` and a length of time, WITHOUT `(Paused)` after it.
+If it says `(Paused)` still, STOP.
+
+**Then this box is your next step**, in the container. It needs no
+AWS keys of yours (CI brings its own), only the GitHub token your
 `.envrc` already exports. The failed job is run again, and
 `perform` follows it:
 
