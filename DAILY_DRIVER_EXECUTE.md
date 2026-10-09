@@ -2416,7 +2416,8 @@ may log in", "Who is in a group on its machines").
 | 13c, step 2b, second half (the container: the identity run again) | done 2026-10-08: the prune step took the attachment out of state, the runner's plan said `No changes`, the run completed (3ce4cc6) |
 | 13c, steps 3 and 4 (the launch run and the count; record, push, `main`) | done 2026-10-08: the launch run completed (c3cbaad); `perform` on `main` green at b1cce04, its login proof `ok`, no drift. The second person's refusal: not tried |
 | 13d, step 1 (your local machine: release 0.1.1.dev21 from `develop`) | done 2026-10-08: release commit 40f3efc on `develop`, tag `v0.1.1.dev21`, 18 of 18 packages on the index; the reference configuration has taken it |
-| **13d, steps 2-6** (the walk on 0.1.1.dev21: the second person back in, and out again by the YAML alone) | **NEXT in the container: start at step 2** |
+| 13d, steps 2-5 (the walk on 0.1.1.dev21: the second person back in, and out again by the YAML alone) | done 2026-10-09 (00:56 UTC): they went in by a run and came out by a run; the gate sanctioned exactly their attachment; OPA's console and its API both say `walk_team_user` has no members. **Stage 88 is proved** |
+| **13d, step 6** (record, push, `main`) | **NEXT in the container**, then `stage 13 done` |
 
 For 13b you chose to add a second person. While 13a runs, settle who:
 a real Okta account in the same team, whose owner agrees to be a
@@ -3159,6 +3160,11 @@ that is clean and pushed, after `stage 13c done`.
    each membership the YAML dropped, and only the root that holds
    memberships reads one.
 
+   (2026-10-09: the committed runner has ONE gate line, and it ends
+   that way. This page was wrong to speak of a second: the
+   `okta-users` root holds only lookups of people, is never applied,
+   and so has no gate at all.)
+
 3. **The second person back in, from history.** The commit `9c8bc06`
    ("A second member of walk_team") holds both files as they were
    with two people:
@@ -3212,12 +3218,34 @@ that is clean and pushed, after `stage 13c done`.
    says `DESTROY NOT WHITELISTED` instead, STOP and paste the lines:
    nothing was changed, and the fix does not do what its tests say.
 
+   (2026-10-09, 00:56 UTC: it did what its tests say, line for line.
+   The add run of step 3 said `Plan: 1 to add, 0 to change, 0 to
+   destroy` twice and `Apply complete! Resources: 1 added`. Then
+   this run: the preview, `Plan: 0 to add, 0 to change, 1 to
+   destroy`; the prune step, `member 'SECOND' was dropped from
+   group 'walk_team' and OPA still holds it; the plan will show the
+   destroy of its ...`, which is OPA's own API saying, at that
+   moment, that the person WAS a member; the runner's plan, `1 to
+   destroy` again; the gate, `Destroy sanctioned by the
+   declaration: module.group_walk_team.
+   oktapam_user_group_attachment.members["SECOND"]` and `Plan
+   passes the apply gate.`; the apply, `0 added, 0 changed, 1
+   destroyed`; `Run ... completed: identity`. The same run on
+   0.1.1.dev20, at 13c, stopped at the gate.)
+
 5. **OPA's own word.** In the OPA console, open the group
    `walk_team_user`: the second person is not in it, and you did not
    take them out. Say what you see. (Claude reads the same group
    from OPA's API, a count and no names, when you report.) If the
    second person is willing, `sft ssh walk-node-1` from their own
    machine should be refused, perhaps only after a few minutes.
+
+   (2026-10-09: you, in the console: `walk_team_user` has no
+   members. Claude, from OPA's API with the service's read-only
+   pair: `walk_team_user` 0 members, `walk_team_admin` 1. Nobody
+   opened the console to take the person out. A member the YAML
+   adds, the run adds; a member the YAML drops, the run removes.
+   Stage 88 is proved.)
 
 6. Record, push, and let `main` see it:
 
@@ -3361,6 +3389,6 @@ the daily driver's words at the end of the stage, or filed as code.
 | F35 | nothing proves the workload role's branch pin. The guide's 3.5 ends at "add the branch pin to the role" and offers no check; the probe authenticates to the CONNECTION and passes the role only as a hint, so it says `accepted ... and issued one` from any branch, pinned or not (seen 2026-10-08: `success` on `develop` with the pin read back from OPA). A team cannot tell a pin that holds from one that does not | words and code: hygiene XII item 14 |
 | F36 | a user's `name` is declared as an `ENC[age:...]` marker in `groups/` and committed in CLEAR by the run: `meta-state/identity.yaml`, the identity roots' HCL (the roster lists, resource names, the local part of the mail address), and the login proofs. In a public configuration repository a person's username is public from the first identity run and stays in the history; only the mail domain is protected. The marker suggests otherwise, and nothing in the guide or the starter says so | words, and a decision: hygiene XII item 15 |
 | F37 | beside Okta, a member whose account name on a machine differs from their OPA username logs in and never joins the group. OPA makes the account under the user's `unix_user_name` attribute; the login hook matches the account against the member list name for name; the list was written in OPA usernames. Seen when the walk's second person logged in: on the list, not in the group. The reference configuration is exposed the same way | code: stage 87, released in 0.1.1.dev20 |
-| F38 | removing a member the way the pages describe FAILS, and they do not say it will. The daily driver (3.1; section 4, "Who may log in") and the operations guide ("Drop a membership") say that for a removal OPA still holds "the plan shows the destroy and the gate sees it". The gate refuses it: `DESTROY NOT WHITELISTED`, exit 3, the run FAILED, by the design rule "membership removals only by explicit decision". The procedure that works, remove the person in the OPA console first and let the next run prune its state, is written nowhere as a procedure, and the refusal does not name it. The operator, on reading it: the rule was a mistake; the system adds members and must be able to remove them | code: stage 88 (20206e8, was hygiene XII item 16), to be released in 0.1.1.dev21 and proved by 13d. Words: the daily driver's 3.1 and section 4, the operations guide's "The apply gate", "Drop a membership" and "Identity", and the design where it states the old rule; and a caution the pages do not yet carry: an edit that empties a roster by mistake now removes people, a dry run cannot show it, and the applying run's prune step and plan name each person first |
+| F38 | removing a member the way the pages describe FAILS, and they do not say it will. The daily driver (3.1; section 4, "Who may log in") and the operations guide ("Drop a membership") say that for a removal OPA still holds "the plan shows the destroy and the gate sees it". The gate refuses it: `DESTROY NOT WHITELISTED`, exit 3, the run FAILED, by the design rule "membership removals only by explicit decision". The procedure that works, remove the person in the OPA console first and let the next run prune its state, is written nowhere as a procedure, and the refusal does not name it. The operator, on reading it: the rule was a mistake; the system adds members and must be able to remove them | code: stage 88 (20206e8, was hygiene XII item 16), released in 0.1.1.dev21 and PROVED live by 13d (2026-10-09: added by a run, removed by a run, OPA holding nobody afterwards). Words: the daily driver's 3.1 and section 4, the operations guide's "The apply gate", "Drop a membership" and "Identity", and the design where it states the old rule; and a caution the pages do not yet carry: an edit that empties a roster by mistake now removes people, a dry run cannot show it, and the applying run's prune step and plan name each person first |
 | F39 | an applying identity run's log shows the group root's plan twice, and the first is not the one applied. The run plans the root once as it writes it (a preview: not saved, not refreshed, read by nothing) and once in the runner, after the prune step. For a membership already gone from OPA the preview says `1 to destroy`, the prune step then takes the attachment out of state, and the runner's plan says `No changes`: a reader of the log meets a destroy that never happens (seen 2026-10-08, 13c). The operations guide says it in one clause under "Drop a membership"; the daily driver's 3.1 and its row "Who may log in" do not say there are two plans or which one counts | words |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
