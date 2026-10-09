@@ -555,6 +555,24 @@ just cloud-verify <runtime> <name>       # startup scripts, booted image, mounts
 just ci-login-proof <name>               # sft ssh by name through the policy; recorded
 ```
 
+**A VERIFICATION SWITCHES A STOPPED MACHINE ON.** If you have switched
+a machine off, `just cloud-verify` (and a post-bake test) STARTS it,
+does its work and stops it again, and says so in its log both times
+(`... is STOPPED (switched off; not drift); STARTING it because
+verifying instance ...`, then `... stopping it again, which is how it
+was found`). You pay for that boot, and every startup script runs
+again. Nothing else starts a machine: not the state query, which only
+notes that it is off; not a launch run; and not `just ci-login-proof`,
+which says `SKIPPED` and proves nothing while the machine is off. If
+the system cannot stop the machine again it says `ERROR`, names it,
+and the machine is then RUNNING: stop it by hand. A runtime that
+cannot start machines skips the verification instead. This is
+deliberate ([OPERATIONS.md](docs/OPERATIONS.md), "Starting a machine is
+a bounded exception"). It was walked on 2026-10-09, when it surprised
+its own operator; the decision that day was to keep it, and it is
+reviewed every month until February 2027 ([TODO.md](TODO.md)). If you
+do not want a machine booted, do not verify it while it is off.
+
 A durable instance's FIRST launch of a brand-new image is the one case
 where `require_released_builds: true` and `release` pull against each
 other, since the proof can only run on the machine itself: the release
@@ -682,7 +700,7 @@ item in the open hygiene bundle in [TODO.md](TODO.md).
 | `sft resolve ...: exit 126` with nothing on stderr | the `sft` client's session lapsed and `--quiet` forbade the browser (2026-09-23, after a replace: the registration half of the proof had passed) | `sft login`, then the proof again; as the workload, the token was missing or refused |
 | `'<name>' has 2 registrations: ...` in a login proof | two servers answer to one canonical hostname | retire the stale one (a replacement now does this itself); `sft ssh` would reach either |
 | `Instance x: alias 'y' SKIPPED -- already claimed by <id>` | a stale record holds the name | retire that record; the alias comes back on the next applies-on run |
-| `verify ...: SKIPPED -- the machine is STOPPED`; `login proof ...: SKIPPED` | someone switched the machine off; a note, not drift; nothing is started for a proof | start it if you want the proof, then re-run |
+| `instance <x> verified` for a machine you had switched off, with `STARTING it because verifying instance <x>` above it; `login SKIPPED for <x> (nothing proved)`; `verify <x>: SKIPPED -- the machine is STOPPED` only on a runtime that cannot start machines | someone switched the machine off: a note, not drift. **Verification STARTS it, checks it and stops it again** (section 3.5); the login proof starts nothing and is skipped | nothing, when the log ends `stopping it again`; an `ERROR` there means the machine is now RUNNING and must be stopped by hand. For the login proof, start the machine yourself and run it again |
 | `Instance x: not enrolled within 300s of its launch; no alias this run` | the machine booted this run and sftd had not enrolled in time | the next applies-on run gives the names back |
 | `--locked: another tofu-using command holds ...` (exit 75) | one tofu process at a time; another recipe is running | wait; remove the lock directory only if the process is gone |
 | `full-test: passed` above `SKIPPED the credential-gated legs` | the legs did not run: a session was absent | not a pass; source the shell, log in, run again |
