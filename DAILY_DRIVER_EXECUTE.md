@@ -3779,7 +3779,367 @@ earlier boot; and 14g put a record straight under a status that had
 to be read first, which is where your rule "a check ends its box"
 comes from.)
 
-## Stage 15 onward -- written when you reach them
+## Stage 15 -- the GCE leg: a second cloud in the same tree (DAILY_DRIVER 1.4; CONFIGURATION)
+
+Read the daily driver's 1.4 ("GCP, if you use the GCE runtime") and
+the operations guide's "GCE cost discipline". By your decision W4 the
+leg is walked in THIS repository: the walk tree, made from the AWS
+starter, gains a GCE runtime in the project `csis-sandbox`, bakes
+its base and its image there, launches one machine that lives only
+for its cycle, and proves itself empty again.
+
+Two things were found before a line of it was written, and you have
+decided the second:
+
+- **No page says how a tree gains a second cloud** (finding F46). The
+  additions below were put together from the two starters and tried
+  twice on 2026-10-09. On a copy of the AWS starter with the cloud
+  stubbed, the grown tree loaded, validated with no error, and its
+  dry run wrote the four new roots (`base-image/packer-gce`,
+  `instance-image/packer-gce`, `instance-image/tofu-gce`,
+  `storage/gcp-pd`). And the boxes of 15b themselves were run in
+  your container against a throwaway copy of the nine files they
+  touch (not your tree), and left each file as intended. What has
+  NOT been tried is your tree, with its own values, loading and
+  reaching Google: that is 15b's steps 4 and 5.
+- **The emptiness check will fail, and that is expected** (finding
+  F47). `just cloud-empty` counts everything in the project, and the
+  reference configuration lives in the same one. Your decision
+  (2026-10-09): walk the leg and judge emptiness by hand. So this
+  stage writes down what stands in the project BEFORE (15a), and the
+  leftover list at the end must be that and nothing else.
+
+**What stands in `csis-sandbox` today** (read by Claude from your
+local machine, 2026-10-09; all three are the reference
+configuration's, declared and kept on purpose): no instance; the
+disk `gce-data` (30 GB, `us-east1-b`); the image
+`imgfile-basic-dask-pckr-gce-ans-20260926-064527`; the bucket
+`csis-sandbox-86233086783-default-bucket`.
+
+**What this stage costs on GCP, which is your money.** Nothing until
+15d. Then, for some minutes each: two small build machines (spot),
+one `e2-small` instance, and a 10 GB standard disk; and two images
+that the run disposes as it ends, because the runtime is declared
+`ephemeral`. Well under a dollar. At the end of every part this page
+says what of the walk's stands on GCP, and at the end of the stage
+it must be nothing.
+
+| Part | What | State |
+| --- | --- | --- |
+| 15a | Google credentials in the container; what stands in the project | **NEXT** |
+| 15b | the tree gains its GCE declarations; validate, dry run, a local commit | written; after 15a |
+| 15c | CI for a tree of two clouds (the workflow, the bootstrap's GCP section) | written when 15b reports |
+| 15d | the cycle: two bakes, a machine launched, verified and torn down | written when 15c reports |
+| 15e | the GCE disk's end, and emptiness judged by hand | written when 15d reports |
+
+**15a. Google credentials in the container.** The container has had
+`gcloud` since stage 2 and no Google credentials. As you asked at
+the start of the walk, nobody logs in inside it: it gets a
+credentials FILE, named by the environment (the section "Google
+Cloud credentials through the environment" below, way 2). The file
+is a copy of your local machine's Application Default Credentials,
+which already impersonate the runner service account. It is a
+secret: it goes into the container's home, never onto the volume,
+and Claude does not open it.
+
+Every box in this stage starts at the left margin, with no list
+around it, because several of them write files and a line that
+closes such a text must stand at the very start of its line. Copy
+each box whole, from its first line to its last.
+
+**Step 1, on your local machine (the host, NOT the container):** is
+the file there?
+
+```sh
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+ls -l ~/.config/gcloud/application_default_credentials.json
+```
+
+One line with a size and a date. If it says `No such file`, STOP and
+say so: the daily driver's 1.4 has the command that makes it
+(`gcloud auth application-default login
+--impersonate-service-account=...`), and this page will write it out
+for you.
+
+**Step 2, still on your local machine:** the copy, owned by you in
+the container and readable by nobody else:
+
+```sh
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+docker cp ~/.config/gcloud/application_default_credentials.json csis-walk:/home/mykel.alvis/gcp-credentials.json
+docker exec -u root csis-walk chown mykel.alvis:mykel.alvis /home/mykel.alvis/gcp-credentials.json
+docker exec -u root csis-walk chmod 600 /home/mykel.alvis/gcp-credentials.json
+docker exec -u mykel.alvis csis-walk ls -l /home/mykel.alvis/gcp-credentials.json
+```
+
+The last line must begin `-rw-------` and name `mykel.alvis` twice.
+If it does not, STOP.
+
+**Step 3, in the container:** what kind of credentials are they?
+This prints two fields of the file and nothing secret:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+jq -r '.type, (.service_account_impersonation_url // "no impersonation")' ~/gcp-credentials.json
+```
+
+Two lines: `impersonated_service_account`, and a URL that ends
+`csis-runner@csis-sandbox.iam.gserviceaccount.com:generateAccessToken`.
+If the first line says `authorized_user`, STOP: the file is you and
+not the runner, and the copy has to be made again after an
+impersonating login on your local machine.
+
+**Step 4, in the container:** the environment points at the file.
+Three lines join `.envrc`; none is a secret:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+cat >> .envrc <<'EOF'
+export GOOGLE_APPLICATION_CREDENTIALS=$HOME/gcp-credentials.json
+export CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE=$HOME/gcp-credentials.json
+export GOOGLE_CLOUD_PROJECT=csis-sandbox CLOUDSDK_CORE_PROJECT=csis-sandbox
+EOF
+direnv allow
+git status --short
+```
+
+Nothing listed: `.envrc` is ignored by git, and nothing else changed.
+If anything is listed, STOP.
+
+**Step 5, in the container:** do the tools see it? Press Enter once
+on an empty line first, so direnv loads the new lines:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+echo "$GOOGLE_APPLICATION_CREDENTIALS"; echo "$CLOUDSDK_CORE_PROJECT"
+gcloud compute zones describe us-east1-b --format='value(name,status)'
+```
+
+`/home/mykel.alvis/gcp-credentials.json`, `csis-sandbox`, and
+`us-east1-b UP`. The last line is the `gcloud` command itself acting
+as the runner through the file. Claude has not seen `gcloud` take
+this kind of file through the environment: if it refuses, STOP and
+paste what it says.
+
+**Step 6, in the container:** the picture BEFORE, kept in a file in
+your home for the end of the stage. Reading costs nothing:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+{ echo "== instances"; gcloud compute instances list --format='value(name,zone.basename(),status)'; echo "== disks"; gcloud compute disks list --format='value(name,zone.basename(),sizeGb)'; echo "== images"; gcloud compute images list --no-standard-images --format='value(name,family)'; echo "== buckets"; gcloud storage buckets list --format='value(name)'; } 2>&1 | tee ~/gcp-before.txt
+```
+
+It should be the three things named at the top of this stage and no
+instance. If it shows anything else, STOP and paste it: something
+stands in your project that this page does not know.
+
+**Report:** `stage 15a done` with what steps 3, 5 and 6 printed.
+Nothing of the walk's stands on GCP after 15a: it only read.
+
+**15b. The tree gains its GCE declarations.** In the container. Nine
+files change. Seven gain an entry at their end, each a list that the
+new entry joins; two have one line edited. The names: runtime
+`gcp-main`; image builder `packer-gce`; instance builder `tofu-gce`;
+storage builder `gcp-pd`; the disk `walk-data` (not `gce-data`: that
+name is taken in this project); the machine `walk-gce-1`. Nothing
+here applies anything or reaches GitHub.
+
+**Step 1.** The four builders:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+cat >> cfg/executables.yml <<'EOF'
+  - name: gcloud
+    binary: gcloud
+    version: ">=500"             # the Google Cloud SDK's own version
+EOF
+cat >> cfg/image-builders.yml <<'EOF'
+  - name: packer-gce
+    type: packer-gce
+    runtime: gcp-main            # NOT the default: the default image builder stays packer-ebs
+    executable: packer
+    required_plugins:
+      - name: googlecompute
+        source: github.com/hashicorp/googlecompute
+        version: ">= 1.0.0"
+      - name: ansible
+        source: github.com/hashicorp/ansible
+        version: ">= 1.0.0"
+EOF
+cat >> cfg/instance-builders.yml <<'EOF'
+  - name: tofu-gce
+    type: tofu-gce
+    runtime: gcp-main
+    executable: open-tofu
+    required_plugins:
+      - name: google
+        source: hashicorp/google
+        version: ">= 5.0.0"
+EOF
+cat >> cfg/storage-builders.yml <<'EOF'
+  - name: gcp-pd
+    type: tf-gcp-pd              # a zonal persistent disk, single-attach
+    runtime: gcp-main
+    executable: open-tofu
+    size: 10                     # GB
+    disk_type: pd-standard
+    variables:
+      tags:                      # emitted as labels: lower case
+        project: walk
+EOF
+git status --short
+```
+
+Exactly four lines, each ` M cfg/...`: `executables.yml`,
+`image-builders.yml`, `instance-builders.yml`, `storage-builders.yml`.
+If not, STOP.
+
+**Step 2.** The runtime, and the base's second source. The base
+`el10` is the same base, baked a second time, from AlmaLinux's own
+images on GCE:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+cat >> cfg/runtime-builders.yml <<'EOF'
+  - name: gcp-main
+    type: gcloud
+    aliases: [gcp, google]
+    project_id: csis-sandbox
+    region: us-east1
+    zone: us-east1-b
+    description: "GCE runtime for project {{ this.project_id }} in {{ this.zone }}"
+    service_account_email: csis-runner@csis-sandbox.iam.gserviceaccount.com
+    session_mechanism: iap
+    state_configuration: default # the GCE roots keep their state in this tree's own (S3) backend
+    default_disk_size: 10
+    bake_preemptible: true       # spot build machines; a preempted bake re-runs
+    ephemeral: true              # every image baked here is disposed when a run ends well
+    default_machine_type: e2-small
+    default_image_builder: packer-gce
+    tags:                        # emitted as labels: lower case
+      project: walk
+      environment: development
+    networking:
+      network: default
+      subnets:
+        - name: main
+          subnet_id: projects/csis-sandbox/regions/us-east1/subnetworks/default
+          is_default: true
+          public: true
+EOF
+sed -i 's/^    storage_types: \[ebs\]$/    storage_types: [ebs, pd]/' cfg/os-builders.yml
+cat >> cfg/os-builders.yml <<'EOF'
+      - name: gce-el10
+        image_builder: packer-gce     # the same base, baked a second time, on GCE
+        default_machine_type: e2-small
+        ssh_username: packer
+        owners:
+          - almalinux-cloud           # AlmaLinux's public image project (a vendor fact)
+        query:
+          filters:
+            name: "almalinux-10-v*"
+EOF
+git diff --stat -- cfg/os-builders.yml cfg/runtime-builders.yml
+```
+
+`cfg/os-builders.yml | 11 ++++++++++-`, `cfg/runtime-builders.yml |
+25` all plus signs, and `2 files changed, 35 insertions(+), 1
+deletion(-)`. If it says 34 insertions and no deletion, the `sed`
+did not find its line: STOP.
+
+**Step 3.** The image's second bake, the disk and the machine:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+sed -i 's/^      - image_builder: packer-ebs      # one bake per runtime$/&\n      - image_builder: packer-gce/' images/images.yaml
+cat >> storages/storages.yaml <<'EOF'
+  - name: walk-data
+    type: gcp-pd
+    runtime: gcp-main
+    groups:
+      - walk_team
+    share_mode: "2770"
+    state: active
+    availability_zone: us-east1-b     # a persistent disk is zonal
+    tags:
+      purpose: data
+EOF
+cat >> instances/instances.yaml <<'EOF'
+  - name: walk-gce-1
+    image: team-node
+    type: tofu-gce
+    runtime: gcp-main
+    machine_type: e2-small
+    ephemeral: true              # launched, verified and torn down inside its cycle
+    description: "The GCE leg's machine; exists only for its cycle"
+    storages:
+      - name: walk-data
+        mount_point: /mnt/walk-data
+    tags:
+      role: node
+EOF
+git status --short
+```
+
+Exactly nine lines, each ` M`: the six under `cfg/` so far, and
+`images/images.yaml`, `instances/instances.yaml`,
+`storages/storages.yaml`. If `images/images.yaml` is missing from the
+list, the `sed` did not find its line: STOP.
+
+**Step 4.** Does the tree load? `validate` now asks Google as well
+as AWS, so the keys must be live:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+aws sts get-caller-identity --query Account --output text
+just validate 2>&1 | tail -6 | cut -c1-220
+```
+
+`Validation successful.` as the last line. Anything else, STOP and
+paste it: this is the first time your tree's own values meet these
+declarations, and what it says is the finding.
+
+**Step 5.** The dry run, and what it wrote:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just dry 2>&1 | tail -3 | cut -c1-200
+ls -d generated/base-image/packer-gce generated/instance-image/packer-gce generated/instance-image/tofu-gce generated/storage/gcp-pd
+```
+
+A line `Run ... completed:` with all six lifecycles, and then the
+four directories, each on its own line and none with `No such file`.
+If a directory is missing, STOP.
+
+**Step 6.** What the dry run means to do on GCE, read from the
+records it wrote:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+grep -n 'walk-gce-1:' -A22 meta-state/launch-params.yaml | grep -E 'hostname|ephemeral|machine_type|session|device|storage:' | cut -c1-90
+```
+
+`ephemeral: true`, `hostname: walk-gce-1-001`, `machine_type:
+e2-small`, `session: iap`, a device under `/dev/disk/by-id/`, and
+`storage: walk-data`.
+
+**Step 7.** A local commit, not pushed. CI cannot reach Google yet,
+and a push now would turn it red; 15c is what makes it able to:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+git add -A && git commit -m "A GCE runtime beside the AWS one: gcp-main, its base, its image, a disk and a machine for one cycle"
+git status -sb
+```
+
+`## develop...origin/develop [ahead 1]` and no file under it. Do NOT
+push.
+
+**Report:** `stage 15b done` with what steps 4, 5 and 6 printed, or
+the step that stopped you and what it said. Nothing of the walk's
+stands on GCP after 15b: nothing was applied.
+
+## Stage 16 onward -- written when you reach them
 
 These stages depend on what the earlier ones produce (the bootstrap's
 interview, the names it prints), so their exact commands are added to
@@ -3787,7 +4147,6 @@ this page as each one comes up. The order, and the page each follows:
 
 | Stage | What | Follows |
 | --- | --- | --- |
-| 15 | The GCE leg, one cycle (credentials below) | DAILY_DRIVER 1.4; CONFIGURATION |
 | 16 | The second walk, `standard-aws-posix`, in its own repository (needs a second mounted volume: Claude re-creates the container from a snapshot of this one) | DAILY_DRIVER 1.9, 3.1 |
 | 17 | Teardown and its proof | stage 65, step 8 |
 
