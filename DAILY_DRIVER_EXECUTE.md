@@ -3270,7 +3270,254 @@ that is clean and pushed, after `stage 13c done`.
 step 3's `grep`, step 4's `grep`, what the console shows, what the
 second person saw (or `not tried`), and the `perform on main:` line.
 
-## Stage 14 onward -- written when you reach them
+## Stage 14 -- the failure walk (DAILY_DRIVER 6)
+
+Read the daily driver's section 6, "When it fails": its first
+paragraph (where to look) and the table. This stage provokes
+failures on purpose and holds each against the page: is the symptom
+what the system prints, is the meaning right, does the remedy work.
+
+All of it is in the container. Parts 14a to 14e change nothing
+outside your working tree: each makes a one-line edit or types a
+command that is refused, reads what the system says, and puts the
+tree back, ending on a `git status --short` that lists nothing.
+Only 14f touches the cloud, and what it touches is the machine's
+power. Nothing is committed until 14g.
+
+| Part | The failure | Where the daily driver speaks of it |
+| --- | --- | --- |
+| 14a | a session that has ended | the row `preflight: a session has EXPIRED` |
+| 14b | a shell that never loaded `.envrc` | the row `OPA credentials for team '<t>' not found in the environment` |
+| 14c | a reserved name, `name: none` | no row; section 3 says the words are reserved |
+| 14d | an `--only` name that `--only-runtime` cannot honour | no row |
+| 14e | a pin to an unreleased build, outside the grace | the row `instance 'x' is pinned to build ...` |
+| 14f | a machine someone switched off | the row `verify ...: SKIPPED -- the machine is STOPPED` |
+| (done) | a destroy the gate must refuse | the row `DESTROY NOT WHITELISTED: <address>` |
+
+**The last of them you have walked already**, at 13c on
+0.1.1.dev20, without meaning to: `DESTROY NOT WHITELISTED:
+module.group_walk_team.oktapam_user_group_attachment.
+members["SECOND"]`, exit 3, the run FAILED, nothing applied. Symptom
+and meaning were the row's. It is not provoked again, for a reason
+worth knowing: this tree has no SAFE way left to do it. A dropped
+membership is now removed by design (stage 88). And the obvious
+trick, deleting an entry to watch the gate object, is not a failure
+at all. **Deleting an instance's entry is how an instance is
+decommissioned** (the daily driver's section 4: "delete the entry
+... the gate whitelists exactly its destroy"), and the next launch
+run would destroy `walk-node-1` with the gate's blessing. Do not
+delete an entry to test the gate.
+
+Where this page quotes what a command "said", Claude typed the same
+thing on 2026-10-09 into a private copy of the REFERENCE
+configuration, on this release, and read the answer. Your tree's
+names differ and the sentence should not. Where it says Claude does
+not know, that is the point of the step.
+
+**14a. A session that has ended.** For this one the keys must have
+lapsed by themselves, so it is done BEFORE you refresh them:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+git status -sb                             # develop, level with origin, nothing listed
+aws sts get-caller-identity 2>&1 | tail -1 | cut -c1-160
+```
+
+If the last line shows your account, the keys are still live: skip
+14a, go on to 14b, and do 14a at the start of your next sitting,
+before refreshing them. If it shows an error, go on:
+
+```sh
+just preflight 2>&1 | tail -2 | cut -c1-200
+just validate 2>&1 | tail -5 | cut -c1-200
+just cloud-preflight 2>&1 | tail -5 | cut -c1-200
+```
+
+Then refresh the keys as in stage 3 and check them:
+
+```sh
+aws sts get-caller-identity --query Account --output text   # 514190660293
+```
+
+The page's row is written for an SSO profile: it expects `preflight`
+to say `a session has EXPIRED` and its remedy is `aws sso login`.
+Your container holds access keys in a credentials file instead, of
+which `preflight` can only say `profile 'noaa' is not an SSO profile
+(no expiry readable)`; at stage 11 a lapsed key showed itself as a
+`RequestExpired` traceback out of `just validate` (finding F30).
+Paste the three tails: they are what a team with keys would meet.
+
+**14b. A shell that never loaded `.envrc`.** Two lines. The first
+runs `validate` in a shell with nothing in it but your home and your
+path; the second in your own shell with only the OPA pair taken out:
+
+```sh
+env -i HOME="$HOME" PATH="$PATH" bash -c 'cd /walk/cs-image-system-walk && just validate' 2>&1 | tail -6 | cut -c1-200
+env -u TF_VAR_nos_coastal_modeling_cloud_sandbox_key -u TF_VAR_nos_coastal_modeling_cloud_sandbox_secret just validate 2>&1 | tail -4 | cut -c1-200
+git status --short                         # nothing listed
+```
+
+In the copy the first said `MissingIdentityError: <tree>/cfg:
+user_builders[0].email_domain: an encrypted value is present but
+CSIS_CONFIG_IDENTITY is not set -- export the age identity (...)`,
+and the second `ValueError: Okta builder oktagroups is missing a key
+value. Expected to find environment variable TF_VAR_<team>_key for
+team <team> in org <org>`. Neither is the sentence in the page's
+row, and the first has no row. Both name variables, never a value;
+look the lines over before you paste them all the same.
+
+**14c. A reserved name.** One instance is renamed `none` in the
+working tree, and put back:
+
+```sh
+sed -i 's/^  - name: walk-node-1 /  - name: none /' instances/instances.yaml
+git diff --stat                            # instances/instances.yaml | 2 +-
+just validate 2>&1 | tail -5 | cut -c1-200
+git checkout -- instances/instances.yaml && git status --short    # nothing listed
+```
+
+In the copy: `ReservedNameError: <tree>/instances/instances.yaml:
+instances[1].name: a name may not be 'none'`, then the reason in
+brackets (the words `default`, `self`, `none`, the empty string and
+null mean "not set" wherever a value is read). Yours should say
+`instances[0]`.
+
+**14d. `--only` beside `--only-runtime`.** Three refused commands.
+They are dry runs (no `--no-dry-run`), so even one that was not
+refused would execute nothing:
+
+```sh
+just cli run instance-image --only team-node@elsewhere --only-runtime aws-main 2>&1 | tail -2 | cut -c1-240
+just cli run instance-image --only nosuch --only-runtime aws-main 2>&1 | tail -2 | cut -c1-240
+just cli run instance-image --only-runtime nosuch 2>&1 | tail -2 | cut -c1-240
+git status --short                         # nothing listed: each was refused before a file was written
+```
+
+In the copy, in order: `--only-runtime: --only <image>@<other>
+names runtime '<other>', outside --only-runtime '<runtime>' (baked
+on <runtime>: <its images>)`; `--only-runtime: --only nosuch-image
+is not baked on '<runtime>' (baked on ...)`; `--only-runtime:
+unknown runtime 'nosuch'`. Each ended with exit code 2, which here
+`just` reports in a line of its own under the message. If the last
+`git status` does list files, one of them was not refused: say so,
+and `git checkout -- generated meta-state` puts them back.
+
+**14e. A pin to an unreleased build.** This tree does not use the
+rule. The starter leaves `require_released_builds` out of
+`cfg/_config.yml`, and its image declares no `release:`, so the
+page's row cannot happen here as the tree stands. This part
+switches the rule on for a minute, in the working tree only, and
+then moves the machine's pin to the OLDER build of `team-node`:
+
+```sh
+sed -i 's/^  apply_instances: false$/  apply_instances: false\n  require_released_builds: true/' cfg/_config.yml
+git diff --stat                            # cfg/_config.yml | 1 +
+just validate 2>&1 | tail -4 | cut -c1-300 # the pin as it stands: the machine's own build, the newest of its series
+just cli upgrade instance walk-node-1 --to ami-03a8cef5e12cd1b50 2>&1 | tail -1 | cut -c1-200
+just validate 2>&1 | tail -3 | cut -c1-400
+git checkout -- cfg/_config.yml meta-state/pins.yaml && git status --short    # nothing listed
+grep -n 'walk-node-1: ' meta-state/pins.yaml                                   # ami-04bb9df333af05e5b: the pin is back
+```
+
+**The last two lines matter more than the rest.** The pin move is
+real in your working tree (it is the command `cloud-upgrade` begins
+with). Left in place, the next launch run would REPLACE the machine
+with the older build. `git status` must list nothing and the `grep`
+must show `ami-04bb9df333af05e5b` before you go on. If either is
+not so, STOP and say so.
+
+What to expect. The first `validate`: Claude does not know. The
+page says an unreleased pin is allowed for "the series head under
+its own proof" (the release grace), and your machine stands on the
+head of its series, so it should pass, perhaps with a warning that
+names the grace; if it refuses, its reason is the finding. The
+second, in the copy: `instance '<name>' is pinned to build <id> of
+'<image>', which is not a released build
+(config.require_released_builds; no grace: the build is not the head
+of series '<image>' on its ...)` and `Validation failed with 1
+error(s).`
+
+**14f. A machine someone switched off.** The first time this walk
+stops a machine. It needs live keys and a live `sft` session:
+
+```sh
+aws sts get-caller-identity --query Account --output text   # 514190660293
+sft list-teams                             # STATUS a time remaining; if Expired: sft login
+id=$(grep -m1 'instance_id:' meta-state/instance-state.yaml | awk '{print $2}'); echo "$id"    # i-0792ba0408f0e1388
+aws ec2 stop-instances --instance-ids "$id" --query 'StoppingInstances[0].CurrentState.Name' --output text
+aws ec2 wait instance-stopped --instance-ids "$id" && echo "stopped"
+```
+
+If AWS refuses the stop (your role is a power user's, without
+networking), say so and stop the machine in the EC2 console
+instead; the rest is the same. With the machine off:
+
+```sh
+just state-query --strict 2>&1 | tail -6 | cut -c1-200
+just cloud-verify aws-main walk-node-1 2>&1 | tail -4 | cut -c1-200
+just ci-login-proof walk-node-1 2>&1 | tail -4 | cut -c1-200
+aws ec2 describe-instances --instance-ids "$id" --query 'Reservations[0].Instances[0].State.Name' --output text
+```
+
+The page's row: a machine that is off is "a note, not drift", its
+verify and its login proof are each `SKIPPED`, and "nothing is
+started for a proof". So the strict state query should still pass,
+the two proofs should say they were skipped and why, and the last
+line should still say `stopped`. Claude has seen none of this in
+your tree. If the last line says `running`, something started your
+machine: that is a finding, and say which command came before it.
+
+Then on again, and is it the same machine it was?
+
+```sh
+aws ec2 start-instances --instance-ids "$id" --query 'StartingInstances[0].CurrentState.Name' --output text
+aws ec2 wait instance-status-ok --instance-ids "$id" && echo "up"
+sft ssh walk-node-1 --command 'hostname; findmnt -no SOURCE,TARGET /mnt/data; cat /mnt/data/walk_team/planted-13a; id -nG | tr " " "\n" | grep -c "^walk_team$"; sudo wc -l < /etc/csis/groups/walk_team.members'
+just cloud-verify aws-main walk-node-1 2>&1 | tail -3 | cut -c1-200
+just state-query --strict 2>&1 | tail -3 | cut -c1-200
+```
+
+The `wait` takes two or three minutes. If `sft ssh` cannot reach
+the machine straight after it, OPA's agent has not come back yet:
+wait a minute and try again. Then five things from the machine: its
+hostname, `walk-node-1-002`; the volume, a device and `/mnt/data`;
+your planted line from 13a; `1`, you in `walk_team`; `1`, one name
+on the member list. A restart is something this walk has not done
+before: whether the mount, the group and the list come back by
+themselves is a real question, and any of the five that is missing
+is a finding.
+
+**14g. Record, push, and let `main` see it.** The proofs of 14f
+wrote their records into `meta-state/`:
+
+```sh
+git status --short                         # only files under meta-state/ (the proofs' records); nothing under cfg/ or instances/
+just record
+git status --short                         # nothing listed
+git push
+git push origin develop:main
+run=""
+for i in $(seq 12); do
+  sleep 5
+  run=$(gh run list --branch main --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+  [ -n "$run" ] && break
+done
+echo "run ${run:-NOT FOUND after 60 seconds}"
+[ -n "$run" ] && gh run watch "$run"
+echo "perform on main: $(gh run view "$run" --json conclusion,headSha --jq '"\(.conclusion) at \(.headSha[0:7])"')"
+git fetch origin && git merge --ff-only origin/main && git push
+```
+
+If the first `git status` lists anything under `cfg/`, `instances/`
+or `groups/`, or `meta-state/pins.yaml`, STOP: a provocation was
+not put back.
+
+**Report:** `stage 14 done` with, part by part, what each command
+printed (they are cut to a few lines each on purpose), and the
+`perform on main:` line. For 14a say `skipped, keys were live` if it
+was. Where a part stopped you, say which line, and stop there.
+
+## Stage 15 onward -- written when you reach them
 
 These stages depend on what the earlier ones produce (the bootstrap's
 interview, the names it prints), so their exact commands are added to
@@ -3278,7 +3525,6 @@ this page as each one comes up. The order, and the page each follows:
 
 | Stage | What | Follows |
 | --- | --- | --- |
-| 14 | The failure walk | DAILY_DRIVER 6 |
 | 15 | The GCE leg, one cycle (credentials below) | DAILY_DRIVER 1.4; CONFIGURATION |
 | 16 | The second walk, `standard-aws-posix`, in its own repository (needs a second mounted volume: Claude re-creates the container from a snapshot of this one) | DAILY_DRIVER 1.9, 3.1 |
 | 17 | Teardown and its proof | stage 65, step 8 |
