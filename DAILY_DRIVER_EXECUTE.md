@@ -3507,10 +3507,41 @@ second, in the copy: `instance '<name>' is pinned to build <id> of
 of series '<image>' on its ...)` and `Validation failed with 1
 error(s).`
 
+(DONE 2026-10-09, and the pin is back: Claude read the tree from
+the host afterwards, nothing changed, `walk-node-1:
+ami-04bb9df333af05e5b`, no pending replacement, the rule gone from
+`cfg/_config.yml`. Held against the page:
+
+- **Under the grace** the first `validate` passed with `WARNING
+  config.require_released_builds: build ami-04bb9df333af05e5b of
+  'team-node' is not released yet, allowed under the release grace:
+  'walk-node-1' stands on series head ami-04bb9df333af05e5b
+  (launched; verify it, then release it)`. That is the page's
+  "series head under its own proof", working as written.
+- **Outside it** the second said `instance 'walk-node-1' is pinned
+  to build ami-03a8cef5e12cd1b50 of 'team-node', which is not a
+  released build (config.require_released_builds; no grace: the
+  build is not the head of series 'team-node' on its runtime)` and
+  `Validation failed with 1 error(s).`, exit 1, with no traceback.
+  Symptom, meaning and remedy ("move the pin") are the row's. The
+  row holds.
+- **What the walk had to do to get there is the finding** (F43):
+  the daily driver's 1.9 tells a team to settle
+  `require_released_builds`, `require_image_tests` and
+  `preflight.expected_run_minutes` in `cfg/_config.yml`, and the
+  starter's file shows none of the three; nor does its image
+  declare a `release:`, so the warning's advice, "verify it, then
+  release it", has nothing in this tree to act on.)
+
 **14f. A machine someone switched off.** The first time this walk
-stops a machine. It needs live keys and a live `sft` session:
+stops a machine. It needs live keys and a live `sft` session. Every
+line below is typed in the CONTAINER's shell, none on the machine,
+and each box sets `id` for itself, so a box can be started in a new
+shell (2026-10-09: the first try was abandoned and resumed in a new
+shell, where `$id` would have been empty):
 
 ```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
 aws sts get-caller-identity --query Account --output text   # 514190660293
 sft list-teams                             # STATUS a time remaining; if Expired: sft login
 id=$(grep -m1 'instance_id:' meta-state/instance-state.yaml | awk '{print $2}'); echo "$id"    # i-0792ba0408f0e1388
@@ -3523,6 +3554,9 @@ networking), say so and stop the machine in the EC2 console
 instead; the rest is the same. With the machine off:
 
 ```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+id=$(grep -m1 'instance_id:' meta-state/instance-state.yaml | awk '{print $2}'); echo "$id"    # i-0792ba0408f0e1388
+aws ec2 describe-instances --instance-ids "$id" --query 'Reservations[0].Instances[0].State.Name' --output text   # stopped
 just state-query --strict 2>&1 | tail -6 | cut -c1-200
 just cloud-verify aws-main walk-node-1 2>&1 | tail -4 | cut -c1-200
 just ci-login-proof walk-node-1 2>&1 | tail -4 | cut -c1-200
@@ -3540,6 +3574,8 @@ machine: that is a finding, and say which command came before it.
 Then on again, and is it the same machine it was?
 
 ```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+id=$(grep -m1 'instance_id:' meta-state/instance-state.yaml | awk '{print $2}'); echo "$id"    # i-0792ba0408f0e1388
 aws ec2 start-instances --instance-ids "$id" --query 'StartingInstances[0].CurrentState.Name' --output text
 aws ec2 wait instance-status-ok --instance-ids "$id" && echo "up"
 sft ssh walk-node-1 --command 'hostname; findmnt -no SOURCE,TARGET /mnt/data; cat /mnt/data/walk_team/planted-13a; id -nG | tr " " "\n" | grep -c "^walk_team$"; sudo wc -l < /etc/csis/groups/walk_team.members'
@@ -3710,4 +3746,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F40 | `just preflight` says `every session present` over keys that have lapsed. For a profile that is not an SSO profile it can read no expiry (`profile 'noaa' is not an SSO profile (no expiry readable)`), counts the session as present, and closes in green; it makes no cloud call, by design. The next command that reaches AWS then fails with `RequestExpired` under a traceback (F30). Seen 2026-10-09 (14a), provoked on purpose. A team working from pasted keys gets a green line that means "not judged", and the daily driver's expired-session row gives it neither the symptom nor the remedy (fresh keys, not `aws sso login`) | words and code: hygiene XII item 17 |
 | F41 | the first thing an unsourced shell meets has no row. In a tree that holds any encrypted value (every starter's does), a shell that never loaded `.envrc` stops at `MissingIdentityError: <tree>/cfg: user_builders[0].email_domain: an encrypted value is present but CSIS_CONFIG_IDENTITY is not set -- export the age identity (...)`, under a traceback, before anything is asked of OPA or AWS (seen 2026-10-09, 14b, provoked on purpose). Section 6's table has rows for the OPA pair and for a 401, none for this; 1.7 names the variable but not the symptom | words (and the traceback, with F10's and F30's) |
 | F42 | a reserved name is refused correctly and section 6 does not know the refusal. `name: none` on an instance stops `validate` with `ReservedNameError: <file>: instances[0].name: a name may not be 'none'` and the reason, exactly as section 3 promises (file, entry, word). But it comes under a traceback, not as a line under `Validation failed with N error(s)`, which is the only form section 6's table gives a rule that failed before anything was generated; and the table has no row for it (seen 2026-10-09, 14c, provoked on purpose) | words (and the traceback, with F10's, F30's and F41's) |
+| F43 | the starter does not show the keys the page tells a team to settle. The daily driver's 1.9 (step 3) lists `require_released_builds`, `require_image_tests` and `preflight.expected_run_minutes` among `cfg/_config.yml`'s decisions; the `standard-aws` starter's file carries none of them, not even as a comment, and its image declares no `release:`. So section 6's row for an unreleased pin cannot happen in a starter tree until someone adds a key the tree never mentions, and once it is on, the grace's own advice (`verify it, then release it`) has no declared release to make. Seen 2026-10-09 (14e): the walk had to write the key in by hand to reach the row, which then behaved exactly as written | words and the starters: hygiene XII item 18 |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |

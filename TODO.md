@@ -31,7 +31,7 @@ released in dev19 (dev18 was cut from the walk branch by mistake and
 is on the index, unused) and PROVED live: the walk's third `perform`
 baked both its images under the bootstrap-made write role, Systems
 Manager finishing its work on each build machine undisturbed. §81,
-hygiene bundle XII, is open (seventeen items the walk
+hygiene bundle XII, is open (eighteen items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15, taken by the reference configuration, its
@@ -618,13 +618,13 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, seventeen items found by the §65 walk. Items
+**Status: OPEN 2026-10-05, eighteen items found by the §65 walk. Items
 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
 the operator's word. Items 10 and 11 LANDED as §86 (c6af4b2,
 2026-10-07, "Fix now, starters too"). Item 16 LANDED as §88
 (20206e8, 2026-10-08; the operator: "we should correct this
 situation as soon as possible"). Items 1,
-2, 5 to 9, 12 to 15 and 17 are a plan -- nothing more runs until the
+2, 5 to 9, 12 to 15, 17 and 18 are a plan -- nothing more runs until the
 operator says "do 81". Item 7(a) has a date: 2026-10-19.**
 
 1. **A starter's own hook refuses its first commit.** The tree
@@ -838,6 +838,20 @@ starter's `.gitignore` ignores every dotfile unless named.)
     get-caller-identity` for such a profile is a **USER** decision:
     it is the one cloud call that would make the answer true, and
     the command's contract today is that it makes none.
+18. **The starters do not show the keys the daily driver tells a
+    team to settle.** The walk's finding F43 (2026-10-09, stage
+    14e). The daily driver's 1.9 lists `require_released_builds`,
+    `require_image_tests` and `preflight.expected_run_minutes` among
+    the decisions of `cfg/_config.yml`; the starters' file carries
+    none of the three, and their image declares no `release:`. The
+    walk reached section 6's unreleased-pin row only by writing the
+    key in with `sed`; the rule and its grace then behaved as
+    written. Plan: each starter's `cfg/_config.yml` carries the
+    three keys as DECISION lines at their defaults, with what
+    switching each on asks of the tree; each starter's image
+    carries a commented `release:` beside its tests; the starter
+    tests read them. A starter tree must still validate and dry-run
+    unchanged (the keys at their defaults change no emission).
 
 ## 83. A release asks its publish target before it starts
 
