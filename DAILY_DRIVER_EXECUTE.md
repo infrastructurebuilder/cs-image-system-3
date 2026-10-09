@@ -4442,7 +4442,7 @@ git status -sb
 
 ```sh
 cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
-just dry storage 2>&1 | tail -2 | cut -c1-200
+just dry storage 2>&1 | tee ~/dry-15d.log | tail -2 | cut -c1-200
 grep -n 'gate-plan' generated/storage/run-storage.sh | cut -c1-260
 ```
 
@@ -4451,6 +4451,32 @@ Two gate lines. The one for `gcp-pd/storage-generation` must end
 `destroyed` is an operation the gate knows. The one for
 `aws-ebs/storage-generation` must allow NOTHING. If the AWS line
 carries an `--allow-destroy`, STOP: that is your `data` volume.
+
+(2026-10-09, 13:06 UTC: the first try FAILED before any gate line
+was written: `Run ... FAILED: CalledProcessError: Command '['tofu',
+'init', '-backend=false']' returned non-zero exit status 1`. What
+tofu itself said was above the two lines this box showed, and the
+box kept no log, which is this page's fault and is why it has a
+`tee` now. What is known: the init that failed was the GCE storage
+root's (the AWS root beside it had initialised); it downloads the
+`google` provider, about a hundred megabytes, afresh on every run
+that has no lock file; and the very same init, on a copy of your
+generated root, succeeded a few minutes later on your local
+machine and in your container. So the likeliest cause is the
+download, not your tree. Nothing reached the cloud: a dry run's
+init never touches a backend. The failed run is in
+`meta-state/runs.yaml` as `ok: false`, which is true and stays.
+Run the box again. If it fails a second time, the next box shows
+why.)
+
+Only if step 4 failed again, what tofu said:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+grep -n -B2 -A14 -E 'Error|error:' ~/dry-15d.log | cut -c1-200 | tail -50
+```
+
+Paste it and STOP.
 
 **Step 5.** The storage run. Refresh your AWS keys first if they are
 near an hour old:
