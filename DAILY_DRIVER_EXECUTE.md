@@ -5605,6 +5605,18 @@ changed, 0 destroyed.`, `Run ... completed: storage`. Anything that
 says `destroy` with a number other than 0, STOP. **Standing in AWS
 from here: the volume `posix-data`, 10 GB.**
 
+(2026-10-09: the first run of this step planned the volume, passed
+the gate and applied NOTHING, with no `Apply complete` line. This
+page had left out what stage 11 did for the first walk: the
+starter ships `apply_storage: false`, and nothing applies until the
+flag is flipped. With `sed -i 's/^  apply_storage: false$/
+apply_storage: true/' cfg/_config.yml`, a commit, and the run
+again, it said `Plan: 1 to add`, `Plan passes the apply gate.`,
+`Apply complete! Resources: 1 added, 0 changed, 0 destroyed.` The
+volume stands from 20:42 UTC. A run that plans, passes its gate and
+does not apply ends `completed:` like one that does; only the
+missing line tells them apart.)
+
 **Step 3.** The same question CI asks, asked here, then `develop`:
 
 ```sh
