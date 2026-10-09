@@ -31,7 +31,7 @@ released in dev19 (dev18 was cut from the walk branch by mistake and
 is on the index, unused) and PROVED live: the walk's third `perform`
 baked both its images under the bootstrap-made write role, Systems
 Manager finishing its work on each build machine undisturbed. §81,
-hygiene bundle XII, is open (twenty items the walk
+hygiene bundle XII, is open (twenty-one items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15, taken by the reference configuration, its
@@ -618,13 +618,13 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, twenty items found by the §65 walk. Items
+**Status: OPEN 2026-10-05, twenty-one items found by the §65 walk. Items
 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
 the operator's word. Items 10 and 11 LANDED as §86 (c6af4b2,
 2026-10-07, "Fix now, starters too"). Item 16 LANDED as §88
 (20206e8, 2026-10-08; the operator: "we should correct this
 situation as soon as possible"). Items 1,
-2, 5 to 9, 12 to 15 and 17 to 20 are a plan -- nothing more runs until the
+2, 5 to 9, 12 to 15 and 17 to 21 are a plan -- nothing more runs until the
 operator says "do 81". Item 7(a) has a date: 2026-10-19.**
 
 1. **A starter's own hook refuses its first commit.** The tree
@@ -636,6 +636,12 @@ operator says "do 81". Item 7(a) has a date: 2026-10-19.**
    nothing caught it. Fixed looks like: every starter's allow list
    carries the address with its reason (or the scan exempts SPDX header
    lines), and a test runs public-safe over each starter as written.
+   The same refusal for a second address (finding F48, 2026-10-09,
+   stage 15b): `standard-gce` does not allow
+   `.iam.gserviceaccount.com`, which `complete` does, so a GCE tree
+   with its runner's real address cannot be committed. The test
+   fills each starter's `REPLACE-ME` values with plausible ones
+   before it scans.
 2. **`init-config` in a cloned repository writes no configuration.**
    Only a directory with no entries counts as new
    ([starters.py](packages/system/src/cs_image_system/system/starters.py)),
@@ -885,6 +891,22 @@ starter's `.gitignore` ignores every dotfile unless named.)
     its own when the operator calls for it. The operator's decision
     for the walk (2026-10-09): run the leg and judge emptiness by
     hand from the leftover list.
+21. **A storage type added to a base re-bakes it on every cloud.**
+    The walk's finding F49 (2026-10-09, stage 15b). `storage_types`
+    is one list on the OS builder, it is in the input fingerprint of
+    every bake of that base, and every type contributes its
+    prerequisite step to every runtime's template, a bare comment
+    included. Adding `pd` for a GCE disk made `el10@aws-main` and
+    the image chained on it due, with nothing to change in either.
+    Plan, for the operator to choose between: (a) a bake's
+    fingerprint and template take only the storage types whose
+    builder lives on that bake's runtime (a `pd` builder on GCE says
+    nothing to an AWS bake); or (b) a base's `runtimes:` entry may
+    carry its own `storage_types`, added to the base's. Either way
+    a type with no prerequisites moves no fingerprint, the
+    capability a build records stays what it carries, and
+    CONFIGURATION says that a base shared between clouds re-bakes
+    everywhere when a shared field changes.
 
 ## 83. A release asks its publish target before it starts
 

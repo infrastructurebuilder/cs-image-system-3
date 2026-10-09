@@ -4152,6 +4152,39 @@ push.
 the step that stopped you and what it said. Nothing of the walk's
 stands on GCP after 15b: nothing was applied.
 
+**What happened at 15b (2026-10-09): steps 1 to 6 did what they
+should, and step 7's commit was REFUSED. Nothing is committed; all
+76 files are staged.** Read from your tree: the tree loaded and
+reached Google with its own values, the dry run ended `ok`, and
+`walk-gce-1` is recorded as `ephemeral: true`, `hostname:
+walk-gce-1-001`, `machine_type: e2-small`, `session: iap`, with
+`walk-data` at `/dev/disk/by-id/google-walk-data`. Two things came
+of it.
+
+- **The hook refused the runner's address** (finding F48):
+  `cfg/runtime-builders.yml: email (csis-r...)` and the same in the
+  two GCE packer sources, `public-safe: REFUSED -- 3 findings in 76
+  files`. The hook takes a service account's address for a
+  person's. The `complete` starter and the reference configuration
+  both carry the line that allows it (`".iam.gserviceaccount.com"`,
+  "an identifier, not a person"); the `standard-gce` starter does
+  not, and your tree, grown from the AWS one, could not have. The
+  address is already public in the reference repository.
+- **Both AWS images became due for a re-bake** (finding F49). The
+  dry run's plan says `el10@aws-main: bake: inputs changed` and
+  `team-node@aws-main: bake: inputs changed`, beside the two GCE
+  bakes that were meant. One edit of the nine does it: `pd` added
+  to `storage_types` of the base `el10`. The base is ONE
+  declaration that both clouds bake from, the list is part of what
+  the system fingerprints for every bake of it, and the system
+  cannot see that `pd` adds nothing to an AWS image (its step in
+  the bake is a comment: "no prerequisites to bake"). Tried on the
+  starter: the builders, the runtime, the base's second source and
+  the image's second bake leave the AWS fingerprints as they were;
+  `storage_types` alone moves them. There is no way to declare a
+  storage type for one runtime of a base. Whether the leg keeps its
+  disk is yours to decide before anything is committed.
+
 ## Stage 16 onward -- written when you reach them
 
 These stages depend on what the earlier ones produce (the bootstrap's
@@ -4279,4 +4312,6 @@ the daily driver's words at the end of the stage, or filed as code.
 | F45 | a run its operator cancels is journalled as a success. `just record` was interrupted with Ctrl-C five seconds in, before anything was generated, and `meta-state/runs.yaml` gained an entry for it: `ok: true`, `error: null`, `apply: {}` (seen 2026-10-09, 14g; run 2026_10_09t10_33_44_483423). The run writes its entry on the way out however it ends, and an interrupt sets no error. Nothing was committed, so the entry was removed by restoring the file; left alone, the next record would have committed it, and the ledger would say a run that never ran was good | code: hygiene XII item 19 |
 | F46 | no page says how a tree gains a second cloud. The walk's GCE leg adds a GCE runtime to a tree made from `standard-aws` (decision W4). The daily driver's 1.9 offers a starter per cloud and `complete` for both; CONFIGURATION describes each declaration; nothing says which ten declarations a second cloud needs (an executable, an image builder, an instance builder, a source for the base on the new runtime, a storage builder, the runtime, the image's second bake, a storage, an instance), nor that the tree's CI workflow is its starter's and has to be changed for `complete`'s (`init-config --from complete`), nor that the terraform modules for both clouds are already in every tree. Found 2026-10-09, writing stage 15 | words |
 | F47 | two configurations in one GCP project cannot both prove a runtime empty. `cloud-empty` (and so the end of every `cloud-cycle`) counts every instance and disk in the zone, every custom image and every bucket in the PROJECT, less this tree's own declared storages and released builds. The reference configuration keeps a disk and a bucket standing in `csis-sandbox`, so the walk's cycle there must end in a failing emptiness check that names them, and the reference's would name the walk's. Stage 82 gave IMAGES a label that says whose they are; instances, disks and buckets carry none. Found 2026-10-09 by reading, before anything was spent; the operator's decision: walk the leg and judge emptiness by hand | code: hygiene XII item 20 |
+| F48 | the hook refuses a GCE runner's address, and the GCE starter does not allow it. `public-safe` reads `csis-runner@<project>.iam.gserviceaccount.com` as an email and refuses the commit: once in `cfg/runtime-builders.yml`, once in each GCE packer source. `complete` and the reference configuration carry `".iam.gserviceaccount.com"` in `public_safe.allow` ("an identifier, not a person"); `standard-gce` does not, so a team that fills in its runner's real address cannot make its first commit, and neither can a tree grown to GCE. Nothing in the daily driver's 1.4 says so. Seen 2026-10-09 (15b) | the starters and words: hygiene XII item 1, which is the same refusal for another address |
+| F49 | a storage type added to a base re-bakes that base on EVERY cloud. To attach a GCE disk the shared base `el10` needed `pd` in `storage_types`; the dry run then found `el10@aws-main` and `team-node@aws-main` due (`inputs changed`), though nothing about an AWS image changes: `pd` contributes a comment to the bake and no package. `storage_types` is one list for the whole base, it is in the fingerprint of every bake of it, and a runtime cannot declare its own. Seen 2026-10-09 (15b); tried on the starter, where it is the only one of the GCE additions that moves an AWS fingerprint. The reference configuration avoids it only by having listed every type from the start | code: hygiene XII item 21, and words |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
