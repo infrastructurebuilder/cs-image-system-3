@@ -31,7 +31,7 @@ released in dev19 (dev18 was cut from the walk branch by mistake and
 is on the index, unused) and PROVED live: the walk's third `perform`
 baked both its images under the bootstrap-made write role, Systems
 Manager finishing its work on each build machine undisturbed. §81,
-hygiene bundle XII, is open (nineteen items the walk
+hygiene bundle XII, is open (twenty items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15, taken by the reference configuration, its
@@ -618,13 +618,13 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, nineteen items found by the §65 walk. Items
+**Status: OPEN 2026-10-05, twenty items found by the §65 walk. Items
 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
 the operator's word. Items 10 and 11 LANDED as §86 (c6af4b2,
 2026-10-07, "Fix now, starters too"). Item 16 LANDED as §88
 (20206e8, 2026-10-08; the operator: "we should correct this
 situation as soon as possible"). Items 1,
-2, 5 to 9, 12 to 15 and 17 to 19 are a plan -- nothing more runs until the
+2, 5 to 9, 12 to 15 and 17 to 20 are a plan -- nothing more runs until the
 operator says "do 81". Item 7(a) has a date: 2026-10-19.**
 
 1. **A starter's own hook refuses its first commit.** The tree
@@ -864,6 +864,27 @@ starter's `.gitignore` ignores every dotfile unless named.)
     process ends non-zero as it does now; a test interrupts a run
     and reads the entry. The daily driver's section 6 gains the
     row.
+20. **The emptiness assertion counts another configuration's
+    things.** The walk's finding F47 (2026-10-09, found by reading
+    before stage 15). `emptiness()` is the runtime's whole inventory
+    (on GCE: every instance and disk in the zone, every custom
+    image and every bucket in the project) less this tree's
+    declared storages and released builds. Two configurations in
+    one project therefore each see the other's standing storages
+    as leftovers: the reference keeps `gce_data` and `gce_bucket`
+    in `csis-sandbox`, where the walk's GCE leg runs. It is F11
+    again (stage 82 gave images a `csis_config` label), for
+    everything that is not an image. Plan: instances, disks and
+    buckets the system creates carry `csis_config` (the terraform
+    modules; a label change is in place on a standing resource);
+    the inventory, `empty` and the state query count this
+    configuration's alone and say how many of another's they left
+    alone, as the image query does; `cloud-relabel` learns the new
+    kinds for what stands already. It changes release-owned modules
+    and the reference's standing GCE storages, so it is a stage of
+    its own when the operator calls for it. The operator's decision
+    for the walk (2026-10-09): run the leg and judge emptiness by
+    hand from the leftover list.
 
 ## 83. A release asks its publish target before it starts
 
