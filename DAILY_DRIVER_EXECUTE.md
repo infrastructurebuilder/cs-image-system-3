@@ -5271,6 +5271,21 @@ grep -c '^export' .envrc
 `5`: the three lines 16a wrote and the two new ones. Then press
 Enter once on an empty line, so direnv loads them.
 
+(2026-10-09: direnv then said `cat: .gh_token: No such file or
+directory`. The first tree's line reads the token from a file named
+by a RELATIVE path, which exists only in that tree. One more line
+gives this tree's copy the full path; run it, press Enter once, and
+direnv loads without complaint:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+sed -i 's|cat \.gh_token|cat /walk/cs-image-system-walk/.gh_token|' .envrc
+direnv allow
+```
+
+To see that a secret is set, print its LENGTH, as step 3 does;
+never the value, and never `cat` it.)
+
 **Step 3, in the container:** does GitHub know the token and the
 repository?
 
