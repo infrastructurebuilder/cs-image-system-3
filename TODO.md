@@ -31,7 +31,7 @@ released in dev19 (dev18 was cut from the walk branch by mistake and
 is on the index, unused) and PROVED live: the walk's third `perform`
 baked both its images under the bootstrap-made write role, Systems
 Manager finishing its work on each build machine undisturbed. §81,
-hygiene bundle XII, is open (sixteen items the walk
+hygiene bundle XII, is open (seventeen items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15, taken by the reference configuration, its
@@ -618,13 +618,13 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, sixteen items found by the §65 walk. Items
+**Status: OPEN 2026-10-05, seventeen items found by the §65 walk. Items
 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
 the operator's word. Items 10 and 11 LANDED as §86 (c6af4b2,
 2026-10-07, "Fix now, starters too"). Item 16 LANDED as §88
 (20206e8, 2026-10-08; the operator: "we should correct this
 situation as soon as possible"). Items 1,
-2, 5 to 9 and 12 to 15 are a plan -- nothing more runs until the
+2, 5 to 9, 12 to 15 and 17 are a plan -- nothing more runs until the
 operator says "do 81". Item 7(a) has a date: 2026-10-19.**
 
 1. **A starter's own hook refuses its first commit.** The tree
@@ -819,6 +819,25 @@ starter's `.gitignore` ignores every dotfile unless named.)
     encrypted value is carried (stage 49), which touches terraform
     resource addresses and is a stage of its own.
 16. (Landed as §88 on 2026-10-08, 20206e8.)
+17. **`preflight` says every session is present over keys that have
+    lapsed.** The walk's finding F40 (2026-10-09, stage 14a,
+    provoked on purpose). For a profile that is not an SSO profile
+    `preflight` can read no expiry (`profile 'noaa' is not an SSO
+    profile (no expiry readable)`), counts the session as present,
+    and closes with a green `preflight: every session present`; the
+    next command that reaches AWS then fails with `RequestExpired`
+    under a traceback (finding F30). `preflight` makes
+    no cloud call by design (stage 16), so it cannot know. Plan: (a)
+    the closing line tells the two cases apart -- "present" for a
+    session whose expiry was read, "not judged: no expiry readable"
+    for one it could not read -- and never greens the second; (b)
+    the daily driver's expired-session row, and 1.2 where it speaks
+    of keys, say that a team working from pasted keys learns of a
+    lapse from `RequestExpired`, and that the remedy is fresh keys,
+    not `aws sso login`. Whether `preflight` should ask `sts
+    get-caller-identity` for such a profile is a **USER** decision:
+    it is the one cloud call that would make the answer true, and
+    the command's contract today is that it makes none.
 
 ## 83. A release asks its publish target before it starts
 

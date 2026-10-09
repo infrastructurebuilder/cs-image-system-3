@@ -3357,6 +3357,24 @@ which `preflight` can only say `profile 'noaa' is not an SSO profile
 `RequestExpired` traceback out of `just validate` (finding F30).
 Paste the three tails: they are what a team with keys would meet.
 
+(DONE 2026-10-09, with the keys truly lapsed: `aws sts` said
+`ExpiredToken`. Held against the page's row:
+
+- **Symptom: not the row's.** `just preflight` said `session:
+  aws-main (aws, profile noaa): profile 'noaa' is not an SSO profile
+  (no expiry readable)` and then, in green, `preflight: every
+  session present`, over keys that were dead (finding F40). `just
+  validate` and `just cloud-preflight` each ended in a traceback and
+  `ValueError: AWS Error: An error occurred (RequestExpired) when
+  calling the DescribeVpcs operation: Request has expired.`, exit 1.
+  The row shows three other sentences, all an SSO profile's. This
+  is finding F30 again, this time on purpose.
+- **Meaning: the row's.** Environmental; nothing of the system's or
+  the tree's was wrong.
+- **Remedy: not the row's.** `aws sso login` does nothing for a key
+  profile. Fresh keys in `~/.aws/credentials` did: the account
+  number came back.)
+
 **14b. A shell that never loaded `.envrc`.** Two lines. The first
 runs `validate` in a shell with nothing in it but your home and your
 path; the second in your own shell with only the OPA pair taken out:
@@ -3647,4 +3665,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F37 | beside Okta, a member whose account name on a machine differs from their OPA username logs in and never joins the group. OPA makes the account under the user's `unix_user_name` attribute; the login hook matches the account against the member list name for name; the list was written in OPA usernames. Seen when the walk's second person logged in: on the list, not in the group. The reference configuration is exposed the same way | code: stage 87, released in 0.1.1.dev20 |
 | F38 | removing a member the way the pages describe FAILS, and they do not say it will. The daily driver (3.1; section 4, "Who may log in") and the operations guide ("Drop a membership") say that for a removal OPA still holds "the plan shows the destroy and the gate sees it". The gate refuses it: `DESTROY NOT WHITELISTED`, exit 3, the run FAILED, by the design rule "membership removals only by explicit decision". The procedure that works, remove the person in the OPA console first and let the next run prune its state, is written nowhere as a procedure, and the refusal does not name it. The operator, on reading it: the rule was a mistake; the system adds members and must be able to remove them | code: stage 88 (20206e8, was hygiene XII item 16), released in 0.1.1.dev21 and PROVED live by 13d (2026-10-09: added by a run, removed by a run, OPA holding nobody afterwards). Words: the daily driver's 3.1 and section 4, the operations guide's "The apply gate", "Drop a membership" and "Identity", and the design where it states the old rule; and a caution the pages do not yet carry: an edit that empties a roster by mistake now removes people, a dry run cannot show it, and the applying run's prune step and plan name each person first |
 | F39 | an applying identity run's log shows the group root's plan twice, and the first is not the one applied. The run plans the root once as it writes it (a preview: not saved, not refreshed, read by nothing) and once in the runner, after the prune step. For a membership already gone from OPA the preview says `1 to destroy`, the prune step then takes the attachment out of state, and the runner's plan says `No changes`: a reader of the log meets a destroy that never happens (seen 2026-10-08, 13c). The operations guide says it in one clause under "Drop a membership"; the daily driver's 3.1 and its row "Who may log in" do not say there are two plans or which one counts | words |
+| F40 | `just preflight` says `every session present` over keys that have lapsed. For a profile that is not an SSO profile it can read no expiry (`profile 'noaa' is not an SSO profile (no expiry readable)`), counts the session as present, and closes in green; it makes no cloud call, by design. The next command that reaches AWS then fails with `RequestExpired` under a traceback (F30). Seen 2026-10-09 (14a), provoked on purpose. A team working from pasted keys gets a green line that means "not judged", and the daily driver's expired-session row gives it neither the symptom nor the remedy (fresh keys, not `aws sso login`) | words and code: hygiene XII item 17 |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
