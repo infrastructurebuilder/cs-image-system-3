@@ -3827,7 +3827,7 @@ it must be nothing.
 | Part | What | State |
 | --- | --- | --- |
 | 15a | Google credentials in the container; what stands in the project | done 2026-10-09: `gcloud` in the container acts as the runner through the file; the picture before is the reference's three things and no instance |
-| 15b | the tree gains its GCE declarations; validate, dry run, a local commit | **NEXT** |
+| 15b | the tree gains its GCE declarations; validate, dry run, a local commit | steps 1-6 done 2026-10-09; the commit was refused by the hook; **NEXT: "step 7 again"**, three boxes |
 | 15c | CI for a tree of two clouds (the workflow, the bootstrap's GCP section) | written when 15b reports |
 | 15d | the cycle: two bakes, a machine launched, verified and torn down | written when 15c reports |
 | 15e | the GCE disk's end, and emptiness judged by hand | written when 15d reports |
@@ -4184,6 +4184,55 @@ of it.
   `storage_types` alone moves them. There is no way to declare a
   storage type for one runtime of a base. Whether the leg keeps its
   disk is yours to decide before anything is committed.
+
+**Your decision (2026-10-09): keep the disk, and let AWS re-bake.**
+So 15b stands as typed. The consequence comes at 15c, not here: the
+first `perform` on `main` after this commit bakes `el10` and
+`team-node` again on AWS, in CI, about 25 minutes. `walk-node-1`
+keeps the build it is pinned to.
+
+**Step 7 again: the allowance, the hook's own look, the commit.**
+Three boxes. The first writes one line into `cfg/_config.yml`: the
+allowance the `complete` starter and the reference configuration
+carry, with its reason beside it. It is the decision the hook asks
+for ("allow a value by decision ... never by silence"); the
+address it allows is already public in the reference repository.
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+sed -i 's/^    - "mykelalvis@infrastructurebuilder.org".*$/&\n    - ".iam.gserviceaccount.com"     # a service account address is an identifier, not a person: public by decision/' cfg/_config.yml
+git diff --stat -- cfg/_config.yml
+```
+
+`cfg/_config.yml | 1 +` and `1 file changed, 1 insertion(+)`. If it
+prints nothing, the `sed` did not find its line: STOP. (Everything
+else is already staged, which is why only this file shows.)
+
+The hook's own command, over what is staged, before the commit
+asks it again:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+git add -A
+just public-safe --staged 2>&1 | tail -2 | cut -c1-200
+```
+
+One line that ends `hold nothing that must not be public` and names
+the allow list. If it says `REFUSED`, STOP and paste both lines.
+
+The commit, local and not pushed:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+git commit -m "A GCE runtime beside the AWS one: gcp-main, its base, its image, a disk and a machine for one cycle"
+git status -sb
+```
+
+`## develop...origin/develop [ahead 1]` and no file under it. Do NOT
+push: CI cannot reach Google until 15c.
+
+**Report:** `stage 15b done` with what the second box printed.
+Nothing of the walk's stands on GCP: nothing was applied.
 
 ## Stage 16 onward -- written when you reach them
 
