@@ -3537,8 +3537,11 @@ ami-04bb9df333af05e5b`, no pending replacement, the rule gone from
 stops a machine. It needs live keys and a live `sft` session. Every
 line below is typed in the CONTAINER's shell, none on the machine,
 and each box sets `id` for itself, so a box can be started in a new
-shell (2026-10-09: the first try was abandoned and resumed in a new
-shell, where `$id` would have been empty):
+shell. (2026-10-09: the first try said `aws: command not found`. It
+was typed on the machine itself, after an `sft ssh walk-node-1`:
+the machine's prompt differs from the container's only in the
+host's name, and the machine has no `aws`. The first line of each
+box now says `STOP` there.)
 
 ```sh
 cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
@@ -3571,6 +3574,37 @@ line should still say `stopped`. Claude has seen none of this in
 your tree. If the last line says `running`, something started your
 machine: that is a finding, and say which command came before it.
 
+(DONE 2026-10-09, 10:25 to 10:27 UTC, and this page's test was too
+weak to see what happened. Held against the page's row:
+
+- **The state query: the row's.** `note: instances/walk-node-1:
+  STOPPED (switched off; not drift); its pinned build
+  ami-04bb9df333af05e5b, mounts and registration all still stand
+  and are simply not readable while it is off`, then `no drift:
+  meta-state agrees with reality`. A note, not drift, and the
+  strict query passed.
+- **The login proof: the row's.** `login SKIPPED for walk-node-1
+  (nothing proved)`; its record says `the machine is STOPPED
+  (switched off; not drift); a login needs it running and the power
+  state is the operator's`, `skipped: true`.
+- **The verify: NOT the row's** (finding F44). The row says `verify
+  ...: SKIPPED -- the machine is STOPPED` and "nothing is started
+  for a proof". What it printed was `instance walk-node-1
+  verified`, and its record is `ok: true` with three checks only a
+  running machine can answer (the startup scripts, the booted
+  image, `1 mount(s) under /mnt, 1 declared`). It took 53 seconds
+  where the same verify on the running machine took 4. The system
+  STARTED your machine, verified it, and stopped it again; that is
+  what its code says it does (stage 57: a task that needs a running
+  machine may start one, for that task alone, and must put it back
+  and say so both times), and it skips only on a runtime that
+  cannot start machines. The two lines that say so were above the
+  four this page let you see.
+- **This page's own check missed it.** `describe-instances` said
+  `stopped`, as predicted, because the machine had been put back:
+  "still stopped afterwards" does not show "never started". The
+  machine can say for itself; 14g begins with that line.)
+
 Then on again, and is it the same machine it was?
 
 ```sh
@@ -3593,8 +3627,25 @@ before: whether the mount, the group and the list come back by
 themselves is a real question, and any of the five that is missing
 is a finding.
 
-**14g. Record, push, and let `main` see it.** The proofs of 14f
-wrote their records into `meta-state/`:
+(DONE 2026-10-09, 10:28 UTC: all five came back. `walk-node-1-002`;
+`/dev/nvme1n1 /mnt/data`; `planted on walk-node-1-001 at
+2026-10-08T10:26:08Z`; `1`; `1`. Then `instance walk-node-1
+verified` and `no drift: meta-state agrees with reality`. The
+mount, the group, the member list and the registration with OPA all
+survive a stop and a start, and by then the machine had been
+through two of each, the first of them the system's own.)
+
+**14g. Record, push, and let `main` see it.** First the machine's
+own account of how often it has started, which settles finding F44
+by sight (one line per boot, newest last; expect a boot near 10:26
+UTC, the system's, and one near 10:28, yours):
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+sft ssh walk-node-1 --command 'sudo journalctl --list-boots --no-pager | tail -4'
+```
+
+Then the record. The proofs of 14f wrote theirs into `meta-state/`:
 
 ```sh
 git status --short                         # only files under meta-state/ (the proofs' records); nothing under cfg/ or instances/
@@ -3747,4 +3798,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F41 | the first thing an unsourced shell meets has no row. In a tree that holds any encrypted value (every starter's does), a shell that never loaded `.envrc` stops at `MissingIdentityError: <tree>/cfg: user_builders[0].email_domain: an encrypted value is present but CSIS_CONFIG_IDENTITY is not set -- export the age identity (...)`, under a traceback, before anything is asked of OPA or AWS (seen 2026-10-09, 14b, provoked on purpose). Section 6's table has rows for the OPA pair and for a 401, none for this; 1.7 names the variable but not the symptom | words (and the traceback, with F10's and F30's) |
 | F42 | a reserved name is refused correctly and section 6 does not know the refusal. `name: none` on an instance stops `validate` with `ReservedNameError: <file>: instances[0].name: a name may not be 'none'` and the reason, exactly as section 3 promises (file, entry, word). But it comes under a traceback, not as a line under `Validation failed with N error(s)`, which is the only form section 6's table gives a rule that failed before anything was generated; and the table has no row for it (seen 2026-10-09, 14c, provoked on purpose) | words (and the traceback, with F10's, F30's and F41's) |
 | F43 | the starter does not show the keys the page tells a team to settle. The daily driver's 1.9 (step 3) lists `require_released_builds`, `require_image_tests` and `preflight.expected_run_minutes` among `cfg/_config.yml`'s decisions; the `standard-aws` starter's file carries none of them, not even as a comment, and its image declares no `release:`. So section 6's row for an unreleased pin cannot happen in a starter tree until someone adds a key the tree never mentions, and once it is on, the grace's own advice (`verify it, then release it`) has no declared release to make. Seen 2026-10-09 (14e): the walk had to write the key in by hand to reach the row, which then behaved exactly as written | words and the starters: hygiene XII item 18 |
+| F44 | `verify` does not skip a machine that is switched off: it STARTS it, verifies it and stops it again. Section 6's row gives `verify ...: SKIPPED -- the machine is STOPPED` and says "nothing is started for a proof". On AWS, with `walk-node-1` stopped by its operator, `just cloud-verify` printed `instance walk-node-1 verified` and recorded `ok: true` with three checks only a running machine can answer, in 53 seconds against 4 on the running machine; the login proof straight after was `SKIPPED`, and the machine was `stopped` again when looked at (seen 2026-10-09, 14f). The code does this on purpose (stage 57: a bounded task that needs a running machine may start one and must put it back, saying so both times) and skips only where the runtime cannot start machines. So the row is wrong for one of its two proofs, the two proofs differ and no page says so, and an operator who switched a machine off to save money is not told that verifying it boots it | words; and a question for the operator: which of the two is the mistake, the page or the start |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
