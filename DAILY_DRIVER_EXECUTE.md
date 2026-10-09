@@ -3829,7 +3829,7 @@ it must be nothing.
 | 15a | Google credentials in the container; what stands in the project | done 2026-10-09: `gcloud` in the container acts as the runner through the file; the picture before is the reference's three things and no instance |
 | 15b | the tree gains its GCE declarations; validate, dry run, a local commit | done 2026-10-09: commit e40f23a, 77 files, local and NOT pushed |
 | 15c | the cycle: a disk, two bakes, a machine launched, verified and torn down | done 2026-10-09 in eighteen minutes: everything it should have done, and the emptiness check failed on the reference's three names and no other. **One 10 GB disk of the walk's, `walk-data`, stands on GCP** |
-| 15d | the GCE disk's end, and emptiness judged by hand | **NEXT** |
+| 15d | the GCE disk's end, and emptiness judged by hand | done 2026-10-09: the disk destroyed through the gate, the AWS volume untouched, and the project identical to the picture of 15a. **Nothing of the walk's stands on GCP** |
 | 15e | CI for a tree of two clouds (the workflow, the bootstrap's GCP section), the push, and `main`, where AWS re-bakes | written when 15d reports |
 
 **15a. Google credentials in the container.** The container has had
@@ -4534,6 +4534,24 @@ storage run committed its own record). Do NOT push: 15e first.
 
 **Report:** `stage 15d done` with what steps 4, 5, 6 and 7 printed.
 **What of the walk's stands on GCP after 15d: nothing.**
+
+(STAGE 15d DONE 2026-10-09, 13:17 UTC. Step 4, on its second try:
+the AWS gate line allows nothing, the GCE one ends `--allow-destroy
+module.storage_walk_data`. Step 5: for the AWS volume `No changes`,
+`Plan passes the apply gate.`, `0 destroyed`; for the GCE disk `Plan:
+0 to add, 0 to change, 1 to destroy`, `Plan passes the apply gate.`,
+`Apply complete! Resources: 0 added, 0 changed, 1 destroyed.`; `Run
+2026_10_09t13_17_09_460413 completed: storage`. Step 6: `empty: no
+instances` and the reference's image, disk and bucket, exit 1. Step
+7: NOTHING between `== different from 15a:` and `== end`. Claude
+read the project from your local machine as well: no instance, no
+snapshot, the disk `gce-data`, the reference's image and bucket.
+
+So the emptiness the system could not prove is proved by hand: the
+project holds exactly what it held before the leg. The records say
+the same of the disk: `walk-data`, `active` from the cycle's run,
+`destroyed` by this one. The walk tree is five commits ahead of
+`origin`, clean, and not pushed.)
 
 ## Stage 16 onward -- written when you reach them
 
