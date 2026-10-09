@@ -5311,11 +5311,14 @@ first walk's carry (`ids`), so the two must agree:
 
 ```sh
 cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
-for r in cs-image-system-walk cs-image-system-walk-posix; do echo "$r: $(gh api repos/infrastructurebuilder/$r/actions/oidc/customization/sub --jq tostring)"; done
+for r in cs-image-system-walk cs-image-system-walk-posix; do echo "$r: $(gh api repos/infrastructurebuilder/$r/actions/oidc/customization/sub --jq '"use_default=\(.use_default) use_immutable_subject=\(.use_immutable_subject)"')"; done
 ```
 
-Two lines whose text after the name is the same. If they differ,
-STOP and paste both: the answers of the next step would be wrong.
+Two lines that end the same way: `use_default=true
+use_immutable_subject=true` is what the first walk's repository
+says today (read by Claude), and it is what makes the subject carry
+ids. If the second line differs from the first, STOP and paste
+both: the answers of the next step would be wrong.
 
 **Step 6, in the container:** the bootstrap's answers, written and
 not asked. At the first walk you answered the interview; it offers
