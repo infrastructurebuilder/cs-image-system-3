@@ -3827,8 +3827,8 @@ it must be nothing.
 | Part | What | State |
 | --- | --- | --- |
 | 15a | Google credentials in the container; what stands in the project | done 2026-10-09: `gcloud` in the container acts as the runner through the file; the picture before is the reference's three things and no instance |
-| 15b | the tree gains its GCE declarations; validate, dry run, a local commit | steps 1-6 done 2026-10-09; the commit was refused by the hook; **NEXT: "step 7 again"**, three boxes |
-| 15c | the cycle: a disk, two bakes, a machine launched, verified and torn down | written; after 15b |
+| 15b | the tree gains its GCE declarations; validate, dry run, a local commit | done 2026-10-09: commit e40f23a, 77 files, local and NOT pushed |
+| 15c | the cycle: a disk, two bakes, a machine launched, verified and torn down | **NEXT** |
 | 15d | the GCE disk's end, and emptiness judged by hand | written when 15c reports |
 | 15e | CI for a tree of two clouds (the workflow, the bootstrap's GCP section), the push, and `main`, where AWS re-bakes | written when 15d reports |
 
@@ -4233,6 +4233,11 @@ push: CI cannot reach Google until 15c.
 
 **Report:** `stage 15b done` with what the second box printed.
 Nothing of the walk's stands on GCP: nothing was applied.
+
+(STAGE 15b DONE 2026-10-09. The hook let the commit through with the
+allowance in place: e40f23a, 77 files, one commit ahead of `origin`
+and not pushed. `cfg/_config.yml` now allows a service account's
+address, with its reason on the line.)
 
 **15c. The cycle.** In the container, and nothing of it needs
 GitHub, which is why it comes before CI: by the time CI first looks
