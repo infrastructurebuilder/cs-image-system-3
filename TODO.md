@@ -13,8 +13,9 @@ on `feature/walk-daily-driver`: the operator types each stage from
 container. §88, a membership the YAML dropped is removed by the
 run (the runner's prune step names the attachment of each one, and
 the gate allows exactly those; walk finding F38), LANDED 2026-10-08
-(20206e8); its release is dev21 and its live proof the walk's 13d,
-both still to come. §87, the
+(20206e8) and is released in dev21, which the reference
+configuration has taken; its live proof, the walk's 13d, is still
+to come. §87, the
 group on a machine lists its members by their
 account names (each read from OPA's `unix_user_name`, never derived;
 walk finding F37), LANDED 2026-10-08 (9655327), is released in

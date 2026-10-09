@@ -2414,9 +2414,9 @@ may log in", "Who is in a group on its machines").
 | 13c, step 2b, first half (the person removed in the OPA console) | done 2026-10-08 |
 | the fix for F38 (stage 88) | merged 2026-10-08 (20206e8); it needs release 0.1.1.dev21 |
 | 13c, step 2b, second half (the container: the identity run again) | done 2026-10-08: the prune step took the attachment out of state, the runner's plan said `No changes`, the run completed (3ce4cc6) |
-| **13c, steps 3 and 4** (the launch run and the count; record, push, `main`) | **NEXT in the container** |
-| **13d, step 1** (your local machine: release 0.1.1.dev21 from `develop`) | **NEXT on the host.** It does not wait for 13c: its half hour can run while you do 13c in the container |
-| 13d, steps 2-6 (the walk on 0.1.1.dev21: the second person back in, and out again by the YAML alone) | after 13c and the release |
+| 13c, steps 3 and 4 (the launch run and the count; record, push, `main`) | done 2026-10-08: the launch run completed (c3cbaad); `perform` on `main` green at b1cce04, its login proof `ok`, no drift. The second person's refusal: not tried |
+| 13d, step 1 (your local machine: release 0.1.1.dev21 from `develop`) | done 2026-10-08: release commit 40f3efc on `develop`, tag `v0.1.1.dev21`, 18 of 18 packages on the index; the reference configuration has taken it |
+| **13d, steps 2-6** (the walk on 0.1.1.dev21: the second person back in, and out again by the YAML alone) | **NEXT in the container: start at step 2** |
 
 For 13b you chose to add a second person. While 13a runs, settle who:
 a real Okta account in the same team, whose owner agrees to be a
@@ -3073,6 +3073,17 @@ back.
 `grep` and numbers, what the second person saw (or `not tried`), and
 the `perform on main:` line. 13d follows.
 
+(DONE 2026-10-08. The launch run of step 3 is recorded as completed,
+walk commit c3cbaad. `perform on main: success at b1cce04`, and its
+log says `login proof walk-node-1: login: ok`, `logged in as
+wl_cs_image_system_walk_ci`, and `no drift: meta-state agrees with
+reality` at its start and its end; it pushed its three records and
+`develop`, `origin/develop` and `origin/main` now agree. The second
+person's refused login was not tried. Step 3's two numbers were not
+reported, and Claude cannot read them back: `~/launch-13c.log` was
+written again at 23:51 UTC by a launch that was cut short after 24
+lines and recorded nothing. Nothing in 13d depends on them.)
+
 **13d. The same removal, by the YAML alone (the proof of stage 88).**
 Stage 88 is merged: a membership the YAML drops is removed from the
 OPA group by the identity run itself. This part proves it where 13c
@@ -3115,6 +3126,13 @@ that is clean and pushed, after `stage 13c done`.
    **Report:** `dev21 pushed`. Claude confirms it is on `develop` and
    on the index, takes it into the reference configuration, and says
    go for step 2.
+
+   (DONE 2026-10-08: release commit 40f3efc is on `develop` with the
+   tag `v0.1.1.dev21`; 18 of 18 packages are on the index. The
+   reference configuration took it on its `develop`: no
+   release-owned file changed but the version, and its emission
+   moved by the one line this stage is about, the identity runner's
+   gate. Go for step 2.)
 
 2. **In the container: take the release.**
 
