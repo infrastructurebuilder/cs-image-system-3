@@ -30,6 +30,18 @@ prints `STOP`, you are in the other place: run nothing below it.
 stood in the system repository, and a local box was run on the wrong
 branch; nothing was lost, and both are findings: F31 and F32.)
 
+**A check ends its box.** (Your rule, 2026-10-09.) Where a command's
+output has to be looked at before going on, that command is the
+LAST line of its box, and the words straight under the box say what
+it must show and when to STOP. Nothing that acts comes after a
+check inside the same box, because a box is pasted whole: a `git
+status` that had to be read, with `just record` on the line after
+it, has recorded before anyone has read it. (That happened at 14g
+on 2026-10-09; the record was cancelled with Ctrl-C.) So a step
+with a gate in it is several boxes, each ending on what must be
+read. Boxes written before that day are not all built this way;
+every box from the end of 14g on is.
+
 **Watching CI.** After a `git push` or a `gh workflow run`, GitHub
 takes several seconds to register the run. So this page never asks you
 to wait and look: its commands wait themselves, asking every five
@@ -3677,14 +3689,36 @@ git checkout -- meta-state/runs.yaml
 git status --short                         # exactly: M meta-state/login-proofs.yaml and M meta-state/verifications.yaml
 ```
 
-Then the record, when you mean it. The proofs of 14f wrote theirs
-into `meta-state/`:
+Then the record, when you mean it, in four boxes, each ending on
+the line that has to be read before the next (the rule at the top
+of this page). First, what stands to be recorded:
 
 ```sh
 cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
-git status --short                         # only files under meta-state/ (the proofs' records); nothing under cfg/ or instances/
+git status --short
+```
+
+Exactly two lines: ` M meta-state/login-proofs.yaml` and ` M
+meta-state/verifications.yaml`, the records 14f's proofs wrote. If
+it lists anything else, STOP: a file under `cfg/`, `instances/` or
+`groups/`, or `meta-state/pins.yaml`, is a provocation that was not
+put back, and `meta-state/runs.yaml` is the cancelled run's entry.
+
+The record:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
 just record
-git status --short                         # nothing listed
+git status --short
+```
+
+Nothing listed: the record committed those two files with its own.
+If anything is listed, STOP and paste it.
+
+The push, and `main`:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
 git push
 git push origin develop:main
 run=""
@@ -3696,12 +3730,23 @@ done
 echo "run ${run:-NOT FOUND after 60 seconds}"
 [ -n "$run" ] && gh run watch "$run"
 echo "perform on main: $(gh run view "$run" --json conclusion,headSha --jq '"\(.conclusion) at \(.headSha[0:7])"')"
-git fetch origin && git merge --ff-only origin/main && git push
 ```
 
-If the first `git status` lists anything under `cfg/`, `instances/`
-or `groups/`, or `meta-state/pins.yaml`, STOP: a provocation was
-not put back.
+`perform on main: success at` and a commit. If it says anything but
+`success`, or `run NOT FOUND`, STOP and say what it says: the last
+box is not for a red run.
+
+CI's own records, taken back:
+
+```sh
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+git fetch origin && git merge --ff-only origin/main && git push
+git status -sb
+```
+
+One line, `## develop...origin/develop`, with nothing after the
+branch names and no file under it: your `develop` holds what CI
+recorded and is level with GitHub.
 
 **Report:** `stage 14 done` with, part by part, what each command
 printed (they are cut to a few lines each on purpose), and the
