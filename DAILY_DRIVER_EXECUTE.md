@@ -5715,6 +5715,15 @@ docker ps --filter name=csis-walk --format '{{.Names}}: {{.Status}}'
 `csis-walk: Up` and a length of time, WITHOUT `(Paused)` after it.
 If it says `(Paused)` still, STOP.
 
+`walk-node-1`, the first walk's machine, was stopped the same night
+at your word (2026-10-10, 05:59 UTC), so that it costs nothing but
+its disk while you are away. Leave it stopped: nothing in the rest
+of this stage needs it, because the posix walk launches a machine of
+its own. A stopped machine is not drift, and the first walk's
+records say so in a note. One thing to remember from stage 14: a
+run of the first walk that verifies its machine switches it on for
+the verification and off again (finding F44).
+
 **Then this box is your next step**, in the container. It needs no
 AWS keys of yours (CI brings its own), only the GitHub token your
 `.envrc` already exports. The failed job is run again, and
