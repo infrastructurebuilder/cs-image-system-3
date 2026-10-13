@@ -6770,6 +6770,27 @@ aws ec2 describe-instances --instance-ids i-0792ba0408f0e1388 --query 'Reservati
 
 `terminated`, or `shutting-down` on its way there.
 
+(2026-10-13, 21:22 UTC. The dry form was as the text said: both
+gate lines, `1`. The decommission then destroyed the machine, `Plan:
+0 to add, 0 to change, 2 to destroy.` and `Apply complete!
+Resources: 0 added, 0 changed, 2 destroyed.`, and AFTER that the run
+failed: `Run ... FAILED: LifecycleRunError: Apply failed for
+lifecycle instance-image`. The machine is gone, AWS says
+`terminated`, and the volume is detached. What failed was the other
+cloud's root, which this run only plans: `tofu plan` could not find
+`projects/csis-sandbox/global/images/family/team-node`, because the
+GCE machine's image was disposed of with its cycle in stage 15, as
+an ephemeral machine's always is. The dry form could not have shown
+it: a dry form says what it would run and runs no plan. So the
+recipe that decommissions an AWS machine also plans every other
+runtime's machines, one of them cannot be planned between cycles,
+and the run fails after its destroy and before its record: the
+machine is destroyed and `meta-state/pins.yaml` still pins it
+(finding F62). Nothing is harmed and nothing is left running. The
+tree holds four uncommitted files the failed run wrote; leave them,
+the next run that completes commits them. Step 3 is as written; a
+new step 3a after it finishes the record.)
+
 **Step 3. The declarations follow.** Both instance entries go: the
 machine that is gone, and the GCE machine that was only its cycle:
 
@@ -6799,6 +6820,55 @@ git status --short | wc -l
 ```
 
 `0`, after the hook's `public-safe:` line.
+
+**Step 3a. The record the failed run did not make** (added
+2026-10-13 after step 2; its boxes are numbered on their own). With
+both entries gone from the declaration, neither cloud's root has a
+machine to plan, so the plan that failed has nothing to look up.
+This is the daily driver's other way to decommission: the entry is
+deleted, and an instance run for the runtime carries it out. Here
+there is nothing left to destroy; the run is wanted for the record
+it commits. Tried in its dry form on a copy.
+
+```sh
+# 17c step 3a -- box 1 of 3 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just cli --locked --dry-run run instance-image --only none --apply-runtime aws-main 2>&1 | tee ~/decom-17c-3a-dry.log | tail -1 | cut -c1-200
+grep -n 'gate-plan' generated/instance-image/run-instance-image.sh | cut -c1-260
+grep -c 'tofu apply' generated/instance-image/run-instance-image.sh
+```
+
+`Run ... completed: instance-image`; two gate lines, each allowing
+the destroy of a machine's module by name
+(`module.instance_walk_gce_1` and `module.instance_walk_node_1` on
+the AWS root's line, `module.instance_walk_gce_1` on the GCE
+root's) and of nothing else; and `1`. Both machines are already
+gone, so the lines allow what will not happen.
+
+```sh
+# 17c step 3a -- box 2 of 3 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just cli --locked --no-dry-run run instance-image --only none --apply-runtime aws-main --commit 2>&1 | tee ~/decom-17c-3a.log | tail -1 | cut -c1-200
+grep -n -E 'Plan:|No changes|Apply complete|DESTROY NOT|FAILED|Error' ~/decom-17c-3a.log | cut -c1-200
+```
+
+It should end `Run ... completed: instance-image`, with plans that
+change nothing (`No changes`, or `0 to destroy`) for both roots and
+nothing destroyed. `FAILED` or `Error`: STOP and paste the last
+forty lines of `~/decom-17c-3a.log`.
+
+```sh
+# 17c step 3a -- box 3 of 3 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+git status --short | wc -l
+sed -n '1,5p' meta-state/pins.yaml
+```
+
+`0`, and under `instances:` nothing: the line reads `instances: {}`
+and `walk-node-1` is not named. If `walk-node-1:` is still there
+with an image's id after it, the record did not let go of the
+machine: STOP and paste these lines; that is a finding to settle
+before the images.
 
 **Step 4. The images.** The dry form:
 
@@ -7180,4 +7250,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F59 | `init-config --help` does not name the starter this tree was made from. The `--from` option's help lists `standard-aws`, `standard-gce` and `complete`; `standard-aws-posix` is accepted and is the fourth starter in the release (seen 2026-10-13, taking 0.1.1.dev22) | code: hygiene XII item 29 |
 | F60 | a provider lock file changes with whoever made the record. `generated/.../.terraform.lock.hcl` gains fourteen `h1:` lines in every record CI commits and loses them in every record a person commits from the container, back and forth (seen on both roots of the posix walk, six commits in a day). Nothing fails for it, and the drift question does not see it; it is noise in every record's diff, and a committed file that says two things | code: hygiene XII item 30 |
 | F61 | decommissioning the last machine leaves a security group that nothing will ever remove. The instance root makes one group, `aws_security_group.csis_instances`, for whatever machines it holds; `cloud-decommission` destroys the machine's module and leaves the group (17b step 2: `2 destroyed` where the launch had added 3); and with no instance declared the system writes no instance root, so no later run plans anything for it. It stays in AWS and in the root's state. Every configuration's group is tagged `Name: csis-instances` alike, so in a shared account only the state says whose it is. No page says a teardown has this left to do by hand | code: hygiene XII item 31; words: the daily driver's decommission row |
+| F62 | decommissioning a machine on one cloud can fail on another cloud's root, after the destroy and before the record. `cloud-decommission aws-main <instance>` applies the AWS instance root and also plans every other runtime's; in a tree with an ephemeral GCE machine that root cannot be planned between cycles (`tofu plan`: `images/family/team-node was not found`, the image having been disposed of with the cycle, while the ledger still holds the machine as launched). The run destroyed `walk-node-1` (`2 destroyed`), then failed (`LifecycleRunError: Apply failed for lifecycle instance-image`) and committed nothing: the machine was gone and `pins.yaml` still pinned it. The dry form cannot show this, since it plans nothing. The record was completed by deleting both entries and running the instance lifecycle again (17c step 3a) | code: hygiene XII item 32; words: the daily driver's decommission row |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |

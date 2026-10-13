@@ -42,7 +42,7 @@ released in dev19 (dev18 was cut from the walk branch by mistake and
 is on the index, unused) and PROVED live: the walk's third `perform`
 baked both its images under the bootstrap-made write role, Systems
 Manager finishing its work on each build machine undisturbed. §81,
-hygiene bundle XII, is open (thirty-one items the walk
+hygiene bundle XII, is open (thirty-two items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15, taken by the reference configuration, its
@@ -629,7 +629,7 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, thirty-one items found by the §65 walk. Items
+**Status: OPEN 2026-10-05, thirty-two items found by the §65 walk. Items
 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
 the operator's word. Items 10 and 11 LANDED as §86 (c6af4b2,
 2026-10-07, "Fix now, starters too"). Item 16 LANDED as §88
@@ -1194,6 +1194,27 @@ starter's `.gitignore` ignores every dotfile unless named.)
     empty, and its run destroys what the state holds through the
     gate; the group carries the configuration's id as images do
     (§82); and the daily driver says what a teardown leaves.
+
+32. **A decommission on one cloud fails on another cloud's root,
+    after its destroy and before its record.** The walk's finding
+    F62 (2026-10-13, teardown of the first walk, a tree with an
+    AWS runtime and an ephemeral GCE one). `cloud-decommission
+    aws-main walk-node-1` applied the AWS instance root (`2
+    destroyed`) and then planned the GCE instance root, as every
+    instance run plans every runtime's; that plan failed
+    (`images/family/team-node was not found`: an ephemeral
+    machine's image is disposed of with its cycle, and the ledger
+    still held `walk-gce-1` as `launched: true`, `how: inferred`,
+    so its module was emitted with a count of one). The run ended
+    `LifecycleRunError`, committed no meta-state, and left the
+    machine destroyed with its pin standing. Three things for the
+    plan: (a) a run scoped by `--apply-runtime` should plan only
+    that runtime's instance roots, or plan the others before it
+    applies anything; (b) an ephemeral instance whose cycle has
+    closed should not be emitted as launched; (c) what a run has
+    already applied should reach the record even when a later
+    root fails. And the dry form's limit belongs in the daily
+    driver: it says what would run and runs no plan.
 
 ## 83. A release asks its publish target before it starts
 
