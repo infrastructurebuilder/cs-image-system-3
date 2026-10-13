@@ -1323,8 +1323,10 @@ the dry form says which branch it stands on.
 an hour after the walk met it: "Make hygiene item 33 its own stage
 and we should do it as soon as we can once this is done"; and, asked
 the order the same hour, chose "Stage 90 first, walk proves it".) The
-change, its tests and its words are written and the bar is running;
-the merge, the release and the live proof wait for the operator.
+change, its tests and its words are written (bf273ba) and the bar is
+green: `just test` 1482 passed, and every leg of the full test
+passed. The merge, the release and the live proof wait for the
+operator.
 
 **Why.** The walk's finding F63 (stage 17c, step 7: the teardown of
 the first walk). A group marked `unmanaged: true` is meant to leave
