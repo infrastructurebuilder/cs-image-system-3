@@ -2048,7 +2048,7 @@ configuration uses them):
 | Secret | What reads it | Job |
 | --- | --- | --- |
 | `AWS_ROLE_ARN` / `GCP_WORKLOAD_IDENTITY_PROVIDER` + `GCP_SERVICE_ACCOUNT` | the read-only cloud identities, for the load, the state query and the records | live, perform |
-| `AWS_APPLY_ROLE_ARN` / `GCP_APPLY_SERVICE_ACCOUNT` | the WRITE identity, for the performing step alone; trusts `main` alone | perform (recording) |
+| `AWS_APPLY_ROLE_ARN` / `GCP_APPLY_SERVICE_ACCOUNT` | the WRITE identity, for the performing step and the login proof straight after it (stage 89: a posix proof opens a session through the runtime, which the read-only identity may not); trusts `main` alone | perform (recording) |
 | `OKTA_API_PRIVATE_KEY`, `TF_VAR_KEY`, `TF_VAR_SECRET` | the Okta key and the OPA API pair, exported under the team's `TF_VAR_<team>_*` names | live, perform |
 | `CSIS_CONFIG_IDENTITY` | the age identity that opens the tree's `ENC[age:...]` values, written to a file on the runner | live, perform |
 
