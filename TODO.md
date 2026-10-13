@@ -10,7 +10,10 @@ system must not take itself.
 Current stage: **§65**, walking the daily driver, started 2026-10-05
 on `feature/walk-daily-driver`: the operator types each stage from
 [DAILY_DRIVER_EXECUTE.md](DAILY_DRIVER_EXECUTE.md) on a Fedora 43
-container. §88, a membership the YAML dropped is removed by the
+container. §89, CI makes the login proof while it still holds the
+write identity (walk finding F58), is IN PROGRESS by the operator's
+word of 2026-10-13, on `feature/proof-under-the-write-role`.
+§88, a membership the YAML dropped is removed by the
 run (the runner's prune step names the attachment of each one, and
 the gate allows exactly those; walk finding F38), LANDED 2026-10-08
 (20206e8), is released in dev21, which the reference
@@ -1222,3 +1225,68 @@ named by hand. The release refuses, with its other probes and before
 anything changes, a branch that is not the integration branch
 (`develop`; a final release may want `main`: **USER** decides), and
 the dry form says which branch it stands on.
+
+## 89. CI makes the login proof while it holds the write identity
+
+**Status: IN PROGRESS 2026-10-13, by the operator's word the same day
+("Fix now: proof under write role"), on
+`feature/proof-under-the-write-role`. The change is made and the bar
+is running; the merge, the release and the live proof wait for the
+operator.**
+
+**Why.** The walk's finding F58 (stage 16d, step 9). The posix
+walk's first `perform` with a standing machine failed at its last
+step and at nothing else: `login proof team-node-1: login: FAILED --
+ssh csis_proof@team-node-1 id: exit 255`, with
+`csis-walk-posix-readonly/GitHubActions is not authorized to perform:
+ssm:StartSession`. A posix proof's ssh travels through the runtime's
+session tunnel; opening a session is a permission; `bootstrap_aws`
+gives it to the WRITE role, where a bake needs it, and every
+starter's workflow took the read-only role back BEFORE the proof.
+So no posix tree made by the bootstrap could pass the step its
+starter exists to show. Stage 75's live proof did not meet it: by
+its plan the standalone posix machine was removed before `main`
+moved.
+
+**The decision** (the operator, 2026-10-13, of three offered): the
+proof moves; the read-only role stays read-only. Not chosen: giving
+the read-only role `ssm:StartSession`, which in a shared account
+would let it open a tunnel to every machine unless scoped by tag.
+
+**What changes.**
+
+1. In all four starters' `.github/workflows/ci.yml` the login-proof
+   step stands straight after "Push what the performing run
+   committed" and before the read-only identity is taken back; its
+   comment says why. GCE is moved with the rest, for one shape in
+   every starter; a posix proof on GCE has not been made from CI.
+2. `tests/test_docs_examples.py` holds every starter to it: the
+   proof's step comes before any step that takes a read-only
+   identity back.
+3. The words that said otherwise: each starter's `CI_SETUP.md` (the
+   jobs table, the two write secrets' rows, the proof key's
+   paragraph, and a row in 3.9 for the symptom), the secrets table
+   in `docs/OPERATIONS.md`, and the symptom's row in the posix
+   plugin's README.
+
+No IAM changes and no bootstrap is re-applied: the write role has
+held the permission since stage 75.
+
+**Known and accepted.** The write identity's session is the one
+taken before the performing step (an hour, by the action's default),
+so a performing step that runs to within a minute of the hour would
+leave the proof without credentials. A run that long fails its own
+step first.
+
+**Proof.** `just test`, then `just full-test`. Live, after the
+operator merges and releases (0.1.1.dev22 by the next development
+bump): the posix walk takes the release (`.csis-version`,
+`init-config . --force --from standard-aws-posix`), the diff is the
+workflow and `CI_SETUP.md`, CI is green on `develop`, and `perform`
+on `main` is green with `meta-state/login-proofs.yaml` on `main`
+saying `ok: true` under a run of CI's. That is stage 16d's step 9,
+done. The first walk and the reference configuration take the
+release as any other.
+
+**USER**: the merge to `develop` (squash, branch kept); the release;
+the pushes of `main`.
