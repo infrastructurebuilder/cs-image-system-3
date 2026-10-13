@@ -5024,7 +5024,7 @@ home, your secrets in it. Neither leaves your machine.
 | 16a | the tree from the starter: the files, git, the hook's allowance, the holder's key | done 2026-10-09: two commits, the test identity gone |
 | 16b | the values, the people, then validate and dry | done 2026-10-09: the tree validates against your account and dry-runs; three commits |
 | 16c | a GitHub repository of its own, the bootstrap, CI | done 2026-10-09: the repository is public, the bootstrap added nine things and destroyed none, four secrets, CI green at 1614796 after the storage was renamed (finding F53) |
-| 16d | the storage, the bake, a machine, and a login by real SSH with a proof key | **YOU ARE HERE: step 6, the system's own verification.** Steps 1 to 5 are done: the machine `team-node-1` was launched on 2026-10-13 and its accounts are in place |
+| 16d | the storage, the bake, a machine, and a login by real SSH with a proof key | **YOU ARE HERE: step 9, the record, then `develop` and `main`.** Steps 1 to 8 are done: the machine is verified, you logged in as `walker` by real SSH, and the system proved a login as `csis_proof` (2026-10-13) |
 
 Every box of this stage begins with a line that says `OK: the
 container, the posix tree`. The first walk's tree is beside it in
@@ -5875,6 +5875,8 @@ just cloud-verify aws-main team-node-1 2>&1 | tail -2 | cut -c1-200
 
 `instance team-node-1 verified`.
 
+(2026-10-13: `instance team-node-1 verified`.)
+
 **Step 7.** You, logging in as `walker`, by real SSH through the
 session tunnel, with the key 16b made. No page gives a person this
 line (the pages give it for the proof user, inside the system); it
@@ -5892,6 +5894,16 @@ admin); a device and `/mnt/data`; and the group's subtree, `drwxrws---`
 with the group `walk_posix`. Whatever differs is a finding: paste
 all of it.
 
+(2026-10-13, at the first try: `i-023b91dd1ac34ba20`, ssh's notice
+that it added the host to its list, then `walker`, `1`, `sudo: yes`,
+`/dev/nvme0n1 /mnt/data` and `drwxrws---. root walk_posix`. The dot
+after the permissions is SELinux's mark. The device is not the
+`/dev/xvdf` the declaration names, and need not be: that is the
+name AWS is asked for, and this kind of machine shows its volumes
+as `nvme` devices in an order of its own. So a person with a key in
+the roster can log in, by real SSH, with no Okta anywhere; and the
+line that does it is on no page (finding F57).)
+
 **Step 8.** The proof, as CI makes it: the system logs in as the
 proof user with the key named in step 1:
 
@@ -5901,6 +5913,14 @@ just ci-login-proof team-node-1 2>&1 | tail -4 | cut -c1-200
 ```
 
 `login proved for team-node-1`, or its record with `ok: true`.
+
+(2026-10-13, 14:51 UTC: `login proved for team-node-1`. The record,
+`meta-state/login-proofs.yaml`, holds four checks, each `ok: true`:
+the proof key was found, the tunnel was `aws ssm`, the login was
+`csis_proof` over ssh, and `csis_proof` is in `walk_posix`
+(`uid=3999(csis_proof) ... groups=3999(csis_proof),3000(walk_posix)`).
+That file and `meta-state/verifications.yaml` are new and not yet
+committed; the record in step 9 commits them.)
 
 **Step 9.** Record, push, and `main`, where CI makes the same
 proof with the repository's secret:
@@ -6078,4 +6098,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F54 | when a modification test cannot start its container, the system shows a traceback and not docker's own words. In CI's `live` job on `main`, `docker run -d --rm almalinux:10 ...` returned exit status 125 (seen 2026-10-09, 16d step 4; the same step had passed on `develop` minutes before, so most likely a failed pull on the runner). The command's error output is captured and discarded, the run ends in `CalledProcessError` under eighty lines of traceback, and the reader cannot tell a rate limit from a missing image from a dead daemon. The whole `perform` was skipped for it. It failed three times in forty-five minutes, eighteen silent seconds each; a pull from the local machine failed at the same hour with a timeout from Docker Hub's sign-in service, so that is the likeliest cause and it is not proved. Every run on `main` pulls its test image from Docker Hub at that moment, and `perform` waits behind it | code: hygiene XII item 26 |
 | F55 | a base that has never been baked turns the scheduled CI red when the vendor publishes an image. The emission of a base with no build yet holds the vendor image's id as that day's generation resolved it (`data "amazon-ami"` with `image-id`), so the committed emission is true only until the vendor publishes again. The posix walk sat three days between its first emission and its first bake; on 2026-10-12 its scheduled `live` job failed `config-drift` (`BEHIND ... (1 files)`, the one line the `image-id`) with no change by anyone, `perform` waits behind that job, and the red run on `main` could no longer be re-run green. The first walk and the reference, whose bases are baked, stayed green the same hour. No page says a tree can go red by itself, or that the answer is `just record` | code: hygiene XII item 27; words: section 6 |
 | F56 | the machine CI runs on changes by itself, and no page says anyone must look. Every workflow, this repository's and each starter's, says `runs-on: ubuntu-latest`, which is `ubuntu-24.04` today; a run of 2026-10-13 carried GitHub's notice that the label "will migrate to Ubuntu 26 beginning October 19, 2026". The jobs lean on what that image carries (docker, `dpkg`, the tools on the PATH). The same annotations say five of the actions target a Node.js that is being withdrawn, and one action follows a branch. No page names an image, says that a named image must be moved forward at intervals, or says how | code: hygiene XII item 28, which carries the note's words; words: daily driver 9 and 6, `CI_SETUP.md` 3.1 |
+| F57 | no page gives a person the line that logs them into a machine of a posix group. The pages describe the proof user's login, which the system makes; a person on the roster, with their own key, is told nothing. The walk put the line together from what the system runs (`ssh -i <key> -o ProxyCommand="aws ssm start-session --target <instance id> --document-name AWS-StartSSHSession --parameters portNumber=%p --region <region> --profile <profile>" <user>@<instance id>`) and it worked at the first try (16d step 7, 2026-10-13): the account, its group, sudo for the group's admin, the mount and the group's subtree were all as declared. The instance id it needs is in no output a person is shown; it was read out of `meta-state/instance-state.yaml` | words: daily driver 3.1 and 3.5, the `standard-aws-posix` starter's README |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
