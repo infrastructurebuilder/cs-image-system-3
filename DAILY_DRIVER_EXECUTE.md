@@ -5024,7 +5024,7 @@ home, your secrets in it. Neither leaves your machine.
 | 16a | the tree from the starter: the files, git, the hook's allowance, the holder's key | done 2026-10-09: two commits, the test identity gone |
 | 16b | the values, the people, then validate and dry | done 2026-10-09: the tree validates against your account and dry-runs; three commits |
 | 16c | a GitHub repository of its own, the bootstrap, CI | done 2026-10-09: the repository is public, the bootstrap added nine things and destroyed none, four secrets, CI green at 1614796 after the storage was renamed (finding F53) |
-| 16d | the storage, the bake, a machine, and a login by real SSH with a proof key | **YOU ARE HERE: step 9, the record, then `develop` and `main`.** Steps 1 to 8 are done: the machine is verified, you logged in as `walker` by real SSH, and the system proved a login as `csis_proof` (2026-10-13) |
+| 16d | the storage, the bake, a machine, and a login by real SSH with a proof key | **YOU ARE HERE: step 9, after a red `perform`; the walk waits for your decision on F58.** Steps 1 to 8 are done. CI's own login proof failed on 2026-10-13: the read-only role may not open the session the proof's ssh needs |
 
 Every box of this stage begins with a line that says `OK: the
 container, the posix tree`. The first walk's tree is beside it in
@@ -5950,6 +5950,31 @@ echo "perform on main: $(gh run view "$run" --json conclusion,headSha --jq '"\(.
 
 `perform on main: success at` and a commit.
 
+(2026-10-13, 15:10 to 15:15 UTC: the record was `582ff3d`, and
+`perform on main: failure at 582ff3d`. `verify` and `live` were
+green. In `perform` every step ran green but one, the one this
+stage exists for, "CI logs in as the group's proof user":
+
+    login proof team-node-1: proof key: ok
+    login proof team-node-1: tunnel: ok -- through aws ssm
+    login proof team-node-1: login: FAILED -- ssh csis_proof@team-node-1 id: exit 255
+    ... assumed-role/csis-walk-posix-readonly/GitHubActions is not
+    authorized to perform: ssm:StartSession on resource: ...
+    instance/i-023b91dd1ac34ba20 because no identity-based policy
+    allows the ssm:StartSession action
+
+The same proof passed from your keys in step 8, twenty minutes
+before. It is not your tree and not your secret: the workflow makes
+the proof under the READ-ONLY role, the proof's ssh travels through
+Session Manager, and the bootstrap gave the permission to open a
+session to the WRITE role alone. A posix tree made by the bootstrap
+cannot pass this step (finding F58). The performing step itself
+changed nothing (`No changes`, nothing baked); the closing record
+was pushed, so `main` is three commits ahead at `429207d` and holds
+the failed proof beside the good one; the state query after the
+proof did not run. Nothing is broken in AWS. **The walk waits here
+for your decision on F58.**)
+
 ```sh
 cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
 git fetch origin && git merge --ff-only origin/main && git push
@@ -6099,4 +6124,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F55 | a base that has never been baked turns the scheduled CI red when the vendor publishes an image. The emission of a base with no build yet holds the vendor image's id as that day's generation resolved it (`data "amazon-ami"` with `image-id`), so the committed emission is true only until the vendor publishes again. The posix walk sat three days between its first emission and its first bake; on 2026-10-12 its scheduled `live` job failed `config-drift` (`BEHIND ... (1 files)`, the one line the `image-id`) with no change by anyone, `perform` waits behind that job, and the red run on `main` could no longer be re-run green. The first walk and the reference, whose bases are baked, stayed green the same hour. No page says a tree can go red by itself, or that the answer is `just record` | code: hygiene XII item 27; words: section 6 |
 | F56 | the machine CI runs on changes by itself, and no page says anyone must look. Every workflow, this repository's and each starter's, says `runs-on: ubuntu-latest`, which is `ubuntu-24.04` today; a run of 2026-10-13 carried GitHub's notice that the label "will migrate to Ubuntu 26 beginning October 19, 2026". The jobs lean on what that image carries (docker, `dpkg`, the tools on the PATH). The same annotations say five of the actions target a Node.js that is being withdrawn, and one action follows a branch. No page names an image, says that a named image must be moved forward at intervals, or says how | code: hygiene XII item 28, which carries the note's words; words: daily driver 9 and 6, `CI_SETUP.md` 3.1 |
 | F57 | no page gives a person the line that logs them into a machine of a posix group. The pages describe the proof user's login, which the system makes; a person on the roster, with their own key, is told nothing. The walk put the line together from what the system runs (`ssh -i <key> -o ProxyCommand="aws ssm start-session --target <instance id> --document-name AWS-StartSSHSession --parameters portNumber=%p --region <region> --profile <profile>" <user>@<instance id>`) and it worked at the first try (16d step 7, 2026-10-13): the account, its group, sudo for the group's admin, the mount and the group's subtree were all as declared. The instance id it needs is in no output a person is shown; it was read out of `meta-state/instance-state.yaml` | words: daily driver 3.1 and 3.5, the `standard-aws-posix` starter's README |
+| F58 | CI's login proof cannot pass in a posix tree the bootstrap made. The workflow's step "CI logs in as the group's proof user" runs under the read-only role (the step before it federates `AWS_ROLE_ARN` "again"); the proof's ssh goes through Session Manager and needs `ssm:StartSession` on the instance and on `AWS-StartSSHSession`; `tfmodules/bootstrap_aws` grants that to the write role only. The first `perform` with a standing machine (16d step 9, 2026-10-13) said `login: FAILED -- ssh csis_proof@team-node-1 id: exit 255` and `csis-walk-posix-readonly/GitHubActions is not authorized to perform: ssm:StartSession`, twenty minutes after the same proof passed from the operator's own keys. The record's `tunnel` check said `ok` in the same breath: it means a tunnel was chosen, not that it opened. The posix plugin's README has the symptom's row; nothing connects it to the role CI uses. By its plan, stage 75's live proof never met this: its standalone posix machine was removed before `main` moved | code: the operator's decision, asked 2026-10-13 |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
