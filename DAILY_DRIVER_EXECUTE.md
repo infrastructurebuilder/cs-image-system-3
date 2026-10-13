@@ -5024,7 +5024,7 @@ home, your secrets in it. Neither leaves your machine.
 | 16a | the tree from the starter: the files, git, the hook's allowance, the holder's key | done 2026-10-09: two commits, the test identity gone |
 | 16b | the values, the people, then validate and dry | done 2026-10-09: the tree validates against your account and dry-runs; three commits |
 | 16c | a GitHub repository of its own, the bootstrap, CI | done 2026-10-09: the repository is public, the bootstrap added nine things and destroyed none, four secrets, CI green at 1614796 after the storage was renamed (finding F53) |
-| 16d | the storage, the bake, a machine, and a login by real SSH with a proof key | **YOU ARE HERE: step 4, the box that runs the failed job again.** Steps 1 to 3 are done; the walk stopped for the day on 2026-10-09 with CI on `main` red three times, for a cause outside this tree |
+| 16d | the storage, the bake, a machine, and a login by real SSH with a proof key | **YOU ARE HERE: step 4, taken up again on 2026-10-13.** Fresh AWS keys, then the five boxes under "YOUR NEXT STEP IS HERE": the account, a record, the drift question, `develop`, `main`. Steps 1 to 3 are done |
 
 Every box of this stage begins with a line that says `OK: the
 container, the posix tree`. The first walk's tree is beside it in
@@ -5699,50 +5699,117 @@ dependency worth knowing: every run on `main` starts a test
 container from an image it pulls from Docker Hub at that moment,
 without an account, and `perform` waits behind that job. When
 Docker Hub does not answer, nothing can be baked, and the system
-does not say why.
+does not say why.)
 
-**When you come back, first let the container go again.** It was
-paused on 2026-10-09 at your word: nothing in it runs, and a
-terminal that was open in it does not answer, until this is done.
-On your local machine, NOT in the container:
+**Step 4, taken up again on 2026-10-13.** Three things are not as
+you left them:
 
-```sh
-cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
-docker unpause csis-walk
-docker ps --filter name=csis-walk --format '{{.Names}}: {{.Status}}'
-```
+- **The container is running, not paused.** It was paused on
+  2026-10-09 at your word; `docker ps` now says `csis-walk: Up 2
+  days`, so Docker or your machine restarted about 2026-10-11, and
+  a container started afresh is no longer paused. Nothing in it was
+  lost. A terminal you had open in it is gone: open a new one.
+- **`walk-node-1` is stopped**, the first walk's machine, at your
+  word (2026-10-10, 05:59 UTC), so that it costs nothing but its
+  disk. Leave it stopped: nothing in the rest of this stage needs
+  it, because the posix walk launches a machine of its own. A
+  stopped machine is not drift, and the first walk's records say so
+  in a note. One thing to remember from stage 14: a run of the
+  first walk that verifies its machine switches it on for the
+  verification and off again (finding F44).
+- **The run that failed can no longer be run again.** While you
+  were away the vendor published a new AlmaLinux 10 image. This
+  tree has never baked its base, so its committed emission names
+  the vendor's image by its id, the newest on the day it was
+  generated (`ami-0426928e75e7093d4`), and on 2026-10-12 the newest
+  was another (`ami-0281f4b4279b17b5b`). That day's scheduled run
+  on `develop` went red for it and for nothing else:
+  `config-drift: the committed emission is BEHIND the configuration
+  (1 files)`, the one file being the base's source, the one line
+  its `image-id`. Nobody changed anything (finding F55). The old
+  run on `main` would now stop at that same question, before it
+  ever reached the test that failed on the 9th. So the emission is
+  made current first, and `main` gets a new run.
 
-`csis-walk: Up` and a length of time, WITHOUT `(Paused)` after it.
-If it says `(Paused)` still, STOP.
-
-`walk-node-1`, the first walk's machine, was stopped the same night
-at your word (2026-10-10, 05:59 UTC), so that it costs nothing but
-its disk while you are away. Leave it stopped: nothing in the rest
-of this stage needs it, because the posix walk launches a machine of
-its own. A stopped machine is not drift, and the first walk's
-records say so in a note. One thing to remember from stage 14: a
-run of the first walk that verifies its machine switches it on for
-the verification and off again (finding F44).
-
-**Then this box is your next step**, in the container. It needs no
-AWS keys of yours (CI brings its own), only the GitHub token your
-`.envrc` already exports. The failed job is run again, and
-`perform` follows it:
+**YOUR NEXT STEP IS HERE.** Paste fresh AWS keys into the container
+first, the way you have before (the ones there lapsed days ago).
+Then, in the container:
 
 ```sh
 cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
-gh run rerun 37990431249 --failed
-sleep 15
-gh run watch 37990431249
-echo "perform on main: $(gh run view 37990431249 --json conclusion,headSha --jq '"\(.conclusion) at \(.headSha[0:7])"')"
+aws sts get-caller-identity --query Account --output text
 ```
 
-`perform on main: success at 85006af`, after about twenty-five
-minutes of baking. If it says `failure` again within two minutes,
-it is the same step: STOP and say `red again`; do not run it a
-fifth time. Then the box below, and step 5, which does need your
-AWS keys, and they have lapsed since you stopped: paste fresh ones
-before it.)
+`514190660293`. If it says `ExpiredToken` or `RequestExpired`, the
+keys are still the old ones: paste fresh ones and run this box
+again.
+
+The record: a dry run of every lifecycle, which looks the vendor's
+image up again and commits what it finds. It changes nothing in
+AWS:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+just record 2>&1 | tee ~/record-16d-4.log | tail -1 | cut -c1-200
+git status --short | wc -l
+git log -1 --format='%h %s' | cut -c1-90
+```
+
+`Run ... completed:`, then `0`, then a commit whose words begin
+`cs-image-system dry-run generation`. If the last line still begins
+`85006af`, no record was made: STOP and paste the three lines.
+
+The same question CI asks, asked here:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+just config-drift 2>&1 | tail -1 | cut -c1-200
+```
+
+`config-drift: the committed emission is current with the
+configuration`. If it says `BEHIND`, or ends in `error:`, STOP and
+paste what `just config-drift` prints in full.
+
+Then `develop`:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+git status --short | wc -l
+git push
+run=""
+for i in $(seq 12); do
+  sleep 5
+  run=$(gh run list --branch develop --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+  [ -n "$run" ] && break
+done
+echo "run ${run:-NOT FOUND after 60 seconds}"
+[ -n "$run" ] && gh run watch "$run"
+echo "CI on develop: $(gh run view "$run" --json conclusion,headSha --jq '"\(.conclusion) at \(.headSha[0:7])"')"
+```
+
+`0`, then `CI on develop: success at` and the new commit. Anything
+else, STOP.
+
+Then `main`, and the first `perform` of this tree at last. It bakes
+the base and the image, about twenty-five minutes:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+git push origin develop:main
+run=""
+for i in $(seq 12); do
+  sleep 5
+  run=$(gh run list --branch main --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+  [ -n "$run" ] && break
+done
+echo "run ${run:-NOT FOUND after 60 seconds}"
+[ -n "$run" ] && gh run watch "$run"
+echo "perform on main: $(gh run view "$run" --json conclusion,headSha --jq '"\(.conclusion) at \(.headSha[0:7])"')"
+```
+
+`perform on main: success at` and the new commit. If it says
+`failure` within a few minutes, STOP and say `red`; Claude reads
+the log. Then the box below, and step 5:
 
 ```sh
 cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
@@ -5979,4 +6046,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F52 | stage 88's list of sanctioned removals is committed, and it names the person. The identity runner's prune step writes `csis-sanctioned-removals.txt` beside the plan; stage 88 said that was the root's private mirror, never committed. In the walk tree it stood in `generated/identity/opa-groups/group-generation/` and the run committed it: empty after the add (45367f2), with ONE line, the removed member's attachment address and so their username, after the removal (bd0c0d7), then empty, then deleted by a dry run (4014cd2), so it also churns the emission. No new disclosure here (F36: usernames are committed in clear anyway, and this person agreed), but the file is in the wrong place and the claim was false. Seen 2026-10-09 (15e step 12, from the commit's own listing) | code: hygiene XII item 24 |
 | F53 | two configurations in one AWS account that give a storage, or a machine, the same name see each other's. The system finds a declared storage's volume, and a declared instance's machine, in the account by the `Name` tag alone. The posix walk's tree kept its starter's storage name, `data`, which is also the first walk's; its first real state query in CI said `foreign storage data: ebs vol-0b3a53a0e871906c5 exists but meta-state has no record of it`, and that volume is the first walk's. Had the second volume been made, the first walk's CI would have met two answering to one name. Every starter ships the same names (`data`, `team-node-1`), so two teams that each take a starter into one account collide on day one. Seen 2026-10-09 (16c step 11). It is F47 on AWS: images carry `csis_config` since stage 82, nothing else does | code: hygiene XII item 20, which now covers both clouds |
 | F54 | when a modification test cannot start its container, the system shows a traceback and not docker's own words. In CI's `live` job on `main`, `docker run -d --rm almalinux:10 ...` returned exit status 125 (seen 2026-10-09, 16d step 4; the same step had passed on `develop` minutes before, so most likely a failed pull on the runner). The command's error output is captured and discarded, the run ends in `CalledProcessError` under eighty lines of traceback, and the reader cannot tell a rate limit from a missing image from a dead daemon. The whole `perform` was skipped for it. It failed three times in forty-five minutes, eighteen silent seconds each; a pull from the local machine failed at the same hour with a timeout from Docker Hub's sign-in service, so that is the likeliest cause and it is not proved. Every run on `main` pulls its test image from Docker Hub at that moment, and `perform` waits behind it | code: hygiene XII item 26 |
+| F55 | a base that has never been baked turns the scheduled CI red when the vendor publishes an image. The emission of a base with no build yet holds the vendor image's id as that day's generation resolved it (`data "amazon-ami"` with `image-id`), so the committed emission is true only until the vendor publishes again. The posix walk sat three days between its first emission and its first bake; on 2026-10-12 its scheduled `live` job failed `config-drift` (`BEHIND ... (1 files)`, the one line the `image-id`) with no change by anyone, `perform` waits behind that job, and the red run on `main` could no longer be re-run green. The first walk and the reference, whose bases are baked, stayed green the same hour. No page says a tree can go red by itself, or that the answer is `just record` | code: hygiene XII item 27; words: section 6 |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |

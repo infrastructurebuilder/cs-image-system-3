@@ -31,7 +31,7 @@ released in dev19 (dev18 was cut from the walk branch by mistake and
 is on the index, unused) and PROVED live: the walk's third `perform`
 baked both its images under the bootstrap-made write role, Systems
 Manager finishing its work on each build machine undisturbed. §81,
-hygiene bundle XII, is open (twenty-six items the walk
+hygiene bundle XII, is open (twenty-seven items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15, taken by the reference configuration, its
@@ -618,7 +618,7 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, twenty-six items found by the §65 walk. Items
+**Status: OPEN 2026-10-05, twenty-seven items found by the §65 walk. Items
 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
 the operator's word. Items 10 and 11 LANDED as §86 (c6af4b2,
 2026-10-07, "Fix now, starters too"). Item 16 LANDED as §88
@@ -1008,6 +1008,23 @@ starter's `.gitignore` ignores every dotfile unless named.)
     registry did not answer" and let `perform` go on, or a
     configuration may name a mirror for test images, is the
     operator's to decide when this item is taken up.
+
+27. **A base never baked turns the scheduled CI red when the vendor
+    publishes an image.** The walk's finding F55 (2026-10-12: the
+    posix walk, three days between its first emission and its first
+    bake). The emission of a base that has no build yet holds the
+    vendor image's id as that day's generation resolved it (`data
+    "amazon-ami"` with `image-id`), so the committed emission is
+    true only until the vendor publishes again. The scheduled
+    `live` job then fails `config-drift` (`BEHIND ... (1 files)`)
+    with no change by anyone, `perform` waits behind it, and a red
+    run on `main` can no longer be re-run green. A baked base does
+    not show it: the first walk and the reference stayed green the
+    same hour. Plan: decide whether an unbaked base's emission
+    should carry the query and leave the id to the bake, or whether
+    `config-drift` should name the case in one line ("the vendor's
+    newest image moved; `just record`") instead of a bare diff; the
+    daily driver's section 6 gains the row either way.
 
 ## 83. A release asks its publish target before it starts
 
