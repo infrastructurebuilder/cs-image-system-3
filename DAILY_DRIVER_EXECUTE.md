@@ -42,6 +42,19 @@ with a gate in it is several boxes, each ending on what must be
 read. Boxes written before that day are not all built this way;
 every box from the end of 14g on is.
 
+**Every box says which it is, and which version.** (Your rule,
+2026-10-13.) A step with more than one box numbers them: the first
+line of each box is a comment such as `# 17b step 6a -- box 1 of 2
+-- v1`, and the line that says where you are comes second. The
+order then cannot slip: at 17b a check was twice run before the box
+that acts, because two boxes looked alike. The version is `v1` the
+first time a box is given. If its script is rewritten, or its
+number changes because a box was added or taken away, it becomes
+`v2`, and the words under it say what changed; a `v1` you still
+have on screen is then not the one to run. A comment line is safe
+to paste in both shells this page uses. Boxes written before that
+day carry no number; every box from 17b's step 6 on does.
+
 **Watching CI.** After a `git push` or a `gh workflow run`, GitHub
 takes several seconds to register the run. So this page never asks you
 to wait and look: its commands wait themselves, asking every five
@@ -6478,6 +6491,15 @@ aws ec2 describe-snapshots --snapshot-ids snap-0af0122871093ff05 snap-0e5efef0e6
 not exist (`InvalidSnapshot.NotFound`), which is the same answer.
 A number other than `0` on either line: STOP and paste.
 
+(2026-10-13, 19:56 UTC. The dry form: `dispose (dry run): 2
+image(s) would be deleted; pass --no-dry-run`, no refusal, the
+decommission having released the machine's hold. The disposal:
+`disposed 2 image(s): ami-0b636316bd048fa4e,
+ami-0ca7aa2fef7e25978`, after a line saying its record was
+committed. AWS: `0` images of this configuration, and
+`InvalidSnapshot.NotFound` for the snapshot; the first walk's five
+images untouched.)
+
 **Step 6. The volume.** A storage goes the way the daily driver
 says: its declaration says `destroyed`, and a storage run destroys
 it through the gate. The edit:
@@ -6521,6 +6543,7 @@ other; anything else, STOP.
 This destroys the volume `posix-data` and what is on it:
 
 ```sh
+# 17b step 6 -- box 5 of 6 -- v1
 cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
 just run storage 2>&1 | tee ~/run-17b.log | tail -1 | cut -c1-200
 grep -n -E 'Plan:|Apply complete|DESTROY NOT|FAILED' ~/run-17b.log | cut -c1-200
@@ -6530,7 +6553,12 @@ It should say `Plan: 0 to add, 0 to change, 1 to destroy.`, `Apply
 complete! Resources: 0 added, 0 changed, 1 destroyed.`, and end
 `Run ... completed: storage`.
 
+(2026-10-13, 20:03 UTC: exactly that, the gate line before it
+having allowed `module.storage_posix_data` and nothing else. AWS
+then holds no volume named `posix-data`.)
+
 ```sh
+# 17b step 6 -- box 6 of 6 -- v1
 cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
 aws ec2 describe-volumes --filters "Name=tag:Name,Values=posix-data" --query 'length(Volumes)' --output text
 ```
@@ -6545,6 +6573,7 @@ configuration's stands in the same account. First the form that
 changes nothing:
 
 ```sh
+# 17b step 6a -- box 1 of 2 -- v1
 cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
 aws ec2 delete-security-group --dry-run --group-id sg-0b9a9e31f4d9f5377 2>&1 | tail -1 | cut -c1-200
 ```
@@ -6557,6 +6586,7 @@ still wears the group: STOP.
 This deletes it:
 
 ```sh
+# 17b step 6a -- box 2 of 2 -- v1
 cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
 aws ec2 delete-security-group --group-id sg-0b9a9e31f4d9f5377
 aws ec2 describe-security-groups --group-ids sg-0b9a9e31f4d9f5377 --query 'length(SecurityGroups)' --output text 2>&1 | tail -1 | cut -c1-160
@@ -6569,6 +6599,7 @@ still stands: STOP.
 **Step 7. Nothing declared, and the records agree with reality.**
 
 ```sh
+# 17b step 7 -- box 1 of 3 -- v1
 cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
 just record 2>&1 | tail -1 | cut -c1-200
 git status --short | wc -l
@@ -6577,6 +6608,7 @@ git status --short | wc -l
 `Run ... completed:` and `0`.
 
 ```sh
+# 17b step 7 -- box 2 of 3 -- v1
 cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
 just state-query --strict 2>&1 | tail -3 | cut -c1-200
 ```
@@ -6587,6 +6619,7 @@ just state-query --strict 2>&1 | tail -3 | cut -c1-200
 Then `develop`, and `develop` only:
 
 ```sh
+# 17b step 7 -- box 3 of 3 -- v1
 cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
 git status --short | wc -l
 git push
