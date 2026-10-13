@@ -17,8 +17,10 @@ read-only role may not; walk finding F58), LANDED 2026-10-13
 (7eb5962) by the operator's word, the read-only role left as it
 was. It is released in dev22 (9584a03, 2026-10-13), which the
 reference configuration has taken on its `develop` (CI green), and
-awaits its live proof: the posix walk's `perform` on `main` green
-with CI's own login proof.
+is PROVED live: the posix walk took the release and its `perform`
+on `main` went green the same day, CI logging in as the group's
+proof user over ssh while it held the write identity, where three
+hours earlier the same step had been refused the session.
 §88, a membership the YAML dropped is removed by the
 run (the runner's prune step names the attachment of each one, and
 the gate allows exactly those; walk finding F38), LANDED 2026-10-08
@@ -1017,6 +1019,12 @@ starter's `.gitignore` ignores every dotfile unless named.)
     registry did not answer" and let `perform` go on, or a
     configuration may name a mirror for test images, is the
     operator's to decide when this item is taken up.
+
+    And a third thing, 2026-10-13: the same step once took sixteen
+    minutes instead of thirty seconds, and passed, having printed
+    nothing in between. A test that says which modification it is
+    on, and which image it is waiting for, would have shown where
+    the time went.
 
 27. **A base never baked turns the scheduled CI red when the vendor
     publishes an image.** The walk's finding F55 (2026-10-12: the
