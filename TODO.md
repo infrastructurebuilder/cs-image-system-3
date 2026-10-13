@@ -42,7 +42,7 @@ released in dev19 (dev18 was cut from the walk branch by mistake and
 is on the index, unused) and PROVED live: the walk's third `perform`
 baked both its images under the bootstrap-made write role, Systems
 Manager finishing its work on each build machine undisturbed. §81,
-hygiene bundle XII, is open (twenty-nine items the walk
+hygiene bundle XII, is open (thirty items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15, taken by the reference configuration, its
@@ -629,7 +629,7 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, twenty-nine items found by the §65 walk. Items
+**Status: OPEN 2026-10-05, thirty items found by the §65 walk. Items
 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
 the operator's word. Items 10 and 11 LANDED as §86 (c6af4b2,
 2026-10-07, "Fix now, starters too"). Item 16 LANDED as §88
@@ -1162,6 +1162,19 @@ starter's `.gitignore` ignores every dotfile unless named.)
     `standard-aws-posix`, which the command accepts and the walk
     used. Plan: the help text is built from `STARTERS`, so it
     cannot fall behind again, and a test says so.
+
+30. **A provider lock file changes with whoever made the record.**
+    The walk's finding F60 (2026-10-13, the posix walk).
+    `generated/storage/aws-ebs/storage-generation/.terraform.lock.hcl`
+    and the instance root's gain fourteen `h1:` hash lines in
+    every record CI commits and lose them in every record made
+    from the container, six times in one day. Nothing fails and
+    `config-drift` does not look there; every record's diff
+    carries it, and the committed file says two things in turn.
+    Plan: find why the two environments write different hashes
+    (the plugin cache, or the platforms each `tofu init` records)
+    and make the committed lock the same from both, or keep the
+    lock out of what a record commits and say where it lives.
 
 ## 83. A release asks its publish target before it starts
 
