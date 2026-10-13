@@ -6260,8 +6260,8 @@ all in AWS, and the repositories after the roles that trusted them.
 | Part | What | State |
 | --- | --- | --- |
 | 17a | the picture before: one read of all of the above, kept in a file | done 2026-10-13: `~/teardown-before.txt` in the container, 31 lines, exactly as the table above; the repositories and Google Cloud's two settings as expected |
-| 17b | the posix walk: its machine, its images and its volume, each through the gate; then a strict state query with nothing declared | **YOU ARE HERE** |
-| 17c | the first walk: the same, and its OPA groups released to you | written when 17b is done |
+| 17b | the posix walk: its machine, its images and its volume, each through the gate; then a strict state query with nothing declared | done 2026-10-13: the machine, both images and their snapshots, the volume, and by hand the security group its instance root had left (F61); no drift; `develop` green at d59c245; `main` not pushed |
+| 17c | the first walk: the same, and its OPA groups released to you | **YOU ARE HERE**, once it is written below |
 | 17d | the two bootstrap roots, the posix tree's first, and the bucket last | written when 17c is done |
 | 17e | by hand: the OPA console, Google Cloud's two free settings, GitHub (the repositories and the token) | written when 17d is done |
 | 17f | your local machine: the containers, the snapshot image, the directories | written when 17e is done |
@@ -6596,6 +6596,10 @@ The last line is an error naming `InvalidGroup.NotFound`: the
 group does not exist, which is the answer wanted. A `1` means it
 still stands: STOP.
 
+(2026-10-13, about 20:50 UTC: the dry form said `Request would have
+succeeded, but DryRun flag is set.`; the delete answered `"Return":
+true`; and the look afterwards said `InvalidGroup.NotFound`.)
+
 **Step 7. Nothing declared, and the records agree with reality.**
 
 ```sh
@@ -6635,6 +6639,15 @@ echo "CI on develop: $(gh run view "$run" --json conclusion,headSha --jq '"\(.co
 ```
 
 `0`, then `CI on develop: success at` and the new commit.
+
+(2026-10-13, 20:56 to 21:05 UTC: the record, then `no drift:
+meta-state agrees with reality` with no instance declared, no image
+standing and the volume destroyed; `develop` pushed at `d59c245`
+and its CI green, `verify` and `live`, the `live` job's own state
+query saying `no drift` under the read-only role. `gh run watch`
+failed on a `502` from GitHub's API and the box's last line came
+out without a verdict; the run itself was read afterwards. This
+tree's `main` stays at `c3f7bd9`.)
 
 **Report:** `stage 17b done`, with what steps 2, 5 and 6 printed
 and the state query's last lines. **What of this tree still stands
