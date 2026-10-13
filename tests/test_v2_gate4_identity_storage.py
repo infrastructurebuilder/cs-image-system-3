@@ -137,7 +137,13 @@ def test_unmanaged_group_is_state_rm_never_destroyed(tmp_path, monkeypatch):
         assert 'module "group_tcmet"' not in gen["oktagroups-group-generation-group-tcmet.tf"]
         assert "UNMANAGED" in gen["oktagroups-group-generation-group-tcmet.tf"]
         cmds = command_lines((run.generated / "identity" / "run-identity.sh").read_text())
-        assert any("tofu state rm module.group_tcmet" in c for c in cmds)
+        # stage 90: the removal is the runner's pre-plan step's, decided by what the state
+        # holds when it runs (tests/test_v2_group_release.py); generation writes no
+        # `state rm`, because what generation knows is a record a dry run rewrites
+        assert not any("state rm" in c for c in cmds)
+        step = next(i for i, c in enumerate(cmds) if "prune-attachments --builder oktagroups" in c)
+        plan = next(i for i, c in enumerate(cmds) if "tofu plan -input=false -out=tfplan" in c)
+        assert step < plan, "the step that releases runs before the plan the gate reads"
         # nothing destroys, and no operation's allowance is on the gate; the file
         # the gate reads (stage 88) names dropped MEMBERSHIPS of managed groups only
         assert not any("tofu destroy" in c or " -destroy" in c or "--allow-destroy " in c for c in cmds)
