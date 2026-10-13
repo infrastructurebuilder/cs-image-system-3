@@ -5024,7 +5024,7 @@ home, your secrets in it. Neither leaves your machine.
 | 16a | the tree from the starter: the files, git, the hook's allowance, the holder's key | done 2026-10-09: two commits, the test identity gone |
 | 16b | the values, the people, then validate and dry | done 2026-10-09: the tree validates against your account and dry-runs; three commits |
 | 16c | a GitHub repository of its own, the bootstrap, CI | done 2026-10-09: the repository is public, the bootstrap added nine things and destroyed none, four secrets, CI green at 1614796 after the storage was renamed (finding F53) |
-| 16d | the storage, the bake, a machine, and a login by real SSH with a proof key | **YOU ARE HERE: step 4, taken up again on 2026-10-13.** Fresh AWS keys, then the five boxes under "YOUR NEXT STEP IS HERE": the account, a record, the drift question, `develop`, `main`. Steps 1 to 3 are done |
+| 16d | the storage, the bake, a machine, and a login by real SSH with a proof key | **YOU ARE HERE: the box that brings `main` back to `develop`, then step 5, the machine.** Steps 1 to 4 are done: `perform` on `main` green at 99ada9f on 2026-10-13, both images baked |
 
 Every box of this stage begins with a line that says `OK: the
 container, the posix tree`. The first walk's tree is beside it in
@@ -5809,7 +5809,21 @@ echo "perform on main: $(gh run view "$run" --json conclusion,headSha --jq '"\(.
 
 `perform on main: success at` and the new commit. If it says
 `failure` within a few minutes, STOP and say `red`; Claude reads
-the log. Then the box below, and step 5:
+the log. Then the box below, and step 5.
+
+(2026-10-13, 14:15 to 14:32 UTC: `success at 99ada9f`, the record
+having been `99ada9f`, the drift question `current`, and CI on
+`develop` green. `perform` took fifteen minutes. It baked the base,
+`ami-0ca7aa2fef7e25978`, from the vendor's `ami-0281f4b4279b17b5b`,
+and then the image, `ami-0b636316bd048fa4e`, from that base. It
+also planned the machine, `Plan: 3 to add`, passed the gate, and
+did not apply it: the log holds no `Apply complete`, and the
+machine is yours to launch in step 5. Its login step said `no
+standing instance to log into` and proved nothing, which is right.
+The closing state query said `no drift`. It pushed three commits of
+records to `main`, which the box below brings to `develop`.
+**Standing in AWS from here, besides the volume: the two images
+and their snapshots.**)
 
 ```sh
 cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
@@ -5819,12 +5833,20 @@ git status -sb
 
 `## develop...origin/develop` and no file under it.
 
-**Step 5.** The machine. Refresh your AWS keys first if they are
-near an hour old:
+**Step 5.** The machine. The launch waits on the new machine for
+several minutes and must not outlive your AWS keys: if they are
+older than about forty minutes, paste fresh ones first. Then:
 
 ```sh
 cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
 aws sts get-caller-identity --query Account --output text
+```
+
+`514190660293`. `ExpiredToken` or `RequestExpired`: paste fresh keys
+and run this box again. Do not launch on keys that do not answer.
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
 just cloud-launch aws-main 2>&1 | tee ~/launch-16d.log | tail -2 | cut -c1-200
 grep -nE 'Plan:|Apply complete|accounts of group|could not be made|not reachable|completed:|FAILED' ~/launch-16d.log | cut -c1-200
 ```
