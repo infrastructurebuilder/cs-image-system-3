@@ -1230,9 +1230,10 @@ the dry form says which branch it stands on.
 
 **Status: IN PROGRESS 2026-10-13, by the operator's word the same day
 ("Fix now: proof under write role"), on
-`feature/proof-under-the-write-role`. The change is made and the bar
-is running; the merge, the release and the live proof wait for the
-operator.**
+`feature/proof-under-the-write-role` (3032c30). The change is made
+and the bar is green: `just test` 1473 passed, and every leg of the
+full test passed. The merge, the release and the live proof wait for
+the operator.**
 
 **Why.** The walk's finding F58 (stage 16d, step 9). The posix
 walk's first `perform` with a standing machine failed at its last
