@@ -5024,7 +5024,7 @@ home, your secrets in it. Neither leaves your machine.
 | 16a | the tree from the starter: the files, git, the hook's allowance, the holder's key | done 2026-10-09: two commits, the test identity gone |
 | 16b | the values, the people, then validate and dry | done 2026-10-09: the tree validates against your account and dry-runs; three commits |
 | 16c | a GitHub repository of its own, the bootstrap, CI | done 2026-10-09: the repository is public, the bootstrap added nine things and destroyed none, four secrets, CI green at 1614796 after the storage was renamed (finding F53) |
-| 16d | the storage, the bake, a machine, and a login by real SSH with a proof key | **YOU ARE HERE: the box that brings `main` back to `develop`, then step 5, the machine.** Steps 1 to 4 are done: `perform` on `main` green at 99ada9f on 2026-10-13, both images baked |
+| 16d | the storage, the bake, a machine, and a login by real SSH with a proof key | **YOU ARE HERE: step 6, the system's own verification.** Steps 1 to 5 are done: the machine `team-node-1` was launched on 2026-10-13 and its accounts are in place |
 
 Every box of this stage begins with a line that says `OK: the
 container, the posix tree`. The first walk's tree is beside it in
@@ -5857,6 +5857,14 @@ line saying the accounts of group `walk_posix` are in place, and
 not be made`, paste the lines: that is the heart of this starter.
 **Standing in AWS from here: the machine `team-node-1`, a
 `t3.medium`.**
+
+(2026-10-13, 14:45 to 14:48 UTC: `Plan: 3 to add`, `Apply complete!
+Resources: 3 added`, `Instance team-node-1: the accounts of group
+walk_posix are in place`, `Run ... completed: instance-image`. The
+machine is `i-023b91dd1ac34ba20`, named `team-node-1-001` as a
+first generation is, from the image `ami-0b636316bd048fa4e`, with
+`posix-data` at `/mnt/data`. The run committed its record,
+`173214a`, which step 9 pushes.)
 
 **Step 6.** The system's own verification:
 
