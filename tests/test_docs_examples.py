@@ -349,9 +349,10 @@ def _steps(job: dict) -> list[dict]:
 def test_the_starter_perform_job_records_guards_performs_proves_and_records_again():
     """Stage 64 item 3: the proven shape of a performing job (stage 45, 56)
     travels with the starter: a full record pushed first, the guarded runtime
-    checked against it, the write identity for the performing step alone,
-    the login proof as a workload, a closing record that runs even after a
-    failed performing step, and the strict state query as the post-condition."""
+    checked against it, the write identity for the performing step and the
+    login proof straight after it (stage 89), a closing record that runs even
+    after a failed performing step, and the strict state query as the
+    post-condition."""
     for name in TREES:
         doc = yaml.safe_load((EXAMPLES / name / ".github/workflows/ci.yml").read_text())
         perform = doc["jobs"]["perform"]
@@ -366,6 +367,13 @@ def test_the_starter_perform_job_records_guards_performs_proves_and_records_agai
                  "The full run, recorded again", "Push the closing record", "Reality matches the records (state query --strict)"]
         positions = [names.index(n) for n in order]
         assert positions == sorted(positions), f"{name}: {names}"
+        # stage 89 (the walk's F58): the proof is made while the write identity is held. A posix
+        # proof's ssh opens a session through the runtime, which the read-only identity may not
+        # do; made after the read-only identity was taken back, the proof could never pass
+        taken_back = [n for n in names if n.endswith("the read-only role again") or n.endswith("the read-only identity again")]
+        assert taken_back, f"{name}: no read-only identity is taken back after the performing step"
+        assert names.index(login) < min(names.index(n) for n in taken_back), (
+            f"{name}: the login proof must run before the read-only identity is taken back")
         runs = {s.get("name", ""): s["run"].strip() for s in _steps(perform) if "run" in s}
         assert runs["The full run, recorded"] == "just record" and runs["The full run, recorded again"] == "just record"
         assert runs["The runtime performs"] == 'just cloud-perform "$PERFORM_RUNTIME"'
@@ -378,7 +386,7 @@ def test_the_starter_perform_job_records_guards_performs_proves_and_records_agai
                 assert "--force" not in s["run"] and "HEAD:main" in s["run"], f"{name}: {s['name']}"
         text = yaml.safe_dump(doc)
         assert "--no-dry-run" not in text and "--only" not in text, f"{name}: a real run is named only inside the Justfile"
-        # the write identity is held for the performing step alone
+        # the write identity is taken only when recording, and only just before the performing step
         write_creds = [s for s in _steps(perform) if "APPLY" in yaml.safe_dump(s.get("with") or {})]
         assert write_creds, f"{name}: no write identity"
         for w in write_creds:

@@ -8,8 +8,8 @@ name: CI
 #            pushes and the nightly schedule, never pull requests
 #   perform  on main alone: the record (a full dry run, committed and pushed first, so a
 #            record exists whatever happens next), the guard on a runtime CI must never
-#            bake on, the performing run of PERFORM_RUNTIME under the WRITE identity,
-#            the login proof as a workload, the closing record (pushed even when the
+#            bake on, the performing run of PERFORM_RUNTIME under the WRITE identity and,
+#            still under it, the login proof as a workload, the closing record (pushed even when the
 #            performing step failed, so nothing baked goes unrecorded), the strict
 #            state query
 # Each job is gated on the secrets the team provides: none configured is SKIPPED
@@ -397,6 +397,19 @@ jobs:
         run: |
           git log --oneline -1
           git push origin HEAD:main
+      - name: CI logs in through the managed policy
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
+        # as the WORKLOAD: this run's OIDC token, the team's connection and role from the
+        # configuration; a stopped machine is skipped, never started; the verdicts are recorded
+        # and the closing record commits them. A posix group logs in as its proof user over ssh
+        # through the runtime's session tunnel instead (stage 75), with this key; unset, a posix
+        # proof fails its first check and an Okta proof never reads it
+        # It runs while the WRITE identity is still held, before the read-only one is taken
+        # back: a posix proof's ssh travels through the runtime's session tunnel, and opening a
+        # session is a permission the read-only identity is not given (stage 89)
+        env:
+          CSIS_PROOF_SSH_KEY: ${{ secrets.CSIS_PROOF_SSH_KEY }}
+        run: just ci-login-proof --runtime "$PERFORM_RUNTIME"
       - name: Federated AWS credentials, the read-only role again
         if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
         uses: aws-actions/configure-aws-credentials@v4
@@ -422,16 +435,6 @@ jobs:
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
       - if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
         uses: google-github-actions/setup-gcloud@v2
-      - name: CI logs in through the managed policy
-        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
-        # as the WORKLOAD: this run's OIDC token, the team's connection and role from the
-        # configuration; a stopped machine is skipped, never started; the verdicts are recorded
-        # and the closing record commits them. A posix group logs in as its proof user over ssh
-        # through the runtime's session tunnel instead (stage 75), with this key; unset, a posix
-        # proof fails its first check and an Okta proof never reads it
-        env:
-          CSIS_PROOF_SSH_KEY: ${{ secrets.CSIS_PROOF_SSH_KEY }}
-        run: just ci-login-proof --runtime "$PERFORM_RUNTIME"
       - name: The full run, recorded again
         if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
         # the complete emission after the scoped run, and the bake's lineage: runs even when
