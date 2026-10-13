@@ -8,8 +8,8 @@ name: CI
 #            pushes and the nightly schedule, never pull requests
 #   perform  on main alone: the record (a full dry run, committed and pushed first, so a
 #            record exists whatever happens next), the guard on a runtime CI must never
-#            bake on, the performing run of PERFORM_RUNTIME under the WRITE identity,
-#            the login proof (the posix proof user, over ssh), the closing record (pushed even when the
+#            bake on, the performing run of PERFORM_RUNTIME under the WRITE identity and,
+#            still under it, the login proof (the posix proof user, over ssh), the closing record (pushed even when the
 #            performing step failed, so nothing baked goes unrecorded), the strict
 #            state query
 # Each job is gated on the secrets the team provides: none configured is SKIPPED
@@ -353,6 +353,18 @@ jobs:
         run: |
           git log --oneline -1
           git push origin HEAD:main
+      - name: CI logs in as the group's proof user
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
+        # over ssh, through the runtime's session tunnel (Session Manager: no public address),
+        # with the proof user's key; it checks the user is in the group. A stopped machine is
+        # skipped, never started; the verdicts are recorded and the closing record commits them.
+        # Unset, the proof fails its first check, naming the secret (stage 75)
+        # It runs while the WRITE identity is still held, before the read-only one is taken
+        # back: a posix proof's ssh travels through the runtime's session tunnel, and opening a
+        # session is a permission the read-only identity is not given (stage 89)
+        env:
+          CSIS_PROOF_SSH_KEY: ${{ secrets.CSIS_PROOF_SSH_KEY }}
+        run: just ci-login-proof --runtime "$PERFORM_RUNTIME"
       - name: Federated AWS credentials, the read-only role again
         if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
         uses: aws-actions/configure-aws-credentials@v4
@@ -370,15 +382,6 @@ jobs:
           printf '[%s]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n' \
             "$profile" "$AWS_ACCESS_KEY_ID" "$AWS_SECRET_ACCESS_KEY" "$AWS_SESSION_TOKEN" > ~/.aws/credentials
           chmod 600 ~/.aws/credentials
-      - name: CI logs in as the group's proof user
-        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
-        # over ssh, through the runtime's session tunnel (Session Manager: no public address),
-        # with the proof user's key; it checks the user is in the group. A stopped machine is
-        # skipped, never started; the verdicts are recorded and the closing record commits them.
-        # Unset, the proof fails its first check, naming the secret (stage 75)
-        env:
-          CSIS_PROOF_SSH_KEY: ${{ secrets.CSIS_PROOF_SSH_KEY }}
-        run: just ci-login-proof --runtime "$PERFORM_RUNTIME"
       - name: The full run, recorded again
         if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
         # the complete emission after the scoped run, and the bake's lineage: runs even when

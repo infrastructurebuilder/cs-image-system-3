@@ -139,7 +139,7 @@ bootstrap` again -- the bucket now exists, so the root binds to it -- and
 | --- | --- | --- | --- |
 | `verify` | every push and pull request | installs the release, parses the `Justfile`, runs `just public-safe` | no secret |
 | `live` | pushes and the nightly schedule, never pull requests | validate, is the committed emission current, the strict state query, the modification tests under docker | the READ-ONLY identities |
-| `perform` | `main` (or a dispatch asking to record) | the record, the guard on `GUARD_RUNTIME`, the performing run of `PERFORM_RUNTIME` under the WRITE identity, the login proof as a workload, the closing record, the strict state query | the read-only identities, and the write identity for one step |
+| `perform` | `main` (or a dispatch asking to record) | the record, the guard on `GUARD_RUNTIME`, the performing run of `PERFORM_RUNTIME` under the WRITE identity and, still under it, the login proof, the closing record, the strict state query | the read-only identities, and the write identity for the performing step and the login proof after it |
 
 `.github/workflows/opa-workload-probe.yml` is dispatch only: it presents
 this repository's OIDC token to your OPA workload connection and stops
@@ -446,10 +446,10 @@ prints.
 | Secret | What reads it | Job | The value |
 | --- | --- | --- | --- |
 | `AWS_ROLE_ARN` | the AWS federation step, then the profile step | live, perform | the READ-ONLY role's ARN (section 3.3) |
-| `AWS_APPLY_ROLE_ARN` | the AWS federation step before the performing run | perform, when recording | the WRITE role's ARN (section 3.3) |
+| `AWS_APPLY_ROLE_ARN` | the AWS federation step before the performing run; held through the login proof | perform, when recording | the WRITE role's ARN (section 3.3) |
 | `GCP_WORKLOAD_IDENTITY_PROVIDER` | the GCP auth steps | live, perform | the provider's full name (section 3.4) |
 | `GCP_SERVICE_ACCOUNT` | the GCP auth steps | live, perform | the READ-ONLY service account's address (section 3.4) |
-| `GCP_APPLY_SERVICE_ACCOUNT` | the GCP auth step before the performing run | perform, when recording | the WRITE service account's address, or the read-only one (section 3.4, step 4) |
+| `GCP_APPLY_SERVICE_ACCOUNT` | the GCP auth step before the performing run; held through the login proof | perform, when recording | the WRITE service account's address, or the read-only one (section 3.4, step 4) |
 | `OKTA_API_PRIVATE_KEY` | the load's check that the `okta/okta` provider can authenticate | live, perform | the services app's private key, PEM (section 3.5) |
 | `TF_VAR_KEY` | the load, exported as `TF_VAR_<team>_key` | live, perform | the OPA service user's API key |
 | `TF_VAR_SECRET` | the load, exported as `TF_VAR_<team>_secret` | live, perform | the OPA service user's API secret |
@@ -466,6 +466,17 @@ that user over ssh, through the runtime's session tunnel (SSM on AWS, IAP
 on GCE: no public address), and checks the group. A tree with no posix
 proof user needs no such secret; a posix proof without it fails its first
 check, naming the secret.
+
+The login proof runs while the WRITE identity is still held, straight
+after the performing step and before the read-only identity is taken back
+(stage 89). The reason is the tunnel: opening a session to a machine is a
+permission. On AWS it is `ssm:StartSession` (the "SessionManagerBake"
+statement of section 3.3): the WRITE role has it because a bake travels
+the same way, and the READ-ONLY role is not given it. On GCE it is the IAP
+tunnel, which belongs with the roles a bake on GCE uses (section 3.4, step
+4); a posix proof on GCE has not yet been made from CI. An Okta proof
+needs nothing of the cloud but a read and is indifferent to which identity
+is held.
 
 Set each from a file or standard input, never as a command-line argument
 (it would land in your shell history):
@@ -508,6 +519,7 @@ a green job is not proof its steps ran.
 | `live: FAILED -- secrets are configured but these are missing or EMPTY: <names>` | some secrets exist, those do not (or are empty) | set the named ones; an empty one is re-set from a file that holds the value |
 | `Failed to install entrypoints for cs-image-system` in "Install the released system" | `.csis-version` names a release before 0.1.1.dev2, whose whole-system package exposed no command to `uv tool install` | move `.csis-version` to a later release |
 | `Not authorized to perform sts:AssumeRoleWithWebIdentity` | the role's trust condition does not match the token's `sub` or `aud` | compare the trust policy with the subject form your organisation's tokens carry (section 3.2, step 4); CloudTrail's denied event shows the token's subject |
+| `login proof <instance>: login: FAILED -- ssh <user>@<instance> id: exit 255` with `is not authorized to perform: ssm:StartSession` and the READ-ONLY role's name | the proof ran under the read-only role, which may not open a session: this tree's workflow is from a release before 0.1.1.dev22 (stage 89) | take the newer release (section 3.1): its workflow makes the proof while the write identity is held. Do not give the read-only role the session |
 | the load says the AWS profile was not found, or no credentials | the profile step did not run, or the YAML names a different profile | read the "Name the federated credentials" step; it writes the profile the runtimes name |
 | the probe exits 0 but issues no token | the connection is still a draft | activate it (section 3.5, step 5) |
 | the probe's client refuses the token | a claim does not match | compare the claims the probe printed with the connection's Required Claims |
