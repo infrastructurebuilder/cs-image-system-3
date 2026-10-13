@@ -6247,7 +6247,7 @@ all in AWS, and the repositories after the roles that trusted them.
 | Part | What | State |
 | --- | --- | --- |
 | 17a | the picture before: one read of all of the above, kept in a file | **YOU ARE HERE** |
-| 17b | the posix walk: its machine, its images and its volume, each through the gate; then a strict state query with nothing declared | written when 17a is in |
+| 17b | the posix walk: its machine, its images and its volume, each through the gate; then a strict state query with nothing declared | written; next, once you have said `stage 17a done` |
 | 17c | the first walk: the same, and its OPA groups released to you | written when 17b is done |
 | 17d | the two bootstrap roots, the posix tree's first, and the bucket last | written when 17c is done |
 | 17e | by hand: the OPA console, Google Cloud's two free settings, GitHub (the repositories and the token) | written when 17d is done |
@@ -6334,6 +6334,235 @@ Cloud.)
 **Report:** `stage 17a done`, with the first box's file (the six
 headings and what is under them), the GitHub lines, and the two
 Google lines.
+
+### 17b -- the posix walk comes down
+
+In the container, in the posix tree. Three things go, in this
+order, each by the recipe the system has for it and each with its
+dry form first: the machine, then the two images, then the volume.
+The dry forms and the two edits were tried in your container on a
+throwaway copy of this tree on 2026-10-13; what a dry form printed
+there is what the text below says to expect. What the destroying
+forms print has not been seen: where the text says "should", paste
+what you get.
+
+**From here on this tree's `main` is not pushed again.** Its image
+stays declared, and a `perform` would bake once more what you are
+about to dispose of. `develop` is pushed, and its CI, which only
+reads, is the check.
+
+Fresh AWS keys first if yours are older than about forty minutes:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+aws sts get-caller-identity --query Account --output text
+```
+
+`514190660293`.
+
+**Step 1. The machine, the dry form.** The recipe takes the
+instance out of the declaration for this one run, so the plan
+destroys it and the gate is told to allow exactly that:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+just cloud-decommission aws-main team-node-1 yes 2>&1 | tee ~/decom-17b-dry.log | tail -1 | cut -c1-200
+grep -n 'gate-plan' generated/instance-image/run-instance-image.sh | cut -c1-260
+```
+
+`Run ... completed: instance-image`, and one gate line that ends
+`--allow-destroy module.instance_team_node_1`. That name and no
+other. If the line allows anything else, or nothing, STOP.
+
+**Step 2. The machine.** This destroys `team-node-1`:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+just cloud-decommission aws-main team-node-1 2>&1 | tee ~/decom-17b.log | tail -1 | cut -c1-200
+grep -n -E 'Plan:|Apply complete|DESTROY NOT|FAILED' ~/decom-17b.log | cut -c1-200
+```
+
+It should say `Plan: 0 to add, 0 to change, 3 to destroy.` (the
+three things the launch added: the machine, and the volume's
+attachment among them), then `Apply complete! Resources: 0 added,
+0 changed, 3 destroyed.`, and end `Run ... completed:
+instance-image`. `DESTROY NOT WHITELISTED` or `FAILED`: STOP and
+paste the last thirty lines of `~/decom-17b.log`.
+
+Gone, as AWS sees it:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+aws ec2 describe-instances --filters "Name=tag:Name,Values=team-node-1" "Name=instance-state-name,Values=pending,running,stopping,stopped" --query 'length(Reservations[].Instances[])' --output text
+```
+
+`0`. (It answered `1` before.) A machine that is `shutting-down`
+is not counted; that is the state it passes through.
+
+**Step 3. The declaration follows the machine.** The recipe left
+the tree as it was, so the tree still declares a machine that no
+longer stands. One edit, the whole entry:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+sed -i -e '/^  - name: team-node-1/,$d' -e 's/^instances:$/instances: []/' instances/instances.yaml
+git diff --stat
+```
+
+`instances/instances.yaml | 16 +---------------` and `1 file
+changed, 1 insertion(+), 15 deletions(-)`. Anything else, STOP.
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+just validate 2>&1 | tail -1 | cut -c1-200
+```
+
+`Validation successful.`
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+git add instances/instances.yaml && git commit -q -m "The posix walk's machine is decommissioned; no instance is declared"
+git status --short | wc -l
+```
+
+`0`, after the hook's `public-safe:` line.
+
+**Step 4. The images, the dry form.** While the machine stood this
+refused, by name (`instance(s) ['team-node-1'] are pinned to /
+launched from the build(s) ['ami-0b636316bd048fa4e']; decommission
+them first`). Now it should not:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+just cloud-dispose-images aws-main yes 2>&1 | tail -8 | cut -c1-200
+```
+
+It should name the two builds, `ami-0b636316bd048fa4e` and
+`ami-0ca7aa2fef7e25978`, as what it would dispose of, and end
+without `error:`. If it still says `pinned to / launched from`,
+STOP and paste it: the records then still hold the machine, and
+that is a finding, not something to work around.
+
+**Step 5. The images.** This deregisters both and deletes their
+snapshots:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+just cloud-dispose-images aws-main 2>&1 | tee ~/dispose-17b.log | tail -8 | cut -c1-200
+```
+
+Paste what it prints. Then, as AWS sees it:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+aws ec2 describe-images --owners self --filters "Name=tag:csis_config,Values=cs-image-system-walk-posix" --query 'length(Images)' --output text
+aws ec2 describe-snapshots --snapshot-ids snap-0af0122871093ff05 snap-0e5efef0e67ce7559 --query 'length(Snapshots)' --output text 2>&1 | tail -1 | cut -c1-160
+```
+
+`0`, and then either `0` or an error that says the snapshot does
+not exist (`InvalidSnapshot.NotFound`), which is the same answer.
+A number other than `0` on either line: STOP and paste.
+
+**Step 6. The volume.** A storage goes the way the daily driver
+says: its declaration says `destroyed`, and a storage run destroys
+it through the gate. The edit:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+sed -i '/^  - name: posix-data$/,$ s/^    state: active$/    state: destroyed/' storages/storages.yaml
+git diff --stat
+```
+
+`storages/storages.yaml | 2 +-` and `1 file changed, 1
+insertion(+), 1 deletion(-)`.
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+just validate 2>&1 | tail -1 | cut -c1-200
+```
+
+`Validation successful.`
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+git add storages/storages.yaml && git commit -q -m "The posix walk's volume is declared destroyed"
+git status --short | wc -l
+```
+
+`0`.
+
+What the storage run means to do, before it does it:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+just dry storage 2>&1 | tee ~/dry-17b.log | tail -1 | cut -c1-200
+grep -n 'gate-plan' generated/storage/run-storage.sh | cut -c1-260
+```
+
+`Run ... completed: storage`, and one gate line that ends
+`--allow-destroy module.storage_posix_data`. That name and no
+other; anything else, STOP.
+
+This destroys the volume `posix-data` and what is on it:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+just run storage 2>&1 | tee ~/run-17b.log | tail -1 | cut -c1-200
+grep -n -E 'Plan:|Apply complete|DESTROY NOT|FAILED' ~/run-17b.log | cut -c1-200
+```
+
+It should say `Plan: 0 to add, 0 to change, 1 to destroy.`, `Apply
+complete! Resources: 0 added, 0 changed, 1 destroyed.`, and end
+`Run ... completed: storage`.
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+aws ec2 describe-volumes --filters "Name=tag:Name,Values=posix-data" --query 'length(Volumes)' --output text
+```
+
+`0`. (It answered `1` before.)
+
+**Step 7. Nothing declared, and the records agree with reality.**
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+just record 2>&1 | tail -1 | cut -c1-200
+git status --short | wc -l
+```
+
+`Run ... completed:` and `0`.
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+just state-query --strict 2>&1 | tail -3 | cut -c1-200
+```
+
+`no drift: meta-state agrees with reality`. Anything `foreign`,
+`missing` or `changed`, STOP and paste it.
+
+Then `develop`, and `develop` only:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+git status --short | wc -l
+git push
+run=""
+for i in $(seq 12); do
+  sleep 5
+  run=$(gh run list --branch develop --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+  [ -n "$run" ] && break
+done
+echo "run ${run:-NOT FOUND after 60 seconds}"
+[ -n "$run" ] && gh run watch "$run"
+echo "CI on develop: $(gh run view "$run" --json conclusion,headSha --jq '"\(.conclusion) at \(.headSha[0:7])"')"
+```
+
+`0`, then `CI on develop: success at` and the new commit.
+
+**Report:** `stage 17b done`, with what steps 2, 5 and 6 printed
+and the state query's last lines. **What of this tree still stands
+in AWS after 17b: its two roles, and three state objects in the
+first walk's bucket.** They go in 17d.
 
 ## Google Cloud credentials through the environment
 
