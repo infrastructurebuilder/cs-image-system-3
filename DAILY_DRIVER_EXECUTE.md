@@ -6261,7 +6261,7 @@ all in AWS, and the repositories after the roles that trusted them.
 | --- | --- | --- |
 | 17a | the picture before: one read of all of the above, kept in a file | done 2026-10-13: `~/teardown-before.txt` in the container, 31 lines, exactly as the table above; the repositories and Google Cloud's two settings as expected |
 | 17b | the posix walk: its machine, its images and its volume, each through the gate; then a strict state query with nothing declared | done 2026-10-13: the machine, both images and their snapshots, the volume, and by hand the security group its instance root had left (F61); no drift; `develop` green at d59c245; `main` not pushed |
-| 17c | the first walk: the same, and its OPA groups released to you | **YOU ARE HERE**, once it is written below |
+| 17c | the first walk: the same, and its OPA groups released to you | **YOU ARE HERE** |
 | 17d | the two bootstrap roots, the posix tree's first, and the bucket last | written when 17c is done |
 | 17e | by hand: the OPA console, Google Cloud's two free settings, GitHub (the repositories and the token) | written when 17d is done |
 | 17f | your local machine: the containers, the snapshot image, the directories | written when 17e is done |
@@ -6653,6 +6653,402 @@ tree's `main` stays at `c3f7bd9`.)
 and the state query's last lines. **What of this tree still stands
 in AWS after 17b: its two roles, and three state objects in the
 first walk's bucket.** They go in 17d.
+
+### 17c -- the first walk comes down
+
+In the container, in the FIRST walk's tree, `/walk/cs-image-system-walk`
+(every box says `OK: the container, /walk/cs-image-system-walk`).
+The same order as 17b, with four differences:
+
+- **A record comes first.** This tree's emission is behind by one
+  line, the vendor's GCE image having moved on 2026-10-13 (F55).
+- **The machine is stopped.** A decommission does not need it
+  running; the dry form said so on a copy.
+- **There is a second cloud in the run.** The GCE machine was only
+  ever declared for its cycle and does not stand. Its root is
+  planned and gated beside the AWS one and is NEVER applied: the
+  runner the dry form wrote has one `tofu apply` in it, the AWS
+  root's. Nothing here spends your money on Google Cloud.
+- **There is a group to release.** The system never destroys an OPA
+  group; it lets go of it (`unmanaged: true`), and you remove it in
+  the console in 17e.
+
+This tree stays on 0.1.1.dev21 while the container's tool is dev22;
+nothing the two generate differs. As in 17b, **`main` is not pushed
+again from here**: its image stays declared and a `perform` would
+bake what you dispose of.
+
+Every box below was tried on 2026-10-13 in its dry form, or as an
+edit, on a throwaway copy of this tree in your container. What the
+destroying forms print has not been seen; where the text says
+"should", paste what you get. Each box has a number in its first
+line; run them in that order, one at a time.
+
+**Step 0. Ready.** Fresh AWS keys first if yours are older than
+about forty minutes:
+
+```sh
+# 17c step 0 -- box 1 of 2 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+aws sts get-caller-identity --query Account --output text
+```
+
+`514190660293`.
+
+```sh
+# 17c step 0 -- box 2 of 2 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just validate 2>&1 | tail -1 | cut -c1-200
+```
+
+`Validation successful.` It reads AWS, OPA and Google Cloud on the
+way, so it also says the three sessions in this tree's environment
+still answer. Anything else, STOP and paste the last ten lines.
+
+**Step 1. The record this tree owes.**
+
+```sh
+# 17c step 1 -- box 1 of 2 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just record 2>&1 | tail -1 | cut -c1-200
+git status --short | wc -l
+```
+
+`Run ... completed:` and `0`.
+
+```sh
+# 17c step 1 -- box 2 of 2 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just config-drift 2>&1 | tail -1 | cut -c1-200
+```
+
+`config-drift: the committed emission is current with the
+configuration`. (Before the record it said `BEHIND ... (1 files)`,
+the one line `almalinux-10-v20261005` against
+`almalinux-10-v20261013`.)
+
+**Step 2. The machine.** The dry form first; it destroys nothing:
+
+```sh
+# 17c step 2 -- box 1 of 3 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just cloud-decommission aws-main walk-node-1 yes 2>&1 | tee ~/decom-17c-dry.log | tail -1 | cut -c1-200
+grep -n 'gate-plan' generated/instance-image/run-instance-image.sh | cut -c1-260
+grep -c 'tofu apply' generated/instance-image/run-instance-image.sh
+```
+
+`Run ... completed: instance-image`; two gate lines, the one for
+`tofu-aws/instance-generation` ending `--allow-destroy
+module.instance_walk_node_1`, the one for
+`tofu-gce/instance-generation` allowing NOTHING (it ends `--tofu
+tofu )`); and `1`, the number of `tofu apply` lines in the runner.
+If the GCE line allows anything, or the count is `2`, STOP.
+
+This destroys `walk-node-1`:
+
+```sh
+# 17c step 2 -- box 2 of 3 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just cloud-decommission aws-main walk-node-1 2>&1 | tee ~/decom-17c.log | tail -1 | cut -c1-200
+grep -n -E 'Plan:|Apply complete|DESTROY NOT|FAILED' ~/decom-17c.log | cut -c1-200
+```
+
+It should say `Plan: 0 to add, 0 to change, 2 to destroy.` for the
+AWS root (the machine and its volume's attachment; the security
+group stays, as in 17b), then exactly ONE `Apply complete!` line,
+`Resources: 0 added, 0 changed, 2 destroyed.`, and end `Run ...
+completed: instance-image`. A second `Plan:` line is the GCE
+root's, planned and not applied. Two `Apply complete!` lines,
+`DESTROY NOT WHITELISTED` or `FAILED`: STOP and paste the last
+thirty lines of `~/decom-17c.log`.
+
+```sh
+# 17c step 2 -- box 3 of 3 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+aws ec2 describe-instances --instance-ids i-0792ba0408f0e1388 --query 'Reservations[].Instances[].State.Name' --output text
+```
+
+`terminated`, or `shutting-down` on its way there.
+
+**Step 3. The declarations follow.** Both instance entries go: the
+machine that is gone, and the GCE machine that was only its cycle:
+
+```sh
+# 17c step 3 -- box 1 of 3 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+sed -i -e '/^  - name: walk-node-1/,$d' -e 's/^instances:$/instances: []/' instances/instances.yaml
+git diff --stat
+```
+
+`instances/instances.yaml | 25 +------------------------` and `1
+file changed, 1 insertion(+), 24 deletions(-)`. Anything else, STOP.
+
+```sh
+# 17c step 3 -- box 2 of 3 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just validate 2>&1 | tail -1 | cut -c1-200
+```
+
+`Validation successful.`
+
+```sh
+# 17c step 3 -- box 3 of 3 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+git add instances/instances.yaml && git commit -q -m "The walk's machine is decommissioned; no instance is declared"
+git status --short | wc -l
+```
+
+`0`, after the hook's `public-safe:` line.
+
+**Step 4. The images.** The dry form:
+
+```sh
+# 17c step 4 -- box 1 of 4 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just cloud-dispose-images aws-main yes 2>&1 | tail -1 | cut -c1-200
+```
+
+`dispose (dry run): 5 image(s) would be deleted; pass
+--no-dry-run`. If it says `pinned to / launched from`, STOP and
+paste it.
+
+This deregisters the five images and deletes their snapshots:
+
+```sh
+# 17c step 4 -- box 2 of 4 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just cloud-dispose-images aws-main 2>&1 | tee ~/dispose-17c.log | tail -1 | cut -c1-200
+```
+
+It should say `disposed 5 image(s):` and five ids.
+
+```sh
+# 17c step 4 -- box 3 of 4 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+aws ec2 describe-images --owners self --filters "Name=tag:csis_config,Values=cs-image-system-walk" --query 'length(Images)' --output text
+aws ec2 describe-snapshots --snapshot-ids snap-0c3841f8c6686774f snap-01b43fb0f3364d375 snap-06c9f89aa1831c727 snap-08c6e7a8e646ee9bd snap-046418fe99d82dd78 --query 'length(Snapshots)' --output text 2>&1 | tail -1 | cut -c1-160
+```
+
+`0`, and then `0` or an error naming `InvalidSnapshot.NotFound`.
+Any other number: STOP and paste.
+
+And the other cloud, where nothing should be recorded as standing:
+
+```sh
+# 17c step 4 -- box 4 of 4 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just cloud-dispose-images gcp-main yes 2>&1 | tail -1 | cut -c1-200
+```
+
+`dispose: nothing recorded to dispose of`. (The GCE images went at
+the end of their cycle in stage 15.)
+
+**Step 5. The volume**, 100 GB, and what is on it. The edit:
+
+```sh
+# 17c step 5 -- box 1 of 6 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+sed -i '/^  - name: data$/,/^  - name: walk-data$/ s/^    state: active$/    state: destroyed/' storages/storages.yaml
+git diff --stat
+grep -n 'state:' storages/storages.yaml
+```
+
+`storages/storages.yaml | 2 +-`, `1 file changed, 1 insertion(+), 1
+deletion(-)`, and two `state: destroyed` lines (the GCE disk's has
+said so since stage 15).
+
+```sh
+# 17c step 5 -- box 2 of 6 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just validate 2>&1 | tail -1 | cut -c1-200
+```
+
+`Validation successful.`
+
+```sh
+# 17c step 5 -- box 3 of 6 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+git add storages/storages.yaml && git commit -q -m "The walk's volume is declared destroyed"
+git status --short | wc -l
+```
+
+`0`.
+
+```sh
+# 17c step 5 -- box 4 of 6 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just dry storage 2>&1 | tee ~/dry-17c.log | tail -1 | cut -c1-200
+grep -n 'gate-plan' generated/storage/run-storage.sh | cut -c1-260
+```
+
+`Run ... completed: storage`, and two gate lines: the one for
+`aws-ebs/storage-generation` ends `--allow-destroy
+module.storage_data`, the one for `gcp-pd/storage-generation`
+allows NOTHING. Anything else, STOP.
+
+This destroys the volume `data`:
+
+```sh
+# 17c step 5 -- box 5 of 6 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just run storage 2>&1 | tee ~/run-17c.log | tail -1 | cut -c1-200
+grep -n -E 'Plan:|No changes|Apply complete|DESTROY NOT|FAILED' ~/run-17c.log | cut -c1-200
+```
+
+It should say `Plan: 0 to add, 0 to change, 1 to destroy.` and
+`Apply complete! Resources: 0 added, 0 changed, 1 destroyed.` for
+the AWS root, something that destroys nothing for the GCE root
+(`No changes`, or `0 destroyed`), and end `Run ... completed:
+storage`. More than one thing destroyed in all: STOP and paste.
+
+```sh
+# 17c step 5 -- box 6 of 6 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+aws ec2 describe-volumes --volume-ids vol-0b3a53a0e871906c5 --query 'length(Volumes)' --output text 2>&1 | tail -1 | cut -c1-160
+```
+
+An error naming `InvalidVolume.NotFound`, or `0`. (By its id, not
+its name: other people's volumes in this account may be called
+`data`.) A `1` means it still stands; a volume takes a moment to
+go, so look once more after a minute before you STOP.
+
+**Step 6. The security group this tree's instance root left**, by
+hand, as in 17b (F61). Its id is from this tree's state:
+
+```sh
+# 17c step 6 -- box 1 of 2 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+aws ec2 delete-security-group --dry-run --group-id sg-08e70f8861fd72794 2>&1 | tail -1 | cut -c1-200
+```
+
+`... (DryRunOperation) ... Request would have succeeded, but DryRun
+flag is set.` `DependencyViolation`: something still wears it,
+STOP.
+
+```sh
+# 17c step 6 -- box 2 of 2 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+aws ec2 delete-security-group --group-id sg-08e70f8861fd72794
+aws ec2 describe-security-groups --group-ids sg-08e70f8861fd72794 --query 'length(SecurityGroups)' --output text 2>&1 | tail -1 | cut -c1-160
+```
+
+`"Return": true`, then an error naming `InvalidGroup.NotFound`.
+
+**Step 7. The group is released.** One line in the group's entry
+says the system no longer manages it. Nothing in OPA is destroyed
+or changed: the group, its project and its policies stay exactly
+as they are, and only the system's state lets go of them.
+
+```sh
+# 17c step 7 -- box 1 of 5 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+sed -i '/^  - name: walk_team /a\    unmanaged: true' groups/groups.yaml
+git diff --stat
+grep -n -A1 '^  - name: walk_team ' groups/groups.yaml | cut -c1-60
+```
+
+`groups/groups.yaml | 1 +`, `1 file changed, 1 insertion(+)`, and
+the group's `name:` line with `unmanaged: true` on the line under
+it.
+
+```sh
+# 17c step 7 -- box 2 of 5 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just validate 2>&1 | tail -1 | cut -c1-200
+```
+
+`Validation successful.`
+
+```sh
+# 17c step 7 -- box 3 of 5 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+git add groups/groups.yaml && git commit -q -m "The walk's group is released: the system no longer manages it"
+git status --short | wc -l
+```
+
+`0`.
+
+```sh
+# 17c step 7 -- box 4 of 5 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just dry identity 2>&1 | tee ~/dry-17c-identity.log | tail -1 | cut -c1-200
+grep -n -E 'state rm|gate-plan' generated/identity/run-identity.sh | cut -c1-260
+```
+
+`Run ... completed: identity`; a line with `tofu state rm
+module.group_walk_team`; and gate lines of which NONE says
+`--allow-destroy` followed by a module's name (the one for
+`opa-groups/group-generation` ends `--allow-destroy-from
+csis-sanctioned-removals.txt`, the list stage 88 made, which is
+empty when no membership was dropped). If a gate line names
+something to destroy, STOP.
+
+This lets go of the group:
+
+```sh
+# 17c step 7 -- box 5 of 5 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just run identity 2>&1 | tee ~/run-17c-identity.log | tail -1 | cut -c1-200
+grep -n -i -E 'state rm|removed|Plan:|No changes|Apply complete|to destroy|DESTROY NOT|FAILED' ~/run-17c-identity.log | cut -c1-200
+```
+
+It should show the group's module removed from state, then plans
+that destroy NOTHING (`No changes`, or `0 to destroy`), and end
+`Run ... completed: identity`. Any plan with something to destroy,
+`DESTROY NOT WHITELISTED` or `FAILED`: STOP and paste the last
+forty lines of `~/run-17c-identity.log`. Paste what it prints in
+any case: this has not been seen before.
+
+**Step 8. Nothing declared, and the records agree with reality.**
+
+```sh
+# 17c step 8 -- box 1 of 3 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just record 2>&1 | tail -1 | cut -c1-200
+git status --short | wc -l
+```
+
+`Run ... completed:` and `0`.
+
+```sh
+# 17c step 8 -- box 2 of 3 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just state-query --strict 2>&1 | tail -4 | cut -c1-200
+```
+
+`no drift: meta-state agrees with reality`. A line that says the
+group is `unavailable`, or one that begins `note:`, is not drift.
+Anything `foreign`, `missing` or `changed`, STOP and paste it.
+
+Then `develop`, and `develop` only:
+
+```sh
+# 17c step 8 -- box 3 of 3 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+git status --short | wc -l
+git push
+run=""
+for i in $(seq 12); do
+  sleep 5
+  run=$(gh run list --branch develop --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+  [ -n "$run" ] && break
+done
+echo "run ${run:-NOT FOUND after 60 seconds}"
+[ -n "$run" ] && gh run watch "$run"
+echo "CI on develop: $(gh run view "$run" --json conclusion,headSha --jq '"\(.conclusion) at \(.headSha[0:7])"')"
+```
+
+`0`, then `CI on develop: success at` and the new commit. If the
+last line has no verdict in it (GitHub's API answered `502` to this
+box once in 17b), say so and Claude reads the run.
+
+**Report:** `stage 17c done`, with what the destroying boxes
+printed (step 2 box 2, step 4 box 2, step 5 box 5, step 7 box 5)
+and the state query's last lines. **What of the two walks still
+stands in AWS after 17c: four roles, the state bucket and its nine
+objects.** They go in 17d. In OPA the group, its project and its
+policies, the connection and the role stand, released; they go by
+hand in 17e.
 
 ## Google Cloud credentials through the environment
 
