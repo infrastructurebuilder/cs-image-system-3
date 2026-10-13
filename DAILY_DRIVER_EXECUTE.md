@@ -6204,15 +6204,126 @@ the two `perform on main:` lines. **What of this tree stands in AWS
 after stage 16: one `t3.medium`, one 10 GB volume, two images, two
 IAM roles.** Teardown is stage 17.
 
-## Stage 17 -- written when you reach it
+## Stage 17 -- teardown, and its proof
 
-These stages depend on what the earlier ones produce (the bootstrap's
-interview, the names it prints), so their exact commands are added to
-this page as each one comes up. The order, and the page each follows:
+Everything the two walks made comes down, in an order that lets
+each thing be destroyed by the system that made it, through the
+gate, and then proved gone. What cannot be destroyed by the system
+(Okta Privileged Access, two free settings in Google Cloud, the
+GitHub repositories, your local machine) is done by hand, last, and
+listed so that nothing is forgotten. Follows stage 65, step 8.
 
-| Stage | What | Follows |
+**Nothing in this stage can be undone.** Every destroying box is
+preceded by its dry form, and every box that destroys is yours to
+type; Claude types none of them.
+
+What stands on 2026-10-13, read from the clouds and the trees:
+
+| Where | What | Costs money |
 | --- | --- | --- |
-| 17 | Teardown and its proof | stage 65, step 8 |
+| AWS, the first walk | the machine `walk-node-1` (a `t3.medium`, stopped); the volume `data`, 100 GB; five images and their five snapshots; the roles `csis-walk-readonly` and `csis-walk-apply`; the bucket `csis-walk-tfstate-514190660293`, which holds the state of BOTH trees | the volume and the snapshots; the machine only when started |
+| AWS, the posix walk | the machine `team-node-1` (a `t3.medium`, running); the volume `posix-data`, 10 GB; two images and their two snapshots; the roles `csis-walk-posix-readonly` and `csis-walk-posix-apply` | all of it |
+| Okta Privileged Access | the first walk's groups, their policies, the workload connection and the workload role | no |
+| Google Cloud | nothing that is billed. Two free things: the walk's repository in the condition of the provider `github`, and its binding on the read account `csis-github-readonly` | no |
+| GitHub | two public repositories, nine secrets and three variables on the first, four and two on the second; the walk's token | no |
+| Your local machine | the container `csis-walk` and its two volumes; the stopped container `csis-walk-before-16`; the image `csis-walk:snapshot-20261009`, which holds a copy of the container's home, your secrets in it; the two trees' directories | no |
+
+The order, and why: machines before images (an image a machine
+runs on is in use), images and volumes before the roles (the
+system destroys with them), the posix tree before the first walk
+(its state lives in the first walk's bucket), the bucket last of
+all in AWS, and the repositories after the roles that trusted them.
+
+| Part | What | State |
+| --- | --- | --- |
+| 17a | the picture before: one read of all of the above, kept in a file | **YOU ARE HERE** |
+| 17b | the posix walk: its machine, its images and its volume, each through the gate; then a strict state query with nothing declared | written when 17a is in |
+| 17c | the first walk: the same, and its OPA groups released to you | written when 17b is done |
+| 17d | the two bootstrap roots, the posix tree's first, and the bucket last | written when 17c is done |
+| 17e | by hand: the OPA console, Google Cloud's two free settings, GitHub (the repositories and the token) | written when 17d is done |
+| 17f | your local machine: the containers, the snapshot image, the directories | written when 17e is done |
+| 17g | the proof: the picture after, beside the picture before; the reference configuration still green | written when 17f is done |
+
+### 17a -- the picture before
+
+Read only: nothing here changes anything. It is what 17g is held
+against. Fresh AWS keys first if yours are older than about forty
+minutes:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+aws sts get-caller-identity --query Account --output text
+```
+
+`514190660293`. `ExpiredToken` or `RequestExpired`: paste fresh keys
+and run this box again.
+
+The picture, into a file in your home in the container, and shown:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+f=~/teardown-before.txt
+{
+echo "== machines (name, id, type, state)"
+aws ec2 describe-instances --filters "Name=tag:Name,Values=walk-node-1,team-node-1" "Name=instance-state-name,Values=pending,running,stopping,stopped" --query 'Reservations[].Instances[].[Tags[?Key==`Name`]|[0].Value,InstanceId,InstanceType,State.Name]' --output text | sort
+echo "== volumes (name, id, GB, state)"
+aws ec2 describe-volumes --filters "Name=tag:Name,Values=data,posix-data" --query 'Volumes[].[Tags[?Key==`Name`]|[0].Value,VolumeId,Size,State]' --output text | sort
+echo "== images (configuration, id, name)"
+aws ec2 describe-images --owners self --filters "Name=tag:csis_config,Values=cs-image-system-walk,cs-image-system-walk-posix" --query 'Images[].[Tags[?Key==`csis_config`]|[0].Value,ImageId,Name]' --output text | sort
+echo "== snapshots behind those images"
+aws ec2 describe-images --owners self --filters "Name=tag:csis_config,Values=cs-image-system-walk,cs-image-system-walk-posix" --query 'Images[].BlockDeviceMappings[].Ebs.SnapshotId' --output text | tr '\t' '\n' | sort
+echo "== IAM roles named csis-walk*"
+aws iam list-roles --query 'Roles[?starts_with(RoleName, `csis-walk`)].RoleName' --output text | tr '\t' '\n' | sort
+echo "== state objects in the walk's bucket"
+aws s3 ls s3://csis-walk-tfstate-514190660293/ --recursive | awk '{print $4}' | sort
+} > "$f" 2>&1
+cat "$f"
+echo "lines that are not headings: $(grep -vc '^==' "$f")"
+```
+
+Six headings, and under them, as they stood on 2026-10-13: two
+machines (`team-node-1` running, `walk-node-1` stopped), two
+volumes (`data` 100 and `posix-data` 10, both `in-use`), seven
+images (five of `cs-image-system-walk`, two of
+`cs-image-system-walk-posix`), seven snapshots, four roles, and
+nine state objects (six under `statefiles/cs-image-system-walk/`,
+three under `statefiles/cs-image-system-walk-posix/`). The last
+line: `lines that are not headings: 31`. An error under any
+heading, or another count, is not a reason to stop, but paste the
+whole of it: the picture is what matters.
+
+The two repositories, as GitHub holds them:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+for r in cs-image-system-walk cs-image-system-walk-posix; do
+  echo "== $r"
+  gh repo view infrastructurebuilder/$r --json visibility,isArchived --jq '"\(.visibility) archived=\(.isArchived)"'
+  echo "secrets: $(gh secret list -R infrastructurebuilder/$r --json name --jq '[.[].name] | join(" ")')"
+  echo "variables: $(gh variable list -R infrastructurebuilder/$r --json name --jq '[.[].name] | join(" ")')"
+done | tee ~/teardown-before-github.txt
+```
+
+Both `PUBLIC archived=false`; nine secrets and three variables on
+the first, four secrets and two variables on the second. Names
+only: a secret's value is never shown.
+
+And Google Cloud's two free settings, which only you can read. On
+your local machine, NOT in the container:
+
+```sh
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+gcloud iam workload-identity-pools providers describe github --workload-identity-pool github --location global --project csis-sandbox --format='value(attributeCondition)'
+gcloud iam service-accounts get-iam-policy csis-github-readonly@csis-sandbox.iam.gserviceaccount.com --project csis-sandbox --format='value(bindings.members)' | tr ';,' '\n\n' | grep -c 'cs-image-system-walk'
+```
+
+A condition naming three repositories, `cs-image-system-walk` the
+third, and `1`. (The posix walk was never given anything in Google
+Cloud.)
+
+**Report:** `stage 17a done`, with the first box's file (the six
+headings and what is under them), the GitHub lines, and the two
+Google lines.
 
 ## Google Cloud credentials through the environment
 
