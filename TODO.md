@@ -42,7 +42,7 @@ released in dev19 (dev18 was cut from the walk branch by mistake and
 is on the index, unused) and PROVED live: the walk's third `perform`
 baked both its images under the bootstrap-made write role, Systems
 Manager finishing its work on each build machine undisturbed. §81,
-hygiene bundle XII, is open (thirty items the walk
+hygiene bundle XII, is open (thirty-one items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15, taken by the reference configuration, its
@@ -629,7 +629,7 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, thirty items found by the §65 walk. Items
+**Status: OPEN 2026-10-05, thirty-one items found by the §65 walk. Items
 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
 the operator's word. Items 10 and 11 LANDED as §86 (c6af4b2,
 2026-10-07, "Fix now, starters too"). Item 16 LANDED as §88
@@ -1175,6 +1175,25 @@ starter's `.gitignore` ignores every dotfile unless named.)
     (the plugin cache, or the platforms each `tofu init` records)
     and make the committed lock the same from both, or keep the
     lock out of what a record commits and say where it lives.
+
+31. **The last machine's decommission leaves a security group no
+    run will remove.** The walk's finding F61 (2026-10-13, teardown
+    of the posix walk). The instance root makes
+    `aws_security_group.csis_instances` at the root's own level;
+    `cloud-decommission` allows the destroy of one instance's
+    module and the group stays (`2 destroyed` where the launch had
+    added 3); with `instances: []` no instance root is emitted at
+    all, so the group stands in AWS and in the root's state with
+    no run that will ever plan it. The walk deleted it by hand, by
+    the id read from the state. Its tag is `Name: csis-instances`
+    in every configuration, so in a shared account nothing but
+    the state says whose it is (F53's family). Plan: decide where
+    a root's own resources go when its last instance does: the
+    decommission of the last instance may sanction the group's
+    destroy too, or a root with nothing declared is still emitted,
+    empty, and its run destroys what the state holds through the
+    gate; the group carries the configuration's id as images do
+    (§82); and the daily driver says what a teardown leaves.
 
 ## 83. A release asks its publish target before it starts
 

@@ -6231,8 +6231,8 @@ What stands on 2026-10-13, read from the clouds and the trees:
 
 | Where | What | Costs money |
 | --- | --- | --- |
-| AWS, the first walk | the machine `walk-node-1` (a `t3.medium`, stopped); the volume `data`, 100 GB; five images and their five snapshots; the roles `csis-walk-readonly` and `csis-walk-apply`; the bucket `csis-walk-tfstate-514190660293`, which holds the state of BOTH trees | the volume and the snapshots; the machine only when started |
-| AWS, the posix walk | the machine `team-node-1` (a `t3.medium`, running); the volume `posix-data`, 10 GB; two images and their two snapshots; the roles `csis-walk-posix-readonly` and `csis-walk-posix-apply` | all of it |
+| AWS, the first walk | the machine `walk-node-1` (a `t3.medium`, stopped); the volume `data`, 100 GB; five images and their five snapshots; the security group `sg-08e70f8861fd72794` its instance root made; the roles `csis-walk-readonly` and `csis-walk-apply`; the bucket `csis-walk-tfstate-514190660293`, which holds the state of BOTH trees | the volume and the snapshots; the machine only when started |
+| AWS, the posix walk | the machine `team-node-1` (a `t3.medium`, running); the volume `posix-data`, 10 GB; two images and their two snapshots; the security group `sg-0b9a9e31f4d9f5377` its instance root made (found at 17b, not in 17a's picture); the roles `csis-walk-posix-readonly` and `csis-walk-posix-apply` | all of it but the group and the roles |
 | Okta Privileged Access | the first walk's groups, their policies, the workload connection and the workload role | no |
 | Google Cloud | nothing that is billed. Two free things: the walk's repository in the condition of the provider `github`, and its binding on the read account `csis-github-readonly` | no |
 | GitHub | two public repositories, nine secrets and three variables on the first, four and two on the second; the walk's token | no |
@@ -6399,6 +6399,21 @@ aws ec2 describe-instances --filters "Name=tag:Name,Values=team-node-1" "Name=in
 `0`. (It answered `1` before.) A machine that is `shutting-down`
 is not counted; that is the state it passes through.
 
+(2026-10-13, 19:38 UTC: `Plan: 0 to add, 0 to change, 2 to
+destroy.`, `Plan passes the apply gate.`, `Apply complete!
+Resources: 0 added, 0 changed, 2 destroyed.`: the volume's
+attachment and the machine, `i-023b91dd1ac34ba20`, which AWS now
+shows `terminated`. Two, not the three this page said. The third
+thing the launch had added was never the machine's: a security
+group, `sg-0b9a9e31f4d9f5377`, that the instance root makes for
+whatever machines it holds. It belongs to the root and not to any
+one machine, so a decommission leaves it; and once no instance is
+declared the system writes no instance root at all, so nothing the
+system does will ever remove it. It costs nothing and it is a
+leftover (finding F61). It goes by hand in step 6a below. The
+picture of 17a did not look for security groups; the picture after
+will.)
+
 **Step 3. The declaration follows the machine.** The recipe left
 the tree as it was, so the tree still declares a machine that no
 longer stands. One edit, the whole entry:
@@ -6521,6 +6536,35 @@ aws ec2 describe-volumes --filters "Name=tag:Name,Values=posix-data" --query 'le
 ```
 
 `0`. (It answered `1` before.)
+
+**Step 6a. The security group the instance root left behind, by
+hand.** The system has no recipe for it (F61). Its id is read from
+this tree's own state, not from its name: every configuration's
+group is tagged `csis-instances` alike, and the reference
+configuration's stands in the same account. First the form that
+changes nothing:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+aws ec2 delete-security-group --dry-run --group-id sg-0b9a9e31f4d9f5377 2>&1 | tail -1 | cut -c1-200
+```
+
+`... (DryRunOperation) ... Request would have succeeded, but DryRun
+flag is set.` (Seen from the local machine on 2026-10-13, after the
+machine was gone.) If it says `DependencyViolation`, something
+still wears the group: STOP.
+
+This deletes it:
+
+```sh
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+aws ec2 delete-security-group --group-id sg-0b9a9e31f4d9f5377
+aws ec2 describe-security-groups --group-ids sg-0b9a9e31f4d9f5377 --query 'length(SecurityGroups)' --output text 2>&1 | tail -1 | cut -c1-160
+```
+
+The last line is an error naming `InvalidGroup.NotFound`: the
+group does not exist, which is the answer wanted. A `1` means it
+still stands: STOP.
 
 **Step 7. Nothing declared, and the records agree with reality.**
 
@@ -6693,4 +6737,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F58 | CI's login proof cannot pass in a posix tree the bootstrap made. The workflow's step "CI logs in as the group's proof user" runs under the read-only role (the step before it federates `AWS_ROLE_ARN` "again"); the proof's ssh goes through Session Manager and needs `ssm:StartSession` on the instance and on `AWS-StartSSHSession`; `tfmodules/bootstrap_aws` grants that to the write role only. The first `perform` with a standing machine (16d step 9, 2026-10-13) said `login: FAILED -- ssh csis_proof@team-node-1 id: exit 255` and `csis-walk-posix-readonly/GitHubActions is not authorized to perform: ssm:StartSession`, twenty minutes after the same proof passed from the operator's own keys. The record's `tunnel` check said `ok` in the same breath: it means a tunnel was chosen, not that it opened. The posix plugin's README has the symptom's row; nothing connects it to the role CI uses. By its plan, stage 75's live proof never met this: its standalone posix machine was removed before `main` moved | code: stage 89, merged 7eb5962 on 2026-10-13 (the operator chose to move the proof; the read-only role stays read-only), released as 0.1.1.dev22 and proved by this tree's `perform` the same day |
 | F59 | `init-config --help` does not name the starter this tree was made from. The `--from` option's help lists `standard-aws`, `standard-gce` and `complete`; `standard-aws-posix` is accepted and is the fourth starter in the release (seen 2026-10-13, taking 0.1.1.dev22) | code: hygiene XII item 29 |
 | F60 | a provider lock file changes with whoever made the record. `generated/.../.terraform.lock.hcl` gains fourteen `h1:` lines in every record CI commits and loses them in every record a person commits from the container, back and forth (seen on both roots of the posix walk, six commits in a day). Nothing fails for it, and the drift question does not see it; it is noise in every record's diff, and a committed file that says two things | code: hygiene XII item 30 |
+| F61 | decommissioning the last machine leaves a security group that nothing will ever remove. The instance root makes one group, `aws_security_group.csis_instances`, for whatever machines it holds; `cloud-decommission` destroys the machine's module and leaves the group (17b step 2: `2 destroyed` where the launch had added 3); and with no instance declared the system writes no instance root, so no later run plans anything for it. It stays in AWS and in the root's state. Every configuration's group is tagged `Name: csis-instances` alike, so in a shared account only the state says whose it is. No page says a teardown has this left to do by hand | code: hygiene XII item 31; words: the daily driver's decommission row |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
