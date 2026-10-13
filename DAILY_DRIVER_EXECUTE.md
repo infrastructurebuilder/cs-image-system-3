@@ -6246,8 +6246,8 @@ all in AWS, and the repositories after the roles that trusted them.
 
 | Part | What | State |
 | --- | --- | --- |
-| 17a | the picture before: one read of all of the above, kept in a file | **YOU ARE HERE** |
-| 17b | the posix walk: its machine, its images and its volume, each through the gate; then a strict state query with nothing declared | written; next, once you have said `stage 17a done` |
+| 17a | the picture before: one read of all of the above, kept in a file | done 2026-10-13: `~/teardown-before.txt` in the container, 31 lines, exactly as the table above; the repositories and Google Cloud's two settings as expected |
+| 17b | the posix walk: its machine, its images and its volume, each through the gate; then a strict state query with nothing declared | **YOU ARE HERE** |
 | 17c | the first walk: the same, and its OPA groups released to you | written when 17b is done |
 | 17d | the two bootstrap roots, the posix tree's first, and the bucket last | written when 17c is done |
 | 17e | by hand: the OPA console, Google Cloud's two free settings, GitHub (the repositories and the token) | written when 17d is done |
