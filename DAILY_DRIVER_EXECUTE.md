@@ -6261,7 +6261,7 @@ all in AWS, and the repositories after the roles that trusted them.
 | --- | --- | --- |
 | 17a | the picture before: one read of all of the above, kept in a file | done 2026-10-13: `~/teardown-before.txt` in the container, 31 lines, exactly as the table above; the repositories and Google Cloud's two settings as expected |
 | 17b | the posix walk: its machine, its images and its volume, each through the gate; then a strict state query with nothing declared | done 2026-10-13: the machine, both images and their snapshots, the volume, and by hand the security group its instance root had left (F61); no drift; `develop` green at d59c245; `main` not pushed |
-| 17c | the first walk: the same, and its OPA groups released to you | **YOU ARE HERE, and waiting: nothing for you to type.** Steps 0 to 6 are done (the machine, five images, the volume and the security group are gone). Step 7, the group's release, failed safely at the gate (F63); it waits for stage 90, which fixes it, to be merged and released. Then step 7b and step 8 |
+| 17c | the first walk: the same, and its OPA groups released to you | **YOU ARE HERE: step 7b, on your local machine: release 0.1.1.dev23 from `develop`.** Stage 90 (the fix for F63) is merged at cdb80bf. Then 7c, this tree takes it; 7d, the group's release, dry form first, as the live proof; step 8 |
 | 17d | the two bootstrap roots, the posix tree's first, and the bucket last | written when 17c is done |
 | 17e | by hand: the OPA console, Google Cloud's two free settings, GitHub (the repositories and the token) | written when 17d is done |
 | 17f | your local machine: the containers, the snapshot image, the directories | written when 17e is done |
@@ -7120,7 +7120,7 @@ which the failed run left: three under
 else.
 
 (2026-10-13: box 1 took the doubled line out, `1 deletion(-)`, and
-box 2 committed it. **Boxes 3, 4 and 5 of step 7a are WITHDRAWN and
+box 2 was to commit it (if it did not run, step 7c's commit takes the file). **Boxes 3, 4 and 5 of step 7a are WITHDRAWN and
 are not to be run**; if a `v1` of any of them is still on your
 screen, it is not the one. They restored the record by hand and
 made the run without a dry form, which works around the defect. You
@@ -7130,15 +7130,187 @@ the dry form first, then the run. So the tree is left exactly as it
 is, its record still saying `managed: false` and four files
 uncommitted, which is the state the fix has to put right.)
 
-**Step 7b. The release, after stage 90** (added 2026-10-13; written
-in full when stage 90 is released as 0.1.1.dev23, because its boxes
-depend on what that release prints). In outline: the container
-takes 0.1.1.dev23 and this tree its release-owned files; the dry
-form, which now says which group the runner will look for and
-writes no `state rm`; the run, whose pre-plan step finds the
-group's eight resources in the state and removes them from it,
-after a backup, destroying nothing; and a look at OPA's side to
-see that the group stands exactly as it did.
+**Step 7b. On your local machine, NOT in the container: release
+0.1.1.dev23 from `develop`** (written 2026-10-13, stage 90 having
+been merged at `cdb80bf` on your word, its bar green). The same
+five boxes as the last release.
+
+```sh
+# 17c step 7b -- box 1 of 5 -- v1
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+git status --short | wc -l
+```
+
+`0`. Anything else, STOP and paste `git status --short`.
+
+To `develop`. This document leaves your editor while you stand
+there and comes back with box 5:
+
+```sh
+# 17c step 7b -- box 2 of 5 -- v1
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+git checkout develop && git pull
+[ "$(git branch --show-current)" = develop ] && echo "OK: on develop, at: $(git log --oneline -1)" || echo "STOP: not on develop"
+```
+
+`OK: on develop, at: cdb80bf A group's release is decided by the
+state, not by a record (stage 90)`. Anything else, STOP.
+
+```sh
+# 17c step 7b -- box 3 of 5 -- v1
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+curl -s -o /dev/null -w '%{http_code}\n' https://test.pypi.org/legacy/
+[ "$(git branch --show-current)" = develop ] && just release dev test yes || echo "STOP: not on develop"
+```
+
+`200`, and the dry form naming `0.1.1.dev23` as the version
+`0.1.1.dev22` would become. Another number, or a refusal, STOP.
+
+The release: the bar, about half an hour, then the upload, the
+commit and the tag:
+
+```sh
+# 17c step 7b -- box 4 of 5 -- v1
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+[ "$(git branch --show-current)" = develop ] && just release dev test || echo "STOP: not on develop"
+git log --oneline -1
+```
+
+The last line is `release 0.1.1.dev23`. If it is not, the release
+did not finish: STOP, do not run it again, and paste the last
+twenty lines it printed.
+
+```sh
+# 17c step 7b -- box 5 of 5 -- v1
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+git push --follow-tags
+git checkout feature/walk-daily-driver
+git status -sb
+```
+
+`## feature/walk-daily-driver...origin/feature/walk-daily-driver`.
+**Report:** `dev23 pushed`. Claude confirms it is on the index,
+brings `develop` into the walk's branch, takes it into the
+reference configuration, and says go for step 7c.
+
+**Step 7c. In the container: this tree takes the release.** Fresh
+AWS keys first; the run in step 7d needs them:
+
+```sh
+# 17c step 7c -- box 1 of 4 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+aws sts get-caller-identity --query Account --output text
+```
+
+`514190660293`.
+
+```sh
+# 17c step 7c -- box 2 of 4 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+uv tool install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ "cs-image-system==0.1.1.dev23"
+uv tool list | grep cs-image-system
+```
+
+`cs-image-system v0.1.1.dev23`.
+
+The release-owned files. This tree was on 0.1.1.dev21, so it takes
+stage 89's workflow as well:
+
+```sh
+# 17c step 7c -- box 3 of 4 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+[ "$(pwd)" = /walk/cs-image-system-walk ] && [ -f cfg/_config.yml ] && cs-image-system init-config . --force 2>&1 | tail -5 | cut -c1-200 || echo "STOP: not the walk tree in the container"
+cat .csis-version
+git status --short -- .csis-version .github CI_SETUP.md
+```
+
+A line saying the starter `complete` was read from the tree's
+workflow; `0.1.1.dev23`; and three files modified: `.csis-version`,
+`.github/workflows/ci.yml` and `CI_SETUP.md`. Any other file in
+that list, STOP and paste it.
+
+Those three are committed, and with them the entry whose doubled
+line step 7a took out. The files the failed run left are NOT
+committed: they stay as they are, for the proof.
+
+```sh
+# 17c step 7c -- box 4 of 4 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+git add .csis-version .github/workflows/ci.yml CI_SETUP.md groups/groups.yaml && git commit -q -m "Take release 0.1.1.dev23: a group's release is decided by the state"
+git status --short | wc -l
+grep -n 'managed:' meta-state/identity.yaml
+```
+
+The hook's `public-safe:` line; `7` (six files the failed run
+left modified, and one it left untracked); and `managed: false`,
+the record a dry run spent. That is the tree the fix must heal.
+
+**Step 7d. The release, the way that failed: the dry form, then
+the run.** This is stage 90's live proof.
+
+```sh
+# 17c step 7d -- box 1 of 4 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just dry identity 2>&1 | tee ~/dry-17c-identity-2.log | tail -1 | cut -c1-200
+grep -c 'state rm' generated/identity/run-identity.sh
+grep -n -E 'prune-attachments|gate-plan' generated/identity/run-identity.sh | cut -c1-200
+grep -n 'are unmanaged' ~/dry-17c-identity-2.log | cut -c1-220
+```
+
+`Run ... completed: identity`; `0`, because generation no longer
+writes a `state rm`; the runner's `prune-attachments` line for
+`opa-groups` standing before its `gate-plan` line; and a line of
+the dry run's log saying `group(s) walk_team are unmanaged; the
+runner's pre-plan step removes from state whatever of theirs it
+still holds, and destroys nothing`.
+
+The run. Its safety is the gate that held before:
+
+```sh
+# 17c step 7d -- box 2 of 4 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just run identity 2>&1 | tee ~/run-17c-identity-2.log | tail -1 | cut -c1-200
+grep -n -i -E 'is unmanaged and the state|removed|Plan:|No changes|Apply complete|DESTROY NOT|FAILED' ~/run-17c-identity-2.log | cut -c1-220
+```
+
+It should end `Run ... completed: identity`. On the way, in this
+order: ONE line `Plan: 0 to add, 0 to change, 8 to destroy.`,
+which is the preview the run makes as it writes its files and
+never applies (finding F39); then `group 'walk_team' is unmanaged
+and the state still holds 8 of its resource(s); they leave tofu
+state before the plan and nothing is destroyed: state rm
+module.group_walk_team`, and tofu saying what it removed; then
+`No changes` from the plan the gate reads; then an `Apply
+complete!` that adds, changes and destroys `0`. No `DESTROY NOT
+WHITELISTED`. If the gate refuses again, nothing is harmed: STOP
+and paste the last forty lines of `~/run-17c-identity-2.log`.
+Paste what it prints in any case.
+
+```sh
+# 17c step 7d -- box 3 of 4 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+git status --short | wc -l
+grep -n 'managed:' meta-state/identity.yaml
+ls _private/state-backups/ | tail -2
+```
+
+`0`: the run committed its record and what the failed run had
+left. `managed: false`, now true of the state as well. And a
+backup named `opa-groups.backup-` with this run's id, the state as
+it stood before the removal.
+
+```sh
+# 17c step 7d -- box 4 of 4 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+aws s3 cp s3://csis-walk-tfstate-514190660293/statefiles/cs-image-system-walk/opa_groups.tfstate - | grep -c 'module.group_walk_team'
+```
+
+`0`: the state no longer names the group's module. (It answered
+`1` before the run.) In OPA itself nothing has changed: the plan
+was `No changes` and nothing but that was applied. You see it with
+your own eyes in 17e, where the group is removed in the console.
+
+**Report:** `stage 90 proved`, with what box 2 of step 7d printed.
 
 **Step 8. Nothing declared, and the records agree with reality.**
 
@@ -7322,5 +7494,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F60 | a provider lock file changes with whoever made the record. `generated/.../.terraform.lock.hcl` gains fourteen `h1:` lines in every record CI commits and loses them in every record a person commits from the container, back and forth (seen on both roots of the posix walk, six commits in a day). Nothing fails for it, and the drift question does not see it; it is noise in every record's diff, and a committed file that says two things | code: hygiene XII item 30 |
 | F61 | decommissioning the last machine leaves a security group that nothing will ever remove. The instance root makes one group, `aws_security_group.csis_instances`, for whatever machines it holds; `cloud-decommission` destroys the machine's module and leaves the group (17b step 2: `2 destroyed` where the launch had added 3); and with no instance declared the system writes no instance root, so no later run plans anything for it. It stays in AWS and in the root's state. Every configuration's group is tagged `Name: csis-instances` alike, so in a shared account only the state says whose it is. No page says a teardown has this left to do by hand | code: hygiene XII item 31; words: the daily driver's decommission row |
 | F62 | decommissioning a machine on one cloud can fail on another cloud's root, after the destroy and before the record. `cloud-decommission aws-main <instance>` applies the AWS instance root and also plans every other runtime's; in a tree with an ephemeral GCE machine that root cannot be planned between cycles (`tofu plan`: `images/family/team-node was not found`, the image having been disposed of with the cycle, while the ledger still holds the machine as launched). The run destroyed `walk-node-1` (`2 destroyed`), then failed (`LifecycleRunError: Apply failed for lifecycle instance-image`) and committed nothing: the machine was gone and `pins.yaml` still pinned it. The dry form cannot show this, since it plans nothing. The record was completed by deleting both entries and running the instance lifecycle again (17c step 3a) | code: hygiene XII item 32; words: the daily driver's decommission row |
-| F63 | a dry run of a group's release makes the release impossible, and leaves the gate as the only thing between a team and the destruction of its OPA group. The system removes a group marked `unmanaged: true` from state on the run that first sees it so, judging "first" by `meta-state/identity.yaml` (`managed: true`). A dry run writes that file in the tree; `just dry identity` therefore left `managed: false` behind, the real run that followed emitted no `tofu state rm`, and its plan was `8 to destroy`: the group, its project, its enrolment token and its policies. The gate refused all eight (`DESTROY NOT WHITELISTED`, exit 3) and nothing was applied (17c step 7, 2026-10-13). The dry form had shown the `state rm` line; nothing said that showing it spent it. The pages say to look before applying, and for this operation looking breaks it | code: stage 90, planned 2026-10-13 by the operator's word ("its own stage ... as soon as we can"); words: in that stage |
+| F63 | a dry run of a group's release makes the release impossible, and leaves the gate as the only thing between a team and the destruction of its OPA group. The system removes a group marked `unmanaged: true` from state on the run that first sees it so, judging "first" by `meta-state/identity.yaml` (`managed: true`). A dry run writes that file in the tree; `just dry identity` therefore left `managed: false` behind, the real run that followed emitted no `tofu state rm`, and its plan was `8 to destroy`: the group, its project, its enrolment token and its policies. The gate refused all eight (`DESTROY NOT WHITELISTED`, exit 3) and nothing was applied (17c step 7, 2026-10-13). The dry form had shown the `state rm` line; nothing said that showing it spent it. The pages say to look before applying, and for this operation looking breaks it | code: stage 90, merged cdb80bf on 2026-10-13 by the operator's word (the release is decided by the state, in the runner's pre-plan step); words: in that stage |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |

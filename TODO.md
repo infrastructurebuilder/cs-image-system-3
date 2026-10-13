@@ -11,10 +11,16 @@ Current stage: **§65**, walking the daily driver, started 2026-10-05
 on `feature/walk-daily-driver`: the operator types each stage from
 [DAILY_DRIVER_EXECUTE.md](DAILY_DRIVER_EXECUTE.md) on a Fedora 43
 container. §90, a group's release is decided by the state and
-cannot be spent by a dry run (walk finding F63; it was hygiene XII
-item 33 for an hour), is IN PROGRESS by the operator's word of
-2026-10-13 ("its own stage ... as soon as we can", then "Stage 90
-first, walk proves it"), on `feature/state-decides-a-group-release`.
+cannot be spent by a dry run (the removal of an unmanaged group
+from state was decided from the identity read-model, which every
+dry run and every `record` rewrites, so the run after a dry run
+planned the group's destruction and only the gate refused it; now
+the runner's pre-plan step asks the state; walk finding F63),
+LANDED 2026-10-13 (cdb80bf) by the operator's word, who made it a
+stage of its own and had it done before the walk went on. It
+awaits its release, 0.1.1.dev23, and its live proof: the first
+walk's own group released by the sequence that failed, the dry
+form and then the run.
 §89, CI makes the login proof while it still holds the
 write identity (every starter's workflow took the read-only identity
 back before the proof, and a posix proof's ssh opens a session the
@@ -1315,114 +1321,3 @@ named by hand. The release refuses, with its other probes and before
 anything changes, a branch that is not the integration branch
 (`develop`; a final release may want `main`: **USER** decides), and
 the dry form says which branch it stands on.
-
-## 90. A group's release is decided by the state, not by a record a dry run rewrites
-
-**Status: IN PROGRESS 2026-10-13, on
-`feature/state-decides-a-group-release`.** (The operator, 2026-10-13,
-an hour after the walk met it: "Make hygiene item 33 its own stage
-and we should do it as soon as we can once this is done"; and, asked
-the order the same hour, chose "Stage 90 first, walk proves it".) The
-change, its tests and its words are written (bf273ba) and the bar is
-green: `just test` 1482 passed, and every leg of the full test
-passed. The merge, the release and the live proof wait for the
-operator.
-
-**Why.** The walk's finding F63 (stage 17c, step 7: the teardown of
-the first walk). A group marked `unmanaged: true` is meant to leave
-the system's state and nothing else: "released from state, never
-destroyed". The walk marked its group, looked at the dry form as
-every page teaches, ran, and the run planned to DESTROY the group,
-its project, its enrolment token and both its policies: `Plan: 0 to
-add, 0 to change, 8 to destroy.` The gate refused all eight
-(`DESTROY NOT WHITELISTED`, exit 3) and nothing was applied. The
-gate was the only thing in the way.
-
-The cause is where the decision lives.
-`OktaOpaTfGroupBuilder._newly_unmanaged_groups()` emits the
-`tofu state rm module.group_<name>` step for a group that is
-unmanaged NOW and was `managed: true` in the identity read-model,
-`meta-state/identity.yaml`. Any dry run rewrites that file in the
-tree, so the dry run itself wrote `managed: false`; the real run
-that followed saw a group released long ago and emitted no removal.
-The same thing happens with no dry form typed at all: `just record`
-is a dry run that COMMITS the file, and CI's `perform` makes one
-first. A tree whose group was marked unmanaged and then recorded
-has lost its release for good, and every later identity run plans
-the destruction and is refused.
-
-Stage 61 met this shape once before, on memberships: "a read-model
-written at generation outlived a failed runner on 2026-09-23 and
-said the membership was already gone". Its answer was to ask the
-state at execution time, in the initialised root, after a backup.
-The release of a group never got that answer.
-
-**What changes.**
-
-1. **The state decides.** The release moves from generation to the
-   runner's pre-plan step, beside the pruning of attachments, which
-   already lists terraform state in the initialised root and backs
-   it up before it removes anything. For every group of the builder
-   that is `unmanaged: true`: if `tofu state list` shows resources
-   under `module.group_<name>`, they are removed from state, after
-   the backup, and each address is logged. If none are there,
-   nothing happens. It does not matter what any earlier run, dry or
-   real, wrote anywhere; and a tree that already lost its release
-   is healed by its next identity run.
-2. **`_newly_unmanaged_groups()` and the `pre_plan` it fed are
-   removed**, so there is one mechanism and the read-model's
-   `managed` is a record again, read by nothing that acts.
-3. **A dry run still shows it.** The enumerated runner carries the
-   pre-plan step as it does now, and the dry run's own log names
-   the groups whose release the step will look for.
-4. **The gate's refusal says what it is**: NOT DONE, on purpose.
-   The plan was a line under the gate's list when a refused destroy
-   lies under an unmanaged group's module. With item 1 the case
-   cannot arise: the step removes the module before the plan, and
-   if the removal fails the runner stops before any plan is made.
-   The gate knows nothing of groups, and teaching it for a case
-   that no longer happens was not worth the coupling. The daily
-   driver's section 6 says what those lines meant before this
-   stage.
-5. **Tests.** The step over a fake state (module present: removed
-   after a backup; absent: nothing; a managed group's module:
-   never touched; `state list` failing: stops, removes nothing).
-   The sequence that failed, over the fixture: mark unmanaged, a
-   dry run, a `record`, then the run, and the removal is still
-   carried out. The golden runner is expected not to move, the
-   step's command line being the one already there; if it moves,
-   the diff is read by hand.
-6. **Words.** The daily driver's "Stop managing a group" row and
-   section 6 (the eight `DESTROY NOT WHITELISTED` lines, what they
-   meant before this stage, and that the gate was right); the
-   operations page's "Stop managing a group"; the Okta plugin's
-   README; `unmanaged` in the configuration reference.
-
-**Not in this stage.** Whether a dry run should write read-models
-into the tree at all is a larger question (F45 and F60 are its
-neighbours) and stays in hygiene XII. This stage removes the one
-place where that write could lead to a destroy.
-
-**Proof.** `just test`, then `just full-test`. Live: a real group
-released by the dry-then-real sequence that failed, the run saying
-which addresses left state, the plan after it `No changes`, and OPA
-holding the group afterwards exactly as before. The walk's own
-group is the natural one, and the only one standing by: see the
-order below.
-
-**The order** (the operator, 2026-10-13: "Stage 90 first, walk
-proves it"). The walk's teardown pauses at 17c step 7 with its
-group not yet released and its tree left as the failure left it
-(`meta-state/identity.yaml` saying `managed: false`, uncommitted).
-This stage lands and is released, the walk's tree takes the
-release, and the walk's own release, the dry form first and then
-the run, is the live proof: the step finds the group's eight
-resources in the state and removes them, the plan after it says
-`No changes`, and OPA holds the group as before. Nothing billable
-stands in either walk while it waits.
-
-**USER**: "do 90"; the order above; the merge to `develop`; the
-release; the applying identity run of the live proof.
-
-**Sizing**: the step and its tests half a day; the gate's line and
-the words two hours; the bar and the release as usual.
