@@ -1634,7 +1634,7 @@ true`; every member must be a declared user name.
 | `in_both` | bool or null | null | `true`: every admin is also a member; `false`: no name may be in both (admins are removed from members and members from admins); null: as declared |
 | `gid` | int, digit string, `default`, 0 or null | null | a pinned gid, at least 1024; null/0/`default` defer to the created group's gid |
 | `include_root_group_in_admins` | bool | `true` | the root group's admins are merged, as usernames, into this group's `admins` |
-| `unmanaged` | bool | `false` | the group stays in the YAML but leaves management: its state entries are removed, nothing is destroyed. A group once managed may not simply disappear from the YAML. |
+| `unmanaged` | bool | `false` | the group stays in the YAML but leaves management: its state entries are removed by the next identity run (decided from the state itself, so looking first with a dry run is safe), nothing is destroyed. A group once managed may not simply disappear from the YAML. |
 | `attributes` | mapping or null | null | provider attributes: OPA accepts `unix_gid` (int), `unix_group_name` (str), `windows_group_name` (str); planned and probed, never written |
 | `description` | str or null | null | templates allowed (`{{ group.name }}`) |
 | `tags`, `config`, `aliases` | | | as elsewhere |

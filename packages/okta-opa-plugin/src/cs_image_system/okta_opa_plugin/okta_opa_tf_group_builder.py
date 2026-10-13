@@ -632,17 +632,25 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         """Generate a list of items to create after a specific execution lifecycle event."""
         return AssetSet()
 
-    def _newly_unmanaged_groups(self) -> list[Group]:
-        """Groups marked unmanaged now that the identity read-model last
-        recorded as managed: their state entries get removed (never destroyed)."""
-        from cs_image_system.base.global_context import GlobalTypeContext
-        previous = GlobalTypeContext().meta_state.identity_read_model().get("groups", {}) or {}
-        out: list[Group] = []
-        for g in self.get_groups_for_builder():
-            if getattr(g, "unmanaged", False):
-                rec = previous.get(g.get_name())
-                if isinstance(rec, dict) and rec.get("managed", True):
-                    out.append(g)
+    def _unmanaged_groups(self) -> list[Group]:
+        """This builder's groups marked ``unmanaged: true``. Whether anything
+        of theirs is still in state is asked of the STATE, at execution time
+        (``_release_unmanaged``), never of a record: stage 90."""
+        return [g for g in self.get_groups_for_builder() if getattr(g, "unmanaged", False)]
+
+    @staticmethod
+    def _group_module(group: Group) -> str:
+        return f"module.group_{utils.super_safe_name(group.name)}"
+
+    def _held_by_unmanaged(self, listed: list[str]) -> list[tuple[Group, str, list[str]]]:
+        """``(group, module address, the state addresses under it)`` for every
+        unmanaged group the state still holds something of."""
+        out: list[tuple[Group, str, list[str]]] = []
+        for g in self._unmanaged_groups():
+            module = self._group_module(g)
+            held = [ln for ln in listed if ln == module or ln.startswith(module + ".")]
+            if held:
+                out.append((g, module, held))
         return out
 
     _ATTACHMENT_RE = re.compile(
@@ -720,6 +728,32 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
             log.error(f"Identity builder {self.name}: `state list` failed in {cwd}; nothing is removed from state:\n"
                       f"{said}")
             return 1
+        from cs_image_system.base.commands.state_migration import backup
+        from cs_image_system.base.global_context import GlobalTypeContext
+        # Stage 90 (the walk's F63): a group marked ``unmanaged: true`` leaves
+        # state HERE, decided by what the state holds. It used to be decided at
+        # generation, from the identity read-model's ``managed`` -- a file every
+        # dry run (and every ``record``) rewrites, so a dry run of a release
+        # recorded it as done, the real run emitted no removal, and its plan
+        # was the DESTROY of the group, its project, its token and its
+        # policies; the gate refused them (live 2026-10-13). The state cannot
+        # be told a release happened that did not: what it still holds of an
+        # unmanaged group is removed, after a backup, and nothing is destroyed.
+        backed_up = False
+        for group, module, held in self._held_by_unmanaged([ln.strip() for ln in listed.stdout.splitlines()]):
+            if not backed_up:
+                if backup(GlobalTypeContext(), self.name, tofu, run_id, cwd) != 0:
+                    return 1
+                backed_up = True
+            log.info(f"Identity builder {self.name}: group {group.get_name()!r} is unmanaged and the state still "
+                     f"holds {len(held)} of its resource(s); they leave tofu state before the plan and nothing is "
+                     f"destroyed: state rm {module}")
+            rm = subprocess.run([tofu, "state", "rm", module], cwd=cwd, capture_output=True, text=True, check=False)
+            if rm.returncode != 0:
+                log.error(f"Identity builder {self.name}: `state rm {module}` failed; the runner stops here, "
+                          f"before the plan:\n{(rm.stderr or rm.stdout).strip()}")
+                return 1
+            log.info((rm.stdout or "").strip() or f"Removed {module}")
         declared = self._declared_memberships()
         dropped: list[tuple[str, Group, str, str]] = []           # (address, group, kind, user)
         for line in listed.stdout.splitlines():
@@ -763,9 +797,9 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         self._sanction(cwd, sanctioned)
         if not remove:
             return 0
-        from cs_image_system.base.commands.state_migration import backup
-        from cs_image_system.base.global_context import GlobalTypeContext
-        if backup(GlobalTypeContext(), self.name, tofu, run_id, cwd) != 0:
+        # one backup a run, taken before the FIRST removal: a second would keep
+        # the state as it stood after a release above, under the same name
+        if not backed_up and backup(GlobalTypeContext(), self.name, tofu, run_id, cwd) != 0:
             return 1
         for addr, group, kind, user in remove:
             log.info(f"Identity builder {self.name}: {kind[:-1]} {user!r} was dropped from group "
@@ -800,8 +834,12 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
             # and the runner's own plan -- after the prune step -- is the one the
             # gate reads.
             commands += self.plaintext_read_commands(phase, wd, [["plan", "-refresh=false"]])
-        pre_plan = [["state", "rm", f"module.group_{utils.super_safe_name(g.name)}"]
-                    for g in self._newly_unmanaged_groups()]
+        unmanaged = sorted(g.get_name() for g in self._unmanaged_groups())
+        if unmanaged:
+            # stage 90: said at generation so a dry run shows it; done by the runner's
+            # pre-plan step, which asks the state (prune_stale_attachments)
+            log.info(f"Identity builder {self.name}: group(s) {', '.join(unmanaged)} are unmanaged; the runner's "
+                     "pre-plan step removes from state whatever of theirs it still holds, and destroys nothing")
         # Stage 61 item 3: after init and before the plan, the runner prunes the
         # attachments of memberships the declaration dropped and OPA no longer
         # holds, from the state it can see, after a backup (prune_stale_attachments).
@@ -809,13 +847,15 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         prune = utils.system_cli_executable_with_config(
             ["prune-attachments", "--builder", self.name, "--tofu", str(tofu_bin.binary or tofu_bin.name),
              "--run", str(self._get_context().run_id)], wd)
-        # Per-root apply scoping (stage 7): the identity root is its builder name;
-        # a pre-plan state rm is preceded by a state backup (stage 61 item 3)
+        # Per-root apply scoping (stage 7): the identity root is its builder name.
+        # The prune step is the one place anything leaves state before the plan: a
+        # dropped attachment OPA no longer holds (stage 61 item 3) and whatever the
+        # state still holds of an unmanaged group (stage 90), each after its backup
         # stage 88: the gate reads the removals that step sanctioned (a membership
         # the YAML dropped), each by its exact address
         deferred = self.gated_apply_commands(
-            phase, wd, apply=utils.apply_enabled("identity", self.name), pre_plan=pre_plan,
-            pre_commands=[prune], apply_flag_key="identity", apply_root=self.name, pre_plan_backup=True,
+            phase, wd, apply=utils.apply_enabled("identity", self.name),
+            pre_commands=[prune], apply_flag_key="identity", apply_root=self.name,
             allow_destroy_from=[self.SANCTIONED_REMOVALS])
         # EXPLORE identity: attributes travel outside terraform. When
         # anything is declared, the runner probes (read-only) after the

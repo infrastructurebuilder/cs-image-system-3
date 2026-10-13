@@ -130,9 +130,7 @@ Every terraform root's deferred sequence is:
 ```text
 rm -f tfplan
 tofu init -input=false -reconfigure [-backend-config=<root>.tfbackend.hcl]                                                    (a migrating root instead: state-migration begin, then init -migrate-state -force-copy)
-cs-image-system state-migration backup --workspace <root> ...                                                                   (only before a pre-plan state rm)
-tofu state rm <address>                                                                                                         (only an unmanaged group's module)
-cs-image-system prune-attachments --builder <group builder> ...                                                                 (identity roots only, every run)
+cs-image-system prune-attachments --builder <group builder> ...                                                                 (identity roots only, every run: it asks the state, and after its own backup removes from it an unmanaged group's module and the attachments OPA no longer holds)
 tofu plan -input=false -out=tfplan [-replace=…] [-var=…]
 cs-image-system gate-plan --planfile tfplan --tofu <tofu> [--allow-destroy <addr>]... [--require-unmounted <inst>:<storage>]...
 cs-image-system state-migration finish --workspace <root> ...                                                                   (a migrating root only, after the gate)
@@ -2487,6 +2485,16 @@ operator key: nothing in a run can prompt.
 - **Stop managing a group**: keep the entry, add `unmanaged: true`; the
   identity runner removes it from state (`state rm`) and never destroys
   it. Removing a managed group's entry is a hard validation failure.
+  The removal is the runner's pre-plan step's (`prune-attachments`), and
+  it is decided by what the state holds when the step runs: whatever is
+  still there under the group's module leaves, after a backup. Nothing
+  made before the run changes that -- a dry run, a `just record`, an
+  earlier run that failed -- and a tree whose release was once missed is
+  healed by its next identity run. (Stage 90. Until 0.1.1.dev23 the
+  removal was decided at generation from `meta-state/identity.yaml`,
+  which every dry run rewrites: after a dry run or a record the real run
+  planned the DESTROY of the group, its project, its enrolment token and
+  its policies, and only the gate stood in the way; live 2026-10-13.)
 - **Drop a membership**: remove the user from the group's `members` or
   `admins`. When OPA still holds the membership the plan shows the
   destroy of its attachment and the gate sees it. When OPA no longer
