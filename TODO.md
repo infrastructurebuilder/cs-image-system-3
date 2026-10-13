@@ -42,7 +42,7 @@ released in dev19 (dev18 was cut from the walk branch by mistake and
 is on the index, unused) and PROVED live: the walk's third `perform`
 baked both its images under the bootstrap-made write role, Systems
 Manager finishing its work on each build machine undisturbed. §81,
-hygiene bundle XII, is open (thirty-two items the walk
+hygiene bundle XII, is open (thirty-three items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15, taken by the reference configuration, its
@@ -629,7 +629,7 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, thirty-two items found by the §65 walk. Items
+**Status: OPEN 2026-10-05, thirty-three items found by the §65 walk. Items
 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
 the operator's word. Items 10 and 11 LANDED as §86 (c6af4b2,
 2026-10-07, "Fix now, starters too"). Item 16 LANDED as §88
@@ -1215,6 +1215,30 @@ starter's `.gitignore` ignores every dotfile unless named.)
     already applied should reach the record even when a later
     root fails. And the dry form's limit belongs in the daily
     driver: it says what would run and runs no plan.
+
+33. **A dry run of a group's release spends the release; the real
+    run then plans to destroy the group.** The walk's finding F63
+    (2026-10-13, teardown of the first walk). **Of this bundle's
+    items this is the one to take first:** it is the only one
+    where a documented habit (look before you apply) leads
+    straight to a plan that destroys what the system promises
+    never to destroy. `_newly_unmanaged_groups()` compares a
+    group's `unmanaged: true` with the identity read-model
+    (`meta-state/identity.yaml`, `managed`); a dry run writes the
+    read-model into the tree, so after `just dry identity` it says
+    `managed: false`, the real run emits no `tofu state rm
+    module.group_<name>`, and its plan destroys the group's eight
+    resources. The gate refused them all (`DESTROY NOT
+    WHITELISTED`, exit 3); nothing was applied. Plan: the release
+    is decided from what the STATE holds (a module of an unmanaged
+    group still in state is removed, whenever that is seen), not
+    from a file a dry run rewrites; or a dry run writes no
+    read-model; a test runs dry-then-real over the fixture and
+    asserts the `state rm` in the second; and a plan that would
+    destroy an unmanaged group's module says so in words before
+    the gate's list ("this group is unmanaged; its release was not
+    carried out"). The daily driver's row gains the warning until
+    then.
 
 ## 83. A release asks its publish target before it starts
 

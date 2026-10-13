@@ -7069,6 +7069,97 @@ that destroy NOTHING (`No changes`, or `0 to destroy`), and end
 forty lines of `~/run-17c-identity.log`. Paste what it prints in
 any case: this has not been seen before.
 
+(2026-10-13, 22:30 UTC: it FAILED, at the gate, and the gate was
+right. `Plan: 0 to add, 0 to change, 8 to destroy.`, then eight
+lines `DESTROY NOT WHITELISTED: module.group_walk_team....`, exit
+code 3, `Run ... FAILED`. Nothing was applied; OPA is untouched,
+and the root's state still holds the group's eight resources. What
+went wrong is this page's own order. The system removes a released
+group from state only on the run in which it FIRST sees the group
+unmanaged, and it knows "first" from `meta-state/identity.yaml`,
+where the group was `managed: true`. The dry form in box 4 wrote
+`managed: false` into that file, in the tree, uncommitted. The real
+run two minutes later read it, concluded the group had been
+released already, left the `tofu state rm` out of its runner, and
+so planned to DESTROY the group, its project, its token and its
+policies. A dry run of a release makes the release impossible, and
+the gate is then all that stands between a team and the loss of its
+OPA group (finding F63). Two smaller things happened on the way:
+box 1 was run twice, so the line `unmanaged: true` stands twice in
+the entry; and box 2 failed once with only `error: recipe
+validate failed` on show, the cause, lapsed AWS keys, being three
+lines above the one line the box prints. Step 7a puts it right.)
+
+**Step 7a. The release, once more, without a dry form before it**
+(added 2026-10-13; its boxes are numbered on their own). The
+doubled line goes, the record goes back to what was committed, and
+the run is made directly. This is the one place in this stage where
+the dry form must NOT come first.
+
+```sh
+# 17c step 7a -- box 1 of 5 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+sed -i '0,/^    unmanaged: true$/{//d}' groups/groups.yaml
+git diff --stat -- groups/groups.yaml
+grep -c '^    unmanaged: true$' groups/groups.yaml
+```
+
+`groups/groups.yaml | 1 -`, `1 file changed, 1 deletion(-)`, and
+`1`. (Tried on a copy of the file.)
+
+```sh
+# 17c step 7a -- box 2 of 5 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+git add groups/groups.yaml && git commit -q -m "The released group's entry says so once"
+git status --short
+```
+
+The hook's `public-safe:` line, then four files still modified,
+which the failed run left: three under
+`generated/identity/` and `meta-state/identity.yaml`. Nothing
+else.
+
+The record back to what was committed. This discards one
+uncommitted change, the `managed: false` that the dry run wrote:
+
+```sh
+# 17c step 7a -- box 3 of 5 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+git checkout -- meta-state/identity.yaml
+grep -n 'managed:' meta-state/identity.yaml
+```
+
+One line, `managed: true`. If it says `false`, STOP.
+
+The run. Do NOT run `just dry identity` first:
+
+```sh
+# 17c step 7a -- box 4 of 5 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+just run identity 2>&1 | tee ~/run-17c-identity-2.log | tail -1 | cut -c1-200
+grep -n -i -E 'executing .*state rm|removed|Plan:|No changes|Apply complete|DESTROY NOT|FAILED' ~/run-17c-identity-2.log | cut -c1-200
+```
+
+It should end `Run ... completed: identity`. On the way: ONE line
+`Plan: 0 to add, 0 to change, 8 to destroy.`, which is the preview
+the run makes as it writes its files and never applies (finding
+F39); then a line `executing ... tofu state rm
+module.group_walk_team` and lines saying the eight were removed
+from state; then `No changes` from the plan the gate reads; and no
+`DESTROY NOT WHITELISTED`. If the gate refuses again, nothing is
+harmed: STOP and paste the last forty lines of
+`~/run-17c-identity-2.log`.
+
+```sh
+# 17c step 7a -- box 5 of 5 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+git status --short | wc -l
+grep -n 'managed:' meta-state/identity.yaml
+```
+
+`0`, and `managed: false`: the run committed its record, and the
+record now says what is true.
+
 **Step 8. Nothing declared, and the records agree with reality.**
 
 ```sh
@@ -7251,4 +7342,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F60 | a provider lock file changes with whoever made the record. `generated/.../.terraform.lock.hcl` gains fourteen `h1:` lines in every record CI commits and loses them in every record a person commits from the container, back and forth (seen on both roots of the posix walk, six commits in a day). Nothing fails for it, and the drift question does not see it; it is noise in every record's diff, and a committed file that says two things | code: hygiene XII item 30 |
 | F61 | decommissioning the last machine leaves a security group that nothing will ever remove. The instance root makes one group, `aws_security_group.csis_instances`, for whatever machines it holds; `cloud-decommission` destroys the machine's module and leaves the group (17b step 2: `2 destroyed` where the launch had added 3); and with no instance declared the system writes no instance root, so no later run plans anything for it. It stays in AWS and in the root's state. Every configuration's group is tagged `Name: csis-instances` alike, so in a shared account only the state says whose it is. No page says a teardown has this left to do by hand | code: hygiene XII item 31; words: the daily driver's decommission row |
 | F62 | decommissioning a machine on one cloud can fail on another cloud's root, after the destroy and before the record. `cloud-decommission aws-main <instance>` applies the AWS instance root and also plans every other runtime's; in a tree with an ephemeral GCE machine that root cannot be planned between cycles (`tofu plan`: `images/family/team-node was not found`, the image having been disposed of with the cycle, while the ledger still holds the machine as launched). The run destroyed `walk-node-1` (`2 destroyed`), then failed (`LifecycleRunError: Apply failed for lifecycle instance-image`) and committed nothing: the machine was gone and `pins.yaml` still pinned it. The dry form cannot show this, since it plans nothing. The record was completed by deleting both entries and running the instance lifecycle again (17c step 3a) | code: hygiene XII item 32; words: the daily driver's decommission row |
+| F63 | a dry run of a group's release makes the release impossible, and leaves the gate as the only thing between a team and the destruction of its OPA group. The system removes a group marked `unmanaged: true` from state on the run that first sees it so, judging "first" by `meta-state/identity.yaml` (`managed: true`). A dry run writes that file in the tree; `just dry identity` therefore left `managed: false` behind, the real run that followed emitted no `tofu state rm`, and its plan was `8 to destroy`: the group, its project, its enrolment token and its policies. The gate refused all eight (`DESTROY NOT WHITELISTED`, exit 3) and nothing was applied (17c step 7, 2026-10-13). The dry form had shown the `state rm` line; nothing said that showing it spent it. The pages say to look before applying, and for this operation looking breaks it | code: hygiene XII item 33, to be looked at before the rest; words: the daily driver's "Stop managing a group" row |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
