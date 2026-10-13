@@ -6236,7 +6236,7 @@ all in AWS, and the repositories after the roles that trusted them.
 
 | Part | What | State |
 | --- | --- | --- |
-| 17a | the picture before: one read of all of the above, kept in a file | **YOU ARE HERE** |
+| 17a | the picture before: one read of all of the above, kept in a file | written; next, once you have said `stage 16 done` |
 | 17b | the posix walk: its machine, its images and its volume, each through the gate; then a strict state query with nothing declared | written when 17a is in |
 | 17c | the first walk: the same, and its OPA groups released to you | written when 17b is done |
 | 17d | the two bootstrap roots, the posix tree's first, and the bucket last | written when 17c is done |
