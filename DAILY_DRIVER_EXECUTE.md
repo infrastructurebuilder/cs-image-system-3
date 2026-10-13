@@ -6261,7 +6261,7 @@ all in AWS, and the repositories after the roles that trusted them.
 | --- | --- | --- |
 | 17a | the picture before: one read of all of the above, kept in a file | done 2026-10-13: `~/teardown-before.txt` in the container, 31 lines, exactly as the table above; the repositories and Google Cloud's two settings as expected |
 | 17b | the posix walk: its machine, its images and its volume, each through the gate; then a strict state query with nothing declared | done 2026-10-13: the machine, both images and their snapshots, the volume, and by hand the security group its instance root had left (F61); no drift; `develop` green at d59c245; `main` not pushed |
-| 17c | the first walk: the same, and its OPA groups released to you | **YOU ARE HERE** |
+| 17c | the first walk: the same, and its OPA groups released to you | **YOU ARE HERE, and waiting: nothing for you to type.** Steps 0 to 6 are done (the machine, five images, the volume and the security group are gone). Step 7, the group's release, failed safely at the gate (F63); it waits for stage 90, which fixes it, to be merged and released. Then step 7b and step 8 |
 | 17d | the two bootstrap roots, the posix tree's first, and the bucket last | written when 17c is done |
 | 17e | by hand: the OPA console, Google Cloud's two free settings, GitHub (the repositories and the token) | written when 17d is done |
 | 17f | your local machine: the containers, the snapshot image, the directories | written when 17e is done |
@@ -7119,46 +7119,26 @@ which the failed run left: three under
 `generated/identity/` and `meta-state/identity.yaml`. Nothing
 else.
 
-The record back to what was committed. This discards one
-uncommitted change, the `managed: false` that the dry run wrote:
+(2026-10-13: box 1 took the doubled line out, `1 deletion(-)`, and
+box 2 committed it. **Boxes 3, 4 and 5 of step 7a are WITHDRAWN and
+are not to be run**; if a `v1` of any of them is still on your
+screen, it is not the one. They restored the record by hand and
+made the run without a dry form, which works around the defect. You
+chose instead to have the defect fixed first, as stage 90, and to
+let this tree's own release be its proof, made the way that failed:
+the dry form first, then the run. So the tree is left exactly as it
+is, its record still saying `managed: false` and four files
+uncommitted, which is the state the fix has to put right.)
 
-```sh
-# 17c step 7a -- box 3 of 5 -- v1
-cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
-git checkout -- meta-state/identity.yaml
-grep -n 'managed:' meta-state/identity.yaml
-```
-
-One line, `managed: true`. If it says `false`, STOP.
-
-The run. Do NOT run `just dry identity` first:
-
-```sh
-# 17c step 7a -- box 4 of 5 -- v1
-cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
-just run identity 2>&1 | tee ~/run-17c-identity-2.log | tail -1 | cut -c1-200
-grep -n -i -E 'executing .*state rm|removed|Plan:|No changes|Apply complete|DESTROY NOT|FAILED' ~/run-17c-identity-2.log | cut -c1-200
-```
-
-It should end `Run ... completed: identity`. On the way: ONE line
-`Plan: 0 to add, 0 to change, 8 to destroy.`, which is the preview
-the run makes as it writes its files and never applies (finding
-F39); then a line `executing ... tofu state rm
-module.group_walk_team` and lines saying the eight were removed
-from state; then `No changes` from the plan the gate reads; and no
-`DESTROY NOT WHITELISTED`. If the gate refuses again, nothing is
-harmed: STOP and paste the last forty lines of
-`~/run-17c-identity-2.log`.
-
-```sh
-# 17c step 7a -- box 5 of 5 -- v1
-cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
-git status --short | wc -l
-grep -n 'managed:' meta-state/identity.yaml
-```
-
-`0`, and `managed: false`: the run committed its record, and the
-record now says what is true.
+**Step 7b. The release, after stage 90** (added 2026-10-13; written
+in full when stage 90 is released as 0.1.1.dev23, because its boxes
+depend on what that release prints). In outline: the container
+takes 0.1.1.dev23 and this tree its release-owned files; the dry
+form, which now says which group the runner will look for and
+writes no `state rm`; the run, whose pre-plan step finds the
+group's eight resources in the state and removes them from it,
+after a backup, destroying nothing; and a look at OPA's side to
+see that the group stands exactly as it did.
 
 **Step 8. Nothing declared, and the records agree with reality.**
 

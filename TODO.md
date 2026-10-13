@@ -12,8 +12,9 @@ on `feature/walk-daily-driver`: the operator types each stage from
 [DAILY_DRIVER_EXECUTE.md](DAILY_DRIVER_EXECUTE.md) on a Fedora 43
 container. §90, a group's release is decided by the state and
 cannot be spent by a dry run (walk finding F63; it was hygiene XII
-item 33 for an hour), is PLANNED by the operator's word of
-2026-10-13: "its own stage", to be done "as soon as we can".
+item 33 for an hour), is IN PROGRESS by the operator's word of
+2026-10-13 ("its own stage ... as soon as we can", then "Stage 90
+first, walk proves it"), on `feature/state-decides-a-group-release`.
 §89, CI makes the login proof while it still holds the
 write identity (every starter's workflow took the read-only identity
 back before the proof, and a posix proof's ssh opens a session the
@@ -1317,10 +1318,13 @@ the dry form says which branch it stands on.
 
 ## 90. A group's release is decided by the state, not by a record a dry run rewrites
 
-**Status: PLANNED 2026-10-13, not started -- a plan; nothing here runs
-until the operator says "do 90".** (The operator, 2026-10-13, an hour
-after the walk met it: "Make hygiene item 33 its own stage and we
-should do it as soon as we can once this is done.")
+**Status: IN PROGRESS 2026-10-13, on
+`feature/state-decides-a-group-release`.** (The operator, 2026-10-13,
+an hour after the walk met it: "Make hygiene item 33 its own stage
+and we should do it as soon as we can once this is done"; and, asked
+the order the same hour, chose "Stage 90 first, walk proves it".) The
+change, its tests and its words are written and the bar is running;
+the merge, the release and the live proof wait for the operator.
 
 **Why.** The walk's finding F63 (stage 17c, step 7: the teardown of
 the first walk). A group marked `unmanaged: true` is meant to leave
@@ -1369,10 +1373,15 @@ The release of a group never got that answer.
 3. **A dry run still shows it.** The enumerated runner carries the
    pre-plan step as it does now, and the dry run's own log names
    the groups whose release the step will look for.
-4. **The gate's refusal says what it is.** When a refused destroy
-   lies under the module of a group that is unmanaged, the message
-   adds one line saying so and that the release was not carried
-   out, in place of eight bare addresses.
+4. **The gate's refusal says what it is**: NOT DONE, on purpose.
+   The plan was a line under the gate's list when a refused destroy
+   lies under an unmanaged group's module. With item 1 the case
+   cannot arise: the step removes the module before the plan, and
+   if the removal fails the runner stops before any plan is made.
+   The gate knows nothing of groups, and teaching it for a case
+   that no longer happens was not worth the coupling. The daily
+   driver's section 6 says what those lines meant before this
+   stage.
 5. **Tests.** The step over a fake state (module present: removed
    after a backup; absent: nothing; a managed group's module:
    never touched; `state list` failing: stops, removes nothing).
@@ -1399,15 +1408,16 @@ holding the group afterwards exactly as before. The walk's own
 group is the natural one, and the only one standing by: see the
 order below.
 
-**The order, which is the operator's** (asked 2026-10-13). The
-walk's group has not been released yet. Either the walk finishes
-its release now by the workaround (17c step 7a: the record
-restored, the run made with no dry form before it) and this stage
-is proved afterwards on a group made for the purpose; or 17c
-pauses at step 7a, this stage lands and is released first, the
-walk's tree takes the release, and the walk's own release, dry
-form first, is the live proof. Nothing billable stands in either
-walk while it waits.
+**The order** (the operator, 2026-10-13: "Stage 90 first, walk
+proves it"). The walk's teardown pauses at 17c step 7 with its
+group not yet released and its tree left as the failure left it
+(`meta-state/identity.yaml` saying `managed: false`, uncommitted).
+This stage lands and is released, the walk's tree takes the
+release, and the walk's own release, the dry form first and then
+the run, is the live proof: the step finds the group's eight
+resources in the state and removes them, the plan after it says
+`No changes`, and OPA holds the group as before. Nothing billable
+stands in either walk while it waits.
 
 **USER**: "do 90"; the order above; the merge to `develop`; the
 release; the applying identity run of the live proof.
