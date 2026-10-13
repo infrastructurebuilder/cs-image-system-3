@@ -15,8 +15,10 @@ write identity (every starter's workflow took the read-only identity
 back before the proof, and a posix proof's ssh opens a session the
 read-only role may not; walk finding F58), LANDED 2026-10-13
 (7eb5962) by the operator's word, the read-only role left as it
-was. It awaits its release, 0.1.1.dev22, and its live proof: the
-posix walk's `perform` on `main` green with CI's own login proof.
+was. It is released in dev22 (9584a03, 2026-10-13), which the
+reference configuration has taken on its `develop` (CI green), and
+awaits its live proof: the posix walk's `perform` on `main` green
+with CI's own login proof.
 §88, a membership the YAML dropped is removed by the
 run (the runner's prune step names the attachment of each one, and
 the gate allows exactly those; walk finding F38), LANDED 2026-10-08
@@ -38,7 +40,7 @@ released in dev19 (dev18 was cut from the walk branch by mistake and
 is on the index, unused) and PROVED live: the walk's third `perform`
 baked both its images under the bootstrap-made write role, Systems
 Manager finishing its work on each build machine undisturbed. §81,
-hygiene bundle XII, is open (twenty-eight items the walk
+hygiene bundle XII, is open (twenty-nine items the walk
 found; 3 and 4 landed with §82, the rest a plan). §82, an image
 says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
 is released in dev15, taken by the reference configuration, its
@@ -625,7 +627,7 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, twenty-eight items found by the §65 walk. Items
+**Status: OPEN 2026-10-05, twenty-nine items found by the §65 walk. Items
 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
 the operator's word. Items 10 and 11 LANDED as §86 (c6af4b2,
 2026-10-07, "Fix now, starters too"). Item 16 LANDED as §88
@@ -1033,6 +1035,16 @@ starter's `.gitignore` ignores every dotfile unless named.)
     newest image moved; `just record`") instead of a bare diff; the
     daily driver's section 6 gains the row either way.
 
+    Seen again the next day, on the other cloud (2026-10-13, the
+    reference configuration): its GCE base's emission named
+    `almalinux-10-v20261005`, the vendor published
+    `almalinux-10-v20261013` between that morning's green scheduled
+    run and the afternoon, and `config-drift` said BEHIND by that
+    one line. There it will keep happening: the runtime is
+    ephemeral, its base is never kept, so its emission always holds
+    a vendor image's name and every publication turns the next
+    scheduled run red until someone makes a record.
+
 28. **CI's runner image floats, and nothing says it must be moved
     forward.** The walk's finding F56 (2026-10-13; by the operator's
     word the same day, the note below is part of the item). Every
@@ -1134,6 +1146,14 @@ starter's `.gitignore` ignores every dotfile unless named.)
     > wait and are never picked up, or "Set up job" failing before
     > any step of yours. Nothing in the tree is wrong; the names
     > are old. Take the newest release, or do steps 1 to 5.
+
+29. **`init-config --help` does not name the posix starter.** The
+    walk's finding F59 (2026-10-13). The `--from` option's help
+    says "the starter tree: standard-aws, standard-gce or
+    complete"; `starters.STARTERS` holds a fourth,
+    `standard-aws-posix`, which the command accepts and the walk
+    used. Plan: the help text is built from `STARTERS`, so it
+    cannot fall behind again, and a test says so.
 
 ## 83. A release asks its publish target before it starts
 

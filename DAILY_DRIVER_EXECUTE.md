@@ -5024,7 +5024,7 @@ home, your secrets in it. Neither leaves your machine.
 | 16a | the tree from the starter: the files, git, the hook's allowance, the holder's key | done 2026-10-09: two commits, the test identity gone |
 | 16b | the values, the people, then validate and dry | done 2026-10-09: the tree validates against your account and dry-runs; three commits |
 | 16c | a GitHub repository of its own, the bootstrap, CI | done 2026-10-09: the repository is public, the bootstrap added nine things and destroyed none, four secrets, CI green at 1614796 after the storage was renamed (finding F53) |
-| 16d | the storage, the bake, a machine, and a login by real SSH with a proof key | **YOU ARE HERE: step 9a, on your local machine: release 0.1.1.dev22 from `develop`.** Stage 89 (the fix for F58) is merged at 7eb5962. Then 9b, the posix tree takes the release, and 9c, `develop` and `main` again |
+| 16d | the storage, the bake, a machine, and a login by real SSH with a proof key | **YOU ARE HERE: step 9c, in the container: the record, the drift question, `develop`, then `main`.** Stage 89 is released as 0.1.1.dev22 and this tree has taken it (5d0186c) |
 
 Every box of this stage begins with a line that says `OK: the
 container, the posix tree`. The first walk's tree is beside it in
@@ -6043,6 +6043,14 @@ git status -sb
 **Report:** `dev22 pushed`. Claude confirms it is on the index,
 brings `develop` into the walk's branch, and says go for step 9b.
 
+(DONE 2026-10-13: release commit `9584a03` is on `develop` with the
+tag `v0.1.1.dev22`, and all 18 packages answer on the index. The
+walk's branch has `develop` in it. The reference configuration took
+the release on its `develop`: three files, the workflow among them,
+and CI green; its emission needed a record for a reason of its own,
+the vendor's GCE image having moved that afternoon, which is F55
+again on the other cloud. Go for step 9b.)
+
 **Step 9b. In the container: the posix tree takes the release.** First
 the three commits CI left on `main`:
 
@@ -6100,6 +6108,10 @@ git status --short | wc -l
 ```
 
 `0`, after the hook's `public-safe:` line.
+
+(DONE 2026-10-13: commit `5d0186c`, the three files and no other;
+the proof's step stands at line 356 of the workflow, the read-only
+role's return at 368; your values were kept.)
 
 **Step 9c. The record, `develop`, `main`.** Fresh AWS keys first if
 yours are older than about forty minutes:
@@ -6312,4 +6324,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F56 | the machine CI runs on changes by itself, and no page says anyone must look. Every workflow, this repository's and each starter's, says `runs-on: ubuntu-latest`, which is `ubuntu-24.04` today; a run of 2026-10-13 carried GitHub's notice that the label "will migrate to Ubuntu 26 beginning October 19, 2026". The jobs lean on what that image carries (docker, `dpkg`, the tools on the PATH). The same annotations say five of the actions target a Node.js that is being withdrawn, and one action follows a branch. No page names an image, says that a named image must be moved forward at intervals, or says how | code: hygiene XII item 28, which carries the note's words; words: daily driver 9 and 6, `CI_SETUP.md` 3.1 |
 | F57 | no page gives a person the line that logs them into a machine of a posix group. The pages describe the proof user's login, which the system makes; a person on the roster, with their own key, is told nothing. The walk put the line together from what the system runs (`ssh -i <key> -o ProxyCommand="aws ssm start-session --target <instance id> --document-name AWS-StartSSHSession --parameters portNumber=%p --region <region> --profile <profile>" <user>@<instance id>`) and it worked at the first try (16d step 7, 2026-10-13): the account, its group, sudo for the group's admin, the mount and the group's subtree were all as declared. The instance id it needs is in no output a person is shown; it was read out of `meta-state/instance-state.yaml` | words: daily driver 3.1 and 3.5, the `standard-aws-posix` starter's README |
 | F58 | CI's login proof cannot pass in a posix tree the bootstrap made. The workflow's step "CI logs in as the group's proof user" runs under the read-only role (the step before it federates `AWS_ROLE_ARN` "again"); the proof's ssh goes through Session Manager and needs `ssm:StartSession` on the instance and on `AWS-StartSSHSession`; `tfmodules/bootstrap_aws` grants that to the write role only. The first `perform` with a standing machine (16d step 9, 2026-10-13) said `login: FAILED -- ssh csis_proof@team-node-1 id: exit 255` and `csis-walk-posix-readonly/GitHubActions is not authorized to perform: ssm:StartSession`, twenty minutes after the same proof passed from the operator's own keys. The record's `tunnel` check said `ok` in the same breath: it means a tunnel was chosen, not that it opened. The posix plugin's README has the symptom's row; nothing connects it to the role CI uses. By its plan, stage 75's live proof never met this: its standalone posix machine was removed before `main` moved | code: stage 89, merged 7eb5962 on 2026-10-13 (the operator chose to move the proof; the read-only role stays read-only) |
+| F59 | `init-config --help` does not name the starter this tree was made from. The `--from` option's help lists `standard-aws`, `standard-gce` and `complete`; `standard-aws-posix` is accepted and is the fourth starter in the release (seen 2026-10-13, taking 0.1.1.dev22) | code: hygiene XII item 29 |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
