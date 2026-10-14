@@ -1,7 +1,7 @@
 ---
-# docs/examples/complete/groups/group-stofs.yaml -- a group that keeps the
+# groups/group-stofs.yaml (from the complete starter) -- a group that keeps the
 # root admin group OUT of its delegated admins. Reference:
-# ../../../CONFIGURATION.md section 11.5.
+# CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 11.5.
 groups:
   - name: stofs
     description: "{{ group.name }} group"

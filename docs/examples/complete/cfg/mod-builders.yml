@@ -1,6 +1,6 @@
 ---
-# docs/examples/complete/cfg/mod-builders.yml -- both modification builders,
-# every field. Reference: ../../../CONFIGURATION.md section 7 (7.1 `ansible`,
+# cfg/mod-builders.yml (from the complete starter) -- both modification builders,
+# every field. Reference: CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 7 (7.1 `ansible`,
 # 7.2 `bash-remote`, 7.3 the modification item inside an image).
 mod_builders:
   - name: ansible-default

@@ -1,7 +1,7 @@
-# docs/examples/standard-gce/overlays/launch.yaml -- one invocation's
+# overlays/launch.yaml (from the standard-gce starter) -- one invocation's
 # permission to apply the instance root: `cs-image-system --overlay
 # overlays/launch.yaml --no-dry-run run --all`. Reference:
-# ../../../CONFIGURATION.md section 12. The generated runner script carries
+# CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 12. The generated runner script carries
 # the overlay and `apply-check` re-reads it at execution, so the script
 # applies only under this overlay.
 config:

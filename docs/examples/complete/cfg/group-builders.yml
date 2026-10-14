@@ -1,7 +1,7 @@
 ---
-# docs/examples/complete/cfg/group-builders.yml -- the identity builders:
+# cfg/group-builders.yml (from the complete starter) -- the identity builders:
 # managed OPA groups, read-only user lookups (the default) and a managed
-# user builder. Reference: ../../../CONFIGURATION.md section 9 (9.1 the
+# user builder. Reference: CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 9 (9.1 the
 # shared Okta terraform workspace, 9.2 group builders, 9.3 user builders)
 # and CI_SETUP.md section 3.5 for the workload objects.
 group_builders:
@@ -44,7 +44,7 @@ group_builders:
   # credentials: the owning group is baked into its instance images. A
   # group names it with `type: posix-local` (none does here), and
   # `oktagroups` names it as its `posix:` delegate above.
-  # Reference: ../../../../packages/posix-identity-plugin/README.md
+  # Reference: the posix-identity-plugin README (packages/posix-identity-plugin/README.md in the system repository)
   - name: posix-local
     type: posix
     shell: /bin/bash               # the login shell of the accounts it creates (the default)

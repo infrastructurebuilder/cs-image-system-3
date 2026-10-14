@@ -1,6 +1,6 @@
 ---
-# docs/examples/standard-aws-posix/instances/instances.yaml -- the ONE instance.
-# Reference: ../../../CONFIGURATION.md section 11.3 (11.3.1 `storages[]`).
+# instances/instances.yaml (from the standard-aws-posix starter) -- the ONE instance.
+# Reference: CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 11.3 (11.3.1 `storages[]`).
 # An instance declares no group: it belongs to its image's group. A storage
 # attachment is legal only when that group is on the storage's allowed list.
 instances:

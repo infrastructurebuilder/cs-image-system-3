@@ -1,7 +1,7 @@
 ---
-# docs/examples/standard-aws-posix/cfg/runtime-builders.yml -- the one AWS runtime:
+# cfg/runtime-builders.yml (from the standard-aws-posix starter) -- the one AWS runtime:
 # where images are baked and instances stand. Reference:
-# ../../../CONFIGURATION.md section 4 (4.1 common fields, 4.2 every runtime,
+# CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 4 (4.1 common fields, 4.2 every runtime,
 # 4.3 `aws`, 4.5 `networking`). At load the AWS plugin reads the account's
 # VPCs and security groups with these credentials, so a load needs a live
 # AWS session for the named profile.

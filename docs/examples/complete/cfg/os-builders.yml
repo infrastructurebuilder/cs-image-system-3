@@ -1,7 +1,7 @@
 ---
-# docs/examples/complete/cfg/os-builders.yml -- three base images across two
+# cfg/os-builders.yml (from the complete starter) -- three base images across two
 # OS families and three runtimes, every field. Reference:
-# ../../../CONFIGURATION.md section 5 (5.1 `runtimes[]`, 5.2 `update`, 5.3 `tests`).
+# CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 5 (5.1 `runtimes[]`, 5.2 `update`, 5.3 `tests`).
 # An OS builder IS a base image: instance images point at it through `source_image`.
 os_builders:
   # ------------------------------------------------ the default base: EL 10

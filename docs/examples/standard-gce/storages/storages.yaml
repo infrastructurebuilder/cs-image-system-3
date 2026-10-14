@@ -1,7 +1,7 @@
 ---
-# docs/examples/standard-gce/storages/storages.yaml -- the ONE storage: a
+# storages/storages.yaml (from the standard-gce starter) -- the ONE storage: a
 # persistent disk the team's instance mounts. Reference:
-# ../../../CONFIGURATION.md section 11.4. `state` is the REQUESTED lifecycle
+# CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 11.4. `state` is the REQUESTED lifecycle
 # state; a new storage starts `active` and later requests `archived` or
 # `destroyed`.
 storages:

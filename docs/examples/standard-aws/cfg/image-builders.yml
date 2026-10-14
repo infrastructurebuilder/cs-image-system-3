@@ -1,7 +1,7 @@
 ---
-# docs/examples/standard-aws/cfg/image-builders.yml -- the ONE image builder:
+# cfg/image-builders.yml (from the standard-aws starter) -- the ONE image builder:
 # packer's amazon-ebs source on the AWS runtime. Reference:
-# ../../../CONFIGURATION.md section 6.
+# CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 6.
 image_builders:
   - name: packer-ebs
     type: packer-ebs

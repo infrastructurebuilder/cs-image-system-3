@@ -1,6 +1,6 @@
 ---
-# docs/examples/complete/cfg/instance-builders.yml -- one terraform root per
-# runtime that stands instances. Reference: ../../../CONFIGURATION.md section
+# cfg/instance-builders.yml (from the complete starter) -- one terraform root per
+# runtime that stands instances. Reference: CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section
 # 8.1 (`tofu` for AWS, `tofu-gce` for GCE, the same fields).
 instance_builders:
   - name: open-tofu

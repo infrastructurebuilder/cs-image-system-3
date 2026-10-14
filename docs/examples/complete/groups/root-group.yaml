@@ -1,6 +1,6 @@
 ---
-# docs/examples/complete/groups/root-group.yaml -- the ONE root/admin group.
-# Reference: ../../../CONFIGURATION.md section 11.5. Exactly one group in the
+# groups/root-group.yaml (from the complete starter) -- the ONE root/admin group.
+# Reference: CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 11.5. Exactly one group in the
 # tree is is_root: true; its admin group becomes a delegated admin of every
 # resource group (unless a group opts out with include_root_group_in_admins).
 # Member/admin entries are the fixture's markers for bare OPA usernames.

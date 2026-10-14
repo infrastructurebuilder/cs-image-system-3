@@ -1,9 +1,9 @@
-# docs/examples/complete/meta-state/storage-state.yaml -- a SYNTHETIC record
+# meta-state/storage-state.yaml (from the complete starter) -- a SYNTHETIC record
 # of two storages standing `active` after an earlier apply, so that
 # storages/storages-aws.yaml may request `archived` for mnt_archive and
 # `destroyed` for old-bucket (a never-applied storage may only be `active`).
 # A run writes this file; it is hand-written here only to keep the example
-# loadable. Reference: ../../../CONFIGURATION.md sections 1.3 and 11.4.
+# loadable. Reference: CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) sections 1.3 and 11.4.
 storages:
   mnt_archive:
     state: active

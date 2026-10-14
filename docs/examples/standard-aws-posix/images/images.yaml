@@ -1,7 +1,7 @@
 ---
-# docs/examples/standard-aws-posix/images/images.yaml -- the ONE instance image: the
+# images/images.yaml (from the standard-aws-posix starter) -- the ONE instance image: the
 # base plus modifications, owned by the group. Reference:
-# ../../../CONFIGURATION.md section 11.2 (11.2.1 `runtimes[]`) and 7.3
+# CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 11.2 (11.2.1 `runtimes[]`) and 7.3
 # (modification items).
 images:
   - name: team-node

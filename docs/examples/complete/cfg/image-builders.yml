@@ -1,6 +1,6 @@
 ---
-# docs/examples/complete/cfg/image-builders.yml -- three image builders, one
-# per runtime. Reference: ../../../CONFIGURATION.md section 6. `packer-ebs`
+# cfg/image-builders.yml (from the complete starter) -- three image builders, one
+# per runtime. Reference: CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 6. `packer-ebs`
 # and `packer-gce` share one body; the runtime plugin owns the source block.
 image_builders:
   - name: pckr-ebs-ans

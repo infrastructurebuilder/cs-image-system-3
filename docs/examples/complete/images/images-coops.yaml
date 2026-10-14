@@ -1,8 +1,8 @@
 ---
-# docs/examples/complete/images/images-coops.yaml -- the coops group's
+# images/images-coops.yaml (from the complete starter) -- the coops group's
 # images: a base-derived image with every field and both modification
 # kinds, and an image chained from it. Reference:
-# ../../../CONFIGURATION.md section 11.2 (11.2.1 `runtimes[]`), 7.3 (the
+# CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 11.2 (11.2.1 `runtimes[]`), 7.3 (the
 # modification item), 5.3 (`tests` and `post_bake`).
 images:
   # -------------------------------------------- follow the base, be released

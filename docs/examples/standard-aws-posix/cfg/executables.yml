@@ -1,6 +1,6 @@
 ---
-# docs/examples/standard-aws-posix/cfg/executables.yml -- the tools this tree drives.
-# Reference: ../../../CONFIGURATION.md section 3. Builders name an entry through
+# cfg/executables.yml (from the standard-aws-posix starter) -- the tools this tree drives.
+# Reference: CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 3. Builders name an entry through
 # `executable:`; `validate` and every run check that each binary exists and,
 # when `version` is given, that the version its checker reads satisfies the
 # PEP 440 specifier. The checker is looked up under the entry's `name` first

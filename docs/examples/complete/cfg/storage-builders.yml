@@ -1,7 +1,7 @@
 ---
-# docs/examples/complete/cfg/storage-builders.yml -- every storage kind on
+# cfg/storage-builders.yml (from the complete starter) -- every storage kind on
 # both clouds, one terraform root each. Reference:
-# ../../../CONFIGURATION.md section 8.2 (the per-type table and the
+# CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 8.2 (the per-type table and the
 # lifecycle declarations each builder validates).
 storage_builders:
   # ------------------------------------------------------------------ AWS
