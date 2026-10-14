@@ -611,6 +611,39 @@ and W5 took the default, W4 and W6 did not):
 
    Sizing: 9a and 9b a day; 9c to 9e an hour.
 
+   **Done 2026-10-14** (the operator: "do step 9"; the walk's page
+   frozen under `docs/history/`, and the 19 words-only findings
+   written now, the 15 beside code left to their fix). The inventory:
+
+   | Finding | Page | Words | State |
+   | --- | --- | --- | --- |
+   | F1 | daily driver 1.1 | a development release's install line, TestPyPI | done |
+   | F2, F7 | daily driver 1.9 step 2 | `age-keygen`, the re-encrypt, the test identity and its leftovers taken out | done |
+   | F3, F27 | daily driver 1.9 step 1; CI_SETUP 3.2 and 3.8 | `git init -b develop`; `main` exists from the first push; `master` deleted | done |
+   | F5 | daily driver 1.2 | where every tool comes from | done |
+   | F8 | every starter YAML header (79 files) | the file where it is; the reference by the system repository's path | done |
+   | F9 | daily driver 1.7 | direnv as the other way; `direnv allow` after each edit | done |
+   | F12 | CI_SETUP 3.0 | the bootstrap's GitHub token and its permissions | done |
+   | F13 | CI_SETUP 3.2 step 4 | the repository's own OIDC subject endpoint | done |
+   | F16 | daily driver 6 | `verify` red while TestPyPI is down: environmental | done |
+   | F20 | daily driver 6; CI_SETUP 3.8 | where the job summary is; a skipped job has none | done |
+   | F23 | CI_SETUP 3.5 step 4; the probe's header | what the probe does against a draft | done |
+   | F39 | daily driver 6 | the preview plan and the runner's plan | done |
+   | F41 | daily driver 6 | `MissingIdentityError` is an unsourced shell | done |
+   | F42 | daily driver 6 | `ReservedNameError` under a traceback | done |
+   | F46 | daily driver 3.6 | a second cloud: the ten declarations | done |
+   | F57 | daily driver 3.1 and 3.5; `standard-aws-posix` README | a person's own ssh line | done |
+   | F64 | daily driver 4.1; CI_SETUP 3.0 | taking a configuration and its bootstrap down | done |
+   | F38, F56 | with stages 88 and 91 | written when those landed | done |
+   | F10, F26, F30, F35, F36, F40, F43, F48, F49, F51, F55, F61, F62 | with hygiene XII items 1, 9, 14, 15, 17, 18, 21, 23, 27, 31, 32 and the tracebacks' item | owed beside the fix; each item says so | owed |
+   | F15, F18 | the starters | F15 fixed in dev15; F18 is hygiene XII item 6 | -- |
+   | the rest (28) | -- | code alone: stages 86 to 91, or hygiene XII | -- |
+
+   Dated lines: the daily driver, the operations page, the READMEs of
+   `standard-aws` and `standard-aws-posix`, CI_SETUP (one text, four
+   copies). The page is `docs/history/WALK-2026-10.md`, listed in the
+   history README. 9e, the squash, waits for the operator's word.
+
 **Sizing**: the repository and bootstrap half a day; CI half a day, most
 of it secrets and the console; section 3 a day, most of it bakes; the
 failure walk two hours; the GCE leg half a day; the posix walk half a
@@ -705,7 +738,11 @@ situation as soon as possible"). Items 1,
 2, 5, 6, 8, 9, 12 to 15, 17 to 24, 26, 27 and 29 to 32 are a plan --
 nothing more runs until the operator says "do 81". Items 7 and 28
 left the bundle as §91 (2026-10-14). Item 25 is a standing review with
-four dates, the first 2026-11-09.**
+four dates, the first 2026-11-09. Items 1, 6, 9, 14, 15, 17, 18, 21,
+23, 27, 31 and 32 owe the daily driver (or a starter) words beside
+their fix: §65's step 9 left those words to the fix so they are
+written once (findings F10, F26, F30, F35, F36, F40, F43, F48, F49,
+F51, F55, F61, F62).**
 
 1. **A starter's own hook refuses its first commit.** The tree
    `init-config` writes carries the copyright holder's address in the
