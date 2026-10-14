@@ -7915,7 +7915,7 @@ directories is what was never committed, which is what should go.
 The look, that nothing committed was left unpushed:
 
 ```sh
-# 17f step 4 -- box 1 of 2 -- v2
+# 17f step 4 -- box 1 of 3 -- v3
 cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
 for d in cs-image-system-walk cs-image-system-walk-posix; do p=/Volumes/MiniSSD/git/Work/Lynker/$d; echo "$d: $(git -C $p status -sb | head -1) | not committed: $(git -C $p status --short | wc -l | tr -d ' ') | $(du -sh $p | cut -f1)"; done
 ```
@@ -7929,10 +7929,46 @@ allowed there, `direnv` refused it, and zsh crashed in the subshell
 (`malloc: Double free`) before the posix line was printed. v2 asks
 git about each directory from outside it, with `git -C`.)
 
+(v3 of box 1 and v2 of box 3, 2026-10-14: at your question whether
+anything in the two directories that git does not hold is needed,
+a box 2 was put between them; their commands are unchanged.) What
+git does not hold, by name and size, read on 2026-10-14. In the
+first walk's: `.envrc`; `.gh_token`, the token deleted in 17e;
+`.ghapiids.txt`, the GitHub ids the bootstrap's subject form used;
+`.private_key.pem`, the Okta API app's private key, which this
+repository and the reference configuration each keep a copy of
+(the same size, 1703 bytes); `_private/`, the plaintext mirror and
+the state backups taken before every removal from state;
+`.tofu-plugin-cache/` and the roots' `.terraform/` (providers,
+1.9 GB and 945 MB); the bootstrap's local state from before it
+moved into the bucket; and the last `run-summary.json` and
+`state-report.json`. In the posix walk's: `.envrc`, its provider
+caches, and its last run summary and state report. Nothing in
+either is untracked without being ignored. None of it is needed:
+everything it made is gone, and every credential in it is
+revoked, deleted or a copy. Two things are worth a moment before
+they go: the last two reports of each tree, as the record of its
+end, and that the Okta key really is a copy, which is compared,
+not read:
+
+```sh
+# 17f step 4 -- box 2 of 3 -- v1
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+L=/Volumes/MiniSSD/git/Work/Lynker
+mkdir -p _uncommitted/walk-tree-leftovers
+for d in cs-image-system-walk cs-image-system-walk-posix; do for f in run-summary.json state-report.json; do cp "$L/$d/generated/$f" "_uncommitted/walk-tree-leftovers/$d-$f"; done; done
+ls _uncommitted/walk-tree-leftovers | wc -l | tr -d ' '
+cmp -s "$L/cs-image-system-walk/.private_key.pem" .private_key.pem && echo "the Okta key: the same as this repository's copy" || echo "STOP: the Okta key differs from this repository's copy"
+```
+
+`4`, then `the Okta key: the same as this repository's copy`. If it
+differs, STOP: the walk's copy may then be the only one of some
+key, and is moved, not deleted.
+
 This deletes both directories and everything in them:
 
 ```sh
-# 17f step 4 -- box 2 of 2 -- v1
+# 17f step 4 -- box 3 of 3 -- v2
 cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
 rm -rf /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-walk /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-walk-posix
 ls -d /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-walk* 2>&1 | tail -1
