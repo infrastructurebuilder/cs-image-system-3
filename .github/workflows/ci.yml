@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Install just
-        uses: extractions/setup-just@v3
+        uses: extractions/setup-just@v4
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -128,7 +128,7 @@ jobs:
 
       - name: Install just
         if: steps.gate.outputs.ready == 'true'
-        uses: extractions/setup-just@v3
+        uses: extractions/setup-just@v4
 
       - name: Install uv
         if: steps.gate.outputs.ready == 'true'
@@ -210,7 +210,7 @@ jobs:
 
       - name: Install just
         if: steps.gate.outputs.ready == 'true'
-        uses: extractions/setup-just@v3
+        uses: extractions/setup-just@v4
 
       - name: Install uv
         if: steps.gate.outputs.ready == 'true'
