@@ -19,10 +19,12 @@ word of 2026-10-14, "do 7 and 28 together as a single stage"; GitHub
 moves `ubuntu-latest` to Ubuntu 26 from 2026-10-19), LANDED
 2026-10-14 (e72cc1b) by the operator's word, released in dev24
 (b263aea) and PROVED on the reference configuration: `verify` and
-`live` green on `Image: ubuntu-24.04`. One notice survived, since
-`setup-just@v3` is composite and wraps an inner action on Node 20;
-its v4 does not, and the one-line correction is on
-`feature/setup-just-v4` (3841f6c) awaiting the operator's merge.
+`live` green on `Image: ubuntu-24.04`, and its `perform` green on
+`main` the same day (nothing to bake, the login proof as a workload
+ok, no drift). One notice survived, since `setup-just@v3` is
+composite and wraps an inner action on Node 20; its v4 does not,
+and the correction LANDED (b23f33f) by the operator's word, to go
+out with the next release.
 §90, a group's release is decided by the state and
 cannot be spent by a dry run (the removal of an unmanaged group
 from state was decided from the identity read-model, which every
