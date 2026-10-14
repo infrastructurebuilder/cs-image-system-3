@@ -16,8 +16,9 @@ GitHub-image path kept as the from-scratch alternative, is PLANNED
 2026-10-14 (the operator's direction; after §91). §91, CI names the machine it runs on and the actions it
 uses (hygiene XII items 7 and 28, made one stage by the operator's
 word of 2026-10-14, "do 7 and 28 together as a single stage"; GitHub
-moves `ubuntu-latest` to Ubuntu 26 from 2026-10-19), is IN PROGRESS
-on `feature/runner-and-actions-named`.
+moves `ubuntu-latest` to Ubuntu 26 from 2026-10-19), LANDED
+2026-10-14 (e72cc1b) by the operator's word; it awaits its release,
+0.1.1.dev24, and its live proof on the reference configuration.
 §90, a group's release is decided by the state and
 cannot be spent by a dry run (the removal of an unmanaged group
 from state was decided from the identity read-model, which every
@@ -1251,127 +1252,6 @@ named by hand. The release refuses, with its other probes and before
 anything changes, a branch that is not the integration branch
 (`develop`; a final release may want `main`: **USER** decides), and
 the dry form says which branch it stands on.
-
-## 91. CI names the machine it runs on and the actions it uses
-
-**Status: IN PROGRESS 2026-10-14, by the operator's word the same day
-("do 7 and 28 together as a single stage"), on
-`feature/runner-and-actions-named`.** It was hygiene XII items 7 (the
-walk's F21) and 28 (F56). The change, its test
-(`tests/test_v2_workflow_names.py`) and its words (the daily
-driver's 9.1 and a section 6 row; each starter's `CI_SETUP.md` 3.1)
-are written (0fa7494). The bar is green: `just test` 1506 passed,
-and every leg of the full test passed. The merge, the release and the
-live proof wait for the operator.
-
-**Why.** Every workflow, this repository's and each starter's, says
-`runs-on: ubuntu-latest`, which GitHub moves to Ubuntu 26 from
-2026-10-19: the machine every tree's CI runs on would change under it
-at no commit, and the jobs lean on what that image carries (docker,
-`sudo dpkg -i` of the session manager plugin, the tools linked into
-`/usr/local/bin`). Five actions target Node.js 20 and are forced onto
-Node.js 24 with a notice on every run (`actions/checkout@v4`,
-`astral-sh/setup-uv@v5`, `extractions/setup-just@v2`,
-`aws-actions/configure-aws-credentials@v4`,
-`opentofu/setup-opentofu@v1`; Google's `auth@v2` and
-`setup-gcloud@v2` with them); `hashicorp/setup-packer@main` follows a
-branch. And in a configuration repository `setup-uv` warns on every
-run that no `uv.lock` or `requirements*.txt` matched, so its cache is
-never invalidated.
-
-**What changes.**
-
-1. Every `runs-on:` names `ubuntu-24.04`, the image every proof so
-   far ran on (item 7 offered two ways; this is item 28's, and the
-   move to 26 is then a deliberate change made by the procedure
-   below).
-2. Each action moves to the FIRST major that runs on Node.js 24, the
-   smallest change that ends the notice, read from each action's own
-   `action.yml` on 2026-10-14: `actions/checkout@v5`,
-   `astral-sh/setup-uv@v7` (the last major with a moving tag; v8 on
-   publish only full versions), `extractions/setup-just@v3` (a
-   composite action from v3 on), `aws-actions/configure-aws-credentials@v6`
-   (v5 was still Node 20), `opentofu/setup-opentofu@v2`,
-   `hashicorp/setup-packer@v3` in place of `@main`,
-   `google-github-actions/auth@v3` and `setup-gcloud@v3`. Newer
-   majors exist for some (checkout v7, setup-uv v10, the AWS action's
-   v6.3); moving to them is the next turn of the procedure, not this
-   stage.
-3. In the starters, `setup-uv` keys its cache on `.csis-version`
-   (`cache-dependency-glob`), the file that decides what it installs.
-4. A test holds every workflow to it: no `-latest` image, one image
-   for all, and no `uses:` at a branch.
-5. The note below goes into the daily driver (section 9 whole, a row
-   in section 6) and into each starter's `CI_SETUP.md` 3.1.
-
-**Proof.** `just test`, then `just full-test`. Live: this repository's
-own CI on `develop` after the merge, and the reference configuration
-on the release, its `verify` and `live` jobs green with `Image:
-ubuntu-24.04` in their "Set up job" and none of the notices. `perform`
-is proved when the reference configuration's `main` next moves, which
-is the operator's.
-
-**The note** (written into item 28 on the operator's word of
-2026-10-13; the interval is Claude's proposal):
-
-    > **The image CI runs on is named, and a name ages.** The
-    > workflows say which GitHub runner image they run on
-    > (`runs-on: ubuntu-24.04`) and which version of each action
-    > they use. Neither moves by itself, and that is the point: a
-    > tree's CI does not change at no commit. The price is a duty.
-    > GitHub publishes a runner image for each Ubuntu LTS, about
-    > every two years, and withdraws the oldest; an action's major
-    > version is withdrawn when the Node.js it was built for is.
-    > A withdrawn name does not fail quietly: first the run's
-    > annotations say so for some months, then the jobs stop being
-    > picked up or fail in "Set up job".
-    >
-    > **When to look.** Twice a year (the first working week of
-    > April and of October), and at once whenever a run's
-    > annotations name an image or an action as deprecated or
-    > migrating. `gh run view <run>` prints them under ANNOTATIONS.
-    >
-    > **How to move it forward** (whoever maintains the system; a
-    > tree's holder does only step 5):
-    >
-    > 1. Read what GitHub offers now: the README of
-    >    `actions/runner-images` lists the image labels and which
-    >    are being withdrawn; each action's releases page says
-    >    which major targets the current Node.js.
-    > 2. On a feature branch of the system repository, change the
-    >    names, and nothing else, in every workflow:
-    >    `grep -rn -E 'runs-on:|uses:' .github docs/examples`
-    >    lists every line. All of them carry the same image.
-    > 3. `just test`, then `just full-test`. The starter tests
-    >    hold the four starters to one another and refuse a
-    >    floating name.
-    > 4. Prove it where it will run before anyone else takes it:
-    >    cut a development release (`just release dev test`); in
-    >    the reference configuration raise `.csis-version`, run
-    >    `cs-image-system init-config . --force` (with `--from`
-    >    naming the starter the tree was made from), read the
-    >    diff (it should be the workflow lines you changed),
-    >    commit, push `develop` and see `verify` and
-    >    `live` green, with the new image named in the log of "Set
-    >    up job" (`Image: ubuntu-...`); then `main`, and `perform`
-    >    green: a bake, the modification tests under docker and a
-    >    login proof have then all run on the new image. If a job
-    >    fails for something the new image lacks, the fix is a
-    >    step in the workflow that installs it, never a return to
-    >    a floating name.
-    > 5. Every other tree takes it as it takes any release: move
-    >    the version in `.csis-version`, `cs-image-system
-    >    init-config . --force`, review the diff, commit, and see
-    >    its own CI green on `develop` before `main`.
-    >
-    > **What it looks like when it was not done.** Annotations on
-    > every run naming the image or an action; later, jobs that
-    > wait and are never picked up, or "Set up job" failing before
-    > any step of yours. Nothing in the tree is wrong; the names
-    > are old. Take the newest release, or do steps 1 to 5.
-
-**USER**: the merge to `develop`; the release; the reference
-configuration's `main`.
 
 ## 92. CI runs on an AlmaLinux 10 image of the system's own, described once for any CI
 
