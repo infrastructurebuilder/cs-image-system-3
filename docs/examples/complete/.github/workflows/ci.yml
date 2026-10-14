@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
-      - uses: extractions/setup-just@v3
+      - uses: extractions/setup-just@v4
       - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
@@ -109,7 +109,7 @@ jobs:
       - if: steps.gate.outputs.ready == 'true'
         uses: actions/checkout@v5
       - if: steps.gate.outputs.ready == 'true'
-        uses: extractions/setup-just@v3
+        uses: extractions/setup-just@v4
       - if: steps.gate.outputs.ready == 'true'
         uses: astral-sh/setup-uv@v7
         with:
@@ -251,7 +251,7 @@ jobs:
       - if: steps.gate.outputs.ready == 'true'
         uses: actions/checkout@v5
       - if: steps.gate.outputs.ready == 'true'
-        uses: extractions/setup-just@v3
+        uses: extractions/setup-just@v4
       - if: steps.gate.outputs.ready == 'true'
         uses: astral-sh/setup-uv@v7
         with:
