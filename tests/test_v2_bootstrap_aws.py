@@ -237,7 +237,7 @@ def test_a_bucket_the_bootstrap_makes_means_local_state_first(tmp_path: Path):
     tfvars = (out / "bootstrap.auto.tfvars").read_text()
     assert _assigned(tfvars, "aws_state_bucket_exists", "false") and _assigned(tfvars, "aws_oidc_provider_exists", "false")
     readme = (out / "README.md").read_text()
-    assert "is CREATED here (versioned, encrypted, private): local state for this first apply" in readme
+    assert "is CREATED here (versioned, encrypted, private) and managed from then on: local state for this first apply" in readme
     assert "re-run the\ninterview" in readme and "-migrate-state" in readme     # how the state gets to the bucket afterwards
     # a second interview with the bucket now standing binds the root to it, and keeps every other answer
     facts = _facts(root, _account(oidc=True, read=True, write=True, bucket=True, profile=True))

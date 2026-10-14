@@ -72,7 +72,13 @@ variable "state_prefix" {
 
 variable "state_bucket_exists" {
   type        = bool
-  description = "the state bucket already exists: it is not made (versioned, encrypted and private when it is)"
+  description = "the state bucket already stands (observed at every interview): the root's backend binds to it"
+}
+
+variable "state_bucket_managed" {
+  type        = bool
+  default     = false
+  description = "this root manages the state bucket (made by an apply of it, versioned, encrypted and private, and kept here from then on; a destroy of the root removes it). False for a bucket that stood before this root"
 }
 
 variable "instance_profile" {

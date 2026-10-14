@@ -7,12 +7,12 @@ source "googlecompute" "imgfile-basic-dask" {
     image_family = "imgfile-basic-dask"
     image_labels = {
         csis_config         = "cs-image-action-test",
-        csis_fingerprint    = "6b3b96d5d12beb79",
+        csis_fingerprint    = "660c2b88fb2f9fcf",
         csis_identity_types = "okta",
         csis_parent         = "series-basic-rh-10",
         csis_run            = "2026_08_26t12_00_00",
         csis_series         = "imgfile-basic-dask",
-        csis_storage_types  = "ebs-efs-gcs-pd-s3",
+        csis_storage_types  = "gcs-pd",
         dask                = "true",
     }
     machine_type = "e2-medium"

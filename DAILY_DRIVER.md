@@ -223,7 +223,9 @@ makes them in the Okta admin console and declares them in `groups/`.
 ### 1.6 The age identities
 
 Any value in the tree may be committed encrypted (`ENC[age:...]`), and the
-reference deployment keeps its rosters and its e-mail domain that way. Each
+reference deployment keeps its roster's personal names and its e-mail
+domain that way (not the usernames, which every record carries in clear;
+section 3.1). Each
 holder keeps an age identity under `~/.config/cs-image-system/age/`, never
 committed; every identity's public key is a recipient in
 `cfg/_config.yml`'s `encryption.recipients`; CI's identity is a repository
@@ -470,7 +472,12 @@ meaning of their own and say so where they are described
 
 Declare users and the group in `groups/` ([CONFIGURATION.md](docs/CONFIGURATION.md),
 section 11): `members` may log in, `admins` may log in with sudo, and the
-root group's admins are merged into every group's. Run the identity
+root group's admins are merged into every group's. A declared person's
+username is committed in clear: it is what OPA, the identity roots and
+the records carry, and a marker on it in the roster hides nothing (the
+e-mail domain and the personal names are what the markers hide). In a
+public configuration repository, declare a person knowing that
+(2026-10-08, F36; decided 2026-10-14). Run the identity
 lifecycle with `apply_identity: true` (a convergent flag, safe to leave
 on: it applies only what the YAML says, and the gate refuses destroys):
 
@@ -863,6 +870,7 @@ item in the open hygiene bundle in [TODO.md](TODO.md).
 | an applying identity run's log shows the group root's plan twice, the first saying `1 to destroy` and the second `No changes` | the first is a preview made as the run writes its files, never saved and never applied; the second, after the prune step, is the one the gate reads and the apply uses | read the second; a destroy in the first alone means the prune step took the attachment out of state because OPA no longer held it (2026-10-08, F39) |
 | `MissingIdentityError: <tree>/cfg: ...: an encrypted value is present but CSIS_CONFIG_IDENTITY is not set` under a traceback, before anything is asked of a cloud | the shell never loaded `.envrc` (a new terminal, a directory direnv has not entered or allowed) | `source .envrc`, or `direnv allow`; it is the first thing an unsourced shell meets in any tree that holds an encrypted value (2026-10-09, F41) |
 | `ReservedNameError: <file>: instances[0].name: a name may not be 'none'` under a traceback, from `validate` | a reserved word was used as a name, exactly as section 3 says it may not be; the rule is right, the traceback is the only form it has today | rename it; the refusal comes as a traceback and not under `Validation failed with N error(s)` ([TODO.md](TODO.md), hygiene XII, with the other tracebacks; 2026-10-09, F42) |
+| a base shown DUE on a cloud you changed nothing for | a field every runtime shares moved (`admin_user`, the admin keys, `update`, the vendor source); a storage type added for one cloud re-bakes only there since hygiene XII (before, `pd` for a GCE disk re-baked the AWS base: 2026-10-09, F49) | read the run's reason for the bake; a shared field re-bakes everywhere by design |
 | `public-safe: ... <file>:<line>` from the hook | a committed line looks like a secret, a key, a plan or a state file | never bypass the hook; encrypt the value, or allow it BY DECISION in `cfg/_config.yml` `public_safe.allow` |
 | `Build '<image>' errored after 20 minutes ...: Timeout waiting for SSH.` with `ssm error: ... StartSession, context canceled` | the bake machine booted and its SSM agent was Online, but packer's ssh session through SSM never opened: the bake host was a 1 GB t2.micro, too small for the image it boots (three `perform` runs, 2026-10-04 and -05; the same parent baked on an r5.4xlarge, and on a t3.medium once declared) | give the bake host 4 GB: `machine_type: t3.medium` on the image's runtime entry, or the runtime's `default_machine_type` (the starters ship t3.medium; the reference tree since stage 80). Since stage 79 the builds that completed before the failure are recorded anyway (a warning names them) |
 | `foreign image <id>: ... tagged series=<s> run=<r> is not in lineage` | an image the system tagged and lineage does not record: a bake still running in another process (2026-10-04: `just full-test`'s strict query raced CI's `perform`), or one a failed run baked before stage 79, when a failed run recorded nothing | if a run is still baking, wait for it to finish and record. Otherwise `just cli state import --no-storages` adopts it (2026-10-04: five images), then `just record`; the adopted build counts as current, so it is not baked again |

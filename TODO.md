@@ -484,46 +484,29 @@ the first final version on PyPI (§41's open call).
 
 **Status: OPEN 2026-10-05, thirty items found by the §65 walk; the
 operator said "do 81 in the most logical order" on 2026-10-14, and the
-items go in groups, each a branch: A the starters and `init-config`
-(items 1, 2, 6, 12, 18, 29), B the records' noise (8, 13, 19, 24, 27,
-30), C teardown (9, 31, 32), D a shared account (5, 20, 23), E
-diagnostics (17, 26, and the tracebacks of F10, F30, F41, F42), F the
-items that need a decision (14, 15, 21, 22). Group A LANDED
-2026-10-14 (this commit). Items 3 and 4 LANDED with §82 (0d1850c,
-2026-10-05, released in dev15) by the operator's word. Items 10 and 11 LANDED as §86 (c6af4b2,
-2026-10-07, "Fix now, starters too"). Item 16 LANDED as §88
-(20206e8, 2026-10-08; the operator: "we should correct this
-situation as soon as possible"). Items 1,
-5, 8, 9, 13 to 15, 17, 19 to 24, 26, 27 and 30 to 32 are in progress in
-the groups above. Items 7 and 28
-left the bundle as §91 (2026-10-14). Item 25 is a standing review with
-four dates, the first 2026-11-09. Items 1, 6, 9, 14, 15, 17, 18, 21,
-23, 27, 31 and 32 owe the daily driver (or a starter) words beside
-their fix: §65's step 9 left those words to the fix so they are
-written once (findings F10, F26, F30, F35, F36, F40, F43, F48, F49,
-F51, F55, F61, F62).**
+items went in groups, each a branch, each squash-merged on the
+operator's word. LANDED 2026-10-14: A the starters and `init-config`
+(items 1, 2, 6, 12, 18, 29), G the operator's decisions of 2026-10-14
+(5: the root keeps managing a bucket it made; 15: usernames are public;
+21: a bake takes only the storage types whose builder lives on its
+runtime). Still on their branches: B the records' noise (8, 13, 19, 24,
+27, 30), C teardown (9, 31, 32; of item 9 the note and the words, not
+the plan-only skip of the root, which would change what a dry run
+enumerates), D a shared account (23; item 20 left the bundle as §93, a
+stage of its own, as the item said), E what a failure says (17, 26, and
+the load-time tracebacks of F10, F30, F41 and F42 that §65's step 9 left
+to this bundle; of 17 the lines and the words, and on 2026-10-14 the
+operator decided against an `sts` call, so `preflight` keeps making no
+cloud call; of 26 the retried pull, docker's words and the `unstarted`
+record, and the operator decided the same day that nothing more is owed
+-- a registry outage longer than the retries is a rerun), F the proofs
+(14, 22). Items 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released
+in dev15) by the operator's word. Items 10 and 11 LANDED as §86
+(c6af4b2, 2026-10-07, "Fix now, starters too"). Item 16 LANDED as §88
+(20206e8, 2026-10-08; the operator: "we should correct this situation as
+soon as possible"). Items 7 and 28 left the bundle as §91 (2026-10-14).
+Item 25 is a standing review with four dates, the first 2026-11-09.**
 
-5. **The bootstrap's create path would strip the state bucket it
-   made.** The walk's finding F17, read from the code before the walk
-   reached it and CONFIRMED live at the walk's stage 9f (2026-10-06:
-   `Plan: 0 to add, 0 to change, 4 to destroy`; not applied -- the
-   walk made the root forget the four with `tofu state rm`). When the
-   bootstrap creates the state bucket, the guide has the operator run
-   the interview again so the root binds to it. But
-   `state_bucket_exists`
-   is a choice, not an observation, so the second interview still
-   offers "no" (seen live: `[y/N]`); and answering "yes" makes the
-   module's four bucket
-   resources `count = 0` while they sit in the root's state, so the
-   next plan destroys the bucket's versioning, encryption and
-   public-access block before failing on the bucket. Fixed looks like
-   (**USER** chooses): the root KEEPS managing a bucket it made (a
-   recorded fact, "made here", decides the resources; whether the
-   bucket stands, observed at each interview, decides the backend) --
-   or the rebind emits `removed` blocks that forget without
-   destroying. Either way a test renders the second interview and
-   asserts no bucket resource leaves the plan, and the guide says what
-   the operator sees.
 8. **An applying run's log can cut the line that says what was
    applied.** The walk's finding F25. The log keeps the last 40 lines
    of a command's output (hygiene VIII item 3, `OUTPUT_TAIL_LINES`),
@@ -606,28 +589,6 @@ F51, F55, F61, F62).**
     the connection's token and `sft resolve` of the machine then
     exits 125. That exit, after a token was issued, is the signal a
     role-aware probe can report.
-15. **A declared username is encrypted in the roster and clear in
-    what the run commits.** The walk's finding F36 (2026-10-08,
-    noticed when a second, real person was about to be declared in a
-    PUBLIC configuration repository). `groups/users.yaml` holds
-    `name` as an `ENC[age:...]` marker; the same name is written in
-    clear to `meta-state/identity.yaml` (`members`, `admins`), to the
-    identity roots' HCL (`admins = ["..."]`, `data "okta_user"
-    "<name>"`, `"<name>@ENC[...]"`), and to
-    `meta-state/login-proofs.yaml`. The reference configuration has
-    carried its roster that way all along. Nothing leaks that the
-    tree's owner did not put there, but the marker reads as a promise
-    the system does not keep, and a person added to a public tree is
-    published without being told. **USER** decides which it is: (a)
-    usernames are public by design -- then the starters stop
-    encrypting them, CONFIGURATION 11.6 and 13 say what is and is not
-    protected (the mail domain is; the name is not), and the daily
-    driver's 3.1 says a declared person's username is committed in
-    clear; or (b) usernames are private -- then the read-model, the
-    emission and the proofs carry them by reference as every other
-    encrypted value is carried (stage 49), which touches terraform
-    resource addresses and is a stage of its own.
-16. (Landed as §88 on 2026-10-08, 20206e8.)
 17. **`preflight` says every session is present over keys that have
     lapsed.** The walk's finding F40 (2026-10-09, stage 14a,
     provoked on purpose). For a profile that is not an SSO profile
@@ -690,22 +651,6 @@ F51, F55, F61, F62).**
     too: they carry `csis_config`, every lookup by name filters
     on it, and until then `validate` could at least say so when
     a declared name already answers in the account.
-21. **A storage type added to a base re-bakes it on every cloud.**
-    The walk's finding F49 (2026-10-09, stage 15b). `storage_types`
-    is one list on the OS builder, it is in the input fingerprint of
-    every bake of that base, and every type contributes its
-    prerequisite step to every runtime's template, a bare comment
-    included. Adding `pd` for a GCE disk made `el10@aws-main` and
-    the image chained on it due, with nothing to change in either.
-    Plan, for the operator to choose between: (a) a bake's
-    fingerprint and template take only the storage types whose
-    builder lives on that bake's runtime (a `pd` builder on GCE says
-    nothing to an AWS bake); or (b) a base's `runtimes:` entry may
-    carry its own `storage_types`, added to the base's. Either way
-    a type with no prerequisites moves no fingerprint, the
-    capability a build records stays what it carries, and
-    CONFIGURATION says that a base shared between clouds re-bakes
-    everywhere when a shared field changes.
 22. **On GCE the verification's mount check cannot fail.** The
     walk's finding F50 (2026-10-09, stage 15c). `verify_instance`
     on GCE counts `XFS (...): Ending clean mount` on the serial

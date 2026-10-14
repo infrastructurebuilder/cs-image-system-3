@@ -222,7 +222,18 @@ QUESTIONS: tuple[Question, ...] = (
     Question("state_region", "The state bucket's region",
              default=lambda f, a: _state(f, "region") or a.get("region")),
     Question("state_bucket_exists", "Does the state bucket already exist?", kind="bool", default=_bucket_exists,
-             help="the account could not be asked: no AWS session"),
+             help="the account could not be asked: no AWS session", observed=True),
+    # hygiene XII item 5 (the walk's F17): the second interview, run so the
+    # root binds to the bucket it made, answered "exists" and the module's
+    # four bucket resources went to count 0 while they sat in the state --
+    # the next plan destroyed versioning, encryption and the access block.
+    # Whether the bucket STANDS is observed each time (above); whether this
+    # root MANAGES it is a choice recorded once, and a bucket the root makes
+    # is managed from then on.
+    Question("state_bucket_managed", "Does this root MANAGE the state bucket: made by an apply of this root and kept "
+             "here, so a destroy of the root removes it? (a bucket that stood before this root is read, never "
+             "managed; one this root makes is managed from then on)", kind="bool",
+             default=lambda f, a: not a.get("state_bucket_exists")),
     Question("instance_profile", "The instance profile build and standing instances wear for Session Manager",
              default=_session_profile,
              help="the AWS runtime's `session_instance_profile` in cfg/runtime-builders.yml is unset or a placeholder"),
@@ -237,6 +248,7 @@ def render(answers: Answers) -> Rendered:
     prefix = str(answers["state_prefix"]).strip("/")
     tags = {**parse_tags(str(answers.get("tags") or "")), "ManagedBy": MANAGED_BY}
     bucket_exists = bool(answers["state_bucket_exists"])
+    bucket_managed = bool(answers.get("state_bucket_managed")) or not bucket_exists   # made here: managed, always
     backend = None
     if bucket_exists:
         settings: dict[str, Any] = {"bucket": answers["state_bucket"], "key": f"{prefix}/bootstrap.tfstate",
@@ -251,8 +263,9 @@ def render(answers: Answers) -> Rendered:
                         f"import {{\n  to = module.{MODULE}.aws_iam_role.{address}\n  id = \"{answers[f'{key}_role_name']}\"\n}}\n\n")
     names = ("account_id", "region", "repository", "production_branch", "subject_forms", "owner_id", "repo_id",
              "oidc_provider_exists", "read_role_name", "write_role_name", "state_bucket", "state_prefix",
-             "state_bucket_exists", "instance_profile", "instance_profile_exists")
-    types = {"oidc_provider_exists": "bool", "state_bucket_exists": "bool", "instance_profile_exists": "bool"}
+             "state_bucket_exists", "state_bucket_managed", "instance_profile", "instance_profile_exists")
+    types = {"oidc_provider_exists": "bool", "state_bucket_exists": "bool", "state_bucket_managed": "bool",
+             "instance_profile_exists": "bool"}
     described = {
         "account_id": "the AWS account", "region": "the AWS runtime's region",
         "repository": "the GitHub repository the roles trust, as owner/name",
@@ -263,7 +276,9 @@ def render(answers: Answers) -> Rendered:
         "oidc_provider_exists": "the account already has the GitHub OIDC provider (read, not made)",
         "read_role_name": "the READ-ONLY role's name", "write_role_name": "the WRITE role's name",
         "state_bucket": "the state bucket", "state_prefix": "the state key prefix",
-        "state_bucket_exists": "the state bucket already exists (not made)",
+        "state_bucket_exists": "the state bucket already stands (observed at every interview; decides the backend)",
+        "state_bucket_managed": "this root manages the state bucket: made by an apply of it and kept here "
+                                "(decides the bucket resources; a destroy of the root removes the bucket)",
         "instance_profile": "the Session Manager instance profile",
         "instance_profile_exists": "the instance profile already exists (read, not made)",
     }
@@ -273,7 +288,9 @@ def render(answers: Answers) -> Rendered:
         ("aws_read_extra_subjects", "list(string)", "other OIDC subjects the READ-ONLY role keeps trusting"),
         ("aws_write_extra_subjects", "list(string)", "other OIDC subjects the WRITE role keeps trusting"),
     )
-    tfvars: dict[str, Any] = {f"aws_{n}": (bool(answers[n]) if n in types else str(answers.get(n) or "")) for n in names}
+    tfvars: dict[str, Any] = {f"aws_{n}": (bool(answers.get(n)) if n in types else str(answers.get(n) or ""))
+                              for n in names}
+    tfvars["aws_state_bucket_managed"] = bucket_managed
     tfvars["aws_state_prefix"] = prefix
     tfvars["aws_profile"] = profile
     tfvars["aws_tags"] = tags
@@ -319,9 +336,12 @@ def render(answers: Answers) -> Rendered:
             + (f"; adopted by import: {', '.join(adopted)}" if adopted else ""),
             *(f"the {k.upper()} role also keeps trusting: {', '.join(f'`{s}`' for s in extras[k])} (not this repository's; "
               "kept because the role already trusted them)" for k in ("read", "write") if extras[k]),
-            f"the state bucket `{answers['state_bucket']}` " + ("exists: this root's state is bound to it (decision D8)"
-                                                                 if bucket_exists else
-                                                                 "is CREATED here (versioned, encrypted, private): local state for this first apply"),
+            f"the state bucket `{answers['state_bucket']}` "
+            + ("exists and is MANAGED here (made by an earlier apply of this root; a destroy of the root removes it): "
+               "this root's state is bound to it (decision D8)" if bucket_exists and bucket_managed else
+               "exists: this root's state is bound to it (decision D8); the bucket stood before this root and is not managed here"
+               if bucket_exists else
+               "is CREATED here (versioned, encrypted, private) and managed from then on: local state for this first apply"),
             f"the instance profile `{answers['instance_profile']}` "
             + ("read (it exists)" if answers["instance_profile_exists"] else "created with AmazonSSMManagedInstanceCore"),
         ),

@@ -139,8 +139,12 @@ root is bound to the tree's declared S3 backend at
 `<state prefix>/bootstrap.tfstate`, like every other root. When the
 bootstrap is what makes the bucket, the first apply keeps its state in
 `terraform.tfstate` beside the root (never committed); then run `just
-bootstrap` again -- the bucket now exists, so the root binds to it -- and
-`tofu init -migrate-state` in `generated/bootstrap`.
+bootstrap` again -- the bucket now exists, so the root binds to it, and
+the interview remembers that this root made the bucket and keeps managing
+it (`state_bucket_managed`), so the second plan changes nothing about it
+-- and `tofu init -migrate-state` in `generated/bootstrap`. A bucket that
+stood before the root is read and never managed; a destroy of the root
+takes a bucket it made, and the generated README says which it is.
 
 Taking it down again is the reverse, and by hand, since no run ever
 plans this root: stop CI first (`gh workflow disable ci.yml`, because the
