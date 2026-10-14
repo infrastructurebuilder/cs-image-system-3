@@ -358,3 +358,22 @@ def test_the_command_runs_without_loading_and_refuses_by_name_under_quiet(tmp_pa
     before = _bytes(bs.output_dir(root))
     res = CliRunner().invoke(app, quiet)
     assert res.exit_code == 0 and _bytes(bs.output_dir(root)) == before
+
+
+def test_set_secrets_refuses_a_secrets_directory_git_would_track(tmp_path):
+    """Hygiene XII item 6 (the walk's F18): the interview offers
+    `_uncommitted/secrets` as never committed; the starters now ignore it, and
+    the script refuses, before any secret is read, a directory git does not
+    ignore."""
+    import subprocess
+    from cs_image_system.base.bootstrap.hcl import _secrets_script
+    repo = tmp_path / "repo"; repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    (repo / ".gitignore").write_text("_uncommitted/\n")
+    (repo / "generated" / "bootstrap").mkdir(parents=True)
+    script = repo / "generated" / "bootstrap" / "set-secrets.sh"
+    script.write_text(_secrets_script([], repository="o/r", secrets_dir="_uncommitted/secrets"))
+    tracked = subprocess.run(["bash", str(script)], cwd=repo, capture_output=True, text=True, env={"PATH": os.environ["PATH"], "SECRETS_DIR": "secrets"})
+    assert tracked.returncode == 2 and "is not ignored by git" in tracked.stderr, tracked
+    ignored = subprocess.run(["bash", str(script)], cwd=repo, capture_output=True, text=True, env={"PATH": os.environ["PATH"]})
+    assert ignored.returncode == 0, ignored        # no secret named: nothing to set, and the ignored default passes the check

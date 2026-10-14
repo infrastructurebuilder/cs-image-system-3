@@ -211,6 +211,47 @@ def test_the_version_pin_is_never_moved_backwards(tmp_path):
     assert starters.carry_team_values(release, ours) == (ours, 2, 0)
 
 
+def test_init_config_takes_a_fresh_clone_holding_only_dot_git(tmp_path):
+    """Hygiene XII item 2 (the walk's F-finding): a team creates the repository
+    on GitHub and clones it, so the destination holds .git and nothing else."""
+    dest = tmp_path / "clone"
+    (dest / ".git").mkdir(parents=True)
+    (dest / ".git" / "HEAD").write_text("ref: refs/heads/develop\n")
+    result = _invoke(str(dest), "--from", "standard-aws-posix")
+    assert result.exit_code == 0, result.output
+    assert "the whole tree of standard-aws-posix" in result.output
+    assert (dest / "cfg" / "_config.yml").read_bytes() == (EXAMPLES / "standard-aws-posix" / "cfg" / "_config.yml").read_bytes()
+    assert (dest / ".git" / "HEAD").read_text() == "ref: refs/heads/develop\n"
+
+
+def test_init_config_refuses_a_directory_that_is_not_a_configuration_and_writes_nothing(tmp_path):
+    """Hygiene XII items 2 and 12: the release-owned form refreshes a
+    configuration repository and nothing else. Typed in the system
+    repository's root it replaced its Justfile and workflow; in a clone with a
+    README it wrote no cfg/ and read like success."""
+    for extra in ({"Justfile": "default:\n", "README.md": "# mine\n"}, {"README.md": "# a clone's README\n", ".git/HEAD": "ref: x\n"}):
+        dest = tmp_path / ("d" + str(len(extra)))
+        for rel, text in extra.items():
+            (dest / rel).parent.mkdir(parents=True, exist_ok=True)
+            (dest / rel).write_text(text)
+        before = _files(dest)
+        for args in ((str(dest),), (str(dest), "--force"), (str(dest), "--from", "complete")):
+            result = _invoke(*args)
+            assert result.exit_code == 2, (args, result.output)
+            assert "neither empty nor a configuration repository" in result.output and "Nothing was written" in result.output
+            assert _files(dest) == before, args
+
+
+def test_init_config_help_names_every_starter():
+    """Hygiene XII item 29 (the walk's F59): the --from help is built from
+    the list the command accepts."""
+    result = _invoke("--help")
+    assert result.exit_code == 0
+    flat = " ".join(result.output.split())
+    for name in starters.STARTERS:
+        assert name in flat, name
+
+
 def test_init_config_refuses_an_unknown_starter_and_a_file_destination(tmp_path):
     result = _invoke(str(tmp_path / "x"), "--from", "nope")
     assert result.exit_code == 2 and "no starter named 'nope'" in result.output and "standard-gce" in result.output

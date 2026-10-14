@@ -341,6 +341,12 @@ cs-image-system init-config my-config --from complete
 cs-image-system init-config my-config --from standard-aws-posix   # AWS, people as POSIX accounts, no Okta
 ```
 
+A destination that is empty, or a fresh clone holding only `.git` (the
+usual order: create the repository on GitHub, clone it, write into the
+clone), takes the whole starter; a directory that already holds a
+configuration takes only the release-owned parts (below); any other
+directory is refused by name and nothing is written, so the command
+typed in the wrong place cannot replace that place's files.
 [docs/examples/standard-aws/](docs/examples/standard-aws/README.md) is the
 smallest repository that works on the AWS plugin set, one of everything,
 every value you must replace an obvious `REPLACE-ME` and every line that
