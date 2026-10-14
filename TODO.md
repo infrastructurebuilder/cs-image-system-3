@@ -489,8 +489,8 @@ operator's word. LANDED 2026-10-14: A the starters and `init-config`
 (items 1, 2, 6, 12, 18, 29), B the records' noise (8, 13, 19, 24, 27,
 30), C teardown (9, 31, 32; of item 9 the note and the words, not the
 plan-only skip of the root, which would change what a dry run
-enumerates). Still on their branches: D a shared account (23; item 20
-left the bundle as §93, a stage of its own, as the item said), E what a
+enumerates), D a shared account (23; item 20 left the bundle as §93, a
+stage of its own, as the item said). Still on their branches: E what a
 failure says (17, 26, and the load-time tracebacks of F10, F30, F41 and
 F42 that §65's step 9 left to this bundle; of 17 the lines and the
 words, and on 2026-10-14 the operator decided against an `sts` call, so
@@ -592,37 +592,6 @@ Item 25 is a standing review with four dates, the first 2026-11-09.**
     get-caller-identity` for such a profile is a **USER** decision:
     it is the one cloud call that would make the answer true, and
     the command's contract today is that it makes none.
-20. **The emptiness assertion counts another configuration's
-    things.** The walk's finding F47 (2026-10-09, found by reading
-    before stage 15). `emptiness()` is the runtime's whole inventory
-    (on GCE: every instance and disk in the zone, every custom
-    image and every bucket in the project) less this tree's
-    declared storages and released builds. Two configurations in
-    one project therefore each see the other's standing storages
-    as leftovers: the reference keeps `gce_data` and `gce_bucket`
-    in `csis-sandbox`, where the walk's GCE leg runs. It is F11
-    again (stage 82 gave images a `csis_config` label), for
-    everything that is not an image. Plan: instances, disks and
-    buckets the system creates carry `csis_config` (the terraform
-    modules; a label change is in place on a standing resource);
-    the inventory, `empty` and the state query count this
-    configuration's alone and say how many of another's they left
-    alone, as the image query does; `cloud-relabel` learns the new
-    kinds for what stands already. It changes release-owned modules
-    and the reference's standing GCE storages, so it is a stage of
-    its own when the operator calls for it. The operator's decision
-    for the walk (2026-10-09): run the leg and judge emptiness by
-    hand from the leftover list.
-    The same on AWS, met the same day (finding F53, stage 16c):
-    a declared storage's volume and a declared instance's machine
-    are found by the `Name` tag across the whole account, so two
-    configurations with a storage called `data` (every starter's
-    name) each see the other's volume: `foreign storage data: ebs
-    vol-... exists but meta-state has no record of it`, in CI.
-    The plan above therefore covers AWS volumes and instances
-    too: they carry `csis_config`, every lookup by name filters
-    on it, and until then `validate` could at least say so when
-    a declared name already answers in the account.
 21. **A storage type added to a base re-bakes it on every cloud.**
     The walk's finding F49 (2026-10-09, stage 15b). `storage_types`
     is one list on the OS builder, it is in the input fingerprint of
@@ -650,22 +619,6 @@ Item 25 is a standing review with four dates, the first 2026-11-09.**
     own mount is reported -- from the startup script's own line
     per mount, which it can be made to print -- and a test gives it
     a console with the system's XFS mounts and no data disk.
-23. **A bootstrap that shares an existing account co-owns its
-    grants.** The walk's finding F51 (2026-10-09, stage 15e, by
-    reading and on a scratch clone). With `read_account_exists`
-    true the GCP section still makes a `google_project_iam_member`
-    for each of `read_roles` (default `roles/compute.viewer`); two
-    configurations that read the same account each hold that grant
-    in their own state, and destroying either root takes it from
-    both. The interview cannot answer "none" where a default
-    exists (an empty line takes the default). Plan: for an account
-    that exists the default of its roles is EMPTY and the question
-    says why (what it holds was granted by whoever made it); the
-    interview accepts `none` as the empty answer for any question
-    whose answer may be empty, and says so in the prompt; the same
-    for the AWS section's adopted roles, checked against item 5;
-    the generated README lists what a `tofu destroy` of the root
-    would remove that the root did not create.
 25. **A verification starts a machine its operator switched off:
     KEPT, and reviewed monthly.** The walk's finding F44 (2026-10-09,
     stage 14f; seen in the machine's own boot log and in CloudTrail).
@@ -901,3 +854,63 @@ requirements document and its test half a day; the live proof as the
 operator's time allows. **USER**: the registry (ghcr.io under the
 organisation), the three decisions above, the merge, the release, the
 reference configuration's `main`.
+
+## 93. Everything the system makes carries its configuration's id, and the inventory counts its own alone
+
+**Status: PLANNED 2026-10-14 from hygiene XII item 20 (the walk's
+findings F47 and F53), not started -- a plan; nothing here runs until
+the operator says "do 93". It changes release-owned terraform modules
+and relabels the reference configuration's standing GCE storages in
+place, which is why it is a stage and not a bundle item. The operator's
+decision for the walk (2026-10-09) stands until then: run the leg and
+judge emptiness by hand from the leftover list.**
+
+**The defect.** `emptiness()` is the runtime's whole inventory (on GCE:
+every instance and disk in the zone, every custom image and every bucket
+in the project) less this tree's declared storages and released builds.
+Two configurations in one project therefore each see the other's
+standing storages as leftovers: the reference keeps `gce_data` and
+`gce_bucket` in `csis-sandbox`, where the walk's GCE leg ran. It is F11
+again (§82 gave images a `csis_config` label), for everything that is
+not an image. The same on AWS (F53, stage 16c): a declared storage's
+volume and a declared instance's machine are found by the `Name` tag
+across the whole account, so two configurations with a storage called
+`data` (every starter's name) each see the other's volume: `foreign
+storage data: ebs vol-... exists but meta-state has no record of it`, in
+CI.
+
+**Plan.**
+
+1. **Everything carries the id.** The instances, disks and buckets the
+   GCE modules make, and the volumes and machines the AWS modules make,
+   carry `csis_config` (a label or a tag beside the ones they have; a
+   label change is in place on a standing resource, never a
+   replacement). The golden moves by those lines and is reviewed by
+   hand.
+
+2. **Inventories count this configuration's alone.** `emptiness()`,
+   `cloud-empty` and the state query count what carries this tree's id
+   and say how many of another configuration's things they left alone,
+   as the image query does since §82; on AWS every lookup by `Name`
+   filters on the tag, so a foreign `data` is "another configuration's
+   storage `data`", not a foreign storage of ours. A resource with no id
+   at all (made before this stage) is still counted, and named as such,
+   until it is relabelled.
+
+3. **`cloud-relabel` learns the new kinds** for what stands already, so
+   the reference's storages and machines take the label in place.
+
+4. **Words.** OPERATIONS "GCE cost discipline" and the daily driver's
+   3.6 say that two trees may share a project or an account once both
+   are on this release, and what the leftover list says of the other's
+   things.
+
+**Proof.** Fixture and golden (the label lines); a unit test of each
+inventory with a mixed listing (ours, another's, unlabelled); live:
+`just cloud-relabel` on the reference's GCE storages and AWS volumes (an
+apply, the operator's), then a strict state query green; a scratch tree
+in the same project sees zero leftovers of ours.
+
+**Sizing**: two days, plus the operator's live runs. **USER**: the
+relabel of standing resources, the merge, the release, the reference
+configuration's `main`.
