@@ -43,13 +43,14 @@ env:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: extractions/setup-just@v2
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v5
+      - uses: extractions/setup-just@v3
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
+          cache-dependency-glob: ".csis-version"   # a configuration repository has no uv.lock: the release it installs keys the cache
       - name: Install the released system
         run: |
           pin=""; [ -s "$CSIS_VERSION_FILE" ] && pin="==$(cat "$CSIS_VERSION_FILE")"
@@ -65,7 +66,7 @@ jobs:
   live:
     needs: verify
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       id-token: write          # OIDC federation for the read-only cloud identities
       contents: read
@@ -106,13 +107,14 @@ jobs:
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
       - if: steps.gate.outputs.ready == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - if: steps.gate.outputs.ready == 'true'
-        uses: extractions/setup-just@v2
+        uses: extractions/setup-just@v3
       - if: steps.gate.outputs.ready == 'true'
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
+          cache-dependency-glob: ".csis-version"   # a configuration repository has no uv.lock: the release it installs keys the cache
       - name: Install the released system
         if: steps.gate.outputs.ready == 'true'
         # pinned by .csis-version when present; a development version lives on TestPyPI, with
@@ -125,10 +127,10 @@ jobs:
           cs-image-system --help >/dev/null
       - name: Install OpenTofu
         if: steps.gate.outputs.ready == 'true'
-        uses: opentofu/setup-opentofu@v1
+        uses: opentofu/setup-opentofu@v2
       - name: Install Packer
         if: steps.gate.outputs.ready == 'true'
-        uses: hashicorp/setup-packer@main
+        uses: hashicorp/setup-packer@v3
       - name: Place the tools where cfg/executables.yml pins them
         if: steps.gate.outputs.ready == 'true'
         # validate checks every declared tool at its declared path and version
@@ -138,7 +140,7 @@ jobs:
           done
       - name: Federated AWS credentials, the read-only role
         if: steps.gate.outputs.ready == 'true'
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -155,12 +157,12 @@ jobs:
           chmod 600 ~/.aws/credentials
       - name: Federated GCP credentials, the read-only identity
         if: steps.gate.outputs.ready == 'true'
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
       - if: steps.gate.outputs.ready == 'true'
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@v3
       - name: The identity that opens the tree
         if: steps.gate.outputs.ready == 'true'
         run: |
@@ -189,7 +191,7 @@ jobs:
   perform:
     needs: live
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     concurrency:
       group: perform            # two merges never record or perform at once
       cancel-in-progress: false # a record in flight is never cancelled
@@ -247,13 +249,14 @@ jobs:
             echo "record=false" >> "$GITHUB_OUTPUT"
           fi
       - if: steps.gate.outputs.ready == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - if: steps.gate.outputs.ready == 'true'
-        uses: extractions/setup-just@v2
+        uses: extractions/setup-just@v3
       - if: steps.gate.outputs.ready == 'true'
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
+          cache-dependency-glob: ".csis-version"   # a configuration repository has no uv.lock: the release it installs keys the cache
       - name: Install the released system
         if: steps.gate.outputs.ready == 'true'
         # pinned by .csis-version when present; a development version lives on TestPyPI, with
@@ -266,10 +269,10 @@ jobs:
           cs-image-system --help >/dev/null
       - name: Install OpenTofu
         if: steps.gate.outputs.ready == 'true'
-        uses: opentofu/setup-opentofu@v1
+        uses: opentofu/setup-opentofu@v2
       - name: Install Packer
         if: steps.gate.outputs.ready == 'true'
-        uses: hashicorp/setup-packer@main
+        uses: hashicorp/setup-packer@v3
       - name: Place the tools where cfg/executables.yml pins them
         if: steps.gate.outputs.ready == 'true'
         # validate checks every declared tool at its declared path and version
@@ -279,7 +282,7 @@ jobs:
           done
       - name: Federated AWS credentials, the read-only role
         if: steps.gate.outputs.ready == 'true'
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -296,12 +299,12 @@ jobs:
           chmod 600 ~/.aws/credentials
       - name: Federated GCP credentials, the read-only identity
         if: steps.gate.outputs.ready == 'true'
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
       - if: steps.gate.outputs.ready == 'true'
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@v3
       - name: The identity that opens the tree
         if: steps.gate.outputs.ready == 'true'
         run: |
@@ -362,7 +365,7 @@ jobs:
           just sft-install
       - name: Federated AWS credentials, the WRITE role
         if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_APPLY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -379,12 +382,12 @@ jobs:
           chmod 600 ~/.aws/credentials
       - name: Federated GCP credentials, the identity that may write
         if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_APPLY_SERVICE_ACCOUNT }}
       - if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@v3
       - name: The runtime performs
         if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
         # bakes what is due on PERFORM_RUNTIME, releases, applies retention; the instance roots
@@ -412,7 +415,7 @@ jobs:
         run: just ci-login-proof --runtime "$PERFORM_RUNTIME"
       - name: Federated AWS credentials, the read-only role again
         if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -429,12 +432,12 @@ jobs:
           chmod 600 ~/.aws/credentials
       - name: Federated GCP credentials, the read-only identity again
         if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
       - if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@v3
       - name: The full run, recorded again
         if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
         # the complete emission after the scoped run, and the bake's lineage: runs even when

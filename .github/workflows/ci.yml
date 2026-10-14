@@ -24,15 +24,15 @@ jobs:
   verify:
     # The bar: lint, type-check (blocking since pyright reached 0 errors, stage 23)
     # and the fast suite over the frozen fixture (stage 28). Every push and PR.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install just
-        uses: extractions/setup-just@v2
+        uses: extractions/setup-just@v3
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
 
@@ -56,7 +56,7 @@ jobs:
     # pull requests (forks carry no secrets).
     needs: verify
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       id-token: write          # OIDC federation for the read-only cloud roles
       contents: read
@@ -97,11 +97,11 @@ jobs:
 
       - name: Check out the system
         if: steps.gate.outputs.ready == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Federated AWS credentials
         if: steps.gate.outputs.ready == 'true'
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -121,28 +121,28 @@ jobs:
 
       - name: Federated GCP credentials
         if: steps.gate.outputs.ready == 'true'
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Install just
         if: steps.gate.outputs.ready == 'true'
-        uses: extractions/setup-just@v2
+        uses: extractions/setup-just@v3
 
       - name: Install uv
         if: steps.gate.outputs.ready == 'true'
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
 
       - name: Install OpenTofu
         if: steps.gate.outputs.ready == 'true'
-        uses: opentofu/setup-opentofu@v1
+        uses: opentofu/setup-opentofu@v2
 
       - name: Install Packer
         if: steps.gate.outputs.ready == 'true'
-        uses: hashicorp/setup-packer@main
+        uses: hashicorp/setup-packer@v3
 
       - name: Place the tools where the fixture's executables.yml pins them
         if: steps.gate.outputs.ready == 'true'
@@ -175,7 +175,7 @@ jobs:
     # publishing (one pending publisher per project name).
     needs: verify
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Gate on the index tokens
         id: gate
@@ -206,15 +206,15 @@ jobs:
 
       - name: Check out the tag
         if: steps.gate.outputs.ready == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install just
         if: steps.gate.outputs.ready == 'true'
-        uses: extractions/setup-just@v2
+        uses: extractions/setup-just@v3
 
       - name: Install uv
         if: steps.gate.outputs.ready == 'true'
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
 

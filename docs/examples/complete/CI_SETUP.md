@@ -160,6 +160,16 @@ move the version in that file, run `cs-image-system init-config . --force`
 with the new release to refresh the release-owned parts, review the diff,
 commit.
 
+The workflows also name the machine they run on (`runs-on:
+ubuntu-24.04`) and the version of every action they use, so this
+tree's CI changes only when you take a release, never at no commit.
+GitHub withdraws an old runner image every couple of years, and an
+action's major version when its Node.js goes; the runs' annotations say
+so for months first. When they do, a newer release of the system
+carries the move: take it as above. (Moving the names forward is the
+system's maintainers' duty, and how is in the daily driver's section
+9.1.)
+
 ### 3.2 The repository
 
 1. **Branches.** `develop` is the default branch and where people push;
