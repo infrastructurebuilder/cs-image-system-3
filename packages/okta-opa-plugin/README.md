@@ -177,7 +177,7 @@ Group fields consumed: `name`, `members`, `admins`, `is_root` (the root
 group's admins are merged into every other group's admins),
 `include_root_group_in_admins` (opts a group out of that merge),
 `unmanaged` (the module call is replaced by a comment and the module is
-removed from state, never destroyed), `attributes` (validated against
+removed from state by the runner's pre-plan step, never destroyed), `attributes` (validated against
 `unix_gid: int`, `unix_group_name: str`, `windows_group_name: str`; an int
 below 1024 is refused). Not consumed: `gid` (never emitted; the gid policy
 is `creation-only`, OPA assigns it and the root publishes it by reference),
@@ -260,13 +260,10 @@ every other phase.
      (it errors instead of planning the destroy).
    - Deferred commands (written to `run-identity.sh`, each run inside the
      private mirror of the root): `rm -f tfplan`; `tofu init -input=false
-     -reconfigure [-backend-config=...]`; when a group is `unmanaged` now
-     but was recorded as managed before, `cs-image-system state-migration
-     backup` (the state pulled to
-     `_private/state-backups/<ws>.backup-<run>.tfstate`) then `tofu state
-     rm module.group_<label>` per such group; `cs-image-system
+     -reconfigure [-backend-config=...]`; `cs-image-system
      prune-attachments --builder <ws> --tofu <binary> --run <run>` (stage
-     61 item 3, below); `tofu plan -input=false -out=tfplan`;
+     61 item 3 and stage 90, below: the one step in which anything leaves
+     state before the plan); `tofu plan -input=false -out=tfplan`;
      `cs-image-system gate-plan --planfile tfplan --tofu <binary>`; and,
      only when `config.apply_identity` allows this root,
      `cs-image-system apply-check --lifecycle identity --root <ws>`
@@ -761,10 +758,16 @@ str must not be blank. They are planned and probed, never written.
   default; an explicit value overrides it. A managed user's status is
   `default_user_status`, or `SUSPENDED` when `is_enabled: false`.
 - **`unmanaged: true` on a group.** The module call becomes a one-line
-  comment, the group leaves the outputs, and, when the identity read-model
-  last recorded it as managed, the runner backs the state up and runs
-  `tofu state rm module.group_<label>` before its plan. Nothing is
-  destroyed. The CI policy reconcile and `query_state` skip it.
+  comment, the group leaves the outputs, and the runner's pre-plan step
+  (`prune-attachments`) removes from state, after a backup, whatever the
+  state still holds under `module.group_<label>`. Nothing is destroyed.
+  The step decides from the state it lists when it runs (stage 90), not
+  from the identity read-model: generation rewrites that file on every
+  dry run and every `record`, and until 0.1.1.dev23 a group whose
+  release had been looked at first was recorded as released, got no
+  removal, and was planned for destruction (the gate refused it; live
+  2026-10-13). A dry run logs which groups the step will look for. The
+  CI policy reconcile and `query_state` skip an unmanaged group.
 - **`include_root_group_in_admins: false`.** The root group's admin
   usernames are not merged into this group's `admins`, in the module call
   and in what `prune_stale_attachments` treats as declared. The state
@@ -878,7 +881,13 @@ writes `meta-state/identity.yaml` from this plugin's answers and
 `generated/identity/attributes-plan.json` when attributes are declared.
 
 **At apply (the deferred runner).** `prune-attachments` lists the state
-the root is bound to; when an attachment in state is no longer declared it
+the root is bound to. First, for every group marked `unmanaged: true`:
+if the state holds anything under `module.group_<label>`, the state is
+backed up and the module is removed from it (`... is unmanaged and the
+state still holds N of its resource(s); they leave tofu state before the
+plan and nothing is destroyed: state rm module.group_<label>`); if it
+holds nothing, nothing happens and no backup is taken. Then the
+attachments: when an attachment in state is no longer declared it
 asks OPA (`group_users`) and removes only those OPA no longer holds, after
 `state-migration backup` pulled the state to
 `_private/state-backups/<ws>.backup-<run>.tfstate`; a failed list, backup
