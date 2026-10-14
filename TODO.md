@@ -1260,7 +1260,9 @@ the dry form says which branch it stands on.
 walk's F21) and 28 (F56). The change, its test
 (`tests/test_v2_workflow_names.py`) and its words (the daily
 driver's 9.1 and a section 6 row; each starter's `CI_SETUP.md` 3.1)
-are written; 101 of the neighbouring tests pass; the bar is running.
+are written (0fa7494). The bar is green: `just test` 1506 passed,
+and every leg of the full test passed. The merge, the release and the
+live proof wait for the operator.
 
 **Why.** Every workflow, this repository's and each starter's, says
 `runs-on: ubuntu-latest`, which GitHub moves to Ubuntu 26 from
