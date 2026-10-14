@@ -7693,32 +7693,55 @@ read-only and can be undone; deleting cannot, and takes the
 secrets with it. The look first:
 
 ```sh
-# 17e step 3 -- box 1 of 2 -- v1
+# 17e step 3 -- box 1 of 3 -- v2
 cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
 for r in cs-image-system-walk cs-image-system-walk-posix; do echo "$r: $(gh repo view infrastructurebuilder/$r --json visibility,isArchived --jq '"\(.visibility) archived=\(.isArchived)"')"; done
 ```
 
 Both `PUBLIC archived=false`.
 
+(v2 of step 3, 2026-10-14: a box was added as box 2, at your
+question, so the boxes after it are numbered anew; their commands
+are unchanged.) The secrets first, whichever form you choose: an
+archived repository is read-only and keeps them, and four of them
+are keys (the tree's age identity, the posix proof user's private
+key, the Okta API app's private key, the OPA key pair). Nothing can
+use them now: the workflows are disabled and the roles are gone.
+The thirteen, by name: on `cs-image-system-walk`
+`AWS_APPLY_ROLE_ARN`, `AWS_ROLE_ARN`, `CSIS_CONFIG_IDENTITY`,
+`GCP_APPLY_SERVICE_ACCOUNT`, `GCP_SERVICE_ACCOUNT`,
+`GCP_WORKLOAD_IDENTITY_PROVIDER`, `OKTA_API_PRIVATE_KEY`,
+`TF_VAR_KEY`, `TF_VAR_SECRET`; on `cs-image-system-walk-posix`
+`AWS_APPLY_ROLE_ARN`, `AWS_ROLE_ARN`, `CSIS_CONFIG_IDENTITY`,
+`CSIS_PROOF_SSH_KEY`. Neither repository has an environment, so
+there are no environment secrets.
+
+```sh
+# 17e step 3 -- box 2 of 3, the secrets -- v1
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+for r in cs-image-system-walk cs-image-system-walk-posix; do for s in $(gh secret list -R infrastructurebuilder/$r --json name --jq '.[].name'); do gh secret delete "$s" -R infrastructurebuilder/$r; done; done
+for r in cs-image-system-walk cs-image-system-walk-posix; do echo "$r: $(gh secret list -R infrastructurebuilder/$r --json name --jq 'length') secret(s)"; done
+```
+
+Thirteen lines saying a secret was deleted, then `0 secret(s)` for
+both.
+
 Then ONE of the two forms below, as you decide. To archive:
 
 ```sh
-# 17e step 3 -- box 2 of 2, to ARCHIVE -- v1
+# 17e step 3 -- box 3 of 3, to ARCHIVE -- v2
 cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
 for r in cs-image-system-walk cs-image-system-walk-posix; do gh repo archive infrastructurebuilder/$r --yes; done
 for r in cs-image-system-walk cs-image-system-walk-posix; do echo "$r: $(gh repo view infrastructurebuilder/$r --json isArchived --jq '"archived=\(.isArchived)"')"; done
 ```
 
-Both `archived=true`. An archived repository keeps its secrets
-(nothing can use them: its workflows are disabled and its roles
-gone); delete them first with `gh secret delete <NAME> -R ...` if
-you want them gone.
+Both `archived=true`.
 
 Or to delete, which needs a token allowed to (`gh auth refresh -h
 github.com -s delete_repo` asks your browser for it):
 
 ```sh
-# 17e step 3 -- box 2 of 2, to DELETE -- v1
+# 17e step 3 -- box 3 of 3, to DELETE -- v2
 cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
 for r in cs-image-system-walk cs-image-system-walk-posix; do gh repo delete infrastructurebuilder/$r --yes; done
 for r in cs-image-system-walk cs-image-system-walk-posix; do gh repo view infrastructurebuilder/$r --json name 2>&1 | tail -1 | cut -c1-120; done
