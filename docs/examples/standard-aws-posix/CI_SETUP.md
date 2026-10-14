@@ -110,7 +110,7 @@ run them first, then:
 
 ```sh
 cd generated/bootstrap && tofu init && tofu plan && tofu apply && cd ../..
-bash generated/bootstrap/set-secrets.sh      # one file per secret under _uncommitted/secrets (or SECRETS_DIR)
+bash generated/bootstrap/set-secrets.sh      # one file per secret under _uncommitted/secrets (or SECRETS_DIR), a directory git ignores; one it would track is refused
 ```
 
 What the sections do today, and what stays by hand:

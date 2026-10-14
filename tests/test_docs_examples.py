@@ -489,3 +489,42 @@ def test_the_guide_has_github_in_full_and_gitlab_as_placeholders():
     for placeholder in ("<owner>", "<repo>", "<account-id>", "<project>", "<repo-id>"):
         assert placeholder in text, placeholder
     assert not re.search(r"\b\d{12}\b", text), "an AWS account id in the guide"
+
+
+# ---------------------------------------------------- hygiene XII, the starters
+
+def test_each_starter_as_written_is_public_safe_once_its_values_are_filled(tmp_path):
+    """Hygiene XII item 1 (the walk's F1 and F48): a starter's own hook refused
+    its first commit, because the SPDX header of every release-owned file
+    carries the copyright holder's address and the allow list did not say so;
+    and standard-gce did not allow a runner service account's address. Each
+    starter is scanned as written, its placeholders filled with plausible
+    values, against its own allow list."""
+    from cs_image_system.base.public_safe import allow_from_config, scan_tree
+    for name in TREES:
+        root = copy_example(tmp_path / name, name)
+        for f in root.rglob("*"):
+            if f.is_file() and f.suffix in (".yml", ".yaml", ".md", "") and ".git" not in f.parts:
+                try:
+                    text = f.read_text()
+                except UnicodeDecodeError:
+                    continue
+                filled = text.replace("REPLACE-ME", "walkteam").replace("REPLACE_ME", "walkteam")
+                if filled != text:
+                    f.write_text(filled)
+        findings = scan_tree(root, allow_from_config(root / "cfg" / "_config.yml"))
+        assert findings == [], f"{name}: " + "; ".join(str(x) for x in findings[:8])
+
+
+def test_each_starter_shows_the_release_model_keys_and_a_release_line():
+    """Hygiene XII item 18 (the walk's F43): the daily driver's 1.9 names
+    `require_released_builds`, `require_image_tests` and
+    `preflight.expected_run_minutes` among a tree's decisions; every starter
+    carries them at their defaults, and every image file shows `release:`."""
+    for name in TREES:
+        cfg = (EXAMPLES / name / "cfg" / "_config.yml").read_text()
+        assert re.search(r"^  require_released_builds: false$", cfg, re.M), name
+        assert re.search(r"^  require_image_tests: true$", cfg, re.M), name
+        assert re.search(r"^  preflight:\n    expected_run_minutes: 30$", cfg, re.M), name
+        for img in sorted((EXAMPLES / name / "images").glob("*.yaml")):
+            assert re.search(r"^\s*#?\s*release:", img.read_text(), re.M), f"{name}/{img.name} shows no release: line"

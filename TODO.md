@@ -482,50 +482,26 @@ the first final version on PyPI (§41's open call).
 
 ## 81. Hygiene bundle XII
 
-**Status: OPEN 2026-10-05, thirty items found by the §65 walk. Items
-3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
-the operator's word. Items 10 and 11 LANDED as §86 (c6af4b2,
+**Status: OPEN 2026-10-05, thirty items found by the §65 walk; the
+operator said "do 81 in the most logical order" on 2026-10-14, and the
+items go in groups, each a branch: A the starters and `init-config`
+(items 1, 2, 6, 12, 18, 29), B the records' noise (8, 13, 19, 24, 27,
+30), C teardown (9, 31, 32), D a shared account (5, 20, 23), E
+diagnostics (17, 26, and the tracebacks of F10, F30, F41, F42), F the
+items that need a decision (14, 15, 21, 22). Group A LANDED
+2026-10-14 (this commit). Items 3 and 4 LANDED with §82 (0d1850c,
+2026-10-05, released in dev15) by the operator's word. Items 10 and 11 LANDED as §86 (c6af4b2,
 2026-10-07, "Fix now, starters too"). Item 16 LANDED as §88
 (20206e8, 2026-10-08; the operator: "we should correct this
 situation as soon as possible"). Items 1,
-2, 5, 6, 8, 9, 12 to 15, 17 to 24, 26, 27 and 29 to 32 are a plan --
-nothing more runs until the operator says "do 81". Items 7 and 28
+5, 8, 9, 13 to 15, 17, 19 to 24, 26, 27 and 30 to 32 are in progress in
+the groups above. Items 7 and 28
 left the bundle as §91 (2026-10-14). Item 25 is a standing review with
 four dates, the first 2026-11-09. Items 1, 6, 9, 14, 15, 17, 18, 21,
 23, 27, 31 and 32 owe the daily driver (or a starter) words beside
 their fix: §65's step 9 left those words to the fix so they are
 written once (findings F10, F26, F30, F35, F36, F40, F43, F48, F49,
 F51, F55, F61, F62).**
-
-1. **A starter's own hook refuses its first commit.** The tree
-   `init-config` writes carries the copyright holder's address in the
-   SPDX header of every release-owned file (`tfmodules/*`,
-   `.githooks/pre-commit`), and the starter's `public_safe.allow` does
-   not allow it: `git commit` of the untouched tree is REFUSED with 46
-   findings. The reference configuration allows the address by hand, so
-   nothing caught it. Fixed looks like: every starter's allow list
-   carries the address with its reason (or the scan exempts SPDX header
-   lines), and a test runs public-safe over each starter as written.
-   The same refusal for a second address (finding F48, 2026-10-09,
-   stage 15b): `standard-gce` does not allow
-   `.iam.gserviceaccount.com`, which `complete` does, so a GCE tree
-   with its runner's real address cannot be committed. The test
-   fills each starter's `REPLACE-ME` values with plausible ones
-   before it scans.
-2. **`init-config` in a cloned repository writes no configuration.**
-   Only a directory with no entries counts as new
-   ([starters.py](packages/system/src/cs_image_system/system/starters.py)),
-   and a clone always has `.git`, so a team that creates its repository
-   on GitHub and clones it -- the usual order -- gets the release-owned
-   files and no `cfg/`, with a message that reads like success. Fixed
-   looks like: a directory holding only `.git` (**USER**: and a README
-   or LICENSE GitHub made?) takes the whole starter; the message of the
-   release-owned form says no configuration was written; a test for
-   both.
-
-(Items 3 and 4 landed with §82, 0d1850c: a declared group the provider
-has never been seen to carry is a note, not hard drift; every
-starter's `.gitignore` ignores every dotfile unless named.)
 
 5. **The bootstrap's create path would strip the state bucket it
    made.** The walk's finding F17, read from the code before the walk
@@ -548,12 +524,6 @@ starter's `.gitignore` ignores every dotfile unless named.)
    destroying. Either way a test renders the second interview and
    asserts no bucket resource leaves the plan, and the guide says what
    the operator sees.
-6. **The interview's default secrets directory is inside the tree and
-   not ignored.** The walk's finding F18: `_uncommitted/secrets` is
-   offered as "never committed", and no starter's `.gitignore`
-   ignores `_uncommitted/`. Fixed looks like: the starters ignore
-   `_uncommitted/`, and `set-secrets.sh` (or the interview) refuses a
-   secrets directory git would track.
 8. **An applying run's log can cut the line that says what was
    applied.** The walk's finding F25. The log keeps the last 40 lines
    of a command's output (hygiene VIII item 3, `OUTPUT_TAIL_LINES`),
@@ -598,25 +568,6 @@ starter's `.gitignore` ignores every dotfile unless named.)
    state, a performing run, the bakes recorded and the run green
    with the note.
 10. (Items 10 and 11 landed as §86, c6af4b2, 2026-10-07.)
-12. **`init-config --force` writes over a repository that is not a
-    configuration repository.** The walk's finding F32 (2026-10-07):
-    a step meant for the walk's container was typed in the system
-    repository's root, and `cs-image-system init-config . --force`
-    replaced its `Justfile`, `.gitignore` and `.github/workflows/
-    ci.yml` with a starter's and wrote `.csis-version`, `CI_SETUP.md`
-    and the probe workflow. The new `.gitignore` no longer ignored
-    the checkout's private directory; a `git add -A` would have
-    staged it. Nothing was staged, and git gave the three files back;
-    outside git they would be gone. The command read "the starter
-    complete ... from the tree's .github/workflows/ci.yml" and asked
-    nothing. Fixed looks like: `--force` refreshes a tree that IS a
-    configuration repository -- it has `cfg/_config.yml`, or a
-    `.csis-version` this command wrote -- and refuses any other
-    directory by name, saying what it looked for; a first write into
-    a directory that holds other things stays the business of
-    `--from <starter>` and its own checks. A test: the command in a
-    repository with its own Justfile and no `cfg/` is refused and
-    changes nothing.
 13. **An instance that was never launched reads as a cloud that could
     not answer.** The walk's finding F33 (2026-10-08, in CI's strict
     query and the operator's): `unavailable: instances/walk-node-1:
@@ -696,20 +647,6 @@ starter's `.gitignore` ignores every dotfile unless named.)
     get-caller-identity` for such a profile is a **USER** decision:
     it is the one cloud call that would make the answer true, and
     the command's contract today is that it makes none.
-18. **The starters do not show the keys the daily driver tells a
-    team to settle.** The walk's finding F43 (2026-10-09, stage
-    14e). The daily driver's 1.9 lists `require_released_builds`,
-    `require_image_tests` and `preflight.expected_run_minutes` among
-    the decisions of `cfg/_config.yml`; the starters' file carries
-    none of the three, and their image declares no `release:`. The
-    walk reached section 6's unreleased-pin row only by writing the
-    key in with `sed`; the rule and its grace then behaved as
-    written. Plan: each starter's `cfg/_config.yml` carries the
-    three keys as DECISION lines at their defaults, with what
-    switching each on asks of the tree; each starter's image
-    carries a commented `release:` beside its tests; the starter
-    tests read them. A starter tree must still validate and dry-run
-    unchanged (the keys at their defaults change no emission).
 19. **A run its operator cancels is journalled as a success.** The
     walk's finding F45 (2026-10-09, stage 14g). `just record`,
     interrupted with Ctrl-C five seconds in, left an entry in
@@ -892,14 +829,6 @@ starter's `.gitignore` ignores every dotfile unless named.)
     ephemeral, its base is never kept, so its emission always holds
     a vendor image's name and every publication turns the next
     scheduled run red until someone makes a record.
-
-29. **`init-config --help` does not name the posix starter.** The
-    walk's finding F59 (2026-10-13). The `--from` option's help
-    says "the starter tree: standard-aws, standard-gce or
-    complete"; `starters.STARTERS` holds a fourth,
-    `standard-aws-posix`, which the command accepts and the walk
-    used. Plan: the help text is built from `STARTERS`, so it
-    cannot fall behind again, and a test says so.
 
 30. **A provider lock file changes with whoever made the record.**
     The walk's finding F60 (2026-10-13, the posix walk).
