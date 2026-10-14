@@ -17,8 +17,12 @@ GitHub-image path kept as the from-scratch alternative, is PLANNED
 uses (hygiene XII items 7 and 28, made one stage by the operator's
 word of 2026-10-14, "do 7 and 28 together as a single stage"; GitHub
 moves `ubuntu-latest` to Ubuntu 26 from 2026-10-19), LANDED
-2026-10-14 (e72cc1b) by the operator's word; it awaits its release,
-0.1.1.dev24, and its live proof on the reference configuration.
+2026-10-14 (e72cc1b) by the operator's word, released in dev24
+(b263aea) and PROVED on the reference configuration: `verify` and
+`live` green on `Image: ubuntu-24.04`. One notice survived, since
+`setup-just@v3` is composite and wraps an inner action on Node 20;
+its v4 does not, and the one-line correction is on
+`feature/setup-just-v4` (3841f6c) awaiting the operator's merge.
 §90, a group's release is decided by the state and
 cannot be spent by a dry run (the removal of an unmanaged group
 from state was decided from the identity read-model, which every
