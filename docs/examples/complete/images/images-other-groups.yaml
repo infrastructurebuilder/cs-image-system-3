@@ -10,6 +10,8 @@ images:
     description: "Data Science node with pre-installed libraries and tools."
     tags:
       data_science: "true"
+    # release:                   # DECISION: join the release model (cfg/_config.yml require_released_builds; images-coops.yaml declares it)
+    #   model: default
     runtimes:
       - image_builder: pckr-ebs-ans
         machine_type: r5.large     # a bigger bake machine for this image only

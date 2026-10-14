@@ -145,9 +145,15 @@ def run_command(
         gctx.apply_runtime = apply_runtime
         for key in ("apply_storage", "apply_instances"):
             gctx.config[key] = [apply_runtime]
-        if not only and not only_runtime:
+        if not only_runtime:
             # stage 12.1: the apply scope implies the bake filter -- an ad-hoc run
-            # without --only-runtime baked two AMIs on the other cloud (ledger 68)
+            # without --only-runtime baked two AMIs on the other cloud (ledger 68).
+            # Hygiene XII item 32 (the walk's F62): beside `--only` too. The
+            # decommission recipe says `--only none --apply-runtime <rt>`, and
+            # `--only` used to leave the scope unimplied, so the run planned every
+            # other runtime's instance root after it had applied this one, and a
+            # GCE root with an ephemeral machine between cycles failed that plan
+            # after the destroy and before the record.
             only_runtime = apply_runtime
             gctx.implied_scope = apply_runtime
     if only_runtime:
@@ -419,21 +425,29 @@ def materialize_command(
         raise typer.Exit(code=1)
 
 
+from cs_image_system.system.starters import DEFAULT_STARTER as _DEFAULT_STARTER, STARTERS as _STARTERS
+
+# hygiene XII item 29: the help is built from the list the command accepts, so it cannot fall behind it
+_STARTER_HELP = (f"the starter tree: {', '.join(_STARTERS)}; a new tree defaults to {_DEFAULT_STARTER}, "
+                 "an existing one to the starter its workflow came from")
+
+
 @app.command(name="init-config")
 def init_config_command(
     destination: Annotated[Path, typer.Argument(help="the configuration repository to write (new, empty, or existing)")],
-    starter: Annotated[str | None, typer.Option("--from", help="the starter tree: standard-aws, standard-gce or complete; a new tree defaults to standard-aws, an existing one to the starter its workflow came from")] = None,
+    starter: Annotated[str | None, typer.Option("--from", help=_STARTER_HELP)] = None,
     force: Annotated[bool, typer.Option("--force", help="overwrite a release-owned file that exists and differs")] = False,
 ) -> None:
     """Write a starter configuration repository from this release (stage 64).
 
-    A destination that does not exist or is empty takes the WHOLE starter: the
-    YAML, the Justfile, the workflow, the hook, .gitignore, the terraform
-    modules (module_source_base: tfmodules) and .csis-version pinned to this
-    release. A destination that already holds a configuration takes only the
-    parts the release owns (the same list without the YAML), so an existing
-    repository gains or refreshes them; a release-owned file that exists and
-    differs is refused by name unless --force. An existing tree is refreshed
+    A destination that does not exist, is empty, or is a fresh clone holding
+    only .git takes the WHOLE starter: the YAML, the Justfile, the workflow,
+    the hook, .gitignore, the terraform modules (module_source_base:
+    tfmodules) and .csis-version pinned to this release. A destination that
+    already holds a configuration takes only the parts the release owns (the
+    same list without the YAML), so an existing repository gains or refreshes
+    them; a release-owned file that exists and differs is refused by name
+    unless --force. Any other directory is refused and nothing is written. An existing tree is refreshed
     from the starter its workflow came from (--from names another), its
     values where the release has REPLACE-ME are kept, and its .csis-version
     is never moved backwards. Loads no configuration."""

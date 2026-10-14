@@ -275,6 +275,7 @@ def test_booted_image_differing_from_the_pin_is_changed_drift(world, monkeypatch
     ctx.meta_state.add_build(_build("img-old", "imgfile-basic-dask", rt))
     ctx.meta_state.add_build(_build("img-new", "imgfile-basic-dask", rt))
     ctx.meta_state.bind_instance("gce-test", "img-new", "run-x")
+    ctx.meta_state.record_launch_params("gce-test", {"launched": True})   # hygiene XII item 13: a machine never launched is not asked
     monkeypatch.setattr(GCPCloudBuilder, "query_instance_boot_image", lambda self, name: "img-old")
     report = sq.query_state(ctx)
     hits = [d for d in report.drift if d.kind == "instance" and d.name == "gce-test"]
@@ -289,6 +290,7 @@ def test_booted_image_matching_the_pin_is_clean_and_unanswered_is_unavailable(wo
     rt = _gce_runtime(ctx)
     ctx.meta_state.add_build(_build("img-new", "imgfile-basic-dask", rt))
     ctx.meta_state.bind_instance("gce-test", "img-new", "run-x")
+    ctx.meta_state.record_launch_params("gce-test", {"launched": True})   # hygiene XII item 13: a machine never launched is not asked
     monkeypatch.setattr(GCPCloudBuilder, "query_instance_boot_image", lambda self, name: "img-new")
     report = sq.query_state(ctx)
     assert not [d for d in report.drift if d.kind == "instance"]

@@ -15,13 +15,16 @@ trees under the system's ``docs/examples/`` are the source, the build hook
 
 Two forms of ``init-config``:
 
-* a destination that does not exist or is empty takes the WHOLE starter, so a
-  team begins from a tree that loads and validates as it stands;
+* a destination that does not exist, is empty, or is a fresh clone holding
+  only ``.git`` takes the WHOLE starter, so a team begins from a tree that
+  loads and validates as it stands;
 * a destination that already holds a configuration takes only the parts the
   release owns (``RELEASE_OWNED``), so an existing repository -- the reference
   configuration, or a team's after an upgrade -- gains or refreshes them
   without a line of its YAML touched. A release-owned file that already
   exists and differs is refused by name unless ``force`` says to overwrite it.
+  Any other directory -- one that holds things but no configuration -- is
+  refused by name, and nothing is written (hygiene XII items 2 and 12).
 
 Either way ``.csis-version`` records the running release, which is the pin
 the starter workflow installs.
@@ -241,6 +244,22 @@ def _place(src: Path, dst: Path, rel: str, report: InitReport, *, force: bool) -
     report.written.append(rel)
 
 
+def is_new_tree(destination: Path) -> bool:
+    """A destination that takes the WHOLE starter: absent, empty, or a fresh
+    clone holding only ``.git`` (hygiene XII item 2: a team creates its
+    repository on GitHub and clones it, the usual order)."""
+    if not destination.exists():
+        return True
+    entries = [e.name for e in destination.iterdir()]
+    return not entries or entries == [".git"]
+
+
+def holds_configuration(destination: Path) -> bool:
+    """A tree the release-owned form may refresh: it has a configuration
+    (``cfg/_config.yml``) or a ``.csis-version`` this command wrote."""
+    return (destination / "cfg" / "_config.yml").is_file() or (destination / VERSION_FILE).is_file()
+
+
 def _version(text: str) -> Version | None:
     try:
         return Version(text.strip())
@@ -254,9 +273,21 @@ def init_config(destination: Path, starter: str | None = None, *, force: bool = 
     starter its workflow came from."""
     version = release_version()
     destination = destination.resolve()
-    empty = not destination.exists() or (destination.is_dir() and not any(destination.iterdir()))
     if destination.exists() and not destination.is_dir():
         raise ValueError(f"{destination} exists and is not a directory")
+    empty = is_new_tree(destination)
+    if not empty and not holds_configuration(destination):
+        # hygiene XII items 2 and 12: the release-owned form refreshes a configuration
+        # repository and nothing else. The walk typed it in the SYSTEM repository's root,
+        # which lost its Justfile, .gitignore and workflow to a starter's; and a fresh
+        # clone with a README got the release-owned files and no cfg/, with a message
+        # that read like success.
+        entries = sorted(e.name for e in destination.iterdir())
+        shown = ", ".join(entries[:6]) + (", ..." if len(entries) > 6 else "")
+        raise ValueError(f"{destination} is neither empty nor a configuration repository (no cfg/_config.yml, "
+                         f"no {VERSION_FILE}; it holds {shown}); a whole starter is written only into an empty "
+                         f"directory or a fresh clone holding only .git, and a refresh only into a tree that "
+                         f"holds a configuration. Nothing was written")
     inferred = False
     if starter is None:
         found = None if empty else infer_starter(destination)

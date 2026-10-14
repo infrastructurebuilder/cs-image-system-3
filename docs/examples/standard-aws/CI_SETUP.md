@@ -110,7 +110,7 @@ run them first, then:
 
 ```sh
 cd generated/bootstrap && tofu init && tofu plan && tofu apply && cd ../..
-bash generated/bootstrap/set-secrets.sh      # one file per secret under _uncommitted/secrets (or SECRETS_DIR)
+bash generated/bootstrap/set-secrets.sh      # one file per secret under _uncommitted/secrets (or SECRETS_DIR), a directory git ignores; one it would track is refused
 ```
 
 What the sections do today, and what stays by hand:
@@ -577,7 +577,12 @@ step "Gate on the secrets".
 4. **One `perform`**: `git push origin develop:main`, which creates
    `main` the first time (or Actions, CI, Run workflow on `main` with
    `mode: record`). The records land on `main`; bring them back with
-   `git merge --ff-only origin/main` on `develop`.
+   `git merge --ff-only origin/main` on `develop`. Before it, the
+   identity and storage lifecycles should have applied once from your
+   machine (the daily driver, 3.1 and 3.2): a `perform` plans the
+   instance root, which reads those roots' state, and a storage root
+   that never applied has none (the strict state query says so as a
+   note).
 5. **The login proof as a workload**: the "CI logs in through the managed
    policy" step green, and `meta-state/login-proofs.yaml` on `main` saying
    `as: workload`. Then the branch pin on the role (section 3.5, step 6).
