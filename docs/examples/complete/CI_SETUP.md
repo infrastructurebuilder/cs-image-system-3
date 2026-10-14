@@ -460,15 +460,27 @@ policy with the role as its only principal.
    identity lifecycle, which creates the per-group CI policies.
 4. **The probe.** Actions, "OPA workload probe", Run workflow, with your
    names. Against a draft, OPA accepts this run's token and issues one
-   in reply, which the probe reports and discards (its last line says
-   `accepted this run's token and issued one`); the log shows the
+   in reply, which the probe reports and discards (`connection <name>:
+   accepted this run's token and issued one`); the log shows the
    token's claims and the client's verdict. Green here is the proof the
    claims match. Nothing logs in until step 5: the system's own login
-   proof refuses a draft connection.
+   proof refuses a draft connection. The probe's second line, `role
+   <name>: granted` / `not granted` / `not judged`, says whether the
+   token it was issued CARRIES the role, judged by resolving a standing
+   machine of a managed group as the workload; before a machine stands
+   it says `not judged`, and it is what step 6 reads.
 5. **Activate the connection.** From here the system refuses the login
    proof when either object is absent or the connection is still a draft.
 6. **After the first green login proof from `main`**, add the branch pin
-   to the role: condition `ref` Equals `refs/heads/main`.
+   to the role: condition `ref` Equals `refs/heads/main`. Then prove the
+   pin, since nothing else does: dispatch the probe from `main` and read
+   `role <name>: granted`; dispatch it from any other branch and read
+   `role <name>: not granted` (OPA still issues the connection's token
+   there, since the role is only a hint when authenticating to the
+   connection, and `sft resolve` then exits 125). A probe that says
+   `granted` from the other branch means the pin does not hold
+   (2026-10-08, F35: the first line alone said `accepted` from
+   `develop` with the pin in place).
 
 **What the names trust.** The claims match by name, so a person can read
 every value off the remote URL. A fork's token names the fork and never
@@ -585,7 +597,8 @@ step "Gate on the secrets".
    note).
 5. **The login proof as a workload**: the "CI logs in through the managed
    policy" step green, and `meta-state/login-proofs.yaml` on `main` saying
-   `as: workload`. Then the branch pin on the role (section 3.5, step 6).
+   `as: workload`. Then the branch pin on the role, proved by the probe
+   from two branches (section 3.5, step 6).
 
 ### 3.9 When it fails
 

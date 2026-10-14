@@ -582,9 +582,13 @@ CI setup guide every starter tree carries,
 2026-09-28; until then a checklist of its own at the root of this
 repository, which named this repository as the one that logs in). `just sft-install` puts Okta's client on
 an apt runner; `just opa-workload-probe` (the dispatch-only `OPA workload
-probe` workflow) presents a run's token to the connection and reports the
-client's verdict, masking both tokens -- the test to run against a draft
-connection before activating it.
+probe` workflow, `cs-image-system workload probe`) presents a run's token
+to the connection and reports the client's verdict, masking both tokens --
+the test to run against a draft connection before activating it -- and,
+with the token it was issued, whether the ROLE reaches a standing machine
+of a managed group (`role <name>: granted` / `not granted`): the one proof
+of the role's branch pin, read once from `main` and once from another
+branch (hygiene XII item 14).
 
 What grants the role reach is **one CI login policy per managed group**,
 `<group>_v1_security_policy_ci`, kept beside the user policy the terraform
@@ -1684,7 +1688,7 @@ in `docs/examples/*/Justfile`; `CSIS` names the command, default
 | `cloud-upgrade <rt> <instance> [to]` | pin, replace (`cloud-launch`), proof (`cloud-verify`), `run release`, `cloud-launch` again for the names; `require_released_builds` stays true | `cloud-preflight`; write credentials |
 | `cloud-empty <rt>` / `cloud-dispose-images <rt> [yes]` / `cloud-relabel <rt> [no]` | `empty` / `dispose image --all` / `lineage relabel` (dry by default) | sessions; write credentials to dispose or relabel |
 | `ci-login-proof *ARGS` | `workload token` into `OPA_TOKEN` inside an Actions job, then `verify login` | `sft`; a job with `id-token: write` for the workload form |
-| `opa-workload-probe` | `workload token` and stop | a job with `id-token: write` |
+| `opa-workload-probe` | `workload probe`: the token presented and discarded, then `role: granted` or `not granted` by resolving a standing machine as the workload | a job with `id-token: write`; `sft` |
 | `sft-install` | the OPA client from Okta's apt repository | apt |
 | `test-mods *ARGS` / `public-safe *ARGS` | in a container / the gate over this tree | docker / nothing |
 | `config-drift` / `runtime-unchanged <rt> [ref]` | the commands of those names | sessions, `CSIS_CONFIG_IDENTITY` |
@@ -2007,9 +2011,14 @@ CI.
 
 `opa-workload-probe.yml`, dispatch only, presents that repository's OIDC
 token to the team's workload connection through `just
-opa-workload-probe` (`cs-image-system workload token`) and stops; against
-a draft connection OPA validates and issues nothing usable. It is how a
-connection is proved before it is activated (CI_SETUP.md, section 3.5), and
+opa-workload-probe` (`cs-image-system workload probe`) and stops; against
+a draft connection OPA accepts the token and issues one in reply, which
+the probe reports and discards (the walk's F23: it was once written here
+that a draft issues nothing usable). The probe's second line says whether
+the issued token carries the role, by resolving a standing machine of a
+managed group as the workload, and so proves the role's branch pin from
+two branches. It is how a connection is proved before it is activated
+(CI_SETUP.md, section 3.5), and
 since stage 64 the repository that logs in as a workload is the
 configuration repository, so the probe lives there and the connection's
 claims name it.

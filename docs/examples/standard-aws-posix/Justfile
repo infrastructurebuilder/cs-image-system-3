@@ -203,13 +203,12 @@ ci-login-proof *ARGS:
 	fi
 	{{cli}} verify login {{ARGS}}
 
-# Present this Actions run's OIDC token to the team's workload connection and stop (the names from the
-# environment: OPA_WORKLOAD_CONNECTION, OPA_WORKLOAD_ROLE, SFT_TEAM, OPA_ADDR; needs `id-token: write`)
+# Present this Actions run's OIDC token to the team's workload connection and say two things: the
+# connection accepted it and issued one, and whether that token carries the ROLE (`role: granted` from
+# the pinned branch alone, judged by resolving a standing machine of a managed group). The names from the
+# environment: OPA_WORKLOAD_CONNECTION, OPA_WORKLOAD_ROLE, SFT_TEAM, OPA_ADDR; needs `id-token: write`
 opa-workload-probe:
-	#!/usr/bin/env bash
-	set -euo pipefail
-	token=$({{cli}} workload token)
-	echo "opa-workload-probe: the connection accepted this run's token$( [ -n "$token" ] && echo ' and issued one (masked)' )"
+	@{{cli}} workload probe
 
 # The OPA client, from Okta's apt repository (a no-op where `sft` is already on PATH)
 sft-install:

@@ -96,7 +96,11 @@ def verify_instance(name: str, expected_build: str | None = None, timeout: int =
     ms = ctx.meta_state
     recorded = ms.instance_pin(name) or (ms.launch_params().get(name) or {}).get("build")
     build = expected_build or (recorded if recorded and recorded != "unbound" else None)
-    mounts = len(list(inst.storage_mappings()))
+    # hygiene XII item 22: the declared mount points by name (object storage
+    # mounts nothing), and their count for a runtime that can only count
+    from ..launch_params import compute_launch_params, mounted_points
+    mount_points = mounted_points(compute_launch_params(ctx, inst))
+    mounts = len(mount_points)
     # stage 57: verification is the archetypal task that NEEDS a running
     # machine, so it is allowed to start one -- for this task alone, and
     # it puts it back. A machine that is off and cannot be started is a
@@ -117,7 +121,8 @@ def verify_instance(name: str, expected_build: str | None = None, timeout: int =
                     "checks": [{"name": "power state", "ok": False,
                                 "detail": f"instance is {power_state.describe(state)}; "
                                           f"verification needs a running machine"}]}
-        result = rtb.verify_instance(name, expected_build=build, expect_mounts=mounts, timeout=timeout)
+        result = rtb.verify_instance(name, expected_build=build, expect_mounts=mounts, timeout=timeout,
+                                     mount_points=mount_points)
         if build is None:
             # no concrete expectation (the image was built THIS run, so the launch
             # deferred to the family and nothing is pinned yet -- found live): the

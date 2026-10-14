@@ -15,6 +15,7 @@ for i in $(seq 1 60); do [ -e "$DEV" ] && break; [ -e "$BYID" ] && DEV="$BYID" &
 if ! blkid "$DEV" >/dev/null 2>&1; then mkfs -t xfs "$DEV"; fi
 grep -q ' /mnt/gce-data ' /etc/fstab || echo "$DEV /mnt/gce-data xfs defaults,nofail 0 2" >> /etc/fstab
 mount '/mnt/gce-data' || mount "$DEV" '/mnt/gce-data'
+findmnt -rn '/mnt/gce-data' >/dev/null 2>&1 && echo 'csis-mount: /mnt/gce-data mounted' || echo 'csis-mount: /mnt/gce-data NOT mounted'
 mkdir -p '/mnt/gce-data/coops'
 chgrp "$GID" '/mnt/gce-data/coops'
 chmod 2770 '/mnt/gce-data/coops'

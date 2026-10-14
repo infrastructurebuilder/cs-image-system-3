@@ -496,8 +496,8 @@ to this bundle; of 17 the lines and the words, and on 2026-10-14 the
 operator decided against an `sts` call, so `preflight` keeps making no
 cloud call; of 26 the retried pull, docker's words and the `unstarted`
 record, and the operator decided the same day that nothing more is owed
--- a registry outage longer than the retries is a rerun). Still on their
-branches: F the proofs (14, 22), G the operator's decisions of
+-- a registry outage longer than the retries is a rerun), F the proofs
+(14, 22). Still on their branches: G the operator's decisions of
 2026-10-14 (5: the root keeps managing a bucket it made; 15: usernames
 are public; 21: a bake takes only the storage types whose builder lives
 on its runtime). Items 3 and 4 LANDED with §82 (0d1850c, 2026-10-05,
@@ -528,29 +528,6 @@ Item 25 is a standing review with four dates, the first 2026-11-09.**
    destroying. Either way a test renders the second interview and
    asserts no bucket resource leaves the plan, and the guide says what
    the operator sees.
-14. **Nothing proves the workload role's branch pin.** The walk's
-    finding F35 (2026-10-08). CI_SETUP 3.5 step 6 ends at "add the
-    branch pin to the role" with no check after it, and the one tool
-    at hand misleads: `just opa-workload-probe` authenticates to the
-    CONNECTION (`sft workload authenticate`), where the role is only
-    a hint ("the desired role the workload will assume, if
-    authorized"), so it reports `accepted ... and issued one` from
-    any branch whether the role is pinned or not. The bootstrap reads
-    the pin's RECORD (`role_pinned`), which is not its effect. The
-    walk proved the effect by hand, with a throwaway branch and a
-    temporary workflow that attempts `ci-login-proof` from a ref that
-    is not `main`. Fixed looks like: the probe gains a second verdict,
-    whether the token it was issued carries the ROLE (it tries what
-    the role allows: resolving a server of a managed group), printed
-    beside the first as `role: granted` or `role: not granted`; the
-    guide's step 6 then says to run it from `main` (granted) and from
-    another branch (not granted); F23's wording about a draft
-    connection is corrected in the same place. What the by-hand proof
-    showed (2026-10-08, runs 37759023233 and 37760563336): from
-    `main` the workload logs in; from another branch OPA still issues
-    the connection's token and `sft resolve` of the machine then
-    exits 125. That exit, after a token was issued, is the signal a
-    role-aware probe can report.
 15. **A declared username is encrypted in the roster and clear in
     what the run commits.** The walk's finding F36 (2026-10-08,
     noticed when a second, real person was about to be declared in a
@@ -589,17 +566,6 @@ Item 25 is a standing review with four dates, the first 2026-11-09.**
     capability a build records stays what it carries, and
     CONFIGURATION says that a base shared between clouds re-bakes
     everywhere when a shared field changes.
-22. **On GCE the verification's mount check cannot fail.** The
-    walk's finding F50 (2026-10-09, stage 15c). `verify_instance`
-    on GCE counts `XFS (...): Ending clean mount` on the serial
-    console and passes at `>=` the declared data disks; an image
-    whose own filesystems are XFS brings its count with it (`4
-    clean XFS mount(s) on the console, 1 declared`). Plan: the
-    check names the declared disks (the launch parameters carry
-    each device and mount point) and passes only when each one's
-    own mount is reported -- from the startup script's own line
-    per mount, which it can be made to print -- and a test gives it
-    a console with the system's XFS mounts and no data disk.
 25. **A verification starts a machine its operator switched off:
     KEPT, and reviewed monthly.** The walk's finding F44 (2026-10-09,
     stage 14f; seen in the machine's own boot log and in CloudTrail).
