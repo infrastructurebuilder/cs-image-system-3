@@ -7915,14 +7915,19 @@ directories is what was never committed, which is what should go.
 The look, that nothing committed was left unpushed:
 
 ```sh
-# 17f step 4 -- box 1 of 2 -- v1
+# 17f step 4 -- box 1 of 2 -- v2
 cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
-for d in cs-image-system-walk cs-image-system-walk-posix; do (cd /Volumes/MiniSSD/git/Work/Lynker/$d && echo "$d: $(git status -sb | head -1) | not committed: $(git status --short | wc -l | tr -d ' ') | $(du -sh . | cut -f1)"); done
+for d in cs-image-system-walk cs-image-system-walk-posix; do p=/Volumes/MiniSSD/git/Work/Lynker/$d; echo "$d: $(git -C $p status -sb | head -1) | not committed: $(git -C $p status --short | wc -l | tr -d ' ') | $(du -sh $p | cut -f1)"; done
 ```
 
 `## develop...origin/develop` with nothing ahead, `not committed:
 0`, and a size, for both. `ahead`, or files not committed: STOP and
 paste it.
+(v2, 2026-10-14: v1 went into each directory with `cd`, which set
+off `direnv` in your local zsh; the posix tree's `.envrc` was never
+allowed there, `direnv` refused it, and zsh crashed in the subshell
+(`malloc: Double free`) before the posix line was printed. v2 asks
+git about each directory from outside it, with `git -C`.)
 
 This deletes both directories and everything in them:
 
