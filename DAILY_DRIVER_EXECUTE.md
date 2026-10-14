@@ -6264,8 +6264,8 @@ all in AWS, and the repositories after the roles that trusted them.
 | 17c | the first walk: the same, and its OPA groups released to you | done 2026-10-14: the machine, five images, the volume, the security group, the group released (after stage 90); no drift; `develop` green at 9abeb0c. Was: Steps 0 to 7 are done: the machine, five images, the volume and the security group are gone, and the group is released from the system's state (stage 90, released as 0.1.1.dev23, proved here) |
 | 17d | the two bootstrap roots, the posix tree's first, and the bucket last | done 2026-10-14: CI stopped, 9 and 11 destroyed, the bucket and its 249 versions gone; nothing of either walk stands in AWS |
 | 17e | by hand: the OPA console, Google Cloud's two free settings, GitHub (the repositories and the token) | done 2026-10-14: the provider's condition without the walk; OPA cleared; both repositories' secrets deleted and the repositories archived; the token deleted |
-| 17f | your local machine: the containers, the snapshot image, the directories | **YOU ARE HERE** |
-| 17g | the proof: the picture after, beside the picture before; the reference configuration still green | written when 17f is done |
+| 17f | your local machine: the containers, the snapshot image, the directories | done 2026-10-14: the record and the holders' key kept, both containers and the snapshot image removed (the base image kept), both directories deleted |
+| 17g | the proof: the picture after, beside the picture before; the reference configuration still green | done 2026-10-14, read by Claude; **YOU ARE HERE: say `stage 17 done`** |
 
 ### 17a -- the picture before
 
@@ -7978,6 +7978,59 @@ ls -d /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-walk* 2>&1 | tail -1
 
 **Report:** `stage 17f done`, and whether you kept
 `csis-walk:fedora43`.
+
+(STAGE 17f DONE, 2026-10-14. Step 1: the pictures, then 55 files of
+the walk's record into `_uncommitted/walk-container-home/`, and the
+holders' key kept at `~/.config/cs-image-system/age/walk.age-identity`.
+Step 2: both containers removed. Step 3: the snapshot image deleted;
+`csis-walk:fedora43` is still there, because the box removes only
+the snapshot and keeping the base image took nothing (you said you
+did not see that choice in the text: it was a sentence under the
+look, and should have been a box of its own; `docker rmi
+csis-walk:fedora43` removes it whenever you like). Step 4: the
+four reports into `_uncommitted/walk-tree-leftovers/`, the Okta key
+the same as this repository's copy, and both directories deleted.)
+
+### 17g -- the proof
+
+Read by Claude on 2026-10-14, from your local machine, with nothing
+typed by you: every read below changes nothing, and each is the
+same read as the picture before, or the one that would show the
+thing if it stood. The picture after is
+`_uncommitted/teardown-after.txt`, beside
+`_uncommitted/teardown-before.txt`.
+
+| What | Before (17a, 2026-10-13) | After (2026-10-14) |
+| --- | --- | --- |
+| AWS machines named for the walks | 2 (`team-node-1` running, `walk-node-1` stopped) | none |
+| AWS volumes `data`, `posix-data` | 2 (110 GB) | none |
+| AWS images of either configuration | 7 | none |
+| their snapshots | 7 | 7 of 7 `InvalidSnapshot.NotFound` |
+| security groups the instance roots made | 2 (not in 17a's picture; found at 17b) | 2 of 2 `InvalidGroup.NotFound` |
+| IAM roles `csis-walk*` | 4 | none |
+| the state bucket | 9 state files, 239 versions and markers | `NoSuchBucket` |
+| Google Cloud: the provider's condition | three repositories | `cs-image-system-3`, `cs-image-system-testconfig` |
+| Google Cloud: the read account's bindings naming the walk | 1 | 0 |
+| Google Cloud: instances, disks, images named for the walk | 0 (gone since stage 15) | 0 |
+| OPA: the groups `walk_team_admin`, `walk_team_user` | standing | both `404`; the reference configuration's `coops_admin`, asked the same way, stands |
+| GitHub: the two repositories | public, 13 secrets, 5 variables | public, archived, 0 secrets, 0 variables |
+| your local machine | 2 containers, 2 images, 2 directories (4.5 GB) | the base image `csis-walk:fedora43` only |
+
+**And the reference configuration touched nothing of it:** its strict
+state query, run from your local machine on 2026-10-14, says
+`changed 0, foreign 0, missing 0` (with the 3 `stale` image notes it
+has carried for weeks, which are not drift); its CI on `develop` is
+green at `edeee26`, on 0.1.1.dev23.
+
+What the walk kept, on purpose, all on your local machine and none
+of it committed: `_uncommitted/walk-log.md` (the evidence log),
+`_uncommitted/walk-container-home/` (the 50 run logs, the pictures,
+the shell history), `_uncommitted/walk-tree-leftovers/` (each tree's
+last run summary and state report), the two pictures before and
+after, and the holders' key. Not checked by any read here, on your
+account: the walk's GitHub token, deleted in GitHub's settings.
+
+**Report:** `stage 17 done`.
 
 ## Google Cloud credentials through the environment
 
