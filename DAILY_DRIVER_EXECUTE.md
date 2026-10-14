@@ -6262,8 +6262,8 @@ all in AWS, and the repositories after the roles that trusted them.
 | 17a | the picture before: one read of all of the above, kept in a file | done 2026-10-13: `~/teardown-before.txt` in the container, 31 lines, exactly as the table above; the repositories and Google Cloud's two settings as expected |
 | 17b | the posix walk: its machine, its images and its volume, each through the gate; then a strict state query with nothing declared | done 2026-10-13: the machine, both images and their snapshots, the volume, and by hand the security group its instance root had left (F61); no drift; `develop` green at d59c245; `main` not pushed |
 | 17c | the first walk: the same, and its OPA groups released to you | done 2026-10-14: the machine, five images, the volume, the security group, the group released (after stage 90); no drift; `develop` green at 9abeb0c. Was: Steps 0 to 7 are done: the machine, five images, the volume and the security group are gone, and the group is released from the system's state (stage 90, released as 0.1.1.dev23, proved here) |
-| 17d | the two bootstrap roots, the posix tree's first, and the bucket last | **YOU ARE HERE** |
-| 17e | by hand: the OPA console, Google Cloud's two free settings, GitHub (the repositories and the token) | written when 17d is done |
+| 17d | the two bootstrap roots, the posix tree's first, and the bucket last | done 2026-10-14: CI stopped, 9 and 11 destroyed, the bucket and its 249 versions gone; nothing of either walk stands in AWS |
+| 17e | by hand: the OPA console, Google Cloud's two free settings, GitHub (the repositories and the token) | **YOU ARE HERE** |
 | 17f | your local machine: the containers, the snapshot image, the directories | written when 17e is done |
 | 17g | the proof: the picture after, beside the picture before; the reference configuration still green | written when 17f is done |
 
@@ -7598,6 +7598,143 @@ An error naming `404` or `Not Found`.
 
 **Report:** `stage 17d done`. **What of the two walks stands in AWS
 after 17d: nothing.** What stands elsewhere goes by hand in 17e.
+
+(STAGE 17d DONE, 2026-10-14. Step 1: CI disabled in both
+repositories. Step 2: the posix root's plan `9 to destroy`, applied,
+`9 destroyed`; both its roles `NoSuchEntity`. Step 3: your token
+`OK: the token of a person`; the first walk's plan `11 to destroy`,
+the GCP binding among them, applied, `11 destroyed`; the token
+unset; both roles `NoSuchEntity`. Read afterwards from the local
+machine: the read account's bindings name only `cs-image-system-3`
+and `cs-image-system-testconfig`, and neither repository has an
+Actions variable left. Step 4: the look listed the nine state files
+and nothing else; `249` versions and markers deleted, `bucket
+deleted`, and `404 Not Found`. Read afterwards: no machine, volume,
+image or role of either walk in the account.)
+
+### 17e -- by hand: Google Cloud, OPA, GitHub
+
+What is left stands outside any state, and the system never touches
+it: one of Google Cloud's two free settings (the other, the read
+account's binding, went with the first walk's bootstrap root in
+17d), what the walk made in Okta Privileged Access, and the two
+GitHub repositories with the token the walk used. All on your
+local machine or in a console; nothing here is in the container.
+
+**Step 1. Google Cloud: the walk leaves the provider's condition.**
+The provider `github` in the pool `github` admits three
+repositories; the walk is the third. The look first:
+
+```sh
+# 17e step 1 -- box 1 of 3 -- v1
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+gcloud iam workload-identity-pools providers describe github --workload-identity-pool github --location global --project csis-sandbox --format='value(attributeCondition)'
+```
+
+`assertion.repository in ['infrastructurebuilder/cs-image-system-3',
+'infrastructurebuilder/cs-image-system-testconfig',
+'infrastructurebuilder/cs-image-system-walk']`. If it reads
+otherwise, STOP and paste it: the next box writes the whole
+condition, and must not drop a repository you added since.
+
+The condition, with the walk taken out and the other two kept
+exactly:
+
+```sh
+# 17e step 1 -- box 2 of 3 -- v1
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+gcloud iam workload-identity-pools providers update-oidc github --workload-identity-pool github --location global --project csis-sandbox --attribute-condition="assertion.repository in ['infrastructurebuilder/cs-image-system-3', 'infrastructurebuilder/cs-image-system-testconfig']" 2>&1 | tail -2 | cut -c1-160
+```
+
+A line saying the provider was updated.
+
+```sh
+# 17e step 1 -- box 3 of 3 -- v1
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+gcloud iam workload-identity-pools providers describe github --workload-identity-pool github --location global --project csis-sandbox --format='value(attributeCondition)'
+```
+
+`assertion.repository in ['infrastructurebuilder/cs-image-system-3',
+'infrastructurebuilder/cs-image-system-testconfig']`.
+
+**Step 2. Okta Privileged Access, in the console.** The system never
+destroys an OPA group (DESIGN N19); 17c released the walk's from its
+state, and now you remove what the walk made, in the team
+`nos-coastal-modeling-cloud-sandbox`. The names are the module's
+(`tfmodules/okta_opa_module`) for the group `walk_team`, and the
+workload's from the walk's identity record. An order that leaves
+nothing pointing at something already gone:
+
+1. **The workload role `cs-image-system-walk-ci`**, then **the
+   workload connection `github-cs-image-system-walk`**: the way
+   the walk's CI logged in.
+2. **The three security policies** `walk_team_v1_security_policy_ci`
+   (CI's, which the system reconciled outside terraform),
+   `walk_team_v1_security_policy_user` and
+   `walk_team_v1_security_policy_admin`.
+3. **The resource group `walk_team_rg`**, with what is inside it:
+   the project `walk_team_rg_login`, its server enrolment token
+   (described "cs-image-system launch enrollment for walk_team"),
+   and the server record `walk-node-1` (enrolled twice, as
+   generations `walk-node-1-001` and `-002`; neither machine
+   stands). If the console will not delete the resource group while
+   the project or a server is in it, delete those first.
+4. **The groups `walk_team_admin` and `walk_team_user`.** Only the
+   groups: never a user. You stay in Okta and in OPA as you were.
+
+Nothing in Okta itself was made by the walk (the services app and
+the OPA service user are the reference configuration's, only
+read). **Report:** which of the four you could remove, and anything
+the console refused.
+
+**Step 3. GitHub: the two repositories.** Your decision (W1, from
+the start: "deleted, or archived"). Archiving keeps the history
+read-only and can be undone; deleting cannot, and takes the
+secrets with it. The look first:
+
+```sh
+# 17e step 3 -- box 1 of 2 -- v1
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+for r in cs-image-system-walk cs-image-system-walk-posix; do echo "$r: $(gh repo view infrastructurebuilder/$r --json visibility,isArchived --jq '"\(.visibility) archived=\(.isArchived)"')"; done
+```
+
+Both `PUBLIC archived=false`.
+
+Then ONE of the two forms below, as you decide. To archive:
+
+```sh
+# 17e step 3 -- box 2 of 2, to ARCHIVE -- v1
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+for r in cs-image-system-walk cs-image-system-walk-posix; do gh repo archive infrastructurebuilder/$r --yes; done
+for r in cs-image-system-walk cs-image-system-walk-posix; do echo "$r: $(gh repo view infrastructurebuilder/$r --json isArchived --jq '"archived=\(.isArchived)"')"; done
+```
+
+Both `archived=true`. An archived repository keeps its secrets
+(nothing can use them: its workflows are disabled and its roles
+gone); delete them first with `gh secret delete <NAME> -R ...` if
+you want them gone.
+
+Or to delete, which needs a token allowed to (`gh auth refresh -h
+github.com -s delete_repo` asks your browser for it):
+
+```sh
+# 17e step 3 -- box 2 of 2, to DELETE -- v1
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+for r in cs-image-system-walk cs-image-system-walk-posix; do gh repo delete infrastructurebuilder/$r --yes; done
+for r in cs-image-system-walk cs-image-system-walk-posix; do gh repo view infrastructurebuilder/$r --json name 2>&1 | tail -1 | cut -c1-120; done
+```
+
+Two lines saying the repository could not be resolved.
+
+**Step 4. The walk's GitHub token.** The token the container's
+`.gh_token` file holds was the walk's for CI checks and the
+bootstrap; its value was pasted into the chat on 2026-10-09 and has
+been treated as exposed since. In GitHub, Settings, Developer
+settings, Personal access tokens: delete it (or regenerate it, if
+anything else uses it). The file goes with the container in 17f.
+
+**Report:** `stage 17e done`, with the OPA step's answer, which form
+of step 3 you chose, and that the token is deleted.
 
 ## Google Cloud credentials through the environment
 
