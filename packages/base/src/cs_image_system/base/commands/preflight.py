@@ -38,6 +38,13 @@ DEFAULT_EXPECTED_RUN_MINUTES = 30
 CREDENTIAL_ENV_PREFIXES: tuple[str, ...] = ("AWS_", "GOOGLE_", "OKTA_", "TF_VAR_", "CSIS_")
 # the one profile shape with no readable expiry that IS a credential (static keys in the profile)
 _PRESENT_WITHOUT_EXPIRY = "not an SSO profile"
+# hygiene XII item 17 (the walk's F40): a session whose expiry cannot be read
+# -- static keys in a profile or in the environment -- is PRESENT but NOT
+# JUDGED. Before, preflight closed green over keys that had lapsed, and the
+# next cloud call said RequestExpired under a traceback.
+NOT_JUDGED = "NOT JUDGED"
+NOT_JUDGED_WHY = ("no expiry readable: keys lapse without notice, and the next cloud call says RequestExpired; "
+                  "preflight makes no cloud call")
 
 
 @dataclass(config=CSIS_MODEL_CONFIG)
@@ -54,9 +61,18 @@ class SessionInfo:
             return None
         return (self.expires_at - now).total_seconds() / 60
 
+    @property
+    def judged(self) -> bool:
+        """Whether preflight can say anything about the session's lifetime:
+        a fixed expiry was read, or the token renews itself (an sso-session
+        profile, GCP ADC). Static keys are present and not judged."""
+        return self.expires_at is not None or self.note.startswith("present;")
+
     def line(self, now: datetime, expected: int) -> str:
         left = self.minutes_left(now)
         if left is None or self.expires_at is None:
+            if self.present and not self.judged:
+                return f"session: {self.runtime} ({self.provider}, {self.source}): {NOT_JUDGED} -- {self.note}"
             return f"session: {self.runtime} ({self.provider}, {self.source}): {self.note}"
         state = ("EXPIRED" if left <= 0 else f"expires in {left:.0f} min"
                  + (f" -- SHORTER than the expected run ({expected} min)" if left < expected else ""))
@@ -250,12 +266,15 @@ def raw_session_lines(root_dir: Path, overlays: list[Path] | None = None,
 
 
 def raw_session_readiness(root_dir: Path, overlays: list[Path] | None = None,
-                          now: datetime | None = None) -> tuple[list[str], list[str], list[str], list[str]]:
-    """``(lines, absent, expired, blocking)`` from the raw tree -- the
-    `preflight` command's reading (stage 16): ``absent`` are the sessions
-    with nothing to read at all (no SSO token cached, no ADC, no profile),
-    ``expired`` those whose token has lapsed -- either way the
-    configuration cannot load; ``blocking`` the strict preflight's subset."""
+                          now: datetime | None = None) -> tuple[list[str], list[str], list[str], list[str], list[str]]:
+    """``(lines, absent, expired, blocking, unjudged)`` from the raw tree --
+    the `preflight` command's reading (stage 16): ``absent`` are the
+    sessions with nothing to read at all (no SSO token cached, no ADC, no
+    profile), ``expired`` those whose token has lapsed -- either way the
+    configuration cannot load; ``blocking`` the strict preflight's subset;
+    ``unjudged`` the present sessions whose lifetime preflight cannot
+    read at all (static keys; hygiene XII item 17), which never make the
+    closing line green."""
     now = now or datetime.now(timezone.utc)
     expected = raw_expected_run_minutes(root_dir, overlays)
     infos = raw_session_infos(root_dir)
@@ -263,7 +282,8 @@ def raw_session_readiness(root_dir: Path, overlays: list[Path] | None = None,
     absent = [i.line(now, expected) for i in infos if not i.present]
     expired = [i.line(now, expected) for i in infos if _expired(i.minutes_left(now))]
     blocking = [i.line(now, expected) for i in infos if i.blocking(now, expected)]
-    return lines, absent, expired, blocking
+    unjudged = [i.line(now, expected) for i in infos if i.present and not i.judged]
+    return lines, absent, expired, blocking, unjudged
 
 
 def session_lines(ctx: Any, now: datetime | None = None) -> tuple[list[str], list[str]]:
