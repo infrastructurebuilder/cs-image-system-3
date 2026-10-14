@@ -455,6 +455,17 @@ def apply_lifecycles(ctx: GlobalTypeContext, summary: RunSummary) -> None:
         ok = _execute_in_process(ctx, lifecycle)
         if not ok:
             summary.apply[lifecycle.value] = "failed"
+            if not ctx.dry_run:
+                # hygiene XII item 32 (the walk's F62): the roots before the one
+                # that failed applied for real; what they did (a decommission, a
+                # launch) must reach the record, so the after-apply hooks run,
+                # each on its own, before the failure is raised
+                for hook in _AFTER_APPLY:
+                    try:
+                        hook(ctx, lifecycle)
+                    except Exception as e:
+                        log.warning(f"[{lifecycle.value}] after-apply hook {getattr(hook, '__name__', hook)} "
+                                    f"after a FAILED apply: {e}")
             raise LifecycleRunError(f"Apply failed for lifecycle {lifecycle.value}")
         summary.apply[lifecycle.value] = "dry-run" if ctx.dry_run else "executed"
         if not ctx.dry_run:
@@ -572,6 +583,12 @@ def run_lifecycles(requested: list[LifecycleLike], *, apply: bool = True,
         summary.error = f"{e.__class__.__name__}: {e}"
         log.error(summary.error)
         log.debug(traceback.format_exc())
+        if commit and not ctx.dry_run and "failed" in summary.apply.values():
+            # hygiene XII item 32: a failed applying run still commits its
+            # record, so what it applied before the failure is not lost
+            _record(ctx, summary, root)
+            summary.meta_state_commit = commit_meta_state(
+                ctx.working_path, root, ctx.run_id, summary.requested, ctx.dry_run, failed=True)
     finally:
         ctx.current_lifecycle = None
         # hygiene VIII item 5: a name drawn at generation for a machine this

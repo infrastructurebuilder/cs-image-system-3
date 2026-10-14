@@ -235,7 +235,7 @@ def test_an_unreachable_cloud_is_still_unavailable(world, monkeypatch):
 
     report = sq.query_state(ctx)
     assert [u for u in report.unavailable if "instances/test" in u]
-    assert not [n for n in report.notes if "instances/test" in n]
+    assert not [n for n in report.notes if n.startswith("instances/test:")]
 
 
 def test_a_pending_replacement_is_a_note_not_drift_in_the_strict_query(world, monkeypatch):

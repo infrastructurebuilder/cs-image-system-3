@@ -481,6 +481,23 @@ def instance_boot_drift(ctx: "GlobalTypeContext", report: StateReport) -> list[D
 
 # --------------------------------------------------------------- assembly
 
+def storage_state_notes(ctx: "GlobalTypeContext", report: StateReport) -> None:
+    """Hygiene XII item 9 (the walk's F26): an instance root reads its
+    storages' root through ``terraform_remote_state``, and a tree made from a
+    starter declares the instance and its storage from the first commit with
+    ``apply_storage: false``; a run that only PLANS the instance root -- the
+    first ``perform``, a ``cloud-bake`` -- then fails with "Unable to find
+    remote state" after the bakes. Said here, before anything bakes."""
+    ms = ctx.meta_state
+    for inst in ctx.instances:
+        for m in getattr(inst, "storages", None) or []:
+            name = m.get("name") if isinstance(m, dict) else getattr(m, "name", None)
+            if name and ms.storage_state(str(name)) is None:
+                report.notes.append(f"instances/{inst.get_name()}: mounts storage {name!r} whose root has no state "
+                                    "yet; a run that plans the instance root fails on it until the storage "
+                                    "lifecycle has applied once (apply_storage; the daily driver, 3.2)")
+
+
 def standing_ephemeral_drift(ctx: "GlobalTypeContext", report: StateReport) -> list[Drift]:
     """An ephemeral instance still exists in reality (stage 10.1): its
     verification failed, or its teardown never ran. Informational, never
@@ -536,6 +553,7 @@ def query_state(ctx: "GlobalTypeContext") -> StateReport:
     from .provider_aliases import instance_identity_notes
     instance_identity_notes(ctx, report)   # stage 58: what each machine answers to
     workload_notes(groups, report)         # stage 56: the connection behind CI's login
+    storage_state_notes(ctx, report)       # hygiene XII item 9: a storage root with no state yet
     for gb in ctx.group_builders.values():          # stage 75: e.g. `posix: none`
         report.notes += gb.configuration_notes()
     return report

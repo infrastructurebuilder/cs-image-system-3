@@ -600,7 +600,7 @@ def git_toplevel(path: Path) -> Path | None:
 
 
 def commit_meta_state(config_root: Path, generated_root: Path, run_id: str,
-                      lifecycles: list[str], dry_run: bool) -> str | None:
+                      lifecycles: list[str], dry_run: bool, failed: bool = False) -> str | None:
     """The single well-formed meta-state commit (DESIGN §3B).
 
     Stages ``meta-state/`` and the generated-IaC tree and commits them with a
@@ -632,7 +632,7 @@ def commit_meta_state(config_root: Path, generated_root: Path, run_id: str,
         return None
     aside = _set_aside_tracked_run_local_files(top, generated_root)
     try:
-        return _commit_staged(top, existing, run_id, lifecycles, dry_run, config_root)
+        return _commit_staged(top, existing, run_id, lifecycles, dry_run, config_root, failed=failed)
     finally:
         for file, holding in aside:
             shutil.move(str(holding), str(file))
@@ -640,7 +640,7 @@ def commit_meta_state(config_root: Path, generated_root: Path, run_id: str,
 
 
 def _commit_staged(top: Path, existing: list[str], run_id: str, lifecycles: list[str],
-                   dry_run: bool, config_root: Path) -> str | None:
+                   dry_run: bool, config_root: Path, failed: bool = False) -> str | None:
     # stage 34: belt to the ignore policy's braces -- a plan, state or key file
     # under the run's trees is never staged, and the operator is told which.
     # The listing excludes the run-local files (never staged, no warning due)
@@ -672,7 +672,7 @@ def _commit_staged(top: Path, existing: list[str], run_id: str, lifecycles: list
     if staged.returncode == 0:
         log.info("Meta-state commit: nothing changed")
         return None
-    mode = "dry-run generation" if dry_run else "run"
+    mode = "dry-run generation" if dry_run else ("run (FAILED)" if failed else "run")
     message = (f"cs-image-system {mode} {run_id}: {', '.join(lifecycles) or 'no lifecycles'}\n\n"
                f"Meta-state commit: read-models, pins, lineage, launch parameters and "
                f"generated IaC for lifecycles [{', '.join(lifecycles)}].\n"
