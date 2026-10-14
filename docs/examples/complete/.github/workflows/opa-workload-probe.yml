@@ -29,7 +29,7 @@ on:
 
 jobs:
   probe:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       id-token: write          # GitHub mints the OIDC token the connection validates
       contents: read
@@ -40,11 +40,12 @@ jobs:
       OPA_ADDR: ${{ inputs.opa_addr }}
       CSIS_VERSION_FILE: .csis-version
     steps:
-      - uses: actions/checkout@v4
-      - uses: extractions/setup-just@v2
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v5
+      - uses: extractions/setup-just@v3
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
+          cache-dependency-glob: ".csis-version"   # a configuration repository has no uv.lock: the release it installs keys the cache
       - name: Install the released system
         run: |
           pin=""; [ -s "$CSIS_VERSION_FILE" ] && pin="==$(cat "$CSIS_VERSION_FILE")"

@@ -707,6 +707,7 @@ item in the open hygiene bundle in [TODO.md](TODO.md).
 | `Meta-state commit: never staging generated/.../instances.auto.tfvars` | the instance root's variable file is where it belongs and is never committed by design; before 2026-09-23 the release and retention runs left stray copies too | nothing; a stray copy under `generated/release/` or `generated/retention/` from an older run is deleted by hand once |
 | `mod tests: N failed` or `not idempotent` | a modification fails, or changes something on its second run | make it idempotent: `ensure`, `unless`, `changed_when: false`; read `meta-state/mod-tests.yaml` |
 | `rpm -q vim` fails on AlmaLinux 10; `dnf install amazon-efs-utils` finds nothing | the package is `vim-enhanced`; efs-utils is not in AlmaLinux's repositories | name the real package; build efs-utils from source as the reference image does |
+| Annotations on every CI run naming the runner image or an action as deprecated or migrating; later, jobs never picked up, or a failure in "Set up job" before any step of yours | the workflow's names are old: an image or an action major GitHub is withdrawing | take the newest release (it carries the move); if none does yet, section 9.1, which also says how often to look |
 | `public-safe: ... <file>:<line>` from the hook | a committed line looks like a secret, a key, a plan or a state file | never bypass the hook; encrypt the value, or allow it BY DECISION in `cfg/_config.yml` `public_safe.allow` |
 | `Build '<image>' errored after 20 minutes ...: Timeout waiting for SSH.` with `ssm error: ... StartSession, context canceled` | the bake machine booted and its SSM agent was Online, but packer's ssh session through SSM never opened: the bake host was a 1 GB t2.micro, too small for the image it boots (three `perform` runs, 2026-10-04 and -05; the same parent baked on an r5.4xlarge, and on a t3.medium once declared) | give the bake host 4 GB: `machine_type: t3.medium` on the image's runtime entry, or the runtime's `default_machine_type` (the starters ship t3.medium; the reference tree since stage 80). Since stage 79 the builds that completed before the failure are recorded anyway (a warning names them) |
 | `foreign image <id>: ... tagged series=<s> run=<r> is not in lineage` | an image the system tagged and lineage does not record: a bake still running in another process (2026-10-04: `just full-test`'s strict query raced CI's `perform`), or one a failed run baked before stage 79, when a failed run recorded nothing | if a run is still baking, wait for it to finish and record. Otherwise `just cli state import --no-storages` adopts it (2026-10-04: five images), then `just record`; the adopted build counts as current, so it is not baked again |
@@ -880,3 +881,64 @@ the release shipped and `init-config` wrote. The starter trees under
 there, and the tests hold the built wheel to them. Read
 [OPERATIONS.md](docs/OPERATIONS.md), sections 2 and 3,
 [GOLDEN.md](GOLDEN.md), and [PARITY.md](PARITY.md).
+
+### 9.1 The machine CI runs on, and its actions: a name ages
+
+The workflows, this repository's and every starter's, say which GitHub
+runner image they run on (`runs-on: ubuntu-24.04`) and which version of
+each action they use (`actions/checkout@v5`, `astral-sh/setup-uv@v7`,
+`extractions/setup-just@v3`, `aws-actions/configure-aws-credentials@v6`,
+`opentofu/setup-opentofu@v2`, `hashicorp/setup-packer@v3`,
+`google-github-actions/auth@v3`, `google-github-actions/setup-gcloud@v3`;
+stage 91). Neither moves by itself, and that is the point: a tree's CI
+does not change at no commit. Until stage 91 they said `ubuntu-latest`,
+which GitHub moves when it chooses (to Ubuntu 26 from 2026-10-19), and
+one action followed a branch. A test now refuses a floating image, a
+second image, an action at a branch, and an action older than the
+majors above.
+
+The price of a name is a duty. GitHub publishes a runner image for each
+Ubuntu LTS, about every two years, and withdraws the oldest; an
+action's major version is withdrawn when the Node.js it was built for
+is. A withdrawn name does not fail quietly: first every run's
+annotations say so, for some months, then jobs wait and are never
+picked up, or fail in "Set up job" before any step of yours. (What
+this paragraph says of GitHub's schedule is from the notices seen on
+2026-10-13; read GitHub's pages when you act on it.)
+
+**When to look.** Twice a year, in the first working week of April and
+of October, and at once whenever a run's annotations name an image or
+an action as deprecated or migrating; `gh run view <run>` prints them
+under ANNOTATIONS. (The interval is a proposal; set your own.)
+
+**How to move it forward.** Whoever maintains the system does steps 1
+to 4; a tree's holder does only step 5.
+
+1. Read what GitHub offers now: the README of `actions/runner-images`
+   lists the image labels and which are being withdrawn; each action's
+   releases page, and the `using:` line of its `action.yml`, say which
+   major targets which Node.js.
+2. On a feature branch of this repository, change the names and
+   nothing else, in every workflow: `grep -rn -E 'runs-on:|uses:'
+   .github docs/examples` lists every line, and they all carry the same
+   image. Move the test's floor of majors with them.
+3. `just test`, then `just full-test`.
+4. Prove it where it will run before anyone else takes it: cut a
+   development release; in the reference configuration raise
+   `.csis-version`, run `cs-image-system init-config . --force` (with
+   `--from` naming the starter the tree was made from), read the diff
+   (it should be the workflow lines you changed), commit, push
+   `develop` and see `verify` and `live` green, the new image named in
+   the log of "Set up job" (`Image: ubuntu-...`); then `main`, and
+   `perform` green: a bake, the modification tests under docker and a
+   login proof have then run on the new image. If a job fails for
+   something the new image lacks, the fix is a step in the workflow
+   that installs it, never a return to a floating name.
+5. Every other tree takes it as it takes any release
+   ([CI_SETUP.md](docs/examples/complete/CI_SETUP.md), section 3.1).
+
+**What it looks like when it was not done:** annotations on every run
+naming the image or an action; later, jobs that wait and are never
+picked up, or "Set up job" failing before any step of yours. Nothing in
+the tree is wrong; the names are old. Take the newest release, or do
+steps 1 to 5.
