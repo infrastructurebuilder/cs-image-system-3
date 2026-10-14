@@ -487,21 +487,21 @@ operator said "do 81 in the most logical order" on 2026-10-14, and the
 items went in groups, each a branch, each squash-merged on the
 operator's word. LANDED 2026-10-14: A the starters and `init-config`
 (items 1, 2, 6, 12, 18, 29), B the records' noise (8, 13, 19, 24, 27,
-30). Still on their branches: C teardown (9, 31, 32; of item 9 the note
-and the words, not the plan-only skip of the root, which would change
-what a dry run enumerates), D a shared account (23; item 20 left the
-bundle as §93, a stage of its own, as the item said), E what a failure
-says (17, 26, and the load-time tracebacks of F10, F30, F41 and F42 that
-§65's step 9 left to this bundle; of 17 the lines and the words, and on
-2026-10-14 the operator decided against an `sts` call, so `preflight`
-keeps making no cloud call; of 26 the retried pull, docker's words and
-the `unstarted` record, and the operator decided the same day that
-nothing more is owed -- a registry outage longer than the retries is a
-rerun), F the proofs (14, 22), G the operator's decisions of 2026-10-14
-(5: the root keeps managing a bucket it made; 15: usernames are public;
-21: a bake takes only the storage types whose builder lives on its
-runtime). Items 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released
-in dev15) by the operator's word. Items 10 and 11 LANDED as §86
+30), C teardown (9, 31, 32; of item 9 the note and the words, not the
+plan-only skip of the root, which would change what a dry run
+enumerates). Still on their branches: D a shared account (23; item 20
+left the bundle as §93, a stage of its own, as the item said), E what a
+failure says (17, 26, and the load-time tracebacks of F10, F30, F41 and
+F42 that §65's step 9 left to this bundle; of 17 the lines and the
+words, and on 2026-10-14 the operator decided against an `sts` call, so
+`preflight` keeps making no cloud call; of 26 the retried pull, docker's
+words and the `unstarted` record, and the operator decided the same day
+that nothing more is owed -- a registry outage longer than the retries
+is a rerun), F the proofs (14, 22), G the operator's decisions of
+2026-10-14 (5: the root keeps managing a bucket it made; 15: usernames
+are public; 21: a bake takes only the storage types whose builder lives
+on its runtime). Items 3 and 4 LANDED with §82 (0d1850c, 2026-10-05,
+released in dev15) by the operator's word. Items 10 and 11 LANDED as §86
 (c6af4b2, 2026-10-07, "Fix now, starters too"). Item 16 LANDED as §88
 (20206e8, 2026-10-08; the operator: "we should correct this situation as
 soon as possible"). Items 7 and 28 left the bundle as §91 (2026-10-14).
@@ -528,31 +528,6 @@ Item 25 is a standing review with four dates, the first 2026-11-09.**
    destroying. Either way a test renders the second interview and
    asserts no bucket resource leaves the plan, and the guide says what
    the operator sees.
-9. **The first `perform` of a new tree fails after its bakes.** The
-   walk's finding F26: PREDICTED, not run (the operator chose,
-   2026-10-07, to apply the storage first and walk on). An instance
-   root reads its storage root's state, and its group's identity
-   root's, through `terraform_remote_state`. A tree made from the
-   starter declares the instance and its storage from the first
-   commit with `apply_storage: false`, and the guide's order
-   (CI_SETUP 3.8 step 4, before the daily driver's section 3) reaches
-   `perform` before any storage run. A performing run plans the
-   instance root though it does not apply it; the storage root has
-   no state object, and the plan stops with "Unable to find remote
-   state ... No stored state was found" -- after both images have
-   baked. Reproduced on a scratch root; the walk's bucket held no
-   `aws_ebs.tfstate`. `just cloud-bake` plans the same root, and a
-   storage root reads its identity root the same way. Fixed looks
-   like (**USER** chooses, one or both): a run that only PLANS a root
-   skips it, loudly, while a root it reads was never applied
-   ("instance root not planned: the storage root `aws-ebs` has no
-   state yet; run the storage lifecycle"), and `validate` or the
-   state query says so before anything bakes; the guide and the
-   daily driver put the first `perform` after identity and storage
-   have applied once. A test: a tree whose storage root has no
-   state, a performing run, the bakes recorded and the run green
-   with the note.
-10. (Items 10 and 11 landed as §86, c6af4b2, 2026-10-07.)
 14. **Nothing proves the workload role's branch pin.** The walk's
     finding F35 (2026-10-08). CI_SETUP 3.5 step 6 ends at "add the
     branch pin to the role" with no check after it, and the one tool
@@ -744,46 +719,6 @@ Item 25 is a standing review with four dates, the first 2026-11-09.**
     nothing in between. A test that says which modification it is
     on, and which image it is waiting for, would have shown where
     the time went.
-
-31. **The last machine's decommission leaves a security group no
-    run will remove.** The walk's finding F61 (2026-10-13, teardown
-    of the posix walk). The instance root makes
-    `aws_security_group.csis_instances` at the root's own level;
-    `cloud-decommission` allows the destroy of one instance's
-    module and the group stays (`2 destroyed` where the launch had
-    added 3); with `instances: []` no instance root is emitted at
-    all, so the group stands in AWS and in the root's state with
-    no run that will ever plan it. The walk deleted it by hand, by
-    the id read from the state. Its tag is `Name: csis-instances`
-    in every configuration, so in a shared account nothing but
-    the state says whose it is (F53's family). Plan: decide where
-    a root's own resources go when its last instance does: the
-    decommission of the last instance may sanction the group's
-    destroy too, or a root with nothing declared is still emitted,
-    empty, and its run destroys what the state holds through the
-    gate; the group carries the configuration's id as images do
-    (§82); and the daily driver says what a teardown leaves.
-
-32. **A decommission on one cloud fails on another cloud's root,
-    after its destroy and before its record.** The walk's finding
-    F62 (2026-10-13, teardown of the first walk, a tree with an
-    AWS runtime and an ephemeral GCE one). `cloud-decommission
-    aws-main walk-node-1` applied the AWS instance root (`2
-    destroyed`) and then planned the GCE instance root, as every
-    instance run plans every runtime's; that plan failed
-    (`images/family/team-node was not found`: an ephemeral
-    machine's image is disposed of with its cycle, and the ledger
-    still held `walk-gce-1` as `launched: true`, `how: inferred`,
-    so its module was emitted with a count of one). The run ended
-    `LifecycleRunError`, committed no meta-state, and left the
-    machine destroyed with its pin standing. Three things for the
-    plan: (a) a run scoped by `--apply-runtime` should plan only
-    that runtime's instance roots, or plan the others before it
-    applies anything; (b) an ephemeral instance whose cycle has
-    closed should not be emitted as launched; (c) what a run has
-    already applied should reach the record even when a later
-    root fails. And the dry form's limit belongs in the daily
-    driver: it says what would run and runs no plan.
 
 ## 83. A release asks its publish target before it starts
 

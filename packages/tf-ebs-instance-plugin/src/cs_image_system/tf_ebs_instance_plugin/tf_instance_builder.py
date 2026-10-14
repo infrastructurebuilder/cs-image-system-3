@@ -32,6 +32,17 @@ from .tf_instance_models import TofuInstanceBuilderModel, TOFU
 log = logging.getLogger(__name__)
 
 
+def _group_tags_line(ctx: Any) -> str:
+    """The security group's tags: its name, and the configuration it belongs
+    to (stage 82's `csis_config`, hygiene XII item 31), so that in a shared
+    account the state is not the only thing that says whose it is."""
+    from cs_image_system.base.lineage import CONFIG_TAG, configuration_tag
+    tag = configuration_tag(ctx)
+    if tag:
+        return f'  tags = {{ Name = "csis-instances", {CONFIG_TAG} = "{tag}" }}'
+    return '  tags = { Name = "csis-instances" }'
+
+
 def _instances_vpc(rtb: Any) -> str | None:
     """The runtime's VPC id, when concretely configured."""
     networking = getattr(getattr(rtb, "model", None), "networking", None)
@@ -167,7 +178,7 @@ class TofuInstanceBuilder(InstanceBuilderBase[Q], TerraformRootMixin):
         if backend_lines:
             items.add_list(self._backend_config_path(phase), backend_lines)
         vpc = _instances_vpc(rtb)
-        if vpc:
+        if vpc and self._instances:     # hygiene XII item 31: no instances, no group of their own
             # Instances wear their own security group (found live: the VPC
             # default group blocks the Okta gateway's inbound SSH relay, so
             # sft ssh to the advertised private address hangs). SSH ingress
@@ -212,7 +223,7 @@ class TofuInstanceBuilder(InstanceBuilderBase[Q], TerraformRootMixin):
                 '    protocol    = "-1"',
                 '    cidr_blocks = ["0.0.0.0/0"]',
                 "  }",
-                '  tags = { Name = "csis-instances" }',
+                _group_tags_line(self._get_context()),
                 "  # replacements must create the successor first: instances",
                 "  # wear this group, so a delete-first plan hits",
                 "  # DependencyViolation (found live)",
@@ -379,7 +390,8 @@ class TofuInstanceBuilder(InstanceBuilderBase[Q], TerraformRootMixin):
             unmounts, require, detach_allow = self._detach_commands(wd)
             finalize.extend(self.gated_apply_commands(
                 phase, wd, apply=apply,
-                allow_destroy=self._decommission_whitelist() + detach_allow + self._replacement_attachments(),
+                allow_destroy=(self._decommission_whitelist() + detach_allow + self._replacement_attachments()
+                               + self._own_resources_to_let_go()),
                 replace=self._replacements(), apply_flag_key="instances",
                 apply_root=self.name, apply_root_aliases=[rt],
                 pre_commands=unmounts, require_unmounted=require))
@@ -430,9 +442,17 @@ class TofuInstanceBuilder(InstanceBuilderBase[Q], TerraformRootMixin):
                 name="ephemeral_present", type="bool", default=True,
                 description="false = the run's ephemeral instances are torn down (stage 10.1)"))
 
-    @staticmethod
-    def _with_ephemeral_count(instance: Instance, args: dict[str, Any]) -> dict[str, Any]:
+    def _with_ephemeral_count(self, instance: Instance, args: dict[str, Any]) -> dict[str, Any]:
         if getattr(instance, "ephemeral", False):
+            ctx = self._get_context()
+            rt = str(self.model.get_runtime_provider())
+            standing = ctx.meta_state.current_generation(instance.get_name()) is not None
+            if not standing and not utils.apply_enabled("instances", self.name, [rt]):
+                # hygiene XII item 32 (the walk's F62): between cycles an ephemeral
+                # machine neither stands nor is being launched by this run, and a
+                # root that only PLANS must not look up an image its cycle disposed
+                # of. Present only when it stands, or when this root may launch it.
+                return {"count": HclRaw("0  # ephemeral, not standing, not launched by this run"), **args}
             return {"count": HclRaw("var.ephemeral_present ? 1 : 0"), **args}
         return args
 
@@ -534,7 +554,20 @@ class TofuInstanceBuilder(InstanceBuilderBase[Q], TerraformRootMixin):
         ``--only-runtime`` another runtime's root emits nothing (ledger 70)."""
         if not utils.root_in_runtime_scope(self.model.get_runtime_provider()):
             return False
-        return bool(self._instances) or bool(self._decommission_whitelist())
+        if self._instances or self._decommission_whitelist():
+            return True
+        # hygiene XII item 31 (the walk's F61): once every recorded instance was
+        # forgotten, the root vanished again and the security group it had made
+        # stood in the cloud and in its state with no run that would ever plan it.
+        # A root whose state location is recorded is emitted, empty, until its
+        # state holds nothing.
+        return self.name in self._get_context().meta_state.state_locations()
+
+    def _own_resources_to_let_go(self) -> list[str]:
+        """The root's own resources (not an instance's) the gate may let a plan
+        destroy: with no instance declared, the security group the root made
+        for them (hygiene XII item 31)."""
+        return [] if self._instances else ["aws_security_group.csis_instances"]
 
     def pre_finalize_phase(self, phase: ExecutionLifecyclePhase) -> None:
         """Before the deferred plan/apply runs, pin the AMIs this run built.

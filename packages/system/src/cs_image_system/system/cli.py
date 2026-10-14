@@ -145,9 +145,15 @@ def run_command(
         gctx.apply_runtime = apply_runtime
         for key in ("apply_storage", "apply_instances"):
             gctx.config[key] = [apply_runtime]
-        if not only and not only_runtime:
+        if not only_runtime:
             # stage 12.1: the apply scope implies the bake filter -- an ad-hoc run
-            # without --only-runtime baked two AMIs on the other cloud (ledger 68)
+            # without --only-runtime baked two AMIs on the other cloud (ledger 68).
+            # Hygiene XII item 32 (the walk's F62): beside `--only` too. The
+            # decommission recipe says `--only none --apply-runtime <rt>`, and
+            # `--only` used to leave the scope unimplied, so the run planned every
+            # other runtime's instance root after it had applied this one, and a
+            # GCE root with an ephemeral machine between cycles failed that plan
+            # after the destroy and before the record.
             only_runtime = apply_runtime
             gctx.implied_scope = apply_runtime
     if only_runtime:

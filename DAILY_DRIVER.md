@@ -758,11 +758,11 @@ gate line, `just run storage`. Groups: `unmanaged: true` on each, `just
 run identity` (section 4's row; from 0.1.1.dev23 a dry run first is
 safe). Then `just record`, `just state-query --strict` with nothing
 declared, and push `develop` only: never `main` again from this tree,
-whose `perform` would bake what you disposed of. By hand, in this order:
-the security group each instance root made (`aws_security_group
-.csis_instances`; find its id in the root's state, delete it with `aws
-ec2 delete-security-group`: no run removes it, [TODO.md](TODO.md)
-hygiene XII); CI disabled (`gh workflow disable ci.yml`), because its
+whose `perform` would bake what you disposed of. Since 0.1.1.dev25 the instance root is still emitted, empty, once nothing
+is declared on it, and that run lets the group it had made for its
+machines go through the gate (before, the security group stood in the
+cloud and in the root's state with no run to plan it, and went by hand).
+By hand, in this order: CI disabled (`gh workflow disable ci.yml`), because its
 roles are about to go; each bootstrap root destroyed from its own state
 (`tofu -chdir=generated/bootstrap plan -destroy -out=<file>`, read it,
 `apply <file>`; the GCP part needs your own token as the apply did);
@@ -863,6 +863,8 @@ item in the open hygiene bundle in [TODO.md](TODO.md).
 | an applying identity run's log shows the group root's plan twice, the first saying `1 to destroy` and the second `No changes` | the first is a preview made as the run writes its files, never saved and never applied; the second, after the prune step, is the one the gate reads and the apply uses | read the second; a destroy in the first alone means the prune step took the attachment out of state because OPA no longer held it (2026-10-08, F39) |
 | `MissingIdentityError: <tree>/cfg: ...: an encrypted value is present but CSIS_CONFIG_IDENTITY is not set` under a traceback, before anything is asked of a cloud | the shell never loaded `.envrc` (a new terminal, a directory direnv has not entered or allowed) | `source .envrc`, or `direnv allow`; it is the first thing an unsourced shell meets in any tree that holds an encrypted value (2026-10-09, F41) |
 | `ReservedNameError: <file>: instances[0].name: a name may not be 'none'` under a traceback, from `validate` | a reserved word was used as a name, exactly as section 3 says it may not be; the rule is right, the traceback is the only form it has today | rename it; the refusal comes as a traceback and not under `Validation failed with N error(s)` ([TODO.md](TODO.md), hygiene XII, with the other tracebacks; 2026-10-09, F42) |
+| `Unable to find remote state ... No stored state was found` planning an instance root, after the bakes | the instance root reads its storage root's state, and that root has never applied (`apply_storage: false` from the first commit, the first `perform` before any storage run) | run the storage lifecycle with `apply_storage` first; the strict state query says it beforehand as a note (`mounts storage ... whose root has no state yet`; 2026-10-07, F26) |
+| `cs-image-system run (FAILED) <id>` in the git log | an applying run failed after a root had applied; its record was committed so what applied is not lost (the after-apply hooks ran first) | read `meta-state/runs.yaml` for the error; a decommission that failed on another cloud's plan left the machine gone and the records right (since 0.1.1.dev25; 2026-10-13, F62) |
 | `meta-state/runs.yaml` says `ok: false` with `error: interrupted (KeyboardInterrupt) during <lifecycle>` | you cancelled the run with Ctrl-C; nothing after that point ran, and what ran before stands as its own commands left it | read what it was in; a generation can simply be run again, an interrupted apply is read in the root's state first (until 0.1.1.dev25 a cancelled run was journalled `ok: true`; 2026-10-09, F45) |
 | `config-drift: ... the vendor's newest image moved under a base this tree has not baked` (exit 0) | the vendor published a new image and the emission of a base with no build yet names the one of the day it was generated; nothing of yours changed | `just record`, and commit it; before 0.1.1.dev25 this was `BEHIND ... (1 files)` and a red scheduled run that could not be re-run green (2026-10-12, F55) |
 | the log of an apply shows the root's outputs and no `Apply complete!` line | the run keeps the last 40 lines of a command's output, and tofu prints its verdict BEFORE the outputs | since 0.1.1.dev25 every verdict line (`Plan:`, `Apply complete!`, the gate's, a bake's `Build ... finished`) is printed ahead of the tail with its line number; before, `just cli --verbose` or the DEBUG log (2026-10-07, F25) |
