@@ -28,6 +28,7 @@ encryption:
 # else that looks like a secret or a person refuses the commit.
 public_safe:
   allow:
+    - "mykelalvis@infrastructurebuilder.org"   # the copyright holder's address in the SPDX header of every release-owned file (hygiene XII item 1); not a person of this tree
     - "path:.age-identity"          # the TEST identity, committed on purpose; DROP this line the day a real identity replaces it
 
 # Entries appended to the built-in gitignore list and written to generated/.gitignore.
@@ -48,6 +49,18 @@ config:
   apply_identity: false
   apply_storage: false
   apply_instances: false
+  # DECISION: the release model (the daily driver, 3.3 to 3.5). With
+  # `require_released_builds: true` a durable instance may stand only on a
+  # build the release lifecycle has passed (a grace admits a series head while
+  # its own proof runs); `require_image_tests: true` makes a release wait for
+  # the image's in-bake tests. Both at their defaults here; an image joins the
+  # model with `release:` beside its `tests:` (images/).
+  require_released_builds: false
+  require_image_tests: true
+  # DECISION: how long a run may take, so preflight refuses a cloud session
+  # that would expire inside it (the default).
+  preflight:
+    expected_run_minutes: 30
   # REPLACE: where the generated `module` calls find the terraform modules --
   # relative to THIS tree (rewritten for each root's depth), or an absolute
   # path, or a git/registry URL, which passes through unchanged. The modules

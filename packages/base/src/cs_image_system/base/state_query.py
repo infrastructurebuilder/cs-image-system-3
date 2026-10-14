@@ -446,6 +446,15 @@ def instance_boot_drift(ctx: "GlobalTypeContext", report: StateReport) -> list[D
         rtb = ctx.runtime_builders.get(rt_name) if rt_name else None
         if rtb is None or not rtb.can_query_instance_boot_image():
             continue
+        if ms.current_generation(name) is None and not (ms.launch_params().get(name) or {}).get("launched"):
+            # hygiene XII item 13 (the walk's F33): a bake binds the pin before any
+            # launch, and the cloud, asked about a machine that does not exist, answered
+            # with silence that was filed as "could not answer" from the first bake to
+            # the first launch of every new tree. The records know: no generation, not
+            # launched. A note, and the cloud is not asked.
+            report.notes.append(f"instances/{name}: declared and not launched yet (pinned to {build}); "
+                                "the cloud is not asked about a machine that does not exist")
+            continue
         booted = rtb.query_instance_boot_image(name)
         if booted is None:
             # stage 57: before calling this silence, ask whether the machine

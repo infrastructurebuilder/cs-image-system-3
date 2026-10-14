@@ -28,6 +28,7 @@ encryption:
 public_safe:
   allow:
     - ".iam.gserviceaccount.com"    # a service account's address is an identifier, not a person
+    - "mykelalvis@infrastructurebuilder.org"   # the copyright holder's address in the SPDX header of every release-owned file (hygiene XII item 1); not a person of this tree
     - "path:.age-identity"          # the TEST identity, committed on purpose
     - "path:meta-state/aliases.txt" # a pool of animal names; nothing in it is a person or a secret
 
@@ -39,6 +40,18 @@ config:
   apply_identity: false
   apply_storage: false
   apply_instances: false
+  # DECISION: the release model (the daily driver, 3.3 to 3.5). With
+  # `require_released_builds: true` a durable instance may stand only on a
+  # build the release lifecycle has passed (a grace admits a series head while
+  # its own proof runs); `require_image_tests: true` makes a release wait for
+  # the image's in-bake tests. Both at their defaults here; an image joins the
+  # model with `release:` beside its `tests:` (images/).
+  require_released_builds: false
+  require_image_tests: true
+  # DECISION: how long a run may take, so preflight refuses a cloud session
+  # that would expire inside it (the default).
+  preflight:
+    expected_run_minutes: 30
   apply_release: false             # let the release lifecycle mark artifacts in the cloud
   use_state_backends: true         # emit backend / remote-state blocks (needs the declared state buckets)
   # a relative path is relative to this tree and rewritten per root depth;

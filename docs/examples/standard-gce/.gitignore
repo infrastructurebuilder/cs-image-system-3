@@ -15,6 +15,9 @@
 !.age-recipient
 # Credential files that are not dotfiles: never committed
 *.pem
+# The bootstrap's secrets directory and anything else kept beside the tree and
+# never committed (hygiene XII item 6)
+_uncommitted/
 # The private mirror: the plaintext an execution runs from
 _private
 # Tool residue and the run-local files; generated/ itself IS committed (a
