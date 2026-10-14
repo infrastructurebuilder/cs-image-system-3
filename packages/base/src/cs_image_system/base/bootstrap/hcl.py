@@ -208,6 +208,12 @@ def _readme(sections: list[tuple[str, Rendered]], secrets: list[Secret], *, repo
             "```", "", "## By hand, still", ""]
     for _, r in sections:
         out.extend(f"- {line}" for line in r.by_hand)
+    takes = [line for _, r in sections for line in r.destroy_takes]
+    if takes:
+        out += ["", "## What a destroy would take that this root did not make", "",
+                "A `tofu destroy` here removes these as well; they were adopted or granted,",
+                "not created, and whatever else relies on them loses them:", ""]
+        out.extend(f"- {line}" for line in takes)
     out += ["", "## The secrets the script sets", "", "| Secret | From |", "| --- | --- |"]
     for s in secrets:
         out.append(f"| `{s.name}` | {'a file named after it in the secrets directory' if s.source == 'file' else f'the output `{s.detail}`'} |")

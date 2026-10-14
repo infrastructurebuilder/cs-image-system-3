@@ -189,8 +189,8 @@ QUESTIONS: tuple[Question, ...] = (
              help="the AWS runtime's `account_id` in cfg/runtime-builders.yml is unset or still the starter's example"),
     Question("region", "The region of the AWS runtime", default=lambda f, a: real(_runtime(f).get("region")),
              help="the AWS runtime's `region` in cfg/runtime-builders.yml"),
-    Question("profile", "The AWS profile you apply this root with (empty to use the environment's credentials)",
-             default=lambda f, a: _profile_of(f, {})),
+    Question("profile", "The AWS profile you apply this root with (none to use the environment's credentials)",
+             default=lambda f, a: _profile_of(f, {}), may_be_empty=True),
     Question("repository", "The GitHub repository the roles trust, as owner/name", default=lambda f, a: f.repository,
              help="read from `git remote get-url origin` when the checkout has a GitHub remote"),
     Question("production_branch", "The branch the WRITE role trusts (the perform job's)", default="main"),
@@ -208,13 +208,15 @@ QUESTIONS: tuple[Question, ...] = (
     Question("read_role_exists", "Does the READ-ONLY role already exist (it is then adopted by import)?", kind="bool",
              default=_role_exists("read_role_name"), help="the account could not be asked: no AWS session"),
     Question("read_extra_subjects", "Other OIDC subjects the READ-ONLY role keeps trusting, comma-separated (an "
-             "existing role's subjects that are not this repository's; empty for none)",
-             default=_extra_subjects("read"), help="the existing role's trust could not be read: no AWS session"),
+             "existing role's subjects that are not this repository's)",
+             default=_extra_subjects("read"), help="the existing role's trust could not be read: no AWS session",
+             may_be_empty=True),
     Question("write_role_name", "The WRITE role's name (AWS_APPLY_ROLE_ARN)", default="csis-github-apply"),
     Question("write_role_exists", "Does the WRITE role already exist (it is then adopted by import)?", kind="bool",
              default=_role_exists("write_role_name"), help="the account could not be asked: no AWS session"),
-    Question("write_extra_subjects", "Other OIDC subjects the WRITE role keeps trusting, comma-separated (empty for none)",
-             default=_extra_subjects("write"), help="the existing role's trust could not be read: no AWS session"),
+    Question("write_extra_subjects", "Other OIDC subjects the WRITE role keeps trusting, comma-separated",
+             default=_extra_subjects("write"), help="the existing role's trust could not be read: no AWS session",
+             may_be_empty=True),
     Question("state_bucket", "The state bucket's name", default=lambda f, a: _state(f, "bucket"),
              help="the default S3 backend's `bucket` in cfg/state-backends.yml is unset or still the starter's placeholder"),
     Question("state_prefix", "The state key prefix within the bucket", default=_state_prefix,
@@ -228,7 +230,7 @@ QUESTIONS: tuple[Question, ...] = (
              help="the AWS runtime's `session_instance_profile` in cfg/runtime-builders.yml is unset or a placeholder"),
     Question("instance_profile_exists", "Does that instance profile already exist?", kind="bool",
              default=_profile_exists, help="the account could not be asked: no AWS session"),
-    Question("tags", "Tags for everything this root makes, as k=v,k=v (empty for none)", default=_tags_default),
+    Question("tags", "Tags for everything this root makes, as k=v,k=v", default=_tags_default, may_be_empty=True),
 )
 
 
@@ -283,6 +285,11 @@ def render(answers: Answers) -> Rendered:
     adopted = [answers[f"{k}_role_name"] for k in ("read", "write") if answers.get(f"{k}_role_exists")]
     return Rendered(
         module=MODULE,
+        destroy_takes=tuple(
+            f"the {k.upper()} role `{answers[f'{k}_role_name']}`, adopted by import: the destroy deletes the role "
+            "itself, with every subject it trusted" + (f" ({', '.join(f'`{s}`' for s in extras[k])} among them)"
+                                                        if extras[k] else "")
+            for k in ("read", "write") if answers.get(f"{k}_role_exists")),
         module_args={**{n: Raw(f"var.aws_{n}") for n in names},
                      "read_extra_subjects": Raw("var.aws_read_extra_subjects"),
                      "write_extra_subjects": Raw("var.aws_write_extra_subjects")},

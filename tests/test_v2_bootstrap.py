@@ -106,6 +106,29 @@ def test_the_quiet_interview_takes_defaults_and_refuses_what_it_cannot_derive():
     assert asked[0][0] == "Do you want the probe section?" and asked[1] == ("Repository?", "acme/widgets")
 
 
+def test_a_question_whose_answer_may_be_empty_says_so_and_takes_the_word_none(monkeypatch):
+    """Hygiene XII item 23: an empty line takes the default, so where a
+    default exists the word `none` is the only way to answer nothing."""
+    facts = Facts(config_root=Path("."), owner="acme", repo="widgets")
+    s = _section([Question("tags", "Tags?", default="a=b", may_be_empty=True),
+                  Question("branch", "Branch?", default="main")])
+    asked: list[str] = []
+
+    def ask(prompt, default, kind, choices):
+        asked.append(prompt)
+        return {"Tags? (answer none for none)": "NONE"}.get(prompt, default)
+    out = bs.run_interview([s], facts, ask=ask)
+    assert out["probe"] == {"wanted": True, "tags": "", "branch": "main"}
+    assert asked[1:] == ["Tags? (answer none for none)", "Branch?"]            # the hint on that question alone
+    assert Question("b", "B?", default="main").coerce("none") == "none"      # elsewhere the word is a word
+    # on the terminal an empty default shows as [none], and an empty line takes it
+    prompts: list[str] = []
+    monkeypatch.setattr("builtins.input", lambda p: (prompts.append(p), "")[1])
+    assert bs.terminal_ask("Tags? (answer none for none)", "", "text", ()) == ""
+    assert bs.terminal_ask("Branch?", "main", "text", ()) == "main"
+    assert prompts == ["Tags? (answer none for none) [none]: ", "Branch? [main]: "]
+
+
 def test_the_answers_file_round_trips_and_is_versioned(tmp_path: Path):
     p = tmp_path / "bootstrap.yaml"
     bs.write_answers(p, {"github": {"wanted": True, "repository": "acme/widgets"}})

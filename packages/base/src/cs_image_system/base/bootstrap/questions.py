@@ -27,6 +27,15 @@ Answers = dict[str, Any]
 KINDS = ("text", "bool", "choice", "path", "secret-path")
 
 
+#: The answer that means "nothing" for a question whose answer may be
+#: empty (hygiene XII item 23): an empty line takes the default, so where a
+#: default exists -- the roles an account holds, the subjects a role keeps
+#: trusting, the labels -- the word is the only way to decline it. The
+#: prompt says so.
+NONE_ANSWER = "none"
+EMPTY_HINT = f"answer {NONE_ANSWER} for none"
+
+
 class Refused(Exception):
     """A question that cannot be answered without a person: under ``--quiet``
     its default could not be derived, or the person gave nothing. The
@@ -48,6 +57,11 @@ class Question:
     #: fallback when the world cannot be asked. A choice keeps its earlier
     #: answer as its default.
     observed: bool = False
+    #: The answer may be empty: the prompt says ``(answer none for none)`` and
+    #: the word ``none`` is coerced to the empty answer (an empty line takes
+    #: the default, which for such a question may itself be empty, shown as
+    #: ``[none]``).
+    may_be_empty: bool = False
 
     def __post_init__(self) -> None:
         if self.kind not in KINDS:
@@ -78,7 +92,10 @@ class Question:
             if text not in self.choices:
                 raise Refused(f"{self.id}: {text!r} is not one of {', '.join(self.choices)}")
             return text
-        return str(value).strip() if value is not None else None
+        text = str(value).strip() if value is not None else None
+        if self.may_be_empty and text is not None and text.lower() == NONE_ANSWER:
+            return ""
+        return text
 
 
 @dataclass(frozen=True)
@@ -116,6 +133,12 @@ class Rendered:
     #: README's Apply block, so the identity terraform acts as is the one the
     #: interview asked as, and nobody discovers it from a 403.
     apply_env: tuple[tuple[str, str, str], ...] = ()
+    #: What a ``tofu destroy`` of the root would take that the root did not
+    #: make (hygiene XII item 23): a grant added to an account that already
+    #: existed, which every tree reading the account relied on; a role
+    #: adopted by import, which the destroy deletes outright. Listed in the
+    #: README so nobody learns it from the plan.
+    destroy_takes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

@@ -236,3 +236,32 @@ def test_the_root_validates_with_tofu(tmp_path: Path):
     for args in (["init", "-backend=false", "-input=false", "-no-color"], ["validate", "-no-color"]):
         res = subprocess.run(["tofu", *args], cwd=out, capture_output=True, text=True, timeout=600, env=env)
         assert res.returncode == 0, f"tofu {args[0]}\n{res.stdout}\n{res.stderr}"
+
+
+def test_an_account_that_exists_is_granted_nothing_by_default_and_a_grant_is_a_destroy_warning(tmp_path: Path):
+    """Hygiene XII item 23 (the walk's F51): two trees reading one service
+    account each held `roles/compute.viewer` in their own state, and a
+    destroy of either root would have taken it from both."""
+    root, out = _root(tmp_path, None, True, number=True, pool=True, provider=True, read=True, write=True, bucket=True)
+    full = bs.read_answers(root / bs.ANSWERS_FILE)
+    assert full["gcp"]["read_roles"] == "" and full["gcp"]["write_roles"] == ""
+    tfvars = (out / "bootstrap.auto.tfvars").read_text()
+    assert re.search(r"gcp_read_roles\s*=\s*\[\]", tfvars) and re.search(r"gcp_write_roles\s*=\s*\[\]", tfvars)
+    readme = (out / "README.md").read_text()
+    assert "granted nothing unless you named the roles" in readme and "What a destroy would take" not in readme
+    # roles named on purpose: the README says what a destroy would take
+    full["gcp"]["read_roles"] = "roles/compute.viewer"
+    bs.write_answers(root / bs.ANSWERS_FILE, full)
+    assert bs.regenerate(root)
+    readme = (out / "README.md").read_text()
+    assert "## What a destroy would take that this root did not make" in readme
+    assert ("the project roles `roles/compute.viewer` of the READ account `csis-github-readonly`, which already "
+            "existed: every tree that reads the account relies on what it holds") in readme
+    assert '"roles/compute.viewer"' in (out / "bootstrap.auto.tfvars").read_text()
+    # a new account is granted the guide's roles, as before
+    fresh = bs.run_interview([_section()], _facts(_tree(tmp_path / "fresh"), _project(None, **FRESH)), quiet=True)["gcp"]
+    assert fresh["read_roles"] == gcp.READ_ROLES and fresh["write_roles"] == gcp.WRITE_ROLES
+    # the question says the word for the empty answer, and the word is coerced to it
+    q = next(q for q in gcp.QUESTIONS if q.id == "read_roles")
+    assert q.may_be_empty and "the default is none" in q.prompt
+    assert q.coerce("none") == "" and q.coerce("NONE") == "" and q.coerce("roles/x") == "roles/x"

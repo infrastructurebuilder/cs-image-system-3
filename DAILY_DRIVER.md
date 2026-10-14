@@ -206,6 +206,14 @@ passphrase (a session hook cannot prompt). Every GCE cycle ends with
 the declared storages. Read [OPERATIONS.md](docs/OPERATIONS.md), "GCE cost
 discipline".
 
+A service account two configurations share (the reference tree and a
+scratch tree in one project, say) is read by the bootstrap and granted
+nothing by default: a grant held in one root's state leaves with that
+root's destroy, and the other tree loses it too. Name roles at the
+interview only when this tree is the one to hold them; the generated
+bootstrap README lists what a destroy would take that the root did not
+make ([CI_SETUP.md](docs/examples/standard-aws/CI_SETUP.md), 3.0).
+
 ### 1.5 Okta and Okta Privileged Access
 
 | What | Why | Where it is named |
