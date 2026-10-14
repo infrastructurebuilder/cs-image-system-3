@@ -2,8 +2,9 @@ name: OPA workload probe
 
 # Prove that GitHub's OIDC token for THIS repository validates against the team's
 # workload connection BEFORE the connection is activated. Dispatch only. It
-# authenticates and stops: against a draft connection OPA validates the token and
-# issues nothing usable, so the run can reach nothing. Inputs reach the recipe
+# authenticates and stops: against a draft connection OPA accepts the token and
+# issues one in reply, which the probe reports and discards; nothing logs in until
+# the connection is activated, and the system's login proof refuses a draft. Inputs reach the recipe
 # through the environment, never interpolated into a shell line.
 # REPLACE-ME: the defaults are the team's names (CI_SETUP.md, section 3.5,
 # says how they are decided); another dispatch may pass others.

@@ -5,7 +5,9 @@ init-config` (or copied from a starter tree) from "it validates on my
 machine" to "its CI proves it, records it and performs on `main`". It is
 the same text in every starter tree and in the release; the system's
 tests hold its secrets table to the workflow the release ships, so the
-names below are the names the workflow reads.
+names below are the names the workflow reads. It was walked from nothing
+twice between 2026-10-05 and 2026-10-14, on `standard-aws` and
+`standard-aws-posix` (stage 65), and says what that found.
 
 Every value that is yours appears as a placeholder: `<owner>` and
 `<repo>` for the repository, `<account-id>` and `<region>` for AWS,
@@ -93,6 +95,15 @@ needs depends on the sections you wanted: `GITHUB_TOKEN` always,
 `AWS_PROFILE` with the AWS section, `GOOGLE_OAUTH_ACCESS_TOKEN` with the
 GCP section (application-default credentials are often another identity
 entirely -- a runtime's service account that can read no IAM, say). The
+GitHub token: `$(gh auth token)` works where `gh` is logged in through a
+browser; on a machine without one, a fine-grained personal access token
+scoped to this one repository with Administration (read and write: the
+default branch, the ruleset, the Actions permissions), Variables (read
+and write), Secrets (read and write, for `set-secrets.sh`) and Metadata
+(read). Such a token answers the repository's own endpoints and not the
+organisation's (section 3.2, step 4, says which form to use). It never
+goes into a file the tree commits: an `.envrc` line, or a gitignored
+file the `.envrc` reads. The
 `bootstrap` command prints the exact `export` lines for your tree when it
 finishes, and so does the "Apply" block of `generated/bootstrap/README.md`;
 run them first, then:
@@ -130,6 +141,18 @@ bootstrap is what makes the bucket, the first apply keeps its state in
 `terraform.tfstate` beside the root (never committed); then run `just
 bootstrap` again -- the bucket now exists, so the root binds to it -- and
 `tofu init -migrate-state` in `generated/bootstrap`.
+
+Taking it down again is the reverse, and by hand, since no run ever
+plans this root: stop CI first (`gh workflow disable ci.yml`, because the
+roles are about to go), then `tofu -chdir=generated/bootstrap plan
+-destroy -out=<file>`, read it, `apply <file>` (the GCP section needs
+your own token as the apply did). The state bucket is NOT in the plan
+when the bootstrap made it: the root's state moved into the bucket and
+the bucket left the state (above), and every other root's state is in
+it too. So it goes last, by hand, emptied version by version (`aws s3api
+list-object-versions`, `delete-objects`, `delete-bucket`), after every
+other root has been destroyed. The daily driver's section 4.1 has the
+whole order.
 
 ### 3.1 The workflows this tree carries
 
@@ -173,8 +196,16 @@ system's maintainers' duty, and how is in the daily driver's section
 ### 3.2 The repository
 
 1. **Branches.** `develop` is the default branch and where people push;
-   `main` is what `perform` runs on. Merge `develop` into `main` to
-   perform; the records `perform` writes are pushed back to `main`.
+   `main` is what `perform` runs on. A repository made from nothing has
+   no `main` on GitHub: the bootstrap sets the default branch and the
+   ruleset, and `main` exists from the first push of it, `git push
+   origin develop:main`, which is also the first `perform`. After it,
+   merge `develop` into `main` to perform (a fast-forward push of the
+   same form); the records `perform` writes are pushed back to `main`,
+   and `develop` takes them with `git merge --ff-only origin/main`. If
+   git made a `master` when the tree was initialised, delete it
+   (`git branch -d master`, `git push origin --delete master`); nothing
+   reads it.
 2. **Actions permissions.** Settings, Actions, General: Actions allowed,
    and "Workflow permissions" may stay read-only, because the workflow
    asks for what each job needs (`id-token: write` for federation,
@@ -192,7 +223,13 @@ system's maintainers' duty, and how is in the daily driver's section
    gh api repos/<owner>/<repo> --jq .id          # <repo-id>
    gh api users/<owner> --jq .id                 # <owner-id>
    gh api orgs/<owner>/actions/oidc/customization/sub   # the org's subject template, if it has one
+   gh api repos/<owner>/<repo>/actions/oidc/customization/sub   # the repository's own (use_default: true means the org's, or GitHub's)
    ```
+
+   The organisation's endpoint answers `403` to a token scoped to one
+   repository (section 3.0's fine-grained token); the repository's
+   endpoint answers it, and its `use_default` says whether the
+   repository follows the organisation's template.
 
    If your organisation customises the OIDC subject, the token's `sub`
    carries those ids (for example
@@ -408,9 +445,12 @@ policy with the role as its only principal.
    <connection>` and `workload_role: <role>`. Commit, push, and run the
    identity lifecycle, which creates the per-group CI policies.
 4. **The probe.** Actions, "OPA workload probe", Run workflow, with your
-   names. Against a draft, OPA validates the token and issues nothing
-   usable; the log shows the token's claims and the client's verdict.
-   Green here is the proof the claims match.
+   names. Against a draft, OPA accepts this run's token and issues one
+   in reply, which the probe reports and discards (its last line says
+   `accepted this run's token and issued one`); the log shows the
+   token's claims and the client's verdict. Green here is the proof the
+   claims match. Nothing logs in until step 5: the system's own login
+   proof refuses a draft connection.
 5. **Activate the connection.** From here the system refuses the login
    proof when either object is absent or the connection is still a draft.
 6. **After the first green login proof from `main`**, add the branch pin
@@ -507,7 +547,12 @@ by name, which is the point.
 ### 3.8 The proofs, in order
 
 Each one green before the next; each is read in the job summary, because
-a green job is not proof its steps ran.
+a green job is not proof its steps ran. The summary is on the run's page
+(`gh run view <run> --web`, or Actions in the browser), not in `gh run
+watch` or `gh run view`, which print steps and annotations; a job that
+was `SKIPPED` by its gate has no summary at all, and the gate's own line
+(`live: SKIPPED -- no secret is configured ...`) is in the log of its
+step "Gate on the secrets".
 
 1. **`verify`** on a push to `develop`: the release installs, the
    `Justfile` parses, public-safe passes. Needs nothing but `.csis-version`.
@@ -515,8 +560,10 @@ a green job is not proof its steps ran.
    strict state query and the modification tests all ran, not `SKIPPED`.
 3. **The workload probe** dispatched against the draft connection (section
    3.5, step 4), then the connection activated.
-4. **One `perform`**: merge `develop` into `main` (or Actions, CI, Run
-   workflow on `main` with `mode: record`). The records land on `main`.
+4. **One `perform`**: `git push origin develop:main`, which creates
+   `main` the first time (or Actions, CI, Run workflow on `main` with
+   `mode: record`). The records land on `main`; bring them back with
+   `git merge --ff-only origin/main` on `develop`.
 5. **The login proof as a workload**: the "CI logs in through the managed
    policy" step green, and `meta-state/login-proofs.yaml` on `main` saying
    `as: workload`. Then the branch pin on the role (section 3.5, step 6).
