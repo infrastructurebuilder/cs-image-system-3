@@ -54,13 +54,18 @@ class RuntimeBuilderBase(BuilderBase[TypeVar("T", bound=RuntimeBuilderModel)]):
         raise NotImplementedError(f"{self.__class__.__name__} cannot query images")
 
     def verify_instance(self, instance_name: str, expected_build: str | None = None,
-                        expect_mounts: int = 0, timeout: int = 600) -> dict[str, Any]:
+                        expect_mounts: int = 0, timeout: int = 600,
+                        mount_points: list[str] | None = None) -> dict[str, Any]:
         """Verify a launched instance without an operator session (TODO
         §10.2): ``{"ok": bool, "checks": [{"name", "ok", "detail"}],
         "evidence": [lines]}``. GCE reads the serial console (startup
         scripts finished, no failure line, data disks mounted) and the
         booted image; a runtime without a verification path raises
-        NotImplementedError (ephemeral instances refuse there)."""
+        NotImplementedError (ephemeral instances refuse there).
+        ``mount_points`` names the declared mounts (hygiene XII item 22):
+        a runtime that can read the startup script's own line per mount
+        passes the check only when each one reports itself mounted;
+        ``expect_mounts`` is the count, for a runtime that can only count."""
         raise NotImplementedError(f"{self.__class__.__name__} cannot verify instances")
 
     def ssh_proxy_command(self, instance_name: str) -> list[str] | None:

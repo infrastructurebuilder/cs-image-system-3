@@ -12,8 +12,15 @@ else; the ``::add-mask::`` lines for both tokens, the OIDC token's public
 claims and the client's verdict go to standard error, which the Actions
 runner scans for workflow commands exactly as it scans standard output. (The
 shell script printed its mask lines on standard output, where a capture
-swallowed them into the value.) Against a DRAFT connection OPA validates
-the token and issues nothing usable.
+swallowed them into the value.)
+
+The probe (hygiene XII item 14, the walk's F35): authenticating to the
+CONNECTION proves the claims match, and the role is only a hint there --
+OPA issues the connection's token from any branch, pinned or not. Whether
+the token CARRIES the role is proved by trying what the role allows:
+resolving a standing machine of a managed group, which exits 0 when the
+role reaches it and 125 when it does not (seen 2026-10-08 from a branch
+that was not `main`, after a token had been issued).
 
 Needs, in the environment: ``ACTIONS_ID_TOKEN_REQUEST_URL`` and ``_TOKEN``
 (a job holding ``id-token: write``), and the four names --
@@ -123,6 +130,35 @@ def mint_token(names: WorkloadNames, env: Mapping[str, str], *, say: Callable[[s
     if rc != 0:
         raise WorkloadTokenError(f"sft workload authenticate exited {rc}")
     if not token:
-        raise WorkloadTokenError("sft workload authenticate exited 0 but issued no token (a DRAFT connection "
-                                 "validates and issues nothing usable)")
+        raise WorkloadTokenError("sft workload authenticate exited 0 but issued no token")
     return token
+
+
+ROLE_GRANTED, ROLE_NOT_GRANTED, ROLE_NOT_JUDGED = "granted", "not granted", "not judged"
+
+
+def sft_resolve(names: WorkloadNames, token: str, hostname: str) -> tuple[int, str]:
+    """``sft resolve`` as the workload: the token and the client's names in
+    its environment; the seam the tests stub. Returns exit and both streams."""
+    env = {**os.environ, "OPA_TOKEN": token, "OPA_ADDR": names.api_host, "SFT_TEAM": names.team}
+    proc = subprocess.run(["sft", "resolve", "--quiet", hostname],  # noqa: S603,S607
+                          capture_output=True, text=True, env=env, timeout=120)
+    return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+
+
+def probe_role(names: WorkloadNames, token: str, hostname: str | None,
+               resolve: Callable[[WorkloadNames, str, str], tuple[int, str]] | None = None) -> tuple[str, str]:
+    """``(verdict, detail)``: whether the token carries the role, judged by
+    resolving ``hostname``; ``not judged`` when there is no standing machine
+    of a managed group to resolve."""
+    if not hostname:
+        return ROLE_NOT_JUDGED, ("no standing machine of a managed group to resolve; launch one and run the "
+                                 "probe again, and it says whether the role reaches it")
+    resolve = resolve or sft_resolve
+    rc, out = resolve(names, token, hostname)
+    if rc == 0:
+        return ROLE_GRANTED, f"sft resolve {hostname}: exit 0 -- the role reaches the machine"
+    words = out.strip()[:300]
+    return ROLE_NOT_GRANTED, (f"sft resolve {hostname}: exit {rc}" + (f" -- {words}" if words else "")
+                              + "; the connection issued a token, the role is not in it (unbound, or pinned to "
+                                "another branch)")

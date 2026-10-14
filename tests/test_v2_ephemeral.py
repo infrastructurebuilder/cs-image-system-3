@@ -103,6 +103,7 @@ def test_forget_ephemerals_drops_the_records_after_a_real_apply(prepared):
 CONSOLE_OK = """
 Sep  8 14:07:27 gce-test systemd[1]: Starting google-startup-scripts.service...
 [   47.164059] XFS (sdb): Ending clean mount
+Sep  8 14:07:35 gce-test google_metadata_script_runner[1229]: startup-script: csis-mount: /mnt/gce-data mounted
 Sep  8 14:07:35 gce-test google_metadata_script_runner[1229]: Finished running startup scripts
 """
 CONSOLE_FAIL = "Sep  8 14:07:35 gce-test google_metadata_script_runner[1229]: startup-script exit status 1\n"

@@ -221,14 +221,17 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         return str(getattr(out, "contents", "") or "")
 
     def verify_instance(self, instance_name: str, expected_build: str | None = None,
-                        expect_mounts: int = 0, timeout: int = 600) -> dict[str, Any]:
+                        expect_mounts: int = 0, timeout: int = 600,
+                        mount_points: list[str] | None = None) -> dict[str, Any]:
         """stage 10.2 -- what `just gce-verify` did by hand: poll the serial
         console until the guest agent reports the startup scripts finished
         (agent >= 20260715: "Finished running startup scripts"; older:
         "startup-script exit status 0"), fail fast on an explicit failure
         line, then compare the booted image with the expected build and
-        count the kernel's clean XFS mounts against the declared data
-        disks."""
+        read each declared mount point's own line from the startup script
+        (hygiene XII item 22: the kernel's clean XFS mounts counted the
+        image's own filesystems, so the check could not fail); the count
+        remains for a caller that names no mount points."""
         import re  # noqa: PLC0415
         import time  # noqa: PLC0415
         checks: list[dict[str, Any]] = []
@@ -253,12 +256,21 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
                            "detail": f"booted {booted}, expected {expected_build}"})
         else:
             checks.append({"name": "booted image", "ok": booted is not None, "detail": f"booted {booted}"})
-        if expect_mounts:
+        if mount_points:
+            from cs_image_system.base.launch_params import MOUNT_MARK  # noqa: PLC0415
+            seen = [mp for mp in mount_points if re.search(rf"{re.escape(MOUNT_MARK)} {re.escape(mp)} mounted\b", out)]
+            missing = [mp for mp in mount_points if mp not in seen]
+            kernel = len(re.findall(r"XFS \([a-z0-9]+\): Ending clean mount", out))
+            checks.append({"name": "data disks mounted", "ok": not missing,
+                           "detail": f"mounted: {', '.join(seen) or 'none'}; missing: {', '.join(missing) or 'none'} "
+                                     f"(each declared mount point's own line on the console; the kernel's "
+                                     f"{kernel} clean XFS mount(s) say nothing of which)"})
+        elif expect_mounts:
             mounted = len(re.findall(r"XFS \([a-z0-9]+\): Ending clean mount", out))
             checks.append({"name": "data disks mounted", "ok": mounted >= expect_mounts,
                            "detail": f"{mounted} clean XFS mount(s) on the console, {expect_mounts} declared"})
         evidence = [ln for ln in out.splitlines()
-                    if re.search(r"startup|XFS|google_metadata_script_runner", ln)][-20:]
+                    if re.search(r"startup|XFS|csis-mount|google_metadata_script_runner", ln)][-20:]
         return {"ok": all(c["ok"] for c in checks), "checks": checks, "evidence": evidence}
 
     def ssh_proxy_command(self, instance_name: str) -> list[str] | None:

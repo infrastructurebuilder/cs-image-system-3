@@ -40,6 +40,23 @@ ENROLLMENT_TOKEN_VARIABLE = "sft_enrollment_token"
 # Keys that may legitimately differ between generations of an instance's
 # launch params without meaning "replacement".
 _VOLATILE = ("run", "user_data_sha256", "launched", "launched_run", "build")
+#: hygiene XII item 22 (the walk's F50): the startup script says, per declared
+#: mount point, whether it is mounted -- one line a verification can read off
+#: the GCE serial console by name. The kernel's own `XFS (...): Ending clean
+#: mount` lines count the image's filesystems too, so a count could not fail.
+MOUNT_MARK = "csis-mount:"
+
+
+def mount_mark_line(mount_point: str) -> str:
+    """The script line that reports one mount point's state, after the mount."""
+    return (f"findmnt -rn '{mount_point}' >/dev/null 2>&1 && echo '{MOUNT_MARK} {mount_point} mounted' "
+            f"|| echo '{MOUNT_MARK} {mount_point} NOT mounted'")
+
+
+def mounted_points(params: dict[str, Any]) -> list[str]:
+    """The mount points the startup script mounts: every storage that is not
+    object storage (s3 and gcs are reached through the cloud CLI, no mount)."""
+    return [str(m["mount_point"]) for m in params.get("mounts", []) if m.get("type") not in ("s3", "gcs")]
 
 
 #: RFC 1123 caps one hostname label at 63 characters; Linux's HOST_NAME_MAX
@@ -265,6 +282,7 @@ def user_data_template(params: dict[str, Any]) -> str:
                 'if ! blkid "$DEV" >/dev/null 2>&1; then mkfs -t xfs "$DEV"; fi',
                 f"grep -q ' {mp} ' /etc/fstab || echo \"$DEV {mp} xfs defaults,nofail 0 2\" >> /etc/fstab",
                 f"mount '{mp}' || mount \"$DEV\" '{mp}'",
+                mount_mark_line(mp),
             ]
         elif m["type"] == "efs":
             lines += [
@@ -272,6 +290,7 @@ def user_data_template(params: dict[str, Any]) -> str:
                 f"EFS_AP=\"${{efs[\"{name}\"].access_point_id}}\"",
                 f"grep -q ' {mp} ' /etc/fstab || echo \"$EFS_ID:/ {mp} efs _netdev,tls,accesspoint=$EFS_AP,nofail 0 0\" >> /etc/fstab",
                 f"mount '{mp}' || true",
+                mount_mark_line(mp),
             ]
         elif m["type"] == "filestore":
             lines += [
@@ -279,6 +298,7 @@ def user_data_template(params: dict[str, Any]) -> str:
                 f"FS_SHARE=\"${{filestore[\"{name}\"].share_name}}\"",
                 f"grep -q ' {mp} ' /etc/fstab || echo \"$FS_IP:/$FS_SHARE {mp} nfs defaults,_netdev,nofail 0 0\" >> /etc/fstab",
                 f"mount '{mp}' || true",
+                mount_mark_line(mp),
             ]
         elif m["type"] in ("s3", "gcs"):
             lines.append(f"# {m['type']} storage {name}: object access via the cloud CLI; no mount")
