@@ -1,5 +1,9 @@
 # standard-aws: the smallest AWS configuration
 
+*Walked from nothing on 2026-10-05 to 2026-10-14 against 0.1.1.dev14 to
+0.1.1.dev23 (stage 65): bootstrapped, baked, launched, logged into by a
+person and by CI, given a second cloud, and torn down.*
+
 The smallest tree a team writes to get going on the AWS plugin set, in the
 shape of a real configuration repository. Copy it, replace every
 `REPLACE-ME` value, and it is a configuration:

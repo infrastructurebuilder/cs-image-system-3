@@ -1,5 +1,9 @@
 # standard-aws-posix: the smallest AWS configuration, with no Okta
 
+*Walked from nothing on 2026-10-09 to 2026-10-14 against 0.1.1.dev21 to
+0.1.1.dev23 (stage 65, stage 16): bootstrapped, baked, launched, logged
+into by a person and by CI, and torn down.*
+
 The smallest tree a team writes to get going on the AWS plugin set when
 its people are **POSIX accounts on the machines** rather than Okta and
 OPA identities (stage 75): no Okta org, no OPA team, no identity root, no
@@ -16,6 +20,17 @@ What changes, against `standard-aws`:
 - **The login proof** logs in as the group's proof user (`csis_proof`, a
   service account) over ssh through Session Manager -- no public address
   -- with its private key from the `CSIS_PROOF_SSH_KEY` secret.
+- **A person logs in the same way**, with their own key, whose public
+  half is in `groups/users.yaml`; no recipe makes the line, so here it
+  is (the instance id is in `meta-state/instance-state.yaml`, or from
+  `aws ec2 describe-instances --filters Name=tag:Name,Values=<name>`):
+
+  ```sh
+  ssh -i ~/.ssh/<key> -o ProxyCommand="aws ssm start-session --target <instance id> --document-name AWS-StartSSHSession --parameters portNumber=%p --region <region> --profile <profile>" <username>@<instance id>
+  ```
+
+  The caller needs `ssm:StartSession` on the instance and on the
+  `AWS-StartSSHSession` document, and the Session Manager plugin.
 - **CI** has no Okta or OPA secrets and no OPA workload probe; the
   guide's Okta section does not apply.
 
