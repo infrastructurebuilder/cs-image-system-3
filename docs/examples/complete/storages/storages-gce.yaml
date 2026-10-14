@@ -1,6 +1,6 @@
 ---
-# docs/examples/complete/storages/storages-gce.yaml -- the three GCE storage
-# kinds. Reference: ../../../CONFIGURATION.md section 11.4 and 8.2.
+# storages/storages-gce.yaml (from the complete starter) -- the three GCE storage
+# kinds. Reference: CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 11.4 and 8.2.
 storages:
   - name: gce_data
     type: gcp-pd                   # zonal disk, single-attach; archived = snapshot + delete on GCE too

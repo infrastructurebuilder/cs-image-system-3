@@ -1,7 +1,7 @@
 ---
-# docs/examples/standard-gce/cfg/image-builders.yml -- the ONE image builder:
+# cfg/image-builders.yml (from the standard-gce starter) -- the ONE image builder:
 # packer's googlecompute source on the GCE runtime. Reference:
-# ../../../CONFIGURATION.md section 6.
+# CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 6.
 image_builders:
   - name: packer-gce
     type: packer-gce

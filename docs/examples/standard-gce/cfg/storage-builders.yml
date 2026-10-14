@@ -1,7 +1,7 @@
 ---
-# docs/examples/standard-gce/cfg/storage-builders.yml -- the ONE storage
+# cfg/storage-builders.yml (from the standard-gce starter) -- the ONE storage
 # builder: a terraform root that realizes persistent disks on the GCE
-# runtime. Reference: ../../../CONFIGURATION.md section 8.2.
+# runtime. Reference: CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 8.2.
 storage_builders:
   - name: gcp-pd
     type: tf-gcp-pd              # DECISION: single-attach zonal disks; `tf-gcp-filestore` (shared NFS, 1 TiB minimum) and `tf-gcp-gcs` (buckets) are the other GCE kinds

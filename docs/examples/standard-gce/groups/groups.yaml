@@ -1,6 +1,6 @@
 ---
-# docs/examples/standard-gce/groups/groups.yaml -- the ONE group. Reference:
-# ../../../CONFIGURATION.md section 11.5. Every member and admin must be a
+# groups/groups.yaml (from the standard-gce starter) -- the ONE group. Reference:
+# CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 11.5. Every member and admin must be a
 # declared user name (here the fixture's markers for avery.alpha and
 # casey.charlie). The okta-tf builder emits, for this group, the OPA groups
 # team_user and team_admin, the resource group team_rg (delegated to

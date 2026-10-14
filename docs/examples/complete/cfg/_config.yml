@@ -1,6 +1,6 @@
 ---
-# docs/examples/complete/cfg/_config.yml -- the global settings, every field.
-# Reference: ../../../CONFIGURATION.md section 2 (`IAConfig`), 2.1 (`encryption`),
+# cfg/_config.yml (from the complete starter) -- the global settings, every field.
+# Reference: CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 2 (`IAConfig`), 2.1 (`encryption`),
 # 2.2 (`public_safe`), 2.3 (every `config` key the code reads).
 # REPLACE-ME marks a placeholder; every other line's comment says what the
 # line decides. Section numbers below are CONFIGURATION.md's.

@@ -1,6 +1,6 @@
 ---
-# docs/examples/standard-gce/cfg/_config.yml -- the global settings of the
-# smallest GCE tree. Reference: ../../../CONFIGURATION.md section 2 (`IAConfig`),
+# cfg/_config.yml (from the standard-gce starter) -- the global settings of the
+# smallest GCE tree. Reference: CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 2 (`IAConfig`),
 # 2.1 (`encryption`), 2.2 (`public_safe`), 2.3 (the `config` keys the code reads).
 #
 # REPLACE-ME values are placeholders a team must replace. Every other line

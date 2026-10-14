@@ -7,14 +7,90 @@ in the frozen [docs/history/](docs/history/README.md). Steps marked
 **USER** need the operator: a decision, or a console or IAM action the
 system must not take itself.
 
-Current stage: **none in progress**. No hygiene bundle is open (the
-next issue opens XII) and no documentation stage is open (the next
-undocumented change opens one). Planned, by the operator's word: §65,
-§66 and §30.
+Current stage: **§65**, walking the daily driver, started 2026-10-05
+on `feature/walk-daily-driver`: the operator types each stage from
+[docs/history/WALK-2026-10.md](docs/history/WALK-2026-10.md) on a Fedora 43
+container. §92, CI runs inside an AlmaLinux 10 image the system
+builds, described by a CI-agnostic requirements document, with the
+GitHub-image path kept as the from-scratch alternative, is PLANNED
+2026-10-14 (the operator's direction; after §91). §91, CI names the machine it runs on and the actions it
+uses (hygiene XII items 7 and 28, made one stage by the operator's
+word of 2026-10-14, "do 7 and 28 together as a single stage"; GitHub
+moves `ubuntu-latest` to Ubuntu 26 from 2026-10-19), LANDED
+2026-10-14 (e72cc1b) by the operator's word, released in dev24
+(b263aea) and PROVED on the reference configuration: `verify` and
+`live` green on `Image: ubuntu-24.04`, and its `perform` green on
+`main` the same day (nothing to bake, the login proof as a workload
+ok, no drift). One notice survived, since `setup-just@v3` is
+composite and wraps an inner action on Node 20; its v4 does not,
+and the correction LANDED (b23f33f) by the operator's word, to go
+out with the next release.
+§90, a group's release is decided by the state and
+cannot be spent by a dry run (the removal of an unmanaged group
+from state was decided from the identity read-model, which every
+dry run and every `record` rewrites, so the run after a dry run
+planned the group's destruction and only the gate refused it; now
+the runner's pre-plan step asks the state; walk finding F63),
+LANDED 2026-10-13 (cdb80bf) by the operator's word, who made it a
+stage of its own and had it done before the walk went on, is
+released in dev23 (ec7e4ef), which the reference configuration has
+taken on its `develop`, and is PROVED live: the first walk's own
+group, released by the sequence that had failed (the dry form,
+then the run), left state with its eight resources in the runner's
+pre-plan step, and the run applied nothing.
+§89, CI makes the login proof while it still holds the
+write identity (every starter's workflow took the read-only identity
+back before the proof, and a posix proof's ssh opens a session the
+read-only role may not; walk finding F58), LANDED 2026-10-13
+(7eb5962) by the operator's word, the read-only role left as it
+was. It is released in dev22 (9584a03, 2026-10-13), which the
+reference configuration has taken on its `develop` (CI green), and
+is PROVED live: the posix walk took the release and its `perform`
+on `main` went green the same day, CI logging in as the group's
+proof user over ssh while it held the write identity, where three
+hours earlier the same step had been refused the session.
+§88, a membership the YAML dropped is removed by the
+run (the runner's prune step names the attachment of each one, and
+the gate allows exactly those; walk finding F38), LANDED 2026-10-08
+(20206e8), is released in dev21, which the reference
+configuration has taken, and is PROVED live: the walk put its
+second person into `walk_team` by a run and took them out by a
+run, the gate sanctioning exactly that attachment and OPA holding
+nobody afterwards. §87, the
+group on a machine lists its members by their
+account names (each read from OPA's `unix_user_name`, never derived;
+walk finding F37), LANDED 2026-10-08 (9655327), is released in
+dev20 and PROVED live: the walk's second person, whose two names
+differ, logged in and their session carried the group. §86, a bake
+waits for the package database (the
+first provisioner settles the build machine, a package step waits
+out a held database, and the starters' base tests name what a base
+carries; walk findings F29 and F28), LANDED 2026-10-07 (c6af4b2):
+released in dev19 (dev18 was cut from the walk branch by mistake and
+is on the index, unused) and PROVED live: the walk's third `perform`
+baked both its images under the bootstrap-made write role, Systems
+Manager finishing its work on each build machine undisturbed. §81,
+hygiene bundle XII, is open (thirty items the walk
+found; 3 and 4 landed with §82, the rest a plan). §82, an image
+says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
+is released in dev15, taken by the reference configuration, its
+images relabelled. §84, a new group can be created (the gid lookup
+waits for its group; walk finding F22), LANDED 2026-10-07 (4fb338b)
+and is released in dev16. §85, the first identity apply of a new
+tree has nothing to prune (a root with no state yet is not a failed
+`state list`; walk finding F24), LANDED 2026-10-07 (b0494fa) and is
+released in dev17. Both are PROVED live: the walk's identity run on
+dev17 created its first group (8 added, 0 destroyed; its CI green
+with no drift). No documentation stage is open.
+Planned, by the operator's word: §66, §30 and §83 (a release asks
+its publish target before it starts).
 
-Releases: dev14 (2026-10-04) carries §79 and is the reference
-configuration's, develop and main, performing green on it (run
-37301986059, 2026-10-05); dev13 carries §75.
+Releases: dev15 (2026-10-06) carries §82 and hygiene XII items 3
+and 4. dev16 carries §84, dev17 §85 (the reference configuration's
+`main`: perform green on it, run 37635442502). dev18 is on the index
+and unused. dev19 (2026-10-07) carries §86 and is the walk's
+`develop` and `main` and the reference's `develop` (CI green); the
+reference's `main` moves to it on the operator's word.
 
 Recently landed: §80, hygiene bundle XI (2026-10-05, cf186de): the
 reference tree's AWS runtimes default to a t3.medium, and the daily
@@ -324,9 +400,14 @@ plugin 1–2 days. Call it three weeks, done as three branches.
 
 ## 65. Walking the daily driver
 
-**Status: PLANNED, refreshed 2026-10-05 (first refreshed 2026-10-02);
-the walk's decisions W1-W6 answered by the operator the same day;
-nothing runs until the operator says "do 65".** (The operator,
+**Status: IN PROGRESS since 2026-10-05 ("do 65"). W5 was replaced by
+the operator the same day: the walk runs on a Fedora 43 container
+(`csis-walk`), as user `mykel.alvis`, on the operator's clone of the
+walk repository mounted as a volume, with AWS access keys supplied
+by hand; the operator types each stage from
+[docs/history/WALK-2026-10.md](docs/history/WALK-2026-10.md) and Claude reads
+the shell history and the tree. Findings F1-F6 so far (the walk
+log); the code ones are §81.** (The operator,
 2026-09-24, on accepting §62: "make a new stage for walking through the
 daily driver docs"; refreshed on the operator's word after §70 landed
 and again after §80.)
@@ -491,6 +572,78 @@ and W5 took the default, W4 and W6 did not):
    the top -- walked on <date>, against release <version> -- and so do
    the guide and the starters' READMEs where they were walked.
 
+   **Step 9, planned 2026-10-14** (stages 1 to 17 of the walk are done;
+   this waits for the operator's word). What is owed, from the 64
+   findings in the walk document's table: 34 owe words (19 words
+   alone, 15 words beside code); 28 owed code alone, of which stages
+   86 to 90 landed what the walk could not go on without and the rest
+   are hygiene XII's 32 items, filed and not fixed here; 2 were the
+   starters' own (F15, fixed in dev15; F18).
+
+   - **9a. The inventory.** Each of the 34 read against 0.1.1.dev23
+     (some got their words on the way: F44's in the daily driver, and
+     what stages 86 to 90 wrote on their own pages), then grouped by
+     the page it lands on: the daily driver, its section 6 above all;
+     the starters' `CI_SETUP.md` (one text, four copies); the
+     starters' READMEs; the operations guide; the configuration
+     reference; the plugins' READMEs. The inventory is a table in this
+     section, finding by finding: the page, the words, done or not.
+   - **9b. The words**, one commit per page. Markdown only, so the bar
+     is the three docs tests after each; `just test` once at the end,
+     because the starters' files ship in the wheel.
+   - **9c. The dated lines.** The daily driver, the operations guide,
+     and the READMEs of the two starters walked (`standard-aws`,
+     `standard-aws-posix`) gain one line at the top: walked from
+     nothing between 2026-10-05 and 2026-10-14, against 0.1.1.dev14
+     to 0.1.1.dev23 (stage 65). `complete` and `standard-gce` were
+     read and partly used, not walked from nothing, and say nothing.
+   - **9d. The walk's document** (`DAILY_DRIVER_EXECUTE.md`, 8168
+     lines, on the walk branch only). **USER decides**: frozen under
+     `docs/history/` as the walk's record, beside the other frozen
+     worksheets, and reached from its README; or kept only on the
+     walk branch, which git-flow keeps, and taken out before the
+     squash. `_uncommitted/` stays on the local machine either way.
+   - **9e. The squash.** The walk branch into `develop` on the
+     operator's word (git-flow finish: squash, keep, push), its
+     message the stage's summary; this section removed and the
+     preamble saying so; hygiene XII stays open; F44's monthly
+     reviews go on (the next on or after 2026-11-09).
+
+   Sizing: 9a and 9b a day; 9c to 9e an hour.
+
+   **Done 2026-10-14** (the operator: "do step 9"; the walk's page
+   frozen under `docs/history/`, and the 19 words-only findings
+   written now, the 15 beside code left to their fix). The inventory:
+
+   | Finding | Page | Words | State |
+   | --- | --- | --- | --- |
+   | F1 | daily driver 1.1 | a development release's install line, TestPyPI | done |
+   | F2, F7 | daily driver 1.9 step 2 | `age-keygen`, the re-encrypt, the test identity and its leftovers taken out | done |
+   | F3, F27 | daily driver 1.9 step 1; CI_SETUP 3.2 and 3.8 | `git init -b develop`; `main` exists from the first push; `master` deleted | done |
+   | F5 | daily driver 1.2 | where every tool comes from | done |
+   | F8 | every starter YAML header (79 files) | the file where it is; the reference by the system repository's path | done |
+   | F9 | daily driver 1.7 | direnv as the other way; `direnv allow` after each edit | done |
+   | F12 | CI_SETUP 3.0 | the bootstrap's GitHub token and its permissions | done |
+   | F13 | CI_SETUP 3.2 step 4 | the repository's own OIDC subject endpoint | done |
+   | F16 | daily driver 6 | `verify` red while TestPyPI is down: environmental | done |
+   | F20 | daily driver 6; CI_SETUP 3.8 | where the job summary is; a skipped job has none | done |
+   | F23 | CI_SETUP 3.5 step 4; the probe's header | what the probe does against a draft | done |
+   | F39 | daily driver 6 | the preview plan and the runner's plan | done |
+   | F41 | daily driver 6 | `MissingIdentityError` is an unsourced shell | done |
+   | F42 | daily driver 6 | `ReservedNameError` under a traceback | done |
+   | F46 | daily driver 3.6 | a second cloud: the ten declarations | done |
+   | F57 | daily driver 3.1 and 3.5; `standard-aws-posix` README | a person's own ssh line | done |
+   | F64 | daily driver 4.1; CI_SETUP 3.0 | taking a configuration and its bootstrap down | done |
+   | F38, F56 | with stages 88 and 91 | written when those landed | done |
+   | F10, F26, F30, F35, F36, F40, F43, F48, F49, F51, F55, F61, F62 | with hygiene XII items 1, 9, 14, 15, 17, 18, 21, 23, 27, 31, 32 and the tracebacks' item | owed beside the fix; each item says so | owed |
+   | F15, F18 | the starters | F15 fixed in dev15; F18 is hygiene XII item 6 | -- |
+   | the rest (28) | -- | code alone: stages 86 to 91, or hygiene XII | -- |
+
+   Dated lines: the daily driver, the operations page, the READMEs of
+   `standard-aws` and `standard-aws-posix`, CI_SETUP (one text, four
+   copies). The page is `docs/history/WALK-2026-10.md`, listed in the
+   history README. 9e, the squash, waits for the operator's word.
+
 **Sizing**: the repository and bootstrap half a day; CI half a day, most
 of it secrets and the console; section 3 a day, most of it bakes; the
 failure walk two hours; the GCE leg half a day; the posix walk half a
@@ -573,3 +726,659 @@ release, and never edited at the destination. Then:
 **Sizing**: the recipe and its test half a day; the job an hour; the
 mirrors and tokens are the operator's (an hour); the live proof waits on
 the first final version on PyPI (§41's open call).
+
+## 81. Hygiene bundle XII
+
+**Status: OPEN 2026-10-05, thirty items found by the §65 walk. Items
+3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by
+the operator's word. Items 10 and 11 LANDED as §86 (c6af4b2,
+2026-10-07, "Fix now, starters too"). Item 16 LANDED as §88
+(20206e8, 2026-10-08; the operator: "we should correct this
+situation as soon as possible"). Items 1,
+2, 5, 6, 8, 9, 12 to 15, 17 to 24, 26, 27 and 29 to 32 are a plan --
+nothing more runs until the operator says "do 81". Items 7 and 28
+left the bundle as §91 (2026-10-14). Item 25 is a standing review with
+four dates, the first 2026-11-09. Items 1, 6, 9, 14, 15, 17, 18, 21,
+23, 27, 31 and 32 owe the daily driver (or a starter) words beside
+their fix: §65's step 9 left those words to the fix so they are
+written once (findings F10, F26, F30, F35, F36, F40, F43, F48, F49,
+F51, F55, F61, F62).**
+
+1. **A starter's own hook refuses its first commit.** The tree
+   `init-config` writes carries the copyright holder's address in the
+   SPDX header of every release-owned file (`tfmodules/*`,
+   `.githooks/pre-commit`), and the starter's `public_safe.allow` does
+   not allow it: `git commit` of the untouched tree is REFUSED with 46
+   findings. The reference configuration allows the address by hand, so
+   nothing caught it. Fixed looks like: every starter's allow list
+   carries the address with its reason (or the scan exempts SPDX header
+   lines), and a test runs public-safe over each starter as written.
+   The same refusal for a second address (finding F48, 2026-10-09,
+   stage 15b): `standard-gce` does not allow
+   `.iam.gserviceaccount.com`, which `complete` does, so a GCE tree
+   with its runner's real address cannot be committed. The test
+   fills each starter's `REPLACE-ME` values with plausible ones
+   before it scans.
+2. **`init-config` in a cloned repository writes no configuration.**
+   Only a directory with no entries counts as new
+   ([starters.py](packages/system/src/cs_image_system/system/starters.py)),
+   and a clone always has `.git`, so a team that creates its repository
+   on GitHub and clones it -- the usual order -- gets the release-owned
+   files and no `cfg/`, with a message that reads like success. Fixed
+   looks like: a directory holding only `.git` (**USER**: and a README
+   or LICENSE GitHub made?) takes the whole starter; the message of the
+   release-owned form says no configuration was written; a test for
+   both.
+
+(Items 3 and 4 landed with §82, 0d1850c: a declared group the provider
+has never been seen to carry is a note, not hard drift; every
+starter's `.gitignore` ignores every dotfile unless named.)
+
+5. **The bootstrap's create path would strip the state bucket it
+   made.** The walk's finding F17, read from the code before the walk
+   reached it and CONFIRMED live at the walk's stage 9f (2026-10-06:
+   `Plan: 0 to add, 0 to change, 4 to destroy`; not applied -- the
+   walk made the root forget the four with `tofu state rm`). When the
+   bootstrap creates the state bucket, the guide has the operator run
+   the interview again so the root binds to it. But
+   `state_bucket_exists`
+   is a choice, not an observation, so the second interview still
+   offers "no" (seen live: `[y/N]`); and answering "yes" makes the
+   module's four bucket
+   resources `count = 0` while they sit in the root's state, so the
+   next plan destroys the bucket's versioning, encryption and
+   public-access block before failing on the bucket. Fixed looks like
+   (**USER** chooses): the root KEEPS managing a bucket it made (a
+   recorded fact, "made here", decides the resources; whether the
+   bucket stands, observed at each interview, decides the backend) --
+   or the rebind emits `removed` blocks that forget without
+   destroying. Either way a test renders the second interview and
+   asserts no bucket resource leaves the plan, and the guide says what
+   the operator sees.
+6. **The interview's default secrets directory is inside the tree and
+   not ignored.** The walk's finding F18: `_uncommitted/secrets` is
+   offered as "never committed", and no starter's `.gitignore`
+   ignores `_uncommitted/`. Fixed looks like: the starters ignore
+   `_uncommitted/`, and `set-secrets.sh` (or the interview) refuses a
+   secrets directory git would track.
+8. **An applying run's log can cut the line that says what was
+   applied.** The walk's finding F25. The log keeps the last 40 lines
+   of a command's output (hygiene VIII item 3, `OUTPUT_TAIL_LINES`),
+   on the premise that "the end is where tofu's `Plan:` / `Apply
+   complete!` lines are". For an apply that is not so: tofu prints
+   `Apply complete! Resources: ...` and THEN the root's outputs. The
+   reference configuration's identity root has 40 lines of outputs,
+   so its apply's 45 lines lose exactly the five that hold the
+   verdict; the operator, told to expect the line, did not find it
+   (2026-10-07). A one-group tree shows it, which is why nothing
+   caught this. Fixed looks like: tofu's verdict lines (`Apply
+   complete!`, `Plan:`, `No changes.`) are always shown, wherever
+   they stand, ahead of the tail; a test with an apply whose outputs
+   are longer than the tail. The whole output stays at DEBUG.
+   The same tail hides a successful BAKE's steps (seen 2026-10-07:
+   `packer build stdout (last 40 of 304 lines)`): the settle step's
+   own line, how long it waited, and any step the runner ran twice
+   are among the lines cut. A bake's settle and runner lines belong
+   with the verdict lines that are always shown.
+9. **The first `perform` of a new tree fails after its bakes.** The
+   walk's finding F26: PREDICTED, not run (the operator chose,
+   2026-10-07, to apply the storage first and walk on). An instance
+   root reads its storage root's state, and its group's identity
+   root's, through `terraform_remote_state`. A tree made from the
+   starter declares the instance and its storage from the first
+   commit with `apply_storage: false`, and the guide's order
+   (CI_SETUP 3.8 step 4, before the daily driver's section 3) reaches
+   `perform` before any storage run. A performing run plans the
+   instance root though it does not apply it; the storage root has
+   no state object, and the plan stops with "Unable to find remote
+   state ... No stored state was found" -- after both images have
+   baked. Reproduced on a scratch root; the walk's bucket held no
+   `aws_ebs.tfstate`. `just cloud-bake` plans the same root, and a
+   storage root reads its identity root the same way. Fixed looks
+   like (**USER** chooses, one or both): a run that only PLANS a root
+   skips it, loudly, while a root it reads was never applied
+   ("instance root not planned: the storage root `aws-ebs` has no
+   state yet; run the storage lifecycle"), and `validate` or the
+   state query says so before anything bakes; the guide and the
+   daily driver put the first `perform` after identity and storage
+   have applied once. A test: a tree whose storage root has no
+   state, a performing run, the bakes recorded and the run green
+   with the note.
+10. (Items 10 and 11 landed as §86, c6af4b2, 2026-10-07.)
+12. **`init-config --force` writes over a repository that is not a
+    configuration repository.** The walk's finding F32 (2026-10-07):
+    a step meant for the walk's container was typed in the system
+    repository's root, and `cs-image-system init-config . --force`
+    replaced its `Justfile`, `.gitignore` and `.github/workflows/
+    ci.yml` with a starter's and wrote `.csis-version`, `CI_SETUP.md`
+    and the probe workflow. The new `.gitignore` no longer ignored
+    the checkout's private directory; a `git add -A` would have
+    staged it. Nothing was staged, and git gave the three files back;
+    outside git they would be gone. The command read "the starter
+    complete ... from the tree's .github/workflows/ci.yml" and asked
+    nothing. Fixed looks like: `--force` refreshes a tree that IS a
+    configuration repository -- it has `cfg/_config.yml`, or a
+    `.csis-version` this command wrote -- and refuses any other
+    directory by name, saying what it looked for; a first write into
+    a directory that holds other things stays the business of
+    `--from <starter>` and its own checks. A test: the command in a
+    repository with its own Justfile and no `cfg/` is refused and
+    changes nothing.
+13. **An instance that was never launched reads as a cloud that could
+    not answer.** The walk's finding F33 (2026-10-08, in CI's strict
+    query and the operator's): `unavailable: instances/walk-node-1:
+    booted image (runtime aws-main could not answer)`. A bake binds
+    the instance's pin; `instance_boot_drift` then asks the runtime
+    which image the pinned instance booted, gets nothing because
+    there is no machine, finds it is not "off" either, and files it
+    under `unavailable`. The records know better: no generation in
+    `instance-state.yaml`, `launched: false` in the launch
+    parameters. It stops nothing (strict passes on `unavailable`),
+    but it is the same mistake as item 3's group, and it stands from
+    the first bake until the first launch in every new tree. Fixed
+    looks like: a pinned instance with no launched generation is a
+    NOTE, "declared and not launched yet (pinned to <build>)", and
+    the cloud is not asked; a test beside item 3's.
+14. **Nothing proves the workload role's branch pin.** The walk's
+    finding F35 (2026-10-08). CI_SETUP 3.5 step 6 ends at "add the
+    branch pin to the role" with no check after it, and the one tool
+    at hand misleads: `just opa-workload-probe` authenticates to the
+    CONNECTION (`sft workload authenticate`), where the role is only
+    a hint ("the desired role the workload will assume, if
+    authorized"), so it reports `accepted ... and issued one` from
+    any branch whether the role is pinned or not. The bootstrap reads
+    the pin's RECORD (`role_pinned`), which is not its effect. The
+    walk proved the effect by hand, with a throwaway branch and a
+    temporary workflow that attempts `ci-login-proof` from a ref that
+    is not `main`. Fixed looks like: the probe gains a second verdict,
+    whether the token it was issued carries the ROLE (it tries what
+    the role allows: resolving a server of a managed group), printed
+    beside the first as `role: granted` or `role: not granted`; the
+    guide's step 6 then says to run it from `main` (granted) and from
+    another branch (not granted); F23's wording about a draft
+    connection is corrected in the same place. What the by-hand proof
+    showed (2026-10-08, runs 37759023233 and 37760563336): from
+    `main` the workload logs in; from another branch OPA still issues
+    the connection's token and `sft resolve` of the machine then
+    exits 125. That exit, after a token was issued, is the signal a
+    role-aware probe can report.
+15. **A declared username is encrypted in the roster and clear in
+    what the run commits.** The walk's finding F36 (2026-10-08,
+    noticed when a second, real person was about to be declared in a
+    PUBLIC configuration repository). `groups/users.yaml` holds
+    `name` as an `ENC[age:...]` marker; the same name is written in
+    clear to `meta-state/identity.yaml` (`members`, `admins`), to the
+    identity roots' HCL (`admins = ["..."]`, `data "okta_user"
+    "<name>"`, `"<name>@ENC[...]"`), and to
+    `meta-state/login-proofs.yaml`. The reference configuration has
+    carried its roster that way all along. Nothing leaks that the
+    tree's owner did not put there, but the marker reads as a promise
+    the system does not keep, and a person added to a public tree is
+    published without being told. **USER** decides which it is: (a)
+    usernames are public by design -- then the starters stop
+    encrypting them, CONFIGURATION 11.6 and 13 say what is and is not
+    protected (the mail domain is; the name is not), and the daily
+    driver's 3.1 says a declared person's username is committed in
+    clear; or (b) usernames are private -- then the read-model, the
+    emission and the proofs carry them by reference as every other
+    encrypted value is carried (stage 49), which touches terraform
+    resource addresses and is a stage of its own.
+16. (Landed as §88 on 2026-10-08, 20206e8.)
+17. **`preflight` says every session is present over keys that have
+    lapsed.** The walk's finding F40 (2026-10-09, stage 14a,
+    provoked on purpose). For a profile that is not an SSO profile
+    `preflight` can read no expiry (`profile 'noaa' is not an SSO
+    profile (no expiry readable)`), counts the session as present,
+    and closes with a green `preflight: every session present`; the
+    next command that reaches AWS then fails with `RequestExpired`
+    under a traceback (finding F30). `preflight` makes
+    no cloud call by design (stage 16), so it cannot know. Plan: (a)
+    the closing line tells the two cases apart -- "present" for a
+    session whose expiry was read, "not judged: no expiry readable"
+    for one it could not read -- and never greens the second; (b)
+    the daily driver's expired-session row, and 1.2 where it speaks
+    of keys, say that a team working from pasted keys learns of a
+    lapse from `RequestExpired`, and that the remedy is fresh keys,
+    not `aws sso login`. Whether `preflight` should ask `sts
+    get-caller-identity` for such a profile is a **USER** decision:
+    it is the one cloud call that would make the answer true, and
+    the command's contract today is that it makes none.
+18. **The starters do not show the keys the daily driver tells a
+    team to settle.** The walk's finding F43 (2026-10-09, stage
+    14e). The daily driver's 1.9 lists `require_released_builds`,
+    `require_image_tests` and `preflight.expected_run_minutes` among
+    the decisions of `cfg/_config.yml`; the starters' file carries
+    none of the three, and their image declares no `release:`. The
+    walk reached section 6's unreleased-pin row only by writing the
+    key in with `sed`; the rule and its grace then behaved as
+    written. Plan: each starter's `cfg/_config.yml` carries the
+    three keys as DECISION lines at their defaults, with what
+    switching each on asks of the tree; each starter's image
+    carries a commented `release:` beside its tests; the starter
+    tests read them. A starter tree must still validate and dry-run
+    unchanged (the keys at their defaults change no emission).
+19. **A run its operator cancels is journalled as a success.** The
+    walk's finding F45 (2026-10-09, stage 14g). `just record`,
+    interrupted with Ctrl-C five seconds in, left an entry in
+    `meta-state/runs.yaml` saying `ok: true`, `error: null`, `apply:
+    {}`. `run_lifecycles` records in a `finally`, and an interrupt
+    is no `Exception`, so the summary still holds its starting
+    values. Plan: an interrupted run (Ctrl-C, SIGTERM) is recorded
+    `ok: false` with an `error` that says it was interrupted and in
+    which lifecycle, its summary file says the same, and the
+    process ends non-zero as it does now; a test interrupts a run
+    and reads the entry. The daily driver's section 6 gains the
+    row.
+20. **The emptiness assertion counts another configuration's
+    things.** The walk's finding F47 (2026-10-09, found by reading
+    before stage 15). `emptiness()` is the runtime's whole inventory
+    (on GCE: every instance and disk in the zone, every custom
+    image and every bucket in the project) less this tree's
+    declared storages and released builds. Two configurations in
+    one project therefore each see the other's standing storages
+    as leftovers: the reference keeps `gce_data` and `gce_bucket`
+    in `csis-sandbox`, where the walk's GCE leg runs. It is F11
+    again (stage 82 gave images a `csis_config` label), for
+    everything that is not an image. Plan: instances, disks and
+    buckets the system creates carry `csis_config` (the terraform
+    modules; a label change is in place on a standing resource);
+    the inventory, `empty` and the state query count this
+    configuration's alone and say how many of another's they left
+    alone, as the image query does; `cloud-relabel` learns the new
+    kinds for what stands already. It changes release-owned modules
+    and the reference's standing GCE storages, so it is a stage of
+    its own when the operator calls for it. The operator's decision
+    for the walk (2026-10-09): run the leg and judge emptiness by
+    hand from the leftover list.
+    The same on AWS, met the same day (finding F53, stage 16c):
+    a declared storage's volume and a declared instance's machine
+    are found by the `Name` tag across the whole account, so two
+    configurations with a storage called `data` (every starter's
+    name) each see the other's volume: `foreign storage data: ebs
+    vol-... exists but meta-state has no record of it`, in CI.
+    The plan above therefore covers AWS volumes and instances
+    too: they carry `csis_config`, every lookup by name filters
+    on it, and until then `validate` could at least say so when
+    a declared name already answers in the account.
+21. **A storage type added to a base re-bakes it on every cloud.**
+    The walk's finding F49 (2026-10-09, stage 15b). `storage_types`
+    is one list on the OS builder, it is in the input fingerprint of
+    every bake of that base, and every type contributes its
+    prerequisite step to every runtime's template, a bare comment
+    included. Adding `pd` for a GCE disk made `el10@aws-main` and
+    the image chained on it due, with nothing to change in either.
+    Plan, for the operator to choose between: (a) a bake's
+    fingerprint and template take only the storage types whose
+    builder lives on that bake's runtime (a `pd` builder on GCE says
+    nothing to an AWS bake); or (b) a base's `runtimes:` entry may
+    carry its own `storage_types`, added to the base's. Either way
+    a type with no prerequisites moves no fingerprint, the
+    capability a build records stays what it carries, and
+    CONFIGURATION says that a base shared between clouds re-bakes
+    everywhere when a shared field changes.
+22. **On GCE the verification's mount check cannot fail.** The
+    walk's finding F50 (2026-10-09, stage 15c). `verify_instance`
+    on GCE counts `XFS (...): Ending clean mount` on the serial
+    console and passes at `>=` the declared data disks; an image
+    whose own filesystems are XFS brings its count with it (`4
+    clean XFS mount(s) on the console, 1 declared`). Plan: the
+    check names the declared disks (the launch parameters carry
+    each device and mount point) and passes only when each one's
+    own mount is reported -- from the startup script's own line
+    per mount, which it can be made to print -- and a test gives it
+    a console with the system's XFS mounts and no data disk.
+23. **A bootstrap that shares an existing account co-owns its
+    grants.** The walk's finding F51 (2026-10-09, stage 15e, by
+    reading and on a scratch clone). With `read_account_exists`
+    true the GCP section still makes a `google_project_iam_member`
+    for each of `read_roles` (default `roles/compute.viewer`); two
+    configurations that read the same account each hold that grant
+    in their own state, and destroying either root takes it from
+    both. The interview cannot answer "none" where a default
+    exists (an empty line takes the default). Plan: for an account
+    that exists the default of its roles is EMPTY and the question
+    says why (what it holds was granted by whoever made it); the
+    interview accepts `none` as the empty answer for any question
+    whose answer may be empty, and says so in the prompt; the same
+    for the AWS section's adopted roles, checked against item 5;
+    the generated README lists what a `tofu destroy` of the root
+    would remove that the root did not create.
+24. **Stage 88's sanction list is committed with the emission.** The
+    walk's finding F52 (2026-10-09, stage 15e). The prune step's
+    `csis-sanctioned-removals.txt` ends up in
+    `generated/identity/<builder>/group-generation/` and `--commit`
+    stages it: one line per removed membership (the attachment's
+    address, which holds the username) after a removal, an empty
+    file after any other applying run, and a deletion at the next
+    dry run. Stage 88's text and squash message say it stays in the
+    private mirror; it does not. Plan: find how it reaches
+    `generated/` (the step's working directory, or the copy between
+    the emission and the mirror), keep it out of the committed tree
+    (the generated `.gitignore`'s built-in list, and written where
+    the plan file is), a test that an applying identity run leaves
+    no such file staged, and the stage 88 words corrected. Whether
+    the copies already in the reference's and the walk's history
+    matter is F36's question, not a new one.
+25. **A verification starts a machine its operator switched off:
+    KEPT, and reviewed monthly.** The walk's finding F44 (2026-10-09,
+    stage 14f; seen in the machine's own boot log and in CloudTrail).
+    `verify instance` on a stopped machine starts it, checks it and
+    stops it again (stage 57's bounded exception); the daily
+    driver's failure table said the opposite. The operator's
+    decision that day: "let's keep the behavior for F44 but make a
+    very prominent note about it somewhere. We should revisit that
+    question at least once a month for the next 4 months." The
+    note is made: `DAILY_DRIVER.md` 3.5 in capitals, and the
+    section 6 row corrected. **USER**, on or after each date: keep
+    it, or make it a stage (a verification SKIPS a machine that is
+    off unless it is asked to start it). Each review is written
+    here with its date and its outcome.
+    - 2026-11-09: (open)
+    - 2026-12-09: (open)
+    - 2027-01-09: (open)
+    - 2027-02-09: (open)
+26. **A modification test that cannot start its container shows a
+    traceback.** The walk's finding F54 (2026-10-09, stage 16d: CI's
+    `live` job on the posix walk's `main`). `mod_tests.make_target`
+    runs `docker run -d --rm <image> ...` with its output captured
+    and `check=True`; an exit status 125 (the image could not be
+    pulled, most likely) surfaced as `CalledProcessError` under a
+    long traceback, docker's own message lost. Plan: the start of a
+    test container reports docker's stderr in one line and names the
+    image; a pull is retried a few times before it counts as a
+    failure; a container that cannot be STARTED is distinguished in
+    the record from a modification that FAILED; and the daily
+    driver's section 6 gains the row.
+
+    What the same evening added. The job was run again twice (20:58,
+    21:19 and 21:41 UTC in all) and failed the same way each time,
+    eighteen silent seconds and then the traceback; at 21:44 a pull
+    of the same image from the operator's machine failed with
+    `auth.docker.io/token ...: context deadline exceeded`, and at
+    21:47 it worked. So the likeliest cause was Docker Hub's sign-in
+    service not answering for about an hour (not proved: the
+    runner's message is what was lost). That shows a second thing
+    for the plan to weigh: every run on `main` pulls a test image
+    from Docker Hub, without an account, at the moment it runs, and
+    `perform` waits behind that job, so an outage of a registry the
+    configuration never names stops every bake. The retry above is
+    part of the answer; whether `live` should also say "the
+    registry did not answer" and let `perform` go on, or a
+    configuration may name a mirror for test images, is the
+    operator's to decide when this item is taken up.
+
+    And a third thing, 2026-10-13: the same step once took sixteen
+    minutes instead of thirty seconds, and passed, having printed
+    nothing in between. A test that says which modification it is
+    on, and which image it is waiting for, would have shown where
+    the time went.
+
+27. **A base never baked turns the scheduled CI red when the vendor
+    publishes an image.** The walk's finding F55 (2026-10-12: the
+    posix walk, three days between its first emission and its first
+    bake). The emission of a base that has no build yet holds the
+    vendor image's id as that day's generation resolved it (`data
+    "amazon-ami"` with `image-id`), so the committed emission is
+    true only until the vendor publishes again. The scheduled
+    `live` job then fails `config-drift` (`BEHIND ... (1 files)`)
+    with no change by anyone, `perform` waits behind it, and a red
+    run on `main` can no longer be re-run green. A baked base does
+    not show it: the first walk and the reference stayed green the
+    same hour. Plan: decide whether an unbaked base's emission
+    should carry the query and leave the id to the bake, or whether
+    `config-drift` should name the case in one line ("the vendor's
+    newest image moved; `just record`") instead of a bare diff; the
+    daily driver's section 6 gains the row either way.
+
+    Seen again the next day, on the other cloud (2026-10-13, the
+    reference configuration): its GCE base's emission named
+    `almalinux-10-v20261005`, the vendor published
+    `almalinux-10-v20261013` between that morning's green scheduled
+    run and the afternoon, and `config-drift` said BEHIND by that
+    one line. There it will keep happening: the runtime is
+    ephemeral, its base is never kept, so its emission always holds
+    a vendor image's name and every publication turns the next
+    scheduled run red until someone makes a record.
+
+29. **`init-config --help` does not name the posix starter.** The
+    walk's finding F59 (2026-10-13). The `--from` option's help
+    says "the starter tree: standard-aws, standard-gce or
+    complete"; `starters.STARTERS` holds a fourth,
+    `standard-aws-posix`, which the command accepts and the walk
+    used. Plan: the help text is built from `STARTERS`, so it
+    cannot fall behind again, and a test says so.
+
+30. **A provider lock file changes with whoever made the record.**
+    The walk's finding F60 (2026-10-13, the posix walk).
+    `generated/storage/aws-ebs/storage-generation/.terraform.lock.hcl`
+    and the instance root's gain fourteen `h1:` hash lines in
+    every record CI commits and lose them in every record made
+    from the container, six times in one day. Nothing fails and
+    `config-drift` does not look there; every record's diff
+    carries it, and the committed file says two things in turn.
+    Plan: find why the two environments write different hashes
+    (the plugin cache, or the platforms each `tofu init` records)
+    and make the committed lock the same from both, or keep the
+    lock out of what a record commits and say where it lives.
+
+31. **The last machine's decommission leaves a security group no
+    run will remove.** The walk's finding F61 (2026-10-13, teardown
+    of the posix walk). The instance root makes
+    `aws_security_group.csis_instances` at the root's own level;
+    `cloud-decommission` allows the destroy of one instance's
+    module and the group stays (`2 destroyed` where the launch had
+    added 3); with `instances: []` no instance root is emitted at
+    all, so the group stands in AWS and in the root's state with
+    no run that will ever plan it. The walk deleted it by hand, by
+    the id read from the state. Its tag is `Name: csis-instances`
+    in every configuration, so in a shared account nothing but
+    the state says whose it is (F53's family). Plan: decide where
+    a root's own resources go when its last instance does: the
+    decommission of the last instance may sanction the group's
+    destroy too, or a root with nothing declared is still emitted,
+    empty, and its run destroys what the state holds through the
+    gate; the group carries the configuration's id as images do
+    (§82); and the daily driver says what a teardown leaves.
+
+32. **A decommission on one cloud fails on another cloud's root,
+    after its destroy and before its record.** The walk's finding
+    F62 (2026-10-13, teardown of the first walk, a tree with an
+    AWS runtime and an ephemeral GCE one). `cloud-decommission
+    aws-main walk-node-1` applied the AWS instance root (`2
+    destroyed`) and then planned the GCE instance root, as every
+    instance run plans every runtime's; that plan failed
+    (`images/family/team-node was not found`: an ephemeral
+    machine's image is disposed of with its cycle, and the ledger
+    still held `walk-gce-1` as `launched: true`, `how: inferred`,
+    so its module was emitted with a count of one). The run ended
+    `LifecycleRunError`, committed no meta-state, and left the
+    machine destroyed with its pin standing. Three things for the
+    plan: (a) a run scoped by `--apply-runtime` should plan only
+    that runtime's instance roots, or plan the others before it
+    applies anything; (b) an ephemeral instance whose cycle has
+    closed should not be emitted as launched; (c) what a run has
+    already applied should reach the record even when a later
+    root fails. And the dry form's limit belongs in the daily
+    driver: it says what would run and runs no plan.
+
+## 83. A release asks its publish target before it starts
+
+**Status: PLANNED 2026-10-06, not started -- a plan; nothing here runs
+until the operator says "do 83".** (The operator, 2026-10-06, after an
+index outage cost a release attempt: "a stage that checks to see if the
+publish url is available before starting a release (this is probably
+conditional on type of target publish location)".)
+
+**Why.** Across the night of 2026-10-05 TestPyPI was partly down for
+more than nine hours: its upload endpoint and most project pages
+answered 503 while a few pages still answered 200. `just release dev
+test` passed every probe it has -- the token is set, the tag is free,
+and `scripts/index-knows` read the ONE page it asks for,
+`cs-image-system`'s, which happened to be among those answering -- then
+ran the whole bar, bumped, locked, and failed at the upload, printing
+the index's HTML error page. The operator learned after the bar what one
+request to the right URL would have said at once, and was left with an
+uncommitted bump to discard. Nothing was damaged: the upload comes
+before the commit and the tag, by design. The cost was the wait, and the
+certainty that a retry would repeat it.
+
+**What it adds.** A probe of the target a release publishes TO, chosen
+by the target's type, run before anything else.
+
+1. **The probe, by type.** `scripts/publish-target-ready <target>`,
+   beside `index-knows`: exit 0 ready, 75 not ready (the code `--locked`
+   already uses for "try again later"), 2 a target it does not know. One
+   checker per TYPE of target:
+   - *A package index of the PyPI kind* (`test` and `pypi`, the only
+     type today). The endpoints are read from the target's
+     `[[tool.uv.index]]` entry in `pyproject.toml`, never restated in
+     the Justfile. Its `publish-url` (TestPyPI's `/legacy/`, PyPI's
+     `upload.pypi.org/legacy/`) must answer below 500 to a request that
+     uploads nothing. Its `url`, the simple index, must answer for EVERY
+     project the release uploads (eighteen today, the names read from
+     the workspace), not for one. The same pass says which projects
+     already hold the version: none (a fresh release), all (what
+     `index-knows` refuses today), or some (a partial upload, which a
+     `publish` re-run completes).
+   - *Anything else.* A type with no checker is refused by name, never
+     passed. §66's template mirrors are git remotes, and their checker
+     is `git ls-remote` with the push token; a private or static index,
+     if one is ever declared, is a third. A new publish target owes its
+     checker in the stage that adds it.
+   What it cannot check: that the token will be accepted. The index
+   offers no call that says so without an upload, and the probe says
+   that it did not check.
+2. **Where it runs.**
+   - `just release`: first of the probes, before the bar; and AGAIN
+     after the bar, immediately before the bump. The bar takes twenty
+     minutes, and an index that went down meanwhile then leaves a clean
+     tree, not a bump to discard.
+   - `just release ... yes`: the dry form reports it with the other
+     probes.
+   - `just publish`: first, so CI's `publish` job (a pushed tag) and a
+     re-run after a partial upload say "the index cannot take an upload"
+     in one line.
+   - `just index-ready [test|pypi]`: the probe alone, one line per
+     endpoint. **USER**: with a `wait` form that polls until the target
+     is ready -- the loop that was run by hand until the index came
+     back?
+3. **What a failure says.** One line: the target, the URL, the status,
+   that nothing was changed, and that it is the index's condition, not
+   the release's. `publish` stops printing the index's error page: a
+   failed upload prints the status and the first lines of the body. (Its
+   closing message also still counts "sixteen packages"; there are
+   seventeen.)
+4. **Tests.** The checker against a local HTTP server answering by path:
+   all up; the upload endpoint 503; one project page 503; nothing
+   listening; an unknown target. The recipes' order held by the Justfile
+   contract test: the probe before the bar and again before the bump,
+   and `publish` begins with it.
+5. **Records.** OPERATIONS' release section and the developer chapter of
+   the daily driver (section 9) say what the probe checks and what exit
+   75 means; the words are written in the open documentation stage.
+
+**Not in this stage**, named so it is not lost: a configuration
+repository's CI installs from the same index, so an outage also fails
+every consumer's `verify` job (the walk's finding F16). That needs a
+different answer -- a final release on PyPI, or a mirror -- and is not a
+probe.
+
+**Sizing**: the script and its tests half a day; the recipes and the
+contract test two hours.
+
+**Added 2026-10-07 (the walk's finding F31): the branch is a probe
+too.** `just release dev test` was run with the checkout on the walk
+branch: it probed the token, the index, the version and the clean
+tree, cut 0.1.1.dev18 there, and committed and tagged on that branch;
+`develop` stayed a version behind and the next release had to be
+named by hand. The release refuses, with its other probes and before
+anything changes, a branch that is not the integration branch
+(`develop`; a final release may want `main`: **USER** decides), and
+the dry form says which branch it stands on.
+
+## 92. CI runs on an AlmaLinux 10 image of the system's own, described once for any CI
+
+**Status: PLANNED 2026-10-14, not started -- a plan; nothing here runs
+until the operator says "do 92". Follows §91, whose pinned
+`ubuntu-24.04` stays as the machine the container runs on.**
+
+**Why** (the operator, 2026-10-14). CI should run on something close
+to the machines the system builds, which are AlmaLinux 10, and the
+first consumer is a Red Hat shop. GitHub supplies no RHEL-family
+runner image: its custom-image facility is for its paid larger
+runners, starts from GitHub's own Ubuntu or Windows images, and GitHub
+says it does not plan other Linux distributions; for those it points
+to Docker on its hosted runners. So the machine stays GitHub's and
+every job runs inside an image this repository builds. AlmaLinux 10
+over Fedora: binary-compatible with RHEL 10, supported to 2035 (a
+Fedora release lasts about 13 months), and every third-party
+repository the jobs need publishes EL builds. The strict alternative,
+Red Hat's `ubi10`, is noted for a consumer that wants RHEL itself.
+
+**The operator's answers (2026-10-14, asked before anything was
+built):**
+
+- **Everything is baked.** uv, just, OpenTofu, Packer, the clouds'
+  CLIs, `sft`, ansible, the session-manager plugin: all in the image at
+  pinned versions. The requirements document is the one list.
+- **The image has versions of its own.** Built on a schedule and when a
+  tool changes, tagged by date (`csis-ci:alma10-YYYYMMDD`); a starter
+  pins one such tag, and `init-config --force` moves it with the other
+  release-owned lines. A second thing to take beside the release, by
+  choice: the image and the release move at different paces.
+- **Base `almalinux:10.<minor>` pinned by digest, on
+  `ghcr.io/infrastructurebuilder/csis-ci`.**
+- **The docker client from Docker's EL repository** (`docker-ce-cli`),
+  talking to the host daemon over the mounted socket; `mod_tests`
+  calls docker as it does now.
+- **All four starters carry the image path.** The from-scratch path
+  (GitHub's `ubuntu-24.04` with the install steps, as §91 leaves it)
+  lives only in this repository, proved by its own CI, for anyone to
+  copy; the starters do not ship it.
+- **The requirements document is tested against the Dockerfile and
+  `cfg/executables.yml`, and by a build-and-probe**: a `full-test`
+  leg builds the image locally and runs each tool's `--version` inside
+  it.
+
+**Three outputs:**
+
+1. **The image.** `ci/runner-image/Dockerfile` from the digest-pinned
+   base; every tool above at a pinned version; a workflow of this
+   repository builds it, probes it, and publishes it to ghcr.io with a
+   date tag, on a schedule (monthly) and on any change under
+   `ci/runner-image/`. The tag a starter pins is a line `init-config`
+   owns.
+2. **The requirements document**, `docs/CI_RUNNER.md`: what a CI
+   runner for a cs-image-system configuration must provide, written
+   for no CI system in particular -- OS family and version, each tool
+   with its version floor and source, the network it must reach, what
+   it must be able to do (run containers, federate by OIDC, hold the
+   secrets the gate reads), and the `just` targets the jobs call in
+   order, which are the contract. The Dockerfile is one implementation
+   and says so; a GitLab or Azure DevOps runner is another, built from
+   the same page.
+3. **The from-scratch path, kept in this repository**: a second
+   workflow here, `ci-from-scratch.yml`, GitHub's image with the
+   install steps, run by this repository's CI beside the image path
+   and moved forward by section 9.1 with it.
+
+**What changes in the workflows.** Every starter job gains
+`container: {image: ghcr.io/infrastructurebuilder/csis-ci:alma10-<date>,
+options: -v /var/run/docker.sock:/var/run/docker.sock}`; the install
+steps and the Ubuntu-only lines go; `just` targets are unchanged.
+
+**Proof.** First, before anything else: every dependency installs on
+`almalinux:10` (a scratch Dockerfile built locally; Docker's, Google's
+and Okta's EL10 repositories answer, or EL9's do, and the proof says
+which). Then `just test` and `just full-test` (with the new
+build-and-probe leg); this repository's CI on both paths; the reference
+configuration on the release: `live` green inside the image, then
+`perform` with a bake, the modification tests and a login proof, on the
+operator's `main`.
+
+**Sizing**: the dependency proof half a day; the image and its
+workflow a day; the workflows and the two variants a day; the
+requirements document and its test half a day; the live proof as the
+operator's time allows. **USER**: the registry (ghcr.io under the
+organisation), the three decisions above, the merge, the release, the
+reference configuration's `main`.

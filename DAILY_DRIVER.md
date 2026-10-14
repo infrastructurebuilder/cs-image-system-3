@@ -1,5 +1,11 @@
 # The daily driver
 
+*Walked from nothing on 2026-10-05 to 2026-10-14 against releases
+0.1.1.dev14 to 0.1.1.dev23 (stage 65): two configuration repositories
+made, bootstrapped, baked, launched, logged into and torn down by an
+operator typing from a page; what that found is in this page's words and
+in [docs/history/WALK-2026-10.md](docs/history/WALK-2026-10.md).*
+
 *How a team actually uses cs-image-system: what must exist before the
 first command, the first run, making groups, storages, images and
 instances, changing them, what each declaration promises and what proves
@@ -86,6 +92,19 @@ uv tool install cs-image-system        # the command on PATH; the default the Ju
 cs-image-system --help
 ```
 
+A development release (`0.1.1.devN`, every release so far) is on
+TestPyPI and not on PyPI, and the line above cannot find it; it needs
+the index named and the version pinned, the extra index for the
+dependencies that live on PyPI:
+
+```sh
+uv tool install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ "cs-image-system==0.1.1.dev24"
+```
+
+CI does the same by itself when `.csis-version` names a `.dev` version.
+Which index a release is on, and which release is current, is the
+system repository's business (section 9, and the releases on GitHub).
+
 or, for a team that pins its dependencies in the repository, a
 `pyproject.toml` in the configuration repository that depends on
 `cs-image-system`, run through `uv run`:
@@ -135,6 +154,20 @@ floors the reference deployment runs today:
 | `yq`, `jq` | `>=4.5`, `>=1.7` | recipes |
 | `sft` (the Okta Privileged Access client) | 1.114 in use | logging into machines; `just sft-install` on an apt system |
 | the Session Manager plugin | | SSM sessions to AWS instances (verify, aliases, unmount) |
+
+Where they come from: `just`, `uv`, `yq`, `jq`, `age` and `git` from
+your package manager (`dnf`, `apt`, Homebrew) or each project's releases
+page; `tofu` and `packer` from their own installers or packages (the
+starters' workflow pins each by version, and `cfg/executables.yml`
+says the floor your tree expects); the AWS CLI v2, the Session Manager
+plugin, the Google Cloud CLI and Okta's `sft` from their vendors'
+installers or package repositories, each of which has an rpm and a deb
+form (`just sft-install` does Okta's on an apt system; on an rpm system
+add Okta's yum repository and `dnf install scaleft-client-tools`);
+`ansible-core` with `uv tool install ansible-core` (what CI does);
+`docker` as Docker Engine, Docker Desktop or any daemon the `docker`
+command reaches. The walk of 2026-10 installed all of them on a Fedora
+43 container from those sources and nothing else.
 
 A version below the floor fails validation by name; a tool that is absent
 is a validation failure too. Version checks are real: a CI failure naming a
@@ -206,7 +239,8 @@ Read [CONFIGURATION.md](docs/CONFIGURATION.md), section 13, and
 
 The configuration repository has a gitignored `.envrc` you write by hand:
 the Okta and `TF_VAR_<team>_*` names, `CSIS_CONFIG_IDENTITY`, and `CSIS`
-if you run the release through `uv`. The recipes assume no direnv, so
+if you run the release through `uv`. The recipes assume nothing about
+how the variables got there, so there are two ways. Without direnv,
 every session starts:
 
 ```sh
@@ -216,6 +250,13 @@ export AWS_PROFILE=<profile> AWS_REGION=<region>
 aws sso login --profile <profile>     # when preflight says the session is absent or expired
 just preflight                        # every session the runtimes need, without loading anything
 ```
+
+With direnv, the same `.envrc` of `export` lines is loaded whenever you
+enter the directory and unloaded when you leave it (so a shell that has
+not entered it has nothing: see section 6, the `MissingIdentityError`
+row); direnv refuses a file that changed until you run `direnv allow`
+in that directory, after every edit of `.envrc`. `source .envrc` still
+works in a shell that has no direnv.
 
 `just validate` is the first thing to run after any edit. An `sso-session`
 profile reports "refreshes itself (no fixed expiry readable)": that is
@@ -325,13 +366,35 @@ release-owned file you changed is refused by name until you pass
 
 Then, in the written tree:
 
-1. `git init`, `just init` (the hook, the plugin cache, a check that the
+1. `git init -b develop` (git's own default branch is `master`, and
+   this page and CI_SETUP expect `develop` and `main`; `main` does not
+   exist until the first push of it, [CI_SETUP.md](docs/examples/complete/CI_SETUP.md),
+   section 3.8), `just init` (the hook, the plugin cache, a check that the
    command runs), and a first commit of the tree as it stands.
-2. **The identity.** Generate your own age key pair, put its public key in
-   `cfg/_config.yml` `encryption.recipients` in place of the test
-   recipient, run `just cli reencrypt` with `CSIS_CONFIG_IDENTITY` pointing
-   at the test identity, then delete `.age-identity` and its allowance in
-   `public_safe.allow`. From here the tree opens only to your keys.
+2. **The identity.** Make your own age key pair:
+
+   ```sh
+   age-keygen -o ~/.config/cs-image-system/age/<you>.age-identity   # prints the public key, age1...
+   ```
+
+   Put that public key in `cfg/_config.yml` `encryption.recipients` in
+   place of the test recipient (one line per holder; CI's own identity is
+   a second one, section 1.8), then re-encrypt every value to the new
+   recipients with the TEST identity, which is the one that can still
+   read them:
+
+   ```sh
+   CSIS_CONFIG_IDENTITY=.age-identity just cli reencrypt
+   export CSIS_CONFIG_IDENTITY=~/.config/cs-image-system/age/<you>.age-identity   # and into .envrc
+   just validate
+   ```
+
+   Then take the test identity out: `git rm .age-identity
+   .age-recipient`, drop the `path:.age-identity` line from
+   `public_safe.allow` in `cfg/_config.yml`, and reword the comments
+   there and in `groups/` that call the recipient the TEST one. From here
+   the tree opens only to your keys, and the starter's key can never open
+   it again.
 3. **`cfg/`**, file by file ([CONFIGURATION.md](docs/CONFIGURATION.md),
    section 1, is the load order): `_config.yml` (every `apply_*` flag
    `false` to begin with, `public_safe.allow`, `admin_public_keys`,
@@ -467,6 +530,20 @@ needs a public address, and the proof passes only when the group is
 among the account's groups. It was first proved on 2026-10-04, on a
 posix-only AlmaLinux 10 machine in a private subnet.
 
+**A person's own login to a posix machine** is the same ssh, with their
+own key, which no recipe makes for them:
+
+```sh
+id=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=<instance>" "Name=instance-state-name,Values=running" --query 'Reservations[].Instances[].InstanceId' --output text)
+ssh -i ~/.ssh/<key> -o ProxyCommand="aws ssm start-session --target $id --document-name AWS-StartSSHSession --parameters portNumber=%p --region <region> --profile <profile>" <username>@$id
+```
+
+The instance id is also in `meta-state/instance-state.yaml`. The host
+key is the machine's, new on every generation: accept it, or keep a
+known-hosts file per machine. On GCE the tunnel is `gcloud compute ssh
+<instance> --tunnel-through-iap` with the same key. An Okta group's
+people log in with `sft ssh <name>` instead (section 3.5).
+
 ### 3.2 A storage
 
 Declare it in `storages/` with its type (EBS, EFS, S3 on AWS; a persistent
@@ -555,6 +632,28 @@ just cloud-verify <runtime> <name>       # startup scripts, booted image, mounts
 just ci-login-proof <name>               # sft ssh by name through the policy; recorded
 ```
 
+Those are the system's logins. Yours: `sft ssh <name>` for an Okta
+group's machine; for a posix group's, the ssh line in section 3.1 with
+your own key.
+
+**A VERIFICATION SWITCHES A STOPPED MACHINE ON.** If you have switched
+a machine off, `just cloud-verify` (and a post-bake test) STARTS it,
+does its work and stops it again, and says so in its log both times
+(`... is STOPPED (switched off; not drift); STARTING it because
+verifying instance ...`, then `... stopping it again, which is how it
+was found`). You pay for that boot, and every startup script runs
+again. Nothing else starts a machine: not the state query, which only
+notes that it is off; not a launch run; and not `just ci-login-proof`,
+which says `SKIPPED` and proves nothing while the machine is off. If
+the system cannot stop the machine again it says `ERROR`, names it,
+and the machine is then RUNNING: stop it by hand. A runtime that
+cannot start machines skips the verification instead. This is
+deliberate ([OPERATIONS.md](docs/OPERATIONS.md), "Starting a machine is
+a bounded exception"). It was walked on 2026-10-09, when it surprised
+its own operator; the decision that day was to keep it, and it is
+reviewed every month until February 2027 ([TODO.md](TODO.md)). If you
+do not want a machine booted, do not verify it while it is off.
+
 A durable instance's FIRST launch of a brand-new image is the one case
 where `require_released_builds: true` and `release` pull against each
 other, since the proof can only run on the machine itself: the release
@@ -562,6 +661,36 @@ grace admits the series head while its own proof is under way, so the
 sequence is launch, verify, then `just run release`, with the flag left
 on. Read [OPERATIONS.md](docs/OPERATIONS.md), "A model image, end to end:
 the second release".
+
+### 3.6 A second cloud
+
+A tree made from `standard-aws` or `standard-gce` has one cloud; adding
+the other is ten declarations, and the walk of 2026-10 added GCE to an
+AWS tree this way (stage 15). In load order: the cloud's tool in
+`cfg/executables.yml` (`gcloud`, or `aws`); a runtime in
+`cfg/runtime-builders.yml` (`type: gcloud` with project and zone, or
+`type: aws` with profile and region; its session mechanism); a state
+backend in `cfg/state-backends.yml` only if the new cloud's roots keep
+their state somewhere else (they may keep it in the first cloud's
+bucket, as the walk's did); an image builder (`packer-gce` or
+`packer-ebs`), an instance builder (`tofu-gce` or `tofu-aws`) and a
+storage builder (`gcp-pd` or `aws-ebs`) in their `cfg/` files, each
+bound to the new runtime; on the base, a second source under
+`os_builders[].runtimes[]` for the new runtime, and the new storage type
+in `storage_types`; on each image that should exist there, a second
+`runtimes[]` entry (a bake per runtime); a storage and an instance
+declared on the new runtime (`runtime:` and the `type:` of its
+builder). Then the credentials of section 1.3 or 1.4, CI's secrets for
+the cloud ([CI_SETUP.md](docs/examples/complete/CI_SETUP.md), 3.3 or 3.4,
+and the bootstrap's section for it), and, for GCE, the runner service
+account's address allowed through `public_safe.allow`
+(`".iam.gserviceaccount.com"`), which the hook otherwise reads as an
+email. Two things to expect: `storage_types` is the base's, so adding a
+type re-bakes that base on EVERY cloud, not only the new one
+([TODO.md](TODO.md), hygiene XII); and `validate` names each
+declaration the new runtime still lacks, so declare, validate, and read
+what it says until it is quiet. `complete` has every one of these
+declared, both clouds at once, as a living example.
 
 ## 4. Changing things
 
@@ -609,6 +738,39 @@ the apply-only lines since hygiene VIII item 4, so this is tidiness, not
 a requirement). Between a decommission and its relaunch push `develop`
 only -- a push to `main` would have the `perform` job launch the new
 machine from CI.
+
+### 4.1 Taking a configuration down
+
+The walk of 2026-10 took two down (stage 17); this is the order it
+found, each thing destroyed by what made it, through the gate, and a
+look before every removal. Machines first: `just cloud-decommission
+<runtime> <instance>` for each (its dry form `... yes` first), then
+`instances: []` committed. Images: `just cloud-dispose-images <runtime>`
+(dry form first; it refuses while a machine is pinned to a build).
+Storages: `state: destroyed` on each, `just dry storage` to read the
+gate line, `just run storage`. Groups: `unmanaged: true` on each, `just
+run identity` (section 4's row; from 0.1.1.dev23 a dry run first is
+safe). Then `just record`, `just state-query --strict` with nothing
+declared, and push `develop` only: never `main` again from this tree,
+whose `perform` would bake what you disposed of. By hand, in this order:
+the security group each instance root made (`aws_security_group
+.csis_instances`; find its id in the root's state, delete it with `aws
+ec2 delete-security-group`: no run removes it, [TODO.md](TODO.md)
+hygiene XII); CI disabled (`gh workflow disable ci.yml`), because its
+roles are about to go; each bootstrap root destroyed from its own state
+(`tofu -chdir=generated/bootstrap plan -destroy -out=<file>`, read it,
+`apply <file>`; the GCP part needs your own token as the apply did);
+the state bucket last and by hand, because no state manages it and
+every root's state is in it, emptied version by version (`aws s3api
+list-object-versions`, `delete-objects`, then `delete-bucket`); the
+OPA objects in the console, which the system never destroys: the
+workload role and connection, the three security policies, the
+resource group with its project, token and server records, then the
+two groups; the walk's repository taken out of the Google provider's
+attribute condition; the repository's secrets deleted and the
+repository archived or deleted; the GitHub token. The proof is the
+picture before against the picture after: the same reads, empty, and
+the reference configuration's own strict state query still clean.
 
 ## 5. What specifies, and what tests it
 
@@ -682,7 +844,7 @@ item in the open hygiene bundle in [TODO.md](TODO.md).
 | `sft resolve ...: exit 126` with nothing on stderr | the `sft` client's session lapsed and `--quiet` forbade the browser (2026-09-23, after a replace: the registration half of the proof had passed) | `sft login`, then the proof again; as the workload, the token was missing or refused |
 | `'<name>' has 2 registrations: ...` in a login proof | two servers answer to one canonical hostname | retire the stale one (a replacement now does this itself); `sft ssh` would reach either |
 | `Instance x: alias 'y' SKIPPED -- already claimed by <id>` | a stale record holds the name | retire that record; the alias comes back on the next applies-on run |
-| `verify ...: SKIPPED -- the machine is STOPPED`; `login proof ...: SKIPPED` | someone switched the machine off; a note, not drift; nothing is started for a proof | start it if you want the proof, then re-run |
+| `instance <x> verified` for a machine you had switched off, with `STARTING it because verifying instance <x>` above it; `login SKIPPED for <x> (nothing proved)`; `verify <x>: SKIPPED -- the machine is STOPPED` only on a runtime that cannot start machines | someone switched the machine off: a note, not drift. **Verification STARTS it, checks it and stops it again** (section 3.5); the login proof starts nothing and is skipped | nothing, when the log ends `stopping it again`; an `ERROR` there means the machine is now RUNNING and must be stopped by hand. For the login proof, start the machine yourself and run it again |
 | `Instance x: not enrolled within 300s of its launch; no alias this run` | the machine booted this run and sftd had not enrolled in time | the next applies-on run gives the names back |
 | `--locked: another tofu-using command holds ...` (exit 75) | one tofu process at a time; another recipe is running | wait; remove the lock directory only if the process is gone |
 | `full-test: passed` above `SKIPPED the credential-gated legs` | the legs did not run: a session was absent | not a pass; source the shell, log in, run again |
@@ -690,6 +852,11 @@ item in the open hygiene bundle in [TODO.md](TODO.md).
 | `mod tests: N failed` or `not idempotent` | a modification fails, or changes something on its second run | make it idempotent: `ensure`, `unless`, `changed_when: false`; read `meta-state/mod-tests.yaml` |
 | `rpm -q vim` fails on AlmaLinux 10; `dnf install amazon-efs-utils` finds nothing | the package is `vim-enhanced`; efs-utils is not in AlmaLinux's repositories | name the real package; build efs-utils from source as the reference image does |
 | Annotations on every CI run naming the runner image or an action as deprecated or migrating; later, jobs never picked up, or a failure in "Set up job" before any step of yours | the workflow's names are old: an image or an action major GitHub is withdrawing | take the newest release (it carries the move); if none does yet, section 9.1, which also says how often to look |
+| `verify` (or any job) fails in "Install the released system" with the index unreachable or `503`, on a tree whose `.csis-version` names a `.dev` release | TestPyPI is down; a development release is nowhere else | environmental: wait and rerun (`gh run rerun <run> --failed`); nothing in the tree is wrong (2026-10-05, F16) |
+| you cannot find the job summary; `gh run watch` and `gh run view` show steps and annotations but no `SKIPPED` line | the summary is on the run's page, not in those commands; a skipped job has no summary at all | `gh run view <run> --web`, or Actions in the browser; the gate's own line (`live: SKIPPED -- ...`) is in the log of the step "Gate on the secrets" (2026-10-07, F20) |
+| an applying identity run's log shows the group root's plan twice, the first saying `1 to destroy` and the second `No changes` | the first is a preview made as the run writes its files, never saved and never applied; the second, after the prune step, is the one the gate reads and the apply uses | read the second; a destroy in the first alone means the prune step took the attachment out of state because OPA no longer held it (2026-10-08, F39) |
+| `MissingIdentityError: <tree>/cfg: ...: an encrypted value is present but CSIS_CONFIG_IDENTITY is not set` under a traceback, before anything is asked of a cloud | the shell never loaded `.envrc` (a new terminal, a directory direnv has not entered or allowed) | `source .envrc`, or `direnv allow`; it is the first thing an unsourced shell meets in any tree that holds an encrypted value (2026-10-09, F41) |
+| `ReservedNameError: <file>: instances[0].name: a name may not be 'none'` under a traceback, from `validate` | a reserved word was used as a name, exactly as section 3 says it may not be; the rule is right, the traceback is the only form it has today | rename it; the refusal comes as a traceback and not under `Validation failed with N error(s)` ([TODO.md](TODO.md), hygiene XII, with the other tracebacks; 2026-10-09, F42) |
 | `public-safe: ... <file>:<line>` from the hook | a committed line looks like a secret, a key, a plan or a state file | never bypass the hook; encrypt the value, or allow it BY DECISION in `cfg/_config.yml` `public_safe.allow` |
 | `Build '<image>' errored after 20 minutes ...: Timeout waiting for SSH.` with `ssm error: ... StartSession, context canceled` | the bake machine booted and its SSM agent was Online, but packer's ssh session through SSM never opened: the bake host was a 1 GB t2.micro, too small for the image it boots (three `perform` runs, 2026-10-04 and -05; the same parent baked on an r5.4xlarge, and on a t3.medium once declared) | give the bake host 4 GB: `machine_type: t3.medium` on the image's runtime entry, or the runtime's `default_machine_type` (the starters ship t3.medium; the reference tree since stage 80). Since stage 79 the builds that completed before the failure are recorded anyway (a warning names them) |
 | `foreign image <id>: ... tagged series=<s> run=<r> is not in lineage` | an image the system tagged and lineage does not record: a bake still running in another process (2026-10-04: `just full-test`'s strict query raced CI's `perform`), or one a failed run baked before stage 79, when a failed run recorded nothing | if a run is still baking, wait for it to finish and record. Otherwise `just cli state import --no-storages` adopts it (2026-10-04: five images), then `just record`; the adopted build counts as current, so it is not baked again |

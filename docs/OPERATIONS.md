@@ -4,7 +4,10 @@ How to run cs-image-system and how to work on it. The first half describes
 a run and the operator's cycles; the second half the developer's bar, CI,
 and the rules. The [Justfile](../Justfile) and the CLI
 ([cli.py](../packages/system/src/cs_image_system/system/cli.py)) are the
-authority; when this text and they disagree, they win.
+authority; when this text and they disagree, they win. The operator's
+half was walked from nothing between 2026-10-05 and 2026-10-14 against
+0.1.1.dev14 to 0.1.1.dev23 (stage 65; the record is
+[history/WALK-2026-10.md](history/WALK-2026-10.md)).
 
 Two trees matter everywhere below:
 

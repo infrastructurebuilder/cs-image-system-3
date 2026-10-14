@@ -1,7 +1,7 @@
-# docs/examples/complete/overlays/gce-cycle-storage-teardown.yaml -- the GCE
+# overlays/gce-cycle-storage-teardown.yaml (from the complete starter) -- the GCE
 # storages requested destroyed for one invocation (legal only once they
 # were applied and nothing attaches them) and the GCE storage roots alone
-# allowed to apply. Reference: ../../../CONFIGURATION.md section 12.
+# allowed to apply. Reference: CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 12.
 config:
   apply_storage: [gcloud-east1]
 storages:

@@ -1,7 +1,7 @@
 ---
-# docs/examples/complete/instances/instances.yaml -- every instance
+# instances/instances.yaml (from the complete starter) -- every instance
 # variation: durable pinned, durable following its image, ephemeral, on the
-# second region, and on GCE. Reference: ../../../CONFIGURATION.md section
+# second region, and on GCE. Reference: CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section
 # 11.3 (11.3.1 `storages[]`), 12a (availability zones). Instances declare no
 # group: the owning group lives on the image. An attachment is legal only
 # when the image's group is on the storage's allowed list (or the storage is

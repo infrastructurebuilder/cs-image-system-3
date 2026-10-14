@@ -1,6 +1,6 @@
 ---
-# docs/examples/standard-aws-posix/groups/groups.yaml -- the ONE group.
-# Reference: ../../../CONFIGURATION.md section 11.5. Every member and admin
+# groups/groups.yaml (from the standard-aws-posix starter) -- the ONE group.
+# Reference: CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 11.5. Every member and admin
 # must be a declared user. The posix builder bakes the group into its
 # instance image with this gid, and every applying run makes its members'
 # accounts, keys and sudo true on each running machine.

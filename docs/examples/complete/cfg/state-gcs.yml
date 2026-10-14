@@ -1,7 +1,7 @@
 ---
-# docs/examples/complete/cfg/state-gcs.yml -- the `gcs` type, DECLARED AND
+# cfg/state-gcs.yml (from the complete starter) -- the `gcs` type, DECLARED AND
 # BOUND TO NOTHING, as the frozen fixture does. Reference:
-# ../../../CONFIGURATION.md section 10 (`gcs`). Declaring the type is not the
+# CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 10 (`gcs`). Declaring the type is not the
 # same as moving the GCE roots onto it: every root, the GCE roots included,
 # keeps its state in the S3 backend by the standing decision. OpenTofu's gcs
 # backend stores a root's state as <prefix>/<root name>/default.tfstate, so

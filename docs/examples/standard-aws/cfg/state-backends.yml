@@ -1,6 +1,6 @@
 ---
-# docs/examples/standard-aws/cfg/state-backends.yml -- where every terraform
-# root keeps its state. Reference: ../../../CONFIGURATION.md section 10 (`s3`).
+# cfg/state-backends.yml (from the standard-aws starter) -- where every terraform
+# root keeps its state. Reference: CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 10 (`s3`).
 # Every root resolves its backend through a chain: its own
 # `state_configuration`, else its runtime's, else the single `is_default`
 # backend. This tree declares one backend and lets every root inherit it.

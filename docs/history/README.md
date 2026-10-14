@@ -13,6 +13,7 @@ hashes included.
   lifecycles; its statement of purpose lives on in GOALS.md.
 - [QUESTIONS.md](QUESTIONS.md) — stakeholder questions and their answers.
 - [GCP-READINESS.md](GCP-READINESS.md) — the GCP increment's readiness record.
+- [WALK-2026-10.md](WALK-2026-10.md) — the walk of the daily driver (stage 65): the operator's page, box by box, and its 64 findings.
 - [overlays/](overlays/README.md) — the overlay inputs of the live proofs.
 
 Current documentation starts at [README.md](../../README.md).

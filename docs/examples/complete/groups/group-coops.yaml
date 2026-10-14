@@ -1,6 +1,6 @@
 ---
-# docs/examples/complete/groups/group-coops.yaml -- a team group with every
-# optional field. Reference: ../../../CONFIGURATION.md section 11.5. The
+# groups/group-coops.yaml (from the complete starter) -- a team group with every
+# optional field. Reference: CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 11.5. The
 # okta-tf builder emits coops_user and coops_admin, the resource group
 # coops_rg (delegated to coops_admin and, by default, the root group's
 # admin group), the project coops_rg_login and the user/admin security

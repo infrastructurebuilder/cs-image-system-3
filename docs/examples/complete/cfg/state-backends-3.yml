@@ -1,7 +1,7 @@
 ---
-# docs/examples/complete/cfg/state-backends-3.yml -- the `local` type: a state
+# cfg/state-backends-3.yml (from the complete starter) -- the `local` type: a state
 # file on disk, no cloud, no credentials. Reference:
-# ../../../CONFIGURATION.md section 10 (`local`). The identity roots bind to
+# CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 10 (`local`). The identity roots bind to
 # it (cfg/group-builders.yml), so this tree reads state across two backend
 # types. A root's location is local://<directory>/<root name>.tfstate.
 state_backends:
