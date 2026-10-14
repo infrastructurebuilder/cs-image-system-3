@@ -26,7 +26,7 @@ RUNNER = "ubuntu-24.04"
 FLOOR = {
     "actions/checkout": 5,
     "astral-sh/setup-uv": 7,
-    "extractions/setup-just": 3,
+    "extractions/setup-just": 4,
     "aws-actions/configure-aws-credentials": 6,
     "opentofu/setup-opentofu": 2,
     "hashicorp/setup-packer": 3,

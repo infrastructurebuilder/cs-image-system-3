@@ -869,7 +869,7 @@ there, and the tests hold the built wheel to them. Read
 The workflows, this repository's and every starter's, say which GitHub
 runner image they run on (`runs-on: ubuntu-24.04`) and which version of
 each action they use (`actions/checkout@v5`, `astral-sh/setup-uv@v7`,
-`extractions/setup-just@v3`, `aws-actions/configure-aws-credentials@v6`,
+`extractions/setup-just@v4`, `aws-actions/configure-aws-credentials@v6`,
 `opentofu/setup-opentofu@v2`, `hashicorp/setup-packer@v3`,
 `google-github-actions/auth@v3`, `google-github-actions/setup-gcloud@v3`;
 stage 91). Neither moves by itself, and that is the point: a tree's CI
