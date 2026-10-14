@@ -13,12 +13,6 @@ instance root whose storage root has no state yet.
 """
 from __future__ import annotations
 
-import re
-from pathlib import Path
-
-import pytest
-import yaml
-
 from v2_support import V2Run, command_lines, tree
 
 
