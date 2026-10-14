@@ -18,7 +18,6 @@ four load-time tracebacks of the walk: F10, F30, F41, F42).
 """
 from __future__ import annotations
 
-import os
 import stat
 from pathlib import Path
 
