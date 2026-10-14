@@ -1254,7 +1254,10 @@ the dry form says which branch it stands on.
 **Status: IN PROGRESS 2026-10-14, by the operator's word the same day
 ("do 7 and 28 together as a single stage"), on
 `feature/runner-and-actions-named`.** It was hygiene XII items 7 (the
-walk's F21) and 28 (F56).
+walk's F21) and 28 (F56). The change, its test
+(`tests/test_v2_workflow_names.py`) and its words (the daily
+driver's 9.1 and a section 6 row; each starter's `CI_SETUP.md` 3.1)
+are written; 101 of the neighbouring tests pass; the bar is running.
 
 **Why.** Every workflow, this repository's and each starter's, says
 `runs-on: ubuntu-latest`, which GitHub moves to Ubuntu 26 from
