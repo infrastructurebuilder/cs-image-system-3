@@ -22,7 +22,7 @@ instances:
       type: pd
     run: 2026_08_26t12_00_00
     session: iap
-    user_data_sha256: 29bee6bb7860d0a580101f1179ecf1643da350bb18da93423e5fb14b4d1e1231
+    user_data_sha256: 9a61e52fdcc51f45e8b6e20082200650510ee73730738c5c85bc0da7add8d878
   test:
     build: unbound
     enrollment:
@@ -62,4 +62,4 @@ instances:
       type: ebs
     run: 2026_08_26t12_00_00
     session: ssm
-    user_data_sha256: fb3cdfc57a1bc45c973273ac16ad69e445e4aacb450524cc7bffb2cccf0fdf59
+    user_data_sha256: 515dc5b15e7ad98ff84d67c300442748f724171d9fc5d9b9da6db638c312a82c

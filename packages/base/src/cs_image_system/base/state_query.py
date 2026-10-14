@@ -446,6 +446,15 @@ def instance_boot_drift(ctx: "GlobalTypeContext", report: StateReport) -> list[D
         rtb = ctx.runtime_builders.get(rt_name) if rt_name else None
         if rtb is None or not rtb.can_query_instance_boot_image():
             continue
+        if ms.current_generation(name) is None and not (ms.launch_params().get(name) or {}).get("launched"):
+            # hygiene XII item 13 (the walk's F33): a bake binds the pin before any
+            # launch, and the cloud, asked about a machine that does not exist, answered
+            # with silence that was filed as "could not answer" from the first bake to
+            # the first launch of every new tree. The records know: no generation, not
+            # launched. A note, and the cloud is not asked.
+            report.notes.append(f"instances/{name}: declared and not launched yet (pinned to {build}); "
+                                "the cloud is not asked about a machine that does not exist")
+            continue
         booted = rtb.query_instance_boot_image(name)
         if booted is None:
             # stage 57: before calling this silence, ask whether the machine
@@ -480,6 +489,23 @@ def instance_boot_drift(ctx: "GlobalTypeContext", report: StateReport) -> list[D
 
 
 # --------------------------------------------------------------- assembly
+
+def storage_state_notes(ctx: "GlobalTypeContext", report: StateReport) -> None:
+    """Hygiene XII item 9 (the walk's F26): an instance root reads its
+    storages' root through ``terraform_remote_state``, and a tree made from a
+    starter declares the instance and its storage from the first commit with
+    ``apply_storage: false``; a run that only PLANS the instance root -- the
+    first ``perform``, a ``cloud-bake`` -- then fails with "Unable to find
+    remote state" after the bakes. Said here, before anything bakes."""
+    ms = ctx.meta_state
+    for inst in ctx.instances:
+        for m in getattr(inst, "storages", None) or []:
+            name = m.get("name") if isinstance(m, dict) else getattr(m, "name", None)
+            if name and ms.storage_state(str(name)) is None:
+                report.notes.append(f"instances/{inst.get_name()}: mounts storage {name!r} whose root has no state "
+                                    "yet; a run that plans the instance root fails on it until the storage "
+                                    "lifecycle has applied once (apply_storage; the daily driver, 3.2)")
+
 
 def standing_ephemeral_drift(ctx: "GlobalTypeContext", report: StateReport) -> list[Drift]:
     """An ephemeral instance still exists in reality (stage 10.1): its
@@ -536,6 +562,7 @@ def query_state(ctx: "GlobalTypeContext") -> StateReport:
     from .provider_aliases import instance_identity_notes
     instance_identity_notes(ctx, report)   # stage 58: what each machine answers to
     workload_notes(groups, report)         # stage 56: the connection behind CI's login
+    storage_state_notes(ctx, report)       # hygiene XII item 9: a storage root with no state yet
     for gb in ctx.group_builders.values():          # stage 75: e.g. `posix: none`
         report.notes += gb.configuration_notes()
     return report

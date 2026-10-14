@@ -134,6 +134,18 @@ starter's `REPLACE-ME` values and its example account id are no defaults
 either: fill `cfg/runtime-builders.yml` and `cfg/state-backends.yml`
 first, or answer at the prompt.
 
+A question whose answer may be empty says `(answer none for none)`: an
+empty line takes the default shown in brackets, so the word `none` is
+how you decline it. The project roles of a service account that already
+exists default to none. Whoever made the account granted what it holds,
+and a grant this root makes sits in this root's state, so a `tofu
+destroy` here would take it from every tree that reads the account
+(two configurations reading one account were found holding the same
+grant each, 2026-10-09). The generated README lists, under "What a
+destroy would take that this root did not make", everything of that
+kind: those grants, and an AWS role adopted by import, which the
+destroy deletes outright.
+
 The root's state follows the bucket. When the state bucket exists, the
 root is bound to the tree's declared S3 backend at
 `<state prefix>/bootstrap.tfstate`, like every other root. When the
@@ -381,7 +393,9 @@ backend.
    load and the state query read: `roles/compute.viewer` (the runtime
    discovers its network, images, disks), and, when the tree declares
    them, read access to its buckets' metadata and `roles/file.viewer` for
-   Filestore. Let the repository impersonate it:
+   Filestore. If the account already exists, the bootstrap grants it
+   nothing by default (3.0 says why); name roles only when this tree is
+   the one to hold them. Let the repository impersonate it:
 
    ```sh
    gcloud iam service-accounts add-iam-policy-binding <read-sa>@<project>.iam.gserviceaccount.com \
@@ -450,15 +464,27 @@ policy with the role as its only principal.
    identity lifecycle, which creates the per-group CI policies.
 4. **The probe.** Actions, "OPA workload probe", Run workflow, with your
    names. Against a draft, OPA accepts this run's token and issues one
-   in reply, which the probe reports and discards (its last line says
-   `accepted this run's token and issued one`); the log shows the
+   in reply, which the probe reports and discards (`connection <name>:
+   accepted this run's token and issued one`); the log shows the
    token's claims and the client's verdict. Green here is the proof the
    claims match. Nothing logs in until step 5: the system's own login
-   proof refuses a draft connection.
+   proof refuses a draft connection. The probe's second line, `role
+   <name>: granted` / `not granted` / `not judged`, says whether the
+   token it was issued CARRIES the role, judged by resolving a standing
+   machine of a managed group as the workload; before a machine stands
+   it says `not judged`, and it is what step 6 reads.
 5. **Activate the connection.** From here the system refuses the login
    proof when either object is absent or the connection is still a draft.
 6. **After the first green login proof from `main`**, add the branch pin
-   to the role: condition `ref` Equals `refs/heads/main`.
+   to the role: condition `ref` Equals `refs/heads/main`. Then prove the
+   pin, since nothing else does: dispatch the probe from `main` and read
+   `role <name>: granted`; dispatch it from any other branch and read
+   `role <name>: not granted` (OPA still issues the connection's token
+   there, since the role is only a hint when authenticating to the
+   connection, and `sft resolve` then exits 125). A probe that says
+   `granted` from the other branch means the pin does not hold
+   (2026-10-08, F35: the first line alone said `accepted` from
+   `develop` with the pin in place).
 
 **What the names trust.** The claims match by name, so a person can read
 every value off the remote URL. A fork's token names the fork and never
@@ -567,10 +593,16 @@ step "Gate on the secrets".
 4. **One `perform`**: `git push origin develop:main`, which creates
    `main` the first time (or Actions, CI, Run workflow on `main` with
    `mode: record`). The records land on `main`; bring them back with
-   `git merge --ff-only origin/main` on `develop`.
+   `git merge --ff-only origin/main` on `develop`. Before it, the
+   identity and storage lifecycles should have applied once from your
+   machine (the daily driver, 3.1 and 3.2): a `perform` plans the
+   instance root, which reads those roots' state, and a storage root
+   that never applied has none (the strict state query says so as a
+   note).
 5. **The login proof as a workload**: the "CI logs in through the managed
    policy" step green, and `meta-state/login-proofs.yaml` on `main` saying
-   `as: workload`. Then the branch pin on the role (section 3.5, step 6).
+   `as: workload`. Then the branch pin on the role, proved by the probe
+   from two branches (section 3.5, step 6).
 
 ### 3.9 When it fails
 

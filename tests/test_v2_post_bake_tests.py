@@ -77,7 +77,7 @@ def test_verify_runs_the_suite_on_the_instance_and_records_it_per_build(run, mon
     from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
     _seed_gce_chain(run)
     scripts: list[str] = []
-    monkeypatch.setattr(GCPCloudBuilder, "verify_instance", lambda self, name, expected_build=None,
+    monkeypatch.setattr(GCPCloudBuilder, "verify_instance", lambda self, name, expected_build=None, mount_points=None,
                         expect_mounts=0, timeout=600: {"ok": True, "checks": [
                             {"name": "startup scripts", "ok": True, "detail": "finished"},
                             {"name": "booted image", "ok": True, "detail": f"booted {BUILD}, expected {BUILD}"},

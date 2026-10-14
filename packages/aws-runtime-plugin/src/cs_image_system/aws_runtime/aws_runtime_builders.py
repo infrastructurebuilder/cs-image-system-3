@@ -251,10 +251,13 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
         return True
 
     def verify_instance(self, instance_name: str, expected_build: str | None = None,
-                        expect_mounts: int = 0, timeout: int = 600) -> dict[str, Any]:
+                        expect_mounts: int = 0, timeout: int = 600,
+                        mount_points: list[str] | None = None) -> dict[str, Any]:
         """Over SSM: the launch parameters' completion marker
         (/var/lib/csis/launch-applied, written as the user-data script's
-        last act), the mounts under /mnt, and the AMI the instance runs."""
+        last act), the mounts under /mnt, and the AMI the instance runs.
+        ``mount_points`` is accepted for the contract; the count over SSM is
+        this runtime's reading (hygiene XII item 22 was GCE's console)."""
         import time  # noqa: PLC0415
         checks: list[dict[str, Any]] = []
         deadline = time.time() + timeout

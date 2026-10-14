@@ -97,6 +97,22 @@ def standing_instances(ctx: GlobalTypeContext, *, runtime: str | None = None,
     return out
 
 
+def probe_target(ctx: GlobalTypeContext) -> tuple[str, str] | None:
+    """``(hostname, group)`` of the first standing machine whose group's
+    builder names the workload objects -- what the workload probe resolves
+    to judge the role (hygiene XII item 14); None when none stands."""
+    launched = ctx.meta_state.launch_params()
+    for inst in standing_instances(ctx):
+        group = _group_of(ctx, inst)
+        gb = group_builder_of(ctx, group) if group else None
+        if not isinstance(gb, GroupBuilderBase) or not gb.can_manage_workload_access():
+            continue
+        hostname = str((launched.get(inst.get_name()) or {}).get("hostname") or "")
+        if hostname:
+            return hostname, group
+    return None
+
+
 def _as(gb: Any) -> str:
     return gb.login_identity() if isinstance(gb, GroupBuilderBase) else "client"
 
