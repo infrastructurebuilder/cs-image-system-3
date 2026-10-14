@@ -205,6 +205,7 @@ def test_a_stopped_instance_is_a_note_not_unavailable(world, monkeypatch):
                               "name": "n", "parent": "external", "input_fingerprint": "f", "run": "r",
                               "capabilities": {}, "mods": [], "chain": []})
     ctx.meta_state.bind_instance("test", "ami-x", "run-x")
+    ctx.meta_state.record_launch_params("test", {"launched": True})     # a machine that was launched (hygiene XII item 13)
     monkeypatch.setattr(AwsCloudBuilder, "query_instance_boot_image", lambda self, n: None)
     monkeypatch.setattr(AwsCloudBuilder, "can_query_instance_power_state", lambda self: True)
     monkeypatch.setattr(AwsCloudBuilder, "query_instance_power_state", lambda self, n: ps.STOPPED)
@@ -229,6 +230,7 @@ def test_an_unreachable_cloud_is_still_unavailable(world, monkeypatch):
                               "name": "n", "parent": "external", "input_fingerprint": "f", "run": "r",
                               "capabilities": {}, "mods": [], "chain": []})
     ctx.meta_state.bind_instance("test", "ami-y", "run-y")
+    ctx.meta_state.record_launch_params("test", {"launched": True})
     monkeypatch.setattr(AwsCloudBuilder, "query_instance_boot_image", lambda self, n: None)
     monkeypatch.setattr(AwsCloudBuilder, "can_query_instance_power_state", lambda self: True)
     monkeypatch.setattr(AwsCloudBuilder, "query_instance_power_state", lambda self, n: None)
@@ -253,6 +255,7 @@ def test_a_pending_replacement_is_a_note_not_drift_in_the_strict_query(world, mo
                       "parent": "external", "input_fingerprint": "f", "run": "r",
                       "capabilities": {}, "mods": [], "chain": []})
     ms.bind_instance("test", "ami-old", "run-x")
+    ms.record_launch_params("test", {"launched": True})
     monkeypatch.setattr(AwsCloudBuilder, "query_instance_boot_image", lambda self, n: "ami-old")
     monkeypatch.setattr(AwsCloudBuilder, "can_query_instance_power_state", lambda self: True)
     monkeypatch.setattr(AwsCloudBuilder, "query_instance_power_state", lambda self, n: ps.RUNNING)
