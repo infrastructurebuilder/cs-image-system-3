@@ -94,12 +94,13 @@ def test_every_build_is_uniquely_named_and_lineage_tagged(v2):
     assert _tag(base, "csis_parent", "vendor")
     assert _tag(base, "csis_run", "2026_08_26t12_00_00")
     assert _tag(base, "csis_identity_types", "okta")
-    assert _tag(base, "csis_storage_types", "ebs,efs,gcs,pd,s3")
+    # hygiene XII item 21: the stamp is the bake's runtime's storage types (pd and gcs are GCE's)
+    assert _tag(base, "csis_storage_types", "ebs,efs,s3")
     assert re.search(r'csis_fingerprint\s+= "[0-9a-f]{16}"', base)
     dask = _source(v2, "instance-image", "block-000", "imgfile-basic-dask")
     assert f'ami_name = "imgfile-basic-dask-pckr-ebs-ans-{FIXED_TIMESTAMP}"' in dask
     assert _tag(dask, "csis_parent", "series:basic-rh-10")   # base built this run: bound after the bake
-    assert _tag(dask, "csis_storage_types", "ebs,efs,gcs,pd,s3")  # root stamp inherited (N24)
+    assert _tag(dask, "csis_storage_types", "ebs,efs,s3")  # root stamp inherited (N24), on this runtime
 
 
 # ------------------------------------------------------ lineage + first bind
@@ -123,7 +124,7 @@ def test_bake_records_lineage_and_first_binds_the_base_edge(v2):
     by_id = {b["build_id"]: b for b in lineage}
     base = by_id["ami-0base0001"]
     assert base["series"] == "basic-rh-10" and base["parent"] == "vendor"
-    assert base["capabilities"] == {"identity_types": ["okta"], "storage_types": ["ebs", "efs", "gcs", "pd", "s3"]}
+    assert base["capabilities"] == {"identity_types": ["okta"], "storage_types": ["ebs", "efs", "s3"]}   # item 21: this runtime's
     assert base["name"] == f"basic-rh-10-aws-east2-runtime-{FIXED_TIMESTAMP}"
     dask = by_id["ami-0dask0001"]
     assert dask["parent"] == "ami-0base0001"            # resolved from this run's base manifest
