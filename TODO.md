@@ -10,7 +10,10 @@ system must not take itself.
 Current stage: **§65**, walking the daily driver, started 2026-10-05
 on `feature/walk-daily-driver`: the operator types each stage from
 [DAILY_DRIVER_EXECUTE.md](DAILY_DRIVER_EXECUTE.md) on a Fedora 43
-container. §91, CI names the machine it runs on and the actions it
+container. §92, CI runs inside an AlmaLinux 10 image the system
+builds, described by a CI-agnostic requirements document, with the
+GitHub-image path kept as the from-scratch alternative, is PLANNED
+2026-10-14 (the operator's direction; after §91). §91, CI names the machine it runs on and the actions it
 uses (hygiene XII items 7 and 28, made one stage by the operator's
 word of 2026-10-14, "do 7 and 28 together as a single stage"; GitHub
 moves `ubuntu-latest` to Ubuntu 26 from 2026-10-19), is IN PROGRESS
@@ -1367,3 +1370,82 @@ is the operator's.
 
 **USER**: the merge to `develop`; the release; the reference
 configuration's `main`.
+
+## 92. CI runs on an AlmaLinux 10 image of the system's own, described once for any CI
+
+**Status: PLANNED 2026-10-14, not started -- a plan; nothing here runs
+until the operator says "do 92". Follows §91, whose pinned
+`ubuntu-24.04` stays as the machine the container runs on.**
+
+**Why** (the operator, 2026-10-14). CI should run on something close
+to the machines the system builds, which are AlmaLinux 10, and the
+first consumer is a Red Hat shop. GitHub supplies no RHEL-family
+runner image: its custom-image facility is for its paid larger
+runners, starts from GitHub's own Ubuntu or Windows images, and GitHub
+says it does not plan other Linux distributions; for those it points
+to Docker on its hosted runners. So the machine stays GitHub's and
+every job runs inside an image this repository builds. AlmaLinux 10
+over Fedora: binary-compatible with RHEL 10, supported to 2035 (a
+Fedora release lasts about 13 months), and every third-party
+repository the jobs need publishes EL builds. The strict alternative,
+Red Hat's `ubi10`, is noted for a consumer that wants RHEL itself.
+
+**Three outputs**, all three on the operator's word:
+
+1. **The image.** A Dockerfile under `ci/runner-image/` (name to be
+   settled) from `almalinux:10.<minor>` pinned by digest, published
+   by a workflow of this repository to `ghcr.io/infrastructurebuilder/
+   csis-ci` with a dated tag, rebuilt on a schedule and when the
+   requirements change. It carries everything the jobs install today
+   on the runner: git, unzip, ssh, jq, python3; the docker client (for
+   the modification tests, through the host's socket mounted into the
+   container); AWS CLI v2 and the session-manager plugin (rpm); the
+   Google Cloud CLI (rpm repository); Okta's `sft` (rpm repository);
+   uv, just, OpenTofu and Packer at the versions `cfg/executables.yml`
+   pins, or fetched by their actions as now (USER decides: baked is
+   faster and the image then needs a rebuild per tool version; fetched
+   keeps the image small and the tool versions in the tree). Pinned
+   by version or digest everywhere, never a moving tag.
+2. **The requirements document**, `docs/CI_RUNNER.md`: what a CI
+   runner for a cs-image-system configuration must provide, written
+   for no CI system in particular -- the operating system family and
+   version, each tool with its version floor and where it comes from,
+   the network it must reach (the index, the clouds, OPA, Docker Hub
+   for the test images), what it must be able to do (run containers,
+   federate to the clouds by OIDC, hold the secrets the gate reads),
+   and what the jobs do in order (the `just` targets, which are the
+   contract). The Dockerfile is one implementation of it and says so;
+   a GitLab or Azure DevOps runner would be another, built from the
+   same page, so a move of CI systems rewrites the pipeline file, not
+   the runner. The document is tested against the Dockerfile: every
+   tool it names is installed, every version floor matches
+   `cfg/executables.yml` and the starters.
+3. **The from-scratch path, kept.** The workflows as §91 leaves them
+   -- GitHub's `ubuntu-24.04` image with the install steps -- stay
+   maintained as the alternative for someone who has no registry or
+   wants nothing prebuilt: in the starters as a documented variant
+   (a second workflow file, or the same file with the container line
+   commented and the install steps kept; USER decides), proved green
+   by the system's own CI on both paths, and moved forward by the
+   section 9.1 procedure together with the image.
+
+**What changes in the workflows.** Every job gains `container: {image:
+ghcr.io/...:<tag>, options: -v /var/run/docker.sock:/var/run/docker.sock}`;
+the Ubuntu-only lines go (`sudo dpkg -i` of the plugin; `sudo` itself,
+the container runs as root); the install steps become no-ops or go. The
+`just` targets are unchanged: the Justfile stays the contract.
+
+**Proof.** First, before anything else is decided: every dependency
+installs on `almalinux:10` (a scratch Dockerfile built locally; the
+EL10 repositories of Docker, Google and Okta answer, or EL9's do). Then
+`just test` and `just full-test`; this repository's CI on both paths;
+the reference configuration on the release: `live` green inside the
+image, then `perform` with a bake, the modification tests and a login
+proof, on the operator's `main`.
+
+**Sizing**: the dependency proof half a day; the image and its
+workflow a day; the workflows and the two variants a day; the
+requirements document and its test half a day; the live proof as the
+operator's time allows. **USER**: the registry (ghcr.io under the
+organisation), the three decisions above, the merge, the release, the
+reference configuration's `main`.
