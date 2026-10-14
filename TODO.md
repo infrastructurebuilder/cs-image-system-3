@@ -17,10 +17,12 @@ dry run and every `record` rewrites, so the run after a dry run
 planned the group's destruction and only the gate refused it; now
 the runner's pre-plan step asks the state; walk finding F63),
 LANDED 2026-10-13 (cdb80bf) by the operator's word, who made it a
-stage of its own and had it done before the walk went on. It
-awaits its release, 0.1.1.dev23, and its live proof: the first
-walk's own group released by the sequence that failed, the dry
-form and then the run.
+stage of its own and had it done before the walk went on, is
+released in dev23 (ec7e4ef), which the reference configuration has
+taken on its `develop`, and is PROVED live: the first walk's own
+group, released by the sequence that had failed (the dry form,
+then the run), left state with its eight resources in the runner's
+pre-plan step, and the run applied nothing.
 §89, CI makes the login proof while it still holds the
 write identity (every starter's workflow took the read-only identity
 back before the proof, and a posix proof's ssh opens a session the

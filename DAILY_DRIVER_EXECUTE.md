@@ -6261,7 +6261,7 @@ all in AWS, and the repositories after the roles that trusted them.
 | --- | --- | --- |
 | 17a | the picture before: one read of all of the above, kept in a file | done 2026-10-13: `~/teardown-before.txt` in the container, 31 lines, exactly as the table above; the repositories and Google Cloud's two settings as expected |
 | 17b | the posix walk: its machine, its images and its volume, each through the gate; then a strict state query with nothing declared | done 2026-10-13: the machine, both images and their snapshots, the volume, and by hand the security group its instance root had left (F61); no drift; `develop` green at d59c245; `main` not pushed |
-| 17c | the first walk: the same, and its OPA groups released to you | **YOU ARE HERE: step 7b, on your local machine: release 0.1.1.dev23 from `develop`.** Stage 90 (the fix for F63) is merged at cdb80bf. Then 7c, this tree takes it; 7d, the group's release, dry form first, as the live proof; step 8 |
+| 17c | the first walk: the same, and its OPA groups released to you | **YOU ARE HERE: step 8, the record, the strict state query, `develop` only.** Steps 0 to 7 are done: the machine, five images, the volume and the security group are gone, and the group is released from the system's state (stage 90, released as 0.1.1.dev23, proved here) |
 | 17d | the two bootstrap roots, the posix tree's first, and the bucket last | written when 17c is done |
 | 17e | by hand: the OPA console, Google Cloud's two free settings, GitHub (the repositories and the token) | written when 17d is done |
 | 17f | your local machine: the containers, the snapshot image, the directories | written when 17e is done |
@@ -7312,6 +7312,26 @@ your own eyes in 17e, where the group is removed in the console.
 
 **Report:** `stage 90 proved`, with what box 2 of step 7d printed.
 
+(STAGE 90 PROVED, 2026-10-14, 02:40 to 02:43 UTC. Step 7b: release
+`ec7e4ef`, tag `v0.1.1.dev23`, 18 of 18 packages on the index. Step
+7c: commit `d2c91ee`, the four files and no other; `7` left as the
+failed run left them; `managed: false`. Step 7d: the dry form wrote
+no `state rm` and said `group(s) walk_team are unmanaged`; then the
+run: the preview `8 to destroy` once; `group 'walk_team' is
+unmanaged and the state still holds 8 of its resource(s); they
+leave tofu state before the plan and nothing is destroyed: state rm
+module.group_walk_team`; eight `Removed ...` lines and
+`Successfully removed 8 resource instance(s).`; the plan the gate
+read changed outputs only (`group_gids` and the like lose
+`walk_team`); `Plan passes the apply gate.`; `Apply complete!
+Resources: 0 added, 0 changed, 0 destroyed.`; `Run ... completed:
+identity`, its record `5dc5ed8`, the tree clean, the backup
+`opa-groups.backup-2026_10_14t02_42_12_193366.tfstate`. The remote
+state of `opa-groups` holds nothing now (serial 7, no resources).
+The same tree, the same group, the same order that had been refused
+at the gate seven hours before. Boxes 3 and 4 were read by Claude
+from the tree and the bucket.)
+
 **Step 8. Nothing declared, and the records agree with reality.**
 
 ```sh
@@ -7494,5 +7514,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F60 | a provider lock file changes with whoever made the record. `generated/.../.terraform.lock.hcl` gains fourteen `h1:` lines in every record CI commits and loses them in every record a person commits from the container, back and forth (seen on both roots of the posix walk, six commits in a day). Nothing fails for it, and the drift question does not see it; it is noise in every record's diff, and a committed file that says two things | code: hygiene XII item 30 |
 | F61 | decommissioning the last machine leaves a security group that nothing will ever remove. The instance root makes one group, `aws_security_group.csis_instances`, for whatever machines it holds; `cloud-decommission` destroys the machine's module and leaves the group (17b step 2: `2 destroyed` where the launch had added 3); and with no instance declared the system writes no instance root, so no later run plans anything for it. It stays in AWS and in the root's state. Every configuration's group is tagged `Name: csis-instances` alike, so in a shared account only the state says whose it is. No page says a teardown has this left to do by hand | code: hygiene XII item 31; words: the daily driver's decommission row |
 | F62 | decommissioning a machine on one cloud can fail on another cloud's root, after the destroy and before the record. `cloud-decommission aws-main <instance>` applies the AWS instance root and also plans every other runtime's; in a tree with an ephemeral GCE machine that root cannot be planned between cycles (`tofu plan`: `images/family/team-node was not found`, the image having been disposed of with the cycle, while the ledger still holds the machine as launched). The run destroyed `walk-node-1` (`2 destroyed`), then failed (`LifecycleRunError: Apply failed for lifecycle instance-image`) and committed nothing: the machine was gone and `pins.yaml` still pinned it. The dry form cannot show this, since it plans nothing. The record was completed by deleting both entries and running the instance lifecycle again (17c step 3a) | code: hygiene XII item 32; words: the daily driver's decommission row |
-| F63 | a dry run of a group's release makes the release impossible, and leaves the gate as the only thing between a team and the destruction of its OPA group. The system removes a group marked `unmanaged: true` from state on the run that first sees it so, judging "first" by `meta-state/identity.yaml` (`managed: true`). A dry run writes that file in the tree; `just dry identity` therefore left `managed: false` behind, the real run that followed emitted no `tofu state rm`, and its plan was `8 to destroy`: the group, its project, its enrolment token and its policies. The gate refused all eight (`DESTROY NOT WHITELISTED`, exit 3) and nothing was applied (17c step 7, 2026-10-13). The dry form had shown the `state rm` line; nothing said that showing it spent it. The pages say to look before applying, and for this operation looking breaks it | code: stage 90, merged cdb80bf on 2026-10-13 by the operator's word (the release is decided by the state, in the runner's pre-plan step); words: in that stage |
+| F63 | a dry run of a group's release makes the release impossible, and leaves the gate as the only thing between a team and the destruction of its OPA group. The system removes a group marked `unmanaged: true` from state on the run that first sees it so, judging "first" by `meta-state/identity.yaml` (`managed: true`). A dry run writes that file in the tree; `just dry identity` therefore left `managed: false` behind, the real run that followed emitted no `tofu state rm`, and its plan was `8 to destroy`: the group, its project, its enrolment token and its policies. The gate refused all eight (`DESTROY NOT WHITELISTED`, exit 3) and nothing was applied (17c step 7, 2026-10-13). The dry form had shown the `state rm` line; nothing said that showing it spent it. The pages say to look before applying, and for this operation looking breaks it | code: stage 90, merged cdb80bf, released as 0.1.1.dev23 and proved by this walk's own release on 2026-10-14 (17c step 7d) |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
