@@ -106,7 +106,8 @@ def test_a_bake_stamps_and_fingerprints_the_storage_types_of_its_runtime_alone(t
         img = ctx.images_map["imgfile-basic-dask"]
         caps = effective_capabilities(ctx, img, "gcloud-east1")
         assert caps is not None and caps.source == "declaration" and caps.storage_types == ["gcs", "pd"]
-        assert effective_capabilities(ctx, img).storage_types == ["ebs", "efs", "gcs", "pd", "s3"]   # no runtime: as declared
+        whole = effective_capabilities(ctx, img)                                          # no runtime: as declared
+        assert whole is not None and whole.storage_types == ["ebs", "efs", "gcs", "pd", "s3"]
         # the walk's F49: a type for the other cloud added or removed moves no AWS fingerprint
         before = input_fingerprint(ctx, base, "aws-east2-runtime")
         before_gce = input_fingerprint(ctx, base, "gcloud-east1")
