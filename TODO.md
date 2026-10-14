@@ -9,7 +9,7 @@ system must not take itself.
 
 Current stage: **§65**, walking the daily driver, started 2026-10-05
 on `feature/walk-daily-driver`: the operator types each stage from
-[DAILY_DRIVER_EXECUTE.md](DAILY_DRIVER_EXECUTE.md) on a Fedora 43
+[docs/history/WALK-2026-10.md](docs/history/WALK-2026-10.md) on a Fedora 43
 container. §92, CI runs inside an AlmaLinux 10 image the system
 builds, described by a CI-agnostic requirements document, with the
 GitHub-image path kept as the from-scratch alternative, is PLANNED
@@ -405,7 +405,7 @@ the operator the same day: the walk runs on a Fedora 43 container
 (`csis-walk`), as user `mykel.alvis`, on the operator's clone of the
 walk repository mounted as a volume, with AWS access keys supplied
 by hand; the operator types each stage from
-[DAILY_DRIVER_EXECUTE.md](DAILY_DRIVER_EXECUTE.md) and Claude reads
+[docs/history/WALK-2026-10.md](docs/history/WALK-2026-10.md) and Claude reads
 the shell history and the tree. Findings F1-F6 so far (the walk
 log); the code ones are §81.** (The operator,
 2026-09-24, on accepting §62: "make a new stage for walking through the
