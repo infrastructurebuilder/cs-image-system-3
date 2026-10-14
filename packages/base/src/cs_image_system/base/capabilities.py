@@ -140,12 +140,41 @@ def image_chain(ctx: "GlobalTypeContext", image: "Image") -> tuple[list[str], st
     return chain, None
 
 
-def declared_capabilities(ctx: "GlobalTypeContext", base_name: str) -> dict[str, list[str]]:
+def storage_builder_runtime(builder: Any) -> str | None:
+    """The runtime a storage builder lives on; None when it names none
+    (a builder that says nothing lives everywhere)."""
+    model = getattr(builder, "model", None)
+    fn = getattr(model, "get_runtime_provider", None)
+    try:
+        return str(fn()) if callable(fn) else None
+    except ValueError:
+        return None
+
+
+def storage_types_on_runtime(ctx: "GlobalTypeContext", types: list[str], runtime: str | None) -> list[str]:
+    """Of ``types``, those a bake on ``runtime`` prepares for: the ones with
+    a storage builder on that runtime (or on none). Hygiene XII item 21
+    (the walk's F49): `storage_types` is one list on the OS builder, and it
+    stamped and fingerprinted every bake whole, so a `pd` added for a GCE
+    disk re-baked the AWS base with nothing to change in it. With no
+    runtime named, every type (the declaration as written)."""
+    if runtime is None:
+        return sorted(types)
+    by_type = storage_builders_by_type(ctx)
+    return sorted(t for t in types
+                  if any(storage_builder_runtime(b) in (None, runtime) for b in by_type.get(t, [])))
+
+
+def declared_capabilities(ctx: "GlobalTypeContext", base_name: str,
+                          runtime: str | None = None) -> dict[str, list[str]]:
+    """A base's declaration; with ``runtime``, the storage types narrowed to
+    the ones a bake there prepares for (what that build carries and what
+    its fingerprint reads)."""
     osb = ctx.os_builders.get(base_name)
     if osb is None:
         return {"identity_types": [], "storage_types": []}
     return {"identity_types": sorted(osb.model.get_identity_types()),
-            "storage_types": sorted(osb.model.get_storage_types())}
+            "storage_types": storage_types_on_runtime(ctx, osb.model.get_storage_types(), runtime)}
 
 
 def effective_capabilities(ctx: "GlobalTypeContext", image: "Image",
@@ -170,7 +199,7 @@ def effective_capabilities(ctx: "GlobalTypeContext", image: "Image",
                 identity_types=sorted(caps.get("identity_types", [])),
                 storage_types=sorted(caps.get("storage_types", [])),
                 root_base=root, source=f"pin:{pin}", chain=chain)
-    decl = declared_capabilities(ctx, root)
+    decl = declared_capabilities(ctx, root, runtime)
     return EffectiveCapabilities(identity_types=decl["identity_types"],
                                  storage_types=decl["storage_types"],
                                  root_base=root, source="declaration", chain=chain)

@@ -231,7 +231,9 @@ makes them in the Okta admin console and declares them in `groups/`.
 ### 1.6 The age identities
 
 Any value in the tree may be committed encrypted (`ENC[age:...]`), and the
-reference deployment keeps its rosters and its e-mail domain that way. Each
+reference deployment keeps its roster's personal names and its e-mail
+domain that way (not the usernames, which every record carries in clear;
+section 3.1). Each
 holder keeps an age identity under `~/.config/cs-image-system/age/`, never
 committed; every identity's public key is a recipient in
 `cfg/_config.yml`'s `encryption.recipients`; CI's identity is a repository
@@ -478,7 +480,12 @@ meaning of their own and say so where they are described
 
 Declare users and the group in `groups/` ([CONFIGURATION.md](docs/CONFIGURATION.md),
 section 11): `members` may log in, `admins` may log in with sudo, and the
-root group's admins are merged into every group's. Run the identity
+root group's admins are merged into every group's. A declared person's
+username is committed in clear: it is what OPA, the identity roots and
+the records carry, and a marker on it in the roster hides nothing (the
+e-mail domain and the personal names are what the markers hide). In a
+public configuration repository, declare a person knowing that
+(2026-10-08, F36; decided 2026-10-14). Run the identity
 lifecycle with `apply_identity: true` (a convergent flag, safe to leave
 on: it applies only what the YAML says, and the gate refuses destroys):
 
@@ -880,6 +887,7 @@ item in the open hygiene bundle in [TODO.md](TODO.md).
 | the log of an apply shows the root's outputs and no `Apply complete!` line | the run keeps the last 40 lines of a command's output, and tofu prints its verdict BEFORE the outputs | since 0.1.1.dev25 every verdict line (`Plan:`, `Apply complete!`, the gate's, a bake's `Build ... finished`) is printed ahead of the tail with its line number; before, `just cli --verbose` or the DEBUG log (2026-10-07, F25) |
 | `role <name>: not granted` from the workload probe dispatched on `main`; or `granted` from a branch that is not `main` | the first: the role is not bound to the connection, or its pin names another branch; the second: the pin does not hold. The probe's first line says `accepted` either way, since authenticating to the connection takes the role as a hint only (2026-10-08, F35) | [CI_SETUP.md, section 3.5](docs/examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access), steps 2 and 6; `not judged` means no machine of a managed group stands yet |
 | `data disks mounted` failed with `missing: /mnt/<x>` on GCE, the kernel's XFS count above it | the startup script did not report that mount point mounted: the device never attached, or `mount` failed and the script went on (`nofail`) | the script's own lines on the serial console (`csis-mount:`), then the storage's attachment in the instance root |
+| a base shown DUE on a cloud you changed nothing for | a field every runtime shares moved (`admin_user`, the admin keys, `update`, the vendor source); a storage type added for one cloud re-bakes only there since hygiene XII (before, `pd` for a GCE disk re-baked the AWS base: 2026-10-09, F49) | read the run's reason for the bake; a shared field re-bakes everywhere by design |
 | `public-safe: ... <file>:<line>` from the hook | a committed line looks like a secret, a key, a plan or a state file | never bypass the hook; encrypt the value, or allow it BY DECISION in `cfg/_config.yml` `public_safe.allow` |
 | `Build '<image>' errored after 20 minutes ...: Timeout waiting for SSH.` with `ssm error: ... StartSession, context canceled` | the bake machine booted and its SSM agent was Online, but packer's ssh session through SSM never opened: the bake host was a 1 GB t2.micro, too small for the image it boots (three `perform` runs, 2026-10-04 and -05; the same parent baked on an r5.4xlarge, and on a t3.medium once declared) | give the bake host 4 GB: `machine_type: t3.medium` on the image's runtime entry, or the runtime's `default_machine_type` (the starters ship t3.medium; the reference tree since stage 80). Since stage 79 the builds that completed before the failure are recorded anyway (a warning names them) |
 | `foreign image <id>: ... tagged series=<s> run=<r> is not in lineage` | an image the system tagged and lineage does not record: a bake still running in another process (2026-10-04: `just full-test`'s strict query raced CI's `perform`), or one a failed run baked before stage 79, when a failed run recorded nothing | if a run is still baking, wait for it to finish and record. Otherwise `just cli state import --no-storages` adopts it (2026-10-04: five images), then `just record`; the adopted build counts as current, so it is not baked again |

@@ -497,75 +497,17 @@ operator decided against an `sts` call, so `preflight` keeps making no
 cloud call; of 26 the retried pull, docker's words and the `unstarted`
 record, and the operator decided the same day that nothing more is owed
 -- a registry outage longer than the retries is a rerun), F the proofs
-(14, 22). Still on their branches: G the operator's decisions of
-2026-10-14 (5: the root keeps managing a bucket it made; 15: usernames
-are public; 21: a bake takes only the storage types whose builder lives
-on its runtime). Items 3 and 4 LANDED with §82 (0d1850c, 2026-10-05,
-released in dev15) by the operator's word. Items 10 and 11 LANDED as §86
-(c6af4b2, 2026-10-07, "Fix now, starters too"). Item 16 LANDED as §88
-(20206e8, 2026-10-08; the operator: "we should correct this situation as
-soon as possible"). Items 7 and 28 left the bundle as §91 (2026-10-14).
-Item 25 is a standing review with four dates, the first 2026-11-09.**
+(14, 22), G the operator's decisions of 2026-10-14 (5: the root keeps
+managing a bucket it made; 15: usernames are public; 21: a bake takes
+only the storage types whose builder lives on its runtime). Every group
+has landed; the bundle stays open for item 25 alone. Items 3 and 4
+LANDED with §82 (0d1850c, 2026-10-05, released in dev15) by the
+operator's word. Items 10 and 11 LANDED as §86 (c6af4b2, 2026-10-07,
+"Fix now, starters too"). Item 16 LANDED as §88 (20206e8, 2026-10-08;
+the operator: "we should correct this situation as soon as possible").
+Items 7 and 28 left the bundle as §91 (2026-10-14). Item 25 is a
+standing review with four dates, the first 2026-11-09.**
 
-5. **The bootstrap's create path would strip the state bucket it
-   made.** The walk's finding F17, read from the code before the walk
-   reached it and CONFIRMED live at the walk's stage 9f (2026-10-06:
-   `Plan: 0 to add, 0 to change, 4 to destroy`; not applied -- the
-   walk made the root forget the four with `tofu state rm`). When the
-   bootstrap creates the state bucket, the guide has the operator run
-   the interview again so the root binds to it. But
-   `state_bucket_exists`
-   is a choice, not an observation, so the second interview still
-   offers "no" (seen live: `[y/N]`); and answering "yes" makes the
-   module's four bucket
-   resources `count = 0` while they sit in the root's state, so the
-   next plan destroys the bucket's versioning, encryption and
-   public-access block before failing on the bucket. Fixed looks like
-   (**USER** chooses): the root KEEPS managing a bucket it made (a
-   recorded fact, "made here", decides the resources; whether the
-   bucket stands, observed at each interview, decides the backend) --
-   or the rebind emits `removed` blocks that forget without
-   destroying. Either way a test renders the second interview and
-   asserts no bucket resource leaves the plan, and the guide says what
-   the operator sees.
-15. **A declared username is encrypted in the roster and clear in
-    what the run commits.** The walk's finding F36 (2026-10-08,
-    noticed when a second, real person was about to be declared in a
-    PUBLIC configuration repository). `groups/users.yaml` holds
-    `name` as an `ENC[age:...]` marker; the same name is written in
-    clear to `meta-state/identity.yaml` (`members`, `admins`), to the
-    identity roots' HCL (`admins = ["..."]`, `data "okta_user"
-    "<name>"`, `"<name>@ENC[...]"`), and to
-    `meta-state/login-proofs.yaml`. The reference configuration has
-    carried its roster that way all along. Nothing leaks that the
-    tree's owner did not put there, but the marker reads as a promise
-    the system does not keep, and a person added to a public tree is
-    published without being told. **USER** decides which it is: (a)
-    usernames are public by design -- then the starters stop
-    encrypting them, CONFIGURATION 11.6 and 13 say what is and is not
-    protected (the mail domain is; the name is not), and the daily
-    driver's 3.1 says a declared person's username is committed in
-    clear; or (b) usernames are private -- then the read-model, the
-    emission and the proofs carry them by reference as every other
-    encrypted value is carried (stage 49), which touches terraform
-    resource addresses and is a stage of its own.
-16. (Landed as §88 on 2026-10-08, 20206e8.)
-21. **A storage type added to a base re-bakes it on every cloud.**
-    The walk's finding F49 (2026-10-09, stage 15b). `storage_types`
-    is one list on the OS builder, it is in the input fingerprint of
-    every bake of that base, and every type contributes its
-    prerequisite step to every runtime's template, a bare comment
-    included. Adding `pd` for a GCE disk made `el10@aws-main` and
-    the image chained on it due, with nothing to change in either.
-    Plan, for the operator to choose between: (a) a bake's
-    fingerprint and template take only the storage types whose
-    builder lives on that bake's runtime (a `pd` builder on GCE says
-    nothing to an AWS bake); or (b) a base's `runtimes:` entry may
-    carry its own `storage_types`, added to the base's. Either way
-    a type with no prerequisites moves no fingerprint, the
-    capability a build records stays what it carries, and
-    CONFIGURATION says that a base shared between clouds re-bakes
-    everywhere when a shared field changes.
 25. **A verification starts a machine its operator switched off:
     KEPT, and reviewed monthly.** The walk's finding F44 (2026-10-09,
     stage 14f; seen in the machine's own boot log and in CloudTrail).

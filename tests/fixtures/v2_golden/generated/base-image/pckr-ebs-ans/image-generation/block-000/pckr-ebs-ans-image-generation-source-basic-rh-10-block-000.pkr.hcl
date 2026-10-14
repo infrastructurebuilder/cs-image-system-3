@@ -20,9 +20,9 @@ source "amazon-ebs" "basic-rh-10" {
         csis_series         = "basic-rh-10",
         csis_parent         = "vendor",
         csis_run            = "2026_08_26t12_00_00",
-        csis_fingerprint    = "e9d400a8da3f2a89",
+        csis_fingerprint    = "6a8361a17d1ba540",
         csis_identity_types = "okta",
-        csis_storage_types  = "ebs,efs,gcs,pd,s3",
+        csis_storage_types  = "ebs,efs,s3",
     }
     associate_public_ip_address = false
     profile = "noaa"

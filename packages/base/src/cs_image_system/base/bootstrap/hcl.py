@@ -228,7 +228,8 @@ def _readme(sections: list[tuple[str, Rendered]], secrets: list[Secret], *, repo
     else:
         out += ["The first apply keeps its state in `terraform.tfstate` here, which `.gitignore`",
                 "keeps out of every commit. When the tree's state bucket stands, re-run the",
-                "interview (the bucket now exists, so the root binds to it) and `tofu init",
+                "interview (the bucket now exists, so the root binds to it, and the interview",
+                "remembers that this root made it and keeps managing it) and `tofu init",
                 "-migrate-state` here, so a second apply from another checkout sees what the",
                 "first did."]
     out += ["", "Then the proofs in CI_SETUP.md 3.8, in order."]

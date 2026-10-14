@@ -180,14 +180,17 @@ resource "aws_iam_role_policy" "write" {
   })
 }
 
-# ------------------------------------------- the state bucket, when it is absent
+# ------------------------------------------- the state bucket, when this root manages it
+# (absent at the first interview, so made here, and kept managed from then on: a
+# second interview observes that it stands and binds the backend to it, without
+# letting the four resources leave the plan -- hygiene XII item 5)
 resource "aws_s3_bucket" "state" {
-  count  = var.state_bucket_exists ? 0 : 1
+  count  = var.state_bucket_managed ? 1 : 0
   bucket = var.state_bucket
 }
 
 resource "aws_s3_bucket_versioning" "state" {
-  count  = var.state_bucket_exists ? 0 : 1
+  count  = var.state_bucket_managed ? 1 : 0
   bucket = aws_s3_bucket.state[0].id
   versioning_configuration {
     status = "Enabled"
@@ -195,7 +198,7 @@ resource "aws_s3_bucket_versioning" "state" {
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "state" {
-  count  = var.state_bucket_exists ? 0 : 1
+  count  = var.state_bucket_managed ? 1 : 0
   bucket = aws_s3_bucket.state[0].id
   rule {
     apply_server_side_encryption_by_default {
@@ -205,7 +208,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "state" {
 }
 
 resource "aws_s3_bucket_public_access_block" "state" {
-  count                   = var.state_bucket_exists ? 0 : 1
+  count                   = var.state_bucket_managed ? 1 : 0
   bucket                  = aws_s3_bucket.state[0].id
   block_public_acls       = true
   block_public_policy     = true

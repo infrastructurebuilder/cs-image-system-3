@@ -543,7 +543,7 @@ Types: `rhel` (dnf; adds `subscription_id`), `fedora` (dnf), `debian`
 | `auto_update` | bool | `false` | alias for `update: {policy: full}` when `update` is absent |
 | `update` | mapping | null | 5.2 |
 | `identity_types` | list[str] | `[]` | identity types this base bakes prerequisites for (`okta`); an instance image whose group's builder is of another type is refused |
-| `storage_types` | list[str] | `[]` | storage types instances of this base may attach (`ebs`, `efs`, `s3`, `pd`, `filestore`, `gcs`); each must have a configured storage builder |
+| `storage_types` | list[str] | `[]` | storage types instances of this base may attach (`ebs`, `efs`, `s3`, `pd`, `filestore`, `gcs`); each must have a configured storage builder. A bake on a runtime prepares for, stamps and fingerprints only the types whose storage builder lives on that runtime (hygiene XII item 21): a type added for one cloud re-bakes nothing on another, and a build's recorded capabilities are what it carries. A field every runtime shares (`admin_user`, `admin_public_keys`, `update`, the vendor source) still re-bakes the base everywhere |
 | `admin_user` | str | `csisadmin` | the mandatory local admin user; must not be empty |
 | `admin_public_keys` | list[str] or null | null | per-base override of `config.admin_public_keys`; public keys only |
 | `local_test_image` | str or null | null | the container standing in for this OS in local mod tests; default derived from family/version (`almalinux:<v>` for rhel 10 and above, `rockylinux:<v>` below) |
@@ -1673,7 +1673,7 @@ Key `users:` (any file under `groups/`).
 
 | Field | Type | Default | Meaning and allowed values |
 | --- | --- | --- | --- |
-| `name` | EncryptedStr | required | the username: the bare OPA username that group `members`/`admins` list and attachments use |
+| `name` | str | required | the username: the bare OPA username that group `members`/`admins` list and attachments use. **Committed in clear** by decision (2026-10-14, hygiene XII item 15): the identity roots' HCL, `meta-state/identity.yaml` and `meta-state/login-proofs.yaml` carry it in clear whatever the roster does, so a marker on it (still accepted, still decrypted) hides nothing; what the markers protect is the e-mail domain and the personal names |
 | `first_name` | EncryptedStr | required, non-blank | never derived from `name` |
 | `last_name` | EncryptedStr | required, non-blank | never derived from `name` |
 | `email` | EncryptedStr | the builder's `default_user_email_template` | the Okta login and lookup key; explicit, or derived from the template (`<name>@example.invalid` in the fixture) |
@@ -1691,8 +1691,10 @@ Key `users:` (any file under `groups/`).
 
 [`groups/users.yaml`](../tests/fixtures/config/groups/users.yaml) holds
 nineteen personas (`avery.alpha` … `sawyer`), every identifying field
-encrypted; some carry an explicit `email` on an example domain, the rest
-derive theirs. In clear, an entry has this shape (the second entry is
+encrypted (the fixture proves that a marker anywhere decrypts; the
+starters write the usernames in clear, since nothing keeps them private);
+some carry an explicit `email` on an example domain, the rest derive
+theirs. In clear, an entry has this shape (the second entry is
 illustrative):
 
 ```yaml
@@ -1855,6 +1857,17 @@ and each element of a list or set is encrypted on its own, so a roster is
 encrypted entry by entry. A marked value with no identity in the environment
 is a load-time refusal naming the value's path; a decrypted value prints as
 `Decrypted('***')` in any dump or error.
+
+**What a marker protects** is the value in the committed tree and in the
+emission under `generated/`, which carries the ciphertext by reference
+(section 12) and is decrypted only in the private mirror. It does not
+protect a value the system must write in clear elsewhere: a user's `name`
+is the OPA username, and the identity roots' HCL, `meta-state/identity.yaml`
+(`members`, `admins`) and `meta-state/login-proofs.yaml` carry it in clear
+whatever the roster does. Usernames are therefore public by decision
+(2026-10-14, hygiene XII item 15); the e-mail domain and the personal
+names are what the roster's markers keep private, and a person declared in
+a public configuration repository is published by username.
 
 Three places a marker may NOT stand, each refused at load by name:
 

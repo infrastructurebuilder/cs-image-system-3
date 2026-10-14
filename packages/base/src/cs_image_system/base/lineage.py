@@ -84,10 +84,11 @@ def primary_runtime_of(ctx: "GlobalTypeContext", image: Any) -> str | None:
 
 
 def capability_stamp(ctx: "GlobalTypeContext", image: Any, runtime: str | None = None) -> dict[str, list[str]]:
-    """Base image: its own declaration. Instance image: the root's stamp,
+    """Base image: its own declaration, the storage types narrowed to the
+    bake's runtime (hygiene XII item 21). Instance image: the root's stamp,
     inherited through the pinned chain (N24) on the bake's runtime."""
     if is_base_image(ctx, image):
-        return declared_capabilities(ctx, image.get_name())
+        return declared_capabilities(ctx, image.get_name(), runtime or primary_runtime_of(ctx, image))
     caps = effective_capabilities(ctx, image, runtime or primary_runtime_of(ctx, image))
     if caps is None:
         return {"identity_types": [], "storage_types": []}
