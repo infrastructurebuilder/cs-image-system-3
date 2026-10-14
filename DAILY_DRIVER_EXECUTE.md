@@ -6261,8 +6261,8 @@ all in AWS, and the repositories after the roles that trusted them.
 | --- | --- | --- |
 | 17a | the picture before: one read of all of the above, kept in a file | done 2026-10-13: `~/teardown-before.txt` in the container, 31 lines, exactly as the table above; the repositories and Google Cloud's two settings as expected |
 | 17b | the posix walk: its machine, its images and its volume, each through the gate; then a strict state query with nothing declared | done 2026-10-13: the machine, both images and their snapshots, the volume, and by hand the security group its instance root had left (F61); no drift; `develop` green at d59c245; `main` not pushed |
-| 17c | the first walk: the same, and its OPA groups released to you | **YOU ARE HERE: step 8, the record, the strict state query, `develop` only.** Steps 0 to 7 are done: the machine, five images, the volume and the security group are gone, and the group is released from the system's state (stage 90, released as 0.1.1.dev23, proved here) |
-| 17d | the two bootstrap roots, the posix tree's first, and the bucket last | written when 17c is done |
+| 17c | the first walk: the same, and its OPA groups released to you | done 2026-10-14: the machine, five images, the volume, the security group, the group released (after stage 90); no drift; `develop` green at 9abeb0c. Was: Steps 0 to 7 are done: the machine, five images, the volume and the security group are gone, and the group is released from the system's state (stage 90, released as 0.1.1.dev23, proved here) |
+| 17d | the two bootstrap roots, the posix tree's first, and the bucket last | **YOU ARE HERE** |
 | 17e | by hand: the OPA console, Google Cloud's two free settings, GitHub (the repositories and the token) | written when 17d is done |
 | 17f | your local machine: the containers, the snapshot image, the directories | written when 17e is done |
 | 17g | the proof: the picture after, beside the picture before; the reference configuration still green | written when 17f is done |
@@ -7375,6 +7375,13 @@ echo "CI on develop: $(gh run view "$run" --json conclusion,headSha --jq '"\(.co
 last line has no verdict in it (GitHub's API answered `502` to this
 box once in 17b), say so and Claude reads the run.
 
+(STAGE 17c DONE, 2026-10-14, 02:46 to 02:52 UTC: the record, then
+`no drift: meta-state agrees with reality`, the state query naming
+the 36 images that are the reference configuration's and leaving
+them alone; `develop` pushed at `9abeb0c` and its CI green, `live`
+reading both clouds under the read-only identities. `main` stays
+at `c66c578`.)
+
 **Report:** `stage 17c done`, with what the destroying boxes
 printed (step 2 box 2, step 4 box 2, step 5 box 5, step 7 box 5)
 and the state query's last lines. **What of the two walks still
@@ -7382,6 +7389,215 @@ stands in AWS after 17c: four roles, the state bucket and its nine
 objects.** They go in 17d. In OPA the group, its project and its
 policies, the connection and the role stand, released; they go by
 hand in 17e.
+
+### 17d -- the bootstrap roots, and the bucket
+
+What the bootstraps made, they take away: each bootstrap root is
+destroyed by `tofu`, from its own state, the plan saved and read
+first. That removes the four roles, the GitHub settings each made
+(the Actions variables, the ruleset on `main`, the Actions
+permissions), and the first walk's binding on Google Cloud's read
+account. What no state manages goes by hand: the state bucket. It
+was created on the first walk's first apply and left out of every
+state when that root's state moved into it (the README the
+bootstrap writes says so: "the state bucket ... exists: this
+root's state is bound to it"). It goes last, because both
+bootstrap roots keep their state in it, and with it go the nine
+state files of both walks and all their versions.
+
+No page of the daily driver or of the guide says how a bootstrap is
+taken down (finding F64); the boxes below are what the walk did.
+The posix root's destroy plan was read on 2026-10-13 from your
+container, read-only: `9 to destroy`. The first walk's cannot be
+read without your Google token, so its count is from its state.
+
+**Step 1. CI stops first.** Once the roles are gone, every
+scheduled run of either repository would fail at its first
+federation step until the repositories go in 17e. Disabling the
+workflow is undone by `gh workflow enable`:
+
+```sh
+# 17d step 1 -- box 1 of 1 -- v2
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+gh workflow disable ci.yml -R infrastructurebuilder/cs-image-system-walk-posix
+gh workflow disable ci.yml -R infrastructurebuilder/cs-image-system-walk
+for r in cs-image-system-walk cs-image-system-walk-posix; do echo "$r: $(gh workflow list -R infrastructurebuilder/$r --all --json path,state --jq '.[] | select(.path == ".github/workflows/ci.yml") | .state')"; done
+```
+
+`cs-image-system-walk: disabled_manually` and the same for the
+posix one. (v2: v1's last line asked `gh workflow view` for JSON,
+which it cannot give; the line was tried before this version was
+published and answered `active` for both.)
+
+**Step 2. The posix walk's bootstrap root.** In the posix tree.
+Fresh AWS keys first if yours are older than about forty minutes:
+
+```sh
+# 17d step 2 -- box 1 of 4 -- v1
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+aws sts get-caller-identity --query Account --output text
+```
+
+`514190660293`.
+
+The destroy, planned and saved; it changes nothing yet:
+
+```sh
+# 17d step 2 -- box 2 of 4 -- v1
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+tofu -chdir=generated/bootstrap init -input=false 2>&1 | tail -2 | cut -c1-160
+tofu -chdir=generated/bootstrap plan -destroy -input=false -no-color -out="$HOME/bootstrap-17d-posix.tfplan" 2>&1 | tee ~/bootstrap-17d-posix-plan.log | grep -nE 'will be destroyed|Plan:|No changes|Error' | cut -c1-200
+```
+
+Nine lines `... will be destroyed`: the two roles
+(`aws_iam_role.read`, `.write`) and their two policies; the Actions
+permissions; the two Actions variables (`AWS_REGION`,
+`PERFORM_RUNTIME`); the default branch; the ruleset. Then `Plan: 0
+to add, 0 to change, 9 to destroy.` Anything else, STOP and paste.
+
+This destroys them:
+
+```sh
+# 17d step 2 -- box 3 of 4 -- v1
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+tofu -chdir=generated/bootstrap apply -input=false -no-color "$HOME/bootstrap-17d-posix.tfplan" 2>&1 | tee ~/bootstrap-17d-posix-apply.log | grep -nE 'Apply complete|Error|error:' | cut -c1-200
+```
+
+It should say `Apply complete! Resources: 0 added, 0 changed, 9
+destroyed.` An `Error`: STOP and paste the last twenty lines of
+`~/bootstrap-17d-posix-apply.log`.
+
+```sh
+# 17d step 2 -- box 4 of 4 -- v1
+cd /walk/cs-image-system-walk-posix 2>/dev/null && [ -d /walk/cs-image-system-walk/cfg ] && echo "OK: the container, the posix tree, $(pwd)" || echo "STOP: this is NOT the posix tree in the container"
+for r in csis-walk-posix-readonly csis-walk-posix-apply; do aws iam get-role --role-name "$r" --query Role.RoleName --output text 2>&1 | tail -1 | cut -c1-120; done
+```
+
+Two errors naming `NoSuchEntity`: the roles are gone.
+
+**Step 3. The first walk's bootstrap root.** In the first walk's
+tree. Its Google part needs your own Google token, as when it was
+applied (15e). On your local machine, NOT in the container; it
+prints a secret that lasts an hour, which never goes into the chat:
+
+```sh
+# 17d step 3 -- box 1 of 6 -- v1
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+gcloud auth print-access-token
+```
+
+`OK: local machine`, then one long line. Copy it.
+
+In the container, type this line yourself, with a SPACE before
+`export` so the history skips it, and the token in place of the
+dots:
+
+```
+ export GOOGLE_OAUTH_ACCESS_TOKEN=...
+```
+
+Whose token it is, without showing it:
+
+```sh
+# 17d step 3 -- box 2 of 6 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+curl -s "https://oauth2.googleapis.com/tokeninfo?access_token=$GOOGLE_OAUTH_ACCESS_TOKEN" | jq -r 'if .error then "STOP: Google does not know this token (expired, or not pasted whole)" elif ((.email // "") | endswith("gserviceaccount.com")) then "STOP: this is a service account token: it was printed in the container, not on your local machine" elif (.email // "") != "" then "OK: the token of a person, \(.expires_in) seconds left" else "STOP: no person is named on this token: was it printed on your local machine?" end'
+```
+
+`OK: the token of a person` and a number of seconds. A `STOP` line
+says which mistake it is; then copy the token again and redo the
+`export` line.
+
+The destroy, planned and saved:
+
+```sh
+# 17d step 3 -- box 3 of 6 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+tofu -chdir=generated/bootstrap init -input=false 2>&1 | tail -2 | cut -c1-160
+tofu -chdir=generated/bootstrap plan -destroy -input=false -no-color -out="$HOME/bootstrap-17d-walk.tfplan" 2>&1 | tee ~/bootstrap-17d-walk-plan.log | grep -nE 'will be destroyed|Plan:|No changes|Error' | cut -c1-200
+```
+
+Eleven lines `... will be destroyed`: the posix root's nine kinds,
+with three Actions variables here (`GUARD_RUNTIME` the third), and
+`module.bootstrap_gcp.google_service_account_iam_member.read`, the
+walk's binding on the read account. Then `Plan: 0 to add, 0 to
+change, 11 to destroy.` A Google `403` means the token is the
+runner's or has lapsed: redo the token, then this box. Anything
+else, STOP and paste.
+
+This destroys them:
+
+```sh
+# 17d step 3 -- box 4 of 6 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+tofu -chdir=generated/bootstrap apply -input=false -no-color "$HOME/bootstrap-17d-walk.tfplan" 2>&1 | tee ~/bootstrap-17d-walk-apply.log | grep -nE 'Apply complete|Error|error:' | cut -c1-200
+```
+
+It should say `Apply complete! Resources: 0 added, 0 changed, 11
+destroyed.`
+
+The token leaves the shell:
+
+```sh
+# 17d step 3 -- box 5 of 6 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+unset GOOGLE_OAUTH_ACCESS_TOKEN
+[ -z "${GOOGLE_OAUTH_ACCESS_TOKEN:-}" ] && echo "token gone" || echo "STOP: the token is still set"
+```
+
+`token gone`.
+
+```sh
+# 17d step 3 -- box 6 of 6 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+for r in csis-walk-readonly csis-walk-apply; do aws iam get-role --role-name "$r" --query Role.RoleName --output text 2>&1 | tail -1 | cut -c1-120; done
+```
+
+Two errors naming `NoSuchEntity`.
+
+**Step 4. The bucket, by hand.** It holds 239 things: the nine state
+files and their lock files, in 134 versions and 105 deletion
+markers (counted 2026-10-13; the two destroys above add a few). A
+versioned bucket is emptied version by version before it can be
+deleted. First the look, which changes nothing:
+
+```sh
+# 17d step 4 -- box 1 of 3 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+B=csis-walk-tfstate-514190660293
+aws s3 ls "s3://$B/" --recursive | awk '{print $4}' | sed 's/^statefiles\///' | sort
+```
+
+State files under `cs-image-system-walk/` and
+`cs-image-system-walk-posix/`, and nothing else. A name under any
+other directory is not the walks': STOP and paste the list.
+
+This deletes every version of everything in it, then the bucket
+itself. Nothing that any configuration still uses is in it:
+
+```sh
+# 17d step 4 -- box 2 of 3 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+B=csis-walk-tfstate-514190660293
+aws s3api list-object-versions --bucket "$B" --output json --query '{Objects: [Versions[].{Key:Key,VersionId:VersionId}, DeleteMarkers[].{Key:Key,VersionId:VersionId}][]}' > ~/bucket-17d.json
+aws s3api delete-objects --bucket "$B" --delete "file://$HOME/bucket-17d.json" --query 'length(Deleted)' --output text
+aws s3api delete-bucket --bucket "$B" && echo "bucket deleted"
+```
+
+A number a little over 239 (every version and marker deleted), then
+`bucket deleted`. If the number is followed by `Errors`, or the
+bucket is not deleted (`BucketNotEmpty`), STOP and paste it.
+
+```sh
+# 17d step 4 -- box 3 of 3 -- v1
+cd /walk/cs-image-system-walk 2>/dev/null && [ -f cfg/_config.yml ] && echo "OK: the container, $(pwd)" || echo "STOP: this is NOT the container"
+aws s3api head-bucket --bucket csis-walk-tfstate-514190660293 2>&1 | tail -1 | cut -c1-120
+```
+
+An error naming `404` or `Not Found`.
+
+**Report:** `stage 17d done`. **What of the two walks stands in AWS
+after 17d: nothing.** What stands elsewhere goes by hand in 17e.
 
 ## Google Cloud credentials through the environment
 
@@ -7515,4 +7731,5 @@ the daily driver's words at the end of the stage, or filed as code.
 | F61 | decommissioning the last machine leaves a security group that nothing will ever remove. The instance root makes one group, `aws_security_group.csis_instances`, for whatever machines it holds; `cloud-decommission` destroys the machine's module and leaves the group (17b step 2: `2 destroyed` where the launch had added 3); and with no instance declared the system writes no instance root, so no later run plans anything for it. It stays in AWS and in the root's state. Every configuration's group is tagged `Name: csis-instances` alike, so in a shared account only the state says whose it is. No page says a teardown has this left to do by hand | code: hygiene XII item 31; words: the daily driver's decommission row |
 | F62 | decommissioning a machine on one cloud can fail on another cloud's root, after the destroy and before the record. `cloud-decommission aws-main <instance>` applies the AWS instance root and also plans every other runtime's; in a tree with an ephemeral GCE machine that root cannot be planned between cycles (`tofu plan`: `images/family/team-node was not found`, the image having been disposed of with the cycle, while the ledger still holds the machine as launched). The run destroyed `walk-node-1` (`2 destroyed`), then failed (`LifecycleRunError: Apply failed for lifecycle instance-image`) and committed nothing: the machine was gone and `pins.yaml` still pinned it. The dry form cannot show this, since it plans nothing. The record was completed by deleting both entries and running the instance lifecycle again (17c step 3a) | code: hygiene XII item 32; words: the daily driver's decommission row |
 | F63 | a dry run of a group's release makes the release impossible, and leaves the gate as the only thing between a team and the destruction of its OPA group. The system removes a group marked `unmanaged: true` from state on the run that first sees it so, judging "first" by `meta-state/identity.yaml` (`managed: true`). A dry run writes that file in the tree; `just dry identity` therefore left `managed: false` behind, the real run that followed emitted no `tofu state rm`, and its plan was `8 to destroy`: the group, its project, its enrolment token and its policies. The gate refused all eight (`DESTROY NOT WHITELISTED`, exit 3) and nothing was applied (17c step 7, 2026-10-13). The dry form had shown the `state rm` line; nothing said that showing it spent it. The pages say to look before applying, and for this operation looking breaks it | code: stage 90, merged cdb80bf, released as 0.1.1.dev23 and proved by this walk's own release on 2026-10-14 (17c step 7d) |
+| F64 | no page says how a bootstrap is taken down, and one of the things it made is in no state. The daily driver and the guide take a configuration from nothing to running; the walk's teardown found no word on undoing `cs-image-system bootstrap`. Each root destroys from its own state (`tofu -chdir=generated/bootstrap plan -destroy`, then apply), but the state bucket the first apply created left that state when the root's state moved into it (decision D8: "the state bucket ... exists: this root's state is bound to it"), so `destroy` leaves it, and it holds every root's state, the bootstrap's own included: it has to go last, by hand, version by version. Nor does anything say that CI must be stopped before its roles go (17d) | words: the daily driver, CI_SETUP 3.0, a teardown section |
 | F25 | an applying run's log can lose the one line that says what was applied: it keeps the last 40 lines of a command's output, and tofu prints `Apply complete! Resources: ...` BEFORE the root's outputs, so a root with 37 or more lines of outputs (the reference's identity root: 40) shows only outputs | code: hygiene XII item 8 |
