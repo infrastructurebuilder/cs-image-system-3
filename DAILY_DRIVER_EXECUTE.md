@@ -6263,8 +6263,8 @@ all in AWS, and the repositories after the roles that trusted them.
 | 17b | the posix walk: its machine, its images and its volume, each through the gate; then a strict state query with nothing declared | done 2026-10-13: the machine, both images and their snapshots, the volume, and by hand the security group its instance root had left (F61); no drift; `develop` green at d59c245; `main` not pushed |
 | 17c | the first walk: the same, and its OPA groups released to you | done 2026-10-14: the machine, five images, the volume, the security group, the group released (after stage 90); no drift; `develop` green at 9abeb0c. Was: Steps 0 to 7 are done: the machine, five images, the volume and the security group are gone, and the group is released from the system's state (stage 90, released as 0.1.1.dev23, proved here) |
 | 17d | the two bootstrap roots, the posix tree's first, and the bucket last | done 2026-10-14: CI stopped, 9 and 11 destroyed, the bucket and its 249 versions gone; nothing of either walk stands in AWS |
-| 17e | by hand: the OPA console, Google Cloud's two free settings, GitHub (the repositories and the token) | **YOU ARE HERE** |
-| 17f | your local machine: the containers, the snapshot image, the directories | written when 17e is done |
+| 17e | by hand: the OPA console, Google Cloud's two free settings, GitHub (the repositories and the token) | done 2026-10-14: the provider's condition without the walk; OPA cleared; both repositories' secrets deleted and the repositories archived; the token deleted |
+| 17f | your local machine: the containers, the snapshot image, the directories | **YOU ARE HERE** |
 | 17g | the proof: the picture after, beside the picture before; the reference configuration still green | written when 17f is done |
 
 ### 17a -- the picture before
@@ -7758,6 +7758,123 @@ anything else uses it). The file goes with the container in 17f.
 
 **Report:** `stage 17e done`, with the OPA step's answer, which form
 of step 3 you chose, and that the token is deleted.
+
+(STAGE 17e DONE, 2026-10-14. Step 1: the provider's condition now
+names `cs-image-system-3` and `cs-image-system-testconfig` and no
+more. Step 2: the OPA console, by your account. Step 3: the thirteen
+secrets deleted and both repositories ARCHIVED; read afterwards from
+the local machine: `PUBLIC archived=true`, `0` secrets, on both.
+Step 4: the token deleted, by your account.)
+
+### 17f -- your local machine
+
+All on your local machine. What the walk left here: two containers,
+two images, and the two trees' directories. Everything secret the
+walk held is in one of them: the container's home has the age
+identity both trees were opened with
+(`~/.config/cs-image-system/age/walk.age-identity`), the posix
+walk's SSH keys, the copied Google credentials file, the two
+`walk-*-secrets` directories and your AWS keys; the old container
+and the snapshot image hold an earlier copy of that home; the trees'
+directories hold the `.envrc` files, the GitHub token's file
+`.gh_token`, the private mirrors under `_private/`, and the first
+walk's bootstrap state from before it moved to the bucket. None of
+the age identities under `~/.config/cs-image-system/age/` on your
+local machine is the walk's; they stay. Every box here is yours,
+and none can be undone; each is preceded by a look.
+
+**Step 1. The pictures, out of the container first.** 17g holds the
+picture after against the picture before, and the picture before
+is in the container's home:
+
+```sh
+# 17f step 1 -- box 1 of 1 -- v1
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+docker cp csis-walk:/home/mykel.alvis/teardown-before.txt _uncommitted/teardown-before.txt
+docker cp csis-walk:/home/mykel.alvis/teardown-before-github.txt _uncommitted/teardown-before-github.txt
+grep -vc '^==' _uncommitted/teardown-before.txt
+```
+
+`31`, the picture's lines that are not headings.
+
+**Step 2. The two containers.** The look:
+
+```sh
+# 17f step 2 -- box 1 of 2 -- v1
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+docker ps -a --format '{{.Names}}  {{.Image}}  {{.Status}}' | grep -E 'csis-walk'
+```
+
+`csis-walk  csis-walk:snapshot-20261009  Up ...` and
+`csis-walk-before-16  csis-walk:fedora43  Exited ...`. Any other
+`csis-walk` container, STOP.
+
+This stops the running one and removes both, with everything in
+their homes:
+
+```sh
+# 17f step 2 -- box 2 of 2 -- v1
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+docker stop csis-walk >/dev/null
+docker rm csis-walk csis-walk-before-16
+docker ps -a --format '{{.Names}}' | grep -c '^csis-walk' 
+```
+
+The two names, as `docker rm` says them, then `0`.
+
+**Step 3. The images.** The snapshot holds a copy of the container's
+home, your secrets in it; it goes. The base image `csis-walk:fedora43`
+holds only the tools the Dockerfile in `_uncommitted/walk-container/`
+installs; keeping it saves the build if there is ever a next walk.
+The look:
+
+```sh
+# 17f step 3 -- box 1 of 2 -- v1
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+docker images --format '{{.Repository}}:{{.Tag}}  {{.Size}}' | grep '^csis-walk:'
+```
+
+`csis-walk:snapshot-20261009  2.37GB` and `csis-walk:fedora43
+215MB`.
+
+```sh
+# 17f step 3 -- box 2 of 2 -- v1
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+docker rmi csis-walk:snapshot-20261009 | tail -1
+docker images --format '{{.Repository}}:{{.Tag}}' | grep '^csis-walk:' 
+```
+
+A `Deleted:` line, then only `csis-walk:fedora43`. To remove that
+too, `docker rmi csis-walk:fedora43`.
+
+**Step 4. The two trees' directories.** Their committed history is
+in the archived repositories on GitHub; what goes with the
+directories is what was never committed, which is what should go.
+The look, that nothing committed was left unpushed:
+
+```sh
+# 17f step 4 -- box 1 of 2 -- v1
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+for d in cs-image-system-walk cs-image-system-walk-posix; do (cd /Volumes/MiniSSD/git/Work/Lynker/$d && echo "$d: $(git status -sb | head -1) | not committed: $(git status --short | wc -l | tr -d ' ') | $(du -sh . | cut -f1)"); done
+```
+
+`## develop...origin/develop` with nothing ahead, `not committed:
+0`, and a size, for both. `ahead`, or files not committed: STOP and
+paste it.
+
+This deletes both directories and everything in them:
+
+```sh
+# 17f step 4 -- box 2 of 2 -- v1
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+rm -rf /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-walk /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-walk-posix
+ls -d /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-walk* 2>&1 | tail -1
+```
+
+`No such file or directory`.
+
+**Report:** `stage 17f done`, and whether you kept
+`csis-walk:fedora43`.
 
 ## Google Cloud credentials through the environment
 
