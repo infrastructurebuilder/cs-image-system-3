@@ -6,6 +6,7 @@ target/
 .terraform/
 terraform.tfstate
 terraform.tfstate.backup
+csis-sanctioned-removals.txt
 .*
 !.terraform.lock.hcl
 !.gitignore

@@ -106,6 +106,29 @@ def test_the_quiet_interview_takes_defaults_and_refuses_what_it_cannot_derive():
     assert asked[0][0] == "Do you want the probe section?" and asked[1] == ("Repository?", "acme/widgets")
 
 
+def test_a_question_whose_answer_may_be_empty_says_so_and_takes_the_word_none(monkeypatch):
+    """Hygiene XII item 23: an empty line takes the default, so where a
+    default exists the word `none` is the only way to answer nothing."""
+    facts = Facts(config_root=Path("."), owner="acme", repo="widgets")
+    s = _section([Question("tags", "Tags?", default="a=b", may_be_empty=True),
+                  Question("branch", "Branch?", default="main")])
+    asked: list[str] = []
+
+    def ask(prompt, default, kind, choices):
+        asked.append(prompt)
+        return {"Tags? (answer none for none)": "NONE"}.get(prompt, default)
+    out = bs.run_interview([s], facts, ask=ask)
+    assert out["probe"] == {"wanted": True, "tags": "", "branch": "main"}
+    assert asked[1:] == ["Tags? (answer none for none)", "Branch?"]            # the hint on that question alone
+    assert Question("b", "B?", default="main").coerce("none") == "none"      # elsewhere the word is a word
+    # on the terminal an empty default shows as [none], and an empty line takes it
+    prompts: list[str] = []
+    monkeypatch.setattr("builtins.input", lambda p: (prompts.append(p), "")[1])
+    assert bs.terminal_ask("Tags? (answer none for none)", "", "text", ()) == ""
+    assert bs.terminal_ask("Branch?", "main", "text", ()) == "main"
+    assert prompts == ["Tags? (answer none for none) [none]: ", "Branch? [main]: "]
+
+
 def test_the_answers_file_round_trips_and_is_versioned(tmp_path: Path):
     p = tmp_path / "bootstrap.yaml"
     bs.write_answers(p, {"github": {"wanted": True, "repository": "acme/widgets"}})
@@ -358,3 +381,22 @@ def test_the_command_runs_without_loading_and_refuses_by_name_under_quiet(tmp_pa
     before = _bytes(bs.output_dir(root))
     res = CliRunner().invoke(app, quiet)
     assert res.exit_code == 0 and _bytes(bs.output_dir(root)) == before
+
+
+def test_set_secrets_refuses_a_secrets_directory_git_would_track(tmp_path):
+    """Hygiene XII item 6 (the walk's F18): the interview offers
+    `_uncommitted/secrets` as never committed; the starters now ignore it, and
+    the script refuses, before any secret is read, a directory git does not
+    ignore."""
+    import subprocess
+    from cs_image_system.base.bootstrap.hcl import _secrets_script
+    repo = tmp_path / "repo"; repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    (repo / ".gitignore").write_text("_uncommitted/\n")
+    (repo / "generated" / "bootstrap").mkdir(parents=True)
+    script = repo / "generated" / "bootstrap" / "set-secrets.sh"
+    script.write_text(_secrets_script([], repository="o/r", secrets_dir="_uncommitted/secrets"))
+    tracked = subprocess.run(["bash", str(script)], cwd=repo, capture_output=True, text=True, env={"PATH": os.environ["PATH"], "SECRETS_DIR": "secrets"})
+    assert tracked.returncode == 2 and "is not ignored by git" in tracked.stderr, tracked
+    ignored = subprocess.run(["bash", str(script)], cwd=repo, capture_output=True, text=True, env={"PATH": os.environ["PATH"]})
+    assert ignored.returncode == 0, ignored        # no secret named: nothing to set, and the ignored default passes the check

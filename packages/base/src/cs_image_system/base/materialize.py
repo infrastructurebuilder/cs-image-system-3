@@ -24,6 +24,7 @@ ran; CI removes it in a step of its own that runs even when the build failed.
 from __future__ import annotations
 
 import logging
+import re
 import shutil
 from pathlib import Path
 from typing import Iterable
@@ -198,7 +199,90 @@ def sync_back(src: Path, dst: Path) -> list[str]:
         target = Path(src) / path.relative_to(dst)
         if target.is_file() and target.read_bytes() == path.read_bytes():
             continue
+        if target.is_file() and path.name == ".terraform.lock.hcl":
+            # hygiene XII item 30 (the walk's F60): `init` records the hashes of
+            # the provider packages it verified, which differ by where it ran (the
+            # plugin cache, the platform), so a record from CI and one from a
+            # person's machine took fourteen `h1:` lines from each other in turn.
+            # The committed lock is the UNION of what both have seen, and the
+            # mirror is brought level so the next init starts from it.
+            merged = merge_lock_files(target.read_text(), path.read_text())
+            path.write_text(merged)
+            if merged == target.read_text():
+                continue
+            target.write_text(merged)
+            moved.append(str(path.relative_to(dst)))
+            continue
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, target)
         moved.append(str(path.relative_to(dst)))
     return moved
+
+
+_LOCK_PROVIDER = re.compile(r'^provider "([^"]+)" \{$')
+
+
+def merge_lock_files(committed: str, fresh: str) -> str:
+    """The provider lock file ``fresh`` wrote, with every hash ``committed``
+    had for the same provider at the same version kept. Versions and
+    constraints are the fresh file's (the init that just ran); a provider only
+    the committed file names is kept whole."""
+    def parse(text: str) -> tuple[list[str], dict[str, tuple[str, str, list[str]]], list[str]]:
+        head: list[str] = []
+        order: list[str] = []
+        blocks: dict[str, tuple[str, str, list[str]]] = {}
+        name: str | None = None
+        version = constraints = ""
+        hashes: list[str] = []
+        in_hashes = False
+        for ln in text.splitlines():
+            m = _LOCK_PROVIDER.match(ln)
+            if m:
+                name, version, constraints, hashes, in_hashes = m.group(1), "", "", [], False
+                continue
+            if name is None:
+                head.append(ln)
+                continue
+            s = ln.strip()
+            if s.startswith("version"):
+                version = ln
+            elif s.startswith("constraints"):
+                constraints = ln
+            elif s.startswith("hashes = ["):
+                in_hashes = True
+            elif in_hashes and s.startswith("]"):
+                in_hashes = False
+            elif in_hashes and s.startswith('"'):
+                hashes.append(s.rstrip(",").strip('"'))
+            elif s == "}":
+                order.append(name)
+                blocks[name] = (version, constraints, hashes)
+                name = None
+        while head and not head[-1].strip():
+            head.pop()
+        return head, blocks, order
+    head, old, old_order = parse(committed)
+    fhead, new, new_order = parse(fresh)
+    out = list(fhead or head)
+    seen: set[str] = set()
+    for name in [*new_order, *(n for n in old_order if n not in new)]:
+        if name in seen:
+            continue
+        seen.add(name)
+        version, constraints, hashes = new.get(name) or old[name]
+        union = list(hashes)
+        if name in new and name in old and old[name][0].strip() == version.strip():
+            union += [h for h in old[name][2] if h not in union]
+        h1 = sorted(h for h in union if h.startswith("h1:"))
+        zh = sorted(h for h in union if h.startswith("zh:"))
+        rest = [h for h in union if not h.startswith(("h1:", "zh:"))]
+        out.append("")
+        out.append(f'provider "{name}" {{')
+        out.append(version)
+        if constraints:
+            out.append(constraints)
+        out.append("  hashes = [")
+        out.extend(f'    "{h}",' for h in [*h1, *zh, *rest])
+        out.append("  ]")
+        out.append("}")
+    return "\n".join(out).rstrip("\n") + "\n"

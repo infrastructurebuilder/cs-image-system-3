@@ -206,6 +206,14 @@ passphrase (a session hook cannot prompt). Every GCE cycle ends with
 the declared storages. Read [OPERATIONS.md](docs/OPERATIONS.md), "GCE cost
 discipline".
 
+A service account two configurations share (the reference tree and a
+scratch tree in one project, say) is read by the bootstrap and granted
+nothing by default: a grant held in one root's state leaves with that
+root's destroy, and the other tree loses it too. Name roles at the
+interview only when this tree is the one to hold them; the generated
+bootstrap README lists what a destroy would take that the root did not
+make ([CI_SETUP.md](docs/examples/standard-aws/CI_SETUP.md), 3.0).
+
 ### 1.5 Okta and Okta Privileged Access
 
 | What | Why | Where it is named |
@@ -341,6 +349,12 @@ cs-image-system init-config my-config --from complete
 cs-image-system init-config my-config --from standard-aws-posix   # AWS, people as POSIX accounts, no Okta
 ```
 
+A destination that is empty, or a fresh clone holding only `.git` (the
+usual order: create the repository on GitHub, clone it, write into the
+clone), takes the whole starter; a directory that already holds a
+configuration takes only the release-owned parts (below); any other
+directory is refused by name and nothing is written, so the command
+typed in the wrong place cannot replace that place's files.
 [docs/examples/standard-aws/](docs/examples/standard-aws/README.md) is the
 smallest repository that works on the AWS plugin set, one of everything,
 every value you must replace an obvious `REPLACE-ME` and every line that
@@ -752,11 +766,11 @@ gate line, `just run storage`. Groups: `unmanaged: true` on each, `just
 run identity` (section 4's row; from 0.1.1.dev23 a dry run first is
 safe). Then `just record`, `just state-query --strict` with nothing
 declared, and push `develop` only: never `main` again from this tree,
-whose `perform` would bake what you disposed of. By hand, in this order:
-the security group each instance root made (`aws_security_group
-.csis_instances`; find its id in the root's state, delete it with `aws
-ec2 delete-security-group`: no run removes it, [TODO.md](TODO.md)
-hygiene XII); CI disabled (`gh workflow disable ci.yml`), because its
+whose `perform` would bake what you disposed of. Since 0.1.1.dev25 the instance root is still emitted, empty, once nothing
+is declared on it, and that run lets the group it had made for its
+machines go through the gate (before, the security group stood in the
+cloud and in the root's state with no run to plan it, and went by hand).
+By hand, in this order: CI disabled (`gh workflow disable ci.yml`), because its
 roles are about to go; each bootstrap root destroyed from its own state
 (`tofu -chdir=generated/bootstrap plan -destroy -out=<file>`, read it,
 `apply <file>`; the GCP part needs your own token as the apply did);
@@ -859,6 +873,11 @@ item in the open hygiene bundle in [TODO.md](TODO.md).
 | `the configuration cannot load: <tree>/cfg: ...: an encrypted value is present but CSIS_CONFIG_IDENTITY is not set`, exit 2, before anything is asked of a cloud (before hygiene XII a `MissingIdentityError` traceback) | the shell never loaded `.envrc` (a new terminal, a directory direnv has not entered or allowed) | `source .envrc`, or `direnv allow`; it is the first thing an unsourced shell meets in any tree that holds an encrypted value (2026-10-09, F41) |
 | ` - <file>: instances[0].name: a name may not be 'none'` under `Validation failed with 1 error(s).`, exit 1, from `validate` or a run (before hygiene XII a `ReservedNameError` traceback) | a reserved word was used as a name, exactly as section 3 says it may not be | rename it (2026-10-09, F42) |
 | `CANNOT START <image>/<mod>: cannot start a container from almalinux:10: docker pull (after 3 attempts) exited 1: ... context deadline exceeded` from `test-mods` (CI's `live` job), exit 1; the record says `unstarted` | the registry or the daemon did not answer: every `live` run pulls its test image from Docker Hub, without an account, at that moment, and the pull was retried three times over about half a minute. Nothing about the modification was tested, so it is not a failed modification (before hygiene XII: `CalledProcessError` under eighty lines of traceback, docker's words lost). `perform` waits behind `live`, so a registry outage stops every bake | a pull from your own machine tells the registry from the daemon (2026-10-09, F54: three runs in forty-five minutes while Docker Hub's sign-in service did not answer); wait and rerun (`gh run rerun <run> --failed`). The run's log says which modification it is on and which image it waits for |
+| `Unable to find remote state ... No stored state was found` planning an instance root, after the bakes | the instance root reads its storage root's state, and that root has never applied (`apply_storage: false` from the first commit, the first `perform` before any storage run) | run the storage lifecycle with `apply_storage` first; the strict state query says it beforehand as a note (`mounts storage ... whose root has no state yet`; 2026-10-07, F26) |
+| `cs-image-system run (FAILED) <id>` in the git log | an applying run failed after a root had applied; its record was committed so what applied is not lost (the after-apply hooks ran first) | read `meta-state/runs.yaml` for the error; a decommission that failed on another cloud's plan left the machine gone and the records right (since 0.1.1.dev25; 2026-10-13, F62) |
+| `meta-state/runs.yaml` says `ok: false` with `error: interrupted (KeyboardInterrupt) during <lifecycle>` | you cancelled the run with Ctrl-C; nothing after that point ran, and what ran before stands as its own commands left it | read what it was in; a generation can simply be run again, an interrupted apply is read in the root's state first (until 0.1.1.dev25 a cancelled run was journalled `ok: true`; 2026-10-09, F45) |
+| `config-drift: ... the vendor's newest image moved under a base this tree has not baked` (exit 0) | the vendor published a new image and the emission of a base with no build yet names the one of the day it was generated; nothing of yours changed | `just record`, and commit it; before 0.1.1.dev25 this was `BEHIND ... (1 files)` and a red scheduled run that could not be re-run green (2026-10-12, F55) |
+| the log of an apply shows the root's outputs and no `Apply complete!` line | the run keeps the last 40 lines of a command's output, and tofu prints its verdict BEFORE the outputs | since 0.1.1.dev25 every verdict line (`Plan:`, `Apply complete!`, the gate's, a bake's `Build ... finished`) is printed ahead of the tail with its line number; before, `just cli --verbose` or the DEBUG log (2026-10-07, F25) |
 | `public-safe: ... <file>:<line>` from the hook | a committed line looks like a secret, a key, a plan or a state file | never bypass the hook; encrypt the value, or allow it BY DECISION in `cfg/_config.yml` `public_safe.allow` |
 | `Build '<image>' errored after 20 minutes ...: Timeout waiting for SSH.` with `ssm error: ... StartSession, context canceled` | the bake machine booted and its SSM agent was Online, but packer's ssh session through SSM never opened: the bake host was a 1 GB t2.micro, too small for the image it boots (three `perform` runs, 2026-10-04 and -05; the same parent baked on an r5.4xlarge, and on a t3.medium once declared) | give the bake host 4 GB: `machine_type: t3.medium` on the image's runtime entry, or the runtime's `default_machine_type` (the starters ship t3.medium; the reference tree since stage 80). Since stage 79 the builds that completed before the failure are recorded anyway (a warning names them) |
 | `foreign image <id>: ... tagged series=<s> run=<r> is not in lineage` | an image the system tagged and lineage does not record: a bake still running in another process (2026-10-04: `just full-test`'s strict query raced CI's `perform`), or one a failed run baked before stage 79, when a failed run recorded nothing | if a run is still baking, wait for it to finish and record. Otherwise `just cli state import --no-storages` adopts it (2026-10-04: five images), then `just record`; the adopted build counts as current, so it is not baked again |

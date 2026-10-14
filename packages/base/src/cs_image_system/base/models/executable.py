@@ -30,6 +30,14 @@ from ..constants import SYSTEM_CLI, DEFAULT, VCT
 #: it at DEBUG.
 OUTPUT_TAIL_LINES = 40
 _ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+#: hygiene XII item 8 (the walk's F25): the lines that carry a command's
+#: verdict are shown wherever they stand, ahead of the tail. tofu prints
+#: ``Apply complete!`` and THEN the root's outputs, so a root with forty
+#: lines of outputs lost the one line the operator was told to look for;
+#: the same tail hid a bake's settle and runner lines.
+VERDICT_LINE = re.compile(r"^\s*(?:Plan: |Apply complete!|Destroy complete!|No changes\.|Plan passes the apply gate|"
+                          r"DESTROY NOT WHITELISTED|Error: |Build '.*' (?:finished|errored)|==> Builds finished|"
+                          r"==> Wait completed|csis-(?:settle|step)\b|.*\bsettle(?:d)?\b.*waited\b)")
 
 
 def _log_captured(command: list[str], result: subprocess.CompletedProcess[str]) -> None:
@@ -51,6 +59,10 @@ def _log_captured(command: list[str], result: subprocess.CompletedProcess[str]) 
             continue
         tail = lines[-OUTPUT_TAIL_LINES:]
         if len(tail) < len(lines):
+            cut = len(lines) - len(tail)
+            verdicts = [f"{i + 1}: {ln}" for i, ln in enumerate(lines[:cut]) if VERDICT_LINE.match(ln)]
+            if verdicts:
+                log.info(f"{label} {stream} (verdict lines before the tail, by line number):\n" + "\n".join(verdicts))
             log.info(f"{label} {stream} (last {len(tail)} of {len(lines)} lines; all at DEBUG):\n" + "\n".join(tail))
             log.debug(f"{label} {stream} (all {len(lines)} lines):\n{clean}")
         else:
