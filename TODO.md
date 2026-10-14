@@ -1390,58 +1390,66 @@ Fedora release lasts about 13 months), and every third-party
 repository the jobs need publishes EL builds. The strict alternative,
 Red Hat's `ubi10`, is noted for a consumer that wants RHEL itself.
 
-**Three outputs**, all three on the operator's word:
+**The operator's answers (2026-10-14, asked before anything was
+built):**
 
-1. **The image.** A Dockerfile under `ci/runner-image/` (name to be
-   settled) from `almalinux:10.<minor>` pinned by digest, published
-   by a workflow of this repository to `ghcr.io/infrastructurebuilder/
-   csis-ci` with a dated tag, rebuilt on a schedule and when the
-   requirements change. It carries everything the jobs install today
-   on the runner: git, unzip, ssh, jq, python3; the docker client (for
-   the modification tests, through the host's socket mounted into the
-   container); AWS CLI v2 and the session-manager plugin (rpm); the
-   Google Cloud CLI (rpm repository); Okta's `sft` (rpm repository);
-   uv, just, OpenTofu and Packer at the versions `cfg/executables.yml`
-   pins, or fetched by their actions as now (USER decides: baked is
-   faster and the image then needs a rebuild per tool version; fetched
-   keeps the image small and the tool versions in the tree). Pinned
-   by version or digest everywhere, never a moving tag.
+- **Everything is baked.** uv, just, OpenTofu, Packer, the clouds'
+  CLIs, `sft`, ansible, the session-manager plugin: all in the image at
+  pinned versions. The requirements document is the one list.
+- **The image has versions of its own.** Built on a schedule and when a
+  tool changes, tagged by date (`csis-ci:alma10-YYYYMMDD`); a starter
+  pins one such tag, and `init-config --force` moves it with the other
+  release-owned lines. A second thing to take beside the release, by
+  choice: the image and the release move at different paces.
+- **Base `almalinux:10.<minor>` pinned by digest, on
+  `ghcr.io/infrastructurebuilder/csis-ci`.**
+- **The docker client from Docker's EL repository** (`docker-ce-cli`),
+  talking to the host daemon over the mounted socket; `mod_tests`
+  calls docker as it does now.
+- **All four starters carry the image path.** The from-scratch path
+  (GitHub's `ubuntu-24.04` with the install steps, as §91 leaves it)
+  lives only in this repository, proved by its own CI, for anyone to
+  copy; the starters do not ship it.
+- **The requirements document is tested against the Dockerfile and
+  `cfg/executables.yml`, and by a build-and-probe**: a `full-test`
+  leg builds the image locally and runs each tool's `--version` inside
+  it.
+
+**Three outputs:**
+
+1. **The image.** `ci/runner-image/Dockerfile` from the digest-pinned
+   base; every tool above at a pinned version; a workflow of this
+   repository builds it, probes it, and publishes it to ghcr.io with a
+   date tag, on a schedule (monthly) and on any change under
+   `ci/runner-image/`. The tag a starter pins is a line `init-config`
+   owns.
 2. **The requirements document**, `docs/CI_RUNNER.md`: what a CI
    runner for a cs-image-system configuration must provide, written
-   for no CI system in particular -- the operating system family and
-   version, each tool with its version floor and where it comes from,
-   the network it must reach (the index, the clouds, OPA, Docker Hub
-   for the test images), what it must be able to do (run containers,
-   federate to the clouds by OIDC, hold the secrets the gate reads),
-   and what the jobs do in order (the `just` targets, which are the
-   contract). The Dockerfile is one implementation of it and says so;
-   a GitLab or Azure DevOps runner would be another, built from the
-   same page, so a move of CI systems rewrites the pipeline file, not
-   the runner. The document is tested against the Dockerfile: every
-   tool it names is installed, every version floor matches
-   `cfg/executables.yml` and the starters.
-3. **The from-scratch path, kept.** The workflows as §91 leaves them
-   -- GitHub's `ubuntu-24.04` image with the install steps -- stay
-   maintained as the alternative for someone who has no registry or
-   wants nothing prebuilt: in the starters as a documented variant
-   (a second workflow file, or the same file with the container line
-   commented and the install steps kept; USER decides), proved green
-   by the system's own CI on both paths, and moved forward by the
-   section 9.1 procedure together with the image.
+   for no CI system in particular -- OS family and version, each tool
+   with its version floor and source, the network it must reach, what
+   it must be able to do (run containers, federate by OIDC, hold the
+   secrets the gate reads), and the `just` targets the jobs call in
+   order, which are the contract. The Dockerfile is one implementation
+   and says so; a GitLab or Azure DevOps runner is another, built from
+   the same page.
+3. **The from-scratch path, kept in this repository**: a second
+   workflow here, `ci-from-scratch.yml`, GitHub's image with the
+   install steps, run by this repository's CI beside the image path
+   and moved forward by section 9.1 with it.
 
-**What changes in the workflows.** Every job gains `container: {image:
-ghcr.io/...:<tag>, options: -v /var/run/docker.sock:/var/run/docker.sock}`;
-the Ubuntu-only lines go (`sudo dpkg -i` of the plugin; `sudo` itself,
-the container runs as root); the install steps become no-ops or go. The
-`just` targets are unchanged: the Justfile stays the contract.
+**What changes in the workflows.** Every starter job gains
+`container: {image: ghcr.io/infrastructurebuilder/csis-ci:alma10-<date>,
+options: -v /var/run/docker.sock:/var/run/docker.sock}`; the install
+steps and the Ubuntu-only lines go; `just` targets are unchanged.
 
-**Proof.** First, before anything else is decided: every dependency
-installs on `almalinux:10` (a scratch Dockerfile built locally; the
-EL10 repositories of Docker, Google and Okta answer, or EL9's do). Then
-`just test` and `just full-test`; this repository's CI on both paths;
-the reference configuration on the release: `live` green inside the
-image, then `perform` with a bake, the modification tests and a login
-proof, on the operator's `main`.
+**Proof.** First, before anything else: every dependency installs on
+`almalinux:10` (a scratch Dockerfile built locally; Docker's, Google's
+and Okta's EL10 repositories answer, or EL9's do, and the proof says
+which). Then `just test` and `just full-test` (with the new
+build-and-probe leg); this repository's CI on both paths; the reference
+configuration on the release: `live` green inside the image, then
+`perform` with a bake, the modification tests and a login proof, on the
+operator's `main`.
 
 **Sizing**: the dependency proof half a day; the image and its
 workflow a day; the workflows and the two variants a day; the
