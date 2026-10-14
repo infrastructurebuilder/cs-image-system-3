@@ -7788,7 +7788,7 @@ picture after against the picture before, and the picture before
 is in the container's home:
 
 ```sh
-# 17f step 1 -- box 1 of 1 -- v1
+# 17f step 1 -- box 1 of 3 -- v2
 cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
 docker cp csis-walk:/home/mykel.alvis/teardown-before.txt _uncommitted/teardown-before.txt
 docker cp csis-walk:/home/mykel.alvis/teardown-before-github.txt _uncommitted/teardown-before-github.txt
@@ -7796,6 +7796,68 @@ grep -vc '^==' _uncommitted/teardown-before.txt
 ```
 
 `31`, the picture's lines that are not headings.
+
+(v2 of step 1, 2026-10-14, at your question "Are we sure we're
+getting everything we need from the csis-walk container?": no, the
+pictures were not all. Boxes 2 and 3 were added, so box 1 is
+numbered anew; its commands are the same, and if you ran its `v1`
+you need not run it again.)
+
+The walk's own record: the fifty run logs in the container's home
+(2.2 MB: every launch, bake, cycle, identity run, decommission and
+disposal from stage 12 on, among them the refused release of 17c
+step 7 and the decommission that failed after its destroy), the
+two small pictures of 15a and 15d, and the shell's history, which
+this page has read more than once to settle what happened when. Into
+`_uncommitted/walk-container-home/`, which git ignores, so none of it
+is ever committed. Left behind on purpose: the saved plan files
+(`*.tfplan`, which carry the values a plan saw), `bucket-17d.json`,
+and everything that is a credential.
+
+```sh
+# 17f step 1 -- box 2 of 3 -- v1
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+mkdir -p _uncommitted/walk-container-home
+for f in $(docker exec csis-walk sh -c 'cd /home/mykel.alvis && ls *.log *.txt'); do docker cp "csis-walk:/home/mykel.alvis/$f" _uncommitted/walk-container-home/ >/dev/null; done
+docker cp csis-walk:/home/mykel.alvis/.bash_history _uncommitted/walk-container-home/bash_history >/dev/null
+echo "files: $(ls _uncommitted/walk-container-home | wc -l | tr -d ' ') | $(du -sh _uncommitted/walk-container-home | cut -f1)"
+```
+
+`files: 55 | 2.3M` (fifty logs, four pictures, the history; tried
+on 2026-10-14 into a scratch directory).
+
+**Your decision: the walk's age identity.** Every `ENC[age:...]`
+value in the two trees, now archived on GitHub, is sealed to two
+keys: the holders' (`walk.age-identity` in the container's home)
+and CI's (its private half was the `CSIS_CONFIG_IDENTITY` secret,
+deleted in 17e, and a copy in the container's `walk-secrets`). None
+of the identities on your local machine is either. When the
+container goes, nothing can open those values again: the walk's
+roster and admins, in the archived repositories, are then sealed
+for good. That is the usual end of a teardown. If you want to be
+able to read them later (for instance while the findings' words
+are written), keep the holders' key, and only that:
+
+```sh
+# 17f step 1 -- box 3 of 3, OPTIONAL -- v1
+cd /Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3 2>/dev/null && [ -d packages/base ] && echo "OK: local machine, the system repository, $(pwd)" || echo "STOP: this is the container, or the path is wrong"
+docker cp csis-walk:/home/mykel.alvis/.config/cs-image-system/age/walk.age-identity ~/.config/cs-image-system/age/walk.age-identity >/dev/null
+chmod 600 ~/.config/cs-image-system/age/walk.age-identity
+ls -l ~/.config/cs-image-system/age/walk.age-identity | awk '{print $1, $5, $9}'
+```
+
+`-rw-------`, a size of a little over two hundred bytes, and the
+path. It is a secret key: it stays on your local machine and goes
+nowhere else.
+
+One more thing the container holds that outlives it: the Google
+credentials file `~/gcp-credentials.json` there is a copy of an
+impersonating credential made on your local machine in stage 15.
+Removing the container removes the copy; the grant behind it stays
+valid until you revoke it, and revoking it (`gcloud auth
+application-default revoke` on your local machine) also ends your
+local machine's own application-default login, which you would then
+make again. Your call; nothing in the walk needs it any more.
 
 **Step 2. The two containers.** The look:
 
