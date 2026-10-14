@@ -484,24 +484,28 @@ the first final version on PyPI (§41's open call).
 
 **Status: OPEN 2026-10-05, thirty items found by the §65 walk; the
 operator said "do 81 in the most logical order" on 2026-10-14, and the
-items go in groups, each a branch: A the starters and `init-config`
+items went in groups, each a branch, each squash-merged on the
+operator's word. LANDED 2026-10-14: A the starters and `init-config`
 (items 1, 2, 6, 12, 18, 29), B the records' noise (8, 13, 19, 24, 27,
-30), C teardown (9, 31, 32), D a shared account (5, 20, 23), E
-diagnostics (17, 26, and the tracebacks of F10, F30, F41, F42), F the
-items that need a decision (14, 15, 21, 22). Group A LANDED
-2026-10-14 (this commit). Items 3 and 4 LANDED with §82 (0d1850c,
-2026-10-05, released in dev15) by the operator's word. Items 10 and 11 LANDED as §86 (c6af4b2,
-2026-10-07, "Fix now, starters too"). Item 16 LANDED as §88
-(20206e8, 2026-10-08; the operator: "we should correct this
-situation as soon as possible"). Items 1,
-5, 8, 9, 13 to 15, 17, 19 to 24, 26, 27 and 30 to 32 are in progress in
-the groups above. Items 7 and 28
-left the bundle as §91 (2026-10-14). Item 25 is a standing review with
-four dates, the first 2026-11-09. Items 1, 6, 9, 14, 15, 17, 18, 21,
-23, 27, 31 and 32 owe the daily driver (or a starter) words beside
-their fix: §65's step 9 left those words to the fix so they are
-written once (findings F10, F26, F30, F35, F36, F40, F43, F48, F49,
-F51, F55, F61, F62).**
+30). Still on their branches: C teardown (9, 31, 32; of item 9 the note
+and the words, not the plan-only skip of the root, which would change
+what a dry run enumerates), D a shared account (23; item 20 left the
+bundle as §93, a stage of its own, as the item said), E what a failure
+says (17, 26, and the load-time tracebacks of F10, F30, F41 and F42 that
+§65's step 9 left to this bundle; of 17 the lines and the words, and on
+2026-10-14 the operator decided against an `sts` call, so `preflight`
+keeps making no cloud call; of 26 the retried pull, docker's words and
+the `unstarted` record, and the operator decided the same day that
+nothing more is owed -- a registry outage longer than the retries is a
+rerun), F the proofs (14, 22), G the operator's decisions of 2026-10-14
+(5: the root keeps managing a bucket it made; 15: usernames are public;
+21: a bake takes only the storage types whose builder lives on its
+runtime). Items 3 and 4 LANDED with §82 (0d1850c, 2026-10-05, released
+in dev15) by the operator's word. Items 10 and 11 LANDED as §86
+(c6af4b2, 2026-10-07, "Fix now, starters too"). Item 16 LANDED as §88
+(20206e8, 2026-10-08; the operator: "we should correct this situation as
+soon as possible"). Items 7 and 28 left the bundle as §91 (2026-10-14).
+Item 25 is a standing review with four dates, the first 2026-11-09.**
 
 5. **The bootstrap's create path would strip the state bucket it
    made.** The walk's finding F17, read from the code before the walk
@@ -524,25 +528,6 @@ F51, F55, F61, F62).**
    destroying. Either way a test renders the second interview and
    asserts no bucket resource leaves the plan, and the guide says what
    the operator sees.
-8. **An applying run's log can cut the line that says what was
-   applied.** The walk's finding F25. The log keeps the last 40 lines
-   of a command's output (hygiene VIII item 3, `OUTPUT_TAIL_LINES`),
-   on the premise that "the end is where tofu's `Plan:` / `Apply
-   complete!` lines are". For an apply that is not so: tofu prints
-   `Apply complete! Resources: ...` and THEN the root's outputs. The
-   reference configuration's identity root has 40 lines of outputs,
-   so its apply's 45 lines lose exactly the five that hold the
-   verdict; the operator, told to expect the line, did not find it
-   (2026-10-07). A one-group tree shows it, which is why nothing
-   caught this. Fixed looks like: tofu's verdict lines (`Apply
-   complete!`, `Plan:`, `No changes.`) are always shown, wherever
-   they stand, ahead of the tail; a test with an apply whose outputs
-   are longer than the tail. The whole output stays at DEBUG.
-   The same tail hides a successful BAKE's steps (seen 2026-10-07:
-   `packer build stdout (last 40 of 304 lines)`): the settle step's
-   own line, how long it waited, and any step the runner ran twice
-   are among the lines cut. A bake's settle and runner lines belong
-   with the verdict lines that are always shown.
 9. **The first `perform` of a new tree fails after its bakes.** The
    walk's finding F26: PREDICTED, not run (the operator chose,
    2026-10-07, to apply the storage first and walk on). An instance
@@ -568,21 +553,6 @@ F51, F55, F61, F62).**
    state, a performing run, the bakes recorded and the run green
    with the note.
 10. (Items 10 and 11 landed as §86, c6af4b2, 2026-10-07.)
-13. **An instance that was never launched reads as a cloud that could
-    not answer.** The walk's finding F33 (2026-10-08, in CI's strict
-    query and the operator's): `unavailable: instances/walk-node-1:
-    booted image (runtime aws-main could not answer)`. A bake binds
-    the instance's pin; `instance_boot_drift` then asks the runtime
-    which image the pinned instance booted, gets nothing because
-    there is no machine, finds it is not "off" either, and files it
-    under `unavailable`. The records know better: no generation in
-    `instance-state.yaml`, `launched: false` in the launch
-    parameters. It stops nothing (strict passes on `unavailable`),
-    but it is the same mistake as item 3's group, and it stands from
-    the first bake until the first launch in every new tree. Fixed
-    looks like: a pinned instance with no launched generation is a
-    NOTE, "declared and not launched yet (pinned to <build>)", and
-    the cloud is not asked; a test beside item 3's.
 14. **Nothing proves the workload role's branch pin.** The walk's
     finding F35 (2026-10-08). CI_SETUP 3.5 step 6 ends at "add the
     branch pin to the role" with no check after it, and the one tool
@@ -647,18 +617,6 @@ F51, F55, F61, F62).**
     get-caller-identity` for such a profile is a **USER** decision:
     it is the one cloud call that would make the answer true, and
     the command's contract today is that it makes none.
-19. **A run its operator cancels is journalled as a success.** The
-    walk's finding F45 (2026-10-09, stage 14g). `just record`,
-    interrupted with Ctrl-C five seconds in, left an entry in
-    `meta-state/runs.yaml` saying `ok: true`, `error: null`, `apply:
-    {}`. `run_lifecycles` records in a `finally`, and an interrupt
-    is no `Exception`, so the summary still holds its starting
-    values. Plan: an interrupted run (Ctrl-C, SIGTERM) is recorded
-    `ok: false` with an `error` that says it was interrupted and in
-    which lifecycle, its summary file says the same, and the
-    process ends non-zero as it does now; a test interrupts a run
-    and reads the entry. The daily driver's section 6 gains the
-    row.
 20. **The emptiness assertion counts another configuration's
     things.** The walk's finding F47 (2026-10-09, found by reading
     before stage 15). `emptiness()` is the runtime's whole inventory
@@ -733,22 +691,6 @@ F51, F55, F61, F62).**
     for the AWS section's adopted roles, checked against item 5;
     the generated README lists what a `tofu destroy` of the root
     would remove that the root did not create.
-24. **Stage 88's sanction list is committed with the emission.** The
-    walk's finding F52 (2026-10-09, stage 15e). The prune step's
-    `csis-sanctioned-removals.txt` ends up in
-    `generated/identity/<builder>/group-generation/` and `--commit`
-    stages it: one line per removed membership (the attachment's
-    address, which holds the username) after a removal, an empty
-    file after any other applying run, and a deletion at the next
-    dry run. Stage 88's text and squash message say it stays in the
-    private mirror; it does not. Plan: find how it reaches
-    `generated/` (the step's working directory, or the copy between
-    the emission and the mirror), keep it out of the committed tree
-    (the generated `.gitignore`'s built-in list, and written where
-    the plan file is), a test that an applying identity run leaves
-    no such file staged, and the stage 88 words corrected. Whether
-    the copies already in the reference's and the walk's history
-    matter is F36's question, not a new one.
 25. **A verification starts a machine its operator switched off:
     KEPT, and reviewed monthly.** The walk's finding F44 (2026-10-09,
     stage 14f; seen in the machine's own boot log and in CloudTrail).
@@ -802,46 +744,6 @@ F51, F55, F61, F62).**
     nothing in between. A test that says which modification it is
     on, and which image it is waiting for, would have shown where
     the time went.
-
-27. **A base never baked turns the scheduled CI red when the vendor
-    publishes an image.** The walk's finding F55 (2026-10-12: the
-    posix walk, three days between its first emission and its first
-    bake). The emission of a base that has no build yet holds the
-    vendor image's id as that day's generation resolved it (`data
-    "amazon-ami"` with `image-id`), so the committed emission is
-    true only until the vendor publishes again. The scheduled
-    `live` job then fails `config-drift` (`BEHIND ... (1 files)`)
-    with no change by anyone, `perform` waits behind it, and a red
-    run on `main` can no longer be re-run green. A baked base does
-    not show it: the first walk and the reference stayed green the
-    same hour. Plan: decide whether an unbaked base's emission
-    should carry the query and leave the id to the bake, or whether
-    `config-drift` should name the case in one line ("the vendor's
-    newest image moved; `just record`") instead of a bare diff; the
-    daily driver's section 6 gains the row either way.
-
-    Seen again the next day, on the other cloud (2026-10-13, the
-    reference configuration): its GCE base's emission named
-    `almalinux-10-v20261005`, the vendor published
-    `almalinux-10-v20261013` between that morning's green scheduled
-    run and the afternoon, and `config-drift` said BEHIND by that
-    one line. There it will keep happening: the runtime is
-    ephemeral, its base is never kept, so its emission always holds
-    a vendor image's name and every publication turns the next
-    scheduled run red until someone makes a record.
-
-30. **A provider lock file changes with whoever made the record.**
-    The walk's finding F60 (2026-10-13, the posix walk).
-    `generated/storage/aws-ebs/storage-generation/.terraform.lock.hcl`
-    and the instance root's gain fourteen `h1:` hash lines in
-    every record CI commits and lose them in every record made
-    from the container, six times in one day. Nothing fails and
-    `config-drift` does not look there; every record's diff
-    carries it, and the committed file says two things in turn.
-    Plan: find why the two environments write different hashes
-    (the plugin cache, or the platforms each `tofu init` records)
-    and make the committed lock the same from both, or keep the
-    lock out of what a record commits and say where it lives.
 
 31. **The last machine's decommission leaves a security group no
     run will remove.** The walk's finding F61 (2026-10-13, teardown

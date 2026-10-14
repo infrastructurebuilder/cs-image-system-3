@@ -44,7 +44,9 @@ from ..constants import RUN_LOCAL_FILENAMES
 log = logging.getLogger(__name__)
 
 # names pruned wherever they are, and path suffixes pruned
-RESIDUE_NAMES: tuple[str, ...] = (".terraform", ".terraform.lock.hcl", "tfplan", "temp_assets", *RUN_LOCAL_FILENAMES)
+RESIDUE_NAMES: tuple[str, ...] = (".terraform", ".terraform.lock.hcl", "tfplan", "temp_assets",
+                                  "csis-sanctioned-removals.txt",        # hygiene XII item 24: a runner's step's, never the emission's
+                                  *RUN_LOCAL_FILENAMES)
 RESIDUE_SUFFIXES: tuple[str, ...] = ("release/release", "retention/retention")
 RUN_ID = re.compile(rb"[0-9]{4}_[0-9]{2}_[0-9]{2}t[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{6}")
 STAMP = re.compile(rb"[0-9]{8}[-_][0-9]{6}")
@@ -200,8 +202,59 @@ def config_drift(root: Path, *, dry_run: DryRun | None = None) -> tuple[int, lis
         lines = diff_trees(committed / "generated", copy / "generated")
         if not lines:
             return 0, ["config-drift: the committed emission is current with the configuration"]
+        moved = vendor_image_moves(lines)
+        if moved:
+            # hygiene XII item 27 (the walk's F55): the emission of a base that has
+            # no build yet names the vendor's newest image as the day's generation
+            # resolved it; when the vendor publishes again the committed emission is
+            # behind by that one line, with no change by anyone, and the scheduled
+            # run went red for it. Not a change of the tree's: said in one line.
+            return 0, ["config-drift: the committed emission is current with the configuration, but the vendor's "
+                       f"newest image moved under a base this tree has not baked ({len(moved)} line(s)); "
+                       "nothing of yours changed, and `just record` takes it:", *moved]
         return 1, [f"config-drift: the committed emission is BEHIND the configuration ({_count_files(lines)} files):",
                    *lines]
+
+
+#: the lines of a base's packer source that name the vendor's image as resolved at generation
+VENDOR_IMAGE_LINE = re.compile(r'^[-+]\s*(?:image-id|source_image|source_image_name|image_name)\s*=\s*"[^"]*",?\s*$')
+
+
+def vendor_image_moves(lines: list[str]) -> list[str]:
+    """When every differing file is a base's packer source under ``base-image/``
+    and every changed line names the vendor's image, the moves (``file: old ->
+    new``); else an empty list, and the diff is the tree's own."""
+    moves: list[str] = []
+    current: str | None = None
+    olds: list[str] = []
+    news: list[str] = []
+
+    def flush() -> None:
+        if current is not None:
+            if len(olds) != len(news):
+                raise ValueError("unpaired")
+            for a, b in zip(olds, news):
+                moves.append(f"{current}: {a} -> {b}")
+    try:
+        for ln in lines:
+            if ln.startswith("Only in "):
+                return []
+            if ln.startswith("diff "):
+                flush()
+                current = ln[5:].strip()
+                olds, news = [], []
+                if not current.startswith("base-image/") or "image-generation" not in current:
+                    return []
+                continue
+            if ln.startswith(("---", "+++", "@@")) or not ln.startswith(("-", "+")):
+                continue
+            if not VENDOR_IMAGE_LINE.match(ln):
+                return []
+            (olds if ln.startswith("-") else news).append(ln[1:].strip().rstrip(","))
+        flush()
+    except ValueError:
+        return []
+    return moves
 
 
 def runtime_unchanged(runtime: str, ref: str = "HEAD") -> tuple[int, list[str]]:
