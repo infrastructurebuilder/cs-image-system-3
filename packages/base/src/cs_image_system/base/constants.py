@@ -67,6 +67,10 @@ DEFAULT_GITIGNORE_ENTRIES = [
     "terraform.tfstate",
     "terraform.tfstate.backup",
     "!.terraform.lock.hcl",
+    # hygiene XII item 24 (the walk's F52): the identity runner's list of sanctioned
+    # membership removals belongs beside the plan, in the private mirror; wherever a
+    # copy lands under generated/, it is never staged (it names a person)
+    "csis-sanctioned-removals.txt",
 ]
 # stage 49: the private mirror, beside generated/ under the configuration root.
 # It holds the plaintext of every value the emission carries as ciphertext, so

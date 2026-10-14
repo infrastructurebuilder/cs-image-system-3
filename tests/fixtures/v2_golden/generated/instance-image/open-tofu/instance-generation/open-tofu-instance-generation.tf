@@ -107,7 +107,7 @@ resource "aws_security_group" "csis_instances" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-  tags = { Name = "csis-instances" }
+  tags = { Name = "csis-instances", csis_config = "cs-image-action-test" }
   # replacements must create the successor first: instances
   # wear this group, so a delete-first plan hits
   # DependencyViolation (found live)

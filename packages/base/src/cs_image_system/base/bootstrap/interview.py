@@ -18,20 +18,23 @@ from __future__ import annotations
 from typing import Any, Callable, Iterable, Mapping
 
 from .facts import Facts
-from .questions import Answers, Question, Refused, Section
+from .questions import EMPTY_HINT, Answers, Question, Refused, Section
 
 Ask = Callable[[str, Any, str, tuple[str, ...]], Any]
 
 
 def terminal_ask(prompt: str, default: Any, kind: str, choices: tuple[str, ...]) -> Any:
     """One question on the terminal: the prompt, the default in brackets,
-    an empty answer takes the default."""
+    an empty answer takes the default. An EMPTY default is shown as
+    ``[none]``, and a question whose answer may be empty says in its prompt
+    that the word ``none`` is the empty answer (the empty line is the
+    default's)."""
     if kind == "bool":
         shown = "Y/n" if default else "y/N"
     elif kind == "choice":
         shown = "/".join(c if c != default else f"[{c}]" for c in choices)
     else:
-        shown = "" if default is None else str(default)
+        shown = "" if default is None else ("none" if default == "" else str(default))
     suffix = f" [{shown}]" if shown and kind != "choice" else (f" ({shown})" if kind == "choice" else "")
     while True:
         raw = input(f"{prompt}{suffix}: ").strip()
@@ -77,7 +80,8 @@ def run_interview(sections: Iterable[Section], facts: Facts, *, quiet: bool = Fa
                                   + "; answer it without --quiet, or put it in bootstrap.yaml")
                 value = default
             else:
-                value = ask(q.prompt, default, q.kind, q.choices)
+                prompt = f"{q.prompt} ({EMPTY_HINT})" if q.may_be_empty else q.prompt
+                value = ask(prompt, default, q.kind, q.choices)
                 if value is None:
                     raise Refused(f"{section.name}.{q.id}: {q.prompt} -- no answer")
             answers[q.id] = q.coerce(value)

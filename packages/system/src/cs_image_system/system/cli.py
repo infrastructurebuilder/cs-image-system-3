@@ -145,9 +145,15 @@ def run_command(
         gctx.apply_runtime = apply_runtime
         for key in ("apply_storage", "apply_instances"):
             gctx.config[key] = [apply_runtime]
-        if not only and not only_runtime:
+        if not only_runtime:
             # stage 12.1: the apply scope implies the bake filter -- an ad-hoc run
-            # without --only-runtime baked two AMIs on the other cloud (ledger 68)
+            # without --only-runtime baked two AMIs on the other cloud (ledger 68).
+            # Hygiene XII item 32 (the walk's F62): beside `--only` too. The
+            # decommission recipe says `--only none --apply-runtime <rt>`, and
+            # `--only` used to leave the scope unimplied, so the run planned every
+            # other runtime's instance root after it had applied this one, and a
+            # GCE root with an ephemeral machine between cycles failed that plan
+            # after the destroy and before the record.
             only_runtime = apply_runtime
             gctx.implied_scope = apply_runtime
     if only_runtime:
@@ -229,18 +235,20 @@ def preflight_command(
     value. The Justfile's `full-test` gates its cloud-reading legs on this
     (stage 16). Exit 0 when every session is present; 2 when one is absent
     or EXPIRED (the configuration could not even load); 1 with --strict
-    when one expires within the expected run length."""
+    when one expires within the expected run length. A session whose
+    expiry cannot be read (static keys) is present and NOT JUDGED: exit 0,
+    and the closing line says so instead of "every session present"."""
     from cs_image_system.base.commands.preflight import raw_session_readiness
     root_dir, overlays = typer_cntx.obj["preflight_args"]
     from cs_image_system.base.commands.preflight import empty_environment_credentials
-    lines, absent, expired, blocking = raw_session_readiness(root_dir, overlays)
+    lines, absent, expired, blocking, unjudged = raw_session_readiness(root_dir, overlays)
     if not lines:
         typer.secho(f"preflight: no runtimes declared under {root_dir} (cfg/runtime-builders.yml)",
                     fg=typer.colors.RED, err=True)
         raise typer.Exit(code=2)
     for line in lines:
         colour = (typer.colors.RED if line in absent or line in expired
-                  else typer.colors.YELLOW if line in blocking else None)
+                  else typer.colors.YELLOW if line in blocking or line in unjudged else None)
         typer.secho(line, fg=colour)
     # stage 43: a credential the environment sets but leaves EMPTY is a failure,
     # not an absence -- reported by name, never by value
@@ -261,6 +269,13 @@ def preflight_command(
         typer.secho("preflight: a session expires before the expected run length (see above); "
                     "renew it or lower config.preflight.expected_run_minutes", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
+    if unjudged:
+        # hygiene XII item 17: a session with no readable expiry is present
+        # and NOT JUDGED; the closing line says so and is never green over it
+        from cs_image_system.base.commands.preflight import NOT_JUDGED, NOT_JUDGED_WHY
+        typer.secho(f"preflight: {len(lines) - len(unjudged)} session(s) present; {len(unjudged)} {NOT_JUDGED} "
+                    f"({NOT_JUDGED_WHY})", fg=typer.colors.YELLOW, err=True)
+        return
     typer.secho("preflight: every session present", fg=typer.colors.GREEN, err=True)
 
 
@@ -419,21 +434,29 @@ def materialize_command(
         raise typer.Exit(code=1)
 
 
+from cs_image_system.system.starters import DEFAULT_STARTER as _DEFAULT_STARTER, STARTERS as _STARTERS
+
+# hygiene XII item 29: the help is built from the list the command accepts, so it cannot fall behind it
+_STARTER_HELP = (f"the starter tree: {', '.join(_STARTERS)}; a new tree defaults to {_DEFAULT_STARTER}, "
+                 "an existing one to the starter its workflow came from")
+
+
 @app.command(name="init-config")
 def init_config_command(
     destination: Annotated[Path, typer.Argument(help="the configuration repository to write (new, empty, or existing)")],
-    starter: Annotated[str | None, typer.Option("--from", help="the starter tree: standard-aws, standard-gce or complete; a new tree defaults to standard-aws, an existing one to the starter its workflow came from")] = None,
+    starter: Annotated[str | None, typer.Option("--from", help=_STARTER_HELP)] = None,
     force: Annotated[bool, typer.Option("--force", help="overwrite a release-owned file that exists and differs")] = False,
 ) -> None:
     """Write a starter configuration repository from this release (stage 64).
 
-    A destination that does not exist or is empty takes the WHOLE starter: the
-    YAML, the Justfile, the workflow, the hook, .gitignore, the terraform
-    modules (module_source_base: tfmodules) and .csis-version pinned to this
-    release. A destination that already holds a configuration takes only the
-    parts the release owns (the same list without the YAML), so an existing
-    repository gains or refreshes them; a release-owned file that exists and
-    differs is refused by name unless --force. An existing tree is refreshed
+    A destination that does not exist, is empty, or is a fresh clone holding
+    only .git takes the WHOLE starter: the YAML, the Justfile, the workflow,
+    the hook, .gitignore, the terraform modules (module_source_base:
+    tfmodules) and .csis-version pinned to this release. A destination that
+    already holds a configuration takes only the parts the release owns (the
+    same list without the YAML), so an existing repository gains or refreshes
+    them; a release-owned file that exists and differs is refused by name
+    unless --force. Any other directory is refused and nothing is written. An existing tree is refreshed
     from the starter its workflow came from (--from names another), its
     values where the release has REPLACE-ME are kept, and its .csis-version
     is never moved backwards. Loads no configuration."""
@@ -655,10 +678,14 @@ def test_mods_command(
     typer.echo(json.dumps([r.to_dict() for r in results], indent=2, sort_keys=True))
     failed = [r for r in results if r.status == "fail" or r.idempotent is False]
     skipped = [r for r in results if r.status in ("skipped", "unsupported")]
+    unstarted = [r for r in results if r.status == "unstarted"]
     for r in failed:
         typer.secho(f"FAIL {r.image}/{r.mod}: rc={r.first_run_rc}/{r.second_run_rc} idempotent={r.idempotent} "
                     f"{r.changes_on_rerun or r.detail[:200]}", fg=typer.colors.RED, err=True)
-    if failed or (strict and skipped):
+    for r in unstarted:
+        # hygiene XII item 26: nothing about the modification was tested; docker's words, not a traceback
+        typer.secho(f"CANNOT START {r.image}/{r.mod}: {r.detail}", fg=typer.colors.RED, err=True)
+    if failed or unstarted or (strict and skipped):
         raise typer.Exit(code=1)
     typer.secho(f"mod tests: {len(results) - len(skipped)} tested, {len(skipped)} skipped, 0 failed",
                 fg=typer.colors.GREEN)
@@ -1629,8 +1656,19 @@ def main(
         # is set again so a runner step still knows where it was started
         typer_cntx.obj["invoked_cwd"] = Path(saved_dir)
     except Exception as e:
-        typer.echo(f"Error reading config file : {e}", err=True)
-        raise e
+        # hygiene XII (the walk's F10, F30, F41, F42): a known load-time
+        # failure is one line and an exit code, not a traceback; an unknown
+        # one keeps its traceback, and --verbose keeps every traceback
+        from cs_image_system.base.commands.load_failures import classify_load_failure
+        failure = classify_load_failure(e)
+        if failure is None:
+            typer.echo(f"Error reading config file : {e}", err=True)
+            raise e
+        for line in failure.lines:
+            typer.secho(line, fg=typer.colors.RED, err=True)
+        if verbose:
+            raise e
+        raise typer.Exit(code=failure.code)
 
 
 if __name__ == "__main__":

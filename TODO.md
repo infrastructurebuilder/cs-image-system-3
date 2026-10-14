@@ -484,52 +484,28 @@ the first final version on PyPI (§41's open call).
 
 **Status: OPEN 2026-10-05, thirty items found by the §65 walk; the
 operator said "do 81 in the most logical order" on 2026-10-14, and the
-items go in groups, each a branch. Group F, the proofs (items 14 and
-22), LANDED 2026-10-14 (this commit): the probe's role verdict and the
-guide's two-branch proof of the pin, F23's wording corrected in
-OPERATIONS; on GCE the mount check reads each declared mount point's own
-line from the startup script. Items 3 and 4 LANDED with §82 (0d1850c,
-2026-10-05, released in dev15) by the operator's word. Items 10 and 11
-LANDED as §86 (c6af4b2, 2026-10-07, "Fix now, starters too"). Item 16
-LANDED as §88 (20206e8, 2026-10-08; the operator: "we should correct
-this situation as soon as possible"). Items 1, 2, 5, 6, 8, 9, 12 to 15,
-17 to 24, 26, 27 and 29 to 32 are a plan -- nothing more runs until the
-operator says "do 81". Items 7 and 28 left the bundle as §91
-(2026-10-14). Item 25 is a standing review with four dates, the first
-2026-11-09. Items 1, 6, 9, 14, 15, 17, 18, 21, 23, 27, 31 and 32 owe the
-daily driver (or a starter) words beside their fix: §65's step 9 left
-those words to the fix so they are written once (findings F10, F26, F30,
-F35, F36, F40, F43, F48, F49, F51, F55, F61, F62).**
-
-1. **A starter's own hook refuses its first commit.** The tree
-   `init-config` writes carries the copyright holder's address in the
-   SPDX header of every release-owned file (`tfmodules/*`,
-   `.githooks/pre-commit`), and the starter's `public_safe.allow` does
-   not allow it: `git commit` of the untouched tree is REFUSED with 46
-   findings. The reference configuration allows the address by hand, so
-   nothing caught it. Fixed looks like: every starter's allow list
-   carries the address with its reason (or the scan exempts SPDX header
-   lines), and a test runs public-safe over each starter as written.
-   The same refusal for a second address (finding F48, 2026-10-09,
-   stage 15b): `standard-gce` does not allow
-   `.iam.gserviceaccount.com`, which `complete` does, so a GCE tree
-   with its runner's real address cannot be committed. The test
-   fills each starter's `REPLACE-ME` values with plausible ones
-   before it scans.
-2. **`init-config` in a cloned repository writes no configuration.**
-   Only a directory with no entries counts as new
-   ([starters.py](packages/system/src/cs_image_system/system/starters.py)),
-   and a clone always has `.git`, so a team that creates its repository
-   on GitHub and clones it -- the usual order -- gets the release-owned
-   files and no `cfg/`, with a message that reads like success. Fixed
-   looks like: a directory holding only `.git` (**USER**: and a README
-   or LICENSE GitHub made?) takes the whole starter; the message of the
-   release-owned form says no configuration was written; a test for
-   both.
-
-(Items 3 and 4 landed with §82, 0d1850c: a declared group the provider
-has never been seen to carry is a note, not hard drift; every
-starter's `.gitignore` ignores every dotfile unless named.)
+items went in groups, each a branch, each squash-merged on the
+operator's word. LANDED 2026-10-14: A the starters and `init-config`
+(items 1, 2, 6, 12, 18, 29), B the records' noise (8, 13, 19, 24, 27,
+30), C teardown (9, 31, 32; of item 9 the note and the words, not the
+plan-only skip of the root, which would change what a dry run
+enumerates), D a shared account (23; item 20 left the bundle as §93, a
+stage of its own, as the item said), E what a failure says (17, 26, and
+the load-time tracebacks of F10, F30, F41 and F42 that §65's step 9 left
+to this bundle; of 17 the lines and the words, and on 2026-10-14 the
+operator decided against an `sts` call, so `preflight` keeps making no
+cloud call; of 26 the retried pull, docker's words and the `unstarted`
+record, and the operator decided the same day that nothing more is owed
+-- a registry outage longer than the retries is a rerun), F the proofs
+(14, 22). Still on their branches: G the operator's decisions of
+2026-10-14 (5: the root keeps managing a bucket it made; 15: usernames
+are public; 21: a bake takes only the storage types whose builder lives
+on its runtime). Items 3 and 4 LANDED with §82 (0d1850c, 2026-10-05,
+released in dev15) by the operator's word. Items 10 and 11 LANDED as §86
+(c6af4b2, 2026-10-07, "Fix now, starters too"). Item 16 LANDED as §88
+(20206e8, 2026-10-08; the operator: "we should correct this situation as
+soon as possible"). Items 7 and 28 left the bundle as §91 (2026-10-14).
+Item 25 is a standing review with four dates, the first 2026-11-09.**
 
 5. **The bootstrap's create path would strip the state bucket it
    made.** The walk's finding F17, read from the code before the walk
@@ -552,90 +528,6 @@ starter's `.gitignore` ignores every dotfile unless named.)
    destroying. Either way a test renders the second interview and
    asserts no bucket resource leaves the plan, and the guide says what
    the operator sees.
-6. **The interview's default secrets directory is inside the tree and
-   not ignored.** The walk's finding F18: `_uncommitted/secrets` is
-   offered as "never committed", and no starter's `.gitignore`
-   ignores `_uncommitted/`. Fixed looks like: the starters ignore
-   `_uncommitted/`, and `set-secrets.sh` (or the interview) refuses a
-   secrets directory git would track.
-8. **An applying run's log can cut the line that says what was
-   applied.** The walk's finding F25. The log keeps the last 40 lines
-   of a command's output (hygiene VIII item 3, `OUTPUT_TAIL_LINES`),
-   on the premise that "the end is where tofu's `Plan:` / `Apply
-   complete!` lines are". For an apply that is not so: tofu prints
-   `Apply complete! Resources: ...` and THEN the root's outputs. The
-   reference configuration's identity root has 40 lines of outputs,
-   so its apply's 45 lines lose exactly the five that hold the
-   verdict; the operator, told to expect the line, did not find it
-   (2026-10-07). A one-group tree shows it, which is why nothing
-   caught this. Fixed looks like: tofu's verdict lines (`Apply
-   complete!`, `Plan:`, `No changes.`) are always shown, wherever
-   they stand, ahead of the tail; a test with an apply whose outputs
-   are longer than the tail. The whole output stays at DEBUG.
-   The same tail hides a successful BAKE's steps (seen 2026-10-07:
-   `packer build stdout (last 40 of 304 lines)`): the settle step's
-   own line, how long it waited, and any step the runner ran twice
-   are among the lines cut. A bake's settle and runner lines belong
-   with the verdict lines that are always shown.
-9. **The first `perform` of a new tree fails after its bakes.** The
-   walk's finding F26: PREDICTED, not run (the operator chose,
-   2026-10-07, to apply the storage first and walk on). An instance
-   root reads its storage root's state, and its group's identity
-   root's, through `terraform_remote_state`. A tree made from the
-   starter declares the instance and its storage from the first
-   commit with `apply_storage: false`, and the guide's order
-   (CI_SETUP 3.8 step 4, before the daily driver's section 3) reaches
-   `perform` before any storage run. A performing run plans the
-   instance root though it does not apply it; the storage root has
-   no state object, and the plan stops with "Unable to find remote
-   state ... No stored state was found" -- after both images have
-   baked. Reproduced on a scratch root; the walk's bucket held no
-   `aws_ebs.tfstate`. `just cloud-bake` plans the same root, and a
-   storage root reads its identity root the same way. Fixed looks
-   like (**USER** chooses, one or both): a run that only PLANS a root
-   skips it, loudly, while a root it reads was never applied
-   ("instance root not planned: the storage root `aws-ebs` has no
-   state yet; run the storage lifecycle"), and `validate` or the
-   state query says so before anything bakes; the guide and the
-   daily driver put the first `perform` after identity and storage
-   have applied once. A test: a tree whose storage root has no
-   state, a performing run, the bakes recorded and the run green
-   with the note.
-10. (Items 10 and 11 landed as §86, c6af4b2, 2026-10-07.)
-12. **`init-config --force` writes over a repository that is not a
-    configuration repository.** The walk's finding F32 (2026-10-07):
-    a step meant for the walk's container was typed in the system
-    repository's root, and `cs-image-system init-config . --force`
-    replaced its `Justfile`, `.gitignore` and `.github/workflows/
-    ci.yml` with a starter's and wrote `.csis-version`, `CI_SETUP.md`
-    and the probe workflow. The new `.gitignore` no longer ignored
-    the checkout's private directory; a `git add -A` would have
-    staged it. Nothing was staged, and git gave the three files back;
-    outside git they would be gone. The command read "the starter
-    complete ... from the tree's .github/workflows/ci.yml" and asked
-    nothing. Fixed looks like: `--force` refreshes a tree that IS a
-    configuration repository -- it has `cfg/_config.yml`, or a
-    `.csis-version` this command wrote -- and refuses any other
-    directory by name, saying what it looked for; a first write into
-    a directory that holds other things stays the business of
-    `--from <starter>` and its own checks. A test: the command in a
-    repository with its own Justfile and no `cfg/` is refused and
-    changes nothing.
-13. **An instance that was never launched reads as a cloud that could
-    not answer.** The walk's finding F33 (2026-10-08, in CI's strict
-    query and the operator's): `unavailable: instances/walk-node-1:
-    booted image (runtime aws-main could not answer)`. A bake binds
-    the instance's pin; `instance_boot_drift` then asks the runtime
-    which image the pinned instance booted, gets nothing because
-    there is no machine, finds it is not "off" either, and files it
-    under `unavailable`. The records know better: no generation in
-    `instance-state.yaml`, `launched: false` in the launch
-    parameters. It stops nothing (strict passes on `unavailable`),
-    but it is the same mistake as item 3's group, and it stands from
-    the first bake until the first launch in every new tree. Fixed
-    looks like: a pinned instance with no launched generation is a
-    NOTE, "declared and not launched yet (pinned to <build>)", and
-    the cloud is not asked; a test beside item 3's.
 15. **A declared username is encrypted in the roster and clear in
     what the run commits.** The walk's finding F36 (2026-10-08,
     noticed when a second, real person was about to be declared in a
@@ -658,82 +550,6 @@ starter's `.gitignore` ignores every dotfile unless named.)
     encrypted value is carried (stage 49), which touches terraform
     resource addresses and is a stage of its own.
 16. (Landed as §88 on 2026-10-08, 20206e8.)
-17. **`preflight` says every session is present over keys that have
-    lapsed.** The walk's finding F40 (2026-10-09, stage 14a,
-    provoked on purpose). For a profile that is not an SSO profile
-    `preflight` can read no expiry (`profile 'noaa' is not an SSO
-    profile (no expiry readable)`), counts the session as present,
-    and closes with a green `preflight: every session present`; the
-    next command that reaches AWS then fails with `RequestExpired`
-    under a traceback (finding F30). `preflight` makes
-    no cloud call by design (stage 16), so it cannot know. Plan: (a)
-    the closing line tells the two cases apart -- "present" for a
-    session whose expiry was read, "not judged: no expiry readable"
-    for one it could not read -- and never greens the second; (b)
-    the daily driver's expired-session row, and 1.2 where it speaks
-    of keys, say that a team working from pasted keys learns of a
-    lapse from `RequestExpired`, and that the remedy is fresh keys,
-    not `aws sso login`. Whether `preflight` should ask `sts
-    get-caller-identity` for such a profile is a **USER** decision:
-    it is the one cloud call that would make the answer true, and
-    the command's contract today is that it makes none.
-18. **The starters do not show the keys the daily driver tells a
-    team to settle.** The walk's finding F43 (2026-10-09, stage
-    14e). The daily driver's 1.9 lists `require_released_builds`,
-    `require_image_tests` and `preflight.expected_run_minutes` among
-    the decisions of `cfg/_config.yml`; the starters' file carries
-    none of the three, and their image declares no `release:`. The
-    walk reached section 6's unreleased-pin row only by writing the
-    key in with `sed`; the rule and its grace then behaved as
-    written. Plan: each starter's `cfg/_config.yml` carries the
-    three keys as DECISION lines at their defaults, with what
-    switching each on asks of the tree; each starter's image
-    carries a commented `release:` beside its tests; the starter
-    tests read them. A starter tree must still validate and dry-run
-    unchanged (the keys at their defaults change no emission).
-19. **A run its operator cancels is journalled as a success.** The
-    walk's finding F45 (2026-10-09, stage 14g). `just record`,
-    interrupted with Ctrl-C five seconds in, left an entry in
-    `meta-state/runs.yaml` saying `ok: true`, `error: null`, `apply:
-    {}`. `run_lifecycles` records in a `finally`, and an interrupt
-    is no `Exception`, so the summary still holds its starting
-    values. Plan: an interrupted run (Ctrl-C, SIGTERM) is recorded
-    `ok: false` with an `error` that says it was interrupted and in
-    which lifecycle, its summary file says the same, and the
-    process ends non-zero as it does now; a test interrupts a run
-    and reads the entry. The daily driver's section 6 gains the
-    row.
-20. **The emptiness assertion counts another configuration's
-    things.** The walk's finding F47 (2026-10-09, found by reading
-    before stage 15). `emptiness()` is the runtime's whole inventory
-    (on GCE: every instance and disk in the zone, every custom
-    image and every bucket in the project) less this tree's
-    declared storages and released builds. Two configurations in
-    one project therefore each see the other's standing storages
-    as leftovers: the reference keeps `gce_data` and `gce_bucket`
-    in `csis-sandbox`, where the walk's GCE leg runs. It is F11
-    again (stage 82 gave images a `csis_config` label), for
-    everything that is not an image. Plan: instances, disks and
-    buckets the system creates carry `csis_config` (the terraform
-    modules; a label change is in place on a standing resource);
-    the inventory, `empty` and the state query count this
-    configuration's alone and say how many of another's they left
-    alone, as the image query does; `cloud-relabel` learns the new
-    kinds for what stands already. It changes release-owned modules
-    and the reference's standing GCE storages, so it is a stage of
-    its own when the operator calls for it. The operator's decision
-    for the walk (2026-10-09): run the leg and judge emptiness by
-    hand from the leftover list.
-    The same on AWS, met the same day (finding F53, stage 16c):
-    a declared storage's volume and a declared instance's machine
-    are found by the `Name` tag across the whole account, so two
-    configurations with a storage called `data` (every starter's
-    name) each see the other's volume: `foreign storage data: ebs
-    vol-... exists but meta-state has no record of it`, in CI.
-    The plan above therefore covers AWS volumes and instances
-    too: they carry `csis_config`, every lookup by name filters
-    on it, and until then `validate` could at least say so when
-    a declared name already answers in the account.
 21. **A storage type added to a base re-bakes it on every cloud.**
     The walk's finding F49 (2026-10-09, stage 15b). `storage_types`
     is one list on the OS builder, it is in the input fingerprint of
@@ -750,38 +566,6 @@ starter's `.gitignore` ignores every dotfile unless named.)
     capability a build records stays what it carries, and
     CONFIGURATION says that a base shared between clouds re-bakes
     everywhere when a shared field changes.
-23. **A bootstrap that shares an existing account co-owns its
-    grants.** The walk's finding F51 (2026-10-09, stage 15e, by
-    reading and on a scratch clone). With `read_account_exists`
-    true the GCP section still makes a `google_project_iam_member`
-    for each of `read_roles` (default `roles/compute.viewer`); two
-    configurations that read the same account each hold that grant
-    in their own state, and destroying either root takes it from
-    both. The interview cannot answer "none" where a default
-    exists (an empty line takes the default). Plan: for an account
-    that exists the default of its roles is EMPTY and the question
-    says why (what it holds was granted by whoever made it); the
-    interview accepts `none` as the empty answer for any question
-    whose answer may be empty, and says so in the prompt; the same
-    for the AWS section's adopted roles, checked against item 5;
-    the generated README lists what a `tofu destroy` of the root
-    would remove that the root did not create.
-24. **Stage 88's sanction list is committed with the emission.** The
-    walk's finding F52 (2026-10-09, stage 15e). The prune step's
-    `csis-sanctioned-removals.txt` ends up in
-    `generated/identity/<builder>/group-generation/` and `--commit`
-    stages it: one line per removed membership (the attachment's
-    address, which holds the username) after a removal, an empty
-    file after any other applying run, and a deletion at the next
-    dry run. Stage 88's text and squash message say it stays in the
-    private mirror; it does not. Plan: find how it reaches
-    `generated/` (the step's working directory, or the copy between
-    the emission and the mirror), keep it out of the committed tree
-    (the generated `.gitignore`'s built-in list, and written where
-    the plan file is), a test that an applying identity run leaves
-    no such file staged, and the stage 88 words corrected. Whether
-    the copies already in the reference's and the walk's history
-    matter is F36's question, not a new one.
 25. **A verification starts a machine its operator switched off:
     KEPT, and reviewed monthly.** The walk's finding F44 (2026-10-09,
     stage 14f; seen in the machine's own boot log and in CloudTrail).
@@ -800,130 +584,6 @@ starter's `.gitignore` ignores every dotfile unless named.)
     - 2026-12-09: (open)
     - 2027-01-09: (open)
     - 2027-02-09: (open)
-26. **A modification test that cannot start its container shows a
-    traceback.** The walk's finding F54 (2026-10-09, stage 16d: CI's
-    `live` job on the posix walk's `main`). `mod_tests.make_target`
-    runs `docker run -d --rm <image> ...` with its output captured
-    and `check=True`; an exit status 125 (the image could not be
-    pulled, most likely) surfaced as `CalledProcessError` under a
-    long traceback, docker's own message lost. Plan: the start of a
-    test container reports docker's stderr in one line and names the
-    image; a pull is retried a few times before it counts as a
-    failure; a container that cannot be STARTED is distinguished in
-    the record from a modification that FAILED; and the daily
-    driver's section 6 gains the row.
-
-    What the same evening added. The job was run again twice (20:58,
-    21:19 and 21:41 UTC in all) and failed the same way each time,
-    eighteen silent seconds and then the traceback; at 21:44 a pull
-    of the same image from the operator's machine failed with
-    `auth.docker.io/token ...: context deadline exceeded`, and at
-    21:47 it worked. So the likeliest cause was Docker Hub's sign-in
-    service not answering for about an hour (not proved: the
-    runner's message is what was lost). That shows a second thing
-    for the plan to weigh: every run on `main` pulls a test image
-    from Docker Hub, without an account, at the moment it runs, and
-    `perform` waits behind that job, so an outage of a registry the
-    configuration never names stops every bake. The retry above is
-    part of the answer; whether `live` should also say "the
-    registry did not answer" and let `perform` go on, or a
-    configuration may name a mirror for test images, is the
-    operator's to decide when this item is taken up.
-
-    And a third thing, 2026-10-13: the same step once took sixteen
-    minutes instead of thirty seconds, and passed, having printed
-    nothing in between. A test that says which modification it is
-    on, and which image it is waiting for, would have shown where
-    the time went.
-
-27. **A base never baked turns the scheduled CI red when the vendor
-    publishes an image.** The walk's finding F55 (2026-10-12: the
-    posix walk, three days between its first emission and its first
-    bake). The emission of a base that has no build yet holds the
-    vendor image's id as that day's generation resolved it (`data
-    "amazon-ami"` with `image-id`), so the committed emission is
-    true only until the vendor publishes again. The scheduled
-    `live` job then fails `config-drift` (`BEHIND ... (1 files)`)
-    with no change by anyone, `perform` waits behind it, and a red
-    run on `main` can no longer be re-run green. A baked base does
-    not show it: the first walk and the reference stayed green the
-    same hour. Plan: decide whether an unbaked base's emission
-    should carry the query and leave the id to the bake, or whether
-    `config-drift` should name the case in one line ("the vendor's
-    newest image moved; `just record`") instead of a bare diff; the
-    daily driver's section 6 gains the row either way.
-
-    Seen again the next day, on the other cloud (2026-10-13, the
-    reference configuration): its GCE base's emission named
-    `almalinux-10-v20261005`, the vendor published
-    `almalinux-10-v20261013` between that morning's green scheduled
-    run and the afternoon, and `config-drift` said BEHIND by that
-    one line. There it will keep happening: the runtime is
-    ephemeral, its base is never kept, so its emission always holds
-    a vendor image's name and every publication turns the next
-    scheduled run red until someone makes a record.
-
-29. **`init-config --help` does not name the posix starter.** The
-    walk's finding F59 (2026-10-13). The `--from` option's help
-    says "the starter tree: standard-aws, standard-gce or
-    complete"; `starters.STARTERS` holds a fourth,
-    `standard-aws-posix`, which the command accepts and the walk
-    used. Plan: the help text is built from `STARTERS`, so it
-    cannot fall behind again, and a test says so.
-
-30. **A provider lock file changes with whoever made the record.**
-    The walk's finding F60 (2026-10-13, the posix walk).
-    `generated/storage/aws-ebs/storage-generation/.terraform.lock.hcl`
-    and the instance root's gain fourteen `h1:` hash lines in
-    every record CI commits and lose them in every record made
-    from the container, six times in one day. Nothing fails and
-    `config-drift` does not look there; every record's diff
-    carries it, and the committed file says two things in turn.
-    Plan: find why the two environments write different hashes
-    (the plugin cache, or the platforms each `tofu init` records)
-    and make the committed lock the same from both, or keep the
-    lock out of what a record commits and say where it lives.
-
-31. **The last machine's decommission leaves a security group no
-    run will remove.** The walk's finding F61 (2026-10-13, teardown
-    of the posix walk). The instance root makes
-    `aws_security_group.csis_instances` at the root's own level;
-    `cloud-decommission` allows the destroy of one instance's
-    module and the group stays (`2 destroyed` where the launch had
-    added 3); with `instances: []` no instance root is emitted at
-    all, so the group stands in AWS and in the root's state with
-    no run that will ever plan it. The walk deleted it by hand, by
-    the id read from the state. Its tag is `Name: csis-instances`
-    in every configuration, so in a shared account nothing but
-    the state says whose it is (F53's family). Plan: decide where
-    a root's own resources go when its last instance does: the
-    decommission of the last instance may sanction the group's
-    destroy too, or a root with nothing declared is still emitted,
-    empty, and its run destroys what the state holds through the
-    gate; the group carries the configuration's id as images do
-    (§82); and the daily driver says what a teardown leaves.
-
-32. **A decommission on one cloud fails on another cloud's root,
-    after its destroy and before its record.** The walk's finding
-    F62 (2026-10-13, teardown of the first walk, a tree with an
-    AWS runtime and an ephemeral GCE one). `cloud-decommission
-    aws-main walk-node-1` applied the AWS instance root (`2
-    destroyed`) and then planned the GCE instance root, as every
-    instance run plans every runtime's; that plan failed
-    (`images/family/team-node was not found`: an ephemeral
-    machine's image is disposed of with its cycle, and the ledger
-    still held `walk-gce-1` as `launched: true`, `how: inferred`,
-    so its module was emitted with a count of one). The run ended
-    `LifecycleRunError`, committed no meta-state, and left the
-    machine destroyed with its pin standing. Three things for the
-    plan: (a) a run scoped by `--apply-runtime` should plan only
-    that runtime's instance roots, or plan the others before it
-    applies anything; (b) an ephemeral instance whose cycle has
-    closed should not be emitted as launched; (c) what a run has
-    already applied should reach the record even when a later
-    root fails. And the dry form's limit belongs in the daily
-    driver: it says what would run and runs no plan.
-
 ## 83. A release asks its publish target before it starts
 
 **Status: PLANNED 2026-10-06, not started -- a plan; nothing here runs
@@ -1105,3 +765,63 @@ requirements document and its test half a day; the live proof as the
 operator's time allows. **USER**: the registry (ghcr.io under the
 organisation), the three decisions above, the merge, the release, the
 reference configuration's `main`.
+
+## 93. Everything the system makes carries its configuration's id, and the inventory counts its own alone
+
+**Status: PLANNED 2026-10-14 from hygiene XII item 20 (the walk's
+findings F47 and F53), not started -- a plan; nothing here runs until
+the operator says "do 93". It changes release-owned terraform modules
+and relabels the reference configuration's standing GCE storages in
+place, which is why it is a stage and not a bundle item. The operator's
+decision for the walk (2026-10-09) stands until then: run the leg and
+judge emptiness by hand from the leftover list.**
+
+**The defect.** `emptiness()` is the runtime's whole inventory (on GCE:
+every instance and disk in the zone, every custom image and every bucket
+in the project) less this tree's declared storages and released builds.
+Two configurations in one project therefore each see the other's
+standing storages as leftovers: the reference keeps `gce_data` and
+`gce_bucket` in `csis-sandbox`, where the walk's GCE leg ran. It is F11
+again (§82 gave images a `csis_config` label), for everything that is
+not an image. The same on AWS (F53, stage 16c): a declared storage's
+volume and a declared instance's machine are found by the `Name` tag
+across the whole account, so two configurations with a storage called
+`data` (every starter's name) each see the other's volume: `foreign
+storage data: ebs vol-... exists but meta-state has no record of it`, in
+CI.
+
+**Plan.**
+
+1. **Everything carries the id.** The instances, disks and buckets the
+   GCE modules make, and the volumes and machines the AWS modules make,
+   carry `csis_config` (a label or a tag beside the ones they have; a
+   label change is in place on a standing resource, never a
+   replacement). The golden moves by those lines and is reviewed by
+   hand.
+
+2. **Inventories count this configuration's alone.** `emptiness()`,
+   `cloud-empty` and the state query count what carries this tree's id
+   and say how many of another configuration's things they left alone,
+   as the image query does since §82; on AWS every lookup by `Name`
+   filters on the tag, so a foreign `data` is "another configuration's
+   storage `data`", not a foreign storage of ours. A resource with no id
+   at all (made before this stage) is still counted, and named as such,
+   until it is relabelled.
+
+3. **`cloud-relabel` learns the new kinds** for what stands already, so
+   the reference's storages and machines take the label in place.
+
+4. **Words.** OPERATIONS "GCE cost discipline" and the daily driver's
+   3.6 say that two trees may share a project or an account once both
+   are on this release, and what the leftover list says of the other's
+   things.
+
+**Proof.** Fixture and golden (the label lines); a unit test of each
+inventory with a mixed listing (ours, another's, unlabelled); live:
+`just cloud-relabel` on the reference's GCE storages and AWS volumes (an
+apply, the operator's), then a strict state query green; a scratch tree
+in the same project sees zero leftovers of ours.
+
+**Sizing**: two days, plus the operator's live runs. **USER**: the
+relabel of standing resources, the merge, the release, the reference
+configuration's `main`.

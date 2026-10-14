@@ -304,10 +304,17 @@ def _run_phase(ctx: GlobalTypeContext, lifecycle: LifecycleLike, phase: Executio
         raise LifecycleRunError(f"[{lifecycle.value}] after-phase hooks failed for {phase.value}")
 
 
+#: the lifecycle a run was last in, for the record of an interruption: the
+#: inner `finally` blocks reset ctx.current_lifecycle before the interrupt
+#: reaches the run's own handler (hygiene XII item 19)
+_LAST_LIFECYCLE: dict[str, str] = {}
+
+
 def generate_lifecycle(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> LifecycleResult:
     """Wipe-and-regenerate exactly one lifecycle (Q5)."""
     result = LifecycleResult(lifecycle=lifecycle.value)
     ctx.current_lifecycle = lifecycle
+    _LAST_LIFECYCLE["name"] = f"generation of {lifecycle.value}"
     try:
         lc_path = ctx.generation_path
         assert lc_path == ctx.lifecycle_generation_path(lifecycle)
@@ -391,6 +398,7 @@ def _execute_in_process(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> boo
     """Run a lifecycle generated THIS run: its deferred executables, phase by
     phase, with every builder's pre/post finalize hooks around each phase."""
     ctx.current_lifecycle = lifecycle
+    _LAST_LIFECYCLE["name"] = f"the apply of {lifecycle.value}"
     pwd = Path(os.getcwd()).absolute()
     try:
         for phase in ctx.finalization_phases_for(lifecycle):
@@ -455,6 +463,17 @@ def apply_lifecycles(ctx: GlobalTypeContext, summary: RunSummary) -> None:
         ok = _execute_in_process(ctx, lifecycle)
         if not ok:
             summary.apply[lifecycle.value] = "failed"
+            if not ctx.dry_run:
+                # hygiene XII item 32 (the walk's F62): the roots before the one
+                # that failed applied for real; what they did (a decommission, a
+                # launch) must reach the record, so the after-apply hooks run,
+                # each on its own, before the failure is raised
+                for hook in _AFTER_APPLY:
+                    try:
+                        hook(ctx, lifecycle)
+                    except Exception as e:
+                        log.warning(f"[{lifecycle.value}] after-apply hook {getattr(hook, '__name__', hook)} "
+                                    f"after a FAILED apply: {e}")
             raise LifecycleRunError(f"Apply failed for lifecycle {lifecycle.value}")
         summary.apply[lifecycle.value] = "dry-run" if ctx.dry_run else "executed"
         if not ctx.dry_run:
@@ -514,6 +533,7 @@ def run_lifecycles(requested: list[LifecycleLike], *, apply: bool = True,
     root = ctx.root_generation_path
     root.mkdir(parents=True, exist_ok=True)
     _write_gitignore(ctx, root, extra=RUN_LOCAL_FILENAMES)
+    interrupted = False
     try:
         if getattr(ctx, "migrate_state", None) and ctx.dry_run:
             # stage 46.4.3: the operation needs --no-dry-run; refused here as well
@@ -572,6 +592,22 @@ def run_lifecycles(requested: list[LifecycleLike], *, apply: bool = True,
         summary.error = f"{e.__class__.__name__}: {e}"
         log.error(summary.error)
         log.debug(traceback.format_exc())
+        if commit and not ctx.dry_run and "failed" in summary.apply.values():
+            # hygiene XII item 32: a failed applying run still commits its
+            # record, so what it applied before the failure is not lost
+            _record(ctx, summary, root)
+            summary.meta_state_commit = commit_meta_state(
+                ctx.working_path, root, ctx.run_id, summary.requested, ctx.dry_run, failed=True)
+    except KeyboardInterrupt:
+        # hygiene XII item 19 (the walk's F45): Ctrl-C is no Exception, so the
+        # journal kept the summary's starting values and said `ok: true` of a run
+        # that was cut off five seconds in. It is recorded as interrupted, in the
+        # lifecycle it was in, and re-raised once the record is made.
+        summary.ok = False
+        where = ctx.current_lifecycle.value if ctx.current_lifecycle else _LAST_LIFECYCLE.get("name") or "no lifecycle yet"
+        summary.error = f"interrupted (KeyboardInterrupt) during {where}"
+        log.error(summary.error)
+        interrupted = True
     finally:
         ctx.current_lifecycle = None
         # hygiene VIII item 5: a name drawn at generation for a machine this
@@ -588,6 +624,8 @@ def run_lifecycles(requested: list[LifecycleLike], *, apply: bool = True,
                 hook(summary)
             except Exception as e:  # a notifier must never fail the run
                 log.error(f"on-summary hook {getattr(hook, '__name__', hook)} failed: {e}")
+    if interrupted:
+        raise KeyboardInterrupt
     return summary
 
 

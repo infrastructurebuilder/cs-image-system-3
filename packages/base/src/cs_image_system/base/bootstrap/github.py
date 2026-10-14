@@ -54,10 +54,10 @@ QUESTIONS: tuple[Question, ...] = (
     Question("perform_runtime", "PERFORM_RUNTIME: the runtime the perform job bakes, releases and applies "
              "retention on", "text", default=_perform_default,
              help="a `name:` from cfg/runtime-builders.yml; none could be read"),
-    Question("guard_runtime", "GUARD_RUNTIME: a runtime CI must never bake on (empty for none)", "text",
-             default=""),
-    Question("aws_region", "AWS_REGION: the region of the AWS runtime (empty in a GCE-only tree)", "text",
-             default=_region_default),
+    Question("guard_runtime", "GUARD_RUNTIME: a runtime CI must never bake on", "text",
+             default="", may_be_empty=True),
+    Question("aws_region", "AWS_REGION: the region of the AWS runtime (none in a GCE-only tree)", "text",
+             default=_region_default, may_be_empty=True),
     Question("secrets_dir", "The directory holding one file per secret, named after the secret, that "
              "set-secrets.sh reads (never committed)", "path", default="_uncommitted/secrets",
              help="a path relative to the repository root"),

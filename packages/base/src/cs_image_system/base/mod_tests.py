@@ -26,6 +26,7 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+import time
 from dataclasses import asdict, field
 from .models.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
@@ -92,15 +93,67 @@ class LocalTarget(Protocol):
     def close(self) -> None: ...
 
 
-class DockerTarget:
-    """A ``docker run -d`` container kept alive with ``sleep infinity``."""
+class ContainerStartError(RuntimeError):
+    """The test container could not be started: the image could not be
+    pulled (the registry or the daemon did not answer, after the retries)
+    or ``docker run`` refused. Carries docker's own last line, which is
+    what a reader needs (hygiene XII item 26: an exit status 125 under
+    eighty lines of traceback said nothing of a registry that was down)."""
 
-    def __init__(self, image: str, docker: str = "docker") -> None:
+    def __init__(self, image: str, stage: str, rc: int, words: str) -> None:
+        self.image, self.stage, self.rc, self.words = image, stage, rc, words
+        super().__init__(f"cannot start a container from {image}: {stage} exited {rc}: {words or '(nothing on stderr)'}")
+
+
+#: A pull is tried this many times before the container counts as unstarted,
+#: waiting these many seconds between tries (the last entry repeats). Docker
+#: Hub's sign-in service was found not answering for about an hour on
+#: 2026-10-09; a retry rides over a short outage, and names a long one.
+PULL_ATTEMPTS = 3
+PULL_RETRY_SECONDS: tuple[int, ...] = (5, 20)
+
+
+def _last_line(text: str) -> str:
+    lines = [l.strip() for l in (text or "").splitlines() if l.strip()]
+    return lines[-1] if lines else ""
+
+
+def ensure_image(docker: str, image: str, attempts: int = PULL_ATTEMPTS,
+                 retry_seconds: tuple[int, ...] = PULL_RETRY_SECONDS, sleep=time.sleep) -> str:
+    """``present`` when the daemon already holds the image, ``pulled`` after
+    a pull that may have been retried; :class:`ContainerStartError` with
+    docker's last line when every attempt failed."""
+    if subprocess.run([docker, "image", "inspect", image], capture_output=True, text=True, check=False).returncode == 0:
+        return "present"
+    for n in range(1, attempts + 1):
+        log.info(f"mod tests: pulling {image} (attempt {n} of {attempts})")
+        res = subprocess.run([docker, "pull", image], capture_output=True, text=True, check=False)
+        if res.returncode == 0:
+            return "pulled"
+        words = _last_line(res.stderr) or _last_line(res.stdout)
+        if n == attempts:
+            raise ContainerStartError(image, f"docker pull (after {attempts} attempts)", res.returncode, words)
+        wait = retry_seconds[min(n - 1, len(retry_seconds) - 1)] if retry_seconds else 0
+        log.warning(f"mod tests: pull of {image} failed (attempt {n} of {attempts}): {words}; again in {wait}s")
+        sleep(wait)
+    raise ContainerStartError(image, "docker pull", 1, "")      # attempts < 1: unreachable in practice
+
+
+class DockerTarget:
+    """A ``docker run -d`` container kept alive with ``sleep infinity``.
+    The image is pulled first, with retries, so a registry that does not
+    answer is named as such and not as a failed modification."""
+
+    def __init__(self, image: str, docker: str = "docker", attempts: int = PULL_ATTEMPTS,
+                 retry_seconds: tuple[int, ...] = PULL_RETRY_SECONDS, sleep=time.sleep) -> None:
         self.docker = docker
         self.image = image
-        self.name = subprocess.run(
-            [docker, "run", "-d", "--rm", image, "sh", "-c", "sleep infinity"],
-            check=True, capture_output=True, text=True).stdout.strip()
+        ensure_image(docker, image, attempts, retry_seconds, sleep)
+        res = subprocess.run([docker, "run", "-d", "--rm", image, "sh", "-c", "sleep infinity"],
+                             capture_output=True, text=True, check=False)
+        if res.returncode != 0:
+            raise ContainerStartError(image, "docker run", res.returncode, _last_line(res.stderr))
+        self.name = res.stdout.strip()
 
     def exec(self, command: str) -> tuple[int, str]:
         res = subprocess.run([self.docker, "exec", self.name, "sh", "-c", command],
@@ -132,7 +185,7 @@ class ModTestResult:
     type: str
     content_hash: str
     target: str
-    status: str                       # pass | fail | skipped | unsupported
+    status: str                       # pass | fail | skipped | unsupported | unstarted (the container, not the mod)
     idempotent: bool | None = None
     first_run_rc: int | None = None
     second_run_rc: int | None = None
@@ -316,9 +369,24 @@ def run_mod_tests(ctx: "GlobalTypeContext", images: list[str] | None = None,
                 results.append(ModTestResult(**{k: v for k, v in cached.items() if k in ModTestResult.__dataclass_fields__}))
         if not pending:
             continue
-        target = make_target(container_image)
+        # hygiene XII item 26: say what is being waited for, and tell a
+        # container that could not START from a modification that FAILED
+        log.info(f"mod tests: {image.get_name()}: {len(pending)} modification(s) to test on {container_image}")
         try:
+            target = make_target(container_image)
+        except ContainerStartError as e:
+            log.error(f"mod tests: {e}")
             for mod, rec in pending:
+                r = ModTestResult(image=image.get_name(), mod=mod.get_name(), type=mod.get_type(),
+                                  content_hash=rec["content_hash"], target=container_image, status="unstarted",
+                                  detail=str(e), run=ctx.run_id)
+                results.append(r)
+                previous[rec["content_hash"]] = r.to_dict()
+            continue
+        try:
+            for n, (mod, rec) in enumerate(pending, 1):
+                log.info(f"mod tests: {image.get_name()}/{mod.get_name()} ({mod.get_type()}) on {container_image}: "
+                         f"{n} of {len(pending)}, twice")
                 r = test_mod(ctx, image, mod, rec, target)
                 results.append(r)
                 previous[rec["content_hash"]] = r.to_dict()

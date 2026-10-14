@@ -110,7 +110,7 @@ run them first, then:
 
 ```sh
 cd generated/bootstrap && tofu init && tofu plan && tofu apply && cd ../..
-bash generated/bootstrap/set-secrets.sh      # one file per secret under _uncommitted/secrets (or SECRETS_DIR)
+bash generated/bootstrap/set-secrets.sh      # one file per secret under _uncommitted/secrets (or SECRETS_DIR), a directory git ignores; one it would track is refused
 ```
 
 What the sections do today, and what stays by hand:
@@ -133,6 +133,18 @@ name rather than guess -- a wrong guess is a failed apply at best. A
 starter's `REPLACE-ME` values and its example account id are no defaults
 either: fill `cfg/runtime-builders.yml` and `cfg/state-backends.yml`
 first, or answer at the prompt.
+
+A question whose answer may be empty says `(answer none for none)`: an
+empty line takes the default shown in brackets, so the word `none` is
+how you decline it. The project roles of a service account that already
+exists default to none. Whoever made the account granted what it holds,
+and a grant this root makes sits in this root's state, so a `tofu
+destroy` here would take it from every tree that reads the account
+(two configurations reading one account were found holding the same
+grant each, 2026-10-09). The generated README lists, under "What a
+destroy would take that this root did not make", everything of that
+kind: those grants, and an AWS role adopted by import, which the
+destroy deletes outright.
 
 The root's state follows the bucket. When the state bucket exists, the
 root is bound to the tree's declared S3 backend at
@@ -377,7 +389,9 @@ backend.
    load and the state query read: `roles/compute.viewer` (the runtime
    discovers its network, images, disks), and, when the tree declares
    them, read access to its buckets' metadata and `roles/file.viewer` for
-   Filestore. Let the repository impersonate it:
+   Filestore. If the account already exists, the bootstrap grants it
+   nothing by default (3.0 says why); name roles only when this tree is
+   the one to hold them. Let the repository impersonate it:
 
    ```sh
    gcloud iam service-accounts add-iam-policy-binding <read-sa>@<project>.iam.gserviceaccount.com \
@@ -575,7 +589,12 @@ step "Gate on the secrets".
 4. **One `perform`**: `git push origin develop:main`, which creates
    `main` the first time (or Actions, CI, Run workflow on `main` with
    `mode: record`). The records land on `main`; bring them back with
-   `git merge --ff-only origin/main` on `develop`.
+   `git merge --ff-only origin/main` on `develop`. Before it, the
+   identity and storage lifecycles should have applied once from your
+   machine (the daily driver, 3.1 and 3.2): a `perform` plans the
+   instance root, which reads those roots' state, and a storage root
+   that never applied has none (the strict state query says so as a
+   note).
 5. **The login proof as a workload**: the "CI logs in through the managed
    policy" step green, and `meta-state/login-proofs.yaml` on `main` saying
    `as: workload`. Then the branch pin on the role, proved by the probe

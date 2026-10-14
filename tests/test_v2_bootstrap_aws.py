@@ -178,7 +178,13 @@ def test_adopting_a_role_keeps_the_other_subjects_it_already_trusted(tmp_path: P
     out = bs.output_dir(root)
     tfvars = (out / "bootstrap.auto.tfvars").read_text()
     assert all(f'"{s}"' in tfvars for s in theirs) and re.search(r"aws_write_extra_subjects\s*=\s*\[\]", tfvars)
-    assert "READ role also keeps trusting: `repo:acme/other:*`" in (out / "README.md").read_text()
+    readme = (out / "README.md").read_text()
+    assert "READ role also keeps trusting: `repo:acme/other:*`" in readme
+    # hygiene XII item 23: an adopted role is the root's to destroy, and the README says so before the plan does
+    assert "## What a destroy would take that this root did not make" in readme
+    assert ("the READ role `csis-github-readonly`, adopted by import: the destroy deletes the role itself, with every "
+            "subject it trusted (`repo:acme/other:*`, `repo:acme@4242/other@111:*` among them)") in readme
+    assert "the WRITE role `csis-github-apply`, adopted by import: the destroy deletes the role itself, with every subject it trusted\n" in readme
     module = (REPO / "tfmodules" / "bootstrap_aws" / "main.tf").read_text()
     assert "var.read_extra_subjects)" in module and "var.write_extra_subjects)" in module
     # a role that does not exist has nothing to keep; one whose trust cannot be read is refused, not narrowed blind

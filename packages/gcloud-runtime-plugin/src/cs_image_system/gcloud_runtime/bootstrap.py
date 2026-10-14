@@ -39,6 +39,13 @@ ISSUER = "https://token.actions.githubusercontent.com"
 ABSENT = ("NOT_FOUND", "not found", "404", "does not exist")
 READ_ROLES = "roles/compute.viewer"
 WRITE_ROLES = "roles/compute.instanceAdmin.v1,roles/compute.storageAdmin,roles/iam.serviceAccountUser"
+# hygiene XII item 23 (the walk's F51): an account that already exists is
+# granted NOTHING by default. What it holds was granted by whoever made it;
+# a grant this root adds sits in this root's state, so a destroy here would
+# take it from every tree that reads the account.
+SHARED_ACCOUNT = ("for an account that already exists the default is none: it keeps what whoever made it "
+                  "granted, and a grant held in this root's state leaves with this root's destroy, from every "
+                  "tree that reads the account")
 
 
 # ------------------------------------------------------------------ the project
@@ -136,6 +143,13 @@ def _bucket_exists(facts: Facts, answers: Answers) -> bool | None:
     return _describe(facts, "storage", "buckets", "describe", f"gs://{answers.get('state_bucket')}")[0]
 
 
+def _roles_default(exists_key: str, roles: str):
+    """The roles a NEW account is granted; none for one that exists."""
+    def default(facts: Facts, answers: Answers) -> str:
+        return "" if answers.get(exists_key) else roles
+    return default
+
+
 def _labels_default(facts: Facts, answers: Answers) -> str:
     tags = _runtime(facts).get("tags") or {}
     return ",".join(f"{k}={v}" for k, v in sorted(tags.items()) if real(v)) if isinstance(tags, dict) else ""
@@ -178,8 +192,10 @@ QUESTIONS: tuple[Question, ...] = (
     Question("read_account", "The READ-ONLY service account's id (GCP_SERVICE_ACCOUNT)", default="csis-github-readonly"),
     Question("read_account_exists", "Does the READ-ONLY service account already exist (it is then read, not made)?",
              kind="bool", default=_account_exists("read_account"), help=UNASKABLE),
-    Question("read_roles", "Project roles the READ-ONLY account holds, comma-separated (add roles/file.viewer for "
-             "Filestore, a storage role for bucket metadata)", default=READ_ROLES),
+    Question("read_roles", "Project roles this root GRANTS the READ-ONLY account, comma-separated (roles/compute.viewer "
+             "for a load and the state query; add roles/file.viewer for Filestore, a storage role for bucket "
+             f"metadata; {SHARED_ACCOUNT})", default=_roles_default("read_account_exists", READ_ROLES),
+             may_be_empty=True),
     Question("want_write", "Does CI perform on a GCE runtime (it then needs a WRITE service account)?", kind="bool",
              default=_write_default),
     Question("write_account", "The WRITE service account's id (GCP_APPLY_SERVICE_ACCOUNT)",
@@ -187,16 +203,18 @@ QUESTIONS: tuple[Question, ...] = (
     Question("write_account_exists", "Does the WRITE service account already exist (it is then read, not made)?",
              kind="bool", when=lambda a: bool(a.get("want_write")), default=_account_exists("write_account"),
              help=UNASKABLE),
-    Question("write_roles", "Project roles the WRITE account holds, comma-separated (instances, images, disks, and "
-             "acting as the runner service account)", when=lambda a: bool(a.get("want_write")), default=WRITE_ROLES),
-    Question("state_bucket", "The GCS state bucket, when this tree keeps its state in GCS (empty otherwise)",
-             default=lambda f, a: _gcs(f, "bucket")),
+    Question("write_roles", "Project roles this root GRANTS the WRITE account, comma-separated (instances, images, "
+             f"disks, and acting as the runner service account; {SHARED_ACCOUNT})",
+             when=lambda a: bool(a.get("want_write")), default=_roles_default("write_account_exists", WRITE_ROLES),
+             may_be_empty=True),
+    Question("state_bucket", "The GCS state bucket, when this tree keeps its state in GCS (none otherwise)",
+             default=lambda f, a: _gcs(f, "bucket"), may_be_empty=True),
     Question("state_prefix", "The state prefix within that bucket", when=lambda a: bool(a.get("state_bucket")),
              default=lambda f, a: _gcs(f, "prefix").strip("/") or None,
              help="the default GCS backend's `prefix` in cfg/state-backends.yml"),
     Question("state_bucket_exists", "Does that bucket already exist?", kind="bool",
              when=lambda a: bool(a.get("state_bucket")), default=_bucket_exists, help=UNASKABLE),
-    Question("labels", "Labels for what this root makes, as k=v,k=v (empty for none)", default=_labels_default),
+    Question("labels", "Labels for what this root makes, as k=v,k=v", default=_labels_default, may_be_empty=True),
 )
 
 
@@ -255,8 +273,16 @@ def render(answers: Answers) -> Rendered:
                        "address (CI never writes to a runtime it does not perform on), or delete those lines from "
                        "the `perform` job (CI_SETUP.md 3.4 step 4).")
     labels = {k: v for k, v in (p.split("=", 1) for p in _split(answers.get("labels")) if "=" in p)}
+    destroy_takes: list[str] = []
+    for key, roles in (("read", _split(answers.get("read_roles"))),
+                       ("write", _split(answers.get("write_roles")) if want_write else [])):
+        if roles and answers.get(f"{key}_account_exists"):
+            destroy_takes.append(f"the project roles {', '.join(f'`{r}`' for r in roles)} of the {key.upper()} account "
+                                 f"`{answers[f'{key}_account']}`, which already existed: every tree that reads the "
+                                 "account relies on what it holds")
     return Rendered(
         module=MODULE,
+        destroy_takes=tuple(destroy_takes),
         # `provider` is a reserved variable name inside a module: the module calls it provider_id
         module_args={**{{"provider": "provider_id"}.get(n, n): Raw(f"var.gcp_{n}") for n in names},
                      **{k: Raw(f"var.gcp_{k}") for k in ("principal_value", "attribute_condition", "read_roles",
@@ -305,7 +331,9 @@ def render(answers: Answers) -> Rendered:
              + ("read (it exists)" if answers.get("write_account_exists") else "created")
              + f", impersonated on `{answers['production_branch']}` alone") if want_write
             else "no WRITE account: CI does not perform on a GCE runtime",
-            "every role and binding here is one member added; nothing existing is replaced",
+            "every role and binding here is one member added; nothing existing is replaced"
+            + ("; an account that already exists is granted nothing unless you named the roles" if any(
+                answers.get(f"{k}_account_exists") for k in ("read", "write")) else ""),
             *((f"labels: {', '.join(f'{k}={v}' for k, v in sorted(labels.items()))} (service accounts carry no labels; "
                "kept for what later iterations make)",) if labels else ()),
         ),
