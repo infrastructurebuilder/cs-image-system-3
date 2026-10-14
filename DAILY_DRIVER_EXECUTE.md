@@ -6265,7 +6265,7 @@ all in AWS, and the repositories after the roles that trusted them.
 | 17d | the two bootstrap roots, the posix tree's first, and the bucket last | done 2026-10-14: CI stopped, 9 and 11 destroyed, the bucket and its 249 versions gone; nothing of either walk stands in AWS |
 | 17e | by hand: the OPA console, Google Cloud's two free settings, GitHub (the repositories and the token) | done 2026-10-14: the provider's condition without the walk; OPA cleared; both repositories' secrets deleted and the repositories archived; the token deleted |
 | 17f | your local machine: the containers, the snapshot image, the directories | done 2026-10-14: the record and the holders' key kept, both containers and the snapshot image removed (the base image kept), both directories deleted |
-| 17g | the proof: the picture after, beside the picture before; the reference configuration still green | done 2026-10-14, read by Claude; **YOU ARE HERE: say `stage 17 done`** |
+| 17g | the proof: the picture after, beside the picture before; the reference configuration still green | done 2026-10-14, read by Claude; **STAGE 17 DONE**, by your word |
 
 ### 17a -- the picture before
 
@@ -8031,6 +8031,10 @@ after, and the holders' key. Not checked by any read here, on your
 account: the walk's GitHub token, deleted in GitHub's settings.
 
 **Report:** `stage 17 done`.
+
+(STAGE 17 DONE, 2026-10-14, by your word. The walk's last stage. What
+is left of stage 65 is its step 9 in `TODO.md`: the words the findings
+owe, the dated lines, and the walk branch's squash.)
 
 ## Google Cloud credentials through the environment
 

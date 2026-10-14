@@ -557,6 +557,45 @@ and W5 took the default, W4 and W6 did not):
    the top -- walked on <date>, against release <version> -- and so do
    the guide and the starters' READMEs where they were walked.
 
+   **Step 9, planned 2026-10-14** (stages 1 to 17 of the walk are done;
+   this waits for the operator's word). What is owed, from the 64
+   findings in the walk document's table: 34 owe words (19 words
+   alone, 15 words beside code); 28 owed code alone, of which stages
+   86 to 90 landed what the walk could not go on without and the rest
+   are hygiene XII's 32 items, filed and not fixed here; 2 were the
+   starters' own (F15, fixed in dev15; F18).
+
+   - **9a. The inventory.** Each of the 34 read against 0.1.1.dev23
+     (some got their words on the way: F44's in the daily driver, and
+     what stages 86 to 90 wrote on their own pages), then grouped by
+     the page it lands on: the daily driver, its section 6 above all;
+     the starters' `CI_SETUP.md` (one text, four copies); the
+     starters' READMEs; the operations guide; the configuration
+     reference; the plugins' READMEs. The inventory is a table in this
+     section, finding by finding: the page, the words, done or not.
+   - **9b. The words**, one commit per page. Markdown only, so the bar
+     is the three docs tests after each; `just test` once at the end,
+     because the starters' files ship in the wheel.
+   - **9c. The dated lines.** The daily driver, the operations guide,
+     and the READMEs of the two starters walked (`standard-aws`,
+     `standard-aws-posix`) gain one line at the top: walked from
+     nothing between 2026-10-05 and 2026-10-14, against 0.1.1.dev14
+     to 0.1.1.dev23 (stage 65). `complete` and `standard-gce` were
+     read and partly used, not walked from nothing, and say nothing.
+   - **9d. The walk's document** (`DAILY_DRIVER_EXECUTE.md`, 8168
+     lines, on the walk branch only). **USER decides**: frozen under
+     `docs/history/` as the walk's record, beside the other frozen
+     worksheets, and reached from its README; or kept only on the
+     walk branch, which git-flow keeps, and taken out before the
+     squash. `_uncommitted/` stays on the local machine either way.
+   - **9e. The squash.** The walk branch into `develop` on the
+     operator's word (git-flow finish: squash, keep, push), its
+     message the stage's summary; this section removed and the
+     preamble saying so; hygiene XII stays open; F44's monthly
+     reviews go on (the next on or after 2026-11-09).
+
+   Sizing: 9a and 9b a day; 9c to 9e an hour.
+
 **Sizing**: the repository and bootstrap half a day; CI half a day, most
 of it secrets and the console; section 3 a day, most of it bakes; the
 failure walk two hours; the GCE leg half a day; the posix walk half a
