@@ -168,7 +168,8 @@ def test_preflight_passes_with_static_keys_and_an_adc(monkeypatch, tmp_path):
     result = _preflight(monkeypatch, AWS_ACCESS_KEY_ID="AKIA-test", GOOGLE_APPLICATION_CREDENTIALS=str(adc))
     assert result.exit_code == 0, result.output
     assert "env keys" in result.output and "ADC authorized_user" in result.output
-    assert "every session present" in result.output
+    # hygiene XII item 17: keys are present and NOT JUDGED, never "every session present"
+    assert "every session present" not in result.output and "NOT JUDGED" in result.output
 
 
 def test_preflight_fails_on_a_credential_that_is_set_but_empty(monkeypatch, tmp_path):

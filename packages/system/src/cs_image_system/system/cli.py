@@ -235,18 +235,20 @@ def preflight_command(
     value. The Justfile's `full-test` gates its cloud-reading legs on this
     (stage 16). Exit 0 when every session is present; 2 when one is absent
     or EXPIRED (the configuration could not even load); 1 with --strict
-    when one expires within the expected run length."""
+    when one expires within the expected run length. A session whose
+    expiry cannot be read (static keys) is present and NOT JUDGED: exit 0,
+    and the closing line says so instead of "every session present"."""
     from cs_image_system.base.commands.preflight import raw_session_readiness
     root_dir, overlays = typer_cntx.obj["preflight_args"]
     from cs_image_system.base.commands.preflight import empty_environment_credentials
-    lines, absent, expired, blocking = raw_session_readiness(root_dir, overlays)
+    lines, absent, expired, blocking, unjudged = raw_session_readiness(root_dir, overlays)
     if not lines:
         typer.secho(f"preflight: no runtimes declared under {root_dir} (cfg/runtime-builders.yml)",
                     fg=typer.colors.RED, err=True)
         raise typer.Exit(code=2)
     for line in lines:
         colour = (typer.colors.RED if line in absent or line in expired
-                  else typer.colors.YELLOW if line in blocking else None)
+                  else typer.colors.YELLOW if line in blocking or line in unjudged else None)
         typer.secho(line, fg=colour)
     # stage 43: a credential the environment sets but leaves EMPTY is a failure,
     # not an absence -- reported by name, never by value
@@ -267,6 +269,13 @@ def preflight_command(
         typer.secho("preflight: a session expires before the expected run length (see above); "
                     "renew it or lower config.preflight.expected_run_minutes", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
+    if unjudged:
+        # hygiene XII item 17: a session with no readable expiry is present
+        # and NOT JUDGED; the closing line says so and is never green over it
+        from cs_image_system.base.commands.preflight import NOT_JUDGED, NOT_JUDGED_WHY
+        typer.secho(f"preflight: {len(lines) - len(unjudged)} session(s) present; {len(unjudged)} {NOT_JUDGED} "
+                    f"({NOT_JUDGED_WHY})", fg=typer.colors.YELLOW, err=True)
+        return
     typer.secho("preflight: every session present", fg=typer.colors.GREEN, err=True)
 
 
@@ -669,10 +678,14 @@ def test_mods_command(
     typer.echo(json.dumps([r.to_dict() for r in results], indent=2, sort_keys=True))
     failed = [r for r in results if r.status == "fail" or r.idempotent is False]
     skipped = [r for r in results if r.status in ("skipped", "unsupported")]
+    unstarted = [r for r in results if r.status == "unstarted"]
     for r in failed:
         typer.secho(f"FAIL {r.image}/{r.mod}: rc={r.first_run_rc}/{r.second_run_rc} idempotent={r.idempotent} "
                     f"{r.changes_on_rerun or r.detail[:200]}", fg=typer.colors.RED, err=True)
-    if failed or (strict and skipped):
+    for r in unstarted:
+        # hygiene XII item 26: nothing about the modification was tested; docker's words, not a traceback
+        typer.secho(f"CANNOT START {r.image}/{r.mod}: {r.detail}", fg=typer.colors.RED, err=True)
+    if failed or unstarted or (strict and skipped):
         raise typer.Exit(code=1)
     typer.secho(f"mod tests: {len(results) - len(skipped)} tested, {len(skipped)} skipped, 0 failed",
                 fg=typer.colors.GREEN)
@@ -1600,8 +1613,19 @@ def main(
         # is set again so a runner step still knows where it was started
         typer_cntx.obj["invoked_cwd"] = Path(saved_dir)
     except Exception as e:
-        typer.echo(f"Error reading config file : {e}", err=True)
-        raise e
+        # hygiene XII (the walk's F10, F30, F41, F42): a known load-time
+        # failure is one line and an exit code, not a traceback; an unknown
+        # one keeps its traceback, and --verbose keeps every traceback
+        from cs_image_system.base.commands.load_failures import classify_load_failure
+        failure = classify_load_failure(e)
+        if failure is None:
+            typer.echo(f"Error reading config file : {e}", err=True)
+            raise e
+        for line in failure.lines:
+            typer.secho(line, fg=typer.colors.RED, err=True)
+        if verbose:
+            raise e
+        raise typer.Exit(code=failure.code)
 
 
 if __name__ == "__main__":

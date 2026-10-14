@@ -490,14 +490,14 @@ operator's word. LANDED 2026-10-14: A the starters and `init-config`
 30), C teardown (9, 31, 32; of item 9 the note and the words, not the
 plan-only skip of the root, which would change what a dry run
 enumerates), D a shared account (23; item 20 left the bundle as §93, a
-stage of its own, as the item said). Still on their branches: E what a
-failure says (17, 26, and the load-time tracebacks of F10, F30, F41 and
-F42 that §65's step 9 left to this bundle; of 17 the lines and the
-words, and on 2026-10-14 the operator decided against an `sts` call, so
-`preflight` keeps making no cloud call; of 26 the retried pull, docker's
-words and the `unstarted` record, and the operator decided the same day
-that nothing more is owed -- a registry outage longer than the retries
-is a rerun), F the proofs (14, 22), G the operator's decisions of
+stage of its own, as the item said), E what a failure says (17, 26, and
+the load-time tracebacks of F10, F30, F41 and F42 that §65's step 9 left
+to this bundle; of 17 the lines and the words, and on 2026-10-14 the
+operator decided against an `sts` call, so `preflight` keeps making no
+cloud call; of 26 the retried pull, docker's words and the `unstarted`
+record, and the operator decided the same day that nothing more is owed
+-- a registry outage longer than the retries is a rerun). Still on their
+branches: F the proofs (14, 22), G the operator's decisions of
 2026-10-14 (5: the root keeps managing a bucket it made; 15: usernames
 are public; 21: a bake takes only the storage types whose builder lives
 on its runtime). Items 3 and 4 LANDED with §82 (0d1850c, 2026-10-05,
@@ -573,25 +573,6 @@ Item 25 is a standing review with four dates, the first 2026-11-09.**
     encrypted value is carried (stage 49), which touches terraform
     resource addresses and is a stage of its own.
 16. (Landed as §88 on 2026-10-08, 20206e8.)
-17. **`preflight` says every session is present over keys that have
-    lapsed.** The walk's finding F40 (2026-10-09, stage 14a,
-    provoked on purpose). For a profile that is not an SSO profile
-    `preflight` can read no expiry (`profile 'noaa' is not an SSO
-    profile (no expiry readable)`), counts the session as present,
-    and closes with a green `preflight: every session present`; the
-    next command that reaches AWS then fails with `RequestExpired`
-    under a traceback (finding F30). `preflight` makes
-    no cloud call by design (stage 16), so it cannot know. Plan: (a)
-    the closing line tells the two cases apart -- "present" for a
-    session whose expiry was read, "not judged: no expiry readable"
-    for one it could not read -- and never greens the second; (b)
-    the daily driver's expired-session row, and 1.2 where it speaks
-    of keys, say that a team working from pasted keys learns of a
-    lapse from `RequestExpired`, and that the remedy is fresh keys,
-    not `aws sso login`. Whether `preflight` should ask `sts
-    get-caller-identity` for such a profile is a **USER** decision:
-    it is the one cloud call that would make the answer true, and
-    the command's contract today is that it makes none.
 21. **A storage type added to a base re-bakes it on every cloud.**
     The walk's finding F49 (2026-10-09, stage 15b). `storage_types`
     is one list on the OS builder, it is in the input fingerprint of
@@ -637,42 +618,6 @@ Item 25 is a standing review with four dates, the first 2026-11-09.**
     - 2026-12-09: (open)
     - 2027-01-09: (open)
     - 2027-02-09: (open)
-26. **A modification test that cannot start its container shows a
-    traceback.** The walk's finding F54 (2026-10-09, stage 16d: CI's
-    `live` job on the posix walk's `main`). `mod_tests.make_target`
-    runs `docker run -d --rm <image> ...` with its output captured
-    and `check=True`; an exit status 125 (the image could not be
-    pulled, most likely) surfaced as `CalledProcessError` under a
-    long traceback, docker's own message lost. Plan: the start of a
-    test container reports docker's stderr in one line and names the
-    image; a pull is retried a few times before it counts as a
-    failure; a container that cannot be STARTED is distinguished in
-    the record from a modification that FAILED; and the daily
-    driver's section 6 gains the row.
-
-    What the same evening added. The job was run again twice (20:58,
-    21:19 and 21:41 UTC in all) and failed the same way each time,
-    eighteen silent seconds and then the traceback; at 21:44 a pull
-    of the same image from the operator's machine failed with
-    `auth.docker.io/token ...: context deadline exceeded`, and at
-    21:47 it worked. So the likeliest cause was Docker Hub's sign-in
-    service not answering for about an hour (not proved: the
-    runner's message is what was lost). That shows a second thing
-    for the plan to weigh: every run on `main` pulls a test image
-    from Docker Hub, without an account, at the moment it runs, and
-    `perform` waits behind that job, so an outage of a registry the
-    configuration never names stops every bake. The retry above is
-    part of the answer; whether `live` should also say "the
-    registry did not answer" and let `perform` go on, or a
-    configuration may name a mirror for test images, is the
-    operator's to decide when this item is taken up.
-
-    And a third thing, 2026-10-13: the same step once took sixteen
-    minutes instead of thirty seconds, and passed, having printed
-    nothing in between. A test that says which modification it is
-    on, and which image it is waiting for, would have shown where
-    the time went.
-
 ## 83. A release asks its publish target before it starts
 
 **Status: PLANNED 2026-10-06, not started -- a plan; nothing here runs
