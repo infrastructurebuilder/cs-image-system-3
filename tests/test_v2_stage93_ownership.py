@@ -43,6 +43,11 @@ def _aws_tags(d: dict[str, str]) -> list[dict[str, str]]:
     return [{"Key": k, "Value": v} for k, v in d.items()]
 
 
+def _rec(found: dict[str, Any] | None) -> dict[str, Any]:
+    assert found is not None
+    return found
+
+
 # ------------------------------------------------------------ 1. everything carries the id
 
 def test_every_storage_and_instance_module_call_carries_the_id(run):
@@ -84,9 +89,9 @@ def test_an_ebs_volume_of_our_name_that_is_theirs_is_absent_and_noted(run, monke
     ours = {"VolumeId": "vol-ours", "State": "available", "Size": 100, "Tags": _aws_tags({"Name": name, "csis_config": OURS})}
     legacy = {"VolumeId": "vol-legacy", "State": "available", "Size": 100, "Tags": _aws_tags({"Name": name})}
     FakeEC2.volumes = [theirs, ours]
-    assert sb._lookup(storage)["id"] == "vol-ours"                       # ours wins over theirs
+    assert _rec(sb._lookup(storage))["id"] == "vol-ours"                       # ours wins over theirs
     FakeEC2.volumes = [theirs, legacy]
-    assert sb._lookup(storage)["id"] == "vol-legacy"                     # unlabelled is still taken for ours
+    assert _rec(sb._lookup(storage))["id"] == "vol-legacy"                     # unlabelled is still taken for ours
     FakeEC2.volumes = [theirs]
     rec = sb._lookup(storage)
     assert rec == {"present": False, "elsewhere": THEIRS, "what": "an EBS volume"}
@@ -128,7 +133,7 @@ def test_an_s3_bucket_of_our_name_that_is_theirs_is_absent(run, monkeypatch):
     FakeS3.tags = {"csis_config": THEIRS}
     assert sb._lookup(storage) == {"present": False, "elsewhere": THEIRS, "what": "an S3 bucket"}
     FakeS3.tags = {"team": "x"}
-    assert sb._lookup(storage)["state"] == "active"
+    assert _rec(sb._lookup(storage))["state"] == "active"
     assert sb.retag_storage(storage, {"csis_config": OURS}) is True
     assert list(s3.put.values())[0] == {"team": "x", "csis_config": OURS}      # merged, never replaced
 
