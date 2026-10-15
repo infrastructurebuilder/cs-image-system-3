@@ -404,9 +404,9 @@ def _tags_for(builder: Any, storage: Storage) -> dict[str, str]:
     stand-in without a context (the module-call tests) gets no id."""
     from cs_image_system.base.lineage import config_tags
     merged = dict(builder.model.variables.merged_tags(storage.tags) or {})
-    get_ctx = getattr(builder, "_get_context", None)
+    get_ctx: Any = getattr(builder, "_get_context", None)
     if callable(get_ctx):
-        merged.update(config_tags(get_ctx()))
+        merged.update(config_tags(cast(Any, get_ctx())))
     return merged
 
 
