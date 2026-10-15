@@ -151,9 +151,35 @@ def _query(report: StateReport, label: str, fn) -> Any:
         report.unavailable.append(f"{label}: cannot be queried ({detail})")
         return None
     except Exception as e:  # network, credentials, permissions
+        if is_refusal(e):
+            # hygiene XII item 33: the identity the query ran as lacks a
+            # permission -- a role's gap, read as such, not as a cloud that
+            # did not answer (the message names the identity and the action)
+            log.warning(f"state query {label} unavailable: {REFUSED} {e}")
+            report.unavailable.append(f"{label}: {REFUSED} {e}")
+            return None
         log.warning(f"state query {label} unavailable: {e}")
         report.unavailable.append(f"{label}: {e}")
         return None
+
+
+#: The mark on an `unavailable` line whose cause is a permission the identity
+#: lacks (AWS AccessDenied / UnauthorizedOperation, GCP 403): the role's
+#: document lags what the query reads, and a re-apply of the bootstrap root
+#: is the remedy, not a retry.
+REFUSED = "REFUSED (the identity lacks a permission, not a cloud that did not answer):"
+_REFUSAL_MARKS: tuple[str, ...] = ("AccessDenied", "UnauthorizedOperation", "is not authorized to perform",
+                                   "403 Forbidden", "PERMISSION_DENIED", "AccessDeniedException")
+
+
+def is_refusal(exc: BaseException) -> bool:
+    """Whether a provider's error is a permission refusal (hygiene XII item 33)."""
+    text = str(exc)
+    code = ""
+    response = getattr(exc, "response", None)
+    if isinstance(response, dict):
+        code = str((response.get("Error") or {}).get("Code") or "")
+    return any(m in text for m in _REFUSAL_MARKS) or code in ("AccessDenied", "UnauthorizedOperation", "AccessDeniedException")
 
 
 def query_images(ctx: "GlobalTypeContext", report: StateReport) -> dict[str, list[dict[str, Any]]]:

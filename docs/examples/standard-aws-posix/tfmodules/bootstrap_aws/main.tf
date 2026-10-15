@@ -70,10 +70,14 @@ resource "aws_iam_role" "read" {
   })
 }
 
-resource "aws_iam_role_policy" "read" {
-  name = "cs-image-system-read"
-  role = aws_iam_role.read.id
-  policy = jsonencode({
+# The read document: what a load, a dry run and the state query read. It is
+# held by the READ-ONLY role and, as a second policy, by the WRITE role too,
+# because a performing run reads reality before it applies (hygiene XII item
+# 33: without it, every perform's own state query reported the S3 storage
+# unavailable with AccessDenied on GetBucketTagging, and the storage's
+# reality went unread on exactly the run that applies).
+locals {
+  read_document = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
@@ -90,6 +94,12 @@ resource "aws_iam_role_policy" "read" {
       },
     ]
   })
+}
+
+resource "aws_iam_role_policy" "read" {
+  name   = "cs-image-system-read"
+  role   = aws_iam_role.read.id
+  policy = local.read_document
 }
 
 # ---------------------------------------------------------------- the WRITE role
@@ -112,6 +122,13 @@ resource "aws_iam_role" "write" {
       }
     }]
   })
+}
+
+# the WRITE role reads as the READ-ONLY one does, then writes
+resource "aws_iam_role_policy" "write_reads" {
+  name   = "cs-image-system-write-reads"
+  role   = aws_iam_role.write.id
+  policy = local.read_document
 }
 
 resource "aws_iam_role_policy" "write" {

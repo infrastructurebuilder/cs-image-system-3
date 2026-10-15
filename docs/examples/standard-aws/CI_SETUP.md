@@ -354,10 +354,17 @@ role starts sessions and passes the SSM instance profile:
 
 `<state-bucket>` and `<state-prefix>` are your `cfg/state-backends.yml`;
 `<ssm-instance-profile>` is the runtime's `session_instance_profile` (or
-`iam_instance_profile`). The lifecycles generate no IAM. These roles are
+`iam_instance_profile`). The WRITE role also carries the READ-ONLY
+document above, as a second policy (`cs-image-system-write-reads`):
+a performing run reads reality before it applies, and a write role
+without those reads reported the S3 storage `unavailable` with
+`AccessDenied` on `GetBucketTagging` on every `perform` (2026-10-14,
+hygiene XII item 33). The lifecycles generate no IAM. These roles are
 made once: either by the bootstrap (3.0), which writes exactly these
 documents as terraform you apply, or by a person in the console as
-described here.
+described here. A role made before a release that changed a document
+lags it until the bootstrap root is applied again; the state query says
+`REFUSED` when that is what it met.
 
 **Two traps, each with its symptom.**
 
