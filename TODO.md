@@ -526,6 +526,39 @@ standing review with four dates, the first 2026-11-09.**
     - 2026-12-09: (open)
     - 2027-01-09: (open)
     - 2027-02-09: (open)
+
+33. **The performing run's state query runs as the WRITE role, which
+    cannot read a bucket's tags.** Seen in every `perform` on the
+    reference configuration's `main` (2026-10-14, runs 38575010430 and
+    38650509810; not new with dev25): the performing step's own state
+    query, under the write identity, logs `state query storages/aws-s3
+    unavailable: An error occurred (AccessDenied) when calling the
+    GetBucketTagging operation: User: arn:aws:sts::<account>:assumed-
+    role/csis-github-apply/GitHubActions is not authorized to perform:
+    s3:GetBucketTagging on resource: arn:aws:s3:::<the declared
+    bucket>`. The strict query passes over an `unavailable` line, so
+    `perform` stays green, and the storage's reality goes unread on
+    exactly the run that applies. The cause is in the release's module:
+    `tfmodules/bootstrap_aws` gives the READ-ONLY role the
+    `StorageReality` statement (`s3:GetBucketTagging`,
+    `s3:GetLifecycleConfiguration`, `s3:GetBucketLocation` on
+    `arn:aws:s3:::*`) and the WRITE role's document has no such
+    statement, although a performing run reads reality before it applies
+    (read live on 2026-10-14 from the account's two roles: `cs-image-
+    system-read` carries the statement, `cs-image-system-write` and the
+    hand-made `csis-apply-bake-and-state` beside it do not). Fixed looks
+    like: the write document carries every read the state query needs
+    (the read role's `Describe` and `StorageReality` statements, or the
+    write role is granted the read document as well), CI_SETUP 3.3's
+    write document says the same (the guide and the module are held
+    equal by a test), and the state query's `unavailable` line names the
+    identity it ran as, so a role's gap reads as a role's gap and not as
+    a cloud that did not answer. The applied role then moves by a `tofu
+    apply` of the bootstrap root, which is the operator's (IAM writes
+    are never the system's); the hand-made policy beside the managed one
+    is removed in the same sitting, as the generated README already
+    asks.
+
 ## 83. A release asks its publish target before it starts
 
 **Status: PLANNED 2026-10-06, not started -- a plan; nothing here runs
