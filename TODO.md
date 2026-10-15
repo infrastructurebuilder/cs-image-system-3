@@ -480,59 +480,6 @@ release, and never edited at the destination. Then:
 mirrors and tokens are the operator's (an hour); the live proof waits on
 the first final version on PyPI (§41's open call).
 
-## 81. Hygiene bundle XII
-
-**Status: OPEN 2026-10-05, thirty items found by the §65 walk; the
-operator said "do 81 in the most logical order" on 2026-10-14, and the
-items went in groups, each a branch, each squash-merged on the
-operator's word. LANDED 2026-10-14: A the starters and `init-config`
-(items 1, 2, 6, 12, 18, 29), B the records' noise (8, 13, 19, 24, 27,
-30), C teardown (9, 31, 32; of item 9 the note and the words, not the
-plan-only skip of the root, which would change what a dry run
-enumerates), D a shared account (23; item 20 left the bundle as §93, a
-stage of its own, as the item said), E what a failure says (17, 26, and
-the load-time tracebacks of F10, F30, F41 and F42 that §65's step 9 left
-to this bundle; of 17 the lines and the words, and on 2026-10-14 the
-operator decided against an `sts` call, so `preflight` keeps making no
-cloud call; of 26 the retried pull, docker's words and the `unstarted`
-record, and the operator decided the same day that nothing more is owed
--- a registry outage longer than the retries is a rerun), F the proofs
-(14, 22), G the operator's decisions of 2026-10-14 (5: the root keeps
-managing a bucket it made; 15: usernames are public; 21: a bake takes
-only the storage types whose builder lives on its runtime). Every group
-has landed. Item 33 (filed 2026-10-14 after dev25's first perform: the
-write role could not read a bucket's tags) LANDED 2026-10-14 (this
-commit): the write role carries the read document as a second policy,
-the guide says so, and the state query marks a permission refusal as
-REFUSED; the reference configuration's applied role moves by the
-operator's `tofu apply` of its bootstrap root once a release carries the
-module. The bundle stays open for item 25 alone. Items 3 and 4 LANDED
-with §82 (0d1850c, 2026-10-05, released in dev15) by the operator's
-word. Items 10 and 11 LANDED as §86 (c6af4b2, 2026-10-07, "Fix now,
-starters too"). Item 16 LANDED as §88 (20206e8, 2026-10-08; the
-operator: "we should correct this situation as soon as possible"). Items
-7 and 28 left the bundle as §91 (2026-10-14). Item 25 is a standing
-review with four dates, the first 2026-11-09.**
-
-25. **A verification starts a machine its operator switched off:
-    KEPT, and reviewed monthly.** The walk's finding F44 (2026-10-09,
-    stage 14f; seen in the machine's own boot log and in CloudTrail).
-    `verify instance` on a stopped machine starts it, checks it and
-    stops it again (stage 57's bounded exception); the daily
-    driver's failure table said the opposite. The operator's
-    decision that day: "let's keep the behavior for F44 but make a
-    very prominent note about it somewhere. We should revisit that
-    question at least once a month for the next 4 months." The
-    note is made: `DAILY_DRIVER.md` 3.5 in capitals, and the
-    section 6 row corrected. **USER**, on or after each date: keep
-    it, or make it a stage (a verification SKIPS a machine that is
-    off unless it is asked to start it). Each review is written
-    here with its date and its outcome.
-    - 2026-11-09: (open)
-    - 2026-12-09: (open)
-    - 2027-01-09: (open)
-    - 2027-02-09: (open)
-
 ## 83. A release asks its publish target before it starts
 
 **Status: PLANNED 2026-10-06, not started -- a plan; nothing here runs
@@ -774,3 +721,29 @@ in the same project sees zero leftovers of ours.
 **Sizing**: two days, plus the operator's live runs. **USER**: the
 relabel of standing resources, the merge, the release, the reference
 configuration's `main`.
+
+## 94. A verification starts a machine its operator switched off: KEPT, and reviewed monthly
+
+**Status: OPEN 2026-10-15 as a stage of its own, moved here from hygiene
+XII (item 25) when the bundle closed; the bundle's thirty-three items
+landed in §82, §86, §88, §91, §93 (a plan) and the seven groups and item
+33 of 2026-10-14/15. Nothing here runs: it is a standing review. USER,
+on or after each date: keep the behaviour, or make it a stage (a
+verification SKIPS a machine that is off unless it is asked to start
+it). Each review is written below with its date and its outcome.**
+
+**The finding.** The walk's F44 (2026-10-09, stage 14f; seen in the
+machine's own boot log and in CloudTrail). `verify instance` on a
+stopped machine starts it, checks it and stops it again (stage 57's
+bounded exception); the daily driver's failure table said the opposite.
+The operator's decision that day: "let's keep the behavior for F44 but
+make a very prominent note about it somewhere. We should revisit that
+question at least once a month for the next 4 months." The note is made:
+`DAILY_DRIVER.md` 3.5 in capitals, and the section 6 row corrected.
+
+**The reviews.**
+
+- 2026-11-09: (open)
+- 2026-12-09: (open)
+- 2027-01-09: (open)
+- 2027-02-09: (open)
