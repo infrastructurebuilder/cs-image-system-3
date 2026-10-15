@@ -377,14 +377,6 @@ class TofuStorageBuilder(StorageBuilderBase[Q], TerraformRootMixin):
                                        **(rec or {})}
         return out
 
-    def _tags_for(self, storage: Storage) -> dict[str, str]:
-        """The tags a storage's module call carries: the builder's defaults
-        under the item's own, and the configuration's id last (stage 93)."""
-        from cs_image_system.base.lineage import config_tags
-        merged = dict(self.model.variables.merged_tags(storage.tags) or {})
-        merged.update(config_tags(self._get_context()))
-        return merged
-
     def _owned(self, found: list[dict[str, Any]], tags_of) -> tuple[list[dict[str, Any]], str]:
         """Of the things found by name, those this configuration may take for
         its own (stage 93: ours, or unlabelled); and the id of another
@@ -404,6 +396,18 @@ class TofuStorageBuilder(StorageBuilderBase[Q], TerraformRootMixin):
 
     def destroy_whitelist(self, storage: Storage) -> list[str]:
         return [f"module.storage_{self.storage_label(storage)}"]
+
+
+def _tags_for(builder: Any, storage: Storage) -> dict[str, str]:
+    """The tags a storage's module call carries: the builder's defaults
+    under the item's own, and the configuration's id last (stage 93). A
+    stand-in without a context (the module-call tests) gets no id."""
+    from cs_image_system.base.lineage import config_tags
+    merged = dict(builder.model.variables.merged_tags(storage.tags) or {})
+    get_ctx = getattr(builder, "_get_context", None)
+    if callable(get_ctx):
+        merged.update(config_tags(get_ctx()))
+    return merged
 
 
 R = TypeVar("R", bound=TofuEbsStorageBuilderModel)
@@ -535,7 +539,7 @@ class TofuEbsStorageBuilder(TofuStorageBuilder[R]):
             subnet = getattr(networking, "default_subnet_id", None) if networking else None
             if subnet:
                 args["subnet_id"] = subnet
-        tags = self._tags_for(storage)
+        tags = _tags_for(self, storage)
         if tags:
             args["tags"] = tags
         return args
@@ -656,7 +660,7 @@ class TofuEfsStorageBuilder(TofuStorageBuilder[S]):
                 args["vpc_id"] = networking.network
                 args["mount_target_subnet_ids"] = subnets
                 args["client_security_group_ids"] = clients
-        tags = self._tags_for(storage)
+        tags = _tags_for(self, storage)
         if tags:
             args["tags"] = tags
         return args
@@ -789,7 +793,7 @@ class TofuS3StorageBuilder(TofuStorageBuilder[B]):
             args["group_prefixes"] = sorted(_groups(storage))
         if _public_read(storage):
             args["public_read"] = True
-        tags = self._tags_for(storage)
+        tags = _tags_for(self, storage)
         if tags:
             args["tags"] = tags
         return args

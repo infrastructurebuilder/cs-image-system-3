@@ -140,7 +140,9 @@ class TofuGcpStorageBuilder(TofuStorageBuilder[Q]):
         labels = {gce_label(k): gce_label(str(v)) for k, v in base.items()}
         labels["csis_storage"] = gce_label(storage.get_name())
         from cs_image_system.base.lineage import config_tags
-        labels.update(config_tags(self._get_context()))        # stage 93: the disk, bucket, share carry the id
+        get_ctx = getattr(self, "_get_context", None)           # a stand-in without a context gets no id
+        if callable(get_ctx):
+            labels.update(config_tags(get_ctx()))              # stage 93: the disk, bucket, share carry the id
         for g in sorted(_groups(storage)):
             labels[f"csis_group_{gce_label(g)}"] = "true"
         return labels
