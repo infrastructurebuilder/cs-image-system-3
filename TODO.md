@@ -664,13 +664,17 @@ reference configuration's `main`.
 
 ## 93. Everything the system makes carries its configuration's id, and the inventory counts its own alone
 
-**Status: PLANNED 2026-10-14 from hygiene XII item 20 (the walk's
-findings F47 and F53), not started -- a plan; nothing here runs until
-the operator says "do 93". It changes release-owned terraform modules
-and relabels the reference configuration's standing GCE storages in
-place, which is why it is a stage and not a bundle item. The operator's
-decision for the walk (2026-10-09) stands until then: run the leg and
-judge emptiness by hand from the leftover list.**
+**Status: IN PROGRESS 2026-10-15 on `feature/stage-93` ("do 93"). Landed
+on the branch: everything the modules make carries `csis_config` (the
+AWS volumes, filesystems, buckets and machines; the GCE disks, buckets,
+shares and machines); every lookup by name takes ours or an unlabelled
+one and never another configuration's, and a disk, bucket or share of
+our name that is theirs is a note with ours absent; `emptiness()` and
+`cloud-empty` leave another configuration's things alone and count them,
+and name the unlabelled; `lineage relabel` gives the id to standing
+storages and machines through each builder's retag hook. Waits: the
+operator's `just cloud-relabel <rt> no` on the reference configuration's
+standing things, the merge, the release.**
 
 **The defect.** `emptiness()` is the runtime's whole inventory (on GCE:
 every instance and disk in the zone, every custom image and every bucket

@@ -178,7 +178,8 @@ cloud-empty runtime:
 cloud-dispose-images runtime dry="no":
 	@{{cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} dispose image --runtime {{runtime}} --all --commit
 
-# Re-tag cloud images whose lineage tags disagree with their record, from the record. Dry by default.
+# Re-tag cloud images whose lineage tags disagree with their record, from the record, and give the
+# configuration's id (csis_config) to standing storages and machines that lack it (stage 93). Dry by default.
 cloud-relabel runtime dry="yes":
 	@{{cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} lineage relabel --runtime {{runtime}}
 

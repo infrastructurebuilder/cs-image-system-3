@@ -139,6 +139,8 @@ class TofuGcpStorageBuilder(TofuStorageBuilder[Q]):
         base = merged.merged_tags(storage.tags) if merged is not None else dict(storage.tags or {})
         labels = {gce_label(k): gce_label(str(v)) for k, v in base.items()}
         labels["csis_storage"] = gce_label(storage.get_name())
+        from cs_image_system.base.lineage import config_tags
+        labels.update(config_tags(self._get_context()))        # stage 93: the disk, bucket, share carry the id
         for g in sorted(_groups(storage)):
             labels[f"csis_group_{gce_label(g)}"] = "true"
         return labels
@@ -146,6 +148,18 @@ class TofuGcpStorageBuilder(TofuStorageBuilder[Q]):
     # state query: subclasses that can ask do; the rest are "unavailable"
     def _lookup(self, storage: Storage) -> dict[str, Any] | None:
         raise NotImplementedError(f"{self.__class__.__name__} cannot query storage state yet")
+
+    def _theirs(self, labels: dict[str, Any]) -> bool:
+        """Stage 93: a thing of our name whose labels name another
+        configuration is not ours (GCE names are unique per zone or project,
+        so it stands where ours would)."""
+        from cs_image_system.base.lineage import belongs_to_another_configuration
+        return belongs_to_another_configuration(self._get_context(), labels)
+
+    @staticmethod
+    def _elsewhere(labels: dict[str, Any], what: str) -> dict[str, Any]:
+        from cs_image_system.base.lineage import owner_of
+        return {"present": False, "elsewhere": owner_of(labels), "what": what}
 
 
 R = TypeVar("R", bound=TofuPdStorageBuilderModel)
@@ -169,6 +183,32 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
 
     def module_dirname(self) -> str:
         return "gcp_storage_pd"
+
+    def retag_storage(self, storage: Storage, tags: dict[str, str]) -> bool:
+        from google.cloud import compute_v1  # noqa: PLC0415
+        from cs_image_system.gcloud_runtime.gcp_packer_source import gce_label
+        from cs_image_system.gcloud_runtime.gcp_utils import _make_credentials, resolve_project
+        rtb = self._runtime()
+        to_cfg: Any = getattr(getattr(rtb, "model", None), "self_to_gcp_client_config", None)
+        cfg: dict[str, Any] = cast(dict[str, Any], to_cfg()) if callable(to_cfg) else {}
+        project, zone = resolve_project(cfg), self._disk_zone(storage)
+        if not project or not zone:
+            raise RuntimeError("no project/zone to retag in")
+        creds = _make_credentials(cfg)
+        client = compute_v1.DisksClient(credentials=creds) if creds else compute_v1.DisksClient()
+        name = self._gce_resource_name(storage.get_name())
+        try:
+            d = client.get(project=project, zone=zone, disk=name)
+        except Exception as e:  # noqa: BLE001
+            if e.__class__.__name__ == "NotFound":
+                return False
+            raise
+        labels = dict(getattr(d, "labels", {}) or {})
+        labels.update({gce_label(k): gce_label(str(v)) for k, v in tags.items()})
+        client.set_labels(project=project, zone=zone, resource=name,
+                          zone_set_labels_request_resource=compute_v1.ZoneSetLabelsRequest(
+                              labels=labels, label_fingerprint=getattr(d, "label_fingerprint", None))).result()
+        return True
 
     def _require_script_inputs(self, storage: Storage, **values: str | None) -> None:
         """A generated archive/restore script needs its project (and zone);
@@ -286,8 +326,11 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
             if e.__class__.__name__ == "NotFound":
                 return None
             raise
+        labels = dict(getattr(d, "labels", {}) or {})
+        if self._theirs(labels):
+            return self._elsewhere(labels, "a persistent disk")    # stage 93
         return {"id": d.name, "state": str(getattr(d, "status", "")), "size": int(getattr(d, "size_gb", 0)),
-                "tags": dict(getattr(d, "labels", {}) or {})}
+                "tags": labels}
 
 
 S = TypeVar("S", bound=TofuFilestoreStorageBuilderModel)
@@ -314,6 +357,23 @@ class TofuFilestoreStorageBuilder(TofuGcpStorageBuilder[S]):
 
     def module_dirname(self) -> str:
         return "gcp_storage_filestore"
+
+    def retag_storage(self, storage: Storage, tags: dict[str, str]) -> bool:
+        import subprocess  # noqa: PLC0415
+        from cs_image_system.gcloud_runtime.gcp_packer_source import gce_label
+        project, zone = self._project(), self._zone()
+        if not project or not zone:
+            raise RuntimeError("no project/zone to retag in")
+        if self._lookup(storage) is None:
+            return False
+        name = self._gce_resource_name(storage.get_name())
+        pairs = ",".join(f"{gce_label(k)}={gce_label(str(v))}" for k, v in tags.items())
+        res = subprocess.run([self._gcloud(), "filestore", "instances", "update", name, "--location", str(zone),
+                              "--project", str(project), f"--update-labels={pairs}", "--quiet"],
+                             capture_output=True, text=True, check=False)
+        if res.returncode != 0:
+            raise RuntimeError(f"gcloud filestore instances update {name}: {(res.stderr or '').strip()[-300:]}")
+        return True
 
     def module_args(self, storage: Storage) -> dict[str, Any]:
         rtb = self._runtime()
@@ -363,9 +423,12 @@ class TofuFilestoreStorageBuilder(TofuGcpStorageBuilder[S]):
             raise RuntimeError(f"gcloud filestore instances describe {name}: {err[-300:]}")
         info = json.loads(res.stdout or "{}")
         shares = info.get("fileShares") or [{}]
+        labels = dict(info.get("labels") or {})
+        if self._theirs(labels):
+            return self._elsewhere(labels, "a Filestore share")     # stage 93
         rec: dict[str, Any] = {"id": str(info.get("name") or name).rsplit("/", 1)[-1],
                                "state": str(info.get("state") or ""),
-                               "tags": dict(info.get("labels") or {})}
+                               "tags": labels}
         cap = shares[0].get("capacityGb")
         if cap is not None:
             rec["size"] = int(cap)
@@ -397,6 +460,19 @@ class TofuGcsStorageBuilder(TofuGcpStorageBuilder[G]):
 
     def module_dirname(self) -> str:
         return "gcp_storage_gcs"
+
+    def retag_storage(self, storage: Storage, tags: dict[str, str]) -> bool:
+        import subprocess  # noqa: PLC0415
+        from cs_image_system.gcloud_runtime.gcp_packer_source import gce_label
+        if self._lookup(storage) is None:
+            return False
+        bucket = getattr(storage, "bucket_name", None) or getattr(self.model, "bucket_name", None) or storage.get_name()
+        pairs = ",".join(f"{gce_label(k)}={gce_label(str(v))}" for k, v in tags.items())
+        res = subprocess.run([self._gcloud(), "storage", "buckets", "update", f"gs://{bucket}", f"--update-labels={pairs}"],
+                             capture_output=True, text=True, check=False)
+        if res.returncode != 0:
+            raise RuntimeError(f"gcloud storage buckets update gs://{bucket}: {(res.stderr or '').strip()[-300:]}")
+        return True
 
     def module_args(self, storage: Storage) -> dict[str, Any]:
         rtb = self._runtime()
@@ -466,6 +542,9 @@ class TofuGcsStorageBuilder(TofuGcpStorageBuilder[G]):
                 return None
             raise RuntimeError(f"gcloud storage buckets describe gs://{bucket}: {err[-300:]}")
         info = json.loads(res.stdout or "{}")
+        labels = dict(info.get("labels") or {})
+        if self._theirs(labels):
+            return self._elsewhere(labels, "a GCS bucket")          # stage 93
         return {"id": info.get("name") or bucket, "state": "active",
                 "location": info.get("location"), "storage_class": info.get("storageClass"),
-                "tags": dict(info.get("labels") or {})}
+                "tags": labels}

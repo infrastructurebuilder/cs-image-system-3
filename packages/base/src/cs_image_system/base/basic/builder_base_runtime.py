@@ -83,12 +83,27 @@ class RuntimeBuilderBase(BuilderBase[TypeVar("T", bound=RuntimeBuilderModel)]):
         RunShellScript. A runtime without one raises NotImplementedError."""
         raise NotImplementedError(f"{self.__class__.__name__} has no session mechanism to run commands")
 
-    def inventory(self) -> dict[str, list[str]]:
+    def inventory(self) -> dict[str, Any]:
         """Everything that exists on this runtime that the system could have
         created (stage 11.5): ``{"instances": [...], "images": [...],
-        "disks": [...], "buckets": [...]}`` -- read-only. A runtime without an
-        inventory raises NotImplementedError (`empty --runtime` refuses)."""
+        "disks": [...], "buckets": [...]}`` -- read-only; and, when the
+        runtime can read labels, ``"owners": {kind: {name: csis_config}}``
+        for every thing that carries a configuration's id (stage 93), so the
+        emptiness check leaves another configuration's things alone. A
+        runtime without an inventory raises NotImplementedError (`empty
+        --runtime` refuses)."""
         raise NotImplementedError(f"{self.__class__.__name__} cannot list its inventory")
+
+    def instance_tags(self, instance_name: str) -> dict[str, str] | None:
+        """The tags or labels the named machine carries, None when none
+        stands (stage 93: what `lineage relabel` reads before it adds the
+        configuration's id). A runtime that cannot read them raises."""
+        raise NotImplementedError(f"{self.__class__.__name__} cannot read a machine's tags")
+
+    def retag_instance(self, instance_name: str, tags: dict[str, str]) -> bool:
+        """Add ``tags`` to the named machine in place (stage 93); False when
+        no such machine stands. A runtime that cannot retag raises."""
+        raise NotImplementedError(f"{self.__class__.__name__} cannot retag a machine")
 
     def dispose_image(self, build_id: str) -> bool:
         """Delete one of OUR OWN recorded images from this runtime (the

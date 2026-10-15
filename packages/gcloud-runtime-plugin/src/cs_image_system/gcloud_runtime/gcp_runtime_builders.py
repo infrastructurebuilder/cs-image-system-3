@@ -309,9 +309,49 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         res = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=timeout)
         return res.returncode, (res.stdout or "") + (res.stderr or "")
 
-    def inventory(self) -> dict[str, list[str]]:
+    def _theirs(self, resource: Any) -> bool:
+        """Stage 93: whether a GCE resource's labels name another configuration."""
+        from cs_image_system.base.lineage import belongs_to_another_configuration
+        return belongs_to_another_configuration(self._get_context(), dict(getattr(resource, "labels", {}) or {}))
+
+    def instance_tags(self, instance_name: str) -> dict[str, str] | None:
+        """The named machine's labels (stage 93's relabel reads them); None
+        when no such machine stands."""
+        from .gcp_packer_source import gce_name
+        got = self._instances_client()
+        if got is None:
+            return None
+        client, project, zone = got
+        try:
+            inst = client.get(project=project, zone=zone, instance=gce_name(instance_name))
+        except Exception as e:  # noqa: BLE001
+            if "not found" in str(e).lower() or "404" in str(e):
+                return None
+            raise
+        return dict(getattr(inst, "labels", {}) or {})
+
+    def retag_instance(self, instance_name: str, tags: dict[str, str]) -> bool:
+        """``setLabels`` on the named machine (stage 93: the id, in place,
+        through the same ``gce_label`` the emission uses)."""
+        from google.cloud import compute_v1  # noqa: PLC0415
+        from .gcp_packer_source import gce_label, gce_name
+        got = self._instances_client()
+        if got is None:
+            return False
+        client, project, zone = got
+        inst = client.get(project=project, zone=zone, instance=gce_name(instance_name))
+        labels = dict(getattr(inst, "labels", {}) or {})
+        labels.update({gce_label(k): gce_label(str(v)) for k, v in tags.items()})
+        client.set_labels(project=project, zone=zone, instance=gce_name(instance_name),
+                          instances_set_labels_request_resource=compute_v1.InstancesSetLabelsRequest(
+                              labels=labels, label_fingerprint=getattr(inst, "label_fingerprint", None))).result()
+        return True
+
+    def inventory(self) -> dict[str, Any]:
         """Instances and disks in the runtime's zone, every custom image in
-        the project, and the project's buckets (via gcloud, no extra library)."""
+        the project, and the project's buckets (via gcloud, no extra library);
+        and, under ``owners``, the ``csis_config`` label each carries (stage
+        93), so the emptiness check counts this configuration's alone."""
         import subprocess  # noqa: PLC0415
         from google.cloud import compute_v1  # noqa: PLC0415
         from .gcp_utils import _make_credentials, resolve_project
@@ -321,15 +361,33 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
             raise RuntimeError(f"GCP runtime {self.get_name()}: no project/zone to inventory")
         creds = _make_credentials(cfg)
         kw = {"credentials": creds} if creds else {}
-        instances = sorted(i.name for i in compute_v1.InstancesClient(**kw).list(project=project, zone=zone))
-        images = sorted(i.name for i in compute_v1.ImagesClient(**kw).list(project=project))
-        disks = sorted(d.name for d in compute_v1.DisksClient(**kw).list(project=project, zone=zone))
-        res = subprocess.run([self.gcloud_binary(), "storage", "buckets", "list", "--project", str(project), "--format=value(name)"],
+        from cs_image_system.base.lineage import CONFIG_TAG
+        owners: dict[str, dict[str, str]] = {"instances": {}, "images": {}, "disks": {}, "buckets": {}}
+
+        def seen(kind: str, name: str, labels: Any) -> str:
+            owner = str(dict(labels or {}).get(CONFIG_TAG) or "")
+            if owner:
+                owners[kind][name] = owner
+            return name
+        instances = sorted(seen("instances", i.name, getattr(i, "labels", None))
+                           for i in compute_v1.InstancesClient(**kw).list(project=project, zone=zone))
+        images = sorted(seen("images", i.name, getattr(i, "labels", None))
+                        for i in compute_v1.ImagesClient(**kw).list(project=project))
+        disks = sorted(seen("disks", d.name, getattr(d, "labels", None))
+                       for d in compute_v1.DisksClient(**kw).list(project=project, zone=zone))
+        res = subprocess.run([self.gcloud_binary(), "storage", "buckets", "list", "--project", str(project),
+                              f"--format=csv[no-heading](name,labels.{CONFIG_TAG})"],
                              capture_output=True, text=True, check=False)
         if res.returncode != 0:
             raise RuntimeError(f"gcloud storage buckets list: {(res.stderr or '').strip()[-300:]}")
-        buckets = sorted(ln.strip() for ln in (res.stdout or "").splitlines() if ln.strip())
-        return {"instances": instances, "images": images, "disks": disks, "buckets": buckets}
+        buckets: list[str] = []
+        for ln in (res.stdout or "").splitlines():
+            if not ln.strip():
+                continue
+            name, _, owner = ln.strip().partition(",")
+            buckets.append(seen("buckets", name, {CONFIG_TAG: owner} if owner else {}))
+        return {"instances": instances, "images": sorted(images), "disks": disks, "buckets": sorted(buckets),
+                "owners": owners}
 
     def dispose_image(self, build_id: str) -> bool:
         """Delete the GCE image named by the build id and wait for the
@@ -394,6 +452,8 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
             kw = {"credentials": creds} if creds else {}
             inst = compute_v1.InstancesClient(**kw).get(project=project, zone=zone,
                                                         instance=gce_name(instance_name))
+            if self._theirs(inst):
+                return None                               # stage 93: another configuration's machine of our name
             boot = next((d for d in (inst.disks or []) if getattr(d, "boot", False)), None)
             if boot is None or not getattr(boot, "source", None):
                 return None
@@ -454,6 +514,8 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
                 if "not found" in str(e).lower() or "404" in str(e):
                     return power_state.ABSENT
                 raise
+            if self._theirs(inst):
+                return power_state.ABSENT                # stage 93: theirs stands where ours would; ours is absent
             raw = str(getattr(inst, "status", "") or "")
             mapped = self._GCE_POWER.get(raw)
             if mapped is None:
@@ -480,6 +542,8 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
                 return None
             client, project, zone = got
             inst = client.get(project=project, zone=zone, instance=gce_name(instance_name))
+            if self._theirs(inst):
+                return None                               # stage 93
             host = str(getattr(inst, "hostname", "") or "") or f"{gce_name(instance_name)}.c.{project}.internal"
             return {"instance_id": str(getattr(inst, "id", "") or ""), "provider_hostname": host}
         except Exception as e:  # noqa: BLE001 - read-only probe

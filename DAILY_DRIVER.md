@@ -203,8 +203,10 @@ which needs the Token Creator role on it), the IAP tunnel role on your own
 Google identity for sessions, and an SSH key your agent holds without a
 passphrase (a session hook cannot prompt). Every GCE cycle ends with
 `just cloud-empty <runtime>`, so nothing billable is left standing beyond
-the declared storages. Read [OPERATIONS.md](docs/OPERATIONS.md), "GCE cost
-discipline".
+the declared storages; another configuration's things in the same
+project are counted and left alone, since everything the system makes
+carries `csis_config` (stage 93). Read [OPERATIONS.md](docs/OPERATIONS.md),
+"GCE cost discipline".
 
 A service account two configurations share (the reference tree and a
 scratch tree in one project, say) is read by the bootstrap and granted
@@ -706,12 +708,27 @@ the cloud ([CI_SETUP.md](docs/examples/complete/CI_SETUP.md), 3.3 or 3.4,
 and the bootstrap's section for it), and, for GCE, the runner service
 account's address allowed through `public_safe.allow`
 (`".iam.gserviceaccount.com"`), which the hook otherwise reads as an
-email. Two things to expect: `storage_types` is the base's, so adding a
-type re-bakes that base on EVERY cloud, not only the new one
-([TODO.md](TODO.md), hygiene XII); and `validate` names each
-declaration the new runtime still lacks, so declare, validate, and read
-what it says until it is quiet. `complete` has every one of these
-declared, both clouds at once, as a living example.
+email. Two things to expect: a storage type added for the new cloud
+re-bakes nothing on the old one (a bake takes only the types whose
+builder lives on its runtime, hygiene XII item 21), while a field every
+runtime shares (`admin_user`, the keys, `update`) still re-bakes the base
+everywhere; and `validate` names each declaration the new runtime still
+lacks, so declare, validate, and read what it says until it is quiet.
+`complete` has every one of these declared, both clouds at once, as a
+living example.
+
+**Two trees in one project or account.** Everything the system makes
+carries the configuration's id, `csis_config` (images since stage 82,
+storages and machines since stage 93), so a second tree that shares
+your project or account is not in your way: the state query and
+`cloud-empty` count your things alone and say how many of the other
+tree's they left alone, and a lookup by name takes yours, never theirs.
+What stood before stage 93 carries no id yet and is listed as `(no
+csis_config)` until `just cloud-relabel <runtime> no` gives it one, in
+place, nothing replaced. Two trees that declare the same storage name
+on one cloud still collide where the cloud's names are unique (a GCE
+disk in one zone, a bucket); the query then says `a persistent disk of
+that name belongs to configuration '<id>'`, and ours is absent.
 
 ## 4. Changing things
 
@@ -889,6 +906,8 @@ item in the open hygiene bundle in [TODO.md](TODO.md).
 | `data disks mounted` failed with `missing: /mnt/<x>` on GCE, the kernel's XFS count above it | the startup script did not report that mount point mounted: the device never attached, or `mount` failed and the script went on (`nofail`) | the script's own lines on the serial console (`csis-mount:`), then the storage's attachment in the instance root |
 | a base shown DUE on a cloud you changed nothing for | a field every runtime shares moved (`admin_user`, the admin keys, `update`, the vendor source); a storage type added for one cloud re-bakes only there since hygiene XII (before, `pd` for a GCE disk re-baked the AWS base: 2026-10-09, F49) | read the run's reason for the bake; a shared field re-bakes everywhere by design |
 | `unavailable: storages/<s3>: REFUSED (the identity lacks a permission, ...): An error occurred (AccessDenied) when calling the GetBucketTagging operation: User: ...assumed-role/csis-github-apply/... is not authorized` on a `perform` | the role the step ran as lacks a read the state query makes: the applied role's document lags the release's module (until 2026-10-14 the WRITE role carried no `StorageReality` statement at all, so every performing run read its S3 storage as unavailable and stayed green over it; hygiene XII item 33) | take the release, then apply the bootstrap root again (CI_SETUP.md 3.0, the Apply block; IAM writes are yours); a `REFUSED` line is never a retry |
+| `note: storages/<s>: a persistent disk of that name belongs to configuration '<id>' (csis_config); ... ours is absent`; `empty: left alone on <rt>: N disks of configuration '<id>'` | another tree shares the project or account and made a thing of that name; it is theirs, counted and left alone (stage 93) | nothing for theirs; if ours is absent, declare a name the cloud does not hold yet |
+| `empty: disks still present on <rt>: old-scratch (no csis_config)` | a thing with no configuration id, made before stage 93; it is counted as ours to answer for | if it is ours and declared, `just cloud-relabel <rt> no` gives it the id; if it is nothing of ours, remove it by hand |
 | `public-safe: ... <file>:<line>` from the hook | a committed line looks like a secret, a key, a plan or a state file | never bypass the hook; encrypt the value, or allow it BY DECISION in `cfg/_config.yml` `public_safe.allow` |
 | `Build '<image>' errored after 20 minutes ...: Timeout waiting for SSH.` with `ssm error: ... StartSession, context canceled` | the bake machine booted and its SSM agent was Online, but packer's ssh session through SSM never opened: the bake host was a 1 GB t2.micro, too small for the image it boots (three `perform` runs, 2026-10-04 and -05; the same parent baked on an r5.4xlarge, and on a t3.medium once declared) | give the bake host 4 GB: `machine_type: t3.medium` on the image's runtime entry, or the runtime's `default_machine_type` (the starters ship t3.medium; the reference tree since stage 80). Since stage 79 the builds that completed before the failure are recorded anyway (a warning names them) |
 | `foreign image <id>: ... tagged series=<s> run=<r> is not in lineage` | an image the system tagged and lineage does not record: a bake still running in another process (2026-10-04: `just full-test`'s strict query raced CI's `perform`), or one a failed run baked before stage 79, when a failed run recorded nothing | if a run is still baking, wait for it to finish and record. Otherwise `just cli state import --no-storages` adopts it (2026-10-04: five images), then `just record`; the adopted build counts as current, so it is not baked again |

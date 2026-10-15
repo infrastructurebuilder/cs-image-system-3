@@ -973,9 +973,15 @@ def empty_command(
         raise typer.Exit(code=2)
     for kind, names in result["leftovers"].items():
         if names:
-            typer.secho(f"empty: {kind} still present on {runtime}: {', '.join(names)}", fg=typer.colors.RED, err=True)
+            unlabelled = set(result.get("unlabelled", {}).get(kind) or [])
+            shown = [n + (" (no csis_config)" if n in unlabelled else "") for n in names]
+            typer.secho(f"empty: {kind} still present on {runtime}: {', '.join(shown)}", fg=typer.colors.RED, err=True)
         else:
             typer.echo(f"empty: no {kind}" + (" beyond the declared storages" if kind in ("disks", "buckets") else ""))
+    for kind, by_owner in sorted((result.get("elsewhere") or {}).items()):
+        # stage 93: another configuration's things, counted and left alone
+        for owner, count in sorted(by_owner.items()):
+            typer.echo(f"empty: left alone on {runtime}: {count} {kind} of configuration {owner!r}")
     if not result["empty"]:
         raise typer.Exit(code=1)
     ctx = GlobalTypeContext()
@@ -1036,8 +1042,10 @@ def lineage_relabel_command(
 ) -> None:
     """Re-tag cloud images whose lineage tags disagree with their record
     (the state query's `changed` drift) from the record -- the tag side of
-    zero-drift-report; `restamp` is the record side. No meta-state change.
-    Under the global --dry-run it reports the plan."""
+    zero-drift-report; `restamp` is the record side -- and, since stage 93,
+    give the configuration's id (`csis_config`) to every declared storage
+    and launched machine on the runtime that stands without it. No
+    meta-state change. Under the global --dry-run it reports the plan."""
     from cs_image_system.base.commands.relabel import relabel
     from cs_image_system.base.global_context import GlobalTypeContext
     ctx = GlobalTypeContext()
@@ -1048,17 +1056,19 @@ def lineage_relabel_command(
         raise typer.Exit(code=1)
     typer.echo(json.dumps([r.as_dict() for r in results], indent=2, sort_keys=True))
     if not results:
-        typer.secho("relabel: every recorded image carries its record's tags", fg=typer.colors.GREEN)
+        typer.secho("relabel: every recorded image carries its record's tags, and every standing storage and "
+                    "machine carries the configuration's id", fg=typer.colors.GREEN)
         return
+    kinds = ", ".join(f"{n} {k}(s)" for k, n in sorted(
+        {k: sum(1 for r in results if r.kind == k) for k in {r.kind for r in results}}.items()))
     if ctx.dry_run:
-        typer.secho(f"relabel (dry run): {len(results)} image(s) would be relabelled; pass --no-dry-run",
-                    fg=typer.colors.YELLOW)
+        typer.secho(f"relabel (dry run): {kinds} would be relabelled; pass --no-dry-run", fg=typer.colors.YELLOW)
         return
-    failed = [r.build_id for r in results if not r.retagged]
+    failed = [f"{r.kind} {r.build_id}" for r in results if not r.retagged]
     if failed:
         typer.secho(f"relabel: could not retag {failed}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
-    typer.secho(f"relabelled {len(results)} image(s) on {runtime}", fg=typer.colors.GREEN)
+    typer.secho(f"relabelled {kinds} on {runtime}", fg=typer.colors.GREEN)
 
 
 unmount_app = typer.Typer(help="Unmount a storage on an instance before its detach (stage 10.14).")

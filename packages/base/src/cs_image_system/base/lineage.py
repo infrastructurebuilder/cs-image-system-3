@@ -465,11 +465,32 @@ def configuration_tag(ctx: "GlobalTypeContext") -> str:
 
 
 def belongs_to_another_configuration(ctx: "GlobalTypeContext", tags: dict[str, Any]) -> bool:
-    """An image tagged for a configuration that is not this one. An image
-    with no ``csis_config`` (baked before stage 82) answers False: it is
-    judged as it always was."""
+    """A thing tagged for a configuration that is not this one. One with no
+    ``csis_config`` (made before stage 82, or before stage 93 for anything
+    that is not an image) answers False: it is judged as it always was."""
     owner = str((tags or {}).get(CONFIG_TAG) or "")
     return bool(owner) and owner != configuration_tag(ctx)
+
+
+def owner_of(tags: dict[str, Any] | None) -> str:
+    """The configuration a thing's tags name, or ``""`` for none."""
+    return str((tags or {}).get(CONFIG_TAG) or "")
+
+
+def config_tags(ctx: "GlobalTypeContext") -> dict[str, str]:
+    """The one tag everything the system makes carries (stage 93: the
+    instances, volumes, disks, filesystems and buckets the terraform modules
+    make, as the images have since stage 82): ``{csis_config: <id>}``, or
+    nothing when the context carries no configuration."""
+    owner = configuration_tag(ctx)
+    return {CONFIG_TAG: owner} if owner else {}
+
+
+def ours_or_unlabelled(ctx: "GlobalTypeContext", tags: dict[str, Any] | None) -> bool:
+    """Whether a thing found by name may be taken for this configuration's:
+    it carries our id, or no id at all (made before stage 93, counted and
+    named as such until it is relabelled). Another configuration's never is."""
+    return not belongs_to_another_configuration(ctx, tags or {})
 
 
 def lineage_tags(ctx: "GlobalTypeContext", image: Any, runtime: str | None = None) -> dict[str, str]:
