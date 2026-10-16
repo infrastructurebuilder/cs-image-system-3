@@ -9,8 +9,9 @@ name: Runner image
 # changes ci/runner-image/ (or a dispatch) publishes the tag the tree pins, the content
 # of ci/runner-image/TAG, which every workflow names and a test holds equal; the monthly
 # schedule publishes today's date as a candidate, which a change to TAG and the workflows
-# takes (the daily driver's 9.1). A published tag is never rebuilt: the base is a digest
-# and every tool a version, and a tree's CI changes only when the tree takes a release.
+# takes (the daily driver's 9.1). A published tag is never rebuilt (a second image on one
+# day is <YYYYMMDD>.2): the base is a digest and every tool a version, and a tree's CI
+# changes only when the tree takes a release.
 on:
   schedule:
     - cron: "17 5 1 * *"        # monthly (UTC), the first day: the pinned tools as they are

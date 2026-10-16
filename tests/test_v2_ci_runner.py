@@ -24,7 +24,7 @@ EXAMPLES = REPO / "docs" / "examples"
 TREES = ("complete", "standard-aws", "standard-gce", "standard-aws-posix")
 DOCKERFILE = REPO / "ci" / "runner-image" / "Dockerfile"
 DOC = REPO / "docs" / "CI_RUNNER.md"
-IMAGE = re.compile(r"^ghcr\.io/infrastructurebuilder/csis-ci:alma10-\d{8}$")
+IMAGE = re.compile(r"^ghcr\.io/infrastructurebuilder/csis-ci:alma10-\d{8}(\.\d+)?$")   # a same-day rebuild is .2, .3
 # the Dockerfile's ARG names against the table's tool names
 TOOLS = {"UV": "uv", "JUST": "just", "TOFU": "tofu", "PACKER": "packer", "AWSCLI": "aws", "SSM_PLUGIN": "session-manager-plugin",
          "GCLOUD": "gcloud", "SFT": "sft", "DOCKER_CLI": "docker", "ANSIBLE_CORE": "ansible-playbook", "YQ": "yq", "JQ": "jq",

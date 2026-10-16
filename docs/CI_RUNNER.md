@@ -92,7 +92,9 @@ A push that changes `ci/runner-image/`, or a dispatch, publishes the
 tag the tree pins, the content of `ci/runner-image/TAG`; the monthly
 schedule publishes today's date as a candidate, taken by moving `TAG`
 and the workflows' lines (a test holds them equal). A published tag is
-never rebuilt. The base is pinned by digest and every tool by version;
+never rebuilt: a second image on one day is `alma10-<YYYYMMDD>.2` (the
+first, 2026-10-16, lacked git's `safe.directory` for a checkout owned by
+another user). The base is pinned by digest and every tool by version;
 the probe runs at build time and `just runner-image` builds and probes
 it locally (a leg of `just full-test`). A starter workflow pins one date tag on every
 job (`container: image:`); `init-config --force` moves it with the

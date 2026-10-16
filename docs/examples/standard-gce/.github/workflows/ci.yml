@@ -48,7 +48,7 @@ jobs:
       # version (docs/CI_RUNNER.md lists them); moved by `init-config --force` with the
       # release's other lines. The host's docker socket lets the modification tests drive
       # the host daemon through the image's docker client.
-      image: ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016
+      image: ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.2
       options: -v /var/run/docker.sock:/var/run/docker.sock
     steps:
       - uses: actions/checkout@v5
@@ -73,7 +73,7 @@ jobs:
       # version (docs/CI_RUNNER.md lists them); moved by `init-config --force` with the
       # release's other lines. The host's docker socket lets the modification tests drive
       # the host daemon through the image's docker client.
-      image: ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016
+      image: ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.2
       options: -v /var/run/docker.sock:/var/run/docker.sock
     permissions:
       id-token: write          # OIDC federation for the read-only cloud identities
@@ -165,7 +165,7 @@ jobs:
       # version (docs/CI_RUNNER.md lists them); moved by `init-config --force` with the
       # release's other lines. The host's docker socket lets the modification tests drive
       # the host daemon through the image's docker client.
-      image: ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016
+      image: ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.2
       options: -v /var/run/docker.sock:/var/run/docker.sock
     concurrency:
       group: perform            # two merges never record or perform at once
