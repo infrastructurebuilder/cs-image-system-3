@@ -77,6 +77,7 @@ jobs:
       image: ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.3
       options: -v /var/run/docker.sock:/var/run/docker.sock
     permissions:
+      packages: read          # the runner image is pulled with this job's token (stage 92): a permissions block without it reads as none
       id-token: write          # OIDC federation for the read-only cloud identities
       contents: read
     env:
@@ -182,6 +183,7 @@ jobs:
       group: perform            # two merges never record or perform at once
       cancel-in-progress: false # a record in flight is never cancelled
     permissions:
+      packages: read          # the runner image is pulled with this job's token (stage 92): a permissions block without it reads as none
       id-token: write
       contents: write           # the records are committed and pushed back here
     env:

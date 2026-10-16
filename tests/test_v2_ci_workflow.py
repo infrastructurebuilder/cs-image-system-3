@@ -70,7 +70,7 @@ def test_live_proves_the_fixture_read_only_and_is_gated():
     live = wf["jobs"]["live"]
     assert live["needs"] == "verify"
     assert "pull_request" in live["if"]
-    assert live["permissions"] == {"id-token": "write", "contents": "read"}
+    assert live["permissions"] == {"id-token": "write", "contents": "read", "packages": "read"}   # packages: the runner image's pull (stage 92)
     gate = next(s for s in live["steps"] if s.get("id") == "gate")
     for secret in ("AWS_ROLE_ARN", "GCP_WORKLOAD_IDENTITY_PROVIDER", "GCP_SERVICE_ACCOUNT", "OKTA_API_PRIVATE_KEY",
                    "TF_VAR_NOS_KEY", "TF_VAR_NOS_SECRET"):

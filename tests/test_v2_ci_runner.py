@@ -99,6 +99,8 @@ def test_every_job_runs_inside_the_one_dated_image_with_the_docker_socket():
             assert IMAGE.match(str(container.get("image", ""))), f"{path.relative_to(REPO)}: job {name} does not run in the dated image"
             assert container.get("options") == "-v /var/run/docker.sock:/var/run/docker.sock", f"{path.relative_to(REPO)}: {name}"
             assert job.get("runs-on") == "ubuntu-24.04"                     # the machine the container runs on (stage 91)
+            if "permissions" in job:                                        # a block without packages: read pulls as nobody
+                assert job["permissions"].get("packages") in ("read", "write"), f"{path.relative_to(REPO)}: {name} has a permissions block without packages: read"
             images.add(container["image"])
             text = yaml.safe_dump(job)
             for gone in ("setup-uv", "setup-just", "setup-opentofu", "setup-packer", "setup-gcloud", "sft-install",
