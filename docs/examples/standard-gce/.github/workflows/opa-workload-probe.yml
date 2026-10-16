@@ -35,6 +35,13 @@ on:
 jobs:
   probe:
     runs-on: ubuntu-24.04
+    container:
+      # The runner image (stage 92): AlmaLinux 10 with every tool a job calls at a pinned
+      # version (docs/CI_RUNNER.md lists them); moved by `init-config --force` with the
+      # release's other lines. The host's docker socket lets the modification tests drive
+      # the host daemon through the image's docker client.
+      image: ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016
+      options: -v /var/run/docker.sock:/var/run/docker.sock
     permissions:
       id-token: write          # GitHub mints the OIDC token the connection validates
       contents: read
@@ -46,18 +53,11 @@ jobs:
       CSIS_VERSION_FILE: .csis-version
     steps:
       - uses: actions/checkout@v5
-      - uses: extractions/setup-just@v4
-      - uses: astral-sh/setup-uv@v7
-        with:
-          python-version: "3.13"
-          cache-dependency-glob: ".csis-version"   # a configuration repository has no uv.lock: the release it installs keys the cache
       - name: Install the released system
         run: |
           pin=""; [ -s "$CSIS_VERSION_FILE" ] && pin="==$(cat "$CSIS_VERSION_FILE")"
           indexes=""
           case "$pin" in *.dev*) indexes="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/" ;; esac
           uv tool install $indexes "cs-image-system${pin}"
-      - name: Install the OPA client
-        run: just sft-install
       - name: Present this run's token to the workload connection
         run: just opa-workload-probe

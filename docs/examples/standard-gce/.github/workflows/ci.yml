@@ -43,13 +43,15 @@ env:
 jobs:
   verify:
     runs-on: ubuntu-24.04
+    container:
+      # The runner image (stage 92): AlmaLinux 10 with every tool a job calls at a pinned
+      # version (docs/CI_RUNNER.md lists them); moved by `init-config --force` with the
+      # release's other lines. The host's docker socket lets the modification tests drive
+      # the host daemon through the image's docker client.
+      image: ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016
+      options: -v /var/run/docker.sock:/var/run/docker.sock
     steps:
       - uses: actions/checkout@v5
-      - uses: extractions/setup-just@v4
-      - uses: astral-sh/setup-uv@v7
-        with:
-          python-version: "3.13"
-          cache-dependency-glob: ".csis-version"   # a configuration repository has no uv.lock: the release it installs keys the cache
       - name: Install the released system
         run: |
           pin=""; [ -s "$CSIS_VERSION_FILE" ] && pin="==$(cat "$CSIS_VERSION_FILE")"
@@ -66,6 +68,13 @@ jobs:
     needs: verify
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
+    container:
+      # The runner image (stage 92): AlmaLinux 10 with every tool a job calls at a pinned
+      # version (docs/CI_RUNNER.md lists them); moved by `init-config --force` with the
+      # release's other lines. The host's docker socket lets the modification tests drive
+      # the host daemon through the image's docker client.
+      image: ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016
+      options: -v /var/run/docker.sock:/var/run/docker.sock
     permissions:
       id-token: write          # OIDC federation for the read-only cloud identities
       contents: read
@@ -106,13 +115,6 @@ jobs:
           fi
       - if: steps.gate.outputs.ready == 'true'
         uses: actions/checkout@v5
-      - if: steps.gate.outputs.ready == 'true'
-        uses: extractions/setup-just@v4
-      - if: steps.gate.outputs.ready == 'true'
-        uses: astral-sh/setup-uv@v7
-        with:
-          python-version: "3.13"
-          cache-dependency-glob: ".csis-version"   # a configuration repository has no uv.lock: the release it installs keys the cache
       - name: Install the released system
         if: steps.gate.outputs.ready == 'true'
         # pinned by .csis-version when present; a development version lives on TestPyPI, with
@@ -123,27 +125,12 @@ jobs:
           case "$pin" in *.dev*) indexes="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/" ;; esac
           uv tool install $indexes "cs-image-system${pin}"
           cs-image-system --help >/dev/null
-      - name: Install OpenTofu
-        if: steps.gate.outputs.ready == 'true'
-        uses: opentofu/setup-opentofu@v2
-      - name: Install Packer
-        if: steps.gate.outputs.ready == 'true'
-        uses: hashicorp/setup-packer@v3
-      - name: Place the tools where cfg/executables.yml pins them
-        if: steps.gate.outputs.ready == 'true'
-        # validate checks every declared tool at its declared path and version
-        run: |
-          for tool in tofu packer gcloud ansible-playbook bash docker; do
-            [ -x "/usr/local/bin/$tool" ] || { src="$(command -v "$tool" || true)"; [ -n "$src" ] && sudo ln -sf "$src" "/usr/local/bin/$tool"; }
-          done
       - name: Federated GCP credentials, the read-only identity
         if: steps.gate.outputs.ready == 'true'
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-      - if: steps.gate.outputs.ready == 'true'
-        uses: google-github-actions/setup-gcloud@v3
       - name: The identity that opens the tree
         if: steps.gate.outputs.ready == 'true'
         run: |
@@ -173,6 +160,13 @@ jobs:
     needs: live
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
+    container:
+      # The runner image (stage 92): AlmaLinux 10 with every tool a job calls at a pinned
+      # version (docs/CI_RUNNER.md lists them); moved by `init-config --force` with the
+      # release's other lines. The host's docker socket lets the modification tests drive
+      # the host daemon through the image's docker client.
+      image: ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016
+      options: -v /var/run/docker.sock:/var/run/docker.sock
     concurrency:
       group: perform            # two merges never record or perform at once
       cancel-in-progress: false # a record in flight is never cancelled
@@ -229,13 +223,6 @@ jobs:
           fi
       - if: steps.gate.outputs.ready == 'true'
         uses: actions/checkout@v5
-      - if: steps.gate.outputs.ready == 'true'
-        uses: extractions/setup-just@v4
-      - if: steps.gate.outputs.ready == 'true'
-        uses: astral-sh/setup-uv@v7
-        with:
-          python-version: "3.13"
-          cache-dependency-glob: ".csis-version"   # a configuration repository has no uv.lock: the release it installs keys the cache
       - name: Install the released system
         if: steps.gate.outputs.ready == 'true'
         # pinned by .csis-version when present; a development version lives on TestPyPI, with
@@ -246,27 +233,12 @@ jobs:
           case "$pin" in *.dev*) indexes="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/" ;; esac
           uv tool install $indexes "cs-image-system${pin}"
           cs-image-system --help >/dev/null
-      - name: Install OpenTofu
-        if: steps.gate.outputs.ready == 'true'
-        uses: opentofu/setup-opentofu@v2
-      - name: Install Packer
-        if: steps.gate.outputs.ready == 'true'
-        uses: hashicorp/setup-packer@v3
-      - name: Place the tools where cfg/executables.yml pins them
-        if: steps.gate.outputs.ready == 'true'
-        # validate checks every declared tool at its declared path and version
-        run: |
-          for tool in tofu packer gcloud ansible-playbook bash docker; do
-            [ -x "/usr/local/bin/$tool" ] || { src="$(command -v "$tool" || true)"; [ -n "$src" ] && sudo ln -sf "$src" "/usr/local/bin/$tool"; }
-          done
       - name: Federated GCP credentials, the read-only identity
         if: steps.gate.outputs.ready == 'true'
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-      - if: steps.gate.outputs.ready == 'true'
-        uses: google-github-actions/setup-gcloud@v3
       - name: The identity that opens the tree
         if: steps.gate.outputs.ready == 'true'
         run: |
@@ -314,23 +286,12 @@ jobs:
           else
             echo "no runtime is guarded (GUARD_RUNTIME is empty)"
           fi
-      - name: Install what a bake and the login proof need on the runner
-        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
-        # the emitted AWS sources reach their build instance through Session Manager (no public
-        # IP), which packer drives through this plugin; the ansible provisioner runs
-        # ansible-playbook on the runner; the OPA client makes the login proof
-        run: |
-          uv tool install ansible-core
-          sudo ln -sf "$HOME/.local/bin/ansible-playbook" /usr/local/bin/ansible-playbook
-          just sft-install
       - name: Federated GCP credentials, the identity that may write
         if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_APPLY_SERVICE_ACCOUNT }}
-      - if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
-        uses: google-github-actions/setup-gcloud@v3
       - name: The runtime performs
         if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
         # bakes what is due on PERFORM_RUNTIME, releases, applies retention; the instance roots
@@ -362,8 +323,6 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-      - if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
-        uses: google-github-actions/setup-gcloud@v3
       - name: The full run, recorded again
         if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
         # the complete emission after the scoped run, and the bake's lineage: runs even when

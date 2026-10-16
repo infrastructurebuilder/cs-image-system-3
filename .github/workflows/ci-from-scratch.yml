@@ -1,0 +1,164 @@
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: CI from scratch
+
+# The same bar and the same live proof as ci.yml, on GitHub's own runner image with
+# every tool installed by a step -- the path every job ran until stage 92, kept here
+# so that a reader with no image of their own can see what a runner needs, step by
+# step (docs/CI_RUNNER.md is the same list as a requirements document). It is moved
+# forward with ci.yml by the daily driver's section 9.1 and runs on `develop`, on a
+# weekly schedule and on dispatch; ci.yml, inside the runner image, is the path every
+# push and pull request takes. Nothing is published from here.
+on:
+  push:
+    branches: [develop]
+  schedule:
+    - cron: "41 6 * * 1"        # weekly (UTC): GitHub's image with the tools installed by steps
+  workflow_dispatch:
+
+jobs:
+  verify:
+    # The bar: lint, type-check (blocking since pyright reached 0 errors, stage 23)
+    # and the fast suite over the frozen fixture (stage 28). Every push and PR.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install just
+        uses: extractions/setup-just@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: just init
+
+      - name: Verify
+        run: just verify
+
+      - name: Public-safe
+        # stage 35: nothing in the checkout may be material that must never be public
+        run: just public-safe
+
+  live:
+    # The system's live proof over the frozen fixture (stage 64): the fixture
+    # names the real account's networks and project and the real OPA team, so
+    # with the read-only identities `just fixture-live` validates it, dry-runs
+    # every lifecycle over a private copy (state query off: the fixture's
+    # declarations are synthetic) and runs its modification tests under docker.
+    # Reads only; never --no-dry-run. Pushes and the nightly schedule, never
+    # pull requests (forks carry no secrets).
+    needs: verify
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      id-token: write          # OIDC federation for the read-only cloud roles
+      contents: read
+    env:
+      AWS_REGION: us-east-2
+    steps:
+      - name: Gate on the live secrets
+        id: gate
+        env:
+          HAVE_AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN != '' }}
+          HAVE_GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' }}
+          HAVE_GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT != '' }}
+          HAVE_OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY != '' }}
+          HAVE_TF_VAR_NOS_KEY: ${{ secrets.TF_VAR_NOS_KEY != '' }}
+          HAVE_TF_VAR_NOS_SECRET: ${{ secrets.TF_VAR_NOS_SECRET != '' }}
+        run: |
+          # A secret that is MISSING and one that is EMPTY read the same here ('' either
+          # way), so the distinction is made on the SET (stage 43): none configured is an
+          # unconfigured repository -- SKIPPED, and said so in the job summary, because a
+          # green conclusion is not proof that a step ran; some configured and some not
+          # is configured-and-broken -- a FAILURE that names them. The fixture's age
+          # identity is committed beside it, so no identity secret is needed here.
+          missing=""; present=0
+          for name in AWS_ROLE_ARN GCP_WORKLOAD_IDENTITY_PROVIDER GCP_SERVICE_ACCOUNT OKTA_API_PRIVATE_KEY TF_VAR_NOS_KEY TF_VAR_NOS_SECRET; do
+            have="HAVE_$name"
+            if [ "${!have}" = true ]; then present=$((present + 1)); else missing="$missing $name"; fi
+          done
+          if [ "$present" -eq 0 ]; then
+            echo "live: SKIPPED -- no live secret is configured, so no step runs (AWS_ROLE_ARN: a federated READ-ONLY AWS role (EC2 describe for the configuration load); GCP_WORKLOAD_IDENTITY_PROVIDER / GCP_SERVICE_ACCOUNT: the read-only GCP identity (the gcloud runtime discovers its network at load); OKTA_API_PRIVATE_KEY / TF_VAR_NOS_KEY / TF_VAR_NOS_SECRET: the Okta triple the Okta workspace asserts at load)"
+            { echo "## live: SKIPPED"; echo "No live secret is configured; no step ran. A green conclusion here is not proof that anything ran."; } >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$missing" ]; then
+            echo "live: FAILED -- secrets are configured but these are missing or EMPTY:$missing (a secret that exists with no value is a failure, not an absence)"
+            exit 1
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out the system
+        if: steps.gate.outputs.ready == 'true'
+        uses: actions/checkout@v5
+
+      - name: Federated AWS credentials
+        if: steps.gate.outputs.ready == 'true'
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Name the federated credentials as the configuration's profile
+        if: steps.gate.outputs.ready == 'true'
+        # The fixture's runtimes declare `credentials.profile_name: noaa`. botocore
+        # drops the environment credential provider whenever a profile is named
+        # explicitly, so the profile itself must carry the federated keys the
+        # step above exported (temporary, one hour).
+        run: |
+          mkdir -p ~/.aws
+          printf '[profile noaa]\nregion = %s\n' "$AWS_REGION" > ~/.aws/config
+          printf '[noaa]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n' \
+            "$AWS_ACCESS_KEY_ID" "$AWS_SECRET_ACCESS_KEY" "$AWS_SESSION_TOKEN" > ~/.aws/credentials
+          chmod 600 ~/.aws/credentials
+
+      - name: Federated GCP credentials
+        if: steps.gate.outputs.ready == 'true'
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Install just
+        if: steps.gate.outputs.ready == 'true'
+        uses: extractions/setup-just@v4
+
+      - name: Install uv
+        if: steps.gate.outputs.ready == 'true'
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.13"
+
+      - name: Install OpenTofu
+        if: steps.gate.outputs.ready == 'true'
+        uses: opentofu/setup-opentofu@v2
+
+      - name: Install Packer
+        if: steps.gate.outputs.ready == 'true'
+        uses: hashicorp/setup-packer@v3
+
+      - name: Place the tools where the fixture's executables.yml pins them
+        if: steps.gate.outputs.ready == 'true'
+        # cfg/executables.yml names /usr/local/bin/{tofu,packer,gcloud,ansible-playbook,bash,docker}
+        run: |
+          for tool in tofu packer gcloud ansible-playbook bash docker; do
+            [ -x "/usr/local/bin/$tool" ] || { src="$(command -v "$tool" || true)"; [ -n "$src" ] && sudo ln -sf "$src" "/usr/local/bin/$tool"; }
+          done
+
+      - name: Install dependencies
+        if: steps.gate.outputs.ready == 'true'
+        run: just init
+
+      - name: The fixture against the clouds
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_key: ${{ secrets.TF_VAR_NOS_KEY }}
+          TF_VAR_nos_coastal_modeling_cloud_sandbox_secret: ${{ secrets.TF_VAR_NOS_SECRET }}
+        run: just fixture-live
+

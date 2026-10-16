@@ -92,10 +92,11 @@ def test_live_proves_the_fixture_read_only_and_is_gated():
     for var in ("OKTA_API_PRIVATE_KEY", "TF_VAR_nos_coastal_modeling_cloud_sandbox_key",
                 "TF_VAR_nos_coastal_modeling_cloud_sandbox_secret"):
         assert var in proof["env"], var
-    # the tools validate checks for (stage 48) are installed and placed first
+    # the tools validate checks for (stage 48) come with the runner image (stage 92), placed where
+    # the fixture's executables.yml pins them; nothing installs them on the runner any more
+    assert str((live.get("container") or {}).get("image", "")).startswith("ghcr.io/infrastructurebuilder/csis-ci:alma10-")
     names = [s.get("name", "") for s in live["steps"]]
-    assert names.index("Install OpenTofu") < names.index("The fixture against the clouds")
-    assert names.index("Place the tools where the fixture's executables.yml pins them") < names.index("The fixture against the clouds")
+    assert "Install OpenTofu" not in names and "Place the tools where the fixture's executables.yml pins them" not in names
 
 
 def test_the_fixture_live_recipe_is_read_only_over_a_copy():
@@ -153,4 +154,5 @@ def test_the_workload_probe_left_with_the_performing_workflow():
     team's workload connection, and the repository that logs in as a workload
     is the configuration repository; the starter trees carry the probe."""
     assert not (REPO / ".github" / "workflows" / "opa-workload-probe.yml").exists()
-    assert sorted(p.name for p in (REPO / ".github" / "workflows").iterdir()) == ["ci.yml"]
+    # stage 92 added the from-scratch path and the runner image's own workflow beside ci.yml
+    assert sorted(p.name for p in (REPO / ".github" / "workflows").iterdir()) == ["ci-from-scratch.yml", "ci.yml", "runner-image.yml"]

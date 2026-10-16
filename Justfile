@@ -180,8 +180,10 @@ full-test-legs:
 		just test-posix-accounts -q || { echo "full-test: FAILED test-posix-accounts"; status=1; }
 		echo "full-test: a bake's step runner against a held package database, under docker (test-bake-steps)"
 		just test-bake-steps -q || { echo "full-test: FAILED test-bake-steps"; status=1; }
+		echo "full-test: the CI runner image builds and every tool in it answers (runner-image)"
+		just runner-image || { echo "full-test: FAILED runner-image"; status=1; }
 	else
-		echo "full-test: SKIPPED test-mods, test-posix-accounts and test-bake-steps -- docker is not available"
+		echo "full-test: SKIPPED test-mods, test-posix-accounts, test-bake-steps and runner-image -- docker is not available"
 	fi
 	if [ ! -f "{{config_root}}/cfg/_config.yml" ]; then
 		echo "full-test: SKIPPED the live-configuration legs (dry run --all, state query --strict) -- no live configuration at {{config_root}} (see: just config-guard)"
@@ -274,6 +276,13 @@ test-posix-accounts *ARGS:
 # test` the same file is skipped.
 test-bake-steps *ARGS:
 	@CSIS_CONTAINER_TESTS=1 uv run pytest tests/test_v2_bake_steps_containers.py {{ARGS}}
+
+# Stage 92: build the CI runner image (ci/runner-image: AlmaLinux 10, every tool pinned) for
+# amd64 and run its probe, which asks every tool its version from where cfg/executables.yml
+# pins it. A leg of `full-test`; the Runner image workflow builds and publishes the same.
+runner-image tag="csis-ci:alma10-local":
+	@docker build --platform linux/amd64 -t {{tag}} ci/runner-image
+	@docker run --rm --platform linux/amd64 {{tag}} csis-ci-probe
 
 # The credential sessions the reference configuration's runtimes need, read from the caches without
 # loading the configuration (exit 0: every one present; 2: one absent or expired) -- full-test's gate

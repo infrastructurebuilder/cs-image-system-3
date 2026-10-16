@@ -9,7 +9,9 @@ runner image and uses each action at a version, never a moving label or a
 branch, so a tree's CI changes only when the tree takes a release. The floor
 of majors is the first that runs on Node.js 24 (read from each action's
 ``action.yml`` on 2026-10-14); moving the names forward is the daily driver's
-section 9.1, which moves this floor with them.
+section 9.1, which moves this floor with them. Since stage 92 the jobs run
+inside the system's own runner image on that machine, so the tool-installing
+actions are gone (tests/test_v2_ci_runner.py holds the image's names).
 """
 from __future__ import annotations
 
@@ -62,21 +64,10 @@ def test_every_job_runs_on_the_one_named_image(path: Path):
 def test_every_action_is_used_at_a_version_no_older_than_the_node24_floor(path: Path):
     doc = yaml.safe_load(path.read_text())
     used = [step["uses"] for _, step in _steps(doc) if "uses" in step]
-    assert used, f"{_rel(path)} uses no action"
+    assert used, f"{_rel(path)} uses no action"          # at least the checkout (stage 92: the tools are in the image)
     for ref in used:
         action, _, version = ref.partition("@")
         m = VERSION.match(version)
         assert m, f"{_rel(path)}: {ref} is not at a version (a branch or a moving label changes CI at no commit)"
         assert action in FLOOR, f"{_rel(path)}: {action} has no floor here; add it with the first major on Node.js 24"
         assert int(m.group(1)) >= FLOOR[action], f"{_rel(path)}: {ref} is below the Node.js 24 floor v{FLOOR[action]}"
-
-
-@pytest.mark.parametrize("path", [p for p in WORKFLOWS if "docs/examples" in str(p)], ids=_rel)
-def test_a_configuration_repository_keys_the_uv_cache_on_the_release_it_installs(path: Path):
-    """A configuration repository has no uv.lock: without a glob, setup-uv
-    warns on every run that its cache is never invalidated (hygiene XII 7c)."""
-    doc = yaml.safe_load(path.read_text())
-    uv = [step for _, step in _steps(doc) if str(step.get("uses", "")).startswith("astral-sh/setup-uv@")]
-    assert uv, _rel(path)
-    for step in uv:
-        assert (step.get("with") or {}).get("cache-dependency-glob") == ".csis-version", f"{_rel(path)}: {step}"

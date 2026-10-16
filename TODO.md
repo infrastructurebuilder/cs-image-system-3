@@ -577,9 +577,21 @@ the dry form says which branch it stands on.
 
 ## 92. CI runs on an AlmaLinux 10 image of the system's own, described once for any CI
 
-**Status: PLANNED 2026-10-14, not started -- a plan; nothing here runs
-until the operator says "do 92". Follows §91, whose pinned
-`ubuntu-24.04` stays as the machine the container runs on.**
+**Status: IN PROGRESS 2026-10-16 on `feature/stage-92` ("do 92"). The
+dependency proof passed first: every tool installs on `almalinux:10`
+(Docker's, HashiCorp's and Okta's EL10 repositories answer; Google's rpm
+key is refused by EL10's rpm policy, so the Cloud CLI comes from
+Google's versioned archive pinned by checksum; AlmaLinux's own jq
+reports no version, so jq is upstream's). On the branch: the image
+(`ci/runner-image/`, every tool pinned, a probe at build time), its
+workflow (monthly, on change, on dispatch; `csis-ci:alma10-<YYYYMMDD>`
+on ghcr.io), `just runner-image` as a leg of `full-test`,
+`docs/CI_RUNNER.md` with its test, every job of every workflow inside
+the image (the four starters, their probe workflows, this repository's),
+and `ci-from-scratch.yml` keeping the install-by-step path here. Waits:
+the first publish of the image (the Runner image workflow on `develop`,
+the registry under the organisation), a release, the reference
+configuration on it with `live` and `perform` green inside the image.**
 
 **Why** (the operator, 2026-10-14). CI should run on something close
 to the machines the system builds, which are AlmaLinux 10, and the

@@ -167,7 +167,12 @@ add Okta's yum repository and `dnf install scaleft-client-tools`);
 `ansible-core` with `uv tool install ansible-core` (what CI does);
 `docker` as Docker Engine, Docker Desktop or any daemon the `docker`
 command reaches. The walk of 2026-10 installed all of them on a Fedora
-43 container from those sources and nothing else.
+43 container from those sources and nothing else. That list is for your
+local machine; CI does not install them: every job runs inside the
+system's own runner image, AlmaLinux 10 with each of these tools at a
+pinned version ([docs/CI_RUNNER.md](docs/CI_RUNNER.md), stage 92), and
+the image's probe asks every tool its version before the image is
+published.
 
 A version below the floor fails validation by name; a tool that is absent
 is a validation failure too. Version checks are real: a CI failure naming a
@@ -280,8 +285,13 @@ contract is [OPERATIONS.md](docs/OPERATIONS.md), "Credentials contract".
 ### 1.8 CI
 
 The configuration repository's own workflow, `.github/workflows/ci.yml`
-from the starter tree, has three jobs, and each installs the release the
-way section 1.1 does (pinned by `.csis-version` when present):
+from the starter tree, has three jobs. Each runs inside the system's
+runner image on GitHub's machine (`container: image:
+ghcr.io/infrastructurebuilder/csis-ci:alma10-<date>`, with the host's
+docker socket mounted so the modification tests can run containers;
+section 1.2 and [docs/CI_RUNNER.md](docs/CI_RUNNER.md)) and installs the
+release the way section 1.1 does (pinned by `.csis-version` when
+present):
 
 - **`verify`** needs no secret: the tree must be public-safe and the
   `Justfile` must parse. Every push and pull request.
@@ -1085,12 +1095,13 @@ there, and the tests hold the built wheel to them. Read
 ### 9.1 The machine CI runs on, and its actions: a name ages
 
 The workflows, this repository's and every starter's, say which GitHub
-runner image they run on (`runs-on: ubuntu-24.04`) and which version of
-each action they use (`actions/checkout@v5`, `astral-sh/setup-uv@v7`,
-`extractions/setup-just@v4`, `aws-actions/configure-aws-credentials@v6`,
-`opentofu/setup-opentofu@v2`, `hashicorp/setup-packer@v3`,
-`google-github-actions/auth@v3`, `google-github-actions/setup-gcloud@v3`;
-stage 91). Neither moves by itself, and that is the point: a tree's CI
+runner image they run on (`runs-on: ubuntu-24.04`), which version of
+each action they use (`actions/checkout@v5`,
+`aws-actions/configure-aws-credentials@v6`,
+`google-github-actions/auth@v3`; stage 91) and, since stage 92, which
+date of the system's own runner image every job runs inside
+(`container: image: ghcr.io/infrastructurebuilder/csis-ci:alma10-<YYYYMMDD>`).
+None of the three moves by itself, and that is the point: a tree's CI
 does not change at no commit. Until stage 91 they said `ubuntu-latest`,
 which GitHub moves when it chooses (to Ubuntu 26 from 2026-10-19), and
 one action followed a branch. A test now refuses a floating image, a
@@ -1110,6 +1121,19 @@ this paragraph says of GitHub's schedule is from the notices seen on
 of October, and at once whenever a run's annotations name an image or
 an action as deprecated or migrating; `gh run view <run>` prints them
 under ANNOTATIONS. (The interval is a proposal; set your own.)
+
+**The runner image's date is the third name**, and it moves more
+often. The Runner image workflow of this repository builds
+`ci/runner-image/Dockerfile` monthly and on any change to it, probes
+every tool, and publishes `csis-ci:alma10-<YYYYMMDD>`; a tool's new
+version is a change to the Dockerfile's `ARG` line and to the table in
+[docs/CI_RUNNER.md](docs/CI_RUNNER.md), which a test holds equal. A
+release carries the newest date in every workflow it ships, and a tree
+takes it with `init-config --force` as it takes the other names; a
+tree may also pin a newer date by hand, since nothing but the date
+differs. The from-scratch workflow of this repository, GitHub's image
+with every tool installed by a step, is kept running weekly so the
+list stays true on a machine that holds nothing.
 
 **How to move it forward.** Whoever maintains the system does steps 1
 to 4; a tree's holder does only step 5.
