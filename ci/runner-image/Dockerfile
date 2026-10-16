@@ -37,6 +37,9 @@ ARG YQ_VERSION=4.53.6
 ARG JQ_VERSION=1.8.2
 ARG AGE_VERSION=1.3.2
 ARG PYTHON_VERSION=3.13
+# pyright (the type-check of the bar) runs on Node.js; the distribution's node and the
+# libatomic a downloaded node needs (the second image failed `just verify` without it)
+ARG NODE_MAJOR=22
 
 LABEL org.opencontainers.image.title="csis-ci" \
       org.opencontainers.image.description="AlmaLinux 10 CI runner for cs-image-system configuration repositories (stage 92)" \
@@ -48,7 +51,7 @@ SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 # ---- the distribution's own: git, jq, bash 5, sudo (the workflows' `sudo ln -sf` lines
 # keep working as root), ssh (sft ssh and the SSM ProxyCommand), unzip/tar for the archives
 RUN dnf -y -q install git sudo openssh-clients unzip tar gzip which findutils procps-ng ca-certificates \
-        python3 \
+        python3 libatomic "nodejs-${NODE_MAJOR}*" \
     && dnf -y -q clean all \
     && ln -sf /usr/bin/bash /usr/local/bin/bash \
     # a job's checkout is owned by the runner's user while the container runs as root, and git
@@ -138,6 +141,7 @@ yq ${YQ_VERSION}
 jq ${JQ_VERSION}
 age ${AGE_VERSION}
 python ${PYTHON_VERSION}
+node ${NODE_MAJOR}
 EOT
 
 # The probe: every tool answers --version from where cfg/executables.yml pins it
