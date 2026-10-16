@@ -207,7 +207,12 @@ every tool at a pinned version, the host's docker socket mounted for
 the modification tests), so this tree's CI changes only when you take
 a release, never at no commit. Nothing is installed on the runner any
 more; what the image carries, and what any other CI runner would need,
-is the system repository's `docs/CI_RUNNER.md`.
+is the system repository's `docs/CI_RUNNER.md`. The image is pulled
+with no credential, which works only while the package is PUBLIC in the
+organisation that publishes it; a job that fails at "Initialize
+containers" with an authorization error, although the image exists, is
+that setting, and the holders of the system repository are who can
+change it (`docs/CI_RUNNER.md`, section 4).
 GitHub withdraws an old runner image every couple of years, and an
 action's major version when its Node.js goes; the runs' annotations say
 so for months first. When they do, a newer release of the system

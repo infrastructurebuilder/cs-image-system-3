@@ -92,7 +92,25 @@ A push that changes `ci/runner-image/`, or a dispatch, publishes the
 tag the tree pins, the content of `ci/runner-image/TAG`; the monthly
 schedule publishes today's date as a candidate, taken by moving `TAG`
 and the workflows' lines (a test holds them equal). A published tag is
-never rebuilt. The base is pinned by digest and every tool by version;
+never rebuilt: a second image on one day is `alma10-<YYYYMMDD>.2` (the
+first, 2026-10-16, lacked git's `safe.directory` for a checkout owned by
+another user).
+
+**The package's visibility is the organisation's setting, not the
+workflow's.** The image is published under the organisation's packages
+(`ghcr.io/<owner>/csis-ci`) by the workflow's own token; a package made
+that way is linked to this repository and inherits its visibility, so
+from a public repository it is public and every configuration
+repository's jobs can pull it with no credential. If the package is
+private (the repository was private when the first publish ran, or
+someone changed it), a job in another repository fails at "Initialize
+containers" with an authorization error although the image exists.
+The fix is in the organisation's package settings on GitHub: make the
+package public, or grant each configuration repository read access to
+it (and then its jobs must log in to ghcr.io before the container
+starts, which the starters do not do). Check it once after the first
+publish, and whenever a job of another repository cannot pull an image
+that a job here just built. The base is pinned by digest and every tool by version;
 the probe runs at build time and `just runner-image` builds and probes
 it locally (a leg of `just full-test`). A starter workflow pins one date tag on every
 job (`container: image:`); `init-config --force` moves it with the

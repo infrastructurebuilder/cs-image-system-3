@@ -50,7 +50,11 @@ SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 RUN dnf -y -q install git sudo openssh-clients unzip tar gzip which findutils procps-ng ca-certificates \
         python3 \
     && dnf -y -q clean all \
-    && ln -sf /usr/bin/bash /usr/local/bin/bash
+    && ln -sf /usr/bin/bash /usr/local/bin/bash \
+    # a job's checkout is owned by the runner's user while the container runs as root, and git
+    # refuses such a directory ("fatal: not in a git directory" from `git config` on the first
+    # run inside the image, 2026-10-16); every job commits, scans or configures in that checkout
+    && git config --system --add safe.directory '*'
 
 # ---- the vendors' EL10 repositories, each pinned to one package version
 RUN cat > /etc/yum.repos.d/docker-ce.repo <<'REPO'
