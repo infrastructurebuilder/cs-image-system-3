@@ -119,7 +119,7 @@ def test_the_image_workflow_builds_probes_and_publishes_a_dated_tag():
     assert "schedule" in on and "workflow_dispatch" in on and "ci/runner-image/**" in on["push"]["paths"]
     (job,) = doc["jobs"].values()
     assert job["permissions"] == {"contents": "read", "packages": "write"}
-    text = yaml.safe_dump(job)
+    text = (REPO / ".github" / "workflows" / "runner-image.yml").read_text()     # raw: a yaml dump folds long lines
     assert "just runner-image" in text and "alma10-$(date -u +%Y%m%d)" in text and "docker push" in text
     assert "ci/runner-image/TAG" in text and "github.event_name" in text     # a schedule publishes today's date, a push the pinned tag
     assert "docker login ghcr.io" in text and "secrets.GITHUB_TOKEN" in text
