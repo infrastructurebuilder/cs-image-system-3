@@ -36,6 +36,7 @@ export TF_PLUGIN_CACHE_DIR := justfile_directory() / ".tofu-plugin-cache"
 # One-time setup: the toolchain and every workspace package (idempotent)
 init:
 	@uv sync --all-extras
+	@mkdir -p "$TF_PLUGIN_CACHE_DIR"
 	@just hooks
 
 # Package every workspace member (sdist + wheel) under dist/; no tests

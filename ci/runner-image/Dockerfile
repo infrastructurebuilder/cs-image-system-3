@@ -31,6 +31,9 @@ ARG GCLOUD_SHA256=f865da648f6fdae2015abb5b32eaa0eb10520e88f0ca735cfb33795868c8d2
 ARG SFT_VERSION=1.115.0
 ARG DOCKER_CLI_VERSION=29.9.1
 ARG ANSIBLE_CORE_VERSION=2.21.4
+# the modification tests run each playbook with `-c docker`, a connection plugin that lives
+# in the community.docker collection, not in ansible-core (the third image failed there)
+ARG COMMUNITY_DOCKER_VERSION=5.4.0
 ARG YQ_VERSION=4.53.6
 # AlmaLinux 10's own jq answers `jq --version` with "jq-" and no number (read
 # 2026-10-16), which the system's version floor would refuse; upstream's binary does
@@ -120,10 +123,13 @@ RUN curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${AWSCLI_VE
 ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python \
     UV_TOOL_DIR=/opt/uv/tools \
     UV_TOOL_BIN_DIR=/usr/local/bin \
-    UV_LINK_MODE=copy
+    UV_LINK_MODE=copy \
+    ANSIBLE_COLLECTIONS_PATH=/usr/share/ansible/collections
 RUN uv python install "${PYTHON_VERSION}" \
     && uv tool install "ansible-core==${ANSIBLE_CORE_VERSION}" --python "${PYTHON_VERSION}" \
-    && test -x /usr/local/bin/ansible-playbook
+    && test -x /usr/local/bin/ansible-playbook \
+    && ansible-galaxy collection install "community.docker:==${COMMUNITY_DOCKER_VERSION}" -p "${ANSIBLE_COLLECTIONS_PATH}" \
+    && ansible-doc -t connection community.docker.docker >/dev/null
 
 # ---- the one list, for the probe and the requirements document's test
 RUN mkdir -p /etc/csis-ci && cat > /etc/csis-ci/tools.txt <<EOT
@@ -137,6 +143,7 @@ gcloud ${GCLOUD_VERSION}
 sft ${SFT_VERSION}
 docker-cli ${DOCKER_CLI_VERSION}
 ansible-core ${ANSIBLE_CORE_VERSION}
+community.docker ${COMMUNITY_DOCKER_VERSION}
 yq ${YQ_VERSION}
 jq ${JQ_VERSION}
 age ${AGE_VERSION}

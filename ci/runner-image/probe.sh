@@ -27,6 +27,7 @@ check gcloud  /usr/local/bin/gcloud  "gcloud --version"               "Google Cl
 check sft     /usr/bin/sft           "sft --version"                  "$(want sft)" || status=1
 check docker  /usr/local/bin/docker  "docker --version"               "$(want docker-cli)" || status=1
 check ansible-playbook /usr/local/bin/ansible-playbook "ansible-playbook --version" "core $(want ansible-core)" || status=1
+check community.docker /usr/local/bin/ansible-galaxy "ansible-galaxy collection list community.docker 2>/dev/null | grep '^community.docker '" "community.docker $(want community.docker)" || status=1
 check yq      /usr/local/bin/yq      "yq --version"                   "v$(want yq)" || status=1
 check age     /usr/local/bin/age     "age --version"                  "v$(want age)" || status=1
 check bash    /usr/local/bin/bash    "bash --version"                 "version 5." || status=1

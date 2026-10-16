@@ -28,7 +28,7 @@ IMAGE = re.compile(r"^ghcr\.io/infrastructurebuilder/csis-ci:alma10-\d{8}(\.\d+)
 # the Dockerfile's ARG names against the table's tool names
 TOOLS = {"UV": "uv", "JUST": "just", "TOFU": "tofu", "PACKER": "packer", "AWSCLI": "aws", "SSM_PLUGIN": "session-manager-plugin",
          "GCLOUD": "gcloud", "SFT": "sft", "DOCKER_CLI": "docker", "ANSIBLE_CORE": "ansible-playbook", "YQ": "yq", "JQ": "jq",
-         "AGE": "age", "PYTHON": "python"}
+         "AGE": "age", "PYTHON": "python", "COMMUNITY_DOCKER": "community.docker"}
 MAJORS = {"NODE": "node"}                      # pinned to a major from the distribution, not a version
 
 
@@ -58,7 +58,7 @@ def test_the_dockerfile_pins_every_tool_and_the_document_lists_each_at_that_vers
     assert {arg for _, arg in tools_txt} == set(TOOLS) | set(MAJORS)         # the image's own list is the same list
     probe = (REPO / "ci" / "runner-image" / "probe.sh").read_text()
     for tool in ("uv", "just", "tofu", "packer", "aws", "session-manager-plugin", "gcloud", "sft", "docker",
-                 "ansible-playbook", "yq", "age", "bash", "jq", "git", "python", "node"):
+                 "ansible-playbook", "yq", "age", "bash", "jq", "git", "python", "node", "community.docker"):
         assert re.search(rf"^check {re.escape(tool)}\s", probe, flags=re.M), f"the probe asks nothing of {tool}"
 
 

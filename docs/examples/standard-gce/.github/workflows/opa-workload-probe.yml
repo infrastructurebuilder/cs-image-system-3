@@ -40,7 +40,7 @@ jobs:
       # version (docs/CI_RUNNER.md lists them); moved by `init-config --force` with the
       # release's other lines. The host's docker socket lets the modification tests drive
       # the host daemon through the image's docker client.
-      image: ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.3
+      image: ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.4
       options: -v /var/run/docker.sock:/var/run/docker.sock
     permissions:
       packages: read          # the runner image is pulled with this job's token (stage 92): a permissions block without it reads as none
