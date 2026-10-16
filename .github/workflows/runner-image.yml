@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: Runner image
+
+# Builds the CI runner image (stage 92; ci/runner-image/Dockerfile, docs/CI_RUNNER.md),
+# runs its probe, and publishes it to ghcr.io as csis-ci:alma10-<YYYYMMDD>. A push that
+# changes ci/runner-image/ (or a dispatch) publishes the tag the tree pins, the content
+# of ci/runner-image/TAG, which every workflow names and a test holds equal; the monthly
+# schedule publishes today's date as a candidate, which a change to TAG and the workflows
+# takes (the daily driver's 9.1). A published tag is never rebuilt: the base is a digest
+# and every tool a version, and a tree's CI changes only when the tree takes a release.
+on:
+  schedule:
+    - cron: "17 5 1 * *"        # monthly (UTC), the first day: the pinned tools as they are
+  push:
+    branches: [develop]
+    paths:
+      - "ci/runner-image/**"
+      - ".github/workflows/runner-image.yml"
+  workflow_dispatch:
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write          # the push to ghcr.io, with the job's own token
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/csis-ci
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install just
+        uses: extractions/setup-just@v4
+
+      - name: Build the image and run its probe
+        run: just runner-image "$IMAGE:build"
+
+      - name: Tag it and publish it
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then tag="$IMAGE:alma10-$(date -u +%Y%m%d)"
+          else tag="$IMAGE:$(cat ci/runner-image/TAG)"; fi
+          docker tag "$IMAGE:build" "$tag"
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push "$tag"
+          echo "runner-image: published $tag" | tee -a "$GITHUB_STEP_SUMMARY"

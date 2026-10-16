@@ -25,16 +25,17 @@ jobs:
     # The bar: lint, type-check (blocking since pyright reached 0 errors, stage 23)
     # and the fast suite over the frozen fixture (stage 28). Every push and PR.
     runs-on: ubuntu-24.04
+    container:
+      # The runner image (stage 92): AlmaLinux 10 with every tool a job calls at a pinned
+      # version (docs/CI_RUNNER.md lists them); moved by `init-config --force` with the
+      # release's other lines. The host's docker socket lets the modification tests drive
+      # the host daemon through the image's docker client.
+      image: ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016
+      options: -v /var/run/docker.sock:/var/run/docker.sock
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install just
-        uses: extractions/setup-just@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          python-version: "3.13"
 
       - name: Install dependencies
         run: just init
@@ -57,6 +58,13 @@ jobs:
     needs: verify
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
+    container:
+      # The runner image (stage 92): AlmaLinux 10 with every tool a job calls at a pinned
+      # version (docs/CI_RUNNER.md lists them); moved by `init-config --force` with the
+      # release's other lines. The host's docker socket lets the modification tests drive
+      # the host daemon through the image's docker client.
+      image: ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016
+      options: -v /var/run/docker.sock:/var/run/docker.sock
     permissions:
       id-token: write          # OIDC federation for the read-only cloud roles
       contents: read
@@ -126,31 +134,10 @@ jobs:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
-      - name: Install just
-        if: steps.gate.outputs.ready == 'true'
-        uses: extractions/setup-just@v4
 
-      - name: Install uv
-        if: steps.gate.outputs.ready == 'true'
-        uses: astral-sh/setup-uv@v7
-        with:
-          python-version: "3.13"
 
-      - name: Install OpenTofu
-        if: steps.gate.outputs.ready == 'true'
-        uses: opentofu/setup-opentofu@v2
 
-      - name: Install Packer
-        if: steps.gate.outputs.ready == 'true'
-        uses: hashicorp/setup-packer@v3
 
-      - name: Place the tools where the fixture's executables.yml pins them
-        if: steps.gate.outputs.ready == 'true'
-        # cfg/executables.yml names /usr/local/bin/{tofu,packer,gcloud,ansible-playbook,bash,docker}
-        run: |
-          for tool in tofu packer gcloud ansible-playbook bash docker; do
-            [ -x "/usr/local/bin/$tool" ] || { src="$(command -v "$tool" || true)"; [ -n "$src" ] && sudo ln -sf "$src" "/usr/local/bin/$tool"; }
-          done
 
       - name: Install dependencies
         if: steps.gate.outputs.ready == 'true'
@@ -176,6 +163,13 @@ jobs:
     needs: verify
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
+    container:
+      # The runner image (stage 92): AlmaLinux 10 with every tool a job calls at a pinned
+      # version (docs/CI_RUNNER.md lists them); moved by `init-config --force` with the
+      # release's other lines. The host's docker socket lets the modification tests drive
+      # the host daemon through the image's docker client.
+      image: ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016
+      options: -v /var/run/docker.sock:/var/run/docker.sock
     steps:
       - name: Gate on the index tokens
         id: gate
@@ -208,15 +202,7 @@ jobs:
         if: steps.gate.outputs.ready == 'true'
         uses: actions/checkout@v5
 
-      - name: Install just
-        if: steps.gate.outputs.ready == 'true'
-        uses: extractions/setup-just@v4
 
-      - name: Install uv
-        if: steps.gate.outputs.ready == 'true'
-        uses: astral-sh/setup-uv@v7
-        with:
-          python-version: "3.13"
 
       - name: Install dependencies
         if: steps.gate.outputs.ready == 'true'
