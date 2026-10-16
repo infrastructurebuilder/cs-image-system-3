@@ -577,21 +577,24 @@ the dry form says which branch it stands on.
 
 ## 92. CI runs on an AlmaLinux 10 image of the system's own, described once for any CI
 
-**Status: IN PROGRESS 2026-10-16 on `feature/stage-92` ("do 92"). The
-dependency proof passed first: every tool installs on `almalinux:10`
-(Docker's, HashiCorp's and Okta's EL10 repositories answer; Google's rpm
-key is refused by EL10's rpm policy, so the Cloud CLI comes from
-Google's versioned archive pinned by checksum; AlmaLinux's own jq
-reports no version, so jq is upstream's). On the branch: the image
-(`ci/runner-image/`, every tool pinned, a probe at build time), its
-workflow (monthly, on change, on dispatch; `csis-ci:alma10-<YYYYMMDD>`
-on ghcr.io), `just runner-image` as a leg of `full-test`,
-`docs/CI_RUNNER.md` with its test, every job of every workflow inside
-the image (the four starters, their probe workflows, this repository's),
-and `ci-from-scratch.yml` keeping the install-by-step path here. Waits:
-the first publish of the image (the Runner image workflow on `develop`,
-the registry under the organisation), a release, the reference
-configuration on it with `live` and `perform` green inside the image.**
+**Status: LANDED on develop 2026-10-16 (661270f, then 3d33d3c, 6bec81f,
+2446038 and 601bf65; branches kept) and PROVED in this repository: `CI`
+green inside `ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.4`
+(run 38970158822: `verify`, and `live` with `fixture-live: passed`, 3
+modifications tested under docker through the mounted socket), `CI from
+scratch` green on GitHub's image, the Runner image workflow publishing
+with the job's token. Four images it took to get there, each found by
+the next job: `.1` lacked git's `safe.directory` for a checkout owned by
+another user, `.2` the `libatomic` pyright's node needs, `.3` the
+`community.docker` collection whose `docker` connection the modification
+tests use, and a permissions block without `packages: read` pulls as
+nobody; each is in docs/CI_RUNNER.md, the probe, or a test. The section
+stays until the reference configuration's proof: dev26 (the operator's
+release), the reference on it (`init-config --force` moves its jobs into
+the image), `live` and `perform` green there with a bake, the
+modification tests and a login proof; and the package made PUBLIC in the
+organisation's settings before that, since another repository's token
+cannot read a private one. Then the section leaves TODO.**
 
 **Why** (the operator, 2026-10-14). CI should run on something close
 to the machines the system builds, which are AlmaLinux 10, and the
