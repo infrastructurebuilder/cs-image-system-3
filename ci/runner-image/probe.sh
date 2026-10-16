@@ -33,4 +33,5 @@ check bash    /usr/local/bin/bash    "bash --version"                 "version 5
 check jq      /usr/local/bin/jq      "jq --version"                   "jq-$(want jq)" || status=1
 check git     /usr/bin/git           "git --version"                  "git version 2." || status=1
 check python  /usr/local/bin/uv      "uv python find $(want python)"  "/opt/uv/python" || status=1
+check node    /usr/bin/node          "node --version"                 "v$(want node)." || status=1
 exit $status

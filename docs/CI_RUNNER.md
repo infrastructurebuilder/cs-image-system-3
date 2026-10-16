@@ -80,6 +80,7 @@ there.
 | `jq` | `>=1.7` | 1.8.2 | the jq release binary (AlmaLinux's own answers `jq --version` with no number) |
 | `age`, `age-keygen` | any current | 1.3.2 | the age release archive |
 | `python` (for the release) | 3.13+ | 3.13 | a uv-managed interpreter (AlmaLinux 10 ships 3.12) |
+| `node` (for pyright, the bar's type-check) | 20+ | 22 | the distribution (`nodejs`), with `libatomic` for a node that pyright downloads |
 | `bash` | `>=5` | 5.2 | the distribution |
 | `git` | 2.18+ (the checkout action) | 2.52 | the distribution |
 
@@ -94,7 +95,8 @@ schedule publishes today's date as a candidate, taken by moving `TAG`
 and the workflows' lines (a test holds them equal). A published tag is
 never rebuilt: a second image on one day is `alma10-<YYYYMMDD>.2` (the
 first, 2026-10-16, lacked git's `safe.directory` for a checkout owned by
-another user).
+another user; the second lacked the `libatomic` that pyright's node
+needs, so `.3` is the first that ran the bar).
 
 **The package's visibility is the organisation's setting, not the
 workflow's.** The image is published under the organisation's packages

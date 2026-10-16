@@ -29,10 +29,13 @@ IMAGE = re.compile(r"^ghcr\.io/infrastructurebuilder/csis-ci:alma10-\d{8}(\.\d+)
 TOOLS = {"UV": "uv", "JUST": "just", "TOFU": "tofu", "PACKER": "packer", "AWSCLI": "aws", "SSM_PLUGIN": "session-manager-plugin",
          "GCLOUD": "gcloud", "SFT": "sft", "DOCKER_CLI": "docker", "ANSIBLE_CORE": "ansible-playbook", "YQ": "yq", "JQ": "jq",
          "AGE": "age", "PYTHON": "python"}
+MAJORS = {"NODE": "node"}                      # pinned to a major from the distribution, not a version
 
 
 def _pins() -> dict[str, str]:
-    return dict(re.findall(r"^ARG (\w+)_VERSION=(\S+)$", DOCKERFILE.read_text(), flags=re.M))
+    text = DOCKERFILE.read_text()
+    return {**dict(re.findall(r"^ARG (\w+)_VERSION=(\S+)$", text, flags=re.M)),
+            **dict(re.findall(r"^ARG (\w+)_MAJOR=(\S+)$", text, flags=re.M))}
 
 
 def _table_rows(section: str) -> list[list[str]]:
@@ -44,18 +47,18 @@ def _table_rows(section: str) -> list[list[str]]:
 
 def test_the_dockerfile_pins_every_tool_and_the_document_lists_each_at_that_version():
     pins = _pins()
-    assert set(pins) == set(TOOLS), sorted(set(pins) ^ set(TOOLS))
+    assert set(pins) == set(TOOLS) | set(MAJORS), sorted(set(pins) ^ (set(TOOLS) | set(MAJORS)))
     rows = {re.match(r"`([^`]+)`", r[0]).group(1): r for r in _table_rows("## 3. The tools")}   # type: ignore[union-attr]
-    for arg, tool in TOOLS.items():
+    for arg, tool in {**TOOLS, **MAJORS}.items():
         assert tool in rows, f"{tool} is not in docs/CI_RUNNER.md's table"
         assert rows[tool][2] == pins[arg], f"{tool}: the document says {rows[tool][2]!r}, the Dockerfile pins {pins[arg]!r}"
     text = DOCKERFILE.read_text()
     assert "ARG BASE_DIGEST=sha256:" in text and "almalinux:10@${BASE_DIGEST}" in text          # the base by digest
-    tools_txt = re.findall(r"^(\S+) \$\{(\w+)_VERSION\}$", text[text.index("tools.txt <<EOT"):], flags=re.M)
-    assert {arg for _, arg in tools_txt} == set(TOOLS)                      # the image's own list is the same list
+    tools_txt = re.findall(r"^(\S+) \$\{(\w+)_(?:VERSION|MAJOR)\}$", text[text.index("tools.txt <<EOT"):], flags=re.M)
+    assert {arg for _, arg in tools_txt} == set(TOOLS) | set(MAJORS)         # the image's own list is the same list
     probe = (REPO / "ci" / "runner-image" / "probe.sh").read_text()
     for tool in ("uv", "just", "tofu", "packer", "aws", "session-manager-plugin", "gcloud", "sft", "docker",
-                 "ansible-playbook", "yq", "age", "bash", "jq", "git", "python"):
+                 "ansible-playbook", "yq", "age", "bash", "jq", "git", "python", "node"):
         assert re.search(rf"^check {re.escape(tool)}\s", probe, flags=re.M), f"the probe asks nothing of {tool}"
 
 
