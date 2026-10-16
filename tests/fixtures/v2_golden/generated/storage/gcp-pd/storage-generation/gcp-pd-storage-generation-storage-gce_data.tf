@@ -6,7 +6,7 @@ module "storage_gce_data" {
   name = "gce-data"
   size = 30
   disk_type = "pd-standard"
-  labels = { "csis_group_coops" = "true", "csis_storage" = "gce_data" }
+  labels = { "csis_config" = "cs-image-action-test", "csis_group_coops" = "true", "csis_storage" = "gce_data" }
   zone = "us-east1-b"
 }
 output "storage_gce_data" {

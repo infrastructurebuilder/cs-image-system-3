@@ -170,7 +170,8 @@ class TofuGceInstanceBuilder(TofuInstanceBuilder[Q]):
                 # no public IP: the IAP tunnel is the way in (operator prerequisite:
                 # firewall rule from 35.235.240.0/20 to tcp:22)
                 args["public_ip"] = False
-        labels = {k: str(v) for k, v in (instance.get_tags() or {}).items()}
+        from cs_image_system.base.lineage import config_tags
+        labels = {k: str(v) for k, v in {**(instance.get_tags() or {}), **config_tags(ctx)}.items()}   # stage 93
         if labels:
             from cs_image_system.gcloud_runtime.gcp_packer_source import gce_label
             args["labels"] = {gce_label(k): gce_label(v) for k, v in labels.items()}

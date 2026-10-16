@@ -10,6 +10,7 @@ module "instance_gce_test" {
   zone = "us-east1-b"
   subnetwork = "projects/csis-sandbox/regions/us-east1/subnetworks/default"
   public_ip = false
+  labels = { "csis_config" = "cs-image-action-test" }
   startup_script = templatefile("${path.module}/user-data-gce_test.sh.tftpl", {
     "efs" = {}
     "filestore" = {}

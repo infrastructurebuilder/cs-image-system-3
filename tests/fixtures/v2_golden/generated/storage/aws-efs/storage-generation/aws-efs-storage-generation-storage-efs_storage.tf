@@ -22,7 +22,7 @@ module "storage_efs_storage" {
   vpc_id = "vpc-0c78d0d63b7a100df"
   mount_target_subnet_ids = ["subnet-09f79018af845358a", "subnet-00075cfbfcbc8f2cf"]
   client_security_group_ids = ["sg-03015ec107ae5f81a"]
-  tags = { "Environment" = "Development", "Project" = "MyProject" }
+  tags = { "Environment" = "Development", "Project" = "MyProject", "csis_config" = "cs-image-action-test" }
 }
 output "storage_efs_storage" {
     value = module.storage_efs_storage

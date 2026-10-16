@@ -165,15 +165,36 @@ def emptiness(runtime: str) -> dict[str, Any]:
         raise ValueError(f"unknown runtime {runtime!r}; known: {sorted(ctx.runtime_builders)}")
     inv = rtb.inventory()
     declared = {v["cloud_name"] for v in declared_storage_names(ctx, runtime).values()}
+    # stage 93: another configuration's things in the same project or account
+    # are not leftovers of ours; they are counted and left alone. A thing with
+    # no id at all is still ours to answer for, and named as unlabelled.
+    from ..lineage import configuration_tag
+    owners: dict[str, dict[str, str]] = inv.get("owners") or {}
+    mine = configuration_tag(ctx)
+    elsewhere: dict[str, dict[str, int]] = {}
+    unlabelled: dict[str, list[str]] = {}
+
+    def ours(kind: str, names: list[str]) -> list[str]:
+        out: list[str] = []
+        for name in names:
+            owner = str((owners.get(kind) or {}).get(name) or "")
+            if owner and owner != mine:
+                elsewhere.setdefault(kind, {})[owner] = elsewhere.setdefault(kind, {}).get(owner, 0) + 1
+                continue
+            if not owner:
+                unlabelled.setdefault(kind, []).append(name)
+            out.append(name)
+        return out
     leftovers = {
-        "instances": list(inv.get("instances") or []),
+        "instances": ours("instances", list(inv.get("instances") or [])),
         # stage 14.4: a RELEASED build is declared to stay (kept by decision)
-        "images": [i for i in (inv.get("images") or []) if i not in released_ids(ctx, runtime)],
-        "disks": [d for d in (inv.get("disks") or []) if d not in declared],
-        "buckets": [b for b in (inv.get("buckets") or []) if b not in declared],
+        "images": ours("images", [i for i in (inv.get("images") or []) if i not in released_ids(ctx, runtime)]),
+        "disks": ours("disks", [d for d in (inv.get("disks") or []) if d not in declared]),
+        "buckets": ours("buckets", [b for b in (inv.get("buckets") or []) if b not in declared]),
     }
     return {"runtime": runtime, "declared_storages": sorted(declared), "inventory": inv,
-            "leftovers": leftovers, "empty": not any(leftovers.values())}
+            "leftovers": leftovers, "elsewhere": elsewhere, "unlabelled": unlabelled,
+            "empty": not any(leftovers.values())}
 
 
 

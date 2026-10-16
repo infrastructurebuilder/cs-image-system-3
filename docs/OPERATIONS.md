@@ -1253,7 +1253,13 @@ tags disagree with the record; the record is the truth (written after the
 bake), so `lineage relabel --runtime <rt> [--build <id>]...` re-tags
 every recorded build whose real tags differ through the runtime's retag
 hook (AWS `create-tags`, GCE `setLabels`), with no meta-state change.
-`restamp` fixes the record side, `relabel` the tag side.
+`restamp` fixes the record side, `relabel` the tag side. Since stage 93
+`relabel` (without `--build`) also gives the configuration's id,
+`csis_config`, to every declared storage and every launched machine on
+the runtime that stands without it -- the volumes, filesystems, buckets,
+disks, shares and machines made before the stage -- through each
+storage builder's retag hook and the runtime's; a thing that already
+carries another configuration's id is never touched.
 
 An enrollment token deleted out of band is HARD drift, and because the
 oktapam provider ERRORS on refresh rather than planning a recreate, the
@@ -2326,8 +2332,9 @@ instances). Every recipe wraps sanctioned commands only.
   <rt>` after it is the runtime's full teardown (what the system's
   `gce-decommission` and `gce-teardown` aliases did until stage 64).
 - `just cloud-relabel <rt> no` re-tags images whose tags disagree with
-  lineage; `just cloud-dispose-images <rt>` disposes of every recorded
-  image on the runtime through the recorded path.
+  lineage, and gives `csis_config` to standing storages and machines
+  that lack it (stage 93); `just cloud-dispose-images <rt>` disposes of
+  every recorded image on the runtime through the recorded path.
 
 Three rules the first operator walks of these recipes taught (stages 72
 and 73, 2026-09-30 and 2026-10-01), each the kind of thing that is obvious
@@ -2372,7 +2379,14 @@ GCP is the operator's own money. A change that touches it is proven with
 one live cycle and leaves nothing behind beyond the declared storages
 (`cloud-empty` is the cycle's last word). A run that ends with a billable
 GCP resource STANDING says so explicitly: what it is, its id, and what it
-costs. Ephemeral resources torn down within the run are not durable and
+costs. Two configurations may share a project (stage 93): everything the
+system makes carries `csis_config`, so `cloud-empty` counts this
+configuration's things alone and says how many of another's it left
+alone (`empty: left alone on <rt>: 2 disks of configuration '<id>'`),
+and the state query reads a disk or bucket of our name that is theirs as
+absent for us, with a note naming whose it is. A thing with no id at all
+(made before the stage) is still ours to answer for, listed as
+`(no csis_config)` until `cloud-relabel` gives it the id. Ephemeral resources torn down within the run are not durable and
 need no such note. By decision exactly one released image stands on GCE
 (a released build is kept); everything else baked on the ephemeral GCE
 runtime is disposed by retention. A change is not tested on GCP unless it

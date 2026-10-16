@@ -15,7 +15,13 @@ fingerprint prefix) is re-tagged through the runtime's retag hook. One
 tag is ADDED when absent: ``csis_config``, which says the image belongs to
 this configuration (stage 82) -- every image baked before that stage lacks
 it, and another configuration in the same account would call it foreign.
-No meta-state changes. Under the global ``--dry-run`` it only reports.
+Since stage 93 the same id is what every storage and machine the system
+makes carries, and relabel gives it to the ones that stand without it: a
+declared storage whose cloud resource lacks the tag (through the storage
+builder's ``retag_storage``) and a launched instance whose machine lacks it
+(through the runtime's ``retag_instance``); a builder that cannot retag says
+so and the thing stays as it is. No meta-state changes. Under the global
+``--dry-run`` it only reports.
 """
 from __future__ import annotations
 
@@ -32,15 +38,16 @@ log = logging.getLogger(__name__)
 
 @dataclass(config=CSIS_MODEL_CONFIG)
 class Relabel:
-    build_id: str
-    series: str
+    build_id: str                           # the image's build id; a storage's or machine's cloud id (stage 93)
+    series: str                             # the image series; the storage's or instance's declared name
     runtime: str
-    tags: dict[str, str]                    # what the image will carry (record truth)
+    tags: dict[str, str]                    # what the thing will carry (record truth)
     differences: list[str] = field(default_factory=list)
     retagged: bool | None = None            # None = dry run
+    kind: str = "image"                     # image | storage | instance (stage 93)
 
     def as_dict(self) -> dict[str, Any]:
-        return {"build_id": self.build_id, "series": self.series, "runtime": self.runtime,
+        return {"kind": self.kind, "build_id": self.build_id, "series": self.series, "runtime": self.runtime,
                 "tags": dict(self.tags), "differences": list(self.differences), "retagged": self.retagged}
 
 
@@ -61,11 +68,9 @@ def relabel_plan(ctx: GlobalTypeContext, runtime: str, builds: list[str] | None 
     rtb = ctx.runtime_builders[runtime]
     recorded = [b for b in ms.builds() if str(b.get("runtime") or "") == runtime
                 and (not builds or str(b.get("build_id")) in builds)]
-    if not recorded:
-        return []
-    real = {str(r.get("image_id")): r for r in
-            rtb.query_images(sorted({str(b.get("series")) for b in recorded}))}
     out: list[Relabel] = []
+    real = {str(r.get("image_id")): r for r in
+            rtb.query_images(sorted({str(b.get("series")) for b in recorded}))} if recorded else {}
     for b in recorded:
         bid = str(b.get("build_id"))
         image = real.get(bid)
@@ -95,7 +100,75 @@ def relabel_plan(ctx: GlobalTypeContext, runtime: str, builds: list[str] | None 
                 diffs.append(f"{key[len(TAG_PREFIX):]}: tag={have} record={value}")
         if diffs:
             out.append(Relabel(bid, str(b.get("series")), runtime, wanted, diffs))
+    if not builds:
+        out += resource_relabel_plan(ctx, runtime)
     return out
+
+
+def resource_relabel_plan(ctx: GlobalTypeContext, runtime: str) -> list[Relabel]:
+    """Stage 93: the declared storages on ``runtime`` whose cloud resource
+    stands without the configuration's id, and the launched instances there
+    whose machine stands without it. Nothing else about them is compared:
+    the id is the one thing they must carry and did not, before the stage."""
+    from ..basic.builder_base_storage import StorageBuilderBase
+    from ..lineage import CONFIG_TAG, configuration_tag, owner_of
+    owner = configuration_tag(ctx)
+    if not owner:
+        return []
+    out: list[Relabel] = []
+    for name, sb in sorted(ctx.storage_builders.items()):
+        if not isinstance(sb, StorageBuilderBase):
+            continue
+        model = getattr(sb, "model", None)
+        try:
+            on_runtime = str(model.get_runtime_provider()) == runtime if model is not None else False
+        except ValueError:
+            on_runtime = False
+        if not on_runtime:
+            continue
+        try:
+            real = sb.query_state()
+        except NotImplementedError:
+            continue
+        for storage in list(getattr(model, "_storages", None) or []):
+            rec = real.get(storage.get_name()) or {}
+            if not rec.get("present") or owner_of(rec.get("tags")) == owner:
+                continue
+            if owner_of(rec.get("tags")):
+                continue                                   # another configuration's: never ours to relabel
+            out.append(Relabel(str(rec.get("id") or storage.get_name()), storage.get_name(), runtime,
+                               {CONFIG_TAG: owner}, [f"config: tag absent on the {rec.get('type') or 'storage'} "
+                                                      f"{rec.get('id') or ''}, this configuration is {owner}"],
+                               kind="storage"))
+    rtb = ctx.runtime_builders.get(runtime)
+    launched = ctx.meta_state.launch_params()
+    for inst in sorted(ctx.instances, key=lambda i: i.get_name()):
+        if str(getattr(inst, "runtime", "") or "") != runtime or not (launched.get(inst.get_name()) or {}).get("launched"):
+            continue
+        try:
+            tags = rtb.instance_tags(inst.get_name()) if rtb is not None else None
+        except NotImplementedError:
+            break
+        except Exception as e:  # noqa: BLE001 - read-only probe
+            log.warning(f"relabel: could not read the tags of {inst.get_name()}: {e}")
+            continue
+        if tags is None or owner_of(tags):
+            continue                                       # absent, ours already, or another configuration's
+        hostname = str((launched.get(inst.get_name()) or {}).get("hostname") or inst.get_name())
+        out.append(Relabel(hostname, inst.get_name(), runtime, {CONFIG_TAG: owner},
+                           [f"config: tag absent on the machine {hostname}, this configuration is {owner}"],
+                           kind="instance"))
+    return out
+
+
+def _storage_builder_of(ctx: GlobalTypeContext, name: str):
+    from ..basic.builder_base_storage import StorageBuilderBase
+    for sb in ctx.storage_builders.values():
+        if isinstance(sb, StorageBuilderBase):
+            for storage in list(getattr(getattr(sb, "model", None), "_storages", None) or []):
+                if storage.get_name() == name:
+                    return sb, storage
+    return None, None
 
 
 def relabel(runtime: str, builds: list[str] | None = None) -> list[Relabel]:
@@ -103,15 +176,22 @@ def relabel(runtime: str, builds: list[str] | None = None) -> list[Relabel]:
     plan = relabel_plan(ctx, runtime, builds)
     if ctx.dry_run:
         for r in plan:
-            log.info(f"relabel (dry run): {r.build_id} ({r.series}@{r.runtime}): {'; '.join(r.differences)}")
+            log.info(f"relabel (dry run): {r.kind} {r.build_id} ({r.series}@{r.runtime}): {'; '.join(r.differences)}")
         return plan
     rtb = ctx.runtime_builders[runtime]
     for r in plan:
         try:
-            r.retagged = bool(rtb.retag_image(r.build_id, dict(r.tags)))
+            if r.kind == "storage":
+                sb, storage = _storage_builder_of(ctx, r.series)
+                r.retagged = (bool(sb.retag_storage(storage, dict(r.tags)))
+                              if sb is not None and storage is not None else False)
+            elif r.kind == "instance":
+                r.retagged = bool(rtb.retag_instance(r.series, dict(r.tags)))
+            else:
+                r.retagged = bool(rtb.retag_image(r.build_id, dict(r.tags)))
         except Exception as e:  # noqa: BLE001 - the record is right; the state query keeps showing the tag
-            log.warning(f"relabel: could not retag {r.build_id}: {e}")
+            log.warning(f"relabel: could not retag {r.kind} {r.build_id}: {e}")
             r.retagged = False
-        log.info(f"relabelled {r.build_id} ({r.series}@{r.runtime}): {'; '.join(r.differences)}; "
+        log.info(f"relabelled {r.kind} {r.build_id} ({r.series}@{r.runtime}): {'; '.join(r.differences)}; "
                  f"retagged={r.retagged}")
     return plan

@@ -3,7 +3,7 @@ module "storage_gce_bucket" {
   source = "../../../../../tfmodules/gcp_storage_gcs"
   providers = { google = google.gcp_gcs }
   bucket_name = "csis-sandbox-86233086783-default-bucket"
-  labels = { "csis_storage" = "gce_bucket" }
+  labels = { "csis_config" = "cs-image-action-test", "csis_storage" = "gce_bucket" }
   location = "us-east1"
 }
 output "storage_gce_bucket" {

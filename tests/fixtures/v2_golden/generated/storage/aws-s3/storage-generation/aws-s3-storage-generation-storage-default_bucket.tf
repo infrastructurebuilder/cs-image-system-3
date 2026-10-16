@@ -11,7 +11,7 @@ module "storage_default_bucket" {
     "transition_days" = 30
   }]
   public_read = true
-  tags = { "Environment" = "Development", "Project" = "MyProject", "env" = "production", "team" = "devops" }
+  tags = { "Environment" = "Development", "Project" = "MyProject", "csis_config" = "cs-image-action-test", "env" = "production", "team" = "devops" }
 }
 output "storage_default_bucket" {
     value = module.storage_default_bucket

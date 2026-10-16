@@ -377,8 +377,37 @@ class TofuStorageBuilder(StorageBuilderBase[Q], TerraformRootMixin):
                                        **(rec or {})}
         return out
 
+    def _owned(self, found: list[dict[str, Any]], tags_of) -> tuple[list[dict[str, Any]], str]:
+        """Of the things found by name, those this configuration may take for
+        its own (stage 93: ours, or unlabelled); and the id of another
+        configuration that holds one of that name, for the note."""
+        from cs_image_system.base.lineage import belongs_to_another_configuration, owner_of
+        ctx = self._get_context()
+        ours = [f for f in found if not belongs_to_another_configuration(ctx, tags_of(f))]
+        elsewhere = next((owner_of(tags_of(f)) for f in found if belongs_to_another_configuration(ctx, tags_of(f))), "")
+        return ours, elsewhere
+
+    @staticmethod
+    def _elsewhere(owner: str, what: str) -> dict[str, Any]:
+        """The record of a thing of our name that belongs to another
+        configuration: absent for us, and said so (the state query makes a
+        note of it rather than a foreign claim)."""
+        return {"present": False, "elsewhere": owner, "what": what}
+
     def destroy_whitelist(self, storage: Storage) -> list[str]:
         return [f"module.storage_{self.storage_label(storage)}"]
+
+
+def _tags_for(builder: Any, storage: Storage) -> dict[str, str]:
+    """The tags a storage's module call carries: the builder's defaults
+    under the item's own, and the configuration's id last (stage 93). A
+    stand-in without a context (the module-call tests) gets no id."""
+    from cs_image_system.base.lineage import config_tags
+    merged = dict(builder.model.variables.merged_tags(storage.tags) or {})
+    get_ctx: Any = getattr(builder, "_get_context", None)
+    if callable(get_ctx):
+        merged.update(config_tags(cast(Any, get_ctx())))
+    return merged
 
 
 R = TypeVar("R", bound=TofuEbsStorageBuilderModel)
@@ -418,14 +447,23 @@ class TofuEbsStorageBuilder(TofuStorageBuilder[R]):
                     "archive": snap.get("SnapshotId"), "snapshot_state": snap.get("State"),
                     "tags": {t["Key"]: t["Value"] for t in snap.get("Tags", []) if "Key" in t}}
         vols = ec2.describe_volumes(Filters=[{"Name": "tag:Name", "Values": [storage.get_name()]}]).get("Volumes", [])
+        tags_of = lambda v: {t["Key"]: t["Value"] for t in v.get("Tags", []) if "Key" in t}  # noqa: E731
+        vols, elsewhere = self._owned(vols, tags_of)     # stage 93: another configuration's `data` is not ours
         if not vols:
-            return None
+            return self._elsewhere(elsewhere, "an EBS volume") if elsewhere else None
         v = vols[0]
-        return {"id": v.get("VolumeId"), "state": v.get("State"), "size": v.get("Size"),
-                "tags": {t["Key"]: t["Value"] for t in v.get("Tags", []) if "Key" in t}}
+        return {"id": v.get("VolumeId"), "state": v.get("State"), "size": v.get("Size"), "tags": tags_of(v)}
 
     def module_dirname(self) -> str:
         return "aws_storage_ebs"
+
+    def retag_storage(self, storage: Storage, tags: dict[str, str]) -> bool:
+        rec = self._lookup(storage)
+        if not rec or not rec.get("present", True) or not rec.get("id"):
+            return False
+        self._aws_client("ec2").create_tags(Resources=[str(rec["id"])],
+                                            Tags=[{"Key": k, "Value": str(v)} for k, v in tags.items()])
+        return True
 
     # ------------------------------------------------ archived (stage 15)
     def supports_archive(self) -> bool:
@@ -501,7 +539,7 @@ class TofuEbsStorageBuilder(TofuStorageBuilder[R]):
             subnet = getattr(networking, "default_subnet_id", None) if networking else None
             if subnet:
                 args["subnet_id"] = subnet
-        tags = self.model.variables.merged_tags(storage.tags)
+        tags = _tags_for(self, storage)
         if tags:
             args["tags"] = tags
         return args
@@ -534,9 +572,15 @@ class TofuEfsStorageBuilder(TofuStorageBuilder[S]):
 
     def _lookup(self, storage: Storage) -> dict[str, Any] | None:
         efs = self._aws_client("efs")
-        for fs in efs.describe_file_systems().get("FileSystems", []):
-            tags = {t["Key"]: t["Value"] for t in fs.get("Tags", []) if "Key" in t}
-            if tags.get("Name") == storage.get_name() or fs.get("Name") == storage.get_name():
+        tags_of = lambda fs: {t["Key"]: t["Value"] for t in fs.get("Tags", []) if "Key" in t}  # noqa: E731
+        named = [fs for fs in efs.describe_file_systems().get("FileSystems", [])
+                 if tags_of(fs).get("Name") == storage.get_name() or fs.get("Name") == storage.get_name()]
+        named, elsewhere = self._owned(named, tags_of)       # stage 93
+        if not named and elsewhere:
+            return self._elsewhere(elsewhere, "an EFS filesystem")
+        for fs in named:
+            tags = tags_of(fs)
+            if True:
                 rec: dict[str, Any] = {"id": fs.get("FileSystemId"), "state": fs.get("LifeCycleState"), "tags": tags}
                 try:   # observed data lifecycle (stage 15); absent = no policy
                     pol = efs.describe_lifecycle_configuration(FileSystemId=fs.get("FileSystemId")).get("LifecyclePolicies", [])
@@ -548,6 +592,14 @@ class TofuEfsStorageBuilder(TofuStorageBuilder[S]):
 
     def module_dirname(self) -> str:
         return "aws_storage_efs"
+
+    def retag_storage(self, storage: Storage, tags: dict[str, str]) -> bool:
+        rec = self._lookup(storage)
+        if not rec or not rec.get("present", True) or not rec.get("id"):
+            return False
+        self._aws_client("efs").tag_resource(ResourceId=str(rec["id"]),
+                                             Tags=[{"Key": k, "Value": str(v)} for k, v in tags.items()])
+        return True
 
     # ------------------------------------------ data lifecycle (stage 15)
     IA_DAYS = (1, 7, 14, 30, 60, 90, 180, 270, 365)
@@ -608,7 +660,7 @@ class TofuEfsStorageBuilder(TofuStorageBuilder[S]):
                 args["vpc_id"] = networking.network
                 args["mount_target_subnet_ids"] = subnets
                 args["client_security_group_ids"] = clients
-        tags = self.model.variables.merged_tags(storage.tags)
+        tags = _tags_for(self, storage)
         if tags:
             args["tags"] = tags
         return args
@@ -675,6 +727,9 @@ class TofuS3StorageBuilder(TofuStorageBuilder[B]):
                 return None
             if code not in ("NoSuchTagSet",):
                 raise
+        from cs_image_system.base.lineage import belongs_to_another_configuration, owner_of
+        if belongs_to_another_configuration(self._get_context(), tags):
+            return self._elsewhere(owner_of(tags), "an S3 bucket")      # stage 93: the name is theirs
         rec: dict[str, Any] = {"id": bucket, "state": "active", "tags": tags}
         try:   # observed data lifecycle (stage 15); absent = no rules
             rules = s3.get_bucket_lifecycle_configuration(Bucket=bucket).get("Rules", [])
@@ -687,6 +742,15 @@ class TofuS3StorageBuilder(TofuStorageBuilder[B]):
 
     def module_dirname(self) -> str:
         return "aws_storage_s3"
+
+    def retag_storage(self, storage: Storage, tags: dict[str, str]) -> bool:
+        rec = self._lookup(storage)
+        if not rec or not rec.get("present", True):
+            return False
+        merged = {**(rec.get("tags") or {}), **{k: str(v) for k, v in tags.items()}}   # a bucket's tag set is replaced whole
+        self._aws_client("s3").put_bucket_tagging(Bucket=self._bucket_for(storage),
+                                                  Tagging={"TagSet": [{"Key": k, "Value": v} for k, v in merged.items()]})
+        return True
 
     # ------------------------------------------ data lifecycle (stage 15)
     STORAGE_CLASSES = ("STANDARD_IA", "ONEZONE_IA", "INTELLIGENT_TIERING", "GLACIER_IR", "GLACIER", "DEEP_ARCHIVE")
@@ -729,7 +793,7 @@ class TofuS3StorageBuilder(TofuStorageBuilder[B]):
             args["group_prefixes"] = sorted(_groups(storage))
         if _public_read(storage):
             args["public_read"] = True
-        tags = self.model.variables.merged_tags(storage.tags)
+        tags = _tags_for(self, storage)
         if tags:
             args["tags"] = tags
         return args

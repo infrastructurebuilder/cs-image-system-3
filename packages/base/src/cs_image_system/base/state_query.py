@@ -206,6 +206,14 @@ def query_storages(ctx: "GlobalTypeContext", report: StateReport) -> dict[str, d
             continue
         recs = _query(report, f"storages/{name}", sb.query_state)
         if recs:
+            for sname, rec in recs.items():
+                if rec.get("elsewhere"):
+                    # stage 93: a volume, disk, bucket or share of OUR name that
+                    # belongs to another configuration stands where ours would;
+                    # ours is absent, and the report says whose the other is
+                    report.notes.append(f"storages/{sname}: {rec.get('what') or 'a storage'} of that name belongs to "
+                                        f"configuration {rec['elsewhere']!r} ({CONFIG_TAG}); not this configuration's, "
+                                        "left alone, and ours is absent")
             out.update(recs)
     return out
 

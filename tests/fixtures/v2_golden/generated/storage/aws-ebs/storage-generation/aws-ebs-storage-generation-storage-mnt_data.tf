@@ -8,7 +8,7 @@ module "storage_mnt_data" {
   name = "mnt_data"
   size = 100
   subnet_id = "subnet-09f79018af845358a"
-  tags = { "Environment" = "Development", "Project" = "MyProject" }
+  tags = { "Environment" = "Development", "Project" = "MyProject", "csis_config" = "cs-image-action-test" }
 }
 output "storage_mnt_data" {
     value = module.storage_mnt_data

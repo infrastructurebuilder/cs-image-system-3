@@ -11,7 +11,7 @@ module "instance_test2" {
   vpc_security_group_ids = [aws_security_group.csis_instances.id, "sg-03015ec107ae5f81a"]
   subnet_id = "subnet-09f79018af845358a"
   iam_instance_profile = "AmazonSSMRoleForInstancesQuickSetup"
-  tags = { "hype" = "test" }
+  tags = { "csis_config" = "cs-image-action-test", "hype" = "test" }
   user_data = templatefile("${path.module}/user-data-test2.sh.tftpl", {
     "ebs" = {
       "mnt_data" = {

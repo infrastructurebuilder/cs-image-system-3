@@ -310,7 +310,8 @@ class TofuInstanceBuilder(InstanceBuilderBase[Q], TerraformRootMixin):
             profile = profile_fn() if callable(profile_fn) else None
             if profile:
                 args["iam_instance_profile"] = profile
-        tags = instance.get_tags() or {}
+        from cs_image_system.base.lineage import config_tags
+        tags = {**(instance.get_tags() or {}), **config_tags(ctx)}     # stage 93: the machine carries the id
         if tags:
             args["tags"] = dict(tags)
         # Launch parameters (N26) are added only when the caller computed them

@@ -105,3 +105,10 @@ class StorageBuilderBase(BuilderBase[TSTORAGE]):
         """Terraform addresses whose destruction the apply gate whitelists when
         this storage's requested state is ``destroyed`` (N19)."""
         return []
+
+    def retag_storage(self, storage: "Storage", tags: dict[str, str]) -> bool:
+        """Add ``tags`` to the storage's cloud resource in place (stage 93:
+        `lineage relabel` gives a standing volume, disk, filesystem or bucket
+        the configuration's id). False when the resource is absent; a builder
+        that cannot retag raises NotImplementedError and relabel says so."""
+        raise NotImplementedError(f"{self.__class__.__name__} cannot retag a storage")

@@ -112,11 +112,38 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
         return out
 
     # ----------------------------------------------- AWS parity (stage 11.1)
+    def _ours(self, instances: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Stage 93: of the machines found by Name, the ones this
+        configuration may take for its own -- tagged with its id, or with no
+        id at all (launched before the stage). Another configuration's
+        machine of the same name is not ours to read, stop or log into."""
+        from cs_image_system.base.lineage import ours_or_unlabelled
+        ctx = self._get_context()
+        return [i for i in instances
+                if ours_or_unlabelled(ctx, {t["Key"]: t["Value"] for t in i.get("Tags", []) if "Key" in t})]
+
+    def instance_tags(self, instance_name: str) -> dict[str, str] | None:
+        """The tags the named machine carries (stage 93's relabel reads them);
+        None when no such machine stands."""
+        inst = self._named_instance(instance_name)
+        if inst is None:
+            return None
+        return {t["Key"]: t["Value"] for t in inst.get("Tags", []) if "Key" in t}
+
+    def retag_instance(self, instance_name: str, tags: dict[str, str]) -> bool:
+        """``create-tags`` on the named machine (stage 93: the id, in place)."""
+        inst = self._named_instance(instance_name)
+        if inst is None or not inst.get("InstanceId"):
+            return False
+        ec2 = aws_utils.ec2_client(self.model.self_to_aws_client_config())
+        ec2.create_tags(Resources=[str(inst["InstanceId"])], Tags=[{"Key": k, "Value": str(v)} for k, v in tags.items()])
+        return True
+
     def _running_instance(self, instance_name: str) -> dict[str, Any] | None:
         ec2 = aws_utils.ec2_client(self.model.self_to_aws_client_config())
         res = ec2.describe_instances(Filters=[{"Name": "tag:Name", "Values": [instance_name]},
                                               {"Name": "instance-state-name", "Values": ["pending", "running"]}])
-        found = [i for r in res.get("Reservations", []) for i in r.get("Instances", [])]
+        found = self._ours([i for r in res.get("Reservations", []) for i in r.get("Instances", [])])
         return found[0] if found else None
 
     def can_query_instance_boot_image(self) -> bool:
@@ -155,7 +182,7 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
         about an hour after the machine has gone."""
         ec2 = aws_utils.ec2_client(self.model.self_to_aws_client_config())
         res = ec2.describe_instances(Filters=[{"Name": "tag:Name", "Values": [instance_name]}])
-        found = [i for r in res.get("Reservations", []) for i in r.get("Instances", [])]
+        found = self._ours([i for r in res.get("Reservations", []) for i in r.get("Instances", [])])
         if not found:
             return None
         live = [i for i in found
@@ -297,7 +324,7 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
         ec2 = aws_utils.ec2_client(self.model.self_to_aws_client_config())
         res = ec2.describe_instances(Filters=[{"Name": "tag:Name", "Values": [instance_name]},
                                               {"Name": "instance-state-name", "Values": ["running"]}])
-        ids = [i["InstanceId"] for r in res.get("Reservations", []) for i in r.get("Instances", [])]
+        ids = [i["InstanceId"] for i in self._ours([i for r in res.get("Reservations", []) for i in r.get("Instances", [])])]
         return ids[0] if ids else None
 
     def ssh_proxy_command(self, instance_name: str) -> list[str] | None:
@@ -323,7 +350,7 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
         ec2 = aws_utils.ec2_client(cfg)
         res = ec2.describe_instances(Filters=[{"Name": "tag:Name", "Values": [instance_name]},
                                               {"Name": "instance-state-name", "Values": ["running"]}])
-        ids = [i["InstanceId"] for r in res.get("Reservations", []) for i in r.get("Instances", [])]
+        ids = [i["InstanceId"] for i in self._ours([i for r in res.get("Reservations", []) for i in r.get("Instances", [])])]
         if not ids:
             # stage 57: say WHICH failure this is. A machine the operator
             # switched off is not a machine that was never there, and
