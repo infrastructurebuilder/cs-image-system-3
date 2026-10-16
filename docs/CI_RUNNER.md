@@ -76,6 +76,7 @@ there.
 | `sft` (Okta Privileged Access client) | 1.114 in use | 1.115.0 | Okta's EL10 repository (`scaleft-client-tools`) |
 | `docker` (client) | `>=24` | 29.9.1 | Docker's EL10 repository (`docker-ce-cli`) |
 | `ansible-playbook` (ansible-core) | `>=2.16` | 2.21.4 | a `uv tool` on the image's Python |
+| `community.docker` (the `docker` connection the modification tests use) | any current | 5.4.0 | Ansible Galaxy, into `/usr/share/ansible/collections` (`ANSIBLE_COLLECTIONS_PATH`) |
 | `yq` | `>=4.5` | 4.53.6 | the yq release binary (mikefarah/yq) |
 | `jq` | `>=1.7` | 1.8.2 | the jq release binary (AlmaLinux's own answers `jq --version` with no number) |
 | `age`, `age-keygen` | any current | 1.3.2 | the age release archive |
@@ -96,7 +97,10 @@ and the workflows' lines (a test holds them equal). A published tag is
 never rebuilt: a second image on one day is `alma10-<YYYYMMDD>.2` (the
 first, 2026-10-16, lacked git's `safe.directory` for a checkout owned by
 another user; the second lacked the `libatomic` that pyright's node
-needs, so `.3` is the first that ran the bar).
+needs; the third lacked the `community.docker` collection whose
+`docker` connection the modification tests use, which GitHub's Ubuntu
+image carries with its full `ansible`; `.4` is the first that ran the
+live proof).
 
 **Who may pull the image is two settings, and both bit on the first
 day.** The runner pulls the image with the job's own token before any
