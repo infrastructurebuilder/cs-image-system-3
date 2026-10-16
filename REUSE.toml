@@ -15,6 +15,7 @@ path = [
   "**/*.json",
   "*.code-workspace",
   "**/py.typed",
+  "ci/runner-image/TAG",
   ".claude/**",
   ".devcontainer/**",
   ".vscode/**",

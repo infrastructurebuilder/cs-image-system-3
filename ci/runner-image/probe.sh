@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
 # The runner image's probe (stage 92): every tool a configuration's CI calls
 # answers --version from the path cfg/executables.yml pins (or from PATH where
 # the starters pin no path), and the version is the one /etc/csis-ci/tools.txt
