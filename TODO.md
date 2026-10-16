@@ -664,17 +664,14 @@ reference configuration's `main`.
 
 ## 93. Everything the system makes carries its configuration's id, and the inventory counts its own alone
 
-**Status: IN PROGRESS 2026-10-15 on `feature/stage-93` ("do 93"). Landed
-on the branch: everything the modules make carries `csis_config` (the
-AWS volumes, filesystems, buckets and machines; the GCE disks, buckets,
-shares and machines); every lookup by name takes ours or an unlabelled
-one and never another configuration's, and a disk, bucket or share of
-our name that is theirs is a note with ours absent; `emptiness()` and
-`cloud-empty` leave another configuration's things alone and count them,
-and name the unlabelled; `lineage relabel` gives the id to standing
-storages and machines through each builder's retag hook. Waits: the
-operator's `just cloud-relabel <rt> no` on the reference configuration's
-standing things, the merge, the release.**
+**Status: LANDED on develop 2026-10-16 (23bb441, squashed from
+`feature/stage-93`, branch kept; bar 1557 passed). The section stays
+until the live proof: a release carries it (dev26), the reference
+configuration takes it, the operator runs `just cloud-relabel aws-
+east2-runtime no` and `just cloud-relabel gcloud-east1 no` (the dry plan
+of 2026-10-15 named four AWS storages, `coops-model-006`, two GCE
+storages and one old GCE image), and a strict state query is green with
+every `unavailable` at 0. Then the section leaves TODO.**
 
 **The defect.** `emptiness()` is the runtime's whole inventory (on GCE:
 every instance and disk in the zone, every custom image and every bucket
