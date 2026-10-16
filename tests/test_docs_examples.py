@@ -403,7 +403,7 @@ def test_the_starter_perform_job_records_guards_performs_proves_and_records_agai
         probe = yaml.safe_load(probe_path.read_text())
         assert list(probe[True].keys()) == ["workflow_dispatch"]
         (job,), = [list(probe["jobs"].values())]
-        assert job["permissions"] == {"id-token": "write", "contents": "read"}
+        assert job["permissions"] == {"id-token": "write", "contents": "read", "packages": "read"}   # packages: the runner image's pull (stage 92)
         assert any(s.get("run", "").strip() == "just opa-workload-probe" for s in job["steps"])
 
 

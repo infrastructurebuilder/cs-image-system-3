@@ -98,21 +98,23 @@ first, 2026-10-16, lacked git's `safe.directory` for a checkout owned by
 another user; the second lacked the `libatomic` that pyright's node
 needs, so `.3` is the first that ran the bar).
 
-**The package's visibility is the organisation's setting, not the
-workflow's.** The image is published under the organisation's packages
-(`ghcr.io/<owner>/csis-ci`) by the workflow's own token; a package made
-that way is linked to this repository and inherits its visibility, so
-from a public repository it is public and every configuration
-repository's jobs can pull it with no credential. If the package is
-private (the repository was private when the first publish ran, or
-someone changed it), a job in another repository fails at "Initialize
-containers" with an authorization error although the image exists.
-The fix is in the organisation's package settings on GitHub: make the
-package public, or grant each configuration repository read access to
-it (and then its jobs must log in to ghcr.io before the container
-starts, which the starters do not do). Check it once after the first
-publish, and whenever a job of another repository cannot pull an image
-that a job here just built. The base is pinned by digest and every tool by version;
+**Who may pull the image is two settings, and both bit on the first
+day.** The runner pulls the image with the job's own token before any
+step runs. A job that declares a `permissions:` block gets only what
+the block names, so a block without `packages: read` pulls as nobody;
+every job of every workflow here carries that line, and a test holds
+it (the second image was pulled by `verify`, which declares no block,
+and refused to `live`, which does). The package itself is published
+under the organisation (`ghcr.io/<owner>/csis-ci`) by the workflow's
+token, and its visibility is the organisation's package setting on
+GitHub, not the workflow's: the first publish on 2026-10-16 came out
+PRIVATE, which another repository's token cannot read however its job
+is written. The setting is "make the package public" in the
+organisation's packages page; until it is, a configuration
+repository's jobs fail at "Initialize containers" with `denied`
+although the image exists. Check it once after the first publish, and
+whenever a job of another repository cannot pull an image a job here
+just built. The base is pinned by digest and every tool by version;
 the probe runs at build time and `just runner-image` builds and probes
 it locally (a leg of `just full-test`). A starter workflow pins one date tag on every
 job (`container: image:`); `init-config --force` moves it with the
