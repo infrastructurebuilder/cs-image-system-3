@@ -110,15 +110,20 @@ every job of every workflow here carries that line, and a test holds
 it (the second image was pulled by `verify`, which declares no block,
 and refused to `live`, which does). The package itself is published
 under the organisation (`ghcr.io/<owner>/csis-ci`) by the workflow's
-token, and its visibility is the organisation's package setting on
-GitHub, not the workflow's: the first publish on 2026-10-16 came out
-PRIVATE, which another repository's token cannot read however its job
-is written. The setting is "make the package public" in the
-organisation's packages page; until it is, a configuration
-repository's jobs fail at "Initialize containers" with `denied`
-although the image exists. Check it once after the first publish, and
-whenever a job of another repository cannot pull an image a job here
-just built. The base is pinned by digest and every tool by version;
+token, and who may read it is the package's setting on GitHub, not the
+workflow's: the first publish on 2026-10-16 came out PRIVATE, and the
+organisation's administrators had disabled making packages public. A
+private package is still usable by every repository of the same
+organisation: on the package's page, "Package settings", "Manage
+Actions access", add the repository with the Read role. The runner
+then pulls with that repository's own job token (the `packages: read`
+line) and no login step is needed. A repository outside the
+organisation needs the package public, which only the organisation's
+administrators can allow. Until one or the other is done, a
+configuration repository's jobs fail at "Initialize containers" with
+`denied` although the image exists; check it once after the first
+publish, and whenever a job of another repository cannot pull an image
+a job here just built. The base is pinned by digest and every tool by version;
 the probe runs at build time and `just runner-image` builds and probes
 it locally (a leg of `just full-test`). A starter workflow pins one date tag on every
 job (`container: image:`); `init-config --force` moves it with the

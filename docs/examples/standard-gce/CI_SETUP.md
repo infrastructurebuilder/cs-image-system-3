@@ -209,8 +209,10 @@ a release, never at no commit. Nothing is installed on the runner any
 more; what the image carries, and what any other CI runner would need,
 is the system repository's `docs/CI_RUNNER.md`. The image is pulled
 with this job's own token (every job's `permissions:` block says
-`packages: read` for it), which works only while the package is PUBLIC
-in the organisation that publishes it; a job that fails at "Initialize
+`packages: read` for it), which works when the package is public, or
+when this repository was granted Read access to it in the package's
+"Manage Actions access" settings (a repository of the same
+organisation as the package); a job that fails at "Initialize
 containers" with `denied`, although the image exists, is that setting,
 and the holders of the system repository are who can change it
 (`docs/CI_RUNNER.md`, section 4).
