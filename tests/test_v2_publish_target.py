@@ -30,7 +30,7 @@ def _probe():
     assert spec is not None
     m = importlib.util.module_from_spec(spec)
     loader.exec_module(m)
-    m.TIMEOUT = 3
+    setattr(m, "TIMEOUT", 3)                  # a dead port answers fast; a test never waits thirty seconds
     return m
 
 
