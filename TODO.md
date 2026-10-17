@@ -579,13 +579,13 @@ the dry form says which branch it stands on.
 
 **Status: OPEN 2026-10-17, four items left by stages 92 and 93 and the
 dev25 build's upgrade; the operator said "open and do it" the same day
-and answered both decisions (move the pins; write the usernames in
-clear). Items 1 and 2 LANDED on `feature/hygiene-xiii` (this commit).
-Items 3 and 4 are the reference configuration's: 3 was done on its
-`develop` (efc2f15, 382d454; four pins, no drift left) and is proved by
-the next `perform` on `main`, which bakes one image; 4 is done for 18 of
-the 19 usernames and waits for the operator's word on the last one. The
-bundle leaves TODO when both are closed.**
+and answered every decision. Items 1 and 2 LANDED (8cdc07c). Item 4 DONE
+on the reference's `develop` (5144e4c): 18 of the 19 usernames in clear,
+the 19th kept a marker by the operator's decision of 2026-10-17 ("It's
+fine and that user is publicly associated with the project anyway").
+Item 3 remains: done on the reference's `develop` (efc2f15, 382d454;
+four pins, `no drift`), proved by the next `perform` on `main`, which
+bakes one image; then the bundle leaves TODO.**
 
 1. **`cloud-upgrade` ended before the record.** Its last run regenerates
    the instance lifecycle alone, so the release read-model the release
@@ -617,14 +617,6 @@ bundle leaves TODO when both are closed.**
    parent's content having moved; the other three were re-based on a
    parent baked from identical inputs and need nothing. Proof: the next
    `perform` on `main` bakes the one and stays green.
-
-4. **The reference roster carried its usernames as markers that hide
-   nothing.** After hygiene XII item 15 the usernames are public; the
-   operator chose to write them in clear. 18 of the 19 were already in
-   clear in the committed records and are now in clear in the roster too
-   (the e-mail markers untouched). One username appears in no committed
-   record, so writing it would publish it for the first time; it stays a
-   marker. **USER**: write it in clear too, or keep it.
 
 ## 94. A verification starts a machine its operator switched off: KEPT, and reviewed monthly
 
