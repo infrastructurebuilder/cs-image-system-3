@@ -1522,19 +1522,23 @@ of the same version (`0.1.1.dev1` → `0.1.1.dev2`), `stage` finalises it
 form: the probes and the version, nothing changed. The real form, in
 order:
 
-1. the probes, before anything changes: the token is set
-   (`UV_PUBLISH_TOKEN`, else `TEST_PYPI_TOKEN` / `PYPI_TOKEN`); the
-   index does not know the version (`scripts/index-knows` reads the
-   simple index; a version is never re-cut, because a deleted version's
-   files can never be uploaded again); no `v<version>` tag exists here
-   (the local record of a version that was cut, deleted from the index
-   or not); `dev` on a final version is refused (open the next version
-   with `patch` first);
+1. the probes, before anything changes: the checkout is on `develop`
+   (every release, development or final, is cut there; the walk's F31
+   cut a version on a walk branch); the index can take an upload and
+   holds the version for no project (`scripts/publish-target-ready`,
+   stage 83, below; a version is never re-cut, because a deleted
+   version's files can never be uploaded again); the token is set
+   (`UV_PUBLISH_TOKEN`, else `TEST_PYPI_TOKEN` / `PYPI_TOKEN`); no
+   `v<version>` tag exists here (the local record of a version that was
+   cut, deleted from the index or not); `dev` on a final version is
+   refused (open the next version with `patch` first);
 2. a clean working tree, then the gate: for TestPyPI the bar
    (`just test`); for PyPI `just full-test`, the modification-test
    evidence at `<config_root>/meta-state/mod-tests.yaml` (written by
    `full-test` with docker in the LIVE configuration) and a live checkout
-   clean apart from it;
+   clean apart from it; then the index is asked AGAIN, since the bar
+   takes twenty minutes and an index that went down meanwhile should
+   leave a clean tree, not a bump to discard;
 3. `bump-my-version bump <part>` (or `--new-version`): every `version =`
    line and every `== <version>` pin between the packages, in one move
    (`[tool.bumpversion]` in the root `pyproject.toml`); then `uv lock`;
@@ -1551,8 +1555,36 @@ Nothing is pushed: `git push --follow-tags` is the operator's act, and
 the pushed tag makes CI's `publish` job check the release against the
 index (it uploads nothing the index already holds).
 
+**The index is asked first (stage 83).** `scripts/publish-target-ready
+<test|pypi>` (and `just index-ready [test|pypi]`, the probe alone, one
+line per endpoint) reads the target's `[[tool.uv.index]]` entry and
+asks two things of it: the upload endpoint (`publish-url`) answers
+below 500 to a request that uploads nothing, and the simple index
+answers for EVERY project a release uploads -- the root project and each
+`packages/*` member, eighteen today -- with 200, or 404 for a project
+it has never seen. With `--version` it also says which projects already
+hold that version: none (a fresh release), all, or some (a partial
+upload, which `just publish` completes). Exit 0 is ready; **75 is "not
+now"**, the code `--locked` uses for "try again later": the index's
+condition, not the release's, with nothing changed; 2 is a target it
+has no checker for, which is refused by name, never passed (a new
+publish target owes its checker in the stage that adds it). What it
+cannot check is that the token will be accepted: the index has no call
+that says so without an upload, and the probe says so. `just
+index-ready test wait` probes every minute until the index is ready,
+two hours at most, one line per attempt -- the loop that was run by
+hand on the night of 2026-10-05, when TestPyPI's upload endpoint and
+most project pages answered 503 for nine hours while the one page the
+release then asked answered 200, and a release ran its whole bar
+before the upload failed. `release` asks before its other probes and
+again after the bar; `publish` asks first, and reports a partial upload
+rather than refusing it.
+
 `just publish [test|pypi]` builds and uploads the version in the tree:
-`dist/` cleaned, `just build`, then `uv publish --index <name>`. The
+the index asked first (above), `dist/` cleaned, `just build`, then `uv
+publish --index <name>`. A failed upload prints the lines uv wrote
+without the index's HTML error page, and names the file that holds the
+whole output. The
 endpoints are the `[[tool.uv.index]]` entries in the root
 `pyproject.toml` -- `testpypi` uploads to `https://test.pypi.org/legacy/`
 and is checked against `https://test.pypi.org/simple/`; `pypi` uploads to
@@ -1654,8 +1686,9 @@ configuration repository's, which the release ships.
 | `build` | sdist + wheel of every workspace member under `dist/` (the system package carries the three starter trees) | nothing |
 | `test` | lint → typecheck → pytest, all blocking (the bar) | nothing |
 | `full-test` | `test` + `test-mods --strict` (docker) + dry `run --all` and `state query --strict` over a copy of the reference configuration (sessions) | docker, reference configuration, runtime sessions; each leg skips loudly |
-| `release <part\|version> [test\|pypi] [yes]` | probe (token, index, tag), the bar or `full-test`, `bump-my-version`, `uv lock`, `publish`, commit, tag `v<version>`; `yes` = dry | `UV_PUBLISH_TOKEN`; for `pypi`: clean trees, mod-test evidence, `full-test`'s needs |
-| `publish [test\|pypi]` | clean `dist/`, `build`, `uv publish --index` with the check URL: upload the version in the tree, skip what is there | `UV_PUBLISH_TOKEN` |
+| `release <part\|version> [test\|pypi] [yes]` | probe (branch `develop`, the index ready and free of the version, token, tag), the bar or `full-test`, the index again, `bump-my-version`, `uv lock`, `publish`, commit, tag `v<version>`; `yes` = dry | `UV_PUBLISH_TOKEN`; for `pypi`: clean trees, mod-test evidence, `full-test`'s needs |
+| `publish [test\|pypi]` | the index asked first, clean `dist/`, `build`, `uv publish --index` with the check URL: upload the version in the tree, skip what is there | `UV_PUBLISH_TOKEN` |
+| `index-ready [test\|pypi] [wait]` | can the index take an upload now: the upload endpoint and every project page, one line each; exit 0 ready, 75 not now; `wait` probes every minute, two hours at most (stage 83) | the network |
 | `full-test-legs` | the live legs of `full-test` alone: `test-mods --strict` under docker, a headless dry run `--all` and a `state query --strict` over a private copy of the reference configuration; re-run these after a session renewal instead of the whole `full-test` | `preflight` gates the two copy legs |
 | `format` | `ruff format packages tests` | nothing |
 | `lint` / `lint-fix` / `lint-unsafe-fix` | ruff check and the REUSE lint; with safe / unsafe fixes | nothing |

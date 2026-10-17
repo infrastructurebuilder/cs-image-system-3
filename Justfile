@@ -61,8 +61,10 @@ test: lint typecheck pytest
 full-test: test
 	@just full-test-legs
 
-# Cut a release (stage 41): the probes first -- the index token, the index, the version
-# it would carry (free on the index, untagged) -- then the bar, the bump, the lock, the
+# Cut a release (stage 41): the probes first -- the branch (develop alone, stage 83), the
+# index itself (stage 83: its upload endpoint and every project page answer, and no project
+# holds the version), the index token, the tag -- then the bar, the index asked AGAIN (the
+# bar takes twenty minutes), the bump, the lock, the
 # build and the upload, and only then the commit and the tag, so a failed upload leaves
 # an uncommitted bump to discard and never a tagged, unpublished version. TARGET is a
 # part for bump-my-version (`patch`, `minor` and `major` open the next version as its
@@ -79,10 +81,14 @@ release target index="test" dry="no":
 	#!/usr/bin/env bash
 	set -euo pipefail
 	case "{{index}}" in
-		test) name=testpypi; simple=https://test.pypi.org/simple ;;
-		pypi) name=pypi; simple=https://pypi.org/simple ;;
+		test) name=testpypi ;;
+		pypi) name=pypi ;;
 		*) echo "release: the index is test (TestPyPI, the default) or pypi, not '{{index}}'"; exit 2 ;;
 	esac
+	# stage 83 (the walk's F31: dev18 was cut, committed and tagged on a walk branch): every
+	# release, development or final, is cut on develop (the operator's decision of 2026-10-17)
+	branch=$(git rev-parse --abbrev-ref HEAD)
+	[ "$branch" = develop ] || { echo "release: this checkout is on '$branch'; a release is cut on develop alone -- nothing was changed"; exit 1; }
 	shape='^[0-9]+\.[0-9]+\.[0-9]+(\.dev[0-9]+)?$'
 	current=$(uv run --no-sync bump-my-version show current_version)
 	if [[ "{{target}}" =~ $shape ]]; then
@@ -92,22 +98,28 @@ release target index="test" dry="no":
 		bump=(bump "{{target}}")
 	fi
 	[[ "$new" =~ $shape ]] || { echo "release: $current is a final version and '{{target}}' would make it $new -- open the next version with patch, minor or major (its first development release), then dev for each further one"; exit 2; }
+	# stage 83: the index itself, first of the probes and again after the bar. 75 is "not now";
+	# 1 is a version some project already holds (never re-cut)
+	ready() {
+		set +e; uv run --no-sync python scripts/publish-target-ready "{{index}}" --version "$new" --refuse-held --quiet; rc=$?; set -e
+		case $rc in
+			0) ;;
+			75) echo "release: $name cannot take an upload now (above) -- nothing was changed; it is the index's condition, not the release's: \`just index-ready {{index}} wait\` waits for it"; exit 75 ;;
+			1) echo "release: $new is already on $name (above) -- a version is never re-cut"; exit 1 ;;
+			*) echo "release: the publish-target probe could not run (exit $rc)"; exit 2 ;;
+		esac
+	}
+	ready
 	# the probes, before anything changes. The token: UV_PUBLISH_TOKEN, else the index's own
 	# name (TEST_PYPI_TOKEN or PYPI_TOKEN, the repository secrets' names, so one .envrc line
 	# serves the shell and CI alike)
 	token_var=TEST_PYPI_TOKEN; [ "$name" = pypi ] && token_var=PYPI_TOKEN
 	export UV_PUBLISH_TOKEN="${UV_PUBLISH_TOKEN:-${!token_var:-}}"
 	[ -n "$UV_PUBLISH_TOKEN" ] || { echo "release: neither UV_PUBLISH_TOKEN nor $token_var is set -- the API token for $name; a release publishes, so it refuses up front rather than leave a tagged, unpublished version"; exit 2; }
-	set +e; uv run --no-sync python scripts/index-knows "$simple" cs-image-system "$new"; known=$?; set -e
-	case $known in
-		0) echo "release: $name already knows cs-image-system $new -- a version is never re-cut; take the next one"; exit 1 ;;
-		1) ;;
-		*) echo "release: could not read $simple (the probe exited $known)"; exit 2 ;;
-	esac
 	[ -z "$(git tag -l "v$new")" ] || { echo "release: v$new is already tagged here -- a version is never re-cut, even after its files were deleted from the index"; exit 1; }
 	gate=test; [ "$name" = pypi ] && gate=full-test
 	if [ "{{dry}}" = "yes" ]; then
-		echo "release: dry -- $current would become $new: free on $name, untagged, token present. The real form: just $gate, bump-my-version ${bump[*]}, uv lock, just publish {{index}}, commit 'release $new', tag v$new"
+		echo "release: dry -- on $branch, $current would become $new: $name ready and free of it, untagged, token present. The real form: just $gate, the index again, bump-my-version ${bump[*]}, uv lock, just publish {{index}}, commit 'release $new', tag v$new"
 		exit 0
 	fi
 	dirty=$(git status --porcelain)
@@ -122,6 +134,8 @@ release target index="test" dry="no":
 	else
 		just test
 	fi
+	# stage 83: the bar took twenty minutes; an index that went down meanwhile leaves a clean tree
+	ready
 	uv run --no-sync bump-my-version "${bump[@]}"
 	uv lock
 	# the upload comes BEFORE the commit and the tag: a failed upload leaves an uncommitted bump
@@ -144,6 +158,11 @@ release target index="test" dry="no":
 # repository secrets' names), from the environment and never here; the endpoints are the
 # `[[tool.uv.index]]` entries in pyproject.toml. A deleted version can
 # never be uploaded again, on either index: the next upload is a new version.
+# Stage 83: can the index take an upload now? One line per endpoint (the upload endpoint and every
+# project's page); exit 0 ready, 75 not ready. `wait` probes every minute until it is, two hours at most.
+index-ready index="test" wait="no":
+	@uv run --no-sync python scripts/publish-target-ready {{index}} {{ if wait == "wait" { "--wait 7200" } else { "" } }}
+
 [doc("Build and upload the version in the tree to TestPyPI (`test`, the default) or PyPI (`pypi`); UV_PUBLISH_TOKEN from the environment")]
 publish index="test":
 	#!/usr/bin/env bash
@@ -158,12 +177,29 @@ publish index="test":
 	export UV_PUBLISH_TOKEN="${UV_PUBLISH_TOKEN:-${!token_var:-}}"
 	[ -n "$UV_PUBLISH_TOKEN" ] || { echo "publish: neither UV_PUBLISH_TOKEN nor $token_var is set -- the API token for $name, from the environment; never in this file"; exit 2; }
 	version=$(uv run --no-sync bump-my-version show current_version)
+	# stage 83: the index first -- a partial upload of this version is what a re-run completes, so
+	# a project that already holds it is reported, not refused
+	set +e; uv run --no-sync python scripts/publish-target-ready "{{index}}" --version "$version" --quiet; rc=$?; set -e
+	case $rc in
+		0) ;;
+		75) echo "publish: $name cannot take an upload now (above) -- nothing was uploaded; it is the index's condition: \`just index-ready {{index}} wait\` waits for it"; exit 75 ;;
+		*) echo "publish: the publish-target probe could not run (exit $rc)"; exit 2 ;;
+	esac
 	rm -rf dist
 	just build
 	n=$(ls dist | wc -l | tr -d ' ')
-	# --index alone: uv takes the index's url as the check url and refuses an explicit one beside it
-	uv publish --index "$name" dist/*
-	echo "publish: cs-image-system $version is on $name ($n files: the system and its sixteen packages, sdist and wheel each; files already there with the same content were skipped)"
+	packages=$(ls -d packages/*/ | wc -l | tr -d ' ')
+	# --index alone: uv takes the index's url as the check url and refuses an explicit one beside it.
+	# A failed upload prints its status and its first lines, never the index's whole HTML error page
+	log=$(mktemp "${TMPDIR:-/tmp}/csis-publish.XXXXXX")
+	if ! uv publish --index "$name" dist/* >"$log" 2>&1; then
+		echo "publish: the upload to $name failed; what it said (HTML lines left out):"
+		grep -v -E '^[[:space:]]*<|^[[:space:]]*$' "$log" | head -8
+		echo "publish: the whole output, the index's page included: $log"
+		exit 1
+	fi
+	grep -v -E '^[[:space:]]*<|^[[:space:]]*$' "$log" | tail -4; rm -f "$log"
+	echo "publish: cs-image-system $version is on $name ($n files: the system and its $packages packages, sdist and wheel each; files already there with the same content were skipped)"
 
 # ------------------------------------------------------------ development
 

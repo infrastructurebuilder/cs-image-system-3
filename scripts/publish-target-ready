@@ -1,0 +1,191 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+"""Can a publish target take an upload now? (stage 83)
+
+    uv run python scripts/publish-target-ready <target> [--version V] [--refuse-held] [--wait [LIMIT]] [--every S] [--quiet] [--root DIR]
+
+<target> is `test` (TestPyPI) or `pypi`. Exit 0 when the target can take an
+upload, 75 when it cannot (the code `--locked` uses for "try again later";
+with --wait, still not ready when LIMIT seconds ran out), 1 when
+--refuse-held and a project already holds --version, 2 for a target this
+probe has no checker for, or a usage error.
+
+One checker per TYPE of target. A package index of the PyPI kind (both
+targets today): the endpoints are the target's [[tool.uv.index]] entry in
+pyproject.toml, never restated; its publish-url must answer below 500 to a
+request that uploads nothing, and its simple index must answer for EVERY
+project the release uploads (the root project and each packages/* member)
+-- 200, or 404 for a project it has never seen. With --version the same
+pass says which projects already hold that version: none, all, or some (a
+partial upload, which `just publish` completes). What it cannot check is
+that the token will be accepted: the index has no call that says so
+without an upload, and the probe says so.
+
+Born from 2026-10-05, when TestPyPI's upload endpoint and most project
+pages answered 503 for nine hours while the one page the release asked
+answered 200, and a release ran its whole bar before the upload failed.
+"""
+from __future__ import annotations
+
+import argparse
+import importlib.machinery
+import importlib.util
+import sys
+import time
+import tomllib
+import urllib.error
+import urllib.request
+from datetime import datetime
+from pathlib import Path
+
+from packaging.utils import canonicalize_name
+
+HERE = Path(__file__).resolve().parent
+NOT_READY = 75
+# target -> (type, the [[tool.uv.index]] name)
+TARGETS: dict[str, tuple[str, str]] = {"test": ("pypi-index", "testpypi"), "pypi": ("pypi-index", "pypi")}
+ACCEPT = "application/vnd.pypi.simple.v1+json, text/html;q=0.1"
+TIMEOUT = 30
+
+
+def _versions_in():
+    loader = importlib.machinery.SourceFileLoader("index_knows", str(HERE / "index-knows"))
+    spec = importlib.util.spec_from_loader("index_knows", loader)
+    assert spec is not None
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module.versions_in
+
+
+def _status(url: str, accept: str | None = None) -> tuple[int | None, bytes, str]:
+    """(HTTP status or None when nothing answered, body, why)."""
+    request = urllib.request.Request(url, headers={"Accept": accept} if accept else {})
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+            return response.status, response.read(), ""
+    except urllib.error.HTTPError as e:
+        return e.code, b"", str(e.reason)
+    except (OSError, urllib.error.URLError) as e:
+        return None, b"", str(getattr(e, "reason", e))
+
+
+def index_entry(root: Path, name: str) -> dict[str, str]:
+    doc = tomllib.loads((root / "pyproject.toml").read_text())
+    for entry in (doc.get("tool", {}).get("uv", {}).get("index") or []):
+        if entry.get("name") == name:
+            return entry
+    raise LookupError(f"pyproject.toml has no [[tool.uv.index]] named {name!r}")
+
+
+def projects(root: Path) -> list[str]:
+    """Every project a release uploads: the root project and each packages/* member."""
+    names = [tomllib.loads((root / "pyproject.toml").read_text())["project"]["name"]]
+    for p in sorted((root / "packages").glob("*/pyproject.toml")):
+        names.append(tomllib.loads(p.read_text())["project"]["name"])
+    return names
+
+
+def check_pypi_index(root: Path, index: str, version: str | None, say) -> tuple[bool, str, list[str], int]:
+    """(ready, why not, the projects that hold version, how many projects)."""
+    entry = index_entry(root, index)
+    upload, simple = entry["publish-url"], entry["url"].rstrip("/")
+    failures: list[str] = []
+    status, _, why = _status(upload)
+    ok = status is not None and status < 500
+    say(f"publish-target-ready: {index} upload {upload}: {status if status is not None else 'no answer'}"
+        f"{'' if ok else ' -- ' + (why or 'not ready')}", ok)
+    if not ok:
+        failures.append(f"the upload endpoint {upload} answered {status if status is not None else 'nothing'}")
+    versions_in = _versions_in() if version else None
+    held: list[str] = []
+    names = projects(root)
+    for project in names:
+        url = f"{simple}/{canonicalize_name(project)}/"
+        status, body, why = _status(url, ACCEPT)
+        ok = status is not None and (status < 400 or status == 404)
+        say(f"publish-target-ready: {index} simple {project}: {status if status is not None else 'no answer'}"
+            f"{' (never seen)' if status == 404 else ''}{'' if ok else ' -- ' + (why or 'not ready')}", ok)
+        if not ok:
+            failures.append(f"the project page {url} answered {status if status is not None else 'nothing'}")
+        elif versions_in and status == 200 and version in versions_in(body):
+            held.append(project)
+    return not failures, "; ".join(failures[:3]) + (f" (and {len(failures) - 3} more)" if len(failures) > 3 else ""), held, len(names)
+
+
+CHECKERS = {"pypi-index": check_pypi_index}
+
+
+def main(argv: list[str], sleep=time.sleep) -> int:
+    parser = argparse.ArgumentParser(prog="publish-target-ready", add_help=True)
+    parser.add_argument("target")
+    parser.add_argument("--version")
+    parser.add_argument("--refuse-held", action="store_true")
+    parser.add_argument("--wait", nargs="?", type=float, const=7200.0, default=None)
+    parser.add_argument("--every", type=float, default=60.0)
+    parser.add_argument("--quiet", action="store_true")
+    parser.add_argument("--root", type=Path, default=HERE.parent)
+    try:
+        args = parser.parse_args(argv[1:])
+    except SystemExit:
+        return 2
+    if args.target not in TARGETS:
+        print(f"publish-target-ready: no checker for the publish target {args.target!r} (known: "
+              f"{', '.join(sorted(TARGETS))}); a new publish target owes its checker", file=sys.stderr)
+        return 2
+    kind, index = TARGETS[args.target]
+    checker = CHECKERS.get(kind)
+    if checker is None:
+        print(f"publish-target-ready: the target {args.target!r} is of type {kind!r}, which has no checker", file=sys.stderr)
+        return 2
+    version = None
+    if args.version:
+        from packaging.version import InvalidVersion, Version
+        try:
+            version = str(Version(args.version))
+        except InvalidVersion:
+            print(f"publish-target-ready: {args.version!r} is not a version", file=sys.stderr)
+            return 2
+
+    def say(line: str, ok: bool) -> None:
+        if not args.quiet or not ok:
+            print(line)
+
+    started, attempt = time.monotonic(), 0
+    while True:
+        attempt += 1
+        ready, why, held, n = checker(args.root, index, version, say)
+        if ready or args.wait is None:
+            break
+        left = args.wait - (time.monotonic() - started)
+        print(f"publish-target-ready: attempt {attempt} at {datetime.now().strftime('%H:%M:%S')}: {index} is not ready "
+              f"({why}); " + (f"again in {args.every:.0f}s" if left > 0 else "giving up"))
+        if left <= 0:
+            break
+        sleep(min(args.every, max(left, 0)))
+    if not ready:
+        print(f"publish-target-ready: {index} cannot take an upload now: {why}. Nothing was changed; this is the "
+              "index's condition, not the release's (`just index-ready "
+              f"{args.target} wait` waits for it)")
+        return NOT_READY
+    print(f"publish-target-ready: {index} is ready: the upload endpoint and {n} project page(s) answer"
+          + (f" after {attempt} attempt(s)" if attempt > 1 else "")
+          + "; the token is not checked (the index has no call that says so without an upload)")
+    if version is not None:
+        if not held:
+            print(f"publish-target-ready: {index} holds {version} for none of the {n} projects: a fresh release")
+        elif len(held) == n:
+            print(f"publish-target-ready: {index} holds {version} for all {n} projects")
+        else:
+            print(f"publish-target-ready: {index} holds {version} for {len(held)} of {n} projects "
+                  f"({', '.join(held[:4])}{', ...' if len(held) > 4 else ''}): a partial upload, which `just publish` completes")
+        if held and args.refuse_held:
+            print(f"publish-target-ready: {version} is already on {index}; a version is never re-cut -- take the next one"
+                  + ("" if len(held) == n else ", or finish this one with `just publish`"))
+            return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

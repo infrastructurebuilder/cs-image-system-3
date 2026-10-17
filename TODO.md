@@ -482,11 +482,15 @@ the first final version on PyPI (§41's open call).
 
 ## 83. A release asks its publish target before it starts
 
-**Status: PLANNED 2026-10-06, not started -- a plan; nothing here runs
-until the operator says "do 83".** (The operator, 2026-10-06, after an
-index outage cost a release attempt: "a stage that checks to see if the
-publish url is available before starting a release (this is probably
-conditional on type of target publish location)".)
+**Status: LANDED on `feature/stage-83` 2026-10-17 ("do 83"), the
+operator having answered both decisions: `index-ready` has a wait form
+with a limit (every minute, two hours), and every release, development
+or final, is cut on `develop`. The probe (`scripts/publish-target-
+ready`), the recipes (`release` asks first and again after the bar,
+refuses another branch; `publish` asks first and prints no HTML error
+page; `index-ready`), the tests (a local index answering by path) and
+the words (OPERATIONS, DAILY_DRIVER 9 and two section 6 rows). The
+section leaves TODO with the merge.**
 
 **Why.** Across the night of 2026-10-05 TestPyPI was partly down for
 more than nine hours: its upload endpoint and most project pages
