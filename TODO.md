@@ -575,49 +575,6 @@ anything changes, a branch that is not the integration branch
 (`develop`; a final release may want `main`: **USER** decides), and
 the dry form says which branch it stands on.
 
-## 95. Hygiene bundle XIII
-
-**Status: OPEN 2026-10-17, four items left by stages 92 and 93 and the
-dev25 build's upgrade; the operator said "open and do it" the same day
-and answered every decision. Items 1 and 2 LANDED (8cdc07c). Item 4 DONE
-on the reference's `develop` (5144e4c): 18 of the 19 usernames in clear,
-the 19th kept a marker by the operator's decision of 2026-10-17 ("It's
-fine and that user is publicly associated with the project anyway").
-Item 3 remains: done on the reference's `develop` (efc2f15, 382d454;
-four pins, `no drift`), proved by the next `perform` on `main`, which
-bakes one image; then the bundle leaves TODO.**
-
-1. **`cloud-upgrade` ended before the record.** Its last run regenerates
-   the instance lifecycle alone, so the release read-model the release
-   run moved was not in the committed emission, and on 2026-10-15 `live`
-   on the reference's `main` failed on `config-drift` until `just
-   record` was run by hand. LANDED: the recipe ends with `just record`
-   in all four starters, a test holds the order, and OPERATIONS's
-   procedure, recipe table and recipe list name the step.
-
-2. **`init-config --force` from a bumped checkout that was not synced
-   stamped the old version.** It reads the installed metadata; on
-   2026-10-17, taking dev26 into the reference, the checkout said
-   0.1.1.dev26 and the environment 0.1.1.dev25, and the first refresh
-   kept `.csis-version` at dev25 while writing the new files. LANDED:
-   from a source checkout, init-config refuses when
-   `packages/system/pyproject.toml` and the installed metadata disagree
-   and says to run `uv sync`; an installed wheel has no such file and is
-   never refused.
-
-3. **Four pinned images sat `stale` behind their parents.** `imgfile-
-   basic-cloudflow` behind `imgfile-basic-dask`'s head since dev25's re-
-   bake, and `imgfile-basic-dask-two`, `imgfile-basic-cloudflow-
-   notdocker` and `imgfile-basic-cloudflow-two` behind `basic-rhel-9`'s
-   (a strict query read through `tail` had shown two of the four). The
-   operator's decision (2026-10-17): move the pins, keep `parent_policy:
-   pinned`. Done on the reference's `develop` (efc2f15, 382d454;
-   `upgrade image` to each parent's head), and the strict query there
-   reads `no drift`. Only `imgfile-basic-cloudflow` is due to bake, its
-   parent's content having moved; the other three were re-based on a
-   parent baked from identical inputs and need nothing. Proof: the next
-   `perform` on `main` bakes the one and stays green.
-
 ## 94. A verification starts a machine its operator switched off: KEPT, and reviewed monthly
 
 **Status: OPEN 2026-10-15 as a stage of its own, moved here from hygiene
