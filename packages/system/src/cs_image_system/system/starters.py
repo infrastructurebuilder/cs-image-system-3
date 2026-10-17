@@ -50,6 +50,8 @@ be undone by hand):
 """
 from __future__ import annotations
 
+import re
+
 import difflib
 import shutil
 from dataclasses import dataclass, field
@@ -137,6 +139,34 @@ def infer_starter(destination: Path) -> str | None:
 def release_version() -> str:
     """The running release, as ``.csis-version`` records it."""
     return metadata.version("cs-image-system-system")
+
+
+def source_tree_version() -> str | None:
+    """The version a source checkout's ``packages/system/pyproject.toml``
+    declares, when this module runs from one (an editable install); None
+    from an installed wheel, where no such file sits beside the package."""
+    pyproject = Path(__file__).resolve().parents[3] / "pyproject.toml"
+    if not pyproject.is_file():
+        return None
+    text = pyproject.read_text()
+    if not re.search(r'^name = "cs-image-system-system"$', text, flags=re.M):
+        return None
+    m = re.search(r'^version = "([^"]+)"$', text, flags=re.M)
+    return m.group(1) if m else None
+
+
+def stale_install(installed: str | None = None, declared: str | None = None) -> str | None:
+    """Hygiene XIII item 2: why this install may not stamp a tree, or None.
+    A checkout bumped by a release and not synced runs the new code under
+    the old metadata, and init-config wrote the old version into
+    `.csis-version` (2026-10-17, taking dev26 into the reference)."""
+    installed = installed if installed is not None else release_version()
+    declared = declared if declared is not None else source_tree_version()
+    if declared is None or declared == installed:
+        return None
+    return (f"this checkout declares {declared} (packages/system/pyproject.toml) but its installed metadata says "
+            f"{installed}: the checkout moved and the environment did not. Run `uv sync` (or `just init`) here, "
+            "then init-config again. Nothing was written")
 
 
 def starters_root() -> Path:
@@ -271,6 +301,9 @@ def init_config(destination: Path, starter: str | None = None, *, force: bool = 
     """Write a starter (or its release-owned parts) into ``destination``. With
     no ``starter``, a new tree takes the default and an existing one the
     starter its workflow came from."""
+    stale = stale_install()
+    if stale:
+        raise ValueError(stale)
     version = release_version()
     destination = destination.resolve()
     if destination.exists() and not destination.is_dir():

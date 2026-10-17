@@ -681,7 +681,13 @@ code repository, all but the edits through `just`:
      previous release stays in the ledger;
    - *the names*: one more `cloud-launch` (no changes) gives the machine
      back its bare name and `ip-…` label as AltNames; a machine launched
-     in the same run gets them in that run, after it answers and enrolls.
+     in the same run gets them in that run, after it answers and enrolls;
+   - *the record*: `just record`, the full dry generation committed. The
+     launches regenerate the instance lifecycle alone, so the release
+     read-model the release run moved is in the committed emission only
+     after it (until hygiene XIII the recipe stopped before it, and on
+     2026-10-15 `live` on `main` failed on `config-drift` until a record
+     was made by hand).
 
    `config.require_released_builds` stays `true` the whole way. Until
    2026-09-23 it had to be switched off for the middle steps: an instance
@@ -1691,7 +1697,7 @@ in `docs/examples/*/Justfile`; `CSIS` names the command, default
 | `cloud-launch <rt> [yes]` | `run instance-image --only none --apply-runtime <rt> --commit` | `cloud-preflight`; write credentials |
 | `cloud-decommission <rt> <instance> [yes]` | `--undeclare instance:<name> run instance-image --only none --apply-runtime <rt> --commit`: a leftover standing machine destroyed through the gate | `cloud-preflight`; write credentials |
 | `cloud-verify <rt> <instance> [serial\|sft]` | `verify instance <i> --timeout 600`; `sft` adds the login proof | sessions |
-| `cloud-upgrade <rt> <instance> [to]` | pin, replace (`cloud-launch`), proof (`cloud-verify`), `run release`, `cloud-launch` again for the names; `require_released_builds` stays true | `cloud-preflight`; write credentials |
+| `cloud-upgrade <rt> <instance> [to]` | pin, replace (`cloud-launch`), proof (`cloud-verify`), `run release`, `cloud-launch` again for the names, `record`; `require_released_builds` stays true | `cloud-preflight`; write credentials |
 | `cloud-empty <rt>` / `cloud-dispose-images <rt> [yes]` / `cloud-relabel <rt> [no]` | `empty` / `dispose image --all` / `lineage relabel` (dry by default) | sessions; write credentials to dispose or relabel |
 | `ci-login-proof *ARGS` | `workload token` into `OPA_TOKEN` inside an Actions job, then `verify login` | `sft`; a job with `id-token: write` for the workload form |
 | `opa-workload-probe` | `workload probe`: the token presented and discarded, then `role: granted` or `not granted` by resolving a standing machine as the workload | a job with `id-token: write`; `sft` |
@@ -2322,7 +2328,7 @@ instances). Every recipe wraps sanctioned commands only.
   verifies and tears down in one sequence.
 - `just cloud-verify <rt> <instance> [iap]` verifies a standing instance
 - `just cloud-upgrade <rt> <instance> [to]` moves a durable instance to
-  its image's next build: pin, replace, proof, release, names
+  its image's next build: pin, replace, proof, release, names, record
   through the system; `iap` adds `gcloud compute ssh --tunnel-through-iap
   --command 'findmnt -n /mnt && id'` with the project and zone read from
   `runtime describe`.

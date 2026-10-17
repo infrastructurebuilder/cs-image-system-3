@@ -393,6 +393,9 @@ def test_the_upgrade_recipe_is_the_second_release_procedure_with_the_rule_left_o
               "run release --only-runtime {{runtime}}")]
     assert order == sorted(order), "pin, replace, proof, release -- in that order"
     assert lines.count("just cloud-launch {{runtime}}") == 2, "one more launch gives the machine its names"
+    # hygiene XIII item 1: a full record last, so the committed emission carries the release read-model
+    last_launch = max(i for i, ln in enumerate(lines) if ln == "just cloud-launch {{runtime}}")
+    assert "just record" in lines[last_launch + 1:], "the record follows the last launch"
     assert "require_released_builds" not in body.replace("# ", ""), "the rule is never switched off"
 
 

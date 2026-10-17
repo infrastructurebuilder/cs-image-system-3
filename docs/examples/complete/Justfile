@@ -168,7 +168,11 @@ cloud-upgrade runtime instance to="": cloud-preflight
 	just cloud-verify {{runtime}} {{instance}}
 	{{cli}} --locked --no-dry-run run release --only-runtime {{runtime}} --commit
 	just cloud-launch {{runtime}}
-	echo "cloud-upgrade: {{instance}} stands on its released build; run 'just ci-login-proof {{instance}}' to log in by name"
+	# hygiene XIII item 1: the last run regenerates the instance lifecycle alone, so the release
+	# read-model the release run moved reaches the committed emission only with a full record
+	# (until 2026-10-15 `live` on main failed on config-drift until one was made by hand)
+	just record
+	echo "cloud-upgrade: {{instance}} stands on its released build, recorded; run 'just ci-login-proof {{instance}}' to log in by name"
 
 # End-of-cycle assertion: the runtime holds nothing beyond its declared storages, and the strict state query agrees
 cloud-empty runtime:
