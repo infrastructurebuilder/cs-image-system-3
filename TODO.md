@@ -582,10 +582,10 @@ dev25 build's upgrade; the operator said "open and do it" the same day
 and answered both decisions (move the pins; write the usernames in
 clear). Items 1 and 2 LANDED on `feature/hygiene-xiii` (this commit).
 Items 3 and 4 are the reference configuration's: 3 was done on its
-`develop` (efc2f15) and is proved by the next `perform` on `main`, which
-bakes the two images once; 4 is done for 18 of the 19 usernames and
-waits for the operator's word on the last one. The bundle leaves TODO
-when both are closed.**
+`develop` (efc2f15, 382d454; four pins, no drift left) and is proved by
+the next `perform` on `main`, which bakes one image; 4 is done for 18 of
+the 19 usernames and waits for the operator's word on the last one. The
+bundle leaves TODO when both are closed.**
 
 1. **`cloud-upgrade` ended before the record.** Its last run regenerates
    the instance lifecycle alone, so the release read-model the release
@@ -605,13 +605,18 @@ when both are closed.**
    and says to run `uv sync`; an installed wheel has no such file and is
    never refused.
 
-3. **Two pinned images sat `stale` behind their parents.** `imgfile-
-   basic-cloudflow` and `imgfile-basic-dask-two` on `aws-east2-runtime`,
-   since dev25's re-bake. The operator's decision (2026-10-17): move the
-   pins, keep `parent_policy: pinned`. Done on the reference's `develop`
-   (efc2f15, `upgrade image` to each parent's head); proof: the next
-   `perform` on `main` bakes the two and the strict query has no `stale`
-   line.
+3. **Four pinned images sat `stale` behind their parents.** `imgfile-
+   basic-cloudflow` behind `imgfile-basic-dask`'s head since dev25's re-
+   bake, and `imgfile-basic-dask-two`, `imgfile-basic-cloudflow-
+   notdocker` and `imgfile-basic-cloudflow-two` behind `basic-rhel-9`'s
+   (a strict query read through `tail` had shown two of the four). The
+   operator's decision (2026-10-17): move the pins, keep `parent_policy:
+   pinned`. Done on the reference's `develop` (efc2f15, 382d454;
+   `upgrade image` to each parent's head), and the strict query there
+   reads `no drift`. Only `imgfile-basic-cloudflow` is due to bake, its
+   parent's content having moved; the other three were re-based on a
+   parent baked from identical inputs and need nothing. Proof: the next
+   `perform` on `main` bakes the one and stays green.
 
 4. **The reference roster carried its usernames as markers that hide
    nothing.** After hygiene XII item 15 the usernames are public; the
