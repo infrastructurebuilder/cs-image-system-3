@@ -240,15 +240,26 @@ def test_release_cannot_half_release_and_publish_is_its_own_recipe():
     URL, and the token is never in the Justfile."""
     r = _recipes()
     body = r["release"][1]
-    order = [body.rindex(s) for s in ("UV_PUBLISH_TOKEN", "scripts/index-knows", "git tag -l", "bump-my-version \"${bump[@]}\"",
+    order = [body.rindex(s) for s in ("scripts/publish-target-ready", "UV_PUBLISH_TOKEN", "git tag -l", "bump-my-version \"${bump[@]}\"",
                                       "just publish {{index}}", "git commit", "git tag -a")]      # the last mention: the dry echo names them first
     assert order == sorted(order), "probe, bump, publish, commit, tag -- in that order"
+    # stage 83: the branch first, then the index -- once before the bar and AGAIN after it, before the bump
+    assert body.index('[ "$branch" = develop ]') < body.index("\n\tready\n")
+    calls = [i for i in range(len(body)) if body.startswith("\n\tready\n", i)]
+    assert len(calls) == 2, "the index is asked twice"
+    assert calls[0] < body.index("just full-test") and calls[1] > body.rindex("just test") and calls[1] < body.rindex("bump-my-version \"${bump[@]}\"")
+    assert "--refuse-held" in body and "exit 75" in body and "scripts/index-knows" not in body
     assert body.rindex("just test") < body.rindex("bump-my-version \"${bump[@]}\"")         # the bar before the bump
     assert "git checkout -- pyproject.toml packages/*/pyproject.toml uv.lock" in body     # the recovery from a failed upload
     assert "test) name=testpypi" in body and "pypi) name=pypi" in body
     publish = r["publish"][1]
     for needle in ("rm -rf dist", "just build", 'uv publish --index "$name" dist/*', "UV_PUBLISH_TOKEN"):
         assert needle in publish, needle
+    # stage 83: publish begins with the index, and never prints the index's error page
+    assert publish.index("scripts/publish-target-ready") < publish.index("just build")
+    assert "--refuse-held" not in publish, "a partial upload is what a re-run of publish completes"
+    assert "sixteen" not in publish and "$packages packages" in publish
+    assert "index-ready" in r and "--wait 7200" in r["index-ready"][1]
     assert "--check-url" not in publish, "uv refuses --check-url beside --index; the index's url is the check url"
     # the token is UV_PUBLISH_TOKEN, else the index's own name -- the repository secrets'
     # names, so the operator's one .envrc line serves the shell and CI alike
