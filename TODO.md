@@ -1,260 +1,80 @@
 # TODO
 
-Execution worksheet: the stages of work in flight, one section per stage.
-A section is removed when its stage lands, and the squash commit that
-lands it is the record; how the system got here lives in git history and
-in the frozen [docs/history/](docs/history/README.md). Steps marked
-**USER** need the operator: a decision, or a console or IAM action the
-system must not take itself.
+One section per stage in flight. A landed stage's section is removed;
+its squash commit is the record, and the history is in git and
+[docs/history/](docs/history/README.md). **USER** marks a step only the
+operator can take.
 
-Current stage: none in progress. **§65, walking the daily driver,
-LANDED 2026-10-14 (8afd4ef)**: between 2026-10-05 and 2026-10-14 the
-operator took two configuration repositories (`standard-aws`, then
-`standard-aws-posix`) from nothing to running and back to nothing
-against 0.1.1.dev14 to 0.1.1.dev23, typing from a page the system
-wrote as it went, now frozen as
-[docs/history/WALK-2026-10.md](docs/history/WALK-2026-10.md). It found
-64 things: six became stages 86 to 91 (landed, released, proved);
-thirty are hygiene bundle XII (§81, a plan); one (F44) was kept by
-decision with a monthly review; nineteen owed words alone, written
-with the landing. Open and waiting for the operator's word: §92 (an
-AlmaLinux 10 CI image, planned), §81, §83, §66 and §30. The `setup-just`
-correction (b23f33f) and the walk's words await the next release.
-§91, CI names the machine it runs on and the actions it
-uses (hygiene XII items 7 and 28, made one stage by the operator's
-word of 2026-10-14, "do 7 and 28 together as a single stage"; GitHub
-moves `ubuntu-latest` to Ubuntu 26 from 2026-10-19), LANDED
-2026-10-14 (e72cc1b) by the operator's word, released in dev24
-(b263aea) and PROVED on the reference configuration: `verify` and
-`live` green on `Image: ubuntu-24.04`, and its `perform` green on
-`main` the same day (nothing to bake, the login proof as a workload
-ok, no drift). One notice survived, since `setup-just@v3` is
-composite and wraps an inner action on Node 20; its v4 does not,
-and the correction LANDED (b23f33f) by the operator's word, to go
-out with the next release.
-§90, a group's release is decided by the state and
-cannot be spent by a dry run (the removal of an unmanaged group
-from state was decided from the identity read-model, which every
-dry run and every `record` rewrites, so the run after a dry run
-planned the group's destruction and only the gate refused it; now
-the runner's pre-plan step asks the state; walk finding F63),
-LANDED 2026-10-13 (cdb80bf) by the operator's word, who made it a
-stage of its own and had it done before the walk went on, is
-released in dev23 (ec7e4ef), which the reference configuration has
-taken on its `develop`, and is PROVED live: the first walk's own
-group, released by the sequence that had failed (the dry form,
-then the run), left state with its eight resources in the runner's
-pre-plan step, and the run applied nothing.
-§89, CI makes the login proof while it still holds the
-write identity (every starter's workflow took the read-only identity
-back before the proof, and a posix proof's ssh opens a session the
-read-only role may not; walk finding F58), LANDED 2026-10-13
-(7eb5962) by the operator's word, the read-only role left as it
-was. It is released in dev22 (9584a03, 2026-10-13), which the
-reference configuration has taken on its `develop` (CI green), and
-is PROVED live: the posix walk took the release and its `perform`
-on `main` went green the same day, CI logging in as the group's
-proof user over ssh while it held the write identity, where three
-hours earlier the same step had been refused the session.
-§88, a membership the YAML dropped is removed by the
-run (the runner's prune step names the attachment of each one, and
-the gate allows exactly those; walk finding F38), LANDED 2026-10-08
-(20206e8), is released in dev21, which the reference
-configuration has taken, and is PROVED live: the walk put its
-second person into `walk_team` by a run and took them out by a
-run, the gate sanctioning exactly that attachment and OPA holding
-nobody afterwards. §87, the
-group on a machine lists its members by their
-account names (each read from OPA's `unix_user_name`, never derived;
-walk finding F37), LANDED 2026-10-08 (9655327), is released in
-dev20 and PROVED live: the walk's second person, whose two names
-differ, logged in and their session carried the group. §86, a bake
-waits for the package database (the
-first provisioner settles the build machine, a package step waits
-out a held database, and the starters' base tests name what a base
-carries; walk findings F29 and F28), LANDED 2026-10-07 (c6af4b2):
-released in dev19 (dev18 was cut from the walk branch by mistake and
-is on the index, unused) and PROVED live: the walk's third `perform`
-baked both its images under the bootstrap-made write role, Systems
-Manager finishing its work on each build machine undisturbed. §81,
-hygiene bundle XII, is open (thirty items the walk
-found; 3 and 4 landed with §82, the rest a plan). §82, an image
-says which configuration owns it, LANDED 2026-10-05 (0d1850c) and
-is released in dev15, taken by the reference configuration, its
-images relabelled. §84, a new group can be created (the gid lookup
-waits for its group; walk finding F22), LANDED 2026-10-07 (4fb338b)
-and is released in dev16. §85, the first identity apply of a new
-tree has nothing to prune (a root with no state yet is not a failed
-`state list`; walk finding F24), LANDED 2026-10-07 (b0494fa) and is
-released in dev17. Both are PROVED live: the walk's identity run on
-dev17 created its first group (8 added, 0 destroyed; its CI green
-with no drift). No documentation stage is open.
-Planned, by the operator's word: §66, §30 and §83 (a release asks
-its publish target before it starts).
+**Open**
 
-Releases: dev15 (2026-10-06) carries §82 and hygiene XII items 3
-and 4. dev16 carries §84, dev17 §85 (the reference configuration's
-`main`: perform green on it, run 37635442502). dev18 is on the index
-and unused. dev19 (2026-10-07) carries §86 and is the walk's
-`develop` and `main` and the reference's `develop` (CI green); the
-reference's `main` moves to it on the operator's word.
+- §30, the plugin contract package: planned; waits on the operator's
+  decision.
+- §66, starter repositories on GitHub: planned; no longer blocked (0.1.1
+  is out).
+- §94, the F44 review: standing; next on or after 2026-11-09.
+- No hygiene bundle is open; the next non-critical issue opens bundle
+  XV.
+- No documentation stage is open.
 
-Recently landed: §80, hygiene bundle XI (2026-10-05, cf186de): the
-reference tree's AWS runtimes default to a t3.medium, and the daily
-driver's SSH-timeout row names the bake host's size; §75, a POSIX
-identity plugin, alone and beside Okta (2026-10-05; merged c02511d,
-released in dev13): OPA's groups exist on their machines with their gid
-and members join at login, and a posix-only group is proved over real
-ssh; §78, the documentation stage for §75 and §79 (2026-10-04, 4e40043);
-§79, hygiene bundle X (2026-10-04, fffef2a; the branch
-`feature/hygiene-x` kept): `--only` beside `--only-runtime` narrows a
-bake, a failed packer block keeps the records of the builds that
-completed, and an adopted build counts as current; §76 (2026-10-03,
-980963e), reserved names -- `none` joined `OOPS_DEFAULTS`, a reserved
-name is refused where its file is read, a reference written `none` is
-refused at `validate`, the `config:` key guard is on -- and §77, its
-documentation stage (63fc128); §73 (2026-10-01), the coops model
-replaced onto a second EFS filesystem -- `coops-model-005`, generation
-5, alias `gar`, the planted file absent, the old `efs-storage` standing
-with its data and mounted nowhere; §72 (2026-09-30), the coops model
-resized in place twice (`c5n.4xlarge` to `t3.xlarge` to `t3.medium`, the
-same machine, two `resized` events) and then replaced as
-`coops-model-004` with its planted file, EFS filesystem and EBS volume
-intact; §71, hygiene bundle VIII (2026-10-01, five items); §69
-(2026-09-28, its step 5 done 2026-09-29); §68, hygiene bundle VII
-(2026-09-29); §63, §67 and §64 (2026-09-26).
+**Release**
 
-Open stages and their order (revised 2026-09-22, when §59 landed):
-**§64**, the release that carries everything a configuration repository
-needs and the reference configuration standing alone, LANDED 2026-09-26
-(one squash; the release that carries it, the sibling's secrets and the
-federation trusts are the operator's, listed in `_uncommitted/`; §63, the
-code defects the documentation found, LANDED the same day in five
-squashes); then **§65**, walking the daily driver from a fresh repository
-against a release, and **§66**, the three starter repositories published
-from `docs/examples/` per release, both planned;
-§30 waits on the operator's decision. (§62, the daily driver, LANDED
-2026-09-24 as the operator's "one attempt, accepted": the README contract
-and its test, sixteen READMEs to it, seven passes of manual corrections,
-DAILY_DRIVER.md for a team that installs a release and owns its
-configuration repository, three starter trees that are whole repositories,
-loaded and validated by a test; it will be worked on over time, and every
-material change to the system that invalidates it owes it an update.)
-(§61, hygiene
-bundle V, LANDED 2026-09-23: five items and two live proofs -- a dropped
-stofs membership pruned from state after a backup and restored through
-the gate; the coops model's third release as one `cloud-upgrade` with
-`require_released_builds` left true, `coops-model-003`, first alias-pool
-draw `cod`.) (§59 LANDED 2026-09-22: `meta-state/aliases.txt` is the
-pool, the run that can launch a new durable machine draws its first free
-line and comments it out in place, stage 58 gives the name to the machine.
-The live pool holds 3400 names; the first live draw happens at the next
-new machine.) (§19 LANDED 2026-09-22: the coops model
-image had its second release end to end -- a real modification, the bake,
-the pin moved, the gated replace to `coops-model-002`, the post-bake proof
-on the new machine, the release, the names back, and the login by name --
-and the procedure is OPERATIONS "A model image, end to end: the second
-release". The image's content is the group's living work from here.) (§56 LANDED 2026-09-22:
-the team's workload connection and role stand, the identity lifecycle keeps
-one CI login policy per group -- all five created live at 09:07 -- and the
-`sft ssh` proof ran by hand at 09:35 as the enrolled client. The WORKLOAD
-form of that login runs in the `perform` job the first time `develop`
-reaches `main`; that run proves the CI policy itself and shows which Unix
-account a workload lands in, after which the operator adds the `ref` pin to
-the role; the checklist folded into the starters' CI_SETUP.md in §69.) (§57, §55, §58 and
-§60 all LANDED 2026-09-21 -- §55 in two passes, steps 1-3 before §58 and
-step 4 after §60, which is how the three stages' dependency cycle was
-broken. Both live proofs landed 2026-09-21 22:21 in one applies-on
-instance-image run the operator made with `coops-model` running: its record
-now answers to `ip-10-26-34-156` as an `AltNames` alias, and the ledger
-opened it as durable generation 1. `coops-model` is grandfathered under its
-bare name until its first sanctioned replacement, which is the first real
-`-NNN` launch.) §55 SPLIT because, taken whole,
-§55, §58 and §60 formed a dependency cycle. §56 proved what §19 step 4
-claims, and §19 step 5 proved §60's meaning live (a sanctioned replacement
-is a new generation with a new name). §59 is deliberately LAST: it overlaps the suffix, and only once
-that is standing can anyone judge whether a name pool is still wanted. §30 waits on the operator's decision and depends
-on none of this. **Hygiene bundle VIII (§71) is open since 2026-09-30**; the
-next non-critical hygiene issue joins it. (§68, bundle VII, LANDED
-2026-09-29 in four squashes: bookworm, the CSIS override and the
-callbacks, the identity step, the client's environment; §67, bundle VI,
-LANDED 2026-09-26.)
+- 0.1.1, the first final release: PyPI and TestPyPI, tag `v0.1.1`
+  (766a210), 2026-10-22.
+- The reference configuration runs it from PyPI; `perform` green on
+  2026-10-23.
+- Last development release: 0.1.1.dev26.
 
-**Nothing in the naming line is left**; §30 waits on the operator's
-decision. Nothing in that shorter path has to be redone -- §58
-adds the bare name back as an alias, so a proof written against `coops-model`
-survives the suffix.
+**Landed since 2026-10-05** (newest first)
 
-Standing decisions (operator):
+- §96, hygiene bundle XIV: 2026-10-23, its squash commit. A release
+  resumes after a partial upload (`release-finish`), uploads one project
+  at a time, reads PyPI's new-project limit as "not now" and proves its
+  token; the strict query reads each group's OPA objects back.
+- §83, a release asks its publish target first: bbb7ee4, 2026-10-17.
+- §95, hygiene bundle XIII: 8cdc07c, 2026-10-17.
+- §92, CI runs in the system's own AlmaLinux 10 image: 661270f and four
+  follow-ups, 2026-10-16.
+- §93, everything carries its configuration's id: 23bb441, 2026-10-16.
+- §81, hygiene bundle XII: 64c3bc7 to ca7127d, item 33 b28d50b,
+  2026-10-14.
+- §65, the walk of the daily driver: 8afd4ef, 2026-10-14.
+- §84 to §91, the walk's findings: 4fb338b, b0494fa, c6af4b2, 9655327,
+  20206e8, 7eb5962, cdb80bf, e72cc1b, 2026-10-07 to 2026-10-14.
+- §82, an image says which configuration owns it: 0d1850c, 2026-10-05.
 
-- The documentation describes what is; no document carries a commit hash;
-  a landed stage is recorded by its squash message, not by a ledger or an
-  archive entry.
-- A hygiene issue that should be fixed but does not threaten function goes
-  into the open **hygiene bundle** stage as a numbered item, not into a
-  stage of its own and not only into a commit message. If no bundle is
-  open, start one. Work that is large, or that blocks something, still
-  earns its own stage.
-- Publication is done: both repositories are public, each a single commit
-  built from a redacted tree, with the pre-publication history private and
-  archived. The identifiers (account id, project number, VPC, subnet and
-  security-group ids, image ids, the state bucket, the Okta org and OPA
-  team) are public by decision; the live rosters are real and encrypted to
-  the four recipients; the fixture's people are synthetic.
-- All terraform state stays in the AWS S3 backend by design; a GCS backend
-  for the GCE roots and per-runtime networking validation are the very
-  last priorities and are not stages; a session identity for the runtime
-  session hook other than the operator's login key is deferred.
-- No new GCP work unless a change is likely to make the existing GCP code
-  fail; then the GCE cycle runs as the proof, on the operator's account,
-  and is torn down. GCP is the operator's money.
-- `main` performs (stage 45): a push to `main` records the full
-  configuration, then bakes, releases and applies retention on the AWS
-  runtime under the write role, then records again. The GCE runtime stays
-  out of CI: a declaration change there fails the job before anything
-  performs. A push to `main` is the operator's act.
-- State backends (stages 46 and 47, landed 2026-09-17): three types, `s3`,
-  `local` and `gcs`; every live root stays on the default S3 backend and
-  the `gcs` backend is declared (commented out in the live tree) and bound
-  to nothing until moving the GCE roots is decided.
-- Releases publish to an index (stage 41, landed 2026-09-17): PyPI,
-  TestPyPI first, every version through `just release <part|version>
-  [test|pypi]`; the first upload, `0.1.1.dev1`, is on TestPyPI and
-  installs from it into a fresh virtualenv (an install in the seconds after
-  an upload can fail to resolve until the index has propagated). Versions
-  on TestPyPI will be deleted during development, and a deleted version is
-  never re-cut. The first final version (`just release stage pypi`, after
-  a green `full-test` with docker on a clean live configuration, with
-  `PYPI_TOKEN` in place) is the operator's call; trusted publishing
-  replaces the tokens once the package names are stable.
-- A documentation stage modifies no code (operator, 2026-09-23): its diff
-  is markdown, example configuration trees and the tests that hold the
-  documentation contract; a code change it would need is a new stage,
-  written as a plan, never a side edit.
-- §30 (the contract package), §65 and §66 are planned, not started; §70
-  (the bootstrap: the one-time initialisation as terraform from an
-  interview) landed 2026-10-02 in four squashes;
-  §69 (the CI-from-scratch guide) landed 2026-09-28 and its step 5 was done
-  2026-09-29: the operator set the reference configuration's secrets and
-  trust by the guide alone, and its first performing run on `main` was
-  green end to end, the login proof as a workload included;
-  §63, §67 and §64 landed 2026-09-26;
-  a stage is a plan in this file until the operator says to execute it
-  (2026-09-23). §62 landed 2026-09-24.
-- **Documentation stays current by stage** (operator, 2026-09-23). Once
-  §62 has landed, every stage that changes behaviour, configuration,
-  tests or procedure owes a documentation update, done as a stage of its
-  own: a rolling **documentation stage** that is open whenever such work
-  has landed undocumented. If none is open, the stage that lands the
-  change opens one. Several stages of work may land before the
-  documentation stage runs, but the documentation stage must LIST what
-  was worked on since the last update (the stages, by number and name,
-  and what each changed), so whoever writes the docs has the context.
-  The same convention as the hygiene bundle: one open stage, appended to,
-  landed as one.
+**Standing decisions** (the operator's)
 
-- **The bootstrap is ongoing work** (the operator's own words in §70,
-  kept verbatim when it landed):
+- Documents describe what is and carry no commit hash; a landed stage's
+  record is its squash message.
+- A non-critical issue goes into the open hygiene bundle (start one if
+  none is open); large or blocking work gets its own stage.
+- A stage is a plan until the operator says to execute it.
+- A documentation stage changes no code; a code change it needs is a new
+  stage.
+- Documentation stays current: work that changes behaviour,
+  configuration, tests or procedure and lands undocumented opens the
+  rolling documentation stage, which lists what changed since the last
+  update.
+- Both repositories are public, each from one redacted commit. Account,
+  project, network, image and bucket ids and the Okta org and team are
+  public by decision; live rosters are encrypted to the four recipients;
+  fixture people are synthetic.
+- All terraform state stays on the S3 backend. Backends `s3`, `local`
+  and `gcs` exist; `gcs` is declared and bound to nothing. Moving the
+  GCE roots to GCS and per-runtime network checks are last, and not
+  stages.
+- GCP is the operator's money: no new GCP work unless a change could
+  break the GCP code; then the GCE cycle runs on the operator's account
+  and is torn down.
+- `main` performs (stage 45): it records, bakes, releases and applies
+  retention on AWS under the write role, then records again. GCE stays
+  out of CI. A push to `main` is the operator's.
+- Releases: `just release <part|version> [test|pypi]`, TestPyPI first; a
+  deleted version is never re-cut; trusted publishing replaces the
+  tokens once package names are stable.
+- The bootstrap is ongoing work: a new release-owned part, runtime or
+  secret owes it a section, module or question in the same stage.
+  Keeping its state in GitHub is not built. The operator's words (§70):
 
   > Initially, the user must install the base application (generally using `uv`).
   > Then the user would fork and clone the starter repository.  This would give them
@@ -265,14 +85,6 @@ Standing decisions (operator):
   >
   > Once landed, the §70 work should be considered part of the ongoing updates of the application
   > and the starter repository, such that any new items are part of the process.
-
-  So a new release-owned part, a new runtime or a new secret owes the
-  bootstrap its section, module or question in the same stage. One part
-  of that paragraph is not built: keeping the bootstrap root's state in
-  GitHub ("not recommended" there too). The root's state is the tree's
-  declared S3 backend when its bucket exists, else local for the first
-  apply (decision D8); a GitHub-hosted state would be a stage of its own
-  if it is ever wanted.
 
 ---
 
@@ -505,107 +317,3 @@ question at least once a month for the next 4 months." The note is made:
 - 2026-12-09: (open)
 - 2027-01-09: (open)
 - 2027-02-09: (open)
-
-## 96. Hygiene bundle XIV
-
-**Status: OPEN 2026-10-23, seven items left by the first PyPI release
-(0.1.1: cut 2026-10-18, completed 2026-10-22, tagged `v0.1.1` at
-766a210), by a check of the reference configuration's OPA groups on
-2026-10-19, and by the `v0.1.1` tag's CI run (item 7, added the same
-day with the operator's agreement). A plan: nothing runs until the
-operator says "do 96".**
-
-1. **After a partial upload the release recipe gives the wrong advice.**
-   On 2026-10-18 `just release stage pypi` uploaded four of eighteen
-   projects and stopped (item 2), and the recipe said to discard the
-   bump (`git checkout -- pyproject.toml packages/*/pyproject.toml
-   uv.lock`). Followed, that strands a version whose files are on the
-   index and can never be cut again. What finished it: keep the bump,
-   run `just publish pypi` until every project holds the version, then
-   commit and tag by hand -- which also skips the release's commit of
-   the modification-test evidence in the live configuration (on
-   2026-10-22 there was none to commit, so nothing was lost). Fixed
-   looks like: when the probe after the failure finds any project
-   holding the version, the recipe says to keep the bump and re-run
-   `just publish`, and names a recipe that finishes the release (the
-   evidence commit on PyPI, the commit, the tag); when none holds it,
-   discarding stays the advice.
-
-2. **A first release to PyPI meets a limit on new projects.**
-   Production PyPI refused the fifth new project of each run with
-   `429 Too many new projects created`. A retry 91 minutes after the
-   first run was still refused and one 28.5 hours later worked, so
-   eighteen projects took five runs on five days (four a day, the last
-   two on 2026-10-22). Warehouse's published default (20 an hour) is
-   not what production enforces, and nothing in the system or its
-   documents said so. Fixed looks like: `publish` reads the 429 and
-   exits 75 ("not now", as the probe does), naming the projects made
-   and those left and saying to run it again in a day; OPERATIONS's
-   release procedure describes the limit for a first release, the
-   daily resume of item 1, and the request a maintainer can make to
-   PyPI's administrators to lift it.
-
-3. **The failure summary cuts off the cause.** `publish` prints the
-   first eight lines of the upload's output (`head -8`), and a resumed
-   run first lists every file "already exists, skipping", so on
-   2026-10-20 the summary ended before the uploads and the 429; the
-   cause was only in the `csis-publish.*` file it named. Fixed looks
-   like: the summary prints the `error:` and `cause:` lines and the last
-   lines, never the first.
-
-4. **The upload order leaves the top-level package unusable for
-   days.** `uv publish dist/*` sent every wheel before any sdist, and
-   `cs-image-system` itself first: from 2026-10-18 to 2026-10-22 `pip
-   install cs-image-system==0.1.1` found the package and could not
-   resolve it, and every project made held a wheel alone. Fixed looks
-   like: `publish` uploads one project at a time, sdist and wheel
-   together, in dependency order (the base, then the plugins,
-   `cs-image-system-system`, and `cs-image-system` last), so an upload
-   that is cut off leaves only complete projects and the top-level one
-   appears when everything it needs is there.
-
-5. **The probe's count right after an upload reads stale pages.**
-   Straight after the 2026-10-19 run the probe said 4 of 18 projects
-   held 0.1.1 when 8 did, and on 2026-10-22 PyPI's JSON pages showed
-   two sdists a minute after they were uploaded: the pages are cached.
-   Fixed looks like: a count taken within minutes of an upload says it
-   may lag, and what an upload put on the index is read from the
-   upload's own output, not from the pages.
-
-6. **The strict state query did not see an OPA group rewritten in
-   place.** On 2026-10-19 another configuration rewrote three of
-   `basic`'s OPA objects, keeping their ids: `basic_rg`'s delegated
-   admin group became `admin_admin`, and the user and admin policies'
-   rule was renamed `allow_login_admin` (their descriptions too). The
-   strict query reported only the side effect, the CI policy no longer
-   mirroring the user policy; the resource group's change was seen by a
-   `tofu plan` of the identity root alone (3 to change, none to add or
-   destroy). Fixed looks like: the identity read-model holds what the
-   emission says of each group's resource group and policies (delegated
-   admins, rules and their reach), and the query reads them back and
-   reports a difference as `changed`; or the strict query runs a
-   refresh-only plan of the identity root and reports what it would
-   change. The repair of `basic` itself is DONE (2026-10-23): the other
-   configuration dropped the six objects from its state with `tofu
-   state rm` (nothing in OPA destroyed), and the reference's identity
-   run (1623d47) put back its values; its strict query and `perform`
-   are green.
-
-7. **The tag's publish job never proves its tokens.** It uploads
-   nothing an index already holds, and a skip needs no credentials, so
-   from 2026-09-17 to 2026-10-23 the repository's `TEST_PYPI_TOKEN`
-   secret was never used: every tag run found the release already
-   uploaded from the operator's machine (v0.1.1.dev26's skipped all 36
-   files). The first upload CI had to make, 0.1.1 to TestPyPI, was
-   refused with `403 Invalid or non-existent authentication
-   information`: the secret did not hold the token the operator's
-   `.envrc` holds, which worked. The operator set it again from that
-   value (`printf '%s' "$TEST_PYPI_TOKEN" | gh secret set
-   TEST_PYPI_TOKEN`, with no trailing newline) and the re-run uploaded
-   0.1.1 to TestPyPI and checked PyPI. Fixed looks like: the job proves
-   each token it holds even when it has nothing to upload -- for
-   instance by sending a file the index already has, which the index
-   should check for credentials before it answers that the file is a
-   duplicate (to be confirmed) -- and fails loudly on a refusal; the
-   documents that tell the operator to set a token secret show the
-   `printf '%s'` form.

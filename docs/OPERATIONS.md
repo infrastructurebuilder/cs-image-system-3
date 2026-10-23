@@ -1238,8 +1238,9 @@ repository tracked them from an older tree removes them from the index
 
 `state query [--strict] [--json]` asks every plugin for its provider's
 view of what the system manages (images by lineage tags, storages by
-name, groups by gid, memberships and enrollment tokens by API) and diffs
-it against meta-state. It touches nothing and writes
+name, groups by gid, memberships and enrollment tokens by API, and each
+managed group's resource group and policies against what the identity
+module makes) and diffs it against meta-state. It touches nothing and writes
 `generated/state-report.json`. Every `run` executes it first
 (`--no-state-query` keeps the existing report) and refuses on `[HARD]`
 drift. Drift classes:
@@ -1271,6 +1272,27 @@ An enrollment token deleted out of band is HARD drift, and because the
 oktapam provider ERRORS on refresh rather than planning a recreate, the
 message names the repair: `tofu state rm` the token, then a gated
 identity apply.
+
+**A group's OPA objects rewritten in place** (hygiene XIV) are `changed`
+drift. On 2026-10-19 another configuration that held `basic`'s objects
+in its own tofu state rewrote three of them, keeping their ids: the
+resource group's delegated admin and the policies' rule name and
+descriptions. The query then saw only the CI policy no longer mirroring
+the user policy. Now it reads each managed group's resource group
+(`<g>_rg`) and its user and admin policies back from OPA and compares
+them with what `tfmodules/okta_opa_module` makes for that group: the
+descriptions, the delegated admin (the group's own `<g>_admin`), each
+policy's principal, rule name, ssh privilege, gateway conditions and
+server labels (`sftd.tx.group=<g>`, `system.os_type=linux`, compared
+whole, so an added label counts). A difference is `changed` and names
+each field (`delegated_admins: ['admin_admin'] != ['basic_admin']`); an
+absent object is `missing`; neither is hard, because the identity apply
+that repairs them is the run a hard drift would refuse. A test holds the
+expectations to the module's text. If another configuration manages the
+same objects, the identity apply puts them back and that configuration's
+next apply undoes it again: that side must let go first, with `tofu
+state rm` there and never a destroy. The query does not plan: CI's read
+role holds no state object, by design.
 
 A managed group the identity provider could not be ASKED about -- a
 lapsed or unsourced key pair (`HTTP 401`), no network -- is an
@@ -1543,9 +1565,17 @@ order:
    line and every `== <version>` pin between the packages, in one move
    (`[tool.bumpversion]` in the root `pyproject.toml`); then `uv lock`;
 4. `just publish <index>` -- BEFORE the commit and the tag, so a failed
-   upload leaves an uncommitted bump to discard
-   (`git checkout -- pyproject.toml packages/*/pyproject.toml uv.lock`)
-   and never a tagged, unpublished version;
+   upload never leaves a tagged, unpublished version. What to do with
+   the uncommitted bump depends on how far the upload got, and the
+   release says which:
+   - **no project holds the version:** discard the bump
+     (`git checkout -- pyproject.toml packages/*/pyproject.toml uv.lock`);
+   - **some projects hold it** (the upload stopped part-way): KEEP the
+     bump, because those files can never be uploaded again under
+     another version. Run `just publish <index>` until every project
+     holds it (a day apart when PyPI's limit on new projects stopped it,
+     below), then `just release-finish <index>`, which makes step 5's
+     commits and the tag;
 5. for PyPI, the mod-test evidence committed in the live repository
    (`release <v>: modification-test evidence`); then `pyproject.toml`,
    `packages/*/pyproject.toml` and `uv.lock` committed here
@@ -1554,6 +1584,29 @@ order:
 Nothing is pushed: `git push --follow-tags` is the operator's act, and
 the pushed tag makes CI's `publish` job check the release against the
 index (it uploads nothing the index already holds).
+
+**Finishing a release by hand: `just release-finish <index>`.** For a
+release whose upload stopped part-way and was completed with `just
+publish`. On `develop`, with the bump uncommitted and nothing else
+changed, it asks the index whether every project holds the version
+(`scripts/publish-target-ready --all-held`; the index's pages lag an
+upload by minutes, so a count just after one can be short), and only
+then makes the evidence commit in the live repository (PyPI), the
+`release <v>` commit and the tag. It pushes nothing.
+
+**A first release to PyPI takes days.** Production PyPI lets an account
+create only a few NEW projects a day. For 0.1.1, the first release of
+the eighteen projects, it refused the fifth new project of each run with
+`429 Too many new projects created`: a retry 91 minutes later was still
+refused and one 28.5 hours later worked, so the release went up four
+projects a day, from 2026-10-18 to 2026-10-22. Warehouse's published
+default (20 an hour) is not what production enforces. `just publish`
+reads that 429 as exit 75, "not now", names the projects left, and says
+to run it again in a day; nothing is wrong with the release, and the
+bump stays uncommitted until `release-finish`. A later release creates
+no new project and is not limited. To go faster, a maintainer can ask
+PyPI's administrators for a one-time lift through PyPI's support tracker
+(github.com/pypi/support), naming the account, the projects and why.
 
 **The index is asked first (stage 83).** `scripts/publish-target-ready
 <test|pypi>` (and `just index-ready [test|pypi]`, the probe alone, one
@@ -1568,9 +1621,12 @@ upload, which `just publish` completes). Exit 0 is ready; **75 is "not
 now"**, the code `--locked` uses for "try again later": the index's
 condition, not the release's, with nothing changed; 2 is a target it
 has no checker for, which is refused by name, never passed (a new
-publish target owes its checker in the stage that adds it). What it
-cannot check is that the token will be accepted: the index has no call
-that says so without an upload, and the probe says so. `just
+publish target owes its checker in the stage that adds it). The pages it
+reads are cached, so a count taken minutes after an upload can lag it,
+and it says so; `--all-held` (release-finish's form) exits 1 unless
+every project holds the version. What it cannot check is that the token
+will be accepted: the index has no call that says so without an upload,
+and the probe says so -- `just publish` proves it (below). `just
 index-ready test wait` probes every minute until the index is ready,
 two hours at most, one line per attempt -- the loop that was run by
 hand on the night of 2026-10-05, when TestPyPI's upload endpoint and
@@ -1581,10 +1637,33 @@ again after the bar; `publish` asks first, and reports a partial upload
 rather than refusing it.
 
 `just publish [test|pypi]` builds and uploads the version in the tree:
-the index asked first (above), `dist/` cleaned, `just build`, then `uv
-publish --index <name>`. A failed upload prints the lines uv wrote
-without the index's HTML error page, and names the file that holds the
-whole output. The
+the index asked first (above), `dist/` cleaned, `just build`, then
+`scripts/publish-dist`, which runs `uv publish --index <name>` once per
+project:
+
+- **one project at a time, its sdist and wheel together, in dependency
+  order** -- the base first, then the plugins, `cs-image-system-system`,
+  and `cs-image-system` last -- so an upload that is cut off leaves only
+  complete projects, and the top-level package appears only when
+  everything it needs is there (0.1.1's first upload sent every wheel
+  first and `cs-image-system` before its dependencies, and for four days
+  `pip install cs-image-system==0.1.1` could not resolve);
+- **a failure shows its cause**: the `error:` and `cause:` lines uv
+  wrote, without the index's HTML page, and the file that holds the
+  whole output (a resumed run's "already exists" lines once pushed the
+  cause out of a summary that showed the first eight lines);
+- **PyPI's 429** ("Too many new projects created") is exit 75 with the
+  projects left (above);
+- **the token is proved even when nothing was uploaded.** A file the
+  index already holds is skipped without credentials, so until
+  2026-10-23 a repository secret that was not the operator's working
+  token went unseen for five weeks. When every file was already there,
+  one file is sent again without the check: the index checks the
+  credentials before it looks for a duplicate (Warehouse's upload view)
+  and answers an identical file with 200, storing nothing, so 200 -- or
+  400 "File already exists" -- proves the token and 403 refuses it.
+
+The
 endpoints are the `[[tool.uv.index]]` entries in the root
 `pyproject.toml` -- `testpypi` uploads to `https://test.pypi.org/legacy/`
 and is checked against `https://test.pypi.org/simple/`; `pypi` uploads to
@@ -1687,7 +1766,8 @@ configuration repository's, which the release ships.
 | `test` | lint → typecheck → pytest, all blocking (the bar) | nothing |
 | `full-test` | `test` + `test-mods --strict` (docker) + dry `run --all` and `state query --strict` over a copy of the reference configuration (sessions) | docker, reference configuration, runtime sessions; each leg skips loudly |
 | `release <part\|version> [test\|pypi] [yes]` | probe (branch `develop`, the index ready and free of the version, token, tag), the bar or `full-test`, the index again, `bump-my-version`, `uv lock`, `publish`, commit, tag `v<version>`; `yes` = dry | `UV_PUBLISH_TOKEN`; for `pypi`: clean trees, mod-test evidence, `full-test`'s needs |
-| `publish [test\|pypi]` | the index asked first, clean `dist/`, `build`, `uv publish --index` with the check URL: upload the version in the tree, skip what is there | `UV_PUBLISH_TOKEN` |
+| `publish [test\|pypi]` | the index asked first, clean `dist/`, `build`, then `scripts/publish-dist`: one project at a time (sdist with wheel, dependencies first, `cs-image-system` last), skip what is there, exit 75 on PyPI's limit on new projects, prove the token when nothing went up | `UV_PUBLISH_TOKEN` |
+| `release-finish [test\|pypi]` | after a release's upload stopped part-way and `publish` completed it: on `develop`, the bump uncommitted and nothing else, every project holding the version -- then the evidence commit (PyPI), the commit and the tag; pushes nothing | the index, `develop` |
 | `index-ready [test\|pypi] [wait]` | can the index take an upload now: the upload endpoint and every project page, one line each; exit 0 ready, 75 not now; `wait` probes every minute, two hours at most (stage 83) | the network |
 | `full-test-legs` | the live legs of `full-test` alone: `test-mods --strict` under docker, a headless dry run `--all` and a `state query --strict` over a private copy of the reference configuration; re-run these after a session renewal instead of the whole `full-test` | `preflight` gates the two copy legs |
 | `format` | `ruff format packages tests` | nothing |
@@ -1987,7 +2067,11 @@ development version (no `.dev` in its name), `just publish pypi` with
 `PYPI_TOKEN`. `just publish` skips every file the index already holds
 with the same content, so a release the operator published locally with
 `just release` is checked here and uploaded nowhere twice; a tag pushed
-without a local publish is uploaded here. The gate follows the other
+without a local publish is uploaded here. Either way each token is
+proved: when every file was already there, `publish` sends one again,
+which the index answers only after it has checked the credentials (the
+v0.1.1 tag was the first to upload anything, and found a TestPyPI
+secret that had never been the working token). The gate follows the other
 jobs' rule: no token configured is `publish: SKIPPED` with a job-summary
 line; a tag that needs a token which is missing or EMPTY fails by name
 (a development tag needs TestPyPI's token alone; a final tag both). It
@@ -2093,6 +2177,15 @@ This repository:
 | `OKTA_API_PRIVATE_KEY` | the load's check that the okta provider can authenticate | live |
 | `TF_VAR_NOS_KEY`, `TF_VAR_NOS_SECRET` → exported as `TF_VAR_nos_coastal_modeling_cloud_sandbox_key` / `_secret` | the load's `_require_tfvar` assertion (the fixture names the real team) | live |
 | `TEST_PYPI_TOKEN`, `PYPI_TOKEN` | `just publish test` / `pypi`, as `UV_PUBLISH_TOKEN` | publish |
+
+Set a token secret from the value your `.envrc` holds, with no newline
+added (a stray newline, space or quote is refused by the index as
+"Invalid or non-existent authentication information"):
+
+```sh
+printf '%s' "$TEST_PYPI_TOKEN" | gh secret set TEST_PYPI_TOKEN --repo <owner>/<repository>
+printf '%s' "$PYPI_TOKEN" | gh secret set PYPI_TOKEN --repo <owner>/<repository>
+```
 
 `AWS_APPLY_ROLE_ARN`, `CSIS_CONFIG_IDENTITY` and `CSIS_CONFIG_PUSH_TOKEN`
 on this repository are read by nothing since stage 64.
@@ -2620,7 +2713,9 @@ exception is a decision to record, not a bypass.
   read scopes. The design is read-only against Okta.
 - Discovery before any OPA reconciliation enumerates security policies
   and group memberships, not only groups, users and resource groups (the
-  state query does memberships; policies are enumerated by hand).
+  state query does memberships, and each managed group's resource group
+  and policies against the module; other policies are enumerated by
+  hand).
 - Never let a plan create an attachment that already exists; import it
   first.
 - Attribute writes on identities stay disabled until the stakeholder

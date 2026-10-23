@@ -31,6 +31,7 @@ from cs_image_system.base.constants import NONE
 POSIX_IDENTITY_TYPE = "posix"
 from .opa_gids import (ADMIN_GROUP_SUFFIX, GROUP_NAME_ATTRIBUTE, USER_GROUP_SUFFIX, OpaGidResolver,
                        credentials_from_env, resolve_waiting)
+from .module_objects import module_objects_state
 from .workload_policy import (WorkloadSnapshot, by_name, ci_policy_from, ci_policy_name, policies_equal,
                               user_policy_name, workload_state)
 
@@ -367,6 +368,9 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         key, secret = credentials_from_env(team)
         resolver = OpaGidResolver(api_host, team, key, secret)
         snapshot = self._workload_snapshot() if self.can_manage_workload_access() else None
+        # hygiene XIV item 6: the module's own objects, read back -- one listing each per builder
+        policies = snapshot.policies if snapshot is not None else resolver.security_policies()
+        rgs = resolver.resource_groups()
         out: dict[str, dict[str, Any]] = {}
         for g in self.get_groups_for_builder():
             name = g.get_name()
@@ -407,6 +411,15 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
             if snapshot is not None:
                 rec["workload"] = workload_state(snapshot, name, str(self.model.workload_connection),
                                                  str(self.model.workload_role))
+            # hygiene XIV item 6: the resource group and both policies against what the
+            # module makes (another tool rewrote basic's in place, 2026-10-19); the
+            # module names them by the group's id. Omitted when OPA could not be asked
+            if policies is not None and rgs is not None:
+                gid = utils.super_safe_name(name)
+                listed = by_name(rgs, f"{gid}_rg")
+                detail = resolver.resource_group(str(listed["id"])) if listed and listed.get("id") else None
+                if listed is None or detail is not None:
+                    rec["module_objects"] = module_objects_state(gid, detail, policies)
             out[name] = rec
         return out
 

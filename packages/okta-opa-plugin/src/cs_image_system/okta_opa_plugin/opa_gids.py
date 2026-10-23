@@ -315,6 +315,20 @@ class OpaGidResolver:
                 url = self._url(url)
         return out
 
+    def resource_groups(self) -> list[dict[str, Any]] | None:
+        """Every resource group in the team (their listing entries carry no
+        delegated admins: read one with ``resource_group``), or None when the
+        service could not be asked."""
+        return self._listing(f"/v1/teams/{self.team}/resource_groups", "resource groups")
+
+    def resource_group(self, rg_id: str) -> dict[str, Any] | None:
+        """One resource group's full record (hygiene XIV item 6), or None."""
+        try:
+            return self.get(f"/v1/teams/{self.team}/resource_groups/{rg_id}") or {}
+        except Exception as e:
+            log.debug(f"OPA resource group {rg_id!r} unavailable: {e}")
+            return None
+
     def security_policies(self) -> list[dict[str, Any]] | None:
         """Every security policy of the team as the API returns it
         (``GET /v1/teams/{team}/security_policy``: id, name, description,

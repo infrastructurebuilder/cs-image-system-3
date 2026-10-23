@@ -363,6 +363,38 @@ def workload_drift(name: str, expected: Any, real: Any) -> list[Drift]:
     return []
 
 
+MODULE_OBJECTS = (("resource_group", "resource group"), ("user_policy", "user policy"),
+                  ("admin_policy", "admin policy"))
+
+
+def module_drift(name: str, objects: Any) -> list[Drift]:
+    """Hygiene XIV item 6: a group's resource group and policies against what the
+    identity module makes (the provider's record says how they differ). Neither
+    is HARD, for workload_drift's reason: the run the validator would refuse is
+    the identity apply that repairs them. An object rewritten by ANOTHER tool
+    is rewritten back by that apply, and the other tool's next apply undoes it
+    again -- the other side must stop managing it (`tofu state rm`, never a
+    destroy), which the message says."""
+    if not isinstance(objects, dict):
+        return []
+    out: list[Drift] = []
+    for key, what in MODULE_OBJECTS:
+        o = objects.get(key)
+        if not isinstance(o, dict):
+            continue
+        if o.get("present") is False:
+            out.append(Drift("group", name, DRIFT_MISSING,
+                             f"{what} {o.get('name')!r}, which the identity module makes, is absent; the next "
+                             "identity apply creates it"))
+        elif o.get("diff"):
+            out.append(Drift("group", name, DRIFT_CHANGED,
+                             f"{what} {o.get('name')!r} is not what the identity module makes; the next identity "
+                             "apply rewrites it, and if another configuration manages it too, that one must let "
+                             "go first (tofu state rm there, never a destroy) -- "
+                             + "; ".join(str(d) for d in list(o["diff"])[:8])))
+    return out
+
+
 def workload_notes(groups: dict[str, dict[str, Any]], report: StateReport) -> None:
     """Stage 56: a connection that is present but not active is true, and
     neither drift nor silence -- activating it is the operator's act
@@ -437,6 +469,7 @@ def group_drift(ctx: "GlobalTypeContext", groups: dict[str, dict[str, Any]],
                                "until the token is removed from tofu state (state rm) and "
                                "recreated by a gated apply", hard=True))
         drift.extend(workload_drift(name, rec.get("workload"), real.get("workload")))   # stage 56
+        drift.extend(module_drift(name, real.get("module_objects")))                    # hygiene XIV item 6
         diffs: list[str] = []
         members = real.get("members")
         if isinstance(members, list) and set(rec.get("members") or []) != set(members):

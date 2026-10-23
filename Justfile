@@ -138,8 +138,23 @@ release target index="test" dry="no":
 	ready
 	uv run --no-sync bump-my-version "${bump[@]}"
 	uv lock
-	# the upload comes BEFORE the commit and the tag: a failed upload leaves an uncommitted bump
-	just publish {{index}} || { echo "release: the upload to $name failed; the bump to $new is uncommitted -- discard it with: git checkout -- pyproject.toml packages/*/pyproject.toml uv.lock"; exit 1; }
+	# the upload comes BEFORE the commit and the tag: a failed upload leaves an uncommitted bump.
+	# Hygiene XIV item 1: what to do with it depends on whether any project already holds the
+	# version, counted by publish-dist from its own upload (the index's pages lag by minutes)
+	export CSIS_PUBLISH_SUMMARY; CSIS_PUBLISH_SUMMARY=$(mktemp "${TMPDIR:-/tmp}/csis-publish-summary.XXXXXX")
+	set +e; just publish {{index}}; prc=$?; set -e
+	if [ "$prc" -ne 0 ]; then
+		held=$(sed -n 's/^held //p' "$CSIS_PUBLISH_SUMMARY" 2>/dev/null); total=$(sed -n 's/^total //p' "$CSIS_PUBLISH_SUMMARY" 2>/dev/null)
+		rm -f "$CSIS_PUBLISH_SUMMARY"
+		if [ "${held:-0}" -gt 0 ]; then
+			when="again"; [ "$prc" -eq 75 ] && when="again in a day"
+			echo "release: the upload to $name stopped part-way: $held of ${total:-?} projects hold $new, and those files can never be uploaded again under another version. KEEP the uncommitted bump to $new; run \`just publish {{index}}\` $when until every project holds it, then \`just release-finish {{index}}\` commits, tags and records the release"
+			exit "$prc"
+		fi
+		echo "release: the upload to $name failed and no project holds $new; the bump is uncommitted -- discard it with: git checkout -- pyproject.toml packages/*/pyproject.toml uv.lock"
+		exit 1
+	fi
+	rm -f "$CSIS_PUBLISH_SUMMARY"
 	if [ "$name" = pypi ]; then
 		git -C "{{config_root}}" add meta-state/mod-tests.yaml
 		git -C "{{config_root}}" diff --cached --quiet || git -C "{{config_root}}" commit -q -m "release $new: modification-test evidence"
@@ -149,12 +164,52 @@ release target index="test" dry="no":
 	git tag -a "v$new" -m "release $new"
 	echo "release: $new is on $name, committed and tagged v$new; push with: git push --follow-tags (CI then checks the tag against the index and uploads nothing already there)"
 
+# Finish a release whose upload `release` could not complete (hygiene XIV item 1): after it
+# stopped part-way and `just publish INDEX` was run again until every project held the version
+# -- a first PyPI release of many projects takes days (item 2). On develop, with the bump
+# uncommitted and nothing else changed, and only when the index holds the version for every
+# project: the modification-test evidence (on PyPI), the commit, the tag. Nothing is pushed.
+[doc("After a release's upload was completed by `just publish`: check every project holds the version, then commit and tag it")]
+release-finish index="test":
+	#!/usr/bin/env bash
+	set -euo pipefail
+	case "{{index}}" in
+		test) name=testpypi ;;
+		pypi) name=pypi ;;
+		*) echo "release-finish: the index is test (TestPyPI, the default) or pypi, not '{{index}}'"; exit 2 ;;
+	esac
+	branch=$(git rev-parse --abbrev-ref HEAD)
+	[ "$branch" = develop ] || { echo "release-finish: this checkout is on '$branch'; a release is cut on develop alone -- nothing was changed"; exit 1; }
+	new=$(uv run --no-sync bump-my-version show current_version)
+	committed=$(git show HEAD:pyproject.toml | sed -n 's/^version = "\(.*\)"$/\1/p' | head -1)
+	[ "$committed" != "$new" ] || { echo "release-finish: $new is already committed -- there is no uncommitted bump to finish"; exit 1; }
+	[ -z "$(git tag -l "v$new")" ] || { echo "release-finish: v$new is already tagged here"; exit 1; }
+	others=$(git status --porcelain | grep -v -E '^ M (pyproject\.toml|packages/[^/]+/pyproject\.toml|uv\.lock)$' || true)
+	[ -z "$others" ] || { echo "release-finish: the tree must hold the bump to $new and nothing else:"; echo "$others"; exit 1; }
+	set +e; uv run --no-sync python scripts/publish-target-ready "{{index}}" --version "$new" --all-held --quiet; rc=$?; set -e
+	case $rc in
+		0) ;;
+		1) echo "release-finish: not every project holds $new on $name (above) -- run \`just publish {{index}}\` until it completes (the index's pages lag an upload by minutes)"; exit 1 ;;
+		75) echo "release-finish: $name cannot be asked now (above) -- nothing was changed"; exit 75 ;;
+		*) echo "release-finish: the publish-target probe could not run (exit $rc)"; exit 2 ;;
+	esac
+	if [ "$name" = pypi ]; then
+		[ -f "{{config_root}}/cfg/_config.yml" ] || { echo "release-finish: no live configuration at {{config_root}} (cfg/_config.yml) for the modification-test evidence -- nothing was changed"; exit 1; }
+		git -C "{{config_root}}" add meta-state/mod-tests.yaml 2>/dev/null || true
+		git -C "{{config_root}}" diff --cached --quiet || git -C "{{config_root}}" commit -q -m "release $new: modification-test evidence"
+	fi
+	git add pyproject.toml packages/*/pyproject.toml uv.lock
+	git commit -q -m "release $new"
+	git tag -a "v$new" -m "release $new"
+	echo "release-finish: $new is on $name for every project, committed and tagged v$new; push with: git push --follow-tags"
+
 # Build and upload the version in the tree (stage 41.6): `dist/` cleaned, every package
-# built, every file uploaded to INDEX -- `test` (TestPyPI, the default) or `pypi` -- with
-# the files the index already holds with the same content skipped (the index's url is
-# the check url), so a
+# built, every file uploaded to INDEX -- `test` (TestPyPI, the default) or `pypi` -- by
+# scripts/publish-dist, one project at a time (hygiene XIV), with the files the index
+# already holds with the same content skipped (the index's url is the check url), so a
 # re-run after a partial failure, or CI after a local publish, uploads what is missing and
-# nothing twice. The token is UV_PUBLISH_TOKEN, else TEST_PYPI_TOKEN / PYPI_TOKEN (the
+# nothing twice; when nothing was missing, one file is sent again to prove the token.
+# Exit 75 is PyPI's limit on new projects: run it again in a day. The token is UV_PUBLISH_TOKEN, else TEST_PYPI_TOKEN / PYPI_TOKEN (the
 # repository secrets' names), from the environment and never here; the endpoints are the
 # `[[tool.uv.index]]` entries in pyproject.toml. A deleted version can
 # never be uploaded again, on either index: the next upload is a new version.
@@ -189,16 +244,10 @@ publish index="test":
 	just build
 	n=$(ls dist | wc -l | tr -d ' ')
 	packages=$(ls -d packages/*/ | wc -l | tr -d ' ')
-	# --index alone: uv takes the index's url as the check url and refuses an explicit one beside it.
-	# A failed upload prints its status and its first lines, never the index's whole HTML error page
-	log=$(mktemp "${TMPDIR:-/tmp}/csis-publish.XXXXXX")
-	if ! uv publish --index "$name" dist/* >"$log" 2>&1; then
-		echo "publish: the upload to $name failed; what it said (HTML lines left out):"
-		grep -v -E '^[[:space:]]*<|^[[:space:]]*$' "$log" | head -8
-		echo "publish: the whole output, the index's page included: $log"
-		exit 1
-	fi
-	grep -v -E '^[[:space:]]*<|^[[:space:]]*$' "$log" | tail -4; rm -f "$log"
+	# hygiene XIV: one project at a time, sdist and wheel together, dependencies first and
+	# cs-image-system last; a 429 is exit 75 with what is left; a failure shows its cause lines;
+	# when everything was already there, one file is sent again to prove the token
+	uv run --no-sync python scripts/publish-dist "{{index}}" --version "$version" --token-var "$token_var" ${CSIS_PUBLISH_SUMMARY:+--summary "$CSIS_PUBLISH_SUMMARY"}
 	echo "publish: cs-image-system $version is on $name ($n files: the system and its $packages packages, sdist and wheel each; files already there with the same content were skipped)"
 
 # ------------------------------------------------------------ development

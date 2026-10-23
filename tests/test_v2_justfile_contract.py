@@ -250,11 +250,16 @@ def test_release_cannot_half_release_and_publish_is_its_own_recipe():
     assert calls[0] < body.index("just full-test") and calls[1] > body.rindex("just test") and calls[1] < body.rindex("bump-my-version \"${bump[@]}\"")
     assert "--refuse-held" in body and "exit 75" in body and "scripts/index-knows" not in body
     assert body.rindex("just test") < body.rindex("bump-my-version \"${bump[@]}\"")         # the bar before the bump
-    assert "git checkout -- pyproject.toml packages/*/pyproject.toml uv.lock" in body     # the recovery from a failed upload
+    assert "git checkout -- pyproject.toml packages/*/pyproject.toml uv.lock" in body     # the recovery when nothing went up
+    # hygiene XIV item 1: when some project holds the version, keep the bump and finish with release-finish
+    assert "CSIS_PUBLISH_SUMMARY" in body and "KEEP the uncommitted bump" in body and "just release-finish {{index}}" in body
+    assert body.index("KEEP the uncommitted bump") < body.index("discard it with")
     assert "test) name=testpypi" in body and "pypi) name=pypi" in body
     publish = r["publish"][1]
-    for needle in ("rm -rf dist", "just build", 'uv publish --index "$name" dist/*', "UV_PUBLISH_TOKEN"):
+    for needle in ("rm -rf dist", "just build", 'scripts/publish-dist "{{index}}" --version "$version" --token-var "$token_var"',
+                   "UV_PUBLISH_TOKEN"):
         assert needle in publish, needle
+    assert "uv publish" not in publish, "hygiene XIV: the upload is scripts/publish-dist's, one project at a time"
     # stage 83: publish begins with the index, and never prints the index's error page
     assert publish.index("scripts/publish-target-ready") < publish.index("just build")
     assert "--refuse-held" not in publish, "a partial upload is what a re-run of publish completes"
@@ -269,3 +274,18 @@ def test_release_cannot_half_release_and_publish_is_its_own_recipe():
     assert "pypi-" not in publish and "pypi-" not in body                                 # no token shape anywhere
     probe = REPO / "scripts" / "index-knows"
     assert os.access(probe, os.X_OK) and "PEP 700" in probe.read_text()
+
+
+def test_release_finish_commits_and_tags_only_a_completed_upload():
+    """Hygiene XIV item 1: release-finish is on develop, with the bump uncommitted
+    and nothing else, asks the index that every project holds the version, and
+    only then makes the evidence commit (PyPI), the commit and the tag; it pushes
+    nothing."""
+    r = _recipes()
+    assert "release-finish" in r
+    body = r["release-finish"][1]
+    order = [body.index(s) for s in ('[ "$branch" = develop ]', 'git show HEAD:pyproject.toml', 'git tag -l "v$new"',
+                                     "git status --porcelain", "--all-held", "modification-test evidence",
+                                     'git commit -q -m "release $new"', 'git tag -a "v$new"')]
+    assert order == sorted(order), "every check before the commit, the commit before the tag"
+    assert "git push" not in body.replace("push with: git push", "")
