@@ -12,8 +12,8 @@ operator can take.
 - §66, starter repositories on GitHub: planned; no longer blocked (0.1.1
   is out).
 - §94, the F44 review: standing; next on or after 2026-11-09.
-- §96, hygiene bundle XIV: a plan; waits for "do 96"; the next
-  non-critical issue joins it.
+- No hygiene bundle is open; the next non-critical issue opens bundle
+  XV.
 - No documentation stage is open.
 
 **Release**
@@ -26,6 +26,10 @@ operator can take.
 
 **Landed since 2026-10-05** (newest first)
 
+- §96, hygiene bundle XIV: 2026-10-23, its squash commit. A release
+  resumes after a partial upload (`release-finish`), uploads one project
+  at a time, reads PyPI's new-project limit as "not now" and proves its
+  token; the strict query reads each group's OPA objects back.
 - §83, a release asks its publish target first: bbb7ee4, 2026-10-17.
 - §95, hygiene bundle XIII: 8cdc07c, 2026-10-17.
 - §92, CI runs in the system's own AlmaLinux 10 image: 661270f and four
@@ -313,69 +317,3 @@ question at least once a month for the next 4 months." The note is made:
 - 2026-12-09: (open)
 - 2027-01-09: (open)
 - 2027-02-09: (open)
-
-## 96. Hygiene bundle XIV
-
-- **Status:** OPEN 2026-10-23, seven items; a plan until the operator
-  says "do 96".
-- **From:** the first PyPI release (0.1.1, `v0.1.1` at 766a210); the
-  2026-10-19 check of the reference's OPA groups; the `v0.1.1` tag's CI
-  run (item 7).
-
-1. **Wrong advice after a partial upload.**
-   - *Seen:* after 4 of 18 projects went up (item 2), `just release`
-     said to discard the bump; that would strand a version whose files
-     are already on the index.
-   - *Done:* kept the bump, re-ran `just publish pypi`, committed and
-     tagged by hand (no evidence commit was owed).
-   - *Fix:* if any project holds the version: say keep the bump and
-     re-run `just publish`; add a recipe that finishes the release
-     (evidence commit, commit, tag).
-
-2. **PyPI's limit on new projects, for a first release.**
-   - *Seen:* `429 Too many new projects created` on the fifth new
-     project of each run; 18 projects took five days, 2026-10-18 to
-     2026-10-22.
-   - *Fix:* `publish` turns the 429 into exit 75 ("not now"), with the
-     projects left and "run again in a day"; OPERATIONS documents the
-     limit, the resume and the request to PyPI's admins.
-
-3. **The failure summary cuts off the cause.**
-   - *Seen:* `publish` shows the first 8 lines; a resumed run's "already
-     exists" lines pushed the 429 out (2026-10-20).
-   - *Fix:* show the `error:` and `cause:` lines and the last lines.
-
-4. **The upload order leaves the top-level package unresolvable.**
-   - *Seen:* every wheel went up before any sdist, `cs-image-system`
-     first; from 2026-10-18 to 2026-10-22 `pip install
-     cs-image-system==0.1.1` could not resolve.
-   - *Fix:* upload one project at a time, sdist with wheel, dependencies
-     first and `cs-image-system` last.
-
-5. **The probe's count right after an upload is stale.**
-   - *Seen:* it said 4 of 18 when 8 held 0.1.1; PyPI's pages are cached
-     for minutes.
-   - *Fix:* say the count may lag; read what went up from the upload's
-     own output.
-
-6. **The strict query misses OPA objects rewritten in place.**
-   - *Seen:* on 2026-10-19 another configuration rewrote `basic_rg`'s
-     delegated admin and two policies' rule names; the query saw only
-     the CI policy's mirror break, and only `tofu plan` saw the rest.
-   - *Done:* the other configuration dropped the six objects from its
-     state (`tofu state rm`); the reference's identity run (1623d47,
-     2026-10-23) restored them; query and `perform` green.
-   - *Fix:* the read-model holds each group's resource group and
-     policies and the query compares them, or the query runs a
-     refresh-only plan of the identity root.
-
-7. **The tag's publish job never proves its tokens.**
-   - *Seen:* a skip needs no credentials, so the `TEST_PYPI_TOKEN`
-     secret went unused from 2026-09-17 until 0.1.1, the first upload CI
-     had to make, was refused with 403.
-   - *Done:* the operator set it again (`printf '%s' "$TEST_PYPI_TOKEN"
-     | gh secret set TEST_PYPI_TOKEN`) and the re-run uploaded 0.1.1 to
-     TestPyPI.
-   - *Fix:* the job proves each token even with nothing to upload (one
-     way, to be confirmed: re-send a file the index already has) and
-     fails loudly; documents show the `printf '%s'` form.
