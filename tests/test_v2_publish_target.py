@@ -176,3 +176,19 @@ def test_the_wait_form_polls_until_ready_and_gives_up_at_its_limit(world, capsys
     index.status["/legacy/"] = 503
     assert _run(root, "--wait", "0", "--quiet") == 75                    # the limit spent: given up, exit 75
     assert "giving up" in capsys.readouterr().out
+
+
+def test_release_finish_asks_that_every_project_holds_the_version(world, capsys):
+    """Hygiene XIV items 1 and 5: --all-held is release-finish's form, and a count
+    says it may lag an upload (the index's pages are cached)."""
+    index, root, _ = world
+    index.versions["cs-image-system-a"].append("0.1.1.dev2")
+    assert _run(root, "--version", "0.1.1.dev2", "--all-held") == 1
+    out = capsys.readouterr().out
+    assert "can lag it" in out and "2 project(s) do not hold 0.1.1.dev2 on testpypi: cs-image-system, cs-image-system-b" in out
+    for p in index.versions.values():
+        if "0.1.1.dev2" not in p:
+            p.append("0.1.1.dev2")
+    assert _run(root, "--version", "0.1.1.dev2", "--all-held") == 0
+    assert "for all 3 projects" in capsys.readouterr().out
+    assert _run(root, "--all-held") == 2                                  # it needs the version

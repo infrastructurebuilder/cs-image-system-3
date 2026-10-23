@@ -1,0 +1,205 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+"""Upload the built release to a publish target, one project at a time (hygiene XIV)
+
+    uv run python scripts/publish-dist <target> --version V [--token-var NAME] [--summary PATH] [--dist DIR] [--root DIR]
+
+<target> is `test` (TestPyPI) or `pypi`, as for scripts/publish-target-ready;
+the endpoints are the target's [[tool.uv.index]] entry in pyproject.toml.
+The token is UV_PUBLISH_TOKEN, from the environment (`just publish` sets
+it); --token-var names where it came from, for the messages.
+
+Each project's sdist and wheel go up together, in dependency order -- the
+packages the others depend on first, `cs-image-system` last -- so an upload
+that is cut off leaves only complete projects, and the top-level package
+appears when everything it needs is there. A file the index already holds
+with the same content is skipped (the index's url is the check url), so a
+re-run completes a partial upload and uploads nothing twice.
+
+Exit 0 when every project holds the version; 75 when the index cannot take
+more now (PyPI's 429, "Too many new projects created": an account may create
+only a few new projects a day, so a first release of many projects goes up
+over days); 1 when an upload failed or the token was refused; 2 for a usage
+error. A failure prints the `error:` and `cause:` lines the upload printed,
+never only its first lines, and the path of the whole output.
+
+When every file was already there, nothing proved the token: a skip needs
+no credentials (until 2026-10-23 a stale repository secret went unseen for
+five weeks that way). Then one file is sent again WITHOUT the check: the
+index checks the credentials before it looks for a duplicate (Warehouse's
+upload view: the permission check, then the duplicate check), and answers an
+identical file with 200 and stores nothing, so 200 -- or 400 "File already
+exists" -- proves the token and 403 refuses it.
+
+--summary PATH writes `held <n>`, `total <m>` and `status <code>` lines,
+counted from this run's own output (the index's pages are cached and lag an
+upload by minutes): `release` reads it to choose its advice after a failure.
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import subprocess
+import sys
+import tempfile
+import tomllib
+from pathlib import Path
+
+TARGETS = {"test": "testpypi", "pypi": "pypi"}
+NOT_NOW = 75
+TOO_MANY = re.compile(r"too many new projects", re.IGNORECASE)
+REFUSED = re.compile(r"\b403\b")
+UPLOADED = re.compile(r"^\s*Uploading\s+(\S+)", re.MULTILINE)
+SKIPPED = re.compile(r"^\s*File\s+(\S+)\s+already exists, skipping", re.MULTILINE)
+DUPLICATE = re.compile(r"File already exists", re.IGNORECASE)
+
+
+def _pyproject(path: Path) -> dict:
+    with open(path, "rb") as f:
+        return tomllib.load(f)
+
+
+def index_entry(root: Path, name: str) -> dict[str, str]:
+    for entry in _pyproject(root / "pyproject.toml").get("tool", {}).get("uv", {}).get("index", []):
+        if entry.get("name") == name:
+            return entry
+    raise LookupError(f"pyproject.toml has no [[tool.uv.index]] named {name!r}")
+
+
+def _dep_name(spec: str) -> str:
+    return re.split(r"[\s<>=!~;\[(]", spec.strip(), maxsplit=1)[0].lower().replace("_", "-")
+
+
+def upload_order(root: Path) -> list[str]:
+    """Every project the release uploads (the root project and each packages/*
+    member), each after the workspace projects it depends on; ties by name."""
+    deps: dict[str, set[str]] = {}
+    for path in [root / "pyproject.toml", *sorted(root.glob("packages/*/pyproject.toml"))]:
+        project = _pyproject(path).get("project", {})
+        deps[project["name"].lower()] = {_dep_name(d) for d in project.get("dependencies", [])}
+    for name in deps:
+        deps[name] &= set(deps) - {name}
+    order: list[str] = []
+    while deps:
+        ready = sorted(n for n, d in deps.items() if not d - set(order))
+        if not ready:
+            raise ValueError(f"the workspace's dependencies form a cycle among {sorted(deps)}")
+        order.append(ready[0])
+        del deps[ready[0]]
+    return order
+
+
+def files_of(dist: Path, project: str, version: str) -> list[Path]:
+    """The project's sdist and wheel(s) in dist/, the sdist first."""
+    stem = f"{project.replace('-', '_')}-{version}"
+    found = sorted(dist.glob(f"{stem}.tar.gz")) + sorted(dist.glob(f"{stem}-*.whl"))
+    if not found:
+        raise FileNotFoundError(f"dist/ holds no file of {project} {version} ({stem}.tar.gz, {stem}-*.whl)")
+    return found
+
+
+def _uv() -> list[str]:
+    return [os.environ.get("CSIS_UV", "uv")]
+
+
+def _run(cmd: list[str]) -> tuple[int, str]:
+    r = subprocess.run(cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL)
+    return r.returncode, (r.stdout or "") + (r.stderr or "")
+
+
+def _plain(text: str) -> list[str]:
+    """The output without the index's HTML page and blank lines."""
+    return [ln for ln in text.splitlines() if ln.strip() and not ln.lstrip().startswith("<")]
+
+
+def cause_lines(text: str, limit: int = 12) -> list[str]:
+    """From the first `error:` line on (uv's error and its `cause:`
+    continuation), else the last lines."""
+    lines = _plain(text)
+    at = next((i for i, ln in enumerate(lines) if ln.lstrip().lower().startswith("error")), None)
+    return lines[at:at + limit] if at is not None else lines[-limit:]
+
+
+def main(argv: list[str]) -> int:
+    ap = argparse.ArgumentParser(description="Upload the built release, one project at a time.")
+    ap.add_argument("target", help="test (TestPyPI) or pypi")
+    ap.add_argument("--version", required=True)
+    ap.add_argument("--token-var", default="UV_PUBLISH_TOKEN", help="where the token came from, for the messages")
+    ap.add_argument("--summary", type=Path, help="write held/total/status lines here")
+    ap.add_argument("--dist", type=Path, default=None)
+    ap.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
+    args = ap.parse_args(argv)
+    if args.target not in TARGETS:
+        print(f"publish: the target is test or pypi, not {args.target!r}")
+        return 2
+    index = TARGETS[args.target]
+    root = args.root
+    dist = args.dist or root / "dist"
+    entry = index_entry(root, index)
+    order = upload_order(root)
+    log = Path(tempfile.mkstemp(prefix="csis-publish.", dir=os.environ.get("TMPDIR") or None)[1])
+    held, uploaded, skipped = 0, 0, 0
+    last_skipped: Path | None = None
+
+    def summary(status: int) -> int:
+        if args.summary:
+            args.summary.write_text(f"held {held}\ntotal {len(order)}\nstatus {status}\n")
+        return status
+
+    for n, project in enumerate(order, 1):
+        files = files_of(dist, project, args.version)
+        rc, out = _run(_uv() + ["publish", "--index", index, *map(str, files)])
+        with open(log, "a") as f:
+            f.write(f"$ uv publish --index {index} {' '.join(p.name for p in files)}\n{out}\n")
+        up, sk = len(UPLOADED.findall(out)), len(SKIPPED.findall(out))
+        if rc != 0:
+            left = order[n - 1:]
+            print(f"publish: {project} failed on {index}; {held} of {len(order)} project(s) hold {args.version}. "
+                  "What the index said:")
+            for ln in cause_lines(out):
+                print(f"  {ln}")
+            print(f"publish: the whole output, the index's page included: {log}")
+            flat = " ".join(out.split())             # uv wraps the index's message across lines
+            if TOO_MANY.search(flat):
+                print(f"publish: {index} will not take a new project now (429): an account may create only a few "
+                      f"new projects a day, so a first release of many goes up over days. Nothing is wrong with "
+                      f"the release. Keep the version as it is and run this again in a day; {len(left)} project(s) "
+                      f"left: {', '.join(left)}")
+                return summary(NOT_NOW)
+            if REFUSED.search(flat):
+                print(f"publish: {index} refused the token (403) -- the one in {args.token_var} is not valid for "
+                      f"{index}")
+            return summary(1)
+        held += 1
+        uploaded += up
+        skipped += sk
+        if sk and not up:
+            last_skipped = min(files, key=lambda p: p.stat().st_size)
+        print(f"publish: {project}: " + (f"{up} uploaded" if up else "already there") + (f", {sk} already there" if up and sk else ""))
+
+    if uploaded == 0 and last_skipped is not None:
+        # nothing went up, so nothing proved the token: send one identical file again, unchecked
+        rc, out = _run(_uv() + ["publish", "--publish-url", entry["publish-url"], str(last_skipped)])
+        with open(log, "a") as f:
+            f.write(f"$ uv publish --publish-url {entry['publish-url']} {last_skipped.name}  # the token proof\n{out}\n")
+        if rc == 0 or DUPLICATE.search(out):
+            print(f"publish: the token in {args.token_var} is accepted by {index} (proved by sending "
+                  f"{last_skipped.name} again; the index holds it already and stored nothing)")
+        else:
+            print(f"publish: every file is on {index}, but the token in {args.token_var} was "
+                  + ("REFUSED (403)" if REFUSED.search(out) else "not proved") + " when one was sent again:")
+            for ln in cause_lines(out):
+                print(f"  {ln}")
+            print(f"publish: the whole output: {log}")
+            return summary(1)
+    log.unlink(missing_ok=True)
+    print(f"publish: {uploaded} file(s) uploaded and {skipped} already there, in {len(order)} projects, "
+          "each project's sdist and wheel together, dependencies first")
+    return summary(0)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

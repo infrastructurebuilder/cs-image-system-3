@@ -83,6 +83,8 @@ def test_the_builder_tells_a_404_from_a_call_that_failed(run, monkeypatch):
     monkeypatch.setattr(gbmod.OktaTfGroupBuilder, "can_manage_workload_access", lambda self: False)
     monkeypatch.setattr(gbmod.OpaGidResolver, "group_users", lambda self, g: None)
     monkeypatch.setattr(gbmod.OpaGidResolver, "project_enrollment_tokens", lambda self, g: None)
+    monkeypatch.setattr(gbmod.OpaGidResolver, "security_policies", lambda self: None)   # hygiene XIV item 6:
+    monkeypatch.setattr(gbmod.OpaGidResolver, "resource_groups", lambda self: None)     # silent, never asked
 
     def attributes(self, server_group):
         if server_group == f"{names[0]}{gbmod.USER_GROUP_SUFFIX}":

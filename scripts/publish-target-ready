@@ -4,13 +4,15 @@
 # SPDX-License-Identifier: Apache-2.0
 """Can a publish target take an upload now? (stage 83)
 
-    uv run python scripts/publish-target-ready <target> [--version V] [--refuse-held] [--wait [LIMIT]] [--every S] [--quiet] [--root DIR]
+    uv run python scripts/publish-target-ready <target> [--version V] [--refuse-held | --all-held] [--wait [LIMIT]] [--every S] [--quiet] [--root DIR]
 
 <target> is `test` (TestPyPI) or `pypi`. Exit 0 when the target can take an
 upload, 75 when it cannot (the code `--locked` uses for "try again later";
 with --wait, still not ready when LIMIT seconds ran out), 1 when
---refuse-held and a project already holds --version, 2 for a target this
-probe has no checker for, or a usage error.
+--refuse-held and a project already holds --version, or when --all-held
+(`release-finish`, hygiene XIV) and some project does not, 2 for a target
+this probe has no checker for, or a usage error. The pages are cached, so a
+count taken minutes after an upload can lag it.
 
 One checker per TYPE of target. A package index of the PyPI kind (both
 targets today): the endpoints are the target's [[tool.uv.index]] entry in
@@ -21,7 +23,8 @@ project the release uploads (the root project and each packages/* member)
 pass says which projects already hold that version: none, all, or some (a
 partial upload, which `just publish` completes). What it cannot check is
 that the token will be accepted: the index has no call that says so
-without an upload, and the probe says so.
+without an upload, and the probe says so; `just publish` proves it
+(scripts/publish-dist).
 
 Born from 2026-10-05, when TestPyPI's upload endpoint and most project
 pages answered 503 for nine hours while the one page the release asked
@@ -122,6 +125,7 @@ def main(argv: list[str], sleep=time.sleep) -> int:
     parser.add_argument("target")
     parser.add_argument("--version")
     parser.add_argument("--refuse-held", action="store_true")
+    parser.add_argument("--all-held", action="store_true")
     parser.add_argument("--wait", nargs="?", type=float, const=7200.0, default=None)
     parser.add_argument("--every", type=float, default=60.0)
     parser.add_argument("--quiet", action="store_true")
@@ -171,19 +175,31 @@ def main(argv: list[str], sleep=time.sleep) -> int:
         return NOT_READY
     print(f"publish-target-ready: {index} is ready: the upload endpoint and {n} project page(s) answer"
           + (f" after {attempt} attempt(s)" if attempt > 1 else "")
-          + "; the token is not checked (the index has no call that says so without an upload)")
+          + "; the token is not checked here (the index has no call that says so without an upload; "
+          "`just publish` proves it)")
     if version is not None:
+        # hygiene XIV item 5: the pages are cached, so a count taken just after an upload lags it
+        lag = " (the index's pages are cached: minutes after an upload this count can lag it)"
         if not held:
-            print(f"publish-target-ready: {index} holds {version} for none of the {n} projects: a fresh release")
+            print(f"publish-target-ready: {index} holds {version} for none of the {n} projects: a fresh release{lag}")
         elif len(held) == n:
             print(f"publish-target-ready: {index} holds {version} for all {n} projects")
         else:
             print(f"publish-target-ready: {index} holds {version} for {len(held)} of {n} projects "
-                  f"({', '.join(held[:4])}{', ...' if len(held) > 4 else ''}): a partial upload, which `just publish` completes")
+                  f"({', '.join(held[:4])}{', ...' if len(held) > 4 else ''}): a partial upload, which "
+                  f"`just publish` completes{lag}")
         if held and args.refuse_held:
             print(f"publish-target-ready: {version} is already on {index}; a version is never re-cut -- take the next one"
                   + ("" if len(held) == n else ", or finish this one with `just publish`"))
             return 1
+        if args.all_held and len(held) < n:
+            missing = [p for p in projects(args.root) if p not in held]
+            print(f"publish-target-ready: --all-held: {len(missing)} project(s) do not hold {version} on {index}: "
+                  f"{', '.join(missing)}")
+            return 1
+    elif args.all_held:
+        print("publish-target-ready: --all-held needs --version", file=sys.stderr)
+        return 2
     return 0
 
 
