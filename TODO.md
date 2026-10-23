@@ -505,3 +505,84 @@ question at least once a month for the next 4 months." The note is made:
 - 2026-12-09: (open)
 - 2027-01-09: (open)
 - 2027-02-09: (open)
+
+## 96. Hygiene bundle XIV
+
+**Status: OPEN 2026-10-23, six items left by the first PyPI release
+(0.1.1: cut 2026-10-18, completed 2026-10-22, tagged `v0.1.1` at
+766a210) and by a check of the reference configuration's OPA groups on
+2026-10-19. A plan: nothing runs until the operator says "do 96".**
+
+1. **After a partial upload the release recipe gives the wrong advice.**
+   On 2026-10-18 `just release stage pypi` uploaded four of eighteen
+   projects and stopped (item 2), and the recipe said to discard the
+   bump (`git checkout -- pyproject.toml packages/*/pyproject.toml
+   uv.lock`). Followed, that strands a version whose files are on the
+   index and can never be cut again. What finished it: keep the bump,
+   run `just publish pypi` until every project holds the version, then
+   commit and tag by hand -- which also skips the release's commit of
+   the modification-test evidence in the live configuration (on
+   2026-10-22 there was none to commit, so nothing was lost). Fixed
+   looks like: when the probe after the failure finds any project
+   holding the version, the recipe says to keep the bump and re-run
+   `just publish`, and names a recipe that finishes the release (the
+   evidence commit on PyPI, the commit, the tag); when none holds it,
+   discarding stays the advice.
+
+2. **A first release to PyPI meets a limit on new projects.**
+   Production PyPI refused the fifth new project of each run with
+   `429 Too many new projects created`. A retry 91 minutes after the
+   first run was still refused and one 28.5 hours later worked, so
+   eighteen projects took five runs on five days (four a day, the last
+   two on 2026-10-22). Warehouse's published default (20 an hour) is
+   not what production enforces, and nothing in the system or its
+   documents said so. Fixed looks like: `publish` reads the 429 and
+   exits 75 ("not now", as the probe does), naming the projects made
+   and those left and saying to run it again in a day; OPERATIONS's
+   release procedure describes the limit for a first release, the
+   daily resume of item 1, and the request a maintainer can make to
+   PyPI's administrators to lift it.
+
+3. **The failure summary cuts off the cause.** `publish` prints the
+   first eight lines of the upload's output (`head -8`), and a resumed
+   run first lists every file "already exists, skipping", so on
+   2026-10-20 the summary ended before the uploads and the 429; the
+   cause was only in the `csis-publish.*` file it named. Fixed looks
+   like: the summary prints the `error:` and `cause:` lines and the last
+   lines, never the first.
+
+4. **The upload order leaves the top-level package unusable for
+   days.** `uv publish dist/*` sent every wheel before any sdist, and
+   `cs-image-system` itself first: from 2026-10-18 to 2026-10-22 `pip
+   install cs-image-system==0.1.1` found the package and could not
+   resolve it, and every project made held a wheel alone. Fixed looks
+   like: `publish` uploads one project at a time, sdist and wheel
+   together, in dependency order (the base, then the plugins,
+   `cs-image-system-system`, and `cs-image-system` last), so an upload
+   that is cut off leaves only complete projects and the top-level one
+   appears when everything it needs is there.
+
+5. **The probe's count right after an upload reads stale pages.**
+   Straight after the 2026-10-19 run the probe said 4 of 18 projects
+   held 0.1.1 when 8 did, and on 2026-10-22 PyPI's JSON pages showed
+   two sdists a minute after they were uploaded: the pages are cached.
+   Fixed looks like: a count taken within minutes of an upload says it
+   may lag, and what an upload put on the index is read from the
+   upload's own output, not from the pages.
+
+6. **The strict state query did not see an OPA group rewritten in
+   place.** On 2026-10-19 another configuration rewrote three of
+   `basic`'s OPA objects, keeping their ids: `basic_rg`'s delegated
+   admin group became `admin_admin`, and the user and admin policies'
+   rule was renamed `allow_login_admin` (their descriptions too). The
+   strict query reported only the side effect, the CI policy no longer
+   mirroring the user policy; the resource group's change was seen by a
+   `tofu plan` of the identity root alone (3 to change, none to add or
+   destroy). Fixed looks like: the identity read-model holds what the
+   emission says of each group's resource group and policies (delegated
+   admins, rules and their reach), and the query reads them back and
+   reports a difference as `changed`; or the strict query runs a
+   refresh-only plan of the identity root and reports what it would
+   change. **USER**: the repair of `basic` itself is one identity apply,
+   once the other configuration no longer manages those objects (it
+   must `tofu state rm` them, never destroy them).
