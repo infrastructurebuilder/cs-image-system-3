@@ -508,10 +508,12 @@ question at least once a month for the next 4 months." The note is made:
 
 ## 96. Hygiene bundle XIV
 
-**Status: OPEN 2026-10-23, six items left by the first PyPI release
+**Status: OPEN 2026-10-23, seven items left by the first PyPI release
 (0.1.1: cut 2026-10-18, completed 2026-10-22, tagged `v0.1.1` at
-766a210) and by a check of the reference configuration's OPA groups on
-2026-10-19. A plan: nothing runs until the operator says "do 96".**
+766a210), by a check of the reference configuration's OPA groups on
+2026-10-19, and by the `v0.1.1` tag's CI run (item 7, added the same
+day with the operator's agreement). A plan: nothing runs until the
+operator says "do 96".**
 
 1. **After a partial upload the release recipe gives the wrong advice.**
    On 2026-10-18 `just release stage pypi` uploaded four of eighteen
@@ -583,6 +585,27 @@ question at least once a month for the next 4 months." The note is made:
    admins, rules and their reach), and the query reads them back and
    reports a difference as `changed`; or the strict query runs a
    refresh-only plan of the identity root and reports what it would
-   change. **USER**: the repair of `basic` itself is one identity apply,
-   once the other configuration no longer manages those objects (it
-   must `tofu state rm` them, never destroy them).
+   change. The repair of `basic` itself is DONE (2026-10-23): the other
+   configuration dropped the six objects from its state with `tofu
+   state rm` (nothing in OPA destroyed), and the reference's identity
+   run (1623d47) put back its values; its strict query and `perform`
+   are green.
+
+7. **The tag's publish job never proves its tokens.** It uploads
+   nothing an index already holds, and a skip needs no credentials, so
+   from 2026-09-17 to 2026-10-23 the repository's `TEST_PYPI_TOKEN`
+   secret was never used: every tag run found the release already
+   uploaded from the operator's machine (v0.1.1.dev26's skipped all 36
+   files). The first upload CI had to make, 0.1.1 to TestPyPI, was
+   refused with `403 Invalid or non-existent authentication
+   information`: the secret did not hold the token the operator's
+   `.envrc` holds, which worked. The operator set it again from that
+   value (`printf '%s' "$TEST_PYPI_TOKEN" | gh secret set
+   TEST_PYPI_TOKEN`, with no trailing newline) and the re-run uploaded
+   0.1.1 to TestPyPI and checked PyPI. Fixed looks like: the job proves
+   each token it holds even when it has nothing to upload -- for
+   instance by sending a file the index already has, which the index
+   should check for credentials before it answers that the file is a
+   duplicate (to be confirmed) -- and fails loudly on a refusal; the
+   documents that tell the operator to set a token secret show the
+   `printf '%s'` form.
