@@ -9,7 +9,6 @@ operator can take.
 
 - §30, the plugin contract package: planned; waits on the operator's
   decision.
-- §66, starter repositories on GitHub: in progress (2026-10-24).
 - §94, the F44 review: standing; next on or after 2026-11-09.
 - §97, hygiene bundle XV: open, one item; a plan, waits for "do 97".
 - No documentation stage is open.
@@ -21,9 +20,19 @@ operator can take.
 - The reference configuration runs it from PyPI; `perform` green on
   2026-10-23.
 - Last development release: 0.1.1.dev26.
+- Owed at the next final release: the first publication of the four
+  template repositories (§66, landed). Proof: the tag's `publish` job
+  publishes all four; "Use this template" on `standard-aws`, `just init`
+  in the copy, and its CI green with no setup.
+- `STARTER_PUSH_TOKEN` (`cs-image-system-starter-repos-token`) expires
+  2027-10-25: renew it before then.
 
 **Landed since 2026-10-05** (newest first)
 
+- §66, starter repositories on GitHub: 2026-10-24, its squash commit.
+  Four public template repositories generated from `docs/examples/`
+  per final release; every CI job reads its image from
+  `vars.CSIS_RUNNER_IMAGE`; the runner image is public.
 - §96, hygiene bundle XIV: 2026-10-23, its squash commit. A release
   resumes after a partial upload (`release-finish`), uploads one project
   at a time, reads PyPI's new-project limit as "not now" and proves its
@@ -214,59 +223,6 @@ plugin 1–2 days. Call it three weeks, done as three branches.
    `feature/contract-package` (steps 1–3, 5–7),
    `feature/contract-context` (step 4), `feature/contract-example`
    (step 8), each squash-merged, kept.
-
-## 66. Starter repositories a team can use from GitHub
-
-- **Status:** IN PROGRESS 2026-10-24 on `feature/starter-repos` (the
-  operator: "Let's start 66").
-- **Why:** a team should start from a starter with GitHub's "Use this
-  template", not only with `init-config`. `docs/examples/` stays the one
-  place a starter is edited; the template repositories are generated
-  from it per final release and never edited there.
-
-**The operator's decisions (2026-10-24)**
-
-- Four template repositories under `infrastructurebuilder`, public,
-  named after the starters: `cs-image-system-starter-standard-aws`,
-  `-standard-aws-posix`, `-standard-gce`, `-complete`.
-- The runner image `ghcr.io/infrastructurebuilder/csis-ci` is made
-  public (USER), so a copy anywhere pulls it with no setup.
-- Every starter job reads its image from `vars.CSIS_RUNNER_IMAGE`,
-  default ours, with optional registry credentials: a team can use its
-  own private image with one repository setting that release refreshes
-  never touch.
-- One fine-grained token, `STARTER_PUSH_TOKEN`: Contents and Workflows
-  read/write on the four repositories only.
-- The first publication waits for the next final release; 0.1.1 is not
-  published by hand.
-
-**Steps**
-
-1. **The image setting.** `container: image: ${{ vars.CSIS_RUNNER_IMAGE
-   || '<ours>' }}` on every starter job, and `credentials:` from
-   `vars.CSIS_RUNNER_IMAGE_USERNAME` / `secrets.CSIS_RUNNER_IMAGE_PASSWORD`
-   (empty: no login, and on ghcr.io the job's own token). Tests;
-   CI_SETUP and CI_RUNNER say how.
-2. **`scripts/starter-tree <name> <version> <dest>`:** the example's
-   tracked files, `.csis-version`, and a generated first README line
-   (generated from `docs/examples/<name>` at `<version>`, no pull
-   requests, replace the TEST age identity first). A test: the tree is
-   the example plus exactly those two changes.
-3. **`just publish-starters [yes]`:** for each starter, clone its
-   repository, replace the tree, run `public-safe` with the example's
-   allow list, one commit `cs-image-system <v>`, tag `v<v>`, push.
-   `yes` builds and shows the diff and pushes nothing. Refuses a dirty
-   tree, a `.dev` version, and a version a repository already holds.
-4. **CI's `publish` job runs it** after the PyPI upload of a final tag,
-   gated on `STARTER_PUSH_TOKEN` (absent: SKIPPED, said in the summary).
-5. **Documents:** each example's README names its template repository;
-   DAILY_DRIVER 1.9 lists the templates first, `init-config` second,
-   the copy last; OPERATIONS section 2 (the recipe, the secret).
-6. **USER:** create the four repositories (public, template), the token
-   and its secret, and make the package public. Boxes when 1-5 land.
-7. **Proof:** the next final release's tag run publishes all four; "Use
-   this template" on `standard-aws`, then `just init` in the copy and
-   its CI green with no setup.
 
 ## 94. A verification starts a machine its operator switched off: KEPT, and reviewed monthly
 
