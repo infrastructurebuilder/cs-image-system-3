@@ -28,8 +28,10 @@ IMAGE = re.compile(r"^ghcr\.io/infrastructurebuilder/csis-ci:alma10-\d{8}(\.\d+)
 # stage 66: every job names it as the default of a repository variable, so a team can run its own
 # (private) build with one setting that release refreshes never touch
 EXPR = re.compile(r"^\$\{\{ vars\.CSIS_RUNNER_IMAGE \|\| '(?P<image>[^']+)' \}\}$")
-CREDENTIALS = {"username": "${{ vars.CSIS_RUNNER_IMAGE_USERNAME }}",
-               "password": "${{ secrets.CSIS_RUNNER_IMAGE_PASSWORD }}"}
+# an empty credential is refused by GitHub before the job starts ("Unexpected value ''", 2026-10-24), so
+# each defaults to what the runner does by itself for ghcr.io: the actor and the job's token
+CREDENTIALS = {"username": "${{ vars.CSIS_RUNNER_IMAGE_USERNAME || github.actor }}",
+               "password": "${{ secrets.CSIS_RUNNER_IMAGE_PASSWORD || github.token }}"}
 # the Dockerfile's ARG names against the table's tool names
 TOOLS = {"UV": "uv", "JUST": "just", "TOFU": "tofu", "PACKER": "packer", "AWSCLI": "aws", "SSM_PLUGIN": "session-manager-plugin",
          "GCLOUD": "gcloud", "SFT": "sft", "DOCKER_CLI": "docker", "ANSIBLE_CORE": "ansible-playbook", "YQ": "yq", "JQ": "jq",

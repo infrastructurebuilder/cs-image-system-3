@@ -211,9 +211,10 @@ is the system repository's `docs/CI_RUNNER.md`. The image is public and pulled
 with no login. To run your own build of it instead -- a private one,
 in your own registry -- set the repository variable
 `CSIS_RUNNER_IMAGE` to its reference (Settings, Secrets and variables,
-Actions, Variables), and, when that registry needs a login, the
+Actions, Variables), and, for a registry other than `ghcr.io`, the
 variable `CSIS_RUNNER_IMAGE_USERNAME` and the secret
-`CSIS_RUNNER_IMAGE_PASSWORD`; every job reads them
+`CSIS_RUNNER_IMAGE_PASSWORD` (unset, the job logs in to `ghcr.io`
+with its own token); every job reads them
 (`${{ vars.CSIS_RUNNER_IMAGE || '<the release's image>' }}`), and taking
 a release never touches them. An image in your own organisation's
 GitHub registry needs neither: the job's own token pulls it (every

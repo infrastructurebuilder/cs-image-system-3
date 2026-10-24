@@ -59,10 +59,10 @@ def test_verify_is_the_bar_and_needs_nothing():
     verify = wf["jobs"]["verify"]
     assert [run for _, run in _run_steps(verify)] == ["just init", "just verify", "just public-safe"]
     # stage 66: the one secret it may name is the runner image's optional registry password, in
-    # container.credentials -- empty on a fork's pull request, which then pulls without a login
+    # container.credentials -- absent on a fork's pull request, which then logs in with its own token
     steps_and_env = {k: v for k, v in verify.items() if k != "container"}
     assert "secrets." not in yaml.safe_dump(steps_and_env)
-    assert verify["container"]["credentials"]["password"] == "${{ secrets.CSIS_RUNNER_IMAGE_PASSWORD }}"
+    assert verify["container"]["credentials"]["password"] == "${{ secrets.CSIS_RUNNER_IMAGE_PASSWORD || github.token }}"
     assert not any(s.get("continue-on-error") for s in verify["steps"])   # typecheck is blocking
     assert "if" not in verify                                             # every push and PR
 

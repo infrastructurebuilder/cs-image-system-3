@@ -123,11 +123,14 @@ repository's own job token (the `packages: read` line).
 **A team's own image (stage 66).** Every job names the image as
 `${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:<tag>' }}`,
 with `credentials:` from the variable `CSIS_RUNNER_IMAGE_USERNAME` and
-the secret `CSIS_RUNNER_IMAGE_PASSWORD`. Unset, the job runs in this
+the secret `CSIS_RUNNER_IMAGE_PASSWORD`, each with a default. Unset, the job runs in this
 release's image; a team that wants its own build -- a private one, in
 its own registry -- sets the variable to its reference, and the two
-credentials when its registry needs a login (the runner makes no login
-when either is empty, and on `ghcr.io` falls back to the job's token).
+credentials for a registry other than `ghcr.io`. Unset, they default to
+the job's actor and token, the login the runner makes for `ghcr.io` by
+itself; they cannot be left empty, because GitHub refuses the workflow
+before any job starts when a credential is an empty string ("Unexpected
+value ''", the first try on 2026-10-24).
 Repository variables and secrets are the team's, so `init-config
 --force` and taking a release never touch them, and the starter's
 files stay unmodified. The image is built from this document and
