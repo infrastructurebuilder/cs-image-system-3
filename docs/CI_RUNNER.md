@@ -111,19 +111,33 @@ it (the second image was pulled by `verify`, which declares no block,
 and refused to `live`, which does). The package itself is published
 under the organisation (`ghcr.io/<owner>/csis-ci`) by the workflow's
 token, and who may read it is the package's setting on GitHub, not the
-workflow's: the first publish on 2026-10-16 came out PRIVATE, and the
-organisation's administrators had disabled making packages public. A
-private package is still usable by every repository of the same
-organisation: on the package's page, "Package settings", "Manage
-Actions access", add the repository with the Read role. The runner
-then pulls with that repository's own job token (the `packages: read`
-line) and no login step is needed. A repository outside the
-organisation needs the package public, which only the organisation's
-administrators can allow. Until one or the other is done, a
-configuration repository's jobs fail at "Initialize containers" with
-`denied` although the image exists; check it once after the first
-publish, and whenever a job of another repository cannot pull an image
-a job here just built. The base is pinned by digest and every tool by version;
+workflow's. The first publish on 2026-10-16 came out PRIVATE (the
+organisation had disabled making packages public); for the template
+repositories (stage 66) the operator made it public, so a repository
+anywhere pulls it with no login and no grant. A private package is
+still usable by every repository of the same organisation: on the
+package's page, "Package settings", "Manage Actions access", add the
+repository with the Read role; the runner then pulls with that
+repository's own job token (the `packages: read` line).
+
+**A team's own image (stage 66).** Every job names the image as
+`${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:<tag>' }}`,
+with `credentials:` from the variable `CSIS_RUNNER_IMAGE_USERNAME` and
+the secret `CSIS_RUNNER_IMAGE_PASSWORD`. Unset, the job runs in this
+release's image; a team that wants its own build -- a private one, in
+its own registry -- sets the variable to its reference, and the two
+credentials when its registry needs a login (the runner makes no login
+when either is empty, and on `ghcr.io` falls back to the job's token).
+Repository variables and secrets are the team's, so `init-config
+--force` and taking a release never touch them, and the starter's
+files stay unmodified. The image is built from this document and
+`ci/runner-image/` (`just runner-image <tag>` builds and probes it), so
+a private copy carries the same tools at the same versions. A job that
+fails at "Initialize containers" with `denied` although the image
+exists cannot read the image it names: the package's visibility or
+grant, or the credentials.
+
+The base is pinned by digest and every tool by version;
 the probe runs at build time and `just runner-image` builds and probes
 it locally (a leg of `just full-test`). A starter workflow pins one date tag on every
 job (`container: image:`); `init-config --force` moves it with the

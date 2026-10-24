@@ -25,6 +25,11 @@ TREES = ("complete", "standard-aws", "standard-gce", "standard-aws-posix")
 DOCKERFILE = REPO / "ci" / "runner-image" / "Dockerfile"
 DOC = REPO / "docs" / "CI_RUNNER.md"
 IMAGE = re.compile(r"^ghcr\.io/infrastructurebuilder/csis-ci:alma10-\d{8}(\.\d+)?$")   # a same-day rebuild is .2, .3
+# stage 66: every job names it as the default of a repository variable, so a team can run its own
+# (private) build with one setting that release refreshes never touch
+EXPR = re.compile(r"^\$\{\{ vars\.CSIS_RUNNER_IMAGE \|\| '(?P<image>[^']+)' \}\}$")
+CREDENTIALS = {"username": "${{ vars.CSIS_RUNNER_IMAGE_USERNAME }}",
+               "password": "${{ secrets.CSIS_RUNNER_IMAGE_PASSWORD }}"}
 # the Dockerfile's ARG names against the table's tool names
 TOOLS = {"UV": "uv", "JUST": "just", "TOFU": "tofu", "PACKER": "packer", "AWSCLI": "aws", "SSM_PLUGIN": "session-manager-plugin",
          "GCLOUD": "gcloud", "SFT": "sft", "DOCKER_CLI": "docker", "ANSIBLE_CORE": "ansible-playbook", "YQ": "yq", "JQ": "jq",
@@ -96,12 +101,15 @@ def test_every_job_runs_inside_the_one_dated_image_with_the_docker_socket():
     for path in paths:
         for name, job in _jobs(path):
             container = job.get("container") or {}
-            assert IMAGE.match(str(container.get("image", ""))), f"{path.relative_to(REPO)}: job {name} does not run in the dated image"
+            expr = EXPR.match(str(container.get("image", "")))
+            assert expr, f"{path.relative_to(REPO)}: job {name} does not read vars.CSIS_RUNNER_IMAGE"
+            assert IMAGE.match(expr["image"]), f"{path.relative_to(REPO)}: job {name} does not default to the dated image"
+            assert container.get("credentials") == CREDENTIALS, f"{path.relative_to(REPO)}: job {name}'s credentials"
             assert container.get("options") == "-v /var/run/docker.sock:/var/run/docker.sock", f"{path.relative_to(REPO)}: {name}"
             assert job.get("runs-on") == "ubuntu-24.04"                     # the machine the container runs on (stage 91)
             if "permissions" in job:                                        # a block without packages: read pulls as nobody
                 assert job["permissions"].get("packages") in ("read", "write"), f"{path.relative_to(REPO)}: {name} has a permissions block without packages: read"
-            images.add(container["image"])
+            images.add(expr["image"])
             text = yaml.safe_dump(job)
             for gone in ("setup-uv", "setup-just", "setup-opentofu", "setup-packer", "setup-gcloud", "sft-install",
                          "session-manager-plugin.deb", "Place the tools"):
