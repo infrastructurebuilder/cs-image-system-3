@@ -138,7 +138,12 @@ def test_publish_runs_on_a_tag_alone_and_is_the_only_uploader():
         if s.get("id") != "gate":
             assert "steps.gate.outputs.ready == 'true'" in (s.get("if") or ""), s.get("name")
     commands = [run.strip() for name, run in _run_steps(job) if not name.startswith(_PLUMBING)]
-    assert commands == ["just init", "just publish test", "just publish pypi"]
+    assert commands == ["just init", "just publish test", "just publish pypi", "just publish-starters"]
+    # stage 66: the template repositories, a final version alone, after PyPI, on their own token
+    starters = next(s for s in job["steps"] if s.get("name") == "Publish the template repositories")
+    assert "steps.gate.outputs.pypi == 'true'" in starters["if"] and "steps.gate.outputs.starters == 'true'" in starters["if"]
+    assert starters["env"] == {"STARTER_PUSH_TOKEN": "${{ secrets.STARTER_PUSH_TOKEN }}"}
+    assert "HAVE_STARTER_PUSH_TOKEN" in gate["env"] and "publish-starters: SKIPPED" in gate["run"]
     pypi = next(s for s in job["steps"] if s.get("name") == "Publish to PyPI")
     assert "steps.gate.outputs.pypi == 'true'" in pypi["if"]
     assert pypi["env"]["UV_PUBLISH_TOKEN"] == "${{ secrets.PYPI_TOKEN }}"

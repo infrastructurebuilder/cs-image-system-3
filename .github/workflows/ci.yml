@@ -201,6 +201,7 @@ jobs:
         env:
           HAVE_TEST_PYPI_TOKEN: ${{ secrets.TEST_PYPI_TOKEN != '' }}
           HAVE_PYPI_TOKEN: ${{ secrets.PYPI_TOKEN != '' }}
+          HAVE_STARTER_PUSH_TOKEN: ${{ secrets.STARTER_PUSH_TOKEN != '' }}
           IS_DEV: ${{ contains(github.ref_name, '.dev') }}
         run: |
           # The same rule as the other jobs: none configured is SKIPPED and said in the
@@ -209,17 +210,25 @@ jobs:
           if [ "$HAVE_TEST_PYPI_TOKEN" != true ] && [ "$HAVE_PYPI_TOKEN" != true ]; then
             echo "publish: SKIPPED -- no index token is configured, so nothing is uploaded (TEST_PYPI_TOKEN: an API token for test.pypi.org; PYPI_TOKEN: one for pypi.org, needed for a final version)"
             { echo "## publish: SKIPPED"; echo "No index token is configured; nothing was uploaded for $GITHUB_REF_NAME. A green conclusion here is not proof that anything ran."; } >> "$GITHUB_STEP_SUMMARY"
-            echo "ready=false" >> "$GITHUB_OUTPUT"; echo "pypi=false" >> "$GITHUB_OUTPUT"
+            echo "ready=false" >> "$GITHUB_OUTPUT"; echo "pypi=false" >> "$GITHUB_OUTPUT"; echo "starters=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           [ "$HAVE_TEST_PYPI_TOKEN" = true ] || { echo "publish: FAILED -- TEST_PYPI_TOKEN is missing or EMPTY and every version goes to TestPyPI first"; exit 1; }
           if [ "$IS_DEV" = true ]; then
             echo "publish: $GITHUB_REF_NAME is a development version -- TestPyPI alone"
-            echo "pypi=false" >> "$GITHUB_OUTPUT"
+            echo "pypi=false" >> "$GITHUB_OUTPUT"; echo "starters=false" >> "$GITHUB_OUTPUT"
           else
             [ "$HAVE_PYPI_TOKEN" = true ] || { echo "publish: FAILED -- $GITHUB_REF_NAME is a final version and PYPI_TOKEN is missing or EMPTY"; exit 1; }
             echo "publish: $GITHUB_REF_NAME is a final version -- TestPyPI, then PyPI"
             echo "pypi=true" >> "$GITHUB_OUTPUT"
+            # stage 66: then the template repositories, which need their own token
+            if [ "$HAVE_STARTER_PUSH_TOKEN" = true ]; then
+              echo "starters=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "publish: the template repositories are SKIPPED -- STARTER_PUSH_TOKEN is not configured"
+              { echo "## publish-starters: SKIPPED"; echo "STARTER_PUSH_TOKEN is not configured; the template repositories were not published for $GITHUB_REF_NAME."; } >> "$GITHUB_STEP_SUMMARY"
+              echo "starters=false" >> "$GITHUB_OUTPUT"
+            fi
           fi
           echo "ready=true" >> "$GITHUB_OUTPUT"
 
@@ -250,3 +259,9 @@ jobs:
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
         run: just publish pypi
+
+      - name: Publish the template repositories
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.pypi == 'true' && steps.gate.outputs.starters == 'true'
+        env:
+          STARTER_PUSH_TOKEN: ${{ secrets.STARTER_PUSH_TOKEN }}
+        run: just publish-starters

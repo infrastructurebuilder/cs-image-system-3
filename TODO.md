@@ -11,8 +11,7 @@ operator can take.
   decision.
 - §66, starter repositories on GitHub: in progress (2026-10-24).
 - §94, the F44 review: standing; next on or after 2026-11-09.
-- No hygiene bundle is open; the next non-critical issue opens bundle
-  XV.
+- §97, hygiene bundle XV: open, one item; a plan, waits for "do 97".
 - No documentation stage is open.
 
 **Release**
@@ -294,3 +293,17 @@ question at least once a month for the next 4 months." The note is made:
 - 2026-12-09: (open)
 - 2027-01-09: (open)
 - 2027-02-09: (open)
+
+## 97. Hygiene bundle XV
+
+- **Status:** OPEN 2026-10-24, one item; a plan until the operator says
+  "do 97". The next non-critical issue joins it.
+
+1. **A tree `init-config` writes links into the system repository by
+   relative path.**
+   - *Seen:* the starters' READMEs link `../../CONFIGURATION.md`,
+     `../standard-aws/README.md` and the like, which resolve inside the
+     system repository and nowhere in a configuration repository (found
+     2026-10-24, building the template trees for stage 66).
+   - *Fix:* `init-config` rewrites those links as `scripts/starter-tree`
+     does for the templates, pointing at the installed release's tag.
