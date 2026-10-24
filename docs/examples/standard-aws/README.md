@@ -1,5 +1,10 @@
 # standard-aws: the smallest AWS configuration
 
+Its template repository is
+[`infrastructurebuilder/cs-image-system-starter-standard-aws`](https://github.com/infrastructurebuilder/cs-image-system-starter-standard-aws):
+"Use this template" there makes a repository of your own from this tree,
+generated from it with each final release.
+
 *Walked from nothing on 2026-10-05 to 2026-10-14 against 0.1.1.dev14 to
 0.1.1.dev23 (stage 65): bootstrapped, baked, launched, logged into by a
 person and by CI, given a second cloud, and torn down.*

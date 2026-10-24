@@ -1,5 +1,10 @@
 # standard-gce: the smallest GCE configuration
 
+Its template repository is
+[`infrastructurebuilder/cs-image-system-starter-standard-gce`](https://github.com/infrastructurebuilder/cs-image-system-starter-standard-gce):
+"Use this template" there makes a repository of your own from this tree,
+generated from it with each final release.
+
 The smallest tree a team writes to get going on the GCE plugin set, in the
 shape of a real configuration repository. Copy it, replace every
 `REPLACE-ME` value, and it is a configuration:

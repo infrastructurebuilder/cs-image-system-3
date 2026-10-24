@@ -289,3 +289,22 @@ def test_release_finish_commits_and_tags_only_a_completed_upload():
                                      'git commit -q -m "release $new"', 'git tag -a "v$new"')]
     assert order == sorted(order), "every check before the commit, the commit before the tag"
     assert "git push" not in body.replace("push with: git push", "")
+
+
+def test_publish_starters_checks_every_repository_before_it_pushes_any():
+    """Stage 66: the template repositories take a final version from its tag, once:
+    a development version, a dirty tree, HEAD off the tag or no token (the real form)
+    refuse; every repository is read and every tree built and gated before the
+    first push, so one that already holds the version refuses them all; the
+    starters and their repositories come from scripts/starter-tree --list."""
+    r = _recipes()
+    body = r["publish-starters"][1]
+    for needle in ('*.dev*) echo "publish-starters:', 'git status --porcelain', 'git tag --points-at HEAD',
+                   'STARTER_PUSH_TOKEN', 'scripts/starter-tree --list', 'ls-remote --tags origin "refs/tags/v$version"',
+                   'public-safe --tree "$work/$name.tree" --config "$work/$name.tree/cfg/_config.yml"',
+                   'commit -q -m "cs-image-system $version"', 'tag -a "v$version"'):
+        assert needle in body, needle
+    first_push = body.index("push -q origin main")
+    assert body.index("ls-remote --tags") < body.index("public-safe --tree") < body.index("done < <(") < first_push
+    assert body.index('[ "{{dry}}" = "yes" ]') < first_push, "the dry form stops before any commit"
+    assert "pypi-" not in body and "$STARTER_PUSH_TOKEN\" | base64" in body, "the token only ever as a header"

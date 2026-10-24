@@ -1742,6 +1742,34 @@ first publication push was refused for that) (`PUBLISH_MESSAGE`,
 default `Initial public release`). It refuses a dirty root, a finding, a
 missing ignore line or an existing `<dest>`, and never pushes.
 
+`just publish-starters [yes]` (stage 66) publishes the four template
+repositories, `infrastructurebuilder/cs-image-system-starter-<starter>`,
+from which a team makes its configuration repository with GitHub's "Use
+this template". `docs/examples/` stays the one place a starter is
+edited; a template repository is generated from it and never edited
+there. For each starter (`scripts/starter-tree --list`):
+
+- **the tree** is `scripts/starter-tree <starter> <version>`: the
+  starter's files as committed, `.csis-version`, a generated README
+  header (where it comes from, that it takes no pull requests, and that
+  the TEST age identity must be replaced before any real value is
+  stored), and every Markdown link that leaves the starter pointed at
+  this repository at the release's tag; a test holds the tree to exactly
+  that;
+- **the gate** is `public-safe` with the starter's own allow list;
+- **the commit** is one, `cs-image-system <version>`, on `main`, with the
+  tag `v<version>`, so a repository's history is one line per release.
+
+It refuses a development version (a template names a version teams
+install from PyPI), a dirty tree, a checkout that is not the version's
+tag (its links point there), a missing `STARTER_PUSH_TOKEN`, and a
+version any of the four already holds -- every repository is read and
+every tree built and gated before the first push, so one refusal stops
+all four. `yes` is the dry form: it builds and gates every tree and says
+what each repository would take, also before the repositories exist,
+and pushes nothing. CI's `publish` job runs it after PyPI for a final
+tag (below).
+
 ### The modification tests
 
 `just test-mods [--image <img>]... [--force] [--strict]` runs every
@@ -1782,6 +1810,7 @@ configuration repository's, which the release ships.
 | `golden-regen` | rewrite `tests/fixtures/v2_golden` from the fixture | nothing; review the diff |
 | `public-safe *ARGS` | scan this checkout with the fixture's allow list | nothing |
 | `publish-tree <root> <dest>` | a publishable copy: tracked files, gate, one commit on `main` | a clean root |
+| `publish-starters [yes]` | the four template repositories from `docs/examples/` at a final version's tag: the trees, the gate, one commit and the tag each; `yes` = dry | the tag, `STARTER_PUSH_TOKEN` |
 | `hooks` | `core.hooksPath .githooks` here | nothing |
 | `verify` | alias of `test` | nothing |
 | `clean` / `clean-venv` / `clean-all` | build residue / `.venv` / both plus `uv.lock` | nothing |
@@ -2074,9 +2103,12 @@ v0.1.1 tag was the first to upload anything, and found a TestPyPI
 secret that had never been the working token). The gate follows the other
 jobs' rule: no token configured is `publish: SKIPPED` with a job-summary
 line; a tag that needs a token which is missing or EMPTY fails by name
-(a development tag needs TestPyPI's token alone; a final tag both). It
-holds no cloud credential and no `id-token` permission: trusted
-publishing waits until the package names are stable.
+(a development tag needs TestPyPI's token alone; a final tag both). For
+a final tag it then runs `just publish-starters` with
+`STARTER_PUSH_TOKEN` (stage 66): the template repositories take the
+release; without that secret the step is SKIPPED, said in the job
+summary. It holds no cloud credential and no `id-token` permission:
+trusted publishing waits until the package names are stable.
 
 ### A configuration repository: the `verify` job
 
@@ -2177,6 +2209,7 @@ This repository:
 | `OKTA_API_PRIVATE_KEY` | the load's check that the okta provider can authenticate | live |
 | `TF_VAR_NOS_KEY`, `TF_VAR_NOS_SECRET` → exported as `TF_VAR_nos_coastal_modeling_cloud_sandbox_key` / `_secret` | the load's `_require_tfvar` assertion (the fixture names the real team) | live |
 | `TEST_PYPI_TOKEN`, `PYPI_TOKEN` | `just publish test` / `pypi`, as `UV_PUBLISH_TOKEN` | publish |
+| `STARTER_PUSH_TOKEN` | `just publish-starters`: a fine-grained token with Contents and Workflows read/write on the four template repositories alone (pushing `.github/workflows/` needs Workflows) | publish |
 
 Set a token secret from the value your `.envrc` holds, with no newline
 added (a stray newline, space or quote is refused by the index as
@@ -2185,6 +2218,7 @@ added (a stray newline, space or quote is refused by the index as
 ```sh
 printf '%s' "$TEST_PYPI_TOKEN" | gh secret set TEST_PYPI_TOKEN --repo <owner>/<repository>
 printf '%s' "$PYPI_TOKEN" | gh secret set PYPI_TOKEN --repo <owner>/<repository>
+gh secret set STARTER_PUSH_TOKEN --repo <owner>/<repository>   # prompts; paste the fine-grained token
 ```
 
 `AWS_APPLY_ROLE_ARN`, `CSIS_CONFIG_IDENTITY` and `CSIS_CONFIG_PUSH_TOKEN`

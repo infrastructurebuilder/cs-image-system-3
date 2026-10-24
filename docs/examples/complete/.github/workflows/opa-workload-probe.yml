@@ -40,7 +40,15 @@ jobs:
       # version (docs/CI_RUNNER.md lists them); moved by `init-config --force` with the
       # release's other lines. The host's docker socket lets the modification tests drive
       # the host daemon through the image's docker client.
-      image: ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.4
+      # Unset, CSIS_RUNNER_IMAGE is this release's image and the job logs in to ghcr.io with its own
+      # token, as the runner always did (an empty credential is invalid). A team that runs its own
+      # build names it in the variable; a registry other than ghcr.io needs the variable
+      # CSIS_RUNNER_IMAGE_USERNAME and the secret CSIS_RUNNER_IMAGE_PASSWORD. Release refreshes never
+      # touch them (stage 66).
+      image: ${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.4' }}
+      credentials:
+        username: ${{ vars.CSIS_RUNNER_IMAGE_USERNAME || github.actor }}
+        password: ${{ secrets.CSIS_RUNNER_IMAGE_PASSWORD || github.token }}
       options: -v /var/run/docker.sock:/var/run/docker.sock
     permissions:
       packages: read          # the runner image is pulled with this job's token (stage 92): a permissions block without it reads as none

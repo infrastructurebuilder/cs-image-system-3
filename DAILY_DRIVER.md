@@ -353,8 +353,26 @@ the guide, so a team sees exactly what its admins still have to do.
 
 ### 1.9 The configuration repository, from scratch
 
-Start from a starter tree; do not write from nothing. The release
-carries four and writes one out:
+Start from a starter tree; do not write from nothing. There are four
+starters, and three ways to get one, each giving the same tree:
+
+1. **On GitHub, "Use this template"** on the starter's template
+   repository. Each is generated from its starter with every final
+   release (stage 66), takes no pull requests, and says so in its
+   README's first lines; its `.csis-version` names the release:
+   [cs-image-system-starter-standard-aws](https://github.com/infrastructurebuilder/cs-image-system-starter-standard-aws)
+   (the default),
+   [cs-image-system-starter-standard-gce](https://github.com/infrastructurebuilder/cs-image-system-starter-standard-gce),
+   [cs-image-system-starter-complete](https://github.com/infrastructurebuilder/cs-image-system-starter-complete)
+   and
+   [cs-image-system-starter-standard-aws-posix](https://github.com/infrastructurebuilder/cs-image-system-starter-standard-aws-posix).
+   Your copy is a repository of its own from the first minute; clone it
+   and go on below.
+2. **From the release, `init-config`** (the commands below), which needs
+   no GitHub and is always the release you installed.
+3. **A copy of `docs/examples/<name>`** from the system repository works
+   too, but it carries no `.csis-version` and its links point into that
+   repository: prefer the other two.
 
 ```sh
 cs-image-system init-config my-config                          # standard-aws, the default
@@ -398,7 +416,9 @@ Then, in the written tree:
    this page and CI_SETUP expect `develop` and `main`; `main` does not
    exist until the first push of it, [CI_SETUP.md](docs/examples/complete/CI_SETUP.md),
    section 3.8), `just init` (the hook, the plugin cache, a check that the
-   command runs), and a first commit of the tree as it stands.
+   command runs), and a first commit of the tree as it stands. From a
+   template, the clone already holds `main` with that first commit:
+   `git switch -c develop` instead of `git init`, then `just init`.
 2. **The identity.** Make your own age key pair:
 
    ```sh

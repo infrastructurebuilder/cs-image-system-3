@@ -58,7 +58,11 @@ def test_verify_is_the_bar_and_needs_nothing():
     wf = _workflow()
     verify = wf["jobs"]["verify"]
     assert [run for _, run in _run_steps(verify)] == ["just init", "just verify", "just public-safe"]
-    assert "secrets." not in yaml.safe_dump(verify)
+    # stage 66: the one secret it may name is the runner image's optional registry password, in
+    # container.credentials -- absent on a fork's pull request, which then logs in with its own token
+    steps_and_env = {k: v for k, v in verify.items() if k != "container"}
+    assert "secrets." not in yaml.safe_dump(steps_and_env)
+    assert verify["container"]["credentials"]["password"] == "${{ secrets.CSIS_RUNNER_IMAGE_PASSWORD || github.token }}"
     assert not any(s.get("continue-on-error") for s in verify["steps"])   # typecheck is blocking
     assert "if" not in verify                                             # every push and PR
 
@@ -94,7 +98,8 @@ def test_live_proves_the_fixture_read_only_and_is_gated():
         assert var in proof["env"], var
     # the tools validate checks for (stage 48) come with the runner image (stage 92), placed where
     # the fixture's executables.yml pins them; nothing installs them on the runner any more
-    assert str((live.get("container") or {}).get("image", "")).startswith("ghcr.io/infrastructurebuilder/csis-ci:alma10-")
+    image = str((live.get("container") or {}).get("image", ""))
+    assert image.startswith("${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:alma10-")   # stage 66
     names = [s.get("name", "") for s in live["steps"]]
     assert "Install OpenTofu" not in names and "Place the tools where the fixture's executables.yml pins them" not in names
 
@@ -133,7 +138,12 @@ def test_publish_runs_on_a_tag_alone_and_is_the_only_uploader():
         if s.get("id") != "gate":
             assert "steps.gate.outputs.ready == 'true'" in (s.get("if") or ""), s.get("name")
     commands = [run.strip() for name, run in _run_steps(job) if not name.startswith(_PLUMBING)]
-    assert commands == ["just init", "just publish test", "just publish pypi"]
+    assert commands == ["just init", "just publish test", "just publish pypi", "just publish-starters"]
+    # stage 66: the template repositories, a final version alone, after PyPI, on their own token
+    starters = next(s for s in job["steps"] if s.get("name") == "Publish the template repositories")
+    assert "steps.gate.outputs.pypi == 'true'" in starters["if"] and "steps.gate.outputs.starters == 'true'" in starters["if"]
+    assert starters["env"] == {"STARTER_PUSH_TOKEN": "${{ secrets.STARTER_PUSH_TOKEN }}"}
+    assert "HAVE_STARTER_PUSH_TOKEN" in gate["env"] and "publish-starters: SKIPPED" in gate["run"]
     pypi = next(s for s in job["steps"] if s.get("name") == "Publish to PyPI")
     assert "steps.gate.outputs.pypi == 'true'" in pypi["if"]
     assert pypi["env"]["UV_PUBLISH_TOKEN"] == "${{ secrets.PYPI_TOKEN }}"

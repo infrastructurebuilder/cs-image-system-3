@@ -1,5 +1,10 @@
 # complete: every plugin, every field, every variation
 
+Its template repository is
+[`infrastructurebuilder/cs-image-system-starter-complete`](https://github.com/infrastructurebuilder/cs-image-system-starter-complete):
+"Use this template" there makes a repository of your own from this tree,
+generated from it with each final release.
+
 A configuration root in the shape of a real one that exercises everything
 [CONFIGURATION.md](../../CONFIGURATION.md) documents: every plugin the
 workspace ships, every field of every model, and every variation the

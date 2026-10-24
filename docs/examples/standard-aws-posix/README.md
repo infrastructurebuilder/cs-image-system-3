@@ -1,5 +1,10 @@
 # standard-aws-posix: the smallest AWS configuration, with no Okta
 
+Its template repository is
+[`infrastructurebuilder/cs-image-system-starter-standard-aws-posix`](https://github.com/infrastructurebuilder/cs-image-system-starter-standard-aws-posix):
+"Use this template" there makes a repository of your own from this tree,
+generated from it with each final release.
+
 *Walked from nothing on 2026-10-09 to 2026-10-14 against 0.1.1.dev21 to
 0.1.1.dev23 (stage 65, stage 16): bootstrapped, baked, launched, logged
 into by a person and by CI, and torn down.*

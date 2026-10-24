@@ -207,15 +207,21 @@ every tool at a pinned version, the host's docker socket mounted for
 the modification tests), so this tree's CI changes only when you take
 a release, never at no commit. Nothing is installed on the runner any
 more; what the image carries, and what any other CI runner would need,
-is the system repository's `docs/CI_RUNNER.md`. The image is pulled
-with this job's own token (every job's `permissions:` block says
-`packages: read` for it), which works when the package is public, or
-when this repository was granted Read access to it in the package's
-"Manage Actions access" settings (a repository of the same
-organisation as the package); a job that fails at "Initialize
-containers" with `denied`, although the image exists, is that setting,
-and the holders of the system repository are who can change it
-(`docs/CI_RUNNER.md`, section 4).
+is the system repository's `docs/CI_RUNNER.md`. The image is public and pulled
+with no login. To run your own build of it instead -- a private one,
+in your own registry -- set the repository variable
+`CSIS_RUNNER_IMAGE` to its reference (Settings, Secrets and variables,
+Actions, Variables), and, for a registry other than `ghcr.io`, the
+variable `CSIS_RUNNER_IMAGE_USERNAME` and the secret
+`CSIS_RUNNER_IMAGE_PASSWORD` (unset, the job logs in to `ghcr.io`
+with its own token); every job reads them
+(`${{ vars.CSIS_RUNNER_IMAGE || '<the release's image>' }}`), and taking
+a release never touches them. An image in your own organisation's
+GitHub registry needs neither: the job's own token pulls it (every
+job's `permissions:` block says `packages: read`). How to build it, and
+what it must carry, is the system repository's `docs/CI_RUNNER.md`; a
+job that fails at "Initialize containers" with `denied` cannot read the
+image it names (`docs/CI_RUNNER.md`, section 4).
 GitHub withdraws an old runner image every couple of years, and an
 action's major version when its Node.js goes; the runs' annotations say
 so for months first. When they do, a newer release of the system
