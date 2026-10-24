@@ -417,6 +417,61 @@ publish-tree root dest:
 	git -C "$dest" commit -q -m "${PUBLISH_MESSAGE:-Initial public release}"
 	echo "publish-tree: $(git -C "$dest" ls-files | wc -l | tr -d ' ') files, one commit on main at $dest"
 
+# Publish the template repositories (stage 66): for each starter, its repository
+# (`scripts/starter-tree --list`) takes the starter's tree at this release -- its committed files,
+# `.csis-version`, the generated README header, links out of the tree pointed at the tag -- as ONE
+# commit `cs-image-system <version>` on main and the tag `v<version>`, after the public-safe gate with
+# the starter's own allow list. A final version only (a template names a version teams install from
+# PyPI), from a clean checkout of its tag, never twice. `yes` is the dry form: it builds every tree
+# and shows what would change, and pushes nothing. The push needs STARTER_PUSH_TOKEN (Contents and
+# Workflows read/write on the four repositories); CI's publish job runs it after PyPI.
+[doc("Publish the four template repositories from docs/examples at a final release's tag; `yes` = dry")]
+publish-starters dry="no":
+	#!/usr/bin/env bash
+	set -euo pipefail
+	version=$(uv run --no-sync bump-my-version show current_version)
+	case "$version" in *.dev*) echo "publish-starters: $version is a development version -- a template names a version teams install from PyPI; nothing was published"; exit 1 ;; esac
+	[ -z "$(git status --porcelain)" ] || { echo "publish-starters: the tree is not clean -- nothing was published"; exit 1; }
+	if [ "{{dry}}" != "yes" ]; then
+		git tag --points-at HEAD | grep -qx "v$version" || { echo "publish-starters: HEAD is not the tag v$version -- a template is published from its release's tag (its links point there); nothing was published"; exit 1; }
+		[ -n "${STARTER_PUSH_TOKEN:-}" ] || { echo "publish-starters: STARTER_PUSH_TOKEN is not set -- the token that may push to the template repositories; nothing was published"; exit 2; }
+	fi
+	work=$(mktemp -d "${TMPDIR:-/tmp}/csis-starters.XXXXXX")
+	# every repository is checked before any is pushed: one that holds the version refuses them all
+	while read -r name repo; do
+		if ! git clone -q --depth 1 "https://github.com/$repo.git" "$work/$name.git" 2>/dev/null; then
+			[ "{{dry}}" = "yes" ] || { echo "publish-starters: $repo cannot be read -- does it exist, public? nothing was published"; exit 1; }
+			echo "publish-starters: dry -- $repo cannot be read yet (it does not exist, or is not public); showing its first commit"
+			git init -q "$work/$name.git"
+		elif [ -n "$(git -C "$work/$name.git" ls-remote --tags origin "refs/tags/v$version")" ]; then
+			echo "publish-starters: $repo already holds v$version -- a version is published once; nothing was published"; exit 1
+		fi
+		uv run --no-sync python scripts/starter-tree "$name" "$version" "$work/$name.tree"
+		uv run --no-sync cs-image-system public-safe --tree "$work/$name.tree" --config "$work/$name.tree/cfg/_config.yml"
+	done < <(uv run --no-sync python scripts/starter-tree --list)
+	# the commit's identity: this checkout's (the operator's), or GitHub Actions' bot in CI
+	name_id=$(git config user.name || true); email_id=$(git config user.email || true)
+	if [ -n "${GITHUB_ACTIONS:-}" ] && [ -z "$email_id" ]; then
+		name_id="github-actions[bot]"; email_id="41898282+github-actions[bot]@users.noreply.github.com"
+	fi
+	while read -r name repo; do
+		clone="$work/$name.git"
+		find "$clone" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+		cp -a "$work/$name.tree/." "$clone/"
+		git -C "$clone" checkout -q -B main
+		git -C "$clone" add -A
+		if [ "{{dry}}" = "yes" ]; then
+			echo "publish-starters: dry -- $repo would take v$version: $(git -C "$clone" diff --cached --shortstat HEAD 2>/dev/null || echo "$(git -C "$clone" ls-files | wc -l | tr -d ' ') files, its first commit")"
+			continue
+		fi
+		git -C "$clone" -c user.name="$name_id" -c user.email="$email_id" commit -q -m "cs-image-system $version" -m "Generated from docs/examples/$name of infrastructurebuilder/cs-image-system-3 at v$version; this repository takes no pull requests."
+		git -C "$clone" -c user.name="$name_id" -c user.email="$email_id" tag -a "v$version" -m "cs-image-system $version"
+		auth=$(printf 'x-access-token:%s' "$STARTER_PUSH_TOKEN" | base64 | tr -d '\n')
+		git -C "$clone" -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push -q origin main "refs/tags/v$version"
+		echo "publish-starters: $repo holds cs-image-system $version (main and v$version)"
+	done < <(uv run --no-sync python scripts/starter-tree --list)
+	rm -rf "$work"
+
 # Install the plain pre-commit hook (.githooks/pre-commit) for this checkout; `init` does this.
 hooks:
 	@git config core.hooksPath .githooks && echo "hooks: core.hooksPath = .githooks"
