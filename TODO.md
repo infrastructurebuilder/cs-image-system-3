@@ -9,8 +9,7 @@ operator can take.
 
 - §30, the plugin contract package: planned; waits on the operator's
   decision.
-- §66, starter repositories on GitHub: planned; no longer blocked (0.1.1
-  is out).
+- §66, starter repositories on GitHub: in progress (2026-10-24).
 - §94, the F44 review: standing; next on or after 2026-11-09.
 - No hygiene bundle is open; the next non-critical issue opens bundle
   XV.
@@ -219,78 +218,56 @@ plugin 1–2 days. Call it three weeks, done as three branches.
 
 ## 66. Starter repositories a team can use from GitHub
 
-**Status: PLANNED, not started** (the operator, 2026-09-24: "I want to make
-a template repo that holds the docs examples").
+- **Status:** IN PROGRESS 2026-10-24 on `feature/starter-repos` (the
+  operator: "Let's start 66").
+- **Why:** a team should start from a starter with GitHub's "Use this
+  template", not only with `init-config`. `docs/examples/` stays the one
+  place a starter is edited; the template repositories are generated
+  from it per final release and never edited there.
 
-**The question, and the answer.** Three example trees stand under
-`docs/examples/` and a team should be able to start from one with a click.
-The choices were three repositories, one repository with three branches,
-or a script that copies a tree out. The answer is shaped by one fact: the
-examples are held to the code by the tests (each loads and validates;
-each tree's Justfile, workflow, hook, scripts and modules are the
-release's, byte for byte), so **`docs/examples/` is the only place they
-are edited**, and everything published from them is generated, per
-release, and never edited at the destination. Then:
+**The operator's decisions (2026-10-24)**
 
-- **Three template repositories, not branches.** GitHub's "Use this
-  template" copies a repository's default branch, and a template is a
-  repository: three branches would hand every team the wrong two thirds
-  and one repository of three directories would hand them all three. One
-  repository per example: `cs-image-system-starter-aws`,
-  `cs-image-system-starter-gce`, `cs-image-system-starter-complete`,
-  each marked a template in its settings.
-- **Published by CI from `docs/examples/`, one commit per release**, as
-  `publish-tree` already publishes the public repositories: the mirror's
-  `main` is replaced from the example, `.csis-version` is written with
-  the released version, the commit is `cs-image-system <version>`, the
-  tag is `v<version>`, and the README opens with a line saying the
-  repository is generated from cs-image-system's `docs/examples/<name>`
-  at that version and takes no pull requests (changes go to the system
-  repository, where the tests hold them). Tracking changes to an example
-  is then ordinary work here; the mirrors are write-only and their
-  history is one line per release.
-- **The release itself is the primary template.** §64's `cs-image-system
-  init-config <dir> --from <name>` needs no GitHub and cannot drift,
-  since the starter inside the release matches the command that reads
-  it; the template repositories are the browser-friendly mirror of the
-  same source. A copy script alone (the third option) is `init-config`
-  without the version lock, and is not enough.
+- Four template repositories under `infrastructurebuilder`, public,
+  named after the starters: `cs-image-system-starter-standard-aws`,
+  `-standard-aws-posix`, `-standard-gce`, `-complete`.
+- The runner image `ghcr.io/infrastructurebuilder/csis-ci` is made
+  public (USER), so a copy anywhere pulls it with no setup.
+- Every starter job reads its image from `vars.CSIS_RUNNER_IMAGE`,
+  default ours, with optional registry credentials: a team can use its
+  own private image with one repository setting that release refreshes
+  never touch.
+- One fine-grained token, `STARTER_PUSH_TOKEN`: Contents and Workflows
+  read/write on the four repositories only.
+- The first publication waits for the next final release; 0.1.1 is not
+  published by hand.
 
-1. **The mirrors exist** (USER): three empty repositories under the
-   organisation, each marked "Template repository", each with a
-   fine-grained token (contents: write, that repository alone) stored
-   here as `STARTER_PUSH_TOKEN_<AWS|GCE|COMPLETE>`; `main` protected
-   against everything but the publishing job.
-2. **A `publish-starters` recipe** in this repository's Justfile: for
-   each example, build the tree into a scratch checkout of its mirror
-   (the example's tracked files, `.csis-version` written, the README's
-   generated line prepended), `public-safe` over the result with the
-   example's own allow list, one commit, the tag, the push. Dry form
-   (`yes`) builds and shows the diff, pushes nothing. Refuses a dirty
-   tree and a version the mirror already carries.
-3. **The `publish` job runs it** after the index upload succeeds for a
-   final version (never for a `.dev` release: a team's template names a
-   version teams can install from PyPI). The job is gated on the three
-   tokens the way every other job is gated: none is SKIPPED and said so,
-   some is a failure that names them.
-4. **The examples know they are templates**: each README under
-   `docs/examples/` says where its mirror is and that the mirror is
-   generated; `DAILY_DRIVER.md` section 1.9 names the three template
-   repositories first and `init-config` second (once §64 lands), and the
-   copy from `docs/examples/` last.
-5. **A test** holds the three mirrors' names and the recipe's file list
-   to the examples: what the recipe would publish equals the tree under
-   `docs/examples/<name>` plus the two generated lines, so a file added
-   to an example is published and a file removed is removed.
-6. **Records**: OPERATIONS section 2 gains the recipe beside
-   `publish-tree`; §64 step 1 (the release ships the starters) and this
-   stage share the source and the version stamp. Proved by one real
-   publication of a final version, then "Use this template" on the AWS
-   mirror and `just init` in the result.
+**Steps**
 
-**Sizing**: the recipe and its test half a day; the job an hour; the
-mirrors and tokens are the operator's (an hour); the live proof waits on
-the first final version on PyPI (§41's open call).
+1. **The image setting.** `container: image: ${{ vars.CSIS_RUNNER_IMAGE
+   || '<ours>' }}` on every starter job, and `credentials:` from
+   `vars.CSIS_RUNNER_IMAGE_USERNAME` / `secrets.CSIS_RUNNER_IMAGE_PASSWORD`
+   (empty: no login, and on ghcr.io the job's own token). Tests;
+   CI_SETUP and CI_RUNNER say how.
+2. **`scripts/starter-tree <name> <version> <dest>`:** the example's
+   tracked files, `.csis-version`, and a generated first README line
+   (generated from `docs/examples/<name>` at `<version>`, no pull
+   requests, replace the TEST age identity first). A test: the tree is
+   the example plus exactly those two changes.
+3. **`just publish-starters [yes]`:** for each starter, clone its
+   repository, replace the tree, run `public-safe` with the example's
+   allow list, one commit `cs-image-system <v>`, tag `v<v>`, push.
+   `yes` builds and shows the diff and pushes nothing. Refuses a dirty
+   tree, a `.dev` version, and a version a repository already holds.
+4. **CI's `publish` job runs it** after the PyPI upload of a final tag,
+   gated on `STARTER_PUSH_TOKEN` (absent: SKIPPED, said in the summary).
+5. **Documents:** each example's README names its template repository;
+   DAILY_DRIVER 1.9 lists the templates first, `init-config` second,
+   the copy last; OPERATIONS section 2 (the recipe, the secret).
+6. **USER:** create the four repositories (public, template), the token
+   and its secret, and make the package public. Boxes when 1-5 land.
+7. **Proof:** the next final release's tag run publishes all four; "Use
+   this template" on `standard-aws`, then `just init` in the copy and
+   its CI green with no setup.
 
 ## 94. A verification starts a machine its operator switched off: KEPT, and reviewed monthly
 
