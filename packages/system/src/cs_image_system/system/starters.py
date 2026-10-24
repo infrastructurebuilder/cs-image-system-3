@@ -60,6 +60,8 @@ from pathlib import Path
 
 from packaging.version import InvalidVersion, Version
 
+from .starter_links import rewrite_tree
+
 STARTERS: tuple[str, ...] = ("standard-aws", "standard-gce", "complete", "standard-aws-posix")
 DEFAULT_STARTER = "standard-aws"
 VERSION_FILE = ".csis-version"
@@ -213,6 +215,7 @@ class InitReport:
     carried: dict[str, int] = field(default_factory=dict)     # file -> the team's lines kept
     replaced: dict[str, int] = field(default_factory=dict)    # file -> the tree's other lines now the release's
     version_note: str = ""
+    linked: list[str] = field(default_factory=list)    # Markdown whose links out of the starter now name the tag
 
     @property
     def ok(self) -> bool:
@@ -231,6 +234,9 @@ class InitReport:
         for rel, n in sorted(self.replaced.items()):
             if n:
                 out.append(f"init-config: {rel}: {n} other line(s) now read as the release's -- review the diff")
+        if self.linked:
+            out.append(f"init-config: {len(self.linked)} Markdown file(s) link into the system repository at "
+                       f"v{self.version}, where the starter's relative links pointed")
         if self.version_note:
             out.append(f"init-config: {self.version_note}")
         for r in self.refused:
@@ -330,6 +336,9 @@ def init_config(destination: Path, starter: str | None = None, *, force: bool = 
     if empty:
         shutil.copytree(source, destination, ignore=_IGNORED, dirs_exist_ok=True)
         report.written = sorted(str(p.relative_to(destination)) for p in destination.rglob("*") if p.is_file())
+        # hygiene XV item 1: the starter's links into the system repository point at this
+        # release's tag, since a relative one points nowhere in a repository of its own
+        report.linked = rewrite_tree(destination, starter, version)
     else:
         for rel in release_owned_paths(source):
             _place(source / rel, destination / rel, rel, report, force=force)
