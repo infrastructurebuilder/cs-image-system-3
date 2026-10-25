@@ -10,7 +10,8 @@ operator can take.
 - §30, the plugin contract package: planned; waits on the operator's
   decision.
 - §94, the F44 review: standing; next on or after 2026-11-09.
-- §97, hygiene bundle XV: open, one item; a plan, waits for "do 97".
+- No hygiene bundle is open; the next non-critical issue opens bundle
+  XVI.
 - No documentation stage is open.
 
 **Release**
@@ -29,6 +30,8 @@ operator can take.
 
 **Landed since 2026-10-05** (newest first)
 
+- §97, hygiene bundle XV: 2026-10-24, its squash commit. A tree
+  `init-config` writes links out of the starter at the release's tag.
 - §66, starter repositories on GitHub: 2026-10-24, its squash commit.
   Four public template repositories generated from `docs/examples/`
   per final release; every CI job reads its image from
@@ -249,17 +252,3 @@ question at least once a month for the next 4 months." The note is made:
 - 2026-12-09: (open)
 - 2027-01-09: (open)
 - 2027-02-09: (open)
-
-## 97. Hygiene bundle XV
-
-- **Status:** OPEN 2026-10-24, one item; a plan until the operator says
-  "do 97". The next non-critical issue joins it.
-
-1. **A tree `init-config` writes links into the system repository by
-   relative path.**
-   - *Seen:* the starters' READMEs link `../../CONFIGURATION.md`,
-     `../standard-aws/README.md` and the like, which resolve inside the
-     system repository and nowhere in a configuration repository (found
-     2026-10-24, building the template trees for stage 66).
-   - *Fix:* `init-config` rewrites those links as `scripts/starter-tree`
-     does for the templates, pointing at the installed release's tag.

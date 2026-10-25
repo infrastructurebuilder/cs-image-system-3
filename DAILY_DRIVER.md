@@ -401,7 +401,12 @@ directories are the source the release is built from: all four load and
 validate in the system's tests, the built wheel is held to them byte for
 byte, and their `Justfile`, workflow, hook and modules are the release's,
 so a tree written by `init-config` cannot drift from the system that wrote
-it. `.csis-version` in the written tree names that release.
+it. `.csis-version` in the written tree names that release, and the
+starter's Markdown links that lead out of it -- into the system
+repository's documents, or to another starter -- point at that
+release's tag on GitHub, since a relative one would point nowhere in a
+repository of its own (hygiene XV; a template repository's do the
+same).
 
 Run `init-config` again, in the repository, after upgrading the release:
 into a tree that already holds a configuration it writes only the parts

@@ -13,6 +13,7 @@ existing one -- with ``.csis-version`` pinned to the running release.
 from __future__ import annotations
 
 import os
+import posixpath
 import re
 import stat
 from pathlib import Path
@@ -20,7 +21,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from cs_image_system.system import starters
+from cs_image_system.system import starter_links, starters
 from cs_image_system.system.cli import app
 from v2_support import reset_singletons
 
@@ -81,11 +82,26 @@ def test_init_config_writes_the_whole_starter_into_an_empty_destination(tmp_path
     assert result.exit_code == 0, result.output
     written = _files(dest)
     expected = _files(EXAMPLES / name)
-    assert written.pop(".csis-version") == starters.release_version().encode() + b"\n"
+    version = starters.release_version()
+    assert written.pop(".csis-version") == version.encode() + b"\n"
+    # hygiene XV item 1: Markdown links that leave the starter now name the release's tag;
+    # every other byte is the starter's
+    tree = f"docs/examples/{name}"
+    for rel, data in expected.items():
+        if rel.endswith(".md"):
+            expected[rel] = starter_links.rewrite_links(
+                data.decode(), posixpath.dirname(f"{tree}/{rel}"), tree, version).encode()
     assert written == expected, name
+    for rel in (r for r in written if r.endswith(".md")):
+        for target in re.findall(r"\]\(([^)\s]+)\)", (dest / rel).read_text()):
+            if not re.match(r"^[a-z][a-z0-9+.-]*:|^#", target):
+                inside = (dest / Path(rel).parent / target.split("#", 1)[0]).resolve()
+                assert str(inside).startswith(str(dest.resolve())), f"{name}/{rel}: {target} leaves the tree"
     assert (dest / ".githooks" / "pre-commit").stat().st_mode & stat.S_IXUSR     # the mode travelled
     assert "module_source_base: tfmodules" in (dest / "cfg" / "_config.yml").read_text()
     assert f"the whole tree of {name}" in result.output and "next: git init, just init" in result.output
+    if any(written[r] != _files(EXAMPLES / name)[r] for r in written if r.endswith(".md")):
+        assert f"link into the system repository at v{version}" in result.output   # the report says so
 
 
 def test_init_config_takes_an_empty_directory_too_and_defaults_to_standard_aws(tmp_path):
