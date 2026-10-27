@@ -10,7 +10,7 @@ operator can take.
 - §30, the plugin contract package: planned; waits on the operator's
   decision.
 - §94, the F44 review: standing; next on or after 2026-11-09.
-- §98, hygiene bundle XVI: open, one item; a plan, waits for "do 98".
+- §98, hygiene bundle XVI: open, two items; a plan, waits for "do 98".
 - No documentation stage is open.
 
 **Release**
@@ -257,7 +257,7 @@ question at least once a month for the next 4 months." The note is made:
 
 ## 98. Hygiene bundle XVI
 
-- **Status:** OPEN 2026-10-26, one item; a plan until the operator says
+- **Status:** OPEN 2026-10-26, two items; a plan until the operator says
   "do 98". The next non-critical issue joins it.
 
 1. **`config-drift` is silent for minutes.**
@@ -269,3 +269,21 @@ question at least once a month for the next 4 months." The note is made:
    - *Fix:* it says what it is doing as it goes -- the copy, each
      lifecycle, each root's `init` -- and how long it took; the daily
      driver says a refresh takes minutes.
+2. **`config-drift` copies the provider cache, gigabytes, every time.**
+   - *Seen:* on 2026-10-27, taking 0.1.2.dev2 into the reference
+     configuration with the boot disk nearly full, `just record` failed
+     on a `tofu init` and `config-drift` then failed copying
+     `.tofu-plugin-cache/` (5.7 GB) into the system's temporary
+     directory. The copy leaves out `.git`, `generated/` and `_private/`
+     but not the provider cache, which keeps every provider version the
+     tree ever fetched (six of `hashicorp/aws`, six of
+     `hashicorp/google`).
+   - *Waste:* the copy's dry run never reads it. Every starter's
+     Justfile points `TF_PLUGIN_CACHE_DIR` at the original tree's cache,
+     and the system never sets it. Copying it is probably a large part
+     of item 1's minutes.
+   - *Fix:* `copy_tree_for_a_dry_run`
+     ([emission.py](packages/base/src/cs_image_system/base/commands/emission.py))
+     leaves the provider cache out: `.tofu-plugin-cache`, and the
+     directory `TF_PLUGIN_CACHE_DIR` names when it lies inside the tree.
+     A test that the copy holds no provider cache.
