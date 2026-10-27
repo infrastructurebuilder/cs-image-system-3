@@ -601,7 +601,11 @@ secret from an empty one, so each job decides on the set: none configured
 is `SKIPPED`, said so in the job summary, and the job passes; some
 configured and some missing (or empty) is `FAILED` with their names. A
 secret created from an empty file exists and is empty: it fails the gate
-by name, which is the point.
+by name, which is the point. None configured is tested first, so the
+first push of a repository made with "Use this template", which goes to
+`main` before any secret exists, is `SKIPPED` too; with some configured, a
+push to `main` asks for a record, and the write identity's secret
+(`AWS_APPLY_ROLE_ARN`, `GCP_APPLY_SERVICE_ACCOUNT`) is then required.
 
 ### 3.8 The proofs, in order
 
@@ -639,6 +643,8 @@ step "Gate on the secrets".
 | --- | --- | --- |
 | `live: SKIPPED -- no secret is configured` and a green job | no secret exists yet; nothing ran | set the secrets (section 3.7) |
 | `live: FAILED -- secrets are configured but these are missing or EMPTY: <names>` | some secrets exist, those do not (or are empty) | set the named ones; an empty one is re-set from a file that holds the value |
+| `perform: FAILED -- recording was requested on main and these secrets are missing or EMPTY: <names>` on the FIRST push of a new repository, naming every secret | the workflow is from 0.1.2 or before, whose gate asked for the record before it saw that nothing was configured | nothing is wrong with the repository; the run proved nothing. Take a later release (section 3.1), or let the next run, with the secrets set, stand for it |
+| `perform: FAILED -- recording was requested on main ...` naming only the write identity | a push to `main` records, and the record's write role (or GCP identity) is not set | set it (section 3.7); a run dispatched with `mode: dry` does not need it |
 | `Failed to install entrypoints for cs-image-system` in "Install the released system" | `.csis-version` names a release before 0.1.1.dev2, whose whole-system package exposed no command to `uv tool install` | move `.csis-version` to a later release |
 | `Not authorized to perform sts:AssumeRoleWithWebIdentity` | the role's trust condition does not match the token's `sub` or `aud` | compare the trust policy with the subject form your organisation's tokens carry (section 3.2, step 4); CloudTrail's denied event shows the token's subject |
 | `login proof <instance>: login: FAILED -- ssh <user>@<instance> id: exit 255` with `is not authorized to perform: ssm:StartSession` and the READ-ONLY role's name | the proof ran under the read-only role, which may not open a session: this tree's workflow is from a release before 0.1.1.dev22 (stage 89) | take the newer release (section 3.1): its workflow makes the proof while the write identity is held. Do not give the read-only role the session |

@@ -869,7 +869,7 @@ a place the verdict lands. Nothing is taken on faith.
 | `members`, `admins` | `groups/` | the identity apply; the runner's prune step against OPA; the state query's membership diff; the login proof | `meta-state/identity.yaml`; `meta-state/login-proofs.yaml` |
 | `workload_connection`, `workload_role` | `cfg/group-builders.yml` | the CI policy reconcile after the identity apply; the state query's `workload` record; the `perform` job's login | `meta-state/identity.yaml`; `meta-state/login-proofs.yaml` |
 | the canonical hostname, the aliases, the pool | the system's | `validate` (label rules, claimed names, the pool's free lines); the state query's notes; `sft resolve` | `launch-params.yaml`, `instance-state.yaml`, `aliases.txt` |
-| the committed emission | `generated/` | `just config-drift`: a dry run against what is committed | exit 1 with the diff |
+| the committed emission | `generated/` | `just config-drift`: a dry run against what is committed; minutes, nearly all of it a `tofu init` per root, each said as it happens | exit 1 with the diff |
 | the records against reality | `meta-state/` | `just state-query --strict`, both clouds and the OPA API; the `live` job nightly | `generated/state-report.json` |
 | that nothing published is secret | everything committed | `just public-safe`, the pre-commit hook, the commit gate, the plaintext scan of the run's own decrypted values; the `verify` job | a refusal naming the file and line |
 | the tools and their floors | `cfg/executables.yml` | `validate` and every run | a validation error by name |

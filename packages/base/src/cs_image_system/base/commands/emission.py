@@ -17,7 +17,9 @@ legitimately differs: since stage 38 the emission names no absolute path,
 so a machine's path appearing here IS drift.
 
 ``config_drift`` runs a headless dry ``run --all`` over a private copy of the
-configuration and compares its ``generated/`` with the one committed at HEAD.
+configuration and compares its ``generated/`` with the one committed at HEAD,
+saying as it goes what it is doing and how long each part took (hygiene XVI
+item 1: it was silent for minutes and looked stuck).
 ``runtime_unchanged`` compares one runtime's emission directories in the
 working tree with the same paths at a ref, which is how CI knows a
 declaration changed on a runtime it must never bake on.
@@ -34,6 +36,8 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
+from functools import partial
 from pathlib import Path
 from typing import Callable
 
@@ -65,6 +69,62 @@ def _is_runner_script(path: Path) -> bool:
     return path.suffix == ".sh" and (path.name.startswith("run-") or path.name == "final_execution.sh")
 
 DryRun = Callable[[Path], None]
+Progress = Callable[[str], None]
+
+#: hygiene XVI item 2: the provider cache a starter's Justfile keeps inside the
+#: tree (``TF_PLUGIN_CACHE_DIR``) holds every provider version the tree ever
+#: fetched -- 5.7 GB in the reference configuration on 2026-10-27, when the copy
+#: filled the disk. The copy's dry run never reads it: the child process inherits
+#: ``TF_PLUGIN_CACHE_DIR``, which still names the original tree's cache.
+PROVIDER_CACHE = ".tofu-plugin-cache"
+LEFT_OUT_OF_THE_COPY: tuple[str, ...] = (".git", "generated", "_private", ".DS_Store", PROVIDER_CACHE)
+
+#: the dry run's log lines that say where it is (both logged at INFO by the run;
+#: the rich handler starts a record with its time, or blanks for the same second,
+#: then the level). Anchored at the start of the line, so the indented output of a
+#: step the run captured never counts.
+_RECORD = r"^(?:\[[^\]\n]{1,16}\]\s?|\s{0,17})INFO\s+"
+LIFECYCLE_LINE = re.compile(_RECORD + r"\[(?P<lifecycle>[\w-]+)\] regenerating\b")
+INIT_LINE = re.compile(_RECORD + r"(?P<tool>tofu|packer) init stdout(?::| \(last )")
+
+
+def _took(seconds: float) -> str:
+    s = int(round(seconds))
+    return f"{s // 60}m{s % 60:02d}s" if s >= 60 else f"{s}s"
+
+
+class DryRunProgress:
+    """Reads the dry run's log line by line and says, through ``say``, each
+    lifecycle as it starts and each root's ``init`` (the slow part: providers
+    are installed per root), with the time since the dry run started."""
+
+    def __init__(self, say: Progress, clock: Callable[[], float] = time.monotonic) -> None:
+        self.say = say
+        self.clock = clock
+        self.started = clock()
+        self.lifecycle: str | None = None
+        self.lifecycles = 0
+        self.inits = 0
+
+    def _at(self) -> str:
+        return _took(self.clock() - self.started)
+
+    def feed(self, line: str) -> None:
+        m = LIFECYCLE_LINE.match(line)
+        if m:
+            self.lifecycle = m["lifecycle"]
+            self.lifecycles += 1
+            self.say(f"config-drift: [{self.lifecycle}] generating ({self._at()} into the dry run)")
+            return
+        m = INIT_LINE.match(line)
+        if m:
+            self.inits += 1
+            self.say(f"config-drift:   [{self.lifecycle or '-'}] {m['tool']} init {self.inits} "
+                     f"({self._at()} into the dry run)")
+
+    def done(self, ok: bool) -> None:
+        self.say(f"config-drift: the dry run {'finished' if ok else 'FAILED'} after {self._at()} "
+                 f"({self.lifecycles} lifecycle(s), {self.inits} init(s))")
 
 
 def normalise_emission(directory: Path) -> None:
@@ -144,9 +204,36 @@ def _module_source_base(root: Path) -> str | None:
     return str(cfg["module_source_base"]) if isinstance(cfg, dict) and cfg.get("module_source_base") else None
 
 
+def _provider_cache_inside(root: Path) -> Path | None:
+    """The directory ``TF_PLUGIN_CACHE_DIR`` names, when it lies inside ``root``."""
+    value = os.environ.get("TF_PLUGIN_CACHE_DIR")
+    if not value:
+        return None
+    cache = Path(value).expanduser()
+    cache = (cache if cache.is_absolute() else Path.cwd() / cache).resolve()
+    root = root.resolve()
+    return cache if cache != root and cache.is_relative_to(root) else None
+
+
+def _left_out_of_the_copy(root: Path) -> Callable[[str, list[str]], set[str]]:
+    """The ``ignore`` for the copy: the names in ``LEFT_OUT_OF_THE_COPY`` at any
+    depth, and the provider cache ``TF_PLUGIN_CACHE_DIR`` names in the tree."""
+    by_name = shutil.ignore_patterns(*LEFT_OUT_OF_THE_COPY)
+    cache = _provider_cache_inside(root)
+
+    def ignore(directory: str, names: list[str]) -> set[str]:
+        out = set(by_name(directory, names))
+        if cache is not None and cache.name in names and Path(directory).resolve() == cache.parent:
+            out.add(cache.name)
+        return out
+    return ignore
+
+
 def copy_tree_for_a_dry_run(root: Path, work: Path) -> Path:
     """A private copy of the configuration under ``work``: its ``.git``,
-    ``generated/`` and ``_private/`` left out. A relative ``module_source_base``
+    ``generated/``, ``_private/`` and provider cache left out (the cache by its
+    starter name, ``.tofu-plugin-cache``, and as ``TF_PLUGIN_CACHE_DIR`` names
+    it when that lies inside the tree). A relative ``module_source_base``
     that escapes the tree (the reference configuration reached the system's
     modules that way until stage 64) is copied beside it at the same relative
     place, so the dry run's ``tofu init`` still finds the modules."""
@@ -157,8 +244,7 @@ def copy_tree_for_a_dry_run(root: Path, work: Path) -> Path:
         depth = sum(1 for part in rel.parts if part == "..")
     parent = work.joinpath(*(["d"] * depth)) if depth else work
     copy = parent / root.name
-    shutil.copytree(root, copy, ignore=shutil.ignore_patterns(".git", "generated", "_private", ".DS_Store"),
-                    symlinks=True)
+    shutil.copytree(root, copy, ignore=_left_out_of_the_copy(root), symlinks=True)
     if depth and base:
         src = (root / base).resolve()
         dst = (copy / base).resolve()
@@ -167,39 +253,77 @@ def copy_tree_for_a_dry_run(root: Path, work: Path) -> Path:
     return copy
 
 
-def subprocess_dry_run(copy: Path) -> None:
+def subprocess_dry_run(copy: Path, progress: Progress | None = None, command: list[str] | None = None) -> None:
     """A headless dry ``run --all`` over ``copy`` in a process of its own (the
-    calling process holds no configuration); raises with the log's tail."""
+    calling process holds no configuration); raises with the log's tail. Its
+    output goes to ``run.log`` beside the copy, line by line as it is written,
+    and ``progress`` hears where it is (``DryRunProgress``). ``command``
+    replaces the run, for a test."""
     log_path = copy.parent / "run.log"
+    tracker = DryRunProgress(progress) if progress else None
+    argv = command or [sys.executable, "-m", "cs_image_system.system", "--root-dir", str(copy), "run", "--all"]
     with log_path.open("w") as fh:
-        proc = subprocess.run([sys.executable, "-m", "cs_image_system.system", "--root-dir", str(copy),  # noqa: S603
-                               "run", "--all"], stdout=fh, stderr=subprocess.STDOUT, check=False)
-    if proc.returncode != 0:
+        proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,  # noqa: S603
+                                text=True, errors="replace", env={**os.environ, "PYTHONUNBUFFERED": "1"})
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            fh.write(line)
+            if tracker:
+                tracker.feed(line)
+        code = proc.wait()
+    if tracker:
+        tracker.done(code == 0)
+    if code != 0:
         tail = "".join(log_path.read_text().splitlines(keepends=True)[-20:])
-        raise RuntimeError(f"the dry run failed (exit {proc.returncode}); the log's tail:\n{tail}")
+        raise RuntimeError(f"the dry run failed (exit {code}); the log's tail:\n{tail}")
 
 
-def config_drift(root: Path, *, dry_run: DryRun | None = None) -> tuple[int, list[str]]:
+def _size(tree: Path) -> tuple[int, int]:
+    files = size = 0
+    for dirpath, _dirs, names in os.walk(tree):
+        for name in names:
+            try:
+                size += (Path(dirpath) / name).lstat().st_size
+            except OSError:
+                continue
+            files += 1
+    return files, size
+
+
+def config_drift(root: Path, *, dry_run: DryRun | None = None,
+                 progress: Progress | None = None) -> tuple[int, list[str]]:
     """0 when the committed emission is current, 1 (with the diff) when it is
     BEHIND the configuration, 2 when nothing is committed under ``generated/``
     or the dry run itself fails. ``dry_run`` defaults to the subprocess form
-    at call time (a test replaces it on the module)."""
-    dry_run = dry_run or subprocess_dry_run
+    at call time (a test replaces it on the module). ``progress`` hears what
+    it is doing as it goes, each part with its time (hygiene XVI item 1)."""
+    say: Progress = progress or (lambda _line: None)
+    dry_run = dry_run or partial(subprocess_dry_run, progress=say)
     root = Path(root).resolve()
+    started = time.monotonic()
     with tempfile.TemporaryDirectory(prefix="csis-config-drift.") as tmp:
         work = Path(tmp)
         committed = work / "committed"
         if not _git_archive(root, "HEAD", ["generated"], committed) or not (committed / "generated").is_dir():
             return 2, [f"config-drift: nothing is committed under generated/ at {root} HEAD -- record a run first "
                        "(run --all --commit)"]
+        say(f"config-drift: copying {root} for a dry run (without .git, generated/, _private/ "
+            "and the provider cache)")
+        mark = time.monotonic()
         copy = copy_tree_for_a_dry_run(root, work / "tree")
+        files, size = _size(copy)
+        say(f"config-drift: copied {files} files ({size / 1e6:.1f} MB) in {_took(time.monotonic() - mark)}")
+        say("config-drift: a dry run of every lifecycle over the copy, in a process of its own; "
+            "each root's init installs its providers, so this takes minutes")
         try:
             dry_run(copy)
         except Exception as e:
             return 2, [f"config-drift: the dry run FAILED: {e}"]
+        say("config-drift: comparing the copy's generated/ with the one committed at HEAD")
         normalise_emission(committed / "generated")
         normalise_emission(copy / "generated")
         lines = diff_trees(committed / "generated", copy / "generated")
+        say(f"config-drift: {_took(time.monotonic() - started)} in all")
         if not lines:
             return 0, ["config-drift: the committed emission is current with the configuration"]
         moved = vendor_image_moves(lines)

@@ -247,6 +247,9 @@ jobs:
           # set: none configured is an unconfigured repository -- SKIPPED, and said so in the job
           # summary, because a green conclusion is not proof that a step ran; some configured and
           # some missing is configured-and-broken -- a FAILURE that names them.
+          # None configured is tested FIRST, a push to main included: a repository made from a
+          # starter pushes its first commit to main with nothing configured, and that run
+          # failed here until hygiene XVI item 3 (a workflow from 0.1.2 or before).
           names="AWS_ROLE_ARN GCP_WORKLOAD_IDENTITY_PROVIDER GCP_SERVICE_ACCOUNT OKTA_API_PRIVATE_KEY TF_VAR_KEY TF_VAR_SECRET CSIS_CONFIG_IDENTITY"
           if [ "$IS_RECORD" = true ]; then names="$names AWS_APPLY_ROLE_ARN GCP_APPLY_SERVICE_ACCOUNT"; fi
           missing=""; present=0
@@ -254,14 +257,14 @@ jobs:
             have="HAVE_$name"
             if [ "${!have}" = true ]; then present=$((present + 1)); else missing="$missing $name"; fi
           done
-          if [ "$IS_RECORD" = true ] && [ -n "$missing" ]; then
-            echo "perform: FAILED -- recording was requested on main and these secrets are missing or EMPTY:$missing"
-            exit 1
-          elif [ "$present" -eq 0 ]; then
+          if [ "$present" -eq 0 ]; then
             echo "perform: SKIPPED -- no secret is configured, so no step runs (AWS_ROLE_ARN: a federated READ-ONLY AWS role; GCP_WORKLOAD_IDENTITY_PROVIDER: the workload identity provider; GCP_SERVICE_ACCOUNT: the read-only GCP identity the runtime discovers its network with; OKTA_API_PRIVATE_KEY: the Okta API app's private key; TF_VAR_KEY: the OPA API key; TF_VAR_SECRET: the OPA API secret; CSIS_CONFIG_IDENTITY: the age identity that opens the tree's ENC values; when recording also AWS_APPLY_ROLE_ARN: the federated WRITE role that trusts main alone; GCP_APPLY_SERVICE_ACCOUNT: the GCP identity that may write, trusted from main alone)"
             { echo "## perform: SKIPPED"; echo "No secret is configured; no step ran. A green conclusion here is not proof that anything ran."; } >> "$GITHUB_STEP_SUMMARY"
             echo "ready=false" >> "$GITHUB_OUTPUT"
             echo "record=false" >> "$GITHUB_OUTPUT"
+          elif [ "$IS_RECORD" = true ] && [ -n "$missing" ]; then
+            echo "perform: FAILED -- recording was requested on main and these secrets are missing or EMPTY:$missing"
+            exit 1
           elif [ -n "$missing" ]; then
             echo "perform: FAILED -- secrets are configured but these are missing or EMPTY:$missing"
             exit 1

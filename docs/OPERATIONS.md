@@ -1415,7 +1415,16 @@ config-drift` (stage 64: a command, `just config-drift` in a configuration
 repository and `just cli config-drift` here; until then a shell recipe
 around `scripts/normalise-emission`) runs a headless dry `run --all` in a
 process of its own over a private copy of the configuration and compares
-it with the `generated/` tree committed at its HEAD. Tool residue (`.terraform`,
+it with the `generated/` tree committed at its HEAD. The copy leaves out
+`.git`, `generated/`, `_private/` and the provider cache
+(`.tofu-plugin-cache`, or wherever `TF_PLUGIN_CACHE_DIR` points inside
+the tree): the copy's run reads the original's cache through that
+variable, and copying it once filled a disk (5.7 GB, hygiene XVI item 2).
+The run takes minutes, nearly all of it a `tofu init` per root, so the
+command says on stderr what it is doing as it goes -- the copy with its
+size and time, each lifecycle as it starts, each root's `init`, the
+comparison, the total (hygiene XVI item 1: it was silent for minutes and
+looked stuck). Tool residue (`.terraform`,
 `.terraform.lock.hcl`, `tfplan`, `temp_assets`), the run-local files
 (`run-summary.json`, `state-report.json`, `generated/release/release`,
 `generated/retention/retention`), run ids and the run's date stamp in

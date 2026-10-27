@@ -430,7 +430,7 @@ def _copy_of_committed(v2):
     """A stand-in dry run for the test: the copy gets the committed emission
     (the real command runs `run --all` in a process of its own)."""
     import shutil
-    def dry_run(copy: Path) -> None:
+    def dry_run(copy: Path, progress=None) -> None:
         shutil.copytree(v2.generated, copy / "generated")
     return dry_run
 
@@ -439,8 +439,13 @@ def test_config_drift_reads_current_then_behind_then_nothing_committed(tmp_path,
     from cs_image_system.base.commands.emission import config_drift
     v2 = _generated_tree(tmp_path, monkeypatch)
     root = v2.config_root
-    code, lines = config_drift(root, dry_run=_copy_of_committed(v2))
+    said: list[str] = []
+    code, lines = config_drift(root, dry_run=_copy_of_committed(v2), progress=said.append)
     assert code == 0 and "current with the configuration" in lines[0], lines
+    # hygiene XVI item 1: it says what it is doing as it goes, each part with its time
+    assert said[0].startswith(f"config-drift: copying {root.resolve()}"), said
+    assert re.fullmatch(r"config-drift: copied \d+ files \([0-9.]+ MB\) in \d+s", said[1]), said
+    assert "takes minutes" in said[2] and "comparing" in said[3] and said[-1].endswith(" in all"), said
     # a declaration moved the emission: the committed tree is behind
     def moved(copy: Path) -> None:
         _copy_of_committed(v2)(copy)
@@ -492,6 +497,68 @@ def test_config_drift_copies_a_relative_module_source_base_that_escapes_the_tree
     assert copy2 == tmp_path / "work2" / root.name
 
 
+def test_config_drift_leaves_the_provider_cache_out_of_the_copy(tmp_path, monkeypatch):
+    """Hygiene XVI item 2: the copy took the starter's provider cache, every
+    provider version the tree ever fetched (5.7 GB in the reference
+    configuration on 2026-10-27, when it filled the disk), though the copy's
+    dry run reads the original's through TF_PLUGIN_CACHE_DIR. Left out by its
+    starter name at any depth, and as TF_PLUGIN_CACHE_DIR names it inside the
+    tree; a directory of the same name elsewhere is copied."""
+    from cs_image_system.base.commands.emission import copy_tree_for_a_dry_run
+    root = tmp_path / "tree"
+    for rel in ("cfg/_config.yml", ".tofu-plugin-cache/registry.opentofu.org/hashicorp/aws/6.70.0/p",
+                "tools/providers/registry.opentofu.org/hashicorp/google/8.8.1/p", "tools/keep.txt",
+                "groups/providers/kept.yml"):
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_text("x\n")
+    (root / "cfg" / "_config.yml").write_text("config: {}\n")
+    monkeypatch.setenv("TF_PLUGIN_CACHE_DIR", str(root / "tools" / "providers"))
+    copy = copy_tree_for_a_dry_run(root, tmp_path / "work")
+    assert (copy / "cfg" / "_config.yml").is_file() and (copy / "tools" / "keep.txt").is_file()
+    assert not (copy / ".tofu-plugin-cache").exists() and not (copy / "tools" / "providers").exists()
+    assert (copy / "groups" / "providers" / "kept.yml").is_file()
+    # a cache outside the tree changes nothing; the starter's name is still left out
+    monkeypatch.setenv("TF_PLUGIN_CACHE_DIR", str(tmp_path / "elsewhere"))
+    copy2 = copy_tree_for_a_dry_run(root, tmp_path / "work2")
+    assert (copy2 / "tools" / "providers").is_dir() and not (copy2 / ".tofu-plugin-cache").exists()
+
+
+def test_the_dry_run_is_logged_as_it_goes_and_says_where_it_is(tmp_path):
+    """Hygiene XVI item 1: the dry run's output reaches run.log line by line,
+    and each lifecycle and each root's init is said as it happens -- read from
+    the run's own INFO records, never from a captured step's indented output."""
+    import sys
+    from cs_image_system.base.commands.emission import _took, subprocess_dry_run
+    record = [
+        "[13:52:29] INFO     Found 1 base plugins.                           loader.py:32",
+        "           INFO     [identity] regenerating                run_lifecycles.py:321",
+        "                    /tmp/x/generated/identity",
+        "[13:53:05] INFO     tofu init stdout:                           executable.py:69",
+        "                    Initializing the backend...",
+        "           INFO     tofu init stderr:                           executable.py:69",
+        "           INFO     cs_image_system.system materialize stdout:  executable.py:69",
+        "                    [13:53:05] INFO     tofu init stdout:   (a step's own output)",
+        "[13:53:13] INFO     [storage] regenerating                 run_lifecycles.py:321",
+        "           INFO     tofu init stdout (last 40 of 52 lines; all executable.py:69",
+    ]
+    copy = tmp_path / "work" / "tree"
+    copy.mkdir(parents=True)
+    script = "import sys\nfor ln in sys.argv[2:]: print(ln)\nsys.exit(int(sys.argv[1]))"
+    said: list[str] = []
+    subprocess_dry_run(copy, progress=said.append, command=[sys.executable, "-c", script, "0", *record])
+    assert (tmp_path / "work" / "run.log").read_text() == "".join(f"{ln}\n" for ln in record)
+    assert [s.split(" (")[0] for s in said[:-1]] == [
+        "config-drift: [identity] generating", "config-drift:   [identity] tofu init 1",
+        "config-drift: [storage] generating", "config-drift:   [storage] tofu init 2"], said
+    assert said[-1].startswith("config-drift: the dry run finished after "), said
+    assert said[-1].endswith("(2 lifecycle(s), 2 init(s))"), said
+    said.clear()
+    with pytest.raises(RuntimeError, match=r"exit 3\); the log's tail:\n.*Found 1 base plugins"):
+        subprocess_dry_run(copy, progress=said.append, command=[sys.executable, "-c", script, "3", *record[:3]])
+    assert said[-1].startswith("config-drift: the dry run FAILED after "), said
+    assert (_took(5), _took(75), _took(600)) == ("5s", "1m15s", "10m00s")
+
+
 def test_config_drift_is_a_command_that_loads_nothing(tmp_path, monkeypatch):
     """The dry run happens in a process of its own; this process needs no
     identity and no session, only the tree and its git history."""
@@ -503,6 +570,8 @@ def test_config_drift_is_a_command_that_loads_nothing(tmp_path, monkeypatch):
     result = CliRunner().invoke(app, ["--root-dir", str(v2.config_root), "config-drift"])
     assert result.exit_code == 0, result.output
     assert "current with the configuration" in result.output
+    # the progress is on stderr; the verdict alone is on stdout
+    assert "config-drift: copying" in result.stderr and "config-drift: copying" not in result.stdout
 
 
 # ------------------------------------------------------ runtime-unchanged
