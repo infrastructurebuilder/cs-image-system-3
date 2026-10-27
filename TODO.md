@@ -29,6 +29,9 @@ operator can take.
 
 **Landed since 2026-10-05** (newest first)
 
+- §99, a development pin installs from TestPyPI again: 2026-10-26, its
+  squash commit (every install line names `--index-strategy
+  unsafe-first-match`).
 - §97, hygiene bundle XV: 2026-10-24, its squash commit. A tree
   `init-config` writes links out of the starter at the release's tag.
 - §66, starter repositories on GitHub: 2026-10-24, its squash commit.
