@@ -10,8 +10,7 @@ operator can take.
 - §30, the plugin contract package: planned; waits on the operator's
   decision.
 - §94, the F44 review: standing; next on or after 2026-11-09.
-- No hygiene bundle is open; the next non-critical issue opens bundle
-  XVI.
+- §98, hygiene bundle XVI: open, one item; a plan, waits for "do 98".
 - No documentation stage is open.
 
 **Release**
@@ -252,3 +251,18 @@ question at least once a month for the next 4 months." The note is made:
 - 2026-12-09: (open)
 - 2027-01-09: (open)
 - 2027-02-09: (open)
+
+## 98. Hygiene bundle XVI
+
+- **Status:** OPEN 2026-10-26, one item; a plan until the operator says
+  "do 98". The next non-critical issue joins it.
+
+1. **`config-drift` is silent for minutes.**
+   - *Seen:* on 2026-10-26, taking 0.1.2.dev1 into the reference
+     configuration, `just config-drift` printed nothing for many minutes
+     after `just record` finished, and looked stuck. It makes a dry run
+     of every lifecycle into a temporary copy (a `tofu init` per root)
+     and says nothing until the comparison.
+   - *Fix:* it says what it is doing as it goes -- the copy, each
+     lifecycle, each root's `init` -- and how long it took; the daily
+     driver says a refresh takes minutes.
