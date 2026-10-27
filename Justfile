@@ -259,6 +259,10 @@ full-test-legs:
 	#!/usr/bin/env bash
 	set -uo pipefail
 	status=0
+	# stage 99: the starters' own install line resolves the newest development tag -- ours from
+	# TestPyPI, nothing else from it (read-only; needs the network, not a session)
+	echo "full-test: a development pin resolves with the starters' install line (dev-pin-resolves)"
+	uv run --no-sync python scripts/dev-pin-resolves || { echo "full-test: FAILED dev-pin-resolves"; status=1; }
 	if docker info >/dev/null 2>&1; then
 		echo "full-test: modification tests under docker (test-mods --strict)"
 		just test-mods --strict || { echo "full-test: FAILED test-mods"; status=1; }

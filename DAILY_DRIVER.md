@@ -92,13 +92,17 @@ uv tool install cs-image-system        # the command on PATH; the default the Ju
 cs-image-system --help
 ```
 
-A development release (`0.1.1.devN`, every release so far) is on
-TestPyPI and not on PyPI, and the line above cannot find it; it needs
-the index named and the version pinned, the extra index for the
-dependencies that live on PyPI:
+A development release (`0.1.2.devN`) is on TestPyPI and not on PyPI,
+and the line above cannot find it. It needs TestPyPI named, the version
+pinned, PyPI as the extra index for the dependencies that live there,
+and `--index-strategy unsafe-first-match`: uv asks PyPI first and, by
+default, stops at the first index that has a name at all -- and PyPI
+has had `cs-image-system` since 0.1.1 -- so without it the pinned `.dev`
+version is never looked for on TestPyPI (stage 99):
 
 ```sh
-uv tool install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ "cs-image-system==0.1.1.dev24"
+uv tool install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ \
+  --index-strategy unsafe-first-match "cs-image-system==0.1.2.dev2"
 ```
 
 CI does the same by itself when `.csis-version` names a `.dev` version.
