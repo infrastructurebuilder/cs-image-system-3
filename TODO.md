@@ -10,7 +10,7 @@ operator can take.
 - §30, the plugin contract package: planned; waits on the operator's
   decision.
 - §94, the F44 review: standing; next on or after 2026-11-09.
-- §98, hygiene bundle XVI: open, two items; a plan, waits for "do 98".
+- §98, hygiene bundle XVI: open, three items; a plan, waits for "do 98".
 - No documentation stage is open.
 
 **Release**
@@ -257,8 +257,8 @@ question at least once a month for the next 4 months." The note is made:
 
 ## 98. Hygiene bundle XVI
 
-- **Status:** OPEN 2026-10-26, two items; a plan until the operator says
-  "do 98". The next non-critical issue joins it.
+- **Status:** OPEN 2026-10-26, three items; a plan until the operator
+  says "do 98". The next non-critical issue joins it.
 
 1. **`config-drift` is silent for minutes.**
    - *Seen:* on 2026-10-26, taking 0.1.2.dev1 into the reference
@@ -287,3 +287,27 @@ question at least once a month for the next 4 months." The note is made:
      leaves the provider cache out: `.tofu-plugin-cache`, and the
      directory `TF_PLUGIN_CACHE_DIR` names when it lies inside the tree.
      A test that the copy holds no provider cache.
+3. **A new copy of a starter goes red on its first push.**
+   - *Seen:* on 2026-10-27, proving stage 66 on 0.1.2: a repository
+     made with "Use this template" from the standard-aws starter ran CI
+     on its first commit to `main`, and `perform` failed at its gate,
+     "recording was requested on main and these secrets are missing or
+     EMPTY", naming all six. `verify` passed and `live` SKIPPED, as
+     they should with no setup.
+   - *Cause:* `perform`'s gate tests "recording on `main` with a secret
+     missing" before "no secret configured", so a push to `main` never
+     reaches the SKIPPED its own comment promises an unconfigured
+     repository. The order came from this repository's own CI
+     (b6996ae, 2026-09-16), which always had its secrets; stage 64
+     carried it into all four starters
+     ([docs/examples/](docs/examples/)). The reference configuration's
+     `ci.yml` has it too, but has its secrets, so it is unaffected.
+   - *Fix:* every starter's `perform` gate tests "none configured"
+     first and SKIPS, for a record as for a dry run; the reference's
+     `ci.yml` changes the same way, so the two still agree. A test that
+     runs each starter's gate script under `bash` with no secret on a
+     push to `main` and finds SKIPPED and exit 0, and one that a
+     partial set on `main` still FAILS.
+   - *Proof:* the starters are republished only by a final release, so
+     the stage 66 proof is done again at the next one: a new copy's
+     first CI run is green with no setup.
