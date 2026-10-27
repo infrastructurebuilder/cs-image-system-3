@@ -34,8 +34,9 @@ operator can take.
 
 - §98, hygiene bundle XVI: 2026-10-27, its squash commit.
   `config-drift` says what it is doing as it goes and leaves the
-  provider cache out of its copy; an unconfigured copy of a starter
-  skips `perform` on its first push to `main`.
+  provider cache out of its copy, as every `full-test` copy now does
+  too; an unconfigured copy of a starter skips `perform` on its first
+  push to `main`.
 - §99, a development pin installs from TestPyPI again: 2026-10-26, its
   squash commit (every install line names `--index-strategy
   unsafe-first-match`).

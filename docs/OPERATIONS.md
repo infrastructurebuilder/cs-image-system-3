@@ -1367,9 +1367,13 @@ Everything `test` does plus the slow and external legs:
    `docker info` succeeds;
 2. only when the reference configuration is present AND `just preflight`
    finds every runtime session present: a headless dry `run --all` over a
-   private copy of it (its `.git`, `generated/` and `_private/` excluded;
-   since stage 64 it carries its own `tfmodules/`, so nothing is copied
-   beside it), followed by `state query --strict` over the copy.
+   private copy of it (its `.git`, `generated/`, `_private/` and
+   `.tofu-plugin-cache/` excluded; the copy's `tofu init`s use this
+   repository's own provider cache, so the gigabytes of the
+   configuration's are never copied; since stage 64 it carries its own
+   `tfmodules/`, so nothing is copied beside it), followed by
+   `state query --strict` over the copy. A configuration repository's
+   own `full-test` copies it the same way.
 
 A leg whose prerequisite is absent reports `SKIPPED` loudly with its
 reason and does not fail the run; a leg that runs and fails does.

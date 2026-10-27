@@ -67,7 +67,8 @@ full-test: test
 	fi
 	if {{cli}} preflight; then
 		copy=$(mktemp -d "${TMPDIR:-/tmp}/csis-full-test.XXXXXX")
-		(cd "{{root}}" && tar --exclude=./.git --exclude=./generated --exclude=./_private -cf - .) | tar -xf - -C "$copy"
+		# never the provider cache: gigabytes, and the copy's inits use this tree's (TF_PLUGIN_CACHE_DIR above)
+		(cd "{{root}}" && tar --exclude=./.git --exclude=./generated --exclude=./_private --exclude=./.tofu-plugin-cache -cf - .) | tar -xf - -C "$copy"
 		echo "full-test: dry run --all over a private copy ($copy)"
 		{{csis}} --root-dir "$copy" run --all || { echo "full-test: FAILED dry run --all"; status=1; }
 		echo "full-test: state query --strict over the copy"

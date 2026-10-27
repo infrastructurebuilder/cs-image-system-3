@@ -72,8 +72,13 @@ def test_build_wraps_uv_build_and_the_gates_hold():
     # session renewal); full-test is the bar and then those legs, so its closure does it all
     assert "full-test-legs" in _closure(r, "full-test")
     legs = "\n".join(r[n][1] for n in _closure(r, "full-test"))
-    for needle in ("just test-mods --strict", "just preflight", "run --all", "state query --strict", "--exclude=./_private"):
+    for needle in ("just test-mods --strict", "just preflight", "run --all", "state query --strict", "--exclude=./_private",
+                   "--exclude=./.tofu-plugin-cache"):   # hygiene XVI item 2
         assert needle in legs, needle
+    # and a configuration repository's own full-test copies its tree the same way
+    starter = "\n".join(_starter()[n][1] for n in _closure(_starter(), "full-test"))
+    for needle in ("--exclude=./_private", "--exclude=./.tofu-plugin-cache"):
+        assert needle in starter, needle
     assert "cs-image-system-3/tfmodules" not in legs, "stage 64: the reference configuration carries its own tfmodules"
     assert legs.count("SKIPPED") >= 2                         # docker leg, credential legs
     deps, body = r["release"]
