@@ -1,0 +1,98 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+"""Does a development pin resolve with the starters' own install line? (stage 99)
+
+    uv run python scripts/dev-pin-resolves [VERSION] [--root DIR]
+
+The index options are read from a starter workflow -- the `indexes=` a job
+uses when `.csis-version` names a `.dev` version -- never restated, and
+`cs-image-system==VERSION` (default: the newest `v*.dev*` tag here) is
+resolved with them, read-only (`uv pip compile`, nothing installed). Exit 0
+when every `cs-image-system` package resolves at VERSION from TestPyPI and
+no other package comes from TestPyPI; 1 when either fails; 2 when the line
+or a version cannot be found, or the indexes could not be asked.
+
+Born from 2026-10-26: once 0.1.1 was on PyPI, uv's default index strategy
+stopped at PyPI for `cs-image-system` and never looked for 0.1.2.dev1 on
+TestPyPI, so every development pin failed to install in CI.
+"""
+from __future__ import annotations
+
+import argparse
+import re
+import shlex
+import subprocess
+import sys
+from pathlib import Path
+
+TESTPYPI = "test.pypi.org"
+INDEXES = re.compile(r'indexes="(?P<opts>[^"]*test\.pypi\.org[^"]*)"')
+REQUIREMENT = re.compile(r"^(?P<name>[A-Za-z0-9_.-]+)==(?P<version>\S+)")
+SOURCE = re.compile(r"#\s*from\s+(?P<index>\S+)")
+
+
+def install_options(root: Path) -> list[str]:
+    for wf in sorted((root / "docs" / "examples").glob("*/.github/workflows/ci.yml")):
+        m = INDEXES.search(wf.read_text())
+        if m:
+            return shlex.split(m["opts"])
+    raise LookupError("no starter workflow carries a TestPyPI install line (indexes=...)")
+
+
+def newest_dev_tag(root: Path) -> str | None:
+    out = subprocess.run(["git", "-C", str(root), "tag", "--list", "v*.dev*", "--sort=-v:refname"],
+                         capture_output=True, text=True).stdout.split()
+    return out[0][1:] if out else None
+
+
+def main(argv: list[str]) -> int:
+    ap = argparse.ArgumentParser(description="Resolve a development pin with the starters' install line.")
+    ap.add_argument("version", nargs="?")
+    ap.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
+    args = ap.parse_args(argv)
+    try:
+        opts = install_options(args.root)
+    except LookupError as e:
+        print(f"dev-pin-resolves: {e}")
+        return 2
+    version = args.version or newest_dev_tag(args.root)
+    if not version:
+        print("dev-pin-resolves: no v*.dev* tag here and no version given")
+        return 2
+    cmd = ["uv", "pip", "compile", "-", "--no-cache", "--python-version", "3.13", "--emit-index-annotation", "-q", *opts]
+    r = subprocess.run(cmd, input=f"cs-image-system=={version}\n", capture_output=True, text=True)
+    if r.returncode != 0:
+        tail = " ".join(r.stderr.split())[:300]
+        print(f"dev-pin-resolves: cs-image-system=={version} does not resolve with {' '.join(opts)}: {tail}")
+        return 1 if "No solution found" in r.stderr else 2
+    pins: dict[str, tuple[str, str]] = {}
+    current = None
+    for line in r.stdout.splitlines():
+        if m := REQUIREMENT.match(line):
+            current = m["name"].lower()
+            pins[current] = (m["version"], "")
+        elif current and (m := SOURCE.search(line)):
+            pins[current] = (pins[current][0], m["index"])
+    ours = {n: v for n, v in pins.items() if n.startswith("cs-image-system")}
+    theirs = {n: v for n, v in pins.items() if not n.startswith("cs-image-system")}
+    wrong = [n for n, (v, src) in ours.items() if v != version or TESTPYPI not in src]
+    leaked = [n for n, (_, src) in theirs.items() if TESTPYPI in src]
+    print(f"dev-pin-resolves: cs-image-system=={version} with {' '.join(opts)}: {len(ours)} of ours, "
+          f"{len(theirs)} third-party")
+    if wrong:
+        print(f"dev-pin-resolves: FAILED -- not {version} from TestPyPI: {', '.join(sorted(wrong))}")
+    if leaked:
+        print(f"dev-pin-resolves: FAILED -- third-party packages from TestPyPI: {', '.join(sorted(leaked))}")
+    if not ours:
+        print("dev-pin-resolves: FAILED -- no cs-image-system package in the resolution")
+    if wrong or leaked or not ours:
+        return 1
+    print(f"dev-pin-resolves: ok -- every cs-image-system package at {version} from TestPyPI, "
+          "every other package from PyPI")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

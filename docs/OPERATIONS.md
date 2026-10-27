@@ -1696,16 +1696,23 @@ asserts nothing of the old version is left.
 The seventeen packages are on the index as `cs-image-system` (the whole
 system: no sources, a `==` pin on every package) and
 `cs-image-system-<package>`. TestPyPI does not carry the third-party
-dependencies, so an install from it names PyPI as the extra index (in
+dependencies, so an install from it names PyPI as the extra index. In
 `uv`, `--extra-index-url` takes priority over `--index-url`, so the
-third-party packages come from PyPI and only the `cs-image-system` names
-fall through to TestPyPI):
+third-party packages come from PyPI; and `--index-strategy
+unsafe-first-match` lets a name fall through to TestPyPI when PyPI has
+no version that satisfies it -- only the pinned `.dev` packages. Without
+it uv stops at the first index that carries a name at all: once 0.1.1
+was on PyPI, every development pin failed to resolve (stage 99, found
+taking 0.1.2.dev1 into the reference configuration). The fall-through
+reaches TestPyPI for nothing PyPI can satisfy, so no third-party
+package comes from it:
 
 ```sh
 uv venv .venv
 uv pip install --python .venv/bin/python \
   --index-url https://test.pypi.org/simple/ \
   --extra-index-url https://pypi.org/simple/ \
+  --index-strategy unsafe-first-match \
   cs-image-system==<version>
 .venv/bin/cs-image-system --help
 .venv/bin/cs-image-system decrypt --help

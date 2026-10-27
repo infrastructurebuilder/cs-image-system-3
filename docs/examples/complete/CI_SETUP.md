@@ -48,7 +48,9 @@ further from you.
 1. The release installed and on `PATH` (`uv tool install
    cs-image-system==$(cat .csis-version)`; a development version comes
    from TestPyPI: add `--index-url https://test.pypi.org/simple/
-   --extra-index-url https://pypi.org/simple/`).
+   --extra-index-url https://pypi.org/simple/ --index-strategy
+   unsafe-first-match`, so only the pinned `.dev` packages come from
+   TestPyPI and everything else from PyPI).
 2. `just init`: the public-safe hook, the plugin cache, a check that the
    command runs, and a line saying which command a run's callbacks will
    find. A run's own steps and the runner scripts call the command back
