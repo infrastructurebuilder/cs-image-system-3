@@ -576,10 +576,12 @@ def runtime_unchanged_command(
 
     The runtime's builder directories (`runtime describe` -> `emission`) in
     the working tree, normalised like config-drift, against the same paths at
-    REF in the configuration repository. Exit 0 when unchanged, 1 with the
-    diff when a declaration of that runtime changed, 2 for an unknown runtime.
-    CI's performing job asks this of the runtime that stays out of CI by the
-    cost decision: a change there fails the job loudly rather than bake."""
+    REF in the configuration repository. Exit 0 when unchanged, or when the
+    vendor's newest image moved under a base not yet baked and nothing else
+    (said, with the moves), 1 with the diff when a declaration of that runtime
+    changed, 2 for an unknown runtime. CI's performing job asks this of the
+    runtime that stays out of CI by the cost decision: a change there fails
+    the job loudly rather than bake."""
     from cs_image_system.base.commands.emission import runtime_unchanged
     code, lines = runtime_unchanged(runtime, ref)
     for line in lines:

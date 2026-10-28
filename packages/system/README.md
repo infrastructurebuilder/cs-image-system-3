@@ -307,7 +307,13 @@ repository. Exit 0 (`... is unchanged since REF (<dirs>)`), 1 with the
 diff when a declaration of that runtime changed, 2 for an unknown
 runtime. Loads the configuration. CI's performing job asks this of the
 runtime that stays out of CI by the cost decision, so a change there
-fails the job loudly rather than bake.
+fails the job loudly rather than bake. The vendor's newest image moving
+under a base with no build yet is not a change, read as `config-drift`
+reads it: exit 0, `... unchanged since REF (<dirs>), but the vendor's
+newest image moved under a base this tree has not baked`, and the
+moves (hygiene XVII item 1; on 0.1.2 and before it was a change and
+failed the job, with nothing to apply). A diff too long to show whole
+is never read as a vendor move, by either command.
 
 ### `public-safe [--staged] [--tree PATH] [--config FILE]`
 

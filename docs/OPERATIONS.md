@@ -1444,7 +1444,11 @@ declarations, 2 when nothing is committed under `generated/` or the dry
 run itself fails. A dry run's `init` skips the backend, so no state
 access is needed. `cs-image-system runtime-unchanged <rt> [--ref REF]`
 is the same comparison for one runtime's emission directories across
-records (what CI's guard uses).
+records (what CI's guard uses), and it reads the vendor's newest image
+moving under a base with no build yet the same way: named, and exit 0
+(hygiene XVII item 1; on 0.1.2 and before the guard failed `perform`
+for it, with nothing to apply). A diff too long to show whole is never
+read as a vendor move, by either command.
 
 `just fixture-live` (stage 64) is the system's own live proof and what
 this repository's CI `live` job runs: with real sessions (the frozen

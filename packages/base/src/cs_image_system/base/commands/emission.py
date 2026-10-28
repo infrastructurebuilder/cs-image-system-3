@@ -347,7 +347,9 @@ VENDOR_IMAGE_LINE = re.compile(r'^[-+]\s*(?:image-id|source_image|source_image_n
 def vendor_image_moves(lines: list[str]) -> list[str]:
     """When every differing file is a base's packer source under ``base-image/``
     and every changed line names the vendor's image, the moves (``file: old ->
-    new``); else an empty list, and the diff is the tree's own."""
+    new``); else an empty list, and the diff is the tree's own. A diff
+    ``diff_trees`` cut short is never a move: what it left out may be
+    anything (hygiene XVII item 1)."""
     moves: list[str] = []
     current: str | None = None
     olds: list[str] = []
@@ -361,7 +363,7 @@ def vendor_image_moves(lines: list[str]) -> list[str]:
                 moves.append(f"{current}: {a} -> {b}")
     try:
         for ln in lines:
-            if ln.startswith("Only in "):
+            if ln.startswith(("Only in ", "... (", "(binary files differ)")):
                 return []
             if ln.startswith("diff "):
                 flush()
@@ -384,9 +386,10 @@ def vendor_image_moves(lines: list[str]) -> list[str]:
 def runtime_unchanged(runtime: str, ref: str = "HEAD") -> tuple[int, list[str]]:
     """0 when the runtime's emission directories (``runtime describe`` ->
     ``emission``) in the working tree equal the same paths at ``ref`` once
-    normalised, 1 with the diff when a declaration of that runtime changed,
-    2 when the emission directories cannot be read. Needs the configuration
-    loaded."""
+    normalised, or differ only by the vendor's newest image under a base not
+    yet baked (said, with the moves; hygiene XVII item 1), 1 with the diff
+    when a declaration of that runtime changed, 2 when the emission
+    directories cannot be read. Needs the configuration loaded."""
     from ..global_context import GlobalTypeContext
     from .runtime_facts import emission_dirs
     ctx = GlobalTypeContext()
@@ -412,5 +415,13 @@ def runtime_unchanged(runtime: str, ref: str = "HEAD") -> tuple[int, list[str]]:
         lines = diff_trees(before_generated, now)
         if not lines:
             return 0, [f"runtime-unchanged: the emission of {runtime} is unchanged since {ref} ({' '.join(dirs)})"]
+        moved = vendor_image_moves(lines)
+        if moved:
+            # hygiene XVII item 1: the vendor publishing under a base with no build yet is
+            # no declaration of the runtime's -- config-drift's reading (hygiene XII item 27);
+            # nothing is there to apply by hand, and the guard failed perform for it
+            return 0, [f"runtime-unchanged: the emission of {runtime} is unchanged since {ref} ({' '.join(dirs)}), "
+                       f"but the vendor's newest image moved under a base this tree has not baked "
+                       f"({len(moved)} line(s)); nothing of yours changed:", *moved]
         return 1, [f"runtime-unchanged: the emission of {runtime} CHANGED since {ref} ({_count_files(lines)} files):",
                    *lines[:80]]
