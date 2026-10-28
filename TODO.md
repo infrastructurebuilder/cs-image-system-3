@@ -10,8 +10,8 @@ operator can take.
 - §30, the plugin contract package: planned; waits on the operator's
   decision.
 - §94, the F44 review: standing; next on or after 2026-11-09.
-- No hygiene bundle is open; the next non-critical issue opens bundle
-  XVIII.
+- §101, hygiene bundle XVIII: open, one item; waits for "do 101". The
+  next non-critical issue joins it.
 - No documentation stage is open.
 
 **Release**
@@ -25,11 +25,13 @@ operator can take.
   (bf3cc6e, on 0.1.2.dev2) and `v0.1.3-after` (b80b27e) bracket the
   move.
 - Last development release: 0.1.2.dev2.
-- Owed on 0.1.3: the §66 proof again, on a fresh copy. On 0.1.2
-  (2026-10-27) every part passed but the copy's first push, which §98
-  item 3 fixed: "Use this template" on `standard-aws`, `just init` in
-  the copy, and its CI green with no setup, the first push's run
-  included.
+- The §66 proof passed whole on 0.1.3 (2026-10-28): "Use this
+  template" on `standard-aws`, the copy's first push green with
+  `perform` SKIPPED (red on 0.1.2, §98 item 3), `uv tool install
+  cs-image-system==0.1.3` all 18 from PyPI, `just init` in the copy,
+  a dispatched dry run green with `live` and `perform` SKIPPED. The
+  copy was deleted afterwards. Nothing is owed at the next final
+  release but the usual republication.
 - `STARTER_PUSH_TOKEN` (`cs-image-system-starter-repos-token`) expires
   2027-10-25: renew it before then.
 
@@ -272,3 +274,26 @@ question at least once a month for the next 4 months." The note is made:
 - 2026-12-09: (open)
 - 2027-01-09: (open)
 - 2027-02-09: (open)
+
+## 101. Hygiene bundle XVIII
+
+- **Status:** OPEN 2026-10-28, one item, found during the §66 re-proof
+  on 0.1.3; not started, waits for "do 101". The next non-critical
+  issue joins it.
+
+1. **`just init` in a starter never names the release it found.**
+   - *Seen:* on 2026-10-28, `just init` in a fresh copy of the
+     `standard-aws` template printed `init: cs-image-system ready
+     against ...`, with no version. The recipe asks the command for
+     `--version` and falls back silently to the bare name; the CLI has
+     no `--version` option (typer answers `No such option`). All four
+     starters' Justfiles and the reference configuration's carry the
+     same line (two per Justfile), so the one line meant to tell a
+     reader which release their tree runs on has never said it.
+   - *Fix:* the CLI takes `--version` and prints the installed release
+     (the `cs-image-system` distribution's version, the one
+     `.csis-version` pins), so the starters' `init` line reads `init:
+     cs-image-system 0.1.4 ready against ...` with no change to the
+     recipe; a test holds the four starters and the system to it. The
+     daily driver's `init` lines and the four CI_SETUP guides say what
+     the line now shows.
