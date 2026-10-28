@@ -10,8 +10,8 @@ operator can take.
 - §30, the plugin contract package: planned; waits on the operator's
   decision.
 - §94, the F44 review: standing; next on or after 2026-11-09.
-- No hygiene bundle is open; the next non-critical issue opens bundle
-  XVII.
+- §100, hygiene bundle XVII: open, one item; in progress on
+  `feature/hygiene-xvii` (the operator said to start at once).
 - No documentation stage is open.
 
 **Release**
@@ -262,3 +262,31 @@ question at least once a month for the next 4 months." The note is made:
 - 2026-12-09: (open)
 - 2027-01-09: (open)
 - 2027-02-09: (open)
+
+## 100. Hygiene bundle XVII
+
+- **Status:** OPEN 2026-10-28, one item. The operator asked for it to be
+  written up and started at once, on `feature/hygiene-xvii`. The next
+  non-critical issue joins it.
+
+1. **CI's guard fails when the vendor publishes a newer image.**
+   - *Seen:* on 2026-10-28, by reading the code while preparing the
+     reference configuration's `just record` for the vendor's move that
+     `config-drift` reported (`almalinux-10-v20261023` ->
+     `v20261027`); no run has failed for it yet. `runtime-unchanged`
+     fails on any change to the guarded runtime's emission. A base with
+     no build yet names the vendor's newest image, so that emission
+     changes when the vendor publishes, with nobody changing anything.
+     `config-drift` excuses exactly that (hygiene XII item 27, the
+     walk's F55); the guard does not. When the vendor publishes between
+     the last record and a push to `main`, `perform`'s record takes the
+     move and the guard fails the job, after the record is pushed and
+     before anything performs. The remedy its failure row names, "apply
+     that change by hand", has nothing to apply.
+   - *Fix:* the guard passes a vendor move alone, as `config-drift`
+     does, and names the moves. The shared reading of a diff
+     (`vendor_image_moves`) refuses a diff that was cut short, so a
+     long diff whose shown part is all vendor lines is never excused,
+     in either command. The system README, OPERATIONS, the daily driver
+     (the guard paragraph and a failure row) and the four CI_SETUP
+     guides (the variable row and the failure table) say so.
