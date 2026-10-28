@@ -192,7 +192,7 @@ run `live`:
 | Value | Meaning |
 | --- | --- |
 | `PERFORM_RUNTIME` | the runtime the `perform` job bakes, releases and applies retention on (a `name:` from `cfg/runtime-builders.yml`) |
-| `GUARD_RUNTIME` | a runtime CI must never bake on (for example one billed to a person), or empty for none; its emission may not change between two records, or `perform` fails before anything performs |
+| `GUARD_RUNTIME` | a runtime CI must never bake on (for example one billed to a person), or empty for none; its emission may not change between two records, or `perform` fails before anything performs. The vendor publishing a newer image under a base with no build yet there is not a change: the guard names the move and passes (on 0.1.2 and before it failed) |
 | `AWS_REGION` | the region of the AWS runtime (absent in a GCE-only tree) |
 | `TF_VAR_REPLACE_ME_key`, `TF_VAR_REPLACE_ME_secret` | rename to `TF_VAR_<team>_key` and `TF_VAR_<team>_secret`, where `<team>` is the OPA team with every non-alphanumeric character as `_` (the `team:` on your group builder); the values come from the `TF_VAR_KEY` and `TF_VAR_SECRET` secrets, which keep those names |
 
@@ -653,6 +653,7 @@ step "Gate on the secrets".
 | the probe's client refuses the token | a claim does not match | compare the claims the probe printed with the connection's Required Claims |
 | `perform` fails at "Push the record" | `main` is protected against the job's own token, or someone pushed while the run was in flight | let `github-actions[bot]` push to `main` (section 3.2, step 3); never force |
 | `runtime-unchanged: the emission of <runtime> CHANGED` | a declaration of `GUARD_RUNTIME` changed | apply that change by hand, from your own machine, then let `perform` run again |
+| `runtime-unchanged: the emission of <runtime> CHANGED (1 files)`, the diff one `source_image` (or `image-id`) line, old and new, under `base-image/` | the system is 0.1.2 or before, and the vendor published a newer image under a base with no build yet: nothing of yours changed | nothing to apply: the record the job pushed already holds the move, so the next push to `main` passes the guard; a later release (section 3.1) passes it the first time |
 | a state query storage `unavailable` | a read the READ-ONLY identity lacks | add the action CloudTrail (or GCP's audit log) names |
 
 ## 4. GitLab
