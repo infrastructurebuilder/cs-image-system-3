@@ -16,17 +16,20 @@ operator can take.
 
 **Release**
 
-- 0.1.2, the latest final release: PyPI and TestPyPI, tag `v0.1.2`
-  (5ba3ebd), 2026-10-27. Its tag published the four template
-  repositories for the first time (§66).
-- The reference configuration runs 0.1.2.dev2; `perform` green on
-  2026-10-27.
+- 0.1.3, the latest final release: PyPI and TestPyPI, tag `v0.1.3`
+  (3c05229), 2026-10-28, cut straight from 0.1.2 (no development
+  release between). Carries §98 and §100. Its tag published the four
+  template repositories again (tag `v0.1.3`).
+- The reference configuration runs 0.1.3 (take 683eb45); `perform`
+  green on 2026-10-28, nothing baked. Its tags `v0.1.3-before`
+  (bf3cc6e, on 0.1.2.dev2) and `v0.1.3-after` (b80b27e) bracket the
+  move.
 - Last development release: 0.1.2.dev2.
-- Owed at the next final release: the §66 proof again, on a fresh copy.
-  On 0.1.2 (2026-10-27) every part passed but the copy's first push,
-  which §98 item 3 fixed: "Use this template" on `standard-aws`, `just
-  init` in the copy, and its CI green with no setup, the first push's
-  run included.
+- Owed on 0.1.3: the §66 proof again, on a fresh copy. On 0.1.2
+  (2026-10-27) every part passed but the copy's first push, which §98
+  item 3 fixed: "Use this template" on `standard-aws`, `just init` in
+  the copy, and its CI green with no setup, the first push's run
+  included.
 - `STARTER_PUSH_TOKEN` (`cs-image-system-starter-repos-token`) expires
   2027-10-25: renew it before then.
 
@@ -104,7 +107,7 @@ operator can take.
   > Then the user would fork and clone the starter repository.  This would give them
   > a place to land the bootstrapping code.  They would then start the bootstrapping
   > interview, and should end up with a runnable copy of the application, as well
-  > as a configured set of dependencies, bootstrap code, and target locations for 
+  > as a configured set of dependencies, bootstrap code, and target locations for
   > state management (including, possibly, storing state in github [not recommended]).
   >
   > Once landed, the §70 work should be considered part of the ongoing updates of the application
@@ -133,7 +136,7 @@ protocol structurally only by accident (`ProviderSpecificImage`, and every
 per-plugin distance: `tf-s3-state-plugin` needs 7 core names,
 `tf-ebs-instance-plugin` 42 plus 24 context reaches.
 
-§30 needs to be done very independently, and on a path that allows us to abort 
+§30 needs to be done very independently, and on a path that allows us to abort
 if we end up with something more pressing.
 
 **Honest cost**, in three tiers: the two static tiers (models, behaviour)
