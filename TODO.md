@@ -133,6 +133,9 @@ protocol structurally only by accident (`ProviderSpecificImage`, and every
 per-plugin distance: `tf-s3-state-plugin` needs 7 core names,
 `tf-ebs-instance-plugin` 42 plus 24 context reaches.
 
+§30 needs to be done very independently, and on a path that allows us to abort 
+if we end up with something more pressing.
+
 **Honest cost**, in three tiers: the two static tiers (models, behaviour)
 are ~3–4 days of mostly mechanical work; the context interface is 1–2
 weeks and is the part that makes an external plugin real; the proving
