@@ -407,6 +407,59 @@ def test_the_starter_perform_job_records_guards_performs_proves_and_records_agai
         assert any(s.get("run", "").strip() == "just opa-workload-probe" for s in job["steps"])
 
 
+def _run_gate(tmp_path: Path, name: str, job: str, configured: set[str], is_record: bool) -> tuple[int, str, dict[str, str]]:
+    """The gate step of JOB in NAME's workflow, run as the runner runs it (its
+    `sh` is bash on the AlmaLinux image), with CONFIGURED as the secrets that
+    exist; (exit code, output, the step's outputs)."""
+    import os
+    import subprocess
+    doc = yaml.safe_load((EXAMPLES / name / ".github/workflows/ci.yml").read_text())
+    step = next(s for s in doc["jobs"][job]["steps"] if s.get("id") == "gate")
+    outputs, summary = tmp_path / "outputs", tmp_path / "summary"
+    outputs.write_text("")
+    env = {"PATH": os.environ["PATH"], "GITHUB_OUTPUT": str(outputs), "GITHUB_STEP_SUMMARY": str(summary),
+           "IS_RECORD": "true" if is_record else "false"}
+    env.update({k: "true" if k[len("HAVE_"):] in configured else "false" for k in step["env"] if k.startswith("HAVE_")})
+    proc = subprocess.run(["bash", "-e", "-c", step["run"]], env=env, capture_output=True, text=True, check=False)
+    said = dict(ln.split("=", 1) for ln in outputs.read_text().splitlines() if "=" in ln)
+    return proc.returncode, proc.stdout + proc.stderr, said
+
+
+def test_an_unconfigured_copy_of_a_starter_skips_even_on_its_first_push_to_main(tmp_path):
+    """Hygiene XVI item 3: "Use this template" pushes the copy's first commit
+    to `main` with no secret set. The perform gate tested the record request
+    first, and that run failed naming every secret (the stage 66 proof, 0.1.2,
+    2026-10-27); none configured is SKIPPED on `main` as anywhere else. Some
+    configured and some missing still FAILS, and a record request names the
+    write identity it lacks."""
+    for name in TREES:
+        doc = yaml.safe_load((EXAMPLES / name / ".github/workflows/ci.yml").read_text())
+        gate = next(s for s in doc["jobs"]["perform"]["steps"] if s.get("id") == "gate")
+        secrets = {k[len("HAVE_"):] for k in gate["env"] if k.startswith("HAVE_")}
+        write = {s for s in secrets if "APPLY" in s}
+        read = secrets - write
+        assert write and read, name
+        for is_record in (True, False):
+            code, out, said = _run_gate(tmp_path, name, "perform", set(), is_record)
+            assert code == 0 and "perform: SKIPPED -- no secret is configured" in out, (name, is_record, out)
+            assert said == {"ready": "false", "record": "false"}, (name, is_record, said)
+        code, out, said = _run_gate(tmp_path, name, "perform", read, True)
+        assert code == 1 and "recording was requested on main" in out, (name, out)
+        assert all(s in out for s in write) and not any(f" {s}" in out.split("EMPTY:")[1] for s in read), (name, out)
+        code, out, said = _run_gate(tmp_path, name, "perform", read, False)
+        assert code == 0 and "mode DRY" in out and said == {"ready": "true", "record": "false"}, (name, out)
+        code, out, said = _run_gate(tmp_path, name, "perform", secrets, True)
+        assert code == 0 and "mode RECORD" in out and said == {"ready": "true", "record": "true"}, (name, out)
+        some = set(sorted(read)[:1])
+        code, out, _ = _run_gate(tmp_path, name, "perform", some, False)
+        assert code == 1 and "secrets are configured but these are missing" in out, (name, out)
+        # the live job's gate, which never records, reads the same way
+        code, out, said = _run_gate(tmp_path, name, "live", set(), False)
+        assert code == 0 and "live: SKIPPED" in out and said == {"ready": "false"}, (name, out)
+        code, out, _ = _run_gate(tmp_path, name, "live", some, False)
+        assert code == 1 and "live: FAILED" in out, (name, out)
+
+
 def test_the_built_release_carries_the_starters_byte_for_byte(tmp_path):
     """Stage 64 item 1: `just build` (uv build: the sdist, then the wheel FROM
     the sdist) ships the three trees inside the system package, so a machine

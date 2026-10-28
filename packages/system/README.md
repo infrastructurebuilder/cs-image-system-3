@@ -273,10 +273,12 @@ Is the committed emission current with the declarations? (stage 45; a
 command since stage 64, where `scripts/normalise-emission` and the recipe
 that used it became this.) A headless dry `run --all` in a process of its
 own over a private copy of the configuration under `--root-dir` (its
-`.git`, `generated/` and `_private/` left out; a relative
-`module_source_base` that escapes the tree is copied beside the copy at
-the same relative place), compared with the `generated/` tree committed at
-HEAD. On both sides tool residue (`.terraform`, `.terraform.lock.hcl`,
+`.git`, `generated/`, `_private/` and provider cache left out -- the cache
+as `.tofu-plugin-cache` at any depth and as `TF_PLUGIN_CACHE_DIR` names it
+when that lies inside the tree, since the copy's run reads the original's
+through that variable; a relative `module_source_base` that escapes the
+tree is copied beside the copy at the same relative place), compared with
+the `generated/` tree committed at HEAD. On both sides tool residue (`.terraform`, `.terraform.lock.hcl`,
 `tfplan`, `temp_assets`, `release/release`, `retention/retention`), the
 run-local files (`run-summary.json`, `state-report.json`,
 `manifest.json`), run ids (`<RUN>`) and the run's date stamp in image
@@ -285,8 +287,12 @@ absolute path in the emission IS drift. Exit 0 (`config-drift: the
 committed emission is current with the configuration`), 1 with the file
 count and a unified diff when the committed emission is BEHIND the
 configuration, 2 when nothing is committed under `generated/` at HEAD or
-the dry run itself fails (its log's tail is printed). This process loads
-nothing; the copy's run needs what a load needs (the sessions,
+the dry run itself fails (its log's tail is printed). It takes minutes,
+mostly the `tofu init` of every root, so it says on stderr what it is
+doing as it goes: the copy (its size and time), each lifecycle as it
+starts and each root's `init`, with the time since the dry run started,
+then the comparison and the total; the verdict alone is on stdout. This
+process loads nothing; the copy's run needs what a load needs (the sessions,
 `CSIS_CONFIG_IDENTITY`, the identity credentials) and a dry run's `init`
 skips the backend, so no state access.
 

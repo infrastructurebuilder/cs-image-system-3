@@ -544,8 +544,10 @@ def config_drift_command(typer_cntx: typer.Context) -> None:
     a command since stage 64)
 
     A headless dry `run --all` in a process of its own over a private copy of
-    the configuration (its .git, generated/ and _private/ left out), compared
-    with the generated/ tree committed at HEAD. Tool residue, the run-local
+    the configuration (its .git, generated/, _private/ and provider cache
+    left out), compared with the generated/ tree committed at HEAD. What it
+    is doing is said on stderr as it goes -- the copy, each lifecycle, each
+    root's init -- with the time each took: a refresh takes minutes. Tool residue, the run-local
     files, run ids and the run's date stamp in image names are normalised
     on both sides; nothing else legitimately differs, so an absolute path in
     the emission IS drift. Exit 0 when current, 1 with the diff when the
@@ -555,7 +557,7 @@ def config_drift_command(typer_cntx: typer.Context) -> None:
     whatever a load needs (the sessions, CSIS_CONFIG_IDENTITY)."""
     from cs_image_system.base.commands.emission import config_drift
     root = Path(typer_cntx.obj.get("config_root") or os.getcwd())
-    code, lines = config_drift(root)
+    code, lines = config_drift(root, progress=lambda line: typer.echo(line, err=True))
     for line in lines:
         typer.secho(line, fg=typer.colors.GREEN if code == 0 else typer.colors.RED if line.startswith(
             ("config-drift: the committed emission is BEHIND", "config-drift: nothing", "config-drift: the dry run")) else None,

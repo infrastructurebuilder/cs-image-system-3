@@ -280,9 +280,10 @@ full-test-legs:
 	elif just preflight; then
 		copy=$(mktemp -d "${TMPDIR:-/tmp}/csis-full-test.XXXXXX")
 		# The reference configuration carries its own tfmodules (stage 64), so the copy needs nothing beside
-		# it. Never carry its .git (a copy must not commit into the live repo), its generated trees or its mirror.
+		# it. Never carry its .git (a copy must not commit into the live repo), its generated trees, its mirror
+		# or its provider cache (hygiene XVI item 2: gigabytes, and the copy's inits use this Justfile's own).
 		mkdir -p "$copy/cs-image-system-testconfig"
-		(cd "{{config_root}}" && tar --exclude=./.git --exclude=./generated --exclude=./_private -cf - .) | tar -xf - -C "$copy/cs-image-system-testconfig"
+		(cd "{{config_root}}" && tar --exclude=./.git --exclude=./generated --exclude=./_private --exclude=./.tofu-plugin-cache -cf - .) | tar -xf - -C "$copy/cs-image-system-testconfig"
 		echo "full-test: headless dry run --all over a private copy of the reference configuration ($copy)"
 		uv run cs-image-system --root-dir "$copy/cs-image-system-testconfig" run --all || { echo "full-test: FAILED dry run --all"; status=1; }
 		echo "full-test: state query --strict over the copy"

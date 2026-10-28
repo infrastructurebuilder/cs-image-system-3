@@ -10,25 +10,33 @@ operator can take.
 - §30, the plugin contract package: planned; waits on the operator's
   decision.
 - §94, the F44 review: standing; next on or after 2026-11-09.
-- §98, hygiene bundle XVI: open, three items; a plan, waits for "do 98".
+- No hygiene bundle is open; the next non-critical issue opens bundle
+  XVII.
 - No documentation stage is open.
 
 **Release**
 
-- 0.1.1, the first final release: PyPI and TestPyPI, tag `v0.1.1`
-  (766a210), 2026-10-22.
-- The reference configuration runs it from PyPI; `perform` green on
-  2026-10-23.
-- Last development release: 0.1.1.dev26.
-- Owed at the next final release: the first publication of the four
-  template repositories (§66, landed). Proof: the tag's `publish` job
-  publishes all four; "Use this template" on `standard-aws`, `just init`
-  in the copy, and its CI green with no setup.
+- 0.1.2, the latest final release: PyPI and TestPyPI, tag `v0.1.2`
+  (5ba3ebd), 2026-10-27. Its tag published the four template
+  repositories for the first time (§66).
+- The reference configuration runs 0.1.2.dev2; `perform` green on
+  2026-10-27.
+- Last development release: 0.1.2.dev2.
+- Owed at the next final release: the §66 proof again, on a fresh copy.
+  On 0.1.2 (2026-10-27) every part passed but the copy's first push,
+  which §98 item 3 fixed: "Use this template" on `standard-aws`, `just
+  init` in the copy, and its CI green with no setup, the first push's
+  run included.
 - `STARTER_PUSH_TOKEN` (`cs-image-system-starter-repos-token`) expires
   2027-10-25: renew it before then.
 
 **Landed since 2026-10-05** (newest first)
 
+- §98, hygiene bundle XVI: 2026-10-27, its squash commit.
+  `config-drift` says what it is doing as it goes and leaves the
+  provider cache out of its copy, as every `full-test` copy now does
+  too; an unconfigured copy of a starter skips `perform` on its first
+  push to `main`.
 - §99, a development pin installs from TestPyPI again: 2026-10-26, its
   squash commit (every install line names `--index-strategy
   unsafe-first-match`).
@@ -254,60 +262,3 @@ question at least once a month for the next 4 months." The note is made:
 - 2026-12-09: (open)
 - 2027-01-09: (open)
 - 2027-02-09: (open)
-
-## 98. Hygiene bundle XVI
-
-- **Status:** OPEN 2026-10-26, three items; a plan until the operator
-  says "do 98". The next non-critical issue joins it.
-
-1. **`config-drift` is silent for minutes.**
-   - *Seen:* on 2026-10-26, taking 0.1.2.dev1 into the reference
-     configuration, `just config-drift` printed nothing for many minutes
-     after `just record` finished, and looked stuck. It makes a dry run
-     of every lifecycle into a temporary copy (a `tofu init` per root)
-     and says nothing until the comparison.
-   - *Fix:* it says what it is doing as it goes -- the copy, each
-     lifecycle, each root's `init` -- and how long it took; the daily
-     driver says a refresh takes minutes.
-2. **`config-drift` copies the provider cache, gigabytes, every time.**
-   - *Seen:* on 2026-10-27, taking 0.1.2.dev2 into the reference
-     configuration with the boot disk nearly full, `just record` failed
-     on a `tofu init` and `config-drift` then failed copying
-     `.tofu-plugin-cache/` (5.7 GB) into the system's temporary
-     directory. The copy leaves out `.git`, `generated/` and `_private/`
-     but not the provider cache, which keeps every provider version the
-     tree ever fetched (six of `hashicorp/aws`, six of
-     `hashicorp/google`).
-   - *Waste:* the copy's dry run never reads it. Every starter's
-     Justfile points `TF_PLUGIN_CACHE_DIR` at the original tree's cache,
-     and the system never sets it. Copying it is probably a large part
-     of item 1's minutes.
-   - *Fix:* `copy_tree_for_a_dry_run`
-     ([emission.py](packages/base/src/cs_image_system/base/commands/emission.py))
-     leaves the provider cache out: `.tofu-plugin-cache`, and the
-     directory `TF_PLUGIN_CACHE_DIR` names when it lies inside the tree.
-     A test that the copy holds no provider cache.
-3. **A new copy of a starter goes red on its first push.**
-   - *Seen:* on 2026-10-27, proving stage 66 on 0.1.2: a repository
-     made with "Use this template" from the standard-aws starter ran CI
-     on its first commit to `main`, and `perform` failed at its gate,
-     "recording was requested on main and these secrets are missing or
-     EMPTY", naming all six. `verify` passed and `live` SKIPPED, as
-     they should with no setup.
-   - *Cause:* `perform`'s gate tests "recording on `main` with a secret
-     missing" before "no secret configured", so a push to `main` never
-     reaches the SKIPPED its own comment promises an unconfigured
-     repository. The order came from this repository's own CI
-     (b6996ae, 2026-09-16), which always had its secrets; stage 64
-     carried it into all four starters
-     ([docs/examples/](docs/examples/)). The reference configuration's
-     `ci.yml` has it too, but has its secrets, so it is unaffected.
-   - *Fix:* every starter's `perform` gate tests "none configured"
-     first and SKIPS, for a record as for a dry run; the reference's
-     `ci.yml` changes the same way, so the two still agree. A test that
-     runs each starter's gate script under `bash` with no secret on a
-     push to `main` and finds SKIPPED and exit 0, and one that a
-     partial set on `main` still FAILS.
-   - *Proof:* the starters are republished only by a final release, so
-     the stage 66 proof is done again at the next one: a new copy's
-     first CI run is green with no setup.
