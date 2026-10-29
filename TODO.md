@@ -7,8 +7,9 @@ operator can take.
 
 **Open**
 
-- §30, the plugin contract package: planned; waits on the operator's
-  decision.
+- §30, the plugin contract package: planned, re-measured 2026-10-28 and
+  reshaped 2026-10-29 by the operator's decisions; two branches, Tier C
+  deferred; waits for "do 30".
 - §94, the F44 review: standing; next on or after 2026-11-09.
 - No hygiene bundle is open; the next non-critical issue opens bundle
   XIX.
@@ -122,135 +123,199 @@ operator can take.
 
 ## 30. The plugin contract is a package of protocols
 
+**Status: planned; re-measured 2026-10-28 against the tree after §101
+and reshaped 2026-10-29 by the operator's decisions below. Waits for
+"do 30".**
+
 **Why**: a plugin author should be able to write a plugin against ONE
-package — `cs-image-system-contract` — and never import, let alone
+package, `cs-image-system-contract`, and never import, let alone
 subclass, the core's base classes. The base classes are the convenient
 implementation of that contract, not the contract itself; a plugin that
-satisfies the protocols structurally is a first-class plugin. That is the
-operator's stated goal (2026-09-13) and it reverses the direction §29 had
-taken (fold the protocols into the bases): the protocols are kept and made
-real. Today the promise is not delivered: `base/protocols/` imports
-`constants`, `registry` and the field helpers from the rest of `base`; a
-plugin's own `pyproject.toml` depends on `cs-image-system-system` (the CLI
-host); plugins import from ~60 core modules and ~106 names, of which ~24
-are functions whose first argument is the live run context, reached
-through the `GlobalTypeContext` singleton at ~50 sites; the mapper
-dispatches on base-class identity; and two things already satisfy a
-protocol structurally only by accident (`ProviderSpecificImage`, and every
-`BuilderBase` at the registry's gate). Measured 2026-09-13 with the
-per-plugin distance: `tf-s3-state-plugin` needs 7 core names,
-`tf-ebs-instance-plugin` 42 plus 24 context reaches.
+satisfies the protocols structurally is a first-class plugin (the
+operator's goal, 2026-09-13; it reversed the direction §29 had taken).
+The contract is upstream of the core: the core conforms to it, and a
+new hook is a contract change first, the base's change second, in that
+order within one branch.
 
-§30 needs to be done very independently, and on a path that allows us to abort
-if we end up with something more pressing.
+**Decisions** (the operator's, 2026-10-29)
 
-**Honest cost**, in three tiers: the two static tiers (models, behaviour)
-are ~3–4 days of mostly mechanical work; the context interface is 1–2
-weeks and is the part that makes an external plugin real; the proving
-plugin 1–2 days. Call it three weeks, done as three branches.
+- One package, `packages/contract` -> `cs_image_system.contract`, with
+  one module per kind (`contract.runtime`, `contract.storage`,
+  `contract.state`, ...) over `contract.core`, and a test that holds
+  the import direction between the modules: a kind module imports
+  `core` and only the kinds it declares it reads. Not one api package
+  per kind: the shared core dominates (three names are used by all
+  fourteen plugins, most kind surfaces are thin), the kinds read each
+  other (a storage plugin reads the runtime builders; images read
+  groups and storages), and the `==` lockstep would erase independent
+  versioning anyway.
+- The contract lives in this repository as a workspace member. A change
+  spanning contract and core would otherwise need a release between two
+  repositories at every step, and a PyPI release of `base` cannot carry
+  a git-sourced dependency. The separation is enforced here by the
+  metadata test (declared dependencies equal the imports) and the
+  import-direction test. A separate repository is the end state once
+  the contract stops changing weekly, and an external proof plugin in
+  its own repository, installing the contract from the index and
+  nothing else, comes at that point.
+- Tiers A and B now, as two branches. Tier C, the run-context
+  protocol, is its own later stage.
+- The proof plugin is a state backend under `packages/`, pinned by the
+  root package and published like every member (the dummy plugin's
+  precedent; every build, publish and test machine is glob-driven).
+- No out-of-tree plugin exists: `base/protocols/` is removed, no shim.
+- Versions: `==` lockstep during §30. The contract's own compatibility
+  version, with `base` declaring the range it implements, is a later
+  stage; the docs tell an external plugin to pin a floor.
+- Abortable means each branch lands alone and leaves the tree strictly
+  better (bar green, golden byte-identical, docs current); the next
+  branch starts on the operator's word.
+- `docs/example-plugin/plugin-b` is deleted in branch 1 (nothing tests
+  it, its model and builder names differ, it imports the bases). The
+  dummy plugin stays as the hook template and test double.
+- The `cs_image_system.plugins.hooks` and `cs_image_system.bootstrap`
+  entry points are out of scope: a plugin contributing a hook or a
+  bootstrap section still depends on `base`, and the contract README
+  says so.
+- One release after the last branch; no development release and no
+  reference move mid-stage.
 
-1. **The package**: `packages/contract` → `cs_image_system.contract`, a
-   workspace member with NO dependency on `base` or `system` (pydantic and
-   `packaging` only); `base` depends on it, never the reverse, and a test
-   asserts the import direction. It carries the constants protocols need
-   (`VCT`, `FK_TARGET`, `DEFAULT`/`SELF`/`OOPS_DEFAULTS`),
-   `CSIS_MODEL_CONFIG`, `fk_field`/`templated_field`, the lifecycle enums
-   (`ExecutionLifecyclePhase`, `Lifecycle`, `LifecycleSpec`, `HookSet`) and
-   the value types a plugin constructs (`Asset`/`AssetSet`,
-   `ExecutableModel`, `CFExecutables`) — concrete data carriers are part
-   of a contract; behaviour is not.
-2. **Tier A — model protocols** (structural, with attribute declarations):
-   `NameTyped` (`name`, `type_`, `description`, `aliases`, `global_id`,
-   `get_classification`), `BuilderModel`, and one per builder kind
-   (runtime, os, storage, image, instance, mod, group, user, state) with
-   exactly the attributes the core reads. A plugin model is any pydantic
-   dataclass under `CSIS_MODEL_CONFIG` that satisfies them; the `type`
-   alias and `fk_field` metadata are the contract's, exported. The
-   `ParentPropertyHolding` attribute (`_model_id`) is declared in the
-   protocol and by each implementer — a protocol cannot carry a dataclass
-   field, which is why it is copied at nine sites today; `base` offers a
-   pydantic-dataclass mixin as the convenience, and the copies in the
-   core's own models go through it.
-3. **Tier B — behaviour protocols**: `PluginMetadata` (the seven
-   properties; `AbstractPluginMetadata`'s `version` bug — it returns the
-   metadata version — fixed on the way), `PluginArtifact`
-   (`csis_name`/`csis_classifier`), and the builder surface: the six
-   universal lifecycle hooks (`generate_items_{before,during,after}`,
-   `get_commands_to_run_{before,during,after}`) as `Builder`, plus one
-   protocol per kind for the ~60 domain hooks (`StorageBuilder`:
-   `module_args`, `capability_type`, `attachment_cardinality`,
-   `transition_actions`, `supports_archive`…; `RuntimeBuilder`: the 21
-   query/session/dispose/power hooks (16 until stage 57 added the power
-   state -- `can_query`/`query_instance_power_state` and
-   `can_set_instance_power_state`/`start_instance`/`stop_instance` -- so
-   recount before trusting any number written here); `GroupBuilder`, `ImageBuilder`,
-   `InstanceBuilder`, `ModBuilder`, `UserBuilder`, `StateBuilder`). The
-   protocols carry NO implementation (today `NameTypedProtocol` supplies
-   `global_id` and a `get_classification` default; those bodies move to
-   the base classes). `StateManagementRootProtocol` is dead — zero
-   implementers — and is deleted.
-4. **Tier C — the context protocol**, the expensive part: `RunContext`
-   with the ~55 members plugins read (top: `meta_state`,
-   `runtime_builders`, `os_builders`, `run_id`, `instances`, `images_map`,
-   `generation_path`, `storage_builders`, `storages`, `dry_run`, …), with
-   `MetaState` its own protocol (the mutable run records that the storage
-   and instance builders write on both clouds); the ~24 context-first
-   functions plugins import (`capabilities.*`, `lineage.*`,
-   `launch_params.*`, `image_tests.*`, `storage_state.*`,
-   `identity_attributes.*`, three from `commands.verify_instance`) either
-   become methods of the protocol or are re-exported by the contract as
-   functions typed against it. `GlobalTypeContext` implements it; the
-   builder protocol receives the context by injection (`bind(ctx)`) so a
-   plugin never constructs the singleton — the ~18 direct
-   `GlobalTypeContext()` constructions in plugin code and the 33
-   `_get_context()` calls go through it.
-5. **The base classes implement the protocols** — `class NameTyped(…)`
-   declares the protocol nominally as well, so pyright checks every base
-   against it at definition time; a `contract.testing` module ships
-   `assert_conforms(cls, protocol)` (signature-level, via `typing`
-   introspection, stricter than `runtime_checkable`'s name-only check)
-   and the core's tests run it over every base class and every built-in
-   plugin. The two accidental structural implementers become deliberate:
-   `ProviderSpecificImage` and `BuilderBase` conform by the same test.
-6. **Runtime checks stay structural** and move to the contract's
-   protocols: `loader.py` (`PluginMetadata`), `registry.py`
-   (`NameTyped`, `PluginArtifact`), the orchestrator's marker dispatch
-   (`SelfInjectedName`, `ParentPropertyHolding`, `SubItemOverride`) — all
-   `runtime_checkable`, all name-only at runtime, all backed by step 5's
-   conformance test so the looseness is not the only check. The mapper:
-   `PydanticConverter` drops its base-class identity table (`_base_vcts`)
-   and dispatches by `csis_classifier()` for any registered dataclass that
-   satisfies `NameTyped` — the registry already resolves plugin models by
-   type key.
-7. **Plugins depend on the contract**: every plugin's `pyproject.toml`
-   depends on `cs-image-system-contract` and, only where it truly uses a
-   core utility, on `base` (the ~12 pure helpers — `render_module_call`,
-   `hcl_expr`, `super_safe_name`, … — move to the contract or to
-   `hashicorp-utils`, which is declared for what it is: a library five
-   plugins use, not a plugin). The three undeclared dependencies
-   (`tf-ebs`→`aws_runtime`, `aws-runtime`/`gcloud-runtime`→`dummy_plugin`)
-   are declared or removed; the three private cross-plugin imports
-   (`_groups`, `_public_read`, `_make_credentials`) get public names. No
-   plugin depends on `system`.
-8. **The proof — an external plugin**: a new workspace member
-   `packages/contract-example-plugin` implementing one trivial storage (or
-   runtime) plugin against `cs_image_system.contract` ONLY — a test greps
-   its source for `cs_image_system.base` and fails on any hit; it is
-   loaded by entry point, its model structures from a fixture YAML, and it
-   participates in a dry `run --all` over a copy of the frozen fixture
-   with its module call emitted. That is the acceptance; without it the
-   contract is a claim.
-9. Residue carried from §29: fix `RuntimeBuilderBase`'s anonymous inline
-   TypeVar (it was never generic); the nine `_model_id` copies in the core
-   go through the mixin; the four type-escape hatches caused by the
-   protocol/base split (`builder_base.py:61`, `orchestrator.py:681`,
-   `registry.py:86`, `os_builder_runtime_config.py:173`) are fixed, not
-   repointed. Golden byte-identical at every branch; bar green; pyright at
-   0 errors. Records: ledger; DESIGN's plugin-contract section rewritten
-   around the package; OPERATIONS "writing a plugin". Branches
-   `feature/contract-package` (steps 1–3, 5–7),
-   `feature/contract-context` (step 4), `feature/contract-example`
-   (step 8), each squash-merged, kept.
+**Where things stand** (measured 2026-10-28; the 2026-09-13 numbers had
+drifted): plugins import 148 names from 63 `base` modules, 65 of them
+used by one plugin and three by all fourteen (`AbstractPluginMetadata`,
+`CSIS_MODEL_CONFIG`, `PluginMetadataProtocol`); 29 of the names are
+functions whose first argument is the run context, at 48 call sites;
+the context is reached by 53 `_get_context()` calls and 20
+`GlobalTypeContext()` constructions, and four `base.utils` helpers
+construct it inside. `GlobalTypeContext` has 76 public names,
+`MetaState` 54. The kind bases carry about 127 domain hooks (runtime
+41, group 41, storage 12, os 12, user 11, image 6, mod 3, instance 1,
+state 0) beside the six universal ones; `module_args` and
+`supports_archive` are plugin-only. No plugin imports `system` and no
+cross-plugin dependency is undeclared any more (the dummy imports left
+in e74cb59); the three private cross-plugin names (`_groups`,
+`_public_read`, `_make_credentials`) remain, and `packer-plugin`
+declares an `aws-runtime-plugin` pin it never imports. No plugin
+declares `base`; all reach it through `system`. `tf-s3-state-plugin`
+needs 6 core names and three from `hashicorp-utils`, none of them
+context-first: a state backend registers itself by pushing a
+`BackendRegistration` into the `hashicorp-utils` collector singleton
+from its `finalize`, and the core itself reads only the backend's
+executable. Found on the way: `issubclass(bc, NameTypedProtocol)` in
+`global_context` would raise `TypeError` (the protocol has a property
+member) and is masked only by the short-circuit before it; the
+orchestrator's `csis_name` hatch moved behind an `Any` rather than
+being fixed; `AbstractPluginMetadata.version` returns the metadata
+version; `StateManagementRootProtocol` has zero implementers. DESIGN
+has no plugin-contract section and OPERATIONS has no "writing a
+plugin": both are written new, not rewritten.
+
+**Branch 1, `feature/contract-package`** (Tiers A and B, about four
+days)
+
+1. The package: a workspace member depending on pydantic and
+   `packaging` only; `base` depends on it, never the reverse, and a
+   test asserts the direction. It carries what a plugin constructs or
+   reads without behaviour: the constants (`VCT`, `FK_TARGET`,
+   `DEFAULT`/`SELF`/`NONE`/`OOPS_DEFAULTS`, the model-id sentinels,
+   `PLUGIN_TYPES`), `CSIS_MODEL_CONFIG`, `fk_field`/`templated_field`
+   and the field kinds, `ExecutionLifecyclePhase`, `Lifecycle` and
+   `LifecycleSpec` as data (the lifecycle registry stays in `base`),
+   `Asset`/`AssetSet` (with `sort_and_write`'s context reach moved out
+   to `base`), a `PluginMetadata` record (the seven fields as data;
+   `AbstractPluginMetadata` becomes its convenience, its `version`
+   fixed by an explicit argument), and the pure helpers plugins use
+   (`super_safe_name`, `safe_name`, `hcl_expr`, `HclRaw`,
+   `render_module_call`), which `base` re-exports. `ExecutableModel`
+   stays in `base` (it runs subprocesses); the contract carries an
+   `Executable` protocol and `CFExecutables` as the command-list
+   carrier typed on it. `HookSet` stays in `base`.
+2. Tier A, the model protocols, one module per kind: `NameTyped`
+   (`name`, `type_`, `description`, `aliases`, `global_id`,
+   `get_classification`), `BuilderModel`, and one per kind with exactly
+   the attributes the core reads. `ParentPropertyHolding` declares
+   `_model_id`/`model_id` only; the registry reach in
+   `identified_model` moves to a `base` mixin, and the nine hand copies
+   of `_model_id` (seven in `base`, two in the cloud networking models)
+   go through it.
+3. Tier B, the behaviour protocols: `PluginArtifact`, `Builder` (the
+   six universal hooks and the three finalize-phase hooks), and one
+   protocol per kind for the domain hooks, recounted from the bases
+   when written, not from this section. `contract.state` also carries
+   the backend seam: `StateLocation` and `BackendRegistration` as data
+   carriers and the kind protocol (`location`, `backend_settings`,
+   `remote_state_settings`); the collector PULLS registrations from
+   the registry's state models (`to_backend_registration()`) instead
+   of a model pushing into the singleton, so the three state plugins
+   and the proof plugin import nothing from `hashicorp-utils`. The
+   protocols carry NO bodies: the `global_id`, `get_classification`,
+   `get_self_injected_name` and `get_subitem_overrides` defaults move
+   to the base classes. `StateManagementRootProtocol` is deleted and
+   `state_backends` is typed on the contract's state model protocol.
+4. The base classes implement the protocols nominally, so pyright
+   checks every base against its protocol at definition time;
+   `contract.testing` ships `assert_conforms(cls, protocol)`
+   (signature-level, stricter than `runtime_checkable`'s name-only
+   check) and the core's tests run it over every base class and every
+   built-in plugin's models and builders. `ProviderSpecificImage` and
+   `BuilderBase` conform deliberately.
+5. Runtime checks stay structural and move to the contract's
+   protocols: the loader (`PluginMetadata`), the registry (`NameTyped`,
+   `PluginArtifact`), the orchestrator's marker dispatch
+   (`SelfInjectedName`, `ParentPropertyHolding`, `SubItemOverride`).
+   The masked `issubclass` TypeError is fixed there. The mapper drops
+   its base-class identity table (`_base_vcts`) and `PLUGIN_TYPEMAP`'s
+   gate dispatches on the contract's `BuilderModel`.
+6. Plugins depend on the contract: every plugin's `pyproject.toml`
+   declares `cs-image-system-contract` and, where it subclasses the
+   bases (all fourteen today), `cs-image-system-base`; none declares
+   `system`. `hashicorp-utils` is declared for what it is, a library,
+   and `packer-plugin`'s unused pin goes. The three private
+   cross-plugin names get public names.
+7. Residue from §29: `RuntimeBuilderBase`'s inline `TypeVar`; the four
+   escape hatches (`builder_base.py`'s `csis_classifier`, the
+   orchestrator's `csis_name` behind `Any`, the registry's `cast`,
+   `os_builder_runtime_config.py`'s `identified_model`) fixed, not
+   repointed. `docs/example-plugin/plugin-b` deleted.
+8. Records and docs: the contract's README, held to the four sections
+   with "Writing a plugin" before them (the entry point, the metadata
+   record, a model and a builder per kind, what may be imported, how
+   an external plugin pins the contract); `base`'s README "The plugin
+   contract" rewritten to point at it; PLUGINS.md's tables and
+   DAILY_DRIVER's chapter 7 gain the package; a new OPERATIONS "Writing
+   a plugin" and a new DESIGN plugin-contract subsection; the dummy
+   README's pointer to plugin-b goes. The touch points a new member
+   owes: the root pins, `tool.uv.sources`, testpaths, pythonpath,
+   extraPaths, bumpversion's `glob_exclude` (the contract joins it,
+   `base` leaves it), `NOT_PLUGINS` in the examples test, the member
+   count in the metadata test, SPDX headers, and the prose counts of
+   packages and projects in OPERATIONS, PLUGINS.md and DAILY_DRIVER.
+
+**Branch 2, `feature/contract-example`** (the proof, about two days)
+
+9. `packages/contract-example-plugin`: a trivial state backend
+   implemented against `cs_image_system.contract` ONLY. A test greps
+   its source for `cs_image_system.base`, `cs_image_system.system` and
+   `cs_image_system.hashicorp_utils` and fails on any hit; it is loaded
+   by entry point, its model structures from a fixture YAML, and it
+   takes part in a dry `run --all` over a copy of the frozen fixture
+   with its backend emitted for a root that names it. It is in
+   `NOT_PLUGINS` like the dummy, so the published starters do not
+   declare its key. Without it the contract is a claim.
+
+**Deferred, each a stage of its own**: Tier C (`RunContext` with the
+76 members and `MetaState` as its own protocol; the 29 context-first
+functions as methods of it; `bind(ctx)` injection replacing the 20
+constructions and 53 `_get_context()` calls; the four `base.utils`
+helpers that build the context inside); the hooks and bootstrap entry
+points in the contract; the contract's own compatibility version; the
+separate repository and the external proof plugin.
+
+**Acceptance at every branch**: golden byte-identical; bar green;
+pyright at 0 errors; the conformance test green over every base and
+every built-in plugin; the docs tests green; `just full-test` legs
+green. Records: each branch's squash message; this section goes when
+the last branch lands.
 
 ## 94. A verification starts a machine its operator switched off: KEPT, and reviewed monthly
 
