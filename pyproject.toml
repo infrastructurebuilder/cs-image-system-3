@@ -19,6 +19,7 @@ dependencies = [
     "cs-image-system-base==0.1.3",
     "cs-image-system-bash-mod-plugin==0.1.3",
     "cs-image-system-contract==0.1.3",
+    "cs-image-system-contract-example-plugin==0.1.3",
     "cs-image-system-default-os-plugin==0.1.3",
     "cs-image-system-dummy-plugin==0.1.3",
     "cs-image-system-gcloud-runtime-plugin==0.1.3",
@@ -64,6 +65,7 @@ members = ["packages/*"]
 [tool.uv.sources]
 cs-image-system-base = { workspace = true }
 cs-image-system-contract = { workspace = true }
+cs-image-system-contract-example-plugin = { workspace = true }
 cs-image-system-system = { workspace = true }
 cs-image-system-okta-opa-plugin = { workspace = true }
 cs-image-system-aws-runtime-plugin = { workspace = true }
@@ -162,6 +164,7 @@ pythonpath = [
     "tests",
     "packages/base/src",
     "packages/contract/src",
+    "packages/contract-example-plugin/src",
     "packages/system/src",
     "packages/okta-opa-plugin/src",
     "packages/packer-plugin/src",
@@ -223,6 +226,7 @@ extraPaths = [
     "packages/base/src",
     "packages/bash-mod-plugin/src",
     "packages/contract/src",
+    "packages/contract-example-plugin/src",
     "packages/default-os-plugin/src",
     "packages/dummy-plugin/src",
     "packages/gcloud-runtime-plugin/src",

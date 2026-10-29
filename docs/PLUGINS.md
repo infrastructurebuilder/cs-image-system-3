@@ -1,11 +1,11 @@
 # The packages
 
-The uv workspace is eighteen packages under `packages/`. Each has its own
+The uv workspace is nineteen packages under `packages/`. Each has its own
 README that describes it on its own terms: what it registers, its models
 and how they extend the base models, its builder's hooks, what it emits,
 and one example configuration. The core and the CLI are packages too.
 
-The workspace root is the nineteenth project, `cs-image-system`: no sources of its
+The workspace root is the twentieth project, `cs-image-system`: no sources of its
 own, a `==` pin on every package, so one install is the whole system
 (`uv pip install cs-image-system==<version>`; see "Installing a release"
 in [OPERATIONS.md](OPERATIONS.md)). Every package declares exactly the
@@ -39,6 +39,7 @@ registers model and builder classes under the classifications it claims.
 | [tf-ebs-instance-plugin](../packages/tf-ebs-instance-plugin/README.md) | instances and storages | the terraform instance and storage builders |
 | [tf-gcp-plugin](../packages/tf-gcp-plugin/README.md) | GCE terraform pieces | see its README for exactly what it registers |
 | [tf-s3-state-plugin](../packages/tf-s3-state-plugin/README.md) | state backends | `s3` |
+| [contract-example-plugin](../packages/contract-example-plugin/README.md) | state backends | `inmem` (OpenTofu's in-memory state; the proof of the contract, stage 30: written against the contract alone, never a backend for a real tree) |
 | [local-state-plugin](../packages/local-state-plugin/README.md) | state backends | `local` (a state file on disk; stage 47) |
 | [gcs-state-plugin](../packages/gcs-state-plugin/README.md) | state backends | `gcs` (a Google Cloud Storage bucket; declared in the fixture, bound to nothing; stage 47) |
 | [dummy-plugin](../packages/dummy-plugin/README.md) | extension template and test double | see its README |

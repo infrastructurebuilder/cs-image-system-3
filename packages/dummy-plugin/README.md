@@ -292,11 +292,12 @@ hook plugin: return a `HookSet` from an entry point in the
 `cs_image_system.plugins.hooks` group. Registration is validated: a
 lifecycle cannot reuse a built-in name, its `after` anchor must exist, and
 registering the same name twice with a different definition is an error.
-What a model and a builder must satisfy, kind by kind, and how a plugin
-that subclasses nothing of the core is written, is the
-[contract's README](../contract/README.md) (stage 30); the
-[local state plugin](../local-state-plugin/README.md) is the smallest
-built-in example.
+What a model and a builder must satisfy, kind by kind, is the
+[contract's README](../contract/README.md) (stage 30); a plugin that
+subclasses nothing of the core is the
+[contract example plugin](../contract-example-plugin/README.md), the
+proof; the [local state plugin](../local-state-plugin/README.md) is the
+smallest built-in example on the base classes.
 
 ## Prerequisites and integration
 

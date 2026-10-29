@@ -1337,9 +1337,12 @@ def process_and_register_builders(
     default_classifier: VCT | None = None
     names: set[str] = set()
     for name, model in builder_models.items():
-        if not isinstance(model, BuilderModel):
+        # stage 30, branch 2: the contract's protocol, not the core's base class --
+        # a plugin's model that satisfies BuilderModelProtocol structurally (the
+        # proof plugin's does) is a builder model
+        if not isinstance(model, BuilderModelProtocol):
             raise ValueError(
-                f"Expected builder model for {name} in {property} to be an instance of BuilderModel, got {type(model)}"
+                f"Expected builder model for {name} in {property} to satisfy BuilderModelProtocol, got {type(model)}"
             )
 
         if model.name in OOPS_DEFAULTS:
