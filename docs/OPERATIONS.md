@@ -1547,7 +1547,7 @@ changes skip the bar (nothing in it reads Markdown); say so.
 ### `just build`, `just release`, `just publish`, `just publish-tree`
 
 `just build` packages the system and every workspace member (sdist +
-wheel: thirty-eight files) under `dist/`; no tests. The builds are
+wheel: forty files) under `dist/`; no tests. The builds are
 reproducible -- two builds of one tree are byte-identical -- which is what
 lets CI check a tag against the index instead of uploading it again.
 
@@ -1631,7 +1631,7 @@ line per endpoint) reads the target's `[[tool.uv.index]]` entry and
 asks two things of it: the upload endpoint (`publish-url`) answers
 below 500 to a request that uploads nothing, and the simple index
 answers for EVERY project a release uploads -- the root project and each
-`packages/*` member, nineteen today -- with 200, or 404 for a project
+`packages/*` member, twenty today -- with 200, or 404 for a project
 it has never seen. With `--version` it also says which projects already
 hold that version: none (a fresh release), all, or some (a partial
 upload, which `just publish` completes). Exit 0 is ready; **75 is "not
@@ -1696,11 +1696,11 @@ from the environment or, absent that, the index's own name --
 `.envrc` line serves the shell and CI alike -- and never in the Justfile:
 while versions are being deleted and re-cut, an account-scoped TestPyPI
 token; trusted publishing
-(a pending publisher per project name, nineteen registrations) waits until
+(a pending publisher per project name, twenty registrations) waits until
 the names are stable, and is then the CI job's credential.
 
-The version lives in nineteen `version =` lines -- the root's and the
-eighteen packages' -- and in every `== <version>` pin between the
+The version lives in twenty `version =` lines -- the root's and the
+nineteen packages' -- and in every `== <version>` pin between the
 packages, and `bump-my-version` is the
 one thing that changes them (`uv version` bumps the lines but never a
 pin, so it is not used). The scheme is `MAJOR.MINOR.PATCH[.devN]`; every
@@ -1711,7 +1711,7 @@ asserts nothing of the old version is left.
 
 ### Installing a release
 
-The eighteen packages are on the index as `cs-image-system` (the whole
+The nineteen packages are on the index as `cs-image-system` (the whole
 system: no sources, a `==` pin on every package) and
 `cs-image-system-<package>`. TestPyPI does not carry the third-party
 dependencies, so an install from it names PyPI as the extra index. In
@@ -1748,7 +1748,7 @@ system drives (`tofu`, `packer`, `gcloud`, `ansible-playbook`, docker) are
 not Python packages and are not installed by this; the configuration's
 `cfg/executables.yml` pins where they are. The same install from the
 built files, without an index, is `uv pip install --find-links dist
-cs-image-system==<version>` after `just build`; the eighteen wheels
+cs-image-system==<version>` after `just build`; the nineteen wheels
 installed that way into a fresh virtualenv run `cs-image-system --help`
 and `decrypt`, which is the proof that every package declares what it
 imports.
@@ -1822,8 +1822,11 @@ so (the core's own bar runs it over every base class and every built-in
 plugin). The recipe, step by step, with what to depend on and what to
 return from the entry point, is "Writing a plugin" in
 [packages/contract/README.md](../packages/contract/README.md); the
-[local state plugin](../packages/local-state-plugin/README.md) is the
-smallest built-in example and the
+[contract example plugin](../packages/contract-example-plugin/README.md)
+is the proof and the worked example (OpenTofu's `inmem` state backend,
+written against the contract alone, subclassing nothing of the core), the
+[local state plugin](../packages/local-state-plugin/README.md) the same
+kind written the convenient way on the base classes, and the
 [dummy plugin](../packages/dummy-plugin/README.md) the template for a
 group or user builder and for a hook plugin. Not in the contract yet: the
 run context (its protocol is a later stage), the hooks entry point and

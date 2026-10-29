@@ -121,10 +121,13 @@ A state backend is the smallest kind: a model that answers
 workspace's backend file carries, the settings a consumer's remote-state
 data source carries), and a builder that emits nothing; the core hands
 the registration to the terraform collector once the state backends are
-loaded. The
-[local state plugin](../local-state-plugin/README.md) is the shortest
-built-in example; the [dummy plugin](../dummy-plugin/README.md) is the
-template for a group or user builder and for a hook plugin.
+loaded. The [contract example plugin](../contract-example-plugin/README.md)
+is exactly that, written against this package alone with nothing of the
+core, and the proof the bar runs; the
+[local state plugin](../local-state-plugin/README.md) is the same kind
+written the convenient way on the base classes; the
+[dummy plugin](../dummy-plugin/README.md) is the template for a group or
+user builder and for a hook plugin.
 
 Not in the contract yet, so a plugin that needs them depends on `base`:
 the run context (`GlobalTypeContext`, reached today through a base
