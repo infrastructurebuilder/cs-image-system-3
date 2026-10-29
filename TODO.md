@@ -21,22 +21,23 @@ operator can take.
 
 **Release**
 
-- 0.1.3, the latest final release: PyPI and TestPyPI, tag `v0.1.3`
-  (3c05229), 2026-10-28, cut straight from 0.1.2 (no development
-  release between). Carries §98 and §100. Its tag published the four
-  template repositories again (tag `v0.1.3`).
-- The reference configuration runs 0.1.3 (take 683eb45); `perform`
-  green on 2026-10-28, nothing baked. Its tags `v0.1.3-before`
-  (bf3cc6e, on 0.1.2.dev2) and `v0.1.3-after` (b80b27e) bracket the
-  move.
+- 0.1.4, the latest final release: PyPI and TestPyPI, tag `v0.1.4`
+  (2480c76), 2026-10-29, cut straight from 0.1.3. Carries §30 (the
+  contract package and its proof plugin: two new PyPI projects, now
+  twenty), §101 and §102. Its tag published the four template
+  repositories again (tag `v0.1.4`).
+- The reference configuration runs 0.1.4 (take c837606, records to
+  217b258); `perform` green on 2026-10-29, nothing baked. Its tag
+  `v0.1.4-before` (b80b27e) marks the state before the move; the
+  release tag is the after marker (the operator's rule since 0.1.4,
+  so no `-after` tag).
 - Last development release: 0.1.2.dev2.
-- The §66 proof passed whole on 0.1.3 (2026-10-28): "Use this
-  template" on `standard-aws`, the copy's first push green with
-  `perform` SKIPPED (red on 0.1.2, §98 item 3), `uv tool install
-  cs-image-system==0.1.3` all 18 from PyPI, `just init` in the copy,
-  a dispatched dry run green with `live` and `perform` SKIPPED. The
-  copy was deleted afterwards. Nothing is owed at the next final
-  release but the usual republication.
+- The §66 proof passed whole on 0.1.4 (2026-10-29): a private copy of
+  `standard-aws`, its first push and a dispatched dry run green with
+  `live` and `perform` SKIPPED, `uv tool install
+  cs-image-system==0.1.4` from PyPI (the contract included), and `just
+  init` naming the release (`init: cs-image-system 0.1.4 ready against
+  ...`, §101). The copy was deleted afterwards.
 - `STARTER_PUSH_TOKEN` (`cs-image-system-starter-repos-token`) expires
   2027-10-25: renew it before then.
 
