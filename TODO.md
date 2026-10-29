@@ -10,8 +10,8 @@ operator can take.
 - §30, the plugin contract package: planned; waits on the operator's
   decision.
 - §94, the F44 review: standing; next on or after 2026-11-09.
-- §101, hygiene bundle XVIII: open, one item; waits for "do 101". The
-  next non-critical issue joins it.
+- No hygiene bundle is open; the next non-critical issue opens bundle
+  XIX.
 - No documentation stage is open.
 
 **Release**
@@ -37,6 +37,9 @@ operator can take.
 
 **Landed since 2026-10-05** (newest first)
 
+- §101, hygiene bundle XVIII: 2026-10-28, its squash commit. The CLI
+  takes `--version` and prints the installed release before anything
+  loads, so a starter's `just init` line names the release it found.
 - §100, hygiene bundle XVII: 2026-10-28, its squash commit. CI's
   guard (`runtime-unchanged`) passes the vendor's newest image moving
   under a base with no build yet, as `config-drift` does, and names
@@ -274,26 +277,3 @@ question at least once a month for the next 4 months." The note is made:
 - 2026-12-09: (open)
 - 2027-01-09: (open)
 - 2027-02-09: (open)
-
-## 101. Hygiene bundle XVIII
-
-- **Status:** OPEN 2026-10-28, one item, found during the §66 re-proof
-  on 0.1.3; not started, waits for "do 101". The next non-critical
-  issue joins it.
-
-1. **`just init` in a starter never names the release it found.**
-   - *Seen:* on 2026-10-28, `just init` in a fresh copy of the
-     `standard-aws` template printed `init: cs-image-system ready
-     against ...`, with no version. The recipe asks the command for
-     `--version` and falls back silently to the bare name; the CLI has
-     no `--version` option (typer answers `No such option`). All four
-     starters' Justfiles and the reference configuration's carry the
-     same line (two per Justfile), so the one line meant to tell a
-     reader which release their tree runs on has never said it.
-   - *Fix:* the CLI takes `--version` and prints the installed release
-     (the `cs-image-system` distribution's version, the one
-     `.csis-version` pins), so the starters' `init` line reads `init:
-     cs-image-system 0.1.4 ready against ...` with no change to the
-     recipe; a test holds the four starters and the system to it. The
-     daily driver's `init` lines and the four CI_SETUP guides say what
-     the line now shows.

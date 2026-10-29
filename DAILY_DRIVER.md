@@ -426,8 +426,10 @@ Then, in the written tree:
 1. `git init -b develop` (git's own default branch is `master`, and
    this page and CI_SETUP expect `develop` and `main`; `main` does not
    exist until the first push of it, [CI_SETUP.md](docs/examples/complete/CI_SETUP.md),
-   section 3.8), `just init` (the hook, the plugin cache, a check that the
-   command runs), and a first commit of the tree as it stands. From a
+   section 3.8), `just init` (the hook, the plugin cache, and a line naming
+   the release it found, `init: cs-image-system <version> ready against
+   <root>`; a release of 0.1.3 or before has no `--version`, and the line
+   gives the bare name), and a first commit of the tree as it stands. From a
    template, the clone already holds `main` with that first commit:
    `git switch -c develop` instead of `git init`, then `just init`.
 2. **The identity.** Make your own age key pair:
