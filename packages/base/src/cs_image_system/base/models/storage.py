@@ -10,7 +10,7 @@ from typing import Annotated, Any
 
 from cs_image_system.base.helpers.field_helpers import fk_field
 from cs_image_system.base.models.builder_model import NameTyped
-from cs_image_system.base.protocols.name_typed_protocol import SelfInjectedNameProtocol
+from cs_image_system.base.models.mixins import SelfInjectedName
 
 from ..constants import ALL, DEFAULT, VCT
 
@@ -33,7 +33,7 @@ SHARE_MODES = (SHARE_MODE_PRIVATE, SHARE_MODE_READ_SHARED)
 
 
 @dataclass(config=CSIS_MODEL_CONFIG)
-class Storage(NameTyped, SelfInjectedNameProtocol):
+class Storage(NameTyped, SelfInjectedName):
     """Represents a storage configuration with metadata and settings.
 
     V2 access model (Q3, N2, N3, N13, N15):

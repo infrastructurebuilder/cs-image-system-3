@@ -17,10 +17,13 @@ from .model_config import CSIS_MODEL_CONFIG
 from pydantic import model_validator, Field
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from typing import Annotated, Any
-from ..constants import VCT, DEFAULT, OOPS_DEFAULTS
+from ..constants import NO_MODEL_ID, UNSET_MODEL_ID, VCT, DEFAULT, OOPS_DEFAULTS
 from .. import utils
-from ..protocols.name_typed_protocol import NameTypedProtocol
-from ..protocols.builder_model_protocol import BuilderModelProtocol
+from cs_image_system.contract.core import (
+    BuilderModelProtocol,
+    NameTypedProtocol,
+    RuntimeEnabledBuilderModelProtocol,
+)
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
 class NameTyped(NameTypedProtocol):
@@ -46,6 +49,17 @@ class NameTyped(NameTypedProtocol):
         return getattr(self, "_display_name", None) or self.name
     def get_display_name(self) -> str:
         return self.display_name
+    def get_classification(self) -> VCT:
+        """Unclassified unless a subclass says otherwise (a builder model
+        answers its ``csis_classifier``). Stage 30: the default the contract's
+        ``NameTypedProtocol`` used to carry; the contract carries no bodies."""
+        return VCT.UNCLASSIFIED
+    @property
+    def global_id(self) -> str:
+        """A unique identifier for this model: ``<classification>::<model id>::<name>``."""
+        classifier = self.get_classification() if hasattr(self, "get_classification") else VCT.UNCLASSIFIED.value
+        mid = getattr(self, "model_id", UNSET_MODEL_ID) if hasattr(self, "model_id") else NO_MODEL_ID
+        return f"{classifier}::{mid}::{self.get_name()}"
     def __post_init__(self) -> None:
         # No super().__post_init__() because this is the base class
         self._reg = Registry()
@@ -112,6 +126,9 @@ class BuilderModel(NameTyped, BuilderModelProtocol):
         return copy.deepcopy(self.gitignore)
     def get_tags(self) -> dict[str, str]:
         return copy.deepcopy(self.tags)
+    def get_classification(self) -> VCT:
+        """Classification of the builder model, used for registration and lookup in the registry."""
+        return self.csis_classifier()
 
     def __post_init__(self) -> None:
         # This is called after the dataclass __init__ method, so we can do any necessary initialization here
@@ -272,7 +289,7 @@ class BuilderModel(NameTyped, BuilderModelProtocol):
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
-class RuntimeEnabledBuilderModel(BuilderModel):
+class RuntimeEnabledBuilderModel(BuilderModel, RuntimeEnabledBuilderModelProtocol):
     runtime: str = fk_field(target = VCT.RUNTIME_BUILDER_MODEL,
                             init = True,
                             default=DEFAULT,

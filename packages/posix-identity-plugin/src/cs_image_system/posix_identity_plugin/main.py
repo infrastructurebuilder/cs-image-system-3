@@ -5,7 +5,6 @@
 import logging
 
 from cs_image_system.base.basic.abstract_plugin_metadata import AbstractPluginMetadata
-from cs_image_system.base.protocols.plugin_metadata import PluginMetadataProtocol
 
 from .posix_builders import PosixGroupBuilder, PosixUserBuilder
 from .posix_models import POSIX, PosixGroupBuilderModel, PosixUserBuilderModel
@@ -13,7 +12,7 @@ from .posix_models import POSIX, PosixGroupBuilderModel, PosixUserBuilderModel
 log = logging.getLogger(__name__)
 
 
-class PosixTypes(AbstractPluginMetadata, PluginMetadataProtocol):
+class PosixTypes(AbstractPluginMetadata):
     def __init__(self) -> None:
         super().__init__("1", "3.13",
                          {POSIX: [PosixGroupBuilderModel, PosixUserBuilderModel, PosixGroupBuilder, PosixUserBuilder]},

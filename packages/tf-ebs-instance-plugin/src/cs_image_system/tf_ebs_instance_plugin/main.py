@@ -4,7 +4,6 @@
 
 import logging
 from cs_image_system.base.basic.abstract_plugin_metadata import AbstractPluginMetadata
-from cs_image_system.base.protocols.plugin_metadata import PluginMetadataProtocol
 from .tf_instance_builder import TofuInstanceBuilder, TofuVersionChecker
 from .tf_instance_models import TOFU, TofuInstanceBuilderModel
 from .tf_storage_builder import (
@@ -28,7 +27,7 @@ from .tf_storage_models import (
 log = logging.getLogger(__name__)
 
 
-class TFEbsTofuTypes(AbstractPluginMetadata, PluginMetadataProtocol):
+class TFEbsTofuTypes(AbstractPluginMetadata):
   """Tofu instance AND storage builders in one registration.
 
   Storages live in the same plugin as instances so the two generate together

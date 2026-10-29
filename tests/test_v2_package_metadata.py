@@ -179,7 +179,7 @@ def test_every_sibling_pin_is_exactly_the_shared_version():
 
 def test_the_root_is_the_whole_system_in_one_install():
     """41.3: `cs-image-system` is buildable, has no sources of its own, and pins all
-    seventeen packages (nothing else), so one install gets the CLI and every plugin."""
+    eighteen packages (nothing else), so one install gets the CLI and every plugin."""
     root = tomllib.loads(ROOT.read_text())
     assert root["project"]["name"] == OWN
     assert root["build-system"]["build-backend"] == "hatchling.build"
@@ -187,7 +187,7 @@ def test_the_root_is_the_whole_system_in_one_install():
     siblings, third = _requirements(root["project"])
     assert not third, sorted(third)
     assert set(siblings) == {canonicalize_name(_project(p / "pyproject.toml")["name"]) for p in PACKAGES}
-    assert len(siblings) == 17                  # stage 75 added the posix identity plugin
+    assert len(siblings) == 18                  # stage 75 added the posix identity plugin, stage 30 the contract
     names = {i["name"]: i for i in root["tool"]["uv"]["index"]}
     assert names["testpypi"]["publish-url"] == "https://test.pypi.org/legacy/"
     assert names["testpypi"]["url"] == "https://test.pypi.org/simple/"
@@ -220,7 +220,7 @@ def _bump(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 @pytest.fixture
 def tree(tmp_path: Path) -> Path:
-    """The seventeen pyproject files in their layout, and nothing else."""
+    """The eighteen pyproject files in their layout, and nothing else."""
     for path in [ROOT, *(p / "pyproject.toml" for p in PACKAGES)]:
         dest = tmp_path / path.relative_to(REPO)
         dest.parent.mkdir(parents=True, exist_ok=True)

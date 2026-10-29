@@ -3,13 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
-from typing import Any, cast
+from typing import Any
 import operator
 from functools import reduce
 
 
-from cs_image_system.base.protocols.name_typed_protocol import NameTypedProtocol
-from cs_image_system.base.protocols.plugin_metadata import PluginArtifactProtocol, PluginMetadataProtocol
+from cs_image_system.contract.core import NameTypedProtocol, PluginArtifactProtocol, PluginMetadataProtocol
 
 from .singleton import singleton
 
@@ -46,7 +45,7 @@ class Registry:
     defaults_registry: dict[VCT, str | None]
     instances: dict[VCT, dict[str, Any]]
     instances_by_global_id: dict[str, Any]
-    models: dict[VCT, dict[str, type[NameTypedProtocol]]]
+    models: dict[VCT, dict[str, type[PluginArtifactProtocol]]]
     builders: dict[type[NameTypedProtocol], type]
 
     def __init__(self):
@@ -85,13 +84,10 @@ class Registry:
                 classifier = sanitize_classifier(classifier)
                 
                 canonical_name = artifact.csis_name()
-                
-                # Use cast to silence Pylance. 
-                model_type = cast(type[NameTypedProtocol], artifact)
-                
+
                 if canonical_name in self.models[classifier]:
                     raise ValueError(f"Type Collision: {canonical_name}")
-                self.models.setdefault(classifier, {})[canonical_name] = model_type                
+                self.models.setdefault(classifier, {})[canonical_name] = artifact
 
         for model_type, builder_type in metadata.builders_for_models.items():
             if model_type in self.builders:
@@ -107,7 +103,7 @@ class Registry:
             self.models.setdefault(classifier, {})[name] = model_type
             if metadata.is_injected_models_default:
                 self.set_default_for(classifier, name)
-    def get_model(self, classifier: VCT, canonical_name: str) -> type[NameTypedProtocol] | None:
+    def get_model(self, classifier: VCT, canonical_name: str) -> type[PluginArtifactProtocol] | None:
         return self.models.get(classifier, {}).get(canonical_name, None)
     def get_instance(self, classifier: VCT, name_or_alias: str) -> NameTypedProtocol | None:
         return self.instances.get(classifier, {}).get(name_or_alias, None)

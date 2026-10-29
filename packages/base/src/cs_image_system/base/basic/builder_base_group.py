@@ -15,6 +15,7 @@ from ..models.group_builder import GroupBuilderModel
 from ..constants import VCT
 
 from .builder_base import BuilderBase
+from cs_image_system.contract.group import GroupBuilderProtocol
 
 if TYPE_CHECKING:
     from ..models.image import Image
@@ -26,7 +27,7 @@ GID_POLICY_PROVIDER_ASSIGNED = "provider-assigned"
 
 
 TGROUP = TypeVar("TGROUP", bound=GroupBuilderModel)
-class GroupBuilderBase(BuilderBase[TGROUP]):
+class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
     """Base of every identity (group) plugin.
 
     V2 contract (DESIGN §3D, §3F1/F2):
@@ -83,8 +84,10 @@ class GroupBuilderBase(BuilderBase[TGROUP]):
     def identity_type(cls) -> str:
         """The identity-type token (e.g. ``okta``). Defaults to the plugin's
         canonical name."""
-        name = getattr(cls, "csis_name", None)
-        return str(name()) if callable(name) else cls.__name__
+        try:
+            return str(cls.csis_name())
+        except NotImplementedError:             # a base that names no type (stage 30)
+            return cls.__name__
 
     def gid_policy(self) -> str:
         return GID_POLICY_PROVIDER_ASSIGNED

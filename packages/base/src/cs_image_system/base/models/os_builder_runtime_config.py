@@ -14,7 +14,7 @@ from typing import Annotated, TYPE_CHECKING, Any, Mapping, Sequence
 # from cs_image_system.base.models.base_image import BaseImage
 
 
-from ..helpers.field_helpers import fk_field, templated_field
+from ..helpers.field_helpers import fk_field, parent_field, templated_field
 from .root_item import SubRootItem
 
 from ..constants import  DEFAULT, OOPS_DEFAULTS, VCT
@@ -63,14 +63,7 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
     # never ran). None inherits the builder-level tests.
     tests: Mapping[str, Any] | None = None
     _runtime_image: BaseImage | None = field(init=False, default=None)
-    # _model_id: str | None = field(init=False, default=None)
-    # This needs placed here to override the one in ParentPropertyHoldingProtocol
-    _model_id: str | None = fk_field(target = VCT.OS_BUILDER_MODEL,
-                                     init=False, 
-                                     default=None,
-                                     metadata={
-                                        "description": "Associatd OS Builder",
-                                        "required": True,})
+    _model_id: str | None = parent_field(VCT.OS_BUILDER_MODEL, description="Associatd OS Builder", metadata={"required": True})
     
     def _runtime_model(self) -> RuntimeBuilderModel | None:
         """The runtime this entry bakes on: its IMAGE BUILDER's runtime (stage
@@ -187,7 +180,7 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
         return self._runtime_image 
     @property
     def identified_model(self) -> OsBuilderModel | None:
-        return super().identified_model # type: ignore
+        return super().identified_model
     def get_tags(self) -> dict[str, str]:
         mod = self.identified_model
         tags:dict[str, str] = {}

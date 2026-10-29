@@ -262,7 +262,7 @@ def execute_before_or_after_phase(
             vv = builder.generate_items_after(phase)
         if vv:
             log.debug(f" -> Found items to generate: {len(vv)} items")
-        vv.sort_and_write()
+        vv.sort_and_write(gen_path)
         # utils.write_tuples_to_files(ctx.generation_path, vv)
         cfe = (
             builder.get_commands_to_run_before(phase)

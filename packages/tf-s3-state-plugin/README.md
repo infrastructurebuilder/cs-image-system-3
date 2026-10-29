@@ -2,8 +2,10 @@
 
 This package is the S3 **state backend** plugin. It registers one model,
 `TofuS3StateBuilderModel`, for the entries under `state_backends:` in
-`cfg/state-backends*.yml`. At configuration load each entry becomes a
-`BackendRegistration` in the run-wide `TerraformCollector`; every terraform
+`cfg/state-backends*.yml`. Each entry answers a `BackendRegistration`,
+which the core hands to the run-wide `TerraformCollector` once the state
+backends are loaded (stage 30; until then the model pushed it itself);
+every terraform
 root that names the backend (or the default one) then gets an empty
 `backend "s3" {}` block, a partial backend configuration file
 `<workspace>.tfbackend.hcl`, an `init -backend-config=<file>` argument, and
@@ -122,12 +124,17 @@ they used to require a `name` member that no backend argument has.
   repeated slashes collapse, leading and trailing ones are stripped, and a
   `.` or `..` segment is refused -- at `validate`, not at load.
 
-**`finalize()`** runs at configuration load, before any generation phase. It
-converts the model with `to_backend_registration()` and calls
-`TerraformCollector().register_backend(...)`, so every consumer in the run
-sees the registration. Registering the same name twice with different
-values raises `HclConfigConflictError`; from a configuration this cannot be
-reached, because the loader refuses a duplicate name first.
+**`to_backend_registration()`** is what the run-wide `TerraformCollector`
+asks of the model: the name, the type, the settings in the type's own
+vocabulary, the kind that renders them, whether it is the default, and
+the aliases. Once the state backends are loaded and finalized the core
+hands every declared backend's registration to the collector
+(`pull_declared_backends`, stage 30), so every consumer in the run sees
+it; until then the model's `finalize()` pushed it itself, which made this
+plugin import the library. Registering the same name
+twice with different values raises `HclConfigConflictError`; from a
+configuration this cannot be reached, because the loader refuses a
+duplicate name first.
 
 ### `BackendRegistration` and the S3 kind
 
@@ -163,9 +170,12 @@ A backend type is a model plus one kind (stage 47.5); the next one is a day:
 
 1. A model under `state_backends:` with the type's fields, `csis_name()`
    returning the terraform backend type (`local`, `gcs`, `azurerm`, ...),
-   `csis_classifier()` `STATE_BACKEND_MODEL`, and a `finalize()` that
-   registers `BackendRegistration(name, type, settings, kind, is_default)`
-   with the collector -- the settings in the type's own vocabulary.
+   `csis_classifier()` `STATE_BACKEND_MODEL`, and `to_backend_registration()`
+   answering `BackendRegistration(name, type, settings, kind, is_default)`
+   -- the settings in the type's own vocabulary. The core hands it to
+   the collector (stage 30), so the model imports `BackendRegistration` and
+   `StateLocation` from the contract (`cs_image_system.contract.state`)
+   and nothing from hashicorp-utils.
 2. A kind with three methods: `location(settings, workspace)` returning a
    `StateLocation` (`<type>://<container>/<key>`, the key normalised; for an
    object store `StateLocation.of(type, bucket, prefix, workspace)`),
@@ -583,10 +593,10 @@ empty `key` is refused; `key` gains its trailing slash; nested `endpoints`,
 `assume_role` and `assume_role_with_web_identity` values must fit their
 dataclasses (each needs a `name`). The loader then refuses a duplicate name
 in the class, an alias that collides with another entry's name or alias,
-and a second `is_default: true`. The model's `finalize()` registers the
-backend in the collector; a registration under a name already registered
-with different settings is refused (`HclConfigConflictError`), though the
-duplicate-name check fires first. Verdict: a pydantic `ValidationError` or
+and a second `is_default: true`. The core hands the registration to the
+collector once the backends are loaded; a name already registered with different
+settings is refused (`HclConfigConflictError`), though the duplicate-name
+check fires first. Verdict: a pydantic `ValidationError` or
 `ValueError` naming the model and the entry, logged as
 `Failed to structure item ... for plugin key 'state_backends'`, the command
 exits 1, nothing is generated.
@@ -704,7 +714,7 @@ Failures the code raises that have not happened live.
 | `Workspace '<ws>' is bound to state backend '<a>' and cannot be rebound to '<b>'` at generation | a builder bound its workspace twice to different backends; not reachable from configuration | the consumer plugin's `generate_items_before` | a code defect in the consumer |
 | `Multiple default state backends registered: [...]` at generation | two defaults reached the collector; the load refuses this first | the entries | keep one default |
 | `Workspace '<ws>' references remote state of '<producer>' but no backend is registered for it` at generation | a consumer reads a producer that resolved no backend and there is no default | the producer's `state_configuration`, `is_default` | bind the producer, or declare a default |
-| `State backend '<name>' (type '<t>') was registered without a kind` at generation | a state plugin registered a `BackendRegistration` with `kind=None`; not this plugin (it always passes `S3_KIND`) | the other plugin's `finalize()` | a code defect in that plugin |
+| `State backend '<name>' (type '<t>') was registered without a kind` at generation | a state plugin answered a `BackendRegistration` with `kind=None`; not this plugin (it always passes `S3_KIND`) | the other plugin's `to_backend_registration()` | a code defect in that plugin |
 | `Backend configuration changed` from `tofu init` | an init without `-reconfigure` after a backend argument changed -- only a hand-run `init` can do this now | the root's `.terraform/terraform.tfstate` | run the runner script, or `tofu init -reconfigure -backend-config=<file>` by hand |
 | `tofu init`/`plan` fails with `AccessDenied`, `NoSuchBucket`, an expired token or a credential error | the bucket, the prefix permissions, the profile or the session named by `profile` (or by the environment) are not what the run assumed | the `.tfbackend.hcl` beside the root (`bucket`, `region`, `profile`), `aws sts get-caller-identity --profile <name>`, `~/.aws/sso/cache` expiry (`preflight` prints it) | log in, fix the role or the bucket; the declaration is not at fault unless the file names the wrong bucket |
 | `tofu` reports the state locked (`Error acquiring the state lock`, a `.tflock` object under the state key) | another tofu holds the lock, or a previous run died holding it (`use_lockfile: true`) | the bucket, key `<state file>.tflock` | wait; if no run is alive, remove the lock object -- a records decision, not the system's |
@@ -718,10 +728,14 @@ Failures the code raises that have not happened live.
 - [cs-image-system-local-state-plugin](../local-state-plugin/README.md) and
   [cs-image-system-gcs-state-plugin](../gcs-state-plugin/README.md): the
   other two backend types, built on the same collector contract.
+- [contract state.py](../contract/src/cs_image_system/contract/state.py):
+  `BackendRegistration`, `StateLocation`, the `BackendKindProtocol` this
+  plugin's kind implements and the `StateBackendModelProtocol` its model
+  satisfies (stage 30).
 - [hashicorp-utils collector.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/collector.py):
-  `TerraformCollector`, `BackendRegistration`, `RemoteStateReference`, and
-  the generators for the terraform block, the partial configuration and the
-  remote-state data sources.
+  `TerraformCollector`, `RemoteStateReference`, and the generators for the
+  terraform block, the partial configuration and the remote-state data
+  sources; the core hands it the registrations at load.
 - [hashicorp-utils roots.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/roots.py):
   `TerraformRootMixin`, the `init` argument rules and the deferred sequence.
 - [hashicorp-utils tests/test_terraform_collector.py](../hashicorp-utils/tests/test_terraform_collector.py)

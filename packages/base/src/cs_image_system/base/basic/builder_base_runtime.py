@@ -8,6 +8,7 @@ import logging
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from .builder_base import BuilderBase
+from cs_image_system.contract.runtime import RuntimeBuilderProtocol
 from ..constants import VCT
 from ..models.image import Image, ImageImageBuilderSubconfig
 from ..models.provider_specific_image import (
@@ -24,7 +25,10 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-class RuntimeBuilderBase(BuilderBase[TypeVar("T", bound=RuntimeBuilderModel)]):
+R = TypeVar("R", bound=RuntimeBuilderModel)
+
+
+class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._image_builders: list[ImageBuilderBase] = []

@@ -22,7 +22,7 @@ from cs_image_system.base.models.base_image import BaseImage
 
 from .orchestrator import Orchestrator, TemplateResolver
 
-from .protocols.state_management import StateManagementRootProtocol
+from cs_image_system.contract.state import StateBuilderProtocol
 
 from .models.user import User
 from .models.ia_config import IAConfig
@@ -83,9 +83,7 @@ from .models.executable import ExecutableModel
 
 from .basic.builder_base import BuilderBase
 from .models.builder_model import BuilderModel, NameTyped
-from .protocols.builder_model_protocol import BuilderModelProtocol
-from .protocols.name_typed_protocol import NameTypedProtocol
-from .protocols.plugin_metadata import PluginArtifactProtocol
+from cs_image_system.contract.core import BuilderModelProtocol
 
 PLUGIN_TYPEMAP: dict[str, type] = {
     "base" : dict,
@@ -341,7 +339,7 @@ class GlobalTypeContext:
     def all_sorted_builders(self) -> list[BuilderBase]:
         return self._all_sorted_builders or []
     @property
-    def state_backends(self) -> dict[str, StateManagementRootProtocol]:
+    def state_backends(self) -> dict[str, StateBuilderProtocol]:
         return self.reg.get_all_instances_by_classification(VCT.STATE_BACKEND)
     @property
     def provider_specific_images(self) -> dict[str, ProviderSpecificImage]:
@@ -1217,6 +1215,7 @@ def read_config_and_transform(
         configured_state_builders = process_and_register_builders(
             config_data, VCT.STATE_BACKEND, "state_backends", addl_config
         )
+        register_declared_backends(reg)
     configured_os_builders = {}
     if config_data.os_builders:
         configured_os_builders = process_and_register_builders(
@@ -1306,6 +1305,20 @@ def read_config_and_transform(
     return ctx
 
 
+def register_declared_backends(reg: registry.Registry) -> None:
+    """Stage 30: every state backend model answers its registration
+    (``to_backend_registration``, the contract's ``StateBackendModelProtocol``)
+    and the core hands them all to the terraform collector here, once the
+    state backends are loaded and finalized -- the point at which each
+    plugin's model used to push its own from ``finalize``, which made the
+    plugin import the library. The library is optional to the core."""
+    try:
+        from cs_image_system.hashicorp_utils.collector import TerraformCollector
+    except ImportError:  # pragma: no cover - hashicorp-utils is always installed here
+        return
+    TerraformCollector().pull_declared_backends(reg.get_all_instances_by_classification(VCT.STATE_BACKEND_MODEL))
+
+
 def process_and_register_builders(
     config_data: IAConfig,
     classification: VCT,
@@ -1379,8 +1392,13 @@ def process_and_register_builders(
                 if callable(getattr(prov, "__post_init__")):
                     prov.__post_init__()  # type: ignore
         prov.finalize()
-        if issubclass(bc, PluginArtifactProtocol) or issubclass(bc,NameTypedProtocol):
-            reg.register_built_instance( prov)  # type: ignore
+        # stage 30: the registry gates on the instance (NameTypedProtocol) and
+        # skips anything else. The class-level test here was
+        # `issubclass(bc, PluginArtifactProtocol) or issubclass(bc, NameTypedProtocol)`,
+        # whose second half would raise TypeError (a protocol with a property
+        # member supports isinstance, not issubclass) and never ran: every
+        # builder class satisfied the first half.
+        reg.register_built_instance(prov)
         if model.name in ret:
             raise ValueError(
                 f"Duplicate builder name '{model.name}' found for classification {classification} after reprocessing. Builder names must be unique."

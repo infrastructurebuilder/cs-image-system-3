@@ -18,7 +18,7 @@ import logging
 import os
 
 from cs_image_system.base.commands.run_lifecycles import HookSet
-from cs_image_system.base.lifecycles import LifecycleSpec
+from cs_image_system.contract.lifecycles import LifecycleSpec
 
 log = logging.getLogger(__name__)
 

@@ -6,11 +6,11 @@ import logging
 from pathlib import Path
 log = logging.getLogger(__name__)
 from dataclasses import field
-from cs_image_system.base.models.model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from typing import Type
 
-from cs_image_system.base.constants import VCT
+from cs_image_system.contract.constants import VCT
 from cs_image_system.base.models.mod_builder import ModBuilderModel
 from cs_image_system.base.models.moditem_type import ModItemModel
 ANSIBLE_EXECUTABLE: str = "ansible-playbook"

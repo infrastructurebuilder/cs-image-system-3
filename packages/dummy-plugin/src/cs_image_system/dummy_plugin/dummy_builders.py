@@ -4,12 +4,12 @@
 
 
 
-from cs_image_system.base.basic.asset import Asset, AssetSet
+from cs_image_system.contract.assets import Asset, AssetSet
 from cs_image_system.base.basic.builder_base_group import GroupBuilderBase
 from cs_image_system.base.basic.builder_base_user import UserBuilderBase
-from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.executable import ExecutableModel
-from cs_image_system.base.models.executable_adds import CFExecutables
+from cs_image_system.contract.executables import CFExecutables
 from cs_image_system.base.models.user import User
 
 from .dummy_models import DUMMY, DummyGroupBuilderModel, DummyUserBuilderModel

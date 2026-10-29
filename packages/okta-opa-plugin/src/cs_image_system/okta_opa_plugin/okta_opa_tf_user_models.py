@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from cs_image_system.base.models.model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 
-from cs_image_system.base.constants import VCT
+from cs_image_system.contract.constants import VCT
 
 from .okta_tf_models import OKTATF, OKTATF_RO, OktaUserBuilderModel
 from .okta_tf_workspace import OktaTfWorkspaceModelMixin

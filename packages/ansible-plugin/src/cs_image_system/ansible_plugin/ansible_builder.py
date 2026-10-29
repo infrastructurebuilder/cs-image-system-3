@@ -10,13 +10,13 @@ import shutil
 from pathlib import Path
 from typing import TypeVar, cast
 
-from cs_image_system.base.basic.asset import AssetSet
+from cs_image_system.contract.assets import AssetSet
 from cs_image_system.base.bake_steps import execute_command_line
 
 from .ansible_models import ANSIBLE_BUILDER, ANSIBLE_EXECUTABLE, AnsibleBuilderModel, AnsibleModItemModel, AnsiblePackerModBuilderModel
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
 from cs_image_system.base.basic.builder_base_mod import ModBuilderBase
-from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.image import Image
 from cs_image_system.base.basic.builder_base_image import ImageBuilderBase
 from cs_image_system.base.models.moditem_type import ModItemModel

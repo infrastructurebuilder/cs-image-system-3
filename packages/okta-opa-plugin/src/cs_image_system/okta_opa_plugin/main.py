@@ -4,7 +4,6 @@
 
 import logging
 from cs_image_system.base.basic.abstract_plugin_metadata import AbstractPluginMetadata
-from cs_image_system.base.protocols.plugin_metadata import PluginMetadataProtocol
 from .okta_tf_models import OKTATF
 from .okta_opa_tf_group_builder import OktaTfGroupBuilder
 from .okta_opa_tf_group_models import OktaTfGroupBuilderModel, OktaTfGroupRoBuilderModel
@@ -15,7 +14,7 @@ from .okta_opa_tf_user_ro_builder import OktaTfUserRoBuilder
 
 log = logging.getLogger(__name__)
 
-class OktaTypes(AbstractPluginMetadata, PluginMetadataProtocol):
+class OktaTypes(AbstractPluginMetadata):
   def __init__(self) -> None:
     super().__init__("1", "3.13",
                      {OKTATF: [

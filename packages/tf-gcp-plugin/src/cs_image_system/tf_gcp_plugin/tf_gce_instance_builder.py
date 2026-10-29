@@ -20,10 +20,10 @@ import logging
 from typing import Any, TypeVar
 
 from cs_image_system.base import utils
-from cs_image_system.base.utils import HclRaw, hcl_expr, render_module_call
-from cs_image_system.base.basic.asset import AssetSet
+from cs_image_system.contract.hcl import HclRaw, hcl_expr, render_module_call
+from cs_image_system.contract.assets import AssetSet
 from cs_image_system.base.launch_params import ENROLLMENT_TOKEN_VARIABLE, compute_launch_params, user_data_template
-from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.instance import Instance
 from cs_image_system.hashicorp_utils.collector import TerraformCollector, TerraformVariable
 from cs_image_system.tf_ebs_instance_plugin.tf_instance_builder import TofuInstanceBuilder

@@ -39,8 +39,8 @@ STANDARD = ["standard-aws", "standard-gce", "standard-aws-posix"]
 TREES = [*STANDARD, "complete"]
 
 # The `type:` keys each plugin package answers to (docs/PLUGINS.md and the
-# packages' models). Packages that register no `type:` (base, system, the
-# hashicorp-utils library) and the dummy plugin (an extension template and
+# packages' models). Packages that register no `type:` (base, the contract,
+# system, the hashicorp-utils library) and the dummy plugin (an extension template and
 # test double, never a configured builder) are not part of the contract.
 PLUGIN_TYPES: dict[str, set[str]] = {
     "ansible-plugin": {"ansible"},
@@ -57,7 +57,7 @@ PLUGIN_TYPES: dict[str, set[str]] = {
     "tf-gcp-plugin": {"tofu-gce", "tf-gcp-pd", "tf-gcp-filestore", "tf-gcp-gcs"},
     "tf-s3-state-plugin": {"s3"},
 }
-NOT_PLUGINS = {"base", "system", "hashicorp-utils", "dummy-plugin"}
+NOT_PLUGINS = {"base", "contract", "system", "hashicorp-utils", "dummy-plugin"}
 MARKER = re.compile(r"ENC\[age:[A-Za-z0-9+/=]+\]")
 
 

@@ -954,7 +954,7 @@ item in the open hygiene bundle in [TODO.md](TODO.md).
 | `note: storages/<s>: a persistent disk of that name belongs to configuration '<id>' (csis_config); ... ours is absent`; `empty: left alone on <rt>: N disks of configuration '<id>'` | another tree shares the project or account and made a thing of that name; it is theirs, counted and left alone (stage 93) | nothing for theirs; if ours is absent, declare a name the cloud does not hold yet |
 | `empty: disks still present on <rt>: old-scratch (no csis_config)` | a thing with no configuration id, made before stage 93; it is counted as ours to answer for | if it is ours and declared, `just cloud-relabel <rt> no` gives it the id; if it is nothing of ours, remove it by hand |
 | a job fails in "Initialize containers" before any step of yours: `denied`, `unauthorized` or `manifest unknown` pulling `ghcr.io/.../csis-ci:alma10-<date>` | the runner image (stage 92) could not be pulled: the tag does not exist yet (the Runner image workflow has not published the date the workflow pins); or the job's `permissions:` block lacks `packages: read`, so its token pulls as nobody (2026-10-16: `verify`, with no block, pulled; `live`, with one, was denied); or the package is PRIVATE and this repository was not granted access to it (the first publish came out private, and the organisation had disabled public packages) | a missing tag: the system's maintainers run the Runner image workflow and you rerun; a missing line: take the release that carries it; a private package: on the package's page, "Manage Actions access", add this repository with Read (same organisation), or have the organisation's administrators allow public packages ([docs/CI_RUNNER.md](docs/CI_RUNNER.md), section 4); never a credential in the workflow for it |
-| `release: testpypi cannot take an upload now (above) -- nothing was changed; it is the index's condition, not the release's` (exit 75) | the index's upload endpoint or one of the eighteen project pages did not answer, or answered 5xx; the release stopped before the bar, or after it and before the bump, so the tree is clean (stage 83; on 2026-10-05 the same outage was found only at the upload) | `just index-ready test wait`, then the release again; nothing to discard |
+| `release: testpypi cannot take an upload now (above) -- nothing was changed; it is the index's condition, not the release's` (exit 75) | the index's upload endpoint or one of the nineteen project pages did not answer, or answered 5xx; the release stopped before the bar, or after it and before the bump, so the tree is clean (stage 83; on 2026-10-05 the same outage was found only at the upload) | `just index-ready test wait`, then the release again; nothing to discard |
 | `release: this checkout is on '<branch>'; a release is cut on develop alone` | the checkout is not on `develop` (the walk's F31: a version was once cut, committed and tagged on a walk branch) | `git checkout develop`, then the release again |
 | `public-safe: ... <file>:<line>` from the hook | a committed line looks like a secret, a key, a plan or a state file | never bypass the hook; encrypt the value, or allow it BY DECISION in `cfg/_config.yml` `public_safe.allow` |
 | `Build '<image>' errored after 20 minutes ...: Timeout waiting for SSH.` with `ssm error: ... StartSession, context canceled` | the bake machine booted and its SSM agent was Online, but packer's ssh session through SSM never opened: the bake host was a 1 GB t2.micro, too small for the image it boots (three `perform` runs, 2026-10-04 and -05; the same parent baked on an r5.4xlarge, and on a t3.medium once declared) | give the bake host 4 GB: `machine_type: t3.medium` on the image's runtime entry, or the runtime's `default_machine_type` (the starters ship t3.medium; the reference tree since stage 80). Since stage 79 the builds that completed before the failure are recorded anyway (a warning names them) |
@@ -971,7 +971,18 @@ four links after each paragraph go straight to them. The three core
 packages come first; a plugin is selected by the `type:` a builder entry
 declares.
 
-- [base](packages/base/README.md): the core. Models, the plugin registry,
+- [contract](packages/contract/README.md): the plugin contract (stage
+  30). The protocols a model and a builder satisfy, the constants and
+  field helpers a model is declared with, the lifecycle phases, the data
+  carriers a hook returns; it depends on nothing of the system, and
+  `base` depends on it. A plugin is written against this package alone;
+  its README says how.
+  [prerequisites](packages/contract/README.md#prerequisites-and-integration) ·
+  [configuration](packages/contract/README.md#configuration-reference) ·
+  [tests](packages/contract/README.md#what-it-tests-and-verifies) ·
+  [failures](packages/contract/README.md#when-it-fails)
+- [base](packages/base/README.md): the core. Models and builder bases that
+  implement the contract, the plugin registry and loader,
   lifecycles and phases, the run context, meta-state, encryption, the
   public-safe gate, lineage, releases, retention, launch parameters,
   generations, aliases, the state query. Every rule in the manual's

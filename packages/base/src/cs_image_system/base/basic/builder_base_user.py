@@ -11,9 +11,10 @@ from ..models.user_builder import UserBuilderModel
 from ..constants import VCT
 
 from .builder_base import BuilderBase
+from cs_image_system.contract.user import UserBuilderProtocol
 TUSER = TypeVar("TUSER", bound=UserBuilderModel)
 
-class UserBuilderBase(BuilderBase[TUSER]):
+class UserBuilderBase(BuilderBase[TUSER], UserBuilderProtocol):
     # Per-instance (allocated in __init__): a class-level default list would be
     # shared by every user builder, so two builders would each emit ALL users.
     local_users: list[User]

@@ -7,6 +7,7 @@ from collections.abc import Mapping
 import logging
 from dataclasses import field
 from .model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.operating_system import OsBuilderModelProtocol
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from typing import  Any, Sequence
 from packaging.version import Version, parse
@@ -22,7 +23,7 @@ from .builder_model import BuilderModel
 log = logging.getLogger(__name__)
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
-class OsBuilderModel(BuilderModel):
+class OsBuilderModel(BuilderModel, OsBuilderModelProtocol):
     """
     OS/Source configuration data object.
     Base class for specific OS builder configurations.

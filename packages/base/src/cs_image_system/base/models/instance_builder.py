@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from .model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.instance import InstanceBuilderModelProtocol
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 
 
@@ -14,7 +15,7 @@ INSTANCE_BUILDER_TYPE: str = "InstanceBuilder"
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
-class InstanceBuilderModel(RuntimeEnabledBuilderModel):
+class InstanceBuilderModel(RuntimeEnabledBuilderModel, InstanceBuilderModelProtocol):
     """Infrastructure as Code (IaC) builder configuration data object.
     Attributes
     ----------

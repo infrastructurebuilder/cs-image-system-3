@@ -44,7 +44,7 @@ def generate_instances(ctx: GlobalTypeContext, phase: ExecutionLifecyclePhase, b
     log.debug(f"Generating instances for instance builder {builder.get_name()} "
               f"during phase {phase.value}...")
     qv = builder.generate_items_during(phase)
-    qv.sort_and_write()
+    qv.sort_and_write(ctx.generation_path)
     cfe = builder.get_commands_to_run_during(phase)
     ctx.extend_finalization_phase(phase, cfe.finalize_executables)
     for cmd in cfe.build_executables:

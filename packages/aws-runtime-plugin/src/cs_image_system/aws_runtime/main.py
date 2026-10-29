@@ -5,13 +5,12 @@
 import logging
 
 from cs_image_system.base.basic.abstract_plugin_metadata import AbstractPluginMetadata
-from cs_image_system.base.protocols.plugin_metadata import PluginMetadataProtocol
 from .aws_runtime_builders import AWS_RUNTIME, AwsCLIVersionChecker, AwsCloudBuilder
 from .aws_runtime_models import AwsCloudBuilderModel
 
 log = logging.getLogger(__name__)
 
-class AwsRuntimePluginMetadata(AbstractPluginMetadata,PluginMetadataProtocol):
+class AwsRuntimePluginMetadata(AbstractPluginMetadata):
   def __init__(self) -> None:
     super().__init__( "1", "3.13",
                      {AWS_RUNTIME: [

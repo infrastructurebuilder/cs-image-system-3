@@ -9,13 +9,15 @@ blocks in memory, and gives a builder that owns a terraform root its
 **This is a library, not a plugin.** It declares no
 `cs_image_system.plugins.*` entry point, registers nothing in the registry
 and contributes no builder of its own. Plugins import it. In the
-workspace, nine packages depend on it directly: the terraform-root plugins
+workspace, six packages depend on it directly: the terraform-root plugins
 (`okta-opa-plugin`, `tf-ebs-instance-plugin`, `tf-gcp-plugin`) mix in the
-root mixin and drive the terraform collector; the state plugins
-(`tf-s3-state-plugin`, `local-state-plugin`, `gcs-state-plugin`) register
-their backends into it; `packer-plugin` uses the packer collector; the two
-runtime plugins (`aws-runtime-plugin`, `gcloud-runtime-plugin`) import the
-formatter options. The base library does not depend on it, but imports the
+root mixin and drive the terraform collector; `packer-plugin` uses the
+packer collector; the two runtime plugins (`aws-runtime-plugin`,
+`gcloud-runtime-plugin`) import the formatter options. The state plugins
+(`tf-s3-state-plugin`, `local-state-plugin`, `gcs-state-plugin`) depended
+on it until stage 30: their models now answer a registration the core
+hands to the terraform collector at load, and they import the contract
+alone. The base library does not depend on it, but imports the
 terraform collector guarded by an `ImportError` fallback to list the state
 files each lifecycle's workspaces bind to, to record state locations and
 to check for collisions at `validate`.
@@ -42,7 +44,7 @@ dependencies: `cs-image-system-system`, `cs-image-system-base`,
 
 | Module | Provides |
 | -------- | ---------- |
-| [`collector.py`](src/cs_image_system/hashicorp_utils/collector.py) | `TerraformCollector`, `PackerCollector`, the declaration dataclasses `ProviderRequirement`, `ConfiguredTerraformProvider`, `ProviderConfig`, `TerraformVariable`, `BackendRegistration`, `RemoteStateReference`, `PackerPluginRequirement`, `PackerVariableDecl`, the `StateLocation` tuple and the `BackendKind` protocol. |
+| [`collector.py`](src/cs_image_system/hashicorp_utils/collector.py) | `TerraformCollector`, `PackerCollector`, the declaration dataclasses `ProviderRequirement`, `ConfiguredTerraformProvider`, `ProviderConfig`, `TerraformVariable`, `RemoteStateReference`, `PackerPluginRequirement`, `PackerVariableDecl`. `BackendRegistration`, the `StateLocation` tuple and the `BackendKind` protocol are the contract's (`cs_image_system.contract.state`, stage 30) and stay importable from here. |
 | [`roots.py`](src/cs_image_system/hashicorp_utils/roots.py) | `TerraformRootMixin` and `run_is_dry()`. |
 | [`blocks.py`](src/cs_image_system/hashicorp_utils/blocks.py) | The declarative block model: `Raw`, `hcl_value`, `NestedBlock`, `BlockSpec`, `ResourceSpec`, `DataSpec`, `OutputSpec`, `render_block`, `render_blocks`. |
 | [`hashicorp.py`](src/cs_image_system/hashicorp_utils/hashicorp.py) | The formatter options `FO`, the `QString` quoting wrapper, the `TerraformGenerator` protocol, `packer_variable`, and the S3-backend field dataclasses `TStateRoot`, `StateEndpoints`, `AssumeRoleBaseClass`, `AssumeRoleConfig`, `AssumeRoleWithWebIdentityConfig`. |
@@ -69,7 +71,7 @@ they need; the collector dedupes, merges and validates, and renders.
 | `configure_provider(workspace, name, config, alias=None)` | Records a `provider "<name>" {}` block. The alias defaults to the sanitized workspace name, so provider blocks from different builders never collide when aggregated. Configuring the same name and alias twice with different arguments raises `HclConfigConflictError`. |
 | `provider_bindings(workspace)` | `{provider name: "<name>.<alias>"}` for every configured provider, for a module call's `providers = { ... }` meta-argument. Module calls must bind explicitly, because every configured provider carries an alias. |
 | `declare_variable(workspace, TerraformVariable(name, type="string", default=None, description=None, sensitive=False))` | Declares a `variable` block. Redefinition with different attributes raises `HclConfigConflictError`. |
-| `register_backend(BackendRegistration(...))` | Makes a state backend available for the run (registered by a state plugin). Registering the same name with a different declaration raises. |
+| `register_backend(BackendRegistration(...))` | Makes a state backend available for the run. Registering the same name with a different declaration raises. A state plugin no longer calls it (stage 30): once the state backends are loaded the core calls `pull_declared_backends(models)`, which registers what every state backend model answers to `to_backend_registration()`; `register_backend` remains for a registration made by hand (the tests). |
 | `set_backend(workspace, backend_name="default")` | Binds a workspace to a backend; `default` resolves to the registration marked `is_default`. More than one default is a conflict. A second binding to a **different** backend is refused (a workspace keeps its state in exactly one location, stage 46); rebinding to the same one is a no-op, so a builder may bind per phase. |
 | `effective_backend_name(*candidates)` | The chain a root's backend resolves through (stage 46.2): the first candidate outside the loader's absent sentinels (`default`, `self`, `none`, empty, unset), else `default`. Static. A `none` never reaches it from a configuration: the core's `validate` refuses a state backend written `none` first, since reading it as unset would put the root on the default backend. |
 | `bind_workspace(workspace, *candidates)` | `set_backend` through the chain; returns the name bound. The terraform-root builders call it with `(own state_configuration, runtime's state_configuration)`; the identity roots, which have no runtime, with their own value alone. |
@@ -599,7 +601,7 @@ package does with it.
 | `image_builders[].required_plugins[]` (`cfg/image-builders.yml`) | list of `PackerPluginConfig` | `[]` | `PackerBuilderBase.generate_items_before` | `require_plugin(ws, name, source, version)`; emitted into `packer { required_plugins {} }`, one file per block. |
 | `<builder>.state_configuration` (instance, storage, group, user builders) | str | `default` | `bind_workspace(ws, own, runtime's)` | First rung of the chain. A value outside `default`, `self`, empty, unset names a backend registration; the name must exist (`validate` refuses one that does not). `none` is refused by `validate` by name: it would read as unset. |
 | `runtime_builders[].state_configuration` (`cfg/runtime-builders.yml`) | str | `default` | `runtime_state_configuration()` | Second rung, for storage and instance roots only. |
-| `state_backends[]` (`cfg/state-backends*.yml`): `name`, `type`, `is_default`, the type's own settings | per type | | the state plugin's `register_backend(BackendRegistration(...))` | Stored by name; `is_default` decides what `default` resolves to; `settings` are rendered by the plugin's kind, never read by name here. |
+| `state_backends[]` (`cfg/state-backends*.yml`): `name`, `type`, `is_default`, the type's own settings | per type | | `pull_declared_backends(models)`, called by the core at load with the state backend models, each answering `to_backend_registration()` (stage 30) | Stored by name; `is_default` decides what `default` resolves to; `settings` are rendered by the plugin's kind, never read by name here. |
 | `config.use_state_backends` (`cfg/_config.yml`) | bool | `false` | `backends_enabled()`, read from the run context | The gate on every backend block, backend file, remote-state data source, header line and location record. Location **collisions** are still checked with it off. |
 | `config.apply_identity`, `apply_storage`, `apply_instances` (`cfg/_config.yml`) | bool or list[str] | `false` | the builder, as the `apply` argument through `apply_enabled(key, root, aliases)` | Decides whether the sequence ends in `apply-check` + `apply`. Re-read at execution by `apply-check`, which this package emits with the lifecycle key, root and aliases. |
 | `config.module_source_base` (`cfg/_config.yml`) | str | `../tfmodules` | nobody here | **Not read by this package.** The base library's `render_module_call` reads it. Listed because module calls sit beside the blocks this package renders. |
@@ -728,8 +730,9 @@ collector, when a generator is called, and inside the commands it emits.
   to nothing -- `HclConfigConflictError` naming the consumer and the
   producer.
 - A registration without a kind, asked for its location, backend file or
-  data source -- `HclConfigConflictError("State backend '<name>' (type
-  '<type>') was registered without a kind ...")`.
+  data source -- the contract's `BackendWithoutKind` (a `RuntimeError`,
+  stage 30; `HclConfigConflictError` until then): `State backend '<name>'
+  (type '<type>') was registered without a kind ...`.
 
 The verdict of all of these is an exception out of the generating builder;
 the run logs it and exits 1, `run-summary.json` carries it as `error`, and

@@ -4,17 +4,16 @@
 
 import logging
 
-from cs_image_system.base.helpers.field_helpers import fk_field
+from cs_image_system.base.helpers.field_helpers import fk_field, parent_field
 log = logging.getLogger(__name__)
 from dataclasses import field
 from .model_config import CSIS_MODEL_CONFIG
 from pydantic import Field
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from typing import Annotated, Any, ClassVar
-from ..protocols.name_typed_protocol import  SelfInjectedNameProtocol
+from .mixins import ParentPropertyHolding, SelfInjectedName
 
 
-from ..protocols.parent_property_holding_protocol import ParentPropertyHoldingProtocol
 
 from .root_item import RootItem
 from ..encryption import EncryptedStr
@@ -23,7 +22,7 @@ from ..constants import DEFAULT, VCT
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
-class Group(RootItem, SelfInjectedNameProtocol, ParentPropertyHoldingProtocol):
+class Group(RootItem, SelfInjectedName, ParentPropertyHolding):
     """A group data object.
 
     Attributes
@@ -74,13 +73,7 @@ class Group(RootItem, SelfInjectedNameProtocol, ParentPropertyHoldingProtocol):
     # may be admins. If None, then do nothing
     in_both: bool | None = None    
 
-    _model_id: str | None = fk_field(target = VCT.GROUP_BUILDER_MODEL, 
-                                     init=False,
-                                     default=None,
-                                     metadata={
-                                        "description": "Group builder model",
-                                        "required": True,
-                                     })
+    _model_id: str | None = parent_field(VCT.GROUP_BUILDER_MODEL, description="Group builder model", metadata={"required": True})
 
     @classmethod
     def csis_name(cls) -> str:

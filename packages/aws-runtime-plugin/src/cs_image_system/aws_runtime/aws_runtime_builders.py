@@ -8,14 +8,14 @@ from typing import Any
 
 
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
-from cs_image_system.base.basic.asset import AssetSet
+from cs_image_system.contract.assets import AssetSet
 from cs_image_system.base.basic.builder_base_cloud import CloudBuilderBase
-from cs_image_system.base.constants import VCT
-from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.constants import VCT
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
 from cs_image_system.base.models.provider_specific_image import ProviderSpecificImage
 from cs_image_system.base import power_state
-from cs_image_system.base.protocols.plugin_metadata import PluginArtifactProtocol
+from cs_image_system.contract.core import PluginArtifactProtocol
 
 from .aws_provider_specific_image import AwsProviderSpecificImage
 from .aws_runtime_models import AWS_CLI, AwsCloudBuilderModel

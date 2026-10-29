@@ -10,8 +10,8 @@ through all three hooks (contribute_context / upgrade / resolve).
 """
 from dataclasses import dataclass, field
 
-from cs_image_system.base.helpers import field_kinds
-from cs_image_system.base.helpers.field_kinds import (
+from cs_image_system.contract import field_kinds
+from cs_image_system.contract.field_kinds import (
     field_kind, FK, TEMPLATED, DEFERRED_LIST, DEFERRED_LIST_FK,
 )
 from cs_image_system.base.constants import (

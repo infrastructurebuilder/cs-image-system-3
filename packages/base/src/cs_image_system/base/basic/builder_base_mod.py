@@ -15,6 +15,7 @@ from ..models.mod_builder import ModBuilderModel
 from ..constants import VCT
 
 from .builder_base import BuilderBase
+from cs_image_system.contract.modification import ModBuilderProtocol
 if TYPE_CHECKING:
     from ..basic.asset import AssetSet
     from ..lifecycle import ExecutionLifecyclePhase
@@ -23,7 +24,7 @@ if TYPE_CHECKING:
     from .builder_base_image import ImageBuilderBase
 
 TMOD = TypeVar("TMOD", bound=ModBuilderModel)
-class ModBuilderBase(BuilderBase[TMOD]):
+class ModBuilderBase(BuilderBase[TMOD], ModBuilderProtocol):
     @classmethod
     def csis_classifier(cls) -> VCT:
         return VCT.MOD_BUILDER

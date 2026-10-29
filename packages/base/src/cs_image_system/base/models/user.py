@@ -10,9 +10,8 @@ from pydantic.dataclasses import dataclass  # stage 23: validation at constructi
 import logging
 
 from ..encryption import EncryptedStr
-from ..helpers.field_helpers import fk_field, templated_field
-from ..protocols.name_typed_protocol import SelfInjectedNameProtocol
-from ..protocols.parent_property_holding_protocol import ParentPropertyHoldingProtocol
+from ..helpers.field_helpers import fk_field, parent_field, templated_field
+from .mixins import ParentPropertyHolding, SelfInjectedName
 
 log = logging.getLogger(__name__)
 
@@ -22,7 +21,7 @@ from .root_item import RootItem
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
-class User(RootItem, SelfInjectedNameProtocol, ParentPropertyHoldingProtocol):
+class User(RootItem, SelfInjectedName, ParentPropertyHolding):
     """A user data object.
 
     Aliases are invalid for user names at this time
@@ -101,10 +100,7 @@ class User(RootItem, SelfInjectedNameProtocol, ParentPropertyHoldingProtocol):
     manager_id: str | None = None
     manager: str | None = None
 
-    _model_id: str | None = fk_field(target = VCT.USER_BUILDER_MODEL,
-                                     init=False, default=None, metadata={
-        "description": "The name of the model for the builder holding object is associated with",
-    })
+    _model_id: str | None = parent_field(VCT.USER_BUILDER_MODEL, description="The name of the model for the builder holding object is associated with")
 
     @field_validator("first_name", "last_name", mode="before")
     @classmethod

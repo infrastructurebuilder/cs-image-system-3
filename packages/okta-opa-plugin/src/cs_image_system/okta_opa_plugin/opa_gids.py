@@ -37,7 +37,7 @@ import urllib.error
 import urllib.request
 from typing import Any, Callable, Mapping
 
-from cs_image_system.base.utils import super_safe_name
+from cs_image_system.contract.names import super_safe_name
 
 log = logging.getLogger(__name__)
 

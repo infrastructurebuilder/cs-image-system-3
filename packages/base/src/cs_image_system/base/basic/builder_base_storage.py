@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from ..constants import VCT
 from .builder_base import BuilderBase
+from cs_image_system.contract.storage import StorageBuilderProtocol
 from ..models.storage import Storage
 from ..models.storage_builder import StorageBuilderModel
 
@@ -21,7 +22,7 @@ CARDINALITY_MANY = "many"
 
 
 TSTORAGE = TypeVar("TSTORAGE", bound=StorageBuilderModel)
-class StorageBuilderBase(BuilderBase[TSTORAGE]):
+class StorageBuilderBase(BuilderBase[TSTORAGE], StorageBuilderProtocol):
     """Base of every storage plugin.
 
     V2 contract (DESIGN §3E): a storage plugin owns
@@ -47,8 +48,10 @@ class StorageBuilderBase(BuilderBase[TSTORAGE]):
     def capability_type(cls) -> str:
         """The storage type token base images declare (e.g. ``efs``).
         Defaults to the plugin's canonical name."""
-        name = getattr(cls, "csis_name", None)
-        return str(name()) if callable(name) else cls.__name__
+        try:
+            return str(cls.csis_name())
+        except NotImplementedError:             # a base that names no type (stage 30)
+            return cls.__name__
 
     def attachment_cardinality(self) -> str:
         return CARDINALITY_MANY

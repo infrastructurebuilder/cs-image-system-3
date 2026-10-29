@@ -21,14 +21,14 @@ design as built.
 | Base vs instance images, OS-independent | `base_images` and `images` (instance images) are distinct collections; packer bakes both on the AWS and GCP runtimes. Container and Azure image builders are future plugins. |
 | The instance-image lifecycle includes *launching instances* | Instances belong to the instance-image lifecycle (§3A). Group ownership lives on the image, so the image's `sftd.tx.group` label follows every instance (§3F2). |
 | CLI-only, headless, CI/CD end-to-end | A typer CLI, dry-run by default, no interactive step anywhere; a failed run exits nonzero and writes a machine-readable summary (§3G). |
-| Entirely plugin-based | An entry-point plugin registry supplies the builders. Lifecycles themselves may be plugin-registered (`release`, `retention`). |
+| Entirely plugin-based | An entry-point plugin registry supplies the builders; a plugin is written against the contract package alone (§3P). Lifecycles themselves may be plugin-registered (`release`, `retention`). |
 | All-YAML config, human-editable | The configuration is YAML (`cfg/` plus the collections); see [CONFIGURATION.md](CONFIGURATION.md). |
 | Config in an independent git repo, pulled by the system; generated IaC committed back | The configuration is its own repository; `--root-dir` runs the system against any checkout; `run --commit` makes the meta-state commit (§3B). |
 | IaC output: terraform, ansible, CloudFormation, shell | OpenTofu and packer HCL plus shell runner scripts; ansible as provisioners. CloudFormation is a future format plugin. |
 | Full + lifecycle idempotency | Terraform roots converge. Images are non-idempotent by design: unique names, series lineage and convergent bake decisions give idempotency at the *reference* level (§3F). |
 | Meta-workflow: identity → storage → base image → instance image, each optional, independently state-managed, script-existence apply gating | Four lifecycle units with per-lifecycle generated directories, state and runner scripts (§3A, §3C). |
 
-Preserved by design: the plugin/registry architecture, the YAML → cattrs →
+Preserved by design: the plugin/registry architecture, the YAML → pydantic →
 builder pipeline, the HCL collectors, per-workspace S3 state, the applied
 Okta/OPA end state, and the never-destroy / gated-apply discipline.
 
@@ -904,6 +904,74 @@ inventory and `state import` adopts into meta-state; `tofu import`
 stays a deliberate human step until there is a real candidate.
 
 ---
+
+### P. The plugin contract (stage 30)
+
+The contract is a package of its own, `cs-image-system-contract`
+(`cs_image_system.contract`), with no dependency on the core: `base`
+depends on it, never the reverse, and a test holds the direction. It is
+upstream of the core -- the core conforms to it, and a new hook is a
+contract change first, the base's change second, in one branch -- and it
+carries no implementation: the protocols a model and a builder satisfy
+(`core`: `NameTypedProtocol`, `PluginArtifactProtocol`,
+`PluginMetadataProtocol`, `BuilderModelProtocol`, `BuilderProtocol`, the
+three markers the orchestrator dispatches on), one module per kind of
+builder with exactly the attributes and hooks the core reads (`runtime`,
+`operating_system`, `storage`, `image`, `instance`, `modification`,
+`group`, `user`, `state`), and what a plugin declares, constructs and
+returns (the constants, the model configuration, the field helpers, the
+lifecycle phases, assets, command lists, the metadata record, the state
+backend's registration). Where a default body existed it lives in the
+core's base classes and mixins, which implement the protocols nominally;
+a class that satisfies a protocol structurally is a first-class plugin,
+and `contract.testing.assert_conforms` (member by member and parameter
+by parameter, stricter than `runtime_checkable`'s name-only check; a
+protocol listed as a base never answers for the class) is run by the bar
+over every base class and every built-in plugin's models and builders.
+The bar's pyright runs in basic mode and does not compare an override's
+annotations with the protocol's; enabling that is a hygiene item. Runtime checks in
+the loader, the registry and the orchestrator stay structural and
+name-only, backed by that test. The mapper dispatches on the contract's
+surface, not a table of the core's classes: a builder-model class that
+classifies itself and names no type of its own is a dispatch point. The
+state backend seam inverted with the package: once the state backends
+are loaded the core hands every model's registration
+(`to_backend_registration`) to the terraform collector, where each model
+used to push its own from `finalize`, so a state plugin imports nothing
+from the library. Deferred, each a stage of its
+own: the run context's protocol (the expensive part; a plugin reaches
+the context through a base builder until then), the hooks and bootstrap
+entry points, the contract's own compatibility version (it moves in
+lockstep with the workspace until it stops changing), and a separate
+repository for it once stable, with an external plugin as the proof.
+
+**Reversibility (the operator's condition, 2026-10-29).** The stage may
+have to be undone if it interferes with later work; what would be
+expensive is not abandoning a package or a repository but reversing a
+work stream built on it. So: the stage is code only (the emission is
+byte-identical, no YAML key, record or cloud state changed), landed as
+one squash per branch, and bracketed on develop by the annotated tags
+`s30-1-before` and `s30-1-after` (branch 2: `s30-2-before`,
+`s30-2-after`), whose messages carry the recipe. The core's old import
+paths stay as re-exports of the contract (the shims:
+`base/constants.py`, `models/model_config.py`, `helpers/field_helpers.py`,
+`helpers/field_kinds.py`, `lifecycle.py`, `lifecycles.py`,
+`basic/asset.py`, `models/executable_adds.py`, the PSI enums and the
+`utils` helpers), so the undo is a swap -- the bodies go back into those
+files and the contract modules become the re-exports -- with no import
+rewritten in the core or in any plugin; every stream that only imports
+contract names, the plugins and the proof plugin included, needs no
+reversal. The contract README's "What moved where" table is the map.
+Pieces worth keeping under an undo, to re-apply from the squash: the
+`issubclass` TypeError fix, the plugin `version` fix, the public names
+for the three private cross-plugin helpers, the manifests (no plugin
+depends on `system`), the runtime base's TypeVar. The one later stream
+that would need reversing is a Tier C that injects the context
+(`bind(ctx)`) into the plugins' 53 `_get_context()` sites; while the
+stage is provisional, Tier C declares and types the context protocol
+without the injection. Removing the shims is the commitment to the
+contract, and is done together with moving the package to its own
+repository; a weekly reminder stands until then.
 
 ## 4. Standing constraints
 

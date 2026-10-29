@@ -3,18 +3,18 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import field
-from cs_image_system.base.models.model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from typing import Any
 
 import logging
 
 from cs_image_system.gcloud_runtime import gcp_utils
-from cs_image_system.base.helpers.field_helpers import fk_field
+from cs_image_system.contract.fields import fk_field, parent_field
 log = logging.getLogger(__name__)
 
 
-from cs_image_system.base.constants import DEFAULT, OOPS_DEFAULTS, VCT
+from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, VCT
 from cs_image_system.base.models.cloud_builder import CloudBuilderModel, CloudNetworkingConfig
 
 
@@ -27,11 +27,7 @@ class GCPCloudNetworkingModel(CloudNetworkingConfig):
     # closest GCP analog to AWS security group ids.
     network_tags: list[str] = field(default_factory=list)
 
-    _model_id: str | None = fk_field(target=VCT.RUNTIME_BUILDER_MODEL,
-                                     init=False,
-                                     default=None, metadata={
-                "description": "The name of the runtime model this object is associated with",
-            })
+    _model_id: str | None = parent_field(VCT.RUNTIME_BUILDER_MODEL, description="The name of the runtime model this object is associated with")
 
     def __post_init__(self) -> None:
         super().__post_init__()

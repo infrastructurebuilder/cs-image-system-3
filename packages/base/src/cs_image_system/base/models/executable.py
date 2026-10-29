@@ -11,7 +11,7 @@ import logging
 from cs_image_system.base.basic.abstract_plugin_metadata import AbstractPluginMetadata
 log = logging.getLogger(__name__)
 
-from ..protocols.plugin_metadata import PluginArtifactProtocol, PluginMetadataProtocol
+from cs_image_system.contract.core import PluginArtifactProtocol
 from .builder_model import NameTyped
 
 import os
@@ -181,7 +181,7 @@ class ExecutableModel(NameTyped, PluginArtifactProtocol):
         finally:
             os.chdir(cd)
         
-class DefaultExecutableModelPluginMetadata(AbstractPluginMetadata, PluginMetadataProtocol):
+class DefaultExecutableModelPluginMetadata(AbstractPluginMetadata):
     def __init__(self) -> None:
         super().__init__(
             "1",

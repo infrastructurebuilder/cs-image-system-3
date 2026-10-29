@@ -15,7 +15,7 @@ from typing import Any, Sequence, cast
 from google.api_core import exceptions as gcp_exceptions
 from google.cloud import compute_v1
 
-from cs_image_system.base.constants import SELF
+from cs_image_system.contract.constants import SELF
 from cs_image_system.base.models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
 
 log = logging.getLogger(__name__)
@@ -125,7 +125,7 @@ def _generic_architecture(value: Any) -> str:
     return v if v in ("x86_64", "arm64") else "x86_64"
 
 
-def _make_credentials(session_config: Mapping[str, Any]) -> Any | None:
+def make_credentials(session_config: Mapping[str, Any]) -> Any | None:
     creds_cfg = session_config.get("credentials") or {}
     key_file = creds_cfg.get("service_account_key_file")
     if key_file:
@@ -136,7 +136,7 @@ def _make_credentials(session_config: Mapping[str, Any]) -> Any | None:
 
 
 def _make_images_client(session_config: Mapping[str, Any]) -> compute_v1.ImagesClient:
-    creds = _make_credentials(session_config)
+    creds = make_credentials(session_config)
     return compute_v1.ImagesClient(credentials=creds) if creds else compute_v1.ImagesClient()
 
 
@@ -429,7 +429,7 @@ def get_network_map_and_default_network(
             "the GCP runtime."
         )
     try:
-        creds = _make_credentials(session_config)
+        creds = make_credentials(session_config)
         kwargs: dict[str, Any] = {"credentials": creds} if creds else {}
         clients = clients or {}
         networks_client = clients.get("networks") or compute_v1.NetworksClient(**kwargs)

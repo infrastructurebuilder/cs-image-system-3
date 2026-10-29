@@ -10,6 +10,7 @@ from cs_image_system.hashicorp_utils.collector import (
     TerraformCollector,
     TerraformVariable,
 )
+from cs_image_system.contract.state import BackendWithoutKind
 from cs_image_system.hashicorp_utils.versions import HclConfigConflictError
 
 
@@ -294,5 +295,5 @@ def test_a_registration_without_a_kind_cannot_render(col):
     bare = BackendRegistration(name="x", type="mystery", settings={"anything": 1})
     col.register_backend(bare)
     col.set_backend("ws", "x")
-    with pytest.raises(HclConfigConflictError, match="without a kind"):
+    with pytest.raises(BackendWithoutKind, match="without a kind"):
         col.state_locations()

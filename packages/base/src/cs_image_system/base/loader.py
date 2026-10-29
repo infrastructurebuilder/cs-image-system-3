@@ -6,7 +6,7 @@ import logging
 from importlib.metadata import entry_points
 
 from cs_image_system.base.constants import VCT, PLUGIN_TYPES
-from cs_image_system.base.protocols.plugin_metadata import PluginMetadataProtocol
+from cs_image_system.contract.core import PluginMetadataProtocol
 from cs_image_system.base import registry
 
 

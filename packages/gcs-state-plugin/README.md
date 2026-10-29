@@ -288,11 +288,12 @@ other plugins, decide whether any of it is used:
   refused where the file is read, naming it). A failure is a
   `ValidationError` naming the field, raised while the configuration
   loads, so `validate` and every run stop with exit 1 before anything is
-  generated. Then `finalize()` -- called once per model at load, after
-  every plugin key has been structured -- registers a `BackendRegistration`
-  with the collector; the same name registered twice with different
-  settings is an `HclConfigConflictError` (`State backend '<name>'
-  registered twice with different configurations`).
+  generated. Once the state backends are loaded the core hands the
+  model's `to_backend_registration()`, a `BackendRegistration`, to the
+  collector (stage 30; until then `finalize()` pushed it itself); the
+  same name registered
+  twice with different settings is an `HclConfigConflictError` (`State
+  backend '<name>' registered twice with different configurations`).
 - **At `validate`, and again at the start of every run** (gated by
   `use_state_backends`; `check_state_locations` in
   [validate.py](../base/src/cs_image_system/base/commands/validate.py)):
@@ -433,8 +434,10 @@ is what the code raises, in the order an operator would meet it.
   the recipe for adding a type.
 - [local-state-plugin](../local-state-plugin/README.md): the type that needs
   nothing.
+- [contract state.py](../contract/src/cs_image_system/contract/state.py):
+  `BackendRegistration`, `StateLocation` and the `BackendKindProtocol` this
+  plugin's kind implements (stage 30).
 - [hashicorp-utils collector.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/collector.py):
-  `TerraformCollector`, `BackendRegistration`, `StateLocation` and the
-  `BackendKind` protocol this plugin's kind implements.
+  `TerraformCollector`, to which the core hands the registrations at load.
 - [docs/CONFIGURATION.md](../../docs/CONFIGURATION.md) section 10 and
   [docs/OPERATIONS.md](../../docs/OPERATIONS.md) "Where state lives".

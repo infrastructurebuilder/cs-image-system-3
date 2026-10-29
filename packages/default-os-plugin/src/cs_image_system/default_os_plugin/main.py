@@ -5,7 +5,6 @@
 import logging
 from cs_image_system.base.basic.abstract_plugin_metadata import AbstractPluginMetadata
 from cs_image_system.base.models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
-from cs_image_system.base.protocols.plugin_metadata import PluginMetadataProtocol
 from cs_image_system.default_os_plugin.os__image_bldr_config_builder import DefaultOSImageBuilderConfigBuilder
 from .alpine_os_builder import AlpineOsBuilder
 from .alpine_type import ALPINE_TYPE, AlpineOsBuilderModel
@@ -20,7 +19,7 @@ from .ubuntu_os_type import UBUNTU_TYPE, UbuntuOsBuilderModel
 
 log = logging.getLogger(__name__)
 
-class DefaultOsTypes(AbstractPluginMetadata, PluginMetadataProtocol):
+class DefaultOsTypes(AbstractPluginMetadata):
   def __init__(self) -> None:
     super().__init__( "1", "3.13",
                      {RHEL_TYPE: [

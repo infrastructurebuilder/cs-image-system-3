@@ -8,7 +8,7 @@ from pydantic.dataclasses import dataclass  # stage 23: validation at constructi
 from typing import Any
 
 from cs_image_system.base.models.builder_model import NameTyped
-from cs_image_system.base.protocols.parent_property_holding_protocol import ParentPropertyHoldingProtocol
+from cs_image_system.base.models.mixins import ParentPropertyHolding
 
 from ..constants import DEFAULT, OOPS_DEFAULTS
 from ..utils import safe_name
@@ -63,7 +63,7 @@ class RootItem(NameTyped):
     def get_config(self) -> dict[str, Any]:
         return self.config or {}
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
-class SubRootItem(RootItem, ParentPropertyHoldingProtocol):
+class SubRootItem(RootItem, ParentPropertyHolding):
     """Base class for sub-items that are contained as elements of a root item's fields."""
     ...
 

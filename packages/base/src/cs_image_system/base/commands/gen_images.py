@@ -44,7 +44,7 @@ def predefined_image_generation(
             )
 
         genfiles = ibb.generate_items_during(phase)
-        genfiles.sort_and_write()
+        genfiles.sort_and_write(ctx.generation_path)
         cfe = ibb.get_commands_to_run_during(phase)
         ctx.extend_finalization_phase(phase,cfe.finalize_executables)
         for cmd in cfe.build_executables:

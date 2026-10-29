@@ -7,14 +7,13 @@ import logging
 
 from .constants import VCT
 from .basic.abstract_plugin_metadata import AbstractPluginMetadata
-from .protocols.plugin_metadata import PluginMetadataProtocol
 
 log = logging.getLogger(__name__)
 
 # if TYPE_CHECKING:
 from .models.instance import  StorageMapping
 from .basic.abstract_version_checker import GenericVersionChecker
-class BaseInitTypes(AbstractPluginMetadata, PluginMetadataProtocol):
+class BaseInitTypes(AbstractPluginMetadata):
   def __init__(self) -> None:
     super().__init__( "1", "3.13",
                      # stage 48.1: the version checker every executable falls back to

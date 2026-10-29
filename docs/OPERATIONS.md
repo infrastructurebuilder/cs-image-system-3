@@ -1547,7 +1547,7 @@ changes skip the bar (nothing in it reads Markdown); say so.
 ### `just build`, `just release`, `just publish`, `just publish-tree`
 
 `just build` packages the system and every workspace member (sdist +
-wheel: thirty-four files) under `dist/`; no tests. The builds are
+wheel: thirty-eight files) under `dist/`; no tests. The builds are
 reproducible -- two builds of one tree are byte-identical -- which is what
 lets CI check a tag against the index instead of uploading it again.
 
@@ -1631,7 +1631,7 @@ line per endpoint) reads the target's `[[tool.uv.index]]` entry and
 asks two things of it: the upload endpoint (`publish-url`) answers
 below 500 to a request that uploads nothing, and the simple index
 answers for EVERY project a release uploads -- the root project and each
-`packages/*` member, eighteen today -- with 200, or 404 for a project
+`packages/*` member, nineteen today -- with 200, or 404 for a project
 it has never seen. With `--version` it also says which projects already
 hold that version: none (a fresh release), all, or some (a partial
 upload, which `just publish` completes). Exit 0 is ready; **75 is "not
@@ -1696,11 +1696,12 @@ from the environment or, absent that, the index's own name --
 `.envrc` line serves the shell and CI alike -- and never in the Justfile:
 while versions are being deleted and re-cut, an account-scoped TestPyPI
 token; trusted publishing
-(a pending publisher per project name, seventeen registrations) waits until
+(a pending publisher per project name, nineteen registrations) waits until
 the names are stable, and is then the CI job's credential.
 
-The version lives in eighteen places -- seventeen `version =` lines and the
-`== <version>` pins between the packages -- and `bump-my-version` is the
+The version lives in nineteen `version =` lines -- the root's and the
+eighteen packages' -- and in every `== <version>` pin between the
+packages, and `bump-my-version` is the
 one thing that changes them (`uv version` bumps the lines but never a
 pin, so it is not used). The scheme is `MAJOR.MINOR.PATCH[.devN]`; every
 version goes to TestPyPI first, and versions there are deleted as
@@ -1710,7 +1711,7 @@ asserts nothing of the old version is left.
 
 ### Installing a release
 
-The seventeen packages are on the index as `cs-image-system` (the whole
+The eighteen packages are on the index as `cs-image-system` (the whole
 system: no sources, a `==` pin on every package) and
 `cs-image-system-<package>`. TestPyPI does not carry the third-party
 dependencies, so an install from it names PyPI as the extra index. In
@@ -1747,7 +1748,7 @@ system drives (`tofu`, `packer`, `gcloud`, `ansible-playbook`, docker) are
 not Python packages and are not installed by this; the configuration's
 `cfg/executables.yml` pins where they are. The same install from the
 built files, without an index, is `uv pip install --find-links dist
-cs-image-system==<version>` after `just build`; the seventeen wheels
+cs-image-system==<version>` after `just build`; the eighteen wheels
 installed that way into a fresh virtualenv run `cs-image-system --help`
 and `decrypt`, which is the proof that every package declares what it
 imports.
@@ -1804,6 +1805,29 @@ image follows the instance image's OS family and version (`almalinux:<v>`
 for the EL images). `--strict` exits 1 when a test is skipped (no docker,
 an unsupported family); `--force` re-tests mods that already passed. It
 needs docker and the live configuration, no cloud credentials.
+
+### Writing a plugin
+
+A plugin is written against one package, `cs-image-system-contract`
+(stage 30): the protocols a model and a builder satisfy, the constants
+and field helpers a model is declared with, the lifecycle phases a hook
+keys on, and the data carriers a hook returns. It depends on nothing of
+the system, and `base` depends on it, never the reverse: the contract is
+upstream, and a new hook is a contract change first. The core's base
+classes implement every protocol with a default for every hook, so the
+convenient plugin subclasses them; a plugin that satisfies the protocols
+structurally is a first-class plugin, and
+`cs_image_system.contract.testing.assert_conforms` is the check that says
+so (the core's own bar runs it over every base class and every built-in
+plugin). The recipe, step by step, with what to depend on and what to
+return from the entry point, is "Writing a plugin" in
+[packages/contract/README.md](../packages/contract/README.md); the
+[local state plugin](../packages/local-state-plugin/README.md) is the
+smallest built-in example and the
+[dummy plugin](../packages/dummy-plugin/README.md) the template for a
+group or user builder and for a hook plugin. Not in the contract yet: the
+run context (its protocol is a later stage), the hooks entry point and
+the bootstrap entry point, so a plugin that needs them depends on `base`.
 
 ### Recipe catalogue
 
@@ -2913,6 +2937,7 @@ exception is a decision to record, not a bypass.
 | [GOLDEN.md](../GOLDEN.md) | the golden fixture: what it is, how it is produced and enforced |
 | [CONFIGURATION.md](CONFIGURATION.md) | the configuration reference: every key of the YAML tree |
 | [PLUGINS.md](PLUGINS.md) | the index of the package READMEs under `packages/` |
+| [packages/contract/README.md](../packages/contract/README.md) | the plugin contract: what a plugin is written against, and how to write one |
 | [PARITY.md](../PARITY.md) | how the documentation and the system can diverge, and the check for each |
 | [DESIGN.md](DESIGN.md) | the design record |
 | [history/](history/) | frozen: the findings ledger, the GCP readiness study and the live-proof overlays; evidence, not documentation |

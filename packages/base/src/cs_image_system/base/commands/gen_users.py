@@ -33,7 +33,7 @@ def generate_users(
     ctx = GlobalTypeContext()  # Initialize the global context
     log.debug(f"Generating users for user builder {ubb.get_name()} during phase {phase.value}...")
     qv = ubb.generate_items_during(phase)
-    qv.sort_and_write()
+    qv.sort_and_write(ctx.generation_path)
     cfe = ubb.get_commands_to_run_during(phase)
     ctx.extend_finalization_phase(phase, cfe.finalize_executables)
     for cmd in cfe.build_executables:

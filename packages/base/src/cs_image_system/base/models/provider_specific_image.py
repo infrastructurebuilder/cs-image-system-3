@@ -3,33 +3,15 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from abc import ABC, abstractmethod
-from enum import StrEnum
 import logging
 from typing import Any
 
 from ..constants import NO_MODEL_ID, VCT
+# stage 30: the two enums and the key live in the contract (a runtime
+# plugin's create_provider_specific_image_* hooks take the source kind)
+from cs_image_system.contract.image import PSISourceKind, PSIState, psi_key  # noqa: F401
 
 log = logging.getLogger(__name__)
-
-
-class PSIState(StrEnum):
-    """State of a ProviderSpecificImage."""
-    RESOLVED = "resolved"  # A concrete provider identifier is known (e.g. an AMI id)
-    DEFERRED = "deferred"  # The image does not exist yet; only a query/name pattern is known
-
-
-class PSISourceKind(StrEnum):
-    """What kind of source a ProviderSpecificImage was generated from."""
-    IMAGE = "image"          # A user-declared Image
-    OS_BUILDER = "os_builder"  # An OsBuilder vendor-image lookup
-
-
-def psi_key(source_name: str, runtime: str) -> str:
-    """Registry key for a ProviderSpecificImage.
-
-    "::" cannot appear in validated item names, so the key is unambiguous.
-    """
-    return f"{source_name}::{runtime}"
 
 
 class ProviderSpecificImage(ABC):

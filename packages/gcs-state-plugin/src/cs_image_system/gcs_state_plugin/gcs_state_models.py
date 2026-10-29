@@ -18,11 +18,11 @@ from typing import Any, Mapping
 
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 
-from cs_image_system.base.constants import VCT
-from cs_image_system.base.models.model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.constants import VCT
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.base.models.state_builder import StateBuilderModel
-from cs_image_system.base.utils import super_safe_name
-from cs_image_system.hashicorp_utils.collector import BackendRegistration, StateLocation, TerraformCollector
+from cs_image_system.contract.names import super_safe_name
+from cs_image_system.contract.state import BackendRegistration, StateLocation
 
 GCS_STATE: str = "gcs"
 DEFAULT_TERRAFORM_WORKSPACE = "default"
@@ -109,8 +109,3 @@ class GcsStateBuilderModel(StateBuilderModel):
     def get_state_file_path(self, builder_name: str) -> str:
         return self.to_backend_registration().state_file_path(builder_name)
 
-    def finalize(self) -> None:
-        if self._finalized:
-            return
-        super().finalize()
-        TerraformCollector().register_backend(self.to_backend_registration())

@@ -27,14 +27,14 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import field
-from cs_image_system.base.models.model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from typing import Any, Mapping
 
 from cs_image_system.base import utils
-from cs_image_system.base.constants import DEFAULT, OOPS_DEFAULTS, VCT
+from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, VCT
 from cs_image_system.base.encryption import EncryptedStr
-from cs_image_system.base.helpers.field_helpers import fk_field, templated_field
+from cs_image_system.contract.fields import fk_field, templated_field
 from cs_image_system.hashicorp_utils.collector import (
     ConfiguredTerraformProvider,
     TerraformCollector,

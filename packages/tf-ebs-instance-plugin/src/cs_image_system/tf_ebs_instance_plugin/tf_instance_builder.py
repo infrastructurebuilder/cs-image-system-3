@@ -9,10 +9,10 @@ from typing import Any, TypeVar
 
 
 from cs_image_system.base import utils
-from cs_image_system.base.constants import OOPS_DEFAULTS
-from cs_image_system.base.utils import HclRaw, hcl_expr, render_module_call
+from cs_image_system.contract.constants import OOPS_DEFAULTS
+from cs_image_system.contract.hcl import HclRaw, hcl_expr, render_module_call
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
-from cs_image_system.base.basic.asset import AssetSet
+from cs_image_system.contract.assets import AssetSet
 from cs_image_system.base.basic.builder_base_instance import InstanceBuilderBase
 from cs_image_system.base.capabilities import group_builder_of
 from cs_image_system.base.launch_params import (
@@ -20,9 +20,9 @@ from cs_image_system.base.launch_params import (
     compute_launch_params,
     user_data_template,
 )
-from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.executable import ExecutableModel
-from cs_image_system.base.models.executable_adds import CFExecutables
+from cs_image_system.contract.executables import CFExecutables
 from cs_image_system.base.models.instance import Instance
 from cs_image_system.hashicorp_utils.collector import TerraformCollector, TerraformVariable
 from cs_image_system.hashicorp_utils.roots import TerraformRootMixin
@@ -593,7 +593,7 @@ class TofuInstanceBuilder(InstanceBuilderBase[Q], TerraformRootMixin):
         # generated/retention/, where no instance root exists and nothing
         # reads it (never staged, it lingered untracked after every release
         # run). Only the lifecycle that generates instance roots gets it.
-        from cs_image_system.base.lifecycles import Lifecycle
+        from cs_image_system.contract.lifecycles import Lifecycle
         current = getattr(ctx, "current_lifecycle", None)      # a bare harness context has none
         if current is not None and str(current.value) != Lifecycle.INSTANCE_IMAGE.value:
             return
