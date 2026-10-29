@@ -11,8 +11,13 @@ from . import template_utils
 from .encryption import Decrypted, mark_plaintexts
 from .helpers.field_helpers import lookup_dataclass_field
 from .helpers import field_kinds
-from .protocols.plugin_metadata import PluginArtifactProtocol
-from .protocols.parent_property_holding_protocol import ParentPropertyHoldingProtocol
+from cs_image_system.contract.core import (
+    NameTypedProtocol,
+    ParentPropertyHoldingProtocol,
+    PluginArtifactProtocol,
+    SelfInjectedNameProtocol,
+    SubItemOverrideProtocol,
+)
 
 
 from dataclasses import MISSING, fields, is_dataclass
@@ -22,7 +27,6 @@ from .constants import DEFAULT, DEFERRED_BUILDER_VCT, DEFERRED_ITEM_VCT, FK_ALSO
 
 from .singleton import singleton
 
-from .protocols.name_typed_protocol import NameTypedProtocol, SelfInjectedNameProtocol, SubItemOverrideProtocol
 from . import registry
 
 
@@ -565,32 +569,39 @@ def _str_collection_kind(ann: Any) -> str | None:
 class PydanticConverter:
     """Mapping and validation on pydantic, exposing cattrs' two verbs."""
 
-    def __init__(self, reg: Any) -> None:
+    def __init__(self, reg: registry.Registry) -> None:
         self._reg = reg
         self._adapters: dict[Any, Any] = {}
+        self._dispatch_vcts: dict[Any, VCT | None] = {}
 
-    # -- the VCT bases whose concrete class is chosen by the `type` key
-    def _base_vcts(self) -> dict[type, VCT]:
-        from .models.group_builder import GroupBuilderModel
-        from .models.image_builder_model import ImageBuilderModel
-        from .models.instance_builder import InstanceBuilderModel
-        from .models.mod_builder import ModBuilderModel
-        from .models.os_builder_model import OsBuilderModel
-        from .models.runtime import RuntimeBuilderModel
-        from .models.state_builder import StateBuilderModel
-        from .models.storage_builder import StorageBuilderModel
-        from .models.user_builder import UserBuilderModel
-        return {
-            RuntimeBuilderModel: VCT.RUNTIME_BUILDER_MODEL,
-            OsBuilderModel: VCT.OS_BUILDER_MODEL,
-            StorageBuilderModel: VCT.STORAGE_BUILDER_MODEL,
-            ImageBuilderModel: VCT.IMAGE_BUILDER_MODEL,
-            InstanceBuilderModel: VCT.INSTANCE_BUILDER_MODEL,
-            ModBuilderModel: VCT.MOD_BUILDER_MODEL,
-            GroupBuilderModel: VCT.GROUP_BUILDER_MODEL,
-            UserBuilderModel: VCT.USER_BUILDER_MODEL,
-            StateBuilderModel: VCT.STATE_BACKEND_MODEL,
-        }
+    # -- a dispatch point: a builder-model class that classifies itself and
+    # names no type of its own (stage 30; until then a table of the core's
+    # nine base model classes, by identity)
+    @staticmethod
+    def _own(model_cls: Any, member: str) -> bool:
+        """``member`` is defined on ``model_cls`` or on a base of it that is not a protocol."""
+        for klass in model_cls.__mro__:
+            if member in klass.__dict__:
+                return not getattr(klass, "_is_protocol", False)
+        return False
+
+    def _dispatch_vct(self, cls: Any) -> VCT | None:
+        """The classification ``cls`` dispatches under, or None when it is
+        structured as itself. A class whose `type` key names a plugin's
+        model -- one that carries the builder-model surface and classifies
+        itself (``csis_classifier``) but names no type of its own
+        (``csis_name``) -- is a dispatch point: the concrete class is the
+        one the registry holds under that classification and the key. A
+        concrete model (it names its type), an item model (its `type` is a
+        foreign key to a builder) and a plain dataclass structure directly."""
+        if cls in self._dispatch_vcts:
+            return self._dispatch_vcts[cls]
+        vct: VCT | None = None
+        if (isinstance(cls, type) and self._own(cls, "csis_classifier") and not self._own(cls, "csis_name")
+                and all(self._own(cls, m) for m in ("get_executable", "get_is_default", "get_gitignore"))):
+            vct = registry.sanitize_classifier(cls.csis_classifier())
+        self._dispatch_vcts[cls] = vct
+        return vct
 
     def _adapter(self, cls: Any) -> Any:
         ta = self._adapters.get(cls)
@@ -635,10 +646,10 @@ class PydanticConverter:
         return out
 
     def structure(self, data: Any, cls: Any) -> Any:
-        bases = self._base_vcts()
-        if isinstance(data, dict) and cls in bases:
-            return self._dispatch(data, cls, bases[cls])
         if isinstance(data, dict):
+            vct = self._dispatch_vct(cls)
+            if vct is not None:
+                return self._dispatch(data, cls, vct)
             data = self._coerce_collections(cls, data)
         obj = self._adapter(cls).validate_python(data)
         self._register(obj)

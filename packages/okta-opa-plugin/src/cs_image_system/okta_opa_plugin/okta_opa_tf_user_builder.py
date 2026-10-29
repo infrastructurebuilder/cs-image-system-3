@@ -7,11 +7,11 @@ import logging
 from typing import Any
 
 from cs_image_system.base import utils
-from cs_image_system.base.basic.asset import AssetSet
+from cs_image_system.contract.assets import AssetSet
 from cs_image_system.base.basic.builder_base_user import UserBuilderBase
-from cs_image_system.base.constants import USERS
-from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
-from cs_image_system.base.models.executable_adds import CFExecutables
+from cs_image_system.contract.constants import USERS
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.executables import CFExecutables
 from cs_image_system.base.models.user import User
 from cs_image_system.hashicorp_utils.collector import TerraformCollector
 from cs_image_system.hashicorp_utils.roots import TerraformRootMixin

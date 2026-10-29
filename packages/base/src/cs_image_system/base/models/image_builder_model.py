@@ -3,13 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from .model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.image import ImageBuilderModelProtocol
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 
 from ..constants import DEFAULT, VCT
 from .builder_model import RuntimeEnabledBuilderModel
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
-class ImageBuilderModel(RuntimeEnabledBuilderModel):
+class ImageBuilderModel(RuntimeEnabledBuilderModel, ImageBuilderModelProtocol):
     """Image builder configuration data object."""
         
     default_machine_type: str = DEFAULT

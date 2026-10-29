@@ -308,13 +308,16 @@ the chain and the collision rule in full.
   The verdict is a load error: the command that loaded the configuration
   (`validate`, `run`, anything) stops before any check runs, with the
   pydantic or `ValueError` message on stderr and exit 1.
-- **At `finalize()` (configuration load, before any generation phase).**
-  The model registers `BackendRegistration(name, "local", {"path": ...},
-  LOCAL_KIND, is_default, aliases)` with the run-wide `TerraformCollector`
-  (the aliases since stage 63). A
-  second registration under the same name with different settings is
-  refused (`HclConfigConflictError`); the same settings again are a
-  no-op.
+- **Once the state backends are loaded** (configuration load, before any
+  generation phase). The core hands the model's
+  `to_backend_registration()`, `BackendRegistration(name, "local",
+  {"path": ...}, LOCAL_KIND, is_default, aliases)` (the aliases since
+  stage 63), to the run-wide `TerraformCollector` (stage 30; until then
+  the model's `finalize()` pushed it itself); the model imports
+  `BackendRegistration` and `StateLocation` from the contract and nothing
+  from hashicorp-utils. A second registration under the same
+  name with different settings is refused (`HclConfigConflictError`); the
+  same settings again are a no-op.
 - **At `validate`, and at the head of every `run`
   (`check_state_locations` in
   [validate.py](../base/src/cs_image_system/base/commands/validate.py)).**
@@ -415,8 +418,8 @@ the chain and the collision rule in full.
 - A message saying `parameters` was retired (stage 26) and naming
   `variables:` -- at load; delete the key.
 - `State backend '<name>' registered twice with different configurations`
-  -- at load (`finalize`), two entries with one name across the
-  `state-backends*.yml` files. Rename one.
+  -- at load, once the state backends are finalized, two entries with
+  one name across the `state-backends*.yml` files. Rename one.
 - `workspace '<ws>' names state backend '<name>', which is not declared`
   -- at `validate`/`run`, a root's (or its runtime's) `state_configuration`
   names something no entry is registered under, by name or by alias.

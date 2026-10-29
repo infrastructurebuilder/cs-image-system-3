@@ -11,17 +11,17 @@ from typing import Any, cast
 import hcl2
 from hcl2 import Builder
 
-from cs_image_system.base.basic.asset import Asset, AssetSet
-from cs_image_system.base.constants import SELF, PACKER_MANIFEST_FILENAME
+from cs_image_system.contract.assets import Asset, AssetSet
+from cs_image_system.contract.constants import SELF, PACKER_MANIFEST_FILENAME
 from cs_image_system.base.materialize import mirror_path
 from cs_image_system.base.global_context import GlobalTypeContext
-from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.base_image import BaseImage
 from cs_image_system.base.models.executable import ExecutableModel
-from cs_image_system.base.models.executable_adds import CFExecutables
+from cs_image_system.contract.executables import CFExecutables
 from cs_image_system.base.models.image import Image
 from cs_image_system.base.models.moditem_type import ModItemModel
-from cs_image_system.base.models.provider_specific_image import PSISourceKind
+from cs_image_system.contract.image import PSISourceKind
 from cs_image_system.hashicorp_utils.hashicorp import FO # noqa: F401
 from .packer_models import PACKER_EBS, PackerEbsImageBuilderModel
 from .packer_builder import PackerImageBuilder
@@ -445,7 +445,7 @@ class PackerEbsImageBuilder(PackerImageBuilder[PackerEbsImageBuilderModel]):
         instance-image lifecycle only user images. With no lifecycle current
         (legacy flow) both ranges are emitted, base images first.
         """
-        from cs_image_system.base.lifecycles import Lifecycle
+        from cs_image_system.contract.lifecycles import Lifecycle
         lifecycle = GlobalTypeContext().current_lifecycle
         blocks: list[str] = []
         block_map: dict[str, list[Image|BaseImage]] = {}

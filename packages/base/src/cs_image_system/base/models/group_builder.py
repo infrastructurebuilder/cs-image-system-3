@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from .model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.group import GroupBuilderModelProtocol
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 
 from ..constants import VCT
@@ -16,7 +17,7 @@ BASIC_GROUP_BUILDER: str = "basic"
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
-class GroupBuilderModel(BuilderModel):
+class GroupBuilderModel(BuilderModel, GroupBuilderModelProtocol):
     """Dataclass representing a local modification to be applied during image build.
 
     Attributes:

@@ -5,13 +5,12 @@
 import logging
 
 from cs_image_system.base.basic.abstract_plugin_metadata import AbstractPluginMetadata
-from cs_image_system.base.protocols.plugin_metadata import PluginMetadataProtocol
 from cs_image_system.dummy_plugin.dummy_builders import DummyGroupBuilder, DummyUserBuilder
 from cs_image_system.dummy_plugin.dummy_models import DUMMY, DummyGroupBuilderModel, DummyUserBuilderModel
 
 log = logging.getLogger(__name__)
 
-class DummyPluginMetadata(AbstractPluginMetadata,PluginMetadataProtocol):
+class DummyPluginMetadata(AbstractPluginMetadata):
   def __init__(self) -> None:
     super().__init__("1", "3.13",
                      {

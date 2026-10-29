@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from cs_image_system.base.models.model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from enum import StrEnum
 from typing import Any, Callable
@@ -11,7 +11,7 @@ from cs_image_system.base.models.group import Group
 from cs_image_system.base.models.group_builder import GroupBuilderModel
 from cs_image_system.base.models.user import User
 from cs_image_system.base.models.user_builder import UserBuilderModel
-from cs_image_system.base.utils import super_safe_name as ssn
+from cs_image_system.contract.names import super_safe_name as ssn
 from cs_image_system.hashicorp_utils.blocks import (
     DataSpec,
     Raw,

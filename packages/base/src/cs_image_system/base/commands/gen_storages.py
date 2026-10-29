@@ -32,7 +32,7 @@ def generate_storages(ctx: GlobalTypeContext,
     log.debug(f"Generating storages for storage builder {sbb.get_name()} "
               f"during phase {phase.value}...")
     qv = sbb.generate_items_during(phase)
-    qv.sort_and_write()
+    qv.sort_and_write(ctx.generation_path)
     cfe = sbb.get_commands_to_run_during(phase)
     ctx.extend_finalization_phase(phase, cfe.finalize_executables)
     for cmd in cfe.build_executables:

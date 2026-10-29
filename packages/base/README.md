@@ -1,19 +1,22 @@
 # cs-image-system-base
 
-The core library of cs-image-system. It defines the configuration models,
-the plugin contract, the registry, the lifecycle runner, the cross-run
-meta-state, value encryption, the public-safe gate, and the lineage,
-release, retention, launch-parameter and capability rules that every plugin
-and the command-line host build on.
+The core library of cs-image-system. It implements the plugin contract
+([contract](../contract/README.md), stage 30) with its base models and
+builder bases, and defines the registry, the plugin loader, the lifecycle
+runner, the cross-run meta-state, value encryption, the public-safe gate,
+and the lineage, release, retention, launch-parameter and capability
+rules that every built-in plugin and the command-line host build on.
 
 It contains no cloud code. Clouds, identity providers, packer and terraform
-live in plugins that register through the contract described here. The
-package is licensed under Apache-2.0 and requires Python 3.13 or later.
+live in plugins that register through the contract; the loader and the
+registry that read them are described here. The package is licensed under
+Apache-2.0 and requires Python 3.13 or later.
 
-Declared dependencies ([`pyproject.toml`](pyproject.toml)): `Jinja2`,
-`PyYAML`, `age`, `packaging`, `pydantic` and `typer`. The models are
-pydantic dataclasses; `packaging` parses version specifiers; `age` is the
-library behind every `ENC[age:...]` value.
+Declared dependencies ([`pyproject.toml`](pyproject.toml)):
+`cs-image-system-contract` (the one sibling it depends on; the contract
+depends on no sibling), `Jinja2`, `PyYAML`, `age`, `packaging`, `pydantic`
+and `typer`. The models are pydantic dataclasses; `packaging` parses
+version specifiers; `age` is the library behind every `ENC[age:...]` value.
 
 The package registers itself as a plugin too: the entry point
 `cs_image_system.plugins.base` (`cs_image_system.base.init:initialize`)
@@ -49,11 +52,23 @@ back to.
 
 ## The plugin contract
 
-Source: [`protocols/`](src/cs_image_system/base/protocols/),
+The contract itself is the [contract](../contract/README.md) package
+(stage 30): the protocols a model and a builder satisfy, the constants and
+field helpers, the lifecycle phases, the data carriers a hook returns. This
+package implements it -- the base models and builder bases below carry a
+default for every hook -- and reads it: the loader and the registry are
+here. Source: [`loader.py`](src/cs_image_system/base/loader.py),
 [`registry.py`](src/cs_image_system/base/registry.py),
-[`loader.py`](src/cs_image_system/base/loader.py),
-[`constants.py`](src/cs_image_system/base/constants.py),
-[`basic/abstract_plugin_metadata.py`](src/cs_image_system/base/basic/abstract_plugin_metadata.py).
+[`basic/abstract_plugin_metadata.py`](src/cs_image_system/base/basic/abstract_plugin_metadata.py),
+[`models/mixins.py`](src/cs_image_system/base/models/mixins.py) (the bodies
+of the contract's three marker protocols), and the base models and builder
+bases. The constants, the model configuration and the field helpers are
+re-exported here from the contract (`constants.py`, `models/model_config.py`,
+`helpers/field_helpers.py`, `helpers/field_kinds.py`, `lifecycle.py`,
+`lifecycles.py` for the lifecycle data, `basic/asset.py`,
+`models/executable_adds.py`, the two enums and the key in
+`models/provider_specific_image.py`, and the name and HCL helpers in
+`utils.py`), so a reader in the core keeps its path.
 
 ### Entry points
 
@@ -76,28 +91,35 @@ this order:
 | `other`        | anything else  |
 
 Each entry point loads to a callable. `load_plugins()` calls it and expects
-one `PluginMetadataProtocol` object or a list of them. Entry points within
-a group load in name order. Loading is idempotent: a second call in the same
-process returns at once unless `Registry().reset()` was called. After every
-plugin registered, the loader drops the cached converter so the next
-structuring sees the full model set.
+one object satisfying the contract's `PluginMetadataProtocol`, or a list of
+them (the check is `isinstance`, name-only; anything else is logged as an
+error and skipped). Entry points within a group load in name order. Loading
+is idempotent: a second call in the same process returns at once unless
+`Registry().reset()` was called. After every plugin registered, the loader
+drops the cached converter so the next structuring sees the full model set.
 
 A separate group, `cs_image_system.plugins.hooks`, carries run hooks
-(see [Other extension seams](#other-extension-seams)).
+(see [Other extension seams](#other-extension-seams)); it and the
+`cs_image_system.bootstrap` group are not part of the contract yet, so a
+plugin that contributes to them depends on this package.
 
 ### Plugin metadata
 
-`PluginMetadataProtocol` has these members. `AbstractPluginMetadata`
-implements it from constructor arguments in this order.
+`PluginMetadataProtocol` (the contract's `core`) has these members. The
+contract's `metadata.PluginMetadata` is the data record that satisfies
+it; `AbstractPluginMetadata` here is the class-based convenience that
+does the same from constructor arguments in this order (the plugin's
+`version` last, as a keyword).
 
 | Member                        | Type                                  | Meaning |
 | ------------------------------- | --------------------------------------- | --------- |
 | `plugin_metadata_version`     | `str`                                 | Version of the metadata shape. |
-| `requires_python`             | `SpecifierSet`                        | Python requirement. |
+| `requires_python`             | `SpecifierSet`                        | Python requirement; a bare version (`"3.13"`) reads as its floor. Declared, not enforced. |
 | `services`                    | `dict[str, list[type]]`               | Classes to register, grouped under a service name. Every class implements `PluginArtifactProtocol`. |
 | `builders_for_models`         | `dict[type, type]`                    | Model class to builder class. One builder per model. |
 | `injected_models`             | `dict[VCT, type]`                     | Item models the plugin injects under a classification. |
 | `is_injected_models_default`  | `bool`                                | Whether injected models become the default for their classification. |
+| `version`                     | `str`                                 | The plugin's own version: the one given, else the version of the distribution that ships the metadata class, else `0`. Until stage 30 it returned the metadata version. |
 
 `PluginArtifactProtocol` is two class methods:
 
@@ -108,7 +130,8 @@ implements it from constructor arguments in this order.
 
 A typical plugin registers a model class and its builder class under the
 same service name and maps the model to the builder in
-`builders_for_models`.
+`builders_for_models`. The registry refuses a name registered twice under
+one classification (`Type Collision`).
 
 ### Classifications (`VCT`)
 

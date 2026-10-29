@@ -19,14 +19,24 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import logging
-from typing import Any, Mapping, Protocol
+from typing import Any, Mapping
 
 import hcl2
 from hcl2 import Builder
 
-from cs_image_system.base.constants import DEFAULT, OOPS_DEFAULTS
+from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS
 from cs_image_system.base.singleton import singleton
-from cs_image_system.base.utils import super_safe_name as ssn
+from cs_image_system.contract.names import super_safe_name as ssn
+
+# stage 30: where a workspace's state lives, a backend's registration and the
+# kind that renders it are the contract's (`contract.state`); a state plugin
+# imports nothing from this library. The names stay importable from here.
+from cs_image_system.contract.state import (  # noqa: F401
+    BackendKindProtocol as BackendKind,
+    BackendRegistration,
+    BackendWithoutKind,
+    StateLocation,
+)
 
 from .blocks import BlockSpec, DataSpec, Raw, render_blocks
 from .blocks import hcl_value as _hcl_value
@@ -86,43 +96,6 @@ class TerraformVariable:
     sensitive: bool = False
 
 
-@dataclass(frozen=True)
-class StateLocation:
-    """Where one workspace keeps its state (stage 46): the tuple (backend type,
-    container, key), normalised so that two spellings of one place compare
-    equal -- repeated slashes collapsed, leading and trailing ones stripped,
-    case kept (object keys are case-sensitive), ``.`` and ``..`` segments
-    refused. The container is what the type addresses (an S3 or GCS bucket, a
-    local directory) and the key the state object within it; the type decides
-    both (stage 47), which is why ``BUCKET1//xyz`` and ``BUCKET1/xyz`` are one
-    location and the emitted key is the normalised one."""
-    type: str
-    container: str
-    key: str
-
-    @staticmethod
-    def normalise_key(key: str | None) -> str:
-        segments = [s for s in (key or "").split("/") if s]
-        for s in segments:
-            if s in (".", ".."):
-                raise ValueError(f"state key {key!r} carries a {s!r} segment")
-        return "/".join(segments)
-
-    @classmethod
-    def of(cls, type: str, container: str, prefix: str | None, workspace: str) -> "StateLocation":
-        """The object-store convention: ``<prefix>/<workspace>.tfstate``, the
-        workspace name made safe, the prefix normalised."""
-        return cls(type=type, container=container, key=cls.normalise_key(f"{prefix or ''}/{ssn(workspace)}.tfstate"))
-
-    @property
-    def bucket(self) -> str:
-        """The container, under the name the object-store types give it."""
-        return self.container
-
-    def __str__(self) -> str:
-        return f"{self.type}://{self.container}/{self.key}"
-
-
 def render_backend_value(v: Any) -> str:
     """One backend-file value in HCL: bools lower-case, numbers bare,
     lists and maps (the s3 backend's ``assume_role``/``endpoints`` are
@@ -142,61 +115,6 @@ def render_backend_value(v: Any) -> str:
         return "{ " + inner + " }"
     text = str(emit(v)).replace("\\", "\\\\").replace('"', '\\"')
     return f'"{text}"'
-
-
-class BackendKind(Protocol):
-    """What a state backend TYPE knows (stage 47.1): where a workspace's state
-    lives, the settings its partial configuration file needs, and the
-    settings a consumer's remote-state data source needs -- which differ (a
-    data source has no ``encrypt`` or ``use_lockfile``). A state plugin
-    supplies one per type it declares; the collector renders whatever the
-    kind returns and names no field of its own."""
-    type: str
-
-    def location(self, settings: Mapping[str, Any], workspace: str) -> StateLocation: ...
-
-    def backend_settings(self, settings: Mapping[str, Any], workspace: str) -> dict[str, Any]: ...
-
-    def remote_state_settings(self, settings: Mapping[str, Any], workspace: str) -> dict[str, Any]: ...
-
-
-@dataclass(frozen=True)
-class BackendRegistration:
-    """A state backend made available for the run (registered by a state
-    plugin): what every backend has -- a name, a type, whether it is the
-    default -- plus the type's own settings as an opaque mapping, and the kind
-    that renders them (stage 47.1). Equality is the declaration (name, type,
-    settings, default); the kind is behaviour."""
-    name: str
-    type: str
-    settings: dict[str, Any] = field(default_factory=dict, hash=False)
-    kind: Any = field(default=None, compare=False, repr=False, hash=False)
-    is_default: bool = False
-    # stage 63: the names the backend answers to beside its own; a root's
-    # `state_configuration` may name any of them
-    aliases: tuple[str, ...] = field(default=(), compare=False, hash=False)
-
-    def _kind(self) -> BackendKind:
-        if self.kind is None:
-            raise HclConfigConflictError(
-                f"State backend '{self.name}' (type '{self.type}') was registered without a kind: "
-                "the plugin that declares the type must supply its renderings")
-        return self.kind
-
-    def state_location(self, workspace: str) -> StateLocation:
-        return self._kind().location(self.settings, workspace)
-
-    def state_file_path(self, workspace: str) -> str:
-        """The state object's key within the container, normalised."""
-        return self.state_location(workspace).key
-
-    def backend_settings(self, workspace: str) -> dict[str, Any]:
-        """The ``key = value`` settings the workspace's backend file carries."""
-        return self._kind().backend_settings(self.settings, workspace)
-
-    def remote_state_settings(self, workspace: str) -> dict[str, Any]:
-        """The ``config`` a consumer's remote-state data source carries."""
-        return self._kind().remote_state_settings(self.settings, workspace)
 
 
 @dataclass(frozen=True)
@@ -394,6 +312,23 @@ class TerraformCollector:
             return bool(GlobalTypeContext().config.get("use_state_backends", False))
         except Exception:
             return False
+
+    def pull_declared_backends(self, models: Mapping[str, Any]) -> None:
+        """Stage 30: the declared backends come from the state backend
+        models, each answering ``to_backend_registration`` (the contract's
+        ``StateBackendModelProtocol``); the core hands them here once the
+        state backends are loaded and finalized, the point at which every
+        plugin's model used to push its own registration from ``finalize``
+        (which made the plugin import this library). A registration already
+        made under a model's name is kept; a model that answers nothing is
+        skipped."""
+        for name, model in sorted(models.items()):
+            if name in self._backends:
+                continue
+            answer = getattr(model, "to_backend_registration", None)
+            registration = answer() if callable(answer) else None
+            if isinstance(registration, BackendRegistration):
+                self.register_backend(registration)
 
     def resolve_backend(self, name_or_default: str | None) -> BackendRegistration | None:
         if name_or_default in (None, DEFAULT, ""):

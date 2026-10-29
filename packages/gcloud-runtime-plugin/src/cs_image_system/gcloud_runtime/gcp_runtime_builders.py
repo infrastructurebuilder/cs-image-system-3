@@ -8,14 +8,14 @@ from typing import Any
 
 
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
-from cs_image_system.base.basic.asset import AssetSet
+from cs_image_system.contract.assets import AssetSet
 from cs_image_system.base.basic.builder_base_cloud import CloudBuilderBase
-from cs_image_system.base.constants import VCT
-from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.constants import VCT
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
 from cs_image_system.base.models.provider_specific_image import ProviderSpecificImage
 from cs_image_system.base import power_state
-from cs_image_system.base.protocols.plugin_metadata import PluginArtifactProtocol
+from cs_image_system.contract.core import PluginArtifactProtocol
 
 from .gcp_provider_specific_image import GcpProviderSpecificImage
 from .gcp_runtime_models import GCPCloudBuilderModel
@@ -208,13 +208,13 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
     def serial_console(self, instance_name: str) -> str:
         """The instance's serial port 1 output (read-only)."""
         from .gcp_packer_source import gce_name
-        from .gcp_utils import _make_credentials, resolve_project
+        from .gcp_utils import make_credentials, resolve_project
         from google.cloud import compute_v1  # noqa: PLC0415
         cfg = self.model.self_to_gcp_client_config()
         project, zone = resolve_project(cfg), getattr(self.model, "zone", None)
         if not project or not zone:
             raise RuntimeError(f"GCP runtime {self.get_name()}: no project/zone to read a serial console")
-        creds = _make_credentials(cfg)
+        creds = make_credentials(cfg)
         kw = {"credentials": creds} if creds else {}
         out = compute_v1.InstancesClient(**kw).get_serial_port_output(
             project=project, zone=zone, instance=gce_name(instance_name))
@@ -354,12 +354,12 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         93), so the emptiness check counts this configuration's alone."""
         import subprocess  # noqa: PLC0415
         from google.cloud import compute_v1  # noqa: PLC0415
-        from .gcp_utils import _make_credentials, resolve_project
+        from .gcp_utils import make_credentials, resolve_project
         cfg = self.model.self_to_gcp_client_config()
         project, zone = resolve_project(cfg), getattr(self.model, "zone", None)
         if not project or not zone:
             raise RuntimeError(f"GCP runtime {self.get_name()}: no project/zone to inventory")
-        creds = _make_credentials(cfg)
+        creds = make_credentials(cfg)
         kw = {"credentials": creds} if creds else {}
         from cs_image_system.base.lineage import CONFIG_TAG
         owners: dict[str, dict[str, str]] = {"instances": {}, "images": {}, "disks": {}, "buckets": {}}
@@ -440,7 +440,7 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         Read-only; None when the instance, disk, zone or project cannot be
         resolved, so the caller makes no claim."""
         from .gcp_packer_source import gce_name
-        from .gcp_utils import _make_credentials, resolve_project
+        from .gcp_utils import make_credentials, resolve_project
         try:
             from google.cloud import compute_v1  # noqa: PLC0415
             cfg = self.model.self_to_gcp_client_config()
@@ -448,7 +448,7 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
             zone = getattr(self.model, "zone", None)
             if not project or not zone:
                 return None
-            creds = _make_credentials(cfg)
+            creds = make_credentials(cfg)
             kw = {"credentials": creds} if creds else {}
             inst = compute_v1.InstancesClient(**kw).get(project=project, zone=zone,
                                                         instance=gce_name(instance_name))
@@ -486,13 +486,13 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
     def _instances_client(self):
         """(client, project, zone) for instance calls, or None when the
         runtime is not resolvable."""
-        from .gcp_utils import _make_credentials, resolve_project
+        from .gcp_utils import make_credentials, resolve_project
         from google.cloud import compute_v1  # noqa: PLC0415
         cfg = self.model.self_to_gcp_client_config()
         project, zone = resolve_project(cfg), getattr(self.model, "zone", None)
         if not project or not zone:
             return None
-        creds = _make_credentials(cfg)
+        creds = make_credentials(cfg)
         kw = {"credentials": creds} if creds else {}
         return compute_v1.InstancesClient(**kw), str(project), str(zone)
 

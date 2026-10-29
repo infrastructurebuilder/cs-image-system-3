@@ -7,12 +7,15 @@ operator can take.
 
 **Open**
 
-- §30, the plugin contract package: planned, re-measured 2026-10-28 and
-  reshaped 2026-10-29 by the operator's decisions; two branches, Tier C
-  deferred; waits for "do 30".
+- §30, the plugin contract package: in flight since "do 30"
+  (2026-10-29); branch 1 done on its branch, waits for the merge.
+  Standing: the core's re-export shims stay until the operator commits
+  to the contract; a WEEKLY reminder to remove them stands until then,
+  and removing them is done together with moving the package to a
+  repository of its own (DESIGN §3P, "Reversibility").
 - §94, the F44 review: standing; next on or after 2026-11-09.
-- No hygiene bundle is open; the next non-critical issue opens bundle
-  XIX.
+- §102, hygiene bundle XIX: open, two items (found by §30's branch 1);
+  waits for "do 102".
 - No documentation stage is open.
 
 **Release**
@@ -123,9 +126,10 @@ operator can take.
 
 ## 30. The plugin contract is a package of protocols
 
-**Status: planned; re-measured 2026-10-28 against the tree after §101
-and reshaped 2026-10-29 by the operator's decisions below. Waits for
-"do 30".**
+**Status: in flight since "do 30" (2026-10-29). Branch 1,
+`feature/contract-package` (steps 1 to 8 below), is done on its branch
+and waits for the operator's merge; branch 2, the proof plugin, starts
+on the operator's word after that.**
 
 **Why**: a plugin author should be able to write a plugin against ONE
 package, `cs-image-system-contract`, and never import, let alone
@@ -198,7 +202,7 @@ in e74cb59); the three private cross-plugin names (`_groups`,
 declares an `aws-runtime-plugin` pin it never imports. No plugin
 declares `base`; all reach it through `system`. `tf-s3-state-plugin`
 needs 6 core names and three from `hashicorp-utils`, none of them
-context-first: a state backend registers itself by pushing a
+context-first: a state backend registered itself by pushing a
 `BackendRegistration` into the `hashicorp-utils` collector singleton
 from its `finalize`, and the core itself reads only the backend's
 executable. Found on the way: `issubclass(bc, NameTypedProtocol)` in
@@ -238,27 +242,30 @@ days)
    `identified_model` moves to a `base` mixin, and the nine hand copies
    of `_model_id` (seven in `base`, two in the cloud networking models)
    go through it.
-3. Tier B, the behaviour protocols: `PluginArtifact`, `Builder` (the
-   six universal hooks and the three finalize-phase hooks), and one
-   protocol per kind for the domain hooks, recounted from the bases
-   when written, not from this section. `contract.state` also carries
-   the backend seam: `StateLocation` and `BackendRegistration` as data
-   carriers and the kind protocol (`location`, `backend_settings`,
-   `remote_state_settings`); the collector PULLS registrations from
-   the registry's state models (`to_backend_registration()`) instead
-   of a model pushing into the singleton, so the three state plugins
-   and the proof plugin import nothing from `hashicorp-utils`. The
-   protocols carry NO bodies: the `global_id`, `get_classification`,
-   `get_self_injected_name` and `get_subitem_overrides` defaults move
-   to the base classes. `StateManagementRootProtocol` is deleted and
+3. Tier B, the behaviour protocols: `PluginArtifact`, `Builder` (the six
+   universal hooks and the three finalize-phase hooks), and one protocol
+   per kind for the domain hooks, recounted from the bases when written,
+   not from this section. `contract.state` also carries the backend
+   seam: `StateLocation` and `BackendRegistration` as data carriers and
+   the kind protocol (`location`, `backend_settings`,
+   `remote_state_settings`); the core hands every state model's
+   `to_backend_registration()` to the collector once the state backends
+   are loaded (`pull_declared_backends`), instead of a model pushing
+   into the singleton from `finalize`, so the three state plugins and
+   the proof plugin import nothing from `hashicorp-utils`. The protocols
+   carry NO bodies: the `global_id`, `get_classification`,
+   `get_self_injected_name` and `get_subitem_overrides` defaults move to
+   the base classes. `StateManagementRootProtocol` is deleted and
    `state_backends` is typed on the contract's state model protocol.
-4. The base classes implement the protocols nominally, so pyright
-   checks every base against its protocol at definition time;
-   `contract.testing` ships `assert_conforms(cls, protocol)`
-   (signature-level, stricter than `runtime_checkable`'s name-only
-   check) and the core's tests run it over every base class and every
-   built-in plugin's models and builders. `ProviderSpecificImage` and
-   `BuilderBase` conform deliberately.
+4. The base classes implement the protocols nominally (the bar's
+   pyright, in basic mode, resolves the base but does not compare an
+   override's signature with it); `contract.testing` ships
+   `assert_conforms(cls, protocol)` (member by member and parameter by
+   parameter, stricter than `runtime_checkable`'s name-only check; a
+   protocol listed as a base never answers for the class) and the core's
+   tests run it over every base class and every built-in plugin's models
+   and builders. `ProviderSpecificImage` and `BuilderBase` conform
+   deliberately.
 5. Runtime checks stay structural and move to the contract's
    protocols: the loader (`PluginMetadata`), the registry (`NameTyped`,
    `PluginArtifact`), the orchestrator's marker dispatch
@@ -305,17 +312,47 @@ days)
 
 **Deferred, each a stage of its own**: Tier C (`RunContext` with the
 76 members and `MetaState` as its own protocol; the 29 context-first
-functions as methods of it; `bind(ctx)` injection replacing the 20
-constructions and 53 `_get_context()` calls; the four `base.utils`
-helpers that build the context inside); the hooks and bootstrap entry
-points in the contract; the contract's own compatibility version; the
-separate repository and the external proof plugin.
+functions as methods of it; the four `base.utils` helpers that build
+the context inside; the `bind(ctx)` injection replacing the 20
+constructions and 53 `_get_context()` calls ONLY once the contract is
+committed to -- while it is provisional Tier C declares and types the
+protocol and leaves the accessor, so nothing would need reversing); the
+hooks and bootstrap entry points in the contract; the contract's own
+compatibility version; the separate repository and the external proof
+plugin, which come with the removal of the shims.
+
+**Reversibility**: the operator's condition (2026-10-29) is that the
+stage may be undone if it interferes with later work. Each branch is one
+squash bracketed on develop by annotated tags (`s30-1-before`,
+`s30-1-after`; `s30-2-before`, `s30-2-after`); the shims make the undo a
+swap of which side holds the bodies, with no import rewritten; DESIGN
+§3P records the recipe and the contract README the map.
 
 **Acceptance at every branch**: golden byte-identical; bar green;
 pyright at 0 errors; the conformance test green over every base and
 every built-in plugin; the docs tests green; `just full-test` legs
 green. Records: each branch's squash message; this section goes when
 the last branch lands.
+
+## 102. Hygiene bundle XIX
+
+**Status: OPEN 2026-10-29, two items found by §30's branch 1 and left
+for a bundle. Waits for "do 102".**
+
+1. pyright's basic mode does not compare an override's annotations with
+   the protocol's (`reportIncompatibleMethodOverride` is off), so a
+   base class may narrow or widen a contract signature unnoticed
+   (`OsBuilderModel.get_tags` returns `Mapping[str, str]` where the
+   contract says `dict[str, str]`). Enable the check, at least over
+   `packages/contract` and `packages/base`, and fix what it names.
+2. Three okta builder tests (`test_commands_gated_on_credentials` in
+   `test_user_builder_root.py`, `test_user_ro_builder_root.py` and
+   `test_group_ro_builder_root.py`) pass only after an earlier test has
+   built a run context: alone they fail with `GlobalTypeContext must be
+   constructed with its full configuration on first use`, because the
+   root mixin reaches `GlobalTypeContext()` directly. Give them a
+   context of their own, or make the mixin reach it through the
+   builder's `_get_context()` they already stub.
 
 ## 94. A verification starts a machine its operator switched off: KEPT, and reviewed monthly
 

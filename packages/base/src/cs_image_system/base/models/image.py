@@ -12,7 +12,7 @@ from pydantic.dataclasses import dataclass  # stage 23: validation at constructi
 import logging
 from typing import Annotated, Any
 
-from ..helpers.field_helpers import deferred_list_field, fk_field, templated_field
+from ..helpers.field_helpers import deferred_list_field, fk_field, parent_field, templated_field
 from ..registry import Registry
 
 log = logging.getLogger(__name__)
@@ -20,8 +20,7 @@ log = logging.getLogger(__name__)
 from ..constants import DEFAULT, OOPS_DEFAULTS, SELF, VCT
 
 from .builder_model import NameTyped
-from ..protocols.name_typed_protocol import SelfInjectedNameProtocol
-from ..protocols.parent_property_holding_protocol import ParentPropertyHoldingProtocol
+from .mixins import ParentPropertyHolding, SelfInjectedName
 from .root_item import RootItem #, SubRootItem
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -30,7 +29,7 @@ if TYPE_CHECKING:
     from .image_builder_model import ImageBuilderModel
 
 @dataclass(config=CSIS_MODEL_CONFIG)
-class ImageImageBuilderSubconfig(NameTyped, ParentPropertyHoldingProtocol):
+class ImageImageBuilderSubconfig(NameTyped, ParentPropertyHolding):
     """Configuration for a specific runtime for an image."""
     # type is (effectively) ignored for this object
     #. self.runtime serves as the 'type' for ImageRuntimeSubconfig
@@ -62,11 +61,7 @@ class ImageImageBuilderSubconfig(NameTyped, ParentPropertyHoldingProtocol):
                     "description": "The machine type to use for this runtime.",
     })
 
-    _model_id: str | None = fk_field(target = VCT.IMAGE_BUILDER_MODEL,
-                                     also_set_on_update= "model_id",
-                                     init=False, default=None, metadata={
-        "description": "The name of the model this property holding object is associated with",
-    })
+    _model_id: str | None = parent_field(VCT.IMAGE_BUILDER_MODEL, also_set_on_update="model_id", description="The name of the model this property holding object is associated with")
     tags: dict[str, str] = field(default_factory=dict)
 
     owners: list[str] = field(default_factory=list)
@@ -177,7 +172,7 @@ class ImageImageBuilderSubconfig(NameTyped, ParentPropertyHoldingProtocol):
         return _tags
 
 @dataclass(config=CSIS_MODEL_CONFIG)
-class Image(RootItem,SelfInjectedNameProtocol):
+class Image(RootItem, SelfInjectedName):
     """An image with its metadata."""
     type_: Annotated[str, Field(alias="type")] = fk_field(target = VCT.IMAGE_BUILDER_MODEL,
                          default=DEFAULT,

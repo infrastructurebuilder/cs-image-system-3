@@ -12,9 +12,10 @@ from .builder_base_runtime import RuntimeBuilderBase
 from ..constants import VCT
 
 from .builder_base import BuilderBase
+from cs_image_system.contract.instance import InstanceBuilderProtocol
 TINSTANCE = TypeVar("TINSTANCE", bound=InstanceBuilderModel)
 
-class InstanceBuilderBase(BuilderBase[TINSTANCE]):
+class InstanceBuilderBase(BuilderBase[TINSTANCE], InstanceBuilderProtocol):
     @classmethod
     def csis_classifier(cls) -> VCT:
         return VCT.INSTANCE_BUILDER

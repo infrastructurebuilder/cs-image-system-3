@@ -16,7 +16,7 @@ from cs_image_system.base.models.provider_specific_image import (
     PSIState,
     psi_key,
 )
-from cs_image_system.base.protocols.name_typed_protocol import NameTypedProtocol
+from cs_image_system.contract.core import NameTypedProtocol
 
 
 def make_resolved(**overrides: Any) -> ProviderSpecificImage:

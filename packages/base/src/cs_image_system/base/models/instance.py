@@ -12,8 +12,8 @@ from .model_config import CSIS_MODEL_CONFIG
 from pydantic import Field, model_validator
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 
-from ..helpers.field_helpers import deferred_list_field, fk_field
-from ..protocols.name_typed_protocol import SelfInjectedNameProtocol, SubItemOverrideProtocol
+from ..helpers.field_helpers import deferred_list_field, fk_field, parent_field
+from .mixins import SelfInjectedName, SubItemOverride
 
 STORAGE_MAPPING = "storage_mapping"
 from ..constants import DEFAULT, VCT
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
-class StorageMapping(SubRootItem, SelfInjectedNameProtocol):
+class StorageMapping(SubRootItem, SelfInjectedName):
     """An instance's attachment of one named storage (N16: attachment is
     per instance). ``name`` is the systemwide-unique storage name; the group
     that governs access is the instance IMAGE's owning group, never declared
@@ -35,11 +35,7 @@ class StorageMapping(SubRootItem, SelfInjectedNameProtocol):
     mount_point: str = "/mnt/storage"
     min_size: int = 100 # minumum size (will expand to size in actual storage moel if less)
 
-    _model_id: str | None = fk_field(target = VCT.STORAGE_BUILDER_MODEL,
-                                     init=False,
-                                     default=None, metadata={
-                                      "description": "The name of the model this property holding object is associated with",
-    })
+    _model_id: str | None = parent_field(VCT.STORAGE_BUILDER_MODEL, description="The name of the model this property holding object is associated with")
 
     @classmethod
     def csis_name(cls) -> str:
@@ -87,7 +83,7 @@ class StorageMapping(SubRootItem, SelfInjectedNameProtocol):
 
 
 @dataclass(config=CSIS_MODEL_CONFIG)
-class Instance(RootItem, SubItemOverrideProtocol, SelfInjectedNameProtocol):
+class Instance(RootItem, SubItemOverride, SelfInjectedName):
     """Represents a container instance with metadata and configuration.
 
     Parameters

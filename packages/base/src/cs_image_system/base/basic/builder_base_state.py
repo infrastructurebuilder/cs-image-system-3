@@ -9,10 +9,11 @@ from ..models.state_builder import StateBuilderModel
 from ..constants import VCT
 
 from .builder_base import BuilderBase
+from cs_image_system.contract.state import StateBuilderProtocol
 
 
 TSTATE = TypeVar("TSTATE", bound=StateBuilderModel)
-class StateBuilderBase(BuilderBase[TSTATE]):
+class StateBuilderBase(BuilderBase[TSTATE], StateBuilderProtocol):
     @classmethod
     def csis_classifier(cls) -> VCT:
         return VCT.STATE_BACKEND

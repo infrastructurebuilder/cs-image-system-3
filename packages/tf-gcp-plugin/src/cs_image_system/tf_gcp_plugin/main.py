@@ -5,7 +5,6 @@
 import logging
 
 from cs_image_system.base.basic.abstract_plugin_metadata import AbstractPluginMetadata
-from cs_image_system.base.protocols.plugin_metadata import PluginMetadataProtocol
 
 from .tf_gce_instance_builder import TofuGceInstanceBuilder
 from .tf_gcp_models import (
@@ -20,7 +19,7 @@ from .tf_gcp_storage_builder import (
 log = logging.getLogger(__name__)
 
 
-class TFGcpTypes(AbstractPluginMetadata, PluginMetadataProtocol):
+class TFGcpTypes(AbstractPluginMetadata):
     """GCE instance AND GCP storage builders (GCP increment 3)."""
 
     def __init__(self) -> None:

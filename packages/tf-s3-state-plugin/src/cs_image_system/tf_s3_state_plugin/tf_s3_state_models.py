@@ -6,12 +6,12 @@ from dataclasses import field, fields
 from typing import Any, Mapping
 
 from pydantic import model_validator
-from cs_image_system.base.models.model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 
-from cs_image_system.base.constants import VCT
+from cs_image_system.contract.constants import VCT
 from cs_image_system.base.models.state_builder import StateBuilderModel
-from cs_image_system.hashicorp_utils.collector import BackendRegistration, StateLocation, TerraformCollector
+from cs_image_system.contract.state import BackendRegistration, StateLocation
 
 
 TF_AWS_S3_STATE: str = "s3"
@@ -241,12 +241,3 @@ class TofuS3StateBuilderModel(StateBuilderModel):
     def get_state_file_path(self, builder_name: str) -> str:
         return self.to_backend_registration().state_file_path(builder_name)
 
-    def finalize(self) -> None:
-        if self._finalized:
-            return
-        super().finalize()
-        # Make this backend available run-wide: consumers (instance/storage/
-        # okta workspaces) resolve it from the collector by name or as the
-        # default. Model finalize happens at config load, before any
-        # generation phase, so every consumer sees the registration.
-        TerraformCollector().register_backend(self.to_backend_registration())

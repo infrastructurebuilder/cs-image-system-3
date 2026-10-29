@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from .model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.storage import StorageBuilderModelProtocol
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 
 from ..constants import VCT
@@ -11,7 +12,7 @@ from .storage import Storage
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
-class StorageBuilderModel(RuntimeEnabledBuilderModel):
+class StorageBuilderModel(RuntimeEnabledBuilderModel, StorageBuilderModelProtocol):
     """Storage builder configuration data object."""
     @classmethod
     def csis_classifier(cls) -> VCT:

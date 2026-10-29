@@ -285,15 +285,18 @@ classification (`GroupBuilderModel`, `UserBuilderModel`,
 `builders_for_models`, and declare the entry point under the
 `cs_image_system.plugins.<kind>` group for the builder kind (`runtime`,
 `state`, `modification`, `storage`, `group`, `user`, `image`, `os`,
-`instance`, `other`; the list is `PLUGIN_TYPES` in
-[constants.py](../base/src/cs_image_system/base/constants.py)). Return an
+`instance`, `other`; the list is `PLUGIN_TYPES` in the contract's
+[constants.py](../contract/src/cs_image_system/contract/constants.py)). Return an
 `AssetSet` from every `generate_items_*` hook, not a list. To write a
 hook plugin: return a `HookSet` from an entry point in the
 `cs_image_system.plugins.hooks` group. Registration is validated: a
 lifecycle cannot reuse a built-in name, its `after` anchor must exist, and
 registering the same name twice with a different definition is an error.
-A second worked example lives under
-[docs/example-plugin/plugin-b](../../docs/example-plugin/plugin-b).
+What a model and a builder must satisfy, kind by kind, and how a plugin
+that subclasses nothing of the core is written, is the
+[contract's README](../contract/README.md) (stage 30); the
+[local state plugin](../local-state-plugin/README.md) is the smallest
+built-in example.
 
 ## Prerequisites and integration
 

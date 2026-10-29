@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 
 from ..models.image import Image
 from ..models.image_builder_model import ImageBuilderModel
+from cs_image_system.contract.image import ImageBuilderProtocol
 from ..models.base_image import BaseImage
 if TYPE_CHECKING:
     from .builder_base_os import OsBuilderBase
@@ -27,7 +28,7 @@ from ..lifecycle import ExecutionLifecyclePhase
 from .builder_base import BuilderBase
 
 TIMAGE = TypeVar("TIMAGE", bound=ImageBuilderModel)
-class ImageBuilderBase(BuilderBase[TIMAGE]):
+class ImageBuilderBase(BuilderBase[TIMAGE], ImageBuilderProtocol):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Per-instance: class-level lists would be shared by every image

@@ -26,14 +26,14 @@ import shlex
 from typing import Any, TypeVar, cast
 
 from cs_image_system.base import utils
-from cs_image_system.base.constants import OOPS_DEFAULTS
-from cs_image_system.base.basic.asset import AssetSet
+from cs_image_system.contract.constants import OOPS_DEFAULTS
+from cs_image_system.contract.assets import AssetSet
 from cs_image_system.base.basic.builder_base_storage import CARDINALITY_MANY, CARDINALITY_SINGLE
-from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.executable import ExecutableModel
 from cs_image_system.base.models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED, STORAGE_STATE_DESTROYED, Storage
 from cs_image_system.hashicorp_utils.collector import TerraformCollector
-from cs_image_system.tf_ebs_instance_plugin.tf_storage_builder import TofuStorageBuilder, _groups, _public_read
+from cs_image_system.tf_ebs_instance_plugin.tf_storage_builder import TofuStorageBuilder, storage_groups, storage_public_read
 
 from .tf_gcp_models import (
     TF_GCP, TF_GCP_FILESTORE, TF_GCP_GCS, TF_GCP_PD,
@@ -143,7 +143,7 @@ class TofuGcpStorageBuilder(TofuStorageBuilder[Q]):
         get_ctx: Any = getattr(self, "_get_context", None)      # a stand-in without a context gets no id
         if callable(get_ctx):
             labels.update(config_tags(cast(Any, get_ctx())))   # stage 93: the disk, bucket, share carry the id
-        for g in sorted(_groups(storage)):
+        for g in sorted(storage_groups(storage)):
             labels[f"csis_group_{gce_label(g)}"] = "true"
         return labels
 
@@ -189,14 +189,14 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
     def retag_storage(self, storage: Storage, tags: dict[str, str]) -> bool:
         from google.cloud import compute_v1  # noqa: PLC0415
         from cs_image_system.gcloud_runtime.gcp_packer_source import gce_label
-        from cs_image_system.gcloud_runtime.gcp_utils import _make_credentials, resolve_project
+        from cs_image_system.gcloud_runtime.gcp_utils import make_credentials, resolve_project
         rtb = self._runtime()
         to_cfg: Any = getattr(getattr(rtb, "model", None), "self_to_gcp_client_config", None)
         cfg: dict[str, Any] = cast(dict[str, Any], to_cfg()) if callable(to_cfg) else {}
         project, zone = resolve_project(cfg), self._disk_zone(storage)
         if not project or not zone:
             raise RuntimeError("no project/zone to retag in")
-        creds = _make_credentials(cfg)
+        creds = make_credentials(cfg)
         client = compute_v1.DisksClient(credentials=creds) if creds else compute_v1.DisksClient()
         name = self._gce_resource_name(storage.get_name())
         try:
@@ -302,14 +302,14 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
 
     def _lookup(self, storage: Storage) -> dict[str, Any] | None:
         from google.cloud import compute_v1  # noqa: PLC0415
-        from cs_image_system.gcloud_runtime.gcp_utils import _make_credentials, resolve_project
+        from cs_image_system.gcloud_runtime.gcp_utils import make_credentials, resolve_project
         rtb = self._runtime()
         to_cfg: Any = getattr(getattr(rtb, "model", None), "self_to_gcp_client_config", None)
         cfg: dict[str, Any] = cast(dict[str, Any], to_cfg()) if callable(to_cfg) else {}
         project, zone = resolve_project(cfg), self._disk_zone(storage)
         if not project or not zone:
             raise RuntimeError("no project/zone to query")
-        creds = _make_credentials(cfg)
+        creds = make_credentials(cfg)
         client = compute_v1.DisksClient(credentials=creds) if creds else compute_v1.DisksClient()
         if self._get_context().meta_state.storage_state(storage.get_name()) == STORAGE_STATE_ARCHIVED:
             # archived (stage 11.6): the disk is expected absent; the archive
@@ -392,12 +392,12 @@ class TofuFilestoreStorageBuilder(TofuGcpStorageBuilder[S]):
         network = getattr(networking, "network", None) if networking else None
         if network and network not in OOPS_DEFAULTS:
             args["network"] = network
-        if _groups(storage):
+        if storage_groups(storage):
             # No access points on Filestore: the per-group subtree is created
             # and chgrp'ed (gid by reference) at first mount by the launch
             # parameters; the module only records the intent as labels.
-            args["group_subtrees"] = sorted(_groups(storage))
-        if _public_read(storage):
+            args["group_subtrees"] = sorted(storage_groups(storage))
+        if storage_public_read(storage):
             args["public_read"] = True
         return args
 
@@ -485,9 +485,9 @@ class TofuGcsStorageBuilder(TofuGcpStorageBuilder[G]):
         location = getattr(self.model, "location", None) or (getattr(rtb.model, "region", None) if rtb else None)
         if location:
             args["location"] = str(location)
-        if _groups(storage):
-            args["group_prefixes"] = sorted(_groups(storage))
-        if _public_read(storage):
+        if storage_groups(storage):
+            args["group_prefixes"] = sorted(storage_groups(storage))
+        if storage_public_read(storage):
             args["public_read"] = True
         return args
 

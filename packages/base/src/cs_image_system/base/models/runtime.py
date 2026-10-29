@@ -16,6 +16,7 @@ from ..constants import DEFAULT
 from dataclasses import field
 from .credentials import CredentialsBase
 from .model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.runtime import RuntimeBuilderModelProtocol
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 
 
@@ -108,7 +109,7 @@ class RuntimeNetworkingModel:
         return None
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
-class RuntimeBuilderModel(BuilderModel):
+class RuntimeBuilderModel(BuilderModel, RuntimeBuilderModelProtocol):
     """Runtime provider configuration data object."""
     default_machine_type: str # reqired field
     # stage 22.1: this was `init=False`, so cattrs never structured it and the

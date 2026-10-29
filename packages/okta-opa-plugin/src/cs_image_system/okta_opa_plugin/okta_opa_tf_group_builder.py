@@ -10,10 +10,10 @@ from pathlib import Path
 from typing import Any
 
 from cs_image_system.base import utils
-from cs_image_system.base.basic.asset import AssetSet
+from cs_image_system.contract.assets import AssetSet
 from cs_image_system.base.basic.builder_base_group import GID_POLICY_CREATION_ONLY, GroupBuilderBase
-from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
-from cs_image_system.base.models.executable_adds import CFExecutables
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.executables import CFExecutables
 from cs_image_system.base.models.group import Group
 from cs_image_system.hashicorp_utils.blocks import BlockSpec, DataSpec, OutputSpec, Raw, render_blocks
 from cs_image_system.hashicorp_utils.collector import TerraformCollector
@@ -24,7 +24,7 @@ from .okta_tf_models import OKTATF
 from .opa_attributes import OPA_GROUP_ATTRIBUTES, validate_opa_attributes
 from . import sft_login
 from .sftd_launch import SFTD_TOKEN   # importing it registers the kind's launch steps (stage 75)
-from cs_image_system.base.constants import NONE
+from cs_image_system.contract.constants import NONE
 
 #: the identity type a `posix:` delegate must be (the posix identity plugin's;
 #: named, never imported -- no plugin imports another)

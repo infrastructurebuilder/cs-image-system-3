@@ -18,7 +18,7 @@ from typing import Any
 import hcl2
 from hcl2 import Builder
 
-from cs_image_system.base.constants import OOPS_DEFAULTS
+from cs_image_system.contract.constants import OOPS_DEFAULTS
 from cs_image_system.hashicorp_utils.hashicorp import FO
 
 from .aws_runtime_models import AwsCloudBuilderModel, AwsCloudNetworkingModel

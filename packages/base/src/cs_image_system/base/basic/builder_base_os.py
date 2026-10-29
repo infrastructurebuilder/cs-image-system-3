@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 from ..constants import DEFAULT, OOPS_DEFAULTS, SELF, VCT
 from .asset import AssetSet
 from .builder_base import BuilderBase
+from cs_image_system.contract.operating_system import OsBuilderProtocol
 from .builder_base_image import build_target_label_of
 
 OSRTC = TypeVar("OSRTC", bound=OSBuilderBaseImageBuilderSubconfig)
@@ -37,7 +38,7 @@ class OsRuntimeConfigBuilderBase(BuilderBase[OSRTC]):  # type: ignore[type-var]
         return VCT.OS_IMAGE_BUILDER_SUBCONFIG
 
 TOS = TypeVar("TOS", bound=OsBuilderModel)
-class OsBuilderBase(BuilderBase[TOS]):
+class OsBuilderBase(BuilderBase[TOS], OsBuilderProtocol):
     # family: str
     # family_version: str
     # output_image_name: str

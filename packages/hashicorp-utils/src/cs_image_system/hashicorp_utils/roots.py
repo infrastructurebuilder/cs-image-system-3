@@ -20,7 +20,7 @@ from .collector import TerraformCollector
 
 if TYPE_CHECKING:
     from cs_image_system.base.basic.builder_base import BuilderBase
-    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     from cs_image_system.base.models.executable import ExecutableModel
 
     _Base = BuilderBase[Any]
@@ -62,7 +62,7 @@ class TerraformRootMixin(_Base):
         rung of the chain a root's backend resolves through: the root's own
         value when it names a backend, else its runtime's, else the default.
         None for a root without a runtime (the identity roots) or outside a run."""
-        from cs_image_system.base.constants import STATE_BACKEND_FIELD
+        from cs_image_system.contract.constants import STATE_BACKEND_FIELD
         model = getattr(self, "model", None)
         get_runtime = getattr(model, "get_runtime_provider", None)
         try:

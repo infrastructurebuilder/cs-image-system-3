@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from .model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.runtime import CloudBuilderModelProtocol
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 
 
@@ -16,7 +17,7 @@ class CloudNetworkingConfig(RuntimeNetworkingModel):
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
-class CloudBuilderModel(RuntimeBuilderModel):
+class CloudBuilderModel(RuntimeBuilderModel, CloudBuilderModelProtocol):
     """
     Cloud provider configuration data object.
     """

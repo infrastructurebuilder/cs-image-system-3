@@ -482,7 +482,7 @@ the GCP classes need on top of that, and how each is found.
 `cs-image-system-tf-ebs-instance-plugin` (the base classes and the
 `TofuVersionChecker`), `cs-image-system-gcloud-runtime-plugin` (the
 runtime model, `gce_name`, `gce_label`, `resolve_project`,
-`_make_credentials`), `cs-image-system-hashicorp-utils` (the collector
+`make_credentials`), `cs-image-system-hashicorp-utils` (the collector
 that renders the terraform, provider, variable, backend and remote-state
 blocks) and `google-cloud-compute>=1.49`. The compute client is imported
 lazily, inside `TofuPdStorageBuilder._lookup`, so it is needed only by
@@ -529,7 +529,7 @@ credentials. All three therefore read ADC from the environment:
 an impersonated login, `gcloud auth application-default login
 --impersonate-service-account=csis-runner@<project>.iam.gserviceaccount.com`
 ([OPERATIONS.md](../../docs/OPERATIONS.md), "What each step needs").
-`_make_credentials()` does have a branch that reads
+`make_credentials()` does have a branch that reads
 `credentials.service_account_key_file` from the runtime, but the `gcloud`
 runtime's `credentials:` is the empty base
 ([credentials.py](../base/src/cs_image_system/base/models/credentials.py)):
@@ -1126,7 +1126,7 @@ Failures the code raises that have not happened live:
   and [gcp_packer_source.py](../gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/gcp_packer_source.py):
   the runtime model this plugin reads and the `gce_name`/`gce_label` rules;
   [gcp_utils.py](../gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/gcp_utils.py)
-  for `resolve_project` and `_make_credentials`;
+  for `resolve_project` and `make_credentials`;
   [gcp_runtime_builders.py](../gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/gcp_runtime_builders.py)
   for `session_mechanism`, `verify_instance` and `query_instance_boot_image`.
 - [base launch_params.py](../base/src/cs_image_system/base/launch_params.py):

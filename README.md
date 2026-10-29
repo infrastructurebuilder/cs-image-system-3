@@ -53,7 +53,8 @@ run and applied by the operator. The manual describes each.
 
 ## Layout
 
-`packages/` holds the uv workspace: `base` (models, lifecycles, state),
+`packages/` holds the uv workspace: `contract` (the plugin contract, what a
+plugin is written against), `base` (models, lifecycles, state),
 `system` (the CLI), `hashicorp-utils` (the terraform library) and one
 package per plugin (AWS and GCE runtimes, packer, ansible and bash
 modifications, Okta identity, terraform storage and instance builders, the

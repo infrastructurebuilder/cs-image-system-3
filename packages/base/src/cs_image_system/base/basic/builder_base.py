@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Generic, TypeVar
 import logging
 log = logging.getLogger(__name__)
 from ..constants import NO_MODEL_ID, UNSET_MODEL_ID, VCT
+from cs_image_system.contract.core import BuilderProtocol
 
 from ..models.builder_model import BuilderModel
 
@@ -26,8 +27,10 @@ from ..models.executable_adds import CFExecutables
 
 C = TypeVar("C", bound=BuilderModel)
 # class BuilderBase(ABC, Generic[C, ItemT]):
-class BuilderBase(ABC, Generic[C]):
-    """Abstract base class for image builders."""
+class BuilderBase(ABC, BuilderProtocol, Generic[C]):
+    """Abstract base class for builders: the core's implementation of the
+    contract's ``BuilderProtocol`` (stage 30; a kind base adds its kind's
+    protocol), with a default for every hook."""
 
     def __init__(self, model: C) -> None:
         """Initialize the image builder with the given configuration.
@@ -62,9 +65,17 @@ class BuilderBase(ABC, Generic[C]):
     def get_aliases(self) -> set[str]:
         return self.model.get_aliases()
     def get_classification(self) -> VCT:
-        return self.csis_classifier() # type: ignore
-    # The following members were previously inherited from the (removed)
-    # NameTypedProtocol/RootItemProtocol/BuilderProtocol default bodies.
+        return self.csis_classifier()
+    @classmethod
+    def csis_name(cls) -> str:
+        """The type key the builder answers to, the same as its model's: a
+        concrete builder defines it; the bases name no type of their own."""
+        raise NotImplementedError(f"{cls.__name__} names no type: a concrete builder defines csis_name()")
+    @classmethod
+    def csis_classifier(cls) -> VCT:
+        """The classification the builder registers under: a kind's base
+        defines it (``VCT.<KIND>_BUILDER``); this base has none."""
+        raise NotImplementedError(f"{cls.__name__} has no classification: a kind's base defines csis_classifier()")
     # global_id is load-bearing: register_built_instance() gates on the
     # runtime-checkable NameTypedProtocol, which requires it, and
     # OsBuilderBase.__post_init__ assigns it to subconfig model_ids.

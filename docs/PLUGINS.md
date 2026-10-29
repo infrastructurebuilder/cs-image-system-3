@@ -1,11 +1,11 @@
 # The packages
 
-The uv workspace is seventeen packages under `packages/`. Each has its own
+The uv workspace is eighteen packages under `packages/`. Each has its own
 README that describes it on its own terms: what it registers, its models
 and how they extend the base models, its builder's hooks, what it emits,
 and one example configuration. The core and the CLI are packages too.
 
-The workspace root is the seventeenth, `cs-image-system`: no sources of its
+The workspace root is the nineteenth project, `cs-image-system`: no sources of its
 own, a `==` pin on every package, so one install is the whole system
 (`uv pip install cs-image-system==<version>`; see "Installing a release"
 in [OPERATIONS.md](OPERATIONS.md)). Every package declares exactly the
@@ -16,9 +16,10 @@ own version; `tests/test_v2_package_metadata.py` holds it to that.
 
 | Package | What it is |
 | --- | --- |
-| [base](../packages/base/README.md) | The core: the base models, the plugin contract and registry, the lifecycles and phases, the run context, meta-state, encryption, the public-safe gate, lineage, releases, retention, launch parameters. Every plugin depends on it. |
+| [contract](../packages/contract/README.md) | The plugin contract (stage 30): the protocols a model and a builder satisfy, the constants and field helpers a model is declared with, the lifecycle phases a hook keys on, the data carriers a hook returns. Depends on nothing of the system; `base` depends on it. A plugin is written against this package. |
+| [base](../packages/base/README.md) | The core: the base models and builder bases that implement the contract, the registry and the plugin loader, the lifecycles and phases, the run context, meta-state, encryption, the public-safe gate, lineage, releases, retention, launch parameters. Every built-in plugin depends on it; an external one need not. |
 | [system](../packages/system/README.md) | The CLI host: the `cs-image-system` command and every subcommand. |
-| [hashicorp-utils](../packages/hashicorp-utils/README.md) | A library, not a plugin: the terraform collector (providers, plugins, backends, sensitive values by reference), the terraform root mixin (init, the gated plan → gate → apply sequence), HCL rendering. Five plugins use it. |
+| [hashicorp-utils](../packages/hashicorp-utils/README.md) | A library, not a plugin: the terraform collector (providers, plugins, backends, sensitive values by reference), the terraform root mixin (init, the gated plan → gate → apply sequence), HCL rendering. Six plugins use it. |
 
 ## The plugins
 

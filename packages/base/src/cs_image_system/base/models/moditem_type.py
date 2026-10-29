@@ -8,7 +8,7 @@ from pydantic import Field
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from pathlib import Path
 
-from ..helpers.field_helpers import fk_field
+from ..helpers.field_helpers import fk_field, parent_field
 from ..constants import DEFAULT, VCT
 from .root_item import  SubRootItem
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
@@ -19,12 +19,7 @@ class ModItemModel(SubRootItem):
                             "description": "The Modbuilder this item uses",
                             "required": True,
                             })
-    _model_id: str | None = fk_field(target = VCT.OS_BUILDER_MODEL,
-                                     init=False, 
-                                     default=None,
-                                     metadata={
-                                        "description": "Associatd OS Builder",
-                                        "required": True,})
+    _model_id: str | None = parent_field(VCT.OS_BUILDER_MODEL, description="Associatd OS Builder", metadata={"required": True})
     def __post_init__(self) -> None:
         return super().__post_init__()
 

@@ -14,20 +14,19 @@ log = logging.getLogger(__name__)
 from typing import Annotated, Any
 from ..constants import DEFAULT, SELF,  VCT
 
-from ..helpers.field_helpers import fk_field, templated_field
+from ..helpers.field_helpers import fk_field, parent_field, templated_field
 from ..registry import Registry
 from .builder_model import NameTyped
 from .root_item import RootItem
 
-from ..protocols.name_typed_protocol import SelfInjectedNameProtocol
-from ..protocols.parent_property_holding_protocol import ParentPropertyHoldingProtocol
+from .mixins import ParentPropertyHolding, SelfInjectedName
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ..basic.builder_base_image import ImageBuilderBase
     from ..basic.builder_base_os import OsBuilderBase
 
 @dataclass(config=CSIS_MODEL_CONFIG)
-class BaseImageImageBuilderSubconfig(NameTyped, ParentPropertyHoldingProtocol):
+class BaseImageImageBuilderSubconfig(NameTyped, ParentPropertyHolding):
     """Configuration for a specific runtime for an image."""
     # type is (effectively) ignored for this object
     #. self.runtime serves as the 'type' for ImageRuntimeSubconfig
@@ -60,11 +59,7 @@ class BaseImageImageBuilderSubconfig(NameTyped, ParentPropertyHoldingProtocol):
                     "description": "The machine type to use for this runtime.",
     })
 
-    _model_id: str | None = fk_field(target = VCT.IMAGE_BUILDER_MODEL,
-                                     also_set_on_update= "model_id",
-                                     init=False, default=None, metadata={
-        "description": "The name of the model this property holding object is associated with",
-    })
+    _model_id: str | None = parent_field(VCT.IMAGE_BUILDER_MODEL, also_set_on_update="model_id", description="The name of the model this property holding object is associated with")
     tags: dict[str, str] = field(default_factory=dict)
 
     owners: list[str] = field(default_factory=list)
@@ -155,7 +150,7 @@ class BaseImageImageBuilderSubconfig(NameTyped, ParentPropertyHoldingProtocol):
         return _tags
 
 @dataclass(config=CSIS_MODEL_CONFIG)
-class BaseImage(RootItem,SelfInjectedNameProtocol):
+class BaseImage(RootItem, SelfInjectedName):
     """An image with its metadata."""
     type_: Annotated[str, Field(alias="type")] = fk_field(target = VCT.IMAGE_BUILDER_MODEL,
                          default=DEFAULT,

@@ -12,9 +12,9 @@ so read-only instances declare okta/okta in required_providers.
 import logging
 from typing import Any
 
-from cs_image_system.base.basic.asset import AssetSet
-from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
-from cs_image_system.base.models.executable_adds import CFExecutables
+from cs_image_system.contract.assets import AssetSet
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.executables import CFExecutables
 from cs_image_system.base.models.group import Group
 from cs_image_system.hashicorp_utils.collector import TerraformCollector
 
