@@ -1521,12 +1521,35 @@ def cleanup_command(ctx: typer.Context) -> None:
     _retired("cleanup")
 
 
+def _version_callback(value: bool) -> None:
+    """``--version`` (hygiene XVIII item 1): the installed release, then exit.
+
+    Eager, so it answers before the callback below runs and nothing loads: a
+    starter's ``just init`` asks it for the line ``init: cs-image-system
+    <version> ready against <root>``, and until 0.1.3 the option did not exist
+    and the line gave the bare name.
+    """
+    if not value:
+        return
+    from importlib.metadata import PackageNotFoundError, version
+    try:
+        found = version("cs-image-system")
+    except PackageNotFoundError:                      # the source tree, not installed as a distribution
+        found = "unknown"
+    typer.echo(f"cs-image-system {found}")
+    raise typer.Exit()
+
+
 @app.callback(invoke_without_command=False)
 def main(
     typer_cntx: typer.Context,
     root_dir: Path | None = typer.Option(
         None, "--root-dir", help="Location of root "
     ),
+    show_version: Annotated[bool, typer.Option(
+        "--version", callback=_version_callback, is_eager=True,
+        help="Print the installed release (the cs-image-system distribution's version) and exit; "
+             "nothing loads.")] = False,
     verbose: Annotated[bool, typer.Option(help="Enable verbose output.")] = False,
     locked: Annotated[bool, typer.Option("--locked",
         help="Hold the tofu lock for the whole command: one tofu process at a time on a machine "

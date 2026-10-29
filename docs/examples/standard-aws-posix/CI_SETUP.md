@@ -51,9 +51,11 @@ further from you.
    --extra-index-url https://pypi.org/simple/ --index-strategy
    unsafe-first-match`, so only the pinned `.dev` packages come from
    TestPyPI and everything else from PyPI).
-2. `just init`: the public-safe hook, the plugin cache, a check that the
-   command runs, and a line saying which command a run's callbacks will
-   find. A run's own steps and the runner scripts call the command back
+2. `just init`: the public-safe hook, the plugin cache, a line naming the
+   release it found (`init: cs-image-system <version> ready against
+   <root>`; a release of 0.1.3 or before has no `--version`, and the line
+   gives the bare name), and a line saying which command a run's
+   callbacks will find. A run's own steps and the runner scripts call the command back
    by its bare name, so it must be on `PATH`: a release installed with
    `uv tool install` is; `CSIS="uv run cs-image-system"` puts its venv on
    the child's `PATH`; a `CSIS` that names a path (a development checkout)
