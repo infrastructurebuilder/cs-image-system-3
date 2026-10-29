@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-contract"
-version = "0.1.3"
+version = "0.1.4"
 description = "The plugin contract of cs-image-system: the protocols, constants and data carriers a plugin is written against, with no dependency on the core"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]

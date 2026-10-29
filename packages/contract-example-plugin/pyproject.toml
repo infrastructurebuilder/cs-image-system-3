@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-contract-example-plugin"
-version = "0.1.3"
+version = "0.1.4"
 description = "The proof of the plugin contract: the inmem state backend, a plugin written against cs-image-system-contract alone, with nothing from the core"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
@@ -16,7 +16,7 @@ requires-python = ">=3.13"
 # .hashicorp_utils; the workspace pins the contract at == because the
 # packages release together, an external plugin would pin a floor.
 dependencies = [
-    "cs-image-system-contract==0.1.3",
+    "cs-image-system-contract==0.1.4",
     "pydantic>=2.13",
 ]
 
