@@ -77,7 +77,10 @@ class User(RootItem, SelfInjectedName, ParentPropertyHolding):
     honorific_prefix: str | None = None
     honorific_suffix: str | None = None
     title: str | None = None
-    display_name: str | None = None
+    # an Okta profile attribute, written by the user's YAML; it shadows the base
+    # models' display property (the human-entered name) on purpose, and
+    # get_display_name below keeps the base meaning (hygiene XIX item 1)
+    display_name: str | None = None  # pyright: ignore[reportIncompatibleMethodOverride]
     nick_name: str | None = None
     profile_url: str | None = None
     second_email: str | None = None
@@ -134,6 +137,11 @@ class User(RootItem, SelfInjectedName, ParentPropertyHolding):
                     f"User {self.name!r} requires a non-blank {f_name} "
                     f"(got {val!r}); names are never derived from the user name."
                 )
+
+    def get_display_name(self) -> str:
+        """The human-entered name, as on every model (the base property this
+        class's Okta ``display_name`` attribute shadows)."""
+        return getattr(self, "_display_name", None) or self.name
 
     @classmethod
     def csis_name(cls) -> str:

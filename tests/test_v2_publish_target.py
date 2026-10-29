@@ -11,6 +11,8 @@ listening; an unknown target; which projects hold a version; the wait form.
 """
 from __future__ import annotations
 
+from typing import Any
+
 import importlib.machinery
 import importlib.util
 import json
@@ -46,7 +48,7 @@ class Index:
         index = self
 
         class H(BaseHTTPRequestHandler):
-            def log_message(self, *a):
+            def log_message(self, format: str, *args: Any) -> None:
                 pass
 
             def do_GET(self):

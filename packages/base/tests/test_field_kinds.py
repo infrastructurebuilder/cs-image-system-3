@@ -37,16 +37,16 @@ def test_custom_field_kind_dispatched_through_all_hooks(clean_registry):
     calls = []
 
     class ShoutHandler(field_kinds.FieldKindHandler):
-        def contribute_context(self, ctx, obj, f, reg):
-            calls.append(("context", f.name))
-        def upgrade(self, resolver, obj, f, reg):
-            calls.append(("upgrade", f.name))
+        def contribute_context(self, ctx, obj, field, reg):
+            calls.append(("context", field.name))
+        def upgrade(self, resolver, obj, field, reg):
+            calls.append(("upgrade", field.name))
             return obj
-        def resolve(self, resolver, obj, f, context, reg):
-            calls.append(("resolve", f.name))
-            val = getattr(obj, f.name)
+        def resolve(self, resolver, obj, field, context, reg):
+            calls.append(("resolve", field.name))
+            val = getattr(obj, field.name)
             if isinstance(val, str) and val.islower():
-                setattr(obj, f.name, val.upper())
+                setattr(obj, field.name, val.upper())
                 return True
             return False
 

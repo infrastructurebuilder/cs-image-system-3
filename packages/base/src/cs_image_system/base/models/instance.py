@@ -43,7 +43,7 @@ class StorageMapping(SubRootItem, SelfInjectedName):
     @classmethod
     def csis_classifier(cls) -> VCT:
         return VCT.STORAGE_MAPPING_ITEM_MODEL
-    def get_classification(self) -> VCT | None:
+    def get_classification(self) -> VCT:
         return self.csis_classifier()
     def get_mount_point(self) -> str:
         return self.mount_point
@@ -209,7 +209,7 @@ class Instance(RootItem, SubItemOverride, SelfInjectedName):
     def storage_mappings(self) -> list[StorageMapping]:
         return [cast(StorageMapping, m) for m in self.storages if not isinstance(m, dict)]
 
-    def get_subitem_overrides(self) -> dict[VCT, type[SubRootItem]] | None:
+    def get_subitem_overrides(self) -> dict[VCT, type]:
         return {
             VCT.STORAGE_MAPPING_ITEM_MODEL: StorageMapping,
         }

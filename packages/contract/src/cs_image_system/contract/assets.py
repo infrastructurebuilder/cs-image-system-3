@@ -9,6 +9,7 @@ set takes the generation path as an argument, so nothing here reaches the
 run context."""
 
 import os
+from collections.abc import Iterable
 from pathlib import Path
 import tempfile
 from typing import Any, overload
@@ -156,7 +157,7 @@ class AssetSet(list[Asset]):
         for v in val:
             self.add(path, v)
 
-    def extend(self, assets: list[Asset]) -> None:
+    def extend(self, assets: Iterable[Asset]) -> None:
         for asset in assets:
             self.append(asset)
 

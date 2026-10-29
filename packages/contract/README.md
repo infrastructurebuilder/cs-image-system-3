@@ -176,10 +176,11 @@ under a dry run and a real one, on every runtime.
   parameters by name and kind in order (an implementation may add
   parameters with defaults, or take `*args` and `**kwargs`), a property is
   a property or a dataclass field, a class method a class method.
-  Annotations are not compared (the bar's pyright runs in basic mode,
-  which resolves a nominal protocol base but does not compare an
-  override's signature with it); a protocol a class lists as a base is
-  the question, not an answer, so its stubs never count. The core's
+  Annotations are not compared here; pyright does that where a class
+  lists its protocol as a base (its override check,
+  `reportIncompatibleMethodOverride`, is on as an error since hygiene XIX),
+  and a protocol a class lists as a base is the question, not an answer,
+  so its stubs never count. The core's
   [tests/test_v2_contract.py](../../tests/test_v2_contract.py) runs it
   over every base class and every built-in plugin's models and builders at
   `just test`; a plugin's own tests should run it over theirs. The verdict

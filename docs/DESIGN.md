@@ -928,8 +928,9 @@ and `contract.testing.assert_conforms` (member by member and parameter
 by parameter, stricter than `runtime_checkable`'s name-only check; a
 protocol listed as a base never answers for the class) is run by the bar
 over every base class and every built-in plugin's models and builders.
-The bar's pyright runs in basic mode and does not compare an override's
-annotations with the protocol's; enabling that is a hygiene item. Runtime checks in
+Where a class lists its protocol as a base, pyright's override check
+(on as an error since hygiene XIX, §102) compares the override's
+annotations with the protocol's. Runtime checks in
 the loader, the registry and the orchestrator stay structural and
 name-only, backed by that test. The mapper dispatches on the contract's
 surface, not a table of the core's classes: a builder-model class that

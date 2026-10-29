@@ -210,8 +210,8 @@ select = ["F", "E9"]
 ignore = ["F841"]
 
 [tool.pyright]
-# Lenient baseline: the codebase carries many `# type: ignore`; run in "basic" mode
-# and report (non-blocking in CI) rather than enforce strict typing yet.
+# "basic" mode, blocking since stage 23 (0 errors is the bar), with the override
+# check on since hygiene XIX; strict typing is not enforced yet.
 # NB: "packages/*/src" matches nothing in pyright's spec globbing (it silently
 # analyzed 0 files, which also broke find-all-references); use ** instead.
 include = ["packages/**/src", "packages/**/tests", "tests"]
@@ -244,4 +244,8 @@ extraPaths = [
 pythonVersion = "3.13"
 typeCheckingMode = "basic"
 reportMissingImports = "warning"
+# hygiene XIX item 1 (stage 30's finding): basic mode compares no override's
+# signature with the base's or the protocol's, so a base class could narrow or
+# widen a contract signature unnoticed. On, as an error, over the whole workspace.
+reportIncompatibleMethodOverride = "error"
 
