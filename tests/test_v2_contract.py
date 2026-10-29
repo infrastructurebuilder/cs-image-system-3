@@ -229,7 +229,10 @@ def test_assert_conforms_names_every_shortfall():
     with pytest.raises(AssertionError, match="does not conform to NameTypedProtocol"):
         assert_conforms(Short, core.NameTypedProtocol)
 
-    class Whole(Short):
+    class Whole:
+        global_id = "x"                             # a plain attribute stands for a read-only property
+        def get_name(self) -> str:
+            return "x"
         def get_type(self) -> str:
             return "y"
         def get_description(self) -> str | None:

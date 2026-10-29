@@ -164,6 +164,6 @@ class OsBuilderModel(BuilderModel, OsBuilderModelProtocol):
         return self.admin_public_keys
     # def get_modifications(self) -> Sequence[ModItemModel]:
     #     return self.modifications # type: ignore  # This will be OK after deferred_list_field is resolved
-    def get_tags(self) -> Mapping[str, str]:
+    def get_tags(self) -> dict[str, str]:
         return self.tags
 

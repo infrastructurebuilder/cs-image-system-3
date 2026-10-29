@@ -15,8 +15,8 @@ operator can take.
   stage and declares without injecting while the contract is
   provisional.
 - §94, the F44 review: standing; next on or after 2026-11-09.
-- §102, hygiene bundle XIX: open, two items (found by §30's branch 1);
-  waits for "do 102".
+- No hygiene bundle is open; the next non-critical issue opens bundle
+  XX.
 - No documentation stage is open.
 
 **Release**
@@ -42,6 +42,11 @@ operator can take.
 
 **Landed since 2026-10-05** (newest first)
 
+- §102, hygiene bundle XIX: 2026-10-29, its squash commit. pyright's
+  override check (`reportIncompatibleMethodOverride`) is on as an error
+  over the whole workspace, and the nineteen places it named are fixed;
+  the terraform root mixin reaches the run context through the builder's
+  accessor, so the okta builder tests stand alone.
 - §30, the plugin contract package: 2026-10-29, two squashes. Branch 1
   (41f5f3a, tags `s30-1-before`/`s30-1-after`): `cs-image-system-contract`,
   one package with a module per kind, upstream of the core, which
@@ -140,26 +145,6 @@ operator can take.
   > and the starter repository, such that any new items are part of the process.
 
 ---
-
-## 102. Hygiene bundle XIX
-
-**Status: OPEN 2026-10-29, two items found by §30's branch 1 and left
-for a bundle. Waits for "do 102".**
-
-1. pyright's basic mode does not compare an override's annotations with
-   the protocol's (`reportIncompatibleMethodOverride` is off), so a
-   base class may narrow or widen a contract signature unnoticed
-   (`OsBuilderModel.get_tags` returns `Mapping[str, str]` where the
-   contract says `dict[str, str]`). Enable the check, at least over
-   `packages/contract` and `packages/base`, and fix what it names.
-2. Three okta builder tests (`test_commands_gated_on_credentials` in
-   `test_user_builder_root.py`, `test_user_ro_builder_root.py` and
-   `test_group_ro_builder_root.py`) pass only after an earlier test has
-   built a run context: alone they fail with `GlobalTypeContext must be
-   constructed with its full configuration on first use`, because the
-   root mixin reaches `GlobalTypeContext()` directly. Give them a
-   context of their own, or make the mixin reach it through the
-   builder's `_get_context()` they already stub.
 
 ## 94. A verification starts a machine its operator switched off: KEPT, and reviewed monthly
 

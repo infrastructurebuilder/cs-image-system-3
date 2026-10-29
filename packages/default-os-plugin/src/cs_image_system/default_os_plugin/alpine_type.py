@@ -25,8 +25,7 @@ class AlpineOsBuilderModel(OsBuilderModel):
     def csis_name(cls) -> str:
         return ALPINE_TYPE
 
-    @classmethod
-    def get_command_to_update(cls) -> list[str]:
+    def get_command_to_update(self) -> list[str]:
         """Full package-level update for Alpine (single packer shell script).
 
         --available upgrades even when packages must be replaced/downgraded to

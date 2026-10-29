@@ -50,6 +50,19 @@ class TerraformRootMixin(_Base):
     ``self.get_path_for_phase`` and ``self.get_executable_copy``.
     """
 
+    def _context(self) -> Any:
+        """The run context, through the builder's own accessor
+        (``_get_context``), never the singleton directly (hygiene XIX item 2):
+        a builder driven outside a run -- the plugins' unit tests, which stub
+        the accessor with a bare object -- gets what the stub gives, and None
+        when there is no accessor or the context refuses until a
+        configuration is loaded. Every reach below reads it with a default."""
+        get_ctx = getattr(self, "_get_context", None)
+        try:
+            return get_ctx() if callable(get_ctx) else None
+        except ValueError:      # the context refuses until a configuration is loaded
+            return None
+
     def _backend_config_path(self, phase: "ExecutionLifecyclePhase") -> Path:
         """The workspace's ``.tfbackend.hcl`` partial-configuration file."""
         return self.get_path_for_phase(phase, suffix=".tfbackend.hcl")
@@ -71,11 +84,7 @@ class TerraformRootMixin(_Base):
             return None
         if not runtime_name:
             return None
-        get_ctx = getattr(self, "_get_context", None)
-        try:
-            ctx: Any = get_ctx() if callable(get_ctx) else None
-        except ValueError:
-            return None
+        ctx: Any = self._context()
         rtb = ctx.runtime_builders.get(runtime_name) if ctx is not None else None
         return getattr(getattr(rtb, "model", None), STATE_BACKEND_FIELD, None) if rtb else None
 
@@ -111,10 +120,9 @@ class TerraformRootMixin(_Base):
         stage 51 planned in ``generated/`` and every derived lookup failed.
         Without a configuration root to mirror under (the offline harness's
         bare context) the commands run where they always did."""
-        from cs_image_system.base.global_context import GlobalTypeContext
         from cs_image_system.base.materialize import mirror_path
         from cs_image_system.base.utils import system_cli_executable_with_config
-        ctx = GlobalTypeContext()
+        ctx = self._context()
         root = getattr(ctx, "working_path", None)
         if root is None:
             return self.terraform_commands(phase, list(arg_lists), working_directory)
@@ -202,10 +210,11 @@ class TerraformRootMixin(_Base):
         state can name (stage 88: a membership the YAML dropped). The gate
         matches them exactly.
         """
-        from cs_image_system.base.global_context import GlobalTypeContext
         from cs_image_system.base.models.executable import ExecutableModel
         from cs_image_system.base.utils import system_cli_executable, system_cli_executable_with_config
 
+        ctx = self._context()
+        run_id = str(getattr(ctx, "run_id", ""))
         commands: list["ExecutableModel"] = []
         # A failed plan must leave nothing for the gate to read: a stale
         # tfplan from an earlier sequence once passed the gate (finding 33).
@@ -220,14 +229,14 @@ class TerraformRootMixin(_Base):
         # -force-copy instead of -reconfigure, plans with -detailed-exitcode
         # (a change stops the runner: the move is accepted only clean) and
         # records the move after the gate. See base/commands/state_migration.py.
-        migrating = self.name in (getattr(GlobalTypeContext(), "migrate_state", None) or [])
+        migrating = self.name in (getattr(ctx, "migrate_state", None) or [])
         if migrating:
             backend_file = self._backend_config_path(phase).name
             reg = TerraformCollector().workspace_backend(self.name)
             location = str(reg.state_location(self.name)) if reg is not None else ""
             commands.append(system_cli_executable_with_config(
                 ["state-migration", "begin", "--workspace", self.name, "--tofu", tofu_bin,
-                 "--backend-config", backend_file, "--location", location, "--run", str(GlobalTypeContext().run_id)],
+                 "--backend-config", backend_file, "--location", location, "--run", run_id],
                 working_directory))
             init_args = ["init", "-input=false", "-migrate-state", "-force-copy", f"-backend-config={backend_file}"]
         else:
@@ -236,7 +245,7 @@ class TerraformRootMixin(_Base):
         if pre_plan and pre_plan_backup:
             commands.append(system_cli_executable_with_config(
                 ["state-migration", "backup", "--workspace", self.name, "--tofu", tofu_bin,
-                 "--run", str(GlobalTypeContext().run_id)], working_directory))
+                 "--run", run_id], working_directory))
         commands.extend(self.terraform_commands(phase, list(pre_plan), working_directory))
         commands.extend(pre_commands)               # e.g. the unmount before a detach (stage 10.14)
         plan_args = ["plan", "-input=false", "-out=tfplan"]
@@ -255,7 +264,7 @@ class TerraformRootMixin(_Base):
         commands.append(system_cli_executable(gate_args, working_directory))
         if migrating:
             commands.append(system_cli_executable_with_config(
-                ["state-migration", "finish", "--workspace", self.name, "--run", str(GlobalTypeContext().run_id)],
+                ["state-migration", "finish", "--workspace", self.name, "--run", run_id],
                 working_directory))
         if apply:
             # Re-checked at EXECUTION time: a runner script generated under
@@ -271,9 +280,9 @@ class TerraformRootMixin(_Base):
                             check += ["--root-alias", str(alias)]
                 # The overlays this run was generated under are re-read at
                 # execution the same way (their config keys over the file).
-                for path in getattr(GlobalTypeContext(), "overlays", None) or []:
+                for path in getattr(ctx, "overlays", None) or []:
                     check += ["--overlay", str(path)]
-                apply_runtime = getattr(GlobalTypeContext(), "apply_runtime", None)
+                apply_runtime = getattr(ctx, "apply_runtime", None)
                 if apply_runtime:
                     check += ["--apply-runtime", str(apply_runtime)]
                 commands.append(system_cli_executable(check, working_directory))

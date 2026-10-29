@@ -159,7 +159,7 @@ class TofuGcpStorageBuilder(TofuStorageBuilder[Q]):
         return belongs_to_another_configuration(self._get_context(), labels)
 
     @staticmethod
-    def _elsewhere(labels: dict[str, Any], what: str) -> dict[str, Any]:
+    def _elsewhere_by_labels(labels: dict[str, Any], what: str) -> dict[str, Any]:
         from cs_image_system.base.lineage import owner_of
         return {"present": False, "elsewhere": owner_of(labels), "what": what}
 
@@ -255,7 +255,7 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
     def archive_name(self, storage: Storage) -> str:
         return f"csis-{self._gce_resource_name(storage.get_name())}-archive"
 
-    def _script(self, storage: Storage, name: str, body: str) -> ExecutableModel:
+    def _storage_script(self, storage: Storage, name: str, body: str) -> ExecutableModel:
         wd = self.get_path_for_phase(ExecutionLifecyclePhase.STORAGE_GENERATION, suffix=".tf").parent
         target = self._get_context().generation_path / wd / name
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -274,7 +274,7 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
             self._require_script_inputs(storage, project=project, zone=zone)
             # snapshot the disk BEFORE terraform destroys it; a snapshot left by
             # an earlier attempt is reused (the archive is the name)
-            return [self._script(storage, f"archive-{disk}.sh",
+            return [self._storage_script(storage, f"archive-{disk}.sh",
                 f'if {gcloud} compute snapshots describe "{snap}" --project "{project}" >/dev/null 2>&1; then\n'
                 f'  echo "archive {snap} already exists"; exit 0\nfi\n'
                 f'{gcloud} compute disks snapshot "{disk}" --snapshot-names "{snap}" --zone "{zone}" '
@@ -282,7 +282,7 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
         if to_state == STORAGE_STATE_DESTROYED and from_state == STORAGE_STATE_ARCHIVED:
             self._require_script_inputs(storage, project=project)
             # the disk is already gone; the archive goes with the demise
-            return [self._script(storage, f"unarchive-{disk}.sh",
+            return [self._storage_script(storage, f"unarchive-{disk}.sh",
                 f'{gcloud} compute snapshots delete "{snap}" --project "{project}" --quiet 2>&1 '
                 f'| grep -v "was not found" || true\n')]
         return []
@@ -296,7 +296,7 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
         gcloud = shlex.quote(self._gcloud())
         if from_state == STORAGE_STATE_ARCHIVED and to_state == STORAGE_STATE_ACTIVE:
             # restored: the data is on the disk again; the archive is deleted
-            return [self._script(storage, f"restore-{disk}.sh",
+            return [self._storage_script(storage, f"restore-{disk}.sh",
                 f'{gcloud} compute snapshots delete "{snap}" --project "{project}" --quiet\n')]
         return []
 
@@ -330,7 +330,7 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
             raise
         labels = dict(getattr(d, "labels", {}) or {})
         if self._theirs(labels):
-            return self._elsewhere(labels, "a persistent disk")    # stage 93
+            return self._elsewhere_by_labels(labels, "a persistent disk")    # stage 93
         return {"id": d.name, "state": str(getattr(d, "status", "")), "size": int(getattr(d, "size_gb", 0)),
                 "tags": labels}
 
@@ -427,7 +427,7 @@ class TofuFilestoreStorageBuilder(TofuGcpStorageBuilder[S]):
         shares = info.get("fileShares") or [{}]
         labels = dict(info.get("labels") or {})
         if self._theirs(labels):
-            return self._elsewhere(labels, "a Filestore share")     # stage 93
+            return self._elsewhere_by_labels(labels, "a Filestore share")     # stage 93
         rec: dict[str, Any] = {"id": str(info.get("name") or name).rsplit("/", 1)[-1],
                                "state": str(info.get("state") or ""),
                                "tags": labels}
@@ -546,7 +546,7 @@ class TofuGcsStorageBuilder(TofuGcpStorageBuilder[G]):
         info = json.loads(res.stdout or "{}")
         labels = dict(info.get("labels") or {})
         if self._theirs(labels):
-            return self._elsewhere(labels, "a GCS bucket")          # stage 93
+            return self._elsewhere_by_labels(labels, "a GCS bucket")          # stage 93
         return {"id": info.get("name") or bucket, "state": "active",
                 "location": info.get("location"), "storage_class": info.get("storageClass"),
                 "tags": labels}

@@ -720,25 +720,25 @@ class Orchestrator:
 
 class _FkFieldHandler(field_kinds.FieldKindHandler):
     """Built-in ``fk`` kind: dereference a foreign-key id into its object in context."""
-    def contribute_context(self, ctx, obj, f, reg) -> None:
-        fk_id = getattr(obj, f.name)
+    def contribute_context(self, ctx, obj, field, reg) -> None:
+        fk_id = getattr(obj, field.name)
         newval = fk_id
-        target: VCT | None = f.metadata.get(FK_TARGET, None)
+        target: VCT | None = field.metadata.get(FK_TARGET, None)
         if not target:
-            raise ValueError(f"Field '{f.name}' in object '{obj}' is marked as FK but has no 'fk_target' metadata.")
+            raise ValueError(f"Field '{field.name}' in object '{obj}' is marked as FK but has no 'fk_target' metadata.")
         update_this_field = False
-        if field_set_to_default(f, fk_id):
+        if field_set_to_default(field, fk_id):
             if target:
-                newval = default_fk_value(reg, obj, target) or field_default(f)
-            setattr(obj, f.name, newval)  # may still be DEFAULT if no default is found
+                newval = default_fk_value(reg, obj, target) or field_default(field)
+            setattr(obj, field.name, newval)  # may still be DEFAULT if no default is found
             update_this_field = (fk_id != newval)
 
         fkobj = reg.get_instance_by_name_or_alias(target, fk_id)
         key = fkobj.global_id if isinstance(fkobj, NameTypedProtocol) else fk_id
         if key and key in ctx._flat_map:
             # Now e.g. 'runtime' in Jinja refers to the RuntimeModel instance
-            ctx[f.name] = ctx._flat_map[key]
-            newf = f.metadata.get(FK_ALSO_SET_ON_UPDATE, None)
+            ctx[field.name] = ctx._flat_map[key]
+            newf = field.metadata.get(FK_ALSO_SET_ON_UPDATE, None)
             if update_this_field and newf:
                 setattr(obj, newf, key)
             if newf:
@@ -751,7 +751,7 @@ class _FkFieldHandler(field_kinds.FieldKindHandler):
                     if ctx.get("builder", None) is None:
                         ctx["builder"] = bldr
                     elif ctx.get("builder") is not bldr:
-                        log.warning(f"Context already has a 'builder' entry. Skipping setting it to {bldr} for field '{f.name}' in object '{obj}'.")
+                        log.warning(f"Context already has a 'builder' entry. Skipping setting it to {bldr} for field '{field.name}' in object '{obj}'.")
         else:
             # stage 48.3: a foreign key that names nothing is a configuration error,
             # recorded here and refused by `validate` (a `default` that has no default
@@ -763,23 +763,23 @@ class _FkFieldHandler(field_kinds.FieldKindHandler):
             # own (field_set_to_default) -- so it names nothing and is refused like
             # any other. A field that gives `none` a meaning handles it before this.
             if fk_id == NONE or fk_id not in OOPS_DEFAULTS:
-                record_unresolved_fk(type(obj).__name__, str(getattr(obj, "name", "") or ""), f.name, str(fk_id), str(target))
-            log.debug(f"foreign key '{f.name}' = {fk_id!r} (target {target}) resolves to nothing; the raw id stays in the context")
-            ctx[f.name] = fk_id
+                record_unresolved_fk(type(obj).__name__, str(getattr(obj, "name", "") or ""), field.name, str(fk_id), str(target))
+            log.debug(f"foreign key '{field.name}' = {fk_id!r} (target {target}) resolves to nothing; the raw id stays in the context")
+            ctx[field.name] = fk_id
 
 
 class _TemplatedFieldHandler(field_kinds.FieldKindHandler):
     """Built-in ``templated`` kind: substitute the replace-template for a DEFAULT value."""
-    def contribute_context(self, ctx, obj, f, reg) -> None:
-        fk_id = getattr(obj, f.name)
-        repl_value = f.metadata.get(REPLACE_VALUE, None)
+    def contribute_context(self, ctx, obj, field, reg) -> None:
+        fk_id = getattr(obj, field.name)
+        repl_value = field.metadata.get(REPLACE_VALUE, None)
         if repl_value is None:
-            raise ValueError(f"Field '{f.name}' in object '{obj}' is marked as "
+            raise ValueError(f"Field '{field.name}' in object '{obj}' is marked as "
                              "'is_replace' but has no 'replace_value' metadata.")
         if fk_id == DEFAULT:
             if repl_value:
                 fk_id = repl_value
-        setattr(obj, f.name, fk_id)
+        setattr(obj, field.name, fk_id)
 
 
 field_kinds.register_field_kind(field_kinds.FK, _FkFieldHandler())

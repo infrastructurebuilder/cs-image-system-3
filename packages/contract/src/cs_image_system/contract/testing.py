@@ -11,8 +11,8 @@ property, a class attribute or a dataclass field), and every method takes
 the parameters the protocol's does, by name and kind, in order -- an
 implementation may add parameters with defaults, or take ``*args`` and
 ``**kwargs``, and may narrow nothing away. Annotations are not compared
-(the bar's pyright runs in basic mode, which resolves a nominal protocol
-base but does not compare an override's signature with it). A protocol a
+here: pyright does that where a class lists its protocol as a base (its
+override check is on in the bar since hygiene XIX). A protocol a
 class lists as a base is the question, not an answer: its stubs do not
 count as implementations. The core's tests run this over every base class
 and every built-in plugin; a plugin's own tests should run it over its

@@ -57,10 +57,10 @@ def validate_names(name: str, aliases: set[str]) -> bool:
     return deflt or oops
 
 class SetEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, set):
-            return list(obj)
-        return super().default(obj)
+    def default(self, o):
+        if isinstance(o, set):
+            return list(o)
+        return super().default(o)
 
 
 from .constants import SYSTEM_CLI  # noqa: E402 - re-exported: the name every caller imports from here
