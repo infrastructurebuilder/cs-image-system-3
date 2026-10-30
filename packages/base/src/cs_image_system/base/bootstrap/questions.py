@@ -26,6 +26,10 @@ Answers = dict[str, Any]
 
 KINDS = ("text", "bool", "choice", "path", "secret-path")
 
+#: The words the coverage audit speaks (hygiene XX item 3).
+MADE, READ, ADOPTED, BY_HAND = "MADE", "READ", "ADOPTED", "BY HAND"
+COVERAGE_STATUSES = (MADE, READ, ADOPTED, BY_HAND)
+
 
 #: The answer that means "nothing" for a question whose answer may be
 #: empty (hygiene XII item 23): an empty line takes the default, so where a
@@ -139,6 +143,12 @@ class Rendered:
     #: adopted by import, which the destroy deletes outright. Listed in the
     #: README so nobody learns it from the plan.
     destroy_takes: tuple[str, ...] = ()
+    #: The audit (hygiene XX item 3): for every underlying resource the
+    #: tree's declarations imply, what this section does about it --
+    #: ``(resource, status, why)`` with status one of MADE, READ, ADOPTED,
+    #: BY HAND -- so a gap is a line, never a silence. The README tabulates
+    #: it; each BY HAND line carries its reason.
+    coverage: tuple[tuple[str, str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -146,8 +156,14 @@ class Section:
     name: str
     title: str
     questions: tuple[Question, ...]
-    render: Callable[[Answers], Rendered]
+    render: Callable[..., Rendered]
     description: str = ""
+    #: The render reads the checkout's facts too (``render(answers,
+    #: facts)``): a section that says what it does NOT make (a declared
+    #: backend bound to no root) needs the declarations, not only the
+    #: answers. The generator gathers them from the raw ``cfg/`` without
+    #: loading, as the interview does.
+    wants_facts: bool = False
     #: Whether the section is wanted when nobody has said: a cloud's section
     #: asks the tree (an AWS section is wanted where the tree has an AWS
     #: runtime or an S3 backend), so a GCE-only tree's quiet interview is not

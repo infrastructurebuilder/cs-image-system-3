@@ -95,6 +95,42 @@ variable "write_account_exists" {
   default     = false
 }
 
+variable "state_bucket" {
+  type        = string
+  default     = ""
+  description = "the GCS state bucket, when the tree keeps its state in GCS (empty: none)"
+}
+
+variable "state_prefix" {
+  type        = string
+  default     = ""
+  description = "the state prefix within that bucket"
+}
+
+variable "state_bucket_exists" {
+  type        = bool
+  default     = false
+  description = "the bucket already stands (observed at every interview): the root's backend binds to it"
+}
+
+variable "state_bucket_managed" {
+  type        = bool
+  default     = false
+  description = "this root manages the state bucket (hygiene XX item 2): made by an apply of it, versioned, uniform access, no public access, and kept here from then on; a destroy of the root removes it. False for a bucket that stood before this root"
+}
+
+variable "state_bucket_location" {
+  type        = string
+  default     = "US"
+  description = "the bucket's location when this root makes it (a region such as us-east1, or a multi-region such as US)"
+}
+
+variable "labels" {
+  type        = map(string)
+  default     = {}
+  description = "labels on what this root makes that carries labels (the bucket)"
+}
+
 variable "write_roles" {
   type        = list(string)
   description = "project roles the WRITE account holds (each a single member added)"

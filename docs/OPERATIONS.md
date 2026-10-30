@@ -2026,9 +2026,19 @@ GitHub OIDC identity provider, the READ-ONLY role (any ref of the
 repository) and the WRITE role (the production branch alone) with the
 guide's trust and permission documents -- the module's statements are the
 guide's, Sid for Sid, and a test holds them together -- and, only when
-the account lacks them, the state bucket (versioned, encrypted, private)
+the account lacks them, the state buckets (versioned, encrypted, private)
 and the Session Manager instance profile (a role with
-`AmazonSSMManagedInstanceCore`). Every "existing" question is a fork
+`AmazonSSMManagedInstanceCore`). Every declared S3 backend is covered
+(hygiene XX item 1): the default one through the bucket questions, and
+every OTHER one through "the tree's other S3 backends' buckets this root
+makes", whose default lists each that is bound to a root (some builder's
+or runtime's `state_configuration` names it) and that the account says
+is absent, as `bucket=prefix`; the module makes one bucket set per
+entry, and the WRITE role's `StatePrefix` statement covers each prefix.
+A backend bound to no root is left out and the README says so (BY HAND:
+bind a root to it and re-run, or drop the backend). The answer is a
+choice, not an observation, so the second interview keeps it and a
+bucket the root made never leaves the plan. Every "existing" question is a fork
 whose default is a PROBE of the account, asked as the profile the runtime
 names: found means a data source (the provider, the instance profile),
 nothing made (the bucket), or an `import` block in the root that ADOPTS
@@ -2081,9 +2091,18 @@ accounts, the bucket); unaskable means no default, refused by name under
 `--quiet`. The three GCP secrets become outputs the script reads; with
 no WRITE account `GCP_APPLY_SERVICE_ACCOUNT` is the READ-ONLY address,
 the guide's first choice. A tree whose state is in GCS binds the root to
-that bucket at `<prefix>/bootstrap` when it stands. The first real `tofu
-validate` of the module caught that `provider` is a reserved variable
-name inside a module, which is why the module calls it `provider_id`.
+that bucket at `<prefix>/bootstrap` when it stands; when it does not, the
+section MAKES it (hygiene XX item 2; until then it asked and did
+nothing): `google_storage_bucket` with versioning, uniform access and
+public access prevention, in the location the interview asked (the GCE
+runtime's zone's region by default), labelled, with object access for
+the READ-ONLY account (`objectViewer`) and the WRITE one (`objectAdmin`)
+as single members added -- with the managed-or-read fork the AWS
+section has (`state_bucket_managed`, a choice recorded once), so the
+first apply is local and a second interview, the bucket now standing,
+binds the root to it. The first real `tofu validate` of the module
+caught that `provider` is a reserved variable name inside a module,
+which is why the module calls it `provider_id`.
 
 The Okta and OPA section (stage 70 step 6; the okta-opa plugin, no
 module) creates nothing, by decision: the OPA workload connection and
@@ -2111,6 +2130,36 @@ still". None refuses the interview: a draft connection is a normal state
 on the way. The bootstrap never edits `cfg/`; names the group builder
 lacks are printed as the two lines to add.
 
+**What the bootstrap covers, and what stays by hand** (hygiene XX item
+3). The operator's principle: the bootstrap produces a working set for
+every underlying resource a tree declares; what stands is read, what is
+absent is made, and what the system must never make is named as a step
+by hand, by decision, never by omission. Every section renders its
+audit, and the generated README tabulates it ("What this root covers":
+section, resource, MADE / READ / ADOPTED / BY HAND, and the reason). The
+standing audit, for a tree declaring both clouds and OPA groups:
+
+| Resource the declarations imply | The bootstrap | Why |
+| --- | --- | --- |
+| the repository, its default branch, Actions permissions, the ruleset, the Actions variables | READ / MADE | the GitHub section; the repository itself is read, never created |
+| the secrets' values | BY HAND | one file per secret, set by the script; a value never enters the tfvars or the state (D2) |
+| the age identity for CI | BY HAND | made on your machine; the system never makes a key |
+| the GitHub OIDC provider (AWS), the pool and provider (GCP) | READ / MADE | read when the account has them, made when it lacks them; a provider's condition is never rewritten |
+| the READ-ONLY and WRITE roles (AWS) | ADOPTED / MADE | an existing role is adopted by import so its trust is maintained; its other subjects are kept |
+| the READ-ONLY and WRITE service accounts (GCP) | READ / MADE | read as they stand, granted only the roles you named |
+| the default S3 backend's bucket | READ / MADE | made when absent, managed from then on |
+| every other declared S3 backend's bucket | MADE / READ / BY HAND | made when bound to a root and absent; read when it stands; BY HAND when bound to no root |
+| the GCS state bucket | READ / MADE | made when absent, the CI identities' object access included |
+| the Session Manager instance profile | READ / MADE | read when the account has it |
+| the OPA workload connection and role, the per-group CI policies | BY HAND | console acts of a DevOps and a security admin (D4); the identity lifecycle makes the policies once the builder names them |
+| the Okta API services app | BY HAND | the org's Okta admins' (D5, D9) |
+| the OPA service user and its key pair | BY HAND | made by hand in the OPA console (D10); the script reads them from files |
+| the network: VPC, subnets, security groups, the gateway, firewall rules | BY HAND | the team's, by decision (stage 1's network rule): never created or modified |
+| the bake hosts' route to SSM and the package repositories | BY HAND | part of the network |
+
+The related gap the §103 survey found stays with §103: preflight checks
+the runtimes' sessions and never the state managers'.
+
 The
 modules ship with the starters like every module (`tfmodules/`, byte for
 byte); `tests/test_v2_bootstrap_gcp.py` holds the GCP section (the
@@ -2123,7 +2172,9 @@ statements, a real `tofu validate` of both sections together) and
 `tests/test_v2_bootstrap.py` holds the question model, the quiet
 interview, the root (a real `tofu validate`), the regeneration inside a
 run, the commit, `config-drift`, the secrets script, the starters' parts
-and the command.
+and the command; `tests/test_v2_hygiene_xx.py` holds the other S3
+backends' buckets, the GCS bucket, the audit table and the two validate
+lines of hygiene XX.
 
 ### This repository: the `verify` job
 

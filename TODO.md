@@ -18,9 +18,9 @@ operator can take.
 - §103, a container runtime (docker and the daemons that speak its
   API): planned 2026-10-29; eight questions wait for the operator's
   answers, then "do 103".
-- §104, hygiene bundle XX: open 2026-10-30 with four items (the
-  bootstrap and the resources a tree declares; the mod tests' stand-in
-  container is a declaration); waits for "do 104".
+- §104 landed (below). USER, in the reference: bundle XX item 4(d),
+  `family: alma-linux` on `basic-rh-10`; no hygiene bundle is open, the
+  next non-critical issue opens bundle XXI.
 - §105, a declared output image name: planned 2026-10-30, reviving
   what stage 22.3 commented out; waits for "do 105".
 - §106 landed (below). USER, in the reference: drop the hand-written
@@ -31,9 +31,9 @@ operator can take.
 - §103, a container runtime (docker and the daemons that speak its
   API): planned 2026-10-29; eight questions wait for the operator's
   answers, then "do 103".
-- §104, hygiene bundle XX: open 2026-10-30 with four items (the
-  bootstrap and the resources a tree declares; the mod tests' stand-in
-  container is a declaration); waits for "do 104".
+- §104 landed (below). USER, in the reference: bundle XX item 4(d),
+  `family: alma-linux` on `basic-rh-10`; no hygiene bundle is open, the
+  next non-critical issue opens bundle XXI.
 - §105, a declared output image name: planned 2026-10-30, reviving
   what stage 22.3 commented out; waits for "do 105".
 - §106, image sources: on feature/image-sources since 2026-10-30
@@ -68,6 +68,15 @@ operator can take.
   2027-10-25: renew it before then.
 
 **Landed since 2026-10-05** (newest first)
+
+- §104, hygiene bundle XX: 2026-10-30, its squash commit
+  (feature/hygiene-xx kept). The bootstrap makes every declared S3
+  backend's bucket that a root is bound to, and the GCS state bucket;
+  every section renders its coverage audit (MADE, READ, ADOPTED, BY
+  HAND with the reason) into the generated README, and OPERATIONS
+  carries the standing table; `validate` prints each OS builder's
+  mod-test stand-in and warns when a query names another family than
+  the token.
 
 - §106, the image-source catalog: 2026-10-30, its squash commit
   (feature/image-sources kept). Where a vendor image comes from is a
@@ -320,68 +329,6 @@ leaves it alone.
 out, and regenerated once with them in; bar green; pyright 0; the
 conformance test green; the docs tests green; `just full-test` legs
 green. Records: the squash message; this section goes when it lands.
-
-## 104. Hygiene bundle XX
-
-**Status: OPEN 2026-10-30, four items from the operator's examination
-of where state lives and of what the tests run on. Waits for "do
-104".**
-
-The operator's principle (2026-10-30), which the bundle serves:
-**bootstrapping should be capable of producing a working set for all
-underlying resources** a tree declares. What stands is read and
-adopted; what is absent is made; what the system must never make (the
-network) is named as a step by hand, by decision, not by omission.
-
-1. The bootstrap makes one state manager, not every declared one. The
-   AWS section asks about the tree's DEFAULT S3 backend only
-   (`default_state_backend(facts, "s3")` in
-   [facts.py](packages/base/src/cs_image_system/base/bootstrap/facts.py))
-   and the module makes that bucket with its versioning, encryption
-   and public-access block when it is absent. A second S3 backend is
-   never probed, never made and never mentioned: the reference's
-   `s3-east1` names a placeholder bucket that nothing would ever
-   create. Make the section ask per declared S3 backend (exists,
-   managed), and the module make one bucket set per absent one; a
-   backend bound to no root may be skipped with a line saying so.
-2. The GCP section asks for the GCS state bucket and whether it
-   exists, and then does nothing when it does not: the module has no
-   bucket resource, and the absent bucket is not even listed among the
-   steps by hand
-   ([bootstrap.py](packages/gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/bootstrap.py),
-   the `backend` and `by_hand` block). Make the bucket as the AWS
-   section does (versioned, uniform access, no public access), with
-   the same managed-or-read fork, so the root binds to it on the
-   second interview.
-3. An audit of the gap between what a tree declares and what the
-   bootstrap covers, recorded in the bootstrap's generated README and
-   in OPERATIONS §3: for every underlying resource the declarations
-   imply (state managers, the CI identities and their roles, the
-   session instance profile, the OPA connection and policy CI logs in
-   through, the bake hosts' network), one of MADE, READ or BY HAND,
-   and each BY HAND line a decision with its reason, never a silence.
-   The §103 survey found a related gap that stays in §103: preflight
-   checks the runtimes' sessions and never the managers'.
-4. The modification tests run on a container nobody declared. The
-   stand-in is derived from `family` and `family_version` through a
-   table in
-   [mod_tests.py](packages/base/src/cs_image_system/base/mod_tests.py)
-   with one silent substitution (`rhel` at 10 and above becomes
-   `almalinux:<v>`, since Docker Hub's Rocky library stops at 9);
-   nothing reads the `owners` and `query` that choose the vendor image.
-   The reference's `basic-rh-10` says `family: rhel` and bakes Alma,
-   so its tests run on Alma by accident of the special case; a query
-   moved to a real RHEL 10 image would leave them on Alma, silently.
-   The release recipe refuses to cut without `meta-state/mod-tests.yaml`,
-   so a release is gated on evidence from that stand-in. The fix is
-   that the stand-in is always a declaration: (a) LANDED in §106
-   (2026-10-30): the stand-in is the image-source catalog's `docker`
-   block for the family; (b) `validate` prints the stand-in, one line per OS
-   builder; (c) a WARNING, never a refusal, when the vendor query's
-   name pattern plainly names another family than the token
-   ("AlmaLinux" under `family: rhel`); (d) USER: the reference's
-   `basic-rh-10` declares `family: alma-linux` (the configuration
-   repository's edit; it changes nothing in the bake).
 
 ## 103. A container runtime: docker and the daemons that speak its API
 

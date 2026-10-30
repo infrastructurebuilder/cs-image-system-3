@@ -153,10 +153,14 @@ resource "aws_iam_role_policy" "write" {
         ]
       },
       {
-        Sid      = "StatePrefix"
-        Effect   = "Allow"
-        Action   = ["s3:ListBucket", "s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
-        Resource = ["arn:aws:s3:::${var.state_bucket}", "arn:aws:s3:::${var.state_bucket}/${var.state_prefix}/*"]
+        Sid    = "StatePrefix"
+        Effect = "Allow"
+        Action = ["s3:ListBucket", "s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        # the default backend's bucket and prefix, and every other S3 backend this root makes (hygiene XX item 1)
+        Resource = concat(
+          ["arn:aws:s3:::${var.state_bucket}", "arn:aws:s3:::${var.state_bucket}/${var.state_prefix}/*"],
+          flatten([for bucket, prefix in var.other_state_buckets : ["arn:aws:s3:::${bucket}", "arn:aws:s3:::${bucket}/${trimsuffix(prefix, "/")}/*"]]),
+        )
       },
       {
         Sid    = "SessionManagerBake"
@@ -227,6 +231,42 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "state" {
 resource "aws_s3_bucket_public_access_block" "state" {
   count                   = var.state_bucket_managed ? 1 : 0
   bucket                  = aws_s3_bucket.state[0].id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# ------------------------------- the tree's other S3 backends' buckets (hygiene XX item 1)
+# One bucket set per backend the interview listed: declared, bound to a root,
+# absent at the interview, so made here and managed from then on (the answer is
+# a choice the second interview keeps, so they never leave the plan).
+resource "aws_s3_bucket" "other" {
+  for_each = var.other_state_buckets
+  bucket   = each.key
+}
+
+resource "aws_s3_bucket_versioning" "other" {
+  for_each = var.other_state_buckets
+  bucket   = aws_s3_bucket.other[each.key].id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "other" {
+  for_each = var.other_state_buckets
+  bucket   = aws_s3_bucket.other[each.key].id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "other" {
+  for_each                = var.other_state_buckets
+  bucket                  = aws_s3_bucket.other[each.key].id
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true

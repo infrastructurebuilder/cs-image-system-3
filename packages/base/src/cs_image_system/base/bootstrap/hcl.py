@@ -195,6 +195,14 @@ def _readme(sections: list[tuple[str, Rendered]], secrets: list[Secret], *, repo
     for name, r in sections:
         out.append(f"- **{name}**" + (f" (`tfmodules/{r.module}`)" if r.module else ""))
         out.extend(f"  - {n}" for n in r.notes)
+    rows = [(name, res, status, why) for name, r in sections for res, status, why in r.coverage]
+    if rows:
+        out += ["", "## What this root covers", "",
+                "Every underlying resource the tree's declarations imply, and what this root does",
+                "about it: MADE here, READ as it stands, ADOPTED by import, or BY HAND with the",
+                "reason (a decision, never a silence).", "",
+                "| Section | Resource | What this root does | Why |", "| --- | --- | --- | --- |"]
+        out += [f"| {name} | {res} | {status} | {why} |" for name, res, status, why in rows]
     env = apply_env(r for _, r in sections)
     out += ["", "## Apply", ""]
     if env:

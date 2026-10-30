@@ -11,7 +11,7 @@ script that sets the secrets from files the interview named."""
 from __future__ import annotations
 
 from .facts import Facts, first_runtime_name, runtime_region
-from .questions import Answers, Question, Raw, Rendered, Secret, Section
+from .questions import BY_HAND, MADE, READ, Answers, Question, Raw, Rendered, Secret, Section
 
 MODULE = "bootstrap_github"
 
@@ -117,6 +117,18 @@ def render(answers: Answers) -> Rendered:
                                                     if answers["protect_production"] else " (unprotected)"),
             "Actions enabled for all actions; workflow permissions stay read-only (the workflow asks for what each job needs)",
             "Actions variables: " + (", ".join(f"{k}={v}" for k, v in variables.items()) or "none"),
+        ),
+        coverage=(
+            (f"the repository `{repository}`", READ, "it exists: read as a data source; the bootstrap never creates a repository"),
+            (f"the default branch `{answers['default_branch']}`", MADE, "set on the repository"),
+            ("Actions enabled, workflow permissions read-only", MADE, "set on the repository"),
+            (f"the ruleset on `{answers['production_branch']}`", MADE if answers["protect_production"] else BY_HAND,
+             "no deletion, no force push" if answers["protect_production"] else "declined at the interview (protect_production: no)"),
+            ("the Actions variables", MADE if variables else BY_HAND,
+             ", ".join(variables) if variables else "none named: PERFORM_RUNTIME, GUARD_RUNTIME and AWS_REGION stay literals in the workflow"),
+            ("the secrets' values", BY_HAND, "one file per secret under the secrets directory, set by the script; "
+             "a value never enters the tfvars or the state (decision D2)"),
+            ("the age identity for CI", BY_HAND, "made on your machine (`age-keygen`); the system never makes a key"),
         ),
     )
 

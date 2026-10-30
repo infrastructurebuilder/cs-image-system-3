@@ -720,12 +720,25 @@ def check_image_sources(ctx: GlobalTypeContext) -> list[Exception]:
     per entry prints the query in both vocabularies, so a review sees what
     will be asked without opening the catalog."""
     exs: list[Exception] = []
-    from ..image_sources import ImageSourceCatalog
+    from ..image_sources import ImageSourceCatalog, container_reference
     catalog = ImageSourceCatalog()
     for osb_name, osb in sorted((ctx.os_builders or {}).items()):
         model = osb.model
         family, version = model.get_vendor_family(), model.get_family_version()
         real = model.get_family()
+        # hygiene XX item 4(b): the container the modification tests run on, one line per OS builder
+        override = getattr(model, "local_test_image", None)
+        if override:
+            log.info(f"mod-test stand-in: OS builder '{osb_name}': {override} (declared: local_test_image)")
+        else:
+            block = catalog.stand_in_block(family, version)
+            stand_in = container_reference(block) if block is not None else None
+            if stand_in:
+                log.info(f"mod-test stand-in: OS builder '{osb_name}': {stand_in} (the catalog's docker block for "
+                         f"{family!r}" + (f", which is {real!r}" if real != family else "") + ")")
+            else:
+                log.info(f"mod-test stand-in: OS builder '{osb_name}': none (no docker block for {family!r} {version}: "
+                         "the modification tests report it unsupported; declare local_test_image or a catalog entry)")
         for entry in model.get_runtimes():
             rt_model = entry._runtime_model()
             if rt_model is None:
@@ -764,8 +777,35 @@ def check_image_sources(ctx: GlobalTypeContext) -> list[Exception]:
                 exs.append(ValueError(f"{who}: {e}"))
                 continue
             log.info(f"image source: {who}: {query} -> {native}")
-    _ = catalog
+            # hygiene XX item 4(c): a WARNING, never a refusal, when the query plainly names another family
+            named = family_named_by_query(query)
+            if named and named != family and named != real:
+                log.warning(f"{who}: the query names {named!r} ({query.name or query.family}) under family {family!r}"
+                            + (f" (which is {real!r})" if real != family else "")
+                            + f"; if the image is {named}, say so: `family: {named}`")
     return exs
+
+
+#: What a vendor's image name or family plainly says it is (hygiene XX item
+#: 4c): a marker in the name, in the order checked (the longer, more specific
+#: words first so `almalinux` is not read as `alma`... or `rhel`).
+FAMILY_MARKERS: tuple[tuple[str, str], ...] = (
+    ("almalinux", "alma-linux"), ("alma", "alma-linux"),
+    ("rocky", "rocky-linux"),
+    ("centos-stream", "centos-stream"), ("centos", "centos-stream"),
+    ("rhel", "rhel"), ("red hat", "rhel"), ("redhat", "rhel"),
+    ("debian", "debian"), ("ubuntu", "ubuntu"), ("fedora", "fedora"), ("alpine", "alpine"),
+)
+
+
+def family_named_by_query(query: Any) -> str | None:
+    """The family a query's ``name`` or ``family`` plainly names, else None."""
+    for text in (getattr(query, "name", None), getattr(query, "family", None)):
+        lowered = str(text or "").lower()
+        for marker, family in FAMILY_MARKERS:
+            if marker in lowered:
+                return family
+    return None
 
 
 def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:

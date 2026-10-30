@@ -12,6 +12,11 @@ output "read_service_account" {
   description = "the READ-ONLY service account's address: the GCP_SERVICE_ACCOUNT secret"
 }
 
+output "state_bucket" {
+  value       = var.state_bucket
+  description = "the GCS state bucket (made here only when it did not exist; empty when the tree keeps no state in GCS)"
+}
+
 output "write_service_account" {
   value       = var.want_write ? local.write_email : local.read_email
   description = "the address CI may write as: the WRITE account's, or the READ-ONLY one's when CI performs on no GCE runtime (CI_SETUP.md 3.4 step 4)"

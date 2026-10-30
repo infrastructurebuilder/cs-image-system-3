@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable
 
 from .answers import ANSWERS_FILE, read_answers
-from .facts import raw_yaml
+from .facts import Facts, gather, raw_yaml
 from .hcl import render_root
 from .questions import Rendered, Section
 
@@ -114,7 +114,7 @@ def prune(config_root: Path) -> bool:
 
 
 def render_files(sections: Iterable[Section], answers: dict[str, dict[str, Any]], *,
-                 module_source: str) -> dict[str, str]:
+                 module_source: str, facts: Facts | None = None) -> dict[str, str]:
     by_name = {s.name: s for s in sections}
     rendered: dict[str, Rendered] = {}
     repository: str | None = None
@@ -127,7 +127,7 @@ def render_files(sections: Iterable[Section], answers: dict[str, dict[str, Any]]
             log.warning(f"bootstrap: section {name!r} is answered in {ANSWERS_FILE} but no installed plugin "
                         "offers it; its answers are kept and it contributes nothing")
             continue
-        rendered[name] = section.render(section_answers)
+        rendered[name] = section.render(section_answers, facts) if section.wants_facts else section.render(section_answers)
         if name == "github":
             repository = str(section_answers.get("repository") or "") or None
             secrets_dir = str(section_answers.get("secrets_dir") or "") or None
@@ -150,7 +150,10 @@ def regenerate(config_root: Path, *, module_source_base: str | None = None,
         sections = discover()
     answers = read_answers(answers_path)
     base = module_source_base or module_source_base_of(root)
-    files = render_files(sections, answers, module_source=module_source_for(root, base))
+    # the raw declarations, for a section that says what it does not make;
+    # no git, no gh: a regeneration inside a run must stay cheap and offline
+    facts = gather(root, git=False, gh=False)
+    files = render_files(sections, answers, module_source=module_source_for(root, base), facts=facts)
     out = output_dir(root)
     out.mkdir(parents=True, exist_ok=True)
     clear_generated(out)                 # rewrite what generation owns; keep .terraform, the lock, a plan, the state

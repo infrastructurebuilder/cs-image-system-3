@@ -81,6 +81,12 @@ variable "state_bucket_managed" {
   description = "this root manages the state bucket (made by an apply of it, versioned, encrypted and private, and kept here from then on; a destroy of the root removes it). False for a bucket that stood before this root"
 }
 
+variable "other_state_buckets" {
+  type        = map(string)
+  default     = {}
+  description = "the tree's OTHER S3 backends' buckets this root makes and manages (hygiene XX item 1): bucket name -> state key prefix; each gets versioning, encryption and a public-access block, and the WRITE role's StatePrefix statement covers its prefix"
+}
+
 variable "instance_profile" {
   type        = string
   description = "the Session Manager instance profile's name"
