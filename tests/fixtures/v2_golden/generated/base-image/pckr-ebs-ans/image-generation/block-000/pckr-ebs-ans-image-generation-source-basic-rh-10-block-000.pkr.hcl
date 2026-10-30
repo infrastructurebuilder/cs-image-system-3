@@ -20,7 +20,7 @@ source "amazon-ebs" "basic-rh-10" {
         csis_series         = "basic-rh-10",
         csis_parent         = "vendor",
         csis_run            = "2026_08_26t12_00_00",
-        csis_fingerprint    = "6a8361a17d1ba540",
+        csis_fingerprint    = "c9cc67f16b8c856c",
         csis_identity_types = "okta",
         csis_storage_types  = "ebs,efs,s3",
     }

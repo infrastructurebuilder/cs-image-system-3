@@ -1114,6 +1114,12 @@ def read_config_and_transform(
             raise ValueError(f"Expected single config, got {len(config_data)}")
         config_data = config_data[0]
 
+    # stage 106: the tree's image sources land on the release's before any OS
+    # builder structures, so a missing `type` can be defaulted from what the
+    # family IS and every family reader sees the catalog
+    from .image_sources import ImageSourceCatalog, default_os_type
+    ImageSourceCatalog().set_tree(list(config_data.image_sources or []))
+
     cvt = Orchestrator().get_converter()
 
 
@@ -1126,10 +1132,21 @@ def read_config_and_transform(
             for item in original_yaml_dictionary_lists[plugin_key]:
                 name = item.get("name", None)
                 _type = item.get("type", None)
+                if name and not _type and plugin_key == "os_builders":
+                    # stage 106: an OS builder may leave `type` out when exactly
+                    # one registered type serves what its family IS
+                    _type = default_os_type(str(item.get("family", "")), item.get("family_version"),
+                                            dict(reg.models.get(VCT.OS_BUILDER_MODEL, {})))
+                    if _type:
+                        item["type"] = _type
+                        log.info(f"os_builders: {name}: type {_type} from family {item.get('family')}")
                 if not name or not _type:
                     raise ValueError(
                         f"Each item in '{plugin_key}' must have a 'name' and 'type' field. "
                         f"Item {item} is missing a name or type."
+                        + (" An OS builder's type is defaulted only when exactly one registered type serves "
+                           "its family (what the image-source catalog says it is); declare `type`."
+                           if plugin_key == "os_builders" else "")
                     )
                 try:
                     named_obj = cvt.structure(item, typemap_type)

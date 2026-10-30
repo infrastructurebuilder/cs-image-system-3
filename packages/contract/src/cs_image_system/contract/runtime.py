@@ -5,8 +5,9 @@
 """The runtime kind (stage 30): a cloud or container context every other
 builder operates in. The model carries the defaults and the credentials;
 the builder answers the queries, sessions, bakes, power states and image
-disposal the core asks a runtime for, and makes the provider-specific
-images (the resolved or deferred reference to an image on this runtime).
+disposal the core asks a runtime for, translates the system's image query
+into its own words (stage 106), and makes the provider-specific images (the
+resolved or deferred reference to an image on this runtime).
 Items of other kinds (images, subconfigs, provider-specific images) are
 ``Any`` here: their protocols are a later stage."""
 from __future__ import annotations
@@ -14,7 +15,7 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 from .core import BuilderModelProtocol, BuilderProtocol
-from .image import PSISourceKind
+from .image import ImageQuery, PSISourceKind
 
 
 class RuntimeBuilderModelProtocol(BuilderModelProtocol, Protocol):
@@ -126,6 +127,11 @@ class RuntimeBuilderProtocol(BuilderProtocol, Protocol):
     def bake_ssh_username(self, image: Any = None) -> str | None: ...
 
     def label_key_problem(self, key: str) -> str | None: ...
+
+    # --- the image query (stage 106): the system's vocabulary, translated here
+    def supported_query_keys(self) -> frozenset[str]: ...
+
+    def translate_image_query(self, query: ImageQuery) -> Any: ...
 
     # --- packer and the provider-specific image
     def packer_source_type(self) -> str: ...

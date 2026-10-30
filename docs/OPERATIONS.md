@@ -301,6 +301,26 @@ tree's current fingerprint on each series head whose recorded one predates
 the change (the previous value kept under `fingerprint_restamped`) and
 re-tags the cloud image, so unchanged images are not re-baked once.
 
+### Where a vendor image comes from
+
+Since stage 106 a base image's vendor source is resolved through the
+image-source catalog (CONFIGURATION 5a): the release's catalog for every
+family the plugins serve, the tree's `cfg/image-sources*.yml` landing on it
+by family and version, the OS builder's own `query` and its runtime entry's
+landing on that, key by key, all in the system's query vocabulary, and the
+runtime translating the result to its own words last. `validate` refuses an
+unknown key, an entry with no source for its runtime's type, and a key the
+runtime cannot translate, naming the entry each time, and prints one line
+per entry with the query in both vocabularies, so what will be asked is on
+screen before anything runs. The fingerprint hashes the effective query, so
+a source that moves in the catalog re-bakes the base as a moved declaration
+always did; at the release that carries stage 106 every base's fingerprint
+moves once, and `lineage restamp` re-stamps standing builds without a
+bake. What a family IS (`is:` in the catalog) is what the bake user, the
+session agent, the in-bake tests and the modification tests' stand-in
+container read: `alma-linux` is baked as `rhel` and tested on
+`almalinux:<version>`.
+
 ### When a bake fails
 
 A packer build that fails stops its lifecycle: the run ends `Apply

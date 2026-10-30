@@ -105,7 +105,13 @@ that returns one `PluginMetadata` or a list of them.
    is complete) plus the kind's domain hooks, and the same two class
    methods, `csis_classifier()` returning `VCT.<KIND>_BUILDER`. The core's
    `BuilderBase` and `<Kind>BuilderBase` implement every hook with a
-   default; subclass them to override only what the plugin does.
+   default; subclass them to override only what the plugin does. A
+   runtime builder also declares the keys of the system's image-query
+   vocabulary it can translate (`supported_query_keys()`) and translates
+   a query to its own words (`translate_image_query(query)`; "The image
+   query" under Configuration reference): `validate` refuses a key the
+   runtime cannot translate before any bake, and the runtime's README
+   carries the translation table.
 4. **Return the metadata**: `PluginMetadata(services={KEY: [Model,
    Builder]}, builders_for_models={Model: Builder})`, where `KEY` is the
    `csis_name`. Item models a plugin injects under a classification go in
@@ -163,7 +169,42 @@ builder's entry, read by the core through `BuilderModelProtocol`:
 The kind modules say what more each kind reads (a runtime's defaults and
 credentials, an OS builder's family and query, a user builder's email
 templates); the plugin's own README is the reference for the fields it
-adds. Unknown keys are refused by `CSIS_MODEL_CONFIG` (`extra="forbid"`).
+adds.
+
+### The image query
+
+`image.ImageQuery` (stage 106) is the system's own vocabulary for "which
+vendor image": the image-source catalog, an OS builder's `query` and its
+runtime entry's are all written in it, and a runtime plugin translates it
+to its own words through two hooks on `runtime.RuntimeBuilderProtocol`,
+`supported_query_keys()` (the keys it can translate) and
+`translate_image_query(query)` (its native form, whatever its query path
+and packer data source take). The keys, in the order a query is written
+out (`image.QUERY_KEYS`):
+
+| Key | Meaning |
+| --- | --- |
+| `name` | a glob over the vendor's image name |
+| `family` | the vendor's own family token, where the runtime has one |
+| `version` | the major version: a container runtime's tag; the clouds expand it into `name` or `family` |
+| `architecture` | `x86_64` or `arm64` |
+| `publisher` | who owns the image: an account, a project, a registry namespace |
+| `state` | `available` |
+| `virtualization`, `root_device` | the EC2 particulars (`hvm`, `ebs`) |
+| `tags` | a tag or label per key (`tag:<k>` in YAML is read into it) |
+| `newest` | take the latest match (the default); false refuses an ambiguous match |
+| `native` | the one escape hatch: passed to the runtime verbatim, never translated |
+
+The spellings are the system's, with EC2's kept where they were good
+names (the system started on AWS and used its filter keys); the old
+spellings still read through `image.QUERY_KEY_ALIASES` (`owners`,
+`root_device_type`, `virtualization_type`, `most_recent`, the nested
+`filters:` form). `ImageQuery.from_mapping` refuses any other key by
+name; `merged(over)` lets a query land on another key by key (`name`
+and `family`, two ways to say which image, displace each other);
+`substituted(version=...)` fills the catalog's one placeholder. Each
+runtime's README carries the translation table for its keys, and a docs
+test holds the table to the hook. Unknown keys are refused by `CSIS_MODEL_CONFIG` (`extra="forbid"`).
 The sentinels `default`, `self`, `none`, the empty string and null
 (`OOPS_DEFAULTS`) mean "not set" wherever a value is read, so nothing may
 be named after one of them. Variations: none; the contract behaves the same

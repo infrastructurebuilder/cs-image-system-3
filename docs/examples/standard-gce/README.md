@@ -16,7 +16,8 @@ What it declares (one of everything):
 | --- | --- | --- |
 | the runtime | [`cfg/runtime-builders.yml`](cfg/runtime-builders.yml) | `gcloud` |
 | the state backend | [`cfg/state-backends.yml`](cfg/state-backends.yml) | `gcs` (a GCE-only tree needs no AWS account; the file says why the reference deployment chose S3 for its own GCE roots) |
-| the base image (OS builder) | [`cfg/os-builders.yml`](cfg/os-builders.yml) | `rhel` |
+| the base image (OS builder) | [`cfg/os-builders.yml`](cfg/os-builders.yml) | `rhel` (the family `alma-linux`, which the catalog says IS rhel) |
+| the image sources | [`cfg/image-sources.yml`](cfg/image-sources.yml) | the tree's layer of the vendor-image catalog, empty: the release's catalog answers for `alma-linux` (CONFIGURATION 5a) |
 | the image builder | [`cfg/image-builders.yml`](cfg/image-builders.yml) | `packer-gce` |
 | the modification builders | [`cfg/mod-builders.yml`](cfg/mod-builders.yml) | `ansible`, `bash-remote` |
 | the instance builder | [`cfg/instance-builders.yml`](cfg/instance-builders.yml) | `tofu-gce` |

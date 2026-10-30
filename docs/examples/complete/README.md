@@ -27,7 +27,8 @@ manual documents it, and every field carries a comment giving its meaning
 | runtimes | 3 | [`cfg/runtime-builders.yml`](cfg/runtime-builders.yml) | `aws` (a default region and a second one), `gcloud` (ephemeral) |
 | state backends | 4 | [`cfg/state-backends.yml`](cfg/state-backends.yml), [`-2`](cfg/state-backends-2.yml), [`-3`](cfg/state-backends-3.yml), [`state-gcs.yml`](cfg/state-gcs.yml) | `s3` (two buckets), `local` (the identity roots), `gcs` (declared, bound to nothing) |
 | executables | 10 | [`cfg/executables.yml`](cfg/executables.yml) | checkers by name and by type |
-| OS builders (base images) | 3 | [`cfg/os-builders.yml`](cfg/os-builders.yml) | `rhel` (on three runtimes, one from a fixed image id), `debian`, `ubuntu` |
+| OS builders (base images) | 3 | [`cfg/os-builders.yml`](cfg/os-builders.yml) | `rhel` (the family `alma-linux`, on three runtimes, one from a fixed image id), `debian`, `ubuntu` (its query an override on the catalog's) |
+| image sources | 0 | [`cfg/image-sources.yml`](cfg/image-sources.yml) | the tree's layer of the vendor-image catalog, empty: the release's answers for every family here (CONFIGURATION 5a) |
 | image builders | 3 | [`cfg/image-builders.yml`](cfg/image-builders.yml) | `packer-ebs` (two regions), `packer-gce` |
 | modification builders | 2 | [`cfg/mod-builders.yml`](cfg/mod-builders.yml) | `ansible`, `bash-remote` |
 | instance builders | 3 | [`cfg/instance-builders.yml`](cfg/instance-builders.yml) | `tofu` (two regions), `tofu-gce` |

@@ -270,7 +270,9 @@ def test_the_complete_tree_carries_every_variation(tree):
     assert {bool(i.ephemeral) for i in ctx.instances} == {True, False}
     assert {s.state for s in ctx.storages} == {"active", "archived", "destroyed"}
     assert {rt.model.type_ for rt in ctx.runtime_builders.values()} == {"aws", "gcloud"}
-    assert {osb.model.family for osb in ctx.os_builders.values()} == {"rhel", "debian", "ubuntu"}
+    # stage 106: the token says what the image IS; what it is treated as comes from the catalog
+    assert {osb.model.get_vendor_family() for osb in ctx.os_builders.values()} == {"alma-linux", "debian", "ubuntu"}
+    assert {osb.model.get_family() for osb in ctx.os_builders.values()} == {"rhel", "debian", "ubuntu"}
     assert {b.model.type_ for b in ctx.state_backends.values()} == {"s3", "local", "gcs"}
     assert any(getattr(g.model, "workload_connection", None) for g in ctx.group_builders.values())
     assert (root / "meta-state" / "aliases.txt").is_file()

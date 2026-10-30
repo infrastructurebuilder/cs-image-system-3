@@ -94,6 +94,21 @@ class OsBuilderModel(BuilderModel, OsBuilderModelProtocol):
             # the model's own claim here was overwritten there on every load
         if self.default_primary_disk_size == DEFAULT:
             self.default_primary_disk_size = 200
+        self.family = str(self.family).strip().lower()
+        # stage 106: a type that does not serve what the family IS is a
+        # contradiction between the entry and the catalog; refused when the
+        # family is one some registered type serves (a token nobody serves
+        # is only a token)
+        real = self.get_family()
+        served = tuple(f.lower() for f in type(self).families())
+        if real not in served:
+            others = sorted(name for name, cls in registry.Registry().models.get(VCT.OS_BUILDER_MODEL, {}).items()
+                            if real in tuple(f.lower() for f in getattr(cls, "families", lambda: ())()))
+            if others:
+                raise ValueError(
+                    f"OS builder {self.name}: family {self.family!r} is {real!r} (the image-source catalog), "
+                    f"which type {self.type_!r} does not serve (it serves {', '.join(served)}); "
+                    f"{', '.join(others)} serve(s) it: declare that type, or fix `is` in the catalog")
             
     def version(self) -> Version  | None:
         try :
@@ -106,9 +121,21 @@ class OsBuilderModel(BuilderModel, OsBuilderModelProtocol):
     def get_owners(self) -> Sequence[str]:
         return self.owners
     def get_family(self) -> str:
+        """What the declared family IS (stage 106): the image-source
+        catalog's ``is`` for it, else the token itself. Everything that
+        branches on a family reads this one."""
+        from ..image_sources import ImageSourceCatalog
+        return ImageSourceCatalog().effective_family(self.family, self.family_version)
+    def get_vendor_family(self) -> str:
+        """The family token as written (``rhel-from-jerry``): the catalog's key."""
         return self.family
     def get_family_version(self) -> str:
         return self.family_version
+    @classmethod
+    def families(cls) -> tuple[str, ...]:
+        """The families this type serves (stage 106): its own key, unless a
+        subclass names more (the rhel type serves the rebuilds)."""
+        return (cls.csis_name(),)
     # def get_output_image_name(self) -> str:
     #     return self.output_image_name
     # def get_exclude_timestamp_from_output_image_name(self) -> bool:

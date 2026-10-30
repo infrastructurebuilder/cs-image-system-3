@@ -287,27 +287,64 @@ included).
 
 `query_provider_image()` takes one OS-builder runtime entry
 (`OSBuilderBaseImageBuilderSubconfig` in
-[os_builder_runtime_config.py](../base/src/cs_image_system/base/models/os_builder_runtime_config.py)).
-`remap_for_image_query()` builds a `describe_images` request:
-
-- `Owners` is the entry's `get_owners()`: the OS builder's owners, then the runtime's `default_owners`, then the entry's own, deduplicated in order (the runtime's were never found before stage 63 item 22).
-- `query.filters` keys are mapped through `AWS_DI_MAP` (snake_case to EC2 filter names, `tag:<key>` kept), booleans lowercased, and `state: available` forced.
-- Keys the map does not know go to a post-query exact-match filter on the result dictionaries.
-- The rewrite works on a deep copy of the entry's `query` (stage 63). `get_query()` hands back the entry's own nested mappings, and until 2026-09-25 the rewrite injected `state: available` into the OS builder entry's own `filters` mapping on every resolution, so the loaded model changed each time an image was resolved. The entry is now left exactly as declared.
-
+[os_builder_runtime_config.py](../base/src/cs_image_system/base/models/os_builder_runtime_config.py))
+and asks it for its effective query, `entry.image_query()`: an
+`ImageQuery` in the SYSTEM's vocabulary
+([contract/image.py](../contract/src/cs_image_system/contract/image.py);
+stage 106). That query is the image-source catalog's `aws` block for the
+OS builder's family (the release's layer under the tree's
+`cfg/image-sources*.yml`), with the OS builder's own `query` landing on it
+key by key and the runtime entry's landing on that; the publishers declared
+anywhere (the OS builder's `owners`, this runtime's `default_owners`, the
+entry's `owners`, in that order, deduplicated) replace the catalog's. The
+entry's own `query` mapping is never rewritten (stage 63). The builder then
+translates it with `translate_image_query()` (the table below) and
 `query_image()` in [aws_utils.py](src/cs_image_system/aws_runtime/aws_utils.py)
-runs that `DescribeImages` query (paging through `describe_images`), keeps
-every match that agrees with the post-query filter, and returns the newest
-by `CreationDate`, or `None` when nothing matches. Its docstring says so
-since stage 63; the unreachable `raise` that used to follow the return is
-gone. The builder then reads the owner straight from the AMI record,
-`ImageOwnerAlias` (for example `amazon`) else `OwnerId` (the account id),
-and returns `(ImageId, owner, raw)`; the base registers an
-`AwsProviderSpecificImage` in the resolved state. A record with neither
-field raises `Could not get owner alias or owner id ...`. Before stage 63 a
-second, unreachable `Could not get owner` branch followed that one; it was
-removed on 2026-09-25. No match returns `None`, and the base's resolve step
-then fails the run.
+runs the `DescribeImages` request `describe_images_request()` makes from
+it, paging through the results, and returns the newest by `CreationDate`,
+or `None` when nothing matches; with `newest: false` more than one match
+raises `AMIQueryError` as ambiguous. The builder reads the owner straight
+from the AMI record, `ImageOwnerAlias` (for example `amazon`) else
+`OwnerId` (the account id), and returns `(ImageId, owner, raw)`; the base
+registers an `AwsProviderSpecificImage` in the resolved state. A record
+with neither field raises `Could not get owner alias or owner id ...`. No
+match returns `None`, and the base's resolve step then fails the run.
+`validate` has already refused an entry whose query uses a key this
+runtime cannot translate, or has no source at all, and has printed every
+entry's query in both vocabularies (`image source: OS builder '<name>' on
+runtime <rt> (aws): <system query> -> <EC2 query>`).
+
+Before stage 106 the entry's `query.filters` were EC2's field names in
+snake case (the system started on AWS and used its filter keys: the
+operator's incidental choice), passed through a key map, with unknown keys
+going to a post-query exact-match filter. The vocabulary is the system's
+now, EC2's spellings kept where they were good names; the old spellings
+still read (`root_device_type`, `virtualization_type`, `owners`, the
+nested `filters:` form), and an unknown key is refused by name instead of
+buried.
+
+### Image query translation
+
+What `translate_image_query()` does with each key of the system's
+vocabulary (`supported_query_keys()` is the set of rows not marked
+refused; [tests/test_docs_image_sources.py](../../tests/test_docs_image_sources.py)
+holds this table to it). The answer is `{"owners": [...], "filters":
+{<EC2 filter name>: value}, "most_recent": bool}`: what packer's
+`data "amazon-ami"` body and `describe_images` both take.
+
+| System key | EC2 filter | Note |
+| --- | --- | --- |
+| `name` | `name` | a glob over the AMI name |
+| `family` | refused | EC2 has no image families; name the image |
+| `version` | refused | the catalog fills `{version}` into `name` |
+| `architecture` | `architecture` | `x86_64` or `arm64`, EC2's own words |
+| `publisher` | `owners` | account ids and the aliases `self`, `amazon`, `aws-marketplace` |
+| `state` | `state` | `available` when unset: the query always forced it |
+| `virtualization` | `virtualization-type` | `hvm` |
+| `root_device` | `root-device-type` | `ebs` |
+| `tags` | `tag:<key>` | one filter per tag |
+| `newest` | `most_recent` | true when unset; false refuses more than one match |
+| `native` | verbatim | each key an EC2 filter name, passed as written |
 
 When the entry declares `image_id` (stage 63), the base's resolve step
 does not call `query_provider_image()` at all: it calls
@@ -315,29 +352,26 @@ does not call `query_provider_image()` at all: it calls
 with `ImageIds=[<id>]` through `_query_by_ami_id` in
 [aws_utils.py](src/cs_image_system/aws_runtime/aws_utils.py), with the
 runtime's own client configuration (profile and region). The entry's
-`owners` and `query` are not consulted. The owner is read from the record
-the same way, `ImageOwnerAlias` else `OwnerId` (else `self`), and the
-result is `(ImageId, owner, raw)`. An id AWS answers
-`InvalidImageID.NotFound` or `InvalidImageID.Malformed` for, or one that
-returns no image, gives `None`, and the base stops resolution with
-`OS builder <name>: image_id '<id>' on runtime <rt> is not known to the
-provider`; any other API refusal raises `AMIQueryError`. An AMI id is
-regional, so a pinned id must exist in this runtime's region. Pinning
-makes the base bake reproducible: the same vendor AMI every time, where
-the query takes the newest match.
-
-Stage 63 also removed helpers from
-[aws_utils.py](src/cs_image_system/aws_runtime/aws_utils.py) that nothing
-called: `get_ami_owner`, `get_ami_ssh_user`, `remap_for_aws`,
-`_query_by_name` and `_build_ami_filters`. `_query_by_ami_id` (an exact
-lookup by AMI id) was kept, and since stage 63 it is what
-`query_provider_image_by_id()` calls.
+query is not consulted. The owner is read from the record the same way,
+`ImageOwnerAlias` else `OwnerId` (else `self`), and the result is
+`(ImageId, owner, raw)`. An id AWS answers `InvalidImageID.NotFound` or
+`InvalidImageID.Malformed` for, or one that returns no image, gives
+`None`, and the base stops resolution with `OS builder <name>: image_id
+'<id>' on runtime <rt> is not known to the provider`; any other API
+refusal raises `AMIQueryError`. An AMI id is regional, so a pinned id must
+exist in this runtime's region. Pinning makes the base bake reproducible:
+the same vendor AMI every time, where the query takes the newest match.
 
 `AwsProviderSpecificImage.get_query_assets()` gives the packer
 `data "amazon-ami"` body:
 
 - resolved: `filters = { image-id = "<ami>" }` plus `owners = ["<owner>"]` when known;
-- deferred (an image a build produces later): `owners = ["self"]`, `filters = { name = "<pattern>*", root-device-type = "ebs", virtualization-type = "hvm", architecture = "<arch or x86_64>" }`, `most_recent = true`.
+- deferred (an image a build produces later): an `ImageQuery` (`name =
+  "<pattern>*"`, `root_device = ebs`, `virtualization = hvm`, the
+  architecture or `x86_64`, publisher `self`) translated like a vendor
+  query and quoted: `owners = ["self"]`, `filters = { name = "<pattern>*",
+  root-device-type = "ebs", virtualization-type = "hvm", architecture =
+  "<arch>" }`, `most_recent = true`.
 
 [tests/test_aws_provider_specific_image.py](tests/test_aws_provider_specific_image.py)
 pins both shapes.

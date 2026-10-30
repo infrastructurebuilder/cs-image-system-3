@@ -1,0 +1,119 @@
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# The release-owned image-source catalog (stage 106): where a vendor image
+# comes from, per family and runtime type, in the SYSTEM's query vocabulary
+# (CONFIGURATION.md section 5a). A tree's own `cfg/image-sources*.yml`
+# extends or overrides this by family (and version); an OS builder's own
+# `query`, and its runtime entry's, land on top of the block, key by key.
+#
+# `{version}` is the one placeholder: the OS builder's `family_version`.
+# Every publisher id here is a vendor fact, reviewed at the release that
+# ships it; a tree that distrusts one overrides it.
+image_sources:
+  # ------------------------------------------------ the Red Hat family
+  - family: rhel
+    description: Red Hat Enterprise Linux, the vendor's own images
+    sources:
+      aws:
+        publisher: ["309956199498"]        # Red Hat's public AMI publishing account
+        name: "RHEL-{version}*x86_64*"
+        root_device: ebs
+        virtualization: hvm
+      gcloud:
+        publisher: ["rhel-cloud"]
+        family: "rhel-{version}"
+      docker:                               # Docker Hub's Rocky library stops at 9; see the 10 entry
+        publisher: ["library"]
+        name: rockylinux
+        version: "{version}"
+  - family: rhel
+    versions: ["10"]
+    description: RHEL 10 and above stand in as AlmaLinux in local tests
+    sources:
+      docker:
+        publisher: ["library"]
+        name: almalinux
+        version: "{version}"
+  - family: alma-linux
+    is: rhel
+    description: AlmaLinux, a RHEL rebuild
+    sources:
+      aws:
+        publisher: ["764336703387"]        # the AlmaLinux OS Foundation's public AMI publishing account
+        name: "AlmaLinux OS {version}*x86_64*"
+        root_device: ebs
+        virtualization: hvm
+      gcloud:
+        publisher: ["almalinux-cloud"]
+        family: "almalinux-{version}"
+      docker:
+        publisher: ["library"]
+        name: almalinux
+        version: "{version}"
+  - family: rocky-linux
+    is: rhel
+    description: Rocky Linux, a RHEL rebuild
+    sources:
+      aws:
+        publisher: ["792107900819"]        # the Rocky Enterprise Software Foundation's public AMI publishing account
+        name: "Rocky-{version}-EC2-Base*x86_64*"
+        root_device: ebs
+        virtualization: hvm
+      gcloud:
+        publisher: ["rocky-linux-cloud"]
+        family: "rocky-linux-{version}"
+      docker:
+        publisher: ["library"]
+        name: rockylinux
+        version: "{version}"
+  - family: centos-stream
+    is: rhel
+    description: CentOS Stream; no public AMI publisher is declared here
+    sources:
+      gcloud:
+        publisher: ["centos-cloud"]
+        family: "centos-stream-{version}"
+      docker:
+        publisher: ["quay.io/centos"]
+        name: centos
+        version: "stream{version}"
+  - family: fedora
+    description: Fedora Cloud; GCE has no public Fedora family
+    sources:
+      aws:
+        publisher: ["125523088429"]        # the Fedora Project's public AMI publishing account
+        name: "Fedora-Cloud-Base*{version}*x86_64*"
+        root_device: ebs
+        virtualization: hvm
+      docker:
+        publisher: ["library"]
+        name: fedora
+        version: "{version}"
+  # ------------------------------------------------ the Debian family
+  - family: debian
+    description: Debian, the vendor's own cloud images
+    sources:
+      aws:
+        publisher: ["136693071363"]        # Debian's public AMI publishing account
+        name: "debian-{version}-amd64-*"
+        root_device: ebs
+      gcloud:
+        publisher: ["debian-cloud"]
+        family: "debian-{version}"
+      docker:
+        publisher: ["library"]
+        name: debian
+        version: "{version}"
+  - family: ubuntu
+    description: Ubuntu; GCE's families are named by release, not by major version, so declare that one
+    sources:
+      aws:
+        publisher: ["099720109477"]        # Canonical's public AMI publishing account
+        name: "ubuntu/images/hvm-ssd*/ubuntu-*-{version}*-amd64-server-*"
+        root_device: ebs
+      docker:
+        publisher: ["library"]
+        name: ubuntu
+        version: "{version}"

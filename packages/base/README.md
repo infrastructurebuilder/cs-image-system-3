@@ -298,6 +298,24 @@ entry carrying `undeclare: true` removes the tree's entry for this
 invocation. `--undeclare <kind>:<name>` does the same without a file. The
 tree on disk is never changed.
 
+### Image sources (`cfg/image-sources*.yml`, key `image_sources`)
+
+Source: [`image_sources.py`](src/cs_image_system/base/image_sources.py)
+(stage 106). The catalog of vendor image sources per family and runtime
+type, in the system's query vocabulary (`contract.image.ImageQuery`):
+the release's layer ships in this package
+([`data/image-sources.yml`](src/cs_image_system/base/data/image-sources.yml))
+and the tree's `image_sources:` entries land on it by family and version
+(`ImageSourceCatalog`, a singleton the tests reset with the others). An
+OS builder's runtime entry resolves its effective query through it
+(`image_query()`), `get_family()` reads what a family IS through it
+(`is:`), a missing OS builder `type` is defaulted from it
+(`default_os_type`), the modification tests take their stand-in
+container from its `docker` block (`container_reference`), and
+`validate.check_image_sources` refuses an unknown key, an entry with no
+source and a key the runtime cannot translate. CONFIGURATION 5a is the
+reference.
+
 ## How YAML becomes models
 
 Source: [`template_utils.py`](src/cs_image_system/base/template_utils.py),

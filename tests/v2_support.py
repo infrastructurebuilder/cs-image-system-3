@@ -92,6 +92,8 @@ def reset_singletons() -> None:
     from cs_image_system.base.orchestrator import Orchestrator, TemplateResolver
     from cs_image_system.hashicorp_utils.collector import PackerCollector, TerraformCollector
     registry.Registry().reset()
+    from cs_image_system.base.image_sources import ImageSourceCatalog
+    ImageSourceCatalog().reset()
     TemplateResolver().flattened_map = {}
     from cs_image_system.base.orchestrator import reset_unresolved_fks
     reset_unresolved_fks()

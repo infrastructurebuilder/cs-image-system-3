@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """Unit tests for the GCP-native image query utilities (no network access)."""
-from typing import Any, cast
+from typing import Any
 
 import pytest
 from google.cloud import compute_v1
@@ -13,9 +13,10 @@ from cs_image_system.gcloud_runtime.gcp_utils import (
     build_filter_expression,
     get_image_owner,
     query_image,
-    remap_for_image_query,
     resolve_projects,
+    translate_image_query,
 )
+from cs_image_system.contract.image import ImageQuery
 
 
 class FakeSubconfig:
@@ -51,41 +52,32 @@ def _img(name: str, ts: str, **kw: Any) -> compute_v1.Image:
     return compute_v1.Image(name=name, creation_timestamp=ts, **kw)
 
 
-def test_remap_translates_aws_shaped_query_to_gcp_filter():
-    rc = FakeSubconfig(
-        owners=["self", "amazon"],
-        query={
-            "filters": {
-                "name": "RHEL-9.5*x86_64*",
-                "root_device_type": "ebs",           # AWS-only: dropped
-                "virtualization_type": "hvm",        # AWS-only: dropped
-                "architecture": "x86_64",
-                "state": "available",
-            }
-        },
-    )
-    q, missed = remap_for_image_query(cast(Any, rc))
-    assert q["projects"] == ["self", "amazon"]
-    assert '(name = "RHEL-9.5*x86_64*")' in q["filter"]
-    assert '(status = "READY")' in q["filter"]
-    assert '(architecture = "X86_64")' in q["filter"]
-    assert "root_device_type" not in q["filter"]
-    assert "virtualization" not in q["filter"]
-    # AWS-only keys must not leak into the post-query filter either
-    assert missed == {}
+def test_translate_puts_the_systems_query_in_compute_engines_words():
+    # stage 106: the vocabulary is the system's; the values are mapped
+    q = translate_image_query(ImageQuery.from_mapping({
+        "publisher": ["self", "rhel-cloud"], "name": "rhel-9-v*", "architecture": "x86_64", "state": "available"}))
+    assert q["projects"] == ["self", "rhel-cloud"]
+    assert q["terms"] == {"name": "rhel-9-v*", "architecture": "X86_64", "status": "READY"}
+    assert '(name = "rhel-9-v*")' in q["filter"] and '(status = "READY")' in q["filter"]
+    assert '(architecture = "X86_64")' in q["filter"] and q["most_recent"] is True
 
 
-def test_remap_defaults_status_ready_and_maps_tags_to_labels():
-    rc = FakeSubconfig(owners=[], query={"filters": {"tag:Environment": "prod"}})
-    q, _ = remap_for_image_query(cast(Any, rc))
-    assert '(labels.Environment = "prod")' in q["filter"]
-    assert '(status = "READY")' in q["filter"]
+def test_translate_defaults_status_ready_maps_tags_to_labels_and_passes_native():
+    q = translate_image_query(ImageQuery.from_mapping({"tag:Environment": "prod", "family": "debian-12",
+                                                       "native": {"deprecated.state": "ACTIVE"}}))
+    assert q["terms"] == {"family": "debian-12", "status": "READY", "labels.Environment": "prod",
+                          "deprecated.state": "ACTIVE"}
 
 
-def test_remap_unknown_keys_go_to_missed():
-    rc = FakeSubconfig(owners=[], query={"filters": {"totally_custom": "x"}})
-    _, missed = remap_for_image_query(cast(Any, rc))
-    assert missed == {"totally_custom": "x"}
+def test_translate_refuses_the_ec2_particulars_by_name():
+    # the keys GCE used to drop with a debug line are refused, named (validate refuses them first)
+    with pytest.raises(ValueError, match="root_device, virtualization"):
+        translate_image_query(ImageQuery.from_mapping({"filters": {"root_device_type": "ebs", "virtualization_type": "hvm"}}))
+
+
+def test_an_unknown_key_is_refused_by_the_vocabulary_not_buried():
+    with pytest.raises(ValueError, match="totally_custom"):
+        ImageQuery.from_mapping({"filters": {"totally_custom": "x"}})
 
 
 def test_build_filter_expression_quotes_strings_and_lowers_bools():

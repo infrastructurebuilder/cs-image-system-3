@@ -6,7 +6,7 @@
 os_builders:
   - name: el10
     type: rhel                   # DECISION: the dnf family (rhel, fedora) -- `debian`/`ubuntu` are the apt families
-    family: rhel
+    family: alma-linux           # what the vendor image IS; the image-source catalog says alma-linux IS rhel (CONFIGURATION 5a)
     family_version: 10           # a number reads as the string "10"; rhel accepts 8, 9 or 10
     is_default: true             # the base `source_image: default` resolves to
     # DECISION: what instances of this base may use (declared, not merely
@@ -32,15 +32,9 @@ os_builders:
       - name: aws-el10
         image_builder: packer-ebs     # the image builder (and so the runtime) this base is baked on
         default_machine_type: t3.medium
-        # the vendor-image query: the newest match is the source. "self" is
-        # always first, so a re-bake can start from the runtime's own images.
-        owners:
-          - "self"
-          - "764336703387"            # DECISION: the AlmaLinux OS Foundation's PUBLIC publishing account (a vendor fact, not a team value)
-        query:
-          filters:
-            name: "AlmaLinux OS 10*x86_64"
-            state: available
-            root_device_type: ebs
-            architecture: x86_64
-            virtualization_type: hvm
+        # the vendor-image query comes from the image-source catalog (the
+        # release's `aws` block for alma-linux: the AlmaLinux OS Foundation's
+        # public account, "AlmaLinux OS 10*x86_64*"); `validate` prints what
+        # will be asked. To narrow or replace it, declare `query:` here in the
+        # system's vocabulary (CONFIGURATION 5a), or add a family entry to
+        # cfg/image-sources.yml.

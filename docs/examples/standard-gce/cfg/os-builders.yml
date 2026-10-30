@@ -6,7 +6,7 @@
 os_builders:
   - name: el10
     type: rhel                   # DECISION: the dnf family (rhel, fedora) -- `debian`/`ubuntu` are the apt families
-    family: rhel
+    family: alma-linux           # what the vendor image IS; the image-source catalog says alma-linux IS rhel (CONFIGURATION 5a)
     family_version: 10
     is_default: true
     # DECISION: what instances of this base may use: OPA identity and
@@ -29,10 +29,9 @@ os_builders:
         # and the instance bake would use different names, and the guest agent
         # aborts its key setup when it cannot remove the stale other user.
         ssh_username: packer
-        owners:
-          - almalinux-cloud      # DECISION: AlmaLinux's public image project (a vendor fact, not a team value)
-        query:
-          filters:
-            # almalinux-10-v* is the x86_64 line; the ARM images are a separate
-            # family (almalinux-10-arm64-v*) this pattern cannot match
-            name: "almalinux-10-v*"
+        # the vendor-image query comes from the image-source catalog (the
+        # release's `gcloud` block for alma-linux: project almalinux-cloud,
+        # family almalinux-10, the x86_64 line); `validate` prints what will
+        # be asked. To narrow or replace it, declare `query:` here in the
+        # system's vocabulary (CONFIGURATION 5a), or add a family entry to
+        # cfg/image-sources.yml.

@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 import logging
+
+from cs_image_system.contract.image import ImageQuery
 import re
 from collections.abc import Mapping
 from typing import Any, Sequence, cast
@@ -16,7 +18,6 @@ from google.api_core import exceptions as gcp_exceptions
 from google.cloud import compute_v1
 
 from cs_image_system.contract.constants import SELF
-from cs_image_system.base.models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
 
 log = logging.getLogger(__name__)
 
@@ -204,65 +205,42 @@ def build_filter_expression(terms: Mapping[str, Any]) -> str:
     return " AND ".join(parts)
 
 
-def remap_for_image_query(
-    rc: OSBuilderBaseImageBuilderSubconfig,
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Convert a generic image-builder subconfig query to a GCP image query.
+#: stage 106: the keys of the system's image-query vocabulary Compute
+#: Engine's images.list can answer, and the field each becomes.
+GCP_QUERY_KEYS: frozenset[str] = frozenset({"name", "family", "architecture", "publisher", "state", "tags",
+                                            "newest", "native"})
+GCP_FIELD_NAMES: dict[str, str] = {"name": "name", "family": "family", "architecture": "architecture", "state": "status"}
 
-    Returns a tuple of (query, missed) where ``query`` carries the projects to
-    search and a Compute Engine filter expression, and ``missed`` holds
-    unmappable keys applied as a post-query filter (mirrors the AWS remap).
-    """
-    ret: dict[str, Any] = {}
-    owners: Sequence[Any] = rc.get_owners() if rc else []
-    ret["projects"] = list(owners)  # resolved to real projects at query time
-    missed: dict[str, Any] = {}
-    filter_terms: dict[str, Any] = {}
 
-    for topk, topv in rc.get_query().items():
-        if topk == "owners":
-            ret["projects"] = topv if isinstance(topv, list) else [topv]
+def translate_image_query(query: ImageQuery) -> dict[str, Any]:
+    """The system's query in Compute Engine's words (stage 106):
+    ``{"projects": [...], "terms": {<image field>: value}, "filter": <the
+    list() expression>, "most_recent": bool}``; ``query_image`` takes it.
+    ``state`` defaults to ``available`` (READY); ``architecture`` and
+    ``state`` values are mapped; ``tags`` become ``labels.<k>``. A key the
+    API cannot answer (the EC2 particulars) raises ValueError naming it
+    (``validate`` refuses it first); ``native`` keys are image fields,
+    passed verbatim."""
+    unsupported = sorted(k for k in query.keys() if k not in GCP_QUERY_KEYS)
+    if unsupported:
+        raise ValueError(f"GCE cannot translate image query key(s) {', '.join(unsupported)}")
+    terms: dict[str, Any] = {}
+    for key, name in GCP_FIELD_NAMES.items():
+        value = getattr(query, key)
+        if value is None:
             continue
-        if topk == "filters":
-            if not isinstance(topv, dict):
-                raise ValueError(f"Expected 'filters' value to be a dict, got {type(topv)}")
-            terms = dict(topv)
-            # Ensure we only get READY images, but allow override.
-            terms["state"] = terms.get("state", "available")
-            for _k, _v in terms.items():
-                if _k in AWS_ONLY_QUERY_KEYS or _k.startswith("block_device_mapping"):
-                    log.debug(f"Dropping AWS-only image query key {_k!r} for GCP query.")
-                    continue
-                if _k.startswith("tag:"):
-                    filter_terms[f"labels.{_k[4:]}"] = _v
-                    continue
-                field_name = GCP_DI_MAP.get(_k)
-                if not field_name:
-                    missed[_k] = _v
-                    continue
-                if field_name == "status":
-                    _v = _gcp_status(_v)
-                elif field_name == "architecture":
-                    _v = _gcp_architecture(_v)
-                filter_terms[field_name] = _v
-            continue
-        field_name = GCP_DI_MAP.get(topk)
-        if not field_name:
-            if topk in AWS_ONLY_QUERY_KEYS:
-                log.debug(f"Dropping AWS-only image query key {topk!r} for GCP query.")
-            else:
-                missed[topk] = topv
-            continue
-        if field_name == "status":
-            topv = _gcp_status(topv)
-        elif field_name == "architecture":
-            topv = _gcp_architecture(topv)
-        filter_terms[field_name] = topv
-
-    if "status" not in filter_terms:
-        filter_terms["status"] = "READY"
-    ret["filter"] = build_filter_expression(filter_terms)
-    return (ret, missed)
+        if name == "status":
+            value = _gcp_status(value)
+        elif name == "architecture":
+            value = _gcp_architecture(value)
+        terms[name] = value
+    terms.setdefault("status", "READY")
+    for k, v in sorted(query.tags.items()):
+        terms[f"labels.{k}"] = v
+    for k, v in query.native.items():
+        terms[str(k)] = v
+    return {"projects": list(query.publisher), "terms": terms, "filter": build_filter_expression(terms),
+            "most_recent": True if query.newest is None else bool(query.newest)}
 
 
 def _image_to_dict(image: compute_v1.Image, project: str) -> dict[str, Any]:
@@ -339,6 +317,7 @@ def query_image(
     results: list[dict[str, Any]] = []
     filter_expr = query.get("filter", "")
     family = query.get("family")
+    most_recent = query.get("most_recent", True)
     for project in projects:
         if filter_expr:
             results.extend(_query_by_filters(client, project, filter_expr))
@@ -365,6 +344,8 @@ def query_image(
     if not ilist:
         return None
     if len(ilist) > 1:
+        if not most_recent:
+            raise ImageQueryError(f"{len(ilist)} images match and the query says newest: false; narrow it")
         ilist.sort(key=lambda x: x.get("creation_timestamp", ""), reverse=True)
 
     return ilist[0]

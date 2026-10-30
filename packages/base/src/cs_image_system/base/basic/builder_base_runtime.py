@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+from cs_image_system.contract.image import ImageQuery
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from .builder_base import BuilderBase
@@ -128,6 +129,19 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
         logging.getLogger(__name__).info(
             f"{self.__class__.__name__} cannot retag {image_id}; tags {sorted(tags)} stay stale")
         return False
+
+    # ------------------------------------------------- the image query (stage 106)
+    def supported_query_keys(self) -> frozenset[str]:
+        """The keys of the system's image-query vocabulary this runtime can
+        translate (``contract.image.QUERY_KEYS``); ``validate`` refuses an
+        entry that uses any other on this runtime. Empty: none."""
+        return frozenset()
+
+    def translate_image_query(self, query: ImageQuery) -> Any:
+        """The system's query in this runtime's own words: whatever its
+        query path and its packer data source consume. A runtime that
+        cannot query vendor images raises."""
+        raise NotImplementedError(f"{self.__class__.__name__} cannot translate an image query")
 
     # ------------------------------------------------- packer source hooks
     # (EXPLORE GCP, increment 1: the packer builder is provider-neutral;

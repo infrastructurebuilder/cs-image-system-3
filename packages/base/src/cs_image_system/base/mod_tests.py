@@ -42,17 +42,9 @@ log = logging.getLogger(__name__)
 
 MOD_TESTS_FILE = "mod-tests.yaml"
 
-# Family/version -> container image standing in for the OS (overridable per
-# OS builder through ``local_test_image``).
-DEFAULT_TEST_IMAGES: dict[str, str] = {
-    "rhel": "rockylinux:{version}",
-    "rocky-linux": "rockylinux:{version}",
-    "alma-linux": "almalinux:{version}",
-    "centos": "quay.io/centos/centos:stream{version}",
-    "debian": "debian:{version}",
-    "ubuntu": "ubuntu:{version}",
-    "fedora": "fedora:{version}",
-}
+# stage 106: the container standing in for an OS is the image-source
+# catalog's ``docker`` block for its family (overridable per OS builder
+# through ``local_test_image``); the table this module kept is gone.
 
 # Ansible modules need a Python the controller's ansible-core supports; bare
 # OS containers have none, and RHEL-8-era images ship 3.6. Install the newest
@@ -209,15 +201,9 @@ def test_image_for(ctx: "GlobalTypeContext", image: Any) -> str | None:
     override = getattr(osb.model, "local_test_image", None)
     if override:
         return str(override)
-    fam = str(osb.get_family()).lower()
-    version = osb.get_family_version()
-    if fam == "rhel" and str(version).isdigit() and int(version) >= 10:
-        # Docker Hub's `rockylinux` library stops at 9 (found 2026-09-10 by the
-        # first `full-test`); from 10 the stand-in is AlmaLinux -- which is
-        # what the AWS chain bakes since stage 13
-        return f"almalinux:{version}"
-    tmpl = DEFAULT_TEST_IMAGES.get(fam)
-    return tmpl.format(version=version) if tmpl else None
+    from .image_sources import ImageSourceCatalog, container_reference
+    block = ImageSourceCatalog().stand_in_block(osb.model.get_vendor_family(), osb.get_family_version())
+    return container_reference(block) if block is not None else None
 
 
 def _inline_lines(mod: Any) -> list[str]:

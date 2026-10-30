@@ -24,6 +24,12 @@ class RhelOsBuilderModel(DnfOsBuilderModel):
     def csis_name(cls) -> str:
         return RHEL_TYPE
 
+    @classmethod
+    def families(cls) -> tuple[str, ...]:
+        """stage 106: the dnf-and-RHUI family and its rebuilds, which the
+        image-source catalog says ARE rhel."""
+        return (RHEL_TYPE, "alma-linux", "rocky-linux", "centos", "centos-stream")
+
     def __post_init__(self) -> None:
         super().__post_init__()
         # stage 63: checked at load, whatever the update policy (it ran only

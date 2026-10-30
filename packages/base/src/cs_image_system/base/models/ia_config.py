@@ -24,6 +24,7 @@ from ..registry import Registry
 from .encryption_config import EncryptionConfig
 from .public_safe_config import PublicSafeConfig
 from .executable import ExecutableModel
+from ..image_sources import ImageSource
 
 from ..constants import  OOPS_DEFAULTS
 
@@ -107,6 +108,8 @@ class IAConfig():
     group_builders: dict[str, GroupBuilderModel] = field(default_factory=dict) # type: ignore
     user_builders: dict[str, UserBuilderModel] = field(default_factory=dict) # type: ignore
     gitignore: list[str] = field(default_factory=list)
+    # stage 106: the tree's layer of the image-source catalog (cfg/image-sources*.yml)
+    image_sources: list[ImageSource] = field(default_factory=list)
     state_backends: dict[str, StateBuilderModel] = field(default_factory=dict) # type: ignore
     sleep_before_finalization: int = 1
     encryption: EncryptionConfig = field(default_factory=EncryptionConfig)   # stage 33: age recipients

@@ -20,7 +20,8 @@ from cs_image_system.contract.core import PluginArtifactProtocol
 from .gcp_provider_specific_image import GcpProviderSpecificImage
 from .gcp_runtime_models import GCPCloudBuilderModel
 from cs_image_system.gcloud_runtime import gcp_utils
-from .gcp_utils import remap_for_image_query, query_image
+from .gcp_utils import GCP_QUERY_KEYS, query_image, translate_image_query
+from cs_image_system.contract.image import ImageQuery
 
 GCP_RUNTIME: str = "gcloud"
 
@@ -41,12 +42,18 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
     def provider_specific_image_class(self) -> type[ProviderSpecificImage]:
         return GcpProviderSpecificImage
 
+    # --- the image query (stage 106)
+    def supported_query_keys(self) -> frozenset[str]:
+        return GCP_QUERY_KEYS
+
+    def translate_image_query(self, query: ImageQuery) -> dict[str, Any]:
+        return translate_image_query(query)
+
     def query_provider_image(self, os_builder: OSBuilderBaseImageBuilderSubconfig) -> tuple[str, str, Mapping[str,Any]] | None:
         retval: str | None = None
-        q, missed = remap_for_image_query(os_builder) if os_builder else ({}, {})
+        q = self.translate_image_query(os_builder.image_query()) if os_builder else {}
         kv = query_image(
                 query=q,
-                post_query_filter=missed,
                 session_config=self.model.self_to_gcp_client_config(),
             )
         if kv:
@@ -71,9 +78,7 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         """The image an entry pins by ``image_id`` (stage 63): a GCE image is
         named uniquely within its project, so the name is searched in the
         entry's owner projects, as the vendor query is."""
-        q, _missed = remap_for_image_query(os_builder)
-        q = {k: v for k, v in q.items() if k not in ("family", "filter")}
-        q["filter"] = f'name = "{image_id}"'
+        q = {"projects": list(os_builder.image_query().publisher), "filter": f'name = "{image_id}"'}
         kv = query_image(query=q, session_config=self.model.self_to_gcp_client_config())
         if not kv:
             return None
