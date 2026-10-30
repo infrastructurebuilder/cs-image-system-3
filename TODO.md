@@ -23,6 +23,19 @@ operator can take.
   container is a declaration); waits for "do 104".
 - §105, a declared output image name: planned 2026-10-30, reviving
   what stage 22.3 commented out; waits for "do 105".
+- §106 landed (below). USER, in the reference: drop the hand-written
+  queries where the catalog covers them and say `family: alma-linux`
+  on `basic-rh-10` (bundle XX item 4d); after the release that carries
+  §106, `lineage restamp`, since every base's fingerprint moved once.
+- §94, the F44 review: standing; next on or after 2026-11-09.
+- §103, a container runtime (docker and the daemons that speak its
+  API): planned 2026-10-29; eight questions wait for the operator's
+  answers, then "do 103".
+- §104, hygiene bundle XX: open 2026-10-30 with four items (the
+  bootstrap and the resources a tree declares; the mod tests' stand-in
+  container is a declaration); waits for "do 104".
+- §105, a declared output image name: planned 2026-10-30, reviving
+  what stage 22.3 commented out; waits for "do 105".
 - §106, image sources: on feature/image-sources since 2026-10-30
   (the catalog, the vocabulary, both translations, validate, the mod
   tests' stand-in, the docs); waits for the bar and "merge 106". USER
@@ -55,6 +68,16 @@ operator can take.
   2027-10-25: renew it before then.
 
 **Landed since 2026-10-05** (newest first)
+
+- §106, the image-source catalog: 2026-10-30, its squash commit
+  (feature/image-sources kept). Where a vendor image comes from is a
+  catalog in the system's own query vocabulary, two layers (the
+  release's, the tree's), translated by each runtime through two new
+  contract hooks; a family may say what it IS; `validate` refuses an
+  unknown key, an entry with no source and a key the runtime cannot
+  translate, and prints every resolved query in both vocabularies; the
+  fingerprint hashes the effective query. Bundle XX item 4(a) landed
+  with it.
 
 - §102, hygiene bundle XIX: 2026-10-29, its squash commit. pyright's
   override check (`reportIncompatibleMethodOverride`) is on as an error
@@ -351,10 +374,9 @@ network) is named as a step by hand, by decision, not by omission.
    moved to a real RHEL 10 image would leave them on Alma, silently.
    The release recipe refuses to cut without `meta-state/mod-tests.yaml`,
    so a release is gated on evidence from that stand-in. The fix is
-   that the stand-in is always a declaration: (a) the substitution
-   goes: the stand-in is the image-source catalog's `docker` block for
-   the family, which §106 builds (this part lands THERE, not here);
-   (b) `validate` prints the stand-in, one line per OS
+   that the stand-in is always a declaration: (a) LANDED in §106
+   (2026-10-30): the stand-in is the image-source catalog's `docker`
+   block for the family; (b) `validate` prints the stand-in, one line per OS
    builder; (c) a WARNING, never a refusal, when the vendor query's
    name pattern plainly names another family than the token
    ("AlmaLinux" under `family: rhel`); (d) USER: the reference's
