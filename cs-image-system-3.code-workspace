@@ -4,10 +4,10 @@
 			"path": "."
 		},
 		{
-			"path": "../cs-image-system-testconfig"
+			"path": "../cs-image-system-starter-tree"
 		},
 		{
-			"path": "../cs-image-system-starter-tree"
+			"path": "../cs-image-system-testconfig"
 		}
 	],
 	"settings": {}
