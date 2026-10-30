@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 
 class DefaultOsTypes(AbstractPluginMetadata):
   def __init__(self) -> None:
-    super().__init__( "1", "3.13",
+    super().__init__( "1", "3.13", # metadata version , python version,
                      {RHEL_TYPE: [
                        RhelOsBuilderModel,
                        RhelOsBuilder
