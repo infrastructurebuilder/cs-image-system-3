@@ -200,7 +200,8 @@ names (the system started on AWS and used its filter keys); the old
 spellings still read through `image.QUERY_KEY_ALIASES` (`owners`,
 `root_device_type`, `virtualization_type`, `most_recent`, the nested
 `filters:` form). `ImageQuery.from_mapping` refuses any other key by
-name; `merged(over)` lets a query land on another key by key;
+name; `merged(over)` lets a query land on another key by key (`name`
+and `family`, two ways to say which image, displace each other);
 `substituted(version=...)` fills the catalog's one placeholder. Each
 runtime's README carries the translation table for its keys, and a docs
 test holds the table to the hook. Unknown keys are refused by `CSIS_MODEL_CONFIG` (`extra="forbid"`).

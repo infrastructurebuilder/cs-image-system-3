@@ -117,7 +117,7 @@ class ImageQuery:
     of the query: ``keys()`` names the set ones, ``to_mapping()`` writes
     them in QUERY_KEYS order, and ``merged(over)`` lets another query's set
     keys land on top of this one's, key by key (``tags`` and ``native``
-    merge by their own keys; ``publisher`` replaces). ``from_mapping`` reads
+    merge by their own keys; ``publisher`` replaces; ``name`` and ``family`` displace each other). ``from_mapping`` reads
     what a tree writes: the flat form, or the older ``{"filters": {...},
     "owners": [...]}`` form, with QUERY_KEY_ALIASES applied and
     ``tag:<k>`` keys folded into ``tags``; an unknown key raises ValueError
@@ -213,10 +213,16 @@ class ImageQuery:
         return out
 
     def merged(self, over: "ImageQuery | None") -> "ImageQuery":
-        """A copy with ``over``'s set keys landing on this one's."""
+        """A copy with ``over``'s set keys landing on this one's. ``name`` and
+        ``family`` are two ways to say which image: an override that says
+        one clears the other from below (both at one level are ANDed)."""
         if over is None:
             return ImageQuery(**self.to_mapping())
         out = self.to_mapping()
+        if "name" in over.keys() and "family" not in over.keys():
+            out.pop("family", None)
+        if "family" in over.keys() and "name" not in over.keys():
+            out.pop("name", None)
         for key in over.keys():
             if key == "tags":
                 out.setdefault("tags", {}).update(over.tags)

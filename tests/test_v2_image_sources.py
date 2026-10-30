@@ -78,6 +78,14 @@ def test_an_override_lands_on_a_query_key_by_key():
     assert merged.to_mapping() == {"name": "b*", "publisher": ["self"], "root_device": "ebs",
                                    "tags": {"a": "1", "b": "2"}, "native": {"p": "q"}}
     assert base.substituted(version="10").name == "a-10*"      # the one placeholder
+    # name and family are two ways to say which image: an override saying one clears the other
+    # (found live: the reference's GCE entry names the image, the catalog's rhel block names the
+    # family, and the two ANDed found nothing in almalinux-cloud)
+    catalog = ImageQuery.from_mapping({"publisher": ["rhel-cloud"], "family": "rhel-10"})
+    assert catalog.merged(ImageQuery.from_mapping({"name": "almalinux-10-v*", "owners": ["almalinux-cloud"]})).to_mapping() == {
+        "name": "almalinux-10-v*", "publisher": ["almalinux-cloud"]}
+    assert ImageQuery(name="x*").merged(ImageQuery(family="f")).to_mapping() == {"family": "f"}
+    assert ImageQuery(name="x*").merged(ImageQuery(name="y*", family="f")).to_mapping() == {"name": "y*", "family": "f"}
     assert base.merged(None).to_mapping() == base.to_mapping()
 
 

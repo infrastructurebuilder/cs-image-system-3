@@ -761,7 +761,11 @@ query in one place, `image_query()` in
 4. the runtime entry's `query` (5.1), landing on that;
 5. the publishers declared anywhere (the OS builder's `owners`, the
    runtime's `default_owners`, the entry's `owners`, in that order,
-   deduplicated) replace the catalog's `publisher`;
+   deduplicated) replace the catalog's `publisher`; `name` and `family`
+   are two ways to say which image, so a layer that says one clears the
+   other from the layers below (a tree that names the image under a
+   catalog block that names the family asks by name alone; write both at
+   one level to AND them);
 6. the runtime translates the result. `image_id` on the entry
    short-circuits the stack: a pinned entry needs no query.
 
