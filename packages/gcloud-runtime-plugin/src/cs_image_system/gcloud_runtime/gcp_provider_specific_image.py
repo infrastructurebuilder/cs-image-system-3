@@ -28,11 +28,10 @@ class GcpProviderSpecificImage(ProviderSpecificImage):
                 ret["owners"] = [f'"{self.owner}"']
             return ret
         # Deferred: find the most recent image matching the output-name pattern
-        # produced by a build in this project.
-        return {
-            "owners": ['"self"'],
-            "filters": {
-                "name": f'"{self.deferred_name_pattern}*"',
-            },
-            "most_recent": True,
-        }
+        # produced by a build in this project. stage 106: an ImageQuery in the
+        # system's vocabulary, translated like a vendor query, then quoted.
+        from cs_image_system.contract.image import ImageQuery
+        from .gcp_utils import translate_image_query
+        native = translate_image_query(ImageQuery(name=f"{self.deferred_name_pattern}*", publisher=("self",), newest=True))
+        filters = {k: f'"{v}"' for k, v in native["terms"].items() if k != "status"}
+        return {"owners": [f'"{p}"' for p in native["projects"]], "filters": filters, "most_recent": True}

@@ -24,7 +24,7 @@ source "amazon-ebs" "my-deb-12" {
         csis_series         = "my-deb-12",
         csis_parent         = "vendor",
         csis_run            = "2026_08_26t12_00_00",
-        csis_fingerprint    = "f17ed398f06a17af",
+        csis_fingerprint    = "82e5a7e311ca901e",
         csis_identity_types = "okta",
         csis_storage_types  = "ebs",
     }

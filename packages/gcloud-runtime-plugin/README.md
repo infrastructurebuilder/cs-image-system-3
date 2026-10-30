@@ -270,46 +270,83 @@ firewall rule targets logs a warning.
 
 `query_provider_image()` takes one OS-builder runtime entry
 (`OSBuilderBaseImageBuilderSubconfig` in
-[os_builder_runtime_config.py](../base/src/cs_image_system/base/models/os_builder_runtime_config.py)).
-`remap_for_image_query()` builds a Compute `list()` query:
+[os_builder_runtime_config.py](../base/src/cs_image_system/base/models/os_builder_runtime_config.py))
+and asks it for its effective query, `entry.image_query()`: an
+`ImageQuery` in the SYSTEM's vocabulary
+([contract/image.py](../contract/src/cs_image_system/contract/image.py);
+stage 106). That query is the image-source catalog's `gcloud` block for
+the OS builder's family (the release's layer under the tree's
+`cfg/image-sources*.yml`), with the OS builder's own `query` landing on it
+key by key and the runtime entry's landing on that; the publishers
+declared anywhere (the OS builder's `owners`, this runtime's
+`default_owners`, the entry's `owners`) replace the catalog's. The builder
+translates it with `translate_image_query()` (the table below) into
+`projects` and a Compute `list()` filter expression; `query_image()` in
+[gcp_utils.py](src/cs_image_system/gcloud_runtime/gcp_utils.py) resolves
+the projects (`resolve_projects()`: `self` becomes the session project;
+the aliases `debian`, `ubuntu`, `rhel`, `centos`, `rocky`, `fedora`,
+`suse`, `windows`, `cos` and `google` become the public image projects;
+AWS-only aliases and anything that is not a valid project id are dropped;
+a valid project id such as `almalinux-cloud` is kept as is), lists every
+candidate project, and returns the newest `creation_timestamp` with the
+owning `project` added; with `newest: false` more than one match raises
+`ImageQueryError` as ambiguous. The builder returns `(name, project,
+raw)`; the base registers a `GcpProviderSpecificImage` in the resolved
+state. `validate` has already refused an entry whose query uses a key this
+runtime cannot translate (the EC2 particulars, which this runtime used to
+drop with a debug line) or has no source at all, and has printed every
+entry's query in both vocabularies.
 
-- `projects` is the entry's `get_owners()` (the OS builder's owners, the runtime's `default_owners`, the entry's own), resolved by `resolve_projects()`: `self` becomes the session project; the aliases `debian`, `ubuntu`, `rhel`, `centos`, `rocky`, `fedora`, `suse`, `windows`, `cos` and `google` become the public image projects (`debian-cloud`, `ubuntu-os-cloud`, `rhel-cloud`, ...); AWS-only aliases (`amazon`, `aws-marketplace`, `aws-backup-vault`) and anything that is not a valid project id (an AWS account number, for example) are dropped; a valid project id such as `almalinux-cloud` is kept as is.
-- `query.filters` become a filter expression: `name`, `family`, `state`/`status`, `architecture`, `description` and `creation_date` map to image fields; `state: available` becomes `status = "READY"` (forced when absent); architectures map to `X86_64`/`ARM64`; `tag:<key>` becomes `labels.<key>`; AWS-only keys (`root_device_type`, `virtualization_type`, `block_device_mapping.*`, ...) are dropped instead of excluding every result; keys the map does not know go to a post-query exact-match filter.
-- A `family` key with no filter expression resolves through `getFromFamily` instead.
+### Image query translation
 
-`query_image()` lists every candidate project, applies the post-query
-filter, and returns the newest `creation_timestamp` with the owning
-`project` added. The builder returns `(name, project, raw)`; the base
-registers a `GcpProviderSpecificImage` in the resolved state.
+What `translate_image_query()` does with each key of the system's
+vocabulary (`supported_query_keys()` is the set of rows not marked
+refused; [tests/test_docs_image_sources.py](../../tests/test_docs_image_sources.py)
+holds this table to it). The answer is `{"projects": [...], "terms":
+{<image field>: value}, "filter": "<the list() expression>",
+"most_recent": bool}`.
+
+| System key | Compute Engine field | Note |
+| --- | --- | --- |
+| `name` | `name` | a glob over the image name |
+| `family` | `family` | the vendor's image family; the latest READY image of it is the match |
+| `version` | refused | the catalog fills `{version}` into `name` or `family` |
+| `architecture` | `architecture` | `x86_64` becomes `X86_64`, `arm64` becomes `ARM64` |
+| `publisher` | the projects | project ids and the aliases above |
+| `state` | `status` | `available` becomes `READY`, forced when unset |
+| `virtualization` | refused | an EC2 particular |
+| `root_device` | refused | an EC2 particular |
+| `tags` | `labels.<key>` | one term per tag |
+| `newest` | `most_recent` | true when unset; false refuses more than one match |
+| `native` | verbatim | each key an image field, passed as written into the expression |
 
 When the entry declares `image_id` (stage 63), the base's resolve step
 calls `query_provider_image_by_id(entry, image_id)` instead. A GCE image
 is named uniquely within its project, so the id is an image name and is
-searched where the vendor query would search: `remap_for_image_query()`
-builds the same `projects` list (the entry's merged owners, or a
-`query.owners`), then the builder drops the query's `family` and `filter`
-and sets the filter to `name = "<id>"`; the post-query filter is not
-applied, and a match whose status is not `READY` is refused by name
-(stage 67: `GCP runtime <rt>: pinned image '<id>' is <status>, not READY; a
-bake from it would fail`). The owning project
-is read from the result as for the query (else `self`). No match returns
-`None`, and the base stops resolution with `OS builder <name>: image_id
-'<id>' on runtime <rt> is not known to the provider`. Pinning makes the
-base bake reproducible: the same vendor image every time, where the query
-takes the newest match (a vendor family publishes a new image often).
+searched where the vendor query would search: the effective query's
+publishers as the projects, and the filter `name = "<id>"`; a match whose
+status is not `READY` is refused by name (stage 67: `GCP runtime <rt>:
+pinned image '<id>' is <status>, not READY; a bake from it would fail`).
+The owning project is read from the result as for the query (else
+`self`). No match returns `None`, and the base stops resolution with `OS
+builder <name>: image_id '<id>' on runtime <rt> is not known to the
+provider`. Pinning makes the base bake reproducible: the same vendor image
+every time, where the query takes the newest match (a vendor family
+publishes a new image often).
 
 `GcpProviderSpecificImage.get_query_assets()` describes the image as a
 generic query (`filters = { name = "<name>" }` plus `owners` when resolved;
-`owners = ["self"]`, `filters = { name = "<pattern>*" }`, `most_recent`
-when deferred). The packer source does not use these assets: GCE's image
+when deferred, an `ImageQuery` for `<pattern>*` from `self`, translated
+and quoted: `owners = ["self"]`, `filters = { name = "<pattern>*" }`,
+`most_recent`). The packer source does not use these assets: GCE's image
 families are the series, so `googlecompute_source()` writes `source_image`
 (a resolved or pinned parent) or `source_image_family` (a deferred parent)
 directly.
 
 [tests/test_gcp_utils.py](tests/test_gcp_utils.py) and
 [tests/test_gcp_provider_specific_image.py](tests/test_gcp_provider_specific_image.py)
-pin the remap, the project resolution, the newest-wins rule and the asset
-shapes without network access.
+pin the translation, the project resolution, the newest-wins rule and the
+asset shapes without network access.
 
 ### Image families
 

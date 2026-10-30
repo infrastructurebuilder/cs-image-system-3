@@ -68,8 +68,8 @@ Fields every family inherits:
 |---|---|---|---|
 | `name`, `type`, `description`, `aliases` | `NameTyped` | `name`/`type` required | `type` selects the family. |
 | `executable`, `is_default`, `config`, `gitignore`, `tags` | `BuilderModel` | | `tags` merge into the base image's tags; `is_default` makes this the OS builder `default` resolves to. |
-| `family` | `str` | required | The OS family name. Free text; it drives the SSH-user fallback (`debian` -> `admin`, `ubuntu` -> `ubuntu`, else `ec2-user`), the `os_family` argument the runtime, identity and storage plugins receive, the AWS root-device guess and the mod-test container image. It does not choose the package manager; `type` does. |
-| `family_version` | `str` | required | A bare number is coerced to a string. Parsed with `packaging.version`; RHEL reads the major to enable repositories. Also the mod-test container tag. |
+| `family` | `str` | required | What the vendor image IS: the image-source catalog's key (CONFIGURATION 5a). `get_vendor_family()` is the token as written; `get_family()` is what the catalog says it IS (`alma-linux` IS `rhel`), and that is what drives the SSH-user fallback (`debian` -> `admin`, `ubuntu` -> `ubuntu`, else `ec2-user`), the `os_family` argument the runtime, identity and storage plugins receive, and the mod-test container (the catalog's `docker` block). It does not choose the package manager; `type` does, and since stage 106 `type` may be left out when exactly one type serves what the family is (`families()` on each model class: the rhel type serves `rhel`, `alma-linux`, `rocky-linux`, `centos`, `centos-stream`); a type that does not serve it is refused at load. |
+| `family_version` | `str` | required | A bare number is coerced to a string. Parsed with `packaging.version`; RHEL reads the major to enable repositories. Also the catalog's `{version}`, and so the mod-test container tag. |
 | `architecture` | `str` | `DEFAULT` | Declared architecture; handed to the runtime's provider-specific image when not the default. |
 | `default_primary_disk_size` | `str \| int` | `DEFAULT` (becomes `200`) | Bake disk size in GB for the base image when neither the runtime (`default_disk_size`) nor the entry for that runtime (`default_primary_disk_size`) declares one. The order is `lineage.bake_disk_size`, the one rule both packer sources and the input fingerprint use (stage 63); see the Variations below. |
 | `owners` | `list[str]` | `[]` | Vendor-image owners; the runtime plugin maps them (AWS account ids and aliases, GCE projects and aliases). |
@@ -82,7 +82,7 @@ Fields every family inherits:
 | `storage_types` | `list[str]` | `[]` | Storage types (for example `ebs`, `efs`, `s3`, `pd`, `gcs`) the base image bakes prerequisites for. |
 | `admin_user` | `str` | `csisadmin` | The mandatory local admin user baked into the base image. |
 | `admin_public_keys` | `list[str] \| None` | `None` | Public keys for that user; `None` uses the global `config.admin_public_keys`. |
-| `local_test_image` | `str \| None` | `None` | Container image standing in for this OS when modifications are tested locally. Unset derives one from `family` and `family_version`: `almalinux:<v>` for `rhel` 10 and above, `rockylinux:<v>` below, `debian:<v>`, `ubuntu:<v>`, `fedora:<v>`. |
+| `local_test_image` | `str \| None` | `None` | Container image standing in for this OS when modifications are tested locally. Unset: the image-source catalog's `docker` block for the family (its own, else the family it IS), as a reference (`almalinux:10`, `rockylinux:9`, `debian:12`, `quay.io/centos/centos:stream9`); a family with no such block is `unsupported`. |
 | `tests` | `dict` | `{}` | In-bake assertions (`packages`, `files` with `path`/`contains`) for the base image. |
 
 Each `runtimes[]` entry is an `OSBuilderBaseImageBuilderSubconfig` in

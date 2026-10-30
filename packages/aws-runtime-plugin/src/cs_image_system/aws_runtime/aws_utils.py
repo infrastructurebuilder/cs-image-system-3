@@ -6,14 +6,14 @@
 
 from __future__ import annotations
 
-import copy
 import logging
-from typing import Any, Sequence, cast
+from typing import Any, Mapping, cast
 import boto3  # type: ignore[import-untyped]
 from botocore.client import BaseClient as EC2  # type: ignore[import-untyped]
 from botocore.exceptions import BotoCoreError, ClientError
 
-from cs_image_system.base.models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
+from cs_image_system.contract.image import ImageQuery
+
 
 log = logging.getLogger(__name__)
 
@@ -120,81 +120,75 @@ AWS_DI_MAP: dict[str, str] = {
 }
 
 
-def remap_for_image_query(rc: OSBuilderBaseImageBuilderSubconfig) -> tuple[dict[str, Any], dict[str, Any]]:
-    ret: dict[str, Any] = {
-        "DryRun": False,
-        "IncludeDisabled": False,
-        "IncludeDeprecated": False,
-    }
-    owners: Sequence[Any] = rc.get_owners() if rc else []
-    ret["Owners"] = owners # completely overridden if specified in config
-    missed: dict[str, Any] = {}
-    # stage 63: a deep copy -- the loop below rewrites the filters mapping in
-    # place, and get_query() hands back the entry's own nested dicts, so the
-    # model's query used to be mutated by every resolution
-    for topk, topv in copy.deepcopy(dict(rc.get_query())).items():
-        _key2 = AWS_DI_MAP.get(topk, None)
-        if not _key2:
-            missed[topk] = topv
-            continue
-        topk = _key2
-        if topk == "Owners":
-            if isinstance(topv, list):
-                topv = [str(i) for i in topv]
-            else:
-                topv = [str(topv)]
-        elif topk == "Filters":
-            if isinstance(topv, dict):
-                topv["state"] = (
-                    "available"  # Ensure we only get available images, but allow override
-                )
-                new_dict: dict[str, Any] = {}
-                for _k, _v in topv.items():
-                    _k = AWS_DI_MAP.get(_k, _k)
-                    assert _k is not None, "Bad Filter key is None"
-                    if _k == "Owners":
-                        if isinstance(_v, list):
-                            _v = [str(i) for i in _v]
-                        else:
-                            _v = [str(_v)]
-                    if _k.startswith("tag:"):
-                        _k = f"tag:{_k[4:]}"
-                    if isinstance(_v, bool):
-                        _v = str(_v).lower()
-                    new_dict[_k] = _v
-                v = new_dict
-                topv = [
-                    {
-                        "Name": AWS_DI_MAP.get(_k, _k),
-                        "Values": _v if isinstance(_v, list) else [str(_v)],
-                    }
-                    for _k, _v in v.items()
-                ]
-            else:
-                raise ValueError(f"Expected 'filter' value to be a dict, got {type(topv)}")
-        ret[topk] = topv
-    return (ret, missed)
+#: stage 106: the keys of the system's image-query vocabulary EC2's
+#: DescribeImages can answer, and the filter each becomes.
+AWS_QUERY_KEYS: frozenset[str] = frozenset({"name", "architecture", "publisher", "state", "virtualization",
+                                            "root_device", "tags", "newest", "native"})
+AWS_FILTER_NAMES: dict[str, str] = {              # in the order the filters are written out
+    "name": "name",
+    "root_device": "root-device-type",
+    "virtualization": "virtualization-type",
+    "architecture": "architecture",
+    "state": "state",
+}
+
+
+def translate_image_query(query: ImageQuery) -> dict[str, Any]:
+    """The system's query in EC2's words (stage 106): ``{"owners": [...],
+    "filters": {<DescribeImages filter name>: value}, "most_recent": bool}``,
+    the shape packer's ``amazon-ami`` data source and ``describe_images``
+    both take (``describe_images_request`` makes the boto call from it).
+    ``state`` defaults to ``available``, as the query always has. A key EC2
+    cannot answer raises ValueError naming it (``validate`` refuses it
+    first); ``native`` keys are EC2 filter names, passed verbatim."""
+    unsupported = sorted(k for k in query.keys() if k not in AWS_QUERY_KEYS)
+    if unsupported:
+        raise ValueError(f"AWS cannot translate image query key(s) {', '.join(unsupported)}")
+    filters: dict[str, Any] = {}
+    for key, name in AWS_FILTER_NAMES.items():
+        value = getattr(query, key)
+        if value is not None:
+            filters[name] = value
+    filters.setdefault("state", "available")
+    for k, v in sorted(query.tags.items()):
+        filters[f"tag:{k}"] = v
+    for k, v in query.native.items():
+        filters[str(k)] = v
+    return {"owners": list(query.publisher), "filters": filters,
+            "most_recent": True if query.newest is None else bool(query.newest)}
+
+
+def describe_images_request(native: Mapping[str, Any]) -> dict[str, Any]:
+    """A ``describe_images`` request from ``translate_image_query``'s answer."""
+    filters = []
+    for name, value in dict(native.get("filters") or {}).items():
+        if isinstance(value, bool):
+            value = str(value).lower()
+        filters.append({"Name": str(name), "Values": [str(v) for v in value] if isinstance(value, (list, tuple)) else [str(value)]})
+    return {"DryRun": False, "IncludeDisabled": False, "IncludeDeprecated": False,
+            "Owners": [str(o) for o in (native.get("owners") or [])], "Filters": filters}
 
 
 def query_image(
     query: dict[str, Any],
-    post_query_filter: dict[str, Any] | None = None,
     session_config: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
-    """The newest AMI matching an EC2 ``DescribeImages`` query.
-
-    ``query`` is what ``remap_for_image_query`` builds from an OS builder
-    entry: ``Owners``, ``Filters`` (``[{"Name": ..., "Values": [...]}]``) and
-    the ``DryRun``/``IncludeDisabled``/``IncludeDeprecated`` flags. Every
-    match is kept that agrees with ``post_query_filter`` (a mapping of AMI
-    record keys to required values); the newest by ``CreationDate`` is
-    returned, or None when nothing matches. ``session_config`` is the
-    runtime's boto3 session configuration and is required. A pinned
-    image id does not come through here (stage 63 reads the entry's
-    ``image_id`` through ``query_image_by_id``).
+    """The AMI matching an image query in EC2's words (stage 106:
+    ``translate_image_query``'s answer, ``owners``/``filters``/``most_recent``;
+    the boto-shaped request of before is accepted too). The newest by
+    ``CreationDate`` is returned, or None when nothing matches; with
+    ``most_recent`` false, more than one match is refused as ambiguous.
+    ``session_config`` is the runtime's boto3 session configuration and is
+    required. A pinned image id does not come through here (stage 63 reads
+    the entry's ``image_id`` through ``query_image_by_id``).
     """
     if not query:
         raise ValueError("Query dictionary cannot be empty")
+    if "Filters" not in query and "Owners" not in query:
+        most_recent = query.get("most_recent", True)
+        query = describe_images_request(query)
+    else:
+        most_recent = True
 
     try:
         if not session_config:
@@ -207,22 +201,12 @@ def query_image(
     except (BotoCoreError, ClientError) as e:
         raise AMIQueryError(f"Failed to create EC2 client: {e}") from e
 
-    results = _query_by_filters(ec2_client, query)
-    # Return most recently created AMI if multiple matches
-    ilist = []
-    for r in results:
-        if post_query_filter:
-            match = True
-            for k, v in post_query_filter.items():
-                if r.get(k) != v:
-                    match = False
-                    break
-            if not match:
-                continue
-        ilist.append(r)
+    ilist = list(_query_by_filters(ec2_client, query))
     if not ilist:
         return None
     if len(ilist) > 1:
+        if not most_recent:
+            raise AMIQueryError(f"{len(ilist)} AMIs match and the query says newest: false; narrow it")
         ilist.sort(key=lambda x: x.get("CreationDate", ""), reverse=True)
 
     return cast(dict[str, Any], ilist[0])

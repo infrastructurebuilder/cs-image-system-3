@@ -54,13 +54,16 @@ current directory). The Justfile drives the live tree named by
    `{{ this.parent.family }}` inside a runtime entry of an OS builder).
 3. **Global settings**: the keys that are not builder collections structure
    into `IAConfig` (section 2).
-4. **Builders**, in this order: `runtime_builders`, `state_backends`,
+4. **Image sources** (`image_sources`, section 5a): the tree's layer of
+   the vendor-image catalog, read before any builder so an OS builder's
+   type can be defaulted from what its family is.
+5. **Builders**, in this order: `runtime_builders`, `state_backends`,
    `group_builders`, `user_builders`, `os_builders`, `mod_builders`,
    `storage_builders`, `image_builders`, `instance_builders`. Every entry
    needs `name` and `type`. Foreign keys (`runtime`, `state_configuration`,
    `image_builder`, `executable`, …) are resolved after all builders exist,
    so order within `cfg/` does not matter.
-5. **Collections**, in this order: users, groups (both from `groups/`),
+6. **Collections**, in this order: users, groups (both from `groups/`),
    storages, images, instances. Users are read before groups so every
    member can be checked. Overlays and `--undeclare` are applied to each
    collection before its items structure (section 12).
@@ -525,19 +528,24 @@ name through `source_image`.
 
 Model: `OsBuilderModel`
 ([`os_builder_model.py`](../packages/base/src/cs_image_system/base/models/os_builder_model.py)).
-Types: `rhel` (dnf; adds `subscription_id`), `fedora` (dnf), `debian`
-(apt), `ubuntu` (apt), `alpine` (apk)
+Types: `rhel` (dnf; adds `subscription_id`; serves the families `rhel`,
+`alma-linux`, `rocky-linux`, `centos`, `centos-stream`), `fedora` (dnf),
+`debian` (apt), `ubuntu` (apt), `alpine` (apk)
 ([`default-os-plugin`](../packages/default-os-plugin/src/cs_image_system/default_os_plugin/)).
+Since stage 106 `type` may be left out when exactly one registered type
+serves what the family IS (section 5a); a type that does not serve it
+(`type: debian` under `family: alma-linux`) is refused at load, naming the
+type that does.
 
 | Field | Type | Default | Meaning and allowed values |
 | --- | --- | --- | --- |
-| `family` | str | required | the OS family token. The mod-test harness knows `rhel`, `rocky-linux`, `alma-linux`, `centos`, `debian`, `ubuntu`, `fedora`; the plugins branch on `debian`/`ubuntu` for apt. |
-| `family_version` | str | required | major version (a number is coerced); `rhel` accepts 8, 9 or 10 |
+| `family` | str | required | what the vendor image IS: the image-source catalog's key (5a; `alma-linux`, `rhel`, `debian`, ... or a family of the tree's own). What the token IS, as the catalog says (`is:`), is what everything that branches on a family reads: the bake user, the session agent, the in-bake tests, the mod tests' stand-in. The plugins branch on `debian`/`ubuntu` for apt. |
+| `family_version` | str | required | major version (a number is coerced); `rhel` accepts 8, 9 or 10; the catalog's `{version}` |
 | `architecture` | str | `default` | passed to images that leave `architecture` at its default; otherwise `x86_64` |
 | `default_primary_disk_size` | str or int | `default` (= 200) | GB; the default for images built from this base |
 | `tags` | mapping[str, str] | `{}` | tags on the baked image |
-| `owners` | list[str] | `[]` | image owners for the vendor-image query (`self`, `amazon`, an account id, `almalinux-cloud`) |
-| `query` | mapping | `{}` | the vendor-image query: `filters:` by provider field (`name`, `state`, `root_device_type`, `architecture`, `virtualization_type`); the newest match is the source |
+| `owners` | list[str] | `[]` | publishers for the vendor-image query (`self`, `amazon`, an account id, `almalinux-cloud`); with the runtime's `default_owners` and the entry's `owners`, they REPLACE the catalog's `publisher` (5a) |
+| `query` | mapping | `{}` | the vendor-image query in the system's vocabulary (5a: `name`, `family`, `architecture`, `publisher`, `state`, `virtualization`, `root_device`, `tags`, `newest`, `native`), landing key by key on the image-source catalog's block for each runtime; the newest match is the source. The old spellings (`filters:` nested, `root_device_type`, `virtualization_type`, `owners`) still read; any other key is refused by name |
 | `runtimes` | list | required, at least one | one entry per image builder (5.1); `image_builder` unique within the list |
 | `config_username` | str or null | null | the sudo-capable ssh user on this OS's vendor image, for every runtime whose entry names none: step 3 of the bake-user order (5.1.1); read since stage 63 item 22 |
 | `auto_update` | bool | `false` | alias for `update: {policy: full}` when `update` is absent |
@@ -546,7 +554,7 @@ Types: `rhel` (dnf; adds `subscription_id`), `fedora` (dnf), `debian`
 | `storage_types` | list[str] | `[]` | storage types instances of this base may attach (`ebs`, `efs`, `s3`, `pd`, `filestore`, `gcs`); each must have a configured storage builder. A bake on a runtime prepares for, stamps and fingerprints only the types whose storage builder lives on that runtime (hygiene XII item 21): a type added for one cloud re-bakes nothing on another, and a build's recorded capabilities are what it carries. A field every runtime shares (`admin_user`, `admin_public_keys`, `update`, the vendor source) still re-bakes the base everywhere |
 | `admin_user` | str | `csisadmin` | the mandatory local admin user; must not be empty |
 | `admin_public_keys` | list[str] or null | null | per-base override of `config.admin_public_keys`; public keys only |
-| `local_test_image` | str or null | null | the container standing in for this OS in local mod tests; default derived from family/version (`almalinux:<v>` for rhel 10 and above, `rockylinux:<v>` below) |
+| `local_test_image` | str or null | null | the container standing in for this OS in local mod tests; null: the image-source catalog's `docker` block for the family (5a), else the family it IS |
 | `tests` | mapping | `{}` | in-bake assertions (5.3) |
 | `subscription_id` (rhel) | str or null | null | accepted and not read, reserved for a future step that registers an image (the update commands already use a subscription's repos when the image is registered, the vendor RHUI repos otherwise) |
 | `is_default` | bool | `false` | the base `source_image: default` resolves to |
@@ -568,8 +576,8 @@ Types: `rhel` (dnf; adds `subscription_id`), `fedora` (dnf), `debian`
 | `default_machine_type` | str or null | null | machine type for the base image's bakes on this runtime; when unset, the image builder's `default_machine_type` (section 6) when it declares one, else the runtime's `default_machine_type` |
 | `default_primary_disk_size` | int or null | null | GB; the base image's bake disk on this runtime when declared, else the OS builder's `default_primary_disk_size`; a runtime's own `default_disk_size` wins over both (GCE, finding 51). The packer sources and the fingerprint use this one rule (stage 63; the fingerprint hashed the entry's old default 100 while the bake used 200, so AWS base images read DUE once after it lands until `lineage restamp`) |
 | `tags` | mapping[str, str] | `{}` | merged over the builder's tags |
-| `owners` | list[str] | `[]` | appended to the builder's owners |
-| `query` | mapping | `{}` | merged over the builder's query, key by key |
+| `owners` | list[str] | `[]` | appended to the builder's owners (and the runtime's `default_owners`); the result replaces the catalog's `publisher` |
+| `query` | mapping | `{}` | in the system's vocabulary (5a), landing key by key on the builder's query, which lands on the catalog's block for this runtime's type; `validate` prints the result in both vocabularies, refuses a key this runtime cannot translate, and refuses an entry with no source at all |
 | `ssh_username` | str | `default` | the bake ssh user on this runtime, for this OS and every image built on it: step 2 of the bake-user order (5.1.1), ahead of anything the runtime says |
 | `tests` | mapping or null | null | when set, **replaces** the builder's `tests` for bakes on this runtime |
 | `tags` | mapping[str, str] | `{}` | merged over the builder's tags |
@@ -697,6 +705,163 @@ os_builders:
           filters:
             name: "almalinux-10-v*"
 ```
+
+## 5a. `cfg/image-sources*.yml`
+
+Key: `image_sources`. The tree's layer of the **image-source catalog**
+(stage 106): where a vendor image comes from, per family and runtime
+type, written in the SYSTEM's own query vocabulary, which each runtime
+translates to its own. The release ships a catalog
+([`image-sources.yml`](../packages/base/src/cs_image_system/base/data/image-sources.yml)
+in the base package) for every family the plugins serve; the tree's file
+extends or overrides it by family (and version). A tree that declares
+nothing gets the release's catalog, and a tree whose OS builders still
+spell out their own `owners` and `query` is unchanged: those land on top.
+
+Model: `ImageSource`
+([`image_sources.py`](../packages/base/src/cs_image_system/base/image_sources.py)).
+
+| Field | Type | Default | Meaning and allowed values |
+| --- | --- | --- | --- |
+| `family` | str | required | the family token an OS builder's `family` names (lowercased) |
+| `is` | str or null | null | what the family REALLY is, a family the plugins serve (`rhel`, `debian`, ...): the type is defaulted from it, and the bake user, the session agent, the in-bake tests and the mod tests' stand-in read it. Null: the token itself |
+| `versions` | list[str] | `[]` | when set, the entry answers only for these `family_version` values and lands on the family's generic entry; empty: every version |
+| `description` | str or null | null | free text |
+| `sources` | mapping | `{}` | one block per runtime TYPE (`aws`, `gcloud`, `docker`), each a query in the vocabulary below with `{version}` as the one placeholder; `docker` is what the local modification tests read, whether or not a container runtime is installed |
+
+**The vocabulary.** The keys, in the order a query is written out; each
+runtime's README says which it translates and into what (its "Image
+query translation" table, held to the plugin by a docs test):
+
+| Key | Meaning | AWS | GCE |
+| --- | --- | --- | --- |
+| `name` | a glob over the vendor's image name | yes | yes |
+| `family` | the vendor's own family token | refused | yes (`almalinux-10`) |
+| `version` | the major version; a container's tag | refused | refused |
+| `architecture` | `x86_64` or `arm64` | yes | yes, value mapped |
+| `publisher` | who owns the image: account ids, project ids, a registry namespace | the owners | the projects |
+| `state` | `available` | yes, forced when unset | `READY`, forced when unset |
+| `virtualization`, `root_device` | the EC2 particulars (`hvm`, `ebs`) | yes | refused |
+| `tags` | a tag or label per key (`tag:<k>` reads into it) | `tag:<k>` | `labels.<k>` |
+| `newest` | take the latest match; false refuses an ambiguous one | yes | yes |
+| `native` | passed to the runtime verbatim, never translated | EC2 filter names | image fields |
+
+The old spellings still read (`owners`, `root_device_type`,
+`virtualization_type`, `most_recent`, and the nested `filters:` form);
+any other key is refused by name, with where it was written.
+
+**The stack.** An OS builder's runtime entry resolves its effective
+query in one place, `image_query()` in
+[`os_builder_runtime_config.py`](../packages/base/src/cs_image_system/base/models/os_builder_runtime_config.py):
+
+1. the release catalog's block for the runtime's type, for the family
+   (the generic entry, then the entry naming this version);
+2. the tree catalog's block, landing on it key by key;
+3. the OS builder's own `query` (section 5), landing on that;
+4. the runtime entry's `query` (5.1), landing on that;
+5. the publishers declared anywhere (the OS builder's `owners`, the
+   runtime's `default_owners`, the entry's `owners`, in that order,
+   deduplicated) replace the catalog's `publisher`;
+6. the runtime translates the result. `image_id` on the entry
+   short-circuits the stack: a pinned entry needs no query.
+
+A runtime type with no block in either layer and no declared query is
+refused by `validate`: `OS builder '<name>' on runtime <rt> (<type>): no
+image source: the image-source catalog has no \`<type>\` block for family
+'<family>' <version> ... declare one in cfg/image-sources.yml, or on the
+entry, or pin \`image_id\``. A key the runtime cannot translate is refused
+the same way, naming the key and the keys the runtime does translate; a
+cloud particular the vocabulary does not name goes under `native:`. Every
+entry that passes is printed, one INFO line in both vocabularies: `image
+source: OS builder 'basic-rh-10' on runtime aws-east2-runtime (aws):
+name=AlmaLinux OS 10*x86_64*, publisher=['764336703387'], ... ->
+{'owners': [...], 'filters': {...}}`.
+
+**The fingerprint** (OPERATIONS "When an image bakes") hashes the
+EFFECTIVE query, so a source that moves in the catalog re-bakes the base
+exactly as a moved declaration always did. When stage 106 lands, every
+base image's fingerprint moves once (the query is hashed in the new
+vocabulary); `lineage restamp` re-stamps standing builds without a bake.
+
+**An override, landing on the catalog's value.** The release's `ubuntu`
+block names a loose pattern; a tree that wants one release's gp3 line
+writes only the key it changes, and the publisher stays the catalog's:
+
+```yaml
+os_builders:
+  - name: ubuntu-24
+    type: ubuntu
+    family: ubuntu
+    family_version: 24
+    runtimes:
+      - name: aws-ubuntu-24
+        image_builder: pckr-ebs-ans
+        query:
+          name: "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"
+```
+
+### 5a.1 How to add an image source
+
+**A vendor family the release's catalog does not cover on one runtime.**
+GCE's Ubuntu families are named by release (`ubuntu-2404-lts-amd64`), not
+by major version, so the release declares none. A tree that bakes Ubuntu
+24 on GCE declares it:
+
+```yaml
+# cfg/image-sources.yml
+image_sources:
+  - family: ubuntu
+    versions: ["24"]
+    sources:
+      gcloud:
+        publisher: ["ubuntu-os-cloud"]
+        family: "ubuntu-2404-lts-amd64"
+```
+
+Then `validate` (or any run) proves it resolved, in the line it prints
+for the entry: `image source: OS builder 'ubuntu-24' on runtime
+gcloud-east1 (gcloud): family=ubuntu-2404-lts-amd64,
+publisher=['ubuntu-os-cloud'] -> {'projects': ['ubuntu-os-cloud'],
+'terms': {'family': 'ubuntu-2404-lts-amd64', 'status': 'READY'}, ...}`.
+Without the entry the same command refuses the OS builder with `no image
+source: the image-source catalog has no \`gcloud\` block for family
+'ubuntu' 24`.
+
+**A family of the tree's own.** A team's golden image is a RHEL rebuild
+with its own name; it is treated as `rhel` everywhere (the type is
+defaulted, the bake user is `ec2-user`, the session agent takes the yum
+path, the mod tests run on `almalinux:10` since the entry has no `docker`
+block of its own) while its query is its own:
+
+```yaml
+# cfg/image-sources.yml
+image_sources:
+  - family: rhel-from-ops
+    is: rhel
+    versions: ["10"]
+    sources:
+      aws:
+        publisher: ["self"]
+        name: "ops-rhel10-golden-*"
+        root_device: ebs
+
+# cfg/os-builders.yml
+os_builders:
+  - name: ops-el10
+    family: rhel-from-ops          # no `type`: rhel is the one type that serves what it is
+    family_version: 10
+    runtimes:
+      - name: aws-ops-el10
+        image_builder: pckr-ebs-ans
+```
+
+The validate line: `image source: OS builder 'ops-el10' on runtime
+aws-east2-runtime (aws): name=ops-rhel10-golden-*, publisher=['self'],
+root_device=ebs -> {'owners': ['self'], 'filters': {'name':
+'ops-rhel10-golden-*', 'root-device-type': 'ebs', 'state': 'available'},
+'most_recent': True}`. Declaring `type: debian` on that builder is refused
+at load: `family 'rhel-from-ops' is 'rhel' (the image-source catalog),
+which type 'debian' does not serve`.
 
 ## 6. `cfg/image-builders.yml`
 

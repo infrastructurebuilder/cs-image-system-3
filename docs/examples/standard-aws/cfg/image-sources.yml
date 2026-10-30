@@ -1,0 +1,22 @@
+---
+# cfg/image-sources.yml -- this tree's layer of the image-source catalog
+# (CONFIGURATION.md section 5a). The release ships a catalog of vendor image
+# sources per family and runtime type, in the system's own query vocabulary;
+# entries here extend or override it by family (and version). Empty is fine:
+# the release's catalog answers for every family the plugins serve.
+#
+# An entry, for a family of your own that IS rhel (the type, the tests'
+# stand-in and the bake user follow), queried your own way on AWS:
+#
+#   - family: rhel-from-ops
+#     is: rhel
+#     versions: ["10"]
+#     sources:
+#       aws:
+#         publisher: ["self"]
+#         name: "ops-rhel10-golden-*"
+#         root_device: ebs
+#
+# `validate` prints every resolved query, in the system's words and the
+# runtime's, so what will be asked is on screen before anything runs.
+image_sources: []

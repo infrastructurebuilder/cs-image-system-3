@@ -6,8 +6,8 @@
 os_builders:
   # ------------------------------------------------ the default base: EL 10
   - name: basic-rh-10
-    type: rhel                     # the dnf family; also fedora; debian/ubuntu are apt; alpine is apk
-    family: rhel                   # required: the OS family token
+    type: rhel                     # the dnf family; also fedora; debian/ubuntu are apt; alpine is apk. Optional since stage 106 when the family's catalog entry says what it is
+    family: alma-linux             # required: what the vendor image IS; the catalog (5a) says alma-linux IS rhel
     family_version: 10             # required; rhel accepts 8, 9 or 10
     is_default: true               # `source_image: default` resolves here
     description: "AlmaLinux 10, the Red Hat family, on both clouds"
@@ -16,7 +16,7 @@ os_builders:
     config_username: null          # the sudo-capable ssh user on the vendor image, for every runtime whose entry names none (bake-user order, CONFIGURATION 5.1.1: image entry, OS entry, this, runtime ssh_username, runtime default_config_username, family default)
     admin_user: csisadmin          # the mandatory local admin user (default csisadmin; may not be empty)
     admin_public_keys: null        # per-base override of config.admin_public_keys (null: the global list)
-    local_test_image: almalinux:10 # the container standing in for this OS in local mod tests (default derived: almalinux:10)
+    local_test_image: null         # the container standing in for this OS in local mod tests (null: the catalog's `docker` block, almalinux:10)
     subscription_id: null          # rhel only; accepted, not read: reserved for a future register step
     tags:
       OS: "{{ this.family }}"
@@ -51,11 +51,10 @@ os_builders:
           contains: "AlmaLinux"
       services_enabled: [sshd]
       users: [csisadmin]
-    # 5: the builder-wide vendor query; a runtime entry merges its own over it
-    owners: ["self"]
-    query:
-      filters:
-        state: available
+    # 5 / 5a: the vendor query comes from the image-source catalog (the
+    # release's alma-linux blocks); an `owners:` or `query:` here, or on a
+    # runtime entry, lands on the catalog's block key by key, in the system's
+    # vocabulary. `validate` prints what each entry will ask.
     runtimes:                      # 5.1: one entry per image builder
       - name: aws-rh10
         image_builder: pckr-ebs-ans
@@ -66,14 +65,7 @@ os_builders:
         ssh_username: ec2-user     # the bake ssh user on this runtime
         tags:                      # merged over the builder's
           Cloud: aws
-        owners:                    # appended to the builder's
-          - "764336703387"         # the AlmaLinux OS Foundation's PUBLIC publishing account (a vendor fact)
-        query:                     # merged over the builder's, key by key
-          filters:
-            name: "AlmaLinux OS 10*x86_64"
-            root_device_type: ebs
-            architecture: x86_64
-            virtualization_type: hvm
+        # no `owners:`/`query:`: the catalog's `aws` block for alma-linux
         config: {}                 # free-form; `{{ config.x }}` in this entry's templated fields reads it
       - name: east1-rh10
         image_builder: pckr-ebs-east1
@@ -90,11 +82,7 @@ os_builders:
           files:
             - path: /etc/yum.repos.d/oktapam-stable.repo
               contains: "dist.scaleft.com"
-        owners:
-          - almalinux-cloud        # AlmaLinux's public image project
-        query:
-          filters:
-            name: "almalinux-10-v*"   # the x86_64 line; the ARM images are a separate family
+        # no `owners:`/`query:`: the catalog's `gcloud` block for alma-linux (family almalinux-10)
   # ------------------------------------------- a second family: Debian 12
   - name: my-deb-12
     type: debian                   # the apt family
@@ -110,13 +98,7 @@ os_builders:
         image_builder: pckr-ebs-ans
         default_machine_type: t3.medium
         ssh_username: admin        # Debian's vendor user
-        owners:
-          - "136693071363"         # Debian's PUBLIC AMI publishing account (a vendor fact)
-        query:
-          filters:
-            name: "debian-12-amd64-*"
-            state: available
-            root_device_type: ebs
+        # no `owners:`/`query:`: the catalog's `aws` block for debian (Debian's public account, "debian-12-amd64-*")
   # ------------------------------------------- a third family: Ubuntu 24.04
   - name: ubuntu-24
     type: ubuntu
@@ -130,9 +112,9 @@ os_builders:
       - name: aws-ubuntu-24
         image_builder: pckr-ebs-ans
         ssh_username: ubuntu
-        owners:
-          - "099720109477"         # Canonical's PUBLIC AMI publishing account (a vendor fact)
+        # 5a: an override in the system's vocabulary, landing on the catalog's
+        # `aws` block for ubuntu key by key: the gp3 line of one release
+        # instead of the catalog's looser pattern; the publisher stays the
+        # catalog's (Canonical's account)
         query:
-          filters:
-            name: "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"
-            state: available
+          name: "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"

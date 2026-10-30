@@ -25,16 +25,9 @@ os_builders:
         image_builder: pckr-ebs-ans
         # stage 22.3 REMOVED -- shadowed by a computed property of the same name on the runtime subconfig, so a declared value here can never take effect. Nothing has ever been named from these templates: images carry the _final_name shape instead (AWS basic-rh-10-aws-east2-runtime-<ts>, GCE imgfile-basic-dask-pckr-gce-ans-<ts>). Kept here because the NOSCSB naming intent may return: reviving it means restoring the field AND making the subconfig property use it, which renames every future image on both clouds and is its own stage.
         # output_image_name: "AWS-{{ this.display_name }}-{{ this.parent.family }}-{{ this.parent.family_version }}-{{ execution.timestamp }}" # Override builder name
-        # Filters work like filters in AWS and possibly elsewhere.  The runtime builder will use these filters to find the most recent image that matches the filters.  The builder will then pass that image to an image builder, along with the modifications defined in this os builder, to produce a final image within the region of the runtime builder. 
-        owners:
-          - "self" # "self" will always be first in the query list
-          - amazon
-          - 136693071363        
-        query:
-          filters:
-            name: "debian-12-amd64-*"
-            state: available # This is always going to be hard-coded into the query for the image (here for example)
-            root_device_type: ebs
+        # stage 106: no vendor query here -- the image-source catalog's
+        # `aws` block for debian (this tree's cfg/image-sources.yml over
+        # the release's) is the source; `validate` prints what will be asked
   - name: basic-rhel-9
     identity_types: [okta, posix]   # stage 75: imgfile-posix (images/image4.yaml) belongs to a posix group
     storage_types: [ebs, efs, s3]
@@ -101,7 +94,10 @@ os_builders:
       packages: [openssl]
       exclude: ["kernel*"]
     type: rhel
-    family: rhel
+    # stage 106: the family is what the vendor image IS (AlmaLinux); the
+    # catalog says alma-linux IS rhel, so the type, the tests' stand-in and
+    # the bake user read rhel
+    family: alma-linux
     family_version: 10
     is_default: true
     # stage 22.3 REMOVED -- no field on the OS builder model accepts this, so it has always been dropped. Nothing has ever been named from these templates: images carry the _final_name shape instead (AWS basic-rh-10-aws-east2-runtime-<ts>, GCE imgfile-basic-dask-pckr-gce-ans-<ts>). Kept here because the NOSCSB naming intent may return: reviving it means restoring the field AND making the subconfig property use it, which renames every future image on both clouds and is its own stage.
@@ -119,16 +115,9 @@ os_builders:
         # the architecture filter (the finding-39 lesson). No licence premium;
         # the RHUI/subscription-manager guard is a no-op on an unregistered
         # image; the vendor ssh user is ec2-user, as on RHEL.
-        owners:
-            - "self"
-            - "764336703387"
-        query:
-          filters:
-            name: "AlmaLinux OS 10*x86_64"
-            state: available
-            root_device_type: ebs
-            architecture: x86_64
-            virtualization_type: hvm
+        # stage 106: no vendor query here -- the image-source catalog's
+        # `aws` block for alma-linux is the source (the release's: the
+        # AlmaLinux OS Foundation's account, "AlmaLinux OS 10*x86_64*")
     -   name: gcp-my-rh10
         image_builder: pckr-gce-ans
         # finding 43 (found live, first Alma 10 dask bake): without this the
@@ -151,12 +140,6 @@ os_builders:
         default_machine_type: e2-small
         # stage 22.3 REMOVED -- shadowed by a computed property of the same name on the runtime subconfig, so a declared value here can never take effect. Nothing has ever been named from these templates: images carry the _final_name shape instead (AWS basic-rh-10-aws-east2-runtime-<ts>, GCE imgfile-basic-dask-pckr-gce-ans-<ts>). Kept here because the NOSCSB naming intent may return: reviving it means restoring the field AND making the subconfig property use it, which renames every future image on both clouds and is its own stage.
         # output_image_name: "noscsb-gcp-rh10-{{ this.name }}-{{ execution.timestamp }}"
-        owners:
-            - almalinux-cloud
-        query:
-          filters:
-            # almalinux-10-v* is the x86_64 line (family almalinux-10);
-            # the ARM images are almalinux-10-arm64-v* (separate family),
-            # which this pattern cannot match -- same trap as finding 39
-            # (an ARM image on an x86 build VM never boots -- SSH timeout)
-            name: "almalinux-10-v*"
+        # stage 106: no vendor query here -- the image-source catalog's
+        # `gcloud` block for alma-linux is the source (the release's:
+        # project almalinux-cloud, family almalinux-10)

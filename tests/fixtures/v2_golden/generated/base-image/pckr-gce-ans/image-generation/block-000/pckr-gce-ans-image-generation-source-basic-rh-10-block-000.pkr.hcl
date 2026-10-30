@@ -10,7 +10,7 @@ source "googlecompute" "basic-rh-10" {
     image_family = "basic-rh-10"
     image_labels = {
         csis_config         = "cs-image-action-test",
-        csis_fingerprint    = "caca7d830c8a2137",
+        csis_fingerprint    = "8ee793e8bdcc6ec7",
         csis_identity_types = "okta",
         csis_parent         = "vendor",
         csis_run            = "2026_08_26t12_00_00",

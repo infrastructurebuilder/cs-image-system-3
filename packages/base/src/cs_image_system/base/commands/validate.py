@@ -710,6 +710,64 @@ def check_label_keys(ctx: GlobalTypeContext) -> list[Exception]:
     return exs
 
 
+def check_image_sources(ctx: GlobalTypeContext) -> list[Exception]:
+    """Stage 106: every OS builder's runtime entry has a vendor-image query
+    its runtime can ask, and says what it is. Refused, naming the entry:
+    a key the system does not know (written in the catalog, the OS builder
+    or the entry); an entry with no source at all (no catalog block for the
+    runtime's type and no query declared); a key the runtime cannot
+    translate. A pinned entry (``image_id``) needs no query. One INFO line
+    per entry prints the query in both vocabularies, so a review sees what
+    will be asked without opening the catalog."""
+    exs: list[Exception] = []
+    from ..image_sources import ImageSourceCatalog
+    catalog = ImageSourceCatalog()
+    for osb_name, osb in sorted((ctx.os_builders or {}).items()):
+        model = osb.model
+        family, version = model.get_vendor_family(), model.get_family_version()
+        real = model.get_family()
+        for entry in model.get_runtimes():
+            rt_model = entry._runtime_model()
+            if rt_model is None:
+                continue                                  # the foreign-key check names it
+            rt_name, rt_type = str(rt_model.get_name()), str(rt_model.get_type())
+            rtb = ctx.runtime_builders.get(rt_name)
+            who = f"OS builder '{osb_name}' on runtime {rt_name} ({rt_type})"
+            if entry.get_image_id_for_runtime():
+                log.info(f"image source: {who}: pinned to image_id {entry.get_image_id_for_runtime()}")
+                continue
+            try:
+                query = entry.image_query()
+            except ValueError as e:
+                exs.append(ValueError(f"{who}: {e}"))
+                continue
+            if query.is_empty():
+                exs.append(ValueError(
+                    f"{who}: no image source: the image-source catalog has no `{rt_type}` block for family "
+                    f"{family!r} {version} (what it is: {real!r}) and neither the OS builder nor the entry declares "
+                    f"a query; declare one in cfg/image-sources.yml, or on the entry, or pin `image_id`"))
+                continue
+            if rtb is None:
+                continue
+            supported = rtb.supported_query_keys()
+            unsupported = sorted(k for k in query.keys() if k not in supported)
+            if unsupported:
+                exs.append(ValueError(
+                    f"{who}: the runtime cannot translate image query key(s) {', '.join(unsupported)} "
+                    f"(it translates {', '.join(sorted(supported)) or 'nothing'}); remove them from this entry's "
+                    f"query, the OS builder's, or the catalog's `{rt_type}` block, or put a runtime particular "
+                    f"under `native:`"))
+                continue
+            try:
+                native = rtb.translate_image_query(query)
+            except (NotImplementedError, ValueError) as e:
+                exs.append(ValueError(f"{who}: {e}"))
+                continue
+            log.info(f"image source: {who}: {query} -> {native}")
+    _ = catalog
+    return exs
+
+
 def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     """The configuration checks, with no side effects on generated output:
     unique global ids, executables present and version-compliant, every
@@ -730,4 +788,5 @@ def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     exs.extend(check_state_backends_needed(ctx))
     exs.extend(check_bake_users(ctx))
     exs.extend(check_label_keys(ctx))
+    exs.extend(check_image_sources(ctx))
     return exs

@@ -269,13 +269,17 @@ def _vendor_source(ctx: "GlobalTypeContext", image: Any, runtime: str | None) ->
     if model is None:
         return {}
     out: dict[str, Any] = {k: getattr(model, k, None) for k in ("family", "family_version", "architecture")}
-    out["query"] = dict(getattr(model, "query", None) or {})
+    # stage 106: the EFFECTIVE query is hashed (the catalog's block under the
+    # declarations, in the system's vocabulary), so a source that moves in
+    # the catalog re-bakes the base as a moved declaration always did
     for sub in getattr(model, "runtimes", None) or []:
         sub_rt = _subconfig_runtime(ctx, sub)
         if runtime is None or sub_rt == runtime:
-            out["runtime_source"] = {"image_id": getattr(sub, "image_id", None),
-                                     "image_name": getattr(sub, "image_name", None),
-                                     "query": dict(getattr(sub, "query", None) or {})}
+            try:
+                query = sub.image_query().to_mapping() if hasattr(sub, "image_query") else dict(getattr(sub, "query", None) or {})
+            except ValueError as e:                 # an unknown key: validate refuses it; the hash names it
+                query = {"invalid": str(e)}
+            out["runtime_source"] = {"image_id": getattr(sub, "image_id", None), "query": query}
             break
     return out
 

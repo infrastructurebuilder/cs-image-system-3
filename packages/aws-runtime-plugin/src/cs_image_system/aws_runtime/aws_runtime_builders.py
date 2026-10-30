@@ -19,7 +19,8 @@ from cs_image_system.contract.core import PluginArtifactProtocol
 
 from .aws_provider_specific_image import AwsProviderSpecificImage
 from .aws_runtime_models import AWS_CLI, AwsCloudBuilderModel
-from .aws_utils import remap_for_image_query, query_image
+from .aws_utils import AWS_QUERY_KEYS, query_image, translate_image_query
+from cs_image_system.contract.image import ImageQuery
 from cs_image_system.aws_runtime import aws_utils
 
 log = logging.getLogger(__name__)
@@ -43,12 +44,18 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
     def provider_specific_image_class(self) -> type[ProviderSpecificImage]:
         return AwsProviderSpecificImage
 
+    # --- the image query (stage 106)
+    def supported_query_keys(self) -> frozenset[str]:
+        return AWS_QUERY_KEYS
+
+    def translate_image_query(self, query: ImageQuery) -> dict[str, Any]:
+        return translate_image_query(query)
+
     def query_provider_image(self, os_builder: OSBuilderBaseImageBuilderSubconfig) -> tuple[str, str, Mapping[str,Any]] | None:
         retval: str | None = None
-        q,missed = remap_for_image_query(os_builder) if os_builder else ({}, {})
+        q = self.translate_image_query(os_builder.image_query()) if os_builder else {}
         kv = query_image(
                 query=q,
-                post_query_filter=missed,
                 session_config=self.model.self_to_aws_client_config(),
             )
         if kv:

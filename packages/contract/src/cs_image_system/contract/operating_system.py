@@ -5,7 +5,13 @@
 """The OS kind (stage 30): an OS family and version, the vendor image query
 that finds it on each runtime, and the update policy a base image bakes
 with. A runtime subconfig (one per runtime the OS builder serves) and the
-resolved base image are the core's models and ``Any`` here."""
+resolved base image are the core's models and ``Any`` here.
+
+Stage 106: ``family`` is the token a tree writes (``get_vendor_family``);
+what the token IS, as the image-source catalog says, is ``get_family``,
+which everything that branches on a family reads. A model class names the
+families it serves (``families``), so a type may be defaulted from a family
+and a contradiction between the two refused."""
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -40,6 +46,8 @@ class OsBuilderModelProtocol(BuilderModelProtocol, Protocol):
 
     def get_family(self) -> str: ...
 
+    def get_vendor_family(self) -> str: ...
+
     def get_family_version(self) -> str: ...
 
     def get_architecture(self) -> str: ...
@@ -72,12 +80,17 @@ class OsBuilderModelProtocol(BuilderModelProtocol, Protocol):
 
     def get_admin_public_keys(self) -> list[str] | None: ...
 
+    @classmethod
+    def families(cls) -> tuple[str, ...]: ...
+
 
 class OsBuilderProtocol(BuilderProtocol, Protocol):
     """An OS builder: the family facts, the vendor query per runtime, and the
     resolved base image it generates from a query's result."""
 
     def get_family(self) -> str: ...
+
+    def get_vendor_family(self) -> str: ...
 
     def get_family_version(self) -> str: ...
 

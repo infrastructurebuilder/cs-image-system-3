@@ -173,7 +173,7 @@ def test_a_subnet_outside_the_vpc_is_refused(tmp_path: Path, monkeypatch):
 
 def test_the_image_query_never_rewrites_the_entrys_own_query(tmp_path: Path, monkeypatch):
     import copy as _copy
-    from cs_image_system.aws_runtime.aws_utils import remap_for_image_query
+    from cs_image_system.aws_runtime.aws_utils import translate_image_query
     stub_environment(monkeypatch)
     ctx = load_context(copy_config(tmp_path))
     try:
@@ -181,8 +181,8 @@ def test_the_image_query_never_rewrites_the_entrys_own_query(tmp_path: Path, mon
         entry = next(e for e in osb.get_configs_for_image_builders().values()
                      if e.get_image_builder() == "pckr-ebs-ans")
         before = _copy.deepcopy(dict(entry.query))
-        remap_for_image_query(entry)
-        remap_for_image_query(entry)
+        translate_image_query(entry.image_query())          # stage 106: the effective query is a new object
+        translate_image_query(entry.image_query())
         assert dict(entry.query) == before
     finally:
         reset_singletons()

@@ -1,0 +1,29 @@
+---
+# The tree's layer of the image-source catalog (stage 106; CONFIGURATION.md
+# section 5a). Each entry extends or overrides the release's catalog for a
+# family (and version) in the SYSTEM's query vocabulary; `{version}` is the
+# OS builder's family_version. An OS builder's own `query` and its runtime
+# entry's land on top of the block, key by key.
+image_sources:
+  # the release's debian entry, narrowed for this tree: Debian's own account
+  # and the newest amd64 EBS image; the entry below declares nothing more
+  - family: debian
+    description: the tree's own debian source, over the release's
+    sources:
+      aws:
+        publisher: ["self", "amazon", "136693071363"]
+        name: "debian-{version}-amd64-*"
+        root_device: ebs
+  # a custom family: a RHEL rebuild the tree names its own way, treated as
+  # rhel everywhere (the type, the tests' stand-in, the bake user) while
+  # its query is its own
+  - family: rhel-from-fixture
+    is: rhel
+    versions: ["10"]
+    description: the fixture's own EL 10 lineage, baked as rhel
+    sources:
+      aws:
+        publisher: ["self"]
+        name: "fixture-rhel10-golden-*"
+        root_device: ebs
+        virtualization: hvm

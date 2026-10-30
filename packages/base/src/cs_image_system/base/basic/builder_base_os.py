@@ -50,6 +50,8 @@ class OsBuilderBase(BuilderBase[TOS], OsBuilderProtocol):
 
     def get_family(self) -> str:
         return self.model.get_family()
+    def get_vendor_family(self) -> str:
+        return self.model.get_vendor_family()
     def get_family_version(self) -> str:
         return self.model.get_family_version()
     # def get_output_image_name(self) -> str:

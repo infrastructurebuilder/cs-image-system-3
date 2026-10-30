@@ -18,6 +18,7 @@ from ..helpers.field_helpers import fk_field, parent_field, templated_field
 from .root_item import SubRootItem
 
 from ..constants import  DEFAULT, OOPS_DEFAULTS, VCT
+from cs_image_system.contract.image import ImageQuery
 
 if TYPE_CHECKING:
     from .os_builder_model import OsBuilderModel
@@ -189,15 +190,43 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
         tags.update(self.tags)
         return tags
 
-    def get_query(self) -> Mapping[str, Any]:
+    def runtime_type(self) -> str | None:
+        """The TYPE of the runtime this entry bakes on (``aws``, ``gcloud``,
+        ...): the image-source catalog's key for it (stage 106)."""
+        _rt = self._runtime_model()
+        return str(_rt.get_type()) if _rt is not None else None
+
+    def image_query(self) -> ImageQuery:
+        """The effective vendor-image query, in the system's vocabulary
+        (stage 106): the catalog's block for this runtime's type (the
+        release's layer under the tree's), the OS builder's own ``query``
+        landing on it, this entry's landing on that, key by key; the
+        publishers declared anywhere (the OS builder's ``owners``, the
+        runtime's ``default_owners``, this entry's ``owners``, in that
+        order) replace the catalog's. Raises ValueError on a key the
+        system does not know, naming where it was written."""
+        # the registry hands back the OS BUILDER here (the subconfigs are
+        # parented by the builder that wraps the model); the model is its
         parent = self.identified_model
-        q: dict[str, Any] = {}
-        if parent and parent.get_query():
-            for k, v in parent.get_query().items():
-                q[k] = v
-        for k,v in self.query.items():
-            q[k] = v
+        parent = getattr(parent, "model", parent)
+        family = parent.get_vendor_family() if parent is not None else ""
+        version = parent.get_family_version() if parent is not None else None
+        runtime_type = self.runtime_type()
+        from ..image_sources import ImageSourceCatalog
+        q = (ImageSourceCatalog().block(family, version, runtime_type) if runtime_type and family else None) or ImageQuery()
+        who = f"OS builder {parent.get_name() if parent is not None else '?'}"
+        if parent is not None and parent.get_query():
+            q = q.merged(ImageQuery.from_mapping(parent.get_query(), where=f"{who}: query"))
+        if self.query:
+            q = q.merged(ImageQuery.from_mapping(self.query, where=f"{who}: runtime entry {self.name or self.image_builder}: query"))
+        owners = list(self.get_owners())
+        if owners:
+            q = q.merged(ImageQuery(publisher=tuple(owners)))
         return q
+
+    def get_query(self) -> Mapping[str, Any]:
+        """The effective query as a mapping (``ImageQuery.to_mapping``)."""
+        return self.image_query().to_mapping()
 
     @property
     def output_image_name(self) -> str:

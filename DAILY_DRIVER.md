@@ -773,6 +773,49 @@ on one cloud still collide where the cloud's names are unique (a GCE
 disk in one zone, a bucket); the query then says `a persistent disk of
 that name belongs to configuration '<id>'`, and ours is absent.
 
+### 3.7 An OS from a new vendor
+
+Where a base image's vendor image comes from is a catalog, not a hand-typed
+filter (CONFIGURATION 5a). The release ships one entry per family the
+plugins serve, per runtime type, written in the system's own query
+vocabulary; each runtime translates it. An OS builder names its family and
+version and bakes from the catalog's block for its runtime, so the one
+decision in `cfg/os-builders.yml` is the family, which says what the image
+IS: `family: alma-linux` bakes AlmaLinux, is treated as `rhel` everywhere
+(the type, the bake user, the agent, the tests), and is tested locally on
+`almalinux:10`.
+
+When the release's catalog has no block for a family on a runtime,
+`validate` says so by name and the run stops before anything is asked of
+the cloud. Add the block to this tree's `cfg/image-sources.yml`, in the
+system's words:
+
+```yaml
+image_sources:
+  - family: ubuntu
+    versions: ["24"]
+    sources:
+      gcloud:
+        publisher: ["ubuntu-os-cloud"]
+        family: "ubuntu-2404-lts-amd64"
+```
+
+A family of your own (`rhel-from-ops`, `is: rhel`) goes the same way, with
+its own query and no `type` on the OS builder. Then:
+
+```sh
+just cli validate                      # one line per OS builder and runtime: the query in both vocabularies
+just cli --no-dry-run run base-image   # the first bake from it
+```
+
+Read the `image source:` lines before the bake: they are exactly what the
+runtime will ask, in its own words. A key a runtime cannot translate is
+refused there, naming the key and the keys it does translate; a cloud
+particular the vocabulary does not name goes under `native:`. To narrow
+the release's block for one tree, write only the key you change on the OS
+builder or its runtime entry (`query: {name: "..."}`); it lands on the
+catalog's value and the rest stays.
+
 ## 4. Changing things
 
 Every change is a change to the YAML, then a run. The procedures are in
