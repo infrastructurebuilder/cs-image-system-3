@@ -18,8 +18,14 @@ operator can take.
 - §103, a container runtime (docker and the daemons that speak its
   API): planned 2026-10-29; eight questions wait for the operator's
   answers, then "do 103".
-- No hygiene bundle is open; the next non-critical issue opens bundle
-  XX.
+- §104, hygiene bundle XX: open 2026-10-30 with four items (the
+  bootstrap and the resources a tree declares; the mod tests' stand-in
+  container is a declaration); waits for "do 104".
+- §105, a declared output image name: planned 2026-10-30, reviving
+  what stage 22.3 commented out; waits for "do 105".
+- §106, image sources: planned 2026-10-30; a catalog in the system's
+  own query vocabulary, translated by each runtime; waits for "do
+  106".
 - No documentation stage is open.
 
 **Release**
@@ -116,10 +122,17 @@ operator can take.
   project, network, image and bucket ids and the Okta org and team are
   public by decision; live rosters are encrypted to the four recipients;
   fixture people are synthetic.
-- All terraform state stays on the S3 backend. Backends `s3`, `local`
-  and `gcs` exist; `gcs` is declared and bound to nothing. Moving the
-  GCE roots to GCS and per-runtime network checks are last, and not
-  stages.
+- A configuration declares its state managers (`state_backends:`) and
+  every terraform root lives in exactly one of them, resolved through
+  the chain (its own, its runtime's, the default); a tree may use
+  several at once. The system's own metadata (`meta-state/`) is
+  committed local files in the configuration repository. The
+  reference's choice, not a system rule: its roots, the GCE ones
+  included, sit on its default S3 backend for now, and `gcs` is
+  declared and bound to nothing. Moving the GCE roots to GCS and
+  per-runtime network checks are last, and not stages. (Reworded
+  2026-10-30: the earlier "all terraform state stays on S3" was a
+  gloss, never the operator's words.)
 - GCP is the operator's money: no new GCP work unless a change could
   break the GCP code; then the GCE cycle runs on the operator's account
   and is torn down.
@@ -175,6 +188,318 @@ question at least once a month for the next 4 months." The note is made:
 - 2026-12-09: (open)
 - 2027-01-09: (open)
 - 2027-02-09: (open)
+
+## 106. Image sources: a catalog in the system's query vocabulary
+
+**Status: planned 2026-10-30 from the operator's design, settled in
+conversation that day. Waits for "do 106".**
+
+**Why**: an OS builder's runtime entry today spells out, by hand and
+per runtime, where its vendor image comes from (`owners` and
+`query.filters`), and nothing connects that to the `family` the rest
+of the system reads: the modification tests pick their container from
+the family through a table of their own (bundle XX item 4), and a
+publisher account id copied into every tree is a trust decision nobody
+reviews. The filter keys are EC2's describe-images field names: the
+operator's incidental choice when the system started on AWS, which
+the GCE runtime translates through a key map
+([gcp_utils.py](packages/gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/gcp_utils.py)),
+dropping the AWS-only keys with a debug line and pushing unknown keys
+into a post-query filter that can exclude everything. Three places
+build the same AWS-shaped dict by hand for a build's own name pattern.
+The operator's design (2026-10-30): a third construct, a catalog of
+image sources keyed by family and version, holding one block per
+runtime type in the SYSTEM's vocabulary, which each runtime translates
+to its own; a tree's overrides land on top by key; a family may name
+what it really is.
+
+**The vocabulary**, owned by the contract as a typed `ImageQuery`
+record. The keys are the system's, with AWS's spellings kept where
+they are good names:
+
+| Key | Meaning |
+| --- | --- |
+| `name` | a glob over the vendor's image name |
+| `family` | the vendor's own family token, where the runtime has one |
+| `version` | the major version; expands into `name` or `family` |
+| `architecture` | `x86_64` or `arm64` |
+| `publisher` | who owns the image (an account, a project, a registry namespace) |
+| `state` | `available` |
+| `virtualization`, `root_device` | the EC2 particulars |
+| `tag:<k>` | a tag or label |
+| `newest` | take the latest match |
+
+Values are in the system's vocabulary too (`architecture`, `state`),
+mapped per runtime both ways. A `native:` sub-block is the one escape
+hatch: passed to the runtime verbatim, never translated, for a cloud
+particular the vocabulary does not name.
+
+**The catalog.** A collection `image_sources` (`cfg/image-sources*.yml`):
+
+```yaml
+image_sources:
+  - family: alma-linux
+    is: rhel                      # what it REALLY is: type, tests, bake user
+    aws:    {publisher: ["764336703387"], name: "AlmaLinux OS {version}*x86_64"}
+    gcloud: {publisher: ["almalinux-cloud"], family: "almalinux-{version}"}
+    docker: {publisher: ["library"], name: "almalinux", version: "{version}"}
+  - family: rhel-from-jerry
+    is: rhel
+    versions: ["10"]
+    aws:    {publisher: ["self"], name: "jerry-rhel10-golden-*"}
+```
+
+`{version}` keeps one entry per family; an entry naming `versions`
+wins for those. `is` names a family the plugins know; everything that
+reads a family today (`get_family`: the tests' stand-in, the bake
+user, the image tests) reads `is` through the catalog, so a custom
+family is treated as what it is while its query is its own. `type` on
+an OS builder becomes optional, defaulted from `is`; an explicit
+`type` that disagrees with `is` is refused at load.
+
+**Two layers, one stack, translated once.** A release-owned default
+catalog ships in the fixture and the starters, holding the families
+the plugins already branch on, its publisher ids reviewed at the
+release. The tree's file extends or overrides it by key. An entry's
+effective query resolves in the merge that exists in
+[os_builder_runtime_config.py](packages/base/src/cs_image_system/base/models/os_builder_runtime_config.py)
+(`get_owners`, `get_query`), all in the system vocabulary: the default
+catalog's block for the runtime type, the tree catalog's, the OS
+builder's own `query`, the runtime entry's `query`, each landing on
+the one below by key; then the runtime translates. `image_id`
+short-circuits the stack as today. A runtime type with no block and
+no override is refused in one sentence naming the entry, the runtime
+and the two ways out ("declare one in `cfg/image-sources.yml` or on
+the entry"), never guessed.
+
+**Steps** (one branch, `feature/image-sources`, about four days)
+
+1. The contract first (§30): `ImageQuery` and the vocabulary in
+   `contract.image`; the runtime protocol gains
+   `supported_query_keys()` and `translate_image_query(query)`; the
+   OS model protocol gains the catalog-aware `get_family()` and
+   `get_vendor_family()`.
+2. The two runtimes implement the hooks from the remaps they have;
+   the AWS side gains the value maps it lacks. The three by-hand
+   lookups (both provider-specific image classes, the packer chained
+   lookup) build an `ImageQuery` and hand it to the hook.
+3. The collection, its model (`family`, `is`, `versions`, one block
+   per runtime type), the two-layer merge, and the resolution stack.
+4. `validate`: a key a runtime does not support is refused, naming
+   the entry, the runtime and the key (today GCE drops or buries it);
+   `type` against `is`; and one line per OS builder and runtime
+   printing the resolved query in BOTH vocabularies, so a review sees
+   what will be asked without opening the catalog.
+5. The modification tests read the catalog's `docker` block for the
+   stand-in: bundle XX item 4(a) lands here, and the table in
+   `mod_tests.py` goes.
+6. The fixture's default catalog; the reference's and the starters'
+   runtime entries lose their hand-written filters where the catalog
+   covers them (the golden changes once, in the packer sources'
+   query; the resolved images must not). USER: the reference's edit.
+7. **Documentation, part of the stage, not after it**:
+   - CONFIGURATION gains a section for `image_sources`: the
+     vocabulary table, the merge stack with an example of an override
+     landing on a catalog value, `is` and `{version}`, and **"How to
+     add an image source"**: a worked example for a new vendor family
+     on one runtime, and one for a custom family (`rhel-from-jerry`),
+     each ending with the validate line that proves it resolved;
+   - **the translation belongs to the runtime, so it is documented
+     with the runtime**: every runtime plugin's README gains an
+     "Image query translation" table, system key to native field,
+     the value maps, the keys it does not support, and the `native:`
+     hatch; a docs test holds each table equal to the plugin's
+     `supported_query_keys()`;
+   - the contract README lists the vocabulary as the contract's;
+   - DAILY_DRIVER gains "Adding an OS from a new vendor" as a walk
+     through the catalog, the validate line and the first bake;
+   - OPERATIONS names the stack in one paragraph beside "How an
+     image is named" (§105).
+
+**Effects, stated for the record** (none of them is a reason to
+wait): a tree that declares nothing new resolves the same images as
+today, since the default catalog reproduces the fixture's queries;
+the golden changes once where filters move from entries to the
+catalog; a runtime that silently dropped a key now refuses it, so a
+tree that relied on the drop sees one validate line and removes the
+key. §103's docker runtime joins by writing one translation and one
+catalog block (its question 7 is answered here). Bundle XX item 4
+keeps its parts (b) to (d).
+
+**Acceptance**: golden byte-identical before the entries change and
+regenerated once after; bar green; pyright 0; the conformance test
+green over the contract's new record and hooks; the docs tests green,
+the new translation-table test included; `just full-test` legs green
+with the modification tests on the catalog's stand-in. Records: the
+squash message; this section goes when it lands.
+
+## 105. A declared output image name
+
+**Status: planned 2026-10-30 at the operator's request. Waits for "do
+105".**
+
+**Why**: a tree should be able to say what its images are called.
+Stage 22.3 (2026-09-12, ledger 75) found `output_image_name` declared
+seven times in the fixture with real templates and read by nothing:
+the OS-level model field was commented out, and at the per-runtime
+level a computed property of the same name
+([os_builder_runtime_config.py](packages/base/src/cs_image_system/base/models/os_builder_runtime_config.py),
+`output_image_name`, which returns the display name) shadowed any
+declared value. The operator chose then to comment the declarations
+out rather than make them real, because making them real renames every
+future image on both clouds, and the ledger said renaming is its own
+stage if ever wanted. This is that stage. The field was never live, so
+nothing is restored: a naming rule is added.
+
+**How an image is named today.** The per-runtime entry of an image
+computes its output name in `get_image_output_name()`
+([image.py](packages/base/src/cs_image_system/base/models/image.py),
+[base_image.py](packages/base/src/cs_image_system/base/models/base_image.py)):
+the image's display name, a dash, the image builder's name (a base
+image: the runtime's name). The templated `_final_name` appends the
+run's timestamp in the configuration's `dateformat`. That is the shape
+of every live build (`imgfile-basic-dask-pckr-gce-ans-20260926-064527`).
+The name is read by the packer source (`ami_name`; on GCE `image_name`
+through `gce_name`, lowercase and 63 characters) and by the deferred
+image lookup, which finds a build that has not happened yet by the
+pattern `<output name>*` (the instance roots' `ami_name_pattern` when
+no pin stands; the base-image resolution). Nothing else reads it:
+lineage, pins, release, retention, disposal and the strict query go by
+the `csis_series` tag and recorded build ids.
+
+**Steps** (one branch, `feature/output-image-name`, about two days)
+
+1. The field, optional, at three levels, each overriding the one
+   above: the OS builder, its per-runtime entry, and an image's
+   per-runtime entry (`Image` and `BaseImage` subconfigs). The
+   shadowing property goes. The contract's OS and image model
+   protocols gain the attribute first (§30: the contract is upstream).
+2. `get_image_output_name()` returns the declared value when set, else
+   today's shape: a tree that declares nothing gets the same names as
+   before, and the golden over the fixture with the seven declarations
+   still commented out stays byte-identical. The declared value is
+   the PREFIX; `_final_name` keeps appending the timestamp, as the
+   old `exclude_timestamp_from_output_image_name` comment says it
+   must ("should never be set to true").
+3. Rules in `validate`, each one sentence naming the image and the
+   runtime:
+   - a template that names `execution.timestamp` is refused, since the
+     loader renders it at load and the final name would carry two;
+   - on one runtime, no image's prefix may be a prefix of another's,
+     or the `<prefix>*` lookups cross (today `basic-pckr-ebs-ans` and
+     `basic-dask-pckr-ebs-ans` are safe only because the builder name
+     follows the image name);
+   - the final name must fit every runtime the image bakes on: AWS's
+     AMI name rules (3 to 128 characters, its character set) and GCE's
+     after `gce_name`, and two images may not collapse to one GCE name;
+   - the per-runtime sanitising stays in the runtime (`gce_name`), and
+     the rule only reports what it would produce.
+4. The fixture's seven declarations come back as they were written,
+   with `execution.timestamp` removed from the ones that carry it (rule
+   3), and the golden is regenerated: the packer sources' `ami_name`
+   and `image_name`, and the instance roots' `ami_name_pattern`,
+   change; nothing else may.
+5. Docs: CONFIGURATION gains the field at its three levels with the
+   precedence and the rules; OPERATIONS gains "How an image is named"
+   beside the lineage section; the explore note in
+   [EXPLORE.md](docs/history/EXPLORE.md) ("Explore having the
+   `output_image_name` config restored") is closed by a line pointing
+   here (history is frozen: a pointer, not a rewrite).
+
+**Effects, stated for the record** (none of them is a reason to wait):
+
+- Existing builds are untouched: names, tags, pins and lineage records
+  stay as they are.
+- Every new build on a tree that declares the field gets the new name.
+  With pins in place, as the reference has, a running estate notices
+  nothing until it bakes.
+- An unpinned instance finds nothing: its first bind looks up `<new
+  prefix>*`, which matches no old build, so it binds after the first
+  bake under the new name. The reference has no unpinned instance.
+- The reference, if it declares the field: the GCE emission changes
+  between records, and CI's guard refuses that unless the change is
+  named, so the record that lands it needs the operator's step.
+  **YOUR DECISION, at "do 105": whether the reference declares it
+  (default: no; the fixture does, the reference keeps today's names).**
+
+**Found on the way, not this stage's**: both trees carry a live
+`base_images/base-images1.yaml` with the field uncommented; it is
+harmless because the `base_images` collection is registered base-only
+and never read. A reader (`read_base_images_from_files`) existed in
+the pre-public tree from at least 2026-06-25 with no caller and was
+removed on 2026-07-04 ("Collapse GTC to registry refs"), leaving the
+comment that stands in `global_context.py` today. Nothing has ever read
+that directory. The operator (2026-10-30) will remove the file or
+relocate its entries as `runtimes:` of the OS builders; the system
+leaves it alone.
+
+**Acceptance**: golden byte-identical with the declarations commented
+out, and regenerated once with them in; bar green; pyright 0; the
+conformance test green; the docs tests green; `just full-test` legs
+green. Records: the squash message; this section goes when it lands.
+
+## 104. Hygiene bundle XX
+
+**Status: OPEN 2026-10-30, four items from the operator's examination
+of where state lives and of what the tests run on. Waits for "do
+104".**
+
+The operator's principle (2026-10-30), which the bundle serves:
+**bootstrapping should be capable of producing a working set for all
+underlying resources** a tree declares. What stands is read and
+adopted; what is absent is made; what the system must never make (the
+network) is named as a step by hand, by decision, not by omission.
+
+1. The bootstrap makes one state manager, not every declared one. The
+   AWS section asks about the tree's DEFAULT S3 backend only
+   (`default_state_backend(facts, "s3")` in
+   [facts.py](packages/base/src/cs_image_system/base/bootstrap/facts.py))
+   and the module makes that bucket with its versioning, encryption
+   and public-access block when it is absent. A second S3 backend is
+   never probed, never made and never mentioned: the reference's
+   `s3-east1` names a placeholder bucket that nothing would ever
+   create. Make the section ask per declared S3 backend (exists,
+   managed), and the module make one bucket set per absent one; a
+   backend bound to no root may be skipped with a line saying so.
+2. The GCP section asks for the GCS state bucket and whether it
+   exists, and then does nothing when it does not: the module has no
+   bucket resource, and the absent bucket is not even listed among the
+   steps by hand
+   ([bootstrap.py](packages/gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/bootstrap.py),
+   the `backend` and `by_hand` block). Make the bucket as the AWS
+   section does (versioned, uniform access, no public access), with
+   the same managed-or-read fork, so the root binds to it on the
+   second interview.
+3. An audit of the gap between what a tree declares and what the
+   bootstrap covers, recorded in the bootstrap's generated README and
+   in OPERATIONS §3: for every underlying resource the declarations
+   imply (state managers, the CI identities and their roles, the
+   session instance profile, the OPA connection and policy CI logs in
+   through, the bake hosts' network), one of MADE, READ or BY HAND,
+   and each BY HAND line a decision with its reason, never a silence.
+   The §103 survey found a related gap that stays in §103: preflight
+   checks the runtimes' sessions and never the managers'.
+4. The modification tests run on a container nobody declared. The
+   stand-in is derived from `family` and `family_version` through a
+   table in
+   [mod_tests.py](packages/base/src/cs_image_system/base/mod_tests.py)
+   with one silent substitution (`rhel` at 10 and above becomes
+   `almalinux:<v>`, since Docker Hub's Rocky library stops at 9);
+   nothing reads the `owners` and `query` that choose the vendor image.
+   The reference's `basic-rh-10` says `family: rhel` and bakes Alma,
+   so its tests run on Alma by accident of the special case; a query
+   moved to a real RHEL 10 image would leave them on Alma, silently.
+   The release recipe refuses to cut without `meta-state/mod-tests.yaml`,
+   so a release is gated on evidence from that stand-in. The fix is
+   that the stand-in is always a declaration: (a) the substitution
+   goes: the stand-in is the image-source catalog's `docker` block for
+   the family, which §106 builds (this part lands THERE, not here);
+   (b) `validate` prints the stand-in, one line per OS
+   builder; (c) a WARNING, never a refusal, when the vendor query's
+   name pattern plainly names another family than the token
+   ("AlmaLinux" under `family: rhel`); (d) USER: the reference's
+   `basic-rh-10` declares `family: alma-linux` (the configuration
+   repository's edit; it changes nothing in the bake).
 
 ## 103. A container runtime: docker and the daemons that speak its API
 
@@ -254,10 +579,10 @@ parts are NOT behind the seam and must be taught:
   (`ebs`, `pd`, `efs`, `filestore`, `s3`, `gcs`);
 - the bootstrap's runtime facts prefer `aws` by name, the GitHub section
   hard-codes AWS and GCP secrets, and the four starters are all cloud;
-- terraform state: a container runtime's roots resolve to the default
-  backend, S3 in the reference, so a docker-only tree still needs an
-  AWS session under the standing decision, and preflight would not
-  check it.
+- terraform state: a container runtime's roots resolve through the
+  chain to whatever managers the tree declares; a tree's credential
+  needs follow its managers as well as its runtimes, and preflight
+  checks only the runtimes today.
 
 **Questions for the operator** (each with the proposed default; the
 answers become this section's Decisions before "do 103")
@@ -294,12 +619,12 @@ answers become this section's Decisions before "do 103")
    Release and relabel move tags, because an image's labels are fixed
    when it is built. Pushing released builds to a registry is a later
    option on the runtime.
-5. **Terraform state.** Default: unchanged, the standing decision ("all
-   terraform state stays on the S3 backend"). A docker runtime in the
-   reference then needs an AWS session, as the GCE roots do, and
-   preflight learns to check the session of every state backend a run
-   reaches. `local` stays available for a tree that wants no cloud at
-   all.
+5. **Terraform state.** Default: nothing new. A docker runtime's roots
+   live in whichever managers the tree declares, like every root. The
+   reference's docker roots join its default S3 backend (its choice,
+   so they need the AWS session the GCE roots need); a tree with no
+   cloud declares `local`. Preflight learns to check the session of
+   every manager a run reaches, which it does not do today.
 6. **Starters and the reference.** Default: a fifth starter,
    `standard-docker`, with `local` state, published by the next
    release. The reference configuration gains a docker runtime aimed at
@@ -308,11 +633,12 @@ answers become this section's Decisions before "do 103")
    because GitHub's runners have no durable daemon: the runtime is
    guarded in CI as the GCE one is.
 7. **The orphan source classes.** Default: removed. The docker runtime
-   resolves an OS's `runtimes:` entry as the clouds do: `image_id` pins
-   `repository@sha256:...`; `query` names `repository` and `tag`; with
-   neither, the OS's family and version give the image through the
-   table the modification tests use. The resolved digest is recorded,
-   so a vendor moving a tag shows as a move.
+   resolves an OS's `runtimes:` entry as the clouds do, through the
+   image-source catalog of §106 (its `docker` block: a publisher, a
+   name and a version, translated to `repository:tag`); `image_id`
+   pins `repository@sha256:...`. The resolved digest is recorded, so a
+   vendor moving a tag shows as a move. §106 lands first, or this
+   branch carries the docker translation and the catalog block.
 8. **Machine types.** Default: a `machine_types:` map on the runtime,
    from a name to `{cpus, memory}`, with `default_machine_type` naming
    one; an instance's `machine_type` picks its limits. The contract's

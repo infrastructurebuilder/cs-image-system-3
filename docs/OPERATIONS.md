@@ -1136,13 +1136,16 @@ Three backend types exist (stage 47): `s3` -- a bucket, `s3://<bucket>/<key>`
 directory relative to the configuration root, needing no credentials -- and
 `gcs` -- a Google Cloud Storage bucket, `gcs://<bucket>/<prefix>/<root>/default.tfstate`,
 declared in the fixture and in the live tree (commented out) and bound to
-nothing, since the GCE roots stay on S3 by the standing decision. A
+nothing, since the reference keeps its GCE roots on S3 for now (its
+choice, not a rule of the system). A
 type is a plugin (a model and a kind that renders the location, the backend
 file and a consumer's data source; the S3 plugin's README has the recipe),
 and the collector names no field of any type. The fixture's identity roots
 use `local` and its storage roots a second S3 bucket, so its roots read
 each other's state across types and buckets; the live configuration keeps
-every root on its default S3 backend by the standing decision.
+every root on its default S3 backend, which is that configuration's
+choice: a tree declares its managers and may spread its roots over
+several.
 
 The backend a root uses resolves through a chain (stage 46): its own
 `state_configuration` when it names a backend, else its runtime's, else
