@@ -25,9 +25,10 @@ operator can take.
   what stage 22.3 commented out; waits for "do 105".
 - §106 landed (below) and is released in 0.1.5; the reference is
   restamped and `basic-rh-10` says what it bakes. Nothing is owed.
-- §107, releases are cut on `main`: planned 2026-10-31 as a staged
-  transition from the develop-only rule of stage 83; its four questions
-  were decided the same day; waits for "do 107".
+- §107, releases are cut on `main`: on feature/release-on-main since
+  2026-10-31 (steps 1 and 3: the variable, the guards, the docs); USER
+  after the merge: step 2, `git push origin develop:main` once; then
+  the proof, a development release from `main`.
 - No documentation stage is open.
 
 **Release**
@@ -168,7 +169,13 @@ operator can take.
   out of CI. A push to `main` is the operator's.
 - Releases: `just release <part|version> [test|pypi]`, TestPyPI first; a
   deleted version is never re-cut; trusted publishing replaces the
-  tokens once package names are stable.
+  tokens once package names are stable. Since stage 107 a release is
+  cut on `main`: `develop` is where work is done and `main` is where
+  releases live; `main` takes `develop` by fast-forward before, the
+  release commit and tag land on `main`, `develop` takes `main` back by
+  fast-forward after; a failed release leaves its evidence on `main`
+  alone; a maintenance branch `release/<major.minor>` serves an old
+  version's fix. (`develop` alone from stage 83 to 0.1.5.)
 - The plugin contract (§30) is provisional until the operator commits
   to it: the core's re-export shims stay, Tier C declares the context
   protocol without injecting it, and the stage may be undone by the
@@ -218,12 +225,15 @@ question at least once a month for the next 4 months." The note is made:
 
 ## 107. Releases are cut on `main`
 
-**Status: planned 2026-10-31 at the operator's word ("I would prefer
-that releases happen off of main, but if we've got a pattern of using
-develop then I'd want to stage any transition"). Nothing is built. The
-four questions were put to the operator and decided the same day
-(Decisions, below); the work waits for "do 107". Until it lands, a
-release is cut on `develop` as stage 83 says.**
+**Status: BUILT on feature/release-on-main, 2026-10-31 ("do 107").
+Steps 1 and 3 are on the branch as two commits: `release_branch`, still
+`develop`, then `main` with the guards, the maintenance branch, the two
+closing pushes and the docs. Deviation from the plan, for the operator
+to accept at "merge 107": the two steps land in one squash, and step
+2, the operator's one push of `develop` to `main`, follows the merge
+instead of sitting between them; the flip is inert until `just
+release` runs, so nothing changes hands in between. Step 4, the proof,
+is the first development release of 0.1.6 from `main`.**
 
 **Why.** Stage 83 (2026-10-17) made `develop` the one release branch
 after the walk's F31 cut a development release on a walk branch. Its

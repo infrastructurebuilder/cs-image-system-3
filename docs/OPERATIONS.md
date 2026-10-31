@@ -1584,9 +1584,14 @@ of the same version (`0.1.1.dev1` → `0.1.1.dev2`), `stage` finalises it
 form: the probes and the version, nothing changed. The real form, in
 order:
 
-1. the probes, before anything changes: the checkout is on `develop`
-   (every release, development or final, is cut there; the walk's F31
-   cut a version on a walk branch); the index can take an upload and
+1. the probes, before anything changes: the checkout is on `main`
+   (every release, development or final, is cut there since stage 107;
+   `develop` alone from stage 83, after the walk's F31 cut a version on
+   a walk branch; the Justfile's `release_branch` names it once) and
+   `develop` is an ancestor of it, so a release never leaves a stage
+   behind; or the checkout is on a maintenance branch
+   `release/<major.minor>`, an old version's fix cut while `develop` is
+   past it, which skips the ancestor check; the index can take an upload and
    holds the version for no project (`scripts/publish-target-ready`,
    stage 83, below; a version is never re-cut, because a deleted
    version's files can never be uploaded again); the token is set
@@ -1621,14 +1626,39 @@ order:
    `packages/*/pyproject.toml` and `uv.lock` committed here
    (`release <v>`) and the annotated tag `v<version>`.
 
-Nothing is pushed: `git push --follow-tags` is the operator's act, and
-the pushed tag makes CI's `publish` job check the release against the
-index (it uploads nothing the index already holds).
+Nothing is pushed. The closing line names the operator's two acts: `git
+push --follow-tags origin main`, whose tag makes CI's `publish` job check
+the release against the index (it uploads nothing the index already
+holds), and then `develop` taking `main` back by fast-forward (`git
+checkout develop && git merge --ff-only main && git push origin
+develop`).
+
+**The release branch (stage 107).** `develop` is where work is done and
+`main` is where releases live. `main` is always `develop` plus release
+commits and moves only by fast-forward: before a release `main` takes
+`develop` (`git checkout main && git merge --ff-only develop`), the
+release commit and the tag land on `main`, and `develop` takes `main`
+back the same way, so both carry the release and both histories stay
+linear. `develop` may be ahead of `main` for as long as it likes and is
+behind it only between the release commit and the fast-forward back. If
+a stage landed on `develop` during a release the fast-forward back
+refuses; the fallback is one merge commit of `main` into `develop`,
+never a rebase of pushed commits. A failed release leaves its evidence
+on `main` alone: an uncommitted bump in `main`'s checkout, or `main` at
+`develop`'s HEAD without a tag when the release was abandoned after the
+fast-forward. `git flow release` is not used (its finish makes a merge
+commit and a back-merge). A maintenance branch `release/<major.minor>`
+is accepted by both recipes for the day a tree needs a fix to an old
+version without taking the stages since (0.1.5 cut from 0.1.4 plus one
+fix while `develop` is past it); the index refuses a re-cut and
+`bump-my-version` takes an explicit version, so nothing else is built
+for it until one is needed. From stage 83 to 0.1.5 the release branch
+was `develop` alone and `main` was unused.
 
 **Finishing a release by hand: `just release-finish <index>`.** For a
 release whose upload stopped part-way and was completed with `just
-publish`. On `develop`, with the bump uncommitted and nothing else
-changed, it asks the index whether every project holds the version
+publish`. On `main` (or a maintenance branch), with the bump uncommitted
+and nothing else changed, it asks the index whether every project holds the version
 (`scripts/publish-target-ready --all-held`; the index's pages lag an
 upload by minutes, so a count just after one can be short), and only
 then makes the evidence commit in the live repository (PyPI), the
@@ -1867,9 +1897,9 @@ configuration repository's, which the release ships.
 | `build` | sdist + wheel of every workspace member under `dist/` (the system package carries the three starter trees) | nothing |
 | `test` | lint → typecheck → pytest, all blocking (the bar) | nothing |
 | `full-test` | `test` + `test-mods --strict` (docker) + dry `run --all` and `state query --strict` over a copy of the reference configuration (sessions) | docker, reference configuration, runtime sessions; each leg skips loudly |
-| `release <part\|version> [test\|pypi] [yes]` | probe (branch `develop`, the index ready and free of the version, token, tag), the bar or `full-test`, the index again, `bump-my-version`, `uv lock`, `publish`, commit, tag `v<version>`; `yes` = dry | `UV_PUBLISH_TOKEN`; for `pypi`: clean trees, mod-test evidence, `full-test`'s needs |
+| `release <part\|version> [test\|pypi] [yes]` | probe (branch `main` with `develop` an ancestor, or `release/<major.minor>`; the index ready and free of the version; token; tag), the bar or `full-test`, the index again, `bump-my-version`, `uv lock`, `publish`, commit, tag `v<version>`; `yes` = dry | `UV_PUBLISH_TOKEN`; for `pypi`: clean trees, mod-test evidence, `full-test`'s needs |
 | `publish [test\|pypi]` | the index asked first, clean `dist/`, `build`, then `scripts/publish-dist`: one project at a time (sdist with wheel, dependencies first, `cs-image-system` last), skip what is there, exit 75 on PyPI's limit on new projects, prove the token when nothing went up | `UV_PUBLISH_TOKEN` |
-| `release-finish [test\|pypi]` | after a release's upload stopped part-way and `publish` completed it: on `develop`, the bump uncommitted and nothing else, every project holding the version -- then the evidence commit (PyPI), the commit and the tag; pushes nothing | the index, `develop` |
+| `release-finish [test\|pypi]` | after a release's upload stopped part-way and `publish` completed it: on `main` (or a maintenance branch), the bump uncommitted and nothing else, every project holding the version -- then the evidence commit (PyPI), the commit and the tag; pushes nothing | the index, `develop` |
 | `index-ready [test\|pypi] [wait]` | can the index take an upload now: the upload endpoint and every project page, one line each; exit 0 ready, 75 not now; `wait` probes every minute, two hours at most (stage 83) | the network |
 | `full-test-legs` | the live legs of `full-test` alone: `test-mods --strict` under docker, a headless dry run `--all` and a `state query --strict` over a private copy of the reference configuration; re-run these after a session renewal instead of the whole `full-test` | `preflight` gates the two copy legs |
 | `format` | `ruff format packages tests` | nothing |
