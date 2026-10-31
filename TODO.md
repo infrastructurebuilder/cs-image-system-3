@@ -25,10 +25,11 @@ operator can take.
   what stage 22.3 commented out; waits for "do 105".
 - §106 landed (below) and is released in 0.1.5; the reference is
   restamped and `basic-rh-10` says what it bakes. Nothing is owed.
-- §107, releases are cut on `main`: on feature/release-on-main since
-  2026-10-31 (steps 1 and 3: the variable, the guards, the docs); USER
-  after the merge: step 2, `git push origin develop:main` once; then
-  the proof, a development release from `main`.
+- §107, releases are cut on `main`: merged 2026-10-31 (cda0f43), the
+  operator's one push brought `main` up to `develop` the same day, and
+  the development proof 0.1.6.dev1 was cut from `main` by the new walk.
+  The section (below) goes when the next FINAL release is cut the same
+  way.
 - No documentation stage is open.
 
 **Release**
@@ -49,7 +50,11 @@ operator can take.
 - The §66 proof was not rerun on 0.1.5; it passed whole on 0.1.3 and
   0.1.4 (a private copy of `standard-aws`, its first push, a dispatched
   dry run, `uv tool install` from PyPI, `just init` naming the release).
-- Last development release: 0.1.2.dev2.
+- Last development release: 0.1.6.dev1, TestPyPI, tag `v0.1.6.dev1`
+  (6e8a314), 2026-10-31: the §107 proof, the first release cut from
+  `main` (fast-forward to `develop`, `just release patch test`, the
+  push with tags, CI's bar and tag job green, `develop` fast-forwarded
+  back; all four refs at 6e8a314).
 - The §66 proof passed whole on 0.1.4 (2026-10-29): a private copy of
   `standard-aws`, its first push and a dispatched dry run green with
   `live` and `perform` SKIPPED, `uv tool install
@@ -225,15 +230,15 @@ question at least once a month for the next 4 months." The note is made:
 
 ## 107. Releases are cut on `main`
 
-**Status: BUILT on feature/release-on-main, 2026-10-31 ("do 107").
-Steps 1 and 3 are on the branch as two commits: `release_branch`, still
-`develop`, then `main` with the guards, the maintenance branch, the two
-closing pushes and the docs. Deviation from the plan, for the operator
-to accept at "merge 107": the two steps land in one squash, and step
-2, the operator's one push of `develop` to `main`, follows the merge
-instead of sitting between them; the flip is inert until `just
-release` runs, so nothing changes hands in between. Step 4, the proof,
-is the first development release of 0.1.6 from `main`.**
+**Status: MERGED cda0f43, 2026-10-31 (feature/release-on-main kept),
+and PROVED by a development release the same day: the operator's one
+push brought `main` up to `develop` (step 2, CI's bar green on `main`
+at cda0f43), then 0.1.6.dev1 went to TestPyPI from `main` by the new
+walk (fast-forward, release, push with tags, fast-forward back; tag
+`v0.1.6.dev1` = 6e8a314, bar and tag job green, all four refs agree).
+Steps 1 and 3 landed in one squash and step 2 followed the merge, as
+accepted. What remains of step 4 is the next FINAL release cut the
+same way with the reference's take unchanged; this section goes then.**
 
 **Why.** Stage 83 (2026-10-17) made `develop` the one release branch
 after the walk's F31 cut a development release on a walk branch. Its
