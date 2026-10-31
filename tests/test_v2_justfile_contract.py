@@ -90,7 +90,8 @@ def test_build_wraps_uv_build_and_the_gates_hold():
     for needle in ("git status --porcelain", "bump-my-version", "uv lock", "just publish {{index}}", "git tag -a"):
         assert needle in body, needle
     assert "uv version" not in body and "UV_PUBLISH_URL" not in body and "SKIPPED" not in body   # the tag is no longer the release
-    assert "git push" not in body.replace("push with: git push", "")   # nothing is pushed by the recipe
+    pushes = "\n".join(l for l in body.splitlines() if "after=" not in l and "push with:" not in l)
+    assert "git push" not in pushes   # nothing is pushed by the recipe; the closing line only names the operator's pushes (stage 107)
 
 
 def _starter() -> dict[str, tuple[str, str]]:
@@ -249,7 +250,7 @@ def test_release_cannot_half_release_and_publish_is_its_own_recipe():
                                       "just publish {{index}}", "git commit", "git tag -a")]      # the last mention: the dry echo names them first
     assert order == sorted(order), "probe, bump, publish, commit, tag -- in that order"
     # stage 83: the branch first, then the index -- once before the bar and AGAIN after it, before the bump
-    assert body.index('[ "$branch" = develop ]') < body.index("\n\tready\n")
+    assert body.index('case "$branch" in') < body.index("\n\tready\n")   # the branch guard (main since stage 107) before the index
     calls = [i for i in range(len(body)) if body.startswith("\n\tready\n", i)]
     assert len(calls) == 2, "the index is asked twice"
     assert calls[0] < body.index("just full-test") and calls[1] > body.rindex("just test") and calls[1] < body.rindex("bump-my-version \"${bump[@]}\"")
@@ -282,18 +283,19 @@ def test_release_cannot_half_release_and_publish_is_its_own_recipe():
 
 
 def test_release_finish_commits_and_tags_only_a_completed_upload():
-    """Hygiene XIV item 1: release-finish is on develop, with the bump uncommitted
+    """Hygiene XIV item 1: release-finish is on the release branch (main since stage 107), with the bump uncommitted
     and nothing else, asks the index that every project holds the version, and
     only then makes the evidence commit (PyPI), the commit and the tag; it pushes
     nothing."""
     r = _recipes()
     assert "release-finish" in r
     body = r["release-finish"][1]
-    order = [body.index(s) for s in ('[ "$branch" = develop ]', 'git show HEAD:pyproject.toml', 'git tag -l "v$new"',
+    order = [body.index(s) for s in ('case "$branch" in', 'git show HEAD:pyproject.toml', 'git tag -l "v$new"',
                                      "git status --porcelain", "--all-held", "modification-test evidence",
                                      'git commit -q -m "release $new"', 'git tag -a "v$new"')]
     assert order == sorted(order), "every check before the commit, the commit before the tag"
-    assert "git push" not in body.replace("push with: git push", "")
+    pushes = "\n".join(l for l in body.splitlines() if "after=" not in l and "push with:" not in l)
+    assert "git push" not in pushes
 
 
 def test_publish_starters_checks_every_repository_before_it_pushes_any():

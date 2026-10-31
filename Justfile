@@ -26,9 +26,13 @@ default:
 config_root := env("CSIS_CONFIG_ROOT", justfile_directory() + "/../cs-image-system-testconfig")
 live_cli := "uv run cs-image-system --root-dir " + quote(config_root)
 # The branch a release is cut on: ONE branch, named here (stage 83's rule, after the walk's F31
-# cut a version on a walk branch; stage 107 made it a variable). `release` and `release-finish`
-# refuse any other checkout and name this value.
-release_branch := "develop"
+# cut a version on a walk branch). `main` since stage 107 (develop alone from stage 83 to 0.1.5):
+# develop is where work is done and main is where releases live. Before a release main takes
+# develop by fast-forward; the release commit and the tag land on main; develop takes main back
+# by fast-forward. A failed release leaves its evidence on main alone. A maintenance branch
+# `release/<major.minor>` is also accepted, for an old version's fix cut while develop is past
+# it; the develop-is-an-ancestor check applies to main alone.
+release_branch := "main"
 # Provider plugin cache: a provider downloaded once is reused by every `tofu init`; with a root's
 # kept .terraform.lock.hcl the init needs no network at all. The cache is not safe under concurrent
 # `init`, so one tofu process runs at a time by construction (stage 43): every invocation that may
@@ -78,8 +82,8 @@ full-test: test
 # gated on `test`, the bar; a PyPI release on `full-test`, the modification-test evidence
 # in the live configuration and a clean live checkout. `yes` as the third argument is the
 # dry form: the probes and the version, nothing changed. Nothing is pushed: `git push
-# --follow-tags` is the operator's act, and the pushed tag makes CI publish (it uploads
-# nothing the index already holds).
+# --follow-tags origin main` and develop's fast-forward back are the operator's acts, and
+# the pushed tag makes CI publish (it uploads nothing the index already holds).
 [doc("Gated on the bar (test) or full-test (pypi): probe, bump, lock, build, publish, commit, tag v<version>; `yes` = dry")]
 release target index="test" dry="no":
 	#!/usr/bin/env bash
@@ -91,9 +95,16 @@ release target index="test" dry="no":
 	esac
 	# stage 83 (the walk's F31: dev18 was cut, committed and tagged on a walk branch): every
 	# release, development or final, is cut on the one release branch (the operator's decision
-	# of 2026-10-17; the branch is `release_branch` above since stage 107)
+	# of 2026-10-17; `release_branch` above, main since stage 107) or on a maintenance branch.
+	# On the release branch develop must be an ancestor: a release never leaves a stage behind.
 	branch=$(git rev-parse --abbrev-ref HEAD)
-	[ "$branch" = "{{release_branch}}" ] || { echo "release: this checkout is on '$branch'; a release is cut on {{release_branch}} alone -- nothing was changed"; exit 1; }
+	case "$branch" in
+		"{{release_branch}}")
+			dev=develop; git rev-parse -q --verify develop >/dev/null || dev=origin/develop
+			git merge-base --is-ancestor "$dev" HEAD || { echo "release: {{release_branch}} is behind $dev -- a release never leaves a stage behind; first, on {{release_branch}}: git merge --ff-only $dev -- nothing was changed"; exit 1; } ;;
+		release/[0-9]*.[0-9]*) echo "release: on the maintenance branch $branch (an old version's fix; develop is not checked)" ;;
+		*) echo "release: this checkout is on '$branch'; a release is cut on {{release_branch}} alone (or a maintenance branch release/<major.minor>) -- nothing was changed"; exit 1 ;;
+	esac
 	shape='^[0-9]+\.[0-9]+\.[0-9]+(\.dev[0-9]+)?$'
 	current=$(uv run --no-sync bump-my-version show current_version)
 	if [[ "{{target}}" =~ $shape ]]; then
@@ -167,7 +178,9 @@ release target index="test" dry="no":
 	git add pyproject.toml packages/*/pyproject.toml uv.lock
 	git commit -q -m "release $new"
 	git tag -a "v$new" -m "release $new"
-	echo "release: $new is on $name, committed and tagged v$new; push with: git push --follow-tags (CI then checks the tag against the index and uploads nothing already there)"
+	after="git push --follow-tags origin $branch"
+	[ "$branch" = "{{release_branch}}" ] && after="$after; then develop takes it back: git checkout develop && git merge --ff-only {{release_branch}} && git push origin develop"
+	echo "release: $new is on $name, committed and tagged v$new; push with: $after (CI checks the pushed tag against the index and uploads nothing already there)"
 
 # Finish a release whose upload `release` could not complete (hygiene XIV item 1): after it
 # stopped part-way and `just publish INDEX` was run again until every project held the version
@@ -184,7 +197,10 @@ release-finish index="test":
 		*) echo "release-finish: the index is test (TestPyPI, the default) or pypi, not '{{index}}'"; exit 2 ;;
 	esac
 	branch=$(git rev-parse --abbrev-ref HEAD)
-	[ "$branch" = "{{release_branch}}" ] || { echo "release-finish: this checkout is on '$branch'; a release is cut on {{release_branch}} alone -- nothing was changed"; exit 1; }
+	case "$branch" in
+		"{{release_branch}}"|release/[0-9]*.[0-9]*) ;;
+		*) echo "release-finish: this checkout is on '$branch'; a release is cut on {{release_branch}} alone (or a maintenance branch release/<major.minor>) -- nothing was changed"; exit 1 ;;
+	esac
 	new=$(uv run --no-sync bump-my-version show current_version)
 	committed=$(git show HEAD:pyproject.toml | sed -n 's/^version = "\(.*\)"$/\1/p' | head -1)
 	[ "$committed" != "$new" ] || { echo "release-finish: $new is already committed -- there is no uncommitted bump to finish"; exit 1; }
@@ -206,7 +222,9 @@ release-finish index="test":
 	git add pyproject.toml packages/*/pyproject.toml uv.lock
 	git commit -q -m "release $new"
 	git tag -a "v$new" -m "release $new"
-	echo "release-finish: $new is on $name for every project, committed and tagged v$new; push with: git push --follow-tags"
+	after="git push --follow-tags origin $branch"
+	[ "$branch" = "{{release_branch}}" ] && after="$after; then develop takes it back: git checkout develop && git merge --ff-only {{release_branch}} && git push origin develop"
+	echo "release-finish: $new is on $name for every project, committed and tagged v$new; push with: $after"
 
 # Build and upload the version in the tree (stage 41.6): `dist/` cleaned, every package
 # built, every file uploaded to INDEX -- `test` (TestPyPI, the default) or `pypi` -- by
