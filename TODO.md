@@ -435,7 +435,9 @@ contract has no image model protocol, so the attribute and
 subconfigs are the core's models); and `cfg/` files render
 `execution.timestamp` at the string stage while a collection's entry
 keeps the tag until packer renders it, so the rule refuses both
-forms. Waits for "merge 105".**
+forms. Bar green (1725 passed, pyright 0); the full-test legs passed
+whole against the reference with a live session (the reference's
+twelve names all print as the default shape). Waits for "merge 105".**
 
 **Why**: a tree should be able to say what its images are called.
 Stage 22.3 (2026-09-12, ledger 75) found `output_image_name` declared
