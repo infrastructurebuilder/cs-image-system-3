@@ -25,8 +25,9 @@ operator can take.
   the release walks (the release recipe's preflight, the IDE's
   workspace file, the reference's `take` recipe); waits for "do 108".
   The next non-critical issue joins it.
-- §105, a declared output image name: planned 2026-10-30, reviving
-  what stage 22.3 commented out; waits for "do 105".
+- §105, a declared output image name: landed 2026-10-31 (below);
+  the reference declares nothing, by the default taken at "do 105".
+  Not yet released.
 - §106 landed (below) and is released in 0.1.5; the reference is
   restamped and `basic-rh-10` says what it bakes. Nothing is owed.
 - §107, releases are cut on `main`: merged 2026-10-31 (cda0f43), the
@@ -70,6 +71,17 @@ operator can take.
 
 **Landed since 2026-10-05** (newest first)
 
+- §105, a declared output image name: 2026-10-31, its squash commit
+  (feature/output-image-name kept). `output_image_name` is real at
+  the OS builder, its runtime entry and an image's runtime entry,
+  each overriding the one above; the declared value is the PREFIX
+  and the run's timestamp is still appended; a tree that declares
+  nothing keeps today's names. `validate` refuses a prefix naming
+  the timestamp, one that begins another's on the same runtime as
+  the runtime makes them, and a name the runtime cannot take (two
+  runtime hooks carry the rules); one INFO line per image and
+  runtime prints the prefix. Fixture declarations of stage 22.3
+  restored without the timestamp; golden moved on ten lines.
 - §104, hygiene bundle XX: 2026-10-30, its squash commit
   (feature/hygiene-xx kept). The bootstrap makes every declared S3
   backend's bucket that a root is bound to, and the GCS state bucket;
@@ -419,125 +431,6 @@ naming `main`, and on `main` behind `develop` refuses naming the
 fast-forward; the proof release on TestPyPI from `main`; the docs
 tests green. Records: the squash message; this section goes when the
 final proof release is cut.
-
-## 105. A declared output image name
-
-**Status: BUILT on feature/output-image-name, 2026-10-31 ("do 105").
-The field is real at the three levels, the shadowing property is gone,
-the rules are in `validate`, the fixture declares its seven names
-without the timestamp and the golden is regenerated (ten lines: the
-four base sources' `ami_name`/`image_name` and six instance sources'
-parent lookup `name = "<base prefix>*"`; nothing else moved). The
-decision at "do 105" was taken by its default: the reference declares
-nothing and keeps today's names. Two notes for "merge 105": the
-contract has no image model protocol, so the attribute and
-`get_output_image_name` went on the OS protocols alone (the image
-subconfigs are the core's models); and `cfg/` files render
-`execution.timestamp` at the string stage while a collection's entry
-keeps the tag until packer renders it, so the rule refuses both
-forms. Bar green (1725 passed, pyright 0); the full-test legs passed
-whole against the reference with a live session (the reference's
-twelve names all print as the default shape). Waits for "merge 105".**
-
-**Why**: a tree should be able to say what its images are called.
-Stage 22.3 (2026-09-12, ledger 75) found `output_image_name` declared
-seven times in the fixture with real templates and read by nothing:
-the OS-level model field was commented out, and at the per-runtime
-level a computed property of the same name
-([os_builder_runtime_config.py](packages/base/src/cs_image_system/base/models/os_builder_runtime_config.py),
-`output_image_name`, which returns the display name) shadowed any
-declared value. The operator chose then to comment the declarations
-out rather than make them real, because making them real renames every
-future image on both clouds, and the ledger said renaming is its own
-stage if ever wanted. This is that stage. The field was never live, so
-nothing is restored: a naming rule is added.
-
-**How an image is named today.** The per-runtime entry of an image
-computes its output name in `get_image_output_name()`
-([image.py](packages/base/src/cs_image_system/base/models/image.py),
-[base_image.py](packages/base/src/cs_image_system/base/models/base_image.py)):
-the image's display name, a dash, the image builder's name (a base
-image: the runtime's name). The templated `_final_name` appends the
-run's timestamp in the configuration's `dateformat`. That is the shape
-of every live build (`imgfile-basic-dask-pckr-gce-ans-20260926-064527`).
-The name is read by the packer source (`ami_name`; on GCE `image_name`
-through `gce_name`, lowercase and 63 characters) and by the deferred
-image lookup, which finds a build that has not happened yet by the
-pattern `<output name>*` (the instance roots' `ami_name_pattern` when
-no pin stands; the base-image resolution). Nothing else reads it:
-lineage, pins, release, retention, disposal and the strict query go by
-the `csis_series` tag and recorded build ids.
-
-**Steps** (one branch, `feature/output-image-name`, about two days)
-
-1. The field, optional, at three levels, each overriding the one
-   above: the OS builder, its per-runtime entry, and an image's
-   per-runtime entry (`Image` and `BaseImage` subconfigs). The
-   shadowing property goes. The contract's OS and image model
-   protocols gain the attribute first (§30: the contract is upstream).
-2. `get_image_output_name()` returns the declared value when set, else
-   today's shape: a tree that declares nothing gets the same names as
-   before, and the golden over the fixture with the seven declarations
-   still commented out stays byte-identical. The declared value is
-   the PREFIX; `_final_name` keeps appending the timestamp, as the
-   old `exclude_timestamp_from_output_image_name` comment says it
-   must ("should never be set to true").
-3. Rules in `validate`, each one sentence naming the image and the
-   runtime:
-   - a template that names `execution.timestamp` is refused, since the
-     loader renders it at load and the final name would carry two;
-   - on one runtime, no image's prefix may be a prefix of another's,
-     or the `<prefix>*` lookups cross (today `basic-pckr-ebs-ans` and
-     `basic-dask-pckr-ebs-ans` are safe only because the builder name
-     follows the image name);
-   - the final name must fit every runtime the image bakes on: AWS's
-     AMI name rules (3 to 128 characters, its character set) and GCE's
-     after `gce_name`, and two images may not collapse to one GCE name;
-   - the per-runtime sanitising stays in the runtime (`gce_name`), and
-     the rule only reports what it would produce.
-4. The fixture's seven declarations come back as they were written,
-   with `execution.timestamp` removed from the ones that carry it (rule
-   3), and the golden is regenerated: the packer sources' `ami_name`
-   and `image_name`, and the instance roots' `ami_name_pattern`,
-   change; nothing else may.
-5. Docs: CONFIGURATION gains the field at its three levels with the
-   precedence and the rules; OPERATIONS gains "How an image is named"
-   beside the lineage section; the explore note in
-   [EXPLORE.md](docs/history/EXPLORE.md) ("Explore having the
-   `output_image_name` config restored") is closed by a line pointing
-   here (history is frozen: a pointer, not a rewrite).
-
-**Effects, stated for the record** (none of them is a reason to wait):
-
-- Existing builds are untouched: names, tags, pins and lineage records
-  stay as they are.
-- Every new build on a tree that declares the field gets the new name.
-  With pins in place, as the reference has, a running estate notices
-  nothing until it bakes.
-- An unpinned instance finds nothing: its first bind looks up `<new
-  prefix>*`, which matches no old build, so it binds after the first
-  bake under the new name. The reference has no unpinned instance.
-- The reference, if it declares the field: the GCE emission changes
-  between records, and CI's guard refuses that unless the change is
-  named, so the record that lands it needs the operator's step.
-  **YOUR DECISION, at "do 105": whether the reference declares it
-  (default: no; the fixture does, the reference keeps today's names).**
-
-**Found on the way, not this stage's**: both trees carry a live
-`base_images/base-images1.yaml` with the field uncommented; it is
-harmless because the `base_images` collection is registered base-only
-and never read. A reader (`read_base_images_from_files`) existed in
-the pre-public tree from at least 2026-06-25 with no caller and was
-removed on 2026-07-04 ("Collapse GTC to registry refs"), leaving the
-comment that stands in `global_context.py` today. Nothing has ever read
-that directory. The operator (2026-10-30) will remove the file or
-relocate its entries as `runtimes:` of the OS builders; the system
-leaves it alone.
-
-**Acceptance**: golden byte-identical with the declarations commented
-out, and regenerated once with them in; bar green; pyright 0; the
-conformance test green; the docs tests green; `just full-test` legs
-green. Records: the squash message; this section goes when it lands.
 
 ## 103. A container runtime: docker and the daemons that speak its API
 
