@@ -283,6 +283,20 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
         None (stage 63). Default: any key is fine (AWS tags take anything)."""
         return None
 
+    def image_name_problem(self, name: str) -> str | None:
+        """Why a build's full name (``<prefix>-<timestamp>``) cannot be an
+        image name on this runtime, or None (stage 105). Default: any name
+        is fine. The runtime that shortens or rewrites names reports what
+        it would make of one through ``image_name_as_made`` instead."""
+        return None
+
+    def image_name_as_made(self, name: str) -> str:
+        """What this runtime makes of a build name (stage 105): the name
+        itself by default; GCE lowercases, replaces what it cannot keep and
+        shortens. ``validate`` compares images' prefixes AS MADE, so two
+        names that collapse to one here are refused before a bake."""
+        return name
+
     def one_bake_user_per_chain(self) -> bool:
         """Whether every image of a chain must bake as the SAME user on this
         runtime (GCE, finding 43: the guest agent removes a stale other-name

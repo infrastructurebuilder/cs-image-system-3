@@ -4,7 +4,7 @@ data "amazon-ami" "imgfile-posix_aws-east2-runtime" {
         "self",
     ]
     filters = {
-        name                = "basic-rhel-9-aws-east2-runtime*",
+        name                = "NOSCSB-AWS-RHEL9-aws-my-rhel9*",
         root-device-type    = "ebs",
         virtualization-type = "hvm",
         architecture        = "x86_64",

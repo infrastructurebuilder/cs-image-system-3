@@ -31,8 +31,11 @@ class OsBuilderModel(BuilderModel, OsBuilderModelProtocol):
     """
     family: str
     family_version: str 
-    # output_image_name: str = "{{ builder.name }}-{{ this.family }}-{{ this.family_version }}" # REMOVED
-    # exclude_timestamp_from_output_image_name: bool = False # Should never be set to true # Based on control logic
+    # stage 105: the declared PREFIX of this base image's build names on
+    # every runtime whose entry names none (a template: `this` is this
+    # builder); the run's timestamp is always appended, never excluded.
+    # Unset: `<name>-<runtime>`, the shape every build carried before.
+    output_image_name: str | None = None
     architecture: str = DEFAULT
     default_primary_disk_size: str | int = DEFAULT # in Gb
     tags: dict[str, str] = field(default_factory=dict)
@@ -136,10 +139,8 @@ class OsBuilderModel(BuilderModel, OsBuilderModelProtocol):
         """The families this type serves (stage 106): its own key, unless a
         subclass names more (the rhel type serves the rebuilds)."""
         return (cls.csis_name(),)
-    # def get_output_image_name(self) -> str:
-    #     return self.output_image_name
-    # def get_exclude_timestamp_from_output_image_name(self) -> bool:
-    #     return self.exclude_timestamp_from_output_image_name
+    def get_output_image_name(self) -> str | None:
+        return self.output_image_name or None
     def get_architecture(self) -> str:
         return self.architecture
     def get_default_primary_disk_size(self) -> str | int:

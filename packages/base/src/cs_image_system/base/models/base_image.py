@@ -64,6 +64,11 @@ class BaseImageImageBuilderSubconfig(NameTyped, ParentPropertyHolding):
 
     owners: list[str] = field(default_factory=list)
 
+    # stage 105: the declared PREFIX of this image's build names on this
+    # runtime; the timestamp below is always appended. Declared before
+    # `_final_name` so the resolver renders it first.
+    output_image_name: str | None = None
+
     _final_name: str  = templated_field(replace_value ="{{ this.get_image_output_name() }}-{{ execution.timestamp }}" ,
                                                 default = None,
                                                 metadata={
@@ -101,11 +106,16 @@ class BaseImageImageBuilderSubconfig(NameTyped, ParentPropertyHolding):
     def get_owners(self) -> list[str]:
         return self.owners
     def get_image_output_name(self) -> str:
-        # FIXME
-        # Use the display name (original case) for the user-facing image name; the
-        # normalized .name is still used only to test presence.
-        ret = f"{self._image.get_display_name()}-{self.runtime}" if self._image and self._image.name else f"{self.model_id}-{self.runtime}"
-        return ret
+        """The PREFIX of this image's build names on this runtime (stage
+        105): the declared ``output_image_name`` when set, else the shape
+        every build carried before, the image's display name (original
+        case) and the runtime. The run's timestamp is appended by
+        ``_final_name``; the deferred lookup asks for ``<prefix>*``."""
+        if self.output_image_name:
+            return self.output_image_name
+        from ..image_names import default_output_image_name
+        head = self._image.get_display_name() if self._image and self._image.name else str(self.model_id)
+        return default_output_image_name(head, self.runtime)
     def get_final_name(self) -> str:
         return self._final_name
     def get_name(self) -> str:

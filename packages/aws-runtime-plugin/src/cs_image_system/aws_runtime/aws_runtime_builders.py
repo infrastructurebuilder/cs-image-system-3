@@ -503,6 +503,19 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
         Debian-derived image baked as 'ec2-user' never authenticates)."""
         return {"debian": "admin", "ubuntu": "ubuntu"}.get((family or "").lower(), "ec2-user")
 
+    def image_name_problem(self, name: str) -> str | None:
+        """Why ``name`` cannot be an AMI name (stage 105): 3 to 128
+        characters from letters, digits, parentheses, square brackets,
+        spaces, periods, slashes, dashes, single quotes, at-signs and
+        underscores (RegisterImage's constraint), or None."""
+        if not 3 <= len(name) <= 128:
+            return f"an AMI name is 3 to 128 characters; {name!r} is {len(name)}"
+        bad = sorted({c for c in name if not (c.isascii() and (c.isalnum() or c in "()[] ./-'@_"))})
+        if bad:
+            return (f"an AMI name takes letters, digits, ()[] space . / - ' @ and _; "
+                    f"{name!r} carries {''.join(bad)!r}")
+        return None
+
     def session_instance_profile(self) -> str | None:
         if self.session_mechanism() != self.SSM:
             return None

@@ -422,8 +422,20 @@ final proof release is cut.
 
 ## 105. A declared output image name
 
-**Status: planned 2026-10-30 at the operator's request. Waits for "do
-105".**
+**Status: BUILT on feature/output-image-name, 2026-10-31 ("do 105").
+The field is real at the three levels, the shadowing property is gone,
+the rules are in `validate`, the fixture declares its seven names
+without the timestamp and the golden is regenerated (ten lines: the
+four base sources' `ami_name`/`image_name` and six instance sources'
+parent lookup `name = "<base prefix>*"`; nothing else moved). The
+decision at "do 105" was taken by its default: the reference declares
+nothing and keeps today's names. Two notes for "merge 105": the
+contract has no image model protocol, so the attribute and
+`get_output_image_name` went on the OS protocols alone (the image
+subconfigs are the core's models); and `cfg/` files render
+`execution.timestamp` at the string stage while a collection's entry
+keeps the tag until packer renders it, so the rule refuses both
+forms. Waits for "merge 105".**
 
 **Why**: a tree should be able to say what its images are called.
 Stage 22.3 (2026-09-12, ledger 75) found `output_image_name` declared

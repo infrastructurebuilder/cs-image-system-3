@@ -160,6 +160,28 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
             return f"GCE label keys must start with a lowercase letter; {key!r} becomes {label!r}"
         return None
 
+    def image_name_as_made(self, name: str) -> str:
+        """What GCE makes of a build name (stage 105): ``gce_name`` --
+        lowercase, dashes for what it cannot keep, a letter first, at most
+        63 characters -- the name the packer source writes."""
+        from .gcp_packer_source import gce_name
+        return gce_name(name)
+
+    def image_name_problem(self, name: str) -> str | None:
+        """Why a build's full name cannot be a GCE image name (stage 105):
+        only its length. ``gce_name`` can lowercase and rewrite, but it
+        shortens by cutting the end, where the timestamp is, so a name
+        longer than 63 characters once rewritten would lose what keeps
+        builds apart."""
+        import re
+        made = re.sub(r"[^a-z0-9-]+", "-", str(name).lower()).strip("-")
+        if made and not made[0].isalpha():
+            made = f"i-{made}"
+        if len(made) > 63:
+            return (f"a GCE image name is at most 63 characters; {name!r} becomes {made!r} "
+                    f"({len(made)}) and would be cut where the timestamp is")
+        return None
+
     def one_bake_user_per_chain(self) -> bool:
         return True                             # finding 43
 

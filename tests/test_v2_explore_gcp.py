@@ -128,7 +128,8 @@ def test_base_image_bakes_with_googlecompute(gce):
     assert 'source_image = "debian-11-v1"' in text            # the stubbed vendor lookup
     assert "source_image_project_id" in text and '"debian-cloud"' in text
     assert 'image_family = "basic-rh-10"' in text              # series == family
-    assert 'image_name = "basic-rh-10-gcloud-east1-20260826-120000"' in text
+    # stage 105: the fixture's gcp-my-rh10 entry declares the build-name prefix (noscsb-gcp-rh10-<entry>)
+    assert 'image_name = "noscsb-gcp-rh10-gcp-my-rh10-20260826-120000"' in text
     assert re.search(r'csis_series\s+= "basic-rh-10"', text) and re.search(r'csis_parent\s+= "vendor"', text)
     assert "ami_name" not in text and "amazon-ami" not in text
     builds = _find(gce.generated / "base-image", 'source.googlecompute.basic-rh-10')

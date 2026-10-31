@@ -39,23 +39,14 @@ class OsRuntimeConfigBuilderBase(BuilderBase[OSRTC]):  # type: ignore[type-var]
 
 TOS = TypeVar("TOS", bound=OsBuilderModel)
 class OsBuilderBase(BuilderBase[TOS], OsBuilderProtocol):
-    # family: str
-    # family_version: str
-    # output_image_name: str
-    # architecture: str
-    # image_builder: str
-    # # modifications: list[ModItemModelProtocol]
-    # runtimes: list[OSRuntimeConfigModelProtocol]
-    # config_username: str | None
-
     def get_family(self) -> str:
         return self.model.get_family()
     def get_vendor_family(self) -> str:
         return self.model.get_vendor_family()
     def get_family_version(self) -> str:
         return self.model.get_family_version()
-    # def get_output_image_name(self) -> str:
-    #     return self.model.output_image_name
+    def get_output_image_name(self) -> str | None:
+        return self.model.get_output_image_name()
     def get_architecture(self) -> str:
         return self.model.get_architecture()
     def get_config_username(self) -> str | None:
@@ -171,6 +162,9 @@ class OsBuilderBase(BuilderBase[TOS], OsBuilderProtocol):
                 "machine_type": dmt,
                 "tags": tags,
                 "owners" : rt_owners,
+                # stage 105: the declared build-name prefix (the entry's, else
+                # the OS builder's); None keeps the `<OS builder>-<runtime>` shape
+                "output_image_name": os_img_subconfig.get_output_image_name(),
                 # stage 22.2: this dict also carried "source_image",
                 # "default_machine_type", "default_primary_disk_size" and
                 # "query". None is a field on BaseImageImageBuilderSubconfig,
