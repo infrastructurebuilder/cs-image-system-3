@@ -16,11 +16,15 @@ operator can take.
   provisional.
 - §94, the F44 review: standing; next on or after 2026-11-09.
 - §103, a container runtime (docker and the daemons that speak its
-  API): planned 2026-10-29; eight questions wait for the operator's
-  answers, then "do 103".
+  API): planned 2026-10-29; its eight questions answered 2026-10-31,
+  each with its default (Decisions in the section); waits for "do 103",
+  where the reference's durable host is named.
 - §104 landed (below) and is released in 0.1.5; item 4(d) is done in
-  the reference. No hygiene bundle is open: the next non-critical issue
-  opens bundle XXI.
+  the reference.
+- §108, hygiene bundle XXI: OPEN 2026-10-31 with the three items from
+  the release walks (the release recipe's preflight, the IDE's
+  workspace file, the reference's `take` recipe); waits for "do 108".
+  The next non-critical issue joins it.
 - §105, a declared output image name: planned 2026-10-30, reviving
   what stage 22.3 commented out; waits for "do 105".
 - §106 landed (below) and is released in 0.1.5; the reference is
@@ -227,6 +231,76 @@ question at least once a month for the next 4 months." The note is made:
 - 2026-12-09: (open)
 - 2027-01-09: (open)
 - 2027-02-09: (open)
+
+## 108. Hygiene bundle XXI
+
+**Status: OPEN 2026-10-31, three items from the 0.1.4 and 0.1.5
+release walks and the §107 proof. Waits for "do 108".**
+
+The principle (the operator, 2026-10-31): a release walk is as few
+boxes as the recipes allow, and a box ends on a check only where the
+recipe cannot make the check itself and stop. The refresh of a tree's
+release-owned files stays BY HAND, by the operator's word of the same
+day ("I definitely don't want to mess up item 4's refresh").
+
+1. The release recipe fails late on what my hand box probed first.
+   `just release ... pypi` runs `full-test`, whose legs need docker up
+   (test-mods, the posix script, the bake steps, the runner image) and
+   a live AWS session (the dry `run --all` and the strict state query
+   over the live copy); without either it runs twenty minutes and then
+   skips or fails, after the index probe said ready. And every recipe
+   runs `uv run --no-sync`, so a venv behind the checkout answers with
+   stale metadata (the 0.1.5 walk's box 5 printed 0.1.4 from the
+   activated venv). Add the three probes to the preflight of
+   [Justfile](Justfile)'s `release` (and `release-finish`), before
+   anything changes and in one line each: for `pypi`, `docker info`
+   and the AWS session (`aws sts get-caller-identity` under the
+   configured profile, as `cloud-preflight` reads it); for every index,
+   the venv in step with the lock (`uv sync --all-extras --check`, or
+   the sync itself). The dry form prints the same verdicts, so the
+   walk's separate dry box goes. With the branch, tree, tag and token
+   guards already there, the release is one box.
+2. The IDE's workspace file dirties the tree.
+   `cs-image-system-3.code-workspace` is tracked at the repository
+   root while `packages/**/*.code-workspace` is ignored; the editor
+   rewrites it when folders are opened, so the 0.1.5 release needed a
+   stash to pass the clean-tree guard, and its commit during the §104
+   merge (9116f29, "Update workspace") made `develop` diverge from
+   `origin/develop` and refused the finish once. **YOUR DECISION:**
+   untrack it (one commit removing it from the index, the root pattern
+   joining `.gitignore`; the default, since nothing in CI or the
+   Justfile reads it) or keep it tracked and have the clean-tree guard
+   of `release` disregard it alone. Either way the guard's refusal
+   names the remedy.
+3. The reference takes a release by hand, five boxes. Its
+   [Justfile](../cs-image-system-testconfig/Justfile) gains
+   `take <version>`: the catch-up guard of develop from `origin/main`
+   as its first act (fetch, `merge --ff-only`, `merge-base
+   --is-ancestor`, the rule of 2026-10-23 that was missed twice),
+   `.csis-version` written, `just init` so the pin resolves from the
+   index, `just validate`, then the commit "Take <version>" and the
+   push of `develop`. The release-owned files are NOT refreshed by the
+   recipe: it prints the list the walk derives (the files SAME at the
+   previous tag in both the tree and the packaged starter and CHANGED
+   in the release, from `cs-image-system` or the installed wheel's
+   starter) and stops for the operator's patch before the commit when
+   that list is not empty. The push of `develop` to `main` stays its
+   own box: `main` performs. A tree's `take` is the same recipe in the
+   starters, so the §66 proof covers it.
+
+**Out of scope**: a refresh command for release-owned files (by hand,
+decided); any change to the walk's reference-side `lineage restamp`
+and `just record` steps (they are the guarded runtime's, see
+DAILY_DRIVER on `runtime-unchanged`).
+
+**Acceptance**: `just release patch test yes` on `main` prints the
+three preflight verdicts and refuses, in one sentence each, with docker
+down, no AWS session and a stale venv; the clean-tree guard behaves as
+decided for the workspace file; `just take <version>` on a copy of the
+reference at the previous release ends on the operator's patch list or
+the pushed `develop`; the next final release's walk is five boxes on
+the system side and three on the reference's. Records: the squash
+message; this section goes at "merge 108".
 
 ## 107. Releases are cut on `main`
 
@@ -453,9 +527,9 @@ green. Records: the squash message; this section goes when it lands.
 
 ## 103. A container runtime: docker and the daemons that speak its API
 
-**Status: planned 2026-10-29. Nothing is built. The eight questions
-below want the operator's answers first; the work then waits for "do
-103".**
+**Status: planned 2026-10-29; the eight questions ANSWERED 2026-10-31,
+each with its default (the Decisions below). Nothing is built; waits
+for "do 103". Question 6's host is named at "do 103".**
 
 **Why**: every runtime today is a cloud. A durable host running a
 container daemon is a third kind: cheaper than either cloud, local to a
@@ -593,6 +667,35 @@ answers become this section's Decisions before "do 103")
    from a name to `{cpus, memory}`, with `default_machine_type` naming
    one; an instance's `machine_type` picks its limits. The contract's
    `default_machine_type` stays required.
+
+**Decisions** (the operator's, 2026-10-31; every question answered
+with its proposed default, which stands as written above)
+
+1. Any daemon speaking the Docker Engine API, by `DOCKER_HOST` or a
+   docker context; `type: docker`; workalikes proved, not keyed;
+   containerd with nerdctl out. Proofs on the local OrbStack and on
+   Podman.
+2. No init system: a keepalive under `--init`, launch work by `exec`,
+   systemd services unsupported on this runtime and their tests "not
+   applicable". No privileged container.
+3. POSIX accounts only, access through the daemon; an OPA group on a
+   docker runtime is refused at validation in one sentence; sftd in a
+   container is a later stage.
+4. Images live in the daemon's store; release and relabel move tags; a
+   registry push is a later option on the runtime.
+5. Terraform state: nothing new; preflight learns to check the session
+   of every manager a run reaches.
+6. A fifth starter `standard-docker` with `local` state, and the
+   reference gains a docker runtime aimed at a dedicated durable host
+   the operator names at "do 103" (its address an ENC marker or a
+   docker context; the local OrbStack is not it). CI guards the
+   runtime as it guards the GCE one.
+7. The orphan source classes go; the docker runtime resolves through
+   the §106 catalog's `docker` block (landed 2026-10-30, so this
+   branch carries only the translation) and records the resolved
+   digest.
+8. A `machine_types:` map with `default_machine_type` naming one; the
+   contract's field stays required.
 
 **Branch 1, `feature/container-runtime`** (the runtime and the bake,
 about five days)
