@@ -27,22 +27,6 @@ operator can take.
   queries where the catalog covers them and say `family: alma-linux`
   on `basic-rh-10` (bundle XX item 4d); after the release that carries
   §106, `lineage restamp`, since every base's fingerprint moved once.
-- §94, the F44 review: standing; next on or after 2026-11-09.
-- §103, a container runtime (docker and the daemons that speak its
-  API): planned 2026-10-29; eight questions wait for the operator's
-  answers, then "do 103".
-- §104 landed (below). USER, in the reference: bundle XX item 4(d),
-  `family: alma-linux` on `basic-rh-10`; no hygiene bundle is open, the
-  next non-critical issue opens bundle XXI.
-- §105, a declared output image name: planned 2026-10-30, reviving
-  what stage 22.3 commented out; waits for "do 105".
-- §106, image sources: on feature/image-sources since 2026-10-30
-  (the catalog, the vocabulary, both translations, validate, the mod
-  tests' stand-in, the docs); waits for the bar and "merge 106". USER
-  after the merge: the reference's OS builders may drop their
-  hand-written queries and `basic-rh-10` says `family: alma-linux`
-  (bundle XX item 4d); `lineage restamp` after the release, since every
-  base's fingerprint moves once.
 - No documentation stage is open.
 
 **Release**
