@@ -25,6 +25,10 @@ default:
 # Justfile drives its cycles; the recipes here read it for the system's own proofs.
 config_root := env("CSIS_CONFIG_ROOT", justfile_directory() + "/../cs-image-system-testconfig")
 live_cli := "uv run cs-image-system --root-dir " + quote(config_root)
+# The branch a release is cut on: ONE branch, named here (stage 83's rule, after the walk's F31
+# cut a version on a walk branch; stage 107 made it a variable). `release` and `release-finish`
+# refuse any other checkout and name this value.
+release_branch := "develop"
 # Provider plugin cache: a provider downloaded once is reused by every `tofu init`; with a root's
 # kept .terraform.lock.hcl the init needs no network at all. The cache is not safe under concurrent
 # `init`, so one tofu process runs at a time by construction (stage 43): every invocation that may
@@ -61,7 +65,7 @@ test: lint typecheck pytest
 full-test: test
 	@just full-test-legs
 
-# Cut a release (stage 41): the probes first -- the branch (develop alone, stage 83), the
+# Cut a release (stage 41): the probes first -- the branch (`release_branch` alone, stage 83), the
 # index itself (stage 83: its upload endpoint and every project page answer, and no project
 # holds the version), the index token, the tag -- then the bar, the index asked AGAIN (the
 # bar takes twenty minutes), the bump, the lock, the
@@ -86,9 +90,10 @@ release target index="test" dry="no":
 		*) echo "release: the index is test (TestPyPI, the default) or pypi, not '{{index}}'"; exit 2 ;;
 	esac
 	# stage 83 (the walk's F31: dev18 was cut, committed and tagged on a walk branch): every
-	# release, development or final, is cut on develop (the operator's decision of 2026-10-17)
+	# release, development or final, is cut on the one release branch (the operator's decision
+	# of 2026-10-17; the branch is `release_branch` above since stage 107)
 	branch=$(git rev-parse --abbrev-ref HEAD)
-	[ "$branch" = develop ] || { echo "release: this checkout is on '$branch'; a release is cut on develop alone -- nothing was changed"; exit 1; }
+	[ "$branch" = "{{release_branch}}" ] || { echo "release: this checkout is on '$branch'; a release is cut on {{release_branch}} alone -- nothing was changed"; exit 1; }
 	shape='^[0-9]+\.[0-9]+\.[0-9]+(\.dev[0-9]+)?$'
 	current=$(uv run --no-sync bump-my-version show current_version)
 	if [[ "{{target}}" =~ $shape ]]; then
@@ -166,7 +171,7 @@ release target index="test" dry="no":
 
 # Finish a release whose upload `release` could not complete (hygiene XIV item 1): after it
 # stopped part-way and `just publish INDEX` was run again until every project held the version
-# -- a first PyPI release of many projects takes days (item 2). On develop, with the bump
+# -- a first PyPI release of many projects takes days (item 2). On `release_branch`, with the bump
 # uncommitted and nothing else changed, and only when the index holds the version for every
 # project: the modification-test evidence (on PyPI), the commit, the tag. Nothing is pushed.
 [doc("After a release's upload was completed by `just publish`: check every project holds the version, then commit and tag it")]
@@ -179,7 +184,7 @@ release-finish index="test":
 		*) echo "release-finish: the index is test (TestPyPI, the default) or pypi, not '{{index}}'"; exit 2 ;;
 	esac
 	branch=$(git rev-parse --abbrev-ref HEAD)
-	[ "$branch" = develop ] || { echo "release-finish: this checkout is on '$branch'; a release is cut on develop alone -- nothing was changed"; exit 1; }
+	[ "$branch" = "{{release_branch}}" ] || { echo "release-finish: this checkout is on '$branch'; a release is cut on {{release_branch}} alone -- nothing was changed"; exit 1; }
 	new=$(uv run --no-sync bump-my-version show current_version)
 	committed=$(git show HEAD:pyproject.toml | sed -n 's/^version = "\(.*\)"$/\1/p' | head -1)
 	[ "$committed" != "$new" ] || { echo "release-finish: $new is already committed -- there is no uncommitted bump to finish"; exit 1; }
