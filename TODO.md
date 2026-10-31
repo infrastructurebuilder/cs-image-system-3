@@ -18,15 +18,13 @@ operator can take.
 - §103, a container runtime (docker and the daemons that speak its
   API): planned 2026-10-29; eight questions wait for the operator's
   answers, then "do 103".
-- §104 landed (below). USER, in the reference: bundle XX item 4(d),
-  `family: alma-linux` on `basic-rh-10`; no hygiene bundle is open, the
-  next non-critical issue opens bundle XXI.
+- §104 landed (below) and is released in 0.1.5; item 4(d) is done in
+  the reference. No hygiene bundle is open: the next non-critical issue
+  opens bundle XXI.
 - §105, a declared output image name: planned 2026-10-30, reviving
   what stage 22.3 commented out; waits for "do 105".
-- §106 landed (below). USER, in the reference: drop the hand-written
-  queries where the catalog covers them and say `family: alma-linux`
-  on `basic-rh-10` (bundle XX item 4d); after the release that carries
-  §106, `lineage restamp`, since every base's fingerprint moved once.
+- §106 landed (below) and is released in 0.1.5; the reference is
+  restamped and `basic-rh-10` says what it bakes. Nothing is owed.
 - §107, releases are cut on `main`: planned 2026-10-31 as a staged
   transition from the develop-only rule of stage 83; its four questions
   were decided the same day; waits for "do 107".
@@ -34,16 +32,22 @@ operator can take.
 
 **Release**
 
-- 0.1.4, the latest final release: PyPI and TestPyPI, tag `v0.1.4`
-  (2480c76), 2026-10-29, cut straight from 0.1.3. Carries §30 (the
-  contract package and its proof plugin: two new PyPI projects, now
-  twenty), §101 and §102. Its tag published the four template
-  repositories again (tag `v0.1.4`).
-- The reference configuration runs 0.1.4 (take c837606, records to
-  217b258); `perform` green on 2026-10-29, nothing baked. Its tag
-  `v0.1.4-before` (b80b27e) marks the state before the move; the
-  release tag is the after marker (the operator's rule since 0.1.4,
-  so no `-after` tag).
+- 0.1.5, the latest final release: PyPI and TestPyPI, tag `v0.1.5`
+  (ff2b776), 2026-10-31, cut straight from 0.1.4 on `develop`. Carries
+  §106 (the image-source catalog), §104 (hygiene XX) and the §107 plan.
+  Its tag published the four template repositories again.
+- The reference configuration runs 0.1.5 (take 7a687cd; `basic-rh-10`
+  says `family: alma-linux`, f25e967; records to 4caf469). Before its
+  `main` moved, `lineage restamp` re-stamped the ten AWS heads and the
+  one GCE head and the operator's own `just record` carried the moved
+  fingerprints, so CI's guard read `gcloud-east1` as unchanged;
+  `perform` green on 2026-10-31, nothing baked. Its tag `v0.1.5-before`
+  (b4b982a) marks the state before the move; the release tag is the
+  after marker. The hand-written vendor queries stay by the operator's
+  choice (the RHEL 9 one pins 9.5, which the catalog's would not).
+- The §66 proof was not rerun on 0.1.5; it passed whole on 0.1.3 and
+  0.1.4 (a private copy of `standard-aws`, its first push, a dispatched
+  dry run, `uv tool install` from PyPI, `just init` naming the release).
 - Last development release: 0.1.2.dev2.
 - The §66 proof passed whole on 0.1.4 (2026-10-29): a private copy of
   `standard-aws`, its first push and a dispatched dry run green with
