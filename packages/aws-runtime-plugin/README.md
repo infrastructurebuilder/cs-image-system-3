@@ -56,9 +56,13 @@ Present in the package but not registered as a service:
 cs_image_system.aws_runtime.bootstrap:aws_section`. It owns the questions
 and the terraform for this cloud's one-time initialisation -- the GitHub
 OIDC identity provider, the READ-ONLY and WRITE roles of CI_SETUP.md 3.3
-with their trust and permission documents, and the state bucket and the
-Session Manager instance profile when the account lacks them
-(`tfmodules/bootstrap_aws`). The section is wanted by default where the
+with their trust and permission documents, and the state buckets (the
+default backend's, and since hygiene XX every other declared S3
+backend's that a root is bound to) and the Session Manager instance
+profile when the account lacks them (`tfmodules/bootstrap_aws`). The
+section renders its coverage audit for the generated README: what it
+made, read, adopted, or leaves by hand and why (a backend bound to no
+root is left out and said so). The section is wanted by default where the
 tree declares an AWS runtime or an S3 state backend. Its defaults come
 from the raw `cfg/runtime-builders.yml` and `cfg/state-backends.yml`
 (read as YAML, never loaded; a starter's `REPLACE-ME` values and its

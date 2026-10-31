@@ -35,7 +35,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from cs_image_system.base.bootstrap.facts import Facts, collect, real
-from cs_image_system.base.bootstrap.questions import Answers, Question, Rendered, Section
+from cs_image_system.base.bootstrap.questions import BY_HAND, Answers, Question, Rendered, Section
 
 from . import okta_app_check
 
@@ -286,7 +286,23 @@ def render(answers: Answers) -> Rendered:
         "nothing here is terraform: the section reads and checks, and every check above was made when "
         "`bootstrap` last ran (re-run it to check again)",
     )
-    return Rendered(by_hand=tuple(todo), notes=notes)
+    def state(key: str, done: str, pending: str) -> str:
+        return done if answers.get(key) else pending
+    return Rendered(by_hand=tuple(todo), notes=notes, coverage=(
+        (f"the OPA workload connection `{conn}`", BY_HAND,
+         "a console act of a DevOps admin and a security admin, by decision D4; "
+         + state("connection_exists", "it exists" + (" and is active" if answers.get("connection_active") else ", not yet active"),
+                 "not made yet")),
+        (f"the OPA workload role `{role}`", BY_HAND,
+         "a console act of a security admin, by decision D4; "
+         + state("role_exists", "it exists" + (", bound" if answers.get("role_bound") else ", not bound yet"), "not made yet")),
+        ("the per-group CI policies", BY_HAND if not answers.get("builder_names_them") else "MADE",
+         "the identity lifecycle makes them once the group builder names the connection and role"
+         if answers.get("builder_names_them") else "the group builder does not name the connection and role yet"),
+        ("the Okta API services app", BY_HAND,
+         "the org's Okta admins', by decision D5/D9; " + state("okta_app_authenticates", "it authenticates", "it did not authenticate")),
+        ("the OPA service user and its key pair", BY_HAND, "made by hand in the OPA console, by decision D10; the script reads them from files"),
+    ))
 
 
 def wanted(facts: Facts) -> bool:

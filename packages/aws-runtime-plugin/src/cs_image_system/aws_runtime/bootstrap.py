@@ -30,8 +30,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from cs_image_system.base.bootstrap.facts import Facts, default_state_backend, real, runtime_of_type
-from cs_image_system.base.bootstrap.questions import Answers, Question, Raw, Rendered, Secret, Section
+from cs_image_system.base.bootstrap.facts import (Facts, bound_backend_names, default_state_backend, other_state_backends,
+                                                   real, runtime_of_type)
+from cs_image_system.base.bootstrap.questions import (ADOPTED, BY_HAND, MADE, READ, Answers, Question, Raw, Rendered,
+                                                       Secret, Section)
 
 MODULE = "bootstrap_aws"
 OIDC_HOST = "token.actions.githubusercontent.com"
@@ -137,6 +139,55 @@ def _bucket_exists(facts: Facts, answers: Answers) -> bool | None:
                    ("Not Found", "404", "NoSuchBucket"))
 
 
+def _bucket_named_exists(facts: Facts, answers: Answers, bucket: str) -> bool | None:
+    return _exists(_aws(facts, answers, "s3api", "head-bucket", "--bucket", bucket), ("Not Found", "404", "NoSuchBucket"))
+
+
+def other_s3_buckets(facts: Facts) -> list[tuple[str, str, str, bool]]:
+    """The tree's other S3 backends (hygiene XX item 1): ``(backend name,
+    bucket, prefix, bound)`` for each with a real bucket, in declaration
+    order; ``bound`` when some root's ``state_configuration`` names it."""
+    bound = bound_backend_names(facts)
+    out: list[tuple[str, str, str, bool]] = []
+    for backend in other_state_backends(facts, "s3"):
+        bucket = real(backend.get("bucket"))
+        if not bucket:
+            continue
+        prefix = (real(backend.get("key")) or "").strip("/")
+        out.append((str(backend["name"]), bucket, prefix, str(backend["name"]) in bound))
+    return out
+
+
+def _other_buckets_default(facts: Facts, answers: Answers) -> str | None:
+    """The other S3 backends' buckets this root should make: every one that
+    is bound to a root and that the account says is absent, as
+    ``bucket=prefix,...``; a bucket bound to no root is left out (the README
+    says so); a bucket the account cannot be asked about leaves no default."""
+    pairs: list[str] = []
+    for _name, bucket, prefix, bound in other_s3_buckets(facts):
+        if not bound:
+            continue
+        exists = _bucket_named_exists(facts, answers, bucket)
+        if exists is None:
+            return None
+        if not exists:
+            pairs.append(f"{bucket}={prefix}")
+    return ",".join(pairs)
+
+
+def parse_buckets(text: Any) -> dict[str, str]:
+    """``bucket=prefix,bucket=prefix`` as a mapping (an empty prefix allowed)."""
+    out: dict[str, str] = {}
+    for part in str(text or "").split(","):
+        part = part.strip()
+        if not part:
+            continue
+        bucket, _, prefix = part.partition("=")
+        if bucket.strip():
+            out[bucket.strip()] = prefix.strip().strip("/")
+    return out
+
+
 def _profile_exists(facts: Facts, answers: Answers) -> bool | None:
     name = answers.get("instance_profile")
     if not name:
@@ -236,6 +287,14 @@ QUESTIONS: tuple[Question, ...] = (
              "here, so a destroy of the root removes it? (a bucket that stood before this root is read, never "
              "managed; one this root makes is managed from then on)", kind="bool",
              default=lambda f, a: not a.get("state_bucket_exists")),
+    # hygiene XX item 1: the tree's OTHER S3 backends. A choice, not an
+    # observation: the second interview keeps the answer, so a bucket this
+    # root made never leaves the plan (the trap item 5 of hygiene XII closed
+    # for the default bucket).
+    Question("other_state_buckets", "The tree's other S3 backends' buckets this root MAKES when absent and manages "
+             "from then on, as bucket=prefix,bucket=prefix (by default every one bound to a root that the account "
+             "says is absent; a backend bound to no root is left out)", default=_other_buckets_default,
+             help="the account could not be asked about one of the other buckets: no AWS session", may_be_empty=True),
     Question("instance_profile", "The instance profile build and standing instances wear for Session Manager",
              default=_session_profile,
              help="the AWS runtime's `session_instance_profile` in cfg/runtime-builders.yml is unset or a placeholder"),
@@ -245,12 +304,29 @@ QUESTIONS: tuple[Question, ...] = (
 )
 
 
-def render(answers: Answers) -> Rendered:
+def render(answers: Answers, facts: Facts | None = None) -> Rendered:
     profile = str(answers.get("profile") or "")
     prefix = str(answers["state_prefix"]).strip("/")
     tags = {**parse_tags(str(answers.get("tags") or "")), "ManagedBy": MANAGED_BY}
     bucket_exists = bool(answers["state_bucket_exists"])
     bucket_managed = bool(answers.get("state_bucket_managed")) or not bucket_exists   # made here: managed, always
+    other_made = parse_buckets(answers.get("other_state_buckets"))
+    # the other backends this root does NOT make, with the reason (item 1: a line, never a silence)
+    others = other_s3_buckets(facts) if facts is not None else []
+    other_rows: list[tuple[str, str, str]] = []
+    for name, bucket, _bprefix, bound in others:
+        if bucket in other_made:
+            other_rows.append((f"the S3 backend `{name}`'s bucket `{bucket}`", MADE,
+                               "declared, bound to a root and absent at the interview: made here (versioned, encrypted, private) and managed from then on"))
+        elif not bound:
+            other_rows.append((f"the S3 backend `{name}`'s bucket `{bucket}`", BY_HAND,
+                               "declared but bound to no root, so nothing would use it: not made; bind a root to it and re-run the interview, or drop the backend"))
+        else:
+            other_rows.append((f"the S3 backend `{name}`'s bucket `{bucket}`", READ,
+                               "stood at the interview, or was left out of the answer: read, never managed here"))
+    for bucket in other_made:
+        if bucket not in {b for _n, b, _p, _b in others}:
+            other_rows.append((f"the bucket `{bucket}`", MADE, "named in the answer; no declared S3 backend names it"))
     backend = None
     if bucket_exists:
         settings: dict[str, Any] = {"bucket": answers["state_bucket"], "key": f"{prefix}/bootstrap.tfstate",
@@ -285,6 +361,7 @@ def render(answers: Answers) -> Rendered:
         "instance_profile_exists": "the instance profile already exists (read, not made)",
     }
     variables = tuple((f"aws_{n}", types.get(n, "string"), described[n]) for n in names) + (
+        ("aws_other_state_buckets", "map(string)", "the tree's other S3 backends' buckets this root makes and manages: bucket -> key prefix"),
         ("aws_profile", "string", "the AWS profile this root is applied with (empty: the environment's credentials)"),
         ("aws_tags", "map(string)", "tags on everything this root makes"),
         ("aws_read_extra_subjects", "list(string)", "other OIDC subjects the READ-ONLY role keeps trusting"),
@@ -294,6 +371,7 @@ def render(answers: Answers) -> Rendered:
                               for n in names}
     tfvars["aws_state_bucket_managed"] = bucket_managed
     tfvars["aws_state_prefix"] = prefix
+    tfvars["aws_other_state_buckets"] = other_made
     tfvars["aws_profile"] = profile
     tfvars["aws_tags"] = tags
     extras = {k: parse_subjects(answers.get(f"{k}_extra_subjects")) for k in ("read", "write")}
@@ -308,6 +386,7 @@ def render(answers: Answers) -> Rendered:
                                                         if extras[k] else "")
             for k in ("read", "write") if answers.get(f"{k}_role_exists")),
         module_args={**{n: Raw(f"var.aws_{n}") for n in names},
+                     "other_state_buckets": Raw("var.aws_other_state_buckets"),
                      "read_extra_subjects": Raw("var.aws_read_extra_subjects"),
                      "write_extra_subjects": Raw("var.aws_write_extra_subjects")},
         variables=variables,
@@ -317,6 +396,7 @@ def render(answers: Answers) -> Rendered:
             ("aws_write_role_arn", f"module.{MODULE}.write_role_arn", "the WRITE role's ARN: the AWS_APPLY_ROLE_ARN secret"),
             ("aws_oidc_provider_arn", f"module.{MODULE}.oidc_provider_arn", "the GitHub OIDC identity provider"),
             ("aws_state_bucket", f"module.{MODULE}.state_bucket", "the state bucket"),
+            ("aws_other_state_buckets", f"module.{MODULE}.other_state_buckets", "the other S3 backends' buckets made here"),
             ("aws_instance_profile_arn", f"module.{MODULE}.instance_profile_arn", "the Session Manager instance profile"),
         ),
         required_providers={"aws": {"source": "hashicorp/aws", "version": ">= 5.81"}},
@@ -349,11 +429,33 @@ def render(answers: Answers) -> Rendered:
                "exists: this root's state is bound to it (decision D8); the bucket stood before this root and is not managed here"
                if bucket_exists else
                "is CREATED here (versioned, encrypted, private) and managed from then on: local state for this first apply"),
+            *(f"the S3 backend's bucket `{b}` (prefix `{p or '(none)'}`) is CREATED here (versioned, encrypted, private) "
+              "and managed from then on" for b, p in sorted(other_made.items())),
             f"the instance profile `{answers['instance_profile']}` "
             + ("read (it exists)" if answers["instance_profile_exists"] else "created with AmazonSSMManagedInstanceCore"),
         ),
         backend=backend,
         root_hcl=imports,
+        coverage=(
+            ("the GitHub OIDC identity provider", READ if answers["oidc_provider_exists"] else MADE,
+             "read as a data source when the account has it" if answers["oidc_provider_exists"] else "the account lacked it"),
+            *((f"the {k.upper()} role `{answers[f'{k}_role_name']}`", ADOPTED if answers.get(f"{k}_role_exists") else MADE,
+               "stood at the interview: an import block, so its trust and policy are maintained from here"
+               if answers.get(f"{k}_role_exists") else "the account lacked it") for k in ("read", "write")),
+            (f"the default S3 backend's bucket `{answers['state_bucket']}`",
+             MADE if bucket_managed else READ,
+             "made by an apply of this root and managed from then on" if bucket_managed
+             else "stood before this root: read, never managed"),
+            *other_rows,
+            (f"the Session Manager instance profile `{answers['instance_profile']}`",
+             READ if answers["instance_profile_exists"] else MADE,
+             "read as a data source when the account has it" if answers["instance_profile_exists"]
+             else "the account lacked it: a role with AmazonSSMManagedInstanceCore"),
+            ("the network: VPC, subnets, security groups, the access gateway", BY_HAND,
+             "the team's, by decision (stage 1's network rule): the system never creates or modifies network configuration"),
+            ("the bake hosts' route to SSM and the package repositories", BY_HAND,
+             "part of the network: the team's"),
+        ),
     )
 
 
@@ -363,5 +465,5 @@ def wanted(facts: Facts) -> bool:
 
 
 def aws_section() -> Section:
-    return Section(name="aws", title="AWS", questions=QUESTIONS, render=render, wanted=wanted,
-                   description="the GitHub OIDC provider, the read-only and write roles, the optional state bucket and instance profile")
+    return Section(name="aws", title="AWS", questions=QUESTIONS, render=render, wanted=wanted, wants_facts=True,
+                   description="the GitHub OIDC provider, the read-only and write roles, the state buckets and the instance profile")

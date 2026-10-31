@@ -130,3 +130,36 @@ resource "google_service_account_iam_member" "write" {
   member             = local.write_member
   depends_on         = [google_iam_workload_identity_pool_provider.github]
 }
+
+# ------------------------------- the GCS state bucket, when this root manages it (hygiene XX item 2)
+# Absent at the first interview, so made here (versioned, uniform access, no
+# public access) and kept managed from then on: a second interview observes
+# that it stands and binds the backend to it, without letting the resources
+# leave the plan (the AWS section's rule, hygiene XII item 5). The CI
+# identities get object access on the bucket as single members added.
+resource "google_storage_bucket" "state" {
+  count                       = var.state_bucket != "" && var.state_bucket_managed ? 1 : 0
+  project                     = var.project
+  name                        = var.state_bucket
+  location                    = var.state_bucket_location
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+  labels                      = var.labels
+  versioning {
+    enabled = true
+  }
+}
+
+resource "google_storage_bucket_iam_member" "state_read" {
+  count  = var.state_bucket != "" && var.state_bucket_managed ? 1 : 0
+  bucket = google_storage_bucket.state[0].name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${local.read_email}"
+}
+
+resource "google_storage_bucket_iam_member" "state_write" {
+  count  = var.state_bucket != "" && var.state_bucket_managed && var.want_write ? 1 : 0
+  bucket = google_storage_bucket.state[0].name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${local.write_email}"
+}

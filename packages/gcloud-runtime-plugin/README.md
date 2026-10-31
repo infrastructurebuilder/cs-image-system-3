@@ -65,7 +65,12 @@ cs_image_system.gcloud_runtime.bootstrap:gcp_section`. It owns the
 questions and the terraform for this cloud's one-time initialisation --
 the workload identity pool and GitHub provider of CI_SETUP.md 3.4, the
 READ-ONLY service account and the optional WRITE one, their project
-roles and `workloadIdentityUser` bindings (`tfmodules/bootstrap_gcp`).
+roles and `workloadIdentityUser` bindings, and since hygiene XX the GCS
+state bucket when the tree keeps its state in GCS and the project lacks
+it (versioned, uniform access, no public access, the CI identities'
+object access; managed from then on, with the AWS section's fork)
+(`tfmodules/bootstrap_gcp`). The section renders its coverage audit for
+the generated README: what it made, read, or leaves by hand and why.
 The section is wanted by default where the tree declares a GCE runtime
 or a `gcs` state backend. Its defaults come from the raw
 `cfg/runtime-builders.yml` and `cfg/state-backends.yml` (a starter's

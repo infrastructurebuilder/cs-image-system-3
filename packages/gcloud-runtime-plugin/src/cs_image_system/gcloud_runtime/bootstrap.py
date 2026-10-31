@@ -32,7 +32,7 @@ import json
 from typing import Any
 
 from cs_image_system.base.bootstrap.facts import Facts, default_state_backend, first_runtime_name, real, runtime_of_type
-from cs_image_system.base.bootstrap.questions import Answers, Question, Raw, Rendered, Secret, Section
+from cs_image_system.base.bootstrap.questions import BY_HAND, MADE, READ, Answers, Question, Raw, Rendered, Secret, Section
 
 MODULE = "bootstrap_gcp"
 ISSUER = "https://token.actions.githubusercontent.com"
@@ -143,6 +143,13 @@ def _bucket_exists(facts: Facts, answers: Answers) -> bool | None:
     return _describe(facts, "storage", "buckets", "describe", f"gs://{answers.get('state_bucket')}")[0]
 
 
+def _bucket_location_default(facts: Facts, answers: Answers) -> str:
+    """The region of the GCE runtime's zone (``us-east1-b`` -> ``us-east1``),
+    else the multi-region ``US``."""
+    zone = real(_runtime(facts).get("zone")) or ""
+    return zone.rsplit("-", 1)[0] if zone.count("-") >= 2 else "US"
+
+
 def _roles_default(exists_key: str, roles: str):
     """The roles a NEW account is granted; none for one that exists."""
     def default(facts: Facts, answers: Answers) -> str:
@@ -213,7 +220,15 @@ QUESTIONS: tuple[Question, ...] = (
              default=lambda f, a: _gcs(f, "prefix").strip("/") or None,
              help="the default GCS backend's `prefix` in cfg/state-backends.yml"),
     Question("state_bucket_exists", "Does that bucket already exist?", kind="bool",
-             when=lambda a: bool(a.get("state_bucket")), default=_bucket_exists, help=UNASKABLE),
+             when=lambda a: bool(a.get("state_bucket")), default=_bucket_exists, help=UNASKABLE, observed=True),
+    # hygiene XX item 2: the bucket is MADE when absent, as the AWS section
+    # makes its own; whether this root manages it is a choice recorded once
+    Question("state_bucket_managed", "Does this root MANAGE the state bucket: made by an apply of this root and kept "
+             "here, so a destroy of the root removes it? (a bucket that stood before this root is read, never "
+             "managed; one this root makes is managed from then on)", kind="bool",
+             when=lambda a: bool(a.get("state_bucket")), default=lambda f, a: not a.get("state_bucket_exists")),
+    Question("state_bucket_location", "The bucket's location when this root makes it (a region, or a multi-region "
+             "such as US)", when=lambda a: bool(a.get("state_bucket")), default=_bucket_location_default),
     Question("labels", "Labels for what this root makes, as k=v,k=v", default=_labels_default, may_be_empty=True),
 )
 
@@ -257,10 +272,30 @@ def render(answers: Answers) -> Rendered:
         "gcp_write_account_exists": bool(answers.get("write_account_exists")) if want_write else False,
         "gcp_write_roles": _split(answers.get("write_roles")) if want_write else [],
     })
+    bucket = str(answers.get("state_bucket") or "")
+    bucket_exists = bool(answers.get("state_bucket_exists")) if bucket else False
+    bucket_managed = (bool(answers.get("state_bucket_managed")) or not bucket_exists) if bucket else False
+    bucket_prefix = str(answers.get("state_prefix") or "").strip("/") if bucket else ""
+    labels = {k: v for k, v in (p.split("=", 1) for p in _split(answers.get("labels")) if "=" in p)}
+    tfvars.update({
+        "gcp_state_bucket": bucket,
+        "gcp_state_prefix": bucket_prefix,
+        "gcp_state_bucket_exists": bucket_exists,
+        "gcp_state_bucket_managed": bucket_managed,
+        "gcp_state_bucket_location": str(answers.get("state_bucket_location") or "US") if bucket else "US",
+        "gcp_labels": labels,
+    })
+    variables = variables + (
+        ("gcp_state_bucket", "string", "the GCS state bucket (empty when the tree keeps no state in GCS)"),
+        ("gcp_state_prefix", "string", "the state prefix within that bucket"),
+        ("gcp_state_bucket_exists", "bool", "the bucket already stands (observed at every interview; decides the backend)"),
+        ("gcp_state_bucket_managed", "bool", "this root manages the state bucket: made by an apply of it and kept here"),
+        ("gcp_state_bucket_location", "string", "the bucket's location when this root makes it"),
+        ("gcp_labels", "map(string)", "labels on what this root makes that carries labels"),
+    )
     backend = None
-    if answers.get("state_bucket") and answers.get("state_bucket_exists"):
-        backend = ("gcs", {"bucket": answers["state_bucket"],
-                           "prefix": f"{str(answers['state_prefix']).strip('/')}/bootstrap"})
+    if bucket and bucket_exists:
+        backend = ("gcs", {"bucket": bucket, "prefix": f"{bucket_prefix}/bootstrap"})
     by_hand = ["The network and the firewall rules: the team's, never modified by the system."]
     if provider_exists and not names_repository(condition, answers):
         by_hand.insert(0, f"The existing provider `{answers['provider']}` has the attribute condition `{condition or '(none)'}`, "
@@ -272,7 +307,6 @@ def render(answers: Answers) -> Rendered:
         by_hand.append("No WRITE service account: `GCP_APPLY_SERVICE_ACCOUNT` is set to the READ-ONLY account's "
                        "address (CI never writes to a runtime it does not perform on), or delete those lines from "
                        "the `perform` job (CI_SETUP.md 3.4 step 4).")
-    labels = {k: v for k, v in (p.split("=", 1) for p in _split(answers.get("labels")) if "=" in p)}
     destroy_takes: list[str] = []
     for key, roles in (("read", _split(answers.get("read_roles"))),
                        ("write", _split(answers.get("write_roles")) if want_write else [])):
@@ -287,7 +321,9 @@ def render(answers: Answers) -> Rendered:
         module_args={**{{"provider": "provider_id"}.get(n, n): Raw(f"var.gcp_{n}") for n in names},
                      **{k: Raw(f"var.gcp_{k}") for k in ("principal_value", "attribute_condition", "read_roles",
                                                          "want_write", "write_account", "write_account_exists",
-                                                         "write_roles")}},
+                                                         "write_roles", "state_bucket", "state_prefix",
+                                                         "state_bucket_exists", "state_bucket_managed",
+                                                         "state_bucket_location", "labels")}},
         variables=variables,
         tfvars=tfvars,
         outputs=(
@@ -297,6 +333,7 @@ def render(answers: Answers) -> Rendered:
              "the READ-ONLY service account's address: the GCP_SERVICE_ACCOUNT secret"),
             ("gcp_write_service_account", f"module.{MODULE}.write_service_account",
              "the address CI may write as (the READ-ONLY one when there is no WRITE account): the GCP_APPLY_SERVICE_ACCOUNT secret"),
+            ("gcp_state_bucket", f"module.{MODULE}.state_bucket", "the GCS state bucket, when the tree keeps its state in GCS"),
         ),
         required_providers={"google": {"source": "hashicorp/google", "version": ">= 5.0"}},
         provider_blocks=('provider "google" {\n  project = var.gcp_project   # the credentials: GOOGLE_OAUTH_ACCESS_TOKEN '
@@ -334,10 +371,39 @@ def render(answers: Answers) -> Rendered:
             "every role and binding here is one member added; nothing existing is replaced"
             + ("; an account that already exists is granted nothing unless you named the roles" if any(
                 answers.get(f"{k}_account_exists") for k in ("read", "write")) else ""),
+            *((f"the GCS state bucket `{bucket}` "
+               + ("exists and is MANAGED here (made by an earlier apply of this root; a destroy of the root removes it): "
+                  "this root's state is bound to it (decision D8)" if bucket_exists and bucket_managed else
+                  "exists: this root's state is bound to it (decision D8); the bucket stood before this root and is not managed here"
+                  if bucket_exists else
+                  f"is CREATED here in {answers.get('state_bucket_location') or 'US'} (versioned, uniform access, no public "
+                  "access; the CI identities get object access on it) and managed from then on: local state for this first apply"),)
+              if bucket else ("no GCS state bucket: the tree keeps its state elsewhere",)),
             *((f"labels: {', '.join(f'{k}={v}' for k, v in sorted(labels.items()))} (service accounts carry no labels; "
-               "kept for what later iterations make)",) if labels else ()),
+               "the bucket does, when made here)",) if labels else ()),
         ),
         backend=backend,
+        coverage=(
+            (f"the workload identity pool `{answers['pool']}`", READ if answers["pool_exists"] else MADE,
+             "read as it stands" if answers["pool_exists"] else "the project lacked it"),
+            (f"the pool's GitHub provider `{answers['provider']}`", READ if provider_exists else MADE,
+             "read as it stands, never rewritten: other repositories may share its condition" if provider_exists
+             else "the project lacked it: made with a condition admitting this repository alone"),
+            (f"the READ-ONLY service account `{answers['read_account']}`",
+             READ if answers["read_account_exists"] else MADE,
+             "read as it stands; granted only the roles you named" if answers["read_account_exists"] else "the project lacked it"),
+            ((f"the WRITE service account `{answers.get('write_account')}`",
+              READ if answers.get("write_account_exists") else MADE,
+              "read as it stands; granted only the roles you named" if answers.get("write_account_exists")
+              else "the project lacked it") if want_write
+             else ("a WRITE service account", BY_HAND, "not wanted: CI performs on no GCE runtime, so none is made or read")),
+            ((f"the GCS state bucket `{bucket}`", MADE if bucket_managed else READ,
+              "made by an apply of this root and managed from then on, the CI identities' object access included"
+              if bucket_managed else "stood before this root: read, never managed")
+             if bucket else ("a GCS state bucket", BY_HAND, "the tree declares no gcs backend: nothing to make")),
+            ("the network and the firewall rules", BY_HAND,
+             "the team's, by decision: the system never creates or modifies network configuration"),
+        ),
     )
 
 

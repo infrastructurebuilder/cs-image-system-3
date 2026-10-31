@@ -69,6 +69,9 @@ class Facts:
     team: str | None = None
     module_source_base: str = "tfmodules"
     state_backends: list[dict[str, Any]] = field(default_factory=list)
+    #: every `state_configuration` a builder or runtime names (hygiene XX item
+    #: 1): which declared backends a root is bound to
+    state_configurations: list[str] = field(default_factory=list)
     probe: Callable[..., tuple[int, str]] = field(default=run_tool, repr=False, compare=False)
 
     @property
@@ -153,6 +156,14 @@ def gather(config_root: Path, *, git: bool = True, gh: bool = True) -> Facts:
     if isinstance(config, dict) and config.get("module_source_base"):
         facts.module_source_base = str(config["module_source_base"])
     facts.state_backends = collect(cfg, "state_backends")
+    names: list[str] = []
+    for key in ("runtime_builders", "instance_builders", "storage_builders", "group_builders", "user_builders",
+                "image_builders", "mod_builders"):
+        for entry in collect(cfg, key):
+            value = entry.get("state_configuration")
+            if value and str(value).strip():
+                names.append(str(value).strip())
+    facts.state_configurations = names
     return facts
 
 
@@ -167,6 +178,29 @@ def default_state_backend(facts: Facts, kind: str = "s3") -> dict[str, Any] | No
     """The tree's declared state backend of a type: the default, else the first."""
     mine = [b for b in facts.state_backends if str(b.get("type", "")).lower() == kind]
     return next((b for b in mine if b.get("is_default")), mine[0] if mine else None)
+
+
+def other_state_backends(facts: Facts, kind: str = "s3") -> list[dict[str, Any]]:
+    """The tree's OTHER declared backends of a type (hygiene XX item 1): every
+    one but the default, in declaration order."""
+    default = default_state_backend(facts, kind)
+    return [b for b in facts.state_backends if str(b.get("type", "")).lower() == kind and b is not default]
+
+
+def bound_backend_names(facts: Facts) -> set[str]:
+    """The backends some root is bound to: every `state_configuration` a
+    builder or runtime names, resolved through aliases to the backend's
+    name, plus the default (what `default` and an unset field resolve to)."""
+    out: set[str] = set()
+    for backend in facts.state_backends:
+        if backend.get("is_default"):
+            out.add(str(backend["name"]))
+    by_alias = {str(a).strip(): str(b["name"]) for b in facts.state_backends for a in (b.get("aliases") or [])}
+    for name in facts.state_configurations:
+        if name.lower() in ("default", "self", "none", ""):
+            continue
+        out.add(by_alias.get(name, name))
+    return out
 
 
 def first_runtime_name(facts: Facts, *, prefer: tuple[str, ...] = ("aws",)) -> str | None:
