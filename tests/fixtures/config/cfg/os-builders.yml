@@ -11,8 +11,9 @@ os_builders:
     type: debian
     family: debian
     family_version: 12   # bookworm; bullseye left the mirrors in 2026-09 (hygiene VII item 1)
-    # stage 22.3 REMOVED -- no field on the OS builder model accepts this, so it has always been dropped. Nothing has ever been named from these templates: images carry the _final_name shape instead (AWS basic-rh-10-aws-east2-runtime-<ts>, GCE imgfile-basic-dask-pckr-gce-ans-<ts>). Kept here because the NOSCSB naming intent may return: reviving it means restoring the field AND making the subconfig property use it, which renames every future image on both clouds and is its own stage.
-    # output_image_name: "{{ this.name }}-{{ this.family }}-{{ this.family_version }}"
+    # stage 105: the declared build-name PREFIX for this base on every runtime whose entry names none;
+    # the run's timestamp is appended by the system (an `execution.timestamp` here is refused at validate)
+    output_image_name: "{{ this.name }}-{{ this.family }}-{{ this.family_version }}"
     tags:
       Project: MyDebianProject
       Environment: Development
@@ -23,8 +24,8 @@ os_builders:
         # Bake on 4 GB (2026-08-31, TODO stage 1): dnf update OOMs a t2.micro
         default_machine_type: t3.medium
         image_builder: pckr-ebs-ans
-        # stage 22.3 REMOVED -- shadowed by a computed property of the same name on the runtime subconfig, so a declared value here can never take effect. Nothing has ever been named from these templates: images carry the _final_name shape instead (AWS basic-rh-10-aws-east2-runtime-<ts>, GCE imgfile-basic-dask-pckr-gce-ans-<ts>). Kept here because the NOSCSB naming intent may return: reviving it means restoring the field AND making the subconfig property use it, which renames every future image on both clouds and is its own stage.
-        # output_image_name: "AWS-{{ this.display_name }}-{{ this.parent.family }}-{{ this.parent.family_version }}-{{ execution.timestamp }}" # Override builder name
+        # stage 105: this entry's build-name prefix overrides the OS builder's; the timestamp is appended
+        output_image_name: "AWS-{{ this.display_name }}-{{ this.parent.family }}-{{ this.parent.family_version }}"
         # stage 106: no vendor query here -- the image-source catalog's
         # `aws` block for debian (this tree's cfg/image-sources.yml over
         # the release's) is the source; `validate` prints what will be asked
@@ -41,15 +42,16 @@ os_builders:
       policy: security
       exclude: ["kernel*"]
     is_default: false
-    # stage 22.3 REMOVED -- no field on the OS builder model accepts this, so it has always been dropped. Nothing has ever been named from these templates: images carry the _final_name shape instead (AWS basic-rh-10-aws-east2-runtime-<ts>, GCE imgfile-basic-dask-pckr-gce-ans-<ts>). Kept here because the NOSCSB naming intent may return: reviving it means restoring the field AND making the subconfig property use it, which renames every future image on both clouds and is its own stage.
-    # output_image_name: "NOSCSB-{{ this.name }}-{{ this.family }}-{{ this.family_version }}-{{ execution.timestamp}}"
+    # stage 105: the declared build-name PREFIX for this base on every runtime whose entry names none;
+    # the run's timestamp is appended by the system (an `execution.timestamp` here is refused at validate)
+    output_image_name: "NOSCSB-{{ this.name }}-{{ this.family }}-{{ this.family_version }}"
     runtimes:
     -   name: aws-my-rhel9
         # Bake on 4 GB (2026-08-31, TODO stage 1): dnf update OOMs a t2.micro
         default_machine_type: t3.medium
         image_builder: default
-        # stage 22.3 REMOVED -- shadowed by a computed property of the same name on the runtime subconfig, so a declared value here can never take effect. Nothing has ever been named from these templates: images carry the _final_name shape instead (AWS basic-rh-10-aws-east2-runtime-<ts>, GCE imgfile-basic-dask-pckr-gce-ans-<ts>). Kept here because the NOSCSB naming intent may return: reviving it means restoring the field AND making the subconfig property use it, which renames every future image on both clouds and is its own stage.
-        # output_image_name: "NOSCSB-AWS-RHEL9-{{ this.name }}-{{ execution.timestamp }}" # Override builder name
+        # stage 105: this entry's build-name prefix overrides the OS builder's; the timestamp is appended
+        output_image_name: "NOSCSB-AWS-RHEL9-{{ this.name }}"
         owners:
           - "self"
           - amazon
@@ -100,15 +102,16 @@ os_builders:
     family: alma-linux
     family_version: 10
     is_default: true
-    # stage 22.3 REMOVED -- no field on the OS builder model accepts this, so it has always been dropped. Nothing has ever been named from these templates: images carry the _final_name shape instead (AWS basic-rh-10-aws-east2-runtime-<ts>, GCE imgfile-basic-dask-pckr-gce-ans-<ts>). Kept here because the NOSCSB naming intent may return: reviving it means restoring the field AND making the subconfig property use it, which renames every future image on both clouds and is its own stage.
-    # output_image_name: "{{ this.name }}-{{ this.family }}-{{ this.family_version }}-{{ execution.timestamp}}"
+    # stage 105: the declared build-name PREFIX for this base on every runtime whose entry names none;
+    # the run's timestamp is appended by the system (an `execution.timestamp` here is refused at validate)
+    output_image_name: "{{ this.name }}-{{ this.family }}-{{ this.family_version }}"
     runtimes:
     -   name: aws-my-rhel8
         # Bake on 4 GB (2026-08-31, TODO stage 1): dnf update OOMs a t2.micro
         default_machine_type: t3.medium
         # image_builder: pckr-ebs-ans
-        # stage 22.3 REMOVED -- shadowed by a computed property of the same name on the runtime subconfig, so a declared value here can never take effect. Nothing has ever been named from these templates: images carry the _final_name shape instead (AWS basic-rh-10-aws-east2-runtime-<ts>, GCE imgfile-basic-dask-pckr-gce-ans-<ts>). Kept here because the NOSCSB naming intent may return: reviving it means restoring the field AND making the subconfig property use it, which renames every future image on both clouds and is its own stage.
-        # output_image_name: "NOSCSB-AWS-RH10-{{ this.parent.name }}-{{ this.name }}-{{ execution.timestamp }}" # Override builder name
+        # stage 105: this entry's build-name prefix overrides the OS builder's; the timestamp is appended
+        output_image_name: "NOSCSB-AWS-RH10-{{ this.parent.name }}-{{ this.name }}"
         # AlmaLinux OS Foundation's official AMIs (stage 13, decided
         # 2026-09-09): owner 764336703387, names "AlmaLinux OS 10.<minor>.<date> x86_64";
         # the arm64 line is a separate name suffix, excluded by the pattern and
@@ -138,8 +141,8 @@ os_builders:
               contains: "dist.scaleft.com"
         # AWS lesson (stage 1): 1 GB machines OOM under dnf; e2-small for bakes
         default_machine_type: e2-small
-        # stage 22.3 REMOVED -- shadowed by a computed property of the same name on the runtime subconfig, so a declared value here can never take effect. Nothing has ever been named from these templates: images carry the _final_name shape instead (AWS basic-rh-10-aws-east2-runtime-<ts>, GCE imgfile-basic-dask-pckr-gce-ans-<ts>). Kept here because the NOSCSB naming intent may return: reviving it means restoring the field AND making the subconfig property use it, which renames every future image on both clouds and is its own stage.
-        # output_image_name: "noscsb-gcp-rh10-{{ this.name }}-{{ execution.timestamp }}"
+        # stage 105: this entry's build-name prefix overrides the OS builder's; the timestamp is appended
+        output_image_name: "noscsb-gcp-rh10-{{ this.name }}"
         # stage 106: no vendor query here -- the image-source catalog's
         # `gcloud` block for alma-linux is the source (the release's:
         # project almalinux-cloud, family almalinux-10)

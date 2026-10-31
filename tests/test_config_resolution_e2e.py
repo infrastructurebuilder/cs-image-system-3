@@ -128,10 +128,10 @@ def test_string_stage_resolves_config_document(monkeypatch):
                                          addl={"execution": {"timestamp": "T"}}))
     assert out["config"]["systemuser"] == "testuser"
     # stage 22.6: these assertions used to ride on the fixture's
-    # `output_image_name`, a key no model accepts and that stage 22.3
-    # commented out. Template scoping is a property of the engine, not of any
-    # one configuration key, so the test now owns its input and cannot be
-    # broken again by a fixture edit.
+    # `output_image_name`, which stage 22.3 commented out (stage 105 made it
+    # real, without the timestamp). Template scoping is a property of the
+    # engine, not of any one configuration key, so the test owns its input
+    # and cannot be broken again by a fixture edit.
     probe = yaml.safe_load(cycle_main_yaml(yaml.dump({
         "os_builders": [{
             "name": "probe-os", "family": "debian", "family_version": "11",

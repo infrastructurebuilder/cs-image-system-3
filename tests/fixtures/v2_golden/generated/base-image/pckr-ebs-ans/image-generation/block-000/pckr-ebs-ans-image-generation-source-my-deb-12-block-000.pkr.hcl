@@ -10,7 +10,7 @@ data "amazon-ami" "my-deb-12_aws-east2-runtime" {
 }
 source "amazon-ebs" "my-deb-12" {
     source_ami = data.amazon-ami.my-deb-12_aws-east2-runtime.id
-    ami_name = "my-deb-12-aws-east2-runtime-20260826_120000"
+    ami_name = "AWS-aws-my-deb-12BB-debian-12-20260826_120000"
     instance_type = "t3.medium"
     region = "us-east-2"
     vpc_id = "vpc-0c78d0d63b7a100df"

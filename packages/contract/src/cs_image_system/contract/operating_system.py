@@ -11,7 +11,12 @@ Stage 106: ``family`` is the token a tree writes (``get_vendor_family``);
 what the token IS, as the image-source catalog says, is ``get_family``,
 which everything that branches on a family reads. A model class names the
 families it serves (``families``), so a type may be defaulted from a family
-and a contradiction between the two refused."""
+and a contradiction between the two refused.
+
+Stage 105: ``output_image_name`` is the declared PREFIX of every build's
+name (the run's timestamp is appended); unset, the core names a build
+``<image>-<image builder>`` (a base image: ``<OS builder>-<runtime>``). A
+runtime entry's value overrides the OS builder's."""
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -41,8 +46,11 @@ class OsBuilderModelProtocol(BuilderModelProtocol, Protocol):
     admin_public_keys: list[str] | None
     local_test_image: str | None
     tests: dict[str, Any]
+    output_image_name: str | None
 
     def get_owners(self) -> Sequence[str]: ...
+
+    def get_output_image_name(self) -> str | None: ...
 
     def get_family(self) -> str: ...
 
@@ -105,6 +113,8 @@ class OsBuilderProtocol(BuilderProtocol, Protocol):
     def get_owners(self) -> Sequence[str]: ...
 
     def get_query(self) -> Mapping[str, Any]: ...
+
+    def get_output_image_name(self) -> str | None: ...
 
     def generate_resolved_image(self, phase: ExecutionLifecyclePhase, image_id: Any, owners: list[str],
                                 query_result: Mapping[str, Any], resolved: bool = True,

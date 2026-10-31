@@ -6,7 +6,7 @@ source "googlecompute" "basic-rh-10" {
     source_image_project_id = [
         "debian-cloud",
     ]
-    image_name = "basic-rh-10-gcloud-east1-20260826-120000"
+    image_name = "noscsb-gcp-rh10-gcp-my-rh10-20260826-120000"
     image_family = "basic-rh-10"
     image_labels = {
         csis_config         = "cs-image-action-test",

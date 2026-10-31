@@ -544,6 +544,7 @@ type that does.
 | `architecture` | str | `default` | passed to images that leave `architecture` at its default; otherwise `x86_64` |
 | `default_primary_disk_size` | str or int | `default` (= 200) | GB; the default for images built from this base |
 | `tags` | mapping[str, str] | `{}` | tags on the baked image |
+| `output_image_name` | str or null | null | the PREFIX of this base image's build names on every runtime whose entry (5.1) names none; a template rendered at load (`this` is this builder: `"{{ this.name }}-{{ this.family }}-{{ this.family_version }}"`); the run's timestamp is appended by the system. Null: `<name>-<runtime>`, the shape every build carried before stage 105. Rules and effects: 5.5 |
 | `owners` | list[str] | `[]` | publishers for the vendor-image query (`self`, `amazon`, an account id, `almalinux-cloud`); with the runtime's `default_owners` and the entry's `owners`, they REPLACE the catalog's `publisher` (5a) |
 | `query` | mapping | `{}` | the vendor-image query in the system's vocabulary (5a: `name`, `family`, `architecture`, `publisher`, `state`, `virtualization`, `root_device`, `tags`, `newest`, `native`), landing key by key on the image-source catalog's block for each runtime; the newest match is the source. The old spellings (`filters:` nested, `root_device_type`, `virtualization_type`, `owners`) still read; any other key is refused by name |
 | `runtimes` | list | required, at least one | one entry per image builder (5.1); `image_builder` unique within the list |
@@ -576,6 +577,7 @@ type that does.
 | `default_machine_type` | str or null | null | machine type for the base image's bakes on this runtime; when unset, the image builder's `default_machine_type` (section 6) when it declares one, else the runtime's `default_machine_type` |
 | `default_primary_disk_size` | int or null | null | GB; the base image's bake disk on this runtime when declared, else the OS builder's `default_primary_disk_size`; a runtime's own `default_disk_size` wins over both (GCE, finding 51). The packer sources and the fingerprint use this one rule (stage 63; the fingerprint hashed the entry's old default 100 while the bake used 200, so AWS base images read DUE once after it lands until `lineage restamp`) |
 | `tags` | mapping[str, str] | `{}` | merged over the builder's tags |
+| `output_image_name` | str or null | null | the PREFIX of the base image's build names on this runtime, over the OS builder's (5.5); a template rendered at load (`this` is this entry, `this.parent` the OS builder: `"NOSCSB-AWS-RH10-{{ this.parent.name }}-{{ this.name }}"`). Until stage 105 a computed property of the same name shadowed any declared value |
 | `owners` | list[str] | `[]` | appended to the builder's owners (and the runtime's `default_owners`); the result replaces the catalog's `publisher` |
 | `query` | mapping | `{}` | in the system's vocabulary (5a), landing key by key on the builder's query, which lands on the catalog's block for this runtime's type; `validate` prints the result in both vocabularies, refuses a key this runtime cannot translate, and refuses an entry with no source at all |
 | `ssh_username` | str | `default` | the bake ssh user on this runtime, for this OS and every image built on it: step 2 of the bake-user order (5.1.1), ahead of anything the runtime says |
@@ -705,6 +707,63 @@ os_builders:
           filters:
             name: "almalinux-10-v*"
 ```
+
+### 5.5 `output_image_name`: how a build is named
+
+Every build of an image on a runtime is named `<prefix>-<timestamp>`: the
+timestamp is the run's, in `config.dateformat` (2.3), and the prefix is
+the first of these that is set, each level overriding the one above it:
+
+1. the image's own `runtimes[]` entry (11.2.1), for that image on that
+   runtime;
+2. for a base image, the OS builder's `runtimes[]` entry (5.1), for that
+   base on that runtime;
+3. the OS builder's own `output_image_name` (5), for that base on every
+   runtime whose entry names none;
+4. nothing declared: `<image>-<image builder>` for an instance image and
+   `<OS builder>-<runtime>` for a base image, the shape every build
+   carried before stage 105 (`imgfile-basic-dask-pckr-gce-ans-20260926-064527`,
+   `basic-rh-10-aws-east2-runtime-20260826_120000`).
+
+The value is a Jinja template rendered at load. At the string stage `this`
+is the mapping it is written in and `this.parent` the enclosing one (an
+entry's `this.parent.family` is the OS builder's family); what remains
+renders against the model (`this.display_name`, the entry's name in its
+original case). The timestamp is appended by the system and cannot be
+excluded; a template that names `execution.timestamp` is refused by
+`validate`, because the loader renders it at load and the final name
+would carry the timestamp twice.
+
+The prefix is read by the packer source (`ami_name`; on GCE `image_name`,
+made lowercase, dashes for what GCE cannot keep, 63 characters) and by
+the deferred image lookup, which finds a build that has not happened yet
+by `<prefix>*`: an instance's `ami_name_pattern` when no pin stands, and
+an instance image's parent lookup. Nothing else reads it: lineage, pins,
+release, retention, disposal and the state query go by the series tag
+and the recorded build ids. So `validate` refuses, naming the image and
+the runtime each time:
+
+- a prefix that carries the run's timestamp (an `execution.timestamp`
+  template);
+- on one runtime, a prefix that begins another image's, as the runtime
+  makes them (`imgfile-basic-dask-pckr-ebs-ans` and
+  `imgfile-basic-dask-pckr-ebs-ans-two`), since the `<prefix>*` lookups
+  would cross; two prefixes that GCE lowercases to one name are the same
+  case;
+- a full name the runtime cannot take: AWS's AMI name rules (3 to 128
+  characters from letters, digits, `()[]`, space, `. / - ' @ _`), GCE's 63
+  characters once rewritten (the cut would fall where the timestamp is).
+  The rewriting itself stays the runtime's; `validate` prints what it
+  would make of a name when that differs (`-> noscsb-gcp-rh10-...`).
+
+One INFO line per image and runtime says the prefix and whether it was
+declared. Declaring the field renames every FUTURE build on that runtime;
+existing builds, their tags, pins and lineage records are untouched, and
+a pinned estate notices nothing until it bakes. An unpinned instance finds
+no old build under the new prefix and binds after the first bake under
+it. On a runtime CI guards (`runtime-unchanged`, OPERATIONS), the packer
+source moves, so the record that lands the declaration needs the
+operator's own `just record` first.
 
 ## 5a. `cfg/image-sources*.yml`
 
@@ -1592,6 +1651,7 @@ owned by exactly one group.
 | `image_identifier` | str or null | null | a fixed provider image id to bake from instead of the pinned parent |
 | `owners` | list[str] | `[self]` | owners for the parent-image query |
 | `tags` | mapping[str, str] | `{}` | merged over the builder's and the image's |
+| `output_image_name` | str or null | null | the PREFIX of this image's build names on this runtime (5.5); a template rendered at load (`this` is this entry). Null: `<image>-<image builder>`, the shape every build carried before stage 105 |
 | `name` | str | the image builder | label |
 | `type` | str | the image builder | set by the loader |
 | `description`, `aliases` | | | accepted |

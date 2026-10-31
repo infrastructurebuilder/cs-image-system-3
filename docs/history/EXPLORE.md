@@ -833,6 +833,8 @@ real candidate. Record in DESIGN §3H as "adoption of external resources".
 
 ### Explore having the `output_image_name` config restored
 
+*Closed 2026-10-31 by stage 105: the field is real at three levels (the OS builder, its runtime entry, an image's runtime entry), the shadowing property is gone, and `validate` holds its rules; see CONFIGURATION 5.5 and OPERATIONS "How an image is named". The note below stands as written.*
+
 We commented out `output_image_name` as a config name when doing phase 22 (Declarations that never land) because it was no longer being used in the build process. However, restoring it could improve clarity and maintainability by explicitly naming the output image in the configuration.
 
 #### Potential Benefits

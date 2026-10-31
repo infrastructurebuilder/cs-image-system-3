@@ -645,7 +645,13 @@ just cloud-bake <runtime>       # the bakes that are due on that runtime; prefli
 The build lands in `meta-state/lineage.yaml` with its fingerprint and
 tags, and the cloud image carries the same tags, so the state query can
 tell a recorded image from a foreign one. Read
-[OPERATIONS.md](docs/OPERATIONS.md), "When an image bakes".
+[OPERATIONS.md](docs/OPERATIONS.md), "When an image bakes". A build is
+named `<prefix>-<timestamp>`; the prefix is `output_image_name` where the
+tree declares it (the OS builder, its runtime entry, or an image's
+entry), else `<OS builder>-<runtime>` for a base and `<image>-<image
+builder>` for an instance image, and `validate` refuses a prefix another
+image's begins ([OPERATIONS.md](docs/OPERATIONS.md), "How an image is
+named").
 
 ### 3.4 An instance image
 

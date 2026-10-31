@@ -798,6 +798,60 @@ FAMILY_MARKERS: tuple[tuple[str, str], ...] = (
 )
 
 
+def check_image_names(ctx: GlobalTypeContext) -> list[Exception]:
+    """Stage 105: every image's build-name prefix on every runtime it bakes
+    on (``cs_image_system.base.image_names``), refused in one sentence
+    naming the image and the runtime when: it carries the run's timestamp
+    (the loader rendered an ``execution.timestamp`` template at load, and
+    the final name would carry two); it is a prefix of another image's on
+    the same runtime, as the runtime makes them, so the ``<prefix>*``
+    lookups would cross (two names that collapse to one on GCE are the
+    same case); or the full name, prefix and timestamp, is one the runtime
+    cannot take (AWS's AMI name rules; GCE's 63 characters). One INFO line
+    per image and runtime says the prefix, whether it was declared, and
+    what the runtime makes of it when that differs."""
+    exs: list[Exception] = []
+    from ..image_names import output_names_by_runtime
+    dtfmt = getattr(ctx.read_config, "dateformat", None) or "%Y%m%d_%H%M%S"
+    stamp = ctx.start_time.strftime(dtfmt)
+    for rt_name, entries in sorted(output_names_by_runtime(ctx).items()):
+        rtb = ctx.runtime_builders.get(rt_name)
+        made: list[tuple[str, str, str]] = []
+        for who, prefix, declared in entries:
+            where = f"{who} on runtime {rt_name}"
+            if stamp in prefix or "execution." in prefix:
+                # cfg/ files render `execution.timestamp` at the string stage (the stamp is in the
+                # value); the collections' entries keep the tag (it renders when packer's name is made)
+                exs.append(ValueError(
+                    f"{where}: output_image_name {prefix!r} names the run's timestamp ({stamp}) -- the final "
+                    f"name appends the timestamp itself, so it would carry two; remove `execution.timestamp` "
+                    f"from the template"))
+                continue
+            if "{{" in prefix:
+                exs.append(ValueError(
+                    f"{where}: output_image_name {prefix!r} carries a template nothing rendered; a prefix is "
+                    f"written from `this` (this.name, this.display_name, this.parent.<field> in cfg/) alone"))
+                continue
+            as_made = rtb.image_name_as_made(prefix) if rtb is not None else prefix
+            full = f"{prefix}-{stamp}"
+            why = rtb.image_name_problem(full) if rtb is not None else None
+            if why:
+                exs.append(ValueError(f"{where}: the build name {full!r} cannot be an image name there: {why}"))
+            log.info(f"image name: {where}: {prefix}-<timestamp> ({'declared' if declared else 'the default shape'})"
+                     + (f" -> {as_made}-..." if as_made != prefix else ""))
+            made.append((who, prefix, as_made))
+        for i, (who, prefix, a) in enumerate(made):
+            for who2, prefix2, b in made[i + 1:]:
+                short, long_, s_who, l_who = (a, b, who, who2) if len(a) <= len(b) else (b, a, who2, who)
+                if long_.startswith(short):
+                    same = a == b
+                    exs.append(ValueError(
+                        f"{s_who} and {l_who} on runtime {rt_name}: build-name prefixes {prefix!r} and {prefix2!r} "
+                        + ("collapse to one name there" if same else f"nest ({short!r} begins {long_!r})")
+                        + ", so the `<prefix>*` lookups would cross; declare output_image_name so neither begins the other"))
+    return exs
+
+
 def family_named_by_query(query: Any) -> str | None:
     """The family a query's ``name`` or ``family`` plainly names, else None."""
     for text in (getattr(query, "name", None), getattr(query, "family", None)):
@@ -829,4 +883,5 @@ def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     exs.extend(check_bake_users(ctx))
     exs.extend(check_label_keys(ctx))
     exs.extend(check_image_sources(ctx))
+    exs.extend(check_image_names(ctx))
     return exs

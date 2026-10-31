@@ -4,7 +4,7 @@ data "amazon-ami" "imgfile-basic-dask_aws-east2-runtime" {
         "self",
     ]
     filters = {
-        name                = "basic-rh-10-aws-east2-runtime*",
+        name                = "NOSCSB-AWS-RH10-basic-rh-10-aws-my-rhel8*",
         root-device-type    = "ebs",
         virtualization-type = "hvm",
         architecture        = "x86_64",

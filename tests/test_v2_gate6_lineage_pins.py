@@ -88,7 +88,7 @@ def _fake_manifest(v2, lifecycle: str, block: str, amis: dict[str, str]) -> None
 def test_every_build_is_uniquely_named_and_lineage_tagged(v2):
     assert v2.run(["base-image", "instance-image"], apply=False).ok
     base = _source(v2, "base-image", "block-000", "basic-rh-10")
-    assert f'ami_name = "basic-rh-10-aws-east2-runtime-{FIXED_TIMESTAMP}"' in base
+    assert f'ami_name = "NOSCSB-AWS-RH10-basic-rh-10-aws-my-rhel8-{FIXED_TIMESTAMP}"' in base   # stage 105: the fixture declares the prefix
     assert "{{" not in base, "unique naming must resolve the run timestamp"
     assert _tag(base, "csis_series", "basic-rh-10")
     assert _tag(base, "csis_parent", "vendor")
@@ -125,7 +125,7 @@ def test_bake_records_lineage_and_first_binds_the_base_edge(v2):
     base = by_id["ami-0base0001"]
     assert base["series"] == "basic-rh-10" and base["parent"] == "vendor"
     assert base["capabilities"] == {"identity_types": ["okta"], "storage_types": ["ebs", "efs", "s3"]}   # item 21: this runtime's
-    assert base["name"] == f"basic-rh-10-aws-east2-runtime-{FIXED_TIMESTAMP}"
+    assert base["name"] == f"NOSCSB-AWS-RH10-basic-rh-10-aws-my-rhel8-{FIXED_TIMESTAMP}"
     dask = by_id["ami-0dask0001"]
     assert dask["parent"] == "ami-0base0001"            # resolved from this run's base manifest
     assert dask["chain"] == ["imgfile-basic-dask"]

@@ -10,7 +10,7 @@ data "amazon-ami" "basic-rhel-9_aws-east2-runtime" {
 }
 source "amazon-ebs" "basic-rhel-9" {
     source_ami = data.amazon-ami.basic-rhel-9_aws-east2-runtime.id
-    ami_name = "basic-rhel-9-aws-east2-runtime-20260826_120000"
+    ami_name = "NOSCSB-AWS-RHEL9-aws-my-rhel9-20260826_120000"
     instance_type = "t3.medium"
     region = "us-east-2"
     vpc_id = "vpc-0c78d0d63b7a100df"

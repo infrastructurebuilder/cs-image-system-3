@@ -43,7 +43,11 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
                                 "required": True,
                                 })
     description: str = " {{ image_builder.name }} runtime configuration for {{ this.name }}"
-#     output_image_name: str  = "{{ os.output_image_name }}-{{ self.runtime }}". #REMOVED
+    # stage 105: the declared PREFIX of the base image's build names on this
+    # runtime, over the OS builder's (a template: `this` is this entry,
+    # `this.parent` the OS builder at the string stage). Until this stage a
+    # computed property of the same name shadowed any declared value.
+    output_image_name: str | None = None
     # stage 63: a fixed vendor image on this runtime; when set the vendor query
     # is skipped and this image is looked up by id (AWS: the AMI id; GCE: the
     # image name, searched in the entry's owner projects)
@@ -228,6 +232,12 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
         """The effective query as a mapping (``ImageQuery.to_mapping``)."""
         return self.image_query().to_mapping()
 
-    @property
-    def output_image_name(self) -> str:
-        return self.display_name
+    def get_output_image_name(self) -> str | None:
+        """The declared build-name prefix for this runtime: this entry's,
+        else the OS builder's, else None (the core's default shape)."""
+        if self.output_image_name:
+            return self.output_image_name
+        parent = self.identified_model
+        parent = getattr(parent, "model", parent)
+        value = getattr(parent, "output_image_name", None) if parent is not None else None
+        return str(value) if value else None

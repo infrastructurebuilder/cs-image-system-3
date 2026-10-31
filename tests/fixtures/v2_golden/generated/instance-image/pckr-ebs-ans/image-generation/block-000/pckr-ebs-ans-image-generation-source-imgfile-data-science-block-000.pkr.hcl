@@ -4,7 +4,7 @@ data "amazon-ami" "imgfile-data-science_aws-east2-runtime" {
         "self",
     ]
     filters = {
-        name                = "my-deb-12-aws-east2-runtime*",
+        name                = "AWS-aws-my-deb-12BB-debian-12*",
         root-device-type    = "ebs",
         virtualization-type = "hvm",
         architecture        = "x86_64",

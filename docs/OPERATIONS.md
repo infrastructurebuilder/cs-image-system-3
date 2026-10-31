@@ -301,6 +301,31 @@ tree's current fingerprint on each series head whose recorded one predates
 the change (the previous value kept under `fingerprint_restamped`) and
 re-tags the cloud image, so unchanged images are not re-baked once.
 
+### How an image is named
+
+Since stage 105 a tree can say what its builds are called. Every build of
+an image on a runtime is named `<prefix>-<timestamp>`: the timestamp is
+the run's in the tree's `dateformat`, and the prefix is the image's
+`output_image_name` on that runtime when one is declared (its own
+`runtimes[]` entry; for a base image the OS builder's entry, else the OS
+builder itself; CONFIGURATION 5.5 has the precedence and the rules), else
+the shape every build carried before: `<image>-<image builder>`, and for
+a base image `<OS builder>-<runtime>`. The packer source writes the full
+name (`ami_name`; on GCE `image_name` after GCE's rules), and the deferred
+image lookup finds a build that has not happened yet by `<prefix>*`: an
+instance root's `ami_name_pattern` when no pin stands, and an instance
+image's parent lookup. Nothing else reads the name: lineage, pins,
+release, retention, disposal and the state query go by the `csis_series`
+tag and the recorded build ids, which is why a declared name changes no
+record and re-bakes nothing by itself. `validate` refuses a prefix that
+carries the run's timestamp, two prefixes on one runtime of which one
+begins the other as the runtime makes them, and a full name the runtime
+cannot take, and prints one line per image and runtime with the prefix
+and whether it was declared. A declaration renames every future build on
+that runtime; on a guarded runtime the packer source moves, so the record
+that lands it needs the operator's own `just record` before `main` moves
+(DAILY_DRIVER, `runtime-unchanged`).
+
 ### Where a vendor image comes from
 
 Since stage 106 a base image's vendor source is resolved through the
