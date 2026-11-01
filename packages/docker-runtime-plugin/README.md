@@ -184,6 +184,11 @@ image_builders:
   the image builder), and `ansible-playbook` on the machine that bakes:
   ansible's docker connection runs the local `docker` CLI against the same
   daemon.
+- Podman's API service works as the daemon (proved 2026-11-01 against Podman
+  5.8.2 rootless on AlmaLinux 10, through `docker` over ssh; the setup and what
+  differed are in [docs/OPERATIONS.md](../../docs/OPERATIONS.md), "Podman as
+  the daemon"). A rootless Podman user needs `/etc/subuid` and `/etc/subgid`
+  ranges.
 - The posix identity plugin for the groups an instance image activates; an
   OPA group is refused on this runtime.
 - A tree whose only runtime is docker declares a `local` state manager; a
@@ -233,6 +238,7 @@ digest reference. `output_image_name` (stage 105) is the tag prefix.
 | `image ... is in use by container(s) ...` at disposal | A container stands on the build. | Decommission the container first; the image is never pulled from under it. |
 | An ansible step cannot reach the container | The bake ran against a daemon other than the one the local `docker` CLI uses. | The runtime's `host`/`context` is what both read; check `DOCKER_HOST` is not also set in the shell to something else. |
 | The bootstrap says `docker.runtime: ... -- no default can be derived` under `--quiet` | The tree declares no runtime of type `docker`, or the section was kept from an earlier interview of a tree that had one. | Declare the runtime, or answer `want_docker: no`. |
+| `parent: lineage=<id> tag=series:<name>` in the state query on a Podman daemon | A release before 2026-11-01 compared `RepoTags` as written; Podman spells them `docker.io/<repository>:<tag>`. | Take a later release; nothing on the daemon needs repairing, the movable tags were there. |
 | `a docker tag is at most 128 characters` at validate | A declared `output_image_name` is too long once the timestamp is appended. | Shorten it. |
 
 ## Related

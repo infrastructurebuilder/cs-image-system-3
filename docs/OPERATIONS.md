@@ -3139,6 +3139,70 @@ exception is a decision to record, not a bypass.
   its own runner's daemon, which is gone when the job ends, so the
   workflow's `perform` job refuses to record without it.
 
+### Podman as the daemon
+
+Podman's API service is a daemon the docker runtime supports (decision 1 of
+stage 103: any daemon that speaks the Docker Engine API, proved rather than
+keyed). It was proved on 2026-11-01, and this is what was done, so the proof
+can be repeated.
+
+**The host.** Podman 5.8.2 rootless on AlmaLinux 10, as a Linux machine in
+OrbStack on the operator's Intel Mac (`podman machine` was not used: it
+adds a VM layer and Homebrew has no prebuilt Podman for this machine). In
+the machine:
+
+```sh
+orb create alma:10 podman-host           # on the Mac
+orb -m podman-host bash -c '
+  sudo dnf -y install podman podman-docker
+  systemctl --user enable --now podman.socket     # /run/user/<uid>/podman/podman.sock
+  sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$(id -un)"
+  podman system migrate'
+```
+
+**The address.** The `docker` CLI on the Mac reaches the socket over ssh, the
+same transport the starter's workflow uses for a team's host (OrbStack's
+machines answer `ssh <machine>@orb`):
+
+```sh
+export CSIS_PODMAN_HOST=ssh://podman-host@orb
+DOCKER_HOST=$CSIS_PODMAN_HOST docker version     # Server: ... Podman Engine, 5.8.2
+just test-podman-cycle                           # about 10 minutes
+```
+
+**What it ran.** The cycle of `test-docker-cycle` (two bakes, a volume, two
+containers on it, the launch script by `exec`, the accounts, the
+verification, the strict state query, one container stopped and left stopped,
+started, an upgrade to a second generation, both decommissioned, the volume
+destroyed, the builds disposed) and the `standard-docker` starter as it stands,
+both against Podman, 572 seconds, both passed. The leg refuses to pass on a
+daemon that does not say it is Podman.
+
+**What differed.**
+
+- **Subordinate ids.** A rootless Podman user needs `/etc/subuid` and
+  `/etc/subgid` ranges, or the first image pull fails (`insufficient UIDs or
+  GIDs available in user namespace ... lchown /var/spool/mail: invalid
+  argument`). OrbStack's machine user had none. This is the host's setup, not
+  the system's.
+- **The registry Podman implies.** Podman's API reports an unqualified
+  repository `csis/x:tag` as `docker.io/csis/x:tag` in `RepoTags`, where
+  Docker keeps it as written. The movable tags that carry the lineage facts
+  (the parent bound after a bake, a release) were therefore ignored, and the
+  strict state query reported `parent: lineage=<id> tag=series:<name>` on the
+  first run. Fixed: the runtime compares repositories through
+  `same_repository`, which accepts `docker.io/`, `index.docker.io/` and
+  `localhost/` in front of its own. The leg found it; a unit test holds it.
+- **Nothing else.** The compatibility API answered at version 1.44 to a
+  client of 1.56 (downgraded), and `must_run = false`, the restart policy,
+  `--init`, the labels, the volume mount and `exec` behaved as on Docker.
+
+**Not proved.** Podman on macOS through `podman machine`; a rootful Podman; a
+`tcp://` or TLS address; a Podman host that is not systemd's. A durable
+Podman host needs `loginctl enable-linger <user>` as root so the user's
+socket outlives its login session; OrbStack's machine kept it up without
+(the command was refused there), and a real host should not rely on that.
+
 ### Cost
 
 - GCP is the operator's own money: a change is proven on it only when it

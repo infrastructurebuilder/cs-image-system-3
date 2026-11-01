@@ -256,6 +256,9 @@ runtime). Its power state is yours, as everywhere: `docker stop` is left
 alone by the next apply. Read [OPERATIONS.md](docs/OPERATIONS.md), "Container
 hosts" under the rules.
 
+Podman's API service serves as the daemon too (proved, with its setup, in
+[OPERATIONS.md](docs/OPERATIONS.md), "Podman as the daemon").
+
 The smallest tree on this runtime is the `standard-docker` starter
 (section 1.9). As it stands it works against the daemon of the machine you
 run it on, which is the way to try it before you name a durable host.

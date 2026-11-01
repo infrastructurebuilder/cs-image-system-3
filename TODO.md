@@ -19,8 +19,7 @@ operator can take.
   API): planned 2026-10-29; its eight questions answered 2026-10-31,
   each with its default (Decisions in the section); branches 1 and 2
   landed; branch 3 built, waits for "merge 103-3"; owed after it: the
-  reference's docker runtime (the operator names the durable host) and
-  the Podman leg's first run.
+  reference's docker runtime (the operator names the durable host).
 - §104 landed (below) and is released in 0.1.5; item 4(d) is done in
   the reference.
 - §108, hygiene bundle XXI: OPEN 2026-10-31 with the three items from
@@ -455,16 +454,18 @@ starter `standard-docker` (no cloud, local state, no login proof, a
 workflow that reaches a host over ssh and records only against it),
 PROVED whole by the new leg on the local daemon; item 17, the docs
 (DESIGN, CONFIGURATION, OPERATIONS, DAILY_DRIVER, DESCRIPTION, PLUGINS,
-CI_RUNNER, the guide's 3.4a, the READMEs, the counts); item 18 built,
-not run (`just test-podman-cycle`, skipped loudly without
-`CSIS_PODMAN_HOST`). STILL OWED: the reference's docker runtime (item
-16), which needs the operator to name the durable host (an ENC marker or
-a docker context; not the local OrbStack), and the Podman leg's first
-run on a host that has Podman. Before the next final release the
+CI_RUNNER, the guide's 3.4a, the READMEs, the counts); item 18 built and
+RUN and PASSED 2026-11-01 against Podman 5.8.2 in an OrbStack AlmaLinux
+10 machine over ssh (`just test-podman-cycle`, 572 s; one difference
+found and fixed, the registry Podman implies in `RepoTags`; recorded in
+OPERATIONS, "Podman as the daemon"). STILL OWED: the reference's docker
+runtime (item 16), which needs the operator to name the durable host (an
+ENC marker or a docker context; not the local OrbStack). Before the
+next final release the
 operator creates the public template repository
 infrastructurebuilder/cs-image-system-starter-standard-docker, or
-`publish-starters` refuses all five. The section goes when those two
-are done.**
+`publish-starters` refuses all five. The section goes when that
+is done.**
 
 **Why**: every runtime today is a cloud. A durable host running a
 container daemon is a third kind: cheaper than either cloud, local to a
