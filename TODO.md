@@ -16,15 +16,18 @@ operator can take.
   provisional.
 - §94, the F44 review: standing; next on or after 2026-11-09.
 - §103, a container runtime (docker and the daemons that speak its
-  API): branches 1, 2 and 3 landed (a2ed18c); owed: the reference's
-  docker runtime, once the operator names the durable host.
+  API): branches 1, 2 and 3 landed (a2ed18c); the reference's docker
+  runtime (the local OrbStack's context) is written on its `develop`,
+  unpushed; owed: `just validate` there after an SSO login, and the
+  push with the release that carries the plugins.
 - §109, Podman Desktop in the test cycle: planned 2026-11-01; waits for
   "do 109".
 - §104 landed (below) and is released in 0.1.5; item 4(d) is done in
   the reference.
 - §108, hygiene bundle XXI: OPEN 2026-10-31 with the three items from
   the release walks (the release recipe's preflight, the IDE's
-  workspace file, the reference's `take` recipe); waits for "do 108".
+  workspace file, the reference's `take` recipe), and a fourth from
+  stage 103 (the guard names one runtime); waits for "do 108".
   The next non-critical issue joins it.
 - §105, a declared output image name: landed 2026-10-31 (below);
   the reference declares nothing, by the default taken at "do 105".
@@ -267,10 +270,21 @@ the registry Podman implies in `RepoTags`; recorded in OPERATIONS,
 "Podman as the daemon"). The template repository
 infrastructurebuilder/cs-image-system-starter-standard-docker exists
 (the operator, 2026-11-01) and STARTER_PUSH_TOKEN covers it; the first
-publication is the next final release. STILL OWED: the reference's
-docker runtime (item 16), which needs the operator to name the durable
-host (an ENC marker or a docker context; not the local OrbStack). The
-section goes when that is done.**
+publication is the next final release.
+ITEM 16 DECIDED AND WRITTEN 2026-11-01: the operator chose the local
+OrbStack by its docker context (`context: orbstack`; this machine will
+not be reinstalled soon, and a durable host later replaces that one
+line). The reference's `develop` now declares the runtime
+`docker-orbstack` and its three builders (`packer-docker`,
+`tofu-docker`, `docker-volumes`) and carries the two terraform
+modules; none is a default, so nothing existing moved. STILL OWED, in
+this order: (1) the operator's `aws sso login`, then `just validate`
+in the reference (the tree cannot load without the SSO session, which
+Claude cannot renew); (2) the reference's push waits for the release
+that carries the docker plugins, because its CI is pinned to 0.1.5,
+which cannot load `type: docker` and would fail `verify`; the `take`
+of that release and the push are one walk. The section goes when
+(1) is green and the docker plugins are released.**
 
 **Why**: every runtime today is a cloud. A durable host running a
 container daemon is a third kind: cheaper than either cloud, local to a
@@ -725,7 +739,8 @@ final proof release is cut.
 ## 108. Hygiene bundle XXI
 
 **Status: OPEN 2026-10-31, three items from the 0.1.4 and 0.1.5
-release walks and the §107 proof. Waits for "do 108".**
+release walks and the §107 proof, and a fourth added 2026-11-01 from
+stage 103. Waits for "do 108".**
 
 The principle (the operator, 2026-10-31): a release walk is as few
 boxes as the recipes allow, and a box ends on a check only where the
@@ -777,6 +792,15 @@ day ("I definitely don't want to mess up item 4's refresh").
    that list is not empty. The push of `develop` to `main` stays its
    own box: `main` performs. A tree's `take` is the same recipe in the
    starters, so the §66 proof covers it.
+
+4. The guard names one runtime. `GUARD_RUNTIME` is a single name in
+   the workflow, the starters and CI_SETUP, so the reference cannot
+   guard `docker-orbstack` beside `gcloud-east1`; the docker runtime
+   declares no images or instances, so nothing it emits can change
+   today. When one is declared on it, `GUARD_RUNTIME` takes a list
+   (a loop over `runtime-unchanged`, in the five starters, the
+   reference and CI_SETUP 3.7), or the runtime joins the guarded set
+   by another route the operator chooses.
 
 **Out of scope**: a refresh command for release-owned files (by hand,
 decided); any change to the walk's reference-side `lineage restamp`
