@@ -45,6 +45,18 @@ def _docker_answers() -> bool:
         return False
     return subprocess.run([DOCKER, "info"], capture_output=True, timeout=30).returncode == 0
 
+def require_engine_for_leg() -> None:
+    """The Podman leg (``just test-podman-cycle``) is aimed at Podman's API
+    service by ``CSIS_PODMAN_HOST``; it must not pass by quietly running on a
+    docker daemon that happened to answer. Fails unless the daemon says it is
+    Podman. A no-op for the docker legs."""
+    if os.environ.get("CSIS_PODMAN_CYCLE") != "1":
+        return
+    res = subprocess.run([DOCKER, "version"], capture_output=True, text=True, timeout=60)
+    assert "podman" in (res.stdout + res.stderr).lower(), (
+        "CSIS_PODMAN_CYCLE=1 but the daemon CSIS_PODMAN_HOST names does not say it is Podman:\n" + (res.stdout + res.stderr)[-1500:])
+
+
 
 _WANTED = os.environ.get("CSIS_DOCKER_BAKE") == "1"
 pytestmark = [
@@ -141,7 +153,8 @@ def test_the_docker_runtime_bakes_from_nothing_to_nothing(tmp_path, monkeypatch)
     env = dict(os.environ)
     env["CSIS_CONFIG_IDENTITY"] = str(root / ".age-identity")
     env.setdefault("USER", "leg")
-    env.pop("DOCKER_HOST", None)                      # the runtime names no address: the environment's daemon
+    if os.environ.get("CSIS_DOCKER_KEEP_HOST") != "1":     # the Podman leg names the daemon it is aimed at (test-podman-cycle)
+        env.pop("DOCKER_HOST", None)                  # the runtime names no address: the environment's daemon
     monkeypatch.setenv("CSIS_CONFIG_IDENTITY", env["CSIS_CONFIG_IDENTITY"])
     built: list[str] = []
     try:

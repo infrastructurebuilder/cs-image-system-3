@@ -1,0 +1,17 @@
+---
+# cfg/instance-builders.yml (from the standard-docker starter) -- the ONE instance
+# builder: a terraform root that stands containers on the docker runtime, from the
+# release's tfmodules/docker_container. Reference: CONFIGURATION.md (the system
+# repository's docs/CONFIGURATION.md) section 8.1.
+instance_builders:
+  - name: tofu-docker
+    type: tofu-docker
+    is_default: true
+    runtime: docker-main
+    executable: open-tofu
+    # DECISION: no `state_configuration` -- the root inherits the runtime's backend
+    # (local-state). Name one to put this root elsewhere.
+    required_plugins:            # terraform providers the root requires
+      - name: docker
+        source: kreuzwerker/docker
+        version: ">= 3.0.0"

@@ -1,0 +1,26 @@
+---
+# groups/users.yaml (from the standard-docker starter) -- the roster.
+# Reference: CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 11.6. Each user is a POSIX
+# account on the machines of its groups' images: its `uid:` (at least 1024,
+# the same on every machine), a private group of the same name and id, a
+# home, and exactly its `public_keys:` as the way in. These two people are
+# synthetic personas; replace them with yours.
+#
+# DECISION: no proof user. A posix tree on a cloud has CI log in as one over ssh to
+# prove the group's access; a container runs no sshd, so there is no such login to
+# prove. A person reaches a container with `docker exec -it -u <user> <name> bash`
+# (the daemon's access is the access), and the accounts and keys are made all the same
+# so an image that adds an sshd works as it stands.
+users:
+  - name: avery_alpha            # REPLACE: a POSIX name
+    first_name: Avery
+    last_name: Alpha
+    uid: 3001                    # REPLACE
+    public_keys:
+      - ssh-ed25519 REPLACE-ME-avery-public-key avery_alpha
+  - name: casey_charlie          # REPLACE
+    first_name: Casey
+    last_name: Charlie
+    uid: 3002                    # REPLACE
+    public_keys:
+      - ssh-ed25519 REPLACE-ME-casey-public-key casey_charlie

@@ -18,7 +18,7 @@ workflow calls them:
 | Job | Targets, in order | Needs |
 | --- | --- | --- |
 | `verify` | `just --list`, `just public-safe` | the release installed; no secret |
-| `live` | `just validate`, `just config-drift`, `just state-query --strict`, `just test-mods --strict`, `just mirror-clean` | the read-only cloud identities, the OPA key pair, the age identity, a docker daemon |
+| `live` | `just validate`, `just config-drift`, `just state-query --strict`, `just test-mods --strict`, `just mirror-clean` | the read-only cloud identities, the OPA key pair, the age identity, a docker daemon (the docker starter: the age identity, and the docker host's ssh key when it is to be reached) |
 | `perform` | `just record`, `just dry`, `just cloud-perform <runtime>`, `just ci-login-proof --runtime <runtime>`, `just record` again, `just state-query --strict`, `just mirror-clean` | the write identity for the performing step and the login proof, and push access to the repository |
 
 The release itself is installed by the job from the index
@@ -38,6 +38,14 @@ development version comes from TestPyPI with PyPI as the extra index.
   through the mounted socket (`-v /var/run/docker.sock:/var/run/docker.sock`);
   a GitLab runner gives the same with the docker socket binding or a
   docker-in-docker service.
+  A tree on a docker runtime (the `standard-docker` starter) may also reach
+  a durable host's daemon, over ssh: the image carries `ssh` (its
+  `openssh-clients`) and the docker client, and the workflow's "Reach the
+  docker host" step writes the key and the host's `known_hosts` line to the
+  job's `~/.ssh` and exports `DOCKER_HOST=ssh://<host>`
+  ([CI_SETUP.md](examples/standard-aws/CI_SETUP.md), 3.4a). Nothing more is
+  needed in the image; whoever reaches that daemon is root on its host. The
+  modification tests stay on the runner's own socket.
 - **Federation by OIDC.** The read-only and write cloud identities are
   assumed from the job's OIDC token, never from a stored key: on GitHub
   the job holds `id-token: write`; GitLab's `id_tokens` and Azure

@@ -200,3 +200,15 @@ def test_the_builder_answers_the_hooks_that_need_no_daemon():
     settle = "\n".join(b.bake_settle_commands(cast(Any, object()), "debian"))
     assert "sudo" in settle and "python3" in settle and "apt-get" in settle and "dnf" in settle
     assert DockerContainerBuilder.provider_specific_image_class(cast(Any, object())) is DockerProviderSpecificImage
+
+
+def test_a_registry_a_daemon_implied_is_still_our_repository():
+    """Podman's API reports the unqualified ``csis/x:t`` as ``docker.io/csis/x:t``
+    (the Podman leg, 2026-11-01); the movable tags on such an image were
+    ignored, so a parent bound after a bake read as the series name."""
+    from cs_image_system.docker_runtime.docker_names import same_repository
+    assert same_repository("csis/x", "csis/x")
+    assert same_repository("docker.io/csis/x", "csis/x") and same_repository("localhost/csis/x", "csis/x")
+    assert same_repository("index.docker.io/csis/x", "csis/x")
+    assert not same_repository("docker.io/csis/y", "csis/x") and not same_repository("quay.io/csis/x", "csis/x")
+    assert same_repository("registry.example/team/x", "registry.example/team/x")

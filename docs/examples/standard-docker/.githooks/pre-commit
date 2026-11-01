@@ -1,0 +1,22 @@
+#!/usr/bin/env sh
+
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# cs-image-system public-safe gate (stage 35): refuse a commit that would publish
+# material that must never be public. Plain sh, no framework; installed by
+# `just init` (this repository) and `just hooks-live` (the live configuration)
+# through `git config core.hooksPath .githooks`. Allow a value by decision in
+# cfg/_config.yml public_safe.allow -- never by bypassing the hook.
+top=$(git rev-parse --show-toplevel) || exit 1
+if command -v cs-image-system >/dev/null 2>&1; then
+  exec cs-image-system public-safe --staged --tree "$top"
+fi
+for sys in "$top" "$top/../cs-image-system-3"; do
+  if [ -x "$sys/.venv/bin/cs-image-system" ]; then
+    exec "$sys/.venv/bin/cs-image-system" public-safe --staged --tree "$top"
+  fi
+done
+echo "public-safe: cs-image-system not found -- run 'just init' in cs-image-system-3, or put it on PATH" >&2
+exit 1

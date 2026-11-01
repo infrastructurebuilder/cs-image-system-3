@@ -154,7 +154,7 @@ floors the reference deployment runs today:
 | `gcloud` | `>=500` (the SDK version, not a component's date) | GCE, IAP sessions, ADC |
 | `ansible-playbook` (ansible-core) | `>=2.16` | ansible modifications and the launch playbook |
 | `bash` | `>=5` | never macOS's 3.2 |
-| `docker` | `>=24` | the modification tests |
+| `docker` | `>=24` | the modification tests; every bake and every container on a docker runtime |
 | `yq`, `jq` | `>=4.5`, `>=1.7` | recipes |
 | `sft` (the Okta Privileged Access client) | 1.114 in use | logging into machines; `just sft-install` on an apt system |
 | the Session Manager plugin | | SSM sessions to AWS instances (verify, aliases, unmount) |
@@ -224,6 +224,44 @@ root's destroy, and the other tree loses it too. Name roles at the
 interview only when this tree is the one to hold them; the generated
 bootstrap README lists what a destroy would take that the root did not
 make ([CI_SETUP.md](docs/examples/standard-aws/CI_SETUP.md), 3.0).
+
+### 1.4a A container host, if you use the docker runtime
+
+A docker runtime needs none of the clouds' setup: no account, no profile, no
+session, no network to describe, and its terraform state is a `local`
+directory. What it needs is a daemon, and that is the one thing the system
+never makes.
+
+| What | Why the system needs it | Where it is named |
+| --- | --- | --- |
+| A host running a daemon that speaks the Docker Engine API: Docker Engine, Docker Desktop, OrbStack, colima, or Podman's API service | images are baked into its store and containers run on it | `host:` or `context:` on the runtime; with neither, the daemon your shell's `DOCKER_HOST` names, else the local socket |
+| The `docker` CLI at the floor `cfg/executables.yml` names (`>=24`), reaching that daemon | every call the system makes to it | the `docker` entry of `cfg/executables.yml`; `just preflight` asks `docker version` against the daemon in one line |
+| `packer` and `tofu`, as for any runtime | the bakes and the container and volume roots | `cfg/executables.yml` |
+| For CI: an ssh key to the host's user who may use the daemon, and the host's `known_hosts` line, as repository secrets, or the runtime named in `GUARD_RUNTIME` so CI never bakes on it | CI performs only against a daemon it can reach | repository secrets `DOCKER_HOST_SSH_KEY`, `DOCKER_HOST_KNOWN_HOSTS` ([CI_SETUP.md](docs/examples/standard-docker/CI_SETUP.md), 3.4a) |
+
+**Whoever can reach a docker daemon is root on its host.** Docker's API has
+no narrower grant, so the daemon's host is best one that holds nothing else,
+and a key that reaches it, CI's included, is as sensitive as root there. The
+`host:` may be an `ENC[age:...]` marker when the address is private; TLS
+material is a path (`tls_cert_path`), never a value. The system never
+installs, patches or configures a daemon and never creates or changes a
+network (a network is referenced by name).
+
+What a container is not, so the first walk is not a surprise: it has no init
+system (a keepalive runs under `--init`, and the launch work is delivered by
+`exec` once it is up), no sshd (you reach it with `docker exec -it -u
+<user> <name> bash`, and there is no ssh login proof), and no systemd
+services (an image test for `services_enabled` does not apply on this
+runtime). Its power state is yours, as everywhere: `docker stop` is left
+alone by the next apply. Read [OPERATIONS.md](docs/OPERATIONS.md), "Container
+hosts" under the rules.
+
+Podman's API service serves as the daemon too (proved, with its setup, in
+[OPERATIONS.md](docs/OPERATIONS.md), "Podman as the daemon").
+
+The smallest tree on this runtime is the `standard-docker` starter
+(section 1.9). As it stands it works against the daemon of the machine you
+run it on, which is the way to try it before you name a durable host.
 
 ### 1.5 Okta and Okta Privileged Access
 
@@ -359,7 +397,7 @@ the guide, so a team sees exactly what its admins still have to do.
 
 ### 1.9 The configuration repository, from scratch
 
-Start from a starter tree; do not write from nothing. There are four
+Start from a starter tree; do not write from nothing. There are five
 starters, and three ways to get one, each giving the same tree:
 
 1. **On GitHub, "Use this template"** on the starter's template
@@ -370,8 +408,9 @@ starters, and three ways to get one, each giving the same tree:
    (the default),
    [cs-image-system-starter-standard-gce](https://github.com/infrastructurebuilder/cs-image-system-starter-standard-gce),
    [cs-image-system-starter-complete](https://github.com/infrastructurebuilder/cs-image-system-starter-complete)
+   [cs-image-system-starter-standard-aws-posix](https://github.com/infrastructurebuilder/cs-image-system-starter-standard-aws-posix)
    and
-   [cs-image-system-starter-standard-aws-posix](https://github.com/infrastructurebuilder/cs-image-system-starter-standard-aws-posix).
+   [cs-image-system-starter-standard-docker](https://github.com/infrastructurebuilder/cs-image-system-starter-standard-docker).
    Your copy is a repository of its own from the first minute; clone it
    and go on below.
 2. **From the release, `init-config`** (the commands below), which needs
@@ -385,6 +424,7 @@ cs-image-system init-config my-config                          # standard-aws, t
 cs-image-system init-config my-config --from standard-gce
 cs-image-system init-config my-config --from complete
 cs-image-system init-config my-config --from standard-aws-posix   # AWS, people as POSIX accounts, no Okta
+cs-image-system init-config my-config --from standard-docker      # a docker host, people as POSIX accounts, no cloud
 ```
 
 A destination that is empty, or a fresh clone holding only `.git` (the
@@ -400,10 +440,14 @@ is a decision commented; [docs/examples/standard-gce/](docs/examples/standard-gc
 is the same for GCE; [docs/examples/standard-aws-posix/](docs/examples/standard-aws-posix/README.md)
 is `standard-aws` with no Okta: its people are POSIX accounts on the machines
 (the posix identity plugin, stage 75), and CI's login proof uses a key;
+[docs/examples/standard-docker/](docs/examples/standard-docker/README.md)
+is the same identity on the docker runtime (stage 103): no cloud, no account,
+state in a local directory, containers for machines, and no login proof,
+because a container runs no sshd;
 [docs/examples/complete/](docs/examples/complete/README.md)
 has every plugin, every field and every variation, and is where to look
-when the reference manual's table needs a living example. Those three
-directories are the source the release is built from: all four load and
+when the reference manual's table needs a living example. Those
+directories are the source the release is built from: all five load and
 validate in the system's tests, the built wheel is held to them byte for
 byte, and their `Justfile`, workflow, hook and modules are the release's,
 so a tree written by `init-config` cannot drift from the system that wrote
@@ -766,6 +810,20 @@ lacks, so declare, validate, and read what it says until it is quiet.
 `complete` has every one of these declared, both clouds at once, as a
 living example.
 
+**A container host is the third kind.** A docker runtime is added to a
+tree the same way (a tool, a runtime, an image builder, an instance
+builder, a storage builder, a second source on the base, a bake per image,
+a storage and an instance on it), with these differences: the tools are
+`docker` and `tofu`; the runtime names no region, subnet or account, only
+the daemon (section 1.4a), the limits of its `machine_types` and a network
+by name; the builders are `packer-docker`, `tofu-docker` and
+`tf-docker-volume`; a base lists the storage type `volume`; the state is a
+`local` backend unless you declare another; and an image's group must be a
+`posix` one, since OPA's agent needs an init system a container lacks. The
+bootstrap's `docker` section reads the runtime and asks whether CI can
+reach it ([CI_SETUP.md](docs/examples/complete/CI_SETUP.md), 3.4a).
+`complete` declares one beside its two clouds.
+
 **Two trees in one project or account.** Everything the system makes
 carries the configuration's id, `csis_config` (images since stage 82,
 storages and machines since stage 93), so a second tree that shares
@@ -1003,7 +1061,7 @@ item in the open hygiene bundle in [TODO.md](TODO.md).
 | `note: storages/<s>: a persistent disk of that name belongs to configuration '<id>' (csis_config); ... ours is absent`; `empty: left alone on <rt>: N disks of configuration '<id>'` | another tree shares the project or account and made a thing of that name; it is theirs, counted and left alone (stage 93) | nothing for theirs; if ours is absent, declare a name the cloud does not hold yet |
 | `empty: disks still present on <rt>: old-scratch (no csis_config)` | a thing with no configuration id, made before stage 93; it is counted as ours to answer for | if it is ours and declared, `just cloud-relabel <rt> no` gives it the id; if it is nothing of ours, remove it by hand |
 | a job fails in "Initialize containers" before any step of yours: `denied`, `unauthorized` or `manifest unknown` pulling `ghcr.io/.../csis-ci:alma10-<date>` | the runner image (stage 92) could not be pulled: the tag does not exist yet (the Runner image workflow has not published the date the workflow pins); or the job's `permissions:` block lacks `packages: read`, so its token pulls as nobody (2026-10-16: `verify`, with no block, pulled; `live`, with one, was denied); or the package is PRIVATE and this repository was not granted access to it (the first publish came out private, and the organisation had disabled public packages) | a missing tag: the system's maintainers run the Runner image workflow and you rerun; a missing line: take the release that carries it; a private package: on the package's page, "Manage Actions access", add this repository with Read (same organisation), or have the organisation's administrators allow public packages ([docs/CI_RUNNER.md](docs/CI_RUNNER.md), section 4); never a credential in the workflow for it |
-| `release: testpypi cannot take an upload now (above) -- nothing was changed; it is the index's condition, not the release's` (exit 75) | the index's upload endpoint or one of the twenty project pages did not answer, or answered 5xx; the release stopped before the bar, or after it and before the bump, so the tree is clean (stage 83; on 2026-10-05 the same outage was found only at the upload) | `just index-ready test wait`, then the release again; nothing to discard |
+| `release: testpypi cannot take an upload now (above) -- nothing was changed; it is the index's condition, not the release's` (exit 75) | the index's upload endpoint or one of the twenty-two project pages did not answer, or answered 5xx; the release stopped before the bar, or after it and before the bump, so the tree is clean (stage 83; on 2026-10-05 the same outage was found only at the upload) | `just index-ready test wait`, then the release again; nothing to discard |
 | `release: this checkout is on '<branch>'; a release is cut on main alone (or a maintenance branch release/<major.minor>)` | the checkout is not on `main` (stage 107; the walk's F31: a version was once cut, committed and tagged on a walk branch) | `git checkout main && git merge --ff-only develop`, then the release again |
 | `release: main is behind develop -- a release never leaves a stage behind` | a stage landed on `develop` that `main` has not taken | on `main`: `git merge --ff-only develop`, then the release again |
 | `public-safe: ... <file>:<line>` from the hook | a committed line looks like a secret, a key, a plan or a state file | never bypass the hook; encrypt the value, or allow it BY DECISION in `cfg/_config.yml` `public_safe.allow` |

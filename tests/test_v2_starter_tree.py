@@ -43,7 +43,7 @@ def _tracked(name: str) -> dict[str, bytes]:
                                               capture_output=True, check=True).stdout for p in files}
 
 
-@pytest.mark.parametrize("name", ["standard-aws", "standard-aws-posix", "standard-gce", "complete"])
+@pytest.mark.parametrize("name", ["standard-aws", "standard-aws-posix", "standard-gce", "complete", "standard-docker"])
 def test_the_tree_is_the_starter_and_three_generated_changes(tmp_path: Path, name: str):
     m = _script()
     assert name in m.starters()

@@ -82,7 +82,7 @@ def _ask(root: Path, **kw):
 # ------------------------------------------------------------- the section itself
 
 def test_the_section_is_the_okta_plugins_and_wanted_where_opa_groups_are_managed(tmp_path: Path, world):
-    assert [s.name for s in bs.discover()] == ["github", "aws", "gcp", "okta"]
+    assert [s.name for s in bs.discover()] == ["github", "aws", "docker", "gcp", "okta"]
     assert _section().wanted_default(_facts(_tree(tmp_path))) is True
     bare = tmp_path / "bare"
     (bare / "cfg").mkdir(parents=True)

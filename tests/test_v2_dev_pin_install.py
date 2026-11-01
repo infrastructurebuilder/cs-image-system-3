@@ -29,7 +29,7 @@ DOCS = [REPO / "DAILY_DRIVER.md", REPO / "docs" / "OPERATIONS.md", *sorted((REPO
 def test_every_starter_job_installs_a_dev_pin_with_the_strategy():
     lines = [ln.strip() for wf in sorted((REPO / "docs" / "examples").glob("*/.github/workflows/*.yml"))
              for ln in wf.read_text().splitlines() if 'case "$pin" in' in ln]
-    assert len(lines) == 15, "three jobs in each ci.yml and one in each OPA probe workflow"
+    assert len(lines) == 18, "three jobs in each ci.yml and one in each OPA probe workflow"
     assert set(lines) == {LINE}
 
 

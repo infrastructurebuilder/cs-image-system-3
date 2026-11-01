@@ -17,8 +17,8 @@ design as built.
 | Requirement (GOALS.md) | Design |
 | --- | --- |
 | Identity lifecycle; create-vs-read as separate plugins | The identity lifecycle packages the user and group builders. The okta plugin ships a managed (`okta-tf`) and a read-only (`okta-tf-ro`) variant of each; users are read-only and OPA groups are managed (§3D). Other providers are future plugins against the same seam. |
-| Storage lifecycle (S3, Azure Blob, GCS, local FS) | Storage builders exist for `ebs`, `efs` and `s3` (AWS) and `pd`, `filestore` and `gcs` (GCP), each realized by a terraform module; access is group-based (§3E). Azure Blob and local FS are future plugins. |
-| Base vs instance images, OS-independent | `base_images` and `images` (instance images) are distinct collections; packer bakes both on the AWS and GCP runtimes. Container and Azure image builders are future plugins. |
+| Storage lifecycle (S3, Azure Blob, GCS, local FS) | Storage builders exist for `ebs`, `efs` and `s3` (AWS), `pd`, `filestore` and `gcs` (GCP) and `volume` (a docker volume on a container runtime), each realized by a terraform module; access is group-based (§3E). Azure Blob and a bind-mounted local directory are future plugins. |
+| Base vs instance images, OS-independent | `base_images` and `images` (instance images) are distinct collections; packer bakes both on the AWS, GCP and docker runtimes (a container image is committed into the daemon's store, §3F). An Azure image builder is a future plugin. |
 | The instance-image lifecycle includes *launching instances* | Instances belong to the instance-image lifecycle (§3A). Group ownership lives on the image, so the image's `sftd.tx.group` label follows every instance (§3F2). |
 | CLI-only, headless, CI/CD end-to-end | A typer CLI, dry-run by default, no interactive step anywhere; a failed run exits nonzero and writes a machine-readable summary (§3G). |
 | Entirely plugin-based | An entry-point plugin registry supplies the builders; a plugin is written against the contract package alone (§3P). Lifecycles themselves may be plugin-registered (`release`, `retention`). |
@@ -317,6 +317,13 @@ only via bind, upgrade and follow operations (§3B).
   neither provider's agent: the launch steps, the login proof and the gid
   in generated IaC are each the group builder's answer. LDAP/AD and
   `manual-add` stay deferred (§H).
+  A container runtime (stage 103) takes the `posix` type alone: OPA's
+  agent is a daemon under an init system, a container runs none, and a
+  group owned by OPA on a `docker` runtime is refused at validation in one
+  sentence (enrollment in a container is a later stage). A `posix` group
+  there is as on a cloud, with one difference the core does not hide: the
+  accounts script reaches the container by `exec` through the runtime's
+  session, not by ssh, so a container has no ssh login proof.
 
 ---
 
@@ -386,6 +393,20 @@ only via bind, upgrade and follow operations (§3B).
   its generation's snapshot updated and a `resized` event kept). This
   boundary is what makes N16 (per-instance attachment) and N23
   (fully-baked images) compatible.
+  **How the parameters arrive is the runtime's** (stage 103). A cloud
+  hands the rendered script to the machine as user data and the machine
+  runs it at first boot (`launch_delivery: boot`, the default). A
+  container has no user data and no first boot: the same script is
+  uploaded into the container when it is created and the system runs it
+  once through `exec` after the apply, as it runs the accounts script
+  (`launch_delivery: session`), guarded by a marker file so it never runs
+  twice. The recorded parameters name the delivery only when it is not
+  `boot`, so a cloud's records are what they always were. A storage the
+  platform mounts itself (a docker volume: `platform_mounts`) gets no
+  format or mount line in the script, only the group's subtree and its
+  owner and mode; the script also sets no hostname, since the container
+  was created with it. The channel is still narrow, recorded and
+  immutable: only the transport differs.
 
 ---
 
@@ -644,9 +665,12 @@ order. The apply step and its gate are described operationally in
   the base-image lifecycle is fully independent of storage lifecycle
   *runs*; it needs only plugin definitions and its own declarations.
 - Providers: `ebs`, `efs` and `s3` on AWS; `pd`, `filestore` and `gcs`
-  on GCP. Further provider plugins (Azure Blob, local FS) slot in behind
-  the same storage-builder classification when actually needed — no
-  speculative implementation.
+  on GCP; `volume` on a docker runtime (many containers may attach one;
+  the platform mounts it, so the base image needs no mount tooling; it
+  cannot be archived, since a volume has no snapshot, and a request to
+  destroy it removes its data). Further provider plugins (Azure Blob,
+  local FS) slot in behind the same storage-builder classification when
+  actually needed — no speculative implementation.
 
 ### F. Image lifecycles: group-type capability, the access loop, and lineage
 
@@ -670,6 +694,16 @@ order. The apply step and its gate are described operationally in
    (`session_mechanism`: `ssm` on AWS, `iap` on GCP). A base image with
    neither a supplied key nor a session mechanism on any of its
    runtimes hard-fails validation (N9).
+   **A container runtime changes what a build is, not how lineage works**
+   (stage 103). On a `docker` runtime packer's `docker` source runs the
+   bake in a container, the modifications run inside it through the
+   daemon as `root`, and the result is committed into the daemon's image
+   store: the build is the image id (`sha256:...`) and its names are tags.
+   A label is fixed when an image is built, so a release and a relabel
+   move tags instead of editing a record in place. There is no cloud-init
+   to wait for, no machine to boot and no init system, so a base image's
+   service tests do not apply there; its session mechanism is `exec`
+   through the daemon.
 2. **Instance images define specific instances of those types — closing
    the group→server-label gap.** An instance image names only its
    owning `group`; group names are system-unique, so the group name
@@ -881,7 +915,7 @@ runtime instances, ever.** The contract:
 
 ### H. Deferred (explicitly not now)
 
-Azure images, container images, CloudFormation output, LDAP/AD identity
+Azure images, CloudFormation output, LDAP/AD identity
 providers, artifact-level image access (Q2), cloud-storage config
 sources, any config-source abstraction beyond `--root-dir` + git
 checkout, **multi-group image ownership** (Q4: planned later revision),
@@ -898,7 +932,12 @@ terraform-shaped, so a program-level tool would replace the system's
 core rather than plug into it. Terraform proper is a binary swap for
 OpenTofu. Ansible as an *executor* for launch parameters on
 no-user-data targets is a prototype (`base/ansible_launch.py`) that
-waits for a real metal/container target. **Adoption of external
+waits for a real metal target; a container is served by the runtime's
+own session (N26, `launch_delivery: session`), not by it. Also deferred
+with the container runtime: an init system or sshd in a container,
+OPA's agent in one, a privileged container, a registry push of a build,
+archiving a volume, Windows and BSD containers, and orchestrators
+(Swarm, Kubernetes). **Adoption of external
 resources**: the `state query` report's *foreign* class is the
 inventory and `state import` adopts into meta-state; `tofu import`
 stays a deliberate human step until there is a real candidate.

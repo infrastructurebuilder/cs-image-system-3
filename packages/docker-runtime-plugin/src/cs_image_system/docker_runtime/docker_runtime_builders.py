@@ -26,7 +26,7 @@ from cs_image_system.contract.image import ImageQuery
 from cs_image_system.contract.runtime import LAUNCH_DELIVERY_SESSION
 
 from .docker_names import (full_id, is_digest_reference, is_image_id, label_key_problem, movable_tag,
-                           parse_movable_tag, short_id, tag_name, tag_problem)
+                           parse_movable_tag, same_repository, short_id, tag_name, tag_problem)
 from .docker_provider_specific_image import DockerProviderSpecificImage
 from .docker_runtime_models import DockerContainerBuilderModel
 
@@ -191,7 +191,7 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
         repo = self.model.get_repository()
         for ref in record.get("RepoTags") or []:
             r, _, tag = str(ref).rpartition(":")
-            if r != repo:
+            if not same_repository(r, repo):
                 continue
             parsed = parse_movable_tag(tag)
             if parsed and parsed[0] == sid:
@@ -202,7 +202,7 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
         repo = self.model.get_repository()
         for ref in record.get("RepoTags") or []:
             r, _, tag = str(ref).rpartition(":")
-            if r == repo and parse_movable_tag(tag) is None:
+            if same_repository(r, repo) and parse_movable_tag(tag) is None:
                 return tag
         return short_id(str(record.get("Id") or ""))
 
@@ -288,7 +288,7 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
         info = self._inspect(image_id) or {}
         for ref in info.get("RepoTags") or []:
             r, _, tag = str(ref).rpartition(":")
-            if r == repo and tag not in new_tags and any(tag.startswith(p) for p in stale_prefixes):
+            if same_repository(r, repo) and tag not in new_tags and any(tag.startswith(p) for p in stale_prefixes):
                 self._docker("rmi", f"{repo}:{tag}", check=False)
 
     def retag_image(self, image_id: str, tags: dict[str, str]) -> bool:

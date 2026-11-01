@@ -10,7 +10,7 @@ script that sets the secrets from files the interview named."""
 
 from __future__ import annotations
 
-from .facts import Facts, first_runtime_name, runtime_region
+from .facts import Facts, first_runtime_name, first_unreachable_runtime_name, runtime_region
 from .questions import BY_HAND, MADE, READ, Answers, Question, Raw, Rendered, Secret, Section
 
 MODULE = "bootstrap_github"
@@ -28,12 +28,22 @@ SECRETS: tuple[Secret, ...] = (
     Secret("TF_VAR_KEY", "file", comment="the OPA service user's key (3.5)"),
     Secret("TF_VAR_SECRET", "file", comment="the OPA service user's secret (3.5)"),
     Secret("CSIS_CONFIG_IDENTITY", "file", comment="CI's age identity, the whole file (3.6)"),
+    Secret("DOCKER_HOST_SSH_KEY", "file", comment="the private key (PEM) of a user on the docker host who may use its daemon (3.4a; only with a docker host CI reaches)"),
+    Secret("DOCKER_HOST_KNOWN_HOSTS", "file", comment="the docker host's known_hosts line, checked by hand (3.4a; only with a docker host CI reaches)"),
     Secret("CSIS_PROOF_SSH_KEY", "file", comment="a posix group's proof user's private key, PEM (3.7; only with one)"),
 )
 
 
 def _perform_default(facts: Facts, answers: Answers) -> str | None:
     return first_runtime_name(facts)
+
+
+def _guard_default(facts: Facts, answers: Answers) -> str:
+    """A runtime CI cannot reach (a container daemon on a host it has no
+    way into) is the one it must never bake on; empty when every runtime is
+    reachable."""
+    unreachable = first_unreachable_runtime_name(facts)
+    return unreachable if unreachable and unreachable != answers.get("perform_runtime") else ""
 
 
 def _region_default(facts: Facts, answers: Answers) -> str:
@@ -55,8 +65,9 @@ QUESTIONS: tuple[Question, ...] = (
              "retention on", "text", default=_perform_default,
              help="a `name:` from cfg/runtime-builders.yml; none could be read"),
     Question("guard_runtime", "GUARD_RUNTIME: a runtime CI must never bake on", "text",
-             default="", may_be_empty=True),
-    Question("aws_region", "AWS_REGION: the region of the AWS runtime (none in a GCE-only tree)", "text",
+             default=_guard_default, may_be_empty=True,
+             help="by default a container runtime whose daemon CI has no way into (not an ssh:// host)"),
+    Question("aws_region", "AWS_REGION: the region of the AWS runtime (none in a tree without one)", "text",
              default=_region_default, may_be_empty=True),
     Question("secrets_dir", "The directory holding one file per secret, named after the secret, that "
              "set-secrets.sh reads (never committed)", "path", default="_uncommitted/secrets",
@@ -105,7 +116,7 @@ def render(answers: Answers) -> Rendered:
                     "who administers the repository"),),
         secrets=SECRETS,
         by_hand=(
-            "The nine secrets' VALUES: one file per secret under the secrets directory "
+            "The secrets' VALUES: one file per secret under the secrets directory "
             f"(`{answers.get('secrets_dir')}`, never committed), then `bash set-secrets.sh` (CI_SETUP.md 3.7).",
             "The age identity for CI (CI_SETUP.md 3.6): `age-keygen`, the public key into encryption.recipients, `reencrypt`.",
             "The values in `.github/workflows/ci.yml` still marked REPLACE-ME: PERFORM_RUNTIME, GUARD_RUNTIME and AWS_REGION "

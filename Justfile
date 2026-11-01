@@ -299,8 +299,10 @@ full-test-legs:
 		just test-docker-bake -q || { echo "full-test: FAILED test-docker-bake"; status=1; }
 		echo "full-test: the docker runtime's change cycle on the local daemon, from nothing to nothing (test-docker-cycle)"
 		just test-docker-cycle -q || { echo "full-test: FAILED test-docker-cycle"; status=1; }
+		echo "full-test: the same cycle against Podman's API service, when one is named (test-podman-cycle)"
+		just test-podman-cycle -q || { echo "full-test: FAILED test-podman-cycle"; status=1; }
 	else
-		echo "full-test: SKIPPED test-mods, test-posix-accounts, test-bake-steps, runner-image, test-docker-bake and test-docker-cycle -- docker is not available"
+		echo "full-test: SKIPPED test-mods, test-posix-accounts, test-bake-steps, runner-image, test-docker-bake, test-docker-cycle and test-podman-cycle -- docker is not available"
 	fi
 	if [ ! -f "{{config_root}}/cfg/_config.yml" ]; then
 		echo "full-test: SKIPPED the live-configuration legs (dry run --all, state query --strict) -- no live configuration at {{config_root}} (see: just config-guard)"
@@ -414,7 +416,23 @@ test-docker-bake *ARGS:
 # images disposed. Needs what test-docker-bake needs plus tofu; several minutes
 # more. A leg of `full-test`; under `just test` the same file is skipped.
 test-docker-cycle *ARGS:
-	@CSIS_DOCKER_CYCLE=1 uv run pytest tests/test_v2_docker_cycle_live.py {{ARGS}}
+	@CSIS_DOCKER_CYCLE=1 uv run pytest tests/test_v2_docker_cycle_live.py tests/test_v2_docker_starter_live.py {{ARGS}}
+
+# Stage 103 branch 3: the cycle above against PODMAN'S API SERVICE instead of the
+# environment's docker daemon. CSIS_PODMAN_HOST is the DOCKER_HOST URL of a running
+# service (`podman system service`, a `podman machine`, or an ssh:// URL to a host
+# that has one); unset, the leg is SKIPPED, said so, and exits 0. The leg refuses to
+# pass on a daemon that does not say it is Podman. What differs from docker is what
+# it fails on, and is recorded in docs/OPERATIONS.md, "Container hosts".
+test-podman-cycle *ARGS:
+	#!/usr/bin/env bash
+	set -euo pipefail
+	if [ -z "${CSIS_PODMAN_HOST:-}" ]; then
+		echo "test-podman-cycle: SKIPPED -- CSIS_PODMAN_HOST is not set (the DOCKER_HOST URL of a Podman API service, e.g. unix://\$XDG_RUNTIME_DIR/podman/podman.sock)"
+		exit 0
+	fi
+	DOCKER_HOST="$CSIS_PODMAN_HOST" CSIS_DOCKER_KEEP_HOST=1 CSIS_PODMAN_CYCLE=1 CSIS_DOCKER_CYCLE=1 \
+		uv run pytest tests/test_v2_docker_cycle_live.py tests/test_v2_docker_starter_live.py {{ARGS}}
 
 # Stage 92: build the CI runner image (ci/runner-image: AlmaLinux 10, every tool pinned) for
 # amd64 and run its probe, which asks every tool its version from where cfg/executables.yml

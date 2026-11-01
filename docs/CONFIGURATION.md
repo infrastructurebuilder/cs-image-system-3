@@ -474,7 +474,21 @@ records its digest; an `image_id` there is a digest reference
 daemon, with no init system: `services_enabled` tests do not apply, and an
 instance image owned by an OPA group is refused on this runtime (only a
 `posix` group can own one there). The image builder is `type:
-packer-docker` (8).
+packer-docker` (6), the instance builder `tofu-docker` and the storage
+builder `tf-docker-volume` (8).
+
+An instance on this runtime is a container, and the differences from a
+machine are the ones to know before declaring one: it has no init system
+(a keepalive runs under `--init`, and the launch work arrives by `exec`
+once the container is up), it runs no sshd (a person reaches it with
+`docker exec -it -u <user> <name> bash`, and there is no ssh login proof
+for CI to make), its power state is the operator's (`docker stop` is left
+alone by the next apply), and its labels are fixed when it is created.
+**Whoever can reach the daemon is root on its host**; guard the host, and
+give CI a way to it only on purpose (CI_SETUP.md 3.4a). The
+[`standard-docker`](examples/standard-docker/README.md) starter is the
+smallest working tree on this runtime; the bootstrap's `docker` section
+(CI_SETUP.md 3.0) reads the runtime and asks whether CI can reach it.
 
 ### 4.7 Examples
 
@@ -965,9 +979,11 @@ from a base or an instance image. Model: `ImageBuilderModel`
 ([`image_builder_model.py`](../packages/base/src/cs_image_system/base/models/image_builder_model.py))
 and `PackerImageBuilderModel`
 ([`packer_models.py`](../packages/packer-plugin/src/cs_image_system/packer_plugin/packer_models.py)).
-Types: `packer-ebs` (the `amazon-ebs` source) and `packer-gce` (the
-`googlecompute` source); the two share one body, the runtime plugin owns
-the source block.
+Types: `packer-ebs` (the `amazon-ebs` source), `packer-gce` (the
+`googlecompute` source) and `packer-docker` (the `docker` source, on a
+`docker` runtime: the container the bake ran in is committed and tagged
+into the daemon's image store); the three share one body, the runtime
+plugin owns the source block.
 
 | Field | Type | Default | Meaning and allowed values |
 | --- | --- | --- | --- |
@@ -1011,6 +1027,26 @@ image_builders:
     required_plugins:
       - name: googlecompute
         source: github.com/hashicorp/googlecompute
+        version: '>= 1.0.0'
+      - name: ansible
+        source: github.com/hashicorp/ansible
+        version: '>= 1.0.0'
+```
+
+A `packer-docker` builder (from the
+[`standard-docker`](examples/standard-docker/cfg/image-builders.yml)
+starter) names the `docker` and `ansible` plugins:
+
+```yaml
+image_builders:
+  - name: packer-docker
+    type: packer-docker
+    is_default: true
+    runtime: default
+    executable: packer
+    required_plugins:
+      - name: docker
+        source: github.com/hashicorp/docker
         version: '>= 1.0.0'
       - name: ansible
         source: github.com/hashicorp/ansible
@@ -1165,8 +1201,16 @@ Items, from [`images/image1.yaml`](../tests/fixtures/config/images/image1.yaml):
 Key: `instance_builders`. One terraform root per builder. Model:
 `TofuInstanceBuilderModel`
 ([`tf_instance_models.py`](../packages/tf-ebs-instance-plugin/src/cs_image_system/tf_ebs_instance_plugin/tf_instance_models.py)),
-types `tofu` (AWS) and `tofu-gce` (GCE, same fields,
-[`tf_gcp_models.py`](../packages/tf-gcp-plugin/src/cs_image_system/tf_gcp_plugin/tf_gcp_models.py)).
+types `tofu` (AWS), `tofu-gce` (GCE, same fields,
+[`tf_gcp_models.py`](../packages/tf-gcp-plugin/src/cs_image_system/tf_gcp_plugin/tf_gcp_models.py))
+and `tofu-docker` (a container on a `docker` runtime, same fields,
+[`tf_docker_models.py`](../packages/tf-docker-plugin/src/cs_image_system/tf_docker_plugin/tf_docker_models.py)).
+A `tofu-docker` root names no address of its own: the runtime's daemon rides
+in the environment of every tofu process the root runs, and the root calls
+the release's `tfmodules/docker_container`, which declares the container
+with `must_run = false` and the restart policy `unless-stopped`, so the power
+state stays the operator's. With no `state_configuration` it inherits the
+runtime's, which for a tree with no cloud is a `local` backend.
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
@@ -1196,6 +1240,15 @@ instance_builders:
     runtime: gcloud-east1
     executable: open-tofu-1
     state_configuration: s3-east2
+  - name: tofu-docker
+    type: tofu-docker
+    runtime: docker-host
+    executable: open-tofu-1
+    state_configuration: local-dev
+    required_plugins:
+      - name: docker
+        source: kreuzwerker/docker
+        version: '>= 3.0.0'
 ```
 
 ### 8.2 Storage builders
@@ -1203,7 +1256,8 @@ instance_builders:
 Key: `storage_builders`. One terraform root per builder; each realizes one
 kind of storage on one runtime. Models:
 [`tf_storage_models.py`](../packages/tf-ebs-instance-plugin/src/cs_image_system/tf_ebs_instance_plugin/tf_storage_models.py),
-[`tf_gcp_models.py`](../packages/tf-gcp-plugin/src/cs_image_system/tf_gcp_plugin/tf_gcp_models.py).
+[`tf_gcp_models.py`](../packages/tf-gcp-plugin/src/cs_image_system/tf_gcp_plugin/tf_gcp_models.py),
+[`tf_docker_models.py`](../packages/tf-docker-plugin/src/cs_image_system/tf_docker_plugin/tf_docker_models.py).
 
 Fields common to every storage builder (`TofuStorageBuilderModel`):
 
@@ -1226,6 +1280,7 @@ Per type:
 | `tf-gcp-pd` | `pd` | single instance | yes | `size: int = 100`, `disk_type: str = pd-balanced` | `tags` (emitted as labels) |
 | `tf-gcp-filestore` | `filestore` | many | yes | `tier: str = BASIC_HDD`, `capacity_gb: int = 1024` | `tags` |
 | `tf-gcp-gcs` | `gcs` | many | no | `bucket_name: str` (required), `location: str or null` | `tags` |
+| `tf-docker-volume` | `volume` | many | yes | none | `driver: str`, `driver_opts: mapping`, `tags` (emitted as labels) |
 
 `variables.tags` are builder-wide default tags; a storage item's own tags
 win key by key. Every other variable is passed only when set, so the
@@ -1248,7 +1303,14 @@ or `expire_days`. Every other builder refuses a `lifecycle`.
 
 The requested state of a storage (`active`, `archived`, `destroyed`) is
 realized by the builder: on AWS, archived EBS is a tag-named snapshot with
-the volume gone, and restore recreates it from the snapshot.
+the volume gone, and restore recreates it from the snapshot. A docker
+volume is `active` or `destroyed` (destroyed removes the volume WITH its
+data); it has no snapshot, so `archived` is refused. The platform mounts a
+docker volume (the storage builder declares `platform_mounts`), so the
+launch script formats and mounts nothing: it makes the group's subtree on
+the volume and sets its owner and mode. A volume's labels cannot change in
+place, and a change to them would replace the volume with its data, so the
+module ignores them after creation.
 
 [`cfg/storage-builders.yml`](../tests/fixtures/config/cfg/storage-builders.yml):
 
@@ -1297,6 +1359,14 @@ storage_builders:
     executable: open-tofu-1
     runtime: gcloud-east1
     bucket_name: csis-sandbox-86233086783-default-bucket
+  - name: docker-volumes
+    type: tf-docker-volume
+    executable: open-tofu-1
+    runtime: docker-host
+    state_configuration: local-dev
+    variables:
+      tags:
+        project: example
 ```
 
 ## 9. `cfg/group-builders.yml`

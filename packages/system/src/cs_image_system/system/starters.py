@@ -62,7 +62,7 @@ from packaging.version import InvalidVersion, Version
 
 from .starter_links import rewrite_tree
 
-STARTERS: tuple[str, ...] = ("standard-aws", "standard-gce", "complete", "standard-aws-posix")
+STARTERS: tuple[str, ...] = ("standard-aws", "standard-gce", "complete", "standard-aws-posix", "standard-docker")
 DEFAULT_STARTER = "standard-aws"
 VERSION_FILE = ".csis-version"
 

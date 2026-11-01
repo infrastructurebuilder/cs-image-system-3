@@ -20,7 +20,7 @@ from pathlib import Path
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
-STARTERS = ("standard-aws", "standard-gce", "complete", "standard-aws-posix")
+STARTERS = ("standard-aws", "standard-gce", "complete", "standard-aws-posix", "standard-docker")
 
 
 class StarterTreesHook(BuildHookInterface):

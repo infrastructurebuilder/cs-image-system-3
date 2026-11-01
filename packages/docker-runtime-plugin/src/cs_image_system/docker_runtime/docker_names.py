@@ -77,6 +77,21 @@ def is_digest_reference(value: str) -> bool:
     return bool(_DIGEST_REF.match(str(value).strip()))
 
 
+#: The registry a daemon may put in front of a repository it was given
+#: unqualified: Podman's API spells ``csis/x:t`` as ``docker.io/csis/x:t``
+#: (or ``localhost/csis/x:t``) in ``RepoTags``, where Docker keeps it as
+#: written. Found by the Podman leg (stage 103, 2026-11-01).
+IMPLIED_REGISTRIES = ("docker.io/", "index.docker.io/", "localhost/")
+
+
+def same_repository(reported: str, repository: str) -> bool:
+    """Whether a ``RepoTags`` entry's repository part IS the runtime's
+    repository, however the daemon spells the registry it implied."""
+    if reported == repository:
+        return True
+    return any(reported.startswith(p) and reported[len(p):] == repository for p in IMPLIED_REGISTRIES)
+
+
 def short_id(image_id: str) -> str:
     """The twelve hex characters the CLI shows for an image id."""
     v = str(image_id).strip()

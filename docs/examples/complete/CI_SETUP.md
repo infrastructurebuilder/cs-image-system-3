@@ -125,6 +125,7 @@ What the sections do today, and what stays by hand:
 | AWS (3.3) | the GitHub OIDC identity provider (read when it exists); the READ-ONLY and WRITE roles with the trust and permission documents of 3.3, the subject forms you chose, your bucket, prefix, region, account and instance profile filled in (a role that exists is ADOPTED by an `import` block, so its trust is maintained from then on, and every subject it already trusted that is not this repository's -- another repository sharing the role -- is KEPT unless you drop it at the prompt); the state buckets (the default backend's, and every other declared S3 backend's that a root is bound to) and the Session Manager instance profile only when the account lacks them; `AWS_ROLE_ARN` and `AWS_APPLY_ROLE_ARN` set by the script from the applied root's outputs | the network, which is yours and never modified; a declared S3 backend bound to no root (not made: the generated README says so); removing a hand-made inline policy from an adopted role once the plan is clean |
 | GCP (3.4) | the workload identity pool and its GitHub provider (the mapping of 3.4 and a condition admitting this repository alone); the READ-ONLY service account with its project roles, and the WRITE one when CI performs on a GCE runtime; the `workloadIdentityUser` bindings (the write one on the production branch alone); the GCS state bucket (versioned, uniform access, no public access, the CI identities' object access) when the tree keeps its state in GCS and the project lacks it; the three GCP secrets set by the script from the applied root's outputs. What already exists is READ, never rewritten, and every role and binding is one member added | the network and firewall, which are yours; adding this repository to an EXISTING provider's condition when it does not name it (the README of the generated root says when) |
 | Okta and OPA (3.5) | nothing: this section creates nothing, it CHECKS. It reads the OPA workload connection and role (present, active, requiring this repository, the role bound and pinned to the production branch, both named on the `okta-tf` group builder) and asks the Okta API services app for a token with its own key and scopes; each check that fails becomes its step of 3.5 in the generated README | creating and activating the connection and the role (a DevOps and a security admin, in the console); the services app and its scopes (the org's Okta admins); the OPA service user and its key pair |
+| Docker host (3.4a) | nothing: the daemon is a host somebody runs. The section READS the tree's docker runtime and asks one question, can CI reach the daemon (over ssh)? Yes adds `DOCKER_HOST_SSH_KEY` and `DOCKER_HOST_KNOWN_HOSTS` to the secrets the script sets, from files; no says the runtime is one CI must never bake on, and the GitHub section's `GUARD_RUNTIME` default already names it | the daemon, its host and its network; the key pair for the host's user and its `known_hosts` line (made on your machine) |
 | The age identity (3.6) | nothing: a key is made on your machine | `age-keygen`, `reencrypt`; the script sets the secret from the file |
 
 Every "does it already exist?" question in the AWS and GCP sections is
@@ -190,6 +191,14 @@ whole order.
 | `live` | pushes and the nightly schedule, never pull requests | validate, is the committed emission current, the strict state query, the modification tests under docker | the READ-ONLY identities |
 | `perform` | `main` (or a dispatch asking to record) | the record, the guard on `GUARD_RUNTIME`, the performing run of `PERFORM_RUNTIME` under the WRITE identity and, still under it, the login proof, the closing record, the strict state query | the read-only identities, and the write identity for the performing step and the login proof after it |
 
+The `standard-docker` starter's workflow has the same three jobs and no
+cloud: no federation, no write identity, no login proof (a container runs
+no sshd, so there is no ssh login to prove). Its `live` job holds the age
+identity alone and, when the docker host's two secrets are set, reaches
+that host's daemon; its `perform` job requires them to record, because a
+record made against a runner's own daemon, which is gone when the job
+ends, would claim builds and machines that exist nowhere (section 3.4a).
+
 `.github/workflows/opa-workload-probe.yml` is dispatch only: it presents
 this repository's OIDC token to your OPA workload connection and stops
 (section 3.5).
@@ -201,7 +210,8 @@ run `live`:
 | --- | --- |
 | `PERFORM_RUNTIME` | the runtime the `perform` job bakes, releases and applies retention on (a `name:` from `cfg/runtime-builders.yml`) |
 | `GUARD_RUNTIME` | a runtime CI must never bake on (for example one billed to a person), or empty for none; its emission may not change between two records, or `perform` fails before anything performs. The vendor publishing a newer image under a base with no build yet there is not a change: the guard names the move and passes (on 0.1.2 and before it failed) |
-| `AWS_REGION` | the region of the AWS runtime (absent in a GCE-only tree) |
+| `AWS_REGION` | the region of the AWS runtime (absent in a GCE-only or docker tree) |
+| `DOCKER_HOST_ADDRESS`, `DOCKER_HOST_USER` | the docker starter only: the host CI logs in to over ssh and the user there who may use its daemon (section 3.4a) |
 | `TF_VAR_REPLACE_ME_key`, `TF_VAR_REPLACE_ME_secret` | rename to `TF_VAR_<team>_key` and `TF_VAR_<team>_secret`, where `<team>` is the OPA team with every non-alphanumeric character as `_` (the `team:` on your group builder); the values come from the `TF_VAR_KEY` and `TF_VAR_SECRET` secrets, which keep those names |
 
 `.csis-version` pins the release CI installs. Taking a new release is:
@@ -454,6 +464,61 @@ backend.
    `perform` job (its gate entry and the "the identity that may write"
    auth step).
 
+### 3.4a A docker host
+
+Skip this section for a tree with no docker runtime. It is the `standard-docker`
+starter's only external setup: there is no account, no federation and no
+credential in the cloud sense, because a docker runtime is a container daemon
+on a host somebody runs.
+
+**Whoever can reach a docker daemon is root on its host.** Docker's API
+has no narrower grant: a client that may start a container may mount the
+host's filesystem into it. The system does not hide this and does not
+mitigate it; the access control is the host's, and it is yours. Give CI
+a way in only if you accept that CI, and everything that can change this
+repository's `main` branch, is root there. A host that holds nothing else
+is the sensible one.
+
+1. **The host and its daemon**, which the system never installs: any
+   machine that runs Docker Engine (or another daemon that speaks its API:
+   Podman's API service, colima, OrbStack). The daemon must be reachable over
+   ssh, so a user there who may use it (in the `docker` group, or a rootless
+   daemon's own user) and an ssh server.
+2. **A key pair for CI alone**, made on your machine and never reused:
+
+   ```sh
+   ssh-keygen -t ed25519 -f docker-host-ci -N '' -C csis-ci
+   ```
+
+   Authorize the public half for that user on the host
+   (`~/.ssh/authorized_keys`, ideally with `restrict` and a `command=`
+   that allows only `docker system dial-stdio`, the one command docker's ssh
+   transport runs). The private half is `DOCKER_HOST_SSH_KEY`.
+3. **`DOCKER_HOST_KNOWN_HOSTS`** is the host's key line, so CI trusts that host and
+   no other. Take it and CHECK it against the host by another route (its console,
+   or `ssh-keygen -lf` on the host itself) before you store it:
+
+   ```sh
+   ssh-keyscan -t ed25519 docker-host.example
+   ```
+
+4. **The workflow's two values**, `DOCKER_HOST_ADDRESS` and `DOCKER_HOST_USER`
+   (section 3.1). The "Reach the docker host" step writes the key and the
+   known-hosts line to the runner's `~/.ssh`, pins `StrictHostKeyChecking yes`,
+   and exports `DOCKER_HOST=ssh://<address>` for the steps after it. The
+   runtime in `cfg/runtime-builders.yml` names no address of its own, so every
+   docker call of the job uses that one. A tree whose YAML names a `host:` or a
+   `context:` uses it instead, and the step only supplies the ssh settings.
+5. **What CI cannot reach** is guarded rather than reached: a runtime whose
+   daemon is a local socket, a docker context, a `tcp://` host or an address the
+   YAML keeps as an `ENC[age:...]` marker is not something this workflow logs in
+   to. Name it in `GUARD_RUNTIME`, so a change to its declaration fails CI before
+   anything runs, and keep `PERFORM_RUNTIME` on a runtime CI can reach (the
+   bootstrap's GitHub section proposes exactly this).
+
+The modification tests of `live` run on the runner's own daemon (the mounted
+socket), not the team's host: they are throwaway containers.
+
 ### 3.5 Okta and Okta Privileged Access
 
 **The Okta API services app** (for the `okta/okta` provider's user
@@ -570,10 +635,16 @@ prints.
 | `OKTA_API_PRIVATE_KEY` | the load's check that the `okta/okta` provider can authenticate | live, perform | the services app's private key, PEM (section 3.5) |
 | `TF_VAR_KEY` | the load, exported as `TF_VAR_<team>_key` | live, perform | the OPA service user's API key |
 | `TF_VAR_SECRET` | the load, exported as `TF_VAR_<team>_secret` | live, perform | the OPA service user's API secret |
+| `DOCKER_HOST_SSH_KEY` | the "Reach the docker host" step | live (optional), perform when recording | the private key of a user on the docker host who may use its daemon, PEM (section 3.4a) |
+| `DOCKER_HOST_KNOWN_HOSTS` | the same step | live (optional), perform when recording | the docker host's `known_hosts` line, checked by hand (section 3.4a) |
 | `CSIS_CONFIG_IDENTITY` | every load, to open `ENC[age:...]` values | live, perform | CI's age identity (section 3.6) |
 
 A tree with one cloud has the gate lines for that cloud alone; the
-starter for that cloud already leaves the other's secrets out.
+starter for that cloud already leaves the other's secrets out. The
+docker starter has no cloud's: its `live` gate asks for
+`CSIS_CONFIG_IDENTITY` alone, and the two docker host secrets are
+optional there (without them the job uses the runner's own daemon) and
+required by `perform` when it records.
 
 One secret no gate reads: **`CSIS_PROOF_SSH_KEY`**, the private key of a
 posix group's proof user (stage 75) -- a member declared
@@ -640,7 +711,7 @@ step "Gate on the secrets".
    instance root, which reads those roots' state, and a storage root
    that never applied has none (the strict state query says so as a
    note).
-5. **The login proof as a workload**: the "CI logs in through the managed
+5. **The login proof as a workload** (not in the docker starter, which has no login proof): the "CI logs in through the managed
    policy" step green, and `meta-state/login-proofs.yaml` on `main` saying
    `as: workload`. Then the branch pin on the role, proved by the probe
    from two branches (section 3.5, step 6).
@@ -654,6 +725,9 @@ step "Gate on the secrets".
 | `perform: FAILED -- recording was requested on main and these secrets are missing or EMPTY: <names>` on the FIRST push of a new repository, naming every secret | the workflow is from 0.1.2 or before, whose gate asked for the record before it saw that nothing was configured | nothing is wrong with the repository; the run proved nothing. Take a later release (section 3.1), or let the next run, with the secrets set, stand for it |
 | `perform: FAILED -- recording was requested on main ...` naming only the write identity | a push to `main` records, and the record's write role (or GCP identity) is not set | set it (section 3.7); a run dispatched with `mode: dry` does not need it |
 | `Failed to install entrypoints for cs-image-system` in "Install the released system" | `.csis-version` names a release before 0.1.1.dev2, whose whole-system package exposed no command to `uv tool install` | move `.csis-version` to a later release |
+| `perform: FAILED -- recording was requested on main ...` naming `DOCKER_HOST_SSH_KEY` or `DOCKER_HOST_KNOWN_HOSTS` | the docker starter records only against the team's host, and a secret that reaches it is not set | set both (section 3.4a); a run dispatched with `mode: dry` does not need them |
+| "Reach the docker host" ends with `Host key verification failed` or `Permission denied (publickey)` | the known-hosts line is not the host's, or the key is not authorized for `DOCKER_HOST_USER` there | re-take the line from the host and check it (section 3.4a, step 3); authorize the public half for that user |
+| "Reach the docker host" ends with `Cannot connect to the Docker daemon` | the user cannot use the daemon, or the daemon is not listening on the host | run `docker version` as that user on the host |
 | `Not authorized to perform sts:AssumeRoleWithWebIdentity` | the role's trust condition does not match the token's `sub` or `aud` | compare the trust policy with the subject form your organisation's tokens carry (section 3.2, step 4); CloudTrail's denied event shows the token's subject |
 | `login proof <instance>: login: FAILED -- ssh <user>@<instance> id: exit 255` with `is not authorized to perform: ssm:StartSession` and the READ-ONLY role's name | the proof ran under the read-only role, which may not open a session: this tree's workflow is from a release before 0.1.1.dev22 (stage 89) | take the newer release (section 3.1): its workflow makes the proof while the write identity is held. Do not give the read-only role the session |
 | the load says the AWS profile was not found, or no credentials | the profile step did not run, or the YAML names a different profile | read the "Name the federated credentials" step; it writes the profile the runtimes name |

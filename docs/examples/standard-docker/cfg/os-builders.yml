@@ -1,0 +1,40 @@
+---
+# cfg/os-builders.yml (from the standard-docker starter) -- the ONE base image: the
+# vendor image to start from, what the base declares it can do, its update
+# policy and its in-bake tests. Reference: CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 5
+# (5.1 `runtimes[]`, 5.2 `update`, 5.3 `tests`).
+os_builders:
+  - name: el10
+    type: rhel                   # DECISION: the dnf family (rhel, fedora) -- `debian`/`ubuntu` are the apt families
+    family: alma-linux           # what the vendor image IS; the image-source catalog says alma-linux IS rhel (CONFIGURATION 5a)
+    family_version: 10           # a number reads as the string "10"; rhel accepts 8, 9 or 10
+    is_default: true             # the base `source_image: default` resolves to
+    # DECISION: what instances of this base may use (declared, not merely
+    # possible): posix identity, and docker volumes. An image whose group's builder
+    # is of another identity type, or an instance attaching another storage
+    # type, is refused at validate.
+    identity_types: [posix]          # DECISION: the base can carry posix groups (the shadow tools and sudo are checked)
+    storage_types: [volume]          # docker volumes, mounted by the platform
+    # DECISION: security patches only, never the kernel (a container has none of its own).
+    # `policy: full` (or `auto_update: true`) upgrades everything; `none` bakes the vendor
+    # image as is.
+    update:
+      policy: security
+      exclude: ["kernel*"]
+    # in-bake assertions: the bake fails if any fails. A base test can assert
+    # only what the BASE bake installs or the vendor image ships: a base takes
+    # no modifications (a package an image's playbook installs is tested there).
+    tests:
+      commands:
+        - run: "id -u csisadmin"      # the mandatory local admin user exists
+    runtimes:
+      - name: docker-el10
+        image_builder: packer-docker  # the image builder (and so the runtime) this base is baked on
+        ssh_username: root            # a bake in a container runs as root through the daemon
+        default_machine_type: small
+        # the vendor-image query comes from the image-source catalog (the release's
+        # `docker` block for alma-linux: `almalinux:10`, pulled and pinned by digest);
+        # `validate` prints what will be asked. To narrow or replace it, declare `query:`
+        # here in the system's vocabulary (CONFIGURATION 5a), or add a family entry to
+        # cfg/image-sources.yml. An `image_id:` here would be a digest reference,
+        # `almalinux@sha256:...`: a tag moves, a digest does not.
