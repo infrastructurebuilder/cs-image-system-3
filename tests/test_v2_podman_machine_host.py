@@ -14,9 +14,11 @@ a machine with no socket, and no binary at all. The leg's recipe and its place i
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -39,18 +41,15 @@ def _inspect(name: str, socket: str | None) -> list[dict]:
     return [{"Name": name, "ConnectionInfo": {"PodmanSocket": {"Path": socket} if socket else None}}]
 
 
-def _run(tmp_path: Path, machines: list[dict], sockets: dict[str, str | None] | None = None, *extra: str, env: dict | None = None):
+def _run(tmp_path: Path, machines: list[dict], sockets: Mapping[str, str | None] | None = None, *extra: str, env: dict | None = None):
     stub = tmp_path / "podman"
     stub.write_text(STUB)
     stub.chmod(0o755)
     (tmp_path / "list.json").write_text(json.dumps(machines))
     for name, sock in (sockets or {}).items():
         (tmp_path / f"inspect-{name}.json").write_text(json.dumps(_inspect(name, sock)))
-    import os
-    environment = {**os.environ, "STUB_DIR": str(tmp_path), **(env or {})}
-    environment.pop("CSIS_PODMAN_MACHINE", None)
-    environment.pop("PODMAN", None)
-    environment.update(env or {})
+    environment = {k: v for k, v in os.environ.items() if k not in ("CSIS_PODMAN_MACHINE", "PODMAN")}
+    environment.update({"STUB_DIR": str(tmp_path), **(env or {})})
     return subprocess.run([sys.executable, str(SCRIPT), "--podman", str(stub), *extra], capture_output=True, text=True,
                           env=environment, timeout=60)
 
