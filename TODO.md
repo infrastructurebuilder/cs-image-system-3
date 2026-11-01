@@ -820,7 +820,27 @@ message; this section goes at "merge 108".
 ## 109. Podman Desktop in the test cycle
 
 **Status: PLANNED 2026-11-01 (the operator asked for the stage).
-Waits for "do 109".**
+Items 1, 2 and 4 DONE the same day by the operator's word, ahead of
+"do 109"; items 3, 5 and 6 wait for it.**
+
+**Done 2026-11-01** (items 1, 2 and 4, run by hand with the existing
+`just test-podman-cycle`; no code changed): the operator installed
+Podman Desktop; its CLI is `/opt/podman/bin/podman`, not on PATH.
+Podman 5.8.9, one machine `podman-machine-default` (applehv, running,
+ROOTFUL, 2 CPUs, 1.9 GB, 10 GB disk), API 1.44, socket symlink
+`~/.local/share/containers/podman/machine/podman.sock`. Beside
+OrbStack: a bare `docker` still answers from OrbStack (29.8.2),
+`/var/run/docker.sock` still points at it, `podman-mac-helper` is not
+installed, Desktop added a docker context `podman` and left `orbstack`
+current. With `CSIS_PODMAN_HOST` set to that symlink both legs PASSED
+in 384 s (6 min 24 s): the docker cycle from nothing to nothing, and
+the `standard-docker` starter as it stands. No difference found, so no
+fix: the machine is rootful where stage 103's host was rootless, and
+that changed nothing the legs check. OrbStack's counts were the same
+before and after (38 images, 15 containers); the Podman machine kept
+two cached base images (almalinux:10, debian:12), the legs' pulls.
+The plan's rootless assumption and the Desktop machine's 10 GB disk
+are the two facts to carry into the docs (item 5).
 
 **Why**: stage 103 proved Podman's API service where a durable host
 would run it, on Linux (Podman 5.8.2, rootless, an OrbStack AlmaLinux
