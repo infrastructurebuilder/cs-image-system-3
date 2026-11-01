@@ -434,23 +434,24 @@ final proof release is cut.
 
 ## 103. A container runtime: docker and the daemons that speak its API
 
-**Status: branch 1 BUILT on feature/container-runtime, 2026-10-31
-("do 103"; worktree scratchpad/wt-103). The docker runtime plugin, its
-packer-docker builder, the contract's container model protocol and
-three bake hooks, the core's scaffolding fixed, preflight and the load
-failures taught, the orphan source classes gone, the complete example
-declaring the runtime; tests/test_v2_stage_103.py (16) over an overlay
-of the frozen fixture (unchanged, golden byte-identical) and the
-plugin's own (13). The live leg `just test-docker-bake` PASSED on the
-local OrbStack: AlmaLinux 10 and Debian 12 base images and a
-posix-owned instance image baked (ansible through the daemon), labels
-and tags read back, strict state query clean, the three disposed.
-Found while proving: packer's `--entrypoint=/bin/sh` becomes the
-committed image's entrypoint and `ENTRYPOINT []` does not clear it, so
-the bake shell is the container's command; an image id written as a tag
-loses its colon, so movable-tag values are decoded. Branch 1 waits for
-"merge 103-1"; branches 2 and 3 wait for "do 103-2" and "do 103-3".
-Question 6's host is named at branch 3.**
+**Status: branch 1 LANDED fa16a12 on develop, 2026-10-31 ("merge 103";
+feature/container-runtime kept and pushed; worktree scratchpad/wt-103
+stands). The docker runtime plugin, its packer-docker builder, the
+contract's container model protocol and three bake hooks, the core's
+scaffolding fixed, preflight and the load failures taught, the orphan
+source classes gone, the complete example declaring the runtime;
+tests/test_v2_stage_103.py (16) over an overlay of the frozen fixture
+(unchanged, golden byte-identical) and the plugin's own (13). The live
+leg `just test-docker-bake` PASSED on the local OrbStack before the
+merge: AlmaLinux 10 and Debian 12 base images and a posix-owned instance
+image baked (ansible through the daemon), labels and tags read back,
+strict state query clean, the three disposed. Found while proving:
+packer's `--entrypoint=/bin/sh` becomes the committed image's entrypoint
+and `ENTRYPOINT []` does not clear it, so the bake shell is the
+container's command; an image id written as a tag loses its colon, so
+movable-tag values are decoded. Not yet released. Branch 2 (tf-docker
+instances) waits for "do 103-2", branch 3 for "do 103-3"; the section
+goes when branch 3 lands. Question 6's host is named at branch 3.**
 
 **Why**: every runtime today is a cloud. A durable host running a
 container daemon is a third kind: cheaper than either cloud, local to a
