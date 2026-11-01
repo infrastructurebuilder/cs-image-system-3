@@ -133,13 +133,14 @@ release target index="test" dry="no":
 	export UV_PUBLISH_TOKEN="${UV_PUBLISH_TOKEN:-${!token_var:-}}"
 	[ -n "$UV_PUBLISH_TOKEN" ] || { echo "release: neither UV_PUBLISH_TOKEN nor $token_var is set -- the API token for $name; a release publishes, so it refuses up front rather than leave a tagged, unpublished version"; exit 2; }
 	[ -z "$(git tag -l "v$new")" ] || { echo "release: v$new is already tagged here -- a version is never re-cut, even after its files were deleted from the index"; exit 1; }
+	just _release-probes "{{index}}" release || exit 1
 	gate=test; [ "$name" = pypi ] && gate=full-test
 	if [ "{{dry}}" = "yes" ]; then
-		echo "release: dry -- on $branch, $current would become $new: $name ready and free of it, untagged, token present. The real form: just $gate, the index again, bump-my-version ${bump[*]}, uv lock, just publish {{index}}, commit 'release $new', tag v$new"
+		echo "release: dry -- on $branch, $current would become $new: $name ready and free of it, untagged, token present, the probes above passed. The real form: just $gate, the index again, bump-my-version ${bump[*]}, uv lock, just publish {{index}}, commit 'release $new', tag v$new"
 		exit 0
 	fi
 	dirty=$(git status --porcelain)
-	[ -z "$dirty" ] || { echo "release: the working tree must be clean:"; echo "$dirty"; exit 1; }
+	[ -z "$dirty" ] || { echo "release: the working tree must be clean -- commit these changes, or discard them (git restore, or git stash); the guard counts every tracked change and every file git does not ignore:"; echo "$dirty"; exit 1; }
 	if [ "$name" = pypi ]; then
 		# full-test's docker leg writes meta-state/mod-tests.yaml in the LIVE configuration (the evidence
 		# that the released modifications passed, stage 14): release commits it THERE
@@ -201,6 +202,7 @@ release-finish index="test":
 		"{{release_branch}}"|release/[0-9]*.[0-9]*) ;;
 		*) echo "release-finish: this checkout is on '$branch'; a release is cut on {{release_branch}} alone (or a maintenance branch release/<major.minor>) -- nothing was changed"; exit 1 ;;
 	esac
+	just _release-probes "{{index}}" release-finish || exit 1
 	new=$(uv run --no-sync bump-my-version show current_version)
 	committed=$(git show HEAD:pyproject.toml | sed -n 's/^version = "\(.*\)"$/\1/p' | head -1)
 	[ "$committed" != "$new" ] || { echo "release-finish: $new is already committed -- there is no uncommitted bump to finish"; exit 1; }
@@ -225,6 +227,28 @@ release-finish index="test":
 	after="git push --follow-tags origin $branch"
 	[ "$branch" = "{{release_branch}}" ] && after="$after; then develop takes it back: git checkout develop && git merge --ff-only {{release_branch}} && git push origin develop"
 	echo "release-finish: $new is on $name for every project, committed and tagged v$new; push with: $after"
+
+# Hygiene XXI item 1: what a release needs and `full-test` only finds out twenty minutes in, asked
+# first and in one line each, before anything changes. For every index: the venv is in step with
+# the lock (`uv sync --all-extras --check`), because every recipe runs `uv run --no-sync` and a venv
+# behind the checkout answers with stale metadata. For a PyPI release also: docker answers (the
+# modification-test, posix, bake-step and runner-image legs run in it) and every runtime session of
+# the live configuration is present (`just preflight`, the gate full-test itself uses: without it the
+# live legs would be SKIPPED, which a release cannot accept). The dry form of `release` prints the
+# same verdicts. `release-finish` asks the venv alone: it runs no bar.
+[private]
+_release-probes index who="release":
+	#!/usr/bin/env bash
+	set -uo pipefail
+	uv sync --all-extras --check >/dev/null 2>&1 || { echo "{{who}}: the venv is behind the checkout (uv sync --all-extras --check) -- \`just init\` syncs it -- nothing was changed"; exit 1; }
+	echo "{{who}}: the venv is in step with the lock"
+	if [ "{{index}}" = pypi ] && [ "{{who}}" = release ]; then
+		docker info >/dev/null 2>&1 || { echo "{{who}}: docker is not answering (docker info) -- full-test's legs need it; start the daemon -- nothing was changed"; exit 1; }
+		echo "{{who}}: docker answers"
+		just config-guard >/dev/null 2>&1 || { echo "{{who}}: no live configuration at {{config_root}} (\`just config-guard\` says why) -- full-test's live legs need it -- nothing was changed"; exit 1; }
+		just preflight >/dev/null 2>&1 || { echo "{{who}}: a runtime session of the live configuration is absent or expired (\`just preflight\` says which) -- full-test's live legs would be skipped; log in -- nothing was changed"; exit 1; }
+		echo "{{who}}: every runtime session of the live configuration is present"
+	fi
 
 # Build and upload the version in the tree (stage 41.6): `dist/` cleaned, every package
 # built, every file uploaded to INDEX -- `test` (TestPyPI, the default) or `pypi` -- by

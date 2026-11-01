@@ -87,6 +87,59 @@ full-test: test
 release runtime: full-test
 	@{{cli}} --locked --no-dry-run run base-image instance-image release retention --only-runtime {{runtime}} --commit
 
+# Take a release (hygiene XXI): the whole walk of moving this tree onto VERSION, in one box. The
+# first act is the catch-up guard (fetch, `merge --ff-only origin/main`, `merge-base
+# --is-ancestor`); then the release is installed (unless CSIS names another command), the files the
+# release owns are listed against the previous release (`init-config --changes-since`) and the
+# recipe STOPS if any changed, because refreshing them stays BY HAND: run
+# `cs-image-system init-config . --force`, read `git diff`, then `just take VERSION patched`. With
+# nothing to patch (or `patched`) it writes .csis-version, runs `just init` and `just validate`,
+# commits "Take VERSION" and pushes `develop`. Pushing `develop` to `main` is its own act: `main` performs.
+[doc("Take a release in one box: guard, install, list what the release changed, init, validate, commit, push develop; `patched` after refreshing by hand")]
+take version patched="no":
+	#!/usr/bin/env bash
+	set -euo pipefail
+	version="{{version}}"
+	[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(\.dev[0-9]+)?$ ]] || { echo "take: '$version' is not a release version (for example 0.1.6 or 0.1.6.dev2)"; exit 2; }
+	[ "{{patched}}" = "no" ] || [ "{{patched}}" = "patched" ] || { echo "take: the second argument is 'patched' (you refreshed the release-owned files by hand) or nothing"; exit 2; }
+	branch=$(git rev-parse --abbrev-ref HEAD)
+	[ "$branch" = develop ] || { echo "take: this checkout is on '$branch'; a release is taken on develop -- nothing was changed"; exit 1; }
+	if [ "{{patched}}" = "no" ]; then
+		[ -z "$(git status --porcelain)" ] || { echo "take: the tree must be clean first (commit or discard; after refreshing the release-owned files by hand, say 'patched'):"; git status --short; exit 1; }
+	fi
+	# the catch-up guard of develop from origin/main, its own first act (missed twice before it was a recipe)
+	git fetch -q origin
+	if git rev-parse -q --verify origin/main >/dev/null; then
+		git merge --ff-only origin/main >/dev/null || { echo "take: develop cannot fast-forward to origin/main -- reconcile them first; nothing was changed"; exit 1; }
+		git merge-base --is-ancestor origin/main HEAD || { echo "take: origin/main is not an ancestor of develop -- nothing was changed"; exit 1; }
+	fi
+	old=$(git show HEAD:.csis-version 2>/dev/null | head -1 || true)
+	# a development release is on TestPyPI only, with PyPI as the extra index (stage 99)
+	test_index=(--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match)
+	index=(); [[ "$version" == *.dev* ]] && index=("${test_index[@]}")
+	oldindex=(); [[ "$old" == *.dev* ]] && oldindex=("${test_index[@]}")
+	if [ -z "${CSIS:-}" ]; then
+		uv tool install --force ${index[@]+"${index[@]}"} "cs-image-system==$version" >/dev/null 2>&1 || { echo "take: cs-image-system==$version could not be installed from the index (a development release is on TestPyPI, a final one on PyPI) -- nothing was changed"; exit 1; }
+	fi
+	have=$({{csis}} --version 2>/dev/null | awk '{print $NF}')
+	[ "$have" = "$version" ] || { echo "take: '{{csis}}' reports '$have', not $version -- point CSIS at that release, or install it; nothing was changed"; exit 1; }
+	if [ "{{patched}}" = "no" ] && [ -n "$old" ] && [ "$old" != "$version" ]; then
+		prev=$(uvx ${oldindex[@]+"${oldindex[@]}"} --from "cs-image-system==$old" python -c 'from cs_image_system.system import starters; print(starters.starters_root())' 2>/dev/null) \
+			|| { echo "take: the previous release $old could not be fetched to compare with -- nothing was changed"; exit 1; }
+		if ! {{csis}} init-config . --changes-since "$prev"; then
+			echo "take: STOP -- the release changed files it owns (above). Refresh them by hand: \`cs-image-system init-config . --force\` (it keeps your values where the release has REPLACE-ME), read \`git diff\`, then \`just take $version patched\`. Nothing was committed"
+			exit 1
+		fi
+	fi
+	printf '%s\n' "$version" > .csis-version
+	just init
+	just validate
+	git add -A
+	git diff --cached --quiet && { echo "take: nothing changed -- $version is already what this tree pins"; exit 0; }
+	git commit -q -m "Take $version"
+	git push origin develop
+	echo "take: $version is taken and develop is pushed. Pushing develop to main is its own act (main performs): git push origin develop:main"
+
 # ------------------------------------------------------------ every day
 
 # Every rule, nothing generated; the first thing after any edit

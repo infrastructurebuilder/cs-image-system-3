@@ -1647,7 +1647,17 @@ order:
    `v<version>` tag exists here (the local record of a version that was
    cut, deleted from the index or not); `dev` on a final version is
    refused (open the next version with `patch` first);
-2. a clean working tree, then the gate: for TestPyPI the bar
+2. the probes (hygiene XXI, `_release-probes`, one line each, before
+   anything changes; the dry form prints the same verdicts): the venv is
+   in step with the lock (`uv sync --all-extras --check`, because every
+   recipe runs `uv run --no-sync` and a venv behind the checkout answers
+   with stale metadata) and, for PyPI, docker answers and every runtime
+   session of the live configuration is present (`just preflight`; a
+   `full-test` without them would skip its live legs, which a release
+   cannot accept). A refusal names its remedy and changes nothing;
+   then a clean working tree (the refusal names the remedy; the IDE's
+   workspace file is no longer tracked, so the editor rewriting it
+   cannot dirty the tree), then the gate: for TestPyPI the bar
    (`just test`); for PyPI `just full-test`, the modification-test
    evidence at `<config_root>/meta-state/mod-tests.yaml` (written by
    `full-test` with docker in the LIVE configuration) and a live checkout
@@ -1706,7 +1716,7 @@ was `develop` alone and `main` was unused.
 **Finishing a release by hand: `just release-finish <index>`.** For a
 release whose upload stopped part-way and was completed with `just
 publish`. On `main` (or a maintenance branch), with the bump uncommitted
-and nothing else changed, it asks the index whether every project holds the version
+and nothing else changed, it asks the venv probe above, then asks the index whether every project holds the version
 (`scripts/publish-target-ready --all-held`; the index's pages lag an
 upload by minutes, so a count just after one can be short), and only
 then makes the evidence commit in the live repository (PyPI), the
@@ -2375,11 +2385,11 @@ The shape is the one stage 45 and 56 proved. **A record must exist
 whatever happens**: the committer is named, write access is proved with
 `git push --dry-run` (remembering HEAD as `before`), then `just record`
 (a full, unscoped dry run, committed) and the push. **A runtime CI must
-never bake on** (`GUARD_RUNTIME`, empty for none; the reference
-configuration names `gcloud-east1`, the operator's own money): `just
-runtime-unchanged "$GUARD_RUNTIME" <before>` compares that runtime's
-emission in the record just pushed with the previous record and fails
-the job before anything performs. Then what a bake and the proof need
+never bake on** (`GUARD_RUNTIME`, empty for none, or several names
+separated by spaces; the reference configuration names `gcloud-east1`,
+the operator's own money): `just runtime-unchanged <name> <before>`, for
+each name, compares that runtime's emission in the record just pushed
+with the previous record and fails the job before anything performs. Then what a bake and the proof need
 (the Session Manager plugin on AWS, `ansible-core`, the OPA client), the
 WRITE identity for one step, `just cloud-perform "$PERFORM_RUNTIME"`.
 **A bake that happened must never go unrecorded**: the push of what the

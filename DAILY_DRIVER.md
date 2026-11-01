@@ -460,6 +460,19 @@ release's tag on GitHub, since a relative one would point nowhere in a
 repository of its own (hygiene XV; a template repository's do the
 same).
 
+`just take <version>` does the whole walk of moving a tree onto a release in
+one box, on `develop`: it fast-forwards `develop` from `origin/main` first
+(and refuses if it cannot), installs the release (a development one from
+TestPyPI), asks `init-config . --changes-since` which files the release owns
+and changed, and **stops there if any did**, because refreshing them is yours
+to do by hand. The listing splits them in two: the files your tree still holds
+exactly as the previous release wrote them (a workflow with only your values
+in it counts), which are safe to refresh, and the files the release changed
+that you also edited, which you read both of. After the refresh below and `git
+diff`, `just take <version> patched` writes `.csis-version`, runs `just init`
+and `just validate`, commits "Take <version>" and pushes `develop`. Pushing
+`develop` to `main` stays its own act: `main` performs.
+
 Run `init-config` again, in the repository, after upgrading the release:
 into a tree that already holds a configuration it writes only the parts
 the release owns (the `Justfile`, the workflow, the hook, `.gitignore`,
@@ -906,7 +919,7 @@ below; this is the order a person meets them.
 | Rotate the admin key | add the new key, bake, upgrade every instance, remove the old key, repeat | "Rotate the admin key" |
 | Move a root's state | change `state_configuration`, `just cli --no-dry-run run <lifecycle> --migrate-state <root>` | backs up, copies, accepts only a clean plan at the new location, records the move |
 | Adopt something made by hand | `just cli state import`; for memberships, `tofu import` then a no-op apply | "Adopt out-of-band group membership". An adopted image counts as current when its tagged fingerprint matches today's inputs, so it is not baked again; it carries no in-bake record, so the release grace does not cover it |
-| Upgrade the system | `uv tool upgrade cs-image-system` (or bump the pin and `uv lock`); `.csis-version` for CI | `just validate`, `just dry`, and read the diff of `generated/`: an emission change is what a system upgrade looks like. A release that asks something of the tree is refused by `validate` until it is given: make the change in the same commit (section 1.1) |
+| Upgrade the system | `just take <version>` (guard, install, list what the release changed, validate, commit, push `develop`); or `uv tool upgrade cs-image-system` (or bump the pin and `uv lock`) and `.csis-version` for CI | `just validate`, `just dry`, and read the diff of `generated/`: an emission change is what a system upgrade looks like. A release that asks something of the tree is refused by `validate` until it is given: make the change in the same commit (section 1.1) |
 
 Three habits keep changes safe. Dry-run first and read the script: a dry
 run regenerates and lists the commands the real run will execute -- it

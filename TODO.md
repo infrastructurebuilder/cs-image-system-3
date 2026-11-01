@@ -22,11 +22,6 @@ operator can take.
   carries the plugins.
 - §104 landed (below) and is released in 0.1.5; item 4(d) is done in
   the reference.
-- §108, hygiene bundle XXI: OPEN 2026-10-31 with the three items from
-  the release walks (the release recipe's preflight, the IDE's
-  workspace file, the reference's `take` recipe), and a fourth from
-  stage 103 (the guard names one runtime); waits for "do 108".
-  The next non-critical issue joins it.
 - §105, a declared output image name: landed 2026-10-31 (below);
   the reference declares nothing, by the default taken at "do 105".
   Not yet released.
@@ -73,6 +68,17 @@ operator can take.
 
 **Landed since 2026-10-05** (newest first)
 
+- §108, hygiene bundle XXI: 2026-11-01, its squash commit
+  (feature/hygiene-xxi kept). `release` asks, first and in one line
+  each, that the venv is in step with the lock and (for PyPI) that
+  docker answers and every runtime session is present, and its dry
+  form prints the same verdicts; the IDE's root workspace file is no
+  longer tracked; every starter's Justfile carries `just take
+  <version>` (the catch-up guard, the install, `init-config
+  --changes-since`, a stop for the by-hand refresh, then init,
+  validate, commit, push of `develop`); and `GUARD_RUNTIME` takes
+  several runtimes. Not yet released: the reference takes the Justfile
+  and the workflow with the release that carries them.
 - §109, Podman Desktop in the test cycle: 2026-11-01, its squash commit
   (feature/podman-desktop kept). `just test-podman-desktop-cycle` names
   the running Podman Desktop machine and runs `test-podman-cycle`
@@ -287,7 +293,9 @@ reference with the new runtime (2026-11-01, after the operator's SSO
 login). STILL OWED: the reference's push waits for the release that
 carries the docker plugins, because its CI is pinned to 0.1.5, which
 cannot load `type: docker` and would fail `verify`; the `take` of
-that release and the push are one walk. The section goes when the
+that release and the push are one walk. At that take the reference's workflow
+also gains the guard list (stage 108) and `GUARD_RUNTIME` may name
+`docker-orbstack` beside `gcloud-east1`. The section goes when the
 docker plugins are released and the reference is pushed.**
 
 **Why**: every runtime today is a cloud. A durable host running a
@@ -739,83 +747,3 @@ naming `main`, and on `main` behind `develop` refuses naming the
 fast-forward; the proof release on TestPyPI from `main`; the docs
 tests green. Records: the squash message; this section goes when the
 final proof release is cut.
-
-## 108. Hygiene bundle XXI
-
-**Status: OPEN 2026-10-31, three items from the 0.1.4 and 0.1.5
-release walks and the §107 proof, and a fourth added 2026-11-01 from
-stage 103. Waits for "do 108".**
-
-The principle (the operator, 2026-10-31): a release walk is as few
-boxes as the recipes allow, and a box ends on a check only where the
-recipe cannot make the check itself and stop. The refresh of a tree's
-release-owned files stays BY HAND, by the operator's word of the same
-day ("I definitely don't want to mess up item 4's refresh").
-
-1. The release recipe fails late on what my hand box probed first.
-   `just release ... pypi` runs `full-test`, whose legs need docker up
-   (test-mods, the posix script, the bake steps, the runner image) and
-   a live AWS session (the dry `run --all` and the strict state query
-   over the live copy); without either it runs twenty minutes and then
-   skips or fails, after the index probe said ready. And every recipe
-   runs `uv run --no-sync`, so a venv behind the checkout answers with
-   stale metadata (the 0.1.5 walk's box 5 printed 0.1.4 from the
-   activated venv). Add the three probes to the preflight of
-   [Justfile](Justfile)'s `release` (and `release-finish`), before
-   anything changes and in one line each: for `pypi`, `docker info`
-   and the AWS session (`aws sts get-caller-identity` under the
-   configured profile, as `cloud-preflight` reads it); for every index,
-   the venv in step with the lock (`uv sync --all-extras --check`, or
-   the sync itself). The dry form prints the same verdicts, so the
-   walk's separate dry box goes. With the branch, tree, tag and token
-   guards already there, the release is one box.
-2. The IDE's workspace file dirties the tree.
-   `cs-image-system-3.code-workspace` is tracked at the repository
-   root while `packages/**/*.code-workspace` is ignored; the editor
-   rewrites it when folders are opened, so the 0.1.5 release needed a
-   stash to pass the clean-tree guard, and its commit during the §104
-   merge (9116f29, "Update workspace") made `develop` diverge from
-   `origin/develop` and refused the finish once. **YOUR DECISION:**
-   untrack it (one commit removing it from the index, the root pattern
-   joining `.gitignore`; the default, since nothing in CI or the
-   Justfile reads it) or keep it tracked and have the clean-tree guard
-   of `release` disregard it alone. Either way the guard's refusal
-   names the remedy.
-3. The reference takes a release by hand, five boxes. Its
-   [Justfile](../cs-image-system-testconfig/Justfile) gains
-   `take <version>`: the catch-up guard of develop from `origin/main`
-   as its first act (fetch, `merge --ff-only`, `merge-base
-   --is-ancestor`, the rule of 2026-10-23 that was missed twice),
-   `.csis-version` written, `just init` so the pin resolves from the
-   index, `just validate`, then the commit "Take <version>" and the
-   push of `develop`. The release-owned files are NOT refreshed by the
-   recipe: it prints the list the walk derives (the files SAME at the
-   previous tag in both the tree and the packaged starter and CHANGED
-   in the release, from `cs-image-system` or the installed wheel's
-   starter) and stops for the operator's patch before the commit when
-   that list is not empty. The push of `develop` to `main` stays its
-   own box: `main` performs. A tree's `take` is the same recipe in the
-   starters, so the §66 proof covers it.
-
-4. The guard names one runtime. `GUARD_RUNTIME` is a single name in
-   the workflow, the starters and CI_SETUP, so the reference cannot
-   guard `docker-orbstack` beside `gcloud-east1`; the docker runtime
-   declares no images or instances, so nothing it emits can change
-   today. When one is declared on it, `GUARD_RUNTIME` takes a list
-   (a loop over `runtime-unchanged`, in the five starters, the
-   reference and CI_SETUP 3.7), or the runtime joins the guarded set
-   by another route the operator chooses.
-
-**Out of scope**: a refresh command for release-owned files (by hand,
-decided); any change to the walk's reference-side `lineage restamp`
-and `just record` steps (they are the guarded runtime's, see
-DAILY_DRIVER on `runtime-unchanged`).
-
-**Acceptance**: `just release patch test yes` on `main` prints the
-three preflight verdicts and refuses, in one sentence each, with docker
-down, no AWS session and a stale venv; the clean-tree guard behaves as
-decided for the workspace file; `just take <version>` on a copy of the
-reference at the previous release ends on the operator's patch list or
-the pushed `develop`; the next final release's walk is five boxes on
-the system side and three on the reference's. Records: the squash
-message; this section goes at "merge 108".

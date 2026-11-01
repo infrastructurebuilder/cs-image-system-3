@@ -446,6 +446,9 @@ def init_config_command(
     destination: Annotated[Path, typer.Argument(help="the configuration repository to write (new, empty, or existing)")],
     starter: Annotated[str | None, typer.Option("--from", help=_STARTER_HELP)] = None,
     force: Annotated[bool, typer.Option("--force", help="overwrite a release-owned file that exists and differs")] = False,
+    changes_since: Annotated[Path | None, typer.Option(
+        "--changes-since", help="write nothing: list the release-owned files this release changed in the tree, "
+        "given the PREVIOUS release's starters directory (its wheel's cs_image_system/system/starters)")] = None,
 ) -> None:
     """Write a starter configuration repository from this release (stage 64).
 
@@ -459,8 +462,24 @@ def init_config_command(
     unless --force. Any other directory is refused and nothing is written. An existing tree is refreshed
     from the starter its workflow came from (--from names another), its
     values where the release has REPLACE-ME are kept, and its .csis-version
-    is never moved backwards. Loads no configuration."""
-    from cs_image_system.system.starters import init_config
+    is never moved backwards. Loads no configuration.
+
+    With --changes-since PREVIOUS_STARTERS nothing is written: the command lists
+    which release-owned files this release changed in the tree (hygiene XXI),
+    split into those the tree still holds as the previous release wrote them
+    and those it has also edited, and exits 1 when there is any."""
+    from cs_image_system.system.starters import changes_since as _changes_since, init_config
+    if changes_since is not None:
+        try:
+            changes = _changes_since(destination, changes_since, starter)
+        except ValueError as e:
+            typer.secho(f"init-config: {e}", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=2)
+        for line in changes.lines():
+            typer.echo(line)
+        if not changes.clear:
+            raise typer.Exit(code=1)
+        return
     try:
         report = init_config(destination, starter, force=force)
     except ValueError as e:
