@@ -42,7 +42,7 @@ def test_version_answers_before_anything_loads(tmp_path: Path):
 
 
 def test_every_starter_init_asks_the_command_for_its_version():
-    assert len(STARTERS) == 4, [p.name for p in STARTERS]
+    assert len(STARTERS) == 5, [p.name for p in STARTERS]
     for starter in STARTERS:
         text = (starter / "Justfile").read_text()
         assert INIT_LINE in text, f"{starter.name}/Justfile: init no longer asks --version"

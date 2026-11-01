@@ -606,3 +606,37 @@ def test_each_starter_shows_the_release_model_keys_and_a_release_line():
         assert re.search(r"^  preflight:\n    expected_run_minutes: 30$", cfg, re.M), name
         for img in sorted((EXAMPLES / name / "images").glob("*.yaml")):
             assert re.search(r"^\s*#?\s*release:", img.read_text(), re.M), f"{name}/{img.name} shows no release: line"
+
+
+def test_the_docker_starters_reach_step_writes_what_ssh_needs_and_refuses_half_a_pair(tmp_path):
+    """Stage 103 item 16: the step runs as the runner runs it, with a stub
+    `docker`. No key: the runner's own daemon, said so. Key and known-hosts:
+    a 0600 key, the pinned host, the user, and DOCKER_HOST exported. A key
+    without its known-hosts line fails by name."""
+    import os
+    import subprocess
+    doc = yaml.safe_load((EXAMPLES / "standard-docker" / ".github/workflows/ci.yml").read_text())
+    (tmp_path / "bin").mkdir()
+    stub = tmp_path / "bin" / "docker"
+    stub.write_text("#!/bin/sh\necho \"stub docker: DOCKER_HOST=$DOCKER_HOST\"\n")
+    stub.chmod(0o755)
+    for job in ("live", "perform"):
+        step = next(s for s in doc["jobs"][job]["steps"] if s.get("name") == "Reach the docker host")
+        home, ghenv = tmp_path / job / "home", tmp_path / job / "ghenv"
+        home.mkdir(parents=True)
+        ghenv.write_text("")
+        base = {"PATH": f"{tmp_path / 'bin'}:{os.environ['PATH']}", "HOME": str(home), "GITHUB_ENV": str(ghenv),
+                "DOCKER_HOST_ADDRESS": "docker-host.example", "DOCKER_HOST_USER": "csis"}
+
+        def run(key: str, known: str):
+            return subprocess.run(["bash", "-e", "-c", step["run"]], capture_output=True, text=True,
+                                  env={**base, "DOCKER_HOST_SSH_KEY": key, "DOCKER_HOST_KNOWN_HOSTS": known})
+        res = run("", "")
+        assert res.returncode == 0 and "runner's own daemon" in res.stdout and ghenv.read_text() == "", job
+        res = run("KEY", "")
+        assert res.returncode == 1 and "DOCKER_HOST_KNOWN_HOSTS is missing" in res.stdout, job
+        res = run("KEY", "docker-host.example ssh-ed25519 AAAA")
+        assert res.returncode == 0 and ghenv.read_text().strip() == "DOCKER_HOST=ssh://docker-host.example", job
+        assert (home / ".ssh" / "csis-docker").stat().st_mode & 0o777 == 0o600
+        config = (home / ".ssh" / "config").read_text()
+        assert "Host docker-host.example" in config and "User csis" in config and "StrictHostKeyChecking yes" in config
