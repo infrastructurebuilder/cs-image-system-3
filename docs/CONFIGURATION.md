@@ -444,7 +444,39 @@ and warns about a network tag no firewall rule targets.
 | `ssh_ingress_security_group_ids` (aws) | list[str] | `[]` | groups whose members may SSH in; when set, port-22 ingress references only these groups, never a CIDR |
 | `network_tags` (gcloud) | list[str] | `[]` | network tags that select firewall rules |
 
-### 4.6 Examples
+### 4.6 `docker`
+
+A container runtime (stage 103): a durable host running a daemon that
+speaks the Docker Engine API (Docker Engine, Docker Desktop, OrbStack,
+colima, Podman's API service), reached through the `docker` CLI and never
+through a cloud API. It has no region, no subnets and no zones.
+
+| Key | Required | Default | Meaning |
+| --- | --- | --- | --- |
+| `host` | no | none | The daemon's address as a `DOCKER_HOST` URL: `unix:///var/run/docker.sock`, `ssh://user@host`, `tcp://host:2376`. May be an `ENC[age:...]` marker. Declare `host` or `context`, not both; neither means the daemon the environment names. |
+| `context` | no | none | A docker context name (`docker context ls`), set as `DOCKER_CONTEXT` for every tool a bake runs. |
+| `executable` | no | `docker` | The `cfg/executables.yml` entry every docker call on this runtime runs through; `validate` version-checks it (`Docker version ...`). |
+| `repository` | no | `csis/<runtime name>` | Where builds are tagged: `<repository>:<final name>` and the series' floating `<repository>:<prefix>`. Made a valid repository name (lowercase). |
+| `tls_cert_path`, `tls_verify` | no | none, `false` | `DOCKER_CERT_PATH` and `DOCKER_TLS_VERIFY` for a `tcp://` host. TLS material is a PATH, never a value. |
+| `machine_types` | no | `{}` | A map from a name to `{cpus, memory}`: the limits a container of that type runs under (`--cpus 2`, `--memory 4g`). When any are declared, `default_machine_type` must name one. |
+| `networking.network` | no | `bridge` | The network a bake container joins, by NAME; referenced, never created or changed. No `subnets`, no `availability_zones`. |
+| `state_configuration` | no | the default backend | The state manager this runtime's roots use. A tree with no cloud declares a `local` one. |
+| `credentials` | no | `{}` | Nothing: whoever reaches the daemon is root on the host. |
+
+What it means for images: a build is its image id (`sha256:...`) and its
+names are tags; a label is fixed when an image is built, so a release and a
+relabel MOVE TAGS (`<repository>:<series>--<model>`,
+`<repository>:<short id>--<key>--<value>`). An OS builder's entry on a
+docker runtime resolves through the catalog's `docker` block (5a) -- a
+repository, a tag and a publisher -- and the query pulls the reference and
+records its digest; an `image_id` there is a digest reference
+(`almalinux@sha256:...`), never a tag. Bakes run as `root` through the
+daemon, with no init system: `services_enabled` tests do not apply, and an
+instance image owned by an OPA group is refused on this runtime (only a
+`posix` group can own one there). The image builder is `type:
+packer-docker` (8).
+
+### 4.7 Examples
 
 [`cfg/runtime-builders.yml`](../tests/fixtures/config/cfg/runtime-builders.yml)
 (the AWS default and the GCE runtime; the fixture also declares `aws-east1`

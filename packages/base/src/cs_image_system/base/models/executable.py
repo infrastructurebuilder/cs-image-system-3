@@ -106,6 +106,10 @@ class ExecutableModel(NameTyped, PluginArtifactProtocol):
     appended_arguments: list[str] = field(default_factory=list)
     config: dict[str, Any] = field(default_factory=dict)
     args: list[str] = field(default_factory=list)
+    # stage 103: variables set on top of the caller's environment for this
+    # one process (a runtime's `tool_environment`: DOCKER_HOST for a bake
+    # on a docker runtime); never a secret VALUE from the configuration
+    environment: dict[str, str] = field(default_factory=dict)
     # Overridden by execution context at execution time
     working_directory: Path | None = None
     
@@ -161,11 +165,16 @@ class ExecutableModel(NameTyped, PluginArtifactProtocol):
                     f"Changed working directory to {Path(os.getcwd()).absolute()} "
                     f"for executing {command}"
                 )
+            env = None
+            if self.environment:
+                env = dict(os.environ)
+                env.update({str(k): str(v) for k, v in self.environment.items()})
             result = subprocess.run(
                 command,
                 check=True,
                 capture_output=True,
                 text=True,
+                env=env,
             )
             _log_captured(command, result)
             return result

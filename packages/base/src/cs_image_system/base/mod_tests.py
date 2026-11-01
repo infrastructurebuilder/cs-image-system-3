@@ -21,6 +21,7 @@ cloud.
 """
 from __future__ import annotations
 
+import functools
 import logging
 import shlex
 import shutil
@@ -162,6 +163,13 @@ class DockerTarget:
 
     def close(self) -> None:
         subprocess.run([self.docker, "rm", "-f", self.name], capture_output=True, text=True, check=False)
+
+
+def docker_binary(ctx: Any, name: str = "docker") -> str:
+    """The docker CLI a tree declares under ``name`` in cfg/executables.yml
+    (its ``binary``), else ``docker`` from PATH (stage 103)."""
+    exe = (getattr(ctx, "executables", None) or {}).get(name)
+    return str(getattr(exe, "binary", None) or getattr(exe, "name", None) or "docker") if exe is not None else "docker"
 
 
 def docker_available(docker: str = "docker") -> bool:
@@ -339,13 +347,17 @@ def run_mod_tests(ctx: "GlobalTypeContext", images: list[str] | None = None,
                                              detail="no local test image for the root OS family", run=ctx.run_id))
             continue
         if make_target is None:
-            if not docker_available():
+            # stage 103: the `docker` entry of cfg/executables.yml names the
+            # CLI (and the binary's path) the tests run; a tree without one
+            # runs `docker` from PATH as before
+            docker = docker_binary(ctx)
+            if not docker_available(docker):
                 for mod, rec in zip(mods, records):
                     results.append(ModTestResult(image=image.get_name(), mod=mod.get_name(), type=mod.get_type(),
                                                  content_hash=rec["content_hash"], target=container_image,
                                                  status="skipped", detail="docker is not available", run=ctx.run_id))
                 continue
-            make_target = DockerTarget
+            make_target = functools.partial(DockerTarget, docker=docker)
         pending = [(m, r) for m, r in zip(mods, records)
                    if force or previous.get(r["content_hash"], {}).get("status") != "pass"]
         for mod, rec in zip(mods, records):

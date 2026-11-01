@@ -46,6 +46,10 @@ OPA_REMEDY = ("the `TF_VAR_<team>_key` / `TF_VAR_<team>_secret` pair is needed b
               "not only at apply: `source .envrc`; in CI, the secrets the workflow names")
 IDENTITY_REMEDY = ("the shell never loaded `.envrc` (a new terminal, a directory direnv has not entered or "
                    "allowed): `source .envrc`, or `direnv allow`")
+#: stage 103: the docker runtime's own class for a daemon that does not answer
+DOCKER_UNREACHABLE_CLASS = "DockerUnreachable"
+DOCKER_REMEDY = ("the runtime's daemon must answer `docker version` from this machine: start it (OrbStack, Docker "
+                 "Desktop, the engine on the host), or fix the runtime's `host` / `context`; `preflight` says which")
 
 
 @dataclass
@@ -84,6 +88,8 @@ def classify_load_failure(exc: BaseException) -> LoadFailure | None:
         if name == "ClientError" and code in AWS_LAPSED_CODES:
             return LoadFailure("environment", [f"the configuration cannot load: AWS refused the credentials ({code}): "
                                                f"{_message(e)}", f"({AWS_REMEDY})"])
+        if name == DOCKER_UNREACHABLE_CLASS:
+            return LoadFailure("environment", [f"the configuration cannot load: {e}", f"({DOCKER_REMEDY})"])
         if name in AWS_SESSION_CLASSES:
             return LoadFailure("environment", [f"the configuration cannot load: the AWS session could not be built "
                                                f"({name}): {e}", f"({AWS_REMEDY})"])

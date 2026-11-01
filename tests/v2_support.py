@@ -76,6 +76,24 @@ def copy_config(tmp_path: Path, name: str = "config") -> Path:
     return dst
 
 
+def docker_binary() -> str:
+    """The docker CLI the FIXTURE declares (``cfg/executables.yml``, entry
+    ``docker``) when its binary exists on this machine, else ``docker``
+    from PATH (stage 103: the container legs read the declared executable
+    instead of a literal; a CI runner's docker sits elsewhere)."""
+    import yaml
+    try:
+        doc = yaml.safe_load((FIXTURE_CONFIG / "cfg" / "executables.yml").read_text()) or {}
+        for exe in doc.get("executables") or []:
+            if isinstance(exe, dict) and exe.get("name") == "docker" and exe.get("binary"):
+                binary = str(exe["binary"])
+                if Path(binary).is_file() or shutil.which(binary):
+                    return binary
+    except (OSError, yaml.YAMLError):
+        pass
+    return "docker"
+
+
 def plain(value: Any) -> Any:
     """The plaintext of a fixture value that may be an ``ENC[age:...]`` marker
     (stage 33), opened with the fixture's TEST identity -- for tests that

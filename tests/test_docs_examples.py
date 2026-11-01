@@ -48,12 +48,13 @@ PLUGIN_TYPES: dict[str, set[str]] = {
     "aws-runtime-plugin": {"aws"},
     "bash-mod-plugin": {"bash-remote"},
     "default-os-plugin": {"rhel", "debian", "ubuntu"},      # fedora and alpine are the same plugin, unused here
+    "docker-runtime-plugin": {"docker"},
     "gcloud-runtime-plugin": {"gcloud"},
     "gcs-state-plugin": {"gcs"},
     "local-state-plugin": {"local"},
     "okta-opa-plugin": {"okta-tf", "okta-tf-ro"},
     "posix-identity-plugin": {"posix"},
-    "packer-plugin": {"packer-ebs", "packer-gce"},
+    "packer-plugin": {"packer-ebs", "packer-gce", "packer-docker"},
     "tf-ebs-instance-plugin": {"tofu", "tf-aws-ebs", "tf-aws-efs", "tf-aws-s3"},
     "tf-gcp-plugin": {"tofu-gce", "tf-gcp-pd", "tf-gcp-filestore", "tf-gcp-gcs"},
     "tf-s3-state-plugin": {"s3"},
@@ -269,7 +270,7 @@ def test_the_complete_tree_carries_every_variation(tree):
     assert {image_policy_of(i) for i in ctx.instances} == {"pinned", "follow"}
     assert {bool(i.ephemeral) for i in ctx.instances} == {True, False}
     assert {s.state for s in ctx.storages} == {"active", "archived", "destroyed"}
-    assert {rt.model.type_ for rt in ctx.runtime_builders.values()} == {"aws", "gcloud"}
+    assert {rt.model.type_ for rt in ctx.runtime_builders.values()} == {"aws", "gcloud", "docker"}   # stage 103
     # stage 106: the token says what the image IS; what it is treated as comes from the catalog
     assert {osb.model.get_vendor_family() for osb in ctx.os_builders.values()} == {"alma-linux", "debian", "ubuntu"}
     assert {osb.model.get_family() for osb in ctx.os_builders.values()} == {"rhel", "debian", "ubuntu"}

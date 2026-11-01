@@ -1069,6 +1069,13 @@ declares.
   [configuration](packages/gcloud-runtime-plugin/README.md#configuration-reference) ·
   [tests](packages/gcloud-runtime-plugin/README.md#what-it-tests-and-verifies) ·
   [failures](packages/gcloud-runtime-plugin/README.md#when-it-fails)
+- [docker-runtime-plugin](packages/docker-runtime-plugin/README.md): a
+  durable host's container daemon as a runtime (stage 103): images in the
+  daemon's store, builds named by tags, bakes through `docker exec`.
+  [prerequisites](packages/docker-runtime-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](packages/docker-runtime-plugin/README.md#configuration-reference) ·
+  [tests](packages/docker-runtime-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](packages/docker-runtime-plugin/README.md#when-it-fails)
 - [default-os-plugin](packages/default-os-plugin/README.md): the OS
   families: vendor image lookup, updates, the admin user and its keys, the
   prerequisites a base image bakes for its identity and storage types.

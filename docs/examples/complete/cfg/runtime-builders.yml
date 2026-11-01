@@ -1,8 +1,8 @@
 ---
-# cfg/runtime-builders.yml (from the complete starter) -- three runtimes: the
-# default AWS runtime, a second AWS region, and GCE. Reference:
+# cfg/runtime-builders.yml (from the complete starter) -- four runtimes: the
+# default AWS runtime, a second AWS region, GCE, and a container daemon. Reference:
 # CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 4 (4.1 common builder fields, 4.2 every
-# runtime, 4.3 `aws`, 4.4 `gcloud`, 4.5 `networking`, 12a availability zones).
+# runtime, 4.3 `aws`, 4.4 `gcloud`, 4.5 `networking`, 4.6 `docker`, 12a availability zones).
 runtime_builders:
   # ------------------------------------------------------------ aws, default
   - name: aws-east2
@@ -119,3 +119,31 @@ runtime_builders:
           subnet_id: projects/my-project-REPLACE-ME/regions/us-east1/subnetworks/default
           is_default: true
           public: true
+  # ----------------------------------------------------------------- docker
+  # 4.6 (stage 103): a durable host's container daemon, reached through the
+  # Docker Engine API by the `docker` CLI; never a cloud API. Docker Engine,
+  # Docker Desktop, OrbStack, colima and Podman's API service all qualify.
+  - name: docker-host
+    type: docker
+    aliases: [docker, containers]
+    description: "the team's container host, reached by {{ this.host }}"
+    host: tcp://docker-host.REPLACE-ME.example:2376   # a DOCKER_HOST URL (unix://, ssh://user@host, tcp:// with TLS); or `context: <docker context>`; may be an ENC marker
+    # context: null                # a docker context name instead of a host; declare one of the two
+    executable: docker             # the cfg/executables.yml entry every docker call runs through
+    repository: csis/complete      # where builds are tagged (`<repository>:<final name>`); default csis/<runtime name>
+    tls_cert_path: /etc/csis/docker-tls   # DOCKER_CERT_PATH for a tcp:// host (a PATH, never a value)
+    tls_verify: true
+    state_configuration: local-dev # the docker roots keep their state on the local backend: no cloud session needed for them
+    credentials: {}                # nothing: whoever reaches the daemon is root on the host, and the docs say so
+    ephemeral: false
+    retention_keep: 3
+    tags:
+      project: complete-example
+      environment: development
+    default_machine_type: small    # must name one of machine_types when any are declared
+    default_image_builder: pckr-docker-ans
+    machine_types:                 # the limits a container of each type runs under (--cpus, --memory)
+      small: { cpus: 1, memory: 1g }
+      medium: { cpus: 2, memory: 4g }
+    networking:                    # a network by NAME, referenced and never created; no subnets, no zones
+      network: bridge

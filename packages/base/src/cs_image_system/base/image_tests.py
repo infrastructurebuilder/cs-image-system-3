@@ -127,8 +127,11 @@ def parse_post_bake_output(spec: dict[str, Any], output: str) -> list[dict[str, 
             for i, (label, _) in enumerate(post_bake_assertions(spec))]
 
 
-def declared_test_commands(spec: dict[str, Any]) -> list[str]:
-    """Shell assertions for a ``tests:`` map.
+def declared_test_commands(spec: dict[str, Any], *, services: bool = True) -> list[str]:
+    """Shell assertions for a ``tests:`` map. ``services=False`` (stage 103:
+    a bake on a container runtime, which has no init system) answers each
+    ``services_enabled`` entry with a comment that the check does not apply
+    there, instead of a ``systemctl`` that cannot run.
 
     Every line must ABORT the script it is spliced into, not merely exit
     nonzero: these run as packer `inline` lines under `set -e`, and errexit
@@ -161,7 +164,10 @@ def declared_test_commands(spec: dict[str, Any]) -> list[str]:
         else:
             out.append(f"( {run} ) >/dev/null 2>&1; test $? -eq {rc}")
     for svc in spec.get("services_enabled", []) or []:
-        out.append(f"systemctl is-enabled {shlex.quote(str(svc))} >/dev/null 2>&1")
+        if services:
+            out.append(f"systemctl is-enabled {shlex.quote(str(svc))} >/dev/null 2>&1")
+        else:
+            out.append(f"# services_enabled {shlex.quote(str(svc))}: not applicable on a container runtime (no init system)")
     for u in spec.get("users", []) or []:
         out.append(f"id -u {shlex.quote(str(u))} >/dev/null 2>&1")
     return out
@@ -195,6 +201,16 @@ def _runtime_of(builder: Any) -> str | None:
         return None
 
 
+def _has_init_system(ctx: "GlobalTypeContext", runtime_name: str | None) -> bool:
+    """Whether bakes on ``runtime_name`` have an init system to enable
+    services with: every runtime but a container one (stage 103)."""
+    if not runtime_name:
+        return True
+    from cs_image_system.base.models.container_builder import ContainerBuilderModel
+    rtb = ctx.runtime_builders.get(str(runtime_name))
+    return not isinstance(getattr(rtb, "model", None), ContainerBuilderModel)
+
+
 def base_image_verify_commands(ctx: "GlobalTypeContext", base: Any, runtime_name: str) -> list[str]:
     osb = ctx.os_builders.get(base.get_name())
     family = osb.get_family() if osb is not None else None
@@ -223,11 +239,11 @@ def base_image_verify_commands(ctx: "GlobalTypeContext", base: Any, runtime_name
                     and str(ib.model.get_runtime_provider()) == str(runtime_name)):
                 declared = sub.tests
                 break
-    cmds += declared_test_commands(declared)
+    cmds += declared_test_commands(declared, services=_has_init_system(ctx, runtime_name))
     return cmds
 
 
-def instance_image_verify_commands(ctx: "GlobalTypeContext", image: Any) -> list[str]:
+def instance_image_verify_commands(ctx: "GlobalTypeContext", image: Any, runtime_name: str | None = None) -> list[str]:
     cmds: list[str] = []
     group = getattr(image, "group", None)
     gb = group_builder_of(ctx, group) if group else None
@@ -235,7 +251,7 @@ def instance_image_verify_commands(ctx: "GlobalTypeContext", image: Any) -> list
         g = next((x for x in gb.get_groups_for_builder() if x.get_name() == group), None)
         if g is not None:
             cmds += gb.activation_verify_commands(image, g)
-    cmds += declared_test_commands(getattr(image, "tests", None) or {})
+    cmds += declared_test_commands(getattr(image, "tests", None) or {}, services=_has_init_system(ctx, runtime_name))
     return cmds
 
 

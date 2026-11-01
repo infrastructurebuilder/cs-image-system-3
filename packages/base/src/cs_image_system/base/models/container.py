@@ -6,9 +6,9 @@ from .model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 
 from .runtime_builder_item import RuntimeBuilderItemModel
-
-
-CONTAINER_PROVIDER_TYPE: str = "container"
+# stage 103: one spelling, the contract's (base said "container" while the
+# contract said "container_provider"; nothing read either)
+from cs_image_system.contract.constants import CONTAINER_PROVIDER_TYPE  # noqa: F401
 
 
 @dataclass(config=CSIS_MODEL_CONFIG)

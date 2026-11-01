@@ -11,6 +11,7 @@ from cs_image_system.hashicorp_utils.hashicorp_models import PackerPluginConfig
 PACKER: str = "packer"
 PACKER_EBS: str = "packer-ebs"
 PACKER_GCE: str = "packer-gce"
+PACKER_DOCKER: str = "packer-docker"
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
@@ -40,3 +41,16 @@ class PackerGceImageBuilderModel(PackerEbsImageBuilderModel):
     @classmethod
     def csis_name(cls) -> str:
         return PACKER_GCE
+
+
+@dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
+class PackerDockerImageBuilderModel(PackerEbsImageBuilderModel):
+    """Packer image builder for a docker runtime (the ``docker`` source of
+    HashiCorp's docker plugin, stage 103). The runtime plugin owns the
+    source block and the ``docker-tag`` post-processor; this differs from
+    packer-ebs only in name."""
+    type = PACKER_DOCKER
+
+    @classmethod
+    def csis_name(cls) -> str:
+        return PACKER_DOCKER

@@ -25,9 +25,12 @@ import subprocess
 
 import pytest
 
+from v2_support import docker_binary
+
 from cs_image_system.base import bake_steps
 
 IMAGES = {"el10": "almalinux:10", "debian12": "debian:12"}
+DOCKER = docker_binary()      # stage 103: the fixture's declared docker CLI
 
 #: Takes the family's package-database lock the way its own tools do (an
 #: fcntl write lock) and keeps it for the seconds given.
@@ -46,9 +49,9 @@ STEP = {
 
 
 def _docker_answers() -> bool:
-    if shutil.which("docker") is None:
+    if shutil.which(DOCKER) is None:
         return False
-    return subprocess.run(["docker", "info"], capture_output=True, timeout=30).returncode == 0
+    return subprocess.run([DOCKER, "info"], capture_output=True, timeout=30).returncode == 0
 
 
 _WANTED = os.environ.get("CSIS_CONTAINER_TESTS") == "1"
@@ -78,7 +81,7 @@ def _run(family: str, body: str) -> subprocess.CompletedProcess[str]:
         "step() { start=$(date +%s); sh /tmp/execute.sh; echo \"STEP_EXIT=$? after $(( $(date +%s) - start ))s\"; }",
         body,
     ])
-    return subprocess.run(["docker", "run", "--rm", IMAGES[family], "sh", "-c", driver],
+    return subprocess.run([DOCKER, "run", "--rm", IMAGES[family], "sh", "-c", driver],
                           capture_output=True, text=True, timeout=600)
 
 

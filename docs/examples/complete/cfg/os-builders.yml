@@ -83,6 +83,11 @@ os_builders:
             - path: /etc/yum.repos.d/oktapam-stable.repo
               contains: "dist.scaleft.com"
         # no `owners:`/`query:`: the catalog's `gcloud` block for alma-linux (family almalinux-10)
+      - name: docker-rh10
+        image_builder: pckr-docker-ans
+        ssh_username: root         # a bake in a container runs as root through the daemon
+        # no `owners:`/`query:`: the catalog's `docker` block for alma-linux (almalinux:10, pulled and pinned by digest)
+        # an `image_id:` here would be a digest reference, `almalinux@sha256:...`: a tag moves, a digest does not
   # ------------------------------------------- a second family: Debian 12
   - name: my-deb-12
     type: debian                   # the apt family

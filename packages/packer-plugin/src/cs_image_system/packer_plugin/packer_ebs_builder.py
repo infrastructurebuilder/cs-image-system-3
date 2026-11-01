@@ -248,13 +248,23 @@ class PackerEbsImageBuilder(PackerImageBuilder[PackerEbsImageBuilderModel]):
                                 finalize_provisioner, instance_image_verify_commands, verify_provisioner)
                             items.add_list(build_path, verify_provisioner(
                                 f"{self.get_packer_source_type()}.{image.get_name()}",
-                                instance_image_verify_commands(ctx, image),
+                                instance_image_verify_commands(ctx, image, self.model.get_runtime_provider()),
                                 f"instance image {image.get_name()}"))
                             items.add_list(build_path, finalize_provisioner(
                                 ctx, f"{self.get_packer_source_type()}.{image.get_name()}",
                                 self.model.get_runtime_provider(), None))
                             # for s in image_to_build_target(self.get_packer_source_type(), self, image):
                             #     items.append(Asset((build_path, s + "")))
+                        # stage 103: what else the runtime's packer plugin wants
+                        # in the build (the docker runtime tags its image)
+                        rtb_pp = ctx.runtime_builders.get(self.model.get_runtime_provider())
+                        if rtb_pp is not None:
+                            for image in block_list:
+                                sub_pp = image.get_image_runtime_subconfig_for_runtime(rtb_pp.get_name())
+                                final_pp = self._final_name(sub_pp) if sub_pp is not None else None
+                                items.add_list(build_path, rtb_pp.packer_post_processor_blocks(
+                                    image, runtime=rtb_pp.get_name(), source_type=self.get_packer_source_type(),
+                                    subconfig=sub_pp, final_name=final_pp or ""))
                         # Record built artifact ids so finalization can resolve
                         # provider-specific images to the exact AMIs of this run.
                         items.add_list(build_path, [
@@ -390,6 +400,10 @@ class PackerEbsImageBuilder(PackerImageBuilder[PackerEbsImageBuilderModel]):
         commands_final: list[ExecutableModel] = []
         if  phase == ExecutionLifecyclePhase.IMAGE_GENERATION:
             blocks, block_map = self.get_blocks()
+            # stage 103: what the runtime's tools need in their environment
+            # (the docker runtime's daemon address); the clouds add nothing
+            rtb_env = GlobalTypeContext().runtime_builders.get(self.model.get_runtime_provider())
+            tool_env = dict(rtb_env.tool_environment()) if rtb_env is not None else {}
             for block in blocks:
                 wd = self.get_block_path_for_phase(phase, block=block, suffix=".tf").parent
                 assert wd is not None, (
@@ -405,6 +419,7 @@ class PackerEbsImageBuilder(PackerImageBuilder[PackerEbsImageBuilderModel]):
                         )
                     e.args = cmd
                     e.working_directory = wd
+                    e.environment = dict(tool_env)
                     commands_now.append(e)
                 e = self.get_executable_copy()
                 e.args = [
@@ -413,6 +428,7 @@ class PackerEbsImageBuilder(PackerImageBuilder[PackerEbsImageBuilderModel]):
                 ]  # This is the command that actually does the image building, so we put
                 # it in the "after" list to run after all the setup and validation commands.
                 e.working_directory = wd
+                e.environment = dict(tool_env)
                 commands_final.append(e)
         return CFExecutables(commands_now, commands_final)
 
@@ -730,6 +746,18 @@ class PackerEbsImageBuilder(PackerImageBuilder[PackerEbsImageBuilderModel]):
     #     Role        = "Base Image RHEL 8.10"
     #   }
     # }
+
+
+class PackerDockerImageBuilder(PackerEbsImageBuilder):
+    """The packer builder bound to a docker runtime (stage 103): the runtime
+    plugin's packer hooks emit the ``docker`` source and the ``docker-tag``
+    post-processor; this class exists so configuration can say
+    ``type: packer-docker``."""
+
+    @classmethod
+    def csis_name(cls) -> str:
+        from .packer_models import PACKER_DOCKER
+        return PACKER_DOCKER
 
 
 class PackerGceImageBuilder(PackerEbsImageBuilder):

@@ -862,6 +862,40 @@ def family_named_by_query(query: Any) -> str | None:
     return None
 
 
+def _is_container_runtime(rtb: Any) -> bool:
+    from cs_image_system.base.models.container_builder import ContainerBuilderModel
+    return isinstance(getattr(rtb, "model", None), ContainerBuilderModel)
+
+
+def check_container_runtimes(ctx: GlobalTypeContext) -> list[Exception]:
+    """Stage 103, decision 3: POSIX accounts only on a container runtime. An
+    instance image owned by a group whose identity type is not ``posix``
+    (an OPA group: its agent needs systemd, sshd, a reachable address and
+    a cloud identity) is refused on a container runtime, in one sentence
+    naming the image, the group and the runtime."""
+    from cs_image_system.base.capabilities import identity_type_of_group
+    exs: list[Exception] = []
+    container_runtimes = {name for name, rtb in ctx.runtime_builders.items() if _is_container_runtime(rtb)}
+    if not container_runtimes:
+        return exs
+    for name, image in sorted(ctx.images_map.items()):
+        group = getattr(image, "group", None)
+        kind = identity_type_of_group(ctx, group) if group else None
+        if not kind or kind == "posix":
+            continue
+        for entry in getattr(image, "runtimes", None) or []:
+            ib = ctx.image_builders.get(str(getattr(entry, "image_builder", None) or ""))
+            try:
+                rt = str(ib.model.get_runtime_provider()) if ib is not None else None
+            except ValueError:
+                rt = None
+            if rt in container_runtimes:
+                exs.append(Exception(f"image '{name}' is owned by group '{group}' ({kind}) and bakes on container runtime "
+                                     f"{rt}: only a posix group can own an image there (access is through the daemon; "
+                                     f"enrolling an identity agent in a container is a later stage)"))
+    return exs
+
+
 def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     """The configuration checks, with no side effects on generated output:
     unique global ids, executables present and version-compliant, every
@@ -884,4 +918,5 @@ def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     exs.extend(check_label_keys(ctx))
     exs.extend(check_image_sources(ctx))
     exs.extend(check_image_names(ctx))
+    exs.extend(check_container_runtimes(ctx))
     return exs

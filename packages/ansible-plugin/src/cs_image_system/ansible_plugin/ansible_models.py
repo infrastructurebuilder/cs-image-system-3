@@ -64,12 +64,13 @@ class AnsibleBuilderModel(ModBuilderModel):
     configuration_user: str | None = None
     extra_arguments: list[str] = field(default_factory=list) # Extra arguments to pass to ansible-playbook command (e.g. --tags, --skip-tags, etc.)
     expect_disconnect: bool = False # Whether to expect a disconnect during provisioning (e.g. due to a reboot)
-    # setting ansible_connection changes program flow.  Usually this should be left as None and
-    # the system will determine the connection type based on the OS and other factors, but it
-    # can be set explicitly if needed.  The most obvious other connection is 'docker' for
-    # provisioning to a docker container, but other connection types could be used as well.
+    # The connection ansible uses, passed as the ansible VARIABLE
+    # `ansible_connection` in --extra-vars (packer's provisioner has no option
+    # for it). Usually left None: the runtime says how a bake on it is reached
+    # (stage 103: a docker runtime answers `docker`, with the build container's
+    # name as ansible_host); set here, it wins for this builder's items.
     # see https://developer.hashicorp.com/packer/integrations/hashicorp/ansible/latest/components/provisioner/ansible#docker
-    ansible_connection: str | None = None # Ansible connection type to use (e.g. ssh, winrm, etc.)
+    ansible_connection: str | None = None # e.g. ssh, docker, winrm
             # of provided playbooks.
 
 

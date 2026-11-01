@@ -41,3 +41,14 @@ image_builders:
       - name: ansible
         source: github.com/hashicorp/ansible
         version: ">= 1.0.0"
+  - name: pckr-docker-ans
+    type: packer-docker            # stage 103: HashiCorp's docker plugin; the runtime emits the `docker` source and tags the result
+    runtime: docker-host
+    executable: packer
+    required_plugins:
+      - name: docker
+        source: github.com/hashicorp/docker
+        version: ">= 1.0.0"
+      - name: ansible
+        source: github.com/hashicorp/ansible
+        version: ">= 1.0.0"

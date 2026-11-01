@@ -20,17 +20,20 @@ import subprocess
 
 import pytest
 
+from v2_support import docker_binary
+
 from cs_image_system.posix_identity_plugin import accounts
 
 IMAGES = {"el10": "almalinux:10", "debian12": "debian:12"}
+DOCKER = docker_binary()      # stage 103: the fixture's declared docker CLI
 SUDO = {"el10": "dnf -q -y install sudo >/dev/null 2>&1", "debian12": "apt-get -qq update >/dev/null && apt-get -qq install -y sudo >/dev/null"}
 
 def _docker_answers() -> bool:
     """The client is there AND its daemon answers (OrbStack or Docker Desktop
     not running leaves the client installed and every container failing)."""
-    if shutil.which("docker") is None:
+    if shutil.which(DOCKER) is None:
         return False
-    return subprocess.run(["docker", "info"], capture_output=True, timeout=30).returncode == 0
+    return subprocess.run([DOCKER, "info"], capture_output=True, timeout=30).returncode == 0
 
 
 _WANTED = os.environ.get("CSIS_CONTAINER_TESTS") == "1"
@@ -62,7 +65,7 @@ def _run(family: str, setup: str, script: str, after: str) -> subprocess.Complet
         "bash /tmp/acc.sh; echo SCRIPT_EXIT=$?",
         after,
     ])
-    return subprocess.run(["docker", "run", "--rm", "-i", IMAGES[family], "bash", "-s"], input=driver,
+    return subprocess.run([DOCKER, "run", "--rm", "-i", IMAGES[family], "bash", "-s"], input=driver,
                           capture_output=True, text=True, timeout=600)
 
 

@@ -4,9 +4,11 @@
 
 import logging
 from cs_image_system.base.basic.abstract_plugin_metadata import AbstractPluginMetadata
-from cs_image_system.packer_plugin.packer_ebs_builder import PackerEbsImageBuilder, PackerGceImageBuilder
+from cs_image_system.packer_plugin.packer_ebs_builder import (PackerDockerImageBuilder, PackerEbsImageBuilder,
+                                                              PackerGceImageBuilder)
 from .packer_builder import PACKER, PackerVersionChecker
-from .packer_models import PACKER_EBS, PACKER_GCE, PackerEbsImageBuilderModel, PackerGceImageBuilderModel
+from .packer_models import (PACKER_DOCKER, PACKER_EBS, PACKER_GCE, PackerDockerImageBuilderModel,
+                            PackerEbsImageBuilderModel, PackerGceImageBuilderModel)
 
 log = logging.getLogger(__name__)
 
@@ -21,15 +23,19 @@ class PackerEbsTypes(AbstractPluginMetadata):
                         PackerGceImageBuilderModel,
                         PackerGceImageBuilder,
                       ],
+                      PACKER_DOCKER: [
+                        PackerDockerImageBuilderModel,
+                        PackerDockerImageBuilder,
+                      ],
                       PACKER: [
                         PackerVersionChecker,
                       ]},
                      {PackerEbsImageBuilderModel: PackerEbsImageBuilder,
-                      PackerGceImageBuilderModel: PackerGceImageBuilder}
+                      PackerGceImageBuilderModel: PackerGceImageBuilder,
+                      PackerDockerImageBuilderModel: PackerDockerImageBuilder}
                      )
 
 
 def initialize():
   log.debug("Initializing Packer Provider")
   return     PackerEbsTypes()
-
