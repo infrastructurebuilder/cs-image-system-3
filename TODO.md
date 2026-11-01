@@ -245,274 +245,6 @@ question at least once a month for the next 4 months." The note is made:
 - 2027-01-09: (open)
 - 2027-02-09: (open)
 
-## 109. Podman Desktop in the test cycle
-
-**Status: PLANNED 2026-11-01 (the operator asked for the stage).
-Waits for "do 109".**
-
-**Why**: stage 103 proved Podman's API service where a durable host
-would run it, on Linux (Podman 5.8.2, rootless, an OrbStack AlmaLinux
-machine reached over ssh). A developer on macOS meets Podman as Podman
-Desktop, whose daemon is a `podman machine`: a VM of its own, a
-different socket, a different file-sharing layer. Nothing yet says the
-runtime works there, and the operator's Mac runs OrbStack beside it.
-
-What is known (the Podman Desktop team, [Intel Macs and Podman
-6](https://podman-desktop.io/blog/intel-mac-podman-6-transition)):
-Podman 6 removed Intel Macs; the Intel installer bundles Podman 5.8,
-which stays supported until the second week of June 2027. This Mac is an
-Intel one, so what can be proved here is Podman 5.8 on Intel, for a
-bounded time; Apple silicon (Podman 6) cannot be tested on it.
-
-**Questions for the operator** (each with the proposed default)
-
-1. Where does the machine's disk live? The root disk had 12 GB free on
-   2026-11-01. Default: wherever item 1 finds the tool allows it off
-   the root disk, else a small disk (20 GB sparse) and the cost stated.
-2. Standing or per leg? Default: a STANDING machine the operator starts
-   and stops; the leg never creates, starts or stops it (the power
-   state is the operator's), and is skipped, said so, when it is not
-   running.
-3. Rootless only (Podman Desktop's default). Rootful is not proved.
-4. Is an Apple-silicon Mac available to run it once? Default: no; the
-   stage records Apple silicon as untested.
-
-**Items**
-
-1. The survey, first, and it stops on failure. Install Podman Desktop
-   (1.29 or later) with its bundled Podman on this Mac, make a rootless
-   machine (`podman machine init`, 2 CPUs, 2 to 4 GB, 20 GB), start it,
-   and record: the Podman version, where the machine's disk went and
-   what it costs, the socket's path, `docker version` against it saying
-   "Podman Engine". The operator runs the install boxes. If Podman
-   Desktop will not run on this Mac, the stage stops and says so.
-2. Coexistence with OrbStack, proved and not assumed. Both running: a
-   bare `docker` still answers from OrbStack, Podman is reached only by
-   an explicit `unix://` socket, `podman-mac-helper` is not installed
-   (it would take the default socket from OrbStack), and the combined
-   memory is written down.
-3. The recipe. `just test-podman-desktop-cycle` fills `CSIS_PODMAN_HOST`
-   from the running default machine (`podman machine inspect`) and runs
-   the same two legs as `test-podman-cycle`, which keeps being the one
-   knob for any other host; it is skipped loudly without `podman`, with
-   no machine, or with the machine stopped, and `full-test` names it in
-   its legs and in the SKIPPED line. The leg still refuses a daemon
-   that does not say it is Podman.
-4. The run, and what it finds. The cycle and the starter against the
-   machine, with OrbStack running. Likely places to differ, none of
-   them claimed: how a volume's files are owned through the VM's file
-   sharing, the bake's use of the host's temporary paths, memory and
-   cpu limits inside the VM, the socket's API version. Each difference
-   is fixed in the runtime, as stage 103's was, or recorded as a limit
-   with its cause.
-5. The docs, as one item: OPERATIONS ("Podman as the daemon" gains the
-   Desktop setup, the coexistence rules, the findings and the June
-   2027 date), DAILY_DRIVER 1.4a, the docker runtime's README
-   (prerequisites and failures), and this section's removal.
-6. The tests: the resolver against stubbed `podman machine inspect`
-   output (running, stopped, none, two machines), and the `full-test`
-   skip-line expectations.
-
-**Out of scope**: driving Podman Desktop's GUI; a rootful machine;
-Windows and WSL; macOS CI runners; Podman 6 (Apple silicon only; a
-second stage if a machine appears); Podman Desktop's Kubernetes
-features. After June 2027 an Intel Mac has no supported Podman: the
-standing proof then stays the Linux host of stage 103, and the Desktop
-leg is retired with a line in OPERATIONS.
-
-**Acceptance**: the cycle and the starter pass against the Desktop
-machine with OrbStack running; both legs skip loudly when it is absent
-or stopped; the bar green; the docs item done; the machine and
-OrbStack left as found. Records: the squash message; this section goes
-at "merge 109".
-
-## 108. Hygiene bundle XXI
-
-**Status: OPEN 2026-10-31, three items from the 0.1.4 and 0.1.5
-release walks and the §107 proof. Waits for "do 108".**
-
-The principle (the operator, 2026-10-31): a release walk is as few
-boxes as the recipes allow, and a box ends on a check only where the
-recipe cannot make the check itself and stop. The refresh of a tree's
-release-owned files stays BY HAND, by the operator's word of the same
-day ("I definitely don't want to mess up item 4's refresh").
-
-1. The release recipe fails late on what my hand box probed first.
-   `just release ... pypi` runs `full-test`, whose legs need docker up
-   (test-mods, the posix script, the bake steps, the runner image) and
-   a live AWS session (the dry `run --all` and the strict state query
-   over the live copy); without either it runs twenty minutes and then
-   skips or fails, after the index probe said ready. And every recipe
-   runs `uv run --no-sync`, so a venv behind the checkout answers with
-   stale metadata (the 0.1.5 walk's box 5 printed 0.1.4 from the
-   activated venv). Add the three probes to the preflight of
-   [Justfile](Justfile)'s `release` (and `release-finish`), before
-   anything changes and in one line each: for `pypi`, `docker info`
-   and the AWS session (`aws sts get-caller-identity` under the
-   configured profile, as `cloud-preflight` reads it); for every index,
-   the venv in step with the lock (`uv sync --all-extras --check`, or
-   the sync itself). The dry form prints the same verdicts, so the
-   walk's separate dry box goes. With the branch, tree, tag and token
-   guards already there, the release is one box.
-2. The IDE's workspace file dirties the tree.
-   `cs-image-system-3.code-workspace` is tracked at the repository
-   root while `packages/**/*.code-workspace` is ignored; the editor
-   rewrites it when folders are opened, so the 0.1.5 release needed a
-   stash to pass the clean-tree guard, and its commit during the §104
-   merge (9116f29, "Update workspace") made `develop` diverge from
-   `origin/develop` and refused the finish once. **YOUR DECISION:**
-   untrack it (one commit removing it from the index, the root pattern
-   joining `.gitignore`; the default, since nothing in CI or the
-   Justfile reads it) or keep it tracked and have the clean-tree guard
-   of `release` disregard it alone. Either way the guard's refusal
-   names the remedy.
-3. The reference takes a release by hand, five boxes. Its
-   [Justfile](../cs-image-system-testconfig/Justfile) gains
-   `take <version>`: the catch-up guard of develop from `origin/main`
-   as its first act (fetch, `merge --ff-only`, `merge-base
-   --is-ancestor`, the rule of 2026-10-23 that was missed twice),
-   `.csis-version` written, `just init` so the pin resolves from the
-   index, `just validate`, then the commit "Take <version>" and the
-   push of `develop`. The release-owned files are NOT refreshed by the
-   recipe: it prints the list the walk derives (the files SAME at the
-   previous tag in both the tree and the packaged starter and CHANGED
-   in the release, from `cs-image-system` or the installed wheel's
-   starter) and stops for the operator's patch before the commit when
-   that list is not empty. The push of `develop` to `main` stays its
-   own box: `main` performs. A tree's `take` is the same recipe in the
-   starters, so the §66 proof covers it.
-
-**Out of scope**: a refresh command for release-owned files (by hand,
-decided); any change to the walk's reference-side `lineage restamp`
-and `just record` steps (they are the guarded runtime's, see
-DAILY_DRIVER on `runtime-unchanged`).
-
-**Acceptance**: `just release patch test yes` on `main` prints the
-three preflight verdicts and refuses, in one sentence each, with docker
-down, no AWS session and a stale venv; the clean-tree guard behaves as
-decided for the workspace file; `just take <version>` on a copy of the
-reference at the previous release ends on the operator's patch list or
-the pushed `develop`; the next final release's walk is five boxes on
-the system side and three on the reference's. Records: the squash
-message; this section goes at "merge 108".
-
-## 107. Releases are cut on `main`
-
-**Status: MERGED cda0f43, 2026-10-31 (feature/release-on-main kept),
-and PROVED by a development release the same day: the operator's one
-push brought `main` up to `develop` (step 2, CI's bar green on `main`
-at cda0f43), then 0.1.6.dev1 went to TestPyPI from `main` by the new
-walk (fast-forward, release, push with tags, fast-forward back; tag
-`v0.1.6.dev1` = 6e8a314, bar and tag job green, all four refs agree).
-Steps 1 and 3 landed in one squash and step 2 followed the merge, as
-accepted. What remains of step 4 is the next FINAL release cut the
-same way with the reference's take unchanged; this section goes then.**
-
-**Why.** Stage 83 (2026-10-17) made `develop` the one release branch
-after the walk's F31 cut a development release on a walk branch. Its
-point was ONE branch, named once, and that point survives the move. The
-system's `main` is unused today: it stands at a stage 45 commit of
-September, 232 commits behind `develop` and an ancestor of it (nothing
-on it is lost by a fast-forward), holds none of the four release tags,
-has no ruleset, and nothing in CI runs on it alone (`ci.yml` runs on
-every push; `publish` runs on the tag). The reference's `main`
-performs; the system's `main` would mean "the latest release", which
-is what a reader of a public repository expects it to mean.
-
-**The shape** (the default; the questions can change it)
-
-- `main` is always `develop` plus release commits, and moves only by
-  fast-forward: before a release, `main` takes `develop`
-  (`git merge --ff-only develop`); after it, `develop` takes `main`
-  back the same way, so the `release <v>` commit and the tag are on
-  both. No merge commits, both histories linear; `git flow release` is
-  not used, since its finish makes a merge commit and a back-merge.
-- `just release` and `just release-finish` run on a checkout of
-  `main`. Two guards replace the branch check: the checkout is on the
-  release branch, and `develop` is an ancestor of it (a release never
-  leaves a stage behind). The closing line names both pushes:
-  `git push --follow-tags origin main`, then the back-fast-forward of
-  `develop` and its push. Both pushes stay the operator's.
-- Feature branches finish into `develop` exactly as now; the stage
-  convention does not change.
-- The release branch is `main`, or a maintenance branch named
-  `release/<major.minor>`, for the day a tree needs a fix to an old
-  version without taking the stages since (0.1.5 cut from 0.1.4 plus
-  one fix while `develop` is past it). The develop-is-an-ancestor guard
-  applies to `main` alone. CI's `publish` job and the starter
-  publication fire on the tag from any branch, the index refuses a
-  re-cut and `bump-my-version` takes an explicit version, so nothing
-  else is built for it now; the branch is accepted so that day needs
-  no Justfile change. git-flow's release branch is not the same thing
-  and is not used: here a release is one sitting, nothing lands on
-  `develop` during it, and the branch would hold the bump alone.
-
-**Steps** (one branch, `feature/release-on-main`, about a day of work
-and two of the operator's pushes)
-
-1. The release branch becomes a Justfile variable, `release_branch`,
-   read by `release` and `release-finish`; its value stays `develop`,
-   the refusal sentence names the variable's value, and the stage 83
-   comment states the rule as "one branch, named here". No behaviour
-   changes; the bar is green. This step lands alone.
-2. USER: bring `main` up to `develop` once (`git push origin
-   develop:main`, 232 commits, a fast-forward) and read CI's bar green
-   on `main`. A one-line box; nothing else happens that day.
-3. The variable becomes `main`, with the guards above (the
-   maintenance-branch name accepted) and the two closing pushes named.
-   Docs in the same step: OPERATIONS's release steps (step 1 and
-   "Nothing is pushed"), DAILY_DRIVER 1.1 and its "cut on develop"
-   line, the Releases standing decision in this file, the dry form's
-   sentence. The docs tests hold the new wording.
-4. Proof: the next development release to TestPyPI is cut from `main`
-   by the new walk, with the back-fast-forward; then the next final
-   release the same way, and the reference's take unchanged. The walk's
-   boxes are the collapsed shape agreed on 2026-10-31: the
-   fast-forward, the release, the push with tags, the fast-forward
-   back.
-
-**Decisions** (the operator's, 2026-10-31; the plan's four questions,
-each answered with its default)
-
-1. **Fast-forward only.** `main` takes `develop` by fast-forward
-   before the release; `develop` takes `main` back by fast-forward
-   after it. The operator's words were "rebase develop off main",
-   which is the same thing while `develop` has not moved; if a stage
-   landed on `develop` during the release the recipe refuses, and the
-   fallback is one merge commit of `main` into `develop`, never a
-   rebase of pushed commits. `git flow release finish` is not used.
-   Every release after the stage, development ones included, is cut
-   from `main`: "develop is where work is done and main is where
-   releases live".
-2. **A failed release leaves evidence on `main` alone.** The recipe's
-   failures leave no commit anywhere: an uncommitted bump in the
-   working tree, now a checkout of `main`, and `release-finish`
-   commits a part-way upload there. A release abandoned after the
-   fast-forward leaves `main` at `develop`'s HEAD without a tag, which
-   is `develop`'s content at a stage boundary; accepted.
-3. **First use.** The release that carries §106 and §104 is cut the
-   `develop` way before this lands, because its walk already owes the
-   reference's `lineage restamp`; this stage's proof is a development
-   release to TestPyPI right after it, then the next final.
-4. **No ruleset on `main`.** As today: the operator is the only
-   pusher, and a ruleset that forbids direct pushes or wants a status
-   check first would refuse the fast-forward. The public-safe hook
-   stays the gate.
-5. **A maintenance branch is accepted now** (`release/<major.minor>`,
-   above), and nothing else is built for it until a tree first needs
-   one.
-
-**Out of scope**: the reference's `main` (it performs; its take is
-unchanged and reads the version from the index); the starter
-publication of §66 (on the tag, unchanged); the refresh of a tree's
-release-owned files (by hand, by the operator's word of 2026-10-31).
-
-**Acceptance**: bar green after steps 1 and 3; after step 3,
-`just release <v> pypi yes` on `develop` refuses with one sentence
-naming `main`, and on `main` behind `develop` refuses naming the
-fast-forward; the proof release on TestPyPI from `main`; the docs
-tests green. Records: the squash message; this section goes when the
-final proof release is cut.
 
 ## 103. A container runtime: docker and the daemons that speak its API
 
@@ -871,3 +603,274 @@ the docs tests green; the `just full-test` legs green, the docker ones
 included. Two new PyPI projects mean the first release after this one
 is held to PyPI's new-project rate (§96). Records: each branch's squash
 message; this section goes when the last branch lands.
+
+## 107. Releases are cut on `main`
+
+**Status: MERGED cda0f43, 2026-10-31 (feature/release-on-main kept),
+and PROVED by a development release the same day: the operator's one
+push brought `main` up to `develop` (step 2, CI's bar green on `main`
+at cda0f43), then 0.1.6.dev1 went to TestPyPI from `main` by the new
+walk (fast-forward, release, push with tags, fast-forward back; tag
+`v0.1.6.dev1` = 6e8a314, bar and tag job green, all four refs agree).
+Steps 1 and 3 landed in one squash and step 2 followed the merge, as
+accepted. What remains of step 4 is the next FINAL release cut the
+same way with the reference's take unchanged; this section goes then.**
+
+**Why.** Stage 83 (2026-10-17) made `develop` the one release branch
+after the walk's F31 cut a development release on a walk branch. Its
+point was ONE branch, named once, and that point survives the move. The
+system's `main` is unused today: it stands at a stage 45 commit of
+September, 232 commits behind `develop` and an ancestor of it (nothing
+on it is lost by a fast-forward), holds none of the four release tags,
+has no ruleset, and nothing in CI runs on it alone (`ci.yml` runs on
+every push; `publish` runs on the tag). The reference's `main`
+performs; the system's `main` would mean "the latest release", which
+is what a reader of a public repository expects it to mean.
+
+**The shape** (the default; the questions can change it)
+
+- `main` is always `develop` plus release commits, and moves only by
+  fast-forward: before a release, `main` takes `develop`
+  (`git merge --ff-only develop`); after it, `develop` takes `main`
+  back the same way, so the `release <v>` commit and the tag are on
+  both. No merge commits, both histories linear; `git flow release` is
+  not used, since its finish makes a merge commit and a back-merge.
+- `just release` and `just release-finish` run on a checkout of
+  `main`. Two guards replace the branch check: the checkout is on the
+  release branch, and `develop` is an ancestor of it (a release never
+  leaves a stage behind). The closing line names both pushes:
+  `git push --follow-tags origin main`, then the back-fast-forward of
+  `develop` and its push. Both pushes stay the operator's.
+- Feature branches finish into `develop` exactly as now; the stage
+  convention does not change.
+- The release branch is `main`, or a maintenance branch named
+  `release/<major.minor>`, for the day a tree needs a fix to an old
+  version without taking the stages since (0.1.5 cut from 0.1.4 plus
+  one fix while `develop` is past it). The develop-is-an-ancestor guard
+  applies to `main` alone. CI's `publish` job and the starter
+  publication fire on the tag from any branch, the index refuses a
+  re-cut and `bump-my-version` takes an explicit version, so nothing
+  else is built for it now; the branch is accepted so that day needs
+  no Justfile change. git-flow's release branch is not the same thing
+  and is not used: here a release is one sitting, nothing lands on
+  `develop` during it, and the branch would hold the bump alone.
+
+**Steps** (one branch, `feature/release-on-main`, about a day of work
+and two of the operator's pushes)
+
+1. The release branch becomes a Justfile variable, `release_branch`,
+   read by `release` and `release-finish`; its value stays `develop`,
+   the refusal sentence names the variable's value, and the stage 83
+   comment states the rule as "one branch, named here". No behaviour
+   changes; the bar is green. This step lands alone.
+2. USER: bring `main` up to `develop` once (`git push origin
+   develop:main`, 232 commits, a fast-forward) and read CI's bar green
+   on `main`. A one-line box; nothing else happens that day.
+3. The variable becomes `main`, with the guards above (the
+   maintenance-branch name accepted) and the two closing pushes named.
+   Docs in the same step: OPERATIONS's release steps (step 1 and
+   "Nothing is pushed"), DAILY_DRIVER 1.1 and its "cut on develop"
+   line, the Releases standing decision in this file, the dry form's
+   sentence. The docs tests hold the new wording.
+4. Proof: the next development release to TestPyPI is cut from `main`
+   by the new walk, with the back-fast-forward; then the next final
+   release the same way, and the reference's take unchanged. The walk's
+   boxes are the collapsed shape agreed on 2026-10-31: the
+   fast-forward, the release, the push with tags, the fast-forward
+   back.
+
+**Decisions** (the operator's, 2026-10-31; the plan's four questions,
+each answered with its default)
+
+1. **Fast-forward only.** `main` takes `develop` by fast-forward
+   before the release; `develop` takes `main` back by fast-forward
+   after it. The operator's words were "rebase develop off main",
+   which is the same thing while `develop` has not moved; if a stage
+   landed on `develop` during the release the recipe refuses, and the
+   fallback is one merge commit of `main` into `develop`, never a
+   rebase of pushed commits. `git flow release finish` is not used.
+   Every release after the stage, development ones included, is cut
+   from `main`: "develop is where work is done and main is where
+   releases live".
+2. **A failed release leaves evidence on `main` alone.** The recipe's
+   failures leave no commit anywhere: an uncommitted bump in the
+   working tree, now a checkout of `main`, and `release-finish`
+   commits a part-way upload there. A release abandoned after the
+   fast-forward leaves `main` at `develop`'s HEAD without a tag, which
+   is `develop`'s content at a stage boundary; accepted.
+3. **First use.** The release that carries §106 and §104 is cut the
+   `develop` way before this lands, because its walk already owes the
+   reference's `lineage restamp`; this stage's proof is a development
+   release to TestPyPI right after it, then the next final.
+4. **No ruleset on `main`.** As today: the operator is the only
+   pusher, and a ruleset that forbids direct pushes or wants a status
+   check first would refuse the fast-forward. The public-safe hook
+   stays the gate.
+5. **A maintenance branch is accepted now** (`release/<major.minor>`,
+   above), and nothing else is built for it until a tree first needs
+   one.
+
+**Out of scope**: the reference's `main` (it performs; its take is
+unchanged and reads the version from the index); the starter
+publication of §66 (on the tag, unchanged); the refresh of a tree's
+release-owned files (by hand, by the operator's word of 2026-10-31).
+
+**Acceptance**: bar green after steps 1 and 3; after step 3,
+`just release <v> pypi yes` on `develop` refuses with one sentence
+naming `main`, and on `main` behind `develop` refuses naming the
+fast-forward; the proof release on TestPyPI from `main`; the docs
+tests green. Records: the squash message; this section goes when the
+final proof release is cut.
+
+## 108. Hygiene bundle XXI
+
+**Status: OPEN 2026-10-31, three items from the 0.1.4 and 0.1.5
+release walks and the §107 proof. Waits for "do 108".**
+
+The principle (the operator, 2026-10-31): a release walk is as few
+boxes as the recipes allow, and a box ends on a check only where the
+recipe cannot make the check itself and stop. The refresh of a tree's
+release-owned files stays BY HAND, by the operator's word of the same
+day ("I definitely don't want to mess up item 4's refresh").
+
+1. The release recipe fails late on what my hand box probed first.
+   `just release ... pypi` runs `full-test`, whose legs need docker up
+   (test-mods, the posix script, the bake steps, the runner image) and
+   a live AWS session (the dry `run --all` and the strict state query
+   over the live copy); without either it runs twenty minutes and then
+   skips or fails, after the index probe said ready. And every recipe
+   runs `uv run --no-sync`, so a venv behind the checkout answers with
+   stale metadata (the 0.1.5 walk's box 5 printed 0.1.4 from the
+   activated venv). Add the three probes to the preflight of
+   [Justfile](Justfile)'s `release` (and `release-finish`), before
+   anything changes and in one line each: for `pypi`, `docker info`
+   and the AWS session (`aws sts get-caller-identity` under the
+   configured profile, as `cloud-preflight` reads it); for every index,
+   the venv in step with the lock (`uv sync --all-extras --check`, or
+   the sync itself). The dry form prints the same verdicts, so the
+   walk's separate dry box goes. With the branch, tree, tag and token
+   guards already there, the release is one box.
+2. The IDE's workspace file dirties the tree.
+   `cs-image-system-3.code-workspace` is tracked at the repository
+   root while `packages/**/*.code-workspace` is ignored; the editor
+   rewrites it when folders are opened, so the 0.1.5 release needed a
+   stash to pass the clean-tree guard, and its commit during the §104
+   merge (9116f29, "Update workspace") made `develop` diverge from
+   `origin/develop` and refused the finish once. **YOUR DECISION:**
+   untrack it (one commit removing it from the index, the root pattern
+   joining `.gitignore`; the default, since nothing in CI or the
+   Justfile reads it) or keep it tracked and have the clean-tree guard
+   of `release` disregard it alone. Either way the guard's refusal
+   names the remedy.
+3. The reference takes a release by hand, five boxes. Its
+   [Justfile](../cs-image-system-testconfig/Justfile) gains
+   `take <version>`: the catch-up guard of develop from `origin/main`
+   as its first act (fetch, `merge --ff-only`, `merge-base
+   --is-ancestor`, the rule of 2026-10-23 that was missed twice),
+   `.csis-version` written, `just init` so the pin resolves from the
+   index, `just validate`, then the commit "Take <version>" and the
+   push of `develop`. The release-owned files are NOT refreshed by the
+   recipe: it prints the list the walk derives (the files SAME at the
+   previous tag in both the tree and the packaged starter and CHANGED
+   in the release, from `cs-image-system` or the installed wheel's
+   starter) and stops for the operator's patch before the commit when
+   that list is not empty. The push of `develop` to `main` stays its
+   own box: `main` performs. A tree's `take` is the same recipe in the
+   starters, so the §66 proof covers it.
+
+**Out of scope**: a refresh command for release-owned files (by hand,
+decided); any change to the walk's reference-side `lineage restamp`
+and `just record` steps (they are the guarded runtime's, see
+DAILY_DRIVER on `runtime-unchanged`).
+
+**Acceptance**: `just release patch test yes` on `main` prints the
+three preflight verdicts and refuses, in one sentence each, with docker
+down, no AWS session and a stale venv; the clean-tree guard behaves as
+decided for the workspace file; `just take <version>` on a copy of the
+reference at the previous release ends on the operator's patch list or
+the pushed `develop`; the next final release's walk is five boxes on
+the system side and three on the reference's. Records: the squash
+message; this section goes at "merge 108".
+
+
+
+## 109. Podman Desktop in the test cycle
+
+**Status: PLANNED 2026-11-01 (the operator asked for the stage).
+Waits for "do 109".**
+
+**Why**: stage 103 proved Podman's API service where a durable host
+would run it, on Linux (Podman 5.8.2, rootless, an OrbStack AlmaLinux
+machine reached over ssh). A developer on macOS meets Podman as Podman
+Desktop, whose daemon is a `podman machine`: a VM of its own, a
+different socket, a different file-sharing layer. Nothing yet says the
+runtime works there, and the operator's Mac runs OrbStack beside it.
+
+What is known (the Podman Desktop team, [Intel Macs and Podman
+6](https://podman-desktop.io/blog/intel-mac-podman-6-transition)):
+Podman 6 removed Intel Macs; the Intel installer bundles Podman 5.8,
+which stays supported until the second week of June 2027. This Mac is an
+Intel one, so what can be proved here is Podman 5.8 on Intel, for a
+bounded time; Apple silicon (Podman 6) cannot be tested on it.
+
+**Questions for the operator** (each with the proposed default)
+
+1. Where does the machine's disk live? The root disk had 12 GB free on
+   2026-11-01. Default: wherever item 1 finds the tool allows it off
+   the root disk, else a small disk (20 GB sparse) and the cost stated.
+2. Standing or per leg? Default: a STANDING machine the operator starts
+   and stops; the leg never creates, starts or stops it (the power
+   state is the operator's), and is skipped, said so, when it is not
+   running.
+3. Rootless only (Podman Desktop's default). Rootful is not proved.
+4. Is an Apple-silicon Mac available to run it once? Default: no; the
+   stage records Apple silicon as untested.
+
+**Items**
+
+1. The survey, first, and it stops on failure. Install Podman Desktop
+   (1.29 or later) with its bundled Podman on this Mac, make a rootless
+   machine (`podman machine init`, 2 CPUs, 2 to 4 GB, 20 GB), start it,
+   and record: the Podman version, where the machine's disk went and
+   what it costs, the socket's path, `docker version` against it saying
+   "Podman Engine". The operator runs the install boxes. If Podman
+   Desktop will not run on this Mac, the stage stops and says so.
+2. Coexistence with OrbStack, proved and not assumed. Both running: a
+   bare `docker` still answers from OrbStack, Podman is reached only by
+   an explicit `unix://` socket, `podman-mac-helper` is not installed
+   (it would take the default socket from OrbStack), and the combined
+   memory is written down.
+3. The recipe. `just test-podman-desktop-cycle` fills `CSIS_PODMAN_HOST`
+   from the running default machine (`podman machine inspect`) and runs
+   the same two legs as `test-podman-cycle`, which keeps being the one
+   knob for any other host; it is skipped loudly without `podman`, with
+   no machine, or with the machine stopped, and `full-test` names it in
+   its legs and in the SKIPPED line. The leg still refuses a daemon
+   that does not say it is Podman.
+4. The run, and what it finds. The cycle and the starter against the
+   machine, with OrbStack running. Likely places to differ, none of
+   them claimed: how a volume's files are owned through the VM's file
+   sharing, the bake's use of the host's temporary paths, memory and
+   cpu limits inside the VM, the socket's API version. Each difference
+   is fixed in the runtime, as stage 103's was, or recorded as a limit
+   with its cause.
+5. The docs, as one item: OPERATIONS ("Podman as the daemon" gains the
+   Desktop setup, the coexistence rules, the findings and the June
+   2027 date), DAILY_DRIVER 1.4a, the docker runtime's README
+   (prerequisites and failures), and this section's removal.
+6. The tests: the resolver against stubbed `podman machine inspect`
+   output (running, stopped, none, two machines), and the `full-test`
+   skip-line expectations.
+
+**Out of scope**: driving Podman Desktop's GUI; a rootful machine;
+Windows and WSL; macOS CI runners; Podman 6 (Apple silicon only; a
+second stage if a machine appears); Podman Desktop's Kubernetes
+features. After June 2027 an Intel Mac has no supported Podman: the
+standing proof then stays the Linux host of stage 103, and the Desktop
+leg is retired with a line in OPERATIONS.
+
+**Acceptance**: the cycle and the starter pass against the Desktop
+machine with OrbStack running; both legs skip loudly when it is absent
+or stopped; the bar green; the docs item done; the machine and
+OrbStack left as found. Records: the squash message; this section goes
+at "merge 109".
