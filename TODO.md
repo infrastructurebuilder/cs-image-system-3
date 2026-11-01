@@ -460,12 +460,11 @@ RUN and PASSED 2026-11-01 against Podman 5.8.2 in an OrbStack AlmaLinux
 found and fixed, the registry Podman implies in `RepoTags`; recorded in
 OPERATIONS, "Podman as the daemon"). STILL OWED: the reference's docker
 runtime (item 16), which needs the operator to name the durable host (an
-ENC marker or a docker context; not the local OrbStack). Before the
-next final release the
-operator creates the public template repository
-infrastructurebuilder/cs-image-system-starter-standard-docker, or
-`publish-starters` refuses all five. The section goes when that
-is done.**
+ENC marker or a docker context; not the local OrbStack). The template
+repository infrastructurebuilder/cs-image-system-starter-standard-docker
+was created by the operator 2026-11-01 (public, a template, empty) and
+STARTER_PUSH_TOKEN now covers it; the first publication is the next
+final release. The section goes when the reference's runtime is done.**
 
 **Why**: every runtime today is a cloud. A durable host running a
 container daemon is a third kind: cheaper than either cloud, local to a
