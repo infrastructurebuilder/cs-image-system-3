@@ -18,8 +18,8 @@ operator can take.
 - §103, a container runtime (docker and the daemons that speak its
   API): branches 1, 2 and 3 landed (a2ed18c); the reference's docker
   runtime (the local OrbStack's context) is written on its `develop`,
-  unpushed; owed: `just validate` there after an SSO login, and the
-  push with the release that carries the plugins.
+  unpushed and validated; owed: the push with the release that
+  carries the plugins.
 - §109, Podman Desktop in the test cycle: planned 2026-11-01; waits for
   "do 109".
 - §104 landed (below) and is released in 0.1.5; item 4(d) is done in
@@ -277,14 +277,13 @@ not be reinstalled soon, and a durable host later replaces that one
 line). The reference's `develop` now declares the runtime
 `docker-orbstack` and its three builders (`packer-docker`,
 `tofu-docker`, `docker-volumes`) and carries the two terraform
-modules; none is a default, so nothing existing moved. STILL OWED, in
-this order: (1) the operator's `aws sso login`, then `just validate`
-in the reference (the tree cannot load without the SSO session, which
-Claude cannot renew); (2) the reference's push waits for the release
-that carries the docker plugins, because its CI is pinned to 0.1.5,
-which cannot load `type: docker` and would fail `verify`; the `take`
-of that release and the push are one walk. The section goes when
-(1) is green and the docker plugins are released.**
+modules; none is a default, so nothing existing moved. `validate` PASSED on the
+reference with the new runtime (2026-11-01, after the operator's SSO
+login). STILL OWED: the reference's push waits for the release that
+carries the docker plugins, because its CI is pinned to 0.1.5, which
+cannot load `type: docker` and would fail `verify`; the `take` of
+that release and the push are one walk. The section goes when the
+docker plugins are released and the reference is pushed.**
 
 **Why**: every runtime today is a cloud. A durable host running a
 container daemon is a third kind: cheaper than either cloud, local to a
