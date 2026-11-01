@@ -69,28 +69,6 @@ test: lint typecheck pytest
 full-test: test
 	@just full-test-legs
 
-# Hygiene XXI item 1: what a release needs and `full-test` only finds out twenty minutes in, asked
-# first and in one line each, before anything changes. For every index: the venv is in step with
-# the lock (`uv sync --all-extras --check`), because every recipe runs `uv run --no-sync` and a venv
-# behind the checkout answers with stale metadata. For a PyPI release also: docker answers (the
-# modification-test, posix, bake-step and runner-image legs run in it) and every runtime session of
-# the live configuration is present (`just preflight`, the gate full-test itself uses: without it the
-# live legs would be SKIPPED, which a release cannot accept). The dry form of `release` prints the
-# same verdicts. `release-finish` asks the venv alone: it runs no bar.
-[private]
-_release-probes index who="release":
-	#!/usr/bin/env bash
-	set -uo pipefail
-	uv sync --all-extras --check >/dev/null 2>&1 || { echo "{{who}}: the venv is behind the checkout (uv sync --all-extras --check) -- \`just init\` syncs it -- nothing was changed"; exit 1; }
-	echo "{{who}}: the venv is in step with the lock"
-	if [ "{{index}}" = pypi ] && [ "{{who}}" = release ]; then
-		docker info >/dev/null 2>&1 || { echo "{{who}}: docker is not answering (docker info) -- full-test's legs need it; start the daemon -- nothing was changed"; exit 1; }
-		echo "{{who}}: docker answers"
-		just config-guard >/dev/null 2>&1 || { echo "{{who}}: no live configuration at {{config_root}} (\`just config-guard\` says why) -- full-test's live legs need it -- nothing was changed"; exit 1; }
-		just preflight >/dev/null 2>&1 || { echo "{{who}}: a runtime session of the live configuration is absent or expired (\`just preflight\` says which) -- full-test's live legs would be skipped; log in -- nothing was changed"; exit 1; }
-		echo "{{who}}: every runtime session of the live configuration is present"
-	fi
-
 # Cut a release (stage 41): the probes first -- the branch (`release_branch` alone, stage 83), the
 # index itself (stage 83: its upload endpoint and every project page answer, and no project
 # holds the version), the index token, the tag -- then the bar, the index asked AGAIN (the
@@ -249,6 +227,28 @@ release-finish index="test":
 	after="git push --follow-tags origin $branch"
 	[ "$branch" = "{{release_branch}}" ] && after="$after; then develop takes it back: git checkout develop && git merge --ff-only {{release_branch}} && git push origin develop"
 	echo "release-finish: $new is on $name for every project, committed and tagged v$new; push with: $after"
+
+# Hygiene XXI item 1: what a release needs and `full-test` only finds out twenty minutes in, asked
+# first and in one line each, before anything changes. For every index: the venv is in step with
+# the lock (`uv sync --all-extras --check`), because every recipe runs `uv run --no-sync` and a venv
+# behind the checkout answers with stale metadata. For a PyPI release also: docker answers (the
+# modification-test, posix, bake-step and runner-image legs run in it) and every runtime session of
+# the live configuration is present (`just preflight`, the gate full-test itself uses: without it the
+# live legs would be SKIPPED, which a release cannot accept). The dry form of `release` prints the
+# same verdicts. `release-finish` asks the venv alone: it runs no bar.
+[private]
+_release-probes index who="release":
+	#!/usr/bin/env bash
+	set -uo pipefail
+	uv sync --all-extras --check >/dev/null 2>&1 || { echo "{{who}}: the venv is behind the checkout (uv sync --all-extras --check) -- \`just init\` syncs it -- nothing was changed"; exit 1; }
+	echo "{{who}}: the venv is in step with the lock"
+	if [ "{{index}}" = pypi ] && [ "{{who}}" = release ]; then
+		docker info >/dev/null 2>&1 || { echo "{{who}}: docker is not answering (docker info) -- full-test's legs need it; start the daemon -- nothing was changed"; exit 1; }
+		echo "{{who}}: docker answers"
+		just config-guard >/dev/null 2>&1 || { echo "{{who}}: no live configuration at {{config_root}} (\`just config-guard\` says why) -- full-test's live legs need it -- nothing was changed"; exit 1; }
+		just preflight >/dev/null 2>&1 || { echo "{{who}}: a runtime session of the live configuration is absent or expired (\`just preflight\` says which) -- full-test's live legs would be skipped; log in -- nothing was changed"; exit 1; }
+		echo "{{who}}: every runtime session of the live configuration is present"
+	fi
 
 # Build and upload the version in the tree (stage 41.6): `dist/` cleaned, every package
 # built, every file uploaded to INDEX -- `test` (TestPyPI, the default) or `pypi` -- by
