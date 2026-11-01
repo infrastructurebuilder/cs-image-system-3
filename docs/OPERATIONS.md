@@ -3197,11 +3197,59 @@ daemon that does not say it is Podman.
   client of 1.56 (downgraded), and `must_run = false`, the restart policy,
   `--init`, the labels, the volume mount and `exec` behaved as on Docker.
 
-**Not proved.** Podman on macOS through `podman machine`; a rootful Podman; a
-`tcp://` or TLS address; a Podman host that is not systemd's. A durable
-Podman host needs `loginctl enable-linger <user>` as root so the user's
-socket outlives its login session; OrbStack's machine kept it up without
-(the command was refused there), and a real host should not rely on that.
+**Podman Desktop on macOS.** The second proof (2026-11-01) is the daemon a
+developer on a Mac meets: Podman Desktop's own `podman machine`, a VM with a
+socket of its own, running beside OrbStack on the same Mac.
+
+- **What Desktop installs.** Podman Desktop 1.29 or later bundles Podman and
+  puts it at `/opt/podman/bin/podman`, which is not on `PATH`. It makes the
+  machine itself, with the Podman it bundles (5.8.9 there): one machine,
+  `podman-machine-default`, 2 CPUs, 1.9 GB of memory, a 10 GB disk, and
+  **rootful** (the Linux proof above was rootless). Desktop does not mark a
+  machine it makes as the default one in `podman machine list`.
+- **Coexistence with OrbStack.** Nothing was changed on the Mac's side and
+  nothing needs to be. A bare `docker` keeps answering from OrbStack,
+  because `/var/run/docker.sock` still points at it and `podman-mac-helper`
+  is not installed (it would take that socket from OrbStack; do not install
+  it, and leave Desktop's docker-compatibility option off). Desktop adds a
+  docker context named `podman` and leaves the current context alone. Podman
+  is reached only by its own socket, which `podman machine inspect` reports
+  (a path under the temporary folder; a stable symlink to it sits at
+  `~/.local/share/containers/podman/machine/podman.sock`).
+- **The leg.** `just test-podman-desktop-cycle` runs `scripts/podman-machine-host`,
+  which names the machine (the only one, the default of several, or the one in
+  `CSIS_PODMAN_MACHINE`) and prints its socket as a `unix://` URL, then runs
+  `just test-podman-cycle` with `CSIS_PODMAN_HOST` set to it. So
+  `test-podman-cycle` stays the one knob for any other host. The leg never
+  creates, starts or stops the machine, because the power state is the
+  operator's: with no `podman`, no machine, a stopped machine, or several with
+  no default it is SKIPPED with the reason and exits 0, and `full-test` names
+  it in its legs and in its SKIPPED line. It still refuses a daemon that does
+  not say it is Podman, and a bare `docker` is never aimed at the machine.
+- **What it ran.** The same two legs as above, with OrbStack running, against
+  the rootful Desktop machine: the docker cycle and the `standard-docker`
+  starter, 384 seconds, both passed.
+- **What differed.** Nothing. No code changed. A rootful machine needs no
+  subordinate ids, and the registry Podman implies in `RepoTags` was already
+  handled. OrbStack's image and container counts were the same before and
+  after; the machine kept two cached base images (`almalinux:10`,
+  `debian:12`), which are the legs' pulls and cost 315 MB of the 10 GB disk.
+- **Limits.** The machine is small: a bake that pulls a large base image or
+  several of them would need `podman machine stop` and then `podman machine
+  set --memory 4096 --disk-size 20` (a disk grows and never shrinks); the
+  operator does that, not the leg. Podman 6 dropped Intel Macs, so an Intel
+  Mac runs the Podman 5.8 that the installer bundles, supported until the
+  second week of June 2027 ([the Podman Desktop team's
+  note](https://podman-desktop.io/blog/intel-mac-podman-6-transition)). After
+  that date this leg is retired from the Intel Mac and the standing proof is the
+  Linux host above. Apple silicon (Podman 6) is untested: no such Mac was
+  available.
+
+**Not proved.** A rootless Podman machine on macOS; a `tcp://` or TLS address;
+a Podman host that is not systemd's. A durable Podman host needs `loginctl
+enable-linger <user>` as root so the user's socket outlives its login session;
+OrbStack's machine kept it up without (the command was refused there), and a
+real host should not rely on that.
 
 ### Cost
 

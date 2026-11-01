@@ -1,0 +1,96 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+"""The DOCKER_HOST URL of the running Podman Desktop machine (stage 109).
+
+    uv run python scripts/podman-machine-host [--podman BINARY] [--machine NAME]
+
+Prints `unix://<socket>` on stdout and exits 0 when exactly one machine is
+chosen and it is running. Otherwise prints one sentence on stderr saying why
+and exits non-zero, so a recipe can skip, loudly, and say what to do:
+
+    3  no `podman` binary (PATH, then /opt/podman/bin, where Podman Desktop
+       puts its own; `--podman` or $PODMAN names one)
+    4  no machine exists
+    5  the chosen machine is not running (the power state is the operator's:
+       nothing here starts it)
+    6  several machines and none is the default (name one with `--machine`
+       or $CSIS_PODMAN_MACHINE)
+    7  the machine answers but reports no API socket
+
+Which machine: the one named by `--machine`; else the only one; else the one
+`podman machine list` marks Default. A single machine counts even when
+Podman Desktop did not mark it Default, which it does not when it makes the
+machine itself. The socket is what `podman machine inspect` reports, so a
+machine that moves it is followed. Nothing is created, started or stopped.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+
+DESKTOP_PODMAN = "/opt/podman/bin/podman"
+
+
+def find_podman(named: str | None) -> str | None:
+    if named:
+        return named if shutil.which(named) or os.path.isfile(named) else None
+    return shutil.which("podman") or (DESKTOP_PODMAN if os.access(DESKTOP_PODMAN, os.X_OK) else None)
+
+
+def _json(podman: str, *args: str) -> list[dict]:
+    done = subprocess.run([podman, "machine", *args], capture_output=True, text=True, timeout=60)
+    if done.returncode != 0 or not done.stdout.strip():
+        return []
+    try:
+        out = json.loads(done.stdout)
+    except ValueError:
+        return []
+    return [m for m in out if isinstance(m, dict)] if isinstance(out, list) else []
+
+
+def resolve(podman: str, wanted: str | None) -> tuple[int, str]:
+    """(exit code, the URL or the sentence)."""
+    machines = _json(podman, "list", "--format", "json")
+    if not machines:
+        return 4, "no podman machine exists (podman machine init, or make one in Podman Desktop)"
+    if wanted:
+        machines = [m for m in machines if m.get("Name") == wanted]
+        if not machines:
+            return 4, f"no podman machine is named {wanted!r}"
+    elif len(machines) > 1:
+        machines = [m for m in machines if m.get("Default")]
+        if len(machines) != 1:
+            return 6, "several podman machines exist and none is the default (name one with --machine or CSIS_PODMAN_MACHINE)"
+    machine = machines[0]
+    name = str(machine.get("Name") or "")
+    if not machine.get("Running"):
+        return 5, f"the podman machine {name!r} is not running (start it; the power state is yours)"
+    info = _json(podman, "inspect", name)
+    socket = (((info[0].get("ConnectionInfo") or {}).get("PodmanSocket") or {}).get("Path")) if info else None
+    if not socket:
+        return 7, f"the podman machine {name!r} reports no API socket"
+    return 0, f"unix://{socket}"
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("--podman", default=os.environ.get("PODMAN") or None)
+    ap.add_argument("--machine", default=os.environ.get("CSIS_PODMAN_MACHINE") or None)
+    args = ap.parse_args(argv)
+    podman = find_podman(args.podman)
+    if podman is None:
+        print("no podman binary on PATH or at " + DESKTOP_PODMAN, file=sys.stderr)
+        return 3
+    code, text = resolve(podman, args.machine)
+    print(text, file=sys.stdout if code == 0 else sys.stderr)
+    return code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

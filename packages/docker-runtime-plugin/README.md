@@ -188,7 +188,10 @@ image_builders:
   5.8.2 rootless on AlmaLinux 10, through `docker` over ssh; the setup and what
   differed are in [docs/OPERATIONS.md](../../docs/OPERATIONS.md), "Podman as
   the daemon"). A rootless Podman user needs `/etc/subuid` and `/etc/subgid`
-  ranges.
+  ranges. Podman Desktop's machine on macOS works too, rootful and beside
+  OrbStack (proved 2026-11-01 with Podman 5.8.9; `just
+  test-podman-desktop-cycle`, which skips when no machine runs; Podman 6
+  dropped Intel Macs, so on one the proof lasts until June 2027).
 - The posix identity plugin for the groups an instance image activates; an
   OPA group is refused on this runtime.
 - A tree whose only runtime is docker declares a `local` state manager; a

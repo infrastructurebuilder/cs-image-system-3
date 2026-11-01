@@ -301,8 +301,10 @@ full-test-legs:
 		just test-docker-cycle -q || { echo "full-test: FAILED test-docker-cycle"; status=1; }
 		echo "full-test: the same cycle against Podman's API service, when one is named (test-podman-cycle)"
 		just test-podman-cycle -q || { echo "full-test: FAILED test-podman-cycle"; status=1; }
+		echo "full-test: the same cycle against Podman Desktop's machine, when one is running (test-podman-desktop-cycle)"
+		just test-podman-desktop-cycle -q || { echo "full-test: FAILED test-podman-desktop-cycle"; status=1; }
 	else
-		echo "full-test: SKIPPED test-mods, test-posix-accounts, test-bake-steps, runner-image, test-docker-bake, test-docker-cycle and test-podman-cycle -- docker is not available"
+		echo "full-test: SKIPPED test-mods, test-posix-accounts, test-bake-steps, runner-image, test-docker-bake, test-docker-cycle, test-podman-cycle and test-podman-desktop-cycle -- docker is not available"
 	fi
 	if [ ! -f "{{config_root}}/cfg/_config.yml" ]; then
 		echo "full-test: SKIPPED the live-configuration legs (dry run --all, state query --strict) -- no live configuration at {{config_root}} (see: just config-guard)"
@@ -433,6 +435,27 @@ test-podman-cycle *ARGS:
 	fi
 	DOCKER_HOST="$CSIS_PODMAN_HOST" CSIS_DOCKER_KEEP_HOST=1 CSIS_PODMAN_CYCLE=1 CSIS_DOCKER_CYCLE=1 \
 		uv run pytest tests/test_v2_docker_cycle_live.py tests/test_v2_docker_starter_live.py {{ARGS}}
+
+# Stage 109: test-podman-cycle against PODMAN DESKTOP's machine on macOS. The address is
+# not typed: scripts/podman-machine-host reads it from `podman machine` (the one machine,
+# or the default of several; CSIS_PODMAN_MACHINE names one) and CSIS_PODMAN_HOST is set
+# to it for the run. The leg never creates, starts or stops the machine (the power state
+# is the operator's): with no podman, no machine, a stopped or an ambiguous one it is
+# SKIPPED, said so with the reason, and exits 0. A bare `docker` keeps answering from
+# whatever else is running (OrbStack): only the leg's own calls are aimed at Podman.
+# Podman 6 dropped Intel Macs: this leg proves Podman 5.8 there until June 2027.
+test-podman-desktop-cycle *ARGS:
+	#!/usr/bin/env bash
+	set -uo pipefail
+	why=$(mktemp "${TMPDIR:-/tmp}/csis-podman-host.XXXXXX")
+	if host=$(uv run python scripts/podman-machine-host 2>"$why"); then
+		rm -f "$why"
+		echo "test-podman-desktop-cycle: Podman Desktop's machine at $host"
+		CSIS_PODMAN_HOST="$host" just test-podman-cycle {{ARGS}}
+	else
+		echo "test-podman-desktop-cycle: SKIPPED -- $(cat "$why")"
+		rm -f "$why"
+	fi
 
 # Stage 92: build the CI runner image (ci/runner-image: AlmaLinux 10, every tool pinned) for
 # amd64 and run its probe, which asks every tool its version from where cfg/executables.yml
