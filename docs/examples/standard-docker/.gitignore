@@ -1,0 +1,32 @@
+# Every dotfile, at any depth, is ignored unless named below (hygiene XII
+# item 4, from the walk of the daily driver: a token or key dropped beside the
+# tree must never be staged). That covers the shell's exports (.envrc), every
+# dot-named credential file, .terraform/, the plugin cache and editor residue
+# without naming them.
+.*
+!.gitignore
+!.github
+!.githooks
+!.csis-version
+!**/.terraform.lock.hcl
+# the TEST identity the starter ships, committed on purpose (README); delete
+# these two lines with it
+!.age-identity
+!.age-recipient
+# Credential files that are not dotfiles: never committed
+*.pem
+# The bootstrap's secrets directory and anything else kept beside the tree and
+# never committed (hygiene XII item 6)
+_uncommitted/
+# The private mirror: the plaintext an execution runs from
+_private
+# Tool residue and the run-local files; generated/ itself IS committed (a
+# --commit run stages meta-state/ and generated/)
+**/target/
+*.tfstate
+*.tfstate.backup
+tfplan
+*.tfvars
+!generated/bootstrap/bootstrap.auto.tfvars
+YAML_DUMP.yaml
+__pycache__/

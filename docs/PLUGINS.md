@@ -1,11 +1,11 @@
 # The packages
 
-The uv workspace is nineteen packages under `packages/`. Each has its own
+The uv workspace is twenty-one packages under `packages/`. Each has its own
 README that describes it on its own terms: what it registers, its models
 and how they extend the base models, its builder's hooks, what it emits,
 and one example configuration. The core and the CLI are packages too.
 
-The workspace root is the twentieth project, `cs-image-system`: no sources of its
+The workspace root is the twenty-second project, `cs-image-system`: no sources of its
 own, a `==` pin on every package, so one install is the whole system
 (`uv pip install cs-image-system==<version>`; see "Installing a release"
 in [OPERATIONS.md](OPERATIONS.md)). Every package declares exactly the

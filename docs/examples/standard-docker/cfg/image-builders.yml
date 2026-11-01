@@ -1,0 +1,18 @@
+---
+# cfg/image-builders.yml (from the standard-docker starter) -- the ONE image builder:
+# packer's docker source on the docker runtime, committing the container it built
+# to the daemon's image store. Reference: CONFIGURATION.md (the system repository's
+# docs/CONFIGURATION.md) section 6.
+image_builders:
+  - name: packer-docker
+    type: packer-docker
+    is_default: true
+    runtime: default             # DECISION: the default runtime (docker-main); name another runtime to bake there
+    executable: packer
+    required_plugins:            # packer plugins the generated template requires
+      - name: docker
+        source: github.com/hashicorp/docker
+        version: ">= 1.0.0"
+      - name: ansible
+        source: github.com/hashicorp/ansible
+        version: ">= 1.0.0"

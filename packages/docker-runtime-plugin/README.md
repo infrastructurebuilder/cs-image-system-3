@@ -43,7 +43,21 @@ differs from them in three ways the design records as decisions:
 | `DockerContainerBuilder` ([docker_runtime_builders.py](src/cs_image_system/docker_runtime/docker_runtime_builders.py)) | `docker` | `VCT.RUNTIME_BUILDER` | Every runtime hook, answered against the daemon through the CLI. |
 | `DockerCLIVersionChecker` (same file) | `docker` | `VCT.VERSION_CHECKER` | `docker --version` for the `docker` entry of `cfg/executables.yml`. |
 
-Entry point: `cs_image_system.plugins.runtime` → `docker`.
+Entry points: `cs_image_system.plugins.runtime` → `docker`, and (stage 103
+item 15) `cs_image_system.bootstrap` → `docker`, the container-host section of
+the bootstrap interview ([bootstrap.py](src/cs_image_system/docker_runtime/bootstrap.py)):
+
+| Class / function | Role |
+|---|---|
+| `docker_section()` → `Section` | The interview's "Container host" section. Wanted where the tree declares a docker runtime. It reads the runtime from the raw `cfg/` (never loading it, never printing an address: a `host` may be an `ENC[age:...]` marker) and asks two questions, which runtime and *can CI reach its daemon* (default yes for an `ssh://` host or for none declared, no for a socket, a context, a `tcp://` host or a marker). |
+
+The section has no terraform module, because a daemon is a host somebody runs.
+Its render says what remains by hand (the daemon and its host, the network,
+CI's ssh key and `known_hosts` line, or, when CI cannot reach the daemon, to
+name the runtime in `GUARD_RUNTIME`) and its audit lines are all BY HAND or
+READ. The two secrets it concerns, `DOCKER_HOST_SSH_KEY` and
+`DOCKER_HOST_KNOWN_HOSTS`, are among the GitHub section's, set by its script
+from files.
 
 ## Models
 
@@ -202,6 +216,12 @@ digest reference. `output_image_name` (stage 105) is the tag prefix.
   and a Debian 12 base image and an instance image on the local daemon,
   checks the lineage and the tags, disposes them, and skips loudly without
   docker.
+- The bootstrap section is tested without a daemon: its discovery and
+  wanting, the reach rule (an `ssh://` host or none declared is reachable;
+  a socket, a context, `tcp://` and a marker are not), the quiet interview
+  of the `standard-docker` starter, the guard default in a tree with a
+  runtime CI cannot reach, and that no address or marker reaches the
+  generated README.
 
 ## When it fails
 
@@ -212,6 +232,7 @@ digest reference. `output_image_name` (stage 105) is the tag prefix.
 | `image_id '...' is not a digest reference` | An entry pins a tag. | Pin `<repository>@sha256:<digest>` (`docker image inspect --format '{{index .RepoDigests 0}}'`). |
 | `image ... is in use by container(s) ...` at disposal | A container stands on the build. | Decommission the container first; the image is never pulled from under it. |
 | An ansible step cannot reach the container | The bake ran against a daemon other than the one the local `docker` CLI uses. | The runtime's `host`/`context` is what both read; check `DOCKER_HOST` is not also set in the shell to something else. |
+| The bootstrap says `docker.runtime: ... -- no default can be derived` under `--quiet` | The tree declares no runtime of type `docker`, or the section was kept from an earlier interview of a tree that had one. | Declare the runtime, or answer `want_docker: no`. |
 | `a docker tag is at most 128 characters` at validate | A declared `output_image_name` is too long once the timestamp is appended. | Shorten it. |
 
 ## Related

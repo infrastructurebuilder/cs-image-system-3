@@ -442,6 +442,20 @@ If a machine is off and its runtime cannot start it, the work is SKIPPED,
 not failed, and nothing is recorded: no verdict was reached. A skipped
 verification does not overwrite the last real one.
 
+**On a docker runtime** the same rule is a property of how the container
+is declared, not of a hook alone. The instance root declares the container
+with `must_run = false`, so an apply that finds it stopped leaves it
+stopped, and with the restart policy `unless-stopped`, so a daemon that
+restarts brings back what was running and nothing else. The runtime's
+power vocabulary is mapped inside its plugin as the clouds' are: `running`
+is running; `exited` and `created` are stopped; `paused` is suspended;
+`restarting` is starting; `removing` is stopping; absent is absent. The
+note for a stopped container is the same `note: ... STOPPED (switched off;
+not drift)`, and a run that finds one says `waits for a run that finds it
+running` for the things only a running container can answer (the launch
+marker, the mounts, the accounts). Verification may start it and stops it
+again, as above.
+
 ### A canonical hostname is claimed once
 
 The name an instance is given at boot (`hostnamectl set-hostname`) is the
@@ -565,6 +579,15 @@ what the current machine booted with; the two files divide exactly as
 `storage.yaml` and `storage-state.yaml` do, and the counter is never in the
 launch-params record (it would read as a changed launch parameter and refuse
 the very replacement that bumped it).
+
+**A container's identity is its id.** On a docker runtime the provider's
+identity for the machine is the container id the daemon reports, read by
+`docker container inspect` after the apply, and the canonical hostname is
+`<name>-NNN` as on the clouds. A container that is re-created (an upgrade, a
+`-replace`) is a new generation with a new id; one that is only stopped and
+started is the same generation. A container of another configuration, or
+one that carries none of this configuration's labels, is never taken for
+yours: a name that another configuration holds reads as absent here.
 
 **The machine decides.** A launch that applied opens a generation marked
 `inferred`. After the apply the system asks the provider which machine
@@ -1774,11 +1797,11 @@ from the environment or, absent that, the index's own name --
 `.envrc` line serves the shell and CI alike -- and never in the Justfile:
 while versions are being deleted and re-cut, an account-scoped TestPyPI
 token; trusted publishing
-(a pending publisher per project name, twenty registrations) waits until
+(a pending publisher per project name, twenty-two registrations) waits until
 the names are stable, and is then the CI job's credential.
 
-The version lives in twenty `version =` lines -- the root's and the
-nineteen packages' -- and in every `== <version>` pin between the
+The version lives in twenty-two `version =` lines -- the root's and the
+twenty-one packages' -- and in every `== <version>` pin between the
 packages, and `bump-my-version` is the
 one thing that changes them (`uv version` bumps the lines but never a
 pin, so it is not used). The scheme is `MAJOR.MINOR.PATCH[.devN]`; every
@@ -1789,7 +1812,7 @@ asserts nothing of the old version is left.
 
 ### Installing a release
 
-The nineteen packages are on the index as `cs-image-system` (the whole
+The twenty-one packages are on the index as `cs-image-system` (the whole
 system: no sources, a `==` pin on every package) and
 `cs-image-system-<package>`. TestPyPI does not carry the third-party
 dependencies, so an install from it names PyPI as the extra index. In
@@ -1826,7 +1849,7 @@ system drives (`tofu`, `packer`, `gcloud`, `ansible-playbook`, docker) are
 not Python packages and are not installed by this; the configuration's
 `cfg/executables.yml` pins where they are. The same install from the
 built files, without an index, is `uv pip install --find-links dist
-cs-image-system==<version>` after `just build`; the nineteen wheels
+cs-image-system==<version>` after `just build`; the twenty-one wheels
 installed that way into a fresh virtualenv run `cs-image-system --help`
 and `decrypt`, which is the proof that every package declares what it
 imports.
@@ -2185,6 +2208,28 @@ still". None refuses the interview: a draft connection is a normal state
 on the way. The bootstrap never edits `cfg/`; names the group builder
 lacks are printed as the two lines to add.
 
+The container-host section (stage 103 item 15; the docker runtime plugin,
+no module) creates nothing either, because a docker daemon is a host
+somebody runs and the system never installs or configures one. It reads
+the tree's docker runtime from the raw `cfg/` (never loading it, and never
+printing an address: a `host:` may be an `ENC[age:…]` marker) and asks the
+one question the rest of the bootstrap needs, whether CI can reach the
+daemon. The workflow reaches an `ssh://` host, or the environment's own
+daemon whose address the workflow supplies (the `standard-docker`
+starter's runtime names none), with a key kept as the secret
+`DOCKER_HOST_SSH_KEY` and the host's `known_hosts` line as
+`DOCKER_HOST_KNOWN_HOSTS`; both are among the GitHub section's secrets,
+set from files by the script like the rest. A socket, a context, a
+`tcp://` host or an address kept as a marker is not something that
+workflow logs in to, so the runtime is one CI must never bake on, and the
+GitHub section's `GUARD_RUNTIME` default now names the first runtime CI
+cannot reach (it defaults empty when every runtime is reachable). The
+GitHub section also stopped assuming a cloud: its `PERFORM_RUNTIME`
+default is the runtime marked `is_default`, else the first one CI can
+reach, and no longer an AWS runtime by name. The section's audit lines
+are all BY HAND (the daemon and its host, the network it names, CI's key)
+or READ (the docker CLI the runner image carries).
+
 **What the bootstrap covers, and what stays by hand** (hygiene XX item
 3). The operator's principle: the bootstrap produces a working set for
 every underlying resource a tree declares; what stands is read, what is
@@ -2209,11 +2254,14 @@ standing audit, for a tree declaring both clouds and OPA groups:
 | the OPA workload connection and role, the per-group CI policies | BY HAND | console acts of a DevOps and a security admin (D4); the identity lifecycle makes the policies once the builder names them |
 | the Okta API services app | BY HAND | the org's Okta admins' (D5, D9) |
 | the OPA service user and its key pair | BY HAND | made by hand in the OPA console (D10); the script reads them from files |
+| a docker daemon and its host | BY HAND | a host somebody runs; the system never installs or configures one, and whoever reaches it is root there |
+| CI's ssh key to the docker host and its `known_hosts` line | BY HAND | made on your machine; the script sets the secrets from files |
 | the network: VPC, subnets, security groups, the gateway, firewall rules | BY HAND | the team's, by decision (stage 1's network rule): never created or modified |
 | the bake hosts' route to SSM and the package repositories | BY HAND | part of the network |
 
-The related gap the §103 survey found stays with §103: preflight checks
-the runtimes' sessions and never the state managers'.
+Preflight checks the session of every runtime a run reaches and, since
+stage 103, of every state manager one reaches as well, and a docker runtime
+by one line (`docker version` against its daemon).
 
 The
 modules ship with the starters like every module (`tfmodules/`, byte for
@@ -2449,6 +2497,7 @@ in that environment can open.
 | identity: okta/oktapam provider (OPA groups) and the gid shim | OPA team key pair | `TF_VAR_<team>_key`, `TF_VAR_<team>_secret`, the team name with non-alphanumerics → `_` (the live team is `nos_coastal_modeling_cloud_sandbox`); the shim also accepts `OKTAPAM_KEY`/`OKTAPAM_SECRET` |
 | storage and instance roots (terraform), bakes (packer) on AWS; every terraform root's S3 state backend, GCE roots included | AWS | the profile the runtime names: `aws sso login --profile noaa`; or `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_SESSION_TOKEN` |
 | bakes and roots on GCE, the GCP state query | GCP Application Default Credentials, impersonated | one-time `gcloud auth application-default login --impersonate-service-account=csis-runner@<project>.iam.gserviceaccount.com` (needs Token Creator on the runner); no key files |
+| bakes, roots and the state query on a docker runtime | the daemon, reached by the `docker` CLI; nothing else (state is `local`) | whatever the runtime's `host:` or `context:` names, else the caller's `DOCKER_HOST`; the system exports `DOCKER_HOST`/`DOCKER_CONTEXT` (and the TLS pair) into every tofu and packer process it runs, an `ENC[age:…]` host opened where the line runs. Reaching a daemon IS root on its host (section 5, Container hosts) |
 | every configuration load | the age identity that opens `ENC[age:…]` values | `CSIS_CONFIG_IDENTITY`: the `AGE-SECRET-KEY-1…` string, an identity file, or a directory of `*.age-identity` files |
 | instance launch: identity enrollment | none by default: the identity root mints one enrollment token per project and the instance root reads it by sensitive remote-state reference | `TF_VAR_sft_enrollment_token` is an explicit override and the fallback for identity plugins that mint no token; with neither, instances launch un-enrolled |
 
@@ -2714,6 +2763,20 @@ afterwards:
   itself, draw the alias and write the names -- correct, but not the walk
   you were in the middle of. `main` takes the whole of a replacement at
   its end.
+
+**On a docker runtime** the `cloud-*` recipes take the runtime's name
+unchanged (`just cloud-launch docker-main`, `just cloud-upgrade docker-main
+<instance>`), and the cycle is the same sequence with a container for a
+machine: the bake commits an image into the daemon, the launch creates the
+container, uploads the launch script into it and runs it once by `exec`, the
+accounts are reconciled the same way, and `cloud-verify` reads the launch
+marker, the mounts and the booted image by `exec`. There is no `iap` or
+`ssm` form and no login proof; a person reaches a container with `docker
+exec -it -u <user> <name> bash`. The leg that proves it from nothing to
+nothing, on the local daemon, is `just test-docker-cycle` (a leg of
+`just full-test`; the same cycle for the `standard-docker` starter as it
+stands is in it). Builds that a recipe disposes of are removed from the
+daemon's store with `docker image rm`, refused while a container uses them.
 
 `just cloud-cycle gcloud-east1 yes` is the dry form of the GCE cycle (the
 `empty` assertion is skipped in a dry run). Every real cycle run passes
@@ -3051,6 +3114,30 @@ exception is a decision to record, not a bypass.
   is the operator's act.
 - A change that touches the live configuration commits and pushes that
   repository's `develop` as part of the work.
+
+### Container hosts
+
+- **Whoever can reach a docker daemon is root on its host.** Docker's API
+  has no narrower grant: a client that may start a container may mount the
+  host's filesystem into it. The system does not hide this and cannot
+  soften it. A host that holds nothing else is the sensible one; a key
+  that reaches it (CI's included) is as sensitive as root there.
+- A daemon's address is never in a `.tf` or in a committed script as a
+  plain value when it is private: write the `host:` as an `ENC[age:…]`
+  marker and the runner scripts carry a `decrypt` call instead. TLS
+  material is a path (`tls_cert_path`), never a value in the YAML.
+- The system never installs, patches or configures a daemon, and never
+  creates or changes a docker network: a network is referenced by name.
+- The power state is the operator's here too (see "The power state belongs
+  to the operator"): nothing starts a stopped container but a verification
+  that needs it, and it stops it again.
+- No privileged container, no init system and no sshd are built. An image
+  that adds an sshd or systemd is outside the supported shape.
+- CI reaches a host over ssh with a key kept as a repository secret
+  (CI_SETUP.md 3.4a), or it does not, in which case the runtime is named
+  in `GUARD_RUNTIME` and CI never bakes on it. Without the key a job uses
+  its own runner's daemon, which is gone when the job ends, so the
+  workflow's `perform` job refuses to record without it.
 
 ### Cost
 

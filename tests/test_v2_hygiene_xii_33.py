@@ -15,7 +15,7 @@ from cs_image_system.base import state_query as sq
 
 def test_the_write_role_carries_the_read_document_in_every_copy():
     for path in [REPO / "tfmodules" / "bootstrap_aws" / "main.tf"] + [
-            EXAMPLES / n / "tfmodules" / "bootstrap_aws" / "main.tf" for n in ("complete", "standard-aws", "standard-aws-posix", "standard-gce")]:
+            EXAMPLES / n / "tfmodules" / "bootstrap_aws" / "main.tf" for n in ("complete", "standard-aws", "standard-aws-posix", "standard-gce", "standard-docker")]:
         module = path.read_text()
         assert module.count("local.read_document") == 2, path                      # on both roles
         assert 'resource "aws_iam_role_policy" "write_reads"' in module and '"cs-image-system-write-reads"' in module, path

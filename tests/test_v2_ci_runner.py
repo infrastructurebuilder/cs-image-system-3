@@ -21,7 +21,7 @@ import yaml
 
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLES = REPO / "docs" / "examples"
-TREES = ("complete", "standard-aws", "standard-gce", "standard-aws-posix")
+TREES = ("complete", "standard-aws", "standard-gce", "standard-aws-posix", "standard-docker")
 DOCKERFILE = REPO / "ci" / "runner-image" / "Dockerfile"
 DOC = REPO / "docs" / "CI_RUNNER.md"
 IMAGE = re.compile(r"^ghcr\.io/infrastructurebuilder/csis-ci:alma10-\d{8}(\.\d+)?$")   # a same-day rebuild is .2, .3
@@ -148,4 +148,4 @@ def test_the_justfile_builds_and_probes_the_image_as_a_leg_of_full_test():
     assert "docker build --platform linux/amd64" in recipe and "csis-ci-probe" in recipe
     legs = just[just.index("\nfull-test-legs:"):]
     legs = legs[:legs.index("\n\n", 1)]
-    assert "just runner-image" in legs and "SKIPPED test-mods, test-posix-accounts, test-bake-steps, runner-image, test-docker-bake and test-docker-cycle" in legs
+    assert "just runner-image" in legs and "SKIPPED test-mods, test-posix-accounts, test-bake-steps, runner-image, test-docker-bake, test-docker-cycle and test-podman-cycle" in legs

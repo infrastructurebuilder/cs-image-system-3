@@ -97,7 +97,7 @@ def test_the_probe_command_prints_both_verdicts_and_exits_0(tmp_path, monkeypatc
 
 def test_every_starter_recipe_and_guide_carry_the_two_verdicts():
     from v2_support import REPO
-    for name in ("complete", "standard-aws", "standard-aws-posix", "standard-gce"):
+    for name in ("complete", "standard-aws", "standard-aws-posix", "standard-gce", "standard-docker"):
         just = (REPO / "docs" / "examples" / name / "Justfile").read_text()
         assert "@{{cli}} workload probe" in just and "workload token)" not in just.split("opa-workload-probe:")[1].split("\n\n")[0]
         guide = (REPO / "docs" / "examples" / name / "CI_SETUP.md").read_text()

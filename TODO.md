@@ -18,8 +18,9 @@ operator can take.
 - §103, a container runtime (docker and the daemons that speak its
   API): planned 2026-10-29; its eight questions answered 2026-10-31,
   each with its default (Decisions in the section); branches 1 and 2
-  landed; branch 3 in progress, where the reference's durable host is
-  named.
+  landed; branch 3 built, waits for "merge 103-3"; owed after it: the
+  reference's docker runtime (the operator names the durable host) and
+  the Podman leg's first run.
 - §104 landed (below) and is released in 0.1.5; item 4(d) is done in
   the reference.
 - §108, hygiene bundle XXI: OPEN 2026-10-31 with the three items from
@@ -444,9 +445,26 @@ script uploaded at creation and delivered by exec through the
 `launch_delivery` hook; every tofu process of a docker root carries the
 daemon's address. Item 9 PROVED against kreuzwerker/docker 4.6.0; the
 live leg `just test-docker-cycle` PASSED whole on the local OrbStack.
-Branch 3 (feature/container-operations, items 15-18) is IN PROGRESS
-("do 103-3", 2026-11-01); the section goes when it lands. Question 6's
-host is named at branch 3.**
+Branch 3 (feature/container-operations) BUILT 2026-11-01 ("do
+103-3"; worktree scratchpad/wt-103-3): item 15, the bootstrap's
+container-host section (docker plugin, no module; `first_runtime_name`
+no longer prefers `aws`; the GitHub section's guard defaults to a
+runtime CI cannot reach; `DOCKER_HOST_SSH_KEY` and
+`DOCKER_HOST_KNOWN_HOSTS` join its secrets); item 16 in part, the fifth
+starter `standard-docker` (no cloud, local state, no login proof, a
+workflow that reaches a host over ssh and records only against it),
+PROVED whole by the new leg on the local daemon; item 17, the docs
+(DESIGN, CONFIGURATION, OPERATIONS, DAILY_DRIVER, DESCRIPTION, PLUGINS,
+CI_RUNNER, the guide's 3.4a, the READMEs, the counts); item 18 built,
+not run (`just test-podman-cycle`, skipped loudly without
+`CSIS_PODMAN_HOST`). STILL OWED: the reference's docker runtime (item
+16), which needs the operator to name the durable host (an ENC marker or
+a docker context; not the local OrbStack), and the Podman leg's first
+run on a host that has Podman. Before the next final release the
+operator creates the public template repository
+infrastructurebuilder/cs-image-system-starter-standard-docker, or
+`publish-starters` refuses all five. The section goes when those two
+are done.**
 
 **Why**: every runtime today is a cloud. A durable host running a
 container daemon is a third kind: cheaper than either cloud, local to a

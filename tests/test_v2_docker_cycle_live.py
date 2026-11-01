@@ -30,7 +30,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from test_v2_docker_bake_live import ALMA, DEB, IMAGE, REPOSITORY, RUNTIME, _docker_answers, docker_only_tree
+from test_v2_docker_bake_live import (ALMA, DEB, IMAGE, REPOSITORY, RUNTIME, _docker_answers, docker_only_tree,
+                                      require_engine_for_leg)
 from v2_support import REPO, copy_config, docker_binary, load_context, reset_singletons
 
 INSTANCE_BUILDER = "tofu-leg"
@@ -118,12 +119,14 @@ def _tail(res: subprocess.CompletedProcess[str]) -> str:
 
 
 def test_the_docker_cycle_from_nothing_to_nothing(tmp_path, monkeypatch):
+    require_engine_for_leg()
     root = copy_config(tmp_path, "leg")
     cycle_tree(root)
     env = dict(os.environ)
     env["CSIS_CONFIG_IDENTITY"] = str(root / ".age-identity")
     env.setdefault("USER", "leg")
-    env.pop("DOCKER_HOST", None)                      # the runtime names no address: the environment's daemon
+    if os.environ.get("CSIS_DOCKER_KEEP_HOST") != "1":     # the Podman leg names the daemon it is aimed at (test-podman-cycle)
+        env.pop("DOCKER_HOST", None)                  # the runtime names no address: the environment's daemon
     monkeypatch.setenv("CSIS_CONFIG_IDENTITY", env["CSIS_CONFIG_IDENTITY"])
     lifecycles = ("storage", "base-image", "instance-image")
     try:

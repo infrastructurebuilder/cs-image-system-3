@@ -35,7 +35,7 @@ from v2_support import load_context, stub_environment
 
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLES = REPO / "docs" / "examples"
-STANDARD = ["standard-aws", "standard-gce", "standard-aws-posix"]
+STANDARD = ["standard-aws", "standard-gce", "standard-aws-posix", "standard-docker"]
 TREES = [*STANDARD, "complete"]
 
 # The `type:` keys each plugin package answers to (docs/PLUGINS.md and the
@@ -170,7 +170,7 @@ def test_the_standard_trees_are_minimal(tree):
 
 
 def test_the_standard_trees_use_their_cloud_alone():
-    for name, runtime in (("standard-aws", "aws"), ("standard-gce", "gcloud"), ("standard-aws-posix", "aws")):
+    for name, runtime in (("standard-aws", "aws"), ("standard-gce", "gcloud"), ("standard-aws-posix", "aws"), ("standard-docker", "docker")):
         types = {r.get("type") for r in _runtimes(EXAMPLES / name)}
         assert types == {runtime}, f"{name} declares runtimes of types {types}"
 
@@ -364,25 +364,34 @@ def test_the_starter_perform_job_records_guards_performs_proves_and_records_agai
         assert "refs/heads/main" in perform["if"] and perform["permissions"]["contents"] == "write"
         assert perform["concurrency"] == {"group": "perform", "cancel-in-progress": False}
         names = [s.get("name", "") for s in _steps(perform)]
-        # the posix starter logs in as its group's proof user, not through OPA's managed policy (stage 75)
+        # the posix starter logs in as its group's proof user, not through OPA's managed policy (stage 75);
+        # the docker starter has no login proof at all (stage 103: a container runs no sshd), and no
+        # write identity either: its way in is one key, held for the job
+        docker = name == "standard-docker"
         login = "CI logs in as the group's proof user" if name == "standard-aws-posix" else "CI logs in through the managed policy"
         order = ["Prove write access to this repository", "The full run, recorded", "Push the record",
                  "The guarded runtime stays out of CI, so a change there fails loudly", "The runtime performs",
-                 "Push what the performing run committed", login,
+                 "Push what the performing run committed", *([] if docker else [login]),
                  "The full run, recorded again", "Push the closing record", "Reality matches the records (state query --strict)"]
+        if docker:
+            order.insert(0, "Reach the docker host")
         positions = [names.index(n) for n in order]
         assert positions == sorted(positions), f"{name}: {names}"
         # stage 89 (the walk's F58): the proof is made while the write identity is held. A posix
         # proof's ssh opens a session through the runtime, which the read-only identity may not
         # do; made after the read-only identity was taken back, the proof could never pass
         taken_back = [n for n in names if n.endswith("the read-only role again") or n.endswith("the read-only identity again")]
-        assert taken_back, f"{name}: no read-only identity is taken back after the performing step"
-        assert names.index(login) < min(names.index(n) for n in taken_back), (
-            f"{name}: the login proof must run before the read-only identity is taken back")
+        if docker:
+            assert not taken_back and login not in names, f"{name}: no identity is swapped and no login is proved"
+        else:
+            assert taken_back, f"{name}: no read-only identity is taken back after the performing step"
+            assert names.index(login) < min(names.index(n) for n in taken_back), (
+                f"{name}: the login proof must run before the read-only identity is taken back")
         runs = {s.get("name", ""): s["run"].strip() for s in _steps(perform) if "run" in s}
         assert runs["The full run, recorded"] == "just record" and runs["The full run, recorded again"] == "just record"
         assert runs["The runtime performs"] == 'just cloud-perform "$PERFORM_RUNTIME"'
-        assert runs[login] == 'just ci-login-proof --runtime "$PERFORM_RUNTIME"'
+        if not docker:
+            assert runs[login] == 'just ci-login-proof --runtime "$PERFORM_RUNTIME"'
         assert "just runtime-unchanged" in runs["The guarded runtime stays out of CI, so a change there fails loudly"]
         closing = next(s for s in _steps(perform) if s.get("name") == "The full run, recorded again")
         assert closing["if"].startswith("always()") and "steps.record.outcome == 'success'" in closing["if"]
@@ -393,16 +402,22 @@ def test_the_starter_perform_job_records_guards_performs_proves_and_records_agai
         assert "--no-dry-run" not in text and "--only" not in text, f"{name}: a real run is named only inside the Justfile"
         # the write identity is taken only when recording, and only just before the performing step
         write_creds = [s for s in _steps(perform) if "APPLY" in yaml.safe_dump(s.get("with") or {})]
-        assert write_creds, f"{name}: no write identity"
-        for w in write_creds:
-            assert "steps.gate.outputs.record == 'true'" in w["if"], f"{name}: the write identity is taken only when recording"
-        assert names.index(write_creds[-1]["name"]) < names.index("The runtime performs")
-        # the live job never holds one
-        assert "APPLY" not in yaml.safe_dump(doc["jobs"]["live"]), name
+        if docker:
+            assert not write_creds, f"{name}: a docker host has no write identity apart from the key"
+            # the key the performing run holds is the gate's: recording requires it (below), and the
+            # step that writes it down is the same one `live` runs
+            assert "DOCKER_HOST_SSH_KEY" in yaml.safe_dump(doc["jobs"]["live"]["steps"]), name
+        else:
+            assert write_creds, f"{name}: no write identity"
+            for w in write_creds:
+                assert "steps.gate.outputs.record == 'true'" in w["if"], f"{name}: the write identity is taken only when recording"
+            assert names.index(write_creds[-1]["name"]) < names.index("The runtime performs")
+            # the live job never holds one
+            assert "APPLY" not in yaml.safe_dump(doc["jobs"]["live"]), name
         # the probe workflow travels with the tree -- with every tree that has OPA (stage 75: the
         # posix starter has no OPA workload connection to probe, and carries no probe)
         probe_path = EXAMPLES / name / ".github/workflows/opa-workload-probe.yml"
-        if name == "standard-aws-posix":
+        if name in ("standard-aws-posix", "standard-docker"):
             assert not probe_path.exists(), name
             continue
         probe = yaml.safe_load(probe_path.read_text())
@@ -441,7 +456,7 @@ def test_an_unconfigured_copy_of_a_starter_skips_even_on_its_first_push_to_main(
         doc = yaml.safe_load((EXAMPLES / name / ".github/workflows/ci.yml").read_text())
         gate = next(s for s in doc["jobs"]["perform"]["steps"] if s.get("id") == "gate")
         secrets = {k[len("HAVE_"):] for k in gate["env"] if k.startswith("HAVE_")}
-        write = {s for s in secrets if "APPLY" in s}
+        write = {s for s in secrets if "APPLY" in s or s.startswith("DOCKER_HOST_")}   # the docker starter's is its way into the host
         read = secrets - write
         assert write and read, name
         for is_record in (True, False):
@@ -456,13 +471,18 @@ def test_an_unconfigured_copy_of_a_starter_skips_even_on_its_first_push_to_main(
         code, out, said = _run_gate(tmp_path, name, "perform", secrets, True)
         assert code == 0 and "mode RECORD" in out and said == {"ready": "true", "record": "true"}, (name, out)
         some = set(sorted(read)[:1])
-        code, out, _ = _run_gate(tmp_path, name, "perform", some, False)
-        assert code == 1 and "secrets are configured but these are missing" in out, (name, out)
+        if len(read) > 1:       # the docker starter's read side is the age identity alone: it cannot be half configured
+            code, out, _ = _run_gate(tmp_path, name, "perform", some, False)
+            assert code == 1 and "secrets are configured but these are missing" in out, (name, out)
         # the live job's gate, which never records, reads the same way
         code, out, said = _run_gate(tmp_path, name, "live", set(), False)
         assert code == 0 and "live: SKIPPED" in out and said == {"ready": "false"}, (name, out)
-        code, out, _ = _run_gate(tmp_path, name, "live", some, False)
-        assert code == 1 and "live: FAILED" in out, (name, out)
+        if len(read) > 1:
+            code, out, _ = _run_gate(tmp_path, name, "live", some, False)
+            assert code == 1 and "live: FAILED" in out, (name, out)
+        else:
+            code, out, said = _run_gate(tmp_path, name, "live", read, False)
+            assert code == 0 and said == {"ready": "true"}, (name, out)
 
 
 def test_the_built_release_carries_the_starters_byte_for_byte(tmp_path):

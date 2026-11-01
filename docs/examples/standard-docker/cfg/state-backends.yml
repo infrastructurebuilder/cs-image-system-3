@@ -1,0 +1,13 @@
+---
+# cfg/state-backends.yml (from the standard-docker starter) -- where every terraform
+# root keeps its state. Reference: CONFIGURATION.md (the system repository's
+# docs/CONFIGURATION.md) section 10 (`local`).
+# Every root resolves its backend through a chain: its own `state_configuration`, else
+# its runtime's, else the single `is_default` backend. This tree declares one backend
+# and lets every root inherit it.
+state_backends:
+  - name: local-state
+    type: local                  # DECISION: a directory on the machine that runs the tool, because a docker host has no shared, locked store to offer. Only one machine can drive these roots; move to `s3` or `gcs` (their sections of CONFIGURATION.md) when a second must.
+    is_default: true
+    path: state                  # a directory relative to the configuration root; <path>/<root name>.tfstate. The .gitignore keeps *.tfstate out of every commit: back this directory up like any state.
+    executable: open-tofu

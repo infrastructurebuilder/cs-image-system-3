@@ -349,7 +349,7 @@ def test_the_plugin_is_a_member_of_the_workspace():
     assert meta is not None
     for d in ("docker_container", "docker_volume"):
         assert (REPO / "tfmodules" / d / "main.tf").is_file()
-        for starter in ("standard-aws", "standard-gce", "complete", "standard-aws-posix"):
+        for starter in ("standard-aws", "standard-gce", "complete", "standard-aws-posix", "standard-docker"):
             assert (REPO / "docs" / "examples" / starter / "tfmodules" / d / "main.tf").read_text() == \
                 (REPO / "tfmodules" / d / "main.tf").read_text()
     module = (REPO / "tfmodules" / "docker_container" / "main.tf").read_text()

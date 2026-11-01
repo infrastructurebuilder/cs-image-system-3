@@ -260,7 +260,7 @@ def test_a_family_that_says_what_the_image_is_draws_no_warning(tmp_path, monkeyp
 
 
 def test_the_starters_carry_the_modules_byte_for_byte():
-    for name in ("standard-aws", "standard-gce", "complete", "standard-aws-posix"):
+    for name in ("standard-aws", "standard-gce", "complete", "standard-aws-posix", "standard-docker"):
         for module in ("bootstrap_aws", "bootstrap_gcp"):
             for f in (REPO / "tfmodules" / module).glob("*.tf"):
                 assert (EXAMPLES / name / "tfmodules" / module / f.name).read_bytes() == f.read_bytes(), (name, module, f.name)

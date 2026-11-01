@@ -90,7 +90,7 @@ FRESH = dict(number=True, pool=False, provider=False, read=False, write=False, b
 # ------------------------------------------------------------- the section itself
 
 def test_the_gcloud_plugin_contributes_the_section_and_the_tree_decides(tmp_path: Path):
-    assert [s.name for s in bs.discover()] == ["github", "aws", "gcp", "okta"]   # GitHub first, then the plugins' by name
+    assert [s.name for s in bs.discover()] == ["github", "aws", "docker", "gcp", "okta"]   # GitHub first, then the plugins' by name
     gce = bs.gather(_tree(tmp_path), gh=False)
     assert _section().wanted_default(gce) is True
     aws_section = next(s for s in bs.discover() if s.name == "aws")

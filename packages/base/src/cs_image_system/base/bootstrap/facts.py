@@ -203,9 +203,28 @@ def bound_backend_names(facts: Facts) -> set[str]:
     return out
 
 
-def first_runtime_name(facts: Facts, *, prefer: tuple[str, ...] = ("aws",)) -> str | None:
+def ci_can_reach(runtime: dict[str, Any]) -> bool:
+    """Whether CI can be expected to reach the runtime (stage 103 item 15).
+    A cloud's API is reachable from anywhere; a container runtime is a
+    daemon on someone's host, and the starters' workflow reaches an
+    ``ssh://`` one, or the environment's own daemon, whose address the
+    workflow supplies (the docker starter's runtime names none). A local
+    socket, a context, a host the YAML keeps as an ``ENC[...]`` marker
+    (unreadable here) and a ``tcp://`` host are not assumed reachable: the
+    interview asks."""
+    if str(runtime.get("type", "")).lower() != "docker":
+        return True
+    host = str(runtime.get("host") or "").strip()
+    if host:
+        return host.startswith("ssh://")
+    return not str(runtime.get("context") or "").strip()
+
+
+def first_runtime_name(facts: Facts, *, prefer: tuple[str, ...] = ()) -> str | None:
     """The default runtime's name: the one marked ``is_default``, else the
-    first whose type or aliases name a preferred cloud, else the first."""
+    first whose type or aliases name a preferred cloud (none by default: no
+    cloud is assumed, stage 103 item 15), else the first CI can reach, else
+    the first."""
     if not facts.runtimes:
         return None
     for r in facts.runtimes:
@@ -215,7 +234,16 @@ def first_runtime_name(facts: Facts, *, prefer: tuple[str, ...] = ("aws",)) -> s
         words = {str(r.get("type", "")).lower(), *(str(a).lower() for a in (r.get("aliases") or []))}
         if any(p in words for p in prefer):
             return str(r["name"])
+    for r in facts.runtimes:
+        if ci_can_reach(r):
+            return str(r["name"])
     return str(facts.runtimes[0]["name"])
+
+
+def first_unreachable_runtime_name(facts: Facts) -> str | None:
+    """The first runtime CI cannot be expected to reach, else None: the
+    default of the question "a runtime CI must never bake on"."""
+    return next((str(r["name"]) for r in facts.runtimes if not ci_can_reach(r)), None)
 
 
 def runtime_region(facts: Facts, name: str | None) -> str | None:

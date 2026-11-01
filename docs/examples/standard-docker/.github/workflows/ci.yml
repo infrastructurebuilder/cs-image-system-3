@@ -1,0 +1,378 @@
+name: CI
+
+# The CI of a cs-image-system CONFIGURATION repository on a docker host. Every command is a
+# `just` target of this tree, so CI and a person's shell run the same thing. Three jobs:
+#   verify   needs no secret: the tree must be public-safe and its Justfile must parse
+#   live     validate, is the committed emission current, the strict state query, the
+#            modification tests under docker; against the daemon DOCKER_HOST_* reach (below),
+#            else the runner's own; pushes and the nightly schedule, never pull requests
+#   perform  on main alone: the record (a full dry run, committed and pushed first, so a
+#            record exists whatever happens next), the guard on a runtime CI must never
+#            bake on, the performing run of PERFORM_RUNTIME on the docker host, the closing
+#            record (pushed even when the performing step failed, so nothing baked goes
+#            unrecorded), the strict state query. There is no login proof: a container runs
+#            no sshd, so there is no ssh login to prove (the accounts are proved by the
+#            instance's own verification, which the performing run makes)
+# Each job is gated on the secrets the team provides: none configured is SKIPPED
+# and said so in the job summary; some configured and some missing is a FAILURE
+# that names them (a secret that exists with no value reads as missing).
+#
+# THE DAEMON. WHOEVER CAN REACH A DOCKER DAEMON IS ROOT ON ITS HOST. CI reaches the team's
+# host over ssh with a key kept as the secret DOCKER_HOST_SSH_KEY and the host's known_hosts
+# line as DOCKER_HOST_KNOWN_HOSTS (CI_SETUP.md 3.4a). Without them a job uses the daemon of
+# its own runner, which is gone when the job ends: it can validate and test, never record,
+# so `perform` refuses to record without them.
+#
+# REPLACE-ME: the runtime CI performs on, a runtime that must never bake in CI (or
+# nothing), and the docker host's address and the user CI logs in as. This starter has no
+# cloud and no Okta: no federation, no OPA key pair. Nothing in this file is a credential.
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "23 6 * * *"        # nightly (UTC): the strict state query, drift
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry enumerates the performing run; record commits, performs and pushes (honoured only on main)"
+        type: choice
+        options: [dry, record]
+        default: dry
+
+env:
+  PERFORM_RUNTIME: docker-main             # the runtime `perform` drives (cfg/runtime-builders.yml)
+  GUARD_RUNTIME: ""                        # REPLACE-ME or empty: a runtime CI must never bake on; its emission may not change between records
+  DOCKER_HOST_ADDRESS: docker-host.REPLACE-ME.example   # REPLACE-ME: the docker host CI logs in to over ssh
+  DOCKER_HOST_USER: REPLACE-ME             # REPLACE-ME: the user on that host who may use the daemon
+  # a version pin for the release CI installs: the content of .csis-version, else the latest on PyPI
+  CSIS_VERSION_FILE: .csis-version
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    container:
+      # The runner image (stage 92): AlmaLinux 10 with every tool a job calls at a pinned
+      # version (docs/CI_RUNNER.md lists them); moved by `init-config --force` with the
+      # release's other lines. The host's docker socket lets the modification tests drive
+      # the host daemon through the image's docker client.
+      # Unset, CSIS_RUNNER_IMAGE is this release's image and the job logs in to ghcr.io with its own
+      # token, as the runner always did (an empty credential is invalid). A team that runs its own
+      # build names it in the variable; a registry other than ghcr.io needs the variable
+      # CSIS_RUNNER_IMAGE_USERNAME and the secret CSIS_RUNNER_IMAGE_PASSWORD. Release refreshes never
+      # touch them (stage 66).
+      image: ${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.4' }}
+      credentials:
+        username: ${{ vars.CSIS_RUNNER_IMAGE_USERNAME || github.actor }}
+        password: ${{ secrets.CSIS_RUNNER_IMAGE_PASSWORD || github.token }}
+      options: -v /var/run/docker.sock:/var/run/docker.sock
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install the released system
+        run: |
+          pin=""; [ -s "$CSIS_VERSION_FILE" ] && pin="==$(cat "$CSIS_VERSION_FILE")"
+          indexes=""
+          # PyPI first (uv ranks --extra-index-url above --index-url), and TestPyPI only for what PyPI
+          # cannot satisfy: the pinned .dev packages. uv's default strategy stops at the first index
+          # that has a name at all, and PyPI has had cs-image-system since 0.1.1 (stage 99).
+          case "$pin" in *.dev*) indexes="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match" ;; esac
+          uv tool install $indexes "cs-image-system${pin}"
+          cs-image-system --help >/dev/null
+      - name: The Justfile parses and lists its recipes
+        run: just --list >/dev/null
+      - name: Public-safe
+        run: just public-safe
+
+  live:
+    needs: verify
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    container:
+      # The runner image (stage 92): AlmaLinux 10 with every tool a job calls at a pinned
+      # version (docs/CI_RUNNER.md lists them); moved by `init-config --force` with the
+      # release's other lines. The host's docker socket lets the modification tests drive
+      # the host daemon through the image's docker client.
+      # Unset, CSIS_RUNNER_IMAGE is this release's image and the job logs in to ghcr.io with its own
+      # token, as the runner always did (an empty credential is invalid). A team that runs its own
+      # build names it in the variable; a registry other than ghcr.io needs the variable
+      # CSIS_RUNNER_IMAGE_USERNAME and the secret CSIS_RUNNER_IMAGE_PASSWORD. Release refreshes never
+      # touch them (stage 66).
+      image: ${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.4' }}
+      credentials:
+        username: ${{ vars.CSIS_RUNNER_IMAGE_USERNAME || github.actor }}
+        password: ${{ secrets.CSIS_RUNNER_IMAGE_PASSWORD || github.token }}
+      options: -v /var/run/docker.sock:/var/run/docker.sock
+    permissions:
+      packages: read          # the runner image is pulled with this job's token (stage 92): a permissions block without it reads as none
+      contents: read
+    steps:
+      - name: Gate on the secrets
+        id: gate
+        env:
+          HAVE_CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY != '' }}
+        run: |
+          # A MISSING secret and an EMPTY one read the same here, so the decision is made on the
+          # set: none configured is an unconfigured repository -- SKIPPED, and said so in the job
+          # summary, because a green conclusion is not proof that a step ran; some configured and
+          # some missing is configured-and-broken -- a FAILURE that names them. This job needs
+          # the one secret: the docker host's two are optional here (without them it uses the
+          # runner's own daemon), and `perform` requires them to record.
+          names="CSIS_CONFIG_IDENTITY"
+          missing=""; present=0
+          for name in $names; do
+            have="HAVE_$name"
+            if [ "${!have}" = true ]; then present=$((present + 1)); else missing="$missing $name"; fi
+          done
+          if [ "$present" -eq 0 ]; then
+            echo "live: SKIPPED -- no secret is configured, so no step runs (CSIS_CONFIG_IDENTITY: the age identity that opens the tree's ENC values)"
+            { echo "## live: SKIPPED"; echo "No secret is configured; no step ran. A green conclusion here is not proof that anything ran."; } >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$missing" ]; then
+            echo "live: FAILED -- secrets are configured but these are missing or EMPTY:$missing"
+            exit 1
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.gate.outputs.ready == 'true'
+        uses: actions/checkout@v5
+      - name: Install the released system
+        if: steps.gate.outputs.ready == 'true'
+        # pinned by .csis-version when present; a development version lives on TestPyPI, with
+        # PyPI as the extra index for the third-party packages (uv gives the extra index priority)
+        run: |
+          pin=""; [ -s "$CSIS_VERSION_FILE" ] && pin="==$(cat "$CSIS_VERSION_FILE")"
+          indexes=""
+          # PyPI first (uv ranks --extra-index-url above --index-url), and TestPyPI only for what PyPI
+          # cannot satisfy: the pinned .dev packages. uv's default strategy stops at the first index
+          # that has a name at all, and PyPI has had cs-image-system since 0.1.1 (stage 99).
+          case "$pin" in *.dev*) indexes="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match" ;; esac
+          uv tool install $indexes "cs-image-system${pin}"
+          cs-image-system --help >/dev/null
+      - name: Reach the docker host
+        if: steps.gate.outputs.ready == 'true'
+        # the daemon is root on its host: the key lives in this job's files alone, read by docker's
+        # own ssh transport; the host key is the one the secret pins (StrictHostKeyChecking yes).
+        # Without the key the job keeps the runner's own daemon, and says so
+        env:
+          DOCKER_HOST_SSH_KEY: ${{ secrets.DOCKER_HOST_SSH_KEY }}
+          DOCKER_HOST_KNOWN_HOSTS: ${{ secrets.DOCKER_HOST_KNOWN_HOSTS }}
+        run: |
+          if [ -z "$DOCKER_HOST_SSH_KEY" ]; then
+            echo "no DOCKER_HOST_SSH_KEY: this job uses the runner's own daemon, which is gone when the job ends"
+            exit 0
+          fi
+          [ -n "$DOCKER_HOST_KNOWN_HOSTS" ] || { echo "DOCKER_HOST_SSH_KEY is set but DOCKER_HOST_KNOWN_HOSTS is missing or EMPTY"; exit 1; }
+          umask 077; mkdir -p ~/.ssh
+          printf '%s\n' "$DOCKER_HOST_SSH_KEY" > ~/.ssh/csis-docker
+          printf '%s\n' "$DOCKER_HOST_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf 'Host %s\n  User %s\n  IdentityFile ~/.ssh/csis-docker\n  IdentitiesOnly yes\n  StrictHostKeyChecking yes\n' \
+            "$DOCKER_HOST_ADDRESS" "$DOCKER_HOST_USER" > ~/.ssh/config
+          echo "DOCKER_HOST=ssh://$DOCKER_HOST_ADDRESS" >> "$GITHUB_ENV"
+          DOCKER_HOST="ssh://$DOCKER_HOST_ADDRESS" docker version --format 'docker host reached: server {{.Server.Version}}'
+      - name: The identity that opens the tree
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          umask 077; printf '%s\n' "${{ secrets.CSIS_CONFIG_IDENTITY }}" > "$RUNNER_TEMP/age-identity"
+          export CSIS_CONFIG_IDENTITY="$RUNNER_TEMP/age-identity"   # this step's own command needs it now; GITHUB_ENV serves the steps after
+          echo "CSIS_CONFIG_IDENTITY=$RUNNER_TEMP/age-identity" >> "$GITHUB_ENV"
+          cs-image-system --root-dir . mask        # every encrypted value masked in this log before anything prints
+      - name: Validate
+        if: steps.gate.outputs.ready == 'true'
+        run: just validate
+      - name: Is the committed emission current with the declarations?
+        if: steps.gate.outputs.ready == 'true'
+        run: just config-drift
+      - name: Reality matches the records (state query --strict)
+        if: steps.gate.outputs.ready == 'true'
+        run: just state-query --strict
+      - name: Modification tests under docker
+        if: steps.gate.outputs.ready == 'true'
+        # throwaway containers: on the runner's own daemon (the mounted socket), never the team's host
+        env:
+          DOCKER_HOST: unix:///var/run/docker.sock
+        run: just test-mods --strict
+      - name: Remove the private mirror
+        # the mirror holds the plaintext of everything the emission carries as ciphertext;
+        # its own step, always(), so a failure never leaves it on the runner
+        if: always() && steps.gate.outputs.ready == 'true'
+        run: just mirror-clean
+
+  perform:
+    needs: live
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    container:
+      # The runner image (stage 92): AlmaLinux 10 with every tool a job calls at a pinned
+      # version (docs/CI_RUNNER.md lists them); moved by `init-config --force` with the
+      # release's other lines. The host's docker socket lets the modification tests drive
+      # the host daemon through the image's docker client.
+      # Unset, CSIS_RUNNER_IMAGE is this release's image and the job logs in to ghcr.io with its own
+      # token, as the runner always did (an empty credential is invalid). A team that runs its own
+      # build names it in the variable; a registry other than ghcr.io needs the variable
+      # CSIS_RUNNER_IMAGE_USERNAME and the secret CSIS_RUNNER_IMAGE_PASSWORD. Release refreshes never
+      # touch them (stage 66).
+      image: ${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.4' }}
+      credentials:
+        username: ${{ vars.CSIS_RUNNER_IMAGE_USERNAME || github.actor }}
+        password: ${{ secrets.CSIS_RUNNER_IMAGE_PASSWORD || github.token }}
+      options: -v /var/run/docker.sock:/var/run/docker.sock
+    concurrency:
+      group: perform            # two merges never record or perform at once
+      cancel-in-progress: false # a record in flight is never cancelled
+    permissions:
+      packages: read          # the runner image is pulled with this job's token (stage 92): a permissions block without it reads as none
+      contents: write           # the records are committed and pushed back here
+    steps:
+      - name: Gate on the secrets and decide the mode
+        id: gate
+        env:
+          HAVE_CSIS_CONFIG_IDENTITY: ${{ secrets.CSIS_CONFIG_IDENTITY != '' }}
+          HAVE_DOCKER_HOST_SSH_KEY: ${{ secrets.DOCKER_HOST_SSH_KEY != '' }}
+          HAVE_DOCKER_HOST_KNOWN_HOSTS: ${{ secrets.DOCKER_HOST_KNOWN_HOSTS != '' }}
+          IS_RECORD: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.mode == 'record') }}
+        run: |
+          # A MISSING secret and an EMPTY one read the same here, so the decision is made on the
+          # set: none configured is an unconfigured repository -- SKIPPED, and said so in the job
+          # summary, because a green conclusion is not proof that a step ran; some configured and
+          # some missing is configured-and-broken -- a FAILURE that names them.
+          # None configured is tested FIRST, a push to main included: a repository made from a
+          # starter pushes its first commit to main with nothing configured, and that run
+          # failed here until hygiene XVI item 3 (a workflow from 0.1.2 or before).
+          names="CSIS_CONFIG_IDENTITY"
+          if [ "$IS_RECORD" = true ]; then names="$names DOCKER_HOST_SSH_KEY DOCKER_HOST_KNOWN_HOSTS"; fi
+          missing=""; present=0
+          for name in $names; do
+            have="HAVE_$name"
+            if [ "${!have}" = true ]; then present=$((present + 1)); else missing="$missing $name"; fi
+          done
+          if [ "$present" -eq 0 ]; then
+            echo "perform: SKIPPED -- no secret is configured, so no step runs (CSIS_CONFIG_IDENTITY: the age identity that opens the tree's ENC values; when recording also DOCKER_HOST_SSH_KEY and DOCKER_HOST_KNOWN_HOSTS: the way into the docker host, whose daemon is root there)"
+            { echo "## perform: SKIPPED"; echo "No secret is configured; no step ran. A green conclusion here is not proof that anything ran."; } >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "record=false" >> "$GITHUB_OUTPUT"
+          elif [ "$IS_RECORD" = true ] && [ -n "$missing" ]; then
+            echo "perform: FAILED -- recording was requested on main and these secrets are missing or EMPTY:$missing"
+            exit 1
+          elif [ -n "$missing" ]; then
+            echo "perform: FAILED -- secrets are configured but these are missing or EMPTY:$missing"
+            exit 1
+          elif [ "$IS_RECORD" = true ]; then
+            echo "perform: mode RECORD -- the full run commits the emission and meta-state, the runtime performs, and they are pushed"
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "record=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "perform: mode DRY -- the full run enumerates; nothing is committed, nothing performs, nothing is pushed"
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "record=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.gate.outputs.ready == 'true'
+        uses: actions/checkout@v5
+      - name: Install the released system
+        if: steps.gate.outputs.ready == 'true'
+        # pinned by .csis-version when present; a development version lives on TestPyPI, with
+        # PyPI as the extra index for the third-party packages (uv gives the extra index priority)
+        run: |
+          pin=""; [ -s "$CSIS_VERSION_FILE" ] && pin="==$(cat "$CSIS_VERSION_FILE")"
+          indexes=""
+          # PyPI first (uv ranks --extra-index-url above --index-url), and TestPyPI only for what PyPI
+          # cannot satisfy: the pinned .dev packages. uv's default strategy stops at the first index
+          # that has a name at all, and PyPI has had cs-image-system since 0.1.1 (stage 99).
+          case "$pin" in *.dev*) indexes="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match" ;; esac
+          uv tool install $indexes "cs-image-system${pin}"
+          cs-image-system --help >/dev/null
+      - name: Reach the docker host
+        if: steps.gate.outputs.ready == 'true'
+        # the daemon is root on its host: the key lives in this job's files alone, read by docker's
+        # own ssh transport; the host key is the one the secret pins (StrictHostKeyChecking yes).
+        # Without the key the job keeps the runner's own daemon, and says so
+        env:
+          DOCKER_HOST_SSH_KEY: ${{ secrets.DOCKER_HOST_SSH_KEY }}
+          DOCKER_HOST_KNOWN_HOSTS: ${{ secrets.DOCKER_HOST_KNOWN_HOSTS }}
+        run: |
+          if [ -z "$DOCKER_HOST_SSH_KEY" ]; then
+            echo "no DOCKER_HOST_SSH_KEY: this job uses the runner's own daemon, which is gone when the job ends"
+            exit 0
+          fi
+          [ -n "$DOCKER_HOST_KNOWN_HOSTS" ] || { echo "DOCKER_HOST_SSH_KEY is set but DOCKER_HOST_KNOWN_HOSTS is missing or EMPTY"; exit 1; }
+          umask 077; mkdir -p ~/.ssh
+          printf '%s\n' "$DOCKER_HOST_SSH_KEY" > ~/.ssh/csis-docker
+          printf '%s\n' "$DOCKER_HOST_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf 'Host %s\n  User %s\n  IdentityFile ~/.ssh/csis-docker\n  IdentitiesOnly yes\n  StrictHostKeyChecking yes\n' \
+            "$DOCKER_HOST_ADDRESS" "$DOCKER_HOST_USER" > ~/.ssh/config
+          echo "DOCKER_HOST=ssh://$DOCKER_HOST_ADDRESS" >> "$GITHUB_ENV"
+          DOCKER_HOST="ssh://$DOCKER_HOST_ADDRESS" docker version --format 'docker host reached: server {{.Server.Version}}'
+      - name: The identity that opens the tree
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          umask 077; printf '%s\n' "${{ secrets.CSIS_CONFIG_IDENTITY }}" > "$RUNNER_TEMP/age-identity"
+          export CSIS_CONFIG_IDENTITY="$RUNNER_TEMP/age-identity"   # this step's own command needs it now; GITHUB_ENV serves the steps after
+          echo "CSIS_CONFIG_IDENTITY=$RUNNER_TEMP/age-identity" >> "$GITHUB_ENV"
+          cs-image-system --root-dir . mask        # every encrypted value masked in this log before anything prints
+      - name: Name the committer for the record
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
+        # the RUN commits into this repository, and a runner has no git identity of its own
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Prove write access to this repository
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
+        id: proof
+        # fail fast, before the record is written; remember HEAD for the guard below
+        run: |
+          git push --dry-run origin HEAD:main
+          echo "before=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: The full run, recorded
+        id: record
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
+        # full and unscoped: any filter would make the emission partial and the commit would
+        # then delete everything out of scope
+        run: just record
+      - name: The full run, not recorded
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record != 'true'
+        run: just dry
+      - name: Push the record
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
+        # the run commits; this job pushes. A non-fast-forward means a person committed while
+        # the run was in flight: fail loudly, never force
+        run: |
+          git log --oneline -1
+          git push origin HEAD:main
+      - name: The guarded runtime stays out of CI, so a change there fails loudly
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
+        # the guarded runtime's emission in the record just pushed, against the previous
+        # record: a declaration change on a runtime CI must never bake on fails here,
+        # before anything performs (the record is already pushed)
+        run: |
+          if [ -n "$GUARD_RUNTIME" ]; then
+            just runtime-unchanged "$GUARD_RUNTIME" "${{ steps.proof.outputs.before }}"
+          else
+            echo "no runtime is guarded (GUARD_RUNTIME is empty)"
+          fi
+      - name: The runtime performs
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true'
+        # bakes what is due on PERFORM_RUNTIME, releases, applies retention; the instance roots
+        # plan and gate only; commits its meta-state
+        run: just cloud-perform "$PERFORM_RUNTIME"
+      # The closing steps run after a FAILED performing step, but only once the first record
+      # was made: a failure before it has nothing to close
+      - name: Push what the performing run committed
+        if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
+        run: |
+          git log --oneline -1
+          git push origin HEAD:main
+      - name: The full run, recorded again
+        if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
+        # the complete emission after the scoped run, and the bake's lineage: runs even when
+        # the performing step failed, so nothing baked goes unrecorded
+        run: just record
+      - name: Push the closing record
+        if: always() && steps.gate.outputs.ready == 'true' && steps.gate.outputs.record == 'true' && steps.record.outcome == 'success'
+        run: |
+          git log --oneline -1
+          git push origin HEAD:main
+      - name: Reality matches the records (state query --strict)
+        if: steps.gate.outputs.ready == 'true'
+        run: just state-query --strict
+      - name: Remove the private mirror
+        if: always() && steps.gate.outputs.ready == 'true'
+        run: just mirror-clean

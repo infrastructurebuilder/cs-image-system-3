@@ -60,15 +60,18 @@ a pluggable builder, plus two cross-cutting declarations.
    at launch time, never recorded), and may be declared `ephemeral`:
    launched, verified and torn down within one run.
 4. **Storage** (`storages/`). EBS volumes, EFS filesystems and S3 buckets
-   on AWS; persistent disks and GCS buckets on GCE. Each is a terraform
+   on AWS; persistent disks, Filestore shares and GCS buckets on GCE;
+   named volumes on a docker host. Each is a terraform
    module call with typed per-provider variables; instances reference them
    across workspaces through remote state. A storage has a lifecycle:
    standing, archived (a tag-named snapshot) and restored, transient (torn
    down by the run that declared it) or destroyed through the gate.
-5. **Runtimes** (`cfg/runtime-builders.yml`). The cloud contexts: AWS
-   profiles, regions, VPCs and subnets (discovered live through boto3,
-   including which subnets are public) and GCE projects, zones and
-   networks. Every other builder names the runtime it operates in.
+5. **Runtimes** (`cfg/runtime-builders.yml`). The contexts things run in:
+   AWS profiles, regions, VPCs and subnets (discovered live through boto3,
+   including which subnets are public), GCE projects, zones and networks,
+   and a container daemon (`docker`: any host that speaks the Docker Engine
+   API, reached through the `docker` CLI, with no account, region or
+   subnet). Every other builder names the runtime it operates in.
 
 Cross-cutting: **state backends** give every terraform workspace its own
 encrypted S3 state object under one bucket and prefix, and **executables**
@@ -93,8 +96,8 @@ lifecycles.
   classes and builder classes under a classification enum of about forty
   values. The in-repo plugins: Okta and OPA (groups and users), packer
   (images), ansible and bash (modifications), default-os (OS families),
-  the AWS and GCE runtimes, the terraform storage and instance builders,
-  the GCP terraform pieces, the S3 state backend, and a dummy plugin as an
+  the AWS, GCE and docker runtimes, the terraform storage and instance
+  builders, the GCP and docker terraform pieces, the S3 state backend, and a dummy plugin as an
   extension template. Adding a cloud, a storage kind or a modification
   mechanism means adding a plugin, not editing the core. Each package has
   its own README ([docs/PLUGINS.md](docs/PLUGINS.md)).
@@ -171,8 +174,16 @@ Three commitments show up everywhere:
   managed; identity attribute writes (uids, gids on the identity side)
   are disabled. Discovery before an OPA reconciliation enumerates
   security policies by hand.
-- **Clouds.** AWS and GCE are real; Azure and containers are goals
-  without plugins.
+- **Clouds.** AWS and GCE are real, and so is a docker host as a third
+  kind of runtime (stage 103). Azure is a goal without a plugin.
+- **Containers are not machines.** A container on the docker runtime has
+  no init system (no services, no systemd units), no sshd (so no ssh login
+  proof for CI), no OPA agent (an OPA-owned group on it is refused; only a
+  `posix` group can own an image there) and fixed labels. Whoever can reach
+  the daemon is root on its host, and the system neither softens that nor
+  installs the daemon. Archiving a volume, a registry push of a build,
+  Windows and BSD containers and orchestrators (Swarm, Kubernetes) are not
+  built.
 - **Releases.** A release is a git tag; publishing packages to an index
   is not wired.
 

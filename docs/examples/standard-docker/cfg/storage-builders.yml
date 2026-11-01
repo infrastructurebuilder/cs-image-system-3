@@ -1,0 +1,13 @@
+---
+# cfg/storage-builders.yml (from the standard-docker starter) -- the ONE storage
+# builder: a terraform root that realizes docker volumes on the docker runtime.
+# Reference: CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 8.2.
+storage_builders:
+  - name: docker-volumes
+    type: tf-docker-volume       # DECISION: named volumes on the daemon, mounted by the platform; the only docker storage kind
+    is_default: true             # a storage item with no `type` is a docker volume
+    runtime: docker-main
+    executable: open-tofu
+    variables:                   # typed inputs to the module call; a misspelt key is refused
+      tags:                      # builder-wide default labels; a storage item's own tags win key by key
+        project: REPLACE-ME
