@@ -1076,6 +1076,14 @@ declares.
   [configuration](packages/docker-runtime-plugin/README.md#configuration-reference) ·
   [tests](packages/docker-runtime-plugin/README.md#what-it-tests-and-verifies) ·
   [failures](packages/docker-runtime-plugin/README.md#when-it-fails)
+- [tf-docker-plugin](packages/tf-docker-plugin/README.md): containers and
+  volumes on the docker runtime as OpenTofu roots (stage 103): `tofu-docker`
+  and `tf-docker-volume`; a stopped container is left stopped, the launch
+  script arrives by `docker exec`, labels are fixed at creation.
+  [prerequisites](packages/tf-docker-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](packages/tf-docker-plugin/README.md#configuration-reference) ·
+  [tests](packages/tf-docker-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](packages/tf-docker-plugin/README.md#when-it-fails)
 - [default-os-plugin](packages/default-os-plugin/README.md): the OS
   families: vendor image lookup, updates, the admin user and its keys, the
   prerequisites a base image bakes for its identity and storage types.

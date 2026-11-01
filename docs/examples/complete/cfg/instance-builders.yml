@@ -32,3 +32,12 @@ instance_builders:
       - name: google
         source: hashicorp/google
         version: ">= 5.0.0"
+  - name: tofu-docker
+    type: tofu-docker              # stage 103: containers on the docker runtime, one `docker_container` per instance
+    runtime: docker-host
+    executable: open-tofu-1
+    state_configuration: local-dev # the docker roots keep their state on the local backend
+    required_plugins:
+      - name: docker
+        source: kreuzwerker/docker
+        version: ">= 3.0.0"

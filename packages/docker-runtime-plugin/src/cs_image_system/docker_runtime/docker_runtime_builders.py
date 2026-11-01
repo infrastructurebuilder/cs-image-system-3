@@ -19,9 +19,11 @@ from cs_image_system.base.basic.abstract_version_checker import AbstractVersionC
 from cs_image_system.base.basic.builder_base_container import ContainerBuilderBase
 from cs_image_system.base.models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
 from cs_image_system.base.models.provider_specific_image import ProviderSpecificImage
+from cs_image_system.base import power_state
 from cs_image_system.contract.constants import VCT
 from cs_image_system.contract.core import PluginArtifactProtocol
 from cs_image_system.contract.image import ImageQuery
+from cs_image_system.contract.runtime import LAUNCH_DELIVERY_SESSION
 
 from .docker_names import (full_id, is_digest_reference, is_image_id, label_key_problem, movable_tag,
                            parse_movable_tag, short_id, tag_name, tag_problem)
@@ -322,6 +324,180 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
 
     def image_name_problem(self, name: str) -> str | None:
         return tag_problem(name)
+
+    # ------------------------------------------------ instances (branch 2)
+    #: ``docker inspect .State.Status`` in the system's own words. A container
+    #: that exited or was only created EXISTS and can be started: STOPPED, the
+    #: operator's choice. Paused keeps its memory: SUSPENDED. Nothing here is
+    #: a cloud's spelling, and absent is "no such container".
+    _DOCKER_POWER = {
+        "running": power_state.RUNNING,
+        "created": power_state.STOPPED,
+        "exited": power_state.STOPPED,
+        "paused": power_state.SUSPENDED,
+        "restarting": power_state.STARTING,
+        "removing": power_state.STOPPING,
+        "dead": power_state.UNKNOWN,
+    }
+
+    def _container(self, instance_name: str) -> dict[str, Any] | None:
+        """``docker inspect`` of the container bearing the instance's name
+        (a container's name is unique on a daemon), None when none stands;
+        a container of our name that another configuration labelled as its
+        own is not ours (stage 93) and reads as absent."""
+        res = self._docker("container", "inspect", instance_name, check=False)
+        if res.returncode != 0:
+            err = (res.stderr or "").lower()
+            if "no such" in err or "not found" in err:
+                return None
+            raise RuntimeError(f"docker runtime {self.get_name()}: `docker container inspect {instance_name}` "
+                               f"failed: {(res.stderr or '').strip()[-300:]}")
+        data = json.loads(res.stdout or "[]")
+        if not data:
+            return None
+        info = dict(data[0])
+        from cs_image_system.base.lineage import belongs_to_another_configuration
+        labels = dict((info.get("Config") or {}).get("Labels") or {})
+        if belongs_to_another_configuration(self._get_context(), labels):
+            return None
+        return info
+
+    def launch_delivery(self) -> str:
+        """A container has no first boot: the instance root uploads the
+        launch script at creation and the system runs it by exec after the
+        apply (decision 2 of stage 103)."""
+        return LAUNCH_DELIVERY_SESSION
+
+    def instance_tags(self, instance_name: str) -> dict[str, str] | None:
+        info = self._container(instance_name)
+        if info is None:
+            return None
+        return {str(k): str(v) for k, v in dict((info.get("Config") or {}).get("Labels") or {}).items()}
+
+    def retag_instance(self, instance_name: str, tags: dict[str, str]) -> bool:
+        """A container's labels are fixed when it is created: relabel reports
+        what a re-create would set and re-creates nothing (an upgrade or a
+        decommission and redeclaration makes a container that carries them)."""
+        raise NotImplementedError(
+            f"docker runtime {self.get_name()}: a container's labels are fixed when it is created; "
+            f"{instance_name} would carry {', '.join(f'{k}={v}' for k, v in sorted(tags.items()))} "
+            "after a re-create (an upgrade, or a decommission and redeclaration), which relabel does not do")
+
+    def can_query_instance_boot_image(self) -> bool:
+        return True
+
+    def query_instance_boot_image(self, instance_name: str) -> str | None:
+        """The image id the container was created from (``.Image``): the
+        build id itself on this runtime. None when it cannot be read."""
+        try:
+            info = self._container(instance_name)
+        except Exception as e:  # noqa: BLE001 - read-only probe
+            log.debug(f"docker runtime {self.get_name()}: boot image of {instance_name!r} unavailable: {e}")
+            return None
+        if info is None:
+            return None
+        image = str(info.get("Image") or "")
+        return full_id(image) if is_image_id(image) else (image or None)
+
+    def can_query_instance_identity(self) -> bool:
+        return True
+
+    def query_instance_identity(self, instance_name: str) -> dict[str, str] | None:
+        """The container id (a re-create is a new id, so a new generation, as
+        the ledger expects) and the hostname the container was given."""
+        try:
+            info = self._container(instance_name)
+        except Exception as e:  # noqa: BLE001 - read-only probe
+            log.debug(f"docker runtime {self.get_name()}: identity of {instance_name!r} unavailable: {e}")
+            return None
+        if info is None:
+            return None
+        host = str((info.get("Config") or {}).get("Hostname") or "")
+        return {"instance_id": str(info.get("Id") or ""), "provider_hostname": host}
+
+    def can_query_instance_power_state(self) -> bool:
+        return True
+
+    def query_instance_power_state(self, instance_name: str) -> str | None:
+        try:
+            info = self._container(instance_name)
+        except Exception as e:  # noqa: BLE001 - read-only probe: unavailable, never fatal
+            log.debug(f"docker runtime {self.get_name()}: power state of {instance_name!r} unavailable: {e}")
+            return None
+        if info is None:
+            return power_state.ABSENT
+        raw = str((info.get("State") or {}).get("Status") or "")
+        mapped = self._DOCKER_POWER.get(raw)
+        if mapped is None:
+            log.warning(f"docker runtime {self.get_name()}: container {instance_name!r} reports unrecognised "
+                        f"status {raw!r}; treating it as unknown")
+            return power_state.UNKNOWN
+        return mapped
+
+    def can_set_instance_power_state(self) -> bool:
+        return True
+
+    def start_instance(self, instance_name: str, timeout: int = 300) -> bool:
+        self._docker("start", instance_name, timeout=timeout)
+        return self.query_instance_power_state(instance_name) == power_state.RUNNING
+
+    def stop_instance(self, instance_name: str, timeout: int = 300) -> bool:
+        self._docker("stop", instance_name, timeout=timeout)
+        return power_state.is_off(self.query_instance_power_state(instance_name))
+
+    def run_session_command(self, instance_name: str, script: str, timeout: int = 300) -> tuple[int, str]:
+        """``docker exec`` as root, the script on stdin (``bash -s``): the
+        session mechanism of a container (decision 3 of stage 103)."""
+        cmd = [self.docker_binary(), "exec", "-i", "-u", "root", instance_name, "bash", "-s"]
+        try:
+            res = subprocess.run(cmd, input=script, capture_output=True, text=True, check=False, timeout=timeout,
+                                 env=self.model.process_environment())
+        except FileNotFoundError as e:
+            raise DockerUnreachable(f"docker runtime {self.get_name()}: {cmd[0]} is not an executable ({e})") from e
+        return res.returncode, (res.stdout or "") + (res.stderr or "")
+
+    def ssh_proxy_command(self, instance_name: str) -> list[str] | None:
+        return None      # login is by exec, not ssh
+
+    def verify_instance(self, instance_name: str, expected_build: str | None = None,
+                        expect_mounts: int = 0, timeout: int = 600,
+                        mount_points: list[str] | None = None) -> dict[str, Any]:
+        """By exec: the launch marker (the script's last act, so its presence
+        means every launch parameter applied), each declared mount point
+        in the container's own mount table, and the image the container was
+        created from against the expected build."""
+        from cs_image_system.base.launch_delivery import LAUNCH_MARKER_PATH
+        checks: list[dict[str, Any]] = []
+        evidence: list[str] = []
+        probe = (f"if [ -f {LAUNCH_MARKER_PATH} ]; then echo \"csis-marker: $(cat {LAUNCH_MARKER_PATH})\"; "
+                 f"else echo 'csis-marker: absent'; fi\n")
+        for mp in mount_points or []:
+            probe += (f"if grep -q \" {mp} \" /proc/mounts; then echo 'csis-mount: {mp} mounted'; "
+                      f"else echo 'csis-mount: {mp} NOT mounted'; fi\n")
+        rc, out = self.run_session_command(instance_name, probe, timeout=min(timeout, 300))
+        evidence = [ln for ln in out.splitlines() if ln.startswith("csis-")][-20:]
+        marker = next((ln for ln in evidence if ln.startswith("csis-marker:")), "")
+        applied = rc == 0 and bool(marker) and "absent" not in marker
+        checks.append({"name": "launch script", "ok": applied,
+                       "detail": (f"applied ({marker.split(':', 1)[1].strip()})" if applied
+                                  else f"no completion marker at {LAUNCH_MARKER_PATH}" if rc == 0
+                                  else f"the session failed (exit {rc})")})
+        booted = self.query_instance_boot_image(instance_name)
+        if expected_build:
+            checks.append({"name": "booted image", "ok": booted == expected_build,
+                           "detail": f"booted {booted}, expected {expected_build}"})
+        else:
+            checks.append({"name": "booted image", "ok": booted is not None, "detail": f"booted {booted}"})
+        if mount_points:
+            seen = [mp for mp in mount_points if f"csis-mount: {mp} mounted" in out]
+            missing = [mp for mp in mount_points if mp not in seen]
+            checks.append({"name": "data disks mounted", "ok": not missing,
+                           "detail": f"mounted: {', '.join(seen) or 'none'}; missing: {', '.join(missing) or 'none'} "
+                                     "(each declared mount point in the container's mount table)"})
+        elif expect_mounts:
+            checks.append({"name": "data disks mounted", "ok": False,
+                           "detail": f"{expect_mounts} declared and none named; a container's mounts are checked by name"})
+        return {"ok": all(c["ok"] for c in checks), "checks": checks, "evidence": evidence}
 
     # --------------------------------------------------------- the bake
     def session_mechanism(self) -> str | None:

@@ -22,6 +22,7 @@ dependencies = [
     "cs-image-system-contract-example-plugin==0.1.6.dev1",
     "cs-image-system-default-os-plugin==0.1.6.dev1",
     "cs-image-system-docker-runtime-plugin==0.1.6.dev1",
+    "cs-image-system-tf-docker-plugin==0.1.6.dev1",
     "cs-image-system-dummy-plugin==0.1.6.dev1",
     "cs-image-system-gcloud-runtime-plugin==0.1.6.dev1",
     "cs-image-system-gcs-state-plugin==0.1.6.dev1",
@@ -84,6 +85,7 @@ cs-image-system-local-state-plugin = { workspace = true }
 cs-image-system-posix-identity-plugin = { workspace = true }
 cs-image-system-gcs-state-plugin = { workspace = true }
 cs-image-system-docker-runtime-plugin = { workspace = true }
+cs-image-system-tf-docker-plugin = { workspace = true }
 
 # The indexes a release is published to (stage 41): `uv publish --index <name>` reads the
 # publish-url and skips files already present with the same content (the url is the check
@@ -161,7 +163,8 @@ testpaths = ["tests",
    "packages/local-state-plugin/tests",
    "packages/posix-identity-plugin/tests",
    "packages/gcs-state-plugin/tests",
-   "packages/docker-runtime-plugin/tests"
+   "packages/docker-runtime-plugin/tests",
+   "packages/tf-docker-plugin/tests"
    ]
 pythonpath = [
     "tests",
@@ -180,6 +183,7 @@ pythonpath = [
     "packages/tf-gcp-plugin/src",
     "packages/default-os-plugin/src",
     "packages/docker-runtime-plugin/src",
+    "packages/tf-docker-plugin/src",
     "packages/gcs-state-plugin/src",
     "packages/hashicorp-utils/src",
     "packages/local-state-plugin/src",
@@ -233,6 +237,7 @@ extraPaths = [
     "packages/contract-example-plugin/src",
     "packages/default-os-plugin/src",
     "packages/docker-runtime-plugin/src",
+    "packages/tf-docker-plugin/src",
     "packages/dummy-plugin/src",
     "packages/gcloud-runtime-plugin/src",
     "packages/gcs-state-plugin/src",

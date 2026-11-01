@@ -57,6 +57,7 @@ PLUGIN_TYPES: dict[str, set[str]] = {
     "packer-plugin": {"packer-ebs", "packer-gce", "packer-docker"},
     "tf-ebs-instance-plugin": {"tofu", "tf-aws-ebs", "tf-aws-efs", "tf-aws-s3"},
     "tf-gcp-plugin": {"tofu-gce", "tf-gcp-pd", "tf-gcp-filestore", "tf-gcp-gcs"},
+    "tf-docker-plugin": {"tofu-docker", "tf-docker-volume"},
     "tf-s3-state-plugin": {"s3"},
 }
 NOT_PLUGINS = {"base", "contract", "contract-example-plugin", "system", "hashicorp-utils", "dummy-plugin"}

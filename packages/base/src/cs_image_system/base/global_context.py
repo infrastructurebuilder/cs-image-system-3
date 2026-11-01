@@ -11,6 +11,7 @@ from .models.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 import logging
 import os
+import shlex
 from pathlib import Path
 from datetime import datetime
 from pprint import pformat
@@ -788,7 +789,18 @@ def render_executable_line(executable: Any, base: Path | None = None, root: Path
         except ValueError:
             return arg
         return f'"${ROOT_VARIABLE}"' if str(rel) == "." else f'"${ROOT_VARIABLE}/{rel}"'
-    cmd_parts = [str(executable.binary or executable.name)]
+    cmd_parts: list[str] = []
+    for k, v in sorted((getattr(executable, "environment", None) or {}).items()):
+        # stage 103 branch 2: a runtime's tool environment (DOCKER_HOST, a
+        # context) rides on the line as an assignment prefix; a value that is
+        # an ENC marker stays a marker here (the committed script carries only
+        # ciphertext) and opens where the line runs
+        from .encryption import is_marker
+        if isinstance(v, str) and is_marker(v):
+            cmd_parts.append(f"{k}=\"$(cs-image-system decrypt '{v}')\"")
+        else:
+            cmd_parts.append(f"{k}={shlex.quote(str(v))}")
+    cmd_parts.append(str(executable.binary or executable.name))
     cmd_parts += [portable(str(a)) for a in getattr(executable, "prepended_arguments", []) or []]
     cmd_parts += [portable(str(a)) for a in executable.args or []]
     cmd_parts += [portable(str(a)) for a in getattr(executable, "appended_arguments", []) or []]

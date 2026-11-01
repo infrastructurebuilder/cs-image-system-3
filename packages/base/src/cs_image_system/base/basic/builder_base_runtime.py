@@ -210,6 +210,16 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
         """Shell assertions proving the session agent is baked."""
         return []
 
+    def launch_delivery(self) -> str:
+        """How an instance's launch script reaches a machine on this runtime
+        (stage 103 branch 2): ``boot`` (the default: the platform runs it at
+        first boot -- EC2 user data, a GCE startup script) or ``session``
+        (the system runs it through ``run_session_command`` after the apply,
+        exactly as it runs the accounts script; a container has no first
+        boot). The script itself is the same on both."""
+        from cs_image_system.contract.runtime import LAUNCH_DELIVERY_BOOT
+        return LAUNCH_DELIVERY_BOOT
+
     def bake_settle_commands(self, os_family: str | None = None) -> list[str]:
         """Shell commands emitted in the FIRST provisioner of every bake on
         this runtime, before any package work (stage 86): wait, bounded,

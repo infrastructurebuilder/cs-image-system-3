@@ -31,6 +31,7 @@ registers model and builder classes under the classifications it claims.
 | [aws-runtime-plugin](../packages/aws-runtime-plugin/README.md) | runtime | `aws` |
 | [gcloud-runtime-plugin](../packages/gcloud-runtime-plugin/README.md) | runtime | `gcloud` |
 | [docker-runtime-plugin](../packages/docker-runtime-plugin/README.md) | runtime | `docker` (a durable host's container daemon, reached through the Docker Engine API; stage 103) |
+| [tf-docker-plugin](../packages/tf-docker-plugin/README.md) | instance and storage builders | `tofu-docker` (containers through OpenTofu's `kreuzwerker/docker` provider) and `tf-docker-volume` (named volumes); stage 103 |
 | [default-os-plugin](../packages/default-os-plugin/README.md) | OS families | the family names an OS builder declares |
 | [packer-plugin](../packages/packer-plugin/README.md) | image builders | the packer builders for EBS, GCE and docker images (`packer-ebs`, `packer-gce`, `packer-docker`) |
 | [ansible-plugin](../packages/ansible-plugin/README.md) | modifications | `ansible` (playbooks) |

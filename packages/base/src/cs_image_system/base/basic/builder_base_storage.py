@@ -72,6 +72,14 @@ class StorageBuilderBase(BuilderBase[TSTORAGE], StorageBuilderProtocol):
         (N13/N15); non-POSIX stores define their own mapping (N3)."""
         return True
 
+    def platform_mounts(self) -> bool:
+        """Whether the platform attaches AND mounts this storage before the
+        machine's first command (stage 103 branch 2: a container volume is
+        mounted by the daemon at the declared path), so the launch script
+        has nothing to format or mount and only makes the group's subtree.
+        Default: no -- the launch script mounts a cloud volume itself."""
+        return False
+
     def base_image_prerequisites(self, os_family: str | None = None) -> list[str]:
         """Shell commands baked into a base image that declares this storage
         type (Q1/N10): drivers, agents, mount tooling. Empty = no prerequisites
