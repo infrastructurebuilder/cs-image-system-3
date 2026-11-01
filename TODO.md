@@ -16,10 +16,10 @@ operator can take.
   provisional.
 - §94, the F44 review: standing; next on or after 2026-11-09.
 - §103, a container runtime (docker and the daemons that speak its
-  API): planned 2026-10-29; its eight questions answered 2026-10-31,
-  each with its default (Decisions in the section); branches 1 and 2
-  landed; branch 3 built, waits for "merge 103-3"; owed after it: the
-  reference's docker runtime (the operator names the durable host).
+  API): branches 1, 2 and 3 landed (a2ed18c); owed: the reference's
+  docker runtime, once the operator names the durable host.
+- §109, Podman Desktop in the test cycle: planned 2026-11-01; waits for
+  "do 109".
 - §104 landed (below) and is released in 0.1.5; item 4(d) is done in
   the reference.
 - §108, hygiene bundle XXI: OPEN 2026-10-31 with the three items from
@@ -245,6 +245,87 @@ question at least once a month for the next 4 months." The note is made:
 - 2027-01-09: (open)
 - 2027-02-09: (open)
 
+## 109. Podman Desktop in the test cycle
+
+**Status: PLANNED 2026-11-01 (the operator asked for the stage).
+Waits for "do 109".**
+
+**Why**: stage 103 proved Podman's API service where a durable host
+would run it, on Linux (Podman 5.8.2, rootless, an OrbStack AlmaLinux
+machine reached over ssh). A developer on macOS meets Podman as Podman
+Desktop, whose daemon is a `podman machine`: a VM of its own, a
+different socket, a different file-sharing layer. Nothing yet says the
+runtime works there, and the operator's Mac runs OrbStack beside it.
+
+What is known (the Podman Desktop team, [Intel Macs and Podman
+6](https://podman-desktop.io/blog/intel-mac-podman-6-transition)):
+Podman 6 removed Intel Macs; the Intel installer bundles Podman 5.8,
+which stays supported until the second week of June 2027. This Mac is an
+Intel one, so what can be proved here is Podman 5.8 on Intel, for a
+bounded time; Apple silicon (Podman 6) cannot be tested on it.
+
+**Questions for the operator** (each with the proposed default)
+
+1. Where does the machine's disk live? The root disk had 12 GB free on
+   2026-11-01. Default: wherever item 1 finds the tool allows it off
+   the root disk, else a small disk (20 GB sparse) and the cost stated.
+2. Standing or per leg? Default: a STANDING machine the operator starts
+   and stops; the leg never creates, starts or stops it (the power
+   state is the operator's), and is skipped, said so, when it is not
+   running.
+3. Rootless only (Podman Desktop's default). Rootful is not proved.
+4. Is an Apple-silicon Mac available to run it once? Default: no; the
+   stage records Apple silicon as untested.
+
+**Items**
+
+1. The survey, first, and it stops on failure. Install Podman Desktop
+   (1.29 or later) with its bundled Podman on this Mac, make a rootless
+   machine (`podman machine init`, 2 CPUs, 2 to 4 GB, 20 GB), start it,
+   and record: the Podman version, where the machine's disk went and
+   what it costs, the socket's path, `docker version` against it saying
+   "Podman Engine". The operator runs the install boxes. If Podman
+   Desktop will not run on this Mac, the stage stops and says so.
+2. Coexistence with OrbStack, proved and not assumed. Both running: a
+   bare `docker` still answers from OrbStack, Podman is reached only by
+   an explicit `unix://` socket, `podman-mac-helper` is not installed
+   (it would take the default socket from OrbStack), and the combined
+   memory is written down.
+3. The recipe. `just test-podman-desktop-cycle` fills `CSIS_PODMAN_HOST`
+   from the running default machine (`podman machine inspect`) and runs
+   the same two legs as `test-podman-cycle`, which keeps being the one
+   knob for any other host; it is skipped loudly without `podman`, with
+   no machine, or with the machine stopped, and `full-test` names it in
+   its legs and in the SKIPPED line. The leg still refuses a daemon
+   that does not say it is Podman.
+4. The run, and what it finds. The cycle and the starter against the
+   machine, with OrbStack running. Likely places to differ, none of
+   them claimed: how a volume's files are owned through the VM's file
+   sharing, the bake's use of the host's temporary paths, memory and
+   cpu limits inside the VM, the socket's API version. Each difference
+   is fixed in the runtime, as stage 103's was, or recorded as a limit
+   with its cause.
+5. The docs, as one item: OPERATIONS ("Podman as the daemon" gains the
+   Desktop setup, the coexistence rules, the findings and the June
+   2027 date), DAILY_DRIVER 1.4a, the docker runtime's README
+   (prerequisites and failures), and this section's removal.
+6. The tests: the resolver against stubbed `podman machine inspect`
+   output (running, stopped, none, two machines), and the `full-test`
+   skip-line expectations.
+
+**Out of scope**: driving Podman Desktop's GUI; a rootful machine;
+Windows and WSL; macOS CI runners; Podman 6 (Apple silicon only; a
+second stage if a machine appears); Podman Desktop's Kubernetes
+features. After June 2027 an Intel Mac has no supported Podman: the
+standing proof then stays the Linux host of stage 103, and the Desktop
+leg is retired with a line in OPERATIONS.
+
+**Acceptance**: the cycle and the starter pass against the Desktop
+machine with OrbStack running; both legs skip loudly when it is absent
+or stopped; the bar green; the docs item done; the machine and
+OrbStack left as found. Records: the squash message; this section goes
+at "merge 109".
+
 ## 108. Hygiene bundle XXI
 
 **Status: OPEN 2026-10-31, three items from the 0.1.4 and 0.1.5
@@ -444,27 +525,20 @@ script uploaded at creation and delivered by exec through the
 `launch_delivery` hook; every tofu process of a docker root carries the
 daemon's address. Item 9 PROVED against kreuzwerker/docker 4.6.0; the
 live leg `just test-docker-cycle` PASSED whole on the local OrbStack.
-Branch 3 (feature/container-operations) BUILT 2026-11-01 ("do
-103-3"; worktree scratchpad/wt-103-3): item 15, the bootstrap's
-container-host section (docker plugin, no module; `first_runtime_name`
-no longer prefers `aws`; the GitHub section's guard defaults to a
-runtime CI cannot reach; `DOCKER_HOST_SSH_KEY` and
-`DOCKER_HOST_KNOWN_HOSTS` join its secrets); item 16 in part, the fifth
-starter `standard-docker` (no cloud, local state, no login proof, a
-workflow that reaches a host over ssh and records only against it),
-PROVED whole by the new leg on the local daemon; item 17, the docs
-(DESIGN, CONFIGURATION, OPERATIONS, DAILY_DRIVER, DESCRIPTION, PLUGINS,
-CI_RUNNER, the guide's 3.4a, the READMEs, the counts); item 18 built and
-RUN and PASSED 2026-11-01 against Podman 5.8.2 in an OrbStack AlmaLinux
-10 machine over ssh (`just test-podman-cycle`, 572 s; one difference
-found and fixed, the registry Podman implies in `RepoTags`; recorded in
-OPERATIONS, "Podman as the daemon"). STILL OWED: the reference's docker
-runtime (item 16), which needs the operator to name the durable host (an
-ENC marker or a docker context; not the local OrbStack). The template
-repository infrastructurebuilder/cs-image-system-starter-standard-docker
-was created by the operator 2026-11-01 (public, a template, empty) and
-STARTER_PUSH_TOKEN now covers it; the first publication is the next
-final release. The section goes when the reference's runtime is done.**
+Branch 3 LANDED a2ed18c on develop, 2026-11-01 (branch
+feature/container-operations kept and pushed): the bootstrap's
+container-host section; the fifth starter `standard-docker`, PROVED
+whole by a leg on the local daemon; the docs; and the Podman leg
+(`just test-podman-cycle`), RUN and PASSED against Podman 5.8.2 in an
+OrbStack AlmaLinux 10 machine over ssh (one difference found and fixed,
+the registry Podman implies in `RepoTags`; recorded in OPERATIONS,
+"Podman as the daemon"). The template repository
+infrastructurebuilder/cs-image-system-starter-standard-docker exists
+(the operator, 2026-11-01) and STARTER_PUSH_TOKEN covers it; the first
+publication is the next final release. STILL OWED: the reference's
+docker runtime (item 16), which needs the operator to name the durable
+host (an ENC marker or a docker context; not the local OrbStack). The
+section goes when that is done.**
 
 **Why**: every runtime today is a cloud. A durable host running a
 container daemon is a third kind: cheaper than either cloud, local to a
