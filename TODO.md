@@ -17,8 +17,9 @@ operator can take.
 - §94, the F44 review: standing; next on or after 2026-11-09.
 - §103, a container runtime (docker and the daemons that speak its
   API): planned 2026-10-29; its eight questions answered 2026-10-31,
-  each with its default (Decisions in the section); waits for "do 103",
-  where the reference's durable host is named.
+  each with its default (Decisions in the section); branches 1 and 2
+  landed; branch 3 in progress, where the reference's durable host is
+  named.
 - §104 landed (below) and is released in 0.1.5; item 4(d) is done in
   the reference.
 - §108, hygiene bundle XXI: OPEN 2026-10-31 with the three items from
@@ -434,26 +435,18 @@ final proof release is cut.
 
 ## 103. A container runtime: docker and the daemons that speak its API
 
-**Status: branch 1 LANDED fa16a12 on develop, 2026-10-31. Branch 2 BUILT
-on feature/container-instances, 2026-11-01 ("do 103-2"; worktree
-scratchpad/wt-103-2): packages/tf-docker-plugin (`tofu-docker`,
+**Status: branch 1 LANDED fa16a12 on develop, 2026-10-31. Branch 2
+LANDED e651898 on develop, 2026-11-01 (branch feature/container-instances
+kept and pushed): packages/tf-docker-plugin (`tofu-docker`,
 `tf-docker-volume`) on tfmodules/docker_container and docker_volume,
 which every starter carries; the runtime's instance hooks; the launch
-script uploaded at creation and delivered by exec through the new
-`launch_delivery` hook (contract: `launch_delivery` on the runtime,
-`platform_mounts` on the storage builder); every tofu process of a
-docker root carries the daemon's address, an ENC host as a marker the
-runner script opens where it runs. Item 9 PROVED first against
-kreuzwerker/docker 4.6.0: `must_run = false` leaves a stopped container
-alone once `cpus` is spelled as read back and `memory_swap` is ignored.
-The live leg `just test-docker-cycle` PASSED whole on the local OrbStack
-(bake, two containers on one volume, launch by exec, accounts, verify,
-strict query, stop and leave stopped, start, upgrade to generation 2,
-decommission, destroy the volume, dispose). Bar: 1781 passed, pyright 0
-(four starter-tree tests read the examples from HEAD and pass once
-committed). Branch 2 waits for "merge 103-2"; branch 3 waits for "do
-103-3"; the section goes when branch 3 lands. Question 6's host is named
-at branch 3.**
+script uploaded at creation and delivered by exec through the
+`launch_delivery` hook; every tofu process of a docker root carries the
+daemon's address. Item 9 PROVED against kreuzwerker/docker 4.6.0; the
+live leg `just test-docker-cycle` PASSED whole on the local OrbStack.
+Branch 3 (feature/container-operations, items 15-18) is IN PROGRESS
+("do 103-3", 2026-11-01); the section goes when it lands. Question 6's
+host is named at branch 3.**
 
 **Why**: every runtime today is a cloud. A durable host running a
 container daemon is a third kind: cheaper than either cloud, local to a
