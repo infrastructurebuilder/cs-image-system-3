@@ -257,7 +257,9 @@ alone by the next apply. Read [OPERATIONS.md](docs/OPERATIONS.md), "Container
 hosts" under the rules.
 
 Podman's API service serves as the daemon too (proved, with its setup, in
-[OPERATIONS.md](docs/OPERATIONS.md), "Podman as the daemon").
+[OPERATIONS.md](docs/OPERATIONS.md), "Podman as the daemon"), on Linux and as
+Podman Desktop's machine on a Mac beside OrbStack; the Mac leg is `just
+test-podman-desktop-cycle`.
 
 The smallest tree on this runtime is the `standard-docker` starter
 (section 1.9). As it stands it works against the daemon of the machine you

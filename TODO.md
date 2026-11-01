@@ -20,8 +20,6 @@ operator can take.
   runtime (the local OrbStack's context) is written on its `develop`,
   unpushed and validated; owed: the push with the release that
   carries the plugins.
-- §109, Podman Desktop in the test cycle: planned 2026-11-01; waits for
-  "do 109".
 - §104 landed (below) and is released in 0.1.5; item 4(d) is done in
   the reference.
 - §108, hygiene bundle XXI: OPEN 2026-10-31 with the three items from
@@ -75,6 +73,13 @@ operator can take.
 
 **Landed since 2026-10-05** (newest first)
 
+- §109, Podman Desktop in the test cycle: 2026-11-01, its squash commit
+  (feature/podman-desktop kept). `just test-podman-desktop-cycle` names
+  the running Podman Desktop machine and runs `test-podman-cycle`
+  against it; it never starts or stops the machine and skips, said so,
+  without one. Proved on Podman 5.8.9 (rootful) beside OrbStack: both
+  live legs passed with no difference found. Podman 6 dropped Intel
+  Macs: this leg ends for this Mac in June 2027.
 - §105, a declared output image name: 2026-10-31, its squash commit
   (feature/output-image-name kept). `output_image_name` is real at
   the OS builder, its runtime entry and an image's runtime entry,
@@ -814,106 +819,3 @@ reference at the previous release ends on the operator's patch list or
 the pushed `develop`; the next final release's walk is five boxes on
 the system side and three on the reference's. Records: the squash
 message; this section goes at "merge 108".
-
-
-
-## 109. Podman Desktop in the test cycle
-
-**Status: PLANNED 2026-11-01 (the operator asked for the stage).
-Items 1, 2 and 4 DONE the same day by the operator's word, ahead of
-"do 109"; items 3, 5 and 6 wait for it.**
-
-**Done 2026-11-01** (items 1, 2 and 4, run by hand with the existing
-`just test-podman-cycle`; no code changed): the operator installed
-Podman Desktop; its CLI is `/opt/podman/bin/podman`, not on PATH.
-Podman 5.8.9, one machine `podman-machine-default` (applehv, running,
-ROOTFUL, 2 CPUs, 1.9 GB, 10 GB disk), API 1.44, socket symlink
-`~/.local/share/containers/podman/machine/podman.sock`. Beside
-OrbStack: a bare `docker` still answers from OrbStack (29.8.2),
-`/var/run/docker.sock` still points at it, `podman-mac-helper` is not
-installed, Desktop added a docker context `podman` and left `orbstack`
-current. With `CSIS_PODMAN_HOST` set to that symlink both legs PASSED
-in 384 s (6 min 24 s): the docker cycle from nothing to nothing, and
-the `standard-docker` starter as it stands. No difference found, so no
-fix: the machine is rootful where stage 103's host was rootless, and
-that changed nothing the legs check. OrbStack's counts were the same
-before and after (38 images, 15 containers); the Podman machine kept
-two cached base images (almalinux:10, debian:12), the legs' pulls.
-The plan's rootless assumption and the Desktop machine's 10 GB disk
-are the two facts to carry into the docs (item 5).
-
-**Why**: stage 103 proved Podman's API service where a durable host
-would run it, on Linux (Podman 5.8.2, rootless, an OrbStack AlmaLinux
-machine reached over ssh). A developer on macOS meets Podman as Podman
-Desktop, whose daemon is a `podman machine`: a VM of its own, a
-different socket, a different file-sharing layer. Nothing yet says the
-runtime works there, and the operator's Mac runs OrbStack beside it.
-
-What is known (the Podman Desktop team, [Intel Macs and Podman
-6](https://podman-desktop.io/blog/intel-mac-podman-6-transition)):
-Podman 6 removed Intel Macs; the Intel installer bundles Podman 5.8,
-which stays supported until the second week of June 2027. This Mac is an
-Intel one, so what can be proved here is Podman 5.8 on Intel, for a
-bounded time; Apple silicon (Podman 6) cannot be tested on it.
-
-**Questions for the operator** (each with the proposed default)
-
-1. Where does the machine's disk live? The root disk had 12 GB free on
-   2026-11-01. Default: wherever item 1 finds the tool allows it off
-   the root disk, else a small disk (20 GB sparse) and the cost stated.
-2. Standing or per leg? Default: a STANDING machine the operator starts
-   and stops; the leg never creates, starts or stops it (the power
-   state is the operator's), and is skipped, said so, when it is not
-   running.
-3. Rootless only (Podman Desktop's default). Rootful is not proved.
-4. Is an Apple-silicon Mac available to run it once? Default: no; the
-   stage records Apple silicon as untested.
-
-**Items**
-
-1. The survey, first, and it stops on failure. Install Podman Desktop
-   (1.29 or later) with its bundled Podman on this Mac, make a rootless
-   machine (`podman machine init`, 2 CPUs, 2 to 4 GB, 20 GB), start it,
-   and record: the Podman version, where the machine's disk went and
-   what it costs, the socket's path, `docker version` against it saying
-   "Podman Engine". The operator runs the install boxes. If Podman
-   Desktop will not run on this Mac, the stage stops and says so.
-2. Coexistence with OrbStack, proved and not assumed. Both running: a
-   bare `docker` still answers from OrbStack, Podman is reached only by
-   an explicit `unix://` socket, `podman-mac-helper` is not installed
-   (it would take the default socket from OrbStack), and the combined
-   memory is written down.
-3. The recipe. `just test-podman-desktop-cycle` fills `CSIS_PODMAN_HOST`
-   from the running default machine (`podman machine inspect`) and runs
-   the same two legs as `test-podman-cycle`, which keeps being the one
-   knob for any other host; it is skipped loudly without `podman`, with
-   no machine, or with the machine stopped, and `full-test` names it in
-   its legs and in the SKIPPED line. The leg still refuses a daemon
-   that does not say it is Podman.
-4. The run, and what it finds. The cycle and the starter against the
-   machine, with OrbStack running. Likely places to differ, none of
-   them claimed: how a volume's files are owned through the VM's file
-   sharing, the bake's use of the host's temporary paths, memory and
-   cpu limits inside the VM, the socket's API version. Each difference
-   is fixed in the runtime, as stage 103's was, or recorded as a limit
-   with its cause.
-5. The docs, as one item: OPERATIONS ("Podman as the daemon" gains the
-   Desktop setup, the coexistence rules, the findings and the June
-   2027 date), DAILY_DRIVER 1.4a, the docker runtime's README
-   (prerequisites and failures), and this section's removal.
-6. The tests: the resolver against stubbed `podman machine inspect`
-   output (running, stopped, none, two machines), and the `full-test`
-   skip-line expectations.
-
-**Out of scope**: driving Podman Desktop's GUI; a rootful machine;
-Windows and WSL; macOS CI runners; Podman 6 (Apple silicon only; a
-second stage if a machine appears); Podman Desktop's Kubernetes
-features. After June 2027 an Intel Mac has no supported Podman: the
-standing proof then stays the Linux host of stage 103, and the Desktop
-leg is retired with a line in OPERATIONS.
-
-**Acceptance**: the cycle and the starter pass against the Desktop
-machine with OrbStack running; both legs skip loudly when it is absent
-or stopped; the bar green; the docs item done; the machine and
-OrbStack left as found. Records: the squash message; this section goes
-at "merge 109".
