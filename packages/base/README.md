@@ -516,9 +516,14 @@ Names must be unique.
 | `teardown_after` | `str \| None` | `None` | Runtime default duration (`30m`, `2h`, `1d`). |
 
 `CloudBuilderModel` adds `region: str` (required) and `networking:
-CloudNetworkingConfig` (required). `ContainerBuilderModel` adds
-`networking: ContainerNetworkingModel | None` (with `network_id`, default
-`local`).
+CloudNetworkingConfig` (required). `ContainerBuilderModel` (stage 103;
+`contract.runtime.ContainerBuilderModelProtocol`) adds `host` and
+`context` (one or neither), `networking: ContainerNetworkingModel | None`
+(a network by NAME, default `bridge`; no subnets, no zones) and
+`machine_types: dict[str, {cpus, memory}]`, of which `default_machine_type`
+must name one when any are declared; it classifies as
+`CONTAINER_BUILDER_MODEL` and the loader folds it into the runtime
+namespace as it does the cloud one.
 
 `RuntimeNetworkingModel`:
 

@@ -71,7 +71,7 @@ def test_a_checker_is_found_by_name_then_type_then_the_generic_default(plugins):
     assert found == {"packer": "PackerVersionChecker", "packer-1.9.4": "PackerVersionChecker",
                      "open-tofu-1": "TofuVersionChecker", "gcloud": "GCPCLIVersionChecker",
                      "aws-cli": "AwsCLIVersionChecker", "ansible-playbook": "AnsibleVersionChecker",
-                     "bash": "BashVersionChecker", "jq": "GenericVersionChecker", "docker": "GenericVersionChecker"}
+                     "bash": "BashVersionChecker", "jq": "GenericVersionChecker", "docker": "DockerCLIVersionChecker"}
 
 
 @pytest.mark.parametrize("name", sorted(CANNED))

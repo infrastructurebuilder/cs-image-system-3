@@ -1,9 +1,10 @@
 # cs-image-system-packer-plugin
 
-The image builder plugin for HashiCorp Packer. It registers the two image
+The image builder plugin for HashiCorp Packer. It registers the three image
 builders that turn the system's base images and instance images into Packer
-roots: `packer-ebs` for an AWS runtime (`amazon-ebs` source) and
-`packer-gce` for a Google Compute runtime (`googlecompute` source). The
+roots: `packer-ebs` for an AWS runtime (`amazon-ebs` source), `packer-gce`
+for a Google Compute runtime (`googlecompute` source) and `packer-docker`
+for a docker runtime (the `docker` source, stage 103). The
 builder writes one Packer root per dependency block of images, fills the
 `build {}` block with provisioners it assembles from the OS builder, the
 identity and storage plugins, the runtime plugin and the modification
@@ -28,10 +29,11 @@ returns a `PackerEbsTypes` metadata object (metadata version `1`, Python
 |---|---|---|
 | `packer-ebs` | `PackerEbsImageBuilderModel`, `PackerEbsImageBuilder` | `IMAGE_BUILDER_MODEL` / `IMAGE_BUILDER` |
 | `packer-gce` | `PackerGceImageBuilderModel`, `PackerGceImageBuilder` | `IMAGE_BUILDER_MODEL` / `IMAGE_BUILDER` |
+| `packer-docker` | `PackerDockerImageBuilderModel`, `PackerDockerImageBuilder` | `IMAGE_BUILDER_MODEL` / `IMAGE_BUILDER` |
 | `packer` | `PackerVersionChecker` | `VERSION_CHECKER` |
 
-An `image_builders:` entry selects a model with `type: packer-ebs` or
-`type: packer-gce`; there are no aliases for these keys. An `executables:`
+An `image_builders:` entry selects a model with `type: packer-ebs`,
+`type: packer-gce` or `type: packer-docker`; there are no aliases for these keys. An `executables:`
 entry named or typed `packer` is version-checked by `PackerVersionChecker`
 (`packer version -machine-readable`, fourth comma-separated field of the
 first line).
@@ -73,6 +75,16 @@ Extends `PackerImageBuilderModel`; adds no fields.
 Extends `PackerEbsImageBuilderModel`; adds no fields. It exists so a
 configuration can say `type: packer-gce`; the runtime plugin bound through
 `runtime` decides what the source block looks like.
+
+### `PackerDockerImageBuilderModel` (`packer-docker`)
+
+Extends `PackerEbsImageBuilderModel`; adds no fields (stage 103). It exists
+so a configuration can say `type: packer-docker`; the docker runtime bound
+through `runtime` emits the `docker` source and, through
+`packer_post_processor_blocks`, the `docker-tag` post-processor the build
+block carries before the manifest. Every packer process this builder runs
+gets the runtime's `tool_environment()` (`DOCKER_HOST` or `DOCKER_CONTEXT`)
+on top of the caller's environment.
 
 ### Constraints and what is not supported
 
@@ -124,8 +136,8 @@ Class chain: `PackerImageBuilder`
 ([packer_builder.py](src/cs_image_system/packer_plugin/packer_builder.py))
 -> `PackerEbsImageBuilder`
 ([packer_ebs_builder.py](src/cs_image_system/packer_plugin/packer_ebs_builder.py))
--> `PackerGceImageBuilder` (same file, differs only in `csis_name()`).
-All extend
+-> `PackerGceImageBuilder` and `PackerDockerImageBuilder` (same file, each
+differs only in `csis_name()`). All extend
 [`ImageBuilderBase`](../base/src/cs_image_system/base/basic/builder_base_image.py).
 Every hook keys on the `image-generation` phase.
 
@@ -471,7 +483,7 @@ this plugin stamped.
 ## Configuration reference
 
 Every field the plugin reads from the YAML it owns (`image_builders:`
-entries of `type: packer-ebs` or `type: packer-gce`). Model:
+entries of `type: packer-ebs`, `type: packer-gce` or `type: packer-docker`). Model:
 [packer_models.py](src/cs_image_system/packer_plugin/packer_models.py);
 inherited fields from
 [image_builder_model.py](../base/src/cs_image_system/base/models/image_builder_model.py)
@@ -480,7 +492,7 @@ and [builder_model.py](../base/src/cs_image_system/base/models/builder_model.py)
 | Field | Type | Default | Meaning |
 |---|---|---|---|
 | `name` | str | required | The builder name; `safe_name`-normalised; `/` and `\` refused; not `default`. It is the workspace of the emission (`generated/<lifecycle>/<name>/image-generation/block-NNN/`), the `PackerCollector` key, and the `build {}` block's name prefix. Every image's `runtimes[].image_builder` names it. |
-| `type` | str | required | `packer-ebs` or `packer-gce`; no aliases. The two behave identically; the runtime decides the source type. |
+| `type` | str | required | `packer-ebs`, `packer-gce` or `packer-docker`; no aliases. The three behave identically; the runtime decides the source type and any post-processor before the manifest. |
 | `runtime` | str (foreign key to `runtime_builders`) | `default` | The runtime this builder bakes on. `default` is resolved to the default runtime at load; a name that is no runtime is refused at `validate` (stage 48.3). Everything provider-specific comes from it: source type, source block, credentials, machine type, session mechanism, bake finalization, manifest artifact-id parsing, after-build tagging. |
 | `executable` | str or null | null | The `executables:` entry whose binary is Packer. Read at generation for `fmt`, `init`, `validate` and the deferred `build`; an entry that does not exist raises at generation (`Executable '<x>' not found for builder '<name>'`), and `validate` reports it first (`Executable <x> specified for provider <name> not found in executables list`). A builder with no executable cannot bake. |
 | `required_plugins` | list | `[]` | The `packer { required_plugins { <name> { version, source } } }` block of every block root. Entries are deduplicated per builder; two entries for one plugin must agree on `source` and have satisfiable `version` requirements. |

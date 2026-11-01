@@ -112,6 +112,7 @@ def _core_pairs() -> list[tuple[type, type, set[str]]]:
     from cs_image_system.base.basic.builder_base_user import UserBuilderBase
     from cs_image_system.base.models.builder_model import BuilderModel, NameTyped, RuntimeEnabledBuilderModel
     from cs_image_system.base.models.cloud_builder import CloudBuilderModel
+    from cs_image_system.base.models.container_builder import ContainerBuilderModel
     from cs_image_system.base.models.executable import ExecutableModel
     from cs_image_system.base.models.group import Group
     from cs_image_system.base.models.group_builder import GroupBuilderModel
@@ -147,6 +148,7 @@ def _core_pairs() -> list[tuple[type, type, set[str]]]:
         (Image, core.SelfInjectedNameProtocol, set()), (Instance, core.SubItemOverrideProtocol, set()),
         (RuntimeBuilderModel, runtime.RuntimeBuilderModelProtocol, MODEL),
         (CloudBuilderModel, runtime.CloudBuilderModelProtocol, MODEL),
+        (ContainerBuilderModel, runtime.ContainerBuilderModelProtocol, MODEL),      # stage 103
         (RuntimeBuilderBase, runtime.RuntimeBuilderProtocol, set()),
         (OsBuilderModel, operating_system.OsBuilderModelProtocol, MODEL),
         (OsBuilderBase, operating_system.OsBuilderProtocol, set()),
@@ -208,7 +210,7 @@ def test_every_built_in_plugin_conforms_to_its_kind():
         for cls, proto in ((model_cls, model_proto), (builder_cls, builder_proto)):
             checked += 1
             problems += [f"{cls.__name__} vs {proto.__name__}: {p}" for p in conformance_problems(cls, proto)]
-    assert checked >= 2 * 14, "fewer registered pairs than the fourteen plugins declare"
+    assert checked >= 2 * 15, "fewer registered pairs than the fifteen plugins declare"
     assert not problems, "\n".join(problems)
 
 

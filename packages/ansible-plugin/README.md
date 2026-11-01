@@ -62,7 +62,7 @@ registered subclass; it adds no fields.
 |---|---|---|---|
 | `extra_arguments` | `list[str]` | `[]` | Prepended to every emitted `provisioner "ansible"`'s `extra_arguments`; each entry is HCL-escaped (stage 63). |
 | `expect_disconnect` | `bool` | `False` | Emits `expect_disconnect = true` on every provisioner. |
-| `ansible_connection` | `str \| None` | `None` | Emits `connection_type = "<value>"` when set (for example `docker`). |
+| `ansible_connection` | `str \| None` | `None` | When set, the ansible variable `ansible_connection=<value>` is passed in `--extra-vars` (for example `docker`), winning over what the runtime answers through `bake_ansible_vars` (stage 103; packer's provisioner has no option for it, and the former `connection_type` line was not one packer knew). |
 | `configuration_user` | `str \| None` | `None` | When set, the `user` of every `provisioner "ansible"` this builder emits, beating the bake-user resolver ([CONFIGURATION 5.1.1](../../docs/CONFIGURATION.md#511-the-bake-ssh-user)); the one place a modification connects as someone other than the bake user (stage 63; it was declared and not read until 2026-09-25). |
 
 There is no builder-level `playbooks` field (stage 48.4 removed it: the
@@ -150,10 +150,12 @@ calls, in order:
      answers nothing, so no line), `extra_arguments = [<builder
      extra_arguments>..., "-e",
      "ansible_python_interpreter=/usr/local/bin/csis-ansible-python"]`,
-     `connection_type` when `ansible_connection` is set, and
-     `expect_disconnect = true` when set. Every string written into
-     these lines (`playbook_file`, `user`, each `extra_arguments`
-     entry, `connection_type`) goes through `_hcl`: backslashes and
+     `"--extra-vars", "ansible_connection=... ansible_host=..."` when
+     the runtime's `bake_ansible_vars` answers (the docker runtime: the
+     build container's name, reached through the daemon) or
+     `ansible_connection` is set, and `expect_disconnect = true` when
+     set. Every string written into these lines (`playbook_file`,
+     `user`, each `extra_arguments` entry) goes through `_hcl`: backslashes and
      double quotes are escaped and packer's template openers `${` and
      `%{` are doubled to `$${` and `%%{`, so the value reaches ansible
      literally (stage 63; a `"` in any of them used to break the build
@@ -341,7 +343,7 @@ Python side: Python 3.13 or later, `pydantic>=2.13`, and
 | `tags` | mapping | `{}` | Accepted, not read by this plugin. |
 | `extra_arguments` | list[str] | `[]` | Emitted first in every provisioner's `extra_arguments`, before the system's `-e ansible_python_interpreter=...`. Each value is written as an escaped HCL string (backslash and `"` escaped, `${`/`%{` doubled; stage 63, they were written unescaped until 2026-09-25). |
 | `expect_disconnect` | bool | `false` | When true, every provisioner carries `expect_disconnect = true`. |
-| `ansible_connection` | str or null | null | When set, every provisioner carries `connection_type = "<value>"` (escaped as above). |
+| `ansible_connection` | str or null | null | When set, every provisioner's `extra_arguments` carry `--extra-vars ansible_connection=<value>` (escaped as above), over the runtime's own answer (stage 103). |
 | `configuration_user` | str or null | null | When set, every provisioner this builder emits carries `user = "<value>"`, whatever the runtime would answer: ansible connects as that user instead of the bake user. Unset, the `user` comes from the runtime's bake SSH user as before. Read since stage 63 (accepted and ignored until 2026-09-25). The user must exist on the build VM and accept the bake's SSH key. |
 | `parameters` | | | Refused at load (retired, stage 26). |
 | `playbooks` | | | Refused at load as an unknown key (removed in stage 48.4). |
@@ -372,9 +374,10 @@ Python side: Python 3.13 or later, `pydantic>=2.13`, and
 - **`extra_arguments` declared** on the builder: they precede the
   system's two entries; otherwise the list is exactly `["-e",
   "ansible_python_interpreter=/usr/local/bin/csis-ansible-python"]`.
-- **`ansible_connection` declared**: one extra `connection_type` line per
-  provisioner; undeclared, packer picks the connection (ssh for the cloud
-  sources).
+- **`ansible_connection` declared**, or the runtime answering
+  `bake_ansible_vars` (the docker runtime does): two extra
+  `extra_arguments` entries, `"--extra-vars"` and the `key=value` pairs;
+  neither, packer picks the connection (ssh for the cloud sources).
 - **`expect_disconnect: true`**: one extra `expect_disconnect = true` line
   per provisioner; false emits nothing.
 - **Item `type:` present vs absent.** Present: resolved by name or alias,

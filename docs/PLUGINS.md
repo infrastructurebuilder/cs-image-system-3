@@ -30,8 +30,9 @@ registers model and builder classes under the classifications it claims.
 | --- | --- | --- |
 | [aws-runtime-plugin](../packages/aws-runtime-plugin/README.md) | runtime | `aws` |
 | [gcloud-runtime-plugin](../packages/gcloud-runtime-plugin/README.md) | runtime | `gcloud` |
+| [docker-runtime-plugin](../packages/docker-runtime-plugin/README.md) | runtime | `docker` (a durable host's container daemon, reached through the Docker Engine API; stage 103) |
 | [default-os-plugin](../packages/default-os-plugin/README.md) | OS families | the family names an OS builder declares |
-| [packer-plugin](../packages/packer-plugin/README.md) | image builders | the packer builders for EBS and GCE images |
+| [packer-plugin](../packages/packer-plugin/README.md) | image builders | the packer builders for EBS, GCE and docker images (`packer-ebs`, `packer-gce`, `packer-docker`) |
 | [ansible-plugin](../packages/ansible-plugin/README.md) | modifications | `ansible` (playbooks) |
 | [bash-mod-plugin](../packages/bash-mod-plugin/README.md) | modifications | `bash-remote` (script, scripts, ensure) |
 | [okta-opa-plugin](../packages/okta-opa-plugin/README.md) | groups and users | the OPA group builder, the managed and read-only user builders |

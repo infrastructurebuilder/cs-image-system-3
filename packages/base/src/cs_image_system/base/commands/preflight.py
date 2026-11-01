@@ -50,7 +50,7 @@ NOT_JUDGED_WHY = ("no expiry readable: keys lapse without notice, and the next c
 @dataclass(config=CSIS_MODEL_CONFIG)
 class SessionInfo:
     runtime: str
-    provider: str                 # aws | gcp
+    provider: str                 # aws | gcp | docker
     source: str                   # what was read: profile name, ADC type, env
     expires_at: datetime | None   # None: no fixed expiry readable
     note: str = ""
@@ -169,8 +169,53 @@ def _merge(infos: list[SessionInfo]) -> list[SessionInfo]:
             for (provider, source, note, exp, present), rts in merged.items()]
 
 
-def _info_for(name: str, provider: str, profile: str | None) -> SessionInfo | None:
+def docker_probe(binary: str, env: dict[str, str], timeout: int = 20) -> tuple[bool, str]:
+    """``docker version`` against ONE daemon (stage 103): ``(answers, what
+    it said)`` -- the engine and API versions, or the first line of why not.
+    The one cloud-like call preflight makes: a daemon's "session" is its
+    reachability, and nothing else can be read for it."""
+    import subprocess
+    full = dict(os.environ)
+    full.update(env)
+    try:
+        res = subprocess.run([binary, "version", "--format", "{{.Server.Version}} (api {{.Server.APIVersion}})"],
+                             capture_output=True, text=True, check=False, timeout=timeout, env=full)
+    except FileNotFoundError:
+        return False, f"{binary} is not an executable on this machine"
+    except subprocess.TimeoutExpired:
+        return False, f"no answer within {timeout}s"
+    if res.returncode == 0 and (res.stdout or "").strip():
+        # "present;" marks the session JUDGED: a daemon that answers has
+        # been asked, unlike static keys whose lapse nothing can read
+        return True, f"present; answers: engine {(res.stdout or '').strip()}"
+    err = ((res.stderr or res.stdout or "").strip().splitlines() or ["no answer"])[0]
+    return False, f"does not answer: {err[:160]}"
+
+
+def _docker_where(entry: Any) -> tuple[dict[str, str], str]:
+    """The daemon environment and its description from a raw entry or a
+    model: ``host`` (an ENC marker opened, never shown) or ``context``."""
+    host = entry.get("host") if isinstance(entry, dict) else getattr(entry, "host", None)
+    context = entry.get("context") if isinstance(entry, dict) else getattr(entry, "context", None)
+    env: dict[str, str] = {}
+    where = "the environment's daemon"
+    if host:
+        from ..encryption import decrypt_marker, is_marker
+        env["DOCKER_HOST"] = decrypt_marker(str(host)) if is_marker(str(host)) else str(host)
+        where = "host (encrypted)" if is_marker(str(host)) else f"host {host}"
+    elif context:
+        env["DOCKER_CONTEXT"] = str(context)
+        where = f"context {context}"
+    return env, where
+
+
+def _info_for(name: str, provider: str, profile: str | None,
+              daemon: tuple[str, dict[str, str], str] | None = None) -> SessionInfo | None:
     provider = provider.lower()
+    if "docker" in provider:
+        binary, env, where = daemon or ("docker", {}, "the environment's daemon")
+        ok, said = docker_probe(binary, env)
+        return SessionInfo(name, "docker", where, None, said, present=ok)
     if "aws" in provider:
         if os.environ.get("AWS_ACCESS_KEY_ID") and not os.environ.get("AWS_PROFILE"):
             return SessionInfo(name, "aws", "env keys", None, "static credentials in the environment (no expiry readable)")
@@ -190,12 +235,43 @@ def _info_for(name: str, provider: str, profile: str | None) -> SessionInfo | No
     return None
 
 
+def _state_provider(type_name: str) -> str:
+    """A state manager's provider for the session it needs, from its type:
+    ``aws`` for an s3 backend, ``gcp`` for a gcs one, else nothing (stage
+    103, decision 5: a tree's credential needs follow its managers as well
+    as its runtimes; a cloud-less tree with docker roots on a `local`
+    manager needs none)."""
+    t = str(type_name or "").lower()
+    if "s3" in t:
+        return "aws"
+    if "gcs" in t:
+        return "gcp"
+    return ""
+
+
 def session_infos(ctx: Any) -> list[SessionInfo]:
     out: list[SessionInfo] = []
+    executables = getattr(ctx, "executables", None) or {}
     for name, rtb in sorted((getattr(ctx, "runtime_builders", None) or {}).items()):
         model = getattr(rtb, "model", None)
         provider = str(getattr(model, "type_", "") or type(rtb).__name__)
-        info = _info_for(name, provider, _aws_profile(model) if "aws" in provider.lower() else None)
+        daemon = None
+        if "docker" in provider.lower():
+            exe = executables.get(str(getattr(model, "executable", None) or "docker"))
+            binary = str(getattr(exe, "binary", None) or getattr(exe, "name", None) or "docker")
+            env, where = _docker_where(model)
+            daemon = (binary, env, where)
+        info = _info_for(name, provider, _aws_profile(model) if "aws" in provider.lower() else None, daemon)
+        if info:
+            out.append(info)
+    # the session of every state manager a run reaches (stage 103)
+    for name, sb in sorted((getattr(ctx, "state_backends", None) or {}).items()):
+        model = getattr(sb, "model", sb)
+        provider = _state_provider(str(getattr(model, "type_", "") or getattr(model, "type", "") or ""))
+        if not provider:
+            continue
+        profile = getattr(model, "profile", None)
+        info = _info_for(f"state {name}", provider, str(profile) if profile else None)
         if info:
             out.append(info)
     return _merge(out)
@@ -215,6 +291,8 @@ def raw_session_infos(root_dir: Path) -> list[SessionInfo]:
     if not cfg.is_dir():
         return []
     entries: list[Any] = []
+    backends: list[Any] = []
+    executables: dict[str, dict[str, Any]] = {}
     for path in sorted(p for p in cfg.iterdir() if p.is_file() and p.suffix in (".yml", ".yaml")):
         try:
             doc = yaml.safe_load(path.read_text()) or {}
@@ -222,13 +300,34 @@ def raw_session_infos(root_dir: Path) -> list[SessionInfo]:
             continue
         if isinstance(doc, dict):
             entries.extend(doc.get("runtime_builders") or [])
+            backends.extend(doc.get("state_backends") or [])
+            for exe in doc.get("executables") or []:
+                if isinstance(exe, dict) and exe.get("name"):
+                    executables[str(exe["name"])] = exe
     out: list[SessionInfo] = []
     for entry in entries:
         if not isinstance(entry, dict) or not entry.get("name"):
             continue
         creds = entry.get("credentials") or {}
         profile = entry.get("profile") or (creds.get("profile_name") if isinstance(creds, dict) else None)
-        info = _info_for(str(entry["name"]), str(entry.get("type") or ""), str(profile) if profile else None)
+        daemon = None
+        if "docker" in str(entry.get("type") or "").lower():
+            exe = executables.get(str(entry.get("executable") or "docker")) or {}
+            binary = str(exe.get("binary") or exe.get("name") or "docker")
+            env, where = _docker_where(entry)
+            daemon = (binary, env, where)
+        info = _info_for(str(entry["name"]), str(entry.get("type") or ""), str(profile) if profile else None, daemon)
+        if info:
+            out.append(info)
+    # stage 103: the state managers' sessions, read raw as the runtimes' are
+    for entry in backends:
+        if not isinstance(entry, dict) or not entry.get("name"):
+            continue
+        provider = _state_provider(str(entry.get("type") or ""))
+        if not provider:
+            continue
+        profile = entry.get("profile")
+        info = _info_for(f"state {entry['name']}", provider, str(profile) if profile else None)
         if info:
             out.append(info)
     return _merge(sorted(out, key=lambda i: i.runtime))

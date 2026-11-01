@@ -295,8 +295,10 @@ full-test-legs:
 		just test-bake-steps -q || { echo "full-test: FAILED test-bake-steps"; status=1; }
 		echo "full-test: the CI runner image builds and every tool in it answers (runner-image)"
 		just runner-image || { echo "full-test: FAILED runner-image"; status=1; }
+		echo "full-test: the docker runtime bakes a base image and an instance image on the local daemon, from nothing to nothing (test-docker-bake)"
+		just test-docker-bake -q || { echo "full-test: FAILED test-docker-bake"; status=1; }
 	else
-		echo "full-test: SKIPPED test-mods, test-posix-accounts, test-bake-steps and runner-image -- docker is not available"
+		echo "full-test: SKIPPED test-mods, test-posix-accounts, test-bake-steps, runner-image and test-docker-bake -- docker is not available"
 	fi
 	if [ ! -f "{{config_root}}/cfg/_config.yml" ]; then
 		echo "full-test: SKIPPED the live-configuration legs (dry run --all, state query --strict) -- no live configuration at {{config_root}} (see: just config-guard)"
@@ -390,6 +392,17 @@ test-posix-accounts *ARGS:
 # test` the same file is skipped.
 test-bake-steps *ARGS:
 	@CSIS_CONTAINER_TESTS=1 uv run pytest tests/test_v2_bake_steps_containers.py {{ARGS}}
+
+# Stage 103: the docker runtime's cycle on the local daemon -- a tree of nothing
+# but a docker runtime is written from the frozen fixture's pieces, its AlmaLinux
+# 10 and Debian 12 base images and a posix-owned instance image are BAKED
+# (packer's docker plugin, ansible through the daemon), the lineage and the
+# tags are checked, and the images are disposed. Needs docker, packer with the
+# docker and ansible plugins, and ansible-playbook; several minutes (pulls,
+# two package updates, the mods). A leg of `full-test`; under `just test` the
+# same file is skipped.
+test-docker-bake *ARGS:
+	@CSIS_DOCKER_BAKE=1 uv run pytest tests/test_v2_docker_bake_live.py {{ARGS}}
 
 # Stage 92: build the CI runner image (ci/runner-image: AlmaLinux 10, every tool pinned) for
 # amd64 and run its probe, which asks every tool its version from where cfg/executables.yml

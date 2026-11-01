@@ -45,12 +45,13 @@ Also registered, without a `type:` key of its own:
 Present in the package but not registered: the intermediate models
 `AptOsBuilderModel` ([apt_type.py](src/cs_image_system/default_os_plugin/apt_type.py))
 and `DnfOsBuilderModel` ([dnf_type.py](src/cs_image_system/default_os_plugin/dnf_type.py)),
-which hold the package-manager logic the families share;
-`SourceModel`, `ContainerSourceConfig` and `DockerSourceModel`
-([os_sources.py](src/cs_image_system/default_os_plugin/os_sources.py),
-[docker_os_source_types.py](src/cs_image_system/default_os_plugin/docker_os_source_types.py)),
-which no service list names; and [aws_os_source_types.py](src/cs_image_system/default_os_plugin/aws_os_source_types.py),
-which is empty.
+which hold the package-manager logic the families share. The
+unregistered source classes that once sat beside them (`SourceModel`,
+`ContainerSourceConfig`, `DockerSourceModel`, and an empty AWS stub) went
+with stage 103: an OS picks its source per runtime through its
+`runtimes:` entries and the image-source catalog, and the docker runtime
+resolves through the catalog's `docker` block like the clouds through
+theirs.
 
 ## Models
 

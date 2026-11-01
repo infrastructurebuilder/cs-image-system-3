@@ -8,6 +8,10 @@ the builder answers the queries, sessions, bakes, power states and image
 disposal the core asks a runtime for, translates the system's image query
 into its own words (stage 106), and makes the provider-specific images (the
 resolved or deferred reference to an image on this runtime).
+Stage 103 adds the container runtime's model protocol beside the cloud's,
+and two bake hooks: the post-processor blocks a runtime's packer plugin
+wants in the build (the docker runtime tags its committed image) and the
+ansible variables a bake on it connects with (``ansible_connection``).
 Items of other kinds (images, subconfigs, provider-specific images) are
 ``Any`` here: their protocols are a later stage."""
 from __future__ import annotations
@@ -54,6 +58,29 @@ class CloudBuilderModelProtocol(RuntimeBuilderModelProtocol, Protocol):
     def get_region(self) -> str: ...
 
     def get_networking(self) -> Any: ...
+
+
+class ContainerBuilderModelProtocol(RuntimeBuilderModelProtocol, Protocol):
+    """A container runtime (stage 103): a durable host running a daemon
+    that speaks the Docker Engine API, reached by a ``host`` URL
+    (``unix://``, ``ssh://``, ``tcp://`` with TLS) or a docker ``context``;
+    a ``networking`` block that names a network and nothing more (no
+    subnets, no zones); and a ``machine_types`` map from a name to the
+    limits a container of that type runs under (``cpus``, ``memory``),
+    one of which ``default_machine_type`` names."""
+
+    host: str | None
+    context: str | None
+    networking: Any
+    machine_types: Any
+
+    def get_host(self) -> str | None: ...
+
+    def get_context(self) -> str | None: ...
+
+    def get_networking(self) -> Any: ...
+
+    def get_machine_types(self) -> dict[str, Any]: ...
 
 
 class RuntimeBuilderProtocol(BuilderProtocol, Protocol):
@@ -145,6 +172,14 @@ class RuntimeBuilderProtocol(BuilderProtocol, Protocol):
                              psi: Any, tags: dict[str, str], final_name: str, pinned: str | None) -> list[str]: ...
 
     def build_id_from_artifact(self, artifact_id: str) -> str: ...
+
+    # --- stage 103: what else a runtime's packer plugin needs in the build block
+    def packer_post_processor_blocks(self, image: Any, *, runtime: str, source_type: str, subconfig: Any,
+                                     final_name: str) -> list[str]: ...
+
+    def bake_ansible_vars(self, image: Any) -> dict[str, str]: ...
+
+    def tool_environment(self) -> dict[str, str]: ...
 
     def get_default_machine_type(self) -> str: ...
 

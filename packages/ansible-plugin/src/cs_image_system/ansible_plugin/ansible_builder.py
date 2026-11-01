@@ -115,9 +115,18 @@ class AnsiblePackerModBuilder(ModBuilderBase[Q]):
                 retval.add(path, f"  user = {_hcl(bake_user)}")
             extra = list(self.model.extra_arguments or [])
             extra += ["-e", "ansible_python_interpreter=/usr/local/bin/csis-ansible-python"]
-            retval.add(path, "  extra_arguments = [" + ", ".join(_hcl(str(a)) for a in extra) + "]")
+            # stage 103: the connection ansible uses is an ansible VARIABLE
+            # (packer's provisioner has no option for it; the former
+            # `connection_type = ...` line was not one packer knew). The
+            # runtime says how a bake on it is reached (docker: through the
+            # daemon, by the build container's name); the builder's own
+            # `ansible_connection` wins when declared.
+            conn_vars = dict(rtb.bake_ansible_vars(image)) if rtb is not None else {}
             if self.model.ansible_connection:
-                retval.add(path, f"  connection_type = {_hcl(str(self.model.ansible_connection))}")
+                conn_vars["ansible_connection"] = str(self.model.ansible_connection)
+            if conn_vars:
+                extra += ["--extra-vars", " ".join(f"{k}={v}" for k, v in sorted(conn_vars.items()))]
+            retval.add(path, "  extra_arguments = [" + ", ".join(_hcl(str(a)) for a in extra) + "]")
             if self.model.expect_disconnect:
                 retval.add(path, "  expect_disconnect = true")
             retval.add(path, "}\n")

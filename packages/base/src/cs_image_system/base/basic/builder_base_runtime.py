@@ -166,6 +166,32 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
         (amazon-ebs: ``<region>:<ami>`` -> ami; googlecompute: the image name)."""
         return artifact_id.split(":")[-1] if artifact_id else artifact_id
 
+    def packer_post_processor_blocks(self, image: Any, *, runtime: str, source_type: str, subconfig: Any,
+                                     final_name: str) -> list[str]:
+        """HCL lines for the post-processor blocks this runtime's packer
+        plugin wants in the build block for ``image``, before the manifest
+        (stage 103: the docker runtime tags its committed image with the
+        build's final name and the series' floating tag). Default: none --
+        the clouds name their artifact in the source block itself."""
+        return []
+
+    def bake_ansible_vars(self, image: Any) -> dict[str, str]:
+        """Ansible variables the ansible provisioner passes as
+        ``--extra-vars`` for a bake of ``image`` on this runtime (stage 103:
+        the docker runtime's ``ansible_connection=docker`` and the build
+        container's name as ``ansible_host``, the way packer's ansible
+        provisioner documents for its docker builder). Default: none; the
+        clouds bake over SSH through packer's own adapter."""
+        return {}
+
+    def tool_environment(self) -> dict[str, str]:
+        """Environment variables every tool a bake or an apply on this
+        runtime runs needs on top of the caller's (stage 103: the docker
+        runtime's ``DOCKER_HOST`` or ``DOCKER_CONTEXT``, read by packer's
+        docker plugin and ansible's docker connection alike). Default: none;
+        the clouds' tools read the credentials the environment already has."""
+        return {}
+
     def get_default_machine_type(self) -> str:
         return self.model.get_default_machine_type()
 
