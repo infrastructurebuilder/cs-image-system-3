@@ -297,8 +297,10 @@ full-test-legs:
 		just runner-image || { echo "full-test: FAILED runner-image"; status=1; }
 		echo "full-test: the docker runtime bakes a base image and an instance image on the local daemon, from nothing to nothing (test-docker-bake)"
 		just test-docker-bake -q || { echo "full-test: FAILED test-docker-bake"; status=1; }
+		echo "full-test: the docker runtime's change cycle on the local daemon, from nothing to nothing (test-docker-cycle)"
+		just test-docker-cycle -q || { echo "full-test: FAILED test-docker-cycle"; status=1; }
 	else
-		echo "full-test: SKIPPED test-mods, test-posix-accounts, test-bake-steps, runner-image and test-docker-bake -- docker is not available"
+		echo "full-test: SKIPPED test-mods, test-posix-accounts, test-bake-steps, runner-image, test-docker-bake and test-docker-cycle -- docker is not available"
 	fi
 	if [ ! -f "{{config_root}}/cfg/_config.yml" ]; then
 		echo "full-test: SKIPPED the live-configuration legs (dry run --all, state query --strict) -- no live configuration at {{config_root}} (see: just config-guard)"
@@ -403,6 +405,16 @@ test-bake-steps *ARGS:
 # same file is skipped.
 test-docker-bake *ARGS:
 	@CSIS_DOCKER_BAKE=1 uv run pytest tests/test_v2_docker_bake_live.py {{ARGS}}
+
+# Stage 103 branch 2: the docker runtime's CHANGE CYCLE on the local daemon, from
+# nothing to nothing -- the bake above, then two containers launched on one
+# volume through tofu (kreuzwerker/docker), verified, their accounts reconciled;
+# one stopped and left stopped by the next apply, then started; one upgraded to
+# a new build (a new generation); both decommissioned, the volume destroyed, the
+# images disposed. Needs what test-docker-bake needs plus tofu; several minutes
+# more. A leg of `full-test`; under `just test` the same file is skipped.
+test-docker-cycle *ARGS:
+	@CSIS_DOCKER_CYCLE=1 uv run pytest tests/test_v2_docker_cycle_live.py {{ARGS}}
 
 # Stage 92: build the CI runner image (ci/runner-image: AlmaLinux 10, every tool pinned) for
 # amd64 and run its probe, which asks every tool its version from where cfg/executables.yml

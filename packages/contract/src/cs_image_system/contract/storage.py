@@ -21,7 +21,10 @@ class StorageBuilderProtocol(BuilderProtocol, Protocol):
     """A storage builder: what kind of capability it provides to the images
     that mount it, how many instances may attach one, the prerequisites an
     image bakes, the verification an instance runs, and the state
-    transitions it can carry out."""
+    transitions it can carry out. ``platform_mounts`` (stage 103 branch 2)
+    says the platform attaches AND mounts the storage before the machine's
+    first command (a container volume), so the launch script neither
+    formats nor mounts it and only makes the group's subtree."""
 
     def add_storage(self, storage: Any) -> None: ...
 
@@ -33,6 +36,8 @@ class StorageBuilderProtocol(BuilderProtocol, Protocol):
     def is_zonal(self) -> bool: ...
 
     def is_posix(self) -> bool: ...
+
+    def platform_mounts(self) -> bool: ...
 
     def base_image_prerequisites(self, os_family: str | None = None) -> list[str]: ...
 

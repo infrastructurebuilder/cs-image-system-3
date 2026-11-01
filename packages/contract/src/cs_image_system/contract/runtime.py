@@ -11,7 +11,10 @@ resolved or deferred reference to an image on this runtime).
 Stage 103 adds the container runtime's model protocol beside the cloud's,
 and two bake hooks: the post-processor blocks a runtime's packer plugin
 wants in the build (the docker runtime tags its committed image) and the
-ansible variables a bake on it connects with (``ansible_connection``).
+ansible variables a bake on it connects with (``ansible_connection``);
+its second branch adds ``launch_delivery``: whether the platform runs the
+launch script at first boot (a cloud's user data) or the system delivers it
+through the session after the apply (a container has no first boot).
 Items of other kinds (images, subconfigs, provider-specific images) are
 ``Any`` here: their protocols are a later stage."""
 from __future__ import annotations
@@ -20,6 +23,13 @@ from typing import Any, Protocol
 
 from .core import BuilderModelProtocol, BuilderProtocol
 from .image import ImageQuery, PSISourceKind
+
+#: How an instance's launch script reaches the machine (stage 103 branch 2):
+#: ``boot`` -- the platform runs it at first boot (EC2 user data, a GCE
+#: startup script); ``session`` -- the system runs it through the runtime's
+#: session after the apply, as it runs the accounts script.
+LAUNCH_DELIVERY_BOOT = "boot"
+LAUNCH_DELIVERY_SESSION = "session"
 
 
 class RuntimeBuilderModelProtocol(BuilderModelProtocol, Protocol):
@@ -141,6 +151,8 @@ class RuntimeBuilderProtocol(BuilderProtocol, Protocol):
     def session_verify_commands(self, os_family: str | None = None) -> list[str]: ...
 
     def session_instance_profile(self) -> str | None: ...
+
+    def launch_delivery(self) -> str: ...
 
     # --- bakes
     def bake_settle_commands(self, os_family: str | None = None) -> list[str]: ...

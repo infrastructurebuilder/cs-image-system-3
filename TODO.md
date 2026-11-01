@@ -434,24 +434,26 @@ final proof release is cut.
 
 ## 103. A container runtime: docker and the daemons that speak its API
 
-**Status: branch 1 LANDED fa16a12 on develop, 2026-10-31 ("merge 103";
-feature/container-runtime kept and pushed; worktree scratchpad/wt-103
-stands). The docker runtime plugin, its packer-docker builder, the
-contract's container model protocol and three bake hooks, the core's
-scaffolding fixed, preflight and the load failures taught, the orphan
-source classes gone, the complete example declaring the runtime;
-tests/test_v2_stage_103.py (16) over an overlay of the frozen fixture
-(unchanged, golden byte-identical) and the plugin's own (13). The live
-leg `just test-docker-bake` PASSED on the local OrbStack before the
-merge: AlmaLinux 10 and Debian 12 base images and a posix-owned instance
-image baked (ansible through the daemon), labels and tags read back,
-strict state query clean, the three disposed. Found while proving:
-packer's `--entrypoint=/bin/sh` becomes the committed image's entrypoint
-and `ENTRYPOINT []` does not clear it, so the bake shell is the
-container's command; an image id written as a tag loses its colon, so
-movable-tag values are decoded. Not yet released. Branch 2 (tf-docker
-instances) waits for "do 103-2", branch 3 for "do 103-3"; the section
-goes when branch 3 lands. Question 6's host is named at branch 3.**
+**Status: branch 1 LANDED fa16a12 on develop, 2026-10-31. Branch 2 BUILT
+on feature/container-instances, 2026-11-01 ("do 103-2"; worktree
+scratchpad/wt-103-2): packages/tf-docker-plugin (`tofu-docker`,
+`tf-docker-volume`) on tfmodules/docker_container and docker_volume,
+which every starter carries; the runtime's instance hooks; the launch
+script uploaded at creation and delivered by exec through the new
+`launch_delivery` hook (contract: `launch_delivery` on the runtime,
+`platform_mounts` on the storage builder); every tofu process of a
+docker root carries the daemon's address, an ENC host as a marker the
+runner script opens where it runs. Item 9 PROVED first against
+kreuzwerker/docker 4.6.0: `must_run = false` leaves a stopped container
+alone once `cpus` is spelled as read back and `memory_swap` is ignored.
+The live leg `just test-docker-cycle` PASSED whole on the local OrbStack
+(bake, two containers on one volume, launch by exec, accounts, verify,
+strict query, stop and leave stopped, start, upgrade to generation 2,
+decommission, destroy the volume, dispose). Bar: 1781 passed, pyright 0
+(four starter-tree tests read the examples from HEAD and pass once
+committed). Branch 2 waits for "merge 103-2"; branch 3 waits for "do
+103-3"; the section goes when branch 3 lands. Question 6's host is named
+at branch 3.**
 
 **Why**: every runtime today is a cloud. A durable host running a
 container daemon is a third kind: cheaper than either cloud, local to a

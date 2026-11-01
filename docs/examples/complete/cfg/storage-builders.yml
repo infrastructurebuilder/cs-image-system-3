@@ -64,3 +64,17 @@ storage_builders:
     state_configuration: s3-east1
     bucket_name: complete-example-REPLACE-ME-gcs-bucket   # required
     location: US                   # the bucket location (null: the module's default)
+  # --------------------------------------------------------- the docker host
+  - name: docker-volumes
+    type: tf-docker-volume         # capability `volume`: named volumes the daemon mounts, many-attach, POSIX, no zone
+    executable: open-tofu-1
+    runtime: docker-host
+    state_configuration: local-dev
+    variables:
+      driver: local                # the daemon's default; driver_opts: {} for another driver's options
+      tags:                        # emitted as labels, fixed when the volume is created
+        project: complete-example
+    required_plugins:
+      - name: docker
+        source: kreuzwerker/docker
+        version: ">= 3.0.0"

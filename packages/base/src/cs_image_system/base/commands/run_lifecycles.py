@@ -716,6 +716,8 @@ def _register_builtin_hooks() -> None:
     launch_params.register(this)
     from .. import provider_aliases
     provider_aliases.register(this)   # after mark_launched: it reads `launched` (stage 58)
+    from .. import launch_delivery
+    launch_delivery.register(this)   # after mark_launched, before the accounts: the launch script by session (stage 103)
     from .. import accounts_reconcile
     accounts_reconcile.register(this)   # after mark_launched: it reads `launched` (stage 75)
     from .. import generations

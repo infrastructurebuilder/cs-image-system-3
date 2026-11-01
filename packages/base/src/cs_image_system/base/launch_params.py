@@ -185,6 +185,12 @@ def compute_launch_params(ctx: "GlobalTypeContext", instance: "Instance") -> dic
             "share_mode": storage.share_mode,
             "public_read": bool(storage.public_read),
         }
+        builder = ctx.storage_builders.get(storage.type_)
+        if builder is not None and getattr(builder, "platform_mounts", lambda: False)():
+            # stage 103 branch 2: the daemon mounts a container volume at the
+            # declared path before the first command; the script only makes
+            # the group's subtree (one kind, not a branch per storage type)
+            mount["platform_mounted"] = True
         if stype == "ebs":
             mount["device"] = EBS_DEVICES[ebs_index] if ebs_index < len(EBS_DEVICES) else f"/dev/xvd{chr(ord('l') + ebs_index - len(EBS_DEVICES))}"
             ebs_index += 1
@@ -203,6 +209,8 @@ def compute_launch_params(ctx: "GlobalTypeContext", instance: "Instance") -> dic
     enrollment = gb.launch_parameters(group_obj) if (gb is not None and group_obj is not None) else {}
     rtb = ctx.runtime_builders.get(instance.runtime) if instance.runtime else None
     session = rtb.session_mechanism() if rtb is not None else None
+    from cs_image_system.contract.runtime import LAUNCH_DELIVERY_BOOT
+    delivery = str(rtb.launch_delivery()) if rtb is not None and hasattr(rtb, "launch_delivery") else LAUNCH_DELIVERY_BOOT
     hostname = canonical_hostname(ctx, instance)
     from .alias_pool import alias_for
     alias = alias_for(ctx, instance, hostname)     # stage 59: a pool name, spent once, for a new machine
@@ -221,6 +229,10 @@ def compute_launch_params(ctx: "GlobalTypeContext", instance: "Instance") -> dic
         "mounts": mounts,
         "enrollment": enrollment,
         "session": session,
+        # stage 103 branch 2: how the script reaches the machine -- present
+        # only when it is not the platform's first boot, so every cloud
+        # record stays as it was
+        **({"launch_delivery": delivery} if delivery != LAUNCH_DELIVERY_BOOT else {}),
         "hostname": hostname,
         **({"alias": alias} if alias else {}),
         "ephemeral": bool(getattr(instance, "ephemeral", False)),   # stage 10.1
@@ -249,8 +261,15 @@ def user_data_template(params: dict[str, Any]) -> str:
         "# Generated from validated configuration; immutable after launch --",
         "# changing them means replacing the instance.",
         "set -euo pipefail",
-        f"hostnamectl set-hostname '{params['hostname']}' || true",
     ]
+    if params.get("launch_delivery"):
+        # stage 103 branch 2: delivered through the session after the apply,
+        # to a machine the platform already named (a container's hostname is
+        # set when it is created, and it has no hostnamectl to run)
+        lines.append(f"# delivered by the runtime's session ({params['launch_delivery']}); the platform "
+                     f"named the machine {params['hostname']}")
+    else:
+        lines.append(f"hostnamectl set-hostname '{params['hostname']}' || true")
     group = params.get("group")
     if group:
         lines.append(f"# owning group: {group} (gid by reference)")
@@ -260,7 +279,11 @@ def user_data_template(params: dict[str, Any]) -> str:
         name = m["storage"]
         lines.append(f"# mount storage {name} ({m['type']}) at {mp}")
         lines.append(f"mkdir -p '{mp}'")
-        if m["type"] in ("ebs", "pd"):
+        if m.get("platform_mounted"):
+            # the platform mounted it before the first command (a container
+            # volume): nothing to format or mount, the mark says whether it is there
+            lines.append(mount_mark_line(mp))
+        elif m["type"] in ("ebs", "pd"):
             dev = m["device"]
             lines.append(f"DEV='{dev}'")
             if m["type"] == "ebs":
@@ -303,7 +326,7 @@ def user_data_template(params: dict[str, Any]) -> str:
         elif m["type"] in ("s3", "gcs"):
             lines.append(f"# {m['type']} storage {name}: object access via the cloud CLI; no mount")
             continue
-        if group and m["type"] in ("ebs", "pd", "filestore"):
+        if group and (m["type"] in ("ebs", "pd", "filestore") or m.get("platform_mounted")):
             # per-group private subtree (N13/N15) -- EFS access points create theirs
             lines += [
                 f"mkdir -p '{mp}/{group}'",

@@ -17,6 +17,7 @@ from cs_image_system.contract.runtime import ContainerBuilderModelProtocol
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 
 from cs_image_system.base.constants import VCT
+from cs_image_system.base.encryption import EncryptedStr
 from cs_image_system.base.models.runtime import RuntimeBuilderModel
 from .model_config import CSIS_MODEL_CONFIG
 
@@ -67,7 +68,9 @@ class ContainerBuilderModel(RuntimeBuilderModel, ContainerBuilderModelProtocol):
     ENC marker. ``machine_types`` names the limits an instance's
     ``machine_type`` picks; ``default_machine_type`` (required of every
     runtime) must name one of them when any are declared."""
-    host: str | None = None
+    # an EncryptedStr (stage 33): a marker opens into a value that remembers
+    # its ciphertext, so the emission can write the marker back (stage 49)
+    host: EncryptedStr | None = None
     context: str | None = None
     networking: ContainerNetworkingModel | None = None
     # a plain mapping (the template resolver serialises mapping fields), each

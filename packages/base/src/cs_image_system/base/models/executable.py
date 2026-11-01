@@ -133,6 +133,15 @@ class ExecutableModel(NameTyped, PluginArtifactProtocol):
     
     
 
+    def resolved_environment(self) -> dict[str, str]:
+        """The ``environment`` with every ENC marker opened (stage 103 branch
+        2): the model carries the ciphertext (a docker runtime's private
+        ``host``), the process gets the value, and the runner script renders
+        the marker as a `decrypt` call (see render_executable_line)."""
+        from ..encryption import decrypt_marker, is_marker
+        return {str(k): (decrypt_marker(v) if isinstance(v, str) and is_marker(v) else str(v))
+                for k, v in self.environment.items()}
+
     def execute(self, *args: str, skips: bool = False) -> subprocess.CompletedProcess[str]:
         """Execute the executable with the given arguments."""
         # stage 63: the command is built once (a first list was built and discarded)
@@ -168,7 +177,7 @@ class ExecutableModel(NameTyped, PluginArtifactProtocol):
             env = None
             if self.environment:
                 env = dict(os.environ)
-                env.update({str(k): str(v) for k, v in self.environment.items()})
+                env.update(self.resolved_environment())
             result = subprocess.run(
                 command,
                 check=True,

@@ -69,11 +69,16 @@ class DockerContainerBuilderModel(ContainerBuilderModel):
         docker connection, the system's own calls) reaches THIS daemon
         with: ``DOCKER_HOST`` or ``DOCKER_CONTEXT``, and the TLS pair when
         declared. Empty when the runtime names no address: the daemon the
-        caller's environment names."""
+        caller's environment names. A ``host`` that is an ENC marker stays
+        the marker here (an ``ExecutableModel`` opens it when it runs and
+        the runner script renders it as a `decrypt` call); ``process_environment``
+        is the opened form for the system's own calls."""
         env: dict[str, str] = {}
-        host = self.get_host_plain()
-        if host:
-            env["DOCKER_HOST"] = host
+        if self.host:
+            # the loader opens a marker into a value that remembers its
+            # ciphertext; `emit` gives the ciphertext back (stage 49)
+            from cs_image_system.base.encryption import emit
+            env["DOCKER_HOST"] = str(emit(self.host))
         elif self.context:
             env["DOCKER_CONTEXT"] = str(self.context)
         if self.tls_cert_path:
@@ -86,14 +91,17 @@ class DockerContainerBuilderModel(ContainerBuilderModel):
         """The caller's environment with the daemon's on top."""
         env = dict(os.environ)
         env.update(self.daemon_environment())
+        host = self.get_host_plain()
+        if host:
+            env["DOCKER_HOST"] = host
         return env
 
     def where(self) -> str:
         """How the daemon is addressed, for messages (never the plain host
         of an ENC marker)."""
         if self.host:
-            from cs_image_system.base.encryption import is_marker
-            return "host (encrypted)" if is_marker(self.host) else f"host {self.host}"
+            from cs_image_system.base.encryption import emit, is_marker
+            return "host (encrypted)" if is_marker(emit(self.host)) else f"host {self.host}"
         if self.context:
             return f"context {self.context}"
         return "the environment's daemon"
