@@ -364,3 +364,77 @@ def init_config(destination: Path, starter: str | None = None, *, force: bool = 
         if VERSION_FILE not in report.written:
             report.written.append(VERSION_FILE)
     return report
+
+
+@dataclass
+class ChangesReport:
+    """What a release changed in the release-owned files of an existing tree
+    (hygiene XXI item 3). Nothing is written: this is the list a person reads
+    before refreshing by hand."""
+    starter: str
+    inferred: bool
+    refresh: list[str] = field(default_factory=list)    # changed by the release; the tree still has the previous release's text
+    edited: list[str] = field(default_factory=list)     # changed by the release; the tree's copy also differs from the previous release's
+    added: list[str] = field(default_factory=list)      # new in the release; the tree has no such file
+    unchanged: int = 0
+
+    @property
+    def clear(self) -> bool:
+        return not (self.refresh or self.edited or self.added)
+
+    def lines(self) -> list[str]:
+        out = [f"init-config: changes since the previous release, in the release-owned files of {self.starter}"
+               + (" (read from the tree's workflow)" if self.inferred else "")]
+        for title, paths in (("changed by the release; your copy is the previous release's own", self.refresh),
+                             ("changed by the release AND edited in your tree (read both)", self.edited),
+                             ("new in the release; your tree has no such file", self.added)):
+            if paths:
+                out.append(f"init-config: {title}:")
+                out.extend(f"init-config:   {p}" for p in paths)
+        if self.clear:
+            out.append("init-config: nothing the release owns changed in a file your tree holds")
+        return out
+
+
+def _is_previous_text(previous: str, tree: str, rel: str) -> bool:
+    """The tree's copy is the previous release's text: byte for byte, or (a
+    workflow) with the team's values where that release had REPLACE-ME."""
+    if previous == tree:
+        return True
+    if rel.startswith(".github/workflows/") and any(_placeholder(x) for x in previous.splitlines()):
+        merged, _, _ = carry_team_values(previous, tree)
+        return merged == tree
+    return False
+
+
+def changes_since(destination: Path, previous_root: Path, starter: str | None = None) -> ChangesReport:
+    """Compare, for each release-owned file of this release's starter, the
+    previous release's starter (``previous_root``, a ``starters/`` directory
+    that release's own wheel carries), this release's, and the tree's. Writes
+    nothing. A file the release did not change is not listed, whatever the
+    tree holds."""
+    destination = destination.resolve()
+    if not destination.is_dir() or not holds_configuration(destination):
+        raise ValueError(f"{destination} is not a configuration repository (no cfg/_config.yml, no {VERSION_FILE})")
+    inferred = False
+    if starter is None:
+        found = infer_starter(destination)
+        starter, inferred = (found, True) if found else (DEFAULT_STARTER, False)
+    new_dir, old_dir = starter_path(starter), previous_root / starter
+    if not old_dir.is_dir():
+        raise ValueError(f"the previous release's starters ({previous_root}) hold no {starter}; "
+                         "a starter new in this release has no previous text to compare with")
+    report = ChangesReport(starter=starter, inferred=inferred)
+    for rel in release_owned_paths(new_dir):
+        new, old, mine = new_dir / rel, old_dir / rel, destination / rel
+        if old.is_file() and _same(old, new):
+            report.unchanged += 1
+        elif not mine.is_file():
+            report.added.append(rel)
+        elif old.is_file() and _is_previous_text(old.read_text(), mine.read_text(), rel):
+            report.refresh.append(rel)
+        elif _same(new, mine):
+            report.unchanged += 1
+        else:
+            report.edited.append(rel)
+    return report

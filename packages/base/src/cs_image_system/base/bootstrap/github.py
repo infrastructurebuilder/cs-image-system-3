@@ -64,7 +64,7 @@ QUESTIONS: tuple[Question, ...] = (
     Question("perform_runtime", "PERFORM_RUNTIME: the runtime the perform job bakes, releases and applies "
              "retention on", "text", default=_perform_default,
              help="a `name:` from cfg/runtime-builders.yml; none could be read"),
-    Question("guard_runtime", "GUARD_RUNTIME: a runtime CI must never bake on", "text",
+    Question("guard_runtime", "GUARD_RUNTIME: a runtime CI must never bake on (several, separated by spaces)", "text",
              default=_guard_default, may_be_empty=True,
              help="by default a container runtime whose daemon CI has no way into (not an ssh:// host)"),
     Question("aws_region", "AWS_REGION: the region of the AWS runtime (none in a tree without one)", "text",

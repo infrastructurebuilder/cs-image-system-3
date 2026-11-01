@@ -249,7 +249,7 @@ when any marker is present; loads no configuration. Exit 1 (`materialize:
 identity or a value that cannot be opened. This is the wrapper every
 deferred command in a runner script runs through.
 
-### `init-config DESTINATION [--from NAME] [--force]`
+### `init-config DESTINATION [--from NAME] [--force] [--changes-since PREVIOUS_STARTERS]`
 
 Write a starter configuration repository from this release (stage 64).
 The release carries five starter trees -- `standard-aws` (the default),
@@ -268,6 +268,18 @@ name, exit 1, until `--force` overwrites it, and an identical one is
 kept. Prints what was written and kept. Loads no configuration and needs
 no credential. Exit 2 for an unknown starter or a destination that is a
 file.
+
+With `--changes-since PREVIOUS_STARTERS` nothing is written (hygiene XXI):
+the command lists which release-owned files this release changed in an
+existing tree, given the previous release's `starters/` directory (its
+wheel's `cs_image_system/system/starters`; `just take` finds it with `uvx
+--from cs-image-system==<previous> python -c ...`). A file the release did
+not change is not listed. A changed file the tree still holds as the
+previous release wrote it (byte for byte, or a workflow with only the
+team's values where that release had `REPLACE-ME`) is listed to refresh; one
+the tree also edited is listed apart; one the tree lacks is listed as new.
+Exit 1 when any is listed, 0 when none, 2 when the previous release has no
+such starter or the destination holds no configuration.
 
 ### `config-drift`
 

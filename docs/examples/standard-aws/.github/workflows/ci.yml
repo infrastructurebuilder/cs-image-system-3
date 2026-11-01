@@ -36,7 +36,7 @@ on:
 
 env:
   PERFORM_RUNTIME: aws-REPLACE-ME          # the runtime `perform` drives (cfg/runtime-builders.yml)
-  GUARD_RUNTIME: ""                        # REPLACE-ME or empty: a runtime CI must never bake on; its emission may not change between records
+  GUARD_RUNTIME: ""                        # REPLACE-ME or empty: the runtime(s) CI must never bake on, one name or several separated by spaces; their emission may not change between records
   AWS_REGION: us-east-2                    # REPLACE-ME
   # a version pin for the release CI installs: the content of .csis-version, else the latest on PyPI
   CSIS_VERSION_FILE: .csis-version
@@ -341,7 +341,9 @@ jobs:
         # before anything performs (the record is already pushed)
         run: |
           if [ -n "$GUARD_RUNTIME" ]; then
-            just runtime-unchanged "$GUARD_RUNTIME" "${{ steps.proof.outputs.before }}"
+            for guarded in $GUARD_RUNTIME; do
+              just runtime-unchanged "$guarded" "${{ steps.proof.outputs.before }}"
+            done
           else
             echo "no runtime is guarded (GUARD_RUNTIME is empty)"
           fi

@@ -209,15 +209,19 @@ run `live`:
 | Value | Meaning |
 | --- | --- |
 | `PERFORM_RUNTIME` | the runtime the `perform` job bakes, releases and applies retention on (a `name:` from `cfg/runtime-builders.yml`) |
-| `GUARD_RUNTIME` | a runtime CI must never bake on (for example one billed to a person), or empty for none; its emission may not change between two records, or `perform` fails before anything performs. The vendor publishing a newer image under a base with no build yet there is not a change: the guard names the move and passes (on 0.1.2 and before it failed) |
+| `GUARD_RUNTIME` | a runtime CI must never bake on (for example one billed to a person), several separated by spaces (the guard checks each), or empty for none; each one's emission may not change between two records, or `perform` fails before anything performs. The vendor publishing a newer image under a base with no build yet there is not a change: the guard names the move and passes (on 0.1.2 and before it failed) |
 | `AWS_REGION` | the region of the AWS runtime (absent in a GCE-only or docker tree) |
 | `DOCKER_HOST_ADDRESS`, `DOCKER_HOST_USER` | the docker starter only: the host CI logs in to over ssh and the user there who may use its daemon (section 3.4a) |
 | `TF_VAR_REPLACE_ME_key`, `TF_VAR_REPLACE_ME_secret` | rename to `TF_VAR_<team>_key` and `TF_VAR_<team>_secret`, where `<team>` is the OPA team with every non-alphanumeric character as `_` (the `team:` on your group builder); the values come from the `TF_VAR_KEY` and `TF_VAR_SECRET` secrets, which keep those names |
 
-`.csis-version` pins the release CI installs. Taking a new release is:
-move the version in that file, run `cs-image-system init-config . --force`
-with the new release to refresh the release-owned parts, review the diff,
-commit.
+`.csis-version` pins the release CI installs. Taking a new release is
+`just take <version>`: it fast-forwards `develop` from `origin/main`, installs
+the release, lists the release-owned files the release changed
+(`cs-image-system init-config . --changes-since`) and stops if there are any;
+refresh those by hand with `cs-image-system init-config . --force`, review the
+diff, then `just take <version> patched` commits "Take <version>" and pushes
+`develop`. Done by hand it is: move the version in that file, run
+`init-config . --force` with the new release, review the diff, commit.
 
 The workflows also name the machine they run on (`runs-on:
 ubuntu-24.04`), the version of every action they use, and the system's
