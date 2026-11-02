@@ -19,7 +19,7 @@ operator can take.
   the reference.
 - §105, a declared output image name: landed 2026-10-31 (below);
   the reference declares nothing, by the default taken at "do 105".
-  Not yet released.
+  Released in 0.1.6.
 - §106 landed (below) and is released in 0.1.5; the reference is
   restamped and `basic-rh-10` says what it bakes. Nothing is owed.
 - No documentation stage is open.
@@ -34,8 +34,9 @@ operator can take.
 - The reference configuration runs 0.1.6 (take 0f7773d, tag
   `v0.1.6-before` = 084cb6a, CI green on `develop`); it declares the
   runtime `docker-orbstack` on the local OrbStack's context (pushed
-  with the take of 0.1.6.dev2, 7bc3802). Its `main` is still on 0.1.5:
-  moving it runs `perform` and is the operator's act.
+  with the take of 0.1.6.dev2, 7bc3802). Its `main` took 0.1.6 on
+  2026-11-02 (the operator's push; `perform` green, nothing baked,
+  records to 933d6fb).
 - 0.1.5, the previous final release: PyPI and TestPyPI, tag `v0.1.5`
   (ff2b776), 2026-10-31, cut straight from 0.1.4 on `develop`. Carries
   §106 (the image-source catalog), §104 (hygiene XX) and the §107 plan.
