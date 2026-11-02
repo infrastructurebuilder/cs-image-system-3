@@ -22,6 +22,8 @@ operator can take.
   Released in 0.1.6.
 - §106 landed (below) and is released in 0.1.5; the reference is
   restamped and `basic-rh-10` says what it bakes. Nothing is owed.
+- §110, hygiene bundle XXII: opened 2026-11-02 from the 0.1.6 release
+  walk (below); waits for "do 110".
 - No documentation stage is open.
 
 **Release**
@@ -275,3 +277,68 @@ question at least once a month for the next 4 months." The note is made:
 - 2026-12-09: (open)
 - 2027-01-09: (open)
 - 2027-02-09: (open)
+
+## 110. Hygiene bundle XXII
+
+**Status: OPEN 2026-11-02, four items from the 0.1.6 release walk and
+the first real `just take`. Waits for "do 110".**
+
+The principle (the operator, 2026-10-31, unchanged): a release walk is
+as few boxes as the recipes allow, and a recipe that cannot proceed
+says exactly what to do next and leaves nothing half-done. Everything
+below was met live on 2026-11-02 and cost a box, a rerun or a wait.
+
+1. `take` refuses a release that IS installed. A tree's `.envrc`
+   points `CSIS` at the system checkout's venv, and a venv only learns
+   its version when it is synced: after a release the checkout's source
+   says 0.1.6 while the venv answers `--version` with 0.1.6.dev2 until
+   `just init` runs there. `take` then stops with "'...' reports
+   '0.1.6.dev2', not 0.1.6 -- point CSIS at that release, or install
+   it", which names neither the checkout nor the command. In the
+   starters' Justfiles (five, byte-identical): when the mismatch is a
+   `CSIS` that lies in a `.venv/bin` of a checkout, the refusal names
+   that checkout and says `just init` there; it does not sync another
+   repository's venv itself. The same sentence goes where the walk
+   tells the operator to take (OPERATIONS, DAILY_DRIVER, CI_SETUP).
+2. `take` fails after it has written the pin. The pin is written before
+   `just init` and `just validate`, so a failure there (the Google IAM
+   503 of 2026-11-02, an expired token) leaves `.csis-version` changed
+   and the tree dirty, and a plain rerun refuses on the dirty tree;
+   only `patched` gets past it, which also skips the comparison. **YOUR
+   DECISION:** on any failure after the write the recipe puts the pin
+   back (the default: a plain rerun is then the same command and
+   nothing is half-done), or it leaves the pin and prints "rerun
+   `just take <version> patched`". Either way the failure says which.
+3. `release` does not say how long the AWS session has left. An SSO
+   login lasted one hour on 2026-11-02 (three logins, each expiring
+   exactly an hour later), and the PyPI release took 58 minutes from
+   start to its commit (11:40 to 12:38 UTC), a minute inside the hour
+   the session it began on had left, so a run started late in a session
+   is a coin toss that the probe line "every runtime session of the
+   live configuration is present" calls green. Read the AWS SSO
+   cache's `expiresAt` for the configured profile (`preflight` already
+   finds the session) and print the minutes left on that line; below
+   the gate's measured length it adds "log in again from a second
+   terminal about halfway: a running run picks the new token up".
+   **YOUR DECISION:** only say it (the default), or also refuse under
+   fifteen minutes left. The walk's estimates in OPERATIONS and the
+   memory of the walk (the PyPI release about an hour, not forty
+   minutes) move to the measured figure.
+4. `scripts/index-knows` given a label where a URL belongs (`test` for
+   `https://test.pypi.org/simple/`) ends in a `ValueError` traceback.
+   It prints its usage line and exits 2, the code it already uses for
+   "the index could not be read".
+
+**Out of scope**: refreshing release-owned files (by hand, decided);
+syncing another repository's venv from a recipe; the Google outage
+itself; any change to the release gate's legs.
+
+**Acceptance**: with a venv one release behind, `just take <version>`
+in a copy of the reference names the checkout and `just init` and
+changes nothing; with `validate` forced to fail, the tree is as it was
+(or the message says `patched`, as decided); `just release stage pypi
+yes` prints the minutes the session has left; `scripts/index-knows
+test p 1` exits 2 with a usage line; the take and release paragraphs of
+OPERATIONS, DAILY_DRIVER and the five CI_SETUP copies say so, and the
+docs tests are green. Records: the squash message; this section goes
+at "merge 110".
