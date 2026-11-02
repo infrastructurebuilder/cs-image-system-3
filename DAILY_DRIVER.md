@@ -473,6 +473,16 @@ diff`, `just take <version> patched` writes `.csis-version`, runs `just init`
 and `just validate`, commits "Take <version>" and pushes `develop`. Pushing
 `develop` to `main` stays its own act: `main` performs.
 
+Two refusals are worth knowing. When `CSIS` (your `.envrc` points it at the
+system checkout's `.venv/bin/cs-image-system`) answers with the previous
+version, the venv simply has not been synced since the release: `take` names
+that checkout and says to run `just init` there, then to run the same command
+again; it never reaches into another repository's venv itself. And if `just
+init` or `just validate` fails after the pin was written (a cloud API that
+answered 503, an expired session), `take` puts `.csis-version` back as it was
+and says so, so the same command can simply be run again and the tree is
+never left half-taken; `patched` is only for the files you refreshed by hand.
+
 Run `init-config` again, in the repository, after upgrading the release:
 into a tree that already holds a configuration it writes only the parts
 the release owns (the `Justfile`, the workflow, the hook, `.gitignore`,

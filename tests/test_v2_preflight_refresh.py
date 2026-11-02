@@ -76,3 +76,53 @@ def test_a_refreshable_token_counts_as_present_for_readiness(tmp_path, monkeypat
     monkeypatch.setattr(preflight, "_aws_dir", lambda: d2)
     info = preflight._info_for("r", "aws", "p")
     assert info is not None and info.present and info.expires_at is not None
+
+
+# hygiene XXII item 3: the release says how long the session it starts on has left. On 2026-11-02
+# three logins each ended exactly an hour after they began and the CLI said "Token has expired
+# and refresh failed", so the release reads the cached access token's own expiry, refresh token or not.
+
+def _tree_with_profile(tmp_path: Path) -> Path:
+    root = tmp_path / "tree"
+    (root / "cfg").mkdir(parents=True)
+    (root / "cfg" / "runtime-builders.yml").write_text(
+        "runtime_builders:\n  - name: east\n    type: aws\n    profile: p\n")
+    return root
+
+
+def test_the_release_reads_the_cached_token_expiry_even_beside_a_refresh_token(tmp_path):
+    aws = _aws_dir(tmp_path, session=True, refresh=True, minutes=40)
+    exp, _ = aws_sso_expiry("p", aws_dir=aws, cached=True)
+    assert exp is not None                                              # preflight's own reading stays None (above)
+    left = preflight.sso_minutes_left(_tree_with_profile(tmp_path), aws_dir=aws)
+    assert left is not None and 38 < left <= 40
+
+
+def test_a_lapsed_token_counts_negative_and_no_aws_profile_counts_none(tmp_path):
+    aws = _aws_dir(tmp_path, session=True, refresh=True, minutes=-83)
+    left = preflight.sso_minutes_left(_tree_with_profile(tmp_path), aws_dir=aws)
+    assert left is not None and left < -80
+    empty = tmp_path / "empty"
+    (empty / "cfg").mkdir(parents=True)
+    assert preflight.sso_minutes_left(empty, aws_dir=aws) is None
+
+
+def test_the_minutes_script_prints_whole_minutes_or_nothing(tmp_path, monkeypatch):
+    import importlib.machinery
+    import importlib.util
+    path = Path(__file__).resolve().parents[1] / "scripts" / "sso-minutes-left"
+    spec = importlib.util.spec_from_file_location(
+        "sso_minutes_left", path, loader=importlib.machinery.SourceFileLoader("sso_minutes_left", str(path)))
+    assert spec and spec.loader
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    aws = _aws_dir(tmp_path, session=True, refresh=True, minutes=40)
+    monkeypatch.setenv("CSIS_AWS_DIR", str(aws))
+    tree = _tree_with_profile(tmp_path)
+    import io, contextlib
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        assert m.main(["sso-minutes-left", str(tree)]) == 0
+    assert out.getvalue().strip() in {"39", "40"}
+    assert m.main(["sso-minutes-left", str(tmp_path / "nothing")]) == 1
+    assert m.main(["sso-minutes-left"]) == 2

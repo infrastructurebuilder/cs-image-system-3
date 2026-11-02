@@ -220,7 +220,10 @@ the release, lists the release-owned files the release changed
 (`cs-image-system init-config . --changes-since`) and stops if there are any;
 refresh those by hand with `cs-image-system init-config . --force`, review the
 diff, then `just take <version> patched` commits "Take <version>" and pushes
-`develop`. Done by hand it is: move the version in that file, run
+`develop`. If `CSIS` points into the system checkout's venv and that venv has
+not been synced since the release, `take` names the checkout and says to run
+`just init` there; if `just init` or `just validate` fails after the pin was
+written, the pin is put back, so the same command can be run again. Done by hand it is: move the version in that file, run
 `init-config . --force` with the new release, review the diff, commit.
 
 The workflows also name the machine they run on (`runs-on:

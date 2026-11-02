@@ -234,7 +234,8 @@ release-finish index="test":
 # behind the checkout answers with stale metadata. For a PyPI release also: docker answers (the
 # modification-test, posix, bake-step and runner-image legs run in it) and every runtime session of
 # the live configuration is present (`just preflight`, the gate full-test itself uses: without it the
-# live legs would be SKIPPED, which a release cannot accept). The dry form of `release` prints the
+# live legs would be SKIPPED, which a release cannot accept) and how many minutes the AWS session has left
+# (scripts/sso-minutes-left; said, never refused on). The dry form of `release` prints the
 # same verdicts. `release-finish` asks the venv alone: it runs no bar.
 [private]
 _release-probes index who="release":
@@ -247,7 +248,17 @@ _release-probes index who="release":
 		echo "{{who}}: docker answers"
 		just config-guard >/dev/null 2>&1 || { echo "{{who}}: no live configuration at {{config_root}} (\`just config-guard\` says why) -- full-test's live legs need it -- nothing was changed"; exit 1; }
 		just preflight >/dev/null 2>&1 || { echo "{{who}}: a runtime session of the live configuration is absent or expired (\`just preflight\` says which) -- full-test's live legs would be skipped; log in -- nothing was changed"; exit 1; }
-		echo "{{who}}: every runtime session of the live configuration is present"
+		# hygiene XXII item 3: how long the AWS session has left; a login lasts one hour and the PyPI release took 58 minutes
+		left=$(uv run --no-sync python scripts/sso-minutes-left {{quote(config_root)}} 2>/dev/null || true)
+		if [ -z "$left" ]; then
+			echo "{{who}}: every runtime session of the live configuration is present"
+		elif [ "$left" -lt 0 ]; then
+			echo "{{who}}: every runtime session of the live configuration is present, but the AWS session's cached token lapsed $((-left)) minutes ago -- a release takes about an hour; \`aws sso login\` first"
+		elif [ "$left" -lt 60 ]; then
+			echo "{{who}}: every runtime session of the live configuration is present; the AWS session has $left minutes left and a release takes about an hour -- log in again from a second terminal about halfway: a running run picks the new token up"
+		else
+			echo "{{who}}: every runtime session of the live configuration is present; the AWS session has $left minutes left"
+		fi
 	fi
 
 # Build and upload the version in the tree (stage 41.6): `dist/` cleaned, every package

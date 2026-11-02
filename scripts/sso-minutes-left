@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+"""How long does the AWS session of a configuration have left? (hygiene XXII item 3)
+
+    uv run python scripts/sso-minutes-left <config-root>
+
+Prints the whole minutes the soonest-expiring cached SSO access token of the
+configuration's AWS profiles has left (negative once it lapsed) and exits 0;
+prints nothing and exits 1 when the configuration declares no AWS profile
+with a cached token. The release recipe says it on the line that reports the
+sessions present: a PyPI release takes about an hour, and an SSO login lasts
+one.
+"""
+from __future__ import annotations
+
+import math
+import sys
+from pathlib import Path
+
+from cs_image_system.base.commands.preflight import sso_minutes_left
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) != 2:
+        print(__doc__.strip().splitlines()[2].strip(), file=sys.stderr)
+        return 2
+    left = sso_minutes_left(Path(argv[1]))
+    if left is None:
+        return 1
+    print(math.floor(left))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
