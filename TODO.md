@@ -17,9 +17,9 @@ operator can take.
 - §94, the F44 review: standing; next on or after 2026-11-09.
 - §103, a container runtime (docker and the daemons that speak its
   API): branches 1, 2 and 3 landed (a2ed18c); the reference's docker
-  runtime (the local OrbStack's context) is written on its `develop`,
-  unpushed and validated; owed: the push with the release that
-  carries the plugins.
+  runtime (the local OrbStack's context) is on its `develop`, pushed
+  with the take of 0.1.6.dev2 (7bc3802, 2026-11-01); owed: the final
+  0.1.6 release, which closes the section.
 - §104 landed (below) and is released in 0.1.5; item 4(d) is done in
   the reference.
 - §105, a declared output image name: landed 2026-10-31 (below);
@@ -290,12 +290,12 @@ line). The reference's `develop` now declares the runtime
 `tofu-docker`, `docker-volumes`) and carries the two terraform
 modules; none is a default, so nothing existing moved. `validate` PASSED on the
 reference with the new runtime (2026-11-01, after the operator's SSO
-login). STILL OWED: the reference's push waits for the release that
-carries the docker plugins, because its CI is pinned to 0.1.5, which
-cannot load `type: docker` and would fail `verify`; the `take` of
-that release and the push are one walk. At that take the reference's workflow
-also gains the guard list (stage 108) and `GUARD_RUNTIME` may name
-`docker-orbstack` beside `gcloud-east1`. The section goes when the
+login). PUSHED 2026-11-01 with the take of 0.1.6.dev2 (7bc3802; the
+reference's CI was pinned to 0.1.5, which cannot load `type: docker`,
+so the take and the push were one walk); its workflow gained the guard
+list (stage 108), `GUARD_RUNTIME` stays `gcloud-east1` by the
+operator's default. STILL OWED: the final 0.1.6 release (2026-11-02),
+which closes the section. The section goes when the
 docker plugins are released and the reference is pushed.**
 
 **Why**: every runtime today is a cloud. A durable host running a
