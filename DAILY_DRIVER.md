@@ -320,9 +320,10 @@ in that directory, after every edit of `.envrc`. `source .envrc` still
 works in a shell that has no direnv.
 
 `just validate` is the first thing to run after any edit. An `sso-session`
-profile reports "refreshes itself (no fixed expiry readable)": that is
-normal, and it means the portal session's end, not the token's, is what
-ends a long run. The variable table is
+profile whose one-hour token is still good reports "refreshes itself (no
+fixed expiry readable)": that is normal. Once the token has lapsed,
+`preflight` asks the CLI once whether the refresh still works and says
+EXPIRED, with the login command, if it does not. The variable table is
 [CONFIGURATION.md](docs/CONFIGURATION.md), section 14; the credentials
 contract is [OPERATIONS.md](docs/OPERATIONS.md), "Credentials contract".
 
@@ -1037,7 +1038,7 @@ item in the open hygiene bundle in [TODO.md](TODO.md).
 | Symptom | Meaning | Do |
 | --- | --- | --- |
 | `init: 'cs-image-system' is not runnable` | the release is not installed, or `CSIS` names a command that does not run | `uv tool install cs-image-system`, or `export CSIS="uv run cs-image-system"` beside a pyproject that depends on it |
-| `preflight: a session has EXPIRED`; `Token has expired and refresh failed`; `the configuration cannot load: AWS refused the credentials (RequestExpired)` (before hygiene XII: `Error reading config file : AWS Error ... Request has expired` under a traceback) | the AWS portal session behind the profile ended (8h from a browser sign-in; less if the CLI token was minted mid-session); an `sso-session` profile has no fixed expiry the system can read, so a lapse mid-run is environmental, not a defect. `RequestExpired` is what temporary keys pasted into the shell or a credentials file say when they lapse, and `preflight` cannot see that coming: it reads no expiry for keys (2026-10-09, F30 and F40) | `aws sso login --profile <profile>` for an SSO profile; FRESH keys for pasted ones (`aws sso login` does nothing for them); then re-run |
+| `preflight: a session has EXPIRED`; `Token has expired and refresh failed`; `the configuration cannot load: AWS refused the credentials (RequestExpired)` (before hygiene XII: `Error reading config file : AWS Error ... Request has expired` under a traceback) | the AWS portal session behind the profile ended (8h from a browser sign-in; less if the CLI token was minted mid-session); an `sso-session` profile's token lasts an hour and is judged only once it has lapsed, so a lapse mid-run is environmental, not a defect. `RequestExpired` is what temporary keys pasted into the shell or a credentials file say when they lapse, and `preflight` cannot see that coming: it reads no expiry for keys (2026-10-09, F30 and F40) | `aws sso login --profile <profile>` for an SSO profile; FRESH keys for pasted ones (`aws sso login` does nothing for them); then re-run |
 | `preflight: N session(s) present; 1 NOT JUDGED (no expiry readable: ...)` in yellow, exit 0, where it used to say `every session present` | a session preflight can see but not time: static keys in a profile or in the environment. Present is all it can say without a cloud call, which it makes none of by design (stage 16); before hygiene XII the line was green over keys that had already lapsed | nothing, if you know the keys are fresh; if the next command says `RequestExpired`, fresh keys |
 | `runtime <gce> could not answer` under `unavailable:` | no Application Default Credentials, or they expired, or Google was unreachable | `gcloud auth application-default login --impersonate-service-account=...`; an `unavailable` line is not drift, but the strict query refuses on it |
 | `state query storages/<pd> unavailable: ... oauth2.googleapis.com ... Read timed out` (2026-09-23) | the network to Google, not the system; `cloud-preflight` then exits 1 and the recipe stops before its first step | check `gcloud auth application-default print-access-token`; run the recipe again |

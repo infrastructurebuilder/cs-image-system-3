@@ -304,8 +304,9 @@ def test_every_example_is_a_whole_repository_a_team_can_copy():
             assert (root / rel).stat().st_mode & stat.S_IXUSR, f"{name}/{rel} is not executable"
             assert (root / rel).read_bytes() == (REPO / rel).read_bytes(), f"{name}/{rel} differs from the release's"
         assert not (root / "scripts" / "with-tofu-lock").exists(), f"{name}: the helpers are commands of the CLI (stage 64)"
-        ours = sorted(p.relative_to(REPO / "tfmodules") for p in (REPO / "tfmodules").rglob("*") if p.is_file())
-        theirs = sorted(p.relative_to(root / "tfmodules") for p in (root / "tfmodules").rglob("*") if p.is_file())
+        # hygiene XXIII item 2: Finder's .DS_Store is git-ignored junk, not a module
+        ours = sorted(p.relative_to(REPO / "tfmodules") for p in (REPO / "tfmodules").rglob("*") if p.is_file() and p.name != ".DS_Store")
+        theirs = sorted(p.relative_to(root / "tfmodules") for p in (root / "tfmodules").rglob("*") if p.is_file() and p.name != ".DS_Store")
         assert ours == theirs, f"{name}/tfmodules does not carry the release's modules"
         for rel in ours:
             assert (root / "tfmodules" / rel).read_bytes() == (REPO / "tfmodules" / rel).read_bytes(), f"{name}/tfmodules/{rel} differs"

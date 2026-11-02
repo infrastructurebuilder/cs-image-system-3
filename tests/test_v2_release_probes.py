@@ -94,9 +94,10 @@ def test_release_and_release_finish_ask_before_anything_changes():
     assert "commit these changes, or discard them" in release          # the clean-tree guard names its remedy
 
 
-def test_the_session_line_says_the_minutes_left_and_never_refuses_on_them():
+def test_the_session_line_says_the_minutes_left_and_refuses_only_a_lapsed_token():
     """Hygiene XXII item 3: three branches of the one line (lapsed, under an hour, enough); the
-    decision (2026-11-02, default) is to SAY it, so none of them exits."""
+    decision (2026-11-02, default) is to SAY the minutes. Hygiene XXIII: a token already lapsed is a
+    fact, not a margin -- preflight now judges it too -- so that branch alone refuses."""
     just = (REPO / "Justfile").read_text()
     probes = just[just.index("\n_release-probes index"):just.index("\n# Build and upload the version in the tree")]
     assert "scripts/sso-minutes-left" in probes
@@ -104,4 +105,4 @@ def test_the_session_line_says_the_minutes_left_and_never_refuses_on_them():
                    "the AWS session has $left minutes left"):
         assert needle in probes, needle
     branches = probes[probes.index("left=$("):].split("\n\tfi\n")[0]
-    assert "exit" not in branches
+    assert branches.count("exit 1") == 1 and branches.index("exit 1") < branches.index("elif [ \"$left\" -lt 60 ]")   # hygiene XXIII: only a lapsed token refuses

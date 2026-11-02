@@ -235,7 +235,7 @@ release-finish index="test":
 # modification-test, posix, bake-step and runner-image legs run in it) and every runtime session of
 # the live configuration is present (`just preflight`, the gate full-test itself uses: without it the
 # live legs would be SKIPPED, which a release cannot accept) and how many minutes the AWS session has left
-# (scripts/sso-minutes-left; said, never refused on). The dry form of `release` prints the
+# (scripts/sso-minutes-left; refused only when the token has already lapsed, otherwise said). The dry form of `release` prints the
 # same verdicts. `release-finish` asks the venv alone: it runs no bar.
 [private]
 _release-probes index who="release":
@@ -253,7 +253,8 @@ _release-probes index who="release":
 		if [ -z "$left" ]; then
 			echo "{{who}}: every runtime session of the live configuration is present"
 		elif [ "$left" -lt 0 ]; then
-			echo "{{who}}: every runtime session of the live configuration is present, but the AWS session's cached token lapsed $((-left)) minutes ago -- a release takes about an hour; \`aws sso login\` first"
+			echo "{{who}}: the AWS session's cached token lapsed $((-left)) minutes ago -- a release takes about an hour; \`aws sso login\` first -- nothing was changed"
+			exit 1
 		elif [ "$left" -lt 60 ]; then
 			echo "{{who}}: every runtime session of the live configuration is present; the AWS session has $left minutes left and a release takes about an hour -- log in again from a second terminal about halfway: a running run picks the new token up"
 		else

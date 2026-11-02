@@ -125,14 +125,21 @@ def aws_sso_expiry(profile: str, aws_dir: Path | None = None, *,
         data = json.loads(cache.read_text())
         if data.get("refreshToken") and not cached:
             # An sso-session profile's cache holds a ONE-HOUR access token
-            # and a refresh token the CLI renews it from silently for as long
-            # as the portal session lives. Its expiresAt is the access
-            # token's, not the window: read against a 30-minute run it
-            # refused a full-test on its last leg (2026-09-21) while the CLI
-            # would have carried it. No fixed expiry is readable -- the same
-            # answer preflight gives GCP ADC.
-            return None, (f"present; refreshes itself from the refresh token in sso cache {cache.name[:8]} "
-                          "while the portal session lives (no fixed expiry readable)")
+            # and a refresh token. While the access token has not lapsed the
+            # session is present and nothing is asked of the cloud. Once it
+            # has, only the CLI can say whether its refresh token still
+            # works (hygiene V, 2026-09-21: read literally, the lapsed
+            # expiry refused a full-test the CLI would have carried;
+            # hygiene XXIII, 2026-11-02: with the token lapsed for 80
+            # minutes the refresh FAILED -- "Token has expired and refresh
+            # failed" -- while this said "refreshes itself"). So one
+            # read-only call decides, and only then.
+            lapsed = _cached_expiry(data)
+            if lapsed is None or lapsed > datetime.now(timezone.utc) or _refresh_works(profile, aws_dir):
+                return None, (f"present; refreshes itself from the refresh token in sso cache {cache.name[:8]} "
+                              "while the portal session lives (no fixed expiry readable)")
+            return lapsed, (f"sso cache {cache.name[:8]}; the cached token lapsed and the CLI's refresh failed "
+                            f"(aws sso login --profile {profile})")
         exp = str(data.get("expiresAt") or "")
         return datetime.fromisoformat(exp.replace("Z", "+00:00")), f"sso cache {cache.name[:8]}"
     except (ValueError, OSError) as e:
@@ -146,7 +153,7 @@ def sso_minutes_left(root_dir: Path, now: datetime | None = None, aws_dir: Path 
     On 2026-11-02 three logins each ended exactly an hour after they began
     and the CLI's refresh failed on the lapsed token ("Token has expired and
     refresh failed"), so a refresh token is not a longer session: this reads
-    the token's own expiry, which ``preflight`` does not."""
+    the token's own expiry, whichever way ``preflight`` judged the session."""
     now = now or datetime.now(timezone.utc)
     left: list[float] = []
     for info in raw_session_infos(root_dir):
@@ -156,6 +163,33 @@ def sso_minutes_left(root_dir: Path, now: datetime | None = None, aws_dir: Path 
         if exp is not None:
             left.append((exp - now).total_seconds() / 60)
     return min(left) if left else None
+
+
+def _cached_expiry(data: Mapping[str, Any]) -> datetime | None:
+    """The cached access token's own ``expiresAt``, or None when unreadable."""
+    try:
+        return datetime.fromisoformat(str(data.get("expiresAt") or "").replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _refresh_works(profile: str, aws_dir: Path | None = None) -> bool:
+    """Whether the AWS CLI can still get credentials for ``profile`` from a
+    lapsed cached token (its refresh token): one read-only
+    ``sts get-caller-identity``, which refreshes the cache when it can. A
+    machine without the CLI cannot be judged and keeps the old answer."""
+    import subprocess
+    env = dict(os.environ)
+    if aws_dir is not None:
+        env["AWS_CONFIG_FILE"] = str(aws_dir / "config")
+    try:
+        res = subprocess.run(["aws", "sts", "get-caller-identity", "--profile", profile, "--query", "Account",
+                              "--output", "text"], capture_output=True, text=True, check=False, timeout=30, env=env)
+    except FileNotFoundError:
+        return True
+    except subprocess.TimeoutExpired:
+        return False
+    return res.returncode == 0
 
 
 def _aws_profile(model: Any) -> str | None:

@@ -1395,11 +1395,17 @@ A session that is expired or expires within
 `config.preflight.expected_run_minutes` (default 30) is flagged; the
 strict query refuses on it, a run warns, and an expired session refuses
 before the configuration even loads. An `sso-session` profile (the live
-`noaa`) reports no fixed expiry -- its access token renews itself while
-the portal session lives, and the portal's end is written nowhere the
-system can read -- so a session that lapses mid-run is environmental, not
-a defect: it costs the legs that were running, and the repair is `aws sso
-login --profile <p>` then `just full-test-legs` (never the whole bar).
+`noaa`) holds a one-hour access token and a refresh token. While the
+access token has not lapsed `preflight` reports it present with no fixed
+expiry (it asks the cloud nothing); once it has lapsed `preflight` makes
+ONE read-only call (`aws sts get-caller-identity --profile <p>`), which
+refreshes the cache when the refresh token still works and says so when it
+does not: a lapsed token the CLI cannot refresh is EXPIRED, exit 2, with
+the login command (hygiene XXIII; on 2026-11-02 a token lapsed 80 minutes
+answered `Token has expired and refresh failed` while `preflight` still
+said "refreshes itself"). A session that lapses mid-run is environmental,
+not a defect: it costs the legs that were running, and the repair is `aws
+sso login --profile <p>` then `just full-test-legs` (never the whole bar).
 
 ## 2. The developer workflow
 
@@ -1661,8 +1667,9 @@ order:
    token). A PyPI release takes about an hour (58 minutes on
    2026-11-02, start to commit) and an SSO login lasts one, so under an
    hour left the line says to log in again from a second terminal about
-   halfway (a running run picks the new token up), and a lapsed token is
-   named as lapsed. It is said, never refused on. A refusal names its
+   halfway (a running run picks the new token up). Said, not refused on;
+   a token that has already lapsed (which `preflight` now judges too)
+   is refused, naming `aws sso login`. A refusal names its
    remedy and changes nothing;
    then a clean working tree (the refusal names the remedy; the IDE's
    workspace file is no longer tracked, so the editor rewriting it
