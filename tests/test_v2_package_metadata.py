@@ -296,6 +296,7 @@ def test_the_index_probe_reads_versions_from_json_and_html_and_exits_by_knowledg
     assert m.main(["index-knows", "https://test.pypi.org/simple", "cs-image-system", "0.1.1.dev2"]) == 1
     assert m.main(["index-knows", "https://test.pypi.org/simple", "never-seen", "0.1.0"]) == 1
     assert m.main(["index-knows", "https://test.pypi.org/simple", "cs-image-system", "not-a-version"]) == 2
+    assert m.main(["index-knows", "test", "cs-image-system", "0.1.1"]) == 2        # hygiene XXII item 4: a label is not a URL
     def broken(url, project):
         raise OSError("unreachable")
     monkeypatch.setattr(m, "fetch", broken)

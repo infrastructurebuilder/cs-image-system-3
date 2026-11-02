@@ -166,3 +166,34 @@ def test_refusals_come_before_any_change(world: World):
     off = world.take("0.1.6")
     assert off.returncode == 1 and "taken on develop" in off.stdout
     assert (world.tree / ".csis-version").read_text() == "0.1.5\n"
+
+
+def test_a_stale_venv_in_a_checkout_names_the_checkout_and_just_init(world: World, tmp_path: Path):
+    """Hygiene XXII item 1: CSIS points at <checkout>/.venv/bin/cs-image-system, whose venv answers
+    with the version it was last synced to; the refusal says where, and which command."""
+    venv_bin = tmp_path / "system-checkout" / ".venv" / "bin"
+    venv_bin.mkdir(parents=True)
+    shutil.copy2(world.bin / "cs-image-system", venv_bin / "cs-image-system")
+    stale = world.take("0.1.6", CSIS=str(venv_bin / "cs-image-system"), STUB_VERSION="0.1.6.dev2")
+    assert stale.returncode == 1
+    assert f"the venv of {tmp_path / 'system-checkout'}" in stale.stdout and "`just init` THERE" in stale.stdout
+    assert "nothing was changed" in stale.stdout
+    assert (world.tree / ".csis-version").read_text() == "0.1.5\n" and _git(world.tree, "status", "--porcelain") == ""
+    elsewhere = world.take("0.1.6", CSIS=str(world.bin / "cs-image-system"), STUB_VERSION="0.1.6.dev2")
+    assert "point CSIS at that release, or install it" in elsewhere.stdout          # not a venv: the old sentence
+
+
+def test_a_failure_after_the_pin_is_written_puts_the_pin_back(world: World):
+    """Hygiene XXII item 2: the Google 503 of 2026-11-02 left .csis-version changed and the tree
+    dirty, and only `patched` got past the dirty tree. Now the same command runs again."""
+    broken = world.take("0.1.6", STUB_VALIDATE_RC="1")
+    assert broken.returncode == 1
+    assert "`just validate` failed" in broken.stdout and "back at 0.1.5" in broken.stdout and "just take 0.1.6\n" in broken.stdout
+    assert (world.tree / ".csis-version").read_text() == "0.1.5\n"
+    assert _git(world.tree, "status", "--porcelain") == ""                          # nothing half-done
+    assert _git(world.origin, "log", "-1", "--format=%s", "develop") == "first"
+    again = world.take("0.1.6")                                                      # the same command, the cloud answering now
+    assert again.returncode == 0, again.stdout + again.stderr
+    assert _git(world.tree, "log", "-1", "--format=%s") == "Take 0.1.6"
+    patched = world.take("0.1.7", "patched", STUB_VERSION="0.1.7", STUB_VALIDATE_RC="1")
+    assert patched.returncode == 1 and "just take 0.1.7 patched" in patched.stdout

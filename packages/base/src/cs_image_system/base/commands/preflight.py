@@ -102,9 +102,12 @@ def _aws_dir() -> Path:
     return Path(os.environ.get("CSIS_AWS_DIR") or Path.home() / ".aws")
 
 
-def aws_sso_expiry(profile: str, aws_dir: Path | None = None) -> tuple[datetime | None, str]:
+def aws_sso_expiry(profile: str, aws_dir: Path | None = None, *,
+                   cached: bool = False) -> tuple[datetime | None, str]:
     """The SSO token expiry for ``profile`` and a note; ``(None, note)``
-    when nothing readable exists."""
+    when nothing readable exists. ``cached`` (hygiene XXII item 3) reads the
+    cached access token's own ``expiresAt`` even where a refresh token sits
+    beside it: the release asks how long the session it starts on has left."""
     aws_dir = aws_dir or _aws_dir()
     cfg = configparser.ConfigParser()
     cfg.read(aws_dir / "config")
@@ -120,7 +123,7 @@ def aws_sso_expiry(profile: str, aws_dir: Path | None = None) -> tuple[datetime 
         return None, f"no SSO token cached for profile {profile!r} (aws sso login --profile {profile})"
     try:
         data = json.loads(cache.read_text())
-        if data.get("refreshToken"):
+        if data.get("refreshToken") and not cached:
             # An sso-session profile's cache holds a ONE-HOUR access token
             # and a refresh token the CLI renews it from silently for as long
             # as the portal session lives. Its expiresAt is the access
@@ -134,6 +137,25 @@ def aws_sso_expiry(profile: str, aws_dir: Path | None = None) -> tuple[datetime 
         return datetime.fromisoformat(exp.replace("Z", "+00:00")), f"sso cache {cache.name[:8]}"
     except (ValueError, OSError) as e:
         return None, f"SSO cache for {profile!r} unreadable: {e}"
+
+
+def sso_minutes_left(root_dir: Path, now: datetime | None = None, aws_dir: Path | None = None) -> float | None:
+    """Hygiene XXII item 3: the fewest minutes the cached AWS SSO access token
+    of any profile the tree at ``root_dir`` uses has left (negative once it
+    lapsed), or None when no AWS profile with a cached token is declared.
+    On 2026-11-02 three logins each ended exactly an hour after they began
+    and the CLI's refresh failed on the lapsed token ("Token has expired and
+    refresh failed"), so a refresh token is not a longer session: this reads
+    the token's own expiry, which ``preflight`` does not."""
+    now = now or datetime.now(timezone.utc)
+    left: list[float] = []
+    for info in raw_session_infos(root_dir):
+        if info.provider != "aws" or not info.source.startswith("profile "):
+            continue
+        exp, _ = aws_sso_expiry(info.source[len("profile "):], aws_dir, cached=True)
+        if exp is not None:
+            left.append((exp - now).total_seconds() / 60)
+    return min(left) if left else None
 
 
 def _aws_profile(model: Any) -> str | None:

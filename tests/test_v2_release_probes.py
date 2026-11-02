@@ -92,3 +92,16 @@ def test_release_and_release_finish_ask_before_anything_changes():
     finish = finish[:finish.index("\n\n", 1)]
     assert finish.index("_release-probes") < finish.index("git add pyproject.toml")
     assert "commit these changes, or discard them" in release          # the clean-tree guard names its remedy
+
+
+def test_the_session_line_says_the_minutes_left_and_never_refuses_on_them():
+    """Hygiene XXII item 3: three branches of the one line (lapsed, under an hour, enough); the
+    decision (2026-11-02, default) is to SAY it, so none of them exits."""
+    just = (REPO / "Justfile").read_text()
+    probes = just[just.index("\n_release-probes index"):just.index("\n# Build and upload the version in the tree")]
+    assert "scripts/sso-minutes-left" in probes
+    for needle in ("lapsed $((-left)) minutes ago", "log in again from a second terminal about halfway",
+                   "the AWS session has $left minutes left"):
+        assert needle in probes, needle
+    branches = probes[probes.index("left=$("):].split("\n\tfi\n")[0]
+    assert "exit" not in branches

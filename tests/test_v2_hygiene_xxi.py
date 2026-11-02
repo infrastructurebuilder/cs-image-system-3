@@ -39,7 +39,8 @@ def test_every_starter_carries_the_same_take_recipe():
     # the catch-up guard is the first act on the repository, before the release is installed or a file written
     assert recipe.index("git fetch -q origin") < recipe.index("git merge --ff-only origin/main") < recipe.index("merge-base --is-ancestor origin/main HEAD")
     assert recipe.index("merge-base --is-ancestor origin/main HEAD") < recipe.index("uv tool install") < recipe.index("--changes-since") < recipe.index("> .csis-version")
-    assert recipe.index("> .csis-version") < recipe.index("just init") < recipe.index("just validate") < recipe.index('git commit -q -m "Take $version"')
+    # hygiene XXII item 2: init, then validate, as one loop that puts the pin back when either fails
+    assert recipe.index("> .csis-version") < recipe.index("for step in init validate") < recipe.index('git commit -q -m "Take $version"')
     assert "git push origin develop" in recipe and "origin develop:main" in recipe      # pushing main stays the operator's own act
     assert "init-config . --force" in recipe                                            # the refresh is by hand, by decision
     assert "--index-strategy unsafe-first-match" in recipe                              # a development release (stage 99)

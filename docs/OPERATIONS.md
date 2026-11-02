@@ -1654,7 +1654,16 @@ order:
    with stale metadata) and, for PyPI, docker answers and every runtime
    session of the live configuration is present (`just preflight`; a
    `full-test` without them would skip its live legs, which a release
-   cannot accept). A refusal names its remedy and changes nothing;
+   cannot accept), said with the minutes the AWS session has left
+   (hygiene XXII, `scripts/sso-minutes-left`, which reads the cached
+   access token's own `expiresAt`: `preflight` calls a session with a
+   refresh token present, and the CLI's refresh failed on a lapsed
+   token). A PyPI release takes about an hour (58 minutes on
+   2026-11-02, start to commit) and an SSO login lasts one, so under an
+   hour left the line says to log in again from a second terminal about
+   halfway (a running run picks the new token up), and a lapsed token is
+   named as lapsed. It is said, never refused on. A refusal names its
+   remedy and changes nothing;
    then a clean working tree (the refusal names the remedy; the IDE's
    workspace file is no longer tracked, so the editor rewriting it
    cannot dirty the tree), then the gate: for TestPyPI the bar

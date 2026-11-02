@@ -94,7 +94,8 @@ release runtime: full-test
 # recipe STOPS if any changed, because refreshing them stays BY HAND: run
 # `cs-image-system init-config . --force`, read `git diff`, then `just take VERSION patched`. With
 # nothing to patch (or `patched`) it writes .csis-version, runs `just init` and `just validate`,
-# commits "Take VERSION" and pushes `develop`. Pushing `develop` to `main` is its own act: `main` performs.
+# commits "Take VERSION" and pushes `develop`; if `just init` or `just validate` fails the pin is put back, so
+# the same command can be run again. Pushing `develop` to `main` is its own act: `main` performs.
 [doc("Take a release in one box: guard, install, list what the release changed, init, validate, commit, push develop; `patched` after refreshing by hand")]
 take version patched="no":
 	#!/usr/bin/env bash
@@ -122,7 +123,14 @@ take version patched="no":
 		uv tool install --force ${index[@]+"${index[@]}"} "cs-image-system==$version" >/dev/null 2>&1 || { echo "take: cs-image-system==$version could not be installed from the index (a development release is on TestPyPI, a final one on PyPI) -- nothing was changed"; exit 1; }
 	fi
 	have=$({{csis}} --version 2>/dev/null | awk '{print $NF}')
-	[ "$have" = "$version" ] || { echo "take: '{{csis}}' reports '$have', not $version -- point CSIS at that release, or install it; nothing was changed"; exit 1; }
+	if [ "$have" != "$version" ]; then
+		# hygiene XXII item 1: a CSIS in a checkout's venv answers with the version the venv was last synced to
+		case "${CSIS:-}" in
+			*/.venv/bin/*) echo "take: '$CSIS' reports '$have', not $version -- it lies in the venv of ${CSIS%%/.venv/bin/*}, which has not been synced to that release: run \`just init\` THERE, then run this again; nothing was changed" ;;
+			*) echo "take: '{{csis}}' reports '$have', not $version -- point CSIS at that release, or install it; nothing was changed" ;;
+		esac
+		exit 1
+	fi
 	if [ "{{patched}}" = "no" ] && [ -n "$old" ] && [ "$old" != "$version" ]; then
 		prev=$(uvx ${oldindex[@]+"${oldindex[@]}"} --from "cs-image-system==$old" python -c 'from cs_image_system.system import starters; print(starters.starters_root())' 2>/dev/null) \
 			|| { echo "take: the previous release $old could not be fetched to compare with -- nothing was changed"; exit 1; }
@@ -131,9 +139,17 @@ take version patched="no":
 			exit 1
 		fi
 	fi
+	# hygiene XXII item 2: a failure after the pin is written puts the pin back, so the same command runs again
+	had=no; prior=
+	if [ -f .csis-version ]; then had=yes; prior=$(cat .csis-version); fi
 	printf '%s\n' "$version" > .csis-version
-	just init
-	just validate
+	for step in init validate; do
+		just "$step" || {
+			if [ "$had" = yes ]; then printf '%s\n' "$prior" > .csis-version; else rm -f .csis-version; fi
+			echo "take: \`just $step\` failed (above); .csis-version is back at ${prior:-nothing}, so run the same command again: just take $version{{ if patched == "patched" { " patched" } else { "" } }}"
+			exit 1
+		}
+	done
 	git add -A
 	git diff --cached --quiet && { echo "take: nothing changed -- $version is already what this tree pins"; exit 0; }
 	git commit -q -m "Take $version"
