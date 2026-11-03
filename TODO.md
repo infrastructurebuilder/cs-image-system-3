@@ -22,8 +22,8 @@ operator can take.
   Released in 0.1.6.
 - §106 landed (below) and is released in 0.1.5; the reference is
   restamped and `basic-rh-10` says what it bakes. Nothing is owed.
-- §110 landed (below); not yet released. §111, hygiene bundle XXIII:
-  opened 2026-11-02 (below); waits for "do 111".
+- §110 and §111 landed (below); not yet released. No hygiene bundle is
+  open (the next is XXIV).
 - No documentation stage is open.
 
 **Release**
@@ -71,6 +71,13 @@ operator can take.
 
 **Landed since 2026-10-05** (newest first)
 
+- §111, hygiene bundle XXIII: 2026-11-02, its squash commit
+  (feature/stage-111-hygiene-xxiii kept). `preflight` judges an
+  sso-session profile whose cached token has lapsed with one read-only
+  `aws sts get-caller-identity`: a refresh that works stays present, one
+  that fails is EXPIRED with the login command (exit 2), and the PyPI
+  release probe refuses a token already lapsed; the docs-examples test
+  skips a Finder `.DS_Store`. Not yet released.
 - §110, hygiene bundle XXII: 2026-11-02, its squash commit
   (feature/stage-110-hygiene-xxii kept). `just take` names the
   checkout and `just init` when `CSIS` lies in a venv that lags the
@@ -287,50 +294,3 @@ question at least once a month for the next 4 months." The note is made:
 - 2026-12-09: (open)
 - 2027-01-09: (open)
 - 2027-02-09: (open)
-
-## 111. Hygiene bundle XXIII
-
-**Status: OPEN 2026-11-02, two items found while §110 was done. Waits
-for "do 111".**
-
-1. `preflight` calls an AWS SSO session present after its token has
-   lapsed. An sso-session profile whose cache holds a refresh token
-   reads as "present; refreshes itself ... (no fixed expiry readable)"
-   ([preflight.py](packages/base/src/cs_image_system/base/commands/preflight.py),
-   `aws_sso_expiry`; the comment there says the CLI renews the access
-   token for as long as the portal session lives). On 2026-11-02, with
-   the cached token lapsed 80 minutes, `just preflight` printed "every
-   session present" while `aws sts get-caller-identity --profile noaa`
-   said "Token has expired and refresh failed" (three logins that day
-   each ended exactly an hour after they began). `full-test` and the
-   release probe both rely on that verdict, so a lapsed session would
-   run the live legs and fail inside them, or the release would begin
-   on a session that cannot finish it; §110 only made the release
-   probe say the minutes. **YOUR DECISION:** when the cached access
-   token has not lapsed, nothing changes (no cloud call, as now); when
-   it has, the default is one read-only `aws sts get-caller-identity`
-   for that profile decides (a refresh that works keeps the 2026-09-21
-   case green, one that fails is reported EXPIRED with the login
-   command); or the cached expiry alone decides and a lapsed token is
-   EXPIRED (no call, but it would repeat the 2026-09-21 refusal when
-   the CLI could have refreshed). Either way the release probe's
-   "lapsed" wording becomes a refusal, because the verdict above it is
-   then true, and the comment in `aws_sso_expiry` and the module
-   docstring say what was observed instead of what was hoped.
-2. `test_every_example_is_a_whole_repository_a_team_can_copy` fails
-   when Finder leaves a `.DS_Store` in the system's own `tfmodules/`
-   (it did at 09:24 on 2026-11-02, and the bar failed after 43
-   minutes): the test compares the two directory listings file by
-   file, and the file is git-ignored junk. The comparison skips
-   `.DS_Store` (and any dotfile git ignores); nothing else changes.
-
-**Out of scope**: the gate's legs; the fifteen-minute refusal §110
-left as a decision (it stays "say it" until a release has been run
-with the minutes printed).
-
-**Acceptance**: with a cached token lapsed and a failing refresh,
-`just preflight` names the session EXPIRED and exits non-zero, and `just
-_release-probes pypi` refuses with the login command; with a valid
-token neither makes a call; a test plants `.DS_Store` in both listings
-and the example test passes; `just test` is green. Records: the squash
-message; this section goes at "merge 111".
