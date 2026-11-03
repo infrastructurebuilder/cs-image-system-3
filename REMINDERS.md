@@ -73,6 +73,31 @@ secret again (`gh secret set STARTER_PUSH_TOKEN --repo <owner>/<repository>`).
 
 - (none yet)
 
+## Podman on the Intel Mac: end of service, June 2027
+
+**Reviewed monthly; the end of service is the second week of June 2027.**
+Podman 6 dropped Intel Macs, so this Mac runs the Podman 5.8 that Podman
+Desktop bundles (5.8.9 when stage 109 proved it), supported until that date
+([the Podman Desktop team's note](https://podman-desktop.io/blog/intel-mac-podman-6-transition)).
+Each month, check three things and write the outcome below:
+
+1. Whether the date has moved (the note above, and Podman Desktop's release
+   notes).
+2. Whether a 5.8 patch release has come out since the last review, and
+   whether Podman Desktop still installs it on this Mac.
+3. Whether `just test-podman-desktop-cycle` still passes (the operator
+   starts the machine; the leg never does), if anything about the container
+   runtime changed that month.
+
+On or after the end date the leg is retired from the Intel Mac and the
+standing proof is the Linux host (the "Limits" paragraph in
+[docs/OPERATIONS.md](docs/OPERATIONS.md), under the Podman Desktop leg);
+that is a documentation and recipe change, so it becomes a stage then.
+
+**The reviews.**
+
+- 2026-12-02: (open)
+
 # GCP account housekeeping (csis-sandbox)
 
 The operator's standing reference for the GCP account's cost: the fixed

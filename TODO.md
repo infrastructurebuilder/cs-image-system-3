@@ -108,7 +108,8 @@ operator can take.
   against it; it never starts or stops the machine and skips, said so,
   without one. Proved on Podman 5.8.9 (rootful) beside OrbStack: both
   live legs passed with no difference found. Podman 6 dropped Intel
-  Macs: this leg ends for this Mac in June 2027.
+  Macs: this leg ends for this Mac in June 2027 (reviewed monthly in
+  [REMINDERS.md](REMINDERS.md)).
 - §105, a declared output image name: 2026-10-31, its squash commit
   (feature/output-image-name kept). `output_image_name` is real at
   the OS builder, its runtime entry and an image's runtime entry,

@@ -8,7 +8,10 @@ On 2026-09-08 a fifteen-minute cycle failed at its GCE instance plan
 because the AWS SSO session lapsed AFTER the preflight had passed (ledger
 65). The preflight now reads the credential caches -- read-only, never a
 credential value -- and reports how long each runtime's session lasts
-against ``config.preflight.expected_run_minutes`` (default 30).
+against ``config.preflight.expected_run_minutes`` (default 30). It asks the
+cloud nothing, with one exception (hygiene XXIII): an SSO token that has
+already lapsed gets one read-only ``aws sts get-caller-identity``, because only
+the CLI can say whether its refresh token still works.
 
 * AWS: the runtime's profile (``profile`` / ``credentials.profile_name``,
   else ``AWS_PROFILE``); a profile with ``sso_session`` or ``sso_start_url``
@@ -44,7 +47,7 @@ _PRESENT_WITHOUT_EXPIRY = "not an SSO profile"
 # next cloud call said RequestExpired under a traceback.
 NOT_JUDGED = "NOT JUDGED"
 NOT_JUDGED_WHY = ("no expiry readable: keys lapse without notice, and the next cloud call says RequestExpired; "
-                  "preflight makes no cloud call")
+                  "preflight asks the cloud nothing about keys; its one call is for an SSO token that has already lapsed")
 
 
 @dataclass(config=CSIS_MODEL_CONFIG)

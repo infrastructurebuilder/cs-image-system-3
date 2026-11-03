@@ -232,7 +232,8 @@ def preflight_command(
     """The credential sessions the configuration's runtimes need (AWS SSO
     profiles or static keys, GCP Application Default Credentials), read from
     the caches WITHOUT loading the configuration -- never a credential
-    value. The Justfile's `full-test` gates its cloud-reading legs on this
+    value; the one call it makes is a read-only `aws sts get-caller-identity`
+    for an SSO token that has already lapsed (hygiene XXIII). The Justfile's `full-test` gates its cloud-reading legs on this
     (stage 16). Exit 0 when every session is present; 2 when one is absent
     or EXPIRED (the configuration could not even load); 1 with --strict
     when one expires within the expected run length. A session whose
@@ -1643,7 +1644,9 @@ def main(
         return                      # retired V1 names: refuse without loading anything
     if typer_cntx.invoked_subcommand == "preflight":
         # stage 16: the sessions alone, from the raw tree -- nothing loads, no
-        # plugin, no cloud call; the Justfile's full-test gates on this
+        # plugin, and no cloud call but the one read-only sts call for an SSO
+        # token that has already lapsed (hygiene XXIII); the Justfile's
+        # full-test gates on this
         typer_cntx.obj["preflight_args"] = (Path(root_dir or os.getcwd()), [p.resolve() for p in (overlay or [])])
         return
     if typer_cntx.invoked_subcommand == "bootstrap":
