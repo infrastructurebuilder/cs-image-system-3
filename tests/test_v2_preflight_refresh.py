@@ -126,3 +126,44 @@ def test_the_minutes_script_prints_whole_minutes_or_nothing(tmp_path, monkeypatc
     assert out.getvalue().strip() in {"39", "40"}
     assert m.main(["sso-minutes-left", str(tmp_path / "nothing")]) == 1
     assert m.main(["sso-minutes-left"]) == 2
+
+
+# hygiene XXIII item 1: a refresh token is not proof the session works. While the cached token has
+# not lapsed nothing is asked of the cloud; once it has, one read-only call decides.
+
+def test_a_valid_token_makes_no_call(tmp_path, monkeypatch):
+    calls: list[str] = []
+    monkeypatch.setattr(preflight, "_refresh_works", lambda profile, aws_dir=None: calls.append(profile) or True)
+    exp, note = aws_sso_expiry("p", aws_dir=_aws_dir(tmp_path, session=True, refresh=True, minutes=40))
+    assert exp is None and "refreshes itself" in note and calls == []
+
+
+def test_a_lapsed_token_whose_refresh_works_stays_present(tmp_path, monkeypatch):
+    """The 2026-09-21 case: the CLI could have carried it."""
+    monkeypatch.setattr(preflight, "_refresh_works", lambda profile, aws_dir=None: True)
+    exp, note = aws_sso_expiry("p", aws_dir=_aws_dir(tmp_path, session=True, refresh=True, minutes=-80))
+    assert exp is None and "refreshes itself" in note
+
+
+def test_a_lapsed_token_whose_refresh_fails_is_expired_with_the_login_command(tmp_path, monkeypatch):
+    """The 2026-11-02 case: lapsed 80 minutes, `Token has expired and refresh failed`."""
+    monkeypatch.setattr(preflight, "_refresh_works", lambda profile, aws_dir=None: False)
+    exp, note = aws_sso_expiry("p", aws_dir=_aws_dir(tmp_path, session=True, refresh=True, minutes=-80))
+    assert exp is not None and "aws sso login --profile p" in note and "refresh failed" in note
+    info = SessionInfo("r", "aws", "profile p", exp, note)
+    now = datetime.now(timezone.utc)
+    assert "EXPIRED" in info.line(now, expected=30) and preflight._expired(info.minutes_left(now))
+
+
+def test_the_refresh_probe_is_one_read_only_sts_call(tmp_path, monkeypatch):
+    import subprocess
+    seen: list[list[str]] = []
+
+    def fake_run(cmd, **kw):
+        seen.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, "123\n", "")
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    assert preflight._refresh_works("p", tmp_path)
+    assert seen == [["aws", "sts", "get-caller-identity", "--profile", "p", "--query", "Account", "--output", "text"]]
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: subprocess.CompletedProcess(cmd, 255, "", "Token has expired and refresh failed"))
+    assert not preflight._refresh_works("p", tmp_path)
