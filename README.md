@@ -19,7 +19,7 @@ formally released, whose users log in through Okta Privileged Access.
 - [docs/PLUGINS.md](docs/PLUGINS.md) — the packages, each with its own README ending in the same four sections: prerequisites, configuration, what it tests, when it fails.
 - [GOLDEN.md](GOLDEN.md) — the pinned emission every change is judged against.
 - [PARITY.md](PARITY.md) — how the system and its documentation can diverge, and how to check.
-- [BILLING_REMINDERS.md](BILLING_REMINDERS.md) — the GCP account's cost housekeeping.
+- [REMINDERS.md](REMINDERS.md) — what the operator checks at intervals: the monthly general items and the GCP account's cost housekeeping.
 - [docs/history/](docs/history/README.md) — frozen records of how the system got here; nothing there describes the present.
 - [TODO.md](TODO.md) and [PLAN.md](PLAN.md) — the work in flight; a worksheet, not documentation.
 

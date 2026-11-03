@@ -7,24 +7,13 @@ operator can take.
 
 **Open**
 
-- §30 landed in two branches (below). Standing: the core's re-export
-  shims of the contract stay until the operator commits to it; a WEEKLY
-  reminder to remove them stands until then, and removing them is done
-  together with moving the package to a repository of its own (DESIGN
-  §3P, "Reversibility"). Tier C, the run-context protocol, is a later
-  stage and declares without injecting while the contract is
-  provisional.
-- §94, the F44 review: standing; next on or after 2026-11-09.
-- §104 landed (below) and is released in 0.1.5; item 4(d) is done in
-  the reference.
-- §105, a declared output image name: landed 2026-10-31 (below);
-  the reference declares nothing, by the default taken at "do 105".
-  Released in 0.1.6.
-- §106 landed (below) and is released in 0.1.5; the reference is
-  restamped and `basic-rh-10` says what it bakes. Nothing is owed.
-- §110 and §111 landed (below); not yet released. No hygiene bundle is
-  open (the next is XXIV).
-- No documentation stage is open.
+- No stage, hygiene bundle or documentation stage is open.
+- §110 and §111 are landed and not yet released; the reference takes
+  them with the next release.
+- Standing: the core's re-export shims of the contract (§30) stay until
+  the operator commits to it (Standing decisions, below).
+- Interval checks (the F44 review, the §30 shims reminder, the
+  `STARTER_PUSH_TOKEN` renewal) live in [REMINDERS.md](REMINDERS.md).
 
 **Release**
 
@@ -66,8 +55,6 @@ operator can take.
   cs-image-system==0.1.4` from PyPI (the contract included), and `just
   init` naming the release (`init: cs-image-system 0.1.4 ready against
   ...`, §101). The copy was deleted afterwards.
-- `STARTER_PUSH_TOKEN` (`cs-image-system-starter-repos-token`) expires
-  2027-10-25: renew it before then.
 
 **Landed since 2026-10-05** (newest first)
 
@@ -266,31 +253,3 @@ operator can take.
   >
   > Once landed, the §70 work should be considered part of the ongoing updates of the application
   > and the starter repository, such that any new items are part of the process.
-
----
-
-## 94. A verification starts a machine its operator switched off: KEPT, and reviewed monthly
-
-**Status: OPEN 2026-10-15 as a stage of its own, moved here from hygiene
-XII (item 25) when the bundle closed; the bundle's thirty-three items
-landed in §82, §86, §88, §91, §93 (a plan) and the seven groups and item
-33 of 2026-10-14/15. Nothing here runs: it is a standing review. USER,
-on or after each date: keep the behaviour, or make it a stage (a
-verification SKIPS a machine that is off unless it is asked to start
-it). Each review is written below with its date and its outcome.**
-
-**The finding.** The walk's F44 (2026-10-09, stage 14f; seen in the
-machine's own boot log and in CloudTrail). `verify instance` on a
-stopped machine starts it, checks it and stops it again (stage 57's
-bounded exception); the daily driver's failure table said the opposite.
-The operator's decision that day: "let's keep the behavior for F44 but
-make a very prominent note about it somewhere. We should revisit that
-question at least once a month for the next 4 months." The note is made:
-`DAILY_DRIVER.md` 3.5 in capitals, and the section 6 row corrected.
-
-**The reviews.**
-
-- 2026-11-09: (open)
-- 2026-12-09: (open)
-- 2027-01-09: (open)
-- 2027-02-09: (open)

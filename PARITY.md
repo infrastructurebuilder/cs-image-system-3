@@ -23,7 +23,7 @@ code in a specific way, listed here with its check.
 | [docs/DESIGN.md](docs/DESIGN.md) | The design record describes a rule the code no longer keeps, or a mechanism that changed shape. | The golden ([GOLDEN.md](GOLDEN.md)) is the executable description of the emission: what the design says about the emission is checked against `tests/fixtures/v2_golden/`. | None planned; design prose is reviewed by hand. |
 | [GOLDEN.md](GOLDEN.md), the file counts | The golden gains or loses files. | `find tests/fixtures/v2_golden -type f \| wc -l` and per lifecycle. | Trivial to assert in `tests/test_v2_golden.py`. |
 | [DESCRIPTION.md](DESCRIPTION.md) "Known limits" | A limit is lifted and the list is not updated. | Each limit names its evidence (a file, a record, a command); re-check it when the area changes. | None. |
-| [BILLING_REMINDERS.md](BILLING_REMINDERS.md) | Console pages, thresholds or recipients changed in the GCP console. | The monthly reminder re-reads the budget page. | None; the console is not scriptable for budgets. |
+| [REMINDERS.md](REMINDERS.md) (the GCP housekeeping) | Console pages, thresholds or recipients changed in the GCP console. | The monthly reminder re-reads the budget page. | None; the console is not scriptable for budgets. |
 | The live configuration's README | It describes a tree this repository does not own. | Read it in the sibling repository when its shape changes. | None. |
 | The `docs/history/` tree | Frozen on purpose; it carries dates, stage numbers and commit hashes verbatim. | None: nothing current cites it for a fact. | None. |
 

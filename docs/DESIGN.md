@@ -1011,7 +1011,7 @@ that would need reversing is a Tier C that injects the context
 stage is provisional, Tier C declares and types the context protocol
 without the injection. Removing the shims is the commitment to the
 contract, and is done together with moving the package to its own
-repository; a weekly reminder stands until then.
+repository; a weekly reminder stands until then ([REMINDERS.md](../REMINDERS.md)).
 
 ## 4. Standing constraints
 

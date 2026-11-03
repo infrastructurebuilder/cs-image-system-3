@@ -1,3 +1,78 @@
+# Monthly General Items
+
+Things to check at intervals collect in this file; the system's work in
+flight stays in [TODO.md](TODO.md). The assistant raises each item when it
+falls due, and records the outcome here.
+
+## F44: a verification starts a machine its operator switched off
+
+**Reviewed monthly: next on or after 2026-11-09.** Each review is the
+operator's decision: keep the behaviour, or make it a stage (a
+verification SKIPS a machine that is off unless it is asked to start it).
+Write each review below with its date and its outcome.
+
+**The finding.** The walk's F44 (2026-10-09, stage 14f; seen in the
+machine's own boot log and in CloudTrail). `verify instance` on a stopped
+machine starts it, checks it and stops it again (stage 57's bounded
+exception); the daily driver's failure table said the opposite. The
+operator's decision that day: "let's keep the behavior for F44 but make a
+very prominent note about it somewhere. We should revisit that question at
+least once a month for the next 4 months." The note is made:
+[DAILY_DRIVER.md](DAILY_DRIVER.md) 3.5 in capitals, and the section 6 row
+corrected.
+
+**The reviews.**
+
+- 2026-11-09: (open)
+- 2026-12-09: (open)
+- 2027-01-09: (open)
+- 2027-02-09: (open)
+
+## The §30 shims: still in place?
+
+**Reminded weekly: the first one is due on or after 2026-11-05.** Until the
+operator commits to the plugin contract, the core's re-export shims stay;
+each week the assistant says, in one line, that they are still in place and
+asks whether it is time to remove them. Never removed unprompted. Stop
+when the removal has landed.
+
+**What the shims are.** The core's modules that used to hold what moved
+into `cs_image_system.contract` (stage 30) and now only re-export it:
+`base/constants.py`, `models/model_config.py`, `helpers/field_helpers.py`,
+`helpers/field_kinds.py`, `lifecycle.py`, `lifecycles.py` (the data),
+`basic/asset.py`, `models/executable_adds.py`, the PSI enums in
+`models/provider_specific_image.py`, and the name and HCL helpers in
+`utils.py`. The core's internal imports still use those paths.
+
+**What removing them means** (the operator, 2026-10-29): "removing them
+will mean we're committing to the contracts and at that point we'll move
+the contract package to its own repo". It is one stage: rewrite the core's
+internal imports to the contract paths, delete the shim modules, and (in
+that stage or beside it) create the contract's own repository and its
+compatibility version. With the shims in place the whole of stage 30 can
+still be undone by swapping which side holds the bodies, with no import
+rewritten (DESIGN, section 3P, "Reversibility"; the tags `s30-1-before`,
+`s30-1-after`, `s30-2-before` and `s30-2-after` bracket the work).
+
+**The reminders.**
+
+- (none yet)
+
+## STARTER_PUSH_TOKEN renewal
+
+**Expires 2027-10-25; raise the renewal from 2027-09-25.** The token
+(`cs-image-system-starter-repos-token`) is the fine-grained token behind the
+`STARTER_PUSH_TOKEN` secret, which lets a release's tag push the template
+repositories (Contents and Workflows read/write; see
+[docs/OPERATIONS.md](docs/OPERATIONS.md), the credentials table). Without a
+valid token the `publish` job SKIPS the template repositories and says so in
+its summary; nothing else fails. Renew it before it expires, then set the
+secret again (`gh secret set STARTER_PUSH_TOKEN --repo <owner>/<repository>`).
+
+**The renewals.**
+
+- (none yet)
+
 # GCP account housekeeping (csis-sandbox)
 
 The operator's standing reference for the GCP account's cost: the fixed
