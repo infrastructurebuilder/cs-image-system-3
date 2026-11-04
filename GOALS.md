@@ -1,5 +1,35 @@
 # System goals
 
+## How the goals stand
+
+The body of this document, from "Purpose" down, is the founding
+statement of what the system is for, and it is kept verbatim. The table
+reads it against the system as built: *implemented* means the tree does
+it today and a document says how; *deferred* means the plugin seam
+exists and nothing fills it. [docs/DESIGN.md](docs/DESIGN.md) §1 reads
+the same requirements against the design in more detail, and what the
+system does not do is listed under "Known limits" in
+[docs/DESCRIPTION.md](docs/DESCRIPTION.md).
+
+| Requirement | Status | Evidence |
+| --- | --- | --- |
+| Purpose: an image correct for a given HPC model, formally released | **Not done.** The mechanisms (bake, test, release, pin an instance to a released build, log in through OPA) are built and proven; the released image installs dask and git, and the data-science playbook changes nothing | [docs/DESCRIPTION.md](docs/DESCRIPTION.md), "Known limits" |
+| Debugging an image: stand it up as an instance and let someone log in | Implemented: every base image bakes a mandatory local admin user with operator-supplied public keys; `ssm` on AWS and `iap` on GCE are the session mechanisms; a base image with neither fails validation | [docs/DESIGN.md](docs/DESIGN.md) §2c, §2d (N9), §3F1 |
+| Storage of various types: S3, Azure Blob, GCS, local file systems | Implemented for `ebs`, `efs` and `s3` (AWS), `pd`, `filestore` and `gcs` (GCP) and `volume` (a docker volume); Azure Blob and a bind-mounted local directory deferred | [docs/DESIGN.md](docs/DESIGN.md) §1, §3E |
+| Images of target systems for AWS, GCP, Azure and containers, OS-independent; base images distinct from instance images | Implemented on AWS, GCE and a docker host, through OS-family plugins; Azure deferred. A base image is an OS builder, an instance image chains off one | [docs/DESIGN.md](docs/DESIGN.md) §1, §3F |
+| Base images: local administrative access for debugging, OS-independent | Implemented (the debugging row above) | [docs/DESIGN.md](docs/DESIGN.md) §2d |
+| Instance images belong to a group whose users have access | Implemented: one owning group per image, its OPA label and policies baked in, `require_released_builds` on an instance. Read, write and execute access to the image artifact itself (sharing, launch permissions) deferred | [docs/DESIGN.md](docs/DESIGN.md) §3F2, §3H |
+| Lifecycles in order, each optional, each state-managed on its own, applies gated by a runner script's existence | Implemented: identity, storage, base-image, instance-image, then release and retention; one `generated/<lifecycle>/` and one runner script each; every terraform root in its own state location | [docs/DESIGN.md](docs/DESIGN.md) §3A, §3C |
+| A command line tool alone, headless, end to end in CI/CD | Implemented: a typer CLI, dry run by default, no interactive step; a configuration repository's CI records, performs on one runtime on `main` and records again | [docs/DESIGN.md](docs/DESIGN.md) §3G; [docs/OPERATIONS.md](docs/OPERATIONS.md) §3 |
+| Entirely plugin-based | Implemented: entry-point discovery, a registry, a contract package a plugin is written against, proved by a plugin that imports the contract alone. The core still knows the built-in providers by name in a few modules | [docs/DESIGN.md](docs/DESIGN.md) §3P; [docs/PLUGINS.md](docs/PLUGINS.md) |
+| All-YAML, human-editable configuration in an independent git repository; generated IaC committed back | Implemented: `cfg/` plus the collections; `--root-dir` names any checkout; `run --commit` commits the emission and the records. Git or the CI checkout does the pulling; other configuration sources deferred | [docs/DESIGN.md](docs/DESIGN.md) §3B; [docs/CONFIGURATION.md](docs/CONFIGURATION.md) |
+| Users and groups: creating and reading, each a plugin | Implemented: Okta users read-only (a managed variant exists), OPA groups managed, POSIX groups and users on the machines; LDAP, Active Directory and local files deferred | [docs/DESIGN.md](docs/DESIGN.md) §3D |
+| IaC in several formats: terraform, ansible, CloudFormation, shell | Implemented for OpenTofu, packer HCL, ansible provisioners and shell runner scripts; CloudFormation deferred | [docs/DESIGN.md](docs/DESIGN.md) §1 |
+| Full and per-lifecycle idempotency; the meta-workflow; a clean slate each run | Implemented: terraform roots converge; images are idempotent at the reference level (unique names, lineage, a pin file) rather than as artifacts; each lifecycle regenerates its own `generated/<lifecycle>/` from nothing, byte-identically | [docs/DESIGN.md](docs/DESIGN.md) §3F4; [GOLDEN.md](GOLDEN.md) |
+| Upgrades are intentional | Implemented: the pin file, `pinned` by default, `follow` as the explicit act, `ignore_changes` on the image reference | [docs/DESIGN.md](docs/DESIGN.md) §3F5 |
+| Base images define the identity types; instance images use them | Implemented: `identity_types` and `storage_types` declared on the base image, validated down the chain | [docs/DESIGN.md](docs/DESIGN.md) §3F1 |
+| Modifications: shell scripts and ansible playbooks | Implemented, both covered by the golden | [docs/DESIGN.md](docs/DESIGN.md) §3M2 |
+
 ## Purpose
 
 The system supports the transition of HPC data models to the cloud.

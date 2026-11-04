@@ -83,8 +83,8 @@ decided and what the alternatives are.
 ## What travels with the tree
 
 This tree is a whole configuration REPOSITORY, not only the YAML. The
-release carries it: `cs-image-system init-config <dir> --from standard-aws`
-writes it out, and every part a team needs is then there:
+release carries it: `cs-image-system init-config <dir> --from
+standard-aws-posix` writes it out, and every part a team needs is then there:
 
 | Part | What it is |
 | --- | --- |

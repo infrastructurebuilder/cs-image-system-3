@@ -23,9 +23,11 @@ gcs_state_plugin = "cs_image_system.gcs_state_plugin.main:initialize"
 `initialize()` in [main.py](src/cs_image_system/gcs_state_plugin/main.py)
 returns a `GcsStateTypes` metadata object (plugin metadata version `1`,
 Python `3.13`) that pairs the model with its builder. The package depends
-on `cs-image-system-system` and `cs-image-system-hashicorp-utils` at its
-own version ([pyproject.toml](pyproject.toml)); the collector the kind
-renders for lives in the latter.
+on `cs-image-system-contract` and `cs-image-system-base` at its own
+version, and on `pydantic` ([pyproject.toml](pyproject.toml)); the
+collector the kind renders for lives in `cs-image-system-hashicorp-utils`,
+which the base reaches on its own and the plugin neither declares nor
+imports.
 
 | Service name (`type:` of a backend entry) | Model class | Builder class | Classifications (VCT) |
 |---|---|---|---|
@@ -108,9 +110,10 @@ Everything below is what a root BOUND to a `gcs` backend needs; a declared
 and unbound backend (the fixture, the live tree) needs nothing beyond the
 core, and a dry run never reaches the bucket.
 
-- **The core, and the gate.** `cs-image-system-system` and
-  `cs-image-system-hashicorp-utils` at the same version (the package's
-  dependencies). The whole state-backend mechanism is gated by
+- **The core, and the gate.** `cs-image-system-contract` and
+  `cs-image-system-base` at the same version (the package's declared
+  dependencies), with `cs-image-system-hashicorp-utils` installed beside
+  them for the collector. The whole state-backend mechanism is gated by
   `config.use_state_backends` in `cfg/_config.yml`: when it is false or
   absent, nothing this plugin registers is rendered, recorded or checked
   (the collector answers "no backend" for every workspace), and none of

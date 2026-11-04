@@ -53,7 +53,7 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
   sources stop narrating: any time after [§119](STAGE-119.md).
 - [§130](STAGE-130.md), hygiene bundle XXIV: the open bundle for the small findings.
 - [§112](STAGE-112.md), a release in two boxes: planned 2026-11-03; waits for
-  "do 112". No hygiene bundle or documentation stage is open.
+  "do 112".
 - [§113](STAGE-113.md) to [§116](STAGE-116.md), the decomposition (the kit and the engine, the run
   context's protocol, the services behind it, a runtime installed from
   outside): planned 2026-11-03 (their files), in that order; each waits for

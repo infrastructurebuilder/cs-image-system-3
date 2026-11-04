@@ -319,7 +319,7 @@ executables:
   - name: yq
     version: ">=4.5"
   - name: jq
-    version: ">=1.8"
+    version: ">=1.7"
 ```
 
 ## 4. `cfg/runtime-builders.yml`
@@ -1804,6 +1804,7 @@ Model: `Instance`
 | `image` | str | required for generation | an instance image; its `group` is the instance's group |
 | `type` | str | `default` | the instance builder (the terraform root) |
 | `runtime` | str | `default` | the runtime |
+| `availability_zone` | str or null | null | the zone the instance asks for, read by `validate`'s zone check (section 12a) against its runtime's zone and the zonal storages it mounts; the instance root does not take it (on AWS the root takes the runtime's default zone, on GCE the runtime's `zone`), so it is a constraint checked early, not a placement |
 | `machine_type` | str | `""` | the instance size; empty uses the runtime's default. Recorded among the launch parameters as the effective type, and the one that may change on a launched instance: the next applying run resizes the machine in place (a stop, the change, a start -- the same machine; a `resized` event in the generation ledger) |
 | `storages` | list | `[]` | attachments (11.3.1); a name attached twice keeps the later mapping |
 | `ephemeral` | bool | `false` | launched, verified through the runtime and destroyed in the same run; a failed verification leaves it standing and fails the run |
@@ -1885,7 +1886,8 @@ A storage is realized by its builder's root; the YAML declares the
 | --- | --- | --- | --- |
 | `name` | str | required | system-wide unique |
 | `type` | str | `default` | the storage builder (8.2); fixes the capability type and the runtime |
-| `runtime` | str | `default` | the builder's runtime governs the module call; `validate`'s zone check (section 12a) reads THIS field for a zonal storage, so a persistent disk or EBS volume that declares `availability_zone` on a runtime other than the default must name it here too |
+| `runtime` | str | `default` | accepted; the builder's runtime governs the module call and is the runtime `validate`'s zone check (section 12a) compares a zonal storage with; this field is the fallback for a builder that names no runtime |
+| `availability_zone` | str or null | null | meaningful for a ZONAL storage (an EBS volume, a GCP persistent disk), where it pins the volume: `validate`'s zone check (section 12a) compares it with the builder's runtime and with every instance that mounts the storage, and the declaration wins over the runtime's zone in the module call (for a persistent disk also in the state query's lookup and the archive script), the runtime's zone being the fallback when none is declared; a regional storage (EFS, S3, GCS) or a docker volume lives in no zone, so the field constrains nothing there |
 | `groups` | list[str] | `[]` | the groups allowed to attach (never users; each must be a declared group); each gets a private `/<group>/` subtree. The value `ALL` is refused. |
 | `public_read` | bool | `false` | anyone may mount read-only; POSIX permissions still govern |
 | `share_mode` | str | `2770` | mode of every allowed group's subtree: `2770` (private) or `2775` (read-shared between allowed groups) |

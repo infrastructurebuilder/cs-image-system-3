@@ -95,6 +95,30 @@ query PULLS the reference and records its digest reference
 as a move. An entry's `image_id` pins a digest reference; a tag is refused
 there, because a tag moves.
 
+### Image query translation
+
+What `translate_image_query()` does with each key of the system's
+vocabulary (`supported_query_keys()` is the set of rows not marked
+refused, the same table the cloud runtime READMEs carry). The answer is
+`{"reference": "<repository>:<tag>", "platform": "<os/arch>" | None}`:
+what `docker pull` takes. `validate` refuses a query that uses a refused
+key before anything runs; a query that names neither `name` nor
+`native.image` is refused too, because the daemon needs a reference.
+
+| System key | Daemon's word | Note |
+| --- | --- | --- |
+| `name` | the repository | `almalinux`, or `<publisher>/<name>` when a publisher is named |
+| `family` | refused | a registry has no image families; name the repository |
+| `version` | the tag | `<repository>:<version>`; unset, the reference carries no tag and the daemon's default tag applies |
+| `architecture` | `--platform` | `x86_64` and `amd64` become `linux/amd64`, `arm64` and `aarch64` become `linux/arm64`; any other word passes no platform |
+| `publisher` | the registry namespace | the first value prefixes the repository; `library` (Docker Hub's own) is dropped; it is also recorded as the image's owner, `library` when none is named |
+| `state` | refused | a pulled image has no state |
+| `virtualization` | refused | an EC2 particular |
+| `root_device` | refused | an EC2 particular |
+| `tags` | refused | a pull cannot search by label |
+| `newest` | refused | a tag names one image; the pull resolves it |
+| `native` | `native.image` verbatim | a complete reference, used instead of `name`, `publisher` and `version`; no other `native` member is read |
+
 ### Bakes
 
 `packer_source_type()` is `docker`, HashiCorp's docker plugin. The source
@@ -136,9 +160,38 @@ per-key tags; `release_commands` moves `<repository>:<series>--<model>`.
 
 ### Instances
 
-The instance hooks (power state, identity, verification, sessions,
-relabel) are the next branch of stage 103; on this branch they answer as the
-core's defaults do ("cannot").
+Every instance hook is answered against the daemon, by the container
+that bears the instance's name (a container's name is unique on a
+daemon): `docker container inspect <name>`, where a container of that
+name labelled as another configuration's reads as absent.
+
+- **Launch delivery** is by session: a container has no first boot, so
+  the instance root uploads the launch script at creation and the system
+  runs it by exec after the apply.
+- **Power state** is `.State.Status` in the system's words: `running` is
+  running; `created` and `exited` are stopped (the container exists and
+  can be started); `paused` is suspended; `restarting` is starting;
+  `removing` is stopping; `dead` is unknown; no such container is absent.
+  `start_instance` and `stop_instance` are `docker start` and `docker
+  stop`, each confirmed by reading the state back.
+- **Identity** is the container id (a re-create is a new id, so a new
+  generation, as the ledger expects) and the hostname the container was
+  given. The **boot image** is the image id the container was created
+  from (`.Image`), which on this runtime is the build id itself.
+- **Sessions** are `docker exec -i -u root <name> bash -s` with the
+  script on stdin; there is no ssh proxy command, because login is by
+  exec.
+- **Verification** runs one exec that reports the launch marker (the
+  script's last act, so its presence means every launch parameter
+  applied), each declared mount point's own line from the container's
+  mount table (`/proc/mounts`), and reads the image the container was
+  created from against the expected build; a declared mount count with
+  no mount points named fails, because a container's mounts are checked
+  by name.
+- **Relabel** re-creates nothing: a container's labels are fixed when it
+  is created, so `retag_instance` refuses, naming the labels the
+  container would carry after a re-create (an upgrade, or a decommission
+  and redeclaration), which is the way to get them.
 
 ## Example configuration
 

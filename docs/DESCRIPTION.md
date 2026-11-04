@@ -16,8 +16,8 @@ Privileged Access (OPA).
 
 ## The estate it manages
 
-Five kinds of things, each declared in its own YAML collection and owned by
-a pluggable builder, plus two cross-cutting declarations.
+Five kinds of things, each declared in YAML and owned by a pluggable
+builder, plus two cross-cutting declarations.
 
 1. **Identities and access** (`groups/`). Users are looked up, not
    created: a person makes them in the Okta admin console and the system
@@ -34,9 +34,11 @@ a pluggable builder, plus two cross-cutting declarations.
    source-controlled YAML; identity itself stays human-owned. Roster
    entries and addresses can be encrypted in place (`ENC[age:…]`) and are
    decrypted at load, never written into the emission.
-2. **Machine images** (`base_images/`, `images/`). A directed graph. Base
-   images start from vendor images found by owner and filter queries,
-   optionally updated with the OS family's package manager, and carry the
+2. **Machine images** (`cfg/os-builders.yml`, `images/`). A directed
+   graph. A base image is an OS builder, declared under `os_builders:`
+   in `cfg/` (a `base_images/` directory is read by nobody). It starts
+   from a vendor image found by owner and filter queries, is optionally
+   updated with the OS family's package manager, and carries the
    prerequisites for the identity and storage types they declare (the OPA
    agent, EFS and S3 tooling), a mandatory local admin user with public
    keys only, and a debug session mechanism. Instance images chain off
@@ -66,17 +68,24 @@ a pluggable builder, plus two cross-cutting declarations.
    across workspaces through remote state. A storage has a lifecycle:
    standing, archived (a tag-named snapshot) and restored, transient (torn
    down by the run that declared it) or destroyed through the gate.
-5. **Runtimes** (`cfg/runtime-builders.yml`). The contexts things run in:
-   AWS profiles, regions, VPCs and subnets (discovered live through boto3,
-   including which subnets are public), GCE projects, zones and networks,
-   and a container daemon (`docker`: any host that speaks the Docker Engine
-   API, reached through the `docker` CLI, with no account, region or
-   subnet). Every other builder names the runtime it operates in.
+5. **Runtimes** (`cfg/runtime-builders.yml`). The contexts things run in,
+   of three kinds, one per runtime plugin: `aws` (profiles, regions, VPCs
+   and subnets, discovered live through boto3, including which subnets
+   are public), `gcloud` (GCE projects, zones and networks) and `docker`
+   (a container daemon: any host that speaks the Docker Engine API,
+   reached through the `docker` CLI, with no account, region or subnet).
+   Every other builder names the runtime it operates in.
 
-Cross-cutting: **state backends** give every terraform workspace its own
-encrypted S3 state object under one bucket and prefix, and **executables**
-pin the tools (tofu, packer, ansible, gcloud, bash, docker) the
-configuration expects to find.
+Cross-cutting: **state backends** (`cfg/state-backends*.yml`) are the
+places terraform state lives, of three kinds: `s3` (a bucket), `gcs` (a
+Google Cloud Storage bucket) and `local` (a file on disk, for one
+machine). A configuration declares one or more and marks one the
+default; every terraform root keeps its state in exactly one of them (its
+own declaration, else its runtime's, else the default), and a run records
+each root's location in `meta-state/state-locations.yaml`. A fourth kind,
+`inmem`, is the contract's proof plugin and never backs a real tree.
+**Executables** pin the tools (tofu, packer, ansible, gcloud, bash,
+docker) the configuration expects to find.
 
 ## How it works
 
@@ -94,13 +103,18 @@ lifecycles.
 - **Plugins.** Every capability is a plugin discovered through Python
   entry points (`cs_image_system.plugins.*`). A plugin registers model
   classes and builder classes under a classification enum of about forty
-  values. The in-repo plugins: Okta and OPA (groups and users), packer
-  (images), ansible and bash (modifications), default-os (OS families),
-  the AWS, GCE and docker runtimes, the terraform storage and instance
-  builders, the GCP and docker terraform pieces, the S3 state backend, and a dummy plugin as an
-  extension template. Adding a cloud, a storage kind or a modification
-  mechanism means adding a plugin, not editing the core. Each package has
-  its own README ([docs/PLUGINS.md](PLUGINS.md)).
+  values. The seventeen in-repo plugins: the `aws`, `gcloud` and `docker`
+  runtimes; `default-os` (the OS families a base image is built from);
+  `packer` (the image builders for EBS, GCE and docker images); `ansible`
+  and `bash-mod` (modifications); `okta-opa` (Okta users, OPA groups) and
+  `posix-identity` (POSIX groups and users on the machines); the OpenTofu
+  instance and storage builders for AWS (`tf-ebs-instance`), Google Cloud
+  (`tf-gcp`) and docker (`tf-docker`); the `s3`, `gcs` and `local` state
+  backends; `contract-example` (the `inmem` state backend, the proof that
+  a plugin can be written against the contract alone); and `dummy`, the
+  extension template and test double. Adding a cloud, a storage kind or
+  a modification mechanism means adding a plugin, not editing the core.
+  Each package has its own README ([docs/PLUGINS.md](PLUGINS.md)).
 - **Lifecycles.** Four generation lifecycles run in order — identity,
   storage, base-image, instance-image — followed by release and
   retention. Each is optional, regenerates only its own
@@ -161,14 +175,24 @@ Three commitments show up everywhere:
   installs dask and git and nothing else; the data-science playbook is a
   placeholder that changes nothing. The mechanisms are all there and
   proven; the content is not.
-- **A modification that declares only `config:` renders nothing.** The
-  ansible builder emits one provisioner per playbook, so an item with
-  config keys and no playbook contributes no provisioner, while lineage,
-  the on-image bundle and the modification tests record it as present.
-  Two such items exist in the fixture and the live configuration.
-- **Applies are the operator's.** CI verifies and reads; it never plans
-  or applies. Real runs, the GCE cycle included, are hand-run through the
-  Justfile, and GCE spending is the operator's own money, so nothing may
+- **A modification's `config:` reaches nothing on the image.** It enters
+  the build's content hash and the templates (`{{ this.config.x }}`) and
+  is not passed to ansible or to the shell; an item that declares only
+  `config:` has nothing to modify with and is refused at load, by name
+  ([CONFIGURATION.md](CONFIGURATION.md), the modification items).
+- **Applies are the operator's, with one bounded exception.** This
+  repository's CI verifies and reads; it never plans or applies. A
+  configuration repository's CI has a `perform` job that, on `main`
+  alone and under the write identity, runs the base-image,
+  instance-image, release and retention lifecycles on the one runtime
+  `PERFORM_RUNTIME` names: it bakes what is due, releases, applies
+  retention, plans and gates the instance roots without applying them,
+  and commits and pushes the records whatever happens. Everything else
+  is hand-run through the configuration repository's `Justfile`: the
+  identity and storage lifecycles, every launch and decommission, and
+  anything on a runtime `GUARD_RUNTIME` names, which CI must never bake
+  on and never receives a write identity for. The reference guards its
+  GCE runtime: GCE spending is the operator's own money, so nothing may
   be left standing there.
 - **Identity writes are limited.** Users are looked up or, per user,
   managed; identity attribute writes (uids, gids on the identity side)
@@ -184,8 +208,15 @@ Three commitments show up everywhere:
   installs the daemon. Archiving a volume, a registry push of a build,
   Windows and BSD containers and orchestrators (Swarm, Kubernetes) are not
   built.
-- **Releases.** A release is a git tag; publishing packages to an index
-  is not wired.
+- **Releases are of the whole system.** `just release` cuts a version
+  from `main`: one bump moves every version line and pin, every
+  workspace project is built and uploaded to the index named (TestPyPI,
+  the default, gated on the bar, for a development version; PyPI, gated
+  on `full-test`, for a final one), and the commit is tagged
+  `v<version>`. The pushed `v*` tag makes CI upload to TestPyPI always
+  and, for a final version, to PyPI too, skipping whatever the index
+  already holds, and then push the five starter template repositories.
+  No package is released on its own.
 
 Where the documentation and the system can diverge, and how to check, is
 [PARITY.md](PARITY.md).

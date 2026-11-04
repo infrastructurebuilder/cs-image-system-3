@@ -14,9 +14,11 @@ Two trees matter everywhere below:
 - **The live configuration** is its own repository,
   `cs-image-system-testconfig`, checked out beside this one. The Justfile
   reaches it at `../cs-image-system-testconfig`; `CSIS_CONFIG_ROOT`
-  overrides. Its `module_source_base` reaches this repository's
-  `tfmodules/` as `../cs-image-system-3/tfmodules`, so the two checkouts
-  must sit side by side.
+  overrides. It stands alone: its `module_source_base` is its own
+  `tfmodules`, a directory `init-config` writes into it from the release,
+  so nothing in it reaches into this checkout. The side-by-side layout
+  serves this repository's own proofs (`just cli ...`, `full-test`'s copy
+  legs), not the configuration.
 - **The frozen fixture** under
   [tests/fixtures/config/](../tests/fixtures/config/README.md) is owned by
   the tests. Nothing under `tests/` reads the live tree
@@ -1292,7 +1294,7 @@ repository tracked them from an older tree removes them from the index
 | `gate-plan` | 3 | destroy not whitelisted, stale or missing planfile, detach not unmounted; 2 with no plan input |
 | `apply-check` | 3 | the flag is off now, no `cfg/_config.yml` found, or an overlay is gone |
 | `public-safe` | 1 | a finding; 2 when `--staged` is used outside a git repository |
-| `mask`, `materialize` | 1 | the identity cannot open a marker (`materialize`); `mask` prints nothing and exits 0 without an identity today, which a code stage names |
+| `mask`, `materialize` | 1 | the identity cannot open a marker, a file does not parse or a marker is malformed; `mask` ends with exit 1 naming the file for every per-file failure, a missing identity included, so a masking pass never passes silently |
 | `verify login` | 1 | the login proof failed (registration count, resolve, login); 2 with no standing instance |
 | `forget instance` | 2 | the instance is still declared |
 | `workload describe --env` | 2 | the builder names no workload connection or role |
@@ -1618,13 +1620,33 @@ git diff develop feature/<name>    # must be empty
 
 The squash keeps `develop` readable as one commit per piece of work; the
 kept branch preserves the step-by-step history. Never commit directly to
-`develop` or `main`; never force-push a shared branch. Documentation-only
-changes skip the bar (nothing in it reads Markdown); say so.
+`develop` or `main`; never force-push a shared branch. A
+documentation-only change skips the bar but not the tests that read the
+documents, which run alone for such a change (`just test-one
+tests/test_docs_contract.py ...`; say so). Four tests are about the
+documents: `tests/test_docs_contract.py` reads
+[DAILY_DRIVER.md](DAILY_DRIVER.md), the root `README.md`,
+[PLUGINS.md](PLUGINS.md), every package `README.md` and every starter's
+`CI_SETUP.md` (the README contract, every relative link);
+`tests/test_docs_examples.py` reads the starter trees under
+`docs/examples/` whole, their `README.md` and `CI_SETUP.md` included,
+and holds the built wheel equal to them;
+`tests/test_docs_image_sources.py` reads every runtime plugin's
+`README.md` image-query table and the contract README against the
+code; `tests/test_v2_ci_runner.py` reads [CI_RUNNER.md](CI_RUNNER.md)'s
+tool table against the runner image's Dockerfile and probe and the
+starters' `executables.yml`. Others pin a phrase or a count in this
+page, [CONFIGURATION.md](CONFIGURATION.md) and the daily driver
+(`tests/test_v2_stage_103.py`, `test_v2_stage_105.py`,
+`test_v2_stage_107.py`, `test_v2_hygiene_xii_decisions.py`,
+`test_v2_hygiene_xx.py`, `test_v2_dev_pin_install.py`), so a change to
+one of those three pages runs them too; `grep -l '<page>.md' tests/*.py`
+names the set.
 
 ### `just build`, `just release`, `just publish`, `just publish-tree`
 
 `just build` packages the system and every workspace member (sdist +
-wheel: forty files) under `dist/`; no tests. The builds are
+wheel: forty-four files) under `dist/`; no tests. The builds are
 reproducible -- two builds of one tree are byte-identical -- which is what
 lets CI check a tag against the index instead of uploading it again.
 
@@ -1758,7 +1780,7 @@ line per endpoint) reads the target's `[[tool.uv.index]]` entry and
 asks two things of it: the upload endpoint (`publish-url`) answers
 below 500 to a request that uploads nothing, and the simple index
 answers for EVERY project a release uploads -- the root project and each
-`packages/*` member, twenty today -- with 200, or 404 for a project
+`packages/*` member, twenty-two today -- with 200, or 404 for a project
 it has never seen. With `--version` it also says which projects already
 hold that version: none (a fresh release), all, or some (a partial
 upload, which `just publish` completes). Exit 0 is ready; **75 is "not
@@ -1894,7 +1916,7 @@ first publication push was refused for that) (`PUBLISH_MESSAGE`,
 default `Initial public release`). It refuses a dirty root, a finding, a
 missing ignore line or an existing `<dest>`, and never pushes.
 
-`just publish-starters [yes]` (stage 66) publishes the four template
+`just publish-starters [yes]` (stage 66) publishes the five template
 repositories, `infrastructurebuilder/cs-image-system-starter-<starter>`,
 from which a team makes its configuration repository with GitHub's "Use
 this template". `docs/examples/` stays the one place a starter is
@@ -1968,14 +1990,14 @@ configuration repository's, which the release ships.
 | Recipe | What it does | Needs |
 | --- | --- | --- |
 | `init` | `uv sync --all-extras`, then `hooks` | nothing |
-| `build` | sdist + wheel of every workspace member under `dist/` (the system package carries the three starter trees) | nothing |
+| `build` | sdist + wheel of every workspace member under `dist/` (the system package carries the five starter trees) | nothing |
 | `test` | lint → typecheck → pytest, all blocking (the bar) | nothing |
-| `full-test` | `test` + `test-mods --strict` (docker) + dry `run --all` and `state query --strict` over a copy of the reference configuration (sessions) | docker, reference configuration, runtime sessions; each leg skips loudly |
+| `full-test` | `test`, then `full-test-legs`: the dev-pin resolution check (`scripts/dev-pin-resolves`), the docker legs (`test-mods --strict`, `test-posix-accounts`, `test-bake-steps`, `runner-image`, `test-docker-bake`, `test-docker-cycle`, `test-podman-cycle`, `test-podman-desktop-cycle`) and, gated on `preflight`, a dry `run --all` and `state query --strict` over a copy of the reference configuration | docker, the network, reference configuration, runtime sessions; each leg skips loudly |
 | `release <part\|version> [test\|pypi] [yes]` | probe (branch `main` with `develop` an ancestor, or `release/<major.minor>`; the index ready and free of the version; token; tag), the bar or `full-test`, the index again, `bump-my-version`, `uv lock`, `publish`, commit, tag `v<version>`; `yes` = dry | `UV_PUBLISH_TOKEN`; for `pypi`: clean trees, mod-test evidence, `full-test`'s needs |
 | `publish [test\|pypi]` | the index asked first, clean `dist/`, `build`, then `scripts/publish-dist`: one project at a time (sdist with wheel, dependencies first, `cs-image-system` last), skip what is there, exit 75 on PyPI's limit on new projects, prove the token when nothing went up | `UV_PUBLISH_TOKEN` |
 | `release-finish [test\|pypi]` | after a release's upload stopped part-way and `publish` completed it: on `main` (or a maintenance branch), the bump uncommitted and nothing else, every project holding the version -- then the evidence commit (PyPI), the commit and the tag; pushes nothing | the index, `develop` |
 | `index-ready [test\|pypi] [wait]` | can the index take an upload now: the upload endpoint and every project page, one line each; exit 0 ready, 75 not now; `wait` probes every minute, two hours at most (stage 83) | the network |
-| `full-test-legs` | the live legs of `full-test` alone: `test-mods --strict` under docker, a headless dry run `--all` and a `state query --strict` over a private copy of the reference configuration; re-run these after a session renewal instead of the whole `full-test` | `preflight` gates the two copy legs |
+| `full-test-legs` | `full-test` without `test`: the dev-pin check, every docker leg above, then a headless dry run `--all` and a `state query --strict` over a private copy of the reference configuration; re-run these after a session renewal instead of the whole `full-test` | `preflight` gates the two copy legs |
 | `format` | `ruff format packages tests` | nothing |
 | `lint` / `lint-fix` / `lint-unsafe-fix` | ruff check and the REUSE lint; with safe / unsafe fixes | nothing |
 | `headers` | the SPDX header on every source file that lacks one | nothing |
@@ -1984,11 +2006,18 @@ configuration repository's, which the release ships.
 | `pytest` | the unit tests alone | nothing |
 | `test-one *ARGS` / `v2-test` | one pytest expression / `tests/test_v2_*.py` alone | nothing |
 | `test-mods *ARGS` | the modification tests in a container over the reference configuration | docker, reference configuration |
+| `test-posix-accounts *ARGS` | the posix accounts script on AlmaLinux 10 and Debian 12 under docker, run twice: against an equal and a differing pre-existing group, a member with no account yet, sudo through visudo; a leg of `full-test`, skipped under `just test` | docker |
+| `test-bake-steps *ARGS` | a bake's settle step and step runner on AlmaLinux 10 and Debian 12 under docker, with the package database REALLY held by another process (rpm's transaction lock, dpkg's frontend lock); a leg of `full-test`, skipped under `just test` | docker |
+| `runner-image [tag]` | build the CI runner image (`ci/runner-image/`: AlmaLinux 10, every tool pinned) for amd64 and run its probe, which asks every tool its version from where `cfg/executables.yml` pins it; a leg of `full-test`; the Runner image workflow builds and publishes the same | docker |
+| `test-docker-bake *ARGS` | the docker runtime's cycle on the local daemon: a tree of nothing but a docker runtime is written from the fixture's pieces, its AlmaLinux 10 and Debian 12 base images and a posix-owned instance image are BAKED (packer's docker plugin, ansible through the daemon), the lineage and the tags are checked, the images disposed; several minutes; a leg of `full-test` | docker, packer with the docker and ansible plugins, `ansible-playbook` |
+| `test-docker-cycle *ARGS` | the docker runtime's CHANGE CYCLE on the local daemon, from nothing to nothing: the bake above, then two containers launched on one volume through tofu, verified, their accounts reconciled; one stopped and left stopped by the next apply, then started; one upgraded to a new build (a new generation); both decommissioned, the volume destroyed, the images disposed; several minutes more; a leg of `full-test` | what `test-docker-bake` needs, plus tofu |
+| `test-podman-cycle *ARGS` | the cycle above against PODMAN'S API SERVICE instead of the environment's docker daemon; `CSIS_PODMAN_HOST` is the `DOCKER_HOST` URL of a running service (`podman system service`, a `podman machine`, or an `ssh://` URL to a host that has one) -- unset, the leg is SKIPPED, said so, and exits 0; it refuses to pass on a daemon that does not say it is Podman; what differs from docker is recorded under "Container hosts" | `CSIS_PODMAN_HOST` |
+| `test-podman-desktop-cycle *ARGS` | `test-podman-cycle` against Podman Desktop's machine on macOS, its address read from `podman machine` rather than typed (`CSIS_PODMAN_MACHINE` names one of several); the leg never creates, starts or stops the machine -- with no podman, no machine, a stopped or an ambiguous one it is SKIPPED with the reason and exits 0; on an Intel host it proves Podman 5.8 (Podman 6 dropped them) until June 2027 | a running Podman Desktop machine |
 | `preflight` | the reference configuration's runtime sessions from the caches, no load (0 / 2) | reference configuration |
 | `golden-regen` | rewrite `tests/fixtures/v2_golden` from the fixture | nothing; review the diff |
 | `public-safe *ARGS` | scan this checkout with the fixture's allow list | nothing |
 | `publish-tree <root> <dest>` | a publishable copy: tracked files, gate, one commit on `main` | a clean root |
-| `publish-starters [yes]` | the four template repositories from `docs/examples/` at a final version's tag: the trees, the gate, one commit and the tag each; `yes` = dry | the tag, `STARTER_PUSH_TOKEN` |
+| `publish-starters [yes]` | the five template repositories from `docs/examples/` at a final version's tag: the trees, the gate, one commit and the tag each; `yes` = dry | the tag, `STARTER_PUSH_TOKEN` |
 | `hooks` | `core.hooksPath .githooks` here | nothing |
 | `verify` | alias of `test` | nothing |
 | `clean` / `clean-venv` / `clean-all` | build residue / `.venv` / both plus `uv.lock` | nothing |
@@ -2036,21 +2065,41 @@ cloud-dispose-images gcloud-east1` from that repository.
 
 ## 3. CI
 
-Two workflows (stage 64, 2026-09-26). This repository's
-[ci.yml](../.github/workflows/ci.yml) proves the SYSTEM: `verify` is the
-bar, `live` proves the frozen fixture against the real accounts read-only,
-`publish` uploads a pushed `v*` tag to the index (stage 41). A
-configuration repository's `ci.yml`, which the release ships in every
-starter tree and `init-config` writes, proves and performs the
-CONFIGURATION: `verify`, `live`, `perform`. Until stage 64 this
-repository's workflow checked the reference configuration out beside
-itself, recorded it and performed on it (the `live` and `perform` jobs of
-stage 45); that work moved to the reference configuration's own workflow,
-which is the starter's with the team's values. Every command in either is
-a `just` target of its repository, so CI and a person's shell run the
-same thing. `tests/test_v2_ci_workflow.py` pins this repository's
-workflow; `tests/test_docs_examples.py` pins the starter's, jobs and
-perform sequence included.
+Three workflows in this repository, and one in a configuration
+repository. This repository's [ci.yml](../.github/workflows/ci.yml)
+proves the SYSTEM: `verify` is the bar, `live` proves the frozen fixture
+against the real accounts read-only, `publish` uploads a pushed `v*` tag
+to the index (stage 41). Every job of it runs inside the **runner
+image** (`container:` -- `ghcr.io/infrastructurebuilder/csis-ci:<tag>`,
+AlmaLinux 10 with every tool a job calls at a pinned version, built from
+[ci/runner-image/](../ci/runner-image/) and described by
+[CI_RUNNER.md](CI_RUNNER.md); the variable `CSIS_RUNNER_IMAGE` names a
+team's own build) with the host's docker socket mounted, so no job
+installs a tool: a checkout, `just init` and the targets are the steps.
+[ci-from-scratch.yml](../.github/workflows/ci-from-scratch.yml) is the
+same `verify` and `live` on GitHub's own Ubuntu runner with every tool
+installed by a step (setup-just, setup-uv, setup-opentofu, setup-packer,
+and the tools placed where the fixture's `executables.yml` pins them),
+on `develop`, weekly and on dispatch, publishing nothing: the proof that
+a runner with no image of its own can meet CI_RUNNER.md step by step.
+[runner-image.yml](../.github/workflows/runner-image.yml) builds the
+runner image (`just runner-image`, its probe included) and publishes it
+to ghcr.io: a push that changes `ci/runner-image/` publishes the tag the
+tree pins (`ci/runner-image/TAG`), and the monthly schedule publishes
+today's date as a candidate. A configuration repository's `ci.yml`,
+which the release ships in every starter tree and `init-config` writes,
+proves and performs the CONFIGURATION: `verify`, `live`, `perform`, each
+inside the same runner image and installing only the released system.
+Until stage 64 this repository's workflow checked the reference
+configuration out beside itself, recorded it and performed on it (the
+`live` and `perform` jobs of stage 45); that work moved to the reference
+configuration's own workflow, which is the starter's with the team's
+values. Every command in any of them is a `just` target of its
+repository, so CI and a person's shell run the same thing.
+`tests/test_v2_ci_workflow.py` pins this repository's workflow;
+`tests/test_docs_examples.py` pins the starter's, jobs and perform
+sequence included; `tests/test_v2_ci_runner.py` holds the image, the
+from-scratch workflow and CI_RUNNER.md to one list of tools.
 
 ### The bootstrap: what CI needs, as terraform from an interview
 
@@ -2308,11 +2357,11 @@ lines of hygiene XX.
 ### This repository: the `verify` job
 
 Runs on every push and pull request, with no configuration and no
-credentials.
+credentials, inside the runner image.
 
 | Step | Proves |
 | --- | --- |
-| `actions/checkout`, setup-just, setup-uv (Python 3.13) | the toolchain installs from nothing |
+| `actions/checkout` | the checkout; the toolchain (just, uv, Python) is the image's, and no step installs one |
 | `just init` | the workspace syncs (the editable build copies the starter trees into the system package) |
 | `just verify` | the bar: ruff, pyright (blocking), the suite with the golden, over the frozen fixture; the built wheel is held to `docs/examples/` |
 | `just public-safe` | the checkout holds nothing that must never be public |
@@ -2320,11 +2369,11 @@ credentials.
 ### This repository: the `live` job
 
 Runs after `verify` on pushes and the nightly schedule, never on pull
-requests (forks carry no secrets). It reads only and never plans against
-remote state. The frozen fixture names the real account's networks and
-project and the real OPA team, so with the read-only identities the
-system is proved against reality without touching the reference
-configuration.
+requests (forks carry no secrets), inside the runner image. It reads only
+and never plans against remote state. The frozen fixture names the real
+account's networks and project and the real OPA team, so with the
+read-only identities the system is proved against reality without
+touching the reference configuration.
 
 | Step | What it does |
 | --- | --- |
@@ -2332,7 +2381,7 @@ configuration.
 | Check out the system | one checkout; no second repository |
 | Federated AWS credentials; the `[noaa]` shim | `AWS_ROLE_ARN`, the read-only role, via OIDC; the profile the fixture's runtimes name |
 | Federated GCP credentials | `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_SERVICE_ACCOUNT`, read-only |
-| Install just, uv, OpenTofu, Packer; place the tools where the fixture's `executables.yml` pins them | `validate` checks every declared tool at its path and version (stage 48) |
+| No install step: the runner image carries just, uv, OpenTofu, Packer, gcloud, ansible and the docker client at the paths the fixture's `executables.yml` pins (`/usr/local/bin`) | `validate` checks every declared tool at its path and version (stage 48); the from-scratch workflow installs the same tools by steps and places them there |
 | `just init` | |
 | `just fixture-live` | `validate` over the fixture with its committed TEST identity, a dry `run --all --no-state-query` over a private copy with `tfmodules/` beside it, `test-mods --strict` over the copy under docker |
 
@@ -2366,25 +2415,28 @@ trusted publishing waits until the package names are stable.
 
 ### A configuration repository: the `verify` job
 
-Every push and pull request, no secret: the release named in
-`.csis-version` (else the latest on the index; a development version from
-TestPyPI with PyPI as the extra index) is installed with `uv tool
-install`, the `Justfile` parses, and `just public-safe` passes.
+Every push and pull request, no secret, inside the runner image: the
+release named in `.csis-version` (else the latest on the index; a
+development version from TestPyPI with PyPI as the extra index and
+`--index-strategy unsafe-first-match`) is installed with `uv tool
+install` -- the one thing any job installs -- the `Justfile` parses, and
+`just public-safe` passes.
 
 ### A configuration repository: the `live` job
 
 After `verify`, on pushes and the nightly schedule, never on pull
-requests. Gated on the repository's secrets with the same rule as above
-(none: SKIPPED and said in the summary; some: FAILED by name). Then the
-release, OpenTofu and Packer are installed and placed where
-`cfg/executables.yml` pins them, the read-only cloud identities are
-federated (the AWS profile the runtimes name is written from them; GCP
-through the auth action and `setup-gcloud`), the age identity is written
-to a file and `cs-image-system mask` hides every encrypted value in the
-log, and then: `just validate`, `just config-drift`, `just state-query
---strict`, `just test-mods --strict`; `just mirror-clean` runs last, even
-on failure. The Okta key and the team's `TF_VAR_<team>_key` / `_secret`
-are job-level environment from the secrets.
+requests, inside the runner image. Gated on the repository's secrets
+with the same rule as above (none: SKIPPED and said in the summary;
+some: FAILED by name). Then the release is installed (OpenTofu, Packer,
+gcloud and the rest are the image's, at the paths `cfg/executables.yml`
+pins), the read-only cloud identities are federated (the AWS profile the
+runtimes name is written from them; GCP through the auth action), the
+age identity is written to a file and `cs-image-system mask` hides every
+encrypted value in the log, and then: `just validate`, `just
+config-drift`, `just state-query --strict`, `just test-mods --strict`;
+`just mirror-clean` runs last, even on failure. The Okta key and the
+team's `TF_VAR_<team>_key` / `_secret` are job-level environment from
+the secrets.
 
 ### A configuration repository: the `perform` job
 
@@ -2405,9 +2457,11 @@ never bake on** (`GUARD_RUNTIME`, empty for none, or several names
 separated by spaces; the reference configuration names `gcloud-east1`,
 the operator's own money): `just runtime-unchanged <name> <before>`, for
 each name, compares that runtime's emission in the record just pushed
-with the previous record and fails the job before anything performs. Then what a bake and the proof need
-(the Session Manager plugin on AWS, `ansible-core`, the OPA client), the
-WRITE identity for one step, `just cloud-perform "$PERFORM_RUNTIME"`.
+with the previous record and fails the job before anything performs.
+Then the WRITE identity for one step and `just cloud-perform
+"$PERFORM_RUNTIME"` (what a bake and the proof need -- the Session
+Manager plugin on AWS, `ansible-core`, the OPA client `sft` -- the runner
+image carries; no step installs them).
 **A bake that happened must never go unrecorded**: the push of what the
 performing run committed, the read-only identity again, `just
 ci-login-proof --runtime "$PERFORM_RUNTIME"` (the login proof as a
@@ -2463,7 +2517,7 @@ This repository:
 | `OKTA_API_PRIVATE_KEY` | the load's check that the okta provider can authenticate | live |
 | `TF_VAR_NOS_KEY`, `TF_VAR_NOS_SECRET` → exported as `TF_VAR_nos_coastal_modeling_cloud_sandbox_key` / `_secret` | the load's `_require_tfvar` assertion (the fixture names the real team) | live |
 | `TEST_PYPI_TOKEN`, `PYPI_TOKEN` | `just publish test` / `pypi`, as `UV_PUBLISH_TOKEN` | publish |
-| `STARTER_PUSH_TOKEN` | `just publish-starters`: a fine-grained token with Contents and Workflows read/write on the four template repositories alone (pushing `.github/workflows/` needs Workflows) | publish |
+| `STARTER_PUSH_TOKEN` | `just publish-starters`: a fine-grained token with Contents and Workflows read/write on the five template repositories alone (pushing `.github/workflows/` needs Workflows) | publish |
 
 Set a token secret from the value your `.envrc` holds, with no newline
 added (a stray newline, space or quote is refused by the index as
@@ -2672,9 +2726,12 @@ replacement: a runtime pointed at another zone does not fail to attach a
 volume, it plans to DESTROY and recreate it. The plan gate catches that as an
 unwhitelisted destroy, but only at apply time and naming the volume rather than
 the reason. Live subnets and `mnt_data` declare their zones since 2026-09-19.
-An EBS storage's own zone is what its module call carries; a GCP persistent
-disk is emitted in its runtime's zone whatever the storage declares (the
-declaration is validated, not emitted; a code stage names the fix).
+An EBS storage's own zone is what its module call carries, and a GCP
+persistent disk's is the same: its own `availability_zone` wins over the
+runtime's `zone` in the module call, the state query's lookup and the
+archive script, and the runtime's `zone` is the fallback when the storage
+declares none -- so declaring a zone pins the disk rather than decorating
+the file.
 
 **In the records.** A meta-state write says what it READ (stage 50): a value
 that came from a marker is recorded as that marker, so a record and the
@@ -2850,6 +2907,14 @@ is likely to break the GCE code path; then one live cycle, torn down.
 | `preflight [--strict]` | the sessions, without loading |
 | `encrypt`, `decrypt`, `reencrypt`, `public-safe` | the value tools and the scanner |
 | `test-mods` | the modification tests |
+| `mask` | a `::add-mask::` line for every value the configuration carries encrypted, so a CI log never shows one; a configuration repository's `live` and `perform` jobs run it before anything prints |
+| `materialize <source> [<destination>]` | copy a generated root into the private mirror (`_private/`), every ENC marker substituted with its plaintext, and print where it landed ("Encrypted values" above) |
+| `init-config <destination> [--from <starter>] [--force] [--changes-since <dir>]` | write a starter configuration repository from this release: an empty destination takes the whole starter (the YAML, the Justfile, the workflow, the hook, `.gitignore`, `tfmodules/`, `.csis-version`), an existing one only the parts the release owns; `--force` overwrites a release-owned file that differs; `--changes-since` lists what this release changed against the previous release's starters and writes nothing |
+| `bootstrap [--quiet] [--answers <file>] [--section <name>]...` | the one-time initialisation as terraform, from an interview, run in a configuration repository ("The bootstrap" above); loads no configuration |
+| `config-drift` | is the committed emission current with the declarations? ("`config-drift` and `fixture-live`" above) |
+| `runtime-unchanged <rt> [--ref <ref>]` | has that runtime's emission changed since the ref (default `HEAD`)? 0 unchanged, or only the vendor's newest image moved under a base not yet baked; 1 with the diff; 2 for an unknown runtime; CI's performing job asks it of each `GUARD_RUNTIME` |
+| `workload describe [--env]`, `workload token`, `workload probe` | what CI's workload login needs from the configuration (the team's connection and role, the team, the API address; `--env` as shell exports); this Actions run's OIDC token presented to the team; the probe ("the workload probe" above) |
+| `forget instance <name>` | drop a destroyed instance's pin and launch parameters when a decommission outside the gate left the records behind; refused (exit 2) while the instance is still declared |
 | `identity-attributes [--probe] [--dry-run-apply] [--json]` | the identity attribute plan; writing is switched off (`--apply` exits 4) |
 | `identity export-gids`, `gate-plan`, `apply-check` | programs the emission and the runner scripts call; no configuration load |
 
@@ -3178,7 +3243,7 @@ adds a VM layer and Homebrew has no prebuilt Podman for this machine). In
 the machine:
 
 ```sh
-orb create alma:10 podman-host           # on the Mac
+orb create alma:10 podman-host           # on the host
 orb -m podman-host bash -c '
   sudo dnf -y install podman podman-docker
   systemctl --user enable --now podman.socket     # /run/user/<uid>/podman/podman.sock
@@ -3186,7 +3251,7 @@ orb -m podman-host bash -c '
   podman system migrate'
 ```
 
-**The address.** The `docker` CLI on the Mac reaches the socket over ssh, the
+**The address.** The `docker` CLI on the host reaches the socket over ssh, the
 same transport the starter's workflow uses for a team's host (OrbStack's
 machines answer `ssh <machine>@orb`):
 
@@ -3233,7 +3298,7 @@ socket of its own, running beside OrbStack on the same Mac.
   `podman-machine-default`, 2 CPUs, 1.9 GB of memory, a 10 GB disk, and
   **rootful** (the Linux proof above was rootless). Desktop does not mark a
   machine it makes as the default one in `podman machine list`.
-- **Coexistence with OrbStack.** Nothing was changed on the Mac's side and
+- **Coexistence with OrbStack.** Nothing was changed on the host's side and
   nothing needs to be. A bare `docker` keeps answering from OrbStack,
   because `/var/run/docker.sock` still points at it and `podman-mac-helper`
   is not installed (it would take that socket from OrbStack; do not install

@@ -52,7 +52,11 @@ where everything you do happens. It holds:
 - its own `Justfile`, the single entry point for everything below; its
   own CI under `.github/workflows/`; the public-safe hook under
   `.githooks/`; the terraform modules the emitted roots call, under
-  `tfmodules/`; and three helper scripts under `scripts/`.
+  `tfmodules/`. The `scripts/` directory is not the system's: a starter
+  ships one file there, the script a modification runs inside the image
+  (`post-install.sh`, named under `scripts:` by an image's bash-remote
+  item; `mod_image.sh` in the complete tree), content-hashed into the
+  build and yours to replace.
 
 You do not write these from nothing: a **starter tree** is a
 whole repository of exactly this shape, and section 1.9 starts from one.
@@ -258,7 +262,7 @@ hosts" under the rules.
 
 Podman's API service serves as the daemon too (proved, with its setup, in
 [OPERATIONS.md](OPERATIONS.md), "Podman as the daemon"), on Linux and as
-Podman Desktop's machine on a Mac beside OrbStack; the Mac leg is `just
+Podman Desktop's machine on macOS beside OrbStack; the macOS leg is `just
 test-podman-desktop-cycle`.
 
 The smallest tree on this runtime is the `standard-docker` starter
@@ -793,8 +797,9 @@ cannot start machines skips the verification instead. This is
 deliberate ([OPERATIONS.md](OPERATIONS.md), "Starting a machine is
 a bounded exception"). It was walked on 2026-10-09, when it surprised
 its own operator; the decision that day was to keep it, and it is
-reviewed every month until February 2027 ([INPROGRESS/TODO.md](../INPROGRESS/TODO.md)). If you
-do not want a machine booted, do not verify it while it is off.
+reviewed every month until February 2027 (the F44 item under "Monthly
+General Items" in [REMINDERS.md](../REMINDERS.md)). If you do not want
+a machine booted, do not verify it while it is off.
 
 A durable instance's FIRST launch of a brand-new image is the one case
 where `require_released_builds: true` and `release` pull against each
@@ -1033,7 +1038,9 @@ the job summary says whether a job ran at all.
 
 The failures below all happened in the reference deployment, and each row
 names what was done. New ones get a row here and, if they need work, an
-item in the open hygiene bundle in [INPROGRESS/TODO.md](../INPROGRESS/TODO.md).
+item in the open hygiene bundle: the one the Open list in
+[INPROGRESS/TODO.md](../INPROGRESS/TODO.md) names, hygiene bundle XXIV
+([INPROGRESS/STAGE-130.md](../INPROGRESS/STAGE-130.md)).
 
 | Symptom | Meaning | Do |
 | --- | --- | --- |
@@ -1269,8 +1276,11 @@ declares.
    full-test` before a performing run you make by hand.
 7. GCP costs are yours: a cycle there ends with `just cloud-empty`, and
    any billable resource left standing is named with its cost.
-8. When something fails, the row in section 6 first, then the hygiene
-   bundle in [INPROGRESS/TODO.md](../INPROGRESS/TODO.md); a new failure gets a row.
+8. When something fails, the row in section 6 first, then the open
+   hygiene bundle, hygiene bundle XXIV
+   ([INPROGRESS/STAGE-130.md](../INPROGRESS/STAGE-130.md)), the one the
+   Open list in [INPROGRESS/TODO.md](../INPROGRESS/TODO.md) names; a new
+   failure gets a row.
 9. Upgrade the system deliberately: a new release, then `just validate`,
    `just dry`, and the diff of `generated/` read before anything runs.
 

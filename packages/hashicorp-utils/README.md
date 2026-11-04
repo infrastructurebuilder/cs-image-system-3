@@ -23,8 +23,9 @@ files each lifecycle's workspaces bind to, to record state locations and
 to check for collisions at `validate`.
 
 Licensed under Apache-2.0. Requires Python 3.13 or later. Declared
-dependencies: `cs-image-system-system`, `cs-image-system-base`,
-`packaging`, `python-hcl2`.
+dependencies ([pyproject.toml](pyproject.toml)): `cs-image-system-contract`,
+`cs-image-system-base`, `packaging` and `python-hcl2`. Nothing in the
+workspace depends on `cs-image-system-system`, the CLI host.
 
 ## Contents
 

@@ -1204,8 +1204,13 @@ values enter only by terraform reference. After a real apply, hooks mark
 every declared instance launched, forget decommissioned and ephemeral
 instances, and re-record detachments. Launched instances are immutable: a
 changed parameter set fails validation unless the instance has a pending
-replacement (an explicit upgrade or a `follow` target); the one in-place
-change allowed is removing a mount, which is a detach.
+replacement (an explicit upgrade or a `follow` target). Two in-place
+changes are sanctioned and recorded instead
+([DESIGN N26](../../docs/DESIGN.md)): removing a mount, which is a detach
+(unmounted first; the gate refuses the plan without the receipt), and
+changing `machine_type`, which is a resize of the same machine (the
+provider stops, changes and starts it; the generation's snapshot is
+updated and a `resized` event is kept in the ledger).
 
 ## Capabilities
 
@@ -1297,13 +1302,17 @@ the core finds it.
   [ansible-plugin](../ansible-plugin/README.md),
   [aws-runtime-plugin](../aws-runtime-plugin/README.md),
   [bash-mod-plugin](../bash-mod-plugin/README.md),
+  [contract-example-plugin](../contract-example-plugin/README.md),
   [default-os-plugin](../default-os-plugin/README.md),
+  [docker-runtime-plugin](../docker-runtime-plugin/README.md),
   [dummy-plugin](../dummy-plugin/README.md),
   [gcloud-runtime-plugin](../gcloud-runtime-plugin/README.md),
   [gcs-state-plugin](../gcs-state-plugin/README.md),
   [local-state-plugin](../local-state-plugin/README.md),
   [okta-opa-plugin](../okta-opa-plugin/README.md),
   [packer-plugin](../packer-plugin/README.md),
+  [posix-identity-plugin](../posix-identity-plugin/README.md),
+  [tf-docker-plugin](../tf-docker-plugin/README.md),
   [tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md),
   [tf-gcp-plugin](../tf-gcp-plugin/README.md),
   [tf-s3-state-plugin](../tf-s3-state-plugin/README.md).
@@ -1390,7 +1399,7 @@ popped out) and the shape of the five collections under `groups/`,
 but not read). The fields each plugin adds to its own builder models and
 sub-items, and the plugin's own reading of collection fields (a runtime
 plugin's `machine_type`, the identity plugin's `attributes`), are in the
-thirteen plugin READMEs linked above. Every model is a pydantic dataclass
+seventeen plugin READMEs linked above. Every model is a pydantic dataclass
 with `extra="forbid"`: an unknown key is refused at load.
 
 ### `cfg/_config.yml`, top level

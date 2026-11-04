@@ -11,24 +11,29 @@ question: **did this change what the system produces?**
 
 ## What is in it
 
-125 files under [tests/fixtures/v2_golden/](tests/fixtures/v2_golden/), in two
+122 files under [tests/fixtures/v2_golden/](tests/fixtures/v2_golden/), in two
 subtrees.
 
-`generated/` — the emitted infrastructure-as-code, one directory per lifecycle:
+`generated/` — the emitted infrastructure-as-code (118 files): one directory
+per lifecycle, plus two files at the top, `final_execution.sh` (the script
+that runs each lifecycle's runner in meta-workflow order, if and only if
+that runner exists) and the `.gitignore` that keeps state, plans and
+manifests out of a configuration repository:
 
 | Lifecycle | Files |
 | --- | --- |
-| `identity` | 14 |
+| `identity` | 17 |
 | `storage` | 17 |
 | `base-image` | 14 |
-| `instance-image` | 71 |
+| `instance-image` | 64 |
 | `release` | 3 |
 | `retention` | 1 |
 
-`meta-state/` — three of the system's records: `identity.yaml`, `storage.yaml`
-and `launch-params.yaml`. These are the read-models and launch parameters the
-run writes. The other meta-state files are deliberately absent, for the reason
-in "What it does not cover" below.
+`meta-state/` — four of the system's records: `identity.yaml`,
+`storage.yaml`, `launch-params.yaml` and `state-locations.yaml`. These are
+the read-models, the launch parameters and each terraform root's resolved
+state location, which the run writes. The other meta-state files are
+deliberately absent, for the reason in "What it does not cover" below.
 
 ## How it is produced
 
@@ -109,7 +114,7 @@ whether a storage volume actually mounts. Those are proven separately, by
 gated live runs, whose evidence is the live configuration's `meta-state/`
 (image tests, verifications, releases).
 
-It also holds only three meta-state files. The records that pin live cloud
+It also holds only four meta-state files. The records that pin live cloud
 resources — `lineage.yaml`, `pins.yaml`, `storage-state.yaml` and the rest —
 are excluded from the fixture copy on purpose, because they describe real AMIs,
 GCE images and volumes. A test must never inherit them, and the golden must not

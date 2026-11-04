@@ -4,9 +4,10 @@
 
 A plugin-based, configuration-driven system that turns one YAML tree into
 infrastructure-as-code for identities, storages, base images and instance
-images, and applies it through gates, on AWS and GCE. Its purpose is
-scientific compute: machine images that are correct for a given HPC model,
-formally released, whose users log in through Okta Privileged Access.
+images, and applies it through gates, on AWS, on GCE and on a docker host.
+Its purpose is scientific compute: machine images that are correct for a
+given HPC model, formally released, whose users log in through Okta
+Privileged Access.
 
 ## Where to start
 
@@ -53,17 +54,63 @@ run and applied by the operator. The manual describes each.
 
 ## Layout
 
-`packages/` holds the uv workspace: `contract` (the plugin contract, what a
-plugin is written against), `base` (models, lifecycles, state),
-`system` (the CLI), `hashicorp-utils` (the terraform library) and one
-package per plugin (AWS and GCE runtimes, packer, ansible and bash
-modifications, Okta identity, terraform storage and instance builders, the
-GCP terraform pieces, the S3 state backend). `tfmodules/` are the terraform
-modules the builders emit calls to. `tests/` is the suite, with the frozen
-fixture configuration under `tests/fixtures/config/` and the golden
-emission under `tests/fixtures/v2_golden/`. `docs/examples/` holds the
-three starter configuration repositories the release ships and
-`init-config` writes out. The reference configuration is its own
+`packages/` holds the uv workspace: four core packages and seventeen
+plugins, each with its own README ([docs/PLUGINS.md](docs/PLUGINS.md)
+describes them together). The core:
+
+- [contract](packages/contract/README.md) — the plugin contract: what a
+  plugin is written against.
+- [base](packages/base/README.md) — the models, the lifecycles, the
+  registry and plugin loader, state and the records.
+- [system](packages/system/README.md) — the `cs-image-system` CLI.
+- [hashicorp-utils](packages/hashicorp-utils/README.md) — the terraform
+  library (a library, not a plugin).
+
+The plugins, discovered through Python entry points, one package each:
+
+- [aws-runtime-plugin](packages/aws-runtime-plugin/README.md) — the `aws`
+  runtime: profiles, regions, VPCs and subnets.
+- [gcloud-runtime-plugin](packages/gcloud-runtime-plugin/README.md) — the
+  `gcloud` runtime: projects, zones and networks.
+- [docker-runtime-plugin](packages/docker-runtime-plugin/README.md) — the
+  `docker` runtime: a host's container daemon.
+- [default-os-plugin](packages/default-os-plugin/README.md) — the OS
+  families a base image is built from.
+- [packer-plugin](packages/packer-plugin/README.md) — the image builders
+  for EBS, GCE and docker images.
+- [ansible-plugin](packages/ansible-plugin/README.md) — modifications as
+  ansible playbooks.
+- [bash-mod-plugin](packages/bash-mod-plugin/README.md) — modifications as
+  shell scripts and `ensure` items.
+- [okta-opa-plugin](packages/okta-opa-plugin/README.md) — Okta users and
+  OPA groups.
+- [posix-identity-plugin](packages/posix-identity-plugin/README.md) —
+  POSIX groups and users on the machines, with declared ids.
+- [tf-ebs-instance-plugin](packages/tf-ebs-instance-plugin/README.md) —
+  the OpenTofu instance and storage builders for AWS.
+- [tf-gcp-plugin](packages/tf-gcp-plugin/README.md) — the OpenTofu
+  instance and storage builders for Google Cloud.
+- [tf-docker-plugin](packages/tf-docker-plugin/README.md) — containers and
+  named volumes through OpenTofu's docker provider.
+- [tf-s3-state-plugin](packages/tf-s3-state-plugin/README.md) — the `s3`
+  state backend.
+- [gcs-state-plugin](packages/gcs-state-plugin/README.md) — the `gcs`
+  state backend.
+- [local-state-plugin](packages/local-state-plugin/README.md) — the
+  `local` state backend: a state file on disk.
+- [contract-example-plugin](packages/contract-example-plugin/README.md) —
+  the `inmem` state backend: the proof that a plugin can be written
+  against the contract alone, never a backend for a real tree.
+- [dummy-plugin](packages/dummy-plugin/README.md) — the extension
+  template and test double.
+
+`tfmodules/` are the terraform modules the builders emit calls to.
+`tests/` is the suite, with the frozen fixture configuration under
+`tests/fixtures/config/` and the golden emission under
+`tests/fixtures/v2_golden/`. `docs/examples/` holds the five starter
+configuration repositories the release ships and `init-config` writes
+out: `complete`, `standard-aws`, `standard-aws-posix`, `standard-docker`
+and `standard-gce`. The reference configuration is its own
 repository, `cs-image-system-testconfig`, which stands alone with its own
 `Justfile` and CI; it is checked out beside this one (`CSIS_CONFIG_ROOT`
 overrides) for the system's own live proofs only, and the tests never
