@@ -1,6 +1,6 @@
 # cs-image-system-contract-example-plugin
 
-The proof of the plugin contract (stage 30, branch 2): a state backend
+The proof of the plugin contract: a state backend
 plugin written against [cs-image-system-contract](../contract/README.md)
 and nothing else of the system. Its `pyproject.toml` depends on the
 contract and `pydantic`; its sources import `cs_image_system.contract`
@@ -115,6 +115,10 @@ their `inmem://memory/...` locations.
 
 ## When it fails
 
+Incidents that have happened, with their cause and fix, are recorded on
+[INCIDENTS.md](../../docs/INCIDENTS.md); what follows keeps each
+failure's symptom, its meaning and what to do.
+
 - A test in `tests/test_v2_contract_example.py` naming an import of
   `cs_image_system.base`, `.system` or `.hashicorp_utils`: the proof is
   broken; the plugin must be written against the contract alone.
@@ -129,8 +133,8 @@ their `inmem://memory/...` locations.
   so the next run plans everything again. That is the backend doing what
   it says; bind real roots to `s3`, `local` or `gcs`.
 
-No failure of this package has happened in the field (2026-10-29): it is
-the proof, not a backend for a real tree.
+No failure of this package has been seen in the field: it is the proof,
+not a backend for a real tree.
 
 ## Related
 

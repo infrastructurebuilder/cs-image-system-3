@@ -12,7 +12,7 @@ Stages from the re-examination of 2026-11-03.
 [REEXAMINE4.md](REEXAMINE4.md) digests the three reviews
 ([REEXAMINE1.md](REEXAMINE1.md), [REEXAMINE2.md](REEXAMINE2.md),
 [REEXAMINE3.md](REEXAMINE3.md)); each stage file
-([§119](STAGE-119.md) to [§130](STAGE-130.md); §118 landed) cites the review section
+([§120](STAGE-120.md) to [§130](STAGE-130.md); §118 and §119 landed) cites the review section
 it answers. The conventions are the ones above: one file per stage; a
 stage is a plan until the operator says "do N"; **YOUR DECISION** marks
 an operator choice and states the default; **USER** marks a step only
@@ -43,14 +43,15 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
 
 **Open**
 
-- [§119](STAGE-119.md), the documents: no code; may start now (§118 landed).
+- §118 and §119, the documents, landed 2026-11-04; the rolling
+  documentation stage is not open.
 - [§120](STAGE-120.md) to [§125](STAGE-125.md), the seams: in that
   order; each waits for its "do N".
 - [§126](STAGE-126.md), the package shape: a decision stage; before
   [§112](STAGE-112.md) and [§116](STAGE-116.md).
 - [§127](STAGE-127.md), loading once: after [§124](STAGE-124.md).
 - [§128](STAGE-128.md) and [§129](STAGE-129.md), the tests and the
-  sources stop narrating: any time after [§119](STAGE-119.md).
+  sources stop narrating: any time after §119.
 - [§130](STAGE-130.md), hygiene bundle XXIV: the open bundle for the small findings.
 - [§112](STAGE-112.md), a release in two boxes: planned 2026-11-03; waits for
   "do 112".
@@ -74,7 +75,6 @@ and validated by the operator before its "do N")
 - [§114, Tier C: the run context is a protocol](STAGE-114.md)
 - [§115, The services behind the context](STAGE-115.md)
 - [§116, A runtime installed from outside](STAGE-116.md)
-- [§119, The stage index and the end of narration](STAGE-119.md)
 - [§120, A provider-neutral terraform root](STAGE-120.md)
 - [§121, The core names no runtime](STAGE-121.md)
 - [§122, Storage and identity leave the core](STAGE-122.md)
@@ -130,6 +130,15 @@ and validated by the operator before its "do N")
 
 **Landed since 2026-10-05** (newest first)
 
+- §119, the stage index and the end of narration: 2026-11-04, its
+  squash commit (feature/stage-119-narration kept). 1,362 narration
+  tokens on the current pages became the present rule with its reason;
+  docs/CHANGES.md (the stage index, anchored), docs/INCIDENTS.md (116
+  entries) and docs/GLOSSARY.md (38 terms) exist; REMINDERS.md is one
+  document; the frozen history is marked whole and its links say where
+  they lead; OPERATIONS has a table of contents and, with
+  CONFIGURATION, owns each shared table; nine page disagreements were
+  settled against the code. Documentation only.
 - §118, the summary layer comes current: 2026-11-04, its squash commit
   (feature/stage-118-summary-layer kept). Every row of REEXAMINE1 §4.2
   and REEXAMINE3 §2.3 checked against the tree and fixed or refuted,

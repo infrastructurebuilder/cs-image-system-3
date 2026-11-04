@@ -39,18 +39,15 @@ How a YAML entry selects these classes:
   looks the builder up by name or alias, reads the builder's own `type`
   (`bash-remote`) and loads the item into the class registered under that
   service key for `MOD_BUILDER_ITEM_MODEL`: `BashModItemModel`. The
-  registry alone decides; the builder model's
-  `get_target_deferred_type_by_VCT` method, which also named that class
-  and had no caller, is gone (stage 63, 2026-09-25), as is the plugin's
-  empty `helpers.py`.
-- **The item's `type` is rewritten to the builder's `name` at load**
-  (stage 63 item 15). The image builder later fetches the builder with
+  registry alone decides.
+- **The item's `type` is rewritten to the builder's `name` at load.**
+  The image builder later fetches the builder with
   `ctx.mod_builders.get(mod.get_type())`, a map keyed by builder NAME
-  only, so an alias must not survive the load. An item declared
-  `type: bash` (the fixture builder's alias) is loaded as
-  `type: bash-remote`. Before 2026-09-25 the alias was kept, and
-  generation stopped with
+  only, so an alias must not survive the load: a kept alias would stop
+  generation with
   `AssertionError: No mod builder bash found in context for <image>`.
+  An item declared `type: bash` (the fixture builder's alias) is loaded
+  as `type: bash-remote`.
 - An `executables:` entry named `bash` is version-checked by
   `BashVersionChecker` (regex `.*version\s+([\d\.]+)` over
   `bash --version`).
@@ -64,21 +61,31 @@ Defined in [bash_models.py](src/cs_image_system/bash_mod_plugin/bash_models.py).
 [`ModBuilderModel`](../base/src/cs_image_system/base/models/mod_builder.py),
 which adds nothing to
 [`BuilderModel`](../base/src/cs_image_system/base/models/builder_model.py)
-(`name`, `type`, `description`, `aliases`, `executable`, `is_default`,
-`config`, `gitignore`, `tags`). `BashModBuilderModel` is the registered
-subclass; it adds no fields.
+(the common builder fields: `name`, `type`, `description`, `aliases`,
+`executable`, `is_default`, `config`, `gitignore`, `tags`;
+[CONFIGURATION section 4.1](../../docs/CONFIGURATION.md#41-fields-common-to-every-builder)
+holds that table). `BashModBuilderModel` is the registered subclass; it
+adds no fields.
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `execute_command` | `str \| None` | `None` | Emitted as `execute_command = "..."` on every shell provisioner of every item (Packer's command template, for example `sudo -E bash '{{.Path}}'`). The way to change how the script is invoked. May not be declared together with `configuration_user`. |
-| `configuration_user` | `str \| None` | `None` | When set, every shell provisioner of this builder gets `execute_command = "chmod +x {{ .Path }}; sudo su - <user> -c '{{ .Vars }} {{ .Path }}'"`, so each item's lines run as that user; the bake user only launches them (stage 63; declared and not read until 2026-09-25). Declaring it together with `execute_command` is refused at load. |
-| `environment_vars` | `list[str]` | `[]` | Emitted as `environment_vars = [...]` on every shell provisioner. |
-| `expect_disconnect` | `bool` | `False` | Emits `expect_disconnect = true` on every shell provisioner. |
+The keys this plugin adds are `execute_command`, `configuration_user`,
+`environment_vars` and `expect_disconnect`: each is a Packer
+shell-provisioner argument, emitted on every shell provisioner of every
+item of the builder.
+[CONFIGURATION section 7.2](../../docs/CONFIGURATION.md#72-bash-remote)
+holds the field table; [Configuration reference](#configuration-reference)
+below gives this plugin's reading of each key. Rules only this plugin
+enforces:
 
-`extra_arguments` is not a field (stage 63): it was declared and never
-read, so it is removed, and a builder that still declares it fails to load
-with the unknown-key refusal. Use `execute_command` to change the
-invocation.
+- `execute_command` (Packer's command template, for example
+  `sudo -E bash '{{.Path}}'`) is the way to change how the script is
+  invoked. `configuration_user` writes its own: every shell provisioner
+  of the builder gets `execute_command = "chmod +x {{ .Path }}; sudo su -
+  <user> -c '{{ .Vars }} {{ .Path }}'"`, so each item's lines run as that
+  user and the bake user only launches them. Because both say how the
+  script runs, declaring them together is refused at load.
+- `extra_arguments` is not a field: a builder that declares it fails to
+  load with the unknown-key refusal. Use `execute_command` to change the
+  invocation.
 
 Base fields this plugin constrains: `executable` should name the `bash`
 executable (the fixture does), though the emission does not invoke it;
@@ -89,13 +96,28 @@ base-model rule). `config:` on the builder is carried but never read.
 
 Same file. Extends
 [`ModItemModel`](../base/src/cs_image_system/base/models/moditem_type.py)
-(`SubRootItem` -> `RootItem` -> `NameTyped`).
+(`SubRootItem` -> `RootItem` -> `NameTyped`). The item's own keys are
+`script`, `scripts` and `ensure`; the inherited ones (`name`, `type`,
+`description`, `aliases`, `tags`, `config`) are the modification item's,
+tabled in
+[CONFIGURATION section 7.3](../../docs/CONFIGURATION.md#73-the-modification-item-inside-an-images-modifications),
+and [Configuration reference](#configuration-reference) below reads every
+key as this plugin does.
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `script` | `list[str]` | `[]` | Inline command lines, run in order in one `provisioner "shell"` (`inline = [...]`). Literal shell; no templating. Blank entries are dropped. |
-| `scripts` | `list[str]` | `[]` | Script files, relative to the configuration root (the process's working directory, which the configuration load sets to the root), copied beside the Packer root and run as `scripts = [...]`. Blank entries are dropped. |
-| `ensure` | `dict[str, Any]` | `{}` | The declarative form. Allowed keys: `packages` (list of names), `files` (list of `{path, content, mode}`; `mode` defaults to `0644`), `services` (list of unit names, enabled and started), `commands` (list of `{run, unless}`; `run` executes only when `unless` fails). Every entry is validated at load by `validate_ensure` (stage 63 item 16): a wrong shape, an unknown key, a bad mode or an all-empty mapping raises `ValueError` naming the item and the entry. |
+- `script` is the list of inline command lines, run in order in one
+  `provisioner "shell"` (`inline = [...]`). Literal shell; no templating.
+  Blank entries are dropped.
+- `scripts` is the list of script files, relative to the configuration
+  root (the process's working directory, which the configuration load
+  sets to the root), copied beside the Packer root and run as
+  `scripts = [...]`. Blank entries are dropped.
+- `ensure` is the declarative form. Allowed keys: `packages` (list of
+  names), `files` (list of `{path, content, mode}`; `mode` defaults to
+  `0644`), `services` (list of unit names, enabled and started),
+  `commands` (list of `{run, unless}`; `run` executes only when `unless`
+  fails). Every entry is validated at load by `validate_ensure`: a wrong
+  shape, an unknown key, a bad mode or an all-empty mapping raises
+  `ValueError` naming the item and the entry.
 
 Validation at load: at least one of `script`, `scripts`, `ensure` must be
 non-empty, otherwise `ValueError` ("must supply 'script' (inline lines),
@@ -118,15 +140,13 @@ Derived behaviour:
 - `remap_self_with_copied_assets(copied)`: replaces each `scripts` entry
   with its copied path when present in the mapping.
 
-Inherited item fields:
-
-| Base field | From | Default | Use in this plugin |
-|---|---|---|---|
-| `name` | `NameTyped` | required | Names the provisioner comment and the local bundle directory (`NN-<name>`). |
-| `type` | `ModItemModel` | `default` | Foreign key to a `mod_builders:` entry (see above). |
-| `description`, `aliases`, `tags` | `NameTyped` / `RootItem` | | Carried; not emitted. |
-| `config` | `RootItem` | `{}` | Not read by this plugin. It takes part in the lineage content hash of the modification and nothing else. |
-| `_model_id` | `ModItemModel` | set at load | The owning image's global id; `identified_model` resolves to the image. |
+Of the inherited fields, `name` names the provisioner comment and the
+local bundle directory (`NN-<name>`); `type` is the foreign key to a
+`mod_builders:` entry (see above); `description`, `aliases` and `tags`
+are carried and not emitted; `config` is not read by this plugin and
+takes part in the lineage content hash of the modification and nothing
+else; `_model_id`, set at load, is the owning image's global id, and
+`identified_model` resolves to the image.
 
 ### A modification item with only `config:`
 
@@ -167,8 +187,8 @@ calls, in order:
 4. `generate_items_during_modification(image, mod, image_builder, phase, build_path)`:
    - `inline` = `ensure_lines()` followed by the `script` lines; `scripts`
      = the script files. When both lists are empty it logs a warning and
-     emits nothing; since stage 63 item 16 an all-empty `ensure` is
-     refused at load, so an item can no longer reach this.
+     emits nothing; an all-empty `ensure` is refused at load, so an item
+     cannot reach this.
    - Appends `# Modifications for <item name> of type <item type> (shell)`.
    - Then, because Packer's shell provisioner takes either `scripts` or
      `inline` but never both, one or two `provisioner "shell"` blocks:
@@ -181,7 +201,7 @@ calls, in order:
      with a `configuration_user`, `chmod +x {{ .Path }}; sudo su - <user>
      -c '{{ .Vars }} {{ .Path }}'` (Packer's `{{ .Vars }}`, the
      environment variables, travel inside the command because `su -`
-     starts a fresh login environment), else none (stage 63).
+     starts a fresh login environment), else none.
    - Every string is rendered as an HCL literal: backslashes and double
      quotes are escaped, and `${` / `%{` become `$${` / `%%{` so shell text
      such as `dpkg-query -f='${Package}'` survives Packer's template parser.
@@ -196,9 +216,7 @@ modification bundle records the item: its directory
 `run.sh` that runs `sh '<script>'` per script file and then
 `sh ./inline.sh`, and a `MANIFEST.yaml` with `operation: bash` and the
 item's `idempotent` value. `csis-mods rerun` on the image therefore
-re-applies the declarative `ensure` form too (stage 63). Until 2026-09-25
-the `ensure` lines were not in the bundle and a rerun replayed only the
-script files and the `script` lines.
+re-applies the declarative `ensure` form too.
 
 ## Emission
 
@@ -300,8 +318,8 @@ entry in `cfg/executables.yml`
 ([the fixture's](../../tests/fixtures/config/cfg/executables.yml) is
 `name: bash`, `binary: /usr/local/bin/bash`, no `version`), because
 `validate` checks every builder's `executable` against that list and every
-run checks every declared entry (stage 48: the binary must exist as an
-absolute path or a name on `PATH`, `BashVersionChecker` must parse a version
+run checks every declared entry (the binary must exist as an absolute
+path or a name on `PATH`, `BashVersionChecker` must parse a version
 from `<binary> --version`, and when the entry declares `version:` the parsed
 version must satisfy it). That is the whole extent of the plugin's use of a
 local bash: it is looked at, never run. The fixture declares no floor;
@@ -349,7 +367,7 @@ variable, profile or file of its own.
 
 Every key the model accepts. An unknown key is refused at load
 (`extra="forbid"` in the shared model config), and `parameters:` is refused
-by name (retired in stage 26).
+by name.
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
@@ -363,24 +381,24 @@ by name (retired in stage 26).
 | `gitignore` | list[str] | `[]` | Accepted by the base model; nothing in this plugin reads it. |
 | `tags` | mapping | `{}` | Accepted, not read. |
 | `execute_command` | str or null | `null` | Emitted verbatim (HCL-escaped) as `execute_command` on every shell block of every item of this builder. Refused together with `configuration_user`. |
-| `configuration_user` | str or null | `null` | Read since stage 63 (accepted and ignored until 2026-09-25): every shell block of this builder runs its lines as this user through `execute_command = "chmod +x {{ .Path }}; sudo su - <user> -c '{{ .Vars }} {{ .Path }}'"`. Refused together with `execute_command` (`... both say how the script runs; declare one`). |
+| `configuration_user` | str or null | `null` | Every shell block of this builder runs its lines as this user through `execute_command = "chmod +x {{ .Path }}; sudo su - <user> -c '{{ .Vars }} {{ .Path }}'"`. Refused together with `execute_command` (`... both say how the script runs; declare one`). |
 | `environment_vars` | list[str] | `[]` | Emitted as `environment_vars = [...]` on every shell block. |
 | `expect_disconnect` | bool | `false` | When true, `expect_disconnect = true` on every shell block. |
-| `extra_arguments` | | | Refused at load as an unknown key (removed in stage 63; it was accepted and never read). Use `execute_command`. |
+| `extra_arguments` | | | Not a field; refused at load as an unknown key. Use `execute_command`. |
 
 ### The item (an image's `modifications:` entry whose `type:` names this builder)
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
 | `name` | str | required | Unique within the image. Names the comment line, the bundle directory `NN-<name>` and the lineage record. |
-| `type` | str | `default` | The builder's name, an alias, or `default` (or omitted). Rewritten to the builder's name at load (stage 63 item 15). Omitted or `default` with no `is_default: true` mod builder: refused at load (stage 63). |
+| `type` | str | `default` | The builder's name, an alias, or `default` (or omitted). Rewritten to the builder's name at load. Omitted or `default` with no `is_default: true` mod builder: refused at load. |
 | `description` | str or null | `null` | Accepted, not read. |
 | `aliases` | list[str] | `[]` | Accepted, not read. |
 | `tags` | mapping | `{}` | Accepted, not read. |
 | `config` | mapping | `{}` | Not read by the plugin. Part of the modification's content hash, so a change re-bakes the image. Not passed to the shell. |
 | `script` | list[str] | `[]` | Inline lines, literal, in order, after the `ensure` lines. Blank and whitespace-only entries are dropped. |
 | `scripts` | list[str] | `[]` | Script files; each is copied beside the Packer root and run first, in order. Blank entries are dropped. An absolute path is not copied and is emitted as is. |
-| `ensure` | mapping | `{}` | Only the four keys below are allowed; any other key is refused at load. Every entry's values are validated at load since stage 63 item 16 (`validate_ensure`; see "What it tests and verifies"). |
+| `ensure` | mapping | `{}` | Only the four keys below are allowed; any other key is refused at load. Every entry's values are validated at load (`validate_ensure`; see "What it tests and verifies"). |
 
 The `ensure` keys:
 
@@ -401,11 +419,11 @@ The `ensure` keys:
   `idempotent: unknown`, the same as free-form alone. `ensure` lines always
   precede the `script` lines in the inline block.
 - **`ensure` whose lists are all empty** (`ensure: {packages: []}`) is
-  refused at load (stage 63 item 16). Before 2026-09-25 it passed load,
-  counted as `declared`, and emitted nothing: the builder logged
-  `Bash modification <name> has no script lines or files; nothing emitted`
-  and the bake proceeded without a provisioner for it. The bundle directory
-  still exists, with a `run.sh` that runs nothing.
+  refused at load, because such an item would count as `declared` and
+  emit nothing: the builder would log
+  `Bash modification <name> has no script lines or files; nothing emitted`,
+  the bake would proceed without a provisioner for it, and the bundle
+  directory would hold a `run.sh` that runs nothing.
 - **`commands` with `unless`** is guarded; **without `unless`** the command
   runs on every bake and on every `csis-mods rerun`, so the item is
   idempotent only if the command is.
@@ -415,7 +433,7 @@ The `ensure` keys:
 - **`execute_command` set** puts that template on every block of every
   item of the builder; **`configuration_user` set** instead puts
   `chmod +x {{ .Path }}; sudo su - <user> -c '{{ .Vars }} {{ .Path }}'`
-  there, so the lines run as that user (stage 63); **both set** is refused
+  there, so the lines run as that user; **both set** is refused
   at load; **neither**, Packer's default applies and the lines run as the
   bake user. The same for
   `environment_vars` (emitted only when non-empty) and `expect_disconnect`
@@ -424,11 +442,10 @@ The `ensure` keys:
   `type`** reaches whichever mod builder is `is_default: true`; in the
   fixture that is `ansible-default`, so the item is loaded as an ANSIBLE
   item and its `script`/`scripts`/`ensure` keys are refused as unknown.
-  With no `is_default: true` mod builder at all, the load is refused
-  (stage 63): `No default builder found in mod_builder list.` first, and
-  the orchestrator's `` modification '<name>' names no builder (`type`) ... ``
-  for an item that reaches it anyway. Until 2026-09-25 such an item
-  became an `AttributeError` at generation.
+  With no `is_default: true` mod builder at all, the load is refused:
+  `No default builder found in mod_builder list.` first, and the
+  orchestrator's `` modification '<name>' names no builder (`type`) ... ``
+  for an item that reaches it anyway.
   **`type: <alias>`** behaves exactly as the builder's name: the loader
   rewrites it.
 - **AWS versus GCE runtime**: the lines are identical; only the `only`
@@ -463,7 +480,7 @@ integer mode no higher than `0777`, and not every kind empty); an item
 with none of `script`, `scripts`, `ensure`; an item `type:` that names no
 builder; an item with no `type:` when no mod builder is the default; a
 builder declaring both `configuration_user` and `execute_command`, or
-the removed `extra_arguments` (stage 63). Each is a
+`extra_arguments`. Each is a
 `ValueError` (or `KeyError` for the type) that stops the load; the CLI
 prints it and exits 1. Nothing loads, so nothing is generated.
 
@@ -516,81 +533,41 @@ failure prints `FAIL <image>/<mod>: rc=...` on stderr and exits 1. A
 
 ## When it fails
 
-Failures that have happened, in date order:
+Incidents that have happened, with their cause and fix, are recorded on
+[INCIDENTS.md](../../docs/INCIDENTS.md); what follows keeps each
+failure's symptom, its meaning and what to do.
 
-- **2026-08-27, three defects found in the pre-V2 builder**
-  ([LEDGER](../../docs/history/LEDGER.md), "Finding 2026-08-27"). Every
-  item resolved to the default mod builder (the lookup used the field name
-  `modifications`, not the item's `type`), so a bash item was recorded as
-  `ansible-default` with no content; the bash builder wrote raw lines and an
-  `exit 0` straight into the build file, so any real bash item failed
-  `packer validate`; and `scripts:` was not a field, so files were dropped.
-  Fixed at gate 8; guarded by
-  [test_v2_gate8_modifications.py](../../tests/test_v2_gate8_modifications.py)
-  and [tests/test_bash_provisioner.py](tests/test_bash_provisioner.py). If
-  a comment line ever appears outside a `provisioner "shell" {` block, or
-  `exit 0` appears in a build file, this regressed.
-- **2026-09-10, the first `full-test`'s mod-test leg could not start a
-  container** for an EL 10 image: Docker Hub's `rockylinux` library stops at
-  9. The stand-in for `rhel` 10 and above is `almalinux:<version>` since
-  (`test_image_for` in [mod_tests.py](../base/src/cs_image_system/base/mod_tests.py)).
-  Symptom then: `docker run` failed to pull and the bash item's test never
-  ran. If `test-mods` reports `unsupported` with
-  `no local test image for the root OS family`, the family/version has no
-  stand-in; set `local_test_image` on the OS builder.
-- **Found live, undated, in the sibling shell emitter for image tests**
-  ([v2_provisioners.py](../packer-plugin/src/cs_image_system/packer_plugin/v2_provisioners.py)):
-  an `rpm --qf '%{NAME}'` line broke `packer fmt`, because `%{` and `${`
-  open Packer template directives. This plugin's `_hcl_string` escapes both
-  the same way. If `packer fmt` or `validate` ever reports
-  `Invalid template directive` or `Invalid template interpolation` on a
-  line you wrote, the escape regressed; the line in `generated/` should
-  read `%%{` / `$${`.
-- **2026-09-20, an assertion that could not fail** (image `tests:`, not this
-  plugin, but the same shell and the same trap;
-  [OPERATIONS.md](../../docs/OPERATIONS.md), "What a green bake proves").
-  Under `sh -e`, a command inside an AND-OR list other than the last does
-  not abort the script, so a `script:` line written `check || { echo no; }`
-  never fails the build however false `check` is. Two bakes went green
-  asserting a package that did not exist. If a `script` line must be able
-  to stop the bake, end it in something that exits nonzero (`|| exit 1`),
-  not in a braced group that returns 0. The plugin's own `commands` form,
-  `( unless ) || { run; }`, is deliberate: the group is the LAST element,
-  so a failing `run` does abort.
-- **2026-09-23, an item declared with the builder's alias failed at
-  generation** (found while writing this README, on a copy of the fixture
-  with `type: bash` on `derivative-setup`). Load and `validate` passed; the
-  run log then showed
-  `AssertionError: No mod builder bash found in context for imgfile-basic-dask`
-  and the summary was `ok: false` with no validation errors. Fixed by
-  stage 63 item 15 (2026-09-25): the loader rewrites the alias to the
-  builder's name, and `tests/test_v2_defects_loading.py` generates that
-  same fixture copy.
-
-Failures the code raises that have not been seen outside tests:
+Symptoms of the emission and of the bake, with what each means and what
+to do:
 
 | What you see | Where | Meaning and what to do |
 |---|---|---|
+| A `# Modifications for ...` comment line outside a `provisioner "shell" {` block, or `exit 0` in a build file | `generated/`; `packer validate` fails | The builder wrote raw lines into the build file instead of provisioner blocks. [tests/test_bash_provisioner.py](tests/test_bash_provisioner.py) and [test_v2_gate8_modifications.py](../../tests/test_v2_gate8_modifications.py) pin the block form; this is a regression of the plugin, not of the item. |
+| A bash item recorded in lineage as `ansible-default` with no content, or its script files dropped | `meta-state/lineage.yaml` after a bake | The item was resolved to the default mod builder instead of the builder its `type:` names. The same two tests pin the lookup by the item's `type`; check the item's `type:` names this builder. |
+| `test-mods` reports `unsupported` with `no local test image for the root OS family` | `test-mods` | The OS family and version have no stand-in container image (`test_image_for` in [mod_tests.py](../base/src/cs_image_system/base/mod_tests.py)): Docker Hub's `rockylinux` library stops at 9, so `rhel` 10 and above stand in as `almalinux:<version>`, and a family outside that table has none. Set `local_test_image` on the OS builder. |
+| `Invalid template directive` or `Invalid template interpolation` from `packer fmt` or `validate` on a line you wrote | the Packer plugin's run-now commands | `%{` and `${` open Packer template directives; this plugin's `_hcl_string` escapes both as `%%{` / `$${` (the sibling shell emitter for image tests, [v2_provisioners.py](../packer-plugin/src/cs_image_system/packer_plugin/v2_provisioners.py), does the same). If the line in `generated/` does not read so, the escape regressed. |
+| A `script:` line written `check || { echo no; }` never fails the build however false `check` is | the bake, green | Under `sh -e` a command inside an AND-OR list other than the last does not abort the script, so a bake can go green asserting a package that does not exist (the same trap holds for an image's `tests:`; [OPERATIONS.md](../../docs/OPERATIONS.md), "What a green bake proves"). If a `script` line must be able to stop the bake, end it in something that exits nonzero (`\|\| exit 1`), not in a braced group that returns 0. The plugin's own `commands` form, `( unless ) \|\| { run; }`, is deliberate: the group is the LAST element, so a failing `run` does abort. |
+| `AssertionError: No mod builder bash found in context for <image>` in the run log, summary `ok: false` with no validation errors, after load and `validate` passed | generation | An item's `type:` reached generation as the builder's alias; the loader rewrites an alias to the builder's name at load (`tests/test_v2_defects_loading.py` generates a fixture copy with `type: bash`), so a tree whose loader does not is on an older form ([the stage index](../../docs/CHANGES.md#s63)). Write the builder's name, or update. |
 | `Bash modification '<name>' must supply 'script' (inline lines), 'scripts' (script files) and/or 'ensure' (declarative, idempotent)` | load; CLI exit 1 | The item has none of the three (a `config:`-only item). Add one or remove the item. |
 | `Bash modification '<name>': unknown ensure keys ['users']` | load; CLI exit 1 | Only `packages`, `files`, `services`, `commands` exist. Move anything else to `commands`. |
 | A pydantic error naming a key (`Extra inputs are not permitted`) on the builder or the item | load; CLI exit 1 | A misspelt or foreign key (`playbooks:` on a bash item, `script:` on an ansible item). Check the item's `type:` reaches the builder you meant; `type: default` reaches the default builder, which in the fixture is ansible. |
-| ``<builder>: `parameters` was retired (stage 26) ...`` | load; CLI exit 1 | Delete `parameters:` from the builder. |
+| ``<builder>: `parameters` was retired ...`` | load; CLI exit 1 | Delete `parameters:` from the builder. |
 | `KeyError: Could not resolve builder '<type>' referenced in Image(...)` | load; CLI exit 1 | The item's `type:` names no `mod_builders:` entry. |
-| `` mod builder '<name>': `configuration_user` and `execute_command` both say how the script runs; declare one `` | load; CLI exit 1 | Stage 63. `configuration_user` writes its own `execute_command`; keep one. To run as another user with a custom command, put the `sudo su - <user>` in your `execute_command`. |
-| A pydantic unknown-key error naming `extra_arguments` on a `bash-remote` builder | load; CLI exit 1 | Stage 63 removed the field (it was never read). Delete it; change the invocation with `execute_command`. |
-| `No default builder found in mod_builder list.` | load; CLI exit 1 | No mod builder says `is_default: true`. Mark one, or give every item a `type:`. The orchestrator's own form, for an item that reaches it, is `` modification '<name>' names no builder (`type`) and no mod builder is `is_default: true`; name one with `type:` or mark a default `` (stage 63; it used to be an `AttributeError` at generation). |
+| `` mod builder '<name>': `configuration_user` and `execute_command` both say how the script runs; declare one `` | load; CLI exit 1 | `configuration_user` writes its own `execute_command`; keep one. To run as another user with a custom command, put the `sudo su - <user>` in your `execute_command`. |
+| A pydantic unknown-key error naming `extra_arguments` on a `bash-remote` builder | load; CLI exit 1 | The field does not exist. Delete it; change the invocation with `execute_command`. |
+| `No default builder found in mod_builder list.` | load; CLI exit 1 | No mod builder says `is_default: true`. Mark one, or give every item a `type:`. The orchestrator's own form, for an item that reaches it, is `` modification '<name>' names no builder (`type`) and no mod builder is `is_default: true`; name one with `type:` or mark a default ``. |
 | `Executable bash specified for provider bash-remote not found in executables list.` | `validate`; exit 1 | Add a `bash` entry to `cfg/executables.yml` or change the builder's `executable:`. |
 | `bash: binary '/usr/local/bin/bash' not found (declared in cfg/executables.yml; an absolute path, or a name on PATH)` | `validate` and every run; exit 1 | The pinned path is wrong on this machine. Symlink the binary there or fix `binary:`. |
 | ``bash: BashVersionChecker could not parse a version from `/usr/local/bin/bash --version` `` | `validate` and every run | The first line of `--version` has no `version N.N`. Something other than bash is at that path. |
 | `bash 5.3.15 does not meet its requirement <spec> (cfg/executables.yml)` | `validate` and every run | The floor moved or the machine is behind. |
 | `FileNotFoundError: Bash modification script mod_image.sh does not exist or is not a file` | generation; run `ok: false`, traceback in the log | The path is resolved from the configuration root, not from the image file's directory or the shell's. Fix the path or `--root-dir`. |
 | `Bash modification '<name>': ensure declares [...] but every one is empty, so it would emit nothing` | load; CLI exit 1 | Every `ensure` list is empty. Fill one or drop `ensure`. |
-| `Bash modification '<name>': ensure.files[N]: `path` is required` (or `ensure.commands[N]: `run` is required`) | load; CLI exit 1 | A `files` entry without `path`, or a `commands` entry without `run`. Before stage 63 this was a `KeyError` at generation. |
-| `Bash modification '<name>': ensure.packages must be a list of package names, not str 'git'` | load; CLI exit 1 | `packages:` (or `services:`) given as a string; the old code iterated its letters. Write a list (`packages: [git]`). |
+| `Bash modification '<name>': ensure.files[N]: `path` is required` (or `ensure.commands[N]: `run` is required`) | load; CLI exit 1 | A `files` entry without `path`, or a `commands` entry without `run`. |
+| `Bash modification '<name>': ensure.packages must be a list of package names, not str 'git'` | load; CLI exit 1 | `packages:` (or `services:`) given as a string, which shell would iterate letter by letter. Write a list (`packages: [git]`). |
 | `Bash modification '<name>': ensure.files[N].mode 644 is not a mode YAML could have read from octal` | load; CLI exit 1 | An unquoted `644`, which YAML reads as a decimal number. Write `mode: "0644"`. |
 | `Bash modification '<name>': ensure.files[N]: unknown keys [...]` | load; CLI exit 1 | Only `path`, `content`, `mode` on a file and `run`, `unless` on a command. |
 | `csis ensure: no dnf, yum or apt-get to install <pkg>` | apply / `test-mods` | The image has none of the three package managers. Use a `script` line with the one it has. |
-| `dnf` (or `yum`, `apt-get`) error on a package step | apply / `test-mods` | The first package manager found could not install the package, and its message is the real one (no match, no repository, no network from the build subnet). Before stage 63 the line fell through to `apt-get` and showed `apt-get: command not found` last on an EL host. |
+| `dnf` (or `yum`, `apt-get`) error on a package step | apply / `test-mods` | The first package manager found could not install the package, and its message is the real one (no match, no repository, no network from the build subnet); the others are never tried, so no misleading `apt-get: command not found` follows it on an EL host. |
 | `cmp: command not found` or `base64: command not found` | apply | The image lacks diffutils / coreutils. Add the package to an earlier item's `ensure.packages` or a `script` line. |
 | `sudo: a terminal is required to read the password` | apply | The bake ssh user has no passwordless `sudo`. This is an OS builder / runtime matter, not the item's. |
 | `Failed to enable unit: Unit <svc>.service does not exist` | apply | `services:` names a unit the image has not installed yet; install it earlier in the same item's `packages` (packages run before services). |

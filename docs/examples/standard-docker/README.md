@@ -5,9 +5,9 @@ Its template repository is
 "Use this template" there makes a repository of your own from this tree,
 generated from it with each final release.
 
-The smallest tree a team writes to get going on the **docker runtime**
-(stage 103): images baked into, and containers run on, the container
-daemon of a host, with its people as **POSIX accounts** in them. No cloud,
+The smallest tree a team writes to get going on the **docker runtime**:
+images baked into, and containers run on, the container daemon of a
+host, with its people as **POSIX accounts** in them. No cloud,
 no account, no Okta or OPA, no credential of any kind in the YAML. Copy it,
 replace every `REPLACE-ME` value, and it is a configuration: `just init`,
 then `just validate`. As it stands it works against the daemon of the

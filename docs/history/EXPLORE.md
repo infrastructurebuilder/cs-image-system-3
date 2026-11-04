@@ -10,7 +10,7 @@ This document is meant to capture some additional exploration work within the V2
 2. For any actual work on item in this document, branch off the current v2-lifecycles branch for the exploration attempt, and if it doesn't pan out, ask if we should discard that work.  Keep track of the work in a local-only branch.  Each item should be a separate branch, and the branch name should be prefixed with `v2-explore-` (e.g., `v2-explore-opa-gid-source`).
 3. None of the exploration work should be pushed to the remote repository unless explicitly stated.
 4. All exploration work should be documented in this file under the item explored as with #1 above, including the purpose, approach, plan, and any findings.  For example, exploration on "More Targeted Updates" should be documented under the heading "### More Targeted Updates?" with a subheading for the exploration work, a possible subheading for the approach, a subheading for the plan, and a subheading for findings.  This is to ensure that the exploration work is documented alongside its item and can be reviewed easily.
-5. This file will be used to advise and/or update [GOALS.md](GOALS.md) and [docs/DESIGN.md](docs/DESIGN.md) as needed.  If any of the exploration work is successful, it should be incorporated into those files and the exploration branch should be merged into v2-lifecycles.
+5. This file will be used to advise and/or update [GOALS.md](../../GOALS.md) (a live file, not part of this record) and [docs/DESIGN.md](../DESIGN.md) (a live file, not part of this record) as needed.  If any of the exploration work is successful, it should be incorporated into those files and the exploration branch should be merged into v2-lifecycles.
 
 ## Notes
 

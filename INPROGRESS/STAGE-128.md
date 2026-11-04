@@ -1,6 +1,6 @@
 # 128. Tests named for behaviour
 
-**Status: OPEN 2026-11-04. Waits for "do 128", after [§119](STAGE-119.md).**
+**Status: OPEN 2026-11-04. Waits for "do 128", after §119.**
 
 49 of 128 root test files (427 tests) are named after a stage, bundle,
 gate or defect list; 36 files pin the literal text of the Justfile, a

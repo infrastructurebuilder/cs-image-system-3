@@ -63,17 +63,17 @@ name. Which commands honour which is in the
 | `--dry-run / --no-dry-run` | `--dry-run` | Dry run: generation is complete and runner scripts are written, but deferred finalization commands (packer builds, tofu init/plan/gate/apply, system CLI steps) are enumerated, not executed. `--no-dry-run` executes them. The same flag governs `dispose image`, `lineage restamp` and `lineage relabel`, which report a plan under a dry run, and `run --migrate-state`, which a dry run refuses. `reencrypt` has a `--dry-run` of its own and ignores the global one. |
 | `--overlay FILE` (repeatable) | none | A transient declaration file merged over the tree for this invocation only. `config:` keys override; named `instances:`/`storages:` (and other item) entries update or add; an entry with `undeclare: true` removes the tree's entry. A file that does not exist, is not a mapping, has a top-level key other than `config` and the item collections, or lists an entry without a `name` is refused before anything loads. The tree on disk never changes. |
 | `--undeclare KIND:NAME` (repeatable) | none | Treat a declared tree entry as absent for this invocation, for example `instance:gce-test`. `KIND` is an item collection key (`instances`, `storages`, ...); the singular is accepted; anything else is refused before the load. |
-| `--locked` | off | Hold the tofu lock for the whole command (stage 64, replacing `scripts/with-tofu-lock`): a directory `.lock` under `TF_PLUGIN_CACHE_DIR`, taken before anything else runs and released when the command ends however it ends. The provider cache is not safe under concurrent `init`, so every recipe that may execute the roots passes it. A second holder is refused with `--locked: another tofu-using command holds <lock> (pid N) -- one tofu process at a time ...` and exit 75; an unset `TF_PLUGIN_CACHE_DIR` is exit 2. A dry run never needs it. |
+| `--locked` | off | Hold the tofu lock for the whole command: a directory `.lock` under `TF_PLUGIN_CACHE_DIR`, taken before anything else runs and released when the command ends however it ends. The provider cache is not safe under concurrent `init`, so every recipe that may execute the roots passes it. A second holder is refused with `--locked: another tofu-using command holds <lock> (pid N) -- one tofu process at a time ...` and exit 75; an unset `TF_PLUGIN_CACHE_DIR` is exit 2. A dry run never needs it. |
 | `--base-only` | off | Makes `build-all` and `generate` select the base-image lifecycle only. The configuration is still read in full. |
-| `--version` | | Prints `cs-image-system <version>`, the installed release (the `cs-image-system` distribution's version, the one a tree's `.csis-version` pins), and exits. Eager: it answers before the callback runs, so nothing loads and `--root-dir` is not looked at. A starter's `just init` asks it for its `init: cs-image-system <version> ready against <root>` line; on 0.1.3 and before the option did not exist and that line gave the bare name (hygiene XVIII item 1). |
+| `--version` | | Prints `cs-image-system <version>`, the installed release (the `cs-image-system` distribution's version, the one a tree's `.csis-version` pins), and exits. Eager: it answers before the callback runs, so nothing loads and `--root-dir` is not looked at. A starter's `just init` asks it for its `init: cs-image-system <version> ready against <root>` line (the option exists [from this release on](../../docs/CHANGES.md#hxviii); an older release's line gives the bare name). |
 
-There is no global `--force` (stage 63). It was "Force execution even if
-the system balks", stored on the context and read by nothing; it was
-removed on 2026-09-25, and passing it is now refused by the CLI parser
-with `No such option: --force` (exit 2). The overrides that do something
-are named for what they override and stay: `run --force-bake`,
-`gate-plan --allow-destroy`, and `test-mods --force` (a different,
-command-level flag that re-tests mods that already passed). Nor is there
+There is no global `--force`: passing it is refused by the CLI parser
+with `No such option: --force` (exit 2), because a flag that forces
+"execution even if the system balks" would be read by nothing. The
+overrides that do something are named for what they override:
+`run --force-bake`, `gate-plan --allow-destroy`, and `test-mods --force`
+(a different, command-level flag that re-tests mods that already
+passed). Nor is there
 a global `--only-providers`: the runtime filter is `run --only-runtime
 <rt>`, and passing `--only-providers` meets the same parser refusal
 (`No such option`, exit 2).
@@ -88,10 +88,10 @@ per command, how much to load:
 | Commands | Before the command runs |
 | ---------- | ------------------------- |
 | `test`, `cleanup` | Nothing. They are retired names and exit 2. |
-| `preflight` | Records the root (`--root-dir` or the current directory) and the resolved overlays. The command reads only the raw `cfg/*.yml` files for `runtime_builders:` (every file directly under `cfg/`, as the loader does, since stage 63 item 11) and `cfg/_config.yml` (and overlays' `config:`). No plugin loads, no configuration loads, no change of directory. |
+| `preflight` | Records the root (`--root-dir` or the current directory) and the resolved overlays. The command reads only the raw `cfg/*.yml` files for `runtime_builders:` (every file directly under `cfg/`, as the loader does) and `cfg/_config.yml` (and overlays' `config:`). No plugin loads, no configuration loads, no change of directory. |
 | `gate-plan`, `apply-check`, `identity export-gids` | No configuration tree loads and every global option except `--verbose` is ignored. `identity export-gids` loads plugins on demand; `apply-check` reads only `cfg/_config.yml` (and its own `--overlay` files) as text. |
 | `encrypt`, `decrypt`, `reencrypt`, `public-safe`, `materialize`, `mask` | Records the configuration root (`--root-dir` or the current directory). No plugin loads, no configuration loads, no change of directory. `encrypt` and `reencrypt` read `encryption.recipients` from `cfg/_config.yml` as text; `public-safe` reads `public_safe.allow` the same way. |
-| every other command | Loads plugins. For `run` and `state ...` it first prints the credential session lines read from the raw tree and exits 1 when a session has expired. Then it reads the whole configuration (`read_config_and_transform`): the string stage, decryption of every `ENC[age:...]` value, structuring, builder construction and item reading, with overlays and undeclarations applied. The load changes the process directory to the (resolved) configuration root and REPLACES the Typer context object; the callback then records the invocation directory again (`invoked_cwd`) and the `--base-only` flag on the new object, so a command that runs from a terraform root (`state-migration`, `prune-attachments`) still knows where it was started (found live 2026-09-23; see [When it fails](#when-it-fails)). A load that raises prints `Error reading config file : <e>` on standard error and re-raises: a traceback, exit 1. |
+| every other command | Loads plugins. For `run` and `state ...` it first prints the credential session lines read from the raw tree and exits 1 when a session has expired. Then it reads the whole configuration (`read_config_and_transform`): the string stage, decryption of every `ENC[age:...]` value, structuring, builder construction and item reading, with overlays and undeclarations applied. The load changes the process directory to the (resolved) configuration root and REPLACES the Typer context object; the callback then records the invocation directory again (`invoked_cwd`) and the `--base-only` flag on the new object, so a command that runs from a terraform root (`state-migration`, `prune-attachments`) still knows where it was started (see [When it fails](#when-it-fails)). A load that raises prints `Error reading config file : <e>` on standard error and re-raises: a traceback, exit 1. |
 
 Loading the configuration constructs every runtime builder, and the cloud
 runtime plugins validate their networking against the cloud during that
@@ -106,9 +106,9 @@ lifecycle names are `identity`, `storage`, `base-image`, `instance-image`,
 the registered `release` and `retention`, or `all`. Aliases: `id`,
 `storages`, `base-images`, `base`, `instance-images`, `instances`. Names
 resolve in declared order, never in argument order. The hook plugins that
-register `release` and `retention` are loaded before the names resolve
-(found live: a fresh process once resolved `--all` to the four built-ins
-because the hooks loaded only inside the run).
+register `release` and `retention` are loaded before the names resolve,
+so a fresh process resolves `--all` to every registered lifecycle, never
+to the four built-ins alone.
 
 | Option | Default | Meaning |
 | -------- | --------- | --------- |
@@ -175,10 +175,9 @@ environment variable (`AWS_*`, `GOOGLE_*`, `OKTA_*`, `TF_VAR_*`, `CSIS_*`)
 is set but EMPTY (reported by name, never by value); exit 1 with
 `--strict` when a session expires within
 `config.preflight.expected_run_minutes` (default 30). A session is expired
-when its minutes left are known and zero or fewer; exactly zero minutes
-left counts as expired since stage 63 (until 2026-09-25 the test read
-`0.0` as one minute left), and a session whose expiry cannot be read is
-never called expired.
+when its minutes left are known and zero or fewer (exactly zero counts
+as expired), and a session whose expiry cannot be read is never called
+expired.
 
 ### `encrypt [VALUE] [--file FILE ...] [--field NAME ...]`
 
@@ -191,8 +190,8 @@ and reports counts on standard error. Needs no identity. Exit 2 when
 root whose recipients cannot be read -- `cfg/_config.yml` is missing or
 unreadable, or declares no `encryption.recipients` -- prints
 `encrypt: <reason>` on standard error and exits 1, for example
-`encrypt: <root>/cfg/_config.yml: no encryption.recipients declared`
-(stage 63; until 2026-09-25 it ended in a traceback).
+`encrypt: <root>/cfg/_config.yml: no encryption.recipients declared`,
+never a traceback.
 
 ### `decrypt [MARKER] [--json] [--file FILE ...] [--field NAME ...]`
 
@@ -219,8 +218,8 @@ NOTHING written -- <file>: <reason>`) when a value cannot be opened, and
 exit 1 with `reencrypt: NOTHING written -- <reason>` when the recipients
 or the identity cannot be read (no `cfg/_config.yml` or no
 `encryption.recipients`; `CSIS_CONFIG_IDENTITY` unset or not a usable
-identity). Both are checked before any file is read (stage 63; until
-2026-09-25 those two ended in a traceback).
+identity). Both are checked before any file is read, and each is a
+message, never a traceback.
 
 ### `mask [--min N]`
 
@@ -229,11 +228,13 @@ encrypted, so a GitHub Actions log never shows one. It opens every
 `*.yml` / `*.yaml` under the root (skipping `.git`, `generated` and
 `_private`) with `CSIS_CONFIG_IDENTITY` and prints every line of every
 plaintext at least `--min` characters long (default 8; a short common
-word would mask unrelated log text). A file that cannot be decrypted is
-skipped silently (a refusal is `validate`'s to report), so with no
-identity the command prints nothing and exits 0. Exit 1 on an error
-(`mask: <reason>`). The CI jobs run it (`just cli mask`) before the
-first step that touches the live tree.
+word would mask unrelated log text). A file it cannot read for masking
+-- the identity missing or wrong, a file that does not parse, a
+malformed marker -- ends it with `mask: FAILED` naming each file and
+exit 1, so a CI step that cannot mask fails instead of printing nothing;
+a tree with no marker anywhere prints nothing and exits 0. Exit 1 on any
+other error (`mask: <reason>`). The CI jobs run it (`just cli mask`)
+before the first step that touches the live tree.
 
 ### `materialize SOURCE [DESTINATION]`
 
@@ -254,14 +255,14 @@ deferred command in a runner script runs through.
 
 ### `init-config DESTINATION [--from NAME] [--force] [--changes-since PREVIOUS_STARTERS]`
 
-Write a starter configuration repository from this release (stage 64).
-The release carries five starter trees -- `standard-aws` (the default),
+Write a starter configuration repository from this release. The
+release carries five starter trees -- `standard-aws` (the default),
 `standard-gce`, `complete`, `standard-aws-posix` (no Okta; the posix
-identity plugin, stage 75) and `standard-docker` (a docker host, no cloud;
-stage 103), the source being the system repository's
-`docs/examples/` -- and `DESTINATION` that does not exist or is empty takes
-the whole one: the YAML, the `Justfile`, the workflow, the public-safe
-hook, `.gitignore`, `tfmodules/` (`module_source_base: tfmodules`) and
+identity plugin) and `standard-docker` (a docker host, no cloud), the
+source being the system repository's `docs/examples/` -- and a
+`DESTINATION` that does not exist or is empty takes the whole one: the
+YAML, the `Justfile`, the workflow, the public-safe hook, `.gitignore`,
+`tfmodules/` (`module_source_base: tfmodules`) and
 `.csis-version` pinned to the running release. A `DESTINATION` that
 already holds a configuration takes only the parts the release owns (the
 same list without the YAML and the README), so an existing repository
@@ -272,7 +273,7 @@ kept. Prints what was written and kept. Loads no configuration and needs
 no credential. Exit 2 for an unknown starter or a destination that is a
 file.
 
-With `--changes-since PREVIOUS_STARTERS` nothing is written (hygiene XXI):
+With `--changes-since PREVIOUS_STARTERS` nothing is written:
 the command lists which release-owned files this release changed in an
 existing tree, given the previous release's `starters/` directory (its
 wheel's `cs_image_system/system/starters`; `just take` finds it with `uvx
@@ -286,10 +287,9 @@ such starter or the destination holds no configuration.
 
 ### `config-drift`
 
-Is the committed emission current with the declarations? (stage 45; a
-command since stage 64, where `scripts/normalise-emission` and the recipe
-that used it became this.) A headless dry `run --all` in a process of its
-own over a private copy of the configuration under `--root-dir` (its
+Is the committed emission current with the declarations? A headless dry
+`run --all` in a process of its own over a private copy of the
+configuration under `--root-dir` (its
 `.git`, `generated/`, `_private/` and provider cache left out -- the cache
 as `.tofu-plugin-cache` at any depth and as `TF_PLUGIN_CACHE_DIR` names it
 when that lies inside the tree, since the copy's run reads the original's
@@ -315,8 +315,8 @@ skips the backend, so no state access.
 
 ### `runtime-unchanged RUNTIME [--ref REF]`
 
-Has a runtime's emission changed since `REF` (default `HEAD`)? (stage 45;
-a command since stage 64.) The runtime's builder directories
+Has a runtime's emission changed since `REF` (default `HEAD`)? The
+runtime's builder directories
 (`runtime describe` -> `emission`: `<lifecycle>/<builder>` under
 `generated/`) in the working tree, normalised as `config-drift`
 normalises, against the same paths at `REF` in the configuration
@@ -328,8 +328,9 @@ fails the job loudly rather than bake. The vendor's newest image moving
 under a base with no build yet is not a change, read as `config-drift`
 reads it: exit 0, `... unchanged since REF (<dirs>), but the vendor's
 newest image moved under a base this tree has not baked`, and the
-moves (hygiene XVII item 1; on 0.1.2 and before it was a change and
-failed the job, with nothing to apply). A diff too long to show whole
+moves ([from this release on](../../docs/CHANGES.md#hxvii); an older
+release read the move as a change and failed the job, with nothing to
+apply). A diff too long to show whole
 is never read as a vendor move, by either command.
 
 ### `public-safe [--staged] [--tree PATH] [--config FILE]`
@@ -504,21 +505,21 @@ builder that names the team's workload connection and role, the builder,
 `connection`, `role`, `team` and `api_host`, as JSON. Nothing secret.
 `--env` prints shell exports (`OPA_WORKLOAD_CONNECTION`,
 `OPA_WORKLOAD_ROLE`, `SFT_TEAM`, `OPA_ADDR`) for the first such builder
-(what `just ci-login-proof` evaluated until stage 64; `workload token`
-reads the configuration itself now); exit 2 when none names one. This
-command loads the configuration (it is deliberately not under `identity`,
-whose group is exempt from loading; since stage 64 the `workload` group
-loads lazily, and `describe` loads at once).
+(for a shell that wants them; `workload token` reads the configuration
+itself); exit 2 when none names one. This command loads the
+configuration (it is deliberately not under `identity`, whose group is
+exempt from loading; the `workload` group loads lazily, and `describe`
+loads at once).
 
 ### `workload token`
 
 This GitHub Actions run's OIDC token, presented to the team's workload
 connection; the OPA access token it yields is the ONLY thing on standard
 output, without a trailing newline, so `OPA_TOKEN="$(cs-image-system
-workload token)"` captures it and nothing else (stage 56 step 2; a
-command since stage 64, replacing `scripts/opa-workload-token`, whose
-`::add-mask::` lines went to standard output and into the captured
-value). On standard error: a mask command for each token before anything
+workload token)"` captures it and nothing else (a `::add-mask::` line
+on standard output would land in the captured value, which is why every
+such line goes to standard error). On standard error: a mask command
+for each token before anything
 else, the OIDC token's public claims (`claim iss: ...`, `repository`,
 `sub`, ...), the client's exit and its own output. The Actions runner
 scans standard error for workflow commands as it scans standard output.
@@ -663,7 +664,7 @@ install`, `uv run`, or a configuration repository's `Justfile`, which puts
 a `CSIS` that names a path first on `PATH`. The steps the running process
 spawns itself (`materialize`, `gate-plan`, `prune-attachments`, the
 state-migration steps) are invoked as the running interpreter's own module
-and need no `PATH` (hygiene VII item 2, 2026-09-29). Every deferred command that has a
+and need no `PATH`. Every deferred command that has a
 working directory is wrapped as
 
 ```sh
@@ -703,14 +704,27 @@ separator replaced by `_`), not of the process that executes the step.
 
 ## Exit codes at a glance
 
-| Code | Meaning |
-| ------ | --------- |
-| 0 | Success. |
-| 1 | The operation failed or was refused: a failed run, validation errors, a refused release, a failed verification or login, hard drift, a value that cannot be decrypted or materialized, a public-safe finding, a release-owned file `init-config` refused, `config-drift` behind or `runtime-unchanged` changed, `workload token` issued nothing, an expired session before a load, a failed load (a traceback), a `state-migration`/`prune-attachments` step that failed (the runner stops). |
-| 2 | Usage: unknown lifecycle or runtime, nothing selected, a missing argument, a retired command, `--migrate-state` under a dry run, `public-safe --staged` outside git, `preflight` with an absent or expired session, an empty credential variable or no runtimes, `empty` on a runtime that cannot answer, `forget instance` on a declared instance, `workload describe --env` with nothing named, `init-config` with an unknown starter, `config-drift` with nothing committed or a failed dry run, `runtime-unchanged` on an unknown runtime, `workload token` outside a job or with a name it cannot find, `--locked` without `TF_PLUGIN_CACHE_DIR`, a `state-migration` step without its inputs, `prune-attachments` for an unknown builder. |
-| 3 | A gate refused: `gate-plan` (destroy not whitelisted, stale plan file, missing unmount receipt), `apply-check` (flag off, no `_config.yml`, overlay gone), `identity-attributes` provider conflicts. |
-| 4 | `identity-attributes --apply`: writing attributes is disabled. |
-| 75 | `--locked`: another command holds the tofu lock (`EX_TEMPFAIL`); wait for it. |
+Every command exits 0 on success, 1 when the operation failed or was
+refused (a failed run or load, validation errors, a refused release, a
+failed verification or login, hard drift, a value that cannot be
+decrypted or materialized, a public-safe finding, a runner step that
+stops the runner), 2 on usage (an unknown name, nothing selected, a
+missing argument, a retired command, `--migrate-state` under a dry run,
+`preflight`'s absent or expired session or empty credential variable),
+3 when a gate refuses (`gate-plan`, `apply-check`, `identity-attributes`
+conflicts) and 4 when `identity-attributes --apply` meets the disabled
+write; the per-command table is
+[Run outputs and exit codes in OPERATIONS](../../docs/OPERATIONS.md#run-outputs-and-exit-codes).
+The codes only this README documents: `--locked` exits 75
+(`EX_TEMPFAIL`, wait for the other holder) when another command holds
+the tofu lock and 2 without `TF_PLUGIN_CACHE_DIR`; `init-config` exits 1
+on a refused release-owned file or, with `--changes-since`, when any
+file is listed, and 2 for an unknown starter or a destination that is a
+file; `config-drift` exits 1 when the committed emission is behind and 2
+when nothing is committed or its dry run fails; `runtime-unchanged`
+exits 1 on a change and 2 for an unknown runtime; `workload token` exits
+1 when the runner's endpoint refused or no token was issued and 2
+outside a job or with a name it cannot find.
 
 ## Tests
 
@@ -736,7 +750,7 @@ and [`test_v2_emit_by_reference.py`](../../tests/test_v2_emit_by_reference.py)
 [`test_v2_decommission.py`](../../tests/test_v2_decommission.py)
 (`forget instance`), [`test_v2_post_bake_tests.py`](../../tests/test_v2_post_bake_tests.py)
 (`release`), [`test_v2_defects_dead.py`](../../tests/test_v2_defects_dead.py)
-(stage 63: `--force` is `No such
+(`--force` is `No such
 option`, `encrypt` without recipients is a message, a zero-minute session
 is expired). [`tests/test_docs_contract.py`](../../tests/test_docs_contract.py)
 holds this README to the four-section contract below and checks every
@@ -821,7 +835,7 @@ networking against its cloud, so a load needs reachability to AWS and GCP
 query and `prune-attachments` need the identity provider's API;
 `verify login` needs the OPA gateway path `sft` uses.
 
-**Integration points.** Two Justfiles wrap this CLI (stage 64). The
+**Integration points.** Two Justfiles wrap this CLI. The
 system's: `just cli <args>` runs it against `CSIS_CONFIG_ROOT` (default:
 the reference configuration checked out beside), `just preflight` is
 `preflight`, `just test-mods` is `test-mods`, `just fixture-live` runs
@@ -894,8 +908,8 @@ nothing emits it, and the release lifecycle's cloud marking runs under the
 plugin's own commands); `sleep_before_finalization` in the tree (kept for
 compatibility: the load reads it, and a real run with a non-zero value
 logs `sleep_before_finalization=<n> is ignored: finalization never waits
-on a terminal (DESIGN §3G)`; finalization never sleeps). The global
-`--force` is gone (stage 63, see [Global options](#global-options)).
+on a terminal (DESIGN §3G)`; finalization never sleeps). There is no
+global `--force` (see [Global options](#global-options)).
 
 ### Variations
 
@@ -1070,128 +1084,40 @@ everything else is proven by the workspace suite listed under
 
 ## When it fails
 
-The failures this command surface produces, those that have happened
-first. Dates are from [docs/OPERATIONS.md](../../docs/OPERATIONS.md),
-[docs/history/LEDGER.md](../../docs/history/LEDGER.md), the tests and the
-source comments.
+Incidents -- what a live run showed, what it meant and what the system
+does about it now -- are recorded once, newest first, on
+[INCIDENTS.md](../../docs/INCIDENTS.md). This section keeps the symptom,
+its meaning and the action to take, and links the story where there is
+one; the table is the short form, and the messages this command surface
+writes, grouped by exit code, follow it.
 
-### Seen live
+| Symptom | Meaning | Action |
+| --- | --- | --- |
+| `STALE PLANFILE: <file> does not exist` / `... is older than <newest .tf>` (exit 3) | The plan step did not run or did not succeed; every gated sequence begins with `rm -f tfplan`, so the gate never judges a previous sequence's plan | Read the runner's output above the gate line ([the stale plan that once passed](../../docs/INCIDENTS.md#a-stale-plan-file-passed-the-gate)). |
+| `apply-check: no cfg/_config.yml found from the working directory up; refusing to apply` (exit 3) | The step ran from a directory with no configuration root above it; `apply-check`, `gate-plan` and `identity export-gids` read the tree as text and never load it, so the guard fails closed without crashing | Pass `--config-root` ([the guard that once crashed](../../docs/INCIDENTS.md#the-apply-step-executed-another-lifecycles-stale-runner-script)). |
+| `apply: stale-script-skipped` in the summary | A script of a lifecycle not requested in this run lies under `generated/` | Not an error; the script never runs ([the stale script that baked two unrecorded AMIs](../../docs/INCIDENTS.md#the-apply-step-executed-another-lifecycles-stale-runner-script)). |
+| `run --commit` fails with git exit 128 at the very end | Another session moved the shared checkout's HEAD mid-run, or the runner has no git identity | The emission and meta-state are on disk: commit them by hand or re-run; CI's `perform` job names its committer ([the commit that found the checkout moved](../../docs/INCIDENTS.md#the-runs-commit-failed-because-another-session-moved-the-checkout)). |
+| `preflight: a session has EXPIRED; renew it (aws sso login --profile <p>) before the configuration can even load` (exit 1, before `run` and `state` load) | The session lapsed; the load would die inside the cloud networking validation | Renew and rerun. Every OTHER loading command (`validate`, `upgrade`, `verify ...`) dies inside the load with the cloud's error: run `preflight` first ([the session that lapsed mid-cycle](../../docs/INCIDENTS.md#the-aws-session-lapsed-mid-cycle-and-then-before-the-preflight-could-say-so)). |
+| `preflight: a session expires before the expected run length` (exit 1 with `--strict`) | The session lapses within `config.preflight.expected_run_minutes` | Renew it, or lower the window; exactly zero minutes left is expired ([the zero-minute session](../../docs/INCIDENTS.md#a-session-with-exactly-zero-minutes-left-was-not-expired)). |
+| `present; refreshes itself from the refresh token in sso cache <id> while the portal session lives (no fixed expiry readable)` in a session line | An `sso-session` profile has no fixed expiry to read | Nothing: it counts as present. A session that lapses mid-run is environmental: `aws sso login --profile <p>`, then re-run ([the refreshing profile once read as absent](../../docs/INCIDENTS.md#an-sso-session-profile-was-read-as-absent-for-an-hour)). |
+| `environment: <NAME> is set but EMPTY -- a credential that exists with no value is a failure, not an absence` (exit 2) | A credential-shaped variable exists with the empty string as its value, which is exactly what "no credentials" looks like to the tools | Give it its value or unset it; a green job with `SKIPPED` in its summary is not a pass ([three green jobs that ran nothing](../../docs/INCIDENTS.md#three-green-ci-jobs-ran-nothing)). |
+| `run scope: bake(s) outside the apply scope ['<rt>']: <series>@<rt> -- pass --allow-unscoped-bakes, or select images with --only / --only-runtime` (exit 1, in the summary's `error`; a dry run warns) | `--apply-runtime` scopes the applies and implies `--only-runtime`; an explicit selection reached outside the scope | Select with `--only` / `--only-runtime`, or allow it ([the scoped apply that baked on the other cloud](../../docs/INCIDENTS.md#an-apply-scoped-to-gce-baked-two-amis-on-aws)). |
+| A scoped bake fails on another runtime's instance root plan | A run scoped to one runtime must not plan the others' roots | `--only-runtime`, explicit or implied, makes the other runtimes' storage and instance roots emit nothing ([the scoped bake that planned the other cloud](../../docs/INCIDENTS.md#a-run-scoped-to-aws-failed-on-the-gce-instance-roots-plan)). |
+| `verify assert` fails the run after an ephemeral teardown | Under the `teardown` policy the launch record must be forgotten before the run fails | The runner carries `verify instance --record-only` and the after-apply hook fails the run once the records match reality ([the assert that failed the run after the teardown](../../docs/INCIDENTS.md#a-verify-assert-as-the-runners-last-step-failed-the-run-after-the-teardown)). |
+| `<name>: retired in V2. ...` (exit 2) | `test` and `cleanup` are retired names; a warning that succeeds would read as success to an old script | Use the replacement the message names: `test-mods` and `verify instance`; the retention lifecycle and `dispose image` ([the placeholders that looked like successes](../../docs/INCIDENTS.md#the-retired-placeholder-commands-looked-like-successes)). |
+| `Unknown lifecycle 'release'; expected one of [...]` (exit 2) | The hook entry points that register `release` and `retention` are not installed in the environment running the command | Install the workspace (`just init`); a library caller calls `load_hook_plugins()` before `parse_lifecycles()` ([the hooks that once loaded too late](../../docs/INCIDENTS.md#hook-plugins-loaded-after-the-lifecycle-names-were-resolved)). |
+| `tofu init` in the mirror cannot read `../tfmodules` or its local state | The materialized root does not stand at the emission's depth | Compare the depth of `_private/<...>` with `generated/<...>`; the mirror replaces the `generated/` name at the same depth ([the mirror that stood one level too deep](../../docs/INCIDENTS.md#the-private-mirror-stood-one-level-too-deep)). |
+| `validate` refuses every run on the pin of an instance destroyed through the gate | A record outlived its instance, and `require_released_builds` is on | `forget instance <name>` drops the pin and launch parameters and records the correction; it refuses (exit 2) while the instance is still declared ([the pin that outlived its instance](../../docs/INCIDENTS.md#a-pin-outlived-its-instance)). |
+| `sft resolve <h>: exit 126 -- the client has no session (as the enrolled client: run sft login; as the workload: OPA_TOKEN is missing or was refused)` in a login proof | The client wanted a browser and `--quiet` forbade it | As the enrolled client, `sft login`; as the workload, mint or fix `OPA_TOKEN` ([the silent exit 126](../../docs/INCIDENTS.md#sft-resolve-exited-126-with-nothing-on-stderr)). |
+| `state backup for workspace '<ws>' REFUSED: <dir> is not an initialised terraform root` (exit 1, the runner stops) | The step was invoked from the wrong directory; the load changes directory to the root and replaces the context object, which is why the callback records the invocation directory again after the load | The runner's `( cd ... && cd "$(materialize ...)" && ... )` wrapper puts the step in the right one; rerun from the runner ([the backup that kept nothing](../../docs/INCIDENTS.md#a-runner-step-acted-in-the-configuration-root-and-the-backup-kept-nothing)). |
+| `mask: FAILED` naming a file (exit 1) | A file it cannot read for masking: the identity missing or wrong, a file that does not parse, a malformed marker | Fix the identity or the file; a CI step that cannot mask fails instead of printing nothing. |
 
-- **Stage 1 (by 2026-09-02, finding 33): `gate-plan` judged the previous
-  sequence's plan.** A failed `plan` left the earlier `tfplan` behind and
-  the gate passed it. Every gated sequence now begins with `rm -f tfplan`
-  and `gate-plan --planfile` refuses `STALE PLANFILE: <file> does not
-  exist` or `... is older than <newest .tf>` with exit 3. If it recurs,
-  the plan step did not run or did not succeed; read the runner's output
-  above the gate line.
-- **2026-09-03 (finding 34): `apply-check` crashed because it loaded the
-  configuration.** The guard failed closed, but the runner could not apply
-  at all. `apply-check` (with `gate-plan` and `identity export-gids`) is
-  now exempt from the load and reads `cfg/_config.yml` as text; the symptom
-  today would be `apply-check: no cfg/_config.yml found from the working
-  directory up; refusing to apply` (exit 3), which means the step ran from
-  a directory with no configuration root above it: pass `--config-root`.
-- **2026-09-03 (finding 36): the apply step executed other lifecycles'
-  leftover runner scripts by bare bash** and baked two unrecorded AMIs. A
-  script of a lifecycle not requested in this run is now
-  `stale-script-skipped` in the summary and never runs. Seeing that state
-  is not an error; it says an older script is lying under `generated/`.
-- **2026-09-05 (ledger 52 to 53, side lesson): `run --commit` failed with
-  git exit 128** after a peer session's `git flow feature start/finish`
-  switched the shared checkout's HEAD mid-run; the operator committed by
-  hand. The CI `perform` job names its committer for the same reason (a
-  runner has no git identity). A `--commit` run does all its work first
-  and fails at the very end: the emission and meta-state are on disk;
-  commit them by hand or re-run.
-- **2026-09-08 (ledger 65) and 2026-09-09: the AWS SSO session lapsed
-  mid-cycle, then an expired session killed the load before the preflight
-  could say so.** The configuration load validates every runtime's
-  networking against its cloud, so it died inside the AWS call. The
-  callback now prints the sessions from the raw tree before `run` and
-  `state` load and exits 1 on `preflight: a session has EXPIRED; renew it
-  (aws sso login --profile <p>) before the configuration can even load`.
-  Every OTHER loading command (`validate`, `upgrade`, `verify ...`) still
-  dies inside the load with an AWS error; run `preflight` first.
-- **2026-09-09 (ledger 68): `run ... --apply-runtime gcloud-east1` without
-  `--only-runtime` baked two AMIs on AWS.** `--apply-runtime` scoped the
-  applies, never the bakes. It now implies `--only-runtime` unless `--only`
-  or `--only-runtime` is given, and a real run whose bake plan reaches
-  outside its apply scope refuses before any bake: `run scope: bake(s)
-  outside the apply scope ['<rt>']: <series>@<rt> -- pass
-  --allow-unscoped-bakes, or select images with --only / --only-runtime`
-  (exit 1, in the summary's `error`). A dry run only warns with the same
-  text.
-- **2026-09-09 (ledger 68): `verify assert` as the runner's last step
-  failed the script before the after-apply hook ran**, leaving a launch
-  record for an instance that no longer existed. Under the `teardown`
-  policy the runner now carries `verify instance --record-only` and the
-  failed verdict fails the run from the hook, after the record is
-  forgotten.
-- **2026-09-10 (ledger 70): a scoped AWS bake failed on the GCE instance
-  root's plan** (its image-family lookup returned 404 after a cycle had
-  disposed every GCE image). `--only-runtime`, explicit or implied, now
-  makes the other runtimes' storage and instance roots emit nothing.
-- **2026-09-11: the V1 placeholders `test`, `verify` and `cleanup`.** The
-  `verify` command GROUP shadowed the placeholder, which could never run;
-  `test` and `cleanup` printed a warning and succeeded, which an old script
-  would take as success. `verify` was deleted; `test` and `cleanup` now
-  print `<name>: retired in V2. ...` naming the replacement and exit 2.
-- **2026-09-17 (stage 43): three green CI jobs ran nothing** because a
-  secret existed with an empty value. `preflight` now lists every
-  credential-shaped variable that is set but empty (`environment: <NAME>
-  is set but EMPTY -- a credential that exists with no value is a failure,
-  not an absence`) and exits 2: give it its value or unset it.
-- **2026-09-19: `tofu init` in the mirror could not read its module.**
-  `materialize` had nested the mirror one level deeper than the root it
-  copied, and the relative module source and `local` state path counted
-  one directory too many. The mirror now replaces the `generated/` name at
-  the same depth. If a materialized root cannot find `../tfmodules` or its
-  local state, compare the depth of `_private/<...>` with
-  `generated/<...>`.
-- **2026-09-20 (stage 54): a pin outlived its instance.** `coops-model`
-  was destroyed through the gate and `pins.yaml` kept binding it, so with
-  `require_released_builds` on, `validate` refused every run, including
-  the one that would release the build. `forget instance <name>` drops the
-  pin and launch parameters and records the correction; it refuses (exit
-  2) while the instance is still declared.
-- **2026-09-21: an `sso-session` profile was read as ABSENT for an hour**
-  while the CLI was refreshing its token underneath, and `just full-test`
-  skipped its live legs. `preflight` now reports such a profile as
-  `present; refreshes itself from the refresh token in sso cache <id>
-  while the portal session lives (no fixed expiry readable)`. A session
-  that lapses mid-run is environmental: `aws sso login --profile <p>`,
-  then re-run the legs.
-- **2026-09-22: `sft resolve --quiet` exited 126 with no output** when the
-  client wanted a browser. `verify login` names the cause in its `resolves`
-  check: `the client has no session (as the enrolled client: run sft
-  login; as the workload: OPA_TOKEN is missing or was refused)`.
-- **2026-09-23 10:15 (stage 61 item 3): a state backup pulled from the
-  configuration root instead of the mirror and kept nothing.** The
-  callback's load changes directory to the root AND replaces the Typer
-  context object, so the `invoked_cwd` recorded before the load was gone
-  when `state-migration backup` read it, and the step ran in the root,
-  found no initialised terraform root, said "nothing to keep" and let the
-  `state rm` run unbacked. The callback now records the invocation
-  directory again after the load, `backup` refuses (exit 1) a directory
-  that is not an initialised root or a location with no state, and
-  `state-migration begin`/`finish` share the fix. Proved live the same
-  day (backup serial 36 kept). If a runner step reports `REFUSED: <dir> is
-  not an initialised terraform root`, the step was invoked from the wrong
-  directory; the runner's `( cd ... && cd "$(materialize ...)" && ... )`
-  wrapper is what puts it in the right one.
-- **Undated, found live: `run --all` in a fresh process resolved to the
-  four built-ins.** The hook plugins that register `release` and
-  `retention` loaded only inside the run, after the names were parsed.
-  `run` now loads them first. `Unknown lifecycle 'release'` today means
-  the hook entry points are not installed in the environment running the
-  command.
-
-### Raised by the code, not yet seen
+### Raised by the code
 
 A retired global option is a parser error, not a message of this
 package's own: `cs-image-system --force <command>` prints the usage and
-`No such option: --force` and exits 2 (stage 63; until 2026-09-25 the
-option was accepted and ignored). Drop it; if something should be forced,
+`No such option: --force` and exits 2. Drop it; if something should be
+forced,
 use the named override (`run --force-bake`, `gate-plan --allow-destroy`,
 `test-mods --force`).
 
@@ -1249,8 +1175,8 @@ identity) cannot be read: for example `encrypt: <root>/cfg/_config.yml:
 no encryption.recipients declared`, or `reencrypt: NOTHING written -- an
 encrypted value is present but CSIS_CONFIG_IDENTITY is not set -- export
 the age identity (the AGE-SECRET-KEY-1 string, an identity file, or a
-directory of *.age-identity files)`. Until 2026-09-25 (stage 63) those
-two ended in a traceback rather than a message.
+directory of *.age-identity files)`; both are messages, never a
+traceback.
 
 The gates (exit 3): `DETACH NOT UNMOUNTED: <instance>:<storage> has no
 successful unmount receipt (unmount storage ..., or unmount storage
@@ -1280,8 +1206,7 @@ is emitted without `--root-dir`, so it loads the configuration from the
 directory it runs in, the root's mirror, which holds no `cfg/`. In a real
 run of a tree that declares group or user attributes the step would fail
 its load (`Error reading config file : ...`, exit 1) and with it the
-identity lifecycle, after its apply. No tree has declared attributes in a
-real run yet. The fix belongs to the identity
+identity lifecycle, after its apply. The fix belongs to the identity
 plugin's emission (`system_cli_executable_with_config`), not to this
 package.
 
@@ -1308,11 +1233,9 @@ environment credential is set but empty (see above)`; (exit 1 with
 `--strict`) `preflight: a session expires before the expected run length
 (see above); renew it or lower config.preflight.expected_run_minutes`.
 
-Silent behaviour to know about (`mask` is no longer among it: since
-stage 63 item 2, 2026-09-24, a file it cannot read for masking -- the
-identity missing or wrong, a file that does not parse, a malformed marker
--- ends it with `mask: FAILED` naming each file and exit 1, so a CI step
-that cannot mask fails instead of printing nothing);
+Silent behaviour to know about (`mask` is not among it: a file it
+cannot read for masking ends it with `mask: FAILED` naming each file and
+exit 1, so a CI step that cannot mask fails instead of printing nothing):
 `run --commit` outside a git repository or over a gitignored `generated/`
 logs a warning and reports `meta_state_commit: null`; a plain `run` logs
 `preflight session: ...` warnings and `state query: <unavailable>`

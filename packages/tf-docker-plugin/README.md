@@ -6,7 +6,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # cs-image-system-tf-docker-plugin
 
-The OpenTofu plugin for a container runtime (stage 103, branch 2): the
+The OpenTofu plugin for a container runtime: the
 instance builder `tofu-docker` and the storage builder `tf-docker-volume`.
 Each emits one terraform root on the `kreuzwerker/docker` provider against a
 release-owned module (`tfmodules/docker_container`, `tfmodules/docker_volume`,
@@ -15,12 +15,11 @@ theirs. The runtime is the `docker` runtime of
 [cs-image-system-docker-runtime-plugin](../docker-runtime-plugin/README.md):
 a durable host running a daemon that speaks the Docker Engine API.
 
-Three things are different from a cloud, and each is a decision recorded in
-the stage:
+Three things are different from a cloud, and each is a recorded decision:
 
 - **The power state is the operator's.** A container is declared with
   `must_run = false`, so the next apply leaves a stopped container stopped
-  (proved against the provider before anything else in the branch), and
+  (proved against the provider), and
   with the restart policy `unless-stopped`, so a daemon restart brings back
   what was running and nothing else.
 - **No first boot.** A cloud runs the launch script from user data. A
@@ -275,6 +274,10 @@ or runtime), `config.use_state_backends`, `config.module_source_base`.
   declared post-bake tests over the session.
 
 ## When it fails
+
+Incidents that have happened, with their cause and fix, are recorded on
+[INCIDENTS.md](../../docs/INCIDENTS.md); what follows keeps each
+failure's symptom, its meaning and what to do.
 
 - `the daemon at ... cannot be reached`: the runtime's `host` or `context`
   does not answer; preflight says the same in one line.

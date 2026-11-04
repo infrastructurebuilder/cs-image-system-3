@@ -12,11 +12,11 @@ builder and a user builder, both `type: posix`, under the identity type
 `posix`. Neither has a terraform root or asks a directory: the configuration
 is the authority, and what it describes is written onto the machines.
 
-Why it exists (stage 75): on a machine of an Okta-managed group, OPA's agent
-creates each person's account and user-private group, but **never the group
-that owns the machine** -- `getent group coops` on `coops-model-005` found
-nothing, so the group's `2770` storage subtree was owned by a bare number no
-account belonged to. This plugin makes that group exist, with the right id.
+Why it exists: on a machine of an Okta-managed group, OPA's agent creates
+each person's account and user-private group, but **never the group that
+owns the machine** (`getent group <group>` finds nothing), so without it
+the group's `2770` storage subtree is owned by a bare number no account
+belongs to. This plugin makes that group exist, with the right id.
 
 What it does, and when:
 
@@ -77,14 +77,14 @@ group -- access proved, not only health:
 ## Beside Okta
 
 An `okta-tf` group builder names a posix group builder as its `posix:`
-delegate (required since stage 75; `posix: none` is the explicit way to
-have none). Its groups stay OPA's -- created there, members kept there --
-and the delegate makes them exist on the machines:
+delegate (required; `posix: none` is the explicit way to have none). Its
+groups stay OPA's -- created there, members kept there -- and the
+delegate makes them exist on the machines:
 
 - **OPA's agent makes accounts just-in-time**: it creates an account at a
   login and deletes it later, and `userdel` drops every supplementary
-  group (observed on coops-model-005, stage 75 step 1). A membership
-  written after an apply would not hold, so the delegate installs a
+  group. A membership written after an apply would not hold, so the
+  delegate installs a
   **login hook**: an `optional` `pam_exec` session line in
   `/etc/pam.d/sshd` runs `/usr/local/sbin/csis-group-login`, which adds
   the logging-in user to every group whose member list
@@ -192,6 +192,10 @@ A posix group or user that declares `attributes:` is refused: the ids are
 
 ## When it fails
 
+Incidents that have happened, with their cause and fix, are recorded on
+[INCIDENTS.md](../../docs/INCIDENTS.md); what follows keeps each
+failure's symptom, its meaning and what to do.
+
 | Symptom | Meaning | Do |
 |---|---|---|
 | `group <g>: no side supplies its id ... declare one (gid:)` at `validate` | a posix group or user without an id | declare `gid:` (group) or `uid:` (user) |
@@ -204,7 +208,7 @@ A posix group or user that declares `attributes:` is refused: the ids are
 | `Instance <i>: the accounts script of group <g> FAILED (exit <n>)` in a run's log, with the script's `posix accounts:` lines above it | the machine refused (a group or user standing with another id) or could not be reached | read the lines; fix the id or the machine; the next applying run tries again |
 | `login proof <i>: proof key: FAILED -- CSIS_PROOF_SSH_KEY is not set` | the proof user's private key is not in the environment (CI: the secret is unset) | set the secret, or take `is_service_account` off if no proof is wanted |
 | `login proof <i>: tunnel: FAILED -- the runtime gives no ssh tunnel to <i>` | the machine is not running, or the runtime has no session mechanism | start it, or declare the runtime's `session_mechanism` |
-| `login proof <i>: login: FAILED -- ssh <u>@<i> id: exit 255 ...` | the key was refused, or the tunnel could not open (AWS: `ssm:StartSession` on `AWS-StartSSHSession`, the session-manager plugin). In CI the tail names the role: the proof runs under the WRITE identity since stage 89, and a workflow from before 0.1.1.dev22 made it under the read-only role, which may not open a session | read the tail; check the key pairs with `public_keys:` and the role's grant; in CI, take the release whose workflow makes the proof before the read-only identity is taken back |
+| `login proof <i>: login: FAILED -- ssh <u>@<i> id: exit 255 ...` | the key was refused, or the tunnel could not open (AWS: `ssm:StartSession` on `AWS-StartSSHSession`, the session-manager plugin). In CI the tail names the role: the proof runs under the WRITE identity, because the read-only role may not open a session, and a workflow from an older release makes it under the read-only role ([the release index](../../docs/CHANGES.md#r0-1-1-dev22) marks the first that does not) | read the tail; check the key pairs with `public_keys:` and the role's grant; in CI, take a release whose workflow makes the proof before the read-only identity is taken back |
 | `login proof <i>: in its group: FAILED` | the account stands but is not in the group | an applying instance run brings membership back; read its accounts log |
 | `Instance <i>: <u> has no account here yet; not a member of <g> until it does` (a warning) | a member's account does not stand yet | nothing: the next run adds it once the account exists |
-| `identity: group '<g>' was managed by the system but is missing from the YAML` at `validate` | a posix group was deleted from the YAML; a group the system once managed never leaves it (DESIGN N19) -- met 2026-10-04 retiring the live proof's group | put the entry back with `unmanaged: true` and no members; its gid stays claimed by the name, and nothing on any machine is touched |
+| `identity: group '<g>' was managed by the system but is missing from the YAML` at `validate` | a posix group was deleted from the YAML; a group the system once managed never leaves it (DESIGN N19) | put the entry back with `unmanaged: true` and no members; its gid stays claimed by the name, and nothing on any machine is touched |

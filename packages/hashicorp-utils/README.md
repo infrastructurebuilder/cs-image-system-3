@@ -14,10 +14,10 @@ workspace, six packages depend on it directly: the terraform-root plugins
 root mixin and drive the terraform collector; `packer-plugin` uses the
 packer collector; the two runtime plugins (`aws-runtime-plugin`,
 `gcloud-runtime-plugin`) import the formatter options. The state plugins
-(`tf-s3-state-plugin`, `local-state-plugin`, `gcs-state-plugin`) depended
-on it until stage 30: their models now answer a registration the core
-hands to the terraform collector at load, and they import the contract
-alone. The base library does not depend on it, but imports the
+(`tf-s3-state-plugin`, `local-state-plugin`, `gcs-state-plugin`) do not
+depend on it: their models answer a registration the core hands to the
+terraform collector at load, and they import the contract alone. The
+base library does not depend on it, but imports the
 terraform collector guarded by an `ImportError` fallback to list the state
 files each lifecycle's workspaces bind to, to record state locations and
 to check for collisions at `validate`.
@@ -45,7 +45,7 @@ workspace depends on `cs-image-system-system`, the CLI host.
 
 | Module | Provides |
 | -------- | ---------- |
-| [`collector.py`](src/cs_image_system/hashicorp_utils/collector.py) | `TerraformCollector`, `PackerCollector`, the declaration dataclasses `ProviderRequirement`, `ConfiguredTerraformProvider`, `ProviderConfig`, `TerraformVariable`, `RemoteStateReference`, `PackerPluginRequirement`, `PackerVariableDecl`. `BackendRegistration`, the `StateLocation` tuple and the `BackendKind` protocol are the contract's (`cs_image_system.contract.state`, stage 30) and stay importable from here. |
+| [`collector.py`](src/cs_image_system/hashicorp_utils/collector.py) | `TerraformCollector`, `PackerCollector`, the declaration dataclasses `ProviderRequirement`, `ConfiguredTerraformProvider`, `ProviderConfig`, `TerraformVariable`, `RemoteStateReference`, `PackerPluginRequirement`, `PackerVariableDecl`. `BackendRegistration`, the `StateLocation` tuple and the `BackendKind` protocol are the contract's (`cs_image_system.contract.state`) and stay importable from here. |
 | [`roots.py`](src/cs_image_system/hashicorp_utils/roots.py) | `TerraformRootMixin` and `run_is_dry()`. |
 | [`blocks.py`](src/cs_image_system/hashicorp_utils/blocks.py) | The declarative block model: `Raw`, `hcl_value`, `NestedBlock`, `BlockSpec`, `ResourceSpec`, `DataSpec`, `OutputSpec`, `render_block`, `render_blocks`. |
 | [`hashicorp.py`](src/cs_image_system/hashicorp_utils/hashicorp.py) | The formatter options `FO`, the `QString` quoting wrapper, the `TerraformGenerator` protocol, `packer_variable`, and the S3-backend field dataclasses `TStateRoot`, `StateEndpoints`, `AssumeRoleBaseClass`, `AssumeRoleConfig`, `AssumeRoleWithWebIdentityConfig`. |
@@ -72,9 +72,9 @@ they need; the collector dedupes, merges and validates, and renders.
 | `configure_provider(workspace, name, config, alias=None)` | Records a `provider "<name>" {}` block. The alias defaults to the sanitized workspace name, so provider blocks from different builders never collide when aggregated. Configuring the same name and alias twice with different arguments raises `HclConfigConflictError`. |
 | `provider_bindings(workspace)` | `{provider name: "<name>.<alias>"}` for every configured provider, for a module call's `providers = { ... }` meta-argument. Module calls must bind explicitly, because every configured provider carries an alias. |
 | `declare_variable(workspace, TerraformVariable(name, type="string", default=None, description=None, sensitive=False))` | Declares a `variable` block. Redefinition with different attributes raises `HclConfigConflictError`. |
-| `register_backend(BackendRegistration(...))` | Makes a state backend available for the run. Registering the same name with a different declaration raises. A state plugin no longer calls it (stage 30): once the state backends are loaded the core calls `pull_declared_backends(models)`, which registers what every state backend model answers to `to_backend_registration()`; `register_backend` remains for a registration made by hand (the tests). |
-| `set_backend(workspace, backend_name="default")` | Binds a workspace to a backend; `default` resolves to the registration marked `is_default`. More than one default is a conflict. A second binding to a **different** backend is refused (a workspace keeps its state in exactly one location, stage 46); rebinding to the same one is a no-op, so a builder may bind per phase. |
-| `effective_backend_name(*candidates)` | The chain a root's backend resolves through (stage 46.2): the first candidate outside the loader's absent sentinels (`default`, `self`, `none`, empty, unset), else `default`. Static. A `none` never reaches it from a configuration: the core's `validate` refuses a state backend written `none` first, since reading it as unset would put the root on the default backend. |
+| `register_backend(BackendRegistration(...))` | Makes a state backend available for the run. Registering the same name with a different declaration raises. A state plugin does not call it: once the state backends are loaded the core calls `pull_declared_backends(models)`, which registers what every state backend model answers to `to_backend_registration()`; `register_backend` remains for a registration made by hand (the tests). |
+| `set_backend(workspace, backend_name="default")` | Binds a workspace to a backend; `default` resolves to the registration marked `is_default`. More than one default is a conflict. A second binding to a **different** backend is refused (a workspace keeps its state in exactly one location); rebinding to the same one is a no-op, so a builder may bind per phase. |
+| `effective_backend_name(*candidates)` | The chain a root's backend resolves through: the first candidate outside the loader's absent sentinels (`default`, `self`, `none`, empty, unset), else `default`. Static. A `none` never reaches it from a configuration: the core's `validate` refuses a state backend written `none` first, since reading it as unset would put the root on the default backend. |
 | `bind_workspace(workspace, *candidates)` | `set_backend` through the chain; returns the name bound. The terraform-root builders call it with `(own state_configuration, runtime's state_configuration)`; the identity roots, which have no runtime, with their own value alone. |
 | `reference_remote_state(consumer_workspace, producer_workspace, backend_name=None, label=None)` | The consumer reads the producer's state through a `terraform_remote_state` data source. |
 | `sensitive_ref(workspace, key, value)` | See [Sensitive values](#sensitive-values-by-reference). |
@@ -85,9 +85,9 @@ renderings, supplied by the state plugin that declares it) and
 `is_default`. Equality is the declaration (name, type, settings, default);
 the kind is behaviour and does not take part in the comparison.
 `state_location(workspace)` asks the kind for the `StateLocation`
-(`<type>://<container>/<key>`, normalised, stage 46);
+(`<type>://<container>/<key>`, normalised);
 `backend_settings(workspace)` and `remote_state_settings(workspace)` for
-the partial configuration and the data source (stage 47). The collector
+the partial configuration and the data source. The collector
 names no field of any type. A registration without a kind is accepted by
 `register_backend` and refused the moment anything asks it for a
 location, a backend file or a data source.
@@ -121,7 +121,7 @@ returns one message per location two or more workspaces would share
 (`workspaces A, B would share the state object s3://...`), and
 `validate_state_locations()` raises `HclConfigConflictError("state location
 collision: ...")` when there is one. `backend_record(workspace)` is what
-meta-state keeps of where a workspace's state lives (stage 46.4): the
+meta-state keeps of where a workspace's state lives: the
 backend's name, type and location over its backend-file settings, enough to
 write that file again for a migration's previous location.
 
@@ -156,8 +156,8 @@ configuration. The settings live in the workspace's `.tfbackend.hcl`
 file, rendered by `generate_backend_config(workspace)` as a comment line
 (`# Backend '<name>' (<type>) partial configuration for workspace <ws>`)
 followed by top-level `key = value` lines, booleans lower-case and
-everything else quoted. Which keys appear is the kind's decision (stage
-47): the S3 kind writes `bucket`, `key`, `region`, `encrypt`,
+everything else quoted. Which keys appear is the kind's decision: the
+S3 kind writes `bucket`, `key`, `region`, `encrypt`,
 `use_lockfile` and `profile` when set; the `local` kind writes `path`.
 The file is supplied to `init -backend-config=<file>`. That keeps bucket
 names and profiles out of the committed `terraform {}` block and lets the
@@ -217,8 +217,8 @@ therefore emits it by reference:
    valid HCL attribute name). The data source is bound to the workspace's
    configured `external` provider alias (`provider = external.<alias>`)
    when it has one (an identity root that also aliases the provider for
-   the gid shim), else the default provider. Since stage 51 a query value
-   may be a derived string that carries the marker inside it
+   the gid shim), else the default provider. A query value may be a
+   derived string that carries the marker inside it
    (`first.last@ENC[age:...]`); it is passed through as it is and the
    decrypt program resolves the embedded marker.
 
@@ -249,7 +249,7 @@ name). `sensitive_values(workspace)` returns the registered
 | `merged_plugins(workspace)` | One entry per plugin with merged constraints; disagreeing sources are a conflict. |
 | `validate_all()` | Run-wide satisfiability per plugin name (sources are not compared run-wide, only per workspace). |
 | `generate_packer_block(workspace)` | `packer { required_plugins { <name> = { version, source } } }`. |
-| `generate_variable_blocks(workspace)` | `variable "<name>" { type, default, description, sensitive }` blocks through `packer_variable`. With `env_var` the default is `env("<VAR>")` and a `default` given beside it is dropped; a boolean default renders lower-case; a **string default renders unquoted** (see [When it fails](#when-it-fails)). |
+| `generate_variable_blocks(workspace)` | `variable "<name>" { type, default, description, sensitive }` blocks through `packer_variable`. With `env_var` the default is `env("<VAR>")` and a `default` given beside it is dropped; a boolean default renders lower-case; a string default is quoted as an HCL string (a `QString` default is passed through as given). |
 
 ## TerraformRootMixin
 
@@ -275,7 +275,7 @@ it from the AWS ones.
 | Run | Arguments | Why |
 | ----- | ----------- | ----- |
 | dry run | `init -backend=false` | Providers are installed and the emission validated without touching remote state, which holds decrypted values. A read-only CI role, a drift check and an operator's preview all stay off the state bucket. |
-| real run, backend bound | `init -reconfigure -backend-config=<file>` | The bare file name, because tofu runs inside the phase directory. `-reconfigure` because a backend argument may differ from the one the root was last initialised with (`encrypt`, stage 39), and the state is remote, so there is nothing to migrate; without it tofu refuses with "Backend configuration changed". |
+| real run, backend bound | `init -reconfigure -backend-config=<file>` | The bare file name, because tofu runs inside the phase directory. `-reconfigure` because a backend argument may differ from the one the root was last initialised with (`encrypt`, for example), and the state is remote, so there is nothing to migrate; without it tofu refuses with "Backend configuration changed". |
 | real run, no backend | `init` | Backends disabled, or the workspace bound to nothing. |
 
 "Backend bound" is decided by whether `generate_backend_config(self.name)`
@@ -300,7 +300,7 @@ finalization executes.
 `runtime_state_configuration()` returns the `state_configuration` of the
 runtime the builder's model names (`model.get_runtime_provider()`), read
 from that runtime builder's model in the run context. It is the second
-rung of the chain a root's backend resolves through (stage 46.2): the
+rung of the chain a root's backend resolves through: the
 root's own value when it names a backend, else its runtime's, else the
 default. It answers `None` for a root without a runtime (the identity
 roots), for a runtime still at `default`, and outside a run. The storage
@@ -311,8 +311,8 @@ and instance builders pass it to `bind_workspace` beside their own
 
 `plaintext_read_commands(phase, working_directory, arg_lists)` builds the
 generation-time tofu commands that must read the **plaintext** emission.
-The committed emission carries `ENC[age:...]` ciphertext (stage 49), and
-since stage 51 a derived e-mail address carries it inside the string;
+The committed emission carries `ENC[age:...]` ciphertext, and a derived
+e-mail address carries it inside the string;
 `fmt`, `init` and `validate` do not care, but a real run's generation-time
 `plan` does -- the Okta user lookups search by that address. So, exactly as
 the deferred runner does, the sequence is:
@@ -345,11 +345,9 @@ directory is an assertion failure naming the phase and the builder class;
 a builder whose `executable` names no entry in `cfg/executables.yml`
 fails inside `get_executable_copy()` with
 `Executable '<key>' not found for builder '<name>' of type '<type>'`.
-That is the only refusal for a missing executable: stage 63 removed a
-second `ValueError` in `terraform_commands` that checked the copy after
-`get_executable_copy()` returned, which could never be reached because
-`get_executable_copy()` raises first, naming the builder (removed
-2026-09-25).
+That is the only refusal for a missing executable: `get_executable_copy()`
+raises first, naming the builder, so `terraform_commands` checks nothing
+after it returns.
 
 ### The gated plan, gate, apply sequence
 
@@ -359,8 +357,8 @@ apply_root_aliases=(), plan_extra_args=(), pre_commands=(),
 require_unmounted=(), pre_plan_backup=False)` returns the deferred
 sequence for a terraform root (DESIGN section 3C, N19), in this order:
 
-1. `rm -f tfplan` -- a failed plan must leave nothing for the gate to read
-   (ledger finding 33).
+1. `rm -f tfplan` -- a failed plan must leave nothing for the gate to
+   read, or the gate judges the previous sequence's plan.
 2. `<tofu> init -input=false -reconfigure [-backend-config=<file>]` -- the
    runner's own init. When the root is **migrating** this run (its name is
    in the run context's `migrate_state` list, from
@@ -374,8 +372,8 @@ sequence for a terraform root (DESIGN section 3C, N19), in this order:
    <bin> --run <id>`, which pulls the state the root is initialised
    against and keeps it as
    `_private/state-backups/<ws>.backup-<run>.tfstate` under the
-   configuration root (stage 61 item 3: a `state rm` the system decided on
-   is preceded by the backup a hand edit would take).
+   configuration root (a `state rm` the system decides on is preceded by
+   the backup a hand edit would take).
 4. each `pre_plan` argument list (for example `state rm <address>` for a
    group leaving management).
 5. each `pre_commands` executable, as given (for example the unmount before
@@ -399,7 +397,7 @@ sequence for a terraform root (DESIGN section 3C, N19), in this order:
      --lifecycle <key> [--root <apply_root> --root-alias <alias> ...]
      [--overlay <file> ...] [--apply-runtime <rt>]`, re-checking the
      `apply_<key>` flag at execution time so a script generated under
-     yesterday's flags cannot apply under today's (ledger finding 24); the
+     yesterday's flags cannot apply under today's; the
      run's overlays and `--apply-runtime` are carried from the run
      context;
    - `<tofu> apply -input=false tfplan` -- the very plan that passed the
@@ -431,7 +429,7 @@ plugin touches `hcl2.Builder` or `FormatterOptions` directly.
 | Name | Meaning |
 | ------ | --------- |
 | `Raw(str)` | A string emitted unquoted: an address or expression the quoting policy cannot infer, such as `Raw("oktapam_group.x.id")`. |
-| `hcl_value(v)` | The shared quoting policy. `Raw` and `QString` pass through; any other string is first passed through the base library's `emit()`, so a decrypted value becomes the `ENC[age:...]` ciphertext it was read from (stage 49); then a string starting with `var.`, `data.`, `local.`, `module.`, `each.` or `count.` stays raw and any other string is quoted; booleans and numbers stay raw (booleans render lower-case); list elements and mapping values convert recursively. Mapping keys are the caller's responsibility (pre-quote a key such as `'"system.os_type"'`). |
+| `hcl_value(v)` | The shared quoting policy. `Raw` and `QString` pass through; any other string is first passed through the base library's `emit()`, so a decrypted value becomes the `ENC[age:...]` ciphertext it was read from; then a string starting with `var.`, `data.`, `local.`, `module.`, `each.` or `count.` stays raw and any other string is quoted; booleans and numbers stay raw (booleans render lower-case); list elements and mapping values convert recursively. Mapping keys are the caller's responsibility (pre-quote a key such as `'"system.os_type"'`). |
 | `BlockSpec(type, label, args, comment=None, commented_out=False, children=[], kind="resource", labels=None)` | A top-level block. The default labels are `"<type>" "<label>"`; `labels` overrides them for single-label kinds (and `labels=[]` gives a label-less block such as `locals`). `comment` prefixes a `# ...` line; `commented_out` emits the whole block as comments. `spec.block(name, **args)` appends a child block and returns it for fluent nesting. |
 | `ResourceSpec`, `DataSpec` | `BlockSpec` with `kind` fixed to `resource` / `data`. |
 | `OutputSpec(name, value, description=None, sensitive=False, comment=None)` | An `output "<name>" { value = ... }` block. |
@@ -449,12 +447,9 @@ vertically_align_attributes=False)`), `QString(value, quoted=True,
 quote_char='"')` (a `str` subclass whose `str()` quotes the value when
 `quoted` is set, except a `var.` reference, which always stays raw).
 `QString` is still a `str`, so it compares equal to its bare value
-(`QString("abc") == "abc"`). Since stage 63 `__new__` defaults
-`quoted=True`, matching the class attribute, and sets `value` itself, so
-`QString("x")` renders `"x"` and `QString("x", quoted=False)` renders `x`.
-Until 2026-09-25 the `__new__` signature defaulted `quoted` to `False`
-and never assigned `value`, the attribute `__str__` reads, so `str()` of a
-fresh `QString` depended on something else setting it. Then comes the
+(`QString("abc") == "abc"`). `__new__` defaults `quoted=True`, matching
+the class attribute, and sets `value` itself, so `QString("x")` renders
+`"x"` and `QString("x", quoted=False)` renders `x`. Then comes the
 `TerraformGenerator` protocol
 (`generate_terraform(setup)` and `generate_terraform_data(setup)` returning
 lines), `packer_variable(builder, name, type, default, description=None,
@@ -480,8 +475,7 @@ when it renders a module call, and nothing in this package does.
 `packaging` specifier sets for conflict analysis while preserving the
 original strings for emission. These are the **provider and plugin**
 constraint helpers; the checks on the tools themselves (`tofu --version`
-against `cfg/executables.yml`, stage 48) live in the base library, not
-here.
+against `cfg/executables.yml`) live in the base library, not here.
 
 | Function | Behaviour |
 | ---------- | ----------- |
@@ -504,7 +498,7 @@ chain, the rebinding refusal, the backend record, a registration without a
 kind), the packer collector, the root mixin (dry-run and real-run init
 arguments, the runner's own init, the backend path, one executable copy
 per command), the block model and the version helpers. `QString`'s
-default quoting (quoted unless `quoted=False`, stage 63) is pinned by
+default quoting (quoted unless `quoted=False`) is pinned by
 [test_v2_defects_dead.py](../../tests/test_v2_defects_dead.py)
 (`test_a_qstring_is_quoted_by_default_and_prints`) in the workspace
 suite. The package's
@@ -530,7 +524,7 @@ operator sees fail.
   `binary` is what runs and what `gate-plan --tofu` and the
   `state-migration` steps are handed. This package sets no version floor;
   the entry's `version` requirement is what `validate` and every run
-  check (stage 48), and the fixture's floor is `>1,<2` on
+  check, and the fixture's floor is `>1,<2` on
   `open-tofu-1`. The flags the mixin emits (`-backend=false`,
   `-reconfigure`, `-migrate-state -force-copy`, `-detailed-exitcode`,
   `-replace=`, `-input=false`, `-out=`) exist on OpenTofu 1.x and
@@ -602,7 +596,7 @@ package does with it.
 | `image_builders[].required_plugins[]` (`cfg/image-builders.yml`) | list of `PackerPluginConfig` | `[]` | `PackerBuilderBase.generate_items_before` | `require_plugin(ws, name, source, version)`; emitted into `packer { required_plugins {} }`, one file per block. |
 | `<builder>.state_configuration` (instance, storage, group, user builders) | str | `default` | `bind_workspace(ws, own, runtime's)` | First rung of the chain. A value outside `default`, `self`, empty, unset names a backend registration; the name must exist (`validate` refuses one that does not). `none` is refused by `validate` by name: it would read as unset. |
 | `runtime_builders[].state_configuration` (`cfg/runtime-builders.yml`) | str | `default` | `runtime_state_configuration()` | Second rung, for storage and instance roots only. |
-| `state_backends[]` (`cfg/state-backends*.yml`): `name`, `type`, `is_default`, the type's own settings | per type | | `pull_declared_backends(models)`, called by the core at load with the state backend models, each answering `to_backend_registration()` (stage 30) | Stored by name; `is_default` decides what `default` resolves to; `settings` are rendered by the plugin's kind, never read by name here. |
+| `state_backends[]` (`cfg/state-backends*.yml`): `name`, `type`, `is_default`, the type's own settings | per type | | `pull_declared_backends(models)`, called by the core at load with the state backend models, each answering `to_backend_registration()` | Stored by name; `is_default` decides what `default` resolves to; `settings` are rendered by the plugin's kind, never read by name here. |
 | `config.use_state_backends` (`cfg/_config.yml`) | bool | `false` | `backends_enabled()`, read from the run context | The gate on every backend block, backend file, remote-state data source, header line and location record. Location **collisions** are still checked with it off. |
 | `config.apply_identity`, `apply_storage`, `apply_instances` (`cfg/_config.yml`) | bool or list[str] | `false` | the builder, as the `apply` argument through `apply_enabled(key, root, aliases)` | Decides whether the sequence ends in `apply-check` + `apply`. Re-read at execution by `apply-check`, which this package emits with the lifecycle key, root and aliases. |
 | `config.module_source_base` (`cfg/_config.yml`) | str | `../tfmodules` | nobody here | **Not read by this package.** The base library's `render_module_call` reads it. Listed because module calls sit beside the blocks this package renders. |
@@ -653,8 +647,8 @@ package does with it.
 - **`pre_plan` given, with or without `pre_plan_backup`.** The argument
   lists run between init and plan as tofu commands. With
   `pre_plan_backup=True` a `state-migration backup` step precedes them;
-  with `pre_plan` empty the backup flag does nothing, by decision (stage
-  63 item 4, 2026-09-24): the flag covers the `pre_plan` lines alone, and
+  with `pre_plan` empty the backup flag does nothing, by decision: the
+  flag covers the `pre_plan` lines alone, and
   a pre-command that removes state, such as the identity runner's prune
   step, takes its own backup, so a run never pulls state twice for one
   removal and never backs up a run that removes nothing. The group builder
@@ -688,7 +682,7 @@ package does with it.
   `provider_bindings`.
 - **Packer variable with `env_var` vs `default`.** `env_var` wins and the
   block says `default = env("VAR")`; a bare `default` renders the value
-  (lower-case for a boolean, raw for a string).
+  (lower-case for a boolean, quoted for a string, raw for a number).
 
 ## What it tests and verifies
 
@@ -731,8 +725,8 @@ collector, when a generator is called, and inside the commands it emits.
   to nothing -- `HclConfigConflictError` naming the consumer and the
   producer.
 - A registration without a kind, asked for its location, backend file or
-  data source -- the contract's `BackendWithoutKind` (a `RuntimeError`,
-  stage 30; `HclConfigConflictError` until then): `State backend '<name>'
+  data source -- the contract's `BackendWithoutKind` (a `RuntimeError`):
+  `State backend '<name>'
   (type '<type>') was registered without a kind ...`.
 
 The verdict of all of these is an exception out of the generating builder;
@@ -761,7 +755,7 @@ and the [system CLI](../system/src/cs_image_system/system/cli.py)).**
 | `state-migration finish` | the begin record exists | the move recorded in meta-state and the location record moved |
 | `apply -input=false tfplan` | tofu's own | the runner stops on failure; the after-apply hooks never run |
 
-**Not checked here.** The tool versions (stage 48, base library); the
+**Not checked here.** The tool versions (base library); the
 existence of the providers a `required_plugins` entry names (tofu's `init`
 finds out); the syntax of a `version` constraint beyond what `packaging`
 parses; the validity of a `sensitive_ref` key as an HCL attribute name;
@@ -770,76 +764,22 @@ and every commit).
 
 ## When it fails
 
-Failures that have happened, newest first.
+Incidents that have happened, with their cause and fix, are recorded on
+[INCIDENTS.md](../../docs/INCIDENTS.md); what follows keeps each
+failure's symptom, its meaning and what to do.
 
-- **2026-09-23 -- the provider errored on refresh for an attachment whose
-  membership was gone** (stage 61 item 3). The group root's
-  generation-time `plan` refreshed state and `oktapam` failed with
-  `user "x" is not present within group "g"` for an attachment the roster
-  had dropped by hand. What changed in this package: `gated_apply_commands`
-  gained `pre_commands` (the identity runner's `prune-attachments` step,
-  between init and plan) and `pre_plan_backup` (a `state-migration
-  backup` before any `state rm`), and the group builder's generation-time
-  plan runs `-refresh=false` through `plaintext_read_commands`. If the
-  runner's plan still shows such an error, the prune step's log lines name
-  each attachment and why it was kept; the repair is a `state rm` after
-  the backup the step already took.
-- **2026-09-22 -- the first real identity run after stage 51 planned in
-  `generated/` and every derived user lookup failed.** The committed
-  emission carried `first.last@ENC[age:...]` in the `okta_user` lookups
-  and the generation-time `plan` ran against that text. Symptom: the Okta
-  provider found no user for every derived address. Fix:
-  `plaintext_read_commands` materialises the root into `_private/`,
-  initialises there and plans there, exactly as the runner does. If a
-  generation-time plan reports unknown users whose addresses are derived,
-  look at the command's working directory in the run log: it must be
-  under `_private/`, and `CSIS_CONFIG_IDENTITY` must be set for the
-  materialisation.
-- **2026-09-19 -- `tofu init` in the mirror could not read its module.**
-  Found by probing an AZ change: the mirror was nested one level too deep
-  and every relative module source (`../../../../../cs-image-system-3/tfmodules/...`)
-  counted up to the wrong directory. Fix in the base library
-  (`mirror_path`): `_private/` replaces `generated/` at the same depth. A
-  `Module not found` or `Unreadable module directory` from an init whose
-  working directory is under `_private/` means the mirror stands at the
-  wrong depth again; compare the path against the `generated/` one.
-- **2026-09-16 -- `Backend configuration changed` after `encrypt: true`**
-  (stage 39, ledger 94). Flipping a backend argument under roots that were
-  already initialised made tofu refuse the real-run generation-time
-  `init`. Fix: `_init_args` and `_runner_init_args` carry `-reconfigure`;
-  the state is remote, so nothing needs migrating. The message can still
-  appear from a hand `tofu init` in a root the system initialised; run
-  the system's form (`init -reconfigure -backend-config=<file>`), never
-  `-migrate-state` by hand (that flag is reserved for `--migrate-state`).
-- **2026-09-16 -- a fresh clone's runner failed at its first `tofu plan`**
-  (stage 38, ledger 93). After a dry run the root's `.terraform/` was
-  backend-less, and in a fresh clone there was none, so the committed
-  script's plan failed on an uninitialised root. Fix: every gated sequence
-  begins with the runner's own `init -input=false -reconfigure
-  [-backend-config=<file>]`. On the way, a generation-time `tofu init`
-  failed because it ran concurrently with the bar's tests over the same
-  `TF_PLUGIN_CACHE_DIR`: an `init` that fails with a provider-cache or
-  lock error while something else runs tofu is that, and the fix is to
-  run alone (the recipes pass `--locked`).
-- **Early September 2026, stage 1 live run -- a stale `tfplan` passed the
-  gate** (ledger finding 33; the ledger carries no day). A plan failed,
-  the previous sequence's `tfplan` remained, and `gate-plan` judged the
-  wrong plan. Fix: `rm -f tfplan` is step 1 of every sequence and the gate
-  refuses a planfile missing or older than the root's newest `*.tf`
-  (`STALE PLANFILE`, exit 3). Seeing it means the plan step produced no
-  file: read the plan's own error above it in the runner output.
-- **Early September 2026, stage 1 live run -- a runner applied under
-  yesterday's flags** (ledger finding 24). `apply_*` gated generation only;
-  a previously generated runner kept its baked-in apply lines. Fix:
-  `apply-check` is emitted before every `apply` and re-reads the flag at
-  execution. `apply_<lifecycle> is false NOW in <file>` therefore means
-  the script is older than the configuration, not that the script is
-  wrong: regenerate, or turn the flag back on deliberately.
-
-Failures the code raises that have not been seen live.
+The commands this package emits are the ones the operator sees fail, so
+the table covers the messages of the emitted sequence as well as the
+exceptions the collectors raise. Each row is the symptom, what it means
+and what to do.
 
 | Message or symptom | Meaning | Where to look, what to do |
 | --- | --- | --- |
+| `oktapam` fails on refresh with `user "x" is not present within group "g"` during the group root's plan | state still holds an attachment the roster dropped by hand; a refreshing plan asks the provider for it | the identity runner's `prune-attachments` step runs between init and plan for exactly this, and the group root's generation-time plan runs `-refresh=false`; the prune step's log lines name each attachment and why it was kept; the repair is a `state rm` after the backup the step already took |
+| a generation-time plan reports unknown users whose addresses are derived (`first.last@ENC[age:...]`) | the plan ran against the committed ciphertext instead of the plaintext mirror; the Okta lookups search by the derived address | the command's working directory in the run log must be under `_private/` (`plaintext_read_commands` materialises the root there, initialises there and plans there, exactly as the runner does) and `CSIS_CONFIG_IDENTITY` must be set for the materialisation |
+| `Module not found` or `Unreadable module directory` from an init whose working directory is under `_private/` | the mirror stands at the wrong depth, so every relative module source counts up to the wrong directory | `_private/` must replace `generated/` at the same depth (`mirror_path` in the base library); compare the mirror path against the `generated/` one |
+| a committed runner script fails at its first `tofu plan` on an uninitialised root | a dry run's generation-time init is backend-less and a fresh clone has no `.terraform/` at all | every gated sequence begins with the runner's own `init -input=false -reconfigure [-backend-config=<file>]`; a script without that line was not generated by this package: regenerate |
+| `init` fails with a provider-cache or lock error while something else runs tofu | two tofu processes share `TF_PLUGIN_CACHE_DIR`, which is not safe under concurrent `init` | run alone; the recipes that execute roots pass `--locked` |
 | `Irreconcilable version constraints for '<provider>': '<c1>' requested by <ws1>; '<c2>' requested by <ws2>` | two builders (or two entries in one) pin the same provider or packer plugin to versions no release satisfies | the named workspaces' `required_plugins` / `required_providers`; loosen one. Raised at the first generator call, before anything is written |
 | `Provider '<name>' requested with different sources: [...] (requested by [...])` / `Packer plugin '<name>' requested with different sources` | the same name from two registries | make the `source` values agree (compared case-insensitively) |
 | `Provider '<name>' (alias=<alias>) configured twice with different arguments in workspace '<ws>'` | a builder configured one provider twice | usually a runtime's region or profile changed between two registrations of one root; the builder's `generate_items_before` |
@@ -855,13 +795,14 @@ Failures the code raises that have not been seen live.
 | `Executable '<key>' not found for builder '<name>' of type '<type>'` (`ValueError`) | the builder's `executable` names no entry in `cfg/executables.yml` | add the entry or fix the name; `validate` also reports unresolved foreign keys |
 | `Working directory for commands in phase <phase> cannot be None for builder <class>` (`AssertionError`) | a plugin called `terraform_commands` with no directory | a plugin defect |
 | `ValueError` from `packaging` naming an invalid specifier | a `version` constraint such as `>= 1.x` | the entry's `version`; use `>=`, `<`, `~>`, `=`, `!=` forms |
-| tofu: `Backend configuration changed` | a hand `init` without `-reconfigure` after a backend argument changed | see 2026-09-16 above |
+| tofu: `Backend configuration changed` | a hand `tofu init` without `-reconfigure` in a root the system initialised, after a backend argument (`encrypt`, for example) changed; the state is remote, so nothing needs migrating | run the system's form (`init -reconfigure -backend-config=<file>`), never `-migrate-state` by hand (that flag is reserved for `--migrate-state`) |
 | tofu: `Error: Backend initialization required` or a plan in `generated/` that reads ciphertext | the root was not initialised where the command runs | the deferred sequence initialises itself; a generation-time plan runs in `_private/`; check the working directory in the log |
-| `STALE PLANFILE: ...` (exit 3) | no `tfplan`, or one older than the newest `*.tf` | the plan failed or the root was regenerated after the plan; rerun the sequence |
+| `STALE PLANFILE: ...` (exit 3) | no `tfplan`, or one older than the newest `*.tf`: the plan step produced no file, or the root was regenerated after the plan (`rm -f tfplan` is step 1 of every sequence so the gate never judges the previous sequence's plan) | read the plan's own error above it in the runner output; rerun the sequence |
 | `DESTROY NOT WHITELISTED: <address>` (exit 3) | the plan destroys something no operation asked for | OPERATIONS "The apply gate": a decommission, an upgrade, a storage state change or a detach are the only whitelists; a zone or a module change that forces replacement is refused here by design |
 | `DETACH NOT UNMOUNTED: <instance>:<storage> has no successful unmount receipt` (exit 3) | a detach planned without the unmount | `unmount storage ...` first (or `--confirm`), then rerun |
+| `apply_<lifecycle> is false NOW in <file> for root '<root>' -- this runner script was generated when it allowed the apply; not applying.` (exit 3) | the script is older than the configuration, not wrong: `apply-check` re-reads the flag at execution so a runner generated under yesterday's flags cannot apply under today's | regenerate, or turn the flag back on deliberately |
 | `apply-check: no cfg/_config.yml found from the working directory up; refusing to apply` (exit 3) | the runner runs outside a configuration tree | run it from its own directory in the tree (`final_execution.sh` does) |
 | `apply-check: overlay <path> is gone; refusing to apply` (exit 3) | an overlay the run was generated under was deleted | restore it or regenerate |
 | `state backup for workspace '<ws>' REFUSED: <dir> is not an initialised terraform root` / `... the location holds no state, yet a state rm is due` (exit 1) | the backup that precedes a `state rm` cannot see the state | the root's init failed or bound to an empty location; nothing was removed; fix the binding, rerun |
 | a migrating runner stops after `plan -detailed-exitcode` with exit 2 | the plan at the new location is not clean | OPERATIONS "Where state lives": the move is accepted only clean; the backup is beside the root, the old location untouched |
-| a packer template fails to parse at `default = 1.0.0` | `packer_variable` rendered a plain string default unquoted until stage 63 item 3 (2026-09-24); it now quotes a `str` default as an HCL string | not since the fix; a `QString` default is passed through as given |
+| a packer template fails to parse at `default = 1.0.0` | a string default reached the template unquoted; `packer_variable` quotes a plain `str` default as an HCL string and passes a `QString` default through as given | the caller handed a `QString(..., quoted=False)` or a `Raw`; let a plain string through instead |

@@ -6,7 +6,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # cs-image-system-docker-runtime-plugin
 
-The `docker` runtime type (stage 103): a durable host running a daemon that
+The `docker` runtime type: a durable host running a daemon that
 speaks the Docker Engine API, as a place where images bake and instances
 run. Docker Engine, Docker Desktop, OrbStack, colima and Podman's API
 service all qualify; the system reaches the daemon through the `docker` CLI
@@ -32,8 +32,8 @@ differs from them in three ways the design records as decisions:
   `<repository>:<short id>--<key>--<value>`, one per key.
 - **POSIX accounts only.** Access is through the daemon (`docker exec -u`);
   whoever can reach the daemon is root on the host. An OPA group on a docker
-  runtime is refused at validation; enrolling `sftd` in a container is a
-  later stage.
+  runtime is refused at validation; enrolling `sftd` in a container is
+  not yet supported.
 
 ## What it registers
 
@@ -43,8 +43,8 @@ differs from them in three ways the design records as decisions:
 | `DockerContainerBuilder` ([docker_runtime_builders.py](src/cs_image_system/docker_runtime/docker_runtime_builders.py)) | `docker` | `VCT.RUNTIME_BUILDER` | Every runtime hook, answered against the daemon through the CLI. |
 | `DockerCLIVersionChecker` (same file) | `docker` | `VCT.VERSION_CHECKER` | `docker --version` for the `docker` entry of `cfg/executables.yml`. |
 
-Entry points: `cs_image_system.plugins.runtime` → `docker`, and (stage 103
-item 15) `cs_image_system.bootstrap` → `docker`, the container-host section of
+Entry points: `cs_image_system.plugins.runtime` → `docker`, and
+`cs_image_system.bootstrap` → `docker`, the container-host section of
 the bootstrap interview ([bootstrap.py](src/cs_image_system/docker_runtime/bootstrap.py)):
 
 | Class / function | Role |
@@ -66,20 +66,34 @@ from files.
 Extends the core's `ContainerBuilderModel` (`host`, `context`, `networking`,
 `machine_types`) and the runtime model every runtime shares
 (`default_machine_type`, `default_image_builder`, `credentials`, `ephemeral`,
-`retention_keep`, ...).
+`retention_keep`, ...). The field table is
+[CONFIGURATION section 4.6](../../docs/CONFIGURATION.md#46-docker); what is
+particular to this runtime:
 
-| Field | Default | Meaning |
-|---|---|---|
-| `host` | none | The daemon's address as a `DOCKER_HOST` URL: `unix:///var/run/docker.sock`, `ssh://user@host`, `tcp://host:2376`. May be an `ENC[age:...]` marker when the address itself is private. Declare `host` or `context`, not both. |
-| `context` | none | A docker context name (`docker context ls`), set as `DOCKER_CONTEXT`. |
-| `executable` | `docker` | The `cfg/executables.yml` entry whose `binary` every docker call on this runtime runs through; `validate` version-checks it. |
-| `repository` | `csis/<runtime name>` | Where this runtime's builds are tagged, made a valid repository name (lowercase). |
-| `tls_cert_path`, `tls_verify` | none, false | `DOCKER_CERT_PATH` and `DOCKER_TLS_VERIFY` for a `tcp://` host: TLS material by PATH, never a value. |
-| `networking.network` | `bridge` | The network the bake container (and, later, every instance) joins, by name; referenced, never created or changed. No subnets, no zones. |
-| `machine_types` | `{}` | A map from a name to `{cpus, memory}` (`--cpus 2`, `--memory 4g`). When any are declared, `default_machine_type` must name one. |
-| `state_configuration` | the default state manager | The state manager this runtime's roots use; a tree with no cloud declares `local`. |
+- **Where the daemon is** is `host` (a `DOCKER_HOST` URL:
+  `unix:///var/run/docker.sock`, `ssh://user@host`, `tcp://host:2376`,
+  which may be an `ENC[age:...]` marker when the address itself is
+  private) or `context` (a docker context name, `docker context ls`, set
+  as `DOCKER_CONTEXT`). Declare one, not both. `tls_cert_path` and
+  `tls_verify` are `DOCKER_CERT_PATH` and `DOCKER_TLS_VERIFY` for a
+  `tcp://` host: TLS material by PATH, never a value.
+- **How it is reached** is `executable`, the `cfg/executables.yml` entry
+  whose `binary` every docker call on this runtime runs through;
+  `validate` version-checks it.
+- **Where builds go** is `repository` (default `csis/<runtime name>`,
+  made a valid repository name, lowercase): where this runtime's builds
+  are tagged.
+- **What a container gets** is `networking.network` (default `bridge`:
+  the network the bake container and every instance joins, by name;
+  referenced, never created or changed; no subnets, no zones) and
+  `machine_types` (a map from a name to `{cpus, memory}`, `--cpus 2`,
+  `--memory 4g`; when any are declared, `default_machine_type` must name
+  one).
+- **Where its roots keep state** is `state_configuration`; a tree with no
+  cloud declares `local`.
 
-Nothing in the model is a credential.
+Nothing in the model is a credential: whoever reaches the daemon is root
+on the host.
 
 ## The builder
 
@@ -237,14 +251,16 @@ image_builders:
   the image builder), and `ansible-playbook` on the machine that bakes:
   ansible's docker connection runs the local `docker` CLI against the same
   daemon.
-- Podman's API service works as the daemon (proved 2026-11-01 against Podman
-  5.8.2 rootless on AlmaLinux 10, through `docker` over ssh; the setup and what
-  differed are in [docs/OPERATIONS.md](../../docs/OPERATIONS.md), "Podman as
-  the daemon"). A rootless Podman user needs `/etc/subuid` and `/etc/subgid`
-  ranges. Podman Desktop's machine on macOS works too, rootful and beside
-  OrbStack (proved 2026-11-01 with Podman 5.8.9; `just
-  test-podman-desktop-cycle`, which skips when no machine runs; Podman 6
-  dropped Intel Macs, so on one the proof lasts until June 2027).
+- Podman's API service works as the daemon: Podman 5.8 or later, rootless
+  on AlmaLinux 10 through `docker` over ssh is the proved shape, and the
+  setup and what differs from Docker are in
+  [docs/OPERATIONS.md](../../docs/OPERATIONS.md), "Podman as the daemon".
+  A rootless Podman user needs `/etc/subuid` and `/etc/subgid` ranges.
+  Podman Desktop's machine on macOS works too, rootful and beside
+  OrbStack (`just test-podman-desktop-cycle` runs the cycle on it and
+  skips when no machine runs). Podman 6 dropped Intel Macs, so an Intel
+  host stays on Podman 5 and the proof there has an end date, kept in
+  [REMINDERS.md](../../REMINDERS.md).
 - The posix identity plugin for the groups an instance image activates; an
   OPA group is refused on this runtime.
 - A tree whose only runtime is docker declares a `local` state manager; a
@@ -258,7 +274,7 @@ builder's reference in the [packer plugin](../packer-plugin/README.md) for
 `type: packer-docker`. An OS builder's `runtimes[]` entry on a docker
 runtime takes the usual keys; its `query` may use `name`, `version`,
 `publisher`, `architecture` and `native.image`, and its `image_id` is a
-digest reference. `output_image_name` (stage 105) is the tag prefix.
+digest reference. `output_image_name` is the tag prefix.
 
 ## What it tests and verifies
 
@@ -271,8 +287,9 @@ digest reference. `output_image_name` (stage 105) is the tag prefix.
 - The unit tests ([tests/](tests/)) pin the names module (tags, repository
   names, movable tags), the query translation, the model's environment and
   the packer source and post-processor shapes without a daemon; the
-  system's stage 103 tests drive a dry `run --all` over an overlay of the
-  frozen fixture and check the emitted docker sources.
+  system's [tests/test_v2_stage_103.py](../../tests/test_v2_stage_103.py)
+  drives a dry `run --all` over an overlay of the frozen fixture and
+  checks the emitted docker sources.
 - `just test-docker-bake`, a leg of `just full-test`, bakes an AlmaLinux 10
   and a Debian 12 base image and an instance image on the local daemon,
   checks the lineage and the tags, disposes them, and skips loudly without
@@ -286,6 +303,10 @@ digest reference. `output_image_name` (stage 105) is the tag prefix.
 
 ## When it fails
 
+Incidents that have happened, with their cause and fix, are recorded on
+[INCIDENTS.md](../../docs/INCIDENTS.md); what follows keeps each
+failure's symptom, its meaning and what to do.
+
 | Symptom | Cause | Remedy |
 |---|---|---|
 | `the configuration cannot load: docker runtime X: the daemon at ... cannot be reached` | The daemon is not running, or `host`/`context` names the wrong one. | Start it (OrbStack, Docker Desktop, the engine on the host) or fix the address; `preflight` shows which daemon answers. |
@@ -294,7 +315,7 @@ digest reference. `output_image_name` (stage 105) is the tag prefix.
 | `image ... is in use by container(s) ...` at disposal | A container stands on the build. | Decommission the container first; the image is never pulled from under it. |
 | An ansible step cannot reach the container | The bake ran against a daemon other than the one the local `docker` CLI uses. | The runtime's `host`/`context` is what both read; check `DOCKER_HOST` is not also set in the shell to something else. |
 | The bootstrap says `docker.runtime: ... -- no default can be derived` under `--quiet` | The tree declares no runtime of type `docker`, or the section was kept from an earlier interview of a tree that had one. | Declare the runtime, or answer `want_docker: no`. |
-| `parent: lineage=<id> tag=series:<name>` in the state query on a Podman daemon | A release before 2026-11-01 compared `RepoTags` as written; Podman spells them `docker.io/<repository>:<tag>`. | Take a later release; nothing on the daemon needs repairing, the movable tags were there. |
+| `parent: lineage=<id> tag=series:<name>` in the state query on a Podman daemon | Podman spells `RepoTags` as `docker.io/<repository>:<tag>`, so a tag must be compared with its registry prefix stripped; a release that compares `RepoTags` as written reads every movable tag as missing ([the stage index](../../docs/CHANGES.md#s109) names the release that strips it). | Take a release that strips the prefix; nothing on the daemon needs repairing, the movable tags are there. |
 | `a docker tag is at most 128 characters` at validate | A declared `output_image_name` is too long once the timestamp is appended. | Shorten it. |
 
 ## Related

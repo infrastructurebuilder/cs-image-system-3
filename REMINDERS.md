@@ -1,10 +1,15 @@
-# Monthly General Items
+# Reminders
 
-Things to check at intervals collect in this file; the system's work in
-flight stays in [INPROGRESS/TODO.md](INPROGRESS/TODO.md). The assistant raises each item when it
-falls due, and records the outcome here.
+Things to check at intervals collect in this file: the standing reviews
+under "Monthly General Items" and the GCP account housekeeping. The
+system's work in flight stays in [INPROGRESS/TODO.md](INPROGRESS/TODO.md).
+The assistant raises each item when it falls due and records the
+outcome here, so this is the one current page besides docs/CHANGES.md
+and docs/INCIDENTS.md that carries dates by design.
 
-## F44: a verification starts a machine its operator switched off
+## Monthly General Items
+
+### F44: a verification starts a machine its operator switched off
 
 **Reviewed monthly: next on or after 2026-11-09.** Each review is the
 operator's decision: keep the behaviour, or make it a stage (a
@@ -28,7 +33,7 @@ corrected.
 - 2027-01-09: (open)
 - 2027-02-09: (open)
 
-## The §30 shims: still in place?
+### The §30 shims: still in place?
 
 **Reminded weekly: the first one is due on or after 2026-11-05.** Until the
 operator commits to the plugin contract, the core's re-export shims stay;
@@ -81,7 +86,7 @@ and types the context protocol without the injection.
 
 - (none yet)
 
-## STARTER_PUSH_TOKEN renewal
+### STARTER_PUSH_TOKEN renewal
 
 **Expires 2027-10-25; raise the renewal from 2027-09-25.** The token
 (`cs-image-system-starter-repos-token`) is the fine-grained token behind the
@@ -96,7 +101,7 @@ secret again (`gh secret set STARTER_PUSH_TOKEN --repo <owner>/<repository>`).
 
 - (none yet)
 
-## Podman on the Intel Mac: end of service, June 2027
+### Podman on the Intel Mac: end of service, June 2027
 
 **Reviewed monthly; the end of service is the second week of June 2027.**
 Podman 6 dropped Intel Macs, so this Mac runs the Podman 5.8 that Podman
@@ -121,7 +126,7 @@ that is a documentation and recipe change, so it becomes a stage then.
 
 - 2026-12-02: (open)
 
-# GCP account housekeeping (csis-sandbox)
+## GCP account housekeeping (csis-sandbox)
 
 The operator's standing reference for the GCP account's cost: the fixed
 facts, how budget alerts are known to be read, the lookups that attribute
@@ -131,7 +136,7 @@ rule behind all of it: the AWS account is not the operator's money, GCP
 cycle that touches GCP ends by deleting what it created, and a run that
 leaves a billable GCP resource standing says so.
 
-## Fixed facts
+### Fixed facts
 
 - Project `csis-sandbox` (number 86233086783), region `us-east1`.
 - Billing account **`csis-sandbox-test-billing-account`**, id
@@ -149,7 +154,7 @@ leaves a billable GCP resource standing says so.
   persistent disk `gce-data`, inside the Always-Free tier. No instance
   runs between cycles.
 
-## Budget alerts, and how they are known to be read
+### Budget alerts, and how they are known to be read
 
 GCP records that an alert was *sent*, never that it was *read*; the check
 is on the receiving side.
@@ -196,7 +201,7 @@ reliable test is to make the budget fire: add a threshold below the month's
 current net spend, save, and wait; budgets are evaluated a few times a day
 and the mail arrives within hours, once per threshold per month.
 
-## Lookups
+### Lookups
 
 ### Monthly gross spend and discounts
 
@@ -255,7 +260,7 @@ orphan: find it with `cs-image-system state query`, then
 `gcloud compute disks list`, and dispose of it through the sanctioned
 decommission, never by hand.
 
-## Reminders
+### Reminders
 
 Each with an alert time; the title is the reminder, the note its body.
 

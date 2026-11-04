@@ -4,9 +4,8 @@ This package is the S3 **state backend** plugin. It registers one model,
 `TofuS3StateBuilderModel`, for the entries under `state_backends:` in
 `cfg/state-backends*.yml`. Each entry answers a `BackendRegistration`,
 which the core hands to the run-wide `TerraformCollector` once the state
-backends are loaded (stage 30; until then the model pushed it itself);
-every terraform
-root that names the backend (or the default one) then gets an empty
+backends are loaded; every terraform root that names the backend (or the
+default one) then gets an empty
 `backend "s3" {}` block, a partial backend configuration file
 `<workspace>.tfbackend.hcl`, an `init -backend-config=<file>` argument, and
 `terraform_remote_state` data sources pointing at the other roots' state
@@ -37,12 +36,10 @@ An entry's `name:` (`s3-east2` in the fixture) is what a consumer's
 `state_configuration:` field names; `default` (the field's default) resolves
 to the entry with `is_default: true`. The entry's `aliases:` are names it
 answers to as well: a `state_configuration:` that names an alias binds to
-this backend (stage 63; until 2026-09-25 an alias was refused as "not
-declared").
+this backend.
 
 The checker that serves `type: tofu` executables is the one in the AWS
-instance plugin; this package registers none (a second copy that was never
-registered was removed in stage 63).
+instance plugin; this package registers none.
 
 ## Models
 
@@ -60,44 +57,36 @@ a state backend has **no `runtime`** field: it is not a
 keys are refused at load, and a `parameters:` key is refused with a message
 naming `variables:`.
 
-Inherited from the base:
+Inherited from the base: `name`, `type`, `description`, `aliases`,
+`is_default`, `config`, `gitignore` and `tags`, the common builder fields
+of [CONFIGURATION section 4.1](../../docs/CONFIGURATION.md#41-fields-common-to-every-builder).
+Of these, `is_default` marks the backend `state_configuration: default`
+resolves to (a second `is_default: true` in the class is refused at
+load), and a `state_configuration:` may name an alias as well as the
+name.
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `name` | str | required | Backend name; normalized (trimmed, lowercased, spaces and `:` to `_`). `/` and `\` are refused; the reserved words `default`, `self`, `none`, the empty string and null are refused, in any case. |
-| `type` | str | required | `s3`; also the terraform backend type. |
-| `description` | str \| None | None | Free text. |
-| `aliases` | set[str] | {} | Extra names, normalized like `name`, checked for collisions within the class; a `state_configuration:` may name one (stage 63). |
-| `is_default` | bool | false | The backend chosen for `state_configuration: default`. A second `is_default: true` in the class is refused at load. |
-| `config`, `gitignore`, `tags` | | | Not read by this plugin. |
+Fields this model adds; the full table, with each field's type, default
+and emission, is [CONFIGURATION section 10, `s3`](../../docs/CONFIGURATION.md#s3),
+and [Configuration reference](#configuration-reference) below repeats it
+with this plugin's reading of each key.
 
-Fields this model adds. The first six are the core the backend file
-always carries; every other one is a terraform s3-backend argument that is
-**passed through** (stage 63, decided 2026-09-25): emitted into the
-backend file and into every consumer's remote-state `config` when it
-differs from its default, and absent otherwise, so a tree that declares
-none renders exactly as before.
-
-| Field | Type | Default | Meaning | Emitted |
-|---|---|---|---|---|
-| `bucket` | str | required | The state bucket. | always |
-| `key` | str | required | The key **prefix** under which every workspace's state file lives; see the key rules below. | always |
-| `region` | str | `"us-east-2"` | The bucket's region. | always |
-| `encrypt` | bool | false | Server-side encryption of the state objects. | always (backend file) |
-| `use_lockfile` | bool | true | S3-native state locking (a `.tflock` object beside the state file). | always (backend file) |
-| `profile` | str \| None | None | The AWS shared-config profile the backend uses. | when set |
-| `executable` | str \| None | None | The `cfg/executables.yml` entry the roots bound here run. When declared it must exist in the executables list (`validate`, `check_state_backend_executables`), where it is version-checked like every entry; unset, nothing is checked. | no |
-| `allowed_account_ids`, `forbidden_account_ids` | list[str] | [] | The account guards. | when non-empty |
-| `http_proxy`, `https_proxy` | str \| None | None | Proxies for the backend's AWS calls. | when set |
-| `no_proxy` | list[str] | [] | Hosts that bypass the proxy; written as the comma-separated string tofu takes. | when non-empty |
-| `insecure` | bool | false | Skip TLS verification. | when true |
-| `max_retries` | int | 5 | AWS API retries. | when not 5 |
-| `shared_config_file`, `shared_credentials_file` | str \| None | None | One file each; written as the lists tofu takes, `shared_config_files = [...]` and `shared_credentials_files = [...]`. | when set |
-| `skip_credentials_validation`, `skip_region_validation`, `skip_requesting_account_id`, `skip_metadata_api_check`, `skip_s3_checksum` | bool | false | The backend's skip flags. | when true |
-| `use_dualstack_endpoint`, `use_fips_endpoint` | bool | false | Endpoint variants. | when true |
-| `endpoints` | `StateEndpoints` \| None | None | `{dynamodb, s3, sts, iam, sso}` endpoint overrides; written as an object with the members that are set. | when set |
-| `assume_role` | `AssumeRoleConfig` \| None | None | `{role_arn (required), duration, external_id, policy, policy_arns, session_name, source_identity, tags, transitive_tag_keys}`; written as an object. | when set |
-| `assume_role_with_web_identity` | `AssumeRoleWithWebIdentityConfig` \| None | None | `{role_arn (required), duration, policy, policy_arns, session_name, web_identity_token, web_identity_token_file}`; written as an object. | when set |
+- Six keys are the core the backend file always carries: `bucket`, `key`
+  (the **prefix** under which every workspace's state file lives; see the
+  key rules below), `region`, `encrypt`, `use_lockfile` (S3-native
+  locking: a `.tflock` object beside the state file) and `profile` (when
+  set).
+- `executable`, when declared, names the `cfg/executables.yml` entry the
+  roots bound here run; it must exist in the executables list
+  (`validate`, `check_state_backend_executables`), where it is
+  version-checked like every entry. Unset, nothing is checked. It is not
+  emitted.
+- Every other key is a terraform s3-backend argument that is **passed
+  through**: the account guards, the proxies, `insecure`, `max_retries`,
+  the shared files, the skip flags, the endpoint variants, `endpoints`,
+  `assume_role` and `assume_role_with_web_identity`. Each is emitted into
+  the backend file and into every consumer's remote-state `config` when
+  it differs from its default, and absent otherwise, so a tree that
+  declares none renders exactly as a tree that cannot.
 
 **Refused at load**, each with what to do instead: `access_key` and
 `secret_key` (credentials never live in the tree: name a `profile`, or
@@ -108,7 +97,7 @@ written as its ciphertext and restored in the private copy tofu runs from.
 
 The nested types are strict (an unknown member is refused) and live in
 [tf_s3_state_models.py](src/cs_image_system/tf_s3_state_plugin/tf_s3_state_models.py);
-they used to require a `name` member that no backend argument has.
+none of them takes a `name` member, which no backend argument has.
 
 **Key prefix rules** (`__post_init__`):
 
@@ -120,7 +109,7 @@ they used to require a `name` member that no backend argument has.
   `@` and spaces into `_`. The workspace `open-tofu` under the prefix
   `statefiles/csia-image-system-test/` has the state file
   `statefiles/csia-image-system-test/open_tofu.tfstate`. `get_state_file_path(builder_name)` returns it;
-- the key is normalised again when a location is computed (stage 46):
+- the key is normalised again when a location is computed:
   repeated slashes collapse, leading and trailing ones are stripped, and a
   `.` or `..` segment is refused -- at `validate`, not at load.
 
@@ -129,16 +118,15 @@ asks of the model: the name, the type, the settings in the type's own
 vocabulary, the kind that renders them, whether it is the default, and
 the aliases. Once the state backends are loaded and finalized the core
 hands every declared backend's registration to the collector
-(`pull_declared_backends`, stage 30), so every consumer in the run sees
-it; until then the model's `finalize()` pushed it itself, which made this
-plugin import the library. Registering the same name
+(`pull_declared_backends`), so every consumer in the run sees it and the
+plugin imports nothing from the library. Registering the same name
 twice with different values raises `HclConfigConflictError`; from a
 configuration this cannot be reached, because the loader refuses a
 duplicate name first.
 
 ### `BackendRegistration` and the S3 kind
 
-The registration is type-agnostic (stage 47): the frozen dataclass in
+The registration is type-agnostic: the frozen dataclass in
 [collector.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/collector.py)
 carries what every backend has -- `name`, `type`, `is_default` -- plus the
 type's own settings as an opaque mapping and the *kind* that renders them.
@@ -153,27 +141,27 @@ holds the S3 knowledge:
 
 | Settings the model registers | `location(settings, workspace)` | `backend_settings(...)` | `remote_state_settings(...)` |
 |---|---|---|---|
-| `bucket`, `region`, `key_prefix`, `encrypt`, `use_lockfile`, `profile` | `s3://<bucket>/<key prefix>/<super_safe_name(workspace)>.tfstate`, the key normalised (stage 46) | `bucket`, `key`, `region`, `encrypt`, `use_lockfile`, `profile` when set | `bucket`, `key`, `region`, `profile` when set |
+| `bucket`, `region`, `key_prefix`, `encrypt`, `use_lockfile`, `profile` | `s3://<bucket>/<key prefix>/<super_safe_name(workspace)>.tfstate`, the key normalised | `bucket`, `key`, `region`, `encrypt`, `use_lockfile`, `profile` when set | `bucket`, `key`, `region`, `profile` when set |
 
 The collector resolves a consumer's `state_configuration` with
 `resolve_backend(name)`: `default`, `None` or `""` means the single
 registration with `is_default: true` (more than one raises
 `HclConfigConflictError`; none yields no backend); any other value is looked
-up by registration name, and only by name. A workspace with no resolvable
+up by registration name, else by alias. A workspace with no resolvable
 backend is simply unbound: no backend block, no partial configuration file,
 bare `init`. A registration without a kind is refused the moment it is
 asked for a location.
 
 ### Adding a backend type
 
-A backend type is a model plus one kind (stage 47.5); the next one is a day:
+A backend type is a model plus one kind; the next one is a day's work:
 
 1. A model under `state_backends:` with the type's fields, `csis_name()`
    returning the terraform backend type (`local`, `gcs`, `azurerm`, ...),
    `csis_classifier()` `STATE_BACKEND_MODEL`, and `to_backend_registration()`
    answering `BackendRegistration(name, type, settings, kind, is_default)`
    -- the settings in the type's own vocabulary. The core hands it to
-   the collector (stage 30), so the model imports `BackendRegistration` and
+   the collector, so the model imports `BackendRegistration` and
    `StateLocation` from the contract (`cs_image_system.contract.state`)
    and nothing from hashicorp-utils.
 2. A kind with three methods: `location(settings, workspace)` returning a
@@ -244,7 +232,7 @@ storage and identity roots) through the collector:
    - a root whose state **moves** this run (`run --no-dry-run --migrate-state <root>`)
      inits with `init -input=false -migrate-state -force-copy -backend-config=<file>`
      instead, between a `state-migration begin` and a `state-migration finish`
-     step (stage 46.4.3; see "Where state lives" in
+     step (see "Where state lives" in
      [docs/OPERATIONS.md](../../docs/OPERATIONS.md)).
 5. **Remote state between roots.** A consumer calls
    `reference_remote_state(consumer, producer)`; `generate_remote_state_datasources`
@@ -261,7 +249,7 @@ storage and identity roots) through the collector:
    bound workspace of that lifecycle.
 7. **The location record.** After every generation, dry or real, the run
    writes each bound workspace's resolved location and backend-file
-   settings to `meta-state/state-locations.yaml` (stage 46.4); a later
+   settings to `meta-state/state-locations.yaml`; a later
    run's move guard compares against that record, not the emission.
 
 The whole mechanism is gated by `config.use_state_backends` in
@@ -272,8 +260,8 @@ sources, and `init` runs bare.
 ## Emission
 
 From the frozen golden emission over the test fixture. The fixture binds
-its storage roots to `s3-east1`, its instance roots to `s3-east2` (stage 46)
-and its identity roots to the `local` backend `local-dev` (stage 47), so
+its storage roots to `s3-east1`, its instance roots to `s3-east2` and
+its identity roots to the `local` backend `local-dev`, so
 there is one partial configuration per root; the seven S3 ones all carry
 `encrypt = true` and `use_lockfile = true`:
 
@@ -425,7 +413,7 @@ section so a named profile still finds them. With `profile` unset, no
 (`AWS_PROFILE`, `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/
 `AWS_SESSION_TOKEN`, then the shared files). `assume_role`,
 `assume_role_with_web_identity`, the shared files and `endpoints` are
-passed through when declared (stage 63), so they steer tofu the way the
+passed through when declared, so they steer tofu the way the
 terraform backend documents; static keys are refused at load, so
 credentials still come from the profile, the environment or an assumed
 role. The configuration
@@ -438,13 +426,13 @@ profile is unknown or expired fails at tofu's `init`, not at load.
 needed. The binary is the *consumer root's* `executable` (an entry of
 `cfg/executables.yml`, `open-tofu-1` with `version: ">1,<2"` in the
 fixture). A backend's own `executable`, when declared, must name an entry
-of that list, which `validate` version-checks (stage 63). The
+of that list, which `validate` version-checks. The
 `gate-plan` step that follows every plan needs the same binary.
 
 **Network.** From wherever tofu runs, HTTPS to S3 in the bucket's region
 (`s3.<region>.amazonaws.com`) and to STS for the profile's credentials.
 `endpoints`, `http_proxy`, `https_proxy`, `no_proxy`, `use_fips_endpoint`
-and `use_dualstack_endpoint` are passed through when declared (stage 63);
+and `use_dualstack_endpoint` are passed through when declared;
 tofu's own environment (`HTTPS_PROXY`, `AWS_ENDPOINT_URL_S3`) still works
 when they are not. A
 dry run needs no network for the backend at all: its `init -backend=false`
@@ -480,7 +468,7 @@ and nothing else ever looks at it -- a typo in such a field is refused
 | `name` | str | required | The backend's name; what `state_configuration:` names. Trimmed, lowercased, spaces and `:` to `_`; `/` and `\` refused; `default`, `self`, `none`, `""` and null refused. Read by the collector (registration key), the `.tfbackend.hcl` header comment and the location record. |
 | `type` | str | required | `s3`. Read by the loader (selects this model) and written as the terraform backend type in `backend "s3" {}` and every remote-state `backend = "s3"`. |
 | `description` | str or null | null | Accepted, not read. |
-| `aliases` | list[str] | `[]` | Extra names the backend answers to: `state_configuration: <alias>` binds to it (stage 63). An alias equal to another entry's name or alias is refused at load. |
+| `aliases` | list[str] | `[]` | Extra names the backend answers to: `state_configuration: <alias>` binds to it. An alias equal to another entry's name or alias is refused at load. |
 | `is_default` | bool | `false` | The entry `state_configuration: default` (and an omitted value, when the runtime names nothing) resolves to. At most one per class; a second is refused at load. Read by the collector's `resolve_backend`. |
 | `executable` | str or null | null | When declared, must name a `cfg/executables.yml` entry (`validate`), which is version-checked; unset, nothing is checked. |
 | `required_plugins` | | | Refused at load: a state backend has no plugins. |
@@ -490,10 +478,10 @@ and nothing else ever looks at it -- a typo in such a field is refused
 | `bucket` | str | required | The state bucket. Emitted as `bucket =` in the backend file and every remote-state `config`; part of the location. |
 | `key` | str | required, non-empty | The key prefix; a trailing `/` is enforced at load, the location normalises it again. Emitted as `key = <prefix><workspace>.tfstate`. |
 | `region` | str | `us-east-2` | The bucket's region. Emitted as `region =` in both places. |
-| `encrypt` | bool | `false` | Server-side encryption of the state objects. Emitted as `encrypt = true` or `encrypt = false` in the backend file only. The fixture and the live tree declare `true` everywhere (stage 39); the test bar requires it of every declared and emitted S3 backend. |
+| `encrypt` | bool | `false` | Server-side encryption of the state objects. Emitted as `encrypt = true` or `encrypt = false` in the backend file only. The fixture and the live tree declare `true` everywhere; the test bar requires it of every declared and emitted S3 backend. |
 | `use_lockfile` | bool | `true` | S3-native locking. Emitted as `use_lockfile = true` or `use_lockfile = false` in the backend file only. |
 | `profile` | str or null | null | The AWS profile. Emitted as `profile =` in both places when set; omitted when null or empty. |
-| `allowed_account_ids`, `forbidden_account_ids` | list[str] | `[]` | Passed through when non-empty (stage 63). |
+| `allowed_account_ids`, `forbidden_account_ids` | list[str] | `[]` | Passed through when non-empty. |
 | `http_proxy`, `https_proxy` | str or null | null | Passed through when set. |
 | `no_proxy` | list[str] | `[]` | Passed through when non-empty, as a comma-separated string. |
 | `insecure` | bool | `false` | Passed through when true. |
@@ -544,7 +532,7 @@ Fields the plugin reads from **other** YAML:
   the root's runtime's `state_configuration` when that names a backend,
   else the one `is_default` entry, else nothing -- an unbound root, no
   backend block, bare `init`, no line in the runner header, no location
-  record. An alias binds exactly as the name does (stage 63).
+  record. An alias binds exactly as the name does.
 - **`is_default: true` vs not.** Only the default entry is reachable
   through `default`; a non-default entry has to be named. Two defaults are
   refused at load.
@@ -580,8 +568,8 @@ Fields the plugin reads from **other** YAML:
 - **In-process execution vs the committed runner script.** Both perform
   the same `init -input=false -reconfigure -backend-config=<file>` before
   the plan; the script exists so a fresh clone with no `.terraform/` can
-  run it. Since stage 49 the roots that must read plaintext are copied
-  into the private mirror and initialised there; the backend file goes
+  run it. The roots that must read plaintext are copied into the private
+  mirror and initialised there; the backend file goes
   with the root, and the argument stays the bare file name.
 
 ## What it tests and verifies
@@ -673,47 +661,28 @@ and runner header.
 
 ## When it fails
 
-Failures that have happened, first.
+Incidents that have happened, with their cause and fix, are recorded on
+[INCIDENTS.md](../../docs/INCIDENTS.md); what follows keeps each
+failure's symptom, its meaning and what to do.
 
-- **2026-09-15, CI (ledger 91).** A dry run executed each root's
-  generation-time `tofu init` *with* the S3 backend, under a read-only role
-  with nothing on S3. Symptom: `tofu init` failed at generation with an S3
-  access error, before any plan. Cause: the backend was initialised in a
-  mode that needs no state. Fix, standing since: a dry run's `init` is
-  `init -backend=false`. If you see a dry run reach S3, the run is not dry
-  (check `dry_run` in `generated/run-summary.json`).
-- **2026-09-16, operator and fresh clone (ledger 93).** After a dry run
-  (whose `.terraform/` is backend-less) or in a fresh clone (no
-  `.terraform/` at all), a hand-run `run-<lifecycle>.sh` failed at its
-  first `tofu plan`: the backend had never been initialised. Fix, standing
-  since stage 38: every root's deferred block begins with its own
-  `tofu init -input=false -reconfigure -backend-config=<file>`. A script
-  from before that stage needs the `init` by hand. Found on the way: a
-  generation-time `tofu init` run concurrently with the test bar over the
-  same provider plugin cache failed; alone it passed. One tofu-using
-  process at a time on a machine.
-- **2026-09-16, live and fixture (stage 39, ledger 94).** `encrypt` was
-  flipped from the accepted `false` to `true` under roots that were already
-  initialised. Symptom without `-reconfigure`: tofu refuses `init` with
-  "Backend configuration changed" and asks for `-reconfigure` or
-  `-migrate-state`. Fix, standing since: every real-run `init` carries
-  `-reconfigure` (the state is remote; there is nothing to migrate). An
-  existing state object is re-encrypted server-side when next written.
-
-Failures the code raises that have not happened live.
+The first thing to touch the bucket is tofu's `init`, so most symptoms
+arrive from tofu; the rest are the load's and `validate`'s refusals.
 
 | Symptom (as the operator sees it) | Meaning | Where to look | What to do |
 |---|---|---|---|
+| a dry run's generation-time `tofu init` fails with an S3 access error, before any plan | a dry run's `init` is `init -backend=false` and never contacts S3, so a dry run that reaches the bucket is not dry | `dry_run` in `generated/run-summary.json` | run with `--dry-run` (the default); a read-only CI role never needs the bucket for a dry run |
+| a hand-run `run-<lifecycle>.sh` fails at its first `tofu plan` with an uninitialised backend | a dry run's `.terraform/` is backend-less and a fresh clone has none, so the script must initialise the root itself; every root's deferred block begins with its own `tofu init -input=false -reconfigure -backend-config=<file>` | the script's deferred block for that root | a script without that line is older than the rule: regenerate it, or run the `init` by hand once |
+| a generation-time `tofu init` fails with a provider-cache or lock error while the test bar (or another tofu) runs | two tofu processes share the provider plugin cache, which is not safe under concurrent `init` | what else is running | one tofu-using process at a time on a machine; the recipes pass `--locked` |
 | `Value error, Terraform state backend 'key' cannot be empty for 's3' type.` in a `ValidationError for TofuS3StateBuilderModel` at load | `key: ""` or `key:` with nothing | the entry in `cfg/state-backends*.yml` | give the prefix (`statefiles/<something>/`) |
 | `<field>` / `Unexpected keyword argument` at load | a key the model does not have (a typo, or a terraform backend argument this model never had) | the entry | fix the spelling or delete the key; see the field table |
-| `` `parameters` was retired (stage 26) `` at load | `parameters:` on the entry | the entry | delete it |
+| `` `parameters` was retired ... `` at load | `parameters:` on the entry | the entry | delete it |
 | `Name '<name>' contains invalid characters: {'/', '\\'}` at load | a `/` or `\` in `name` or an alias | the entry | rename |
 | `<file>: state_backends[<i>].name: a name may not be '<word>'` at load (or `...aliases[<j>]: an alias may not be ...`) | the name or an alias is a reserved word (`default`, `self`, `none`, empty, null), refused where the file is read; a backend built in code meets the models' own `Name cannot be in '[...]'` instead | the entry | rename |
 | `workspace '<ws>' names state backend 'none', which names nothing` at `validate` | a root's (or its runtime's) `state_configuration` is `none`, which would otherwise read as unset and put its state on the default backend | the builder or the runtime | declare a backend of type `local` for state on disk, or leave the field out |
 | `Default value for type 'state_backend_model' is already set to '<a>'. Cannot override with '<b>'.` at load | two entries with `is_default: true` | every `cfg/state-backends*.yml` | keep one default |
-| `two TofuS3StateBuilderModel entries collide on the registry key 's3_east2': 'S3-East2' and 's3-east2' (a TofuS3StateBuilderModel) normalise to the same name; rename one` at load | two entries share a name after normalisation (until stage 63 item 5, 2026-09-24, this was a misleading `has no unique 'id' or 'name'` message followed by the whole model dump, `access_key` and `secret_key` included) | every `cfg/state-backends*.yml` | rename one |
+| `two TofuS3StateBuilderModel entries collide on the registry key 's3_east2': 'S3-East2' and 's3-east2' (a TofuS3StateBuilderModel) normalise to the same name; rename one` at load | two entries share a name after normalisation | every `cfg/state-backends*.yml` | rename one |
 | `Alias '<x>' is already registered under classification ...` at load | an alias equals another entry's name or alias | the entries | remove the alias |
-| `workspace '<ws>' names state backend '<name>', which is not declared` from `validate` | the root's (or its runtime's) `state_configuration` names no entry -- a typo, a file not loaded, or an **alias** (aliases do not resolve) | the root's builder file, `cfg/state-backends*.yml` | name the entry by its `name` |
+| `workspace '<ws>' names state backend '<name>', which is not declared` from `validate` | the root's (or its runtime's) `state_configuration` names no entry's `name` or alias -- a typo, or a file not loaded | the root's builder file, `cfg/state-backends*.yml` | name the entry by its `name` or one of its `aliases` |
 | `workspace '<ws>': state key '...' carries a '..' segment` from `validate` | `key` has a `.` or `..` path segment | the entry | remove it |
 | `state location collision: workspaces <a>, <b> would share the state object s3://...` from `validate` | two roots resolve to one state file: two backends on one bucket and prefix, two root names that collapse (`aws-ebs`/`aws_ebs`), or `//` against `/` | both entries and both roots | give one of them another prefix or name |
 | `workspace '<ws>' would move its state from s3://... to s3://... while <resources> stand(s) in it ...` from `validate` | the resolved location changed since the last recorded run and the records say resources live in the old state | `meta-state/state-locations.yaml`, `storage-state.yaml`, `identity.yaml`, `pins.yaml` | move the state with `run --no-dry-run <lifecycle> --migrate-state <ws>`, or correct the records through the state query's import and forget paths; never rebind past it |
@@ -722,7 +691,7 @@ Failures the code raises that have not happened live.
 | `Multiple default state backends registered: [...]` at generation | two defaults reached the collector; the load refuses this first | the entries | keep one default |
 | `Workspace '<ws>' references remote state of '<producer>' but no backend is registered for it` at generation | a consumer reads a producer that resolved no backend and there is no default | the producer's `state_configuration`, `is_default` | bind the producer, or declare a default |
 | `State backend '<name>' (type '<t>') was registered without a kind` at generation | a state plugin answered a `BackendRegistration` with `kind=None`; not this plugin (it always passes `S3_KIND`) | the other plugin's `to_backend_registration()` | a code defect in that plugin |
-| `Backend configuration changed` from `tofu init` | an init without `-reconfigure` after a backend argument changed -- only a hand-run `init` can do this now | the root's `.terraform/terraform.tfstate` | run the runner script, or `tofu init -reconfigure -backend-config=<file>` by hand |
+| `Backend configuration changed` from `tofu init` | an init without `-reconfigure` after a backend argument changed (`encrypt` flipped under an initialised root, for example); every real-run `init` the system emits carries `-reconfigure` because the state is remote and there is nothing to migrate, so only a hand-run `init` can do this | the root's `.terraform/terraform.tfstate` | run the runner script, or `tofu init -reconfigure -backend-config=<file>` by hand; an existing state object is re-encrypted server-side when next written |
 | `tofu init`/`plan` fails with `AccessDenied`, `NoSuchBucket`, an expired token or a credential error | the bucket, the prefix permissions, the profile or the session named by `profile` (or by the environment) are not what the run assumed | the `.tfbackend.hcl` beside the root (`bucket`, `region`, `profile`), `aws sts get-caller-identity --profile <name>`, `~/.aws/sso/cache` expiry (`preflight` prints it) | log in, fix the role or the bucket; the declaration is not at fault unless the file names the wrong bucket |
 | `tofu` reports the state locked (`Error acquiring the state lock`, a `.tflock` object under the state key) | another tofu holds the lock, or a previous run died holding it (`use_lockfile: true`) | the bucket, key `<state file>.tflock` | wait; if no run is alive, remove the lock object -- a records decision, not the system's |
 | a `plan` that wants to create everything again against an empty state | the root points at a new location (a changed `bucket`/`key`/name) and the guard did not fire -- meta-state shows nothing deployed, or the record was edited | `meta-state/state-locations.yaml`, the `# state:` header of the runner | stop; restore the previous location or migrate; never apply such a plan |
@@ -738,7 +707,7 @@ Failures the code raises that have not happened live.
 - [contract state.py](../contract/src/cs_image_system/contract/state.py):
   `BackendRegistration`, `StateLocation`, the `BackendKindProtocol` this
   plugin's kind implements and the `StateBackendModelProtocol` its model
-  satisfies (stage 30).
+  satisfies.
 - [hashicorp-utils collector.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/collector.py):
   `TerraformCollector`, `RemoteStateReference`, and the generators for the
   terraform block, the partial configuration and the remote-state data

@@ -199,7 +199,7 @@ Three commitments show up everywhere:
   are disabled. Discovery before an OPA reconciliation enumerates
   security policies by hand.
 - **Clouds.** AWS and GCE are real, and so is a docker host as a third
-  kind of runtime (stage 103). Azure is a goal without a plugin.
+  kind of runtime. Azure is a goal without a plugin.
 - **Containers are not machines.** A container on the docker runtime has
   no init system (no services, no systemd units), no sshd (so no ssh login
   proof for CI), no OPA agent (an OPA-owned group on it is refused; only a

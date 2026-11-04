@@ -61,19 +61,33 @@ base model carries the builder identity and, for users, the templates.
 Defined in
 [okta_tf_workspace.py](src/cs_image_system/okta_opa_plugin/okta_tf_workspace.py).
 Not a model on its own; every `OktaTf*BuilderModel` below inherits these
-fields.
+fields. The full table is
+[CONFIGURATION 9.1](../../docs/CONFIGURATION.md#91-the-okta-terraform-workspace-shared-by-group-and-user-builders);
+the plugin's own [Configuration reference](#configuration-reference)
+below repeats it with types and defaults. What each field does here:
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `org` | `str` | required | Okta org name. Fills `api_host` and the `okta` provider's `org_name`. |
-| `team` | `str` | required | OPA team name. Names the `TF_VAR_<team>_key` / `TF_VAR_<team>_secret` variables (non-alphanumerics become `_`) and the `oktapam_team` provider argument. |
-| `key` | `EncryptedStr` | `default` | OPA API key. Left at `default`, it resolves at finalize to `var.<team>_key`. May be `ENC[age:...]`. |
-| `secret` | `EncryptedStr` | `default` | OPA API secret. Same rules as `key`, resolving to `var.<team>_secret`. |
-| `api_host` | `str` | `https://{{ this.org }}.pam.okta.com` | Optional. OPA API host; also the host the gid shim, the state query and every other OPA API call use. Left unset (or at `default`), it becomes `https://<org>.pam.okta.com`; the field's metadata says so since stage 63 (it used to be marked required, 2026-09-25). |
-| `okta_base_url` | `str` | `okta.com` | `okta/okta` provider `base_url` (`oktapreview.com` for preview orgs). |
-| `default_user_status` | `str` | `STAGED` | `okta_user.status` for enabled managed users. Not checked against the `okta_user` status set; the provider refuses an unknown one at plan. |
-| `required_providers` | `list[ConfiguredTerraformProvider]` | `[]` | Providers this root declares: entries with `name`, `source`, `version` and optional `config:`. A group root names `oktapam`; a user root or read-only group root names `okta`. |
-| `state_configuration` | `str` | `default` | Name of a `state_backends:` entry (foreign key to `STATE_BACKEND_MODEL`). `default` picks the default backend; the identity roots have no runtime, so there is no runtime rung in between. |
+- `org` (required): the Okta org name. Fills `api_host` and the `okta`
+  provider's `org_name`.
+- `team` (required): the OPA team name. Names the `TF_VAR_<team>_key` /
+  `TF_VAR_<team>_secret` variables (non-alphanumerics become `_`) and the
+  `oktapam_team` provider argument.
+- `key`, `secret`: the OPA API pair. Left at `default`, each resolves at
+  finalize to `var.<team>_key` / `var.<team>_secret`. Either may be
+  `ENC[age:...]`.
+- `api_host`: optional. The OPA API host; also the host the gid shim, the
+  state query and every other OPA API call use. Left unset (or at
+  `default`), it becomes `https://<org>.pam.okta.com`.
+- `okta_base_url`: the `okta/okta` provider's `base_url`
+  (`oktapreview.com` for preview orgs).
+- `default_user_status`: `okta_user.status` for enabled managed users.
+  Not checked against the `okta_user` status set; the provider refuses an
+  unknown one at plan.
+- `required_providers`: the providers this root declares, entries with
+  `name`, `source`, `version` and optional `config:`. A group root names
+  `oktapam`; a user root or read-only group root names `okta`.
+- `state_configuration`: the name of a `state_backends:` entry (foreign
+  key to `STATE_BACKEND_MODEL`). `default` picks the default backend; the
+  identity roots have no runtime, so there is no runtime rung in between.
 
 Behaviour attached to these fields:
 
@@ -90,15 +104,13 @@ Behaviour attached to these fields:
 - `finalize()`: `api_host` defaults from `org`. When `oktapam` is among
   the providers, `key` and `secret` left at `default` must be backed by
   `TF_VAR_<team>_key` / `TF_VAR_<team>_secret` in the environment,
-  otherwise finalize raises a `ValueError` naming the missing variable
-  (stage 63: it used to be a bare `assert`, which disappears when Python
-  runs with `-O`, 2026-09-25). When `okta` is among the
-  providers and none of `OKTA_API_PRIVATE_KEY`, `OKTA_API_TOKEN`,
-  `OKTA_ACCESS_TOKEN` is set, finalize only warns; the builder then skips
-  `plan` at generation time. The warning points at this README's
-  [Prerequisites and integration](#prerequisites-and-integration) section
-  (stage 63; it used to cite a credentials runbook in a `PLAN.md` that no
-  longer holds one).
+  otherwise finalize raises a `ValueError` naming the missing variable (a
+  real raise, not an `assert`, so it still fires when Python runs with
+  `-O`). When `okta` is among the providers and none of
+  `OKTA_API_PRIVATE_KEY`, `OKTA_API_TOKEN`, `OKTA_ACCESS_TOKEN` is set,
+  finalize only warns; the builder then skips `plan` at generation time.
+  The warning points at this README's
+  [Prerequisites and integration](#prerequisites-and-integration) section.
 
 ### `OktaGroupBuilderModel`
 
@@ -108,14 +120,22 @@ Extends
 which itself adds nothing to
 [`BuilderModel`](../base/src/cs_image_system/base/models/builder_model.py)
 (`name`, `type`, `description`, `aliases`, `executable`, `is_default`,
-`config`, `gitignore`, `tags`).
+`config`, `gitignore`, `tags`). The full table is
+[CONFIGURATION 9.2](../../docs/CONFIGURATION.md#92-group-builders). The
+keys this plugin adds:
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `gateway_selector` | `str \| None` | `None` | `gateway_selector` of every group's login project. |
-| `account_discovery` | `bool` | `True` | `account_discovery` of every group's login project. |
-| `workload_connection` | `str \| None` | `None` | The name of the team's OPA workload connection, made by hand once ([CI_SETUP.md, section 3.5](../../docs/examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access)). Read only together with `workload_role`. |
-| `workload_role` | `str \| None` | `None` | The name of the team's one workload role. With both names set, the builder keeps one CI login policy per managed group (`<group>_v1_security_policy_ci`) through the OPA API and reports it in the state query. |
+- `gateway_selector`: the `gateway_selector` of every group's login
+  project.
+- `account_discovery`: the `account_discovery` of every group's login
+  project.
+- `workload_connection`: the name of the team's OPA workload connection,
+  made by hand once
+  ([CI_SETUP.md, section 3.5](../../docs/examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access)).
+  Read only together with `workload_role`.
+- `workload_role`: the name of the team's one workload role. With both
+  names set, the builder keeps one CI login policy per managed group
+  (`<group>_v1_security_policy_ci`) through the OPA API and reports it in
+  the state query.
 
 `effective_gateway_selector` returns `gateway_selector` when set, otherwise
 the global `config.okta_gateway_selector` value, otherwise `None` (the
@@ -125,8 +145,8 @@ module call then omits the argument).
 
 Defined in
 [okta_opa_tf_group_models.py](src/cs_image_system/okta_opa_plugin/okta_opa_tf_group_models.py).
-`OktaTfWorkspaceModelMixin` + `OktaGroupBuilderModel`, plus `posix` (required
-since stage 75) and `posix_ssh_keys`. The managed group root: it expects
+`OktaTfWorkspaceModelMixin` + `OktaGroupBuilderModel`, plus `posix`
+(required) and `posix_ssh_keys`. The managed group root: it expects
 `oktapam` in `required_providers`.
 
 ### `OktaTfGroupRoBuilderModel` (`okta-tf-ro`)
@@ -143,14 +163,21 @@ extends
 [`UserBuilderModel`](../base/src/cs_image_system/base/models/user_builder.py)
 and adds no fields. `OktaTfUserBuilderModel`
 ([okta_opa_tf_user_models.py](src/cs_image_system/okta_opa_plugin/okta_opa_tf_user_models.py))
-mixes in the workspace fields. The base fields that matter here:
+mixes in the workspace fields. The full table is
+[CONFIGURATION 9.3](../../docs/CONFIGURATION.md#93-user-builders). What
+this plugin does with the base fields:
 
-| Base field (`UserBuilderModel`) | Default | Use in this plugin |
-|---|---|---|
-| `default_user_email_template` | `{{ user.name }}` | Renders a user's `email` when the item leaves it at `default`. The email is the value the `okta_user` lookup searches for (`profile.login`). |
-| `default_user_description_template` | `User {{ user.name }} / {{ user.email }}` | Renders a user's `description`; not emitted into HCL. |
-| `email_domain` | `None` | The organisation half of a derived address; folded into the template where it says `{{ builder.email_domain }}`. Declared encrypted, one marker serves every derived address (stage 51). |
-| `email_as_username` | `True` | When true, `user.name` must equal `user.email` (case-insensitive) or the run aborts; a blank name is set from the email. |
+- `default_user_email_template` renders a user's `email` when the item
+  leaves it at `default`. The email is the value the `okta_user` lookup
+  searches for (`profile.login`).
+- `default_user_description_template` renders a user's `description`;
+  not emitted into HCL.
+- `email_domain` is the organisation half of a derived address; folded
+  into the template where it says `{{ builder.email_domain }}`. Declared
+  encrypted, one marker serves every derived address.
+- `email_as_username`: when true, `user.name` must equal `user.email`
+  (case-insensitive) or the run aborts; a blank name is set from the
+  email.
 
 ### `OktaTfUserRoBuilderModel` (`okta-tf-ro`)
 
@@ -261,18 +288,17 @@ every other phase.
    - Deferred commands (written to `run-identity.sh`, each run inside the
      private mirror of the root): `rm -f tfplan`; `tofu init -input=false
      -reconfigure [-backend-config=...]`; `cs-image-system
-     prune-attachments --builder <ws> --tofu <binary> --run <run>` (stage
-     61 item 3 and stage 90, below: the one step in which anything leaves
-     state before the plan); `tofu plan -input=false -out=tfplan`;
+     prune-attachments --builder <ws> --tofu <binary> --run <run>`
+     (below: the one step in which anything leaves state before the
+     plan); `tofu plan -input=false -out=tfplan`;
      `cs-image-system gate-plan --planfile tfplan --tofu <binary>`; and,
      only when `config.apply_identity` allows this root,
      `cs-image-system apply-check --lifecycle identity --root <ws>`
      followed by `tofu apply -input=false tfplan`. When any group or user
      declares `attributes:`, one more deferred command follows:
      `cs-image-system --root-dir <root> --no-dry-run identity-attributes --probe --dry-run-apply`
-     (with the configuration since stage 63 item 8; until 2026-09-24 the
-     step was emitted bare and loaded from the root's mirror, which has no
-     `cfg/`, so a real run of a tree with attributes failed after the apply).
+     (with `--root-dir`, because the step loads the configuration and the
+     root's mirror has no `cfg/`).
 7. `pre_finalize_phase` / `post_finalize_phase`: not overridden.
 
 The module call
@@ -314,9 +340,9 @@ Hooks other lifecycles call on this builder:
 | `launch_parameters(group)` | `{"enrollment": "sftd-token", "server_label": "sftd.tx.group=<group>"}`. |
 | `export_gids(query, groups)` | `{group: gid}` read from OPA (`<group>_user`'s `unix_gid` attribute, then the bare name; a group without one is absent, never invented). Credentials come from `TF_VAR_<team>_key`/`_secret` or `OKTAPAM_KEY`/`OKTAPAM_SECRET`. |
 | `query_state()` | Per managed group: `present`, `gid`, `local_name`, `members`, `admins` (when OPA answers), whether an IaC-owned enrollment token exists on the login project (`enrollment_token`), and, when the workload fields are set, `workload` (role, policy, connection). A call that failed is `{present: false, error: ...}`; a 404 is `{present: false}`. Read-only. |
-| `can_query_servers()`, `registered_servers(group)`, `retire_servers_named(group, hostname)` | The OPA server registry of `<group>_rg_login` (stage 55): every enrolled server as `{id, hostname, address, canonical_name, alt_names, instance_id}`, or `None` when OPA could not be asked; retirement `DELETE`s every registration of a hostname and returns the ids, raising when the registry cannot be read. A `DELETE` answered 404 counts as already gone, judged by the error's status code (stage 63; it used to be judged by the text "404" in the message). |
-| `can_manage_workload_access()`, `workload_access_expected(group)`, `workload_access_state(group)`, `ensure_workload_access(group)` | The CI login policy (stage 56): true only with both `workload_connection` and `workload_role` set; what the configuration expects; what OPA holds; and the reconcile that creates, updates or leaves the `<group>_v1_security_policy_ci` policy as a copy of `<group>_v1_security_policy_user` with the role as its only principal and admin-level permissions forced off. |
-| `prune_stale_attachments(tofu, run, cwd)` | The runner step (stage 61 item 3): lists tofu state, keeps every `oktapam_user_group_attachment` the declaration still has, asks OPA about each dropped one and removes from state, after a backup, only those OPA no longer holds. |
+| `can_query_servers()`, `registered_servers(group)`, `retire_servers_named(group, hostname)` | The OPA server registry of `<group>_rg_login`: every enrolled server as `{id, hostname, address, canonical_name, alt_names, instance_id}`, or `None` when OPA could not be asked; retirement `DELETE`s every registration of a hostname and returns the ids, raising when the registry cannot be read. A `DELETE` answered 404 counts as already gone, judged by the error's status code and never by the text of the message, so a 500 whose text mentions 404 is a failure. |
+| `can_manage_workload_access()`, `workload_access_expected(group)`, `workload_access_state(group)`, `ensure_workload_access(group)` | The CI login policy: true only with both `workload_connection` and `workload_role` set; what the configuration expects; what OPA holds; and the reconcile that creates, updates or leaves the `<group>_v1_security_policy_ci` policy as a copy of `<group>_v1_security_policy_user` with the role as its only principal and admin-level permissions forced off. |
+| `prune_stale_attachments(tofu, run, cwd)` | The runner step: lists tofu state, keeps every `oktapam_user_group_attachment` the declaration still has, asks OPA about each dropped one and removes from state, after a backup, only those OPA no longer holds. |
 | `validate_attributes`, `query_attributes`, `attribute_conflicts` | OPA attribute validation and read-only reads through [opa_attributes.py](src/cs_image_system/okta_opa_plugin/opa_attributes.py) and [opa_gids.py](src/cs_image_system/okta_opa_plugin/opa_gids.py). |
 
 The OPA API client ([`OpaGidResolver`](src/cs_image_system/okta_opa_plugin/opa_gids.py))
@@ -329,9 +355,8 @@ group / project / enrollment-token / server listings under
 only through `DELETE .../servers/{id}`, `POST .../security_policy` and `PUT
 .../security_policy/{id}`. Token values are never fetched or returned. A
 listing longer than one page is followed through its `Link: <...>;
-rel="next"` header to the last page (stage 63 item 12; until 2026-09-24
-the first page alone was read). The policy
-derivation is pure code in
+rel="next"` header to the last page. The policy derivation is pure code
+in
 [workload_policy.py](src/cs_image_system/okta_opa_plugin/workload_policy.py).
 
 ### `OktaTfGroupRoBuilder` (`okta-tf-ro`)
@@ -342,8 +367,8 @@ image (prerequisites, activation, launch parameters) are inherited
 unchanged. What differs:
 
 - The hooks that would ask OPA about a group or point at something the
-  managed root makes answer the read-only truth instead (stage 63 item
-  18): `manages_groups()` is `False`, so the identity read-model records
+  managed root makes answer the read-only truth instead:
+  `manages_groups()` is `False`, so the identity read-model records
   each group `managed: false` and neither the never-destroy rule nor the
   state query's drift rule applies to it; `query_state()` returns `{}`
   without asking OPA; `enrollment_token_reference()` is `None`, because
@@ -351,8 +376,8 @@ unchanged. What differs:
   `can_query_servers()` and `can_manage_workload_access()` are `False`;
   `query_attributes()` and `attribute_conflicts()` raise
   `NotImplementedError`, which the attribute plan reports as "cannot query
-  attributes". Before 2026-09-25 all of these were the managed parent's,
-  so a group on this builder read `missing [HARD]`.
+  attributes". Because none of these answers is the managed parent's, a
+  group on this builder never reads `missing [HARD]`.
 - When a managed builder of the same identity type exists, it comes first
   for the image bake and the in-bake verification, whatever the names sort
   to, so the prerequisites comment names the managed builder.
@@ -418,7 +443,7 @@ emission and commands are the parent's.
 Real file names from the golden emission under
 [tests/fixtures/v2_golden/generated/identity](../../tests/fixtures/v2_golden/generated/identity),
 produced by the fixture's `oktagroups` (`okta-tf`), `okta-groups-ro`
-(`okta-tf-ro`, one group, `readers`, since stage 63 item 18) and
+(`okta-tf-ro`, one group, `readers`) and
 `okta-tf-users` (`okta-tf-ro`) builders, all bound to the fixture's
 `local-dev` state backend. The read-only group root is
 `okta-groups-ro/group-generation/`: the scaffolding file and
@@ -595,7 +620,7 @@ the provider entry's `config:` and passes through untouched.
 
 **A terraform binary.** `executable:` names a `cfg/executables.yml` entry
 whose binary is `tofu` or `terraform`; the version floor is that entry's
-requirement, checked at `validate` and before every run (stage 48). The
+requirement, checked at `validate` and before every run. The
 providers `okta/oktapam` (`>= 0.6.3` in the fixture and the live tree;
 0.7.1 is the version the code's behaviour is written against),
 `okta/okta` (`>= 6.0`) and `hashicorp/external` (unpinned, added by the
@@ -645,7 +670,7 @@ hand once in the OPA admin console following
 [the CI setup guide, section 3.5](../../docs/examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access), then named on
 the `okta-tf` group builder as `workload_connection` and `workload_role`.
 The system reads both by name and never writes them. The bootstrap's
-Okta and OPA section (stage 70 step 6, `okta =
+Okta and OPA section (`okta =
 cs_image_system.okta_opa_plugin.bootstrap:okta_section` in the
 `cs_image_system.bootstrap` entry-point group) checks them -- present,
 ACTIVE, requiring this repository, the role bound and pinned to the
@@ -695,8 +720,8 @@ A `required_providers` entry:
 | `gateway_selector` | `str \| None` | `None` | The login project's `gateway_selector` in every module call; `None` falls back to `config.okta_gateway_selector`, and with neither the argument is omitted. Accepted, not read by `okta-tf-ro` (no module call). |
 | `account_discovery` | `bool` | `True` | The login project's `account_discovery`. Accepted, not read by `okta-tf-ro`. |
 | `workload_connection` | `str \| None` | `None` | The team's workload connection, by name. Read only when `workload_role` is set too. |
-| `posix` | `str \| None` | none: **required** on `okta-tf` | Stage 75. The posix group builder that makes this builder's groups exist on the machines of their images, by name, or `none` for no posix configuration. Absent or empty is refused at `validate`, as is a name that is no declared group builder or one not of type posix. With a name: every instance image of these groups bakes the delegate's login hook, and every applying instance run creates each group on its running machines with OPA's gid (asked read-only) and writes its member list -- members and admins, the root group's admins merged as OPA has them; OPA's agent makes each account at a login and drops its groups when it deletes it, so the hook adds the user at every login. With `none`, `validate` and the state query note each group that stays off its machines. Not read by `okta-tf-ro`. |
-| `posix_ssh_keys` | `bool` | `False` | Stage 75, opt-in: the login hook also installs each member's declared `public_keys:` as their `authorized_keys` -- a key path beside OPA's certificates. |
+| `posix` | `str \| None` | none: **required** on `okta-tf` | The posix group builder that makes this builder's groups exist on the machines of their images, by name, or `none` for no posix configuration. Absent or empty is refused at `validate`, as is a name that is no declared group builder or one not of type posix. With a name: every instance image of these groups bakes the delegate's login hook, and every applying instance run creates each group on its running machines with OPA's gid (asked read-only) and writes its member list -- members and admins, the root group's admins merged as OPA has them; OPA's agent makes each account at a login and drops its groups when it deletes it, so the hook adds the user at every login. With `none`, `validate` and the state query note each group that stays off its machines. Not read by `okta-tf-ro`. |
+| `posix_ssh_keys` | `bool` | `False` | Opt-in: the login hook also installs each member's declared `public_keys:` as their `authorized_keys` -- a key path beside OPA's certificates. |
 | `workload_role` | `str \| None` | `None` | The team's workload role, by name. With both set the builder manages one CI login policy per managed group and reports the three objects in the state query. |
 
 ### User builders (`okta-tf`, `okta-tf-ro`)
@@ -757,7 +782,7 @@ str must not be blank. They are planned and probed, never written.
   needs the `okta` provider instead of `oktapam`, so no `TF_VAR_<team>_*`
   check fires for it. The image hooks (prerequisites, activation,
   launch parameters) are inherited; the hooks that read or point into OPA
-  are not (stage 63 item 18): a group on an `okta-tf-ro` builder is
+  are not: a group on an `okta-tf-ro` builder is
   recorded as `identity_type: okta`, `gid_policy: creation-only` and
   `managed: false`, the state query asks OPA nothing about it, no
   enrollment token is referenced for it, and it has no CI login policy.
@@ -773,13 +798,13 @@ str must not be blank. They are planned and probed, never written.
   comment, the group leaves the outputs, and the runner's pre-plan step
   (`prune-attachments`) removes from state, after a backup, whatever the
   state still holds under `module.group_<label>`. Nothing is destroyed.
-  The step decides from the state it lists when it runs (stage 90), not
-  from the identity read-model: generation rewrites that file on every
-  dry run and every `record`, and until 0.1.1.dev23 a group whose
-  release had been looked at first was recorded as released, got no
-  removal, and was planned for destruction (the gate refused it; live
-  2026-10-13). A dry run logs which groups the step will look for. The
-  CI policy reconcile and `query_state` skip an unmanaged group.
+  The step decides from the state it lists when it runs, not from the
+  identity read-model, because generation rewrites that file on every
+  dry run and every `record`. A tree on an older release can still plan
+  such a group for destruction (the gate refuses it);
+  [the stage index](../../docs/CHANGES.md#r0-1-1-dev23) places the rule.
+  A dry run logs which groups the step will look for. The CI policy
+  reconcile and `query_state` skip an unmanaged group.
 - **`include_root_group_in_admins: false`.** The root group's admin
   usernames are not merged into this group's `admins`, in the module call
   and in what `prune_stale_attachments` treats as declared. The state
@@ -857,8 +882,8 @@ type or a missing `org`/`team`; the base model refuses `parameters`.
 workspace's `finalize()` checks that `TF_VAR_<team>_key` and
 `TF_VAR_<team>_secret` exist when `oktapam` is declared and `key`/`secret`
 are at `default` (a `ValueError` that fails every configuration load,
-`validate` included; stage 63 made it a real raise instead of an `assert`,
-so it still fires under `python -O`), and logs a warning when `okta` is declared and no
+`validate` included; a real raise, not an `assert`, so it still fires
+under `python -O`), and logs a warning when `okta` is declared and no
 `OKTA_API_*` credential is set. Verdicts: an exception with the message
 below, or a log line `Okta builder <name>: no okta/okta credentials in the
 environment (...); 'plan' will be skipped for this workspace. The
@@ -976,8 +1001,13 @@ outcomes.
 
 ## When it fails
 
-Two refusals come first because every tree meets them once, on the
-release that carries stage 75:
+Incidents that have happened, with their cause and fix, are recorded on
+[INCIDENTS.md](../../docs/INCIDENTS.md); what follows keeps each
+failure's symptom, its meaning and what to do.
+
+Two refusals come first because every tree meets them once, when its
+`okta-tf` group builders first need a `posix:` line
+([the stage index](../../docs/CHANGES.md#s75) places the rule):
 
 | Symptom | Meaning | Do |
 |---|---|---|
@@ -986,23 +1016,21 @@ release that carries stage 75:
 | `Instance <i>: the accounts script of group <g> could not be made: ...` in an applying run's log | OPA could not be asked for the group's gid (the key pair, the network) | fix the credentials; the next applying run makes the group |
 | `note: group <g>: its builder <b> says `posix: none` ...` | the team chose no posix configuration | nothing, if that is the choice; the group's storage subtree stays owned by a bare gid |
 
-Failures that have happened, oldest first. Each names the symptom as the
-operator saw it, what it meant, where to look and what to do; the dated
-record is in [docs/OPERATIONS.md](../../docs/OPERATIONS.md),
-[docs/history/LEDGER.md](../../docs/history/LEDGER.md),
-[the CI setup guide](../../docs/examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access) and
-[tests/test_v2_hygiene_five.py](../../tests/test_v2_hygiene_five.py).
+Failures by symptom: what each means and what to do. Each names the
+symptom as the operator sees it, what it means, where to look and what
+to do; the general rules are in
+[docs/OPERATIONS.md](../../docs/OPERATIONS.md) and
+[the CI setup guide](../../docs/examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access).
 
-- **Memberships that already existed in OPA (stage 1, 2026-08-31 to
-  2026-09-02).** The first identity plan wanted to *create*
-  `oktapam_user_group_attachment` resources that stood in OPA already, and
-  the provider would have errored on apply. Repair: `tofu import` each
+- **An identity plan wants to *create* `oktapam_user_group_attachment`
+  resources that already stand in OPA.** The memberships exist out of
+  band and the provider would error on apply. Repair: `tofu import` each
   live attachment first; the import id is `<group>|<username>` (a `/`
-  separator is rejected). Six imports, zero OPA writes, then a plan
-  reading "No changes". Rule since: never let a plan create an attachment
-  that already exists (OPERATIONS "Adopt out-of-band group membership").
+  separator is rejected); zero OPA writes, then a plan reading "No
+  changes". Rule: never let a plan create an attachment that already
+  exists (OPERATIONS "Adopt out-of-band group membership").
 
-- **An enrollment token deleted out of band (finding 32, 2026-09-02).**
+- **An enrollment token deleted out of band.**
   The identity plan ERRORS at refresh (oktapam 0.7.1 cannot plan the
   recreate); the state query shows `groups/<g>: missing ... IaC-owned
   launch enrollment token missing from the identity provider ... [HARD]`
@@ -1012,62 +1040,56 @@ record is in [docs/OPERATIONS.md](../../docs/OPERATIONS.md),
   affected). The state query's `enrollment_token` probe is the only
   witness.
 
-- **A stale plan file passed the gate (finding 33, 2026-09-02).** A failed
-  plan left an older `tfplan` that `gate-plan` accepted. Since then the
-  runner starts every root with `rm -f tfplan` and `gate-plan` refuses a
-  plan file older than the root's newest `*.tf` (exit 3, `STALE
-  PLANFILE`).
+- **`STALE PLANFILE` (exit 3) from `gate-plan`.** The plan file is older
+  than the root's newest `*.tf`: a failed plan left an older `tfplan`,
+  which the gate refuses rather than apply, and the runner starts every
+  root with `rm -f tfplan` so a stale file never survives into the next
+  sequence. Rerun the sequence so a fresh plan is written.
 
 - **`Okta builder oktagroups is missing a key value. Expected to find
-  environment variable TF_VAR_nos_coastal_modeling_cloud_sandbox_key ...`
-  (finding 87, 2026-09-15).** Every configuration load finalizes the
-  workspace and checks the pair; CI had been red for 245 runs because
-  three tests inherited the developer's `.envrc` locally and had nothing
-  in CI. Any command that loads the tree (`validate`, `run`, `state
-  query`, `verify`) dies with this error (an `AssertionError` then; a
-  `ValueError` since stage 63, 2026-09-25). Repair: `source
-  .envrc` (or export the two variables); in CI the secrets
-  `TF_VAR_NOS_KEY`/`TF_VAR_NOS_SECRET`.
+  environment variable TF_VAR_nos_coastal_modeling_cloud_sandbox_key ...`**
+  Every configuration load finalizes the workspace and checks the pair,
+  so any command that loads the tree (`validate`, `run`, `state query`,
+  `verify`) dies with this `ValueError`; a test that passes on your local
+  machine because it inherits the developer's `.envrc` has nothing in CI.
+  Repair: `source .envrc` (or export the two variables); in CI the
+  secrets `TF_VAR_NOS_KEY`/`TF_VAR_NOS_SECRET`.
 
-- **A secret that exists but is empty (2026-09-16).** Three green `live`
-  runs ran nothing because `OKTA_API_PRIVATE_KEY` had been set to the
-  empty string from a checkout missing `.envrc`; the finalize warning
-  `no okta/okta credentials in the environment` is exactly what an empty
-  value produces. Since then the CI gate names every missing or empty
-  secret and fails, and `preflight` exits 2 on any credential-shaped
-  variable (`OKTA_*`, `TF_VAR_*`, ...) that is set but empty. A job's
-  conclusion is never proof its steps ran.
+- **`no okta/okta credentials in the environment` from finalize while
+  the variable is set.** The value is the empty string, which a checkout
+  missing `.envrc` exports; the warning is exactly what an empty value
+  produces, and a green job can then run nothing. The CI gate names
+  every missing or empty secret and fails, and `preflight` exits 2 on
+  any credential-shaped variable (`OKTA_*`, `TF_VAR_*`, ...) that is set
+  but empty. A job's conclusion is never proof its steps ran.
 
-- **Five standing groups read as deleted (2026-09-21, stage 61 item 1
-  landed 2026-09-23).** With an unsourced `.envrc` the API answered 401
-  and `query_state` reported every group `present: false`, so the state
-  query printed five `missing ... [HARD]` lines and refused the run.
-  Since stage 61 a failed call is `{present: false, error: "HTTP 401
-  Unauthorized"}` and the report says `unavailable: groups/<g>: HTTP 401
-  Unauthorized`; only an answered 404 is `missing`. A 401 or "no gid"
-  means the wrong or lapsed key pair: check which pair the environment
-  exports (the last export wins) and rotate in the OPA console if it
-  expired.
+- **`unavailable: groups/<g>: HTTP 401 Unauthorized` for every group.**
+  The API answered 401: an unsourced `.envrc`, or the wrong or lapsed
+  key pair. A failed call is `{present: false, error: "HTTP 401
+  Unauthorized"}` and reported `unavailable`, never `missing ... [HARD]`,
+  so a lapsed pair cannot read as standing groups deleted; only an
+  answered 404 is `missing`. A 401 or "no gid" means the wrong or lapsed
+  key pair: check which pair the environment exports (the last export
+  wins) and rotate in the OPA console if it expired.
 
-- **Three registrations of one hostname (stage 55, 2026-09-21).** Every
-  relaunch of `coops-model` enrolled another server under the same
-  canonical name and `sft ssh coops-model` could not choose. The
-  team-level `/v1/teams/<team>/projects/...` path answered `401 Missing
-  capability`; servers answer only under
-  `/resource_groups/<rg>/projects/<prj>/servers` (`GET` 200, `DELETE`
-  204), which the resolver walks from the resource-group and project
-  *names* (`<g>_rg`, `<g>_rg_login`) to their ids. Since then a
-  decommission or replacement retires the registration (an `ERROR`
-  naming the hostname when it cannot: `Instance <n>: its OPA registration
-  as '<h>' was NOT retired (...); a stale server will answer to that name
-  until it is deregistered by hand`), and a run that can launch refuses a
-  claimed or unreadable name (`could not check whether canonical hostname
-  ... is already claimed ... refusing to launch on silence`). The two
-  duplicates were deleted by hand on 2026-09-21.
+- **Several registrations of one hostname; `sft ssh <name>` cannot
+  choose.** Every relaunch of an instance enrolls another server under
+  the same canonical name unless the old registration is retired.
+  Servers answer only under `/resource_groups/<rg>/projects/<prj>/servers`
+  (`GET` 200, `DELETE` 204; the team-level `/v1/teams/<team>/projects/...`
+  path answers `401 Missing capability`), which the resolver walks from
+  the resource-group and project *names* (`<g>_rg`, `<g>_rg_login`) to
+  their ids. A decommission or replacement retires the registration (an
+  `ERROR` naming the hostname when it cannot: `Instance <n>: its OPA
+  registration as '<h>' was NOT retired (...); a stale server will answer
+  to that name until it is deregistered by hand`), and a run that can
+  launch refuses a claimed or unreadable name (`could not check whether
+  canonical hostname ... is already claimed ... refusing to launch on
+  silence`). Duplicates that already stand are deleted by hand in the
+  OPA console.
 
-- **The first reconcile refused by hard drift (2026-09-22).** The run
-  that would create the CI policies was refused because their absence
-  was reported as hard drift. Workload drift is now never hard: `missing`
+- **The run that would create the CI policies is refused because their
+  absence reads as drift.** Workload drift is never hard: `missing`
   for an absent role (`workload role '...' named in the configuration is
   not known to OPA; the operator creates it (CI_SETUP.md section 3.5
   section 2)`) or an absent policy (`CI login policy '...' is absent; an
@@ -1076,61 +1098,60 @@ record is in [docs/OPERATIONS.md](../../docs/OPERATIONS.md),
   -- <leaf>: <standing> != <desired>`). A strict query still fails on
   them; the identity apply is the repair.
 
-- **`GET /v1/teams/<team>/workload_roles` answered 404 (2026-09-22).**
-  The path is hyphenated, `workload-roles`, as Okta's PAM SDK carries it;
+- **`GET /v1/teams/<team>/workload_roles` answers 404.** The path is
+  hyphenated, `workload-roles`, as Okta's PAM SDK carries it;
   the connections path is `connections/workloads`. A 404 from either
   listing surfaces as `unavailable:` in the state query and as `OPA's
   security policies or workload roles could not be read` from the
   reconcile.
 
-- **`HTTP Error 400` and nothing more (2026-09-22).** The first live
-  policy write taught nothing because the API's explanation was in the
-  response body. `_send` now raises `POST /v1/teams/.../security_policy:
-  HTTP 400 Bad Request -- <body>`; and a stored rule carries
-  `security_policy_id`, the one field on which a copy differed from its
-  original, so the comparison strips OPA's bookkeeping ids at every depth.
+- **`HTTP 400 Bad Request` from a policy write.** The API's explanation
+  is in the response body, so `_send` raises `POST
+  /v1/teams/.../security_policy: HTTP 400 Bad Request -- <body>`; read
+  the body. A stored rule carries `security_policy_id`, the one field on
+  which a copy differs from its original, so the comparison strips OPA's
+  bookkeeping ids at every depth.
 
-- **Every derived lookup failed on a real run (2026-09-22).** After stage
-  51 the emission carries `<name>@ENC[age:...]` addresses; the
-  generation-time plan ran in `generated/` and searched Okta for the
-  ciphertext. The plan (and the runner) now run in the private mirror
-  after `cs-image-system materialize .`. A hand `tofu plan` in
-  `generated/identity/...` reproduces the failure; plan in
+- **Every derived user lookup fails on a real run.** The emission
+  carries `<name>@ENC[age:...]` addresses, so a plan run in `generated/`
+  searches Okta for the ciphertext. The plan (and the runner) run in the
+  private mirror after `cs-image-system materialize .`; a hand `tofu
+  plan` in `generated/identity/...` reproduces the failure. Plan in
   `_private/identity/...` instead, with `CSIS_CONFIG_IDENTITY` and
   `cs-image-system` on `PATH`.
 
-- **`sft resolve --quiet` exit 126 with no output (2026-09-22).** The
+- **`sft resolve --quiet` exit 126 with no output.** The
   client wanted a browser: run by hand it means an expired client session
   (`sft login` first); as the workload it means `OPA_TOKEN` is missing or
   was refused. The login proof records `the client has no session ...`.
 
-- **A dropped membership blocked every identity plan (hygiene V item 3,
-  2026-09-23).** A user removed from a group's roster after being removed
-  in OPA made the provider ERROR on refresh, `user "x" is not present
-  within group "g"`, instead of planning the destroy; the plan never ran.
-  Three live attempts the same day taught that the read-model written at
-  generation outlived the failed runner (it said the membership was
-  already gone; only `tofu state list` is a witness), that the CLI's load
-  changes directory to the configuration root (a runner step must act in
-  the directory it was invoked from; the first backup pulled nothing from
-  the wrong directory at 10:15, said "nothing to keep" and let the
-  removal run unbacked), and that a pipe to `tail` masked the bar's exit
-  code. Since then every identity runner carries `prune-attachments`
-  between `init` and `plan`, backing the state up first; proved 10:46
-  (backup serial 36 kept, one attachment removed, plan clean). If the
-  plan still errors this way, the membership is one OPA still holds:
-  either restore the roster entry or remove the member in OPA and rerun.
+- **`user "x" is not present within group "g"` from the provider at
+  refresh; the plan never runs.** A user removed from a group's roster
+  after being removed in OPA makes the provider ERROR instead of planning
+  the destroy. Every identity runner therefore carries
+  `prune-attachments` between `init` and `plan`, backing the state up
+  first. Three rules shape that step: the read-model written at
+  generation outlives a failed runner (it says the membership is already
+  gone; only `tofu state list` is a witness); the CLI's load changes
+  directory to the configuration root, so a runner step must act in the
+  directory it was invoked from (a backup pulled from the wrong
+  directory says "nothing to keep" and lets the removal run unbacked);
+  and a pipe to `tail` masks the bar's exit code. If the plan still
+  errors this way, the membership is one OPA still holds: either restore
+  the roster entry or remove the member in OPA and rerun.
 
-- **A replacement's old registration claimed the new machine's alias
-  (stage 19 step 5, 2026-09-22).** `retire_servers_named` now runs for
-  the machine a replacement retires, and the alias pass waits for a
-  machine launched in the same run to enroll before writing `AltNames`.
+- **A replacement's old registration claims the new machine's alias.**
+  `retire_servers_named` runs for the machine a replacement retires, and
+  the alias pass waits for a machine launched in the same run to enroll
+  before writing `AltNames`; the symptom means the retirement logged its
+  `NOT retired` error. Deregister the stale server by hand under the
+  resource-group path.
 
-- **Debian vendor images without `curl` or `gnupg` (found live, stage
-  1).** The apt path of `base_image_prerequisites` installs them first.
-  The rpm path needs nothing beyond `rpm` and `yum`.
+- **Debian vendor images without `curl` or `gnupg`.** The apt path of
+  `base_image_prerequisites` installs them first. The rpm path needs
+  nothing beyond `rpm` and `yum`.
 
-Failures the code raises that have not been seen live:
+Failures the code raises:
 
 - `OPA credentials for team '<team>' not found in the environment
   (TF_VAR_<team>_key/TF_VAR_<team>_secret or OKTAPAM_KEY/OKTAPAM_SECRET)`
@@ -1169,9 +1190,8 @@ Failures the code raises that have not been seen live:
   (`ValueError` from `retire_server`) and any non-404 error from the
   `DELETE`: the decommission logs the `NOT retired` error and completes;
   deregister by hand under the resource-group path. A 404 is recognised
-  by the error's status code (stage 63); until 2026-09-25 any error whose
-  text contained "404" counted as already retired, so a 500 mentioning
-  404 was recorded as a retirement that never happened.
+  by the error's status code and never by the text of the message, so a
+  500 whose text mentions 404 is not recorded as a retirement.
 - `OPA could not be asked for group '<g>''s servers; registration of
   '<h>' NOT retired` (`RuntimeError` from `retire_servers_named`): same
   handling.
@@ -1262,5 +1282,5 @@ Failures the code raises that have not been seen live:
   [the CI setup guide, section 3.5](../../docs/examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access).
 - Tests: [tests/](tests) -- the module call, the workspace mixin, the
   resource emitters, the four builder roots, the gid shim, the server
-  registry and the workload policy; the stage 61 runner step in
-  [tests/test_v2_hygiene_five.py](../../tests/test_v2_hygiene_five.py).
+  registry and the workload policy; the `prune-attachments` runner step
+  in [tests/test_v2_hygiene_five.py](../../tests/test_v2_hygiene_five.py).

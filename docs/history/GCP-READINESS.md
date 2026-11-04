@@ -4,10 +4,10 @@
 
 **All Work Complete As of 2026-09-12**
 
-*Written 2026-09-02 from a read of [PLAN.md](../../PLAN.md) ("GCP increment 3"),
-[EXPLORE.md](../../EXPLORE.md) ("GCP Support — exploration"),
-[DESCRIPTION.md](../../DESCRIPTION.md), [GOALS.md](../../GOALS.md), [TODO.md](../../TODO.md) and
-[docs/OPERATIONS.md](../OPERATIONS.md).*
+*Written 2026-09-02 from a read of [PLAN.md](../../PLAN.md) (a live file, not part of this record) ("GCP increment 3"),
+[EXPLORE.md](EXPLORE.md) ("GCP Support — exploration"),
+[DESCRIPTION.md](../DESCRIPTION.md) (a live file, not part of this record), [GOALS.md](../../GOALS.md) (a live file, not part of this record), [TODO.md](../../INPROGRESS/TODO.md) (a live file, not part of this record) and
+[docs/OPERATIONS.md](../OPERATIONS.md) (a live file, not part of this record).*
 
 Goal: get the repo, the operator, and a Google Cloud project ready for a
 first **real** GCP run of the four-lifecycle meta-workflow, spending as
@@ -35,7 +35,7 @@ against the live pricing pages before any apply — see section 3.
 
 ## 1. Decisions to close first (stakeholder)
 
-These are the open questions recorded in [PLAN.md](../../PLAN.md) "GCP
+These are the open questions recorded in [PLAN.md](../../PLAN.md) (a live file, not part of this record) "GCP
 increment 3 → Open questions". Each blocks a later section.
 
 - [x] **Project (decided 2026-09-02): `csis-sandbox`, number
@@ -133,7 +133,7 @@ the pricing console before any large image is kept:
 
 ## 4. Credentials (environment-only, per the credential contract)
 
-The contract in [docs/OPERATIONS.md](../OPERATIONS.md): no
+The contract in [docs/OPERATIONS.md](../OPERATIONS.md) (a live file, not part of this record): no
 credential ever enters the config tree, generated IaC, or meta-state —
 everything arrives via the environment. PLAN.md's increment-3 record
 confirms GCP follows suit (`GOOGLE_APPLICATION_CREDENTIALS`/ADC).
@@ -160,12 +160,12 @@ confirms GCP follows suit (`GOOGLE_APPLICATION_CREDENTIALS`/ADC).
       account) is the acceptable quick fallback for dry runs only.
 - [x] **Fixture credential leak-shape fixed (2026-09-02)**: the
       `service_account_key_file` field is removed from
-      [test_folder/cfg/runtime-builders.yml](../../test_folder/cfg/runtime-builders.yml);
+      [test_folder/cfg/runtime-builders.yml](../../tests/fixtures/config/cfg/runtime-builders.yml) (a live file, not part of this record);
       credentials are environment-only (ADC or
       `GOOGLE_APPLICATION_CREDENTIALS`). The plugin resolves project
       from config and falls back to default credentials.
 - [x] (done 2026-09-02) Add the GCP row to the credential-contract table in
-      [docs/OPERATIONS.md](../OPERATIONS.md) once the form is
+      [docs/OPERATIONS.md](../OPERATIONS.md) (a live file, not part of this record) once the form is
       chosen.
 - [x] (confirmed 2026-09-02: impersonated ADC verified live — token mints and a compute read as csis-runner listed the empty project) Confirm the dual-credential story for the first run: AWS
       credentials for the S3 state backend **and** GCP ADC in the same
@@ -174,7 +174,7 @@ confirms GCP follows suit (`GOOGLE_APPLICATION_CREDENTIALS`/ADC).
 ## 5. Config tree: replace the placeholders
 
 All of these are fixture values in
-[test_folder/cfg/runtime-builders.yml](../../test_folder/cfg/runtime-builders.yml)
+[test_folder/cfg/runtime-builders.yml](../../tests/fixtures/config/cfg/runtime-builders.yml) (a live file, not part of this record)
 (the increment-3 record says real values drop in without code change):
 
 - [x] Replace `projects/my-project/...` subnet identifiers — **done
@@ -202,7 +202,7 @@ All of these are fixture values in
       free). PLAN.md gate 5 records that the system generates **no IAM
       changes** — IAP grants (`roles/iap.tunnelResourceAccessor`) are an
       operator prerequisite like the SSM instance profile was; written
-      into [docs/OPERATIONS.md](../OPERATIONS.md) ("IAP sessions
+      into [docs/OPERATIONS.md](../OPERATIONS.md) (a live file, not part of this record) ("IAP sessions
       on GCE").
 - [x] GCP storage entries defined (2026-09-02): `gce_data` (pd, 30 GB —
       the whole free allotment) and `gce_bucket` (gcs,
@@ -393,14 +393,14 @@ Mirror the stage-1 AWS discipline recorded in PLAN.md / docs/LEDGER.md:
       instance **torn down through the gated decommission** (findings
       52–53 fixed on the way), storages kept. Post-teardown: zero
       instances, `gce-data` 30 GB (free tier) + image storage only.
-- [x] Record findings in [PLAN.md](../../PLAN.md) and the docs/LEDGER.md ledger,
+- [x] Record findings in [PLAN.md](../../PLAN.md) (a live file, not part of this record) and the docs/LEDGER.md ledger,
       as stage 1 did — ledger 42–54, PLAN.md sections per stage.
 
 ## 10. Ongoing cost hygiene
 
 - [x] Weekly: billing report filtered by the csis labels; anything
       non-zero must map to a known, intended resource — the query and
-      acceptance rule are [BILLING_REMINDERS.md §2c](../../BILLING_REMINDERS.md);
+      acceptance rule are [BILLING_REMINDERS.md §2c](../../REMINDERS.md) (a live file, not part of this record);
       Apple Reminder in place 2026-09-07.
 - [x] After every failed bake: check for and delete orphan GCE images /
       disks (`foreign` in state-query terms) — the "orphan sweep" Apple
@@ -411,5 +411,5 @@ Mirror the stage-1 AWS discipline recorded in PLAN.md / docs/LEDGER.md:
 - [x] ~~Before the trial credit expires (day ~85): re-run the billing
       review and decide what, if anything, is worth keeping past $0.~~
       Moot 2026-09-06: the account has no credits at all (see
-      [BILLING_REMINDERS.md §2a](../../BILLING_REMINDERS.md)); spend control is
+      [BILLING_REMINDERS.md §2a](../../REMINDERS.md) (a live file, not part of this record)); spend control is
       the budget plus the weekly review.

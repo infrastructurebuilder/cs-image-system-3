@@ -41,9 +41,7 @@ builders can be registered from an `instance` entry point.
 `NotImplementedError`, so a builder entry with `type: tf-aws` cannot emit
 anything; it exists so the three AWS subclasses and the GCP plugin share one
 implementation. Each subclass binds the base's model type parameter to its
-own model; `TofuS3StorageBuilder` has had its own parameter bound to
-`TofuS3StorageBuilderModel` since stage 63 (a typing change only, so
-`self.model` is known to carry the S3 fields; no behaviour changed).
+own model, so `self.model` is known to carry that model's fields.
 
 The version checkers are selected by an **executable** entry, not by a
 builder: an entry in `cfg/executables.yml` with `type: tofu` is checked by
@@ -74,20 +72,17 @@ in [builder_model.py](../base/src/cs_image_system/base/models/builder_model.py),
 [instance_builder.py](../base/src/cs_image_system/base/models/instance_builder.py)
 and [storage_builder.py](../base/src/cs_image_system/base/models/storage_builder.py).
 
-Fields every builder model inherits from the base:
-
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `name` | str | required | Builder name; normalized (lowercase, spaces to `_`). `/` and `\` are refused. |
-| `type` | str | required | The service name that selects the plugin class. |
-| `description` | str \| None | None | Free text. |
-| `aliases` | set[str] | {} | Extra names the registry resolves to this builder. |
-| `executable` | str \| None | None (base) | Name of an entry in `cfg/executables.yml`. |
-| `is_default` | bool | false | The builder chosen for `type: default`. |
-| `config` | dict | {} | Arbitrary map; not read by this plugin. |
-| `gitignore` | list[str] | [] | Extra ignore patterns; not read by this plugin. |
-| `tags` | dict[str, str] | {} | Not read by this plugin (the instance's and storage's own tags are). |
-| `runtime` | str | `default` | Foreign key to a runtime builder; `default` resolves to the default runtime. Required at generation. |
+The fields every builder inherits (`name`, `type`, `description`,
+`aliases`, `executable`, `is_default`, `config`, `gitignore`, `tags`,
+and `runtime` for a runtime-enabled builder) are tabled in
+[CONFIGURATION 4.1](../../docs/CONFIGURATION.md#41-fields-common-to-every-builder). What they
+mean here: `name` is normalized (lowercase, spaces to `_`) and `/` and
+`\` are refused; `type` is the service name that selects the plugin
+class; `executable` names an entry in `cfg/executables.yml`; `is_default`
+is the builder chosen for `type: default`; `config`, `gitignore` and
+`tags` are not read by this plugin (the instance's and storage's own tags
+are); `runtime` (`default` resolves to the default runtime) is the
+foreign key to a runtime builder and is required at generation.
 
 The base refuses a `parameters:` key on any builder with a message naming
 `variables:` as the replacement.
@@ -98,13 +93,19 @@ Defined in
 [tf_instance_models.py](src/cs_image_system/tf_ebs_instance_plugin/tf_instance_models.py).
 Extends `InstanceBuilderModel`
 ([instance_builder.py](../base/src/cs_image_system/base/models/instance_builder.py)),
-which adds no fields of its own over `RuntimeEnabledBuilderModel`.
+which adds no fields of its own over `RuntimeEnabledBuilderModel`. The
+field table is [CONFIGURATION 8.1](../../docs/CONFIGURATION.md#81-instance-builders); what the
+fields mean here:
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `executable` | str \| None | `"tofu"` | Overrides the base default of None. |
-| `required_plugins` | list[`TFTofuPluginModel`] | [] | Terraform providers for the root's `required_providers`: `name` (required), `version` (required), `source` (optional), `config` (accepted, not read). Empty means one `aws` provider from `hashicorp/aws` with no version constraint. |
-| `state_configuration` | str (foreign key to `STATE_BACKEND_MODEL`) | `default` | The state backend for this workspace, by backend name. `default` resolves through the chain: the runtime's `state_configuration`, else the backend with `is_default: true`. |
+- `executable` defaults to `"tofu"`, overriding the base default of None.
+- `required_plugins` (`[]`): terraform providers for the root's
+  `required_providers`: `name` (required), `version` (required), `source`
+  (optional), `config` (accepted, not read). Empty means one `aws`
+  provider from `hashicorp/aws` with no version constraint.
+- `state_configuration` (`default`): the state backend for this
+  workspace, by backend name. `default` resolves through the chain: the
+  runtime's `state_configuration`, else the backend with
+  `is_default: true`.
 
 Not supported: `variables:` (an instance root's module inputs are computed
 from the instance and the runtime), `modifications:` (those belong on
@@ -113,24 +114,39 @@ images), `parameters:` (refused).
 ### The `Instance` item this builder reads
 
 The builder consumes base `Instance` items from
-[instance.py](../base/src/cs_image_system/base/models/instance.py). The
-fields that reach the emission:
+[instance.py](../base/src/cs_image_system/base/models/instance.py), whose
+field table is [CONFIGURATION 11.3](../../docs/CONFIGURATION.md#113-instances). The fields that
+reach the emission, and what they mean here:
 
-| Field | Type | Default | Meaning | Allowed values |
-|---|---|---|---|---|
-| `type` | str | `default` | The instance builder (name or alias). | any registered instance builder |
-| `image` | str | None | The image to launch; required for generation. The image's `group` is the instance's owning group. | any declared image |
-| `runtime` | str | `default` | The runtime builder. | any runtime |
-| `storages` | list[`StorageMapping`] | [] | Per-instance attachments: `name` (a storage), `mount_point` (default `/mnt/storage`), `min_size` (default 100; not read by this plugin). The same storage listed twice keeps the later mapping. | storages the image's group may use |
-| `userdata` | str | "" | Extra shell lines appended to the generated launch script, before the completion marker. | |
-| `image_policy` | str | `pinned` | `pinned` keeps the launched build until an explicit upgrade; `follow` plans a gated replacement whenever the image's series head moves. | `pinned`, `follow` |
-| `ephemeral` | bool | false | Launch, verify and tear down in the same run. | |
-| `on_failure` | str \| None | None | What a failed verification of an ephemeral does: `keep` leaves it standing and fails the run; `teardown` tears it down and still fails the run. None inherits the runtime builder's value, else `keep`. | `keep`, `teardown` |
-| `teardown_after` | str \| None | None | Duration (`"2h"`, `"30m"`, `"1d"`) after a failed verification past which the next run tears a standing ephemeral down without re-verifying. | |
-| `machine_type` | str | "" | EC2 instance type; empty means the runtime's `default_machine_type`. | |
-| `availability_zone` | str \| None | None | Declared zone. Not read by the module call (an instance lands in the runtime's default subnet); read by the zone-compatibility validator. | |
-| `tags` | dict[str, str] | {} | Passed to the module as `tags`. | |
-| `description`, `config`, `aliases` | | | Not read by this plugin. | |
+- `type` (`default`): the instance builder, by name or alias; any
+  registered instance builder.
+- `image`: the image to launch; required for generation. The image's
+  `group` is the instance's owning group.
+- `runtime` (`default`): the runtime builder.
+- `storages` (`[]`): per-instance attachments, each a `StorageMapping`
+  with `name` (a storage the image's group may use), `mount_point`
+  (default `/mnt/storage`) and `min_size` (default 100; not read by this
+  plugin). The same storage listed twice keeps the later mapping.
+- `userdata` (`""`): extra shell lines appended to the generated launch
+  script, before the completion marker.
+- `image_policy` (`pinned`): `pinned` keeps the launched build until an
+  explicit upgrade; `follow` plans a gated replacement whenever the
+  image's series head moves.
+- `ephemeral` (`false`): launch, verify and tear down in the same run.
+- `on_failure` (`keep` or `teardown`): what a failed verification of an
+  ephemeral does: `keep` leaves it standing and fails the run; `teardown`
+  tears it down and still fails the run. None inherits the runtime
+  builder's value, else `keep`.
+- `teardown_after`: a duration (`"2h"`, `"30m"`, `"1d"`) after a failed
+  verification past which the next run tears a standing ephemeral down
+  without re-verifying.
+- `machine_type` (`""`): the EC2 instance type; empty means the runtime's
+  `default_machine_type`.
+- `availability_zone`: the declared zone. Not read by the module call (an
+  instance lands in the runtime's default subnet); read by the
+  zone-compatibility validator.
+- `tags` (`{}`): passed to the module as `tags`.
+- `description`, `config` and `aliases` are not read by this plugin.
 
 A per-instance `groups:` key is refused: ownership lives on the image.
 
@@ -141,14 +157,13 @@ Defined in
 Extends `StorageBuilderModel`
 ([storage_builder.py](../base/src/cs_image_system/base/models/storage_builder.py)),
 which adds the private `_storages` list the loader fills with the builder's
-storage items.
-
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `executable` | str \| None | `"tofu"` | Overrides the base default. |
-| `required_plugins` | list[`TFTofuPluginModel`] | [] | As for the instance builder; empty means `aws` from `hashicorp/aws`. |
-| `state_configuration` | str (foreign key) | `default` | State backend by name; `default` resolves through the same chain (runtime's, then the default backend). |
-| `variables` | `ModuleVariables` | `ModuleVariables()` | Declared inputs to the module call. Each subclass narrows the type. |
+storage items. The field table is
+[CONFIGURATION 8.2](../../docs/CONFIGURATION.md#82-storage-builders): `executable` defaults to
+`"tofu"`; `required_plugins` is as for the instance builder, empty meaning
+`aws` from `hashicorp/aws`; `state_configuration` (`default`) is the state
+backend by name, resolving through the same chain (the runtime's, then
+the default backend); `variables` (`ModuleVariables()`) are the declared
+inputs to the module call, and each subclass narrows the type.
 
 ### The `variables:` models
 
@@ -159,13 +174,15 @@ module's own default applies. `as_module_args()` returns the declared fields
 except `tags`; `merged_tags(item_tags)` puts the builder's tags under the
 storage item's. Each provider subclass lists exactly its module's variable
 names, so a misspelt key (`performance-mode`, `volume-type`) is refused at
-load instead of being dropped.
+load instead of being dropped:
 
-| Class | Fields (all optional) | Module |
-|---|---|---|
-| `EbsVariables` | `volume_type: str`, `encrypted: bool`, `tags` | [aws_storage_ebs/variables.tf](../../tfmodules/aws_storage_ebs/variables.tf) |
-| `EfsVariables` | `performance_mode: str`, `encrypted: bool`, `tags` | [aws_storage_efs/variables.tf](../../tfmodules/aws_storage_efs/variables.tf) |
-| `S3Variables` | `force_destroy: bool`, `tags` | [aws_storage_s3/variables.tf](../../tfmodules/aws_storage_s3/variables.tf) |
+- `EbsVariables`: `volume_type: str`, `encrypted: bool`, `tags`, the
+  variables of
+  [aws_storage_ebs/variables.tf](../../tfmodules/aws_storage_ebs/variables.tf);
+- `EfsVariables`: `performance_mode: str`, `encrypted: bool`, `tags`, of
+  [aws_storage_efs/variables.tf](../../tfmodules/aws_storage_efs/variables.tf);
+- `S3Variables`: `force_destroy: bool`, `tags`, of
+  [aws_storage_s3/variables.tf](../../tfmodules/aws_storage_s3/variables.tf).
 
 Precedence in the module call: what the builder computes from the storage
 item (name, groups, lifecycle, restore snapshot, placement) always wins;
@@ -174,46 +191,57 @@ item's over the builder's.
 
 ### `TofuEbsStorageBuilderModel` (`tf-aws-ebs`)
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `size` | int | 100 | Volume size in GB. A builder field, not a variable: `size` under `variables:` is refused. |
-| `variables` | `EbsVariables` | `EbsVariables()` | `volume_type`, `encrypted`, `tags`. |
+Adds `size` (`int`, 100): the volume size in GB. A builder field, not a
+variable: `size` under `variables:` is refused. Its `variables` are
+`EbsVariables` (`volume_type`, `encrypted`, `tags`).
 
 ### `TofuEfsStorageBuilderModel` (`tf-aws-efs`)
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `variables` | `EfsVariables` | `EfsVariables()` | `performance_mode`, `encrypted`, `tags`. |
+Adds no field; its `variables` are `EfsVariables` (`performance_mode`,
+`encrypted`, `tags`).
 
 ### `TofuS3StorageBuilderModel` (`tf-aws-s3`)
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `bucket_name` | str | required | The DEFAULT bucket for this builder's storages (stage 67): a storage's own `bucket_name` wins, else this, else the storage's name -- one rule (`_bucket_for`) for the module call, the wipe and the state query. Between 2026-09-25 and 26 it was read by nothing (the state query had read it for every storage, so two S3 storages on one builder both reported this one bucket). `get_bucket_name()` still returns it and nothing calls it. |
-| `variables` | `S3Variables` | `S3Variables()` | `force_destroy`, `tags`. |
+Adds `bucket_name` (`str`, required): the DEFAULT bucket for this
+builder's storages. A storage's own `bucket_name` wins, else this, else
+the storage's name -- one rule (`_bucket_for`) for the module call, the
+wipe and the state query, so two S3 storages on one builder each report
+their own bucket. `get_bucket_name()` returns it and nothing calls it.
+Its `variables` are `S3Variables` (`force_destroy`, `tags`).
 
 ### The `Storage` item the storage builders read
 
 Base `Storage` from
-[storage.py](../base/src/cs_image_system/base/models/storage.py):
+[storage.py](../base/src/cs_image_system/base/models/storage.py), whose
+field table is [CONFIGURATION 11.4](../../docs/CONFIGURATION.md#114-storages). What these
+builders read, and which of them:
 
-| Field | Type | Default | Meaning | Read by |
-|---|---|---|---|---|
-| `type` | str | `default` | The storage builder (name or alias). | all |
-| `runtime` | str | `default` | Accepted; the builder's runtime governs the root and the provider. | none |
-| `groups` | list[str] | [] | Groups allowed to use the storage. Each gets a private root-level subtree `/<group>/`. The value `ALL` is refused. | EBS (launch script), EFS (access points), S3 (prefixes) |
-| `public_read` | bool | false | Anyone may mount read-only; POSIX permissions still govern. | EFS, S3 |
-| `share_mode` | str | `"2770"` | Subtree mode: `2770` group-private, `2775` read-shared. | EBS (launch script), EFS |
-| `state` | str | `active` | The **requested** lifecycle state. | all |
-| `availability_zone` | str \| None | None | The zone a zonal storage lives in. On EBS the storage's own declaration wins over the runtime's default zone in the module call. | EBS |
-| `bucket_name` | str \| None | None | S3 bucket name; falls back to the storage name. | S3 |
-| `config` | dict | {} | `file_system_id` binds an existing EFS filesystem instead of creating one. | EFS |
-| `lifecycle` | dict \| None | None | Data lifecycle. S3: `transition_days`, `storage_class`, `expire_days`, `prefix`. EFS: `ia_days`, `archive_days`. Refused on EBS. | EFS, S3 |
-| `tags` | dict[str, str] | {} | Merged over the builder's `variables.tags`. | all |
-| `mount_point`, `source`, `ephemeral`, `generative`, `singleton`, `is_default` | | | Not read by these builders. The mount point that matters is the one on the instance's `StorageMapping`. | none |
-
-Allowed `state` values: `active`, `archived`, `destroyed`. Allowed
-`share_mode` values: `2770`, `2775`.
+- `type` (`default`): the storage builder, by name or alias; read by all.
+- `runtime` (`default`): accepted; the builder's runtime governs the root
+  and the provider. Read by none.
+- `groups` (`[]`): the groups allowed to use the storage. Each gets a
+  private root-level subtree `/<group>/`. The value `ALL` is refused.
+  Read by EBS (the launch script), EFS (access points), S3 (prefixes).
+- `public_read` (`false`): anyone may mount read-only; POSIX permissions
+  still govern. Read by EFS and S3.
+- `share_mode` (`"2770"`): the subtree mode, `2770` group-private or
+  `2775` read-shared. Read by EBS (the launch script) and EFS.
+- `state` (`active`): the **requested** lifecycle state, one of `active`,
+  `archived`, `destroyed`. Read by all.
+- `availability_zone`: the zone a zonal storage lives in. On EBS the
+  storage's own declaration wins over the runtime's default zone in the
+  module call. Read by EBS.
+- `bucket_name`: the S3 bucket name; falls back to the builder's, then
+  the storage name. Read by S3.
+- `config`: `file_system_id` binds an existing EFS filesystem instead of
+  creating one. Read by EFS.
+- `lifecycle`: the data lifecycle. S3: `transition_days`,
+  `storage_class`, `expire_days`, `prefix`. EFS: `ia_days`,
+  `archive_days`. Refused on EBS.
+- `tags` (`{}`): merged over the builder's `variables.tags`. Read by all.
+- `mount_point`, `source`, `ephemeral`, `generative`, `singleton` and
+  `is_default` are not read by these builders. The mount point that
+  matters is the one on the instance's `StorageMapping`.
 
 ## The builder
 
@@ -322,17 +350,20 @@ in a dry run; in a real run it is
 when a backend is bound, else bare `init`. No `plan` runs at generation.
 
 The **deferred** commands (these are what `run-instance-image.sh` contains)
-come from `gated_apply_commands()`:
-
-| Step | Command (in the root directory) |
-|---|---|
-| 1 | `rm -f tfplan` |
-| 2 | `tofu init -input=false -reconfigure [-backend-config=<file>]` |
-| 3 | `cs-image-system --root-dir ... --no-dry-run unmount storage --instance <i> --storage <s> --mount-point <mp> --workdir <dir>` for every mount a launched instance's declaration dropped |
-| 4 | `tofu plan -input=false -out=tfplan [-replace=<addr>...]` |
-| 5 | `cs-image-system gate-plan --planfile tfplan --tofu <binary> [--allow-destroy <addr>]... [--require-unmounted <instance>:<storage>]...` |
-| 6 | only when this root may apply: `cs-image-system apply-check --lifecycle instances --root <B> --root-alias <runtime> [--overlay <path>]... [--apply-runtime <rt>]` |
-| 7 | only when this root may apply: `tofu apply -input=false tfplan` |
+come from `gated_apply_commands()`: the gated apply sequence of
+[OPERATIONS.md "The apply gate"](../../docs/OPERATIONS.md#the-apply-gate), run in the root
+directory. For this root that is `rm -f tfplan`; `tofu init -input=false
+-reconfigure` with `-backend-config=<file>` when a backend is bound;
+`cs-image-system --root-dir ... --no-dry-run unmount storage --instance <i>
+--storage <s> --mount-point <mp> --workdir <dir>` for every mount a
+launched instance's declaration dropped; `tofu plan -input=false
+-out=tfplan` with a `-replace=<addr>` per replacement; `cs-image-system
+gate-plan --planfile tfplan --tofu <binary>` with an `--allow-destroy
+<addr>` per whitelisted destroy and a `--require-unmounted
+<instance>:<storage>` per detach; and, only when this root may apply,
+`cs-image-system apply-check --lifecycle instances --root <B> --root-alias
+<runtime>` (with the run's `--overlay <path>` and `--apply-runtime <rt>`
+arguments) followed by `tofu apply -input=false tfplan`.
 
 "May apply" is `config.apply_instances`: `true`, or a list naming the
 builder or its runtime (`--apply-runtime <rt>` sets that list for the run).
@@ -361,10 +392,9 @@ still fails the run from that hook.
 
 **4. `pre_finalize_phase`** runs before the deferred commands, and only for
 a root inside the run's runtime scope (`--only-runtime`, explicit or implied
-by `--apply-runtime`; stage 63, it used to act for out-of-scope roots too
-until 2026-09-25) and only for the `instance-image` lifecycle (the `release`
-and `retention` lifecycles extend the same phase and used to get the file
-too). For every instance
+by `--apply-runtime`) and only for the `instance-image` lifecycle (the
+`release` and `retention` lifecycles extend the same phase and get no
+file). For every instance
 whose provider-specific image is now resolved (the image builder's post-hook
 has read the packer manifest), it writes
 `<B>/instance-generation/instances.auto.tfvars` with one line
@@ -373,8 +403,8 @@ of the name-pattern fallback. The file is run-local: a `--commit` never
 stages `*.tfvars`.
 
 **5. `post_finalize_phase`** runs after the deferred commands succeed and only
-when the root is inside the run's runtime scope (stage 63: a root out of
-scope applied nothing to bind) and applied. For every non-ephemeral instance: a `follow` target
+when the root is inside the run's runtime scope (a root out of scope
+applied nothing to bind) and applied. For every non-ephemeral instance: a `follow` target
 moves the pin to the new head; an unpinned instance is bound to the resolved
 image id (first bind); when the image was deferred and the runtime can query
 the booted image, the pin is bound from what actually booted, provided
@@ -463,7 +493,7 @@ recorded `archived`, the archive snapshot).
 | `lifecycle:` keys | refused | `ia_days` in {1,7,14,30,60,90,180,270,365}; `archive_days` in {90,180,270,365} | `transition_days` (positive int), `storage_class` in {STANDARD_IA, ONEZONE_IA, INTELLIGENT_TIERING, GLACIER_IR, GLACIER, DEEP_ARCHIVE}, `expire_days` (positive int), `prefix`; a class needs `transition_days`; at least one of the two day counts |
 | `destroyed` transition action | delete the archive snapshot when the volume was archived | none | `aws s3 rm s3://<bucket> --recursive [--profile <p>]` before the destroy |
 | Base-image prerequisites | none (a comment) | `nfs-common` (Debian family) or `amazon-efs-utils`/`nfs-utils`; verify: `mount.efs`/`mount.nfs`/`mount.nfs4` present | AWS CLI installed via the official zip (`unzip` first: it is not on RHEL-family images); verify: `aws` present |
-| State query | `describe_volumes` by `Name` tag, or `describe_snapshots` when archived | `describe_file_systems` matched by name, plus the lifecycle policy | `get_bucket_tagging` on the **storage's** bucket (its `bucket_name`, else its name: the bucket its module call creates; stage 63, it read the builder's `bucket_name` until 2026-09-25); `NoSuchBucket` means absent, any other failure is "unavailable" |
+| State query | `describe_volumes` by `Name` tag, or `describe_snapshots` when archived | `describe_file_systems` matched by name, plus the lifecycle policy | `get_bucket_tagging` on the **storage's** bucket (its `bucket_name`, else the builder's, else its name: the bucket its module call creates); `NoSuchBucket` means absent, any other failure is "unavailable" |
 
 Module arguments (`module_args(storage)`), in emission order:
 
@@ -471,7 +501,7 @@ Module arguments (`module_args(storage)`), in emission order:
 |---|---|
 | EBS | declared `variables` (`volume_type`, `encrypted`); `name`; `size` (the builder's); `snapshot_name = csis-<label>-archive` when the storage is recorded archived and declared active (restore); `availability_zone` from the storage's own `availability_zone`, else the runtime's `networking.default_availability_zone`, else `subnet_id` from the runtime's default subnet (the module derives the zone from it); merged `tags` |
 | EFS | declared `variables` (`performance_mode`, `encrypted`); `name`; `existing_file_system_id` from `config.file_system_id`; `transition_to_ia = AFTER_<ia_days>_DAYS`; `transition_to_archive = AFTER_<archive_days>_DAYS`; `access_points` = the group subtrees (gid by reference); `public_read = true` when set; when the runtime declares `networking` with private subnets and `addl_security_groups`: `vpc_id`, `mount_target_subnet_ids` (one private subnet per availability zone, in declaration order) and `client_security_group_ids` (the runtime's `addl_security_groups`), so the module creates the mount targets; merged `tags` |
-| S3 | declared `variables` (`force_destroy`); `bucket_name` = the storage's `bucket_name` or its name; `lifecycle_rules = [{id = "csis", prefix, transition_days, storage_class, expire_days}]` when a lifecycle is declared; `group_prefixes` = sorted allowed groups; `public_read = true` when set; merged `tags` |
+| S3 | declared `variables` (`force_destroy`); `bucket_name` = the storage's `bucket_name`, else the builder's, else its name; `lifecycle_rules = [{id = "csis", prefix, transition_days, storage_class, expire_days}]` when a lifecycle is declared; `group_prefixes` = sorted allowed groups; `public_read = true` when set; merged `tags` |
 
 Undeclared `variables` are absent from the call, so the module default
 applies.
@@ -689,32 +719,40 @@ plugin declares none.
 
 ## Configuration reference
 
-The field tables under "Models" above are the complete list of fields on the
-builder models this plugin owns (`TofuInstanceBuilderModel`,
-`TofuStorageBuilderModel` and its three subclasses, the `variables:` models)
-and of the `Instance`, `StorageMapping` and `Storage` fields the builders
-read, with the ones that are accepted but not read named as such. This
-section lists everything else the plugin reads: the `config:` keys, the
-runtime fields, the executable entry, the meta-state it consults, and the
-run options that change its output. Manual references:
-[CONFIGURATION.md sections 2.3, 8, 11.3 and 11.4](../../docs/CONFIGURATION.md).
+The fields of the builder models this plugin owns
+(`TofuInstanceBuilderModel`, `TofuStorageBuilderModel` and its three
+subclasses, the `variables:` models) and of the `Instance`,
+`StorageMapping` and `Storage` items the builders read are tabled in
+[CONFIGURATION 8.1](../../docs/CONFIGURATION.md#81-instance-builders),
+[8.2](../../docs/CONFIGURATION.md#82-storage-builders), [11.3](../../docs/CONFIGURATION.md#113-instances) and
+[11.4](../../docs/CONFIGURATION.md#114-storages); the Models section above says what each means
+here, naming the ones that are accepted but not read. This section lists
+everything else the plugin reads: the `config:` keys, the runtime fields,
+the executable entry, the meta-state it consults, and the run options
+that change its output.
 
-`config:` keys in `cfg/_config.yml` (and in overlays):
-
-| Key | Type | Default | Meaning for this plugin |
-|---|---|---|---|
-| `apply_instances` | bool or list[str] | `false` | whether the instance root's runner carries `apply-check` + `apply`; a list names builders or runtimes. Also gates the ephemeral verify/teardown block, the post-finalize pin binds, and (through the base hooks) the `launched` marker, the forgets and the alias draw. |
-| `apply_storage` | bool or list[str] | `false` | the same for each storage root, and for the post-transition (restore) scripts. |
-| `use_state_backends` | bool | `false` | when true: `backend "s3" {}` in the terraform block, the `.tfbackend.hcl` file, the `-backend-config=` init argument and every `data "terraform_remote_state"` block are emitted. |
-| `module_source_base` | str | `../tfmodules` | where the four modules are. |
-| `require_released_builds` | bool | `false` | read by the base validator, not by the builder: an instance's pin must be a released build, or the series head under the release grace. |
+The `config:` keys in `cfg/_config.yml` (and in overlays) are tabled in
+[CONFIGURATION 2.3](../../docs/CONFIGURATION.md#23-config-keys-the-code-reads); this plugin
+reads five. `apply_instances` (bool or a list naming builders or
+runtimes, `false`) decides whether the instance root's runner carries
+`apply-check` + `apply`, and with it the ephemeral verify/teardown
+block, the post-finalize pin binds and (through the base hooks) the
+`launched` marker, the forgets and the alias draw; `apply_storage` is
+the same for each storage root and for the post-transition (restore)
+scripts; `use_state_backends` (`false`), when true, emits `backend "s3"
+{}` in the terraform block, the `.tfbackend.hcl` file, the
+`-backend-config=` init argument and every `data "terraform_remote_state"`
+block; `module_source_base` (`../tfmodules`) is where the four modules
+are; and `require_released_builds` (`false`) is read by the base
+validator, not by the builder: an instance's pin must be a released
+build, or the series head under the release grace.
 
 Runtime fields (the `aws` runtime the builder's `runtime:` names):
 
 | Field | Read by | Used for |
 |---|---|---|
 | `region` (`get_region()`) | both | the provider block's `region`; the EBS/EFS/S3 CLI flags and boto3 sessions |
-| `credentials.profile_name` (`get_credentials()`) | both | the provider block's `profile`; `--profile` on the CLI scripts; the boto3 session. It is the only source of the profile: stage 63 removed the storage builder's dead fallback to a `profile` attribute on the runtime model (`rtb.model.profile`, which no runtime declares; removed 2026-09-25). |
+| `credentials.profile_name` (`get_credentials()`) | both | the provider block's `profile`; `--profile` on the CLI scripts; the boto3 session. It is the only source of the profile: no runtime model declares a `profile` attribute, and the builders fall back to nothing. |
 | `state_configuration` | both | the second rung of the backend chain |
 | `networking.network` | instance | the VPC for `data "aws_vpc"` and the `csis-instances` security group; also gates `vpc_security_group_ids` |
 | `networking.ssh_ingress_security_group_ids` | instance | the SSH ingress sources of `csis-instances`; empty falls back to the VPC's CIDR |
@@ -731,18 +769,21 @@ The executable entry (`cfg/executables.yml`, `type: tofu`): `name` (what the
 builder's `executable:` names), `binary` (the path the roots run), `version`
 (the requirement the checker enforces).
 
-Meta-state the builders read at generation (the configuration root's
-`meta-state/`):
-
-| File | Read for |
-|---|---|
-| `pins.yaml` | the instance's pinned build (`ami_id`), pending replacements (`-replace`), the decommission whitelist |
-| `launch-params.yaml` | launched instances and their recorded mounts (detaches), the decommission whitelist, the recorded hostname and alias |
-| `lineage.yaml` | the pinned build's runtime (scoping the decommission whitelist to this root), series heads (`follow`), what a booted image is |
-| `storage-state.yaml` | each storage's current state (transitions, restore, the archive lookup in the state query) and the facts of undeclared storages (builder, bucket name) |
-| `verifications.yaml` | a standing ephemeral's last verdict (`teardown_after`) |
-| `instance-state.yaml` | the generation counters behind the canonical hostname |
-| `aliases.txt` | the alias pool |
+At generation the builders read, from the configuration root's
+`meta-state/`: `pins.yaml` (the instance's pinned build for `ami_id`,
+pending replacements for `-replace`, the decommission whitelist),
+`launch-params.yaml` (launched instances and their recorded mounts for
+detaches, the decommission whitelist, the recorded hostname and alias),
+`lineage.yaml` (the pinned build's runtime, which scopes the
+decommission whitelist to this root; series heads for `follow`; what a
+booted image is), `storage-state.yaml` (each storage's current state for
+transitions, restores and the archive lookup in the state query, and the
+facts of undeclared storages: builder, bucket name),
+`verifications.yaml` (a standing ephemeral's last verdict for
+`teardown_after`), `instance-state.yaml` (the generation counters behind
+the canonical hostname) and `aliases.txt` (the alias pool). What every
+file holds and who writes it is
+[OPERATIONS.md "Meta-state"](../../docs/OPERATIONS.md#meta-state-config-rootmeta-state).
 
 Run options that change the emission: `--dry-run` (the default) versus
 `--no-dry-run`; `--only-runtime <rt>` and `--apply-runtime <rt>`; `--overlay`
@@ -807,13 +848,11 @@ wrapped in `state-migration begin`/`finish`).
   A builder whose runtime is not `<rt>` emits no root at all and contributes
   no commands; with no scope every root of every runtime is generated and
   planned. Both finalize hooks of an out-of-scope instance builder return
-  at once (stage 63): `pre_finalize_phase` writes no `instances.auto.tfvars`
-  and `post_finalize_phase` binds nothing, matching the root's own empty
-  emission. Until 2026-09-25 another runtime's builder still ran
-  `pre_finalize_phase`, wrote tfvars for a root that emitted nothing, and
-  logged `No resolved provider-specific images for instances; modules will
-  use their name-pattern fallback` on every scoped run (visible in every GCE
-  cycle).
+  at once: `pre_finalize_phase` writes no `instances.auto.tfvars` and
+  `post_finalize_phase` binds nothing, matching the root's own empty
+  emission, so a scoped run never logs `No resolved provider-specific
+  images for instances; modules will use their name-pattern fallback` for
+  a root it left empty.
 - **`use_state_backends` on versus off.** On: the terraform block gets an
   empty `backend "s3" {}`, the `.tfbackend.hcl` file is written, init
   carries `-backend-config=`, and every `data "terraform_remote_state"`
@@ -865,12 +904,11 @@ wrapped in `state-migration begin`/`finish`).
   `mount_target_subnet_ids` and `client_security_group_ids`; with either
   list empty none of the three is passed and the module makes no mount
   target, so nothing can mount the filesystem.
-- **S3 bucket name.** The storage's `bucket_name`, else its name, is the
-  bucket the module manages, the wipe empties and (stage 63) the state
-  query reads, so two S3 storages on one builder each report their own
-  bucket. The builder's own `bucket_name` is still required but nothing
-  reads it; until 2026-09-25 it was the bucket the state query read, and
-  every storage on the builder reported that one bucket.
+- **S3 bucket name.** The storage's `bucket_name`, else the builder's,
+  else the storage's name, is the bucket the module manages, the wipe
+  empties and the state query reads (one rule, `_bucket_for`), so two S3
+  storages on one builder each report their own bucket; the builder's
+  `bucket_name` is the default for storages that name none.
 - **Groups versus `public_read`.** Allowed groups become EBS subtrees in the
   launch script, EFS access points (`access_points`) and S3 prefixes
   (`group_prefixes`), each gid by reference; `public_read: true` adds the
@@ -907,9 +945,8 @@ printed and recorded in `generated/run-summary.json` under
   message naming `variables:` as the replacement.
 - `variables:` keys are typed per provider: `performance-mode`,
   `volume-type`, or `size` under `variables:` on `tf-aws-ebs` are refused.
-- `bucket_name` is required on a `tf-aws-s3` builder (still required,
-  although since stage 63 nothing reads it: the state query takes the
-  storage's bucket).
+- `bucket_name` is required on a `tf-aws-s3` builder: the default bucket
+  for its storages, which a storage's own `bucket_name` overrides.
 - A `Storage` refuses `state` outside `active`/`archived`/`destroyed`,
   `share_mode` outside `2770`/`2775`, the `ALL` group value, an empty
   `runtime` or `type`.
@@ -988,8 +1025,8 @@ these stop the runner under `set -euo pipefail`; the run summary records
 the lifecycle's apply as `failed` and the run exits 1.
 
 **After apply (post-finalize and the base hooks), only when the root's
-apply flag was on and the root is inside the run's runtime scope (stage
-63).** `post_finalize_phase` binds first pins and moves
+apply flag was on and the root is inside the run's runtime scope.**
+`post_finalize_phase` binds first pins and moves
 `follow` pins in `meta-state/pins.yaml` (a booted image lineage does not
 record is logged and left unbound). The base hooks then mark instances
 `launched`, open or close generations in `instance-state.yaml` and confirm
@@ -1015,177 +1052,38 @@ state, generation and aliases are read by the runtime plugin.
 ## When it fails
 
 The failures this plugin produces or takes part in, with what the operator
-sees, what it means, where to look and what to do. Failures that have
-happened live come first, dated; the sources are
-[OPERATIONS.md](../../docs/OPERATIONS.md), the findings ledger in
-[docs/history/LEDGER.md](../../docs/history/LEDGER.md), the tests named
-below and the commit messages on this package.
+sees, what it means, where to look and what to do. The failures that have
+happened live are recorded, dated, in [INCIDENTS.md](../../docs/INCIDENTS.md); a row below
+links its entry where one exists. The rest are what the code raises, from
+the tests named and the sources on this package.
 
-### Failures that have happened
+### Failures with an incident on record
 
-- **2026-09-02 (findings 20 and 21): an apply-less storage run recorded
-  `None -> active`.** The fixture carried no `apply_storage` key, so the run
-  planned and gated with zero applies, and the transition recorder wrote
-  the requested state anyway; the state query's `missing [HARD]` caught the
-  lie. Since then every reality-claiming recorder (storage transitions, the
-  `launched` marker, pin binds, the forgets) runs only when the lifecycle's
-  apply flag was on. What to expect now: a dry or apply-less run leaves
-  `storage-state.yaml`, `launch-params.yaml` `launched` and `pins.yaml`
-  exactly as they were.
-- **Stage 1, 2026-08-31 to 2026-09-02 (finding 22): the S3 state query
-  reported the system's own bucket as HARD-missing** because it looked for
-  a `Name` tag the module never sets. `_lookup` now treats a reachable
-  bucket as present; only `NoSuchBucket`/`404` is absent and any other
-  error is re-raised into an `unavailable:` line.
-- **Stage 1 (finding 24): `apply_*` flags gated generation only**, so a
-  runner script generated under a flag kept applying after the flag was
-  turned off. Now every apply is preceded by `cs-image-system apply-check`,
-  which re-reads `cfg/_config.yml` and the overlays at execution and exits
-  3 with `apply_instances is false NOW in <path>/cfg/_config.yml ... not
-  applying.`
-- **Stage 1 (finding 25): a `t2.micro` OOM-killed the SSM agent** minutes
-  after boot. `machine_type` on the instance overrides the runtime default;
-  size the machine for its image.
-- **Stage 1 (finding 26): the module's default public IP poisoned sftd's
-  advertised address** in a VPC with no internet gateway, so `sft ssh`
-  hung. The module call now sets `associate_public_ip_address = false` and
-  the launch script pins `AccessAddress` to the private IP.
-- **Stage 1 (findings 27, 29, 30, 31): instances wore only the VPC default
-  security group**, which blocked the Okta gateway's inbound SSH relay. The
-  root now creates `csis-instances` with SSH ingress from
-  `ssh_ingress_security_group_ids` (never a CIDR of the shared networks),
-  `create_before_destroy` (a delete-first replacement hit
-  `DependencyViolation` because instances wear the group), and every
-  instance also wears `addl_security_groups` (the relay requires the
-  OKTA-GATEWAY group on the target). Symptom without them: `sft ssh` hangs
-  or is refused while every step reports success.
-- **Stage 1 (finding 28): user-data died at `mkfs`** because on Nitro
-  instances (`t3` and later) the EBS volume never appears as `/dev/xvdf`
-  and RHEL-family AMIs create no legacy symlink; everything after the
-  `mkfs` line never ran and the mount was missing. The launch script waits
-  for either the declared device or the
-  `/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_<volume id>` name.
-  Where to look: the instance's cloud-init/user-data log, and `verify
-  instance` (the completion marker `/var/lib/csis/launch-applied` is
-  written only when every line above it succeeded).
-- **Stage 1 (finding 33): `gate-plan` accepted a stale planfile** left by a
-  failed plan. Every sequence now begins with `rm -f tfplan` and the gate
-  refuses with `STALE PLANFILE: tfplan is older than <file>` (exit 3) or
-  `tfplan does not exist`.
-- **2026-09-04 (finding 45): the root-level `aws_vpc` and
-  `aws_security_group` blocks bound the DEFAULT aws provider**, which has no
-  configuration, so they only ever planned from a shell with ambient AWS
-  credentials. Both now carry `provider = aws.<alias>`. Symptom: a plan
-  that fails on the VPC lookup with a credentials or region error while
-  the module calls are fine.
-- **2026-09-05 (findings 52 and 53), tearing down the first GCE instance,
-  fixed in both instance builders
-  ([test_v2_decommission.py](../../tests/test_v2_decommission.py)):**
-  undeclaring the last instance on a runtime made its root vanish, so
-  nothing ever planned the destroy and the VM would have stayed orphaned;
-  and the forget of the launch record ran at generation, so a dry run
-  erased it before any destroy and the gate then had nothing to whitelist.
-  Now `_root_has_work()` emits an instance-less root whenever a recorded
-  instance is undeclared, the decommission whitelist is scoped to the root
-  of the runtime the pinned build was baked on, and the forget is an
-  after-apply hook. A decommission can be dry-run as often as needed.
-- **2026-09-05/06 (finding 49): a pin was re-bound to a new series head
-  without replacing the instance**, so meta-state claimed a build reality
-  did not run. The post-finalize hook now binds from what actually booted
-  when the parent was deferred, and the state query reports
-  `booted image <x> != pinned build <y>` as `changed`.
-- **2026-09-09 (ledger 68,
-  [test_v2_ephemeral.py](../../tests/test_v2_ephemeral.py)): a torn-down
-  ephemeral kept its launch record** because a `verify assert` as the
-  runner's last step failed the script before the after-apply hook ran.
-  Under `on_failure: teardown` the verdict now fails the run from
-  `forget_ephemerals`, after the record is forgotten.
-- **2026-09-10 (ledger 70): a run scoped to AWS planned the GCE instance
-  root too**, whose image-family lookup returned 404 because the previous
-  cycle had disposed every GCE image, and the run failed before the dask
-  bake. Under `--only-runtime` (explicit or implied by `--apply-runtime`)
-  another runtime's instance and storage roots emit nothing, and since
-  stage 63 (2026-09-25) the out-of-scope instance builder's finalize hooks
-  do nothing either.
-- **Until 2026-09-25 (stage 63): every scoped run logged `No resolved
-  provider-specific images for instances; modules will use their
-  name-pattern fallback`** (seen in every GCE cycle), because the AWS
-  instance builder's `pre_finalize_phase` still ran for a root the scope
-  had left empty and wrote an `instances.auto.tfvars` nothing read. Both
-  finalize hooks now return early for a root outside the runtime scope.
-- **Until 2026-09-25 (stage 63): two S3 storages on one builder reported
-  the same bucket.** The state query read the builder's `bucket_name`, not
-  the storage's, so the second storage's presence and tags were the
-  first's. `_lookup` now asks for the storage's own bucket (its
-  `bucket_name`, else its name)
-  ([test_v2_defects_dead.py](../../tests/test_v2_defects_dead.py),
-  `test_the_s3_lookup_asks_for_the_storages_own_bucket`).
-- **2026-09-19 (stage 52,
-  [test_v2_availability_zones.py](../../tests/test_v2_availability_zones.py)):
-  a zone was inferred from the subnet and never checked.** Pointing the
-  runtime at a subnet in another zone planned `forces replacement, 1 to
-  add, 1 to destroy` on a 100 GiB data volume; the gate refused it as an
-  unwhitelisted destroy, but at apply time and naming the volume rather
-  than the cause. Now a subnet, a storage and an instance may declare
-  `availability_zone`, `validate` refuses an incompatible set naming each
-  claimant, and the EBS builder passes the declared zone to the module.
-- **2026-09-20 (stage 19,
-  [test_storage_module_calls.py](tests/test_storage_module_calls.py)): no
-  instance in the account could mount an EFS storage.** The module made a
-  filesystem and its access points and no mount targets, so `mount.efs`
-  could not even resolve the filesystem's DNS name; `verify instance`
-  failed on the mount. The module now creates one mount target per zone and
-  a security group for them, and the builder passes the runtime's private
-  subnets (one per zone) and `addl_security_groups` as the clients. If the
-  runtime declares no `networking`, or no private subnets, or no
-  `addl_security_groups`, the call carries none of the three and the
-  filesystem is again unmountable: check the emitted
-  `<B>-storage-generation-storage-<label>.tf` for `mount_target_subnet_ids`.
-- **2026-09-20: `coops-model` was destroyed through the gate but its pin
-  and launch parameters stayed**, which with `require_released_builds` on
-  made `validate` refuse every run. The mechanism is proven in the fixture,
-  so the live failure remains unexplained; the recourse is
-  `cs-image-system forget instance <name>`, which drops the records without
-  editing meta-state by hand.
-- **2026-09-22, the first live replacement (`coops-model` ->
-  `coops-model-002`), four traps:** the gate refused
-  `module.instance_coops_model.aws_volume_attachment.this["mnt_data"]` as
-  an unwhitelisted destroy (the attachment binds the volume to the
-  instance id, so the `-replace` replaces it too) -- now
-  `_replacement_attachments()` whitelists it; the strict state query
-  reported the booted image behind the moved pin as drift and refused the
-  very run that finishes the upgrade -- now a pending replacement is a
-  `note`; the replaced machine's OPA registration outlived it and would
-  have claimed the new machine's alias -- now `mark_launched` retires it;
-  and the alias pass ran before the new machine had enrolled and wrote
-  nothing -- now it waits. Proof in
-  [test_v2_gate5_capabilities_activation.py](../../tests/test_v2_gate5_capabilities_activation.py)
-  and [test_v2_provider_aliases.py](../../tests/test_v2_provider_aliases.py);
-  the procedure is OPERATIONS "A model image, end to end".
-- **2026-09-20 and 2026-09-22: `require_released_builds` had to be switched
-  off by hand** for the window between `upgrade instance` and the release,
-  because a durable instance whose volume allows one attachment can only
-  prove a build on itself. Since 2026-09-23 (stage 61 item 4) the release
-  grace admits the series head while its own proof is under way; the
-  refusal now reads `instance '<name>' is pinned to build <id> of '<image>',
-  which is not a released build (config.require_released_builds; no grace:
-  <what is missing>)`. Proved live the same day as the third release
-  (`coops-model-003`, the pool's first draw).
-- **Until 2026-09-23 (stage 61 item 5): the `release` and `retention`
-  lifecycles wrote `instances.auto.tfvars` under their own generation
-  directories**, where no instance root exists; the file lingered untracked
-  after every release run. `pre_finalize_phase` now acts for the
-  `instance-image` lifecycle alone
-  ([test_v2_hygiene_five.py](../../tests/test_v2_hygiene_five.py)).
-  Since stage 63 both finalize hooks also return early for a root outside
-  the run's runtime scope
-  ([test_v2_defects_dead.py](../../tests/test_v2_defects_dead.py),
-  `test_an_out_of_scope_instance_root_writes_no_tfvars`).
-- **Found live, undated: the S3 prerequisite bake failed on RHEL-family
-  images** because `unzip` is not installed there (`curl` is). The
-  prerequisite now installs `unzip` before fetching the AWS CLI zip.
+| Symptom | Meaning | What to do |
+|---|---|---|
+| `missing [HARD]` for a storage recorded `None -> active` after a run whose apply flag was off ([the entry](../../docs/INCIDENTS.md#a-recorder-claimed-a-reality-no-apply-produced)) | A recorder claimed a reality no apply produced. Every reality-claiming recorder (storage transitions, the `launched` marker, pin binds, the forgets) runs only when the lifecycle's apply flag was on, so a dry or apply-less run leaves `storage-state.yaml`, `launch-params.yaml` `launched` and `pins.yaml` exactly as they were. | Expect no record to move without an apply; a moved one means something applied. |
+| The S3 state query reports the system's own bucket as HARD-missing ([the entry](../../docs/INCIDENTS.md#the-s3-state-query-reported-the-systems-own-bucket-as-missing)) | The module sets no `Name` tag, so a lookup by tag finds nothing. `_lookup` treats a reachable bucket as present; only `NoSuchBucket`/`404` is absent and any other error is re-raised into an `unavailable:` line. | Read the `unavailable:` line's cause (permissions, session, network). |
+| A runner script generated under an apply flag keeps applying after the flag is turned off (the same entry) | `apply_*` flags gate generation and execution: every apply is preceded by `cs-image-system apply-check`, which re-reads `cfg/_config.yml` and the overlays at execution and exits 3 with `apply_instances is false NOW in <path>/cfg/_config.yml ... not applying.` | Turn the flag on, or expect the refusal. |
+| The SSM agent is OOM-killed minutes after boot ([the entry](../../docs/INCIDENTS.md#a-1-gb-bake-host-starved-the-package-manager-and-the-ssm-agent)) | A 1 GB `t2.micro` cannot keep the package manager and the SSM agent alive at once. | `machine_type` on the instance overrides the runtime default; size the machine for its image. |
+| `sft ssh` hangs or is refused while every step reports success ([the entry](../../docs/INCIDENTS.md#sft-ssh-hung-on-an-instance-every-step-had-reported-as-launched)) | In a VPC with no internet gateway the module's default public IP poisons sftd's advertised address, so the module call sets `associate_public_ip_address = false` and the launch script pins `AccessAddress` to the private IP; and an instance wearing only the VPC default security group blocks the Okta gateway's inbound SSH relay, so the root creates `csis-instances` with SSH ingress from `ssh_ingress_security_group_ids` (never a CIDR of the shared networks) and `create_before_destroy` (a delete-first replacement hits `DependencyViolation` because instances wear the group), and every instance also wears `addl_security_groups` (the relay requires the OKTA-GATEWAY group on the target). | Check both lists on the runtime. |
+| user-data dies at `mkfs` and the mount is missing ([the entry](../../docs/INCIDENTS.md#the-ebs-device-never-appeared-as-xvdf-on-a-nitro-instance)) | On Nitro instances (`t3` and later) the EBS volume never appears as `/dev/xvdf` and RHEL-family AMIs create no legacy symlink. The launch script waits for either the declared device or the `/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_<volume id>` name. | The instance's cloud-init/user-data log, and `verify instance` (the completion marker `/var/lib/csis/launch-applied` is written only when every line above it succeeded). |
+| `gate-plan` accepts a planfile left by a failed plan ([the entry](../../docs/INCIDENTS.md#a-stale-plan-file-passed-the-gate)) | Every sequence begins with `rm -f tfplan` and the gate refuses with `STALE PLANFILE: tfplan is older than <file>` (exit 3) or `tfplan does not exist`. | Re-run the lifecycle; never hand the gate an old file. |
+| A plan that fails on the VPC lookup with a credentials or region error while the module calls are fine ([the entry](../../docs/INCIDENTS.md#the-aws-vpc-and-security-group-lookups-bound-the-default-provider)) | The root-level `aws_vpc` and `aws_security_group` blocks must bind the aliased provider (`provider = aws.<alias>`), not the DEFAULT one, which has no configuration and plans only from a shell with ambient AWS credentials. | Regenerate; a hand-edited root that dropped the `provider` line shows this. |
+| Undeclaring the last instance on a runtime plans no destroy, or a dry run erases its launch record ([the entry](../../docs/INCIDENTS.md#decommissioning-the-last-gce-instance-planned-no-destroy-and-a-dry-run-erased-its-record)) | `_root_has_work()` emits an instance-less root whenever a recorded instance is undeclared, the decommission whitelist is scoped to the root of the runtime the pinned build was baked on, and the forget is an after-apply hook ([test_v2_decommission.py](../../tests/test_v2_decommission.py)). | A decommission can be dry-run as often as needed; run it with the root allowed to apply. |
+| meta-state claims a build the instance never ran ([the entry](../../docs/INCIDENTS.md#a-pin-was-re-bound-to-a-new-series-head-without-replacing-the-instance)) | A pin may move only with a replacement. The post-finalize hook binds from what actually booted when the parent was deferred, and the state query reports `booted image <x> != pinned build <y>` as `changed`. | `upgrade instance` onto the intended build. |
+| A torn-down ephemeral keeps its launch record ([the entry](../../docs/INCIDENTS.md#a-verify-assert-as-the-runners-last-step-failed-the-run-after-the-teardown)) | A `verify assert` as the runner's last step fails the script before the after-apply hook runs; under `on_failure: teardown` the verdict fails the run from `forget_ephemerals`, after the record is forgotten ([test_v2_ephemeral.py](../../tests/test_v2_ephemeral.py)). | `forget instance <name>` for a record left by an older tree. |
+| A run scoped to AWS fails on the GCE instance root's plan ([the entry](../../docs/INCIDENTS.md#a-run-scoped-to-aws-failed-on-the-gce-instance-roots-plan)) | Under `--only-runtime` (explicit or implied by `--apply-runtime`) another runtime's instance and storage roots emit nothing, and the out-of-scope instance builder's finalize hooks do nothing either. | Scope the run. |
+| `No resolved provider-specific images for instances; modules will use their name-pattern fallback` on a scoped run ([the entry](../../docs/INCIDENTS.md#every-scoped-run-warned-about-images-it-was-never-going-to-launch)) | Both finalize hooks return early for a root outside the runtime scope, so the line is never logged for a root the scope left empty ([test_v2_defects_dead.py](../../tests/test_v2_defects_dead.py), `test_an_out_of_scope_instance_root_writes_no_tfvars`). On an in-scope root it is expected when nothing baked this run. | Nothing. |
+| Two S3 storages on one builder report the same bucket ([the entry](../../docs/INCIDENTS.md#two-s3-storages-on-one-builder-reported-the-same-bucket)) | The state query asks for the storage's own bucket (its `bucket_name`, else the builder's, else its name), never the builder's alone ([test_v2_defects_dead.py](../../tests/test_v2_defects_dead.py), `test_the_s3_lookup_asks_for_the_storages_own_bucket`). | Name each storage's bucket. |
+| `forces replacement, 1 to add, 1 to destroy` on a data volume after a subnet change ([the entry](../../docs/INCIDENTS.md#a-zone-change-planned-to-destroy-a-data-volume)) | A zone must be declared, never inferred from the subnet: a subnet, a storage and an instance may declare `availability_zone`, `validate` refuses an incompatible set naming each claimant, and the EBS builder passes the declared zone to the module ([test_v2_availability_zones.py](../../tests/test_v2_availability_zones.py)). The gate still refuses the destroy as unwhitelisted. | Declare the zones; move data by archive and restore. |
+| `mount.efs` cannot resolve the filesystem's DNS name; `verify instance` fails on the mount ([the entry](../../docs/INCIDENTS.md#no-instance-could-mount-an-efs-storage)) | An EFS filesystem needs mount targets. The module creates one per zone and a security group for them, and the builder passes the runtime's private subnets (one per zone) and `addl_security_groups` as the clients; with no `networking`, no private subnets or no `addl_security_groups` on the runtime, the call carries none of the three and the filesystem is unmountable ([test_storage_module_calls.py](tests/test_storage_module_calls.py)). | Check the emitted `<B>-storage-generation-storage-<label>.tf` for `mount_target_subnet_ids`. |
+| An instance destroyed through the gate keeps its pin and launch parameters, and `require_released_builds` then refuses every run ([the entry](../../docs/INCIDENTS.md#a-pin-outlived-its-instance)) | The mechanism is proven in the fixture; the live failure stands unexplained. | `cs-image-system forget instance <name>` drops the records without editing meta-state by hand. |
+| The first replacement of a durable instance: the gate refuses `module.instance_<label>.aws_volume_attachment.this["<storage>"]`, the strict query refuses the run that finishes the upgrade, the replaced machine's OPA registration claims the new alias, the alias pass writes nothing ([the entry](../../docs/INCIDENTS.md#the-first-live-replacement-four-traps-in-one-afternoon)) | An attachment binds the volume to the instance id, so a `-replace` replaces it too and `_replacement_attachments()` whitelists it; a pending replacement is a `note`, not drift; `mark_launched` retires the old registration; the alias pass waits for the new machine ([test_v2_gate5_capabilities_activation.py](../../tests/test_v2_gate5_capabilities_activation.py), [test_v2_provider_aliases.py](../../tests/test_v2_provider_aliases.py)). | The procedure is OPERATIONS "A model image, end to end". |
+| `require_released_builds` has to be switched off by hand between `upgrade instance` and the release ([the entry](../../docs/INCIDENTS.md#the-release-flag-had-to-be-switched-off-by-hand-mid-release)) | A durable instance whose volume allows one attachment can only prove a build on itself, so the release grace admits the series head while its own proof is under way; the refusal reads `instance '<name>' is pinned to build <id> of '<image>', which is not a released build (config.require_released_builds; no grace: <what is missing>)`. | Read what the grace needs; leave the flag on. |
+| `instances.auto.tfvars` lingers untracked under a release or retention generation directory ([the entry](../../docs/INCIDENTS.md#the-release-and-retention-runs-left-a-stray-tfvars-file)) | `pre_finalize_phase` acts for the `instance-image` lifecycle alone, and for a root inside the runtime scope ([test_v2_hygiene_five.py](../../tests/test_v2_hygiene_five.py)). | Delete a file left by an older tree. |
+| The S3 prerequisite bake fails on a RHEL-family image ([the entry](../../docs/INCIDENTS.md#the-s3-prerequisite-needed-unzip-on-a-rhel-image)) | `unzip` is not installed there (`curl` is); the prerequisite installs `unzip` before fetching the AWS CLI zip. | Nothing. |
 
-### Failures the code raises that have not happened
+### Failures the code raises
 
 Each with the message or symptom, what it means, where to look, what to do.
 
@@ -1207,8 +1105,8 @@ Each with the message or symptom, what it means, where to look, what to do.
   will use their name-pattern fallback` at pre-finalize: nothing baked this
   run, so no `instances.auto.tfvars`; the module resolves `ami_id` from the
   pin or the most recent AMI matching the pattern. Expected on a launch
-  that re-bakes nothing. Since stage 63 it is never logged for a root
-  outside the run's `--only-runtime` scope (the hook returns before it).
+  that re-bakes nothing. It is never logged for a root outside the run's
+  `--only-runtime` scope (the hook returns before it).
 - Log warning `Instance <name> booted <ami>, which lineage does not record;
   pin left unbound`: the parent was deferred and the machine booted an
   image outside lineage (a foreign AMI matched the name pattern). Run

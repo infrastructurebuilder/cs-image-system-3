@@ -74,8 +74,8 @@ recipe, a CLI option, a CI step or a secret, the matching document changes
 in the same commit. The checks above take minutes; run the ones that match
 what you touched.
 
-The tests the "What could automate it" column proposes are written by
-stage 128 ([INPROGRESS/STAGE-128.md](../INPROGRESS/STAGE-128.md)): every
+The tests the "What could automate it" column proposes are
+[a planned stage](../INPROGRESS/STAGE-128.md): every
 registered model's fields appear in CONFIGURATION, every recipe in
 OPERATIONS, every plugin package in the root README's list, every CLI
 command in OPERATIONS's table, and the starter count is one constant the

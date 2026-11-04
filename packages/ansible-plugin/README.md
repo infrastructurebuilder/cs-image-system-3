@@ -56,19 +56,30 @@ which adds nothing to
 [`BuilderModel`](../base/src/cs_image_system/base/models/builder_model.py)
 (`name`, `type`, `description`, `aliases`, `executable`, `is_default`,
 `config`, `gitignore`, `tags`). `AnsiblePackerModBuilderModel` is the
-registered subclass; it adds no fields.
+registered subclass; it adds no fields. The full field table is
+[CONFIGURATION 7.1](../../docs/CONFIGURATION.md#71-ansible); the keys
+this plugin adds, and what it does with them:
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `extra_arguments` | `list[str]` | `[]` | Prepended to every emitted `provisioner "ansible"`'s `extra_arguments`; each entry is HCL-escaped (stage 63). |
-| `expect_disconnect` | `bool` | `False` | Emits `expect_disconnect = true` on every provisioner. |
-| `ansible_connection` | `str \| None` | `None` | When set, the ansible variable `ansible_connection=<value>` is passed in `--extra-vars` (for example `docker`), winning over what the runtime answers through `bake_ansible_vars` (stage 103; packer's provisioner has no option for it, and the former `connection_type` line was not one packer knew). |
-| `configuration_user` | `str \| None` | `None` | When set, the `user` of every `provisioner "ansible"` this builder emits, beating the bake-user resolver ([CONFIGURATION 5.1.1](../../docs/CONFIGURATION.md#511-the-bake-ssh-user)); the one place a modification connects as someone other than the bake user (stage 63; it was declared and not read until 2026-09-25). |
+- `extra_arguments`: prepended to every emitted `provisioner "ansible"`'s
+  `extra_arguments`; each entry is HCL-escaped.
+- `expect_disconnect`: emits `expect_disconnect = true` on every
+  provisioner.
+- `ansible_connection`: when set, the ansible variable
+  `ansible_connection=<value>` is passed in `--extra-vars` (for example
+  `docker`), winning over what the runtime answers through
+  `bake_ansible_vars`. It travels as a variable because packer's
+  provisioner has no option for it (a `connection_type` line is not one
+  packer knows).
+- `configuration_user`: when set, the `user` of every `provisioner
+  "ansible"` this builder emits, beating the bake-user resolver
+  ([CONFIGURATION 5.1.1](../../docs/CONFIGURATION.md#511-the-bake-ssh-user));
+  the one place a modification connects as someone other than the bake
+  user.
 
-There is no builder-level `playbooks` field (stage 48.4 removed it: the
-list was copied beside the Packer root and never run). Every model in the
-system refuses unknown keys, so a builder that still declares
-`playbooks:` fails to load. The playbooks that run are the items' own.
+There is no builder-level `playbooks` field: a list on the builder would
+be copied beside the Packer root and referenced by no provisioner, so the
+playbooks that run are the items' own. Every model in the system refuses
+unknown keys, so a builder that declares `playbooks:` fails to load.
 
 Base fields this plugin constrains: `executable` should name the
 `ansible-playbook` executable (the fixture does), though the emission does
@@ -79,26 +90,28 @@ base-model rule). `config:` on the builder is carried but never read.
 
 Same file. Extends
 [`ModItemModel`](../base/src/cs_image_system/base/models/moditem_type.py)
-(`SubRootItem` -> `RootItem` -> `NameTyped`).
+(`SubRootItem` -> `RootItem` -> `NameTyped`). The item's full field table
+is [CONFIGURATION 7.3](../../docs/CONFIGURATION.md#73-the-modification-item-inside-an-images-modifications);
+what this plugin adds and what it does with the inherited fields:
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `playbooks` | `list[str]` | `[]` | Playbook files, relative to the configuration root, run in order. One `provisioner "ansible"` per entry. An item with none is refused at load (see below). |
-
-Inherited item fields:
-
-| Base field | From | Default | Use in this plugin |
-|---|---|---|---|
-| `name` | `NameTyped` | required | Names the provisioner comment and the local bundle directory (`NN-<name>`). |
-| `type` | `ModItemModel` | `default` | Foreign key to a `mod_builders:` entry (see above). |
-| `description`, `aliases`, `tags` | `NameTyped` / `RootItem` | | Carried; not emitted. |
-| `config` | `RootItem` | `{}` | Not read by this plugin. It takes part in the lineage content hash of the modification and nothing else. |
-| `_model_id` | `ModItemModel` | set at load | The owning image's global id (the orchestrator assigns it while structuring the image's `modifications:`). `identified_model` (and `builder`) therefore resolve to the *image*, not to the modification builder. |
+- `playbooks` (this plugin's own key): playbook files, relative to the
+  configuration root, run in order. One `provisioner "ansible"` per
+  entry. An item with none is refused at load (see below).
+- `name`: names the provisioner comment and the local bundle directory
+  (`NN-<name>`).
+- `type`: foreign key to a `mod_builders:` entry (see above).
+- `description`, `aliases`, `tags`: carried; not emitted.
+- `config`: not read by this plugin. It takes part in the lineage content
+  hash of the modification and nothing else.
+- `_model_id` (set at load, not a YAML key): the owning image's global id
+  (the orchestrator assigns it while structuring the image's
+  `modifications:`). `identified_model` (and `builder`) therefore resolve
+  to the *image*, not to the modification builder.
 
 `remap_self_with_copied_assets(copied)` de-duplicates the item's own
 `playbooks` (first occurrence wins, order kept) and rewrites any entry
-present in `copied` to its copied path. Since stage 48.4 the builder's
-`copy_external_assets` returns an empty mapping, so in practice this call
+present in `copied` to its copied path. Because the builder's
+`copy_external_assets` returns an empty mapping, in practice this call
 only de-duplicates.
 
 ## The builder
@@ -119,7 +132,7 @@ For every modification of an instance image, the Packer image builder
 calls, in order:
 
 1. `copy_external_assets(block_dir, mod)`: returns `{}`. Nothing is copied
-   here (stage 48.4); the item's playbooks are copied in step 4.
+   here; the item's playbooks are copied in step 4.
 2. `mod.remap_self_with_copied_assets({})` on the item (see above).
 3. `generate_items_before_modification`: returns an empty asset set.
 4. `generate_items_during_modification(image, mod, image_builder, phase, build_path)`:
@@ -128,11 +141,10 @@ calls, in order:
      working directory, which the run sets to the configuration root),
      copies it to `<generation root>/<block dir>/<playbook>` so Packer
      finds it next to the HCL. An absolute path is emitted as given and
-     not copied. A relative path that is not a file is refused here
-     (stage 63): `FileNotFoundError` with `modification '<name>': playbook
-     '<path>' does not exist (a relative path is read from the
-     configuration root)`. Until 2026-09-25 it was emitted anyway and
-     failed only when packer ran;
+     not copied. A relative path that is not a file is refused here,
+     before packer runs, with a `FileNotFoundError`: `modification
+     '<name>': playbook '<path>' does not exist (a relative path is read
+     from the configuration root)`;
    - appends to the build file a comment
      `# Modifications for <item name> of type <item type>`;
    - a `provisioner "shell"` with `only = ["<source type>.<image>"]` whose
@@ -143,8 +155,8 @@ calls, in order:
      `test -x`, so the second and later playbooks of an image re-run it
      as a no-op;
    - a `provisioner "ansible"` with `only`, `playbook_file = "<playbook>"`,
-     `user = "<name>"` (the builder's `configuration_user` when set,
-     stage 63; otherwise the user the runtime names to provisioners
+     `user = "<name>"` (the builder's `configuration_user` when set;
+     otherwise the user the runtime names to provisioners
      through `bake_ssh_username(image)`, where the GCE runtime answers the
      user the packer source resolves for that image and the AWS runtime
      answers nothing, so no line), `extra_arguments = [<builder
@@ -158,8 +170,7 @@ calls, in order:
      `user`, each `extra_arguments` entry) goes through `_hcl`: backslashes and
      double quotes are escaped and packer's template openers `${` and
      `%{` are doubled to `$${` and `%%{`, so the value reaches ansible
-     literally (stage 63; a `"` in any of them used to break the build
-     file, 2026-09-25).
+     literally and a `"` in any of them cannot break the build file.
 5. `generate_items_after_modification`: returns an empty asset set.
 
 The `only` label comes from `build_target_label_of(image_builder, image)`:
@@ -193,7 +204,7 @@ it at load, by name ("Ansible modification 'x' declares no playbooks: it
 has nothing to modify with"), so `validate`, `run` and every other
 configuration load stop there
 ([ansible_models.py](src/cs_image_system/ansible_plugin/ansible_models.py)).
-The fixture carries no such item (stage 43 removed the two it had).
+The fixture carries no such item.
 
 ## Emission
 
@@ -315,9 +326,9 @@ no environment variable. What must exist outside the system:
 - **The build VM's SSH user**, on runtimes that fix one: the GCE runtime
   builder's `bake_ssh_username(image)`, the user the packer source bakes
   that image as (the bake-user order, CONFIGURATION 5.1.1), is written as
-  the provisioner's `user`. Before stage 63 it read only the runtime's
-  `ssh_username` and said `packer` otherwise, so an entry-level user baked
-  as itself while ansible connected as `packer`. The AWS runtime returns `None` and
+  the provisioner's `user`. It is the resolved user, not the runtime's
+  `ssh_username` alone, so that an entry-level user bakes as itself and
+  ansible connects as that same user. The AWS runtime returns `None` and
   the provisioner keeps packer's default (the communicator's user). Nothing
   else is needed from the runtime.
 - **Reaching the build VM** is the runtime's and the image builder's
@@ -342,20 +353,20 @@ Python side: Python 3.13 or later, `pydantic>=2.13`, and
 | `config` | mapping | `{}` | Accepted, not read. |
 | `gitignore` | list[str] | `[]` | Accepted, not read by this plugin. |
 | `tags` | mapping | `{}` | Accepted, not read by this plugin. |
-| `extra_arguments` | list[str] | `[]` | Emitted first in every provisioner's `extra_arguments`, before the system's `-e ansible_python_interpreter=...`. Each value is written as an escaped HCL string (backslash and `"` escaped, `${`/`%{` doubled; stage 63, they were written unescaped until 2026-09-25). |
+| `extra_arguments` | list[str] | `[]` | Emitted first in every provisioner's `extra_arguments`, before the system's `-e ansible_python_interpreter=...`. Each value is written as an escaped HCL string (backslash and `"` escaped, `${`/`%{` doubled). |
 | `expect_disconnect` | bool | `false` | When true, every provisioner carries `expect_disconnect = true`. |
-| `ansible_connection` | str or null | null | When set, every provisioner's `extra_arguments` carry `--extra-vars ansible_connection=<value>` (escaped as above), over the runtime's own answer (stage 103). |
-| `configuration_user` | str or null | null | When set, every provisioner this builder emits carries `user = "<value>"`, whatever the runtime would answer: ansible connects as that user instead of the bake user. Unset, the `user` comes from the runtime's bake SSH user as before. Read since stage 63 (accepted and ignored until 2026-09-25). The user must exist on the build VM and accept the bake's SSH key. |
-| `parameters` | | | Refused at load (retired, stage 26). |
-| `playbooks` | | | Refused at load as an unknown key (removed in stage 48.4). |
+| `ansible_connection` | str or null | null | When set, every provisioner's `extra_arguments` carry `--extra-vars ansible_connection=<value>` (escaped as above), over the runtime's own answer. |
+| `configuration_user` | str or null | null | When set, every provisioner this builder emits carries `user = "<value>"`, whatever the runtime would answer: ansible connects as that user instead of the bake user. Unset, the `user` comes from the runtime's bake SSH user. The user must exist on the build VM and accept the bake's SSH key. |
+| `parameters` | | | Refused at load (a base-model rule). |
+| `playbooks` | | | Refused at load as an unknown key: the playbooks that run are the items' own. |
 
 ### Modification item under an image's `modifications:` (ansible builder)
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
 | `name` | str | required | Unique within the image; appears in the emitted comment and as the bundle directory `NN-<name>`. |
-| `type` | str | `default` | The mod builder: its name, an alias, `default`, or omitted. Rewritten to the builder's name at load. An unknown name is a `KeyError` at load. Omitted with no `is_default: true` mod builder: refused at load (stage 63). |
-| `playbooks` | list[str] | `[]` | One `provisioner "ansible"` per entry, in order; duplicates collapse to the first occurrence. Paths are relative to the configuration root (the run's working directory) or absolute; a relative path that does not exist is refused at generation (stage 63). Required in effect: an empty list is refused at load. |
+| `type` | str | `default` | The mod builder: its name, an alias, `default`, or omitted. Rewritten to the builder's name at load. An unknown name is a `KeyError` at load. Omitted with no `is_default: true` mod builder: refused at load. |
+| `playbooks` | list[str] | `[]` | One `provisioner "ansible"` per entry, in order; duplicates collapse to the first occurrence. Paths are relative to the configuration root (the run's working directory) or absolute; a relative path that does not exist is refused at generation. Required in effect: an empty list is refused at load. |
 | `description` | str or null | null | Accepted, not read. |
 | `aliases` | list[str] | `[]` | Accepted, not read. |
 | `tags` | mapping | `{}` | Accepted, not read. |
@@ -367,7 +378,7 @@ Python side: Python 3.13 or later, `pydantic>=2.13`, and
   (GCE: the image's resolved bake user), the provisioner carries
   `user = "<that>"`; when it does not (AWS), no `user` line is emitted and
   packer's default applies.
-- **`configuration_user` declared** on the builder (stage 63): every
+- **`configuration_user` declared** on the builder: every
   provisioner carries `user = "<configuration_user>"` on every runtime,
   AWS included, replacing whatever the runtime would have answered.
   Undeclared: the Runtime bullet above. The `only` label follows the image builder's
@@ -384,21 +395,20 @@ Python side: Python 3.13 or later, `pydantic>=2.13`, and
 - **Item `type:` present vs absent.** Present: resolved by name or alias,
   and an unknown name is a hard failure at load. Absent or `default`: the
   `is_default: true` mod builder. When no mod builder is default, the
-  load is refused (stage 63): in practice the builder-list check refuses
+  load is refused: in practice the builder-list check refuses
   first with `No default builder found in mod_builder list.`, and the
   orchestrator's own refusal (`` modification '<name>' names no builder
   (`type`) and no mod builder is `is_default: true`; name one with
   `type:` or mark a default ``) covers an item that reaches it anyway.
-  Until 2026-09-25 the item was left a plain mapping and the image
-  builder's modification loop died on it with an `AttributeError`.
+  Either refusal names what is missing at load, so the image builder's
+  modification loop never meets an item that was left a plain mapping.
 - **Relative vs absolute playbook path.** Relative and existing: copied
   beside the HCL and referenced by that relative path. Absolute: referenced
   verbatim, never copied (packer then reads it from that path on the
   machine running the bake; a missing absolute path still fails only at
   packer). Relative and missing: refused at generation, naming the
-  modification and the path (stage 63; until 2026-09-25 it was
-  referenced verbatim with no error and `packer build` failed when it
-  validated the provisioner).
+  modification and the path, so the mistake surfaces before `packer
+  build` validates the provisioner.
 - **Several playbooks on one item**: one shell + ansible pair per
   playbook; the shell step is guarded, so only the first does work.
 - **Several ansible items on one image**: emitted in declaration order,
@@ -424,9 +434,9 @@ Python side: Python 3.13 or later, `pydantic>=2.13`, and
 
 - **At load** (pydantic, every command that loads the configuration):
   field types; unknown keys refused (`extra="forbid"`); `parameters:`
-  refused with the stage-26 message; `name`/`aliases` free of `/` and
+  refused (a base-model rule); `name`/`aliases` free of `/` and
   `\` and never `default`; this plugin's own rule, an ansible item
-  without `playbooks:` is refused by name; and (base's, stage 63) an item
+  without `playbooks:` is refused by name; and (base's) an item
   with no `type:` when no mod builder is `is_default: true` is refused. The verdict is the exception
   text on the command's output and a non-zero exit; no file is written.
 - **At `validate`** (and at the start of every run): base's version check
@@ -439,7 +449,7 @@ Python side: Python 3.13 or later, `pydantic>=2.13`, and
   checked when all pass.
 - **At generation**: a relative playbook path that does not exist is
   refused with a `FileNotFoundError` naming the modification and the path
-  (stage 63; see Variations). The strings written into the provisioner are
+  (see Variations). The strings written into the provisioner are
   escaped, so no configured value can break the build file's syntax. The emitted text is
   pinned by the golden fixture and by `tests/test_v2_gate8_modifications.py`
   (one `provisioner "ansible"` per item, correct `only`, `playbook_file`)
@@ -465,71 +475,69 @@ Python side: Python 3.13 or later, `pydantic>=2.13`, and
 
 ## When it fails
 
-Failures that have happened, newest first:
+Incidents that have happened, with their cause and fix, are recorded on
+[INCIDENTS.md](../../docs/INCIDENTS.md); what follows keeps each
+failure's symptom, its meaning and what to do.
 
-- **2026-09-17 (stage 48.1): the version checker had never run.**
-  `AnsibleVersionChecker` was registered by name while `validate` looked
-  the checker up by type in the wrong table, so `ansible-playbook`'s floor
-  was never enforced. Since stage 48 it is: a run on a machine with an
-  older ansible-core now fails validation with
-  `ansible-playbook <found> does not meet its requirement <spec> (cfg/executables.yml)`.
-  Fix: install the required ansible-core where the entry's `binary`
-  points, or move the floor in `cfg/executables.yml` if the floor is the
-  thing that is wrong.
-- **2026-09-17 (stage 48.4): builder-level playbooks were copied and never
-  run.** The builder's `playbooks:` were copied beside the Packer root by
-  `copy_external_assets` but no provisioner referenced them. The field is
-  gone; a configuration that still declares it fails to load with
-  pydantic's unknown-key error (`extra_forbidden`) naming `playbooks`.
-  Move the playbook onto each item that should run it.
-- **2026-09-16 (stage 43): an item with only `config:` baked nothing.**
-  Two fixture items (`dask-setup2`, `data-science-workstation-two`)
-  rendered no provisioner while lineage, the on-image bundle and the
-  modification tests recorded them as applied. Now refused at load:
-  `Ansible modification '<name>' declares no playbooks: it has nothing to
-  modify with (config alone provisions nothing). Give it 'playbooks:' ...
-  or remove it.` Give the item a playbook or delete it; the image's
-  fingerprint changes either way and it re-bakes.
-- **2026-09-10 (ledger 71, GCE dask re-bake): `Failed to import the
-  required Python library (packaging)`.** Ansible's `pip` module imports
-  `packaging` on the target's interpreter, and the pinned
+Failures by symptom: what each means and what to do.
+
+- **`ansible-playbook <found> does not meet its requirement <spec>
+  (cfg/executables.yml)` at `validate`.** The version checker is looked
+  up by the executable's name, so the `ansible-playbook` entry's floor is
+  enforced at `validate` and before every run; the ansible-core on the
+  machine is older than the floor. Install the required ansible-core
+  where the entry's `binary` points, or move the floor in
+  `cfg/executables.yml` if the floor is the thing that is wrong.
+- **A builder that declares `playbooks:` fails to load** with pydantic's
+  unknown-key error (`extra_forbidden`) naming `playbooks`. The builder
+  has no playbook field: a list there would be copied beside the Packer
+  root and referenced by no provisioner. Move the playbook onto each item
+  that should run it.
+- **`Ansible modification '<name>' declares no playbooks: it has nothing
+  to modify with (config alone provisions nothing). Give it 'playbooks:'
+  ... or remove it.` at load.** An item with only `config:` would render
+  no provisioner while lineage, the on-image bundle and the modification
+  tests recorded it as applied, so it is refused by name. Give the item a
+  playbook or delete it; the image's fingerprint changes either way and
+  it re-bakes.
+- **`Failed to import the required Python library (packaging)`** in
+  packer's output for the ansible provisioner. Ansible's `pip` module
+  imports `packaging` on the target's interpreter, and the pinned
   `/usr/local/bin/csis-ansible-python` (a bare `python3.N` the shell step
-  installed) does not have it. The task before it (`package`) had passed.
-  Seen in packer's output for the ansible provisioner; the bake fails and
-  no build is recorded. Fix in the playbook, not the plugin: run `pip3`
-  through `ansible.builtin.command` guarded on an import check, as
-  [setup_dask.yml](../../tests/fixtures/config/setup_dask.yml) now does.
+  installed) does not have it; a `package` task before it passes. The
+  bake fails and no build is recorded. Fix in the playbook, not the
+  plugin: run `pip3` through `ansible.builtin.command` guarded on an
+  import check, as
+  [setup_dask.yml](../../tests/fixtures/config/setup_dask.yml) does.
   Any module that needs a library on the target interpreter has the same
   problem.
-- **2026-09-10 (ledger 71, first live post-bake suite): a playbook that
-  does nothing passes the bake.** The fixture's `setup_dask.yml` had been
-  a placeholder (one `debug` task) since the first bakes; the bake
-  succeeded and `python3 -c 'import dask'` failed on the launched
-  instance. This plugin cannot tell an empty playbook from a full one;
-  the image's `tests.post_bake` did. Where it lands:
+- **A playbook that does nothing passes the bake.** A placeholder
+  playbook (one `debug` task) bakes successfully, and the launched
+  instance lacks what it was meant to install (`python3 -c 'import
+  dask'` fails). This plugin cannot tell an empty playbook from a full
+  one; the image's `tests.post_bake` can. Where it lands:
   `meta-state/image-tests.yaml` (ok false, the failing assertion named)
   and `release` refusing the build.
-- **2026-09-05 (finding 48, GCE re-bake on feature/gce-launch-proof):
-  every task `unreachable` / `Failed to create temporary directory`.**
+- **Every task `unreachable` / `Failed to create temporary directory`.**
   Packer's ansible provisioner defaults `ansible_user` to the operator's
-  LOCAL login, never the build VM's SSH user, so ansible built `~/.ansible/tmp` under
-  `/home/<local-user>` on the VM. Intermittent, because packer's
-  `use_proxy` auto-detection masked it until it flipped to direct mode.
-  Fix: the `user = "<bake ssh user>"` line, emitted when the runtime
-  declares one (GCE). If the symptom appears on a runtime that returns
-  `None` from `bake_ssh_username(image)`, that runtime needs the hook, not the
-  playbook.
-- **Stage 1 (before 2026-09-02, the first AWS bakes on RHEL 8): fact
-  gathering died with "The module interpreter..."** because the target's
-  only Python was 3.6, which the controller's ansible-core no longer
-  supports. Fix: the emitted `provisioner "shell"` that installs a newer
-  Python and pins it at `/usr/local/bin/csis-ansible-python`, and the
-  `-e ansible_python_interpreter=...` argument that names it. If a new OS
+  LOCAL login, never the build VM's SSH user, so ansible builds
+  `~/.ansible/tmp` under `/home/<local-user>` on the VM. Intermittent,
+  because packer's `use_proxy` auto-detection masks it until it flips to
+  direct mode. The `user = "<bake ssh user>"` line, emitted when the
+  runtime declares one (GCE), is what prevents it. If the symptom appears
+  on a runtime that returns `None` from `bake_ssh_username(image)`, that
+  runtime needs the hook, not the playbook.
+- **Fact gathering dies with "The module interpreter..."** on an
+  EL-family base whose only Python (3.6 on RHEL 8) the controller's
+  ansible-core no longer supports. The emitted `provisioner "shell"`
+  installs a newer Python and pins it at
+  `/usr/local/bin/csis-ansible-python`, and the
+  `-e ansible_python_interpreter=...` argument names it. If a new OS
   family has no `python3.12`/`3.11`/`3.9` package and no `dnf`, the step
   falls back to whatever `python3` exists; check the family's Python
   against the ansible-core support matrix before blaming the playbook.
 
-Failures the code can produce that have not been seen live:
+Failures the code raises:
 
 - `Could not resolve builder '<type>' referenced in <image>` (a
   `KeyError` at load): the item's `type:` names no mod builder by name or
@@ -550,25 +558,20 @@ Failures the code can produce that have not been seen live:
   names an entry `cfg/executables.yml` does not have.
 - `modification '<name>': playbook '<path>' does not exist (a relative
   path is read from the configuration root)` (a `FileNotFoundError` at
-  generation, stage 63): a relative playbook named on an item is not a
-  file under the configuration root. Fix the path or add the file. Until
-  2026-09-25 this was no error at generation and `packer build` failed
-  later validating `playbook_file`. An ABSOLUTE path that does not exist
-  still behaves that way: a warning `local mods: <file> for <item> not
-  found; the bundle will lack it` from the Packer plugin, then packer
-  fails.
+  generation): a relative playbook named on an item is not a file under
+  the configuration root. Fix the path or add the file. An ABSOLUTE path
+  that does not exist is not checked at generation: a warning `local
+  mods: <file> for <item> not found; the bundle will lack it` from the
+  Packer plugin, then `packer build` fails validating `playbook_file`.
 - `No default builder found in mod_builder list.` at load: no mod builder
   says `is_default: true`. Mark one, or give every item a `type:`. The
   orchestrator's own form of the same refusal, for an item that reaches
   it, is `` modification '<name>' names no builder (`type`) and no mod
   builder is `is_default: true`; name one with `type:` or mark a
-  default `` (stage 63; it used to surface as an `AttributeError` at
-  generation).
-- Malformed HCL from a value containing a double quote was possible until
-  2026-09-25: `extra_arguments` entries, `ansible_connection` and
-  playbook paths were written between quotes without escaping. Since
-  stage 63 every such string is escaped, so this failure no longer
-  occurs.
+  default ``.
+- A value containing a double quote, a backslash or `${`/`%{` (an
+  `extra_arguments` entry, `ansible_connection`, a playbook path) cannot
+  malform the build file: every such string is written HCL-escaped.
 - A playbook task fails on the VM: packer reports the ansible recap and
   exits non-zero; the image builder's `run-<lifecycle>.sh` propagates the
   exit code, no build is recorded and packer cleans up its build VM. The

@@ -306,10 +306,10 @@ only via bind, upgrade and follow operations (§3B).
   - Cross-cutting: gated applies whitelist only operation-driven
     destroys (upgrade, instance decommission, a storage's requested or
     undeclared demise); any other destroy is a gate failure.
-- **N20 — Two identity types (revised by stage 75).** Okta was the only
-  identity type until stage 75 added `posix`: POSIX groups and users on
-  the machines, with ids the configuration declares (gid policy
-  `config-time`), no provider, no identity root. It stands alone (a tree
+- **N20 — Two identity types, `okta` and `posix`.** The `posix` type is
+  POSIX groups and users on the machines, with ids the configuration
+  declares (gid policy `config-time`), no provider, no identity root. It
+  stands alone (a tree
   with no Okta: the `standard-aws-posix` starter) or beside Okta, where an
   `okta-tf` group builder names it as its `posix:` delegate (required;
   `none` is the explicit opt-out) and it makes OPA's groups exist on their
@@ -319,10 +319,10 @@ only via bind, upgrade and follow operations (§3B).
   neither provider's agent: the launch steps, the login proof and the gid
   in generated IaC are each the group builder's answer. LDAP/AD and
   `manual-add` stay deferred (§H).
-  A container runtime (stage 103) takes the `posix` type alone: OPA's
+  A container runtime takes the `posix` type alone: OPA's
   agent is a daemon under an init system, a container runs none, and a
   group owned by OPA on a `docker` runtime is refused at validation in one
-  sentence (enrollment in a container is a later stage). A `posix` group
+  sentence (enrollment in a container is deferred, §H). A `posix` group
   there is as on a cloud, with one difference the core does not hide: the
   accounts script reaches the container by `exec` through the runtime's
   session, not by ssh, so a container has no ssh login proof.
@@ -395,7 +395,7 @@ only via bind, upgrade and follow operations (§3B).
   its generation's snapshot updated and a `resized` event kept). This
   boundary is what makes N16 (per-instance attachment) and N23
   (fully-baked images) compatible.
-  **How the parameters arrive is the runtime's** (stage 103). A cloud
+  **How the parameters arrive is the runtime's.** A cloud
   hands the rendered script to the machine as user data and the machine
   runs it at first boot (`launch_delivery: boot`, the default). A
   container has no user data and no first boot: the same script is
@@ -422,15 +422,15 @@ control flow. Control flow -- a launch applying, a pending replacement
 clearing -- may open a generation, but only as `inferred`; the provider's
 id confirms it, or reveals that a different machine now bears the name.
 
-*Why observation.* The failure this ruling answers (2026-09-21: three
-`coops-model` registrations in OPA, one live) was records that did not
-notice a second machine had happened. A counter bumped by the same
+*Why observation.* The failure this ruling answers ([three registrations
+of one hostname in OPA, one live](INCIDENTS.md#three-registrations-of-one-hostname-in-opa-one-live))
+was records that did not notice a second machine had happened. A counter bumped by the same
 bookkeeping would have the same blind spot: a taint, a console terminate
 and re-apply, a replacement the system did not perform. Asking the
 provider is the only signal that does not share the records' assumptions.
 
 *Why silence is not a change.* A stopped instance may fail the identity
-query, and the power state belongs to the operator (N26, stage 57). Treating
+query, and the power state belongs to the operator (N26). Treating
 "no answer" as "a different answer" would manufacture generations out of
 the operator's own decision to switch a machine off. Nothing acts on
 silence; the generation stands as recorded until the provider says
@@ -449,8 +449,7 @@ the history gains a `resized` event (`from`, `to`, `run`) in the same list
 as the closed generations, in order. The history is therefore the
 machine's biography, not only its obituaries: read it top to bottom and
 every generation's closing and every resize is there with the run that
-did it (hygiene VIII item 2, proved live on `coops-model`'s generation 3,
-which was resized twice before it was decommissioned).
+did it.
 
 ## 3. The design
 
@@ -696,8 +695,8 @@ order. The apply step and its gate are described operationally in
    (`session_mechanism`: `ssm` on AWS, `iap` on GCP). A base image with
    neither a supplied key nor a session mechanism on any of its
    runtimes hard-fails validation (N9).
-   **A container runtime changes what a build is, not how lineage works**
-   (stage 103). On a `docker` runtime packer's `docker` source runs the
+   **A container runtime changes what a build is, not how lineage works.**
+   On a `docker` runtime packer's `docker` source runs the
    bake in a container, the modifications run inside it through the
    daemon as `root`, and the result is committed into the daemon's image
    store: the build is the image id (`sha256:...`) and its names are tags.
@@ -832,7 +831,7 @@ order. The apply step and its gate are described operationally in
 6. Terminology: the configuration keys are `os_builders:` (base
    images, in `cfg/os-builders.yml`), `images:` (instance images) and
    `instances:`. A `base_images` kind is registered base-only and read
-   by nobody ([CONFIGURATION.md](CONFIGURATION.md) §1 and §11.1). Prose
+   by nobody ([CONFIGURATION.md](CONFIGURATION.md) sections 1 and 11.1). Prose
    uses GOALS.md's names, *base images* and *instance images*.
 7. **Ephemeral instances and their failure policy.** An instance may
    declare `ephemeral: true`: the instance-image lifecycle launches it,
@@ -948,7 +947,7 @@ stays a deliberate human step until there is a real candidate.
 
 ---
 
-### P. The plugin contract (stage 30)
+### P. The plugin contract
 
 The contract is a package of its own, `cs-image-system-contract`
 (`cs_image_system.contract`), with no dependency on the core: `base`
@@ -972,27 +971,27 @@ by parameter, stricter than `runtime_checkable`'s name-only check; a
 protocol listed as a base never answers for the class) is run by the bar
 over every base class and every built-in plugin's models and builders.
 Where a class lists its protocol as a base, pyright's override check
-(on as an error since hygiene XIX, §102) compares the override's
-annotations with the protocol's. Runtime checks in
+(on as an error) compares the override's annotations with the
+protocol's. Runtime checks in
 the loader, the registry and the orchestrator stay structural and
 name-only, backed by that test. The mapper dispatches on the contract's
 surface, not a table of the core's classes: a builder-model class that
 classifies itself and names no type of its own is a dispatch point. The
-state backend seam inverted with the package: once the state backends
-are loaded the core hands every model's registration
-(`to_backend_registration`) to the terraform collector, where each model
-used to push its own from `finalize`, so a state plugin imports nothing
-from the library. Deferred, each a stage of its
-own: the run context's protocol (the expensive part; a plugin reaches
+state backend seam is inverted: once the state backends are loaded the
+core hands every model's registration (`to_backend_registration`) to
+the terraform collector, rather than each model pushing its own from
+`finalize`, so a state plugin imports nothing from the library.
+Deferred, each a piece of work of its own: the run context's protocol
+(the expensive part; a plugin reaches
 the context through a base builder until then), the hooks and bootstrap
 entry points, the contract's own compatibility version (it moves in
 lockstep with the workspace until it stops changing), and a separate
 repository for it once stable, with an external plugin as the proof.
 
-**Reversibility (the operator's condition, 2026-10-29).** The stage may
-have to be undone if it interferes with later work; what would be
+**Reversibility (the operator's condition).** The split may have to be
+undone if it interferes with later work; what would be
 expensive is not abandoning a package or a repository but reversing a
-work stream built on it. So the stage changed code alone (the emission
+work stream built on it. So the split changed code alone (the emission
 is byte-identical; no YAML key, record or cloud state moved), and the
 core's old import paths stay as re-exports of the contract (the shims:
 `base/constants.py`, `models/model_config.py`, `helpers/field_helpers.py`,
@@ -1003,14 +1002,14 @@ side holds the bodies, with no import rewritten in the core or in any
 plugin, so every stream that only imports contract names, the plugins
 and the proof plugin included, needs no reversal. The one later stream
 that would need reversing is a Tier C that injects the context
-(`bind(ctx)`) into the plugins' `_get_context()` sites; while the stage
+(`bind(ctx)`) into the plugins' `_get_context()` sites; while the split
 is provisional, Tier C declares and types the context protocol without
 the injection. Removing the shims is the commitment to the contract: it
 is done together with moving the package to its own repository, and
 never unprompted. The operational state -- the tags that bracket the
 work, the undo recipe, the pieces worth re-applying and the standing
-reminder -- is kept in [REMINDERS.md](../REMINDERS.md), under "The §30
-shims".
+reminder -- is kept in [REMINDERS.md](../REMINDERS.md), in the reminder
+on the contract shims.
 
 ## 4. Standing constraints
 
