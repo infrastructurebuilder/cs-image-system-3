@@ -85,7 +85,13 @@ class Registry:
                 
                 canonical_name = artifact.csis_name()
 
-                if canonical_name in self.models[classifier]:
+                # the same artifact registered by several plugins (the tofu
+                # version checker, which every terraform-root plugin carries so
+                # a tree with roots on one provider alone still has its tofu
+                # checked) is one registration; a different class under the
+                # same name is the collision
+                registered = self.models[classifier].get(canonical_name)
+                if registered is not None and registered is not artifact:
                     raise ValueError(f"Type Collision: {canonical_name}")
                 self.models.setdefault(classifier, {})[canonical_name] = artifact
 
@@ -193,8 +199,12 @@ class Registry:
         """Register a service under its classification."""
         classifier = override_classifier if override_classifier is not None else service.csis_classifier()
         self.registry.setdefault(service.csis_name(), {})[classifier] = service
-        self.vct_type_registry.setdefault(classifier, []).append(service)
-        self.reverse_registry.setdefault(service, {}).setdefault(classifier, []).append(service.csis_name())
+        by_classifier = self.vct_type_registry.setdefault(classifier, [])
+        if service not in by_classifier:          # one entry per class, however many plugins carry it
+            by_classifier.append(service)
+        names = self.reverse_registry.setdefault(service, {}).setdefault(classifier, [])
+        if service.csis_name() not in names:
+            names.append(service.csis_name())
         
     def register_aliases(self, classifier: VCT, name: str, aliases: list[str]) -> None:
         """Register all aliases for a given builder under a specific classification."""

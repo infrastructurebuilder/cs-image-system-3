@@ -149,8 +149,8 @@ def test_an_unimplemented_lookup_is_reported_unavailable_not_dropped():
 
 def test_filestore_looks_itself_up_through_the_declared_gcloud(tmp_path: Path, monkeypatch):
     # the harness stubs every storage builder's query_state; keep the real one
-    from cs_image_system.tf_ebs_instance_plugin.tf_storage_builder import TofuStorageBuilder
-    real_query_state = TofuStorageBuilder.query_state
+    from cs_image_system.hashicorp_utils.tofu_storage_builder import TofuStorageBuilderBase
+    real_query_state = TofuStorageBuilderBase.query_state
     stub_environment(monkeypatch)
     c = load_context(_with_filestore(tmp_path))
     try:

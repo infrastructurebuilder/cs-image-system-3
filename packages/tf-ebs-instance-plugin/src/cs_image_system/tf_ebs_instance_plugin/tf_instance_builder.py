@@ -2,40 +2,41 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import json
+"""The AWS instance root: the provider-neutral root of hashicorp-utils with
+the ``aws`` provider, one ``module`` call per instance against
+tfmodules/aws_instance, and the instances' own security group.
+
+The AMI comes from the instance's image's ProviderSpecificImage: a concrete
+id when resolved, a most-recent name-pattern query when deferred (the image
+is built by a prior phase). Each instance's launch parameters -- storage
+mounts and the enrollment trigger -- are generated as a ``templatefile``
+user-data script whose runtime values (gids, filesystem ids, the token)
+enter by terraform reference only; EBS volumes attach through the module;
+the session instance profile is wired when the runtime offers one.
+"""
 import logging
-import subprocess
 from typing import Any, TypeVar
 
-
 from cs_image_system.base import utils
-from cs_image_system.contract.constants import OOPS_DEFAULTS
-from cs_image_system.contract.hcl import HclRaw, hcl_expr, render_module_call
-from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
-from cs_image_system.contract.assets import AssetSet
-from cs_image_system.base.basic.builder_base_instance import InstanceBuilderBase
 from cs_image_system.base.capabilities import group_builder_of
-from cs_image_system.base.launch_params import (
-    ENROLLMENT_TOKEN_VARIABLE,
-    compute_launch_params,
-    user_data_template,
-)
-from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
-from cs_image_system.base.models.executable import ExecutableModel
-from cs_image_system.contract.executables import CFExecutables
+from cs_image_system.base.launch_params import ENROLLMENT_TOKEN_VARIABLE
 from cs_image_system.base.models.instance import Instance
-from cs_image_system.hashicorp_utils.collector import TerraformCollector, TerraformVariable
-from cs_image_system.hashicorp_utils.roots import TerraformRootMixin
+from cs_image_system.contract.constants import OOPS_DEFAULTS
+from cs_image_system.contract.hcl import HclRaw, hcl_expr
+from cs_image_system.hashicorp_utils.collector import TerraformCollector
+from cs_image_system.hashicorp_utils.tofu_instance_builder import TofuInstanceBuilderBase, TofuVersionChecker
 
-from .tf_instance_models import TofuInstanceBuilderModel, TOFU
+from .tf_instance_models import TOFU, TofuInstanceBuilderModel
+
+__all__ = ["TofuInstanceBuilder", "TofuVersionChecker"]
 
 log = logging.getLogger(__name__)
 
 
 def _group_tags_line(ctx: Any) -> str:
     """The security group's tags: its name, and the configuration it belongs
-    to (stage 82's `csis_config`, hygiene XII item 31), so that in a shared
-    account the state is not the only thing that says whose it is."""
+    to (``csis_config``), so that in a shared account the state is not the
+    only thing that says whose it is."""
     from cs_image_system.base.lineage import CONFIG_TAG, configuration_tag
     tag = configuration_tag(ctx)
     if tag:
@@ -49,221 +50,123 @@ def _instances_vpc(rtb: Any) -> str | None:
     vpc = getattr(networking, "network", None) if networking else None
     return vpc if vpc and vpc not in OOPS_DEFAULTS else None
 
+
 Q = TypeVar("Q", bound=TofuInstanceBuilderModel)
-class TofuInstanceBuilder(InstanceBuilderBase[Q], TerraformRootMixin):
-    """OpenTofu IaC provider implementation.
 
-    Generates one ``module`` call per attached Instance against
-    tfmodules/aws_instance. The AMI comes from the instance's image's
-    ProviderSpecificImage: a concrete id when resolved, a most-recent
-    name-pattern query when deferred (the image is built by a prior phase).
 
-    V2 (N16/N26): each instance's launch parameters -- storage mounts and
-    the enrollment trigger -- are generated as a ``templatefile`` user-data
-    script whose runtime values (gids, filesystem ids, the token) enter by
-    terraform reference only; EBS volumes attach through the module; the
-    session instance profile is wired when the runtime offers one.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._instances: list[Instance] = []
+class TofuInstanceBuilder(TofuInstanceBuilderBase[Q]):
+    """The AWS instance root (``type: tofu``); see the module docstring."""
 
     @classmethod
     def csis_name(cls) -> str:
         return TOFU
 
-    def add_instance(self, instance: Instance) -> None:
-        if instance not in self._instances:
-            self._instances.append(instance)
+    # ------------------------------------------------------------ the hooks
+    def _provider_name(self) -> str:
+        return "aws"
 
-    def _runtime_builder(self):
-        ctx = self._get_context()
-        return ctx.runtime_builders.get(self.model.get_runtime_provider(), None)
+    def _provider_source(self) -> str:
+        return "hashicorp/aws"
 
-    # ------------------------------------------------------------ helpers
-    def _identity_workspace_for(self, group: str | None) -> str | None:
-        if not group:
-            return None
-        gb = group_builder_of(self._get_context(), group)
-        # stage 75 step 3: the group builder says where its gids live, if anywhere
-        return gb.gid_workspace() if gb is not None else None
-
-    def _gid_expression_for(self, group: str | None) -> str | None:
-        if not group:
-            return None
-        gb = group_builder_of(self._get_context(), group)
-        return gb.gid_expression(group) if gb is not None else None
-
-    def _storage_builder_name(self, storage_name: str) -> str | None:
-        for s in self._get_context().storages:
-            if s.get_name() == storage_name:
-                return s.type_
-        return None
-
-    @staticmethod
-    def _user_data_template_name(label: str) -> str:
-        return f"user-data-{label}.sh.tftpl"
-
-    def generate_items_before(self, phase: ExecutionLifecyclePhase) -> AssetSet:
-        items = AssetSet()
-        if phase != ExecutionLifecyclePhase.INSTANCE_GENERATION or not self._root_has_work():
-            return items
-        rpath = self.get_path_for_phase(phase, suffix=".tf")
-        items = items.with_default_path(rpath)
-        items.add(f"# Terraform configuration for instances generated by "
-                  f"{self.__class__.__name__} ({self.name})")
-        col = TerraformCollector()
-        ws = self.name
-        # Provider requirements come from configuration (required_plugins);
-        # fall back to a bare hashicorp/aws requirement when none declared.
-        if self.model.required_plugins:
-            for plugin in self.model.required_plugins:
-                col.require_provider(ws, plugin.name,
-                                     source=getattr(plugin, "source", None),
-                                     version=getattr(plugin, "version", None))
-        else:
-            col.require_provider(ws, "aws", source="hashicorp/aws")
-        rtb = self._runtime_builder()
+    def _provider_config(self, rtb: Any) -> dict[str, Any] | None:
+        """The region and, when the runtime names one, the profile; no
+        provider block without a region."""
         get_region = getattr(rtb.model, "get_region", None) if rtb else None
         region = get_region() if callable(get_region) else None
-        if region:
-            config = {"region": region}
-            creds = rtb.model.get_credentials() if rtb else None
-            profile = (creds or {}).get("profile_name")
-            if profile:
-                config["profile"] = profile
-            col.configure_provider(ws, "aws", config)
-        # One overridable AMI variable per instance: finalization writes the
-        # concrete ids (from packer manifests) into an .auto.tfvars once the
-        # builds have run; until then the module falls back to its name-pattern
-        # lookup.
-        for instance in self._instances:
-            label = utils.super_safe_name(instance.get_name())
-            col.declare_variable(ws, TerraformVariable(
-                name=self._ami_var(label), type="string", default=""))
-        self._declare_ephemeral_variable(col, ws)
-        # The enrollment trigger (N26) is supplied at apply time and never
-        # recorded anywhere: a sensitive variable with an empty default.
-        col.declare_variable(ws, TerraformVariable(
-            name=ENROLLMENT_TOKEN_VARIABLE, type="string", default="", sensitive=True,
-            description="Identity enrollment token handed to instances at launch (TF_VAR_...); "
-                        "empty = no enrollment"))
-        # State wiring (emitted only when use_state_backends is enabled):
-        # this workspace's own backend, plus a remote-state datasource per
-        # storage workspace so instances can bind to storage outputs, and per
-        # identity workspace so gids flow by reference (N7).
-        col.bind_workspace(ws, self.model.state_configuration, self.runtime_state_configuration())   # stage 46: own, runtime's, default
-        ctx = self._get_context()
-        for sb_name, sb in ctx.storage_builders.items():
-            if getattr(sb.model, "_storages", None):
-                col.reference_remote_state(ws, producer_workspace=sb_name)
-        identity_ws: set[str] = set()
-        for instance in self._instances:
-            image = ctx.images_map.get(str(instance.image)) if instance.image else None
-            iws = self._identity_workspace_for(getattr(image, "group", None))
-            if iws:
-                identity_ws.add(iws)
-        for iws in sorted(identity_ws):
-            col.reference_remote_state(ws, producer_workspace=iws)
-        items.add_list(col.generate_terraform_block(ws))
-        items.add_list(col.generate_provider_blocks(ws))
-        variable_lines = col.generate_variable_blocks(ws)
-        if variable_lines:
-            items.add_list(variable_lines)
-        remote_lines = col.generate_remote_state_datasources(ws)
-        if remote_lines:
-            items.add_list(remote_lines)
-        backend_lines = col.generate_backend_config(ws)
-        if backend_lines:
-            items.add_list(self._backend_config_path(phase), backend_lines)
-        vpc = _instances_vpc(rtb)
-        if vpc and self._instances:     # hygiene XII item 31: no instances, no group of their own
-            # Instances wear their own security group (found live: the VPC
-            # default group blocks the Okta gateway's inbound SSH relay, so
-            # sft ssh to the advertised private address hangs). SSH ingress
-            # references only the configured source groups (the gateway) --
-            # never the shared networks' CIDR space (policy).
-            networking = getattr(rtb.model, "networking", None) if rtb else None
-            ssh_sgs = list(getattr(networking, "ssh_ingress_security_group_ids", None) or [])
-            if ssh_sgs:
-                src = ("    security_groups = ["
-                       + ", ".join(f'"{s}"' for s in ssh_sgs) + "]")
-            else:
-                # no relay configured: intra-VPC private space only
-                src = "    cidr_blocks = [data.aws_vpc.csis_instances.cidr_block]"
-            # finding 45: these root-level blocks must bind the ALIASED
-            # provider explicitly -- the collector aliases every configured
-            # provider (aggregation-readiness assumes resources live in
-            # modules), so an unqualified block falls to the DEFAULT aws
-            # provider, which has no configuration and only works when the
-            # operator's shell happens to carry ambient AWS credentials
-            provider_line = f"  provider    = aws.{utils.super_safe_name(ws)}"
-            items.add_list([
-                "",
-                'data "aws_vpc" "csis_instances" {',
-                provider_line,
-                f'  id = "{vpc}"',
-                "}",
-                "",
-                'resource "aws_security_group" "csis_instances" {',
-                provider_line,
-                '  name_prefix = "csis-instances-"',
-                '  description = "cs-image-system instances: SSH from the session relay; all egress"',
-                "  vpc_id      = data.aws_vpc.csis_instances.id",
-                "  ingress {",
-                "    from_port   = 22",
-                "    to_port     = 22",
-                '    protocol    = "tcp"',
-                src,
-                "  }",
-                "  egress {",
-                "    from_port   = 0",
-                "    to_port     = 0",
-                '    protocol    = "-1"',
-                '    cidr_blocks = ["0.0.0.0/0"]',
-                "  }",
-                _group_tags_line(self._get_context()),
-                "  # replacements must create the successor first: instances",
-                "  # wear this group, so a delete-first plan hits",
-                "  # DependencyViolation (found live)",
-                "  lifecycle { create_before_destroy = true }",
-                "}",
-            ])
-        return items
+        if not region:
+            return None
+        config: dict[str, Any] = {"region": region}
+        creds = rtb.model.get_credentials() if rtb else None
+        profile = (creds or {}).get("profile_name")
+        if profile:
+            config["profile"] = profile
+        return config
+
+    def _module_dirname(self) -> str:
+        return "aws_instance"
+
+    def _module_resource(self) -> str:
+        return "aws_instance"
 
     @staticmethod
-    def _ami_var(label: str) -> str:
+    def _image_var(label: str) -> str:
         return f"{label}_ami_id"
 
-    def generate_items_during(self, phase: ExecutionLifecyclePhase) -> AssetSet:
-        items = AssetSet()
-        if phase != ExecutionLifecyclePhase.INSTANCE_GENERATION or not self._root_has_work():
-            return items                                    # ledger 70: outside --only-runtime, nothing
-        ctx = self._get_context()
-        rtb = self._runtime_builder()
-        src = utils.module_source("aws_instance",
-                                  self.get_path_for_phase(phase, suffix=".tf").parent)
-        bindings = TerraformCollector().provider_bindings(self.name)
-        for instance in self._instances:
-            label = utils.super_safe_name(instance.get_name())
-            rpath = self.get_path_for_phase(phase, f"instance-{label}", suffix=".tf")
-            params = compute_launch_params(ctx, instance)
-            items.add(rpath,
-                      f"# Terraform module call for instance {instance.get_name()} "
-                      f"generated by {self.__class__.__name__} ({self.name})")
-            if params.get("group"):
-                items.add(rpath, f"# owning group: {params['group']} (via image {instance.image}); "
-                                 f"launch parameters recorded in meta-state/launch-params.yaml (N26)")
-            items.add_list(rpath, render_module_call(
-                f"instance_{label}", src, self._with_ephemeral_count(instance, self._module_args(ctx, rtb, instance, params)),
-                providers=bindings))
-            # The user-data template lives beside the root; runtime values are
-            # passed in by reference from the templatefile() call.
-            tpath = rpath.parent / self._user_data_template_name(label)
-            items.add(tpath, user_data_template(params))
-        return items
+    def _declare_variables(self, col: TerraformCollector, ws: str) -> None:
+        """The AWS root's order: one AMI variable per instance, the ephemeral
+        toggle, the enrollment trigger."""
+        self._declare_image_variables(col, ws)
+        self._declare_ephemeral_variable(col, ws)
+        self._declare_enrollment_variable(col, ws)
 
+    def _attachment_address(self, instance_name: str, storage: str) -> str | None:
+        """On AWS a volume attachment is a resource of its own, so its destroy
+        IS the detach."""
+        return f"{self._module_address(instance_name)}.aws_volume_attachment.this"
+
+    def _own_resources_to_let_go(self) -> list[str]:
+        """With no instance declared, the security group the root made for
+        them may go."""
+        return [] if self._instances else ["aws_security_group.csis_instances"]
+
+    def _root_extra_blocks(self, rtb: Any) -> list[str]:
+        """The VPC lookup and the instances' own security group. Instances
+        wear their own group because the VPC default group blocks the Okta
+        gateway's inbound SSH relay, so sft ssh to the advertised private
+        address hangs. SSH ingress references only the configured source
+        groups (the gateway) -- never the shared networks' CIDR space
+        (policy)."""
+        vpc = _instances_vpc(rtb)
+        if not vpc or not self._instances:     # no instances, no group of their own
+            return []
+        networking = getattr(rtb.model, "networking", None) if rtb else None
+        ssh_sgs = list(getattr(networking, "ssh_ingress_security_group_ids", None) or [])
+        if ssh_sgs:
+            src = ("    security_groups = ["
+                   + ", ".join(f'"{s}"' for s in ssh_sgs) + "]")
+        else:
+            # no relay configured: intra-VPC private space only
+            src = "    cidr_blocks = [data.aws_vpc.csis_instances.cidr_block]"
+        # these root-level blocks must bind the ALIASED provider explicitly:
+        # the collector aliases every configured provider (aggregation-
+        # readiness assumes resources live in modules), so an unqualified
+        # block falls to the DEFAULT aws provider, which has no configuration
+        # and only works when the operator's shell happens to carry ambient
+        # AWS credentials
+        provider_line = f"  provider    = aws.{utils.super_safe_name(self.name)}"
+        return [
+            "",
+            'data "aws_vpc" "csis_instances" {',
+            provider_line,
+            f'  id = "{vpc}"',
+            "}",
+            "",
+            'resource "aws_security_group" "csis_instances" {',
+            provider_line,
+            '  name_prefix = "csis-instances-"',
+            '  description = "cs-image-system instances: SSH from the session relay; all egress"',
+            "  vpc_id      = data.aws_vpc.csis_instances.id",
+            "  ingress {",
+            "    from_port   = 22",
+            "    to_port     = 22",
+            '    protocol    = "tcp"',
+            src,
+            "  }",
+            "  egress {",
+            "    from_port   = 0",
+            "    to_port     = 0",
+            '    protocol    = "-1"',
+            '    cidr_blocks = ["0.0.0.0/0"]',
+            "  }",
+            _group_tags_line(self._get_context()),
+            "  # replacements must create the successor first: instances",
+            "  # wear this group, so a delete-first plan hits",
+            "  # DependencyViolation (found live)",
+            "  lifecycle { create_before_destroy = true }",
+            "}",
+        ]
+
+    # ------------------------------------------------------------ the module call
     def _module_args(self, ctx, rtb, instance: Instance, params: dict[str, Any] | None = None) -> dict[str, Any]:
         label = utils.super_safe_name(instance.get_name())
         args: dict[str, Any] = {"name": instance.get_name()}
@@ -283,7 +186,7 @@ class TofuInstanceBuilder(InstanceBuilderBase[Q], TerraformRootMixin):
             # The image is built later (deferred PSI): reference the per-instance
             # variable (filled in by finalization from the packer manifest) with
             # the most-recent name-pattern lookup as fallback.
-            args["ami_id"] = f"var.{self._ami_var(label)}"
+            args["ami_id"] = f"var.{self._image_var(label)}"
             args["ami_name_pattern"] = f"{psi.deferred_name_pattern}*"
         else:
             log.warning(f"No provider-specific image for image {instance.image!r} of "
@@ -311,7 +214,7 @@ class TofuInstanceBuilder(InstanceBuilderBase[Q], TerraformRootMixin):
             if profile:
                 args["iam_instance_profile"] = profile
         from cs_image_system.base.lineage import config_tags
-        tags = {**(instance.get_tags() or {}), **config_tags(ctx)}     # stage 93: the machine carries the id
+        tags = {**(instance.get_tags() or {}), **config_tags(ctx)}     # the machine carries the id
         if tags:
             args["tags"] = dict(tags)
         # Launch parameters (N26) are added only when the caller computed them
@@ -351,9 +254,9 @@ class TofuInstanceBuilder(InstanceBuilderBase[Q], TerraformRootMixin):
         enrollment = params.get("enrollment") or {}
         token_expr = f"var.{ENROLLMENT_TOKEN_VARIABLE}"
         if enrollment and group:
-            # IaC-managed enrollment tokens (PLAN.md): the group's identity
-            # plugin supplies the credential by reference; the operator var
-            # stays as explicit override and as the no-plugin fallback.
+            # IaC-managed enrollment tokens: the group's identity plugin
+            # supplies the credential by reference; the operator var stays as
+            # explicit override and as the no-plugin fallback.
             gb = group_builder_of(self._get_context(), group)
             ref = gb.enrollment_token_reference(group) if gb else None
             if ref:
@@ -366,312 +269,3 @@ class TofuInstanceBuilder(InstanceBuilderBase[Q], TerraformRootMixin):
         if ebs:
             out["ebs_volumes"] = ebs
         return out
-
-    def get_commands_to_run_after(self, phase: ExecutionLifecyclePhase) -> CFExecutables:
-        commands: list[ExecutableModel] = []
-        finalize: list[ExecutableModel] = []
-        if phase == ExecutionLifecyclePhase.INSTANCE_GENERATION and self._root_has_work():
-            wd = self.get_path_for_phase(phase, suffix=".tf").parent
-            # plan is deliberately not run at generation time: fixture data may
-            # reference resources that do not exist yet (e.g. shared EFS ids).
-            for cmd in [["fmt"], self._init_args(phase), ["validate"]]:
-                e = self.get_executable_copy()
-                e.args = cmd
-                e.working_directory = wd
-                commands.append(e)
-            # Plan -> gate -> apply run at FINALIZATION, after the packer builds
-            # queued under IMAGE_GENERATION. The apply guard (LEDGER.md item 3) is
-            # re-armed here behind config.apply_instances, with the apply gate in
-            # front of it: only operation-driven destroys (an instance being
-            # replaced by an explicit upgrade, or decommissioned) may pass.
-            # Per-root apply scoping (stage 7): a list-valued apply_instances
-            # names the roots (builder name or runtime) that may apply.
-            rt = str(self.model.get_runtime_provider())
-            apply = utils.apply_enabled("instances", self.name, [rt])
-            unmounts, require, detach_allow = self._detach_commands(wd)
-            finalize.extend(self.gated_apply_commands(
-                phase, wd, apply=apply,
-                allow_destroy=(self._decommission_whitelist() + detach_allow + self._replacement_attachments()
-                               + self._own_resources_to_let_go()),
-                replace=self._replacements(), apply_flag_key="instances",
-                apply_root=self.name, apply_root_aliases=[rt],
-                pre_commands=unmounts, require_unmounted=require))
-            finalize.extend(self._ephemeral_commands(phase, wd, apply, rt))
-        return CFExecutables(commands, finalize)
-
-    # ---------------------------------------------- detach + unmount (stage 10.14)
-    def _attachment_address(self, instance_name: str, storage: str) -> str | None:
-        """The terraform address whose destroy IS the detach on this runtime
-        (None when the attachment is an in-place attribute, as on GCE)."""
-        return f"{self._module_address(instance_name)}.aws_volume_attachment.this"
-
-    def _detach_commands(self, wd) -> tuple[list[ExecutableModel], list[str], list[str]]:
-        """``(unmount steps, gate requirements, whitelist)`` for every mount a
-        launched instance's declaration dropped: the runtime unmounts it on
-        the machine before the plan, the gate requires that receipt, and the
-        attachment's destroy (where it is a resource) is whitelisted as a
-        detach."""
-        from cs_image_system.base.launch_params import detachments
-        from cs_image_system.base.utils import system_cli_executable_with_config as system_cli_executable
-        ctx = self._get_context()
-        steps: list[ExecutableModel] = []
-        require: list[str] = []
-        allow: list[str] = []
-        for instance in self._instances:
-            for m in detachments(ctx, instance):
-                storage = str(m.get("storage"))
-                steps.append(system_cli_executable(
-                    ["unmount", "storage", "--instance", instance.get_name(), "--storage", storage,
-                     "--mount-point", str(m.get("mount_point")),
-                     "--workdir", str(ctx.generation_path / wd)], wd))
-                require.append(f"{instance.get_name()}:{storage}")
-                addr = self._attachment_address(instance.get_name(), storage)
-                if addr and addr not in allow:
-                    allow.append(addr)
-        return steps, require, allow
-
-    # ------------------------------------------------ ephemeral instances (stage 10.1)
-    def ephemerals(self) -> list[Instance]:
-        return [i for i in self._instances if getattr(i, "ephemeral", False)]
-
-    def _declare_ephemeral_variable(self, col, ws: str) -> None:
-        """The toggle an ephemeral module call counts on: launched with the
-        default (true), torn down by the same root planned with
-        ``-var=ephemeral_present=false``."""
-        if self.ephemerals():
-            col.declare_variable(ws, TerraformVariable(
-                name="ephemeral_present", type="bool", default=True,
-                description="false = the run's ephemeral instances are torn down (stage 10.1)"))
-
-    def _with_ephemeral_count(self, instance: Instance, args: dict[str, Any]) -> dict[str, Any]:
-        if getattr(instance, "ephemeral", False):
-            ctx = self._get_context()
-            rt = str(self.model.get_runtime_provider())
-            standing = ctx.meta_state.current_generation(instance.get_name()) is not None
-            if not standing and not utils.apply_enabled("instances", self.name, [rt]):
-                # hygiene XII item 32 (the walk's F62): between cycles an ephemeral
-                # machine neither stands nor is being launched by this run, and a
-                # root that only PLANS must not look up an image its cycle disposed
-                # of. Present only when it stands, or when this root may launch it.
-                return {"count": HclRaw("0  # ephemeral, not standing, not launched by this run"), **args}
-            return {"count": HclRaw("var.ephemeral_present ? 1 : 0"), **args}
-        return args
-
-    def _ephemeral_commands(self, phase: ExecutionLifecyclePhase, wd, apply: bool, rt: str) -> list[ExecutableModel]:
-        """After the launch applied: verify each ephemeral through the runtime
-        (a failed verdict stops the runner -- the instance stays standing
-        for inspection), then plan the same root with the ephemerals absent
-        and apply that whitelisted destroy. Enumerated like everything else
-        under a dry run; emitted only when this root may apply."""
-        ephemerals = self.ephemerals()
-        if not ephemerals or not apply:
-            return []
-        from cs_image_system.base.commands.verify_instance import (
-            ON_FAILURE_TEARDOWN, failure_policy, teardown_due)
-        from cs_image_system.base.utils import system_cli_executable_with_config
-        ctx = self._get_context()
-        out: list[ExecutableModel] = []
-        for instance in ephemerals:
-            name = instance.get_name()
-            if teardown_due(ctx, instance):
-                # stage 11.3: standing since a failed verification longer than
-                # teardown_after -- torn down by this run without re-verifying
-                log.info(f"Ephemeral instance {name}: teardown_after elapsed since its failed verification; "
-                         "tearing down without re-verifying")
-                continue
-            policy, _ = failure_policy(ctx, instance)
-            args = ["verify", "instance", name]
-            if policy == ON_FAILURE_TEARDOWN:
-                # the verdict is recorded; the teardown proceeds; the failed
-                # verdict fails the run from the after-apply hook, AFTER the
-                # launch record is forgotten (ledger 68: a `verify assert` as
-                # the script's last step failed the runner before the hook ran,
-                # leaving a launch record for an instance that no longer existed)
-                args.append("--record-only")
-            out.append(system_cli_executable_with_config(args, wd))
-        out.extend(self.gated_apply_commands(
-            phase, wd, apply=True,
-            allow_destroy=[self._module_address(i.get_name()) for i in ephemerals],
-            apply_flag_key="instances", apply_root=self.name, apply_root_aliases=[rt],
-            plan_extra_args=["-var=ephemeral_present=false"]))
-        return out
-
-    def _module_address(self, instance_name: str) -> str:
-        return f"module.instance_{utils.super_safe_name(instance_name)}"
-
-    def _replacements(self) -> list[str]:
-        """Instances whose pin an explicit upgrade moved: forced replacement."""
-        ctx = self._get_context()
-        from cs_image_system.base.lineage import pending_instance_replacements
-        names = pending_instance_replacements(ctx, self._instances)   # upgrades + follow (stage 9)
-        return [f"{self._module_address(n)}.aws_instance.this" for n in sorted(names)]
-
-    def _replacement_attachments(self) -> list[str]:
-        """The volume attachments of every instance this plan replaces: an
-        attachment binds a volume to the instance's id, so replacing the
-        instance replaces the attachment, and that destroy is the same
-        operation-driven change the `-replace` sanctioned. The gate matched
-        the instance and refused its attachment on the first live replacement
-        (2026-09-22). None on a runtime whose attachment is an in-place
-        attribute (GCE)."""
-        ctx = self._get_context()
-        from cs_image_system.base.lineage import pending_instance_replacements
-        out: list[str] = []
-        for n in sorted(pending_instance_replacements(ctx, self._instances)):
-            addr = self._attachment_address(n, "")
-            if addr:
-                out.append(addr)
-        return out
-
-    def _decommission_whitelist(self) -> list[str]:
-        """Instances recorded in meta-state (launched) but no longer declared:
-        their destruction is the operation-driven decommission (N19)."""
-        ctx = self._get_context()
-        ms = ctx.meta_state
-        declared = {i.get_name() for i in ctx.instances}
-        params = ms.launch_params()
-        pins = ms.instance_pins()
-        mine = str(self.model.get_runtime_provider())
-        out: list[str] = []
-        for name in sorted((set(params) | set(pins)) - declared):
-            # Scope to THIS runtime's root (finding 52): the recorded build's
-            # lineage record names the runtime it was baked on. An unknown
-            # runtime stays whitelisted rather than silently un-destroyable.
-            build_id = pins.get(name) or (params.get(name) or {}).get("build")
-            rec = ms.build(str(build_id)) if build_id else None
-            rt = str(rec.get("runtime")) if rec and rec.get("runtime") else None
-            if rt is None or rt == mine:
-                out.append(self._module_address(name))
-        return out
-
-    def _root_has_work(self) -> bool:
-        """The instance root must be emitted when it declares instances OR
-        when a recorded instance was decommissioned (finding 52: with the
-        last instance on a runtime undeclared, the root vanished entirely,
-        so nothing ever planned the destroy and the VM stayed orphaned in
-        tofu state and the cloud -- the whitelist had a name and no plan to
-        whitelist it in). An instance-less root is terraform + provider +
-        backend only; its plan is exactly the pending destroys. Under
-        ``--only-runtime`` another runtime's root emits nothing (ledger 70)."""
-        if not utils.root_in_runtime_scope(self.model.get_runtime_provider()):
-            return False
-        if self._instances or self._decommission_whitelist():
-            return True
-        # hygiene XII item 31 (the walk's F61): once every recorded instance was
-        # forgotten, the root vanished again and the security group it had made
-        # stood in the cloud and in its state with no run that would ever plan it.
-        # A root whose state location is recorded is emitted, empty, until its
-        # state holds nothing.
-        return self.name in self._get_context().meta_state.state_locations()
-
-    def _own_resources_to_let_go(self) -> list[str]:
-        """The root's own resources (not an instance's) the gate may let a plan
-        destroy: with no instance declared, the security group the root made
-        for them (hygiene XII item 31)."""
-        return [] if self._instances else ["aws_security_group.csis_instances"]
-
-    def pre_finalize_phase(self, phase: ExecutionLifecyclePhase) -> None:
-        """Before the deferred plan/apply runs, pin the AMIs this run built.
-
-        The packer builder's post-IMAGE_GENERATION hook has already upgraded the
-        built images' provider-specific images to resolved; write their concrete
-        ids into an .auto.tfvars so the instance modules use exact artifacts
-        instead of the most-recent name-pattern fallback.
-        """
-        if not utils.root_in_runtime_scope(self.model.get_runtime_provider()):
-            # stage 63: another runtime's root emitted nothing this run (ledger
-            # 70), so there is no tfvars to write for it (it wrote one anyway,
-            # and logged "No resolved provider-specific images" on every
-            # scoped run)
-            return
-        if phase != ExecutionLifecyclePhase.INSTANCE_GENERATION or not self._instances:
-            return
-        ctx = self._get_context()
-        # Stage 61 item 5: the release and retention lifecycles extend this
-        # phase with one deferred step of their own, so the hook fired for
-        # them too and wrote the file under generated/release/ and
-        # generated/retention/, where no instance root exists and nothing
-        # reads it (never staged, it lingered untracked after every release
-        # run). Only the lifecycle that generates instance roots gets it.
-        from cs_image_system.contract.lifecycles import Lifecycle
-        current = getattr(ctx, "current_lifecycle", None)      # a bare harness context has none
-        if current is not None and str(current.value) != Lifecycle.INSTANCE_IMAGE.value:
-            return
-        rtb = self._runtime_builder()
-        if rtb is None:
-            return
-        lines: list[str] = []
-        for instance in self._instances:
-            psi = (ctx.get_provider_specific_image(instance.image, rtb.get_name())
-                   if instance.image else None)
-            if psi is not None and psi.is_resolved():
-                label = utils.super_safe_name(instance.get_name())
-                lines.append(f'{self._ami_var(label)} = "{psi.identifier}"')
-        if not lines:
-            log.info("No resolved provider-specific images for instances; "
-                     "modules will use their name-pattern fallback")
-            return
-        wd = ctx.generation_path / self.get_path_for_phase(phase, suffix=".tf").parent
-        wd.mkdir(parents=True, exist_ok=True)
-        tfvars = wd / "instances.auto.tfvars"
-        tfvars.write_text("# AMI ids resolved from packer manifests by finalization\n"
-                          + "\n".join(lines) + "\n")
-        log.info(f"Wrote resolved instance AMIs to {tfvars}")
-
-    def post_finalize_phase(self, phase: ExecutionLifecyclePhase) -> None:
-        """After the instance root applied for real: bind every unpinned
-        instance to the build it was launched from (first bind, N5)."""
-        if phase != ExecutionLifecyclePhase.INSTANCE_GENERATION or not self._instances:
-            return
-        if not utils.root_in_runtime_scope(self.model.get_runtime_provider()):
-            return      # stage 63: a root out of this run's scope applied nothing to bind
-        if not utils.apply_enabled("instances", self.name, [str(self.model.get_runtime_provider())]):
-            return
-        ctx = self._get_context()
-        rtb = self._runtime_builder()
-        if rtb is None:
-            return
-        ms = ctx.meta_state
-        from cs_image_system.base.lineage import instance_follow_target
-        for instance in self._instances:
-            name = instance.get_name()
-            if getattr(instance, "ephemeral", False):
-                continue   # torn down by its own sequence; nothing to bind (stage 10.1)
-            target = instance_follow_target(ctx, instance)
-            if target:
-                # follow (stage 9.5): the replacement applied; the pin moves now
-                ms.move_pin("instance", name, target[1], ctx.run_id, op="follow", pending=False)
-                log.info(f"Instance {name} pin moved {target[0]} -> {target[1]} (image_policy: follow)")
-                continue
-            if ms.instance_pin(name):
-                continue
-            psi = (ctx.get_provider_specific_image(instance.image, rtb.get_name())
-                   if instance.image else None)
-            if psi is not None and psi.is_resolved() and psi.identifier:
-                ms.bind_instance(name, psi.identifier, ctx.run_id)
-                log.info(f"First bind: instance {name} -> build {psi.identifier} (launched this run)")
-            elif rtb.can_query_instance_boot_image():
-                # finding 49: the parent was deferred (a family lookup the
-                # cloud resolved at launch), so bind from REALITY -- the
-                # image the instance actually booted -- when lineage records
-                # it; a later re-bake must never move this pin silently
-                booted = rtb.query_instance_boot_image(name)
-                if booted and ms.build(str(booted)):
-                    ms.bind_instance(name, str(booted), ctx.run_id)
-                    log.info(f"First bind: instance {name} -> build {booted} (booted image, read from the cloud)")
-                elif booted:
-                    log.warning(f"Instance {name} booted {booted}, which lineage does not record; pin left unbound")
-
-
-class TofuVersionChecker(AbstractVersionChecker):
-    """Version checker for OpenTofu."""
-
-    @classmethod
-    def csis_name(cls) -> str:
-        return TOFU
-
-    def get_version_params(self) -> list[str]:
-        return ["--version", "-json"]
-
-    def get_extracted_string(self, res: subprocess.CompletedProcess[str]) -> str | None:
-        return json.loads(res.stdout.strip()).get("terraform_version", None)

@@ -6,13 +6,18 @@ This package is the OpenTofu plugin for Google Cloud. It registers one
 builders** (`tf-gcp-pd`, `tf-gcp-filestore`, `tf-gcp-gcs`), which turn every
 declared storage into a `module` call against the matching
 `tfmodules/gcp_storage_*` module. It contains no generic machinery of its
-own: every class subclasses the AWS classes in
-[cs-image-system-tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md)
-and swaps the `aws` provider for a `google` one, the AMI for a GCE image, EBS
-for persistent disks, and the AWS CLI transition scripts for `gcloud` ones.
-The runtime it targets is a `gcloud` runtime builder from
-`cs-image-system-gcloud-runtime-plugin`, which supplies the project, region,
-zone, network and session mechanism.
+own: every builder subclasses the provider-neutral terraform roots of
+[cs-image-system-hashicorp-utils](../hashicorp-utils/README.md#the-terraform-roots)
+(`TofuInstanceBuilderBase`, `TofuStorageBuilderBase`) and answers their
+hooks with what is Google Cloud's own: the `google` provider configured
+from the runtime's project, region and zone, the `gce_instance` and
+`gcp_storage_*` modules, a GCE image resolved through its family, a
+persistent disk attached as an in-place attribute, and `gcloud`
+transition scripts. It does not depend on the AWS root
+([cs-image-system-tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md)),
+which is another subclass of the same bases. The runtime it targets is
+a `gcloud` runtime builder from `cs-image-system-gcloud-runtime-plugin`,
+which supplies the project, region, zone, network and session mechanism.
 
 ## What it registers
 
@@ -25,25 +30,30 @@ tf-gcp-plugin = "cs_image_system.tf_gcp_plugin.main:initialize"
 
 `initialize()` in [main.py](src/cs_image_system/tf_gcp_plugin/main.py)
 returns a `TFGcpTypes` metadata object (plugin metadata version `1`, Python
-`3.13`). The package depends on `cs-image-system-tf-ebs-instance-plugin`
-(the base classes) and `cs-image-system-gcloud-runtime-plugin` (the runtime
-model, `gce_name`, `gce_label`, and the GCP client helpers).
+`3.13`). The package depends on `cs-image-system-hashicorp-utils` (the
+neutral roots, their models and the version checker) and
+`cs-image-system-gcloud-runtime-plugin` (the runtime model, `gce_name`,
+`gce_label`, and the GCP client helpers); not on the AWS root.
 
 | Service name (`type:` of a builder entry) | Model class | Builder class | Classifications (VCT) |
 |---|---|---|---|
-| `tofu-gce` | `TofuGceInstanceBuilderModel` | `TofuGceInstanceBuilder` | `INSTANCE_BUILDER_MODEL`, `INSTANCE_BUILDER` |
+| `tofu-gce` | `TofuGceInstanceBuilderModel` | `TofuGceInstanceBuilder` | `INSTANCE_BUILDER_MODEL`, `INSTANCE_BUILDER`; also `TofuVersionChecker` (`VERSION_CHECKER`, under the name `tofu`) |
 | `tf-gcp` | `TofuGcpStorageBuilderModel` | `TofuGcpStorageBuilder` | `STORAGE_BUILDER_MODEL`, `STORAGE_BUILDER` |
 | `tf-gcp-pd` | `TofuPdStorageBuilderModel` | `TofuPdStorageBuilder` | `STORAGE_BUILDER_MODEL`, `STORAGE_BUILDER` |
 | `tf-gcp-filestore` | `TofuFilestoreStorageBuilderModel` | `TofuFilestoreStorageBuilder` | `STORAGE_BUILDER_MODEL`, `STORAGE_BUILDER` |
 | `tf-gcp-gcs` | `TofuGcsStorageBuilderModel` | `TofuGcsStorageBuilder` | `STORAGE_BUILDER_MODEL`, `STORAGE_BUILDER` |
 
-`tf-gcp` is a base: it inherits the abstract `module_dirname()` and
-`module_args()` from `TofuStorageBuilder`, so it cannot emit anything. A
-builder entry with `type: tf-gcp` is therefore refused when the tree
-loads, naming the three concrete types, rather than loading and failing
-at generation. This package registers no version checker; an executable
-entry with `type: tofu` is checked by the `TofuVersionChecker` of the AWS
-plugin.
+`tf-gcp` is a base: it answers the provider hooks of
+`TofuStorageBuilderBase` (the `google` provider and the root's header)
+and leaves `module_dirname()` and `module_args()` unanswered, so it
+cannot emit anything. A builder entry with `type: tf-gcp` is therefore
+refused when the tree loads, naming the three concrete types, rather than
+loading and failing at generation. The entry point also registers
+hashicorp-utils' `TofuVersionChecker` (under the service `tofu-gce`; its
+own name is `tofu`), so an executable entry with `type: tofu` is checked
+in a tree whose only terraform roots are GCE roots; the registry takes
+the one class from several plugins as one registration, so a tree with
+the AWS root installed as well sees no collision.
 
 ### Two levels of `type:`
 
@@ -72,8 +82,9 @@ those of every builder model; see
 The full field tables are the configuration reference's
 ([instance builders](../../docs/CONFIGURATION.md#81-instance-builders),
 [storage builders](../../docs/CONFIGURATION.md#82-storage-builders)).
-What this package does with the AWS-plugin fields every class here
-inherits:
+What this package does with the fields every class here inherits from
+the neutral models of hashicorp-utils
+([tofu_models.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/tofu_models.py)):
 
 - `executable` names an entry in `cfg/executables.yml` (default `tofu`).
 - `required_plugins` lists the terraform providers for the root; empty
@@ -84,11 +95,12 @@ inherits:
 
 ### `TofuGceInstanceBuilderModel` (`tofu-gce`)
 
-Extends `TofuInstanceBuilderModel` from
-[tf_instance_models.py](../tf-ebs-instance-plugin/src/cs_image_system/tf_ebs_instance_plugin/tf_instance_models.py),
-which extends the base `InstanceBuilderModel`
+Extends `TofuInstanceBuilderModelBase` from
+[tofu_models.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/tofu_models.py)
+(`executable`, `required_plugins`, `state_configuration`), which extends
+the base `InstanceBuilderModel`
 ([instance_builder.py](../base/src/cs_image_system/base/models/instance_builder.py)).
-It adds no fields; it only changes `type` to `tofu-gce`.
+It adds no fields; it only sets `type` to `tofu-gce`.
 
 The `Instance` items it reads are the base ones from
 [instance.py](../base/src/cs_image_system/base/models/instance.py):
@@ -97,8 +109,9 @@ The `Instance` items it reads are the base ones from
 (`keep` | `teardown`), `teardown_after`, `tags`. Differences from the AWS
 root:
 
-- `machine_type` on the instance is **not read**: the module's
-  `machine_type` is always the runtime's `default_machine_type`.
+- `machine_type` on the instance is read as on AWS: the module's
+  `machine_type` is the instance's own when it declares one, else the
+  runtime's `default_machine_type`.
 - `tags` become GCE `labels`, each key and value passed through `gce_label`
   (lowercase; anything outside `[a-z0-9_-]` becomes `-`; cut to 63
   characters). `gce_label` cannot supply a leading letter, so `validate`
@@ -112,9 +125,10 @@ root:
 
 ### `TofuGcpStorageBuilderModel` (`tf-gcp`)
 
-Extends `TofuStorageBuilderModel` from
-[tf_storage_models.py](../tf-ebs-instance-plugin/src/cs_image_system/tf_ebs_instance_plugin/tf_storage_models.py)
-(which extends the base `StorageBuilderModel`,
+Extends `TofuStorageBuilderModelBase` from
+[tofu_models.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/tofu_models.py)
+(`executable`, `required_plugins`, `state_configuration`, `variables`;
+it extends the base `StorageBuilderModel`,
 [storage_builder.py](../base/src/cs_image_system/base/models/storage_builder.py)).
 It adds no fields; `type` is `tf-gcp`. Its `variables` field keeps the base
 type `ModuleVariables`. Its `__post_init__` refuses an instance of this
@@ -198,34 +212,55 @@ credentials or `GOOGLE_APPLICATION_CREDENTIALS`).
 
 ## The builder
 
-The hook order, file naming and the deferred `plan -> gate -> apply`
-sequence are those of the AWS plugin; see
-[its README](../tf-ebs-instance-plugin/README.md#the-builder). This section
-lists what the GCP classes override and what they inherit unchanged.
+The hook order, the file naming, the variables, the state binding and
+remote-state references, the module-call rendering, the deferred
+`plan -> gate -> apply` sequence, the detach and decommission whitelists,
+the ephemeral sequence, the finalization hooks, the storage state
+machine and the state query are the neutral roots' of hashicorp-utils;
+see [The terraform roots](../hashicorp-utils/README.md#the-terraform-roots)
+there for what the bases own and the full hook table. This section lists
+what the GCP classes answer and what they leave at the base's default.
 
 ### `TofuGceInstanceBuilder` (phase `instance-generation`)
 
 Source:
 [tf_gce_instance_builder.py](src/cs_image_system/tf_gcp_plugin/tf_gce_instance_builder.py).
-Extends `TofuInstanceBuilder`.
+Extends `TofuInstanceBuilderBase`
+([tofu_instance_builder.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/tofu_instance_builder.py)).
 
-**Overridden: `generate_items_before`.** Writes `<B>-instance-generation.tf`
-and `<B>-instance-generation.tfbackend.hcl` with: the `ephemeral_present`
-variable when any instance is ephemeral; provider requirements from
-`required_plugins` or `google`/`hashicorp/google`; a `provider "google"`
-block (`project`, `region`, `zone`) aliased to the workspace name
-(`tofu_gce`); one `variable "<label>_image"` (string, default `""`) per
-instance; `variable "sft_enrollment_token"` (sensitive); the backend
-binding; a `terraform_remote_state` reference to every storage builder that
-owns storages and to every identity workspace owning an instance image's
-group; then the terraform, provider, variable and remote-state blocks. It
-emits **no** security group or VPC data source: network access is the
-runtime's firewall and the IAP tunnel.
+**The hooks it answers.** `_provider_name()` is `google` and
+`_provider_source()` `hashicorp/google`; `_provider_config(rtb)` is
+`google_provider_config(runtime)` (`project`, `region`, `zone`, each only
+when the runtime names it), or `None` for no provider block when it
+names none; `_module_dirname()` is `gce_instance`; `_module_resource()`
+is `google_compute_instance`, so a replacement names
+`module.instance_<label>.google_compute_instance.this`;
+`_instance_word()` is `GCE instance`; `_root_header_lines()` opens the
+main file with `# Terraform configuration for GCE instances generated by
+...`; and `_module_args` and `_launch_args` are the two tables below.
+Everything else is the base's default: `_image_var` names
+`var.<label>_image`, the launch template is `user-data-<label>.sh.tftpl`,
+`_root_extra_blocks` adds nothing (the root emits **no** security group
+or VPC data source: network access is the runtime's firewall and the IAP
+tunnel), `_attachment_address` is `None` and `_own_resources_to_let_go`
+is empty.
 
-**Overridden: `generate_items_during`.** Per instance,
+**The root file** (the base's `generate_items_before`) is
+`<B>-instance-generation.tf` beside `<B>-instance-generation.tfbackend.hcl`,
+with: the `ephemeral_present` variable when any instance is ephemeral;
+provider requirements from `required_plugins` or
+`google`/`hashicorp/google`; a `provider "google"` block (`project`,
+`region`, `zone`) aliased to the workspace name (`tofu_gce`); one
+`variable "<label>_image"` (string, default `""`) per instance;
+`variable "sft_enrollment_token"` (sensitive); the backend binding; a
+`terraform_remote_state` reference to every storage builder that owns
+storages and to every identity workspace owning an instance image's
+group; then the terraform, provider, variable and remote-state blocks.
+
+**Per instance** (the base's `generate_items_during`),
 `<B>-instance-generation-instance-<label>.tf` with `module "instance_<label>"`
 against `tfmodules/gce_instance`, and `user-data-<label>.sh.tftpl`. The
-module arguments:
+module arguments (`_module_args`):
 
 | Argument | Value |
 |---|---|
@@ -233,7 +268,7 @@ module arguments:
 | `name` | `gce_name(<instance name>)` |
 | `image` | the pinned build (a GCE image name) when meta-state pins the instance; else the resolved provider-specific image; else `var.<label>_image` |
 | `image_family` | `gce_name(<image name>)`, only while the image is deferred: GCE resolves "latest in family" natively |
-| `machine_type` | the runtime's default machine type |
+| `machine_type` | the instance's own, else the runtime's default machine type |
 | `zone` | the runtime's `zone` |
 | `subnetwork` | the runtime's default subnet id |
 | `network_tags` | the runtime's `networking.network_tags` when any |
@@ -251,28 +286,30 @@ plugin's token reference the AWS root adds). The launch script is the same
 `/dev/disk/by-id/google-<device_name>`, which is why the attachment's
 `device_name` and the launch parameters use the same `gce_name` rule.
 
-**Overridden helpers.** `_attachment_address()` returns None: a persistent
-disk attachment is an in-place attribute of `google_compute_instance`, so a
-detach adds an `unmount storage` step and a `--require-unmounted` gate
-requirement but no destroy whitelist entry. `_replacements()` names
-`module.instance_<label>.google_compute_instance.this` for pending upgrades
-and `follow` targets.
+**Hooks left at the base's default, and what follows.**
+`_attachment_address()` is `None`: a persistent disk attachment is an
+in-place attribute of `google_compute_instance`, so a detach adds an
+`unmount storage` step and a `--require-unmounted` gate requirement but
+no destroy whitelist entry, and a replacement whitelists no attachment.
+The base's `_replacements()` names
+`module.instance_<label>.google_compute_instance.this` (from
+`_module_resource()`) for pending upgrades and `follow` targets.
 
-**Inherited unchanged.** `get_commands_to_run_after`: the generation-time
-`fmt`, `init` and `validate`, then the deferred gated sequence of
-[OPERATIONS.md](../../docs/OPERATIONS.md#the-apply-gate), with this
-root's unmount steps and `-replace` targets on the plan and `apply-check
---lifecycle instances --root <B> --root-alias <runtime>` plus `apply` only
-when `config.apply_instances` allows the root. Also inherited: the
-ephemeral verify-and-teardown sequence, the decommission whitelist,
-`pre_finalize_phase` and `post_finalize_phase`.
+**The base's, unchanged.** `get_commands_to_run_after`: the
+generation-time `fmt`, `init` and `validate`, then the deferred gated
+sequence of [OPERATIONS.md](../../docs/OPERATIONS.md#the-apply-gate),
+with this root's unmount steps and `-replace` targets on the plan and
+`apply-check --lifecycle instances --root <B> --root-alias <runtime>`
+plus `apply` only when `config.apply_instances` allows the root. Also
+the base's: the ephemeral verify-and-teardown sequence, the
+decommission whitelist, `pre_finalize_phase` and `post_finalize_phase`.
 
 Two consequences of the inheritance:
 
 - `pre_finalize_phase` writes `instances.auto.tfvars` with `<label>_image`
-  lines (the builder's `_ami_var` names the GCE root's own variable, so a
-  build this run baked reaches the module call). An image that is
-  deferred at generation launches through `image_family`.
+  lines (the base's `_image_var` default names the GCE root's own
+  variable, so a build this run baked reaches the module call). An
+  image that is deferred at generation launches through `image_family`.
 - `post_finalize_phase` then binds the pin from reality: the gcloud runtime
   answers `can_query_instance_boot_image()`, so an unpinned, non-ephemeral
   instance is bound to the image it actually booted, provided lineage
@@ -282,15 +319,22 @@ Two consequences of the inheritance:
 
 Source:
 [tf_gcp_storage_builder.py](src/cs_image_system/tf_gcp_plugin/tf_gcp_storage_builder.py).
-Extends `TofuStorageBuilder`; the storage state machine, the live/tombstone/
-archived split, the `output "storage_<label>"` blocks, the gid-by-reference
-rule and the deferred command sequence (`apply_storage` gates the apply) are
-inherited.
+Extends `TofuStorageBuilderBase`
+([tofu_storage_builder.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/tofu_storage_builder.py));
+the storage state machine, the live/tombstone/archived split, the
+`output "storage_<label>"` blocks, the gid-by-reference rule, the state
+query over every declared and recorded storage and the deferred command
+sequence (`apply_storage` gates the apply) are the base's.
 
-**Overridden on the base: `generate_items_before`.** The same root file as
-on AWS with a `provider "google"` block (`project`, `region`, `zone`, alias =
-workspace name) from `google_provider_config(runtime)` instead of an `aws`
-one. **`_labels(storage)`**: the builder's `variables.tags` under the item's
+**The hooks the base `TofuGcpStorageBuilder` answers.** `_provider_name()`
+is `google`, `_provider_source()` `hashicorp/google`, and
+`_provider_config(rtb)` is `google_provider_config(runtime)` (`project`,
+`region`, `zone`) or `None` when the runtime names none, so the root file
+(the base's `generate_items_before`) carries a `provider "google"` block
+aliased to the workspace name; `_root_header_lines()` opens it with
+`# Terraform configuration for GCP storages generated by ...`.
+`_lookup` raises `NotImplementedError` here and each service subclass
+answers it. **`_labels(storage)`**: the builder's `variables.tags` under the item's
 tags, all through `gce_label`, plus `csis_storage=<name>` and
 `csis_group_<group>=true` per allowed group. **`_gce_resource_name(name)`**
 applies `gce_name`, because GCE resource names must match
@@ -476,25 +520,32 @@ drive the rest of a change cycle.
 
 ## Prerequisites and integration
 
-Everything the AWS plugin needs applies here unchanged (the `tofu`
+Everything a terraform root needs applies here unchanged (the `tofu`
 executable, the state backend, the identity workspace, the `tfmodules/`
-directory beside the configuration root); see
-[its README](../tf-ebs-instance-plugin/README.md). This section lists what
-the GCP classes need on top of that, and how each is found.
+directory beside the configuration root, the system's own CLI on `PATH`
+at execution time); see
+[hashicorp-utils](../hashicorp-utils/README.md#prerequisites-and-integration),
+whose roots these builders subclass. This section lists what the GCP
+classes need on top of that, and how each is found.
 
 **Python packages.** From [pyproject.toml](pyproject.toml):
 `cs-image-system-contract` and `cs-image-system-base` (the contract and
 the core's base classes, as for every built-in plugin),
-`cs-image-system-tf-ebs-instance-plugin` (the tofu base classes and the
-`TofuVersionChecker`), `cs-image-system-gcloud-runtime-plugin` (the
-runtime model, `gce_name`, `gce_label`, `resolve_project`,
-`make_credentials`), `cs-image-system-hashicorp-utils` (the collector
-that renders the terraform, provider, variable, backend and remote-state
-blocks), `google-cloud-compute>=1.49` and `pydantic>=2.13`. The compute
-client is imported lazily, inside `TofuPdStorageBuilder._lookup`, so it
-is needed only by
-`state query` and by the runs that perform one; generation never imports
-it.
+`cs-image-system-hashicorp-utils` (the provider-neutral instance and
+storage roots and their models, which every class here subclasses; the
+`TofuVersionChecker` this plugin registers; the collector that renders
+the terraform, provider, variable, backend and remote-state blocks),
+`cs-image-system-gcloud-runtime-plugin` (the runtime model, `gce_name`,
+`gce_label`, `resolve_project`, `make_credentials`),
+`google-cloud-compute>=1.49` and `pydantic>=2.13`. The package does not
+depend on `cs-image-system-tf-ebs-instance-plugin` or on
+`cs-image-system-aws-runtime-plugin`: installing it installs no AWS
+package and no `boto3`, which the neutral-root test
+([tests/test_v2_stage_120_neutral_root.py](../../tests/test_v2_stage_120_neutral_root.py))
+proves by syncing an environment for this plugin and the container one
+alone. The compute client is imported lazily, inside
+`TofuPdStorageBuilder._lookup`, so it is needed only by `state query`
+and by the runs that perform one; generation never imports it.
 
 **A `gcloud` runtime builder.** Found by the builder entry's `runtime:`
 (a runtime builder name or alias; the fixture's `gcloud-east1`). It must
@@ -669,7 +720,7 @@ fails at load.
 | `on_failure`, `teardown_after` | the base's ephemeral sequence | `--record-only` on the verify, and a teardown without re-verifying |
 | `runtime` | the core | the session mechanism recorded in the launch parameters; the root's provider comes from the builder's runtime, not the instance's |
 | `availability_zone` | the core's `validate` only | zone compatibility; the module call takes the runtime's `zone` regardless |
-| `machine_type` | | accepted, not read on GCE: `machine_type` is always the runtime's `default_machine_type` |
+| `machine_type` | | the module's `machine_type`; unset, the runtime's `default_machine_type` |
 
 ### The storage item (`storages/*.yaml`, `type:` a GCP storage builder)
 
@@ -1117,9 +1168,12 @@ Failures the code raises:
 
 ## Related
 
+- [cs-image-system-hashicorp-utils](../hashicorp-utils/README.md#the-terraform-roots):
+  the provider-neutral terraform roots these builders subclass, what the
+  bases own, the full hook table and the version checker.
 - [cs-image-system-tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md):
-  the base classes, the full hook description, the launch parameters and
-  the storage state machine.
+  the AWS root on the same bases, with the launch parameters and the
+  storage state machine described at length; not a dependency.
 - [cs-image-system-tf-s3-state-plugin](../tf-s3-state-plugin/README.md): the
   state backend the fixture's GCP roots use.
 - [gcloud-runtime-plugin gcp_runtime_models.py](../gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/gcp_runtime_models.py)

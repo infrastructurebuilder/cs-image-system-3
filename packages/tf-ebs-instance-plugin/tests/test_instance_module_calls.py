@@ -39,7 +39,7 @@ def _ctx(psi):
 
 
 def _module_args(psi):
-    stub = SimpleNamespace(_ami_var=TofuInstanceBuilder._ami_var)
+    stub = SimpleNamespace(_image_var=TofuInstanceBuilder._image_var)
     return TofuInstanceBuilder._module_args(
         cast(Any, stub), _ctx(psi), _rtb(), cast(Any, _instance("test2", "basic-dask")))
 
@@ -130,7 +130,7 @@ def test_pre_finalize_writes_tfvars_for_resolved_psis(tmp_path):
         _instances=[_instance("test2", "imgfile-basic-dask")],
         _get_context=lambda: ctx,
         _runtime_builder=lambda: _rtb(),
-        _ami_var=TofuInstanceBuilder._ami_var,
+        _image_var=TofuInstanceBuilder._image_var,
         get_path_for_phase=lambda phase, suffix: Path("open-tofu/instance-generation") / f"x{suffix}",
         # stage 63: the hook checks the root's runtime against the run's scope
         model=SimpleNamespace(get_runtime_provider=lambda: "aws-east2-runtime"),

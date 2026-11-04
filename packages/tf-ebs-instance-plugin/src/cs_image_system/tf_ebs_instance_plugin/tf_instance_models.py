@@ -2,29 +2,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from dataclasses import field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass
 
-from cs_image_system.contract.constants import DEFAULT, VCT
-from cs_image_system.contract.fields import fk_field
-from cs_image_system.base.models.instance_builder import InstanceBuilderModel
-from cs_image_system.hashicorp_utils.hashicorp_models import TFTofuPluginModel
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+from cs_image_system.hashicorp_utils.tofu_models import TofuInstanceBuilderModelBase
 
 TOFU: str = "tofu"
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
-class TofuInstanceBuilderModel(InstanceBuilderModel):
-    """OpenTofu IaC builder configuration data object."""
+class TofuInstanceBuilderModel(TofuInstanceBuilderModelBase):
+    """The AWS instance root's configuration (``type: tofu``): what every
+    tofu instance root declares, nothing of its own."""
     type = TOFU
-    executable: str | None = "tofu"
-    required_plugins: list[TFTofuPluginModel] = field(default_factory=list)
-    state_configuration: str = fk_field(target=VCT.STATE_BACKEND_MODEL,
-                                        default=DEFAULT, metadata={
-        "description": "State backend used for this builder's terraform workspace",
-    })
-
 
     @classmethod
     def csis_name(cls) -> str:

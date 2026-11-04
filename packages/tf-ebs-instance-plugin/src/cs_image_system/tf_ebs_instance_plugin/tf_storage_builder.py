@@ -2,96 +2,68 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+"""The AWS storage roots: the provider-neutral storage root of
+hashicorp-utils with the ``aws`` provider, and one subclass per service --
+EBS volumes, EFS filesystems and S3 buckets -- each against its
+tfmodules/ module, looked up and re-tagged through the runtime's boto3
+session and archived or wiped by generated AWS CLI scripts.
+"""
 import json
 import subprocess
 from typing import Any, TypeVar, cast
 
-
-from cs_image_system.base import utils
-from cs_image_system.contract.hcl import HclRaw, render_module_call
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
-from cs_image_system.contract.assets import AssetSet
-from cs_image_system.base.basic.builder_base_group import GroupBuilderBase
-from cs_image_system.base.basic.builder_base_storage import (
-    CARDINALITY_MANY,
-    CARDINALITY_SINGLE,
-    StorageBuilderBase,
-)
-from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.base.basic.builder_base_storage import CARDINALITY_MANY, CARDINALITY_SINGLE
 from cs_image_system.base.models.executable import ExecutableModel
-from cs_image_system.contract.executables import CFExecutables
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED, STORAGE_STATE_DESTROYED, Storage
-from cs_image_system.hashicorp_utils.blocks import OutputSpec, Raw, render_blocks
-from cs_image_system.hashicorp_utils.collector import TerraformCollector
-from cs_image_system.hashicorp_utils.roots import TerraformRootMixin
+from cs_image_system.hashicorp_utils.tofu_storage_builder import (
+    RecordedStorage,
+    TofuStorageBuilderBase,
+    storage_groups,
+    storage_public_read,
+)
 
-from .tf_storage_models import TF_AWS, TF_AWS_EBS, TF_AWS_EFS, TF_AWS_S3, TofuEbsStorageBuilderModel, TofuEfsStorageBuilderModel, TofuS3StorageBuilderModel, TofuStorageBuilderModel
+from .tf_storage_models import (
+    TF_AWS, TF_AWS_EBS, TF_AWS_EFS, TF_AWS_S3,
+    TofuEbsStorageBuilderModel, TofuEfsStorageBuilderModel, TofuS3StorageBuilderModel, TofuStorageBuilderModel,
+)
+
+__all__ = [
+    "RecordedStorage", "TofuEbsStorageBuilder", "TofuEfsStorageBuilder", "TofuS3StorageBuilder",
+    "TofuStorageBuilder", "TofuStorageVersionChecker", "storage_groups", "storage_public_read",
+]
 
 Q = TypeVar("Q", bound=TofuStorageBuilderModel)
 
 
-# Duck-typed accessors: unit tests pass minimal storage stand-ins.
-def _state(storage: Any) -> str:
-    return getattr(storage, "state", "active")
-
-
-class RecordedStorage:
-    """A storage known only from meta-state (its entry left the YAML, TODO
-    §10.11): enough of the Storage surface for a whitelist, a wipe and a
-    state lookup."""
-
-    def __init__(self, name: str, state: str | None, facts: dict[str, Any]) -> None:
-        self.name = name
-        self.recorded_state = state
-        self.state = STORAGE_STATE_DESTROYED           # what the run requests
-        self.type_ = str(facts.get("builder") or "")
-        self.bucket_name = facts.get("bucket_name")
-        self.groups: list[str] = []
-        self.public_read = False
-        self.share_mode = "2770"
-        self.tags: dict[str, str] = {}
-        self.undeclared = True
-
-    def get_name(self) -> str:
-        return self.name
-
-    def __repr__(self) -> str:
-        return f"RecordedStorage({self.name!r}, {self.recorded_state!r})"
-
-
-def storage_groups(storage: Any) -> list[str]:
-    return list(getattr(storage, "groups", []) or [])
-
-
-def storage_public_read(storage: Any) -> bool:
-    return bool(getattr(storage, "public_read", False))
-
-
-class TofuStorageBuilder(StorageBuilderBase[Q], TerraformRootMixin):
-    """OpenTofu IaC provider implementation.
-
-    Generates one ``module`` call per attached Storage item against the
-    corresponding tfmodules/ module, plus a shared terraform/provider file.
-
-    V2 (DESIGN §3E): group access is realized by gid REFERENCE -- the root
-    reads the identity workspace's ``group_gids`` output through
-    ``data.terraform_remote_state`` and never carries a literal gid; storages
-    in requested state ``destroyed`` are omitted (their destruction is the
-    only destroy the apply gate whitelists); every storage publishes its
-    module outputs for the instance-image lifecycle to bind to.
-    """
+class TofuStorageBuilder(TofuStorageBuilderBase[Q]):
+    """The AWS storage root (``type: tf-aws`` is the shared base of the three
+    services and emits nothing of its own); see the module docstring."""
 
     @classmethod
     def csis_name(cls) -> str:
         return TF_AWS
 
-    def module_dirname(self) -> str:
-        """tfmodules/ directory this builder's storages map to."""
-        raise NotImplementedError(f"{self.__class__.__name__} must name its terraform module")
+    # ------------------------------------------------------------ the hooks
+    def _provider_name(self) -> str:
+        return "aws"
 
-    def module_args(self, storage: Storage) -> dict[str, Any]:
-        """Module variables for one storage item."""
-        raise NotImplementedError
+    def _provider_source(self) -> str:
+        return "hashicorp/aws"
+
+    def _provider_config(self, rtb: Any) -> dict[str, Any] | None:
+        """The region and, when the runtime names one, the profile; no
+        provider block without a region."""
+        region = self._region()
+        if not region:
+            return None
+        config: dict[str, Any] = {"region": region}
+        creds = rtb.model.get_credentials() if rtb else None
+        profile = (creds or {}).get("profile_name")
+        if profile:
+            config["profile"] = profile
+        return config
 
     def _region(self) -> str | None:
         ctx = self._get_context()
@@ -99,238 +71,13 @@ class TofuStorageBuilder(StorageBuilderBase[Q], TerraformRootMixin):
         get_region = getattr(rtb.model, "get_region", None) if rtb else None
         return str(get_region()) if callable(get_region) else None
 
-    # ------------------------------------------------------------ helpers
-    def live_storages(self) -> list[Storage]:
-        """Storages emitted as module calls: everything but tombstones -- and,
-        on a builder that supports archiving (stage 11.6), everything but
-        archived ones too: archived = the live resource is gone, its data
-        kept in the builder's archive (a snapshot)."""
-        return [s for s in self.model._storages
-                if _state(s) != STORAGE_STATE_DESTROYED
-                and not (_state(s) == STORAGE_STATE_ARCHIVED and self.supports_archive())]
-
-    def supports_archive(self) -> bool:
-        """Whether this builder realizes the `archived` state (snapshot +
-        delete, restore from the snapshot). Default: no -- `archived` is then
-        a validation error for its storages."""
-        return False
-
-    def archived_storages(self) -> list[Storage]:
-        return [s for s in self.model._storages if _state(s) == STORAGE_STATE_ARCHIVED]
-
-    def post_transition_actions(self, storage: Storage, from_state: str | None, to_state: str) -> list[ExecutableModel]:
-        """Commands the plugin runs AFTER the apply of a transition (TODO
-        §11.6): e.g. delete the archive snapshot once the disk was restored
-        from it. Default: none."""
-        return []
-
-    def tombstones(self) -> list[Storage]:
-        return [s for s in self.model._storages if _state(s) == STORAGE_STATE_DESTROYED]
-
-    def undeclared_storages(self) -> list[Any]:
-        """Storages this root created that are recorded (not destroyed) but no
-        longer declared (stage 10.11): their module call is simply absent, so
-        the plan destroys them; the gate whitelists that as the demise. Each
-        is a stand-in built from the record's facts (name, bucket)."""
-        ctx = self._get_context()
-        from cs_image_system.base.storage_state import undeclared_transitions
-        out: list[Any] = []
-        for t in undeclared_transitions(ctx):
-            if t.builder != self.name:
-                continue
-            facts = (ctx.meta_state.storage_states().get(t.storage) or {}).get("facts") or {}
-            out.append(RecordedStorage(t.storage, t.from_state, facts))
-        return out
-
-    def _has_work(self) -> bool:
-        if not utils.root_in_runtime_scope(self.model.get_runtime_provider()):
-            return False                                   # ledger 70: another runtime's root
-        return bool(self.model._storages) or bool(self.undeclared_storages())
-
-    @staticmethod
-    def storage_label(storage: Storage) -> str:
-        return utils.super_safe_name(storage.get_name())
-
-    def _group_builder_for(self, group: str) -> GroupBuilderBase | None:
-        ctx = self._get_context()
-        for builder in ctx.group_builders.values():
-            if any(g.get_name() == group for g in builder.get_groups_for_builder()):
-                return builder
-        return None
-
-    def identity_workspaces(self) -> dict[str, GroupBuilderBase]:
-        """Identity workspaces whose gids this root consumes, by workspace name."""
-        out: dict[str, GroupBuilderBase] = {}
-        for storage in self.live_storages():
-            for group in storage_groups(storage):
-                gb = self._group_builder_for(group)
-                ws = gb.gid_workspace() if gb is not None else None   # stage 75 step 3
-                if gb is not None and ws is not None:
-                    out[ws] = gb
-        return out
-
-    def gid_reference(self, group: str) -> HclRaw:
-        """The group builder's ``gid_expression`` (stage 75 step 3): for an
-        identity root, ``data.terraform_remote_state.<identity ws>.outputs.
-        group_gids["<group>"]`` (N7); for a configuration-time gid, the number."""
-        gb = self._group_builder_for(group)
-        if gb is None:
-            raise ValueError(f"Storage builder {self.name}: group {group!r} has no identity builder")
-        gid = gb.gid_expression(group)          # stage 75 step 3: the group builder writes it
-        if gid is None:
-            raise ValueError(f"Storage builder {self.name}: group {group!r}'s identity builder {gb.get_name()} "
-                             f"supplies no gid")
-        return HclRaw(gid)
-
-    def group_subtrees(self, storage: Storage) -> dict[str, dict[str, Any]]:
-        """N13/N15: one root-level subtree per allowed group, gid by reference,
-        mode from share_mode (2770 private / 2775 read-shared)."""
-        return {
-            group: {"gid": self.gid_reference(group), "path": f"/{group}",
-                    "permissions": getattr(storage, "share_mode", "2770")}
-            for group in sorted(storage_groups(storage))
-        }
-
-    def generate_items_before(self, phase: ExecutionLifecyclePhase) -> AssetSet:
-        items = AssetSet()
-        # the root exists while it declares storages OR still owns undeclared
-        # ones whose destroy must be planned (stage 10.11, the finding-52 shape)
-        if phase != ExecutionLifecyclePhase.STORAGE_GENERATION or not self._has_work():
-            return items
-        rpath = self.get_path_for_phase(phase, suffix=".tf")
-        items = items.with_default_path(rpath)
-        items.add(f"# Terraform configuration for storages generated by "
-                  f"{self.__class__.__name__} ({self.name})")
-        col = TerraformCollector()
-        ws = self.name
-        if self.model.required_plugins:
-            for plugin in self.model.required_plugins:
-                col.require_provider(ws, plugin.name,
-                                     source=getattr(plugin, "source", None),
-                                     version=getattr(plugin, "version", None))
-        else:
-            col.require_provider(ws, "aws", source="hashicorp/aws")
-        ctx = self._get_context()
-        rtb = ctx.runtime_builders.get(self.model.get_runtime_provider(), None)
-        region = self._region()
-        if region:
-            config = {"region": region}
-            creds = rtb.model.get_credentials() if rtb else None
-            profile = (creds or {}).get("profile_name")
-            if profile:
-                config["profile"] = profile
-            col.configure_provider(ws, "aws", config)
-        col.bind_workspace(ws, self.model.state_configuration, self.runtime_state_configuration())   # stage 46: own, runtime's, default
-        # gids by reference: the identity workspace's state (applied before
-        # storage in meta-workflow order) is read through remote state.
-        for identity_ws in sorted(self.identity_workspaces()):
-            col.reference_remote_state(ws, producer_workspace=identity_ws)
-        items.add_list(col.generate_terraform_block(ws))
-        items.add_list(col.generate_provider_blocks(ws))
-        remote_lines = col.generate_remote_state_datasources(ws)
-        if remote_lines:
-            items.add_list(remote_lines)
-        backend_lines = col.generate_backend_config(ws)
-        if backend_lines:
-            items.add_list(self._backend_config_path(phase), backend_lines)
-        return items
-
-    def generate_items_during(self, phase: ExecutionLifecyclePhase) -> AssetSet:
-        items = AssetSet()
-        if phase != ExecutionLifecyclePhase.STORAGE_GENERATION or not self._has_work():
-            return items                                    # ledger 70: outside --only-runtime, nothing
-        src = utils.module_source(self.module_dirname(),
-                                  self.get_path_for_phase(phase, suffix=".tf").parent)
-        bindings = TerraformCollector().provider_bindings(self.name)
-        for storage in self.live_storages():
-            label = self.storage_label(storage)
-            rpath = self.get_path_for_phase(phase, f"storage-{label}", suffix=".tf")
-            items.add(rpath,
-                      f"# Terraform module call for storage {storage.get_name()} "
-                      f"generated by {self.__class__.__name__} ({self.name})")
-            if storage_groups(storage):
-                items.add(rpath, f"# allowed groups: {', '.join(storage_groups(storage))} "
-                                 f"(gids by remote-state reference); public_read={str(storage_public_read(storage)).lower()}; "
-                                 f"requested state: {_state(storage)}")
-            items.add_list(rpath, render_module_call(
-                f"storage_{label}", src, self.module_args(storage),
-                providers=bindings))
-            # Publish the module outputs for the instance-image lifecycle.
-            items.add_list(rpath, render_blocks([OutputSpec(
-                f"storage_{label}", Raw(f"module.storage_{label}"),
-                description=f"Outputs of storage {storage.get_name()} for remote-state consumers")]))
-        for storage in self.tombstones():
-            label = self.storage_label(storage)
-            rpath = self.get_path_for_phase(phase, f"storage-{label}", suffix=".tf")
-            items.add(rpath, f"# Storage {storage.get_name()} is DESTROYED (tombstone): its resources are gone; "
-                             "nothing is emitted (a re-declared name is a new generation, stage 10.12).")
-        if self.supports_archive():
-            for storage in self.archived_storages():
-                label = self.storage_label(storage)
-                rpath = self.get_path_for_phase(phase, f"storage-{label}", suffix=".tf")
-                items.add(rpath, f"# Storage {storage.get_name()} is ARCHIVED (stage 11.6): the live resource is "
-                                 f"gone, its data is kept in {self.archive_name(storage)}; nothing is emitted.")
-        return items
-
-    def archive_name(self, storage: Storage) -> str:
-        """The builder's archive object for a storage (a snapshot name)."""
-        return f"csis-{self.storage_label(storage).replace('_', '-')}-archive"
-
-    def get_commands_to_run_after(self, phase: ExecutionLifecyclePhase) -> CFExecutables:
-        commands: list[ExecutableModel] = []
-        deferred: list[ExecutableModel] = []
-        if phase == ExecutionLifecyclePhase.STORAGE_GENERATION and self._has_work():
-            wd = self.get_path_for_phase(phase, suffix=".tf").parent
-            # plan is deliberately not run at generation time: fixture data may
-            # reference resources that do not exist yet (e.g. shared EFS ids).
-            for cmd in [["fmt"], self._init_args(phase), ["validate"]]:
-                e = self.get_executable_copy()
-                e.args = cmd
-                e.working_directory = wd
-                commands.append(e)
-            allow: list[str] = []
-            after_apply: list[ExecutableModel] = []
-            ms = self._get_context().meta_state
-            # declared tombstones (state: destroyed) and undeclared storages
-            # (their entry left the YAML, stage 10.11) are both a destroy
-            # this run executes: plugin action first (wipe), then the
-            # whitelisted destroy
-            for storage in list(self.tombstones()) + list(self.undeclared_storages()):
-                cur = ms.storage_state(storage.get_name())
-                if cur is not None and cur != STORAGE_STATE_DESTROYED:
-                    deferred.extend(self.transition_actions(storage, cur, STORAGE_STATE_DESTROYED))
-                    if cur != STORAGE_STATE_ARCHIVED or not self.supports_archive():
-                        allow.extend(self.destroy_whitelist(storage))   # an archived disk is already gone
-            # archived (stage 11.6): snapshot first, then the whitelisted destroy
-            # of the live resource; a restore (recorded archived, declared
-            # active) recreates it from the snapshot and deletes the snapshot
-            # after the apply
-            if self.supports_archive():
-                for storage in self.archived_storages():
-                    cur = ms.storage_state(storage.get_name())
-                    if cur == STORAGE_STATE_ACTIVE:
-                        deferred.extend(self.transition_actions(storage, cur, STORAGE_STATE_ARCHIVED))
-                        allow.extend(self.destroy_whitelist(storage))
-                for storage in self.live_storages():
-                    if ms.storage_state(storage.get_name()) == STORAGE_STATE_ARCHIVED:
-                        after_apply.extend(self.post_transition_actions(storage, STORAGE_STATE_ARCHIVED, STORAGE_STATE_ACTIVE))
-            # Per-root apply scoping (stage 7): builder name or runtime
-            rt = str(self.model.get_runtime_provider())
-            apply = utils.apply_enabled("storage", self.name, [rt])
-            deferred.extend(self.gated_apply_commands(
-                phase, wd, apply=apply, allow_destroy=allow,
-                apply_flag_key="storage", apply_root=self.name, apply_root_aliases=[rt]))
-            if apply:
-                deferred.extend(after_apply)
-        return CFExecutables(commands, deferred)
-
     # ------------------------------------------- AWS CLI transition scripts
     def _aws_cli_flags(self) -> str:
         """``--region … --profile …`` for the runtime's session, as the S3
         wipe passes them (credentials stay in the environment)."""
         ctx = self._get_context()
         rtb = ctx.runtime_builders.get(self.model.get_runtime_provider(), None)
-        getter = getattr(getattr(rtb, "model", None), "get_credentials", None)   # stage 17
+        getter = getattr(getattr(rtb, "model", None), "get_credentials", None)
         creds = (getter() if callable(getter) else None) or {}
         profile = creds.get("profile_name") if isinstance(creds, dict) else None
         flags = ""
@@ -340,18 +87,6 @@ class TofuStorageBuilder(StorageBuilderBase[Q], TerraformRootMixin):
         if profile:
             flags += f' --profile "{profile}"'
         return flags
-
-    def _script(self, name: str, body: str) -> ExecutableModel:
-        """A generated bash script beside the root, run as a deferred step (the
-        pd builder's shape, stage 11.6)."""
-        wd = self.get_path_for_phase(ExecutionLifecyclePhase.STORAGE_GENERATION, suffix=".tf").parent
-        target = self._get_context().generation_path / wd / name
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text("#!/usr/bin/env bash\nset -uo pipefail\n" + body)
-        e = ExecutableModel(name="bash", type_="executable", binary="bash")
-        e.args = [name]
-        e.working_directory = wd
-        return e
 
     # ------------------------------------------------------- state query
     def _aws_client(self, service: str) -> Any:
@@ -364,44 +99,11 @@ class TofuStorageBuilder(StorageBuilderBase[Q], TerraformRootMixin):
             session = cast(dict[str, Any], cfg())
         return aws_client(service, session)
 
-    def _lookup(self, storage: Storage) -> dict[str, Any] | None:
-        """Provider record for one storage by its ``Name`` tag, or ``None``.
-        Subclasses answer per service."""
-        raise NotImplementedError
-
-    def query_state(self) -> dict[str, dict[str, Any]]:
-        out: dict[str, dict[str, Any]] = {}
-        for storage in list(self.model._storages) + list(self.undeclared_storages()):
-            rec = self._lookup(storage)
-            out[storage.get_name()] = {"present": rec is not None, "type": self.capability_type(),
-                                       **(rec or {})}
-        return out
-
-    def _owned(self, found: list[dict[str, Any]], tags_of) -> tuple[list[dict[str, Any]], str]:
-        """Of the things found by name, those this configuration may take for
-        its own (stage 93: ours, or unlabelled); and the id of another
-        configuration that holds one of that name, for the note."""
-        from cs_image_system.base.lineage import belongs_to_another_configuration, owner_of
-        ctx = self._get_context()
-        ours = [f for f in found if not belongs_to_another_configuration(ctx, tags_of(f))]
-        elsewhere = next((owner_of(tags_of(f)) for f in found if belongs_to_another_configuration(ctx, tags_of(f))), "")
-        return ours, elsewhere
-
-    @staticmethod
-    def _elsewhere(owner: str, what: str) -> dict[str, Any]:
-        """The record of a thing of our name that belongs to another
-        configuration: absent for us, and said so (the state query makes a
-        note of it rather than a foreign claim)."""
-        return {"present": False, "elsewhere": owner, "what": what}
-
-    def destroy_whitelist(self, storage: Storage) -> list[str]:
-        return [f"module.storage_{self.storage_label(storage)}"]
-
 
 def _tags_for(builder: Any, storage: Storage) -> dict[str, str]:
     """The tags a storage's module call carries: the builder's defaults
-    under the item's own, and the configuration's id last (stage 93). A
-    stand-in without a context (the module-call tests) gets no id."""
+    under the item's own, and the configuration's id last. A stand-in
+    without a context (the module-call tests) gets no id."""
     from cs_image_system.base.lineage import config_tags
     merged = dict(builder.model.variables.merged_tags(storage.tags) or {})
     get_ctx: Any = getattr(builder, "_get_context", None)

@@ -19,7 +19,7 @@ own version; `tests/test_v2_package_metadata.py` holds it to that.
 | [contract](../packages/contract/README.md) | The plugin contract: the protocols a model and a builder satisfy, the constants and field helpers a model is declared with, the lifecycle phases a hook keys on, the data carriers a hook returns. Depends on nothing of the system; `base` depends on it. A plugin is written against this package. |
 | [base](../packages/base/README.md) | The core: the base models and builder bases that implement the contract, the registry and the plugin loader, the lifecycles and phases, the run context, meta-state, encryption, the public-safe gate, lineage, releases, retention, launch parameters. Every built-in plugin depends on it; an external one need not. |
 | [system](../packages/system/README.md) | The CLI host: the `cs-image-system` command and every subcommand. |
-| [hashicorp-utils](../packages/hashicorp-utils/README.md) | A library, not a plugin: the terraform collector (providers, plugins, backends, sensitive values by reference), the terraform root mixin (init, the gated plan → gate → apply sequence), HCL rendering. Six plugins use it. |
+| [hashicorp-utils](../packages/hashicorp-utils/README.md) | A library, not a plugin: the terraform collector (providers, plugins, backends, sensitive values by reference), the terraform root mixin (init, the gated plan → gate → apply sequence), the provider-neutral terraform roots (`TofuInstanceBuilderBase`, `TofuStorageBuilderBase`, their models and the `tofu` version checker) that every provider's root plugin subclasses, HCL rendering. Eight plugins use it. |
 
 ## The plugins
 
@@ -31,15 +31,15 @@ registers model and builder classes under the classifications it claims.
 | [aws-runtime-plugin](../packages/aws-runtime-plugin/README.md) | runtime | `aws` |
 | [gcloud-runtime-plugin](../packages/gcloud-runtime-plugin/README.md) | runtime | `gcloud` |
 | [docker-runtime-plugin](../packages/docker-runtime-plugin/README.md) | runtime | `docker` (a durable host's container daemon, reached through the Docker Engine API) |
-| [tf-docker-plugin](../packages/tf-docker-plugin/README.md) | instance and storage builders | `tofu-docker` (containers through OpenTofu's `kreuzwerker/docker` provider) and `tf-docker-volume` (named volumes) |
+| [tf-docker-plugin](../packages/tf-docker-plugin/README.md) | instance and storage builders | `tofu-docker` (containers through OpenTofu's `kreuzwerker/docker` provider) and `tf-docker-volume` (named volumes); a subclass of hashicorp-utils' neutral roots, with no dependency on the AWS root |
 | [default-os-plugin](../packages/default-os-plugin/README.md) | OS families | the family names an OS builder declares |
 | [packer-plugin](../packages/packer-plugin/README.md) | image builders | the packer builders for EBS, GCE and docker images (`packer-ebs`, `packer-gce`, `packer-docker`) |
 | [ansible-plugin](../packages/ansible-plugin/README.md) | modifications | `ansible` (playbooks) |
 | [bash-mod-plugin](../packages/bash-mod-plugin/README.md) | modifications | `bash-remote` (script, scripts, ensure) |
 | [okta-opa-plugin](../packages/okta-opa-plugin/README.md) | groups and users | the OPA group builder, the managed and read-only user builders |
 | [posix-identity-plugin](../packages/posix-identity-plugin/README.md) | groups and users | `posix` (a group and a user builder: POSIX accounts with declared ids) |
-| [tf-ebs-instance-plugin](../packages/tf-ebs-instance-plugin/README.md) | instances and storages | the terraform instance and storage builders |
-| [tf-gcp-plugin](../packages/tf-gcp-plugin/README.md) | GCE terraform pieces | see its README for exactly what it registers |
+| [tf-ebs-instance-plugin](../packages/tf-ebs-instance-plugin/README.md) | instances and storages | the AWS terraform roots: `tofu` (instances) and `tf-aws-ebs`, `tf-aws-efs`, `tf-aws-s3` (storages); a subclass of hashicorp-utils' neutral roots with the `aws` provider |
+| [tf-gcp-plugin](../packages/tf-gcp-plugin/README.md) | instances and storages | the GCE terraform roots: `tofu-gce` (instances) and `tf-gcp-pd`, `tf-gcp-filestore`, `tf-gcp-gcs` (storages); a subclass of hashicorp-utils' neutral roots with the `google` provider, with no dependency on the AWS root |
 | [tf-s3-state-plugin](../packages/tf-s3-state-plugin/README.md) | state backends | `s3` |
 | [contract-example-plugin](../packages/contract-example-plugin/README.md) | state backends | `inmem` (OpenTofu's in-memory state; the proof of the contract: written against the contract alone, never a backend for a real tree) |
 | [local-state-plugin](../packages/local-state-plugin/README.md) | state backends | `local` (a state file on disk) |
@@ -50,6 +50,20 @@ The exact keys, aliases and classifications are in each README's "What it
 registers" section, which is written from the package's `pyproject.toml`
 and its `main.py`. The field-by-field reference for the YAML each plugin
 reads is [CONFIGURATION.md](CONFIGURATION.md).
+
+The three terraform root plugins (`tf-ebs-instance-plugin`,
+`tf-gcp-plugin`, `tf-docker-plugin`) share one implementation of the
+root: the provider-neutral bases in
+[hashicorp-utils](../packages/hashicorp-utils/README.md#the-terraform-roots)
+own the workspace, the variables, the state binding, the module calls,
+the gated runner lines, the finalization hooks and the state query, and
+each plugin subclasses them and answers the hooks with its provider,
+its modules and its module arguments. No root plugin depends on another
+provider's root plugin: `tf-gcp-plugin` and `tf-docker-plugin` do not
+depend on `tf-ebs-instance-plugin`, so installing either installs
+neither the AWS root nor `aws-runtime-plugin` nor `boto3`. The change is
+recorded in the stage index under
+[a provider-neutral terraform root](CHANGES.md#s120).
 
 ## The README contract
 
