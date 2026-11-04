@@ -1,8 +1,8 @@
 # What a CI runner needs
 
-*Stage 92, 2026-10-16. Written for no CI system in particular: a GitHub
-runner, a GitLab runner, an Azure DevOps agent or a machine of your own
-is a cs-image-system CI runner when it meets this page. The image under
+*Written for no CI system in particular: a GitHub runner, a GitLab
+runner, an Azure DevOps agent or a machine of your own is a
+cs-image-system CI runner when it meets this page. The image under
 [ci/runner-image/](../ci/runner-image/) is one implementation of it, and
 [.github/workflows/ci-from-scratch.yml](../.github/workflows/ci-from-scratch.yml)
 is another; both are tested against this page.*
@@ -102,33 +102,35 @@ A push that changes `ci/runner-image/`, or a dispatch, publishes the
 tag the tree pins, the content of `ci/runner-image/TAG`; the monthly
 schedule publishes today's date as a candidate, taken by moving `TAG`
 and the workflows' lines (a test holds them equal). A published tag is
-never rebuilt: a second image on one day is `alma10-<YYYYMMDD>.2` (the
-first, 2026-10-16, lacked git's `safe.directory` for a checkout owned by
-another user; the second lacked the `libatomic` that pyright's node
-needs; the third lacked the `community.docker` collection whose
-`docker` connection the modification tests use, which GitHub's Ubuntu
-image carries with its full `ansible`; `.4` is the first that ran the
-live proof).
+never rebuilt: a second image on one day is `alma10-<YYYYMMDD>.2`.
+Three things the Dockerfile adds are there because an image without
+them fails the jobs ([the image took four builds](INCIDENTS.md#the-ci-runner-image-took-four-builds-and-its-first-pull-was-refused)):
+git's `safe.directory` for a checkout owned by
+another user, the `libatomic` that pyright's node needs, and the
+`community.docker` collection whose `docker` connection the
+modification tests use (GitHub's Ubuntu image carries it with its full
+`ansible`).
 
-**Who may pull the image is two settings, and both bit on the first
-day.** The runner pulls the image with the job's own token before any
-step runs. A job that declares a `permissions:` block gets only what
-the block names, so a block without `packages: read` pulls as nobody;
-every job of every workflow here carries that line, and a test holds
-it (the second image was pulled by `verify`, which declares no block,
-and refused to `live`, which does). The package itself is published
-under the organisation (`ghcr.io/<owner>/csis-ci`) by the workflow's
-token, and who may read it is the package's setting on GitHub, not the
-workflow's. The first publish on 2026-10-16 came out PRIVATE (the
-organisation had disabled making packages public); for the template
-repositories (stage 66) the operator made it public, so a repository
-anywhere pulls it with no login and no grant. A private package is
-still usable by every repository of the same organisation: on the
+**Who may pull the image is two settings, and either one refuses the
+pull by itself.** The runner pulls the image with the job's own token
+before any step runs. A job that declares a `permissions:` block gets
+only what the block names, so a block without `packages: read` pulls
+as nobody; every job of every workflow here carries that line, and a
+test holds it (without it, a `verify` that declares no block pulls the
+image and a `live` that declares one is refused). The package itself
+is published under the organisation (`ghcr.io/<owner>/csis-ci`) by the
+workflow's token, and who may read it is the package's setting on
+GitHub, not the workflow's. The package is public, so that the
+template repositories -- and a repository anywhere -- pull it with no
+login and no grant; a fresh publish comes out PRIVATE when the
+organisation forbids public packages, and the package's own setting is
+where that is changed. A private package is still usable by every
+repository of the same organisation: on the
 package's page, "Package settings", "Manage Actions access", add the
 repository with the Read role; the runner then pulls with that
 repository's own job token (the `packages: read` line).
 
-**A team's own image (stage 66).** Every job names the image as
+**A team's own image.** Every job names the image as
 `${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:<tag>' }}`,
 with `credentials:` from the variable `CSIS_RUNNER_IMAGE_USERNAME` and
 the secret `CSIS_RUNNER_IMAGE_PASSWORD`, each with a default. Unset, the job runs in this
@@ -138,7 +140,7 @@ credentials for a registry other than `ghcr.io`. Unset, they default to
 the job's actor and token, the login the runner makes for `ghcr.io` by
 itself; they cannot be left empty, because GitHub refuses the workflow
 before any job starts when a credential is an empty string ("Unexpected
-value ''", the first try on 2026-10-24).
+value ''").
 Repository variables and secrets are the team's, so `init-config
 --force` and taking a release never touch them, and the starter's
 files stay unmodified. The image is built from this document and
@@ -158,9 +160,10 @@ choice: a new image is not a new release, and a release does not need
 a new image unless a tool's floor moved.
 
 **The from-scratch path**, kept in this repository alone, is GitHub's
-`ubuntu-24.04` image with every tool installed by a step, the way every
-job ran before stage 92; it runs on `develop` weekly beside the image
-path, so the list above stays true on a machine that holds nothing.
+`ubuntu-24.04` image with every tool installed by a step, the way a
+job runs with no image at all; it runs on `develop` weekly beside the
+image path, so the list above stays true on a machine that holds
+nothing.
 
 **Another CI system** builds its runner from this page: the table is the
 list to install, section 2 is what the machine must be able to do, and

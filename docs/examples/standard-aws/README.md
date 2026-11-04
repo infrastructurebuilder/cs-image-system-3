@@ -5,9 +5,10 @@ Its template repository is
 "Use this template" there makes a repository of your own from this tree,
 generated from it with each final release.
 
-*Walked from nothing on 2026-10-05 to 2026-10-14 against 0.1.1.dev14 to
-0.1.1.dev23 (stage 65): bootstrapped, baked, launched, logged into by a
-person and by CI, given a second cloud, and torn down.*
+*Walked from nothing against 0.1.1.dev14 to 0.1.1.dev23
+([the walk's entry in the stage index](https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/docs/CHANGES.md#s65)):
+bootstrapped, baked, launched, logged into by a person and by CI, given
+a second cloud, and torn down.*
 
 The smallest tree a team writes to get going on the AWS plugin set, in the
 shape of a real configuration repository. Copy it, replace every
@@ -68,7 +69,7 @@ writes it out, and every part a team needs is then there:
 | `.github/workflows/ci.yml` | the repository's own CI: `verify` (no secrets), `live` (read-only against the clouds), `perform` (on `main`, under the write role, records pushed back); every `REPLACE-ME` in it is a team value |
 | `.githooks/pre-commit` | the public-safe gate on every commit; `just init` installs it |
 | `tfmodules/` | the terraform modules the emitted roots call, at `module_source_base: tfmodules`; the release's, byte for byte (`cs-image-system init-config` writes them, and refreshes them after an upgrade) |
-| `scripts/` | the tree's own modification scripts; the recipes need no helper (one tofu process at a time, the CI login token and the emission normaliser are commands of the CLI since stage 64) |
+| `scripts/` | the tree's own modification scripts; the recipes need no helper (one tofu process at a time, the CI login token and the emission normaliser are commands of the CLI) |
 | `.gitignore` | the shell's exports, every credential file, the private mirror, tool residue; `generated/` and `meta-state/` ARE committed |
 | `.csis-version` | the release that wrote the tree, which CI installs; `init-config` writes it (absent in this source copy) |
 

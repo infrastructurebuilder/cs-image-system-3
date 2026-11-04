@@ -16,9 +16,9 @@ below, none of them work in progress.
 - **V1** is the system as it stood on 2026-08-25: the per-builder
   generation with its own commands (46 commits from the 2026-07-02
   initial commit).
-- **V2** is the rewrite against the target goals in [GOALS.md](../GOALS.md),
+- **V2** is the rewrite against the target goals in [GOALS.md](../../GOALS.md) (a live file, not part of this record),
   planned that same day in the document that became
-  [docs/DESIGN.md](DESIGN.md) (revisions 1–3) and executed since
+  [docs/DESIGN.md](../DESIGN.md) (a live file, not part of this record) (revisions 1–3) and executed since
   through gates and numbered stages (145 commits). It landed
   incrementally on `develop`, in place: there was never a separate V2
   branch, package or code path to switch over to.
@@ -31,7 +31,7 @@ below, none of them work in progress.
    (unique names, executables) are simply part of V2's validation now,
    and that is no longer a remnant so much as a description.
 2. Gate 1's layout-equivalence test
-   ([test_v2_gate1_layout_equivalence.py](../tests/test_v2_gate1_layout_equivalence.py))
+   ([test_v2_gate1_layout_equivalence.py](../../tests/test_v2_gate1_layout_equivalence.py) (a live file, not part of this record))
    keeps the V1 generated layout as a frozen baseline and proved that
    `run --all` reproduces it line for line through a V1→V2 path map.
    **Demoted to documentation 2026-09-11**: the five baseline tests are
@@ -40,12 +40,12 @@ below, none of them work in progress.
 3. One retired V1 field, `groups` on the instance model, is kept only
    so that a V1-era `groups:` entry raises a specific error instead of
    being silently dropped
-   ([instance.py:160](../packages/base/src/cs_image_system/base/models/instance.py#L160);
+   ([instance.py:160](../../packages/base/src/cs_image_system/base/models/instance.py#L160) (a live file, not part of this record);
    see the follow-ups below — **its condition lapsed on 2026-09-12**,
    third follow-up),
    and the lifecycle phase names were kept "unchanged from V1 so every
    builder hook keys on exactly what it did before"
-   ([lifecycles.py:62](../packages/base/src/cs_image_system/base/lifecycles.py#L62)).
+   ([lifecycles.py:62](../../packages/base/src/cs_image_system/base/lifecycles.py#L62) (a live file, not part of this record)).
 
 Everything else — the lifecycles, meta-state, gates, the plugins'
 builders — is V2 code with no V1 twin.
@@ -53,10 +53,10 @@ builders — is V2 code with no V1 twin.
 ### Is anything else being worked on?
 
 No. The side documents are V2 stages or their housekeeping:
-[GCP-READINESS.md](history/GCP-READINESS.md) (2026-09-02, the GCE increment of
-the plan), [BILLING_REMINDERS.md](../BILLING_REMINDERS.md) (2026-09-05, GCP
-housekeeping from the same stage), [EXPLORE.md](../EXPLORE.md)
-(exploration inside the V2 work before acceptance). [TODO.md](../TODO.md)
+[GCP-READINESS.md](GCP-READINESS.md) (2026-09-02, the GCE increment of
+the plan), [BILLING_REMINDERS.md](../../REMINDERS.md) (a live file, not part of this record) (2026-09-05, GCP
+housekeeping from the same stage), [EXPLORE.md](EXPLORE.md)
+(exploration inside the V2 work before acceptance). [TODO.md](../../INPROGRESS/TODO.md) (a live file, not part of this record)
 has no stage in progress; ~~§17 and §18 are planned V2 stages held by
 your instruction~~ (as of 2026-09-14: §17 landed 2026-09-12; §18 and §19
 are held by your instruction, and §30, the plugin contract package, is
@@ -71,12 +71,12 @@ Counted in `packages/` and `tests/` (`.py` files) **before the rename of
 | Reference form            | Count | Resolves where today                                  |
 |---------------------------|------:|-------------------------------------------------------|
 | `TODO §N` (a stage)       |   203 | now written `stage N`; resolves in TODO.md while in flight, PLAN.md's worksheet archive once landed |
-| `V2_DESIGN §…`            |    71 | now `DESIGN §…` — [docs/DESIGN.md](DESIGN.md), numbering unchanged |
-| `V2_EXPLORE`              |    60 | now `EXPLORE` — [EXPLORE.md](../EXPLORE.md)              |
+| `V2_DESIGN §…`            |    71 | now `DESIGN §…` — [docs/DESIGN.md](../DESIGN.md) (a live file, not part of this record), numbering unchanged |
+| `V2_EXPLORE`              |    60 | now `EXPLORE` — [EXPLORE.md](EXPLORE.md)              |
 | `N1`–`N26`, `Q1`–`Q7`     | 139, 35 | the stakeholder notes and questions in DESIGN       |
 | `finding N` / `ledger N`  | 54, 28 | [docs/LEDGER.md](LEDGER.md)                     |
 | `gate N`                  |    11 | DESIGN §4                                             |
-| `V2.md`                   |     6 | now `GOALS.md` — [GOALS.md](../GOALS.md)                 |
+| `V2.md`                   |     6 | now `GOALS.md` — [GOALS.md](../../GOALS.md) (a live file, not part of this record)                 |
 | `V2_PLAN`                 |     5 | all in the gate-1 test's normalizer, which maps the frozen baseline's literal `V2_PLAN` to `DESIGN` — it must keep the old spelling because the baseline is frozen |
 | bare `V2`                 |    82 | the label itself                                      |
 | bare `V1`                 |    25 | the three remnants above (5 files)                    |
@@ -85,7 +85,7 @@ These are not "V2 as opposed to something else" markers. They are
 provenance: each names the decision (Q/N), the design section (§3x),
 the stage (TODO §N) or the finding (ledger N) that explains why a piece
 of code is the way it is. They still resolve: the
-[PLAN.md](../PLAN.md) records where each kind moved, so an old
+[PLAN.md](PLAN.md) records where each kind moved, so an old
 "V2_PLAN §3F5" reads as "DESIGN §3F5", "ledger 68" is in
 [docs/LEDGER.md](LEDGER.md), and an old "TODO §10.14" resolves as
 stage 10.14 in PLAN.md's archive. The
@@ -103,14 +103,14 @@ second and third. Both were carried out on 2026-09-11.
 - **A one-time rename pass** — **done** (`feature/reference-rename`).
   `TODO §N` became `stage N` (303 citations, including three chains
   where the following `, §N` was converted too). The `V2` prefix left
-  the document names: `V2.md` → [GOALS.md](../GOALS.md), `V2_EXPLORE.md` →
-  [EXPLORE.md](../EXPLORE.md), `V2_QUESTIONS.md` → this file (moved to `docs/` on 2026-09-15),
-  `docs/V2_DESIGN.md` → [docs/DESIGN.md](DESIGN.md),
-  `docs/V2_OPERATIONS.md` → [docs/OPERATIONS.md](OPERATIONS.md) —
+  the document names: `V2.md` → [GOALS.md](../../GOALS.md) (a live file, not part of this record), `V2_EXPLORE.md` →
+  [EXPLORE.md](EXPLORE.md), `V2_QUESTIONS.md` → this file (moved to `docs/` on 2026-09-15),
+  `docs/V2_DESIGN.md` → [docs/DESIGN.md](../DESIGN.md) (a live file, not part of this record),
+  `docs/V2_OPERATIONS.md` → [docs/OPERATIONS.md](../OPERATIONS.md) (a live file, not part of this record) —
   263 references rewritten across 144 files, a pointer stub left at each
   old name. Those stubs were removed the same day, and the former
   `V2_PLAN.md` — already only a pointer — was folded into
-  [PLAN.md](../PLAN.md). The gate-1 normalizer now maps
+  [PLAN.md](PLAN.md). The gate-1 normalizer now maps
   the frozen baseline's `V2_PLAN` to `DESIGN`, and the golden fixture was
   regenerated for the emitted comments that carry these names.
   Bare `§N` citations were left alone: some name a stage and some name a
@@ -132,11 +132,11 @@ the Justfile's `test`). Their docstring's word "alias" is misleading —
 they alias nothing. Two facts sharpen this:
 
 - `verify` is dead code. The `verify` command group (`verify instance`,
-  `verify assert`, [cli.py:581](../packages/system/src/cs_image_system/system/cli.py#L581))
+  `verify assert`, [cli.py:581](../../packages/system/src/cs_image_system/system/cli.py#L581) (a live file, not part of this record))
   is registered under the same name and wins the resolution, so the
   stub can never run. (*The stub was deleted the same day; the retired
   names now live in the `_RETIRED` table at
-  [cli.py:784](../packages/system/src/cs_image_system/system/cli.py#L784).*)
+  [cli.py:784](../../packages/system/src/cs_image_system/system/cli.py#L784) (a live file, not part of this record).*)
 - `test` and `cleanup` are reachable and succeed. An old script calling
   `cs-image-system test` gets a yellow line and a green exit, which is
   the opposite of failing loudly (my earlier line above was wrong on
@@ -156,7 +156,7 @@ not forbid unknown keys, so without the field a stale `groups:` would be
 dropped silently~~ — **no longer true since 2026-09-12**: stage 21 made
 every model refuse unknown keys (`extra="forbid"` in
 `CSIS_MODEL_CONFIG`), and stage 23 replaced the converter with
-[`PydanticConverter`](../packages/base/src/cs_image_system/base/orchestrator.py#L452).
+[`PydanticConverter`](../../packages/base/src/cs_image_system/base/orchestrator.py#L452) (a live file, not part of this record).
 ~~That same converter setting is a wider hazard: any misspelt key in any
 configuration file (`ephemral: true`) is silently ignored today.~~ A
 misspelt key is refused at load now.
@@ -219,7 +219,7 @@ would be refused without the field. What the field still buys is the
 specific message ("V2 removed per-instance groups … the owning group
 lives on the instance image") in place of the generic unknown-key
 refusal; the test at
-[test_v2_gate4_identity_storage.py:365](../tests/test_v2_gate4_identity_storage.py#L365)
+[test_v2_gate4_identity_storage.py:365](../../tests/test_v2_gate4_identity_storage.py#L365) (a live file, not part of this record)
 asserts that message. **Decided and done 2026-09-14**
 (`feature/retire-groups-field`, ledger 83): the middle way stage 26 set
 the precedent for — a `model_validator(mode="before")` on the instance

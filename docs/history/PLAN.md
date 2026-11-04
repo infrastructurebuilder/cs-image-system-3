@@ -10,8 +10,8 @@ Running log of implementation plans for this repo. Newest first.
 
 *Status: **§15 and §16 DONE 2026-09-10 (ledger 72, 73); §17–§18 planned,
 not started by the operator's instruction of 2026-09-10** — written to
-[TODO.md](TODO.md) from the
-target goals ([GOALS.md](GOALS.md), [EXPLORE.md](EXPLORE.md) "Systemic
+[TODO.md](../../INPROGRESS/TODO.md) (a live file, not part of this record) from the
+target goals ([GOALS.md](../../GOALS.md) (a live file, not part of this record), [EXPLORE.md](EXPLORE.md) "Systemic
 Purpose") against what has landed; no new GCP work by the operator's
 decision. In the operator's order (2026-09-10): §15 storage lifecycle
 parity on AWS — `archived` for EBS, data lifecycles for S3/EFS (N19's
@@ -38,7 +38,7 @@ decision.
 
 ## Stage 29 — Protocols become base classes (drafted 2026-09-13, SUPERSEDED)
 
-*Status: **superseded by [TODO.md §30](TODO.md) on 2026-09-13**, the
+*Status: **superseded by [TODO.md §30](../../INPROGRESS/TODO.md) (a live file, not part of this record) on 2026-09-13**, the
 same day it was drafted; nothing below was done. The operator's stated
 goal — a plugin author writes against one package and never inherits a
 base class — is the opposite direction: the protocols are the contract
@@ -117,7 +117,7 @@ place per interface.
 
 ## Configuration repository separation (drafted 2026-09-10, SUPERSEDED)
 
-*Status: **superseded by [TODO.md §28](TODO.md) on 2026-09-13.** Deferred
+*Status: **superseded by [TODO.md §28](../../INPROGRESS/TODO.md) (a live file, not part of this record) on 2026-09-13.** Deferred
 by the operator on 2026-09-10 and kept verbatim below; nothing below was
 done. §28 takes the same goal by a different route decided 2026-09-13:
 no submodule and no `git subtree split` (the config repo
@@ -180,7 +180,7 @@ DESIGN §3B, and it de-risks the model-image stage, which changes the live confi
 
 *Status: **§12, §13 and §14 DONE 2026-09-09/10** (feature/run-scoping,
 feature/aws-el10, feature/post-bake-tests; ledger 69–71; archived in
-[PLAN.md worksheet archive stage 12–6.14](docs/DESIGN.md)); nothing queued — written to [TODO.md](TODO.md) as
+[PLAN.md worksheet archive stage 12–6.14](../DESIGN.md) (a live file, not part of this record)); nothing queued — written to [TODO.md](../../INPROGRESS/TODO.md) (a live file, not part of this record) as
 stages §12 (run scoping safe by construction: `--apply-runtime` implies
 the bake filter, out-of-scope bakes refuse, session lifetime in the
 preflight), §13 (the AWS EL10 migration plus the first live AWS
@@ -220,7 +220,7 @@ Still open from earlier lists, unchanged in priority:
 - **Okta/ASA on GCE** (§11 item 7, lowest priority by the §7 decision):
   OPA enrollment on GCE, the identity read-model, sftd on Alma 10 —
   nothing done since removes what it needs.
-- **Egress discipline** ([GCP-READINESS.md](docs/history/GCP-READINESS.md)): bakes
+- **Egress discipline** ([GCP-READINESS.md](GCP-READINESS.md)): bakes
   download only; unmeasured. Informational, no code.
 - ~~**AWS EL10 migration**~~ — DONE 2026-09-10 as stage 13 (AlmaLinux 10
   on both clouds, ledger 70).
@@ -271,7 +271,7 @@ on a runtime (closing phase: storages destroyed, images disposed, gated
 and scoped like everything else). After both, `run --all` is the whole
 GCE cycle and a second run on a converged tree is a no-op; the `gce-*`
 cleanup recipes stay by operator decision. Full steps, tests, live
-proofs and the ⚠️ USER decisions are in [TODO.md §9–§10](TODO.md).
+proofs and the ⚠️ USER decisions are in [TODO.md §9–§10](../../INPROGRESS/TODO.md) (a live file, not part of this record).
 
 ## GCE change cycle (2026-09-07)
 
@@ -299,7 +299,7 @@ stage 7 records it and the deprioritizations decided alongside (Okta on
 GCE lowest priority, nothing removed that it needs; AWS EL10 deferred).*
 
 One rule, `apply_flag_allows(value, root, aliases)` in
-[utils.py](packages/base/src/cs_image_system/base/utils.py): a bool is
+[utils.py](../../packages/base/src/cs_image_system/base/utils.py) (a live file, not part of this record): a bool is
 the whole lifecycle, a list names the roots (builder name or runtime)
 allowed to apply. Generation asks it per root when it decides whether to
 emit the apply; the emitted `apply-check` carries `--root`/`--root-alias`
@@ -313,7 +313,7 @@ via `roots_on_runtime`). Tests: the rule table, the emitted scripts
 under list-valued flags (only the listed roots apply, every root still
 plans and gates), `apply-check` refusing an unlisted root, and both hook
 families under a list. Docs:
-[OPERATIONS.md](docs/OPERATIONS.md) "Applies are opt-in".
+[OPERATIONS.md](../OPERATIONS.md) (a live file, not part of this record) "Applies are opt-in".
 
 ## GCE gaps 49–51 (+54) (2026-09-05)
 
@@ -359,7 +359,7 @@ booted image → gated teardown → finish the branch.
 
 *Status: **COMPLETE 2026-09-05** (feature/post-launch-housekeeping,
 squash-merged). The deferred GCE gaps (ledger 49–51) are queued as the
-next stage in [TODO.md §6](TODO.md).*
+next stage in [TODO.md §6](../../INPROGRESS/TODO.md) (a live file, not part of this record).*
 
 Five operator decisions, executed in order: (1) gaps 49–51 deferred to
 be the next stage; (2) `test`/`test2` commented out of the live
@@ -403,7 +403,7 @@ is a human acting on it, hence the reminders below.
   review": **withdrawn 2026-09-06** — the Credits page is empty, there is
   no trial or any other credit on the account, so every charge is real
   from day one. Replaced by a one-off "prove budget mail delivery"
-  reminder; see [BILLING_REMINDERS.md §2a and §3](BILLING_REMINDERS.md).
+  reminder; see [BILLING_REMINDERS.md §2a and §3](../../REMINDERS.md) (a live file, not part of this record).
 - *After every bake day* — "csis orphan sweep": `state query` must show
   no `foreign` images/disks; `gcloud compute images list` and
   `disks list` should match the recorded chain.
@@ -488,7 +488,7 @@ awaits the operator's teardown authorization.
 ## Alma 10 on GCE: basic-rh-10 (2026-09-04)
 
 *Status: **COMPLETE 2026-09-04** (feature/gce-alma-10, squash-merged;
-findings 42–46 in the [docs/LEDGER.md](docs/LEDGER.md) ledger).*
+findings 42–46 in the [docs/LEDGER.md](LEDGER.md) ledger).*
 
 User decisions: AlmaLinux 10 replaces RHEL on the GCE chain (no
 license premium — the e2-micro launch becomes genuinely free-tier);
@@ -522,7 +522,7 @@ Checklist for taking the merged GCP support (increments 1–3) to a real
 Google Cloud target at near-zero cost — free-tier region/machine
 choices, budget guardrails, credential contract, placeholder
 replacement, dry-run proof, and a stage-1-style gated first live run.
-The full action list lives in [GCP-READINESS.md](docs/history/GCP-READINESS.md)
+The full action list lives in [GCP-READINESS.md](GCP-READINESS.md)
 (kept as its own file at the stakeholder's request; this entry is the
 plan-log pointer). Sequencing note: it depends on the `scoped-runs` and
 `truthful-recorders` stages below landing first.
@@ -546,7 +546,7 @@ looks away.*
    `ec2.create_tags` (tag writes on our own AMIs only).
 2. Post-bake reconciliation at the one place both truths meet:
    after `record_build(...)` in
-   [packer_ebs_builder.py](packages/packer-plugin/src/cs_image_system/packer_plugin/packer_ebs_builder.py)
+   [packer_ebs_builder.py](../../packages/packer-plugin/src/cs_image_system/packer_plugin/packer_ebs_builder.py) (a live file, not part of this record)
    compare the returned record's `parent` / `input_fingerprint[:16]`
    with the generation-time `lineage_tags` values and, when they
    differ, `rtb.retag_image(ami, {csis_parent, csis_fingerprint})`.
@@ -578,11 +578,11 @@ here. Proven live (finding 21): the storage transition recorder wrote
 executed — the state query's HARD drift caught the lie after the fact.
 The rule this plan enforces: **a recorder may write a reality-claiming
 record only when its lifecycle's apply was actually enabled**, exactly
-the guard [tf_instance_builder.post_finalize_phase](packages/tf-ebs-instance-plugin/src/cs_image_system/tf_ebs_instance_plugin/tf_instance_builder.py)
+the guard [tf_instance_builder.post_finalize_phase](../../packages/tf-ebs-instance-plugin/src/cs_image_system/tf_ebs_instance_plugin/tf_instance_builder.py) (a live file, not part of this record)
 already applies before first-bind pinning.*
 
 1. Guard the storage transition recorder:
-   [read_models.record_storage_transitions](packages/base/src/cs_image_system/base/read_models.py)
+   [read_models.record_storage_transitions](../../packages/base/src/cs_image_system/base/read_models.py) (a live file, not part of this record)
    is registered `after_apply` but never checks the flag — add an early
    return unless `utils.apply_enabled("storage")`, mirroring
    `post_finalize_phase`. The read-model write at its tail stays
@@ -599,7 +599,7 @@ already applies before first-bind pinning.*
    found unguarded; leave derived-data writes (read-models,
    launch-parameter *structure*) unguarded.
 3. Deliberate exception, kept and commented: the `state query` import
-   path ([state_query.py](packages/base/src/cs_image_system/base/state_query.py)
+   path ([state_query.py](../../packages/base/src/cs_image_system/base/state_query.py) (a live file, not part of this record)
    `record_storage_transition(..., action="import")`) records reality
    it just *observed*, not an apply — it is correct without the flag.
 4. Tests: in `tests/test_v2_explore_state_query.py` /
@@ -611,7 +611,7 @@ already applies before first-bind pinning.*
    behave as OFF — assert `utils.apply_enabled` treats an absent key as
    False (it does today; pin it with a test so it cannot drift).
 6. `just verify` green; update the stage-1 ledger entry for finding 21
-   in [docs/LEDGER.md](docs/LEDGER.md) with "fixed: truthful-recorders";
+   in [docs/LEDGER.md](LEDGER.md) with "fixed: truthful-recorders";
    note the guard rule in docs/OPERATIONS.md "Meta-state".
 
 ## Scoped runs (planned 2026-09-02)
@@ -627,7 +627,7 @@ a failed plan.*
 
 1. **No stale planfile can pass the gate** (finding 33, smallest and
    sharpest): in
-   [roots.gated_apply_commands](packages/hashicorp-utils/src/cs_image_system/hashicorp_utils/roots.py)
+   [roots.gated_apply_commands](../../packages/hashicorp-utils/src/cs_image_system/hashicorp_utils/roots.py) (a live file, not part of this record)
    emit `rm -f tfplan` as the first command of every plan → gate →
    apply sequence, so a failed plan leaves nothing for the gate to
    read; `gate-plan` (commands/gate.py) additionally errors when the
@@ -676,7 +676,7 @@ operator var is retired from `.envrc`; docs/OPERATIONS.md now
 records the reference-first precedence with `TF_VAR_sft_enrollment_token`
 as override/fallback only.*
 
-*User directive (2026-09-01, [TODO.md](TODO.md) queued item): minting an
+*User directive (2026-09-01, [TODO.md](../../INPROGRESS/TODO.md) (a live file, not part of this record) queued item): minting an
 enrollment token per project by hand is not a thing a user should do.
 Tokens are generated by IaC, stored in state, destroyed when their IaC
 is destroyed; an admin deleting one out-of-band must have understood,
@@ -915,7 +915,7 @@ rest is small.
 
 ## V2 execution — feature/v2-lifecycles (2026-08-26)
 
-*Executes [docs/DESIGN.md](docs/DESIGN.md) rev 20 end to end on a persistent
+*Executes [docs/DESIGN.md](../DESIGN.md) (a live file, not part of this record) rev 20 end to end on a persistent
 feature branch. Constraints for this pass: **no changes to Okta or AWS**
 (every test stubs cloud and tool execution; nothing runs `--no-dry-run`
 against the live account), one commit per gate, `just verify` green at
@@ -924,7 +924,7 @@ every commit, gate evidence as `tests/test_v2_gate*.py` (run with
 
 ### Live run (2026-08-31 → 2026-09-02)
 
-*Stage 1 of [TODO.md](TODO.md) took the system live for the first time;
+*Stage 1 of [TODO.md](../../INPROGRESS/TODO.md) (a live file, not part of this record) took the system live for the first time;
 per-step details and findings 1–31 live there and in the develop
 history. The stubbed-execution constraint above applied to the 2026-08
 test pass; the live run used explicit apply gates per docs/LEDGER.md.*
@@ -962,7 +962,7 @@ test pass; the live run used explicit apply gates per docs/LEDGER.md.*
 | 4 D+E read-models, gid reference chain, storage state machine | `OutputSpec` + single-label blocks (LEDGER.md item 6); identity root emits `group_gids` via a `data "external"` **gid shim** (`cs-image-system identity export-gids` → okta plugin's read-only OPA lookup; the oktapam provider/SDK expose no group gid, N7's pre-authorized "other mechanism"); storage schema (`groups`/`public_read`/`share_mode`/`state`, `ALL` retired); EFS access points + S3 prefixes with gids **by remote-state reference only**; per-plugin cardinality/prerequisites/transition actions; `base/storage_state.py` state machine; tombstones; `unmanaged: true` groups → `state rm`; every terraform root defers `plan -out` → `gate-plan` → apply-only-if-`apply_<lifecycle>` | `test_v2_gate4_identity_storage.py` (+ `okta-opa-plugin/tests/test_opa_gid_shim.py`); `test_v2_golden.py` pins the exact emission (`just golden-regen`) |
 | 5 F1+F2 capability plumbing + activation + launch params | OS builders (the base-image definitions) declare `identity_types`/`storage_types` + `admin_user`/`admin_public_keys` (global `config.admin_public_keys`, per-base override; public-key schema, private material refused, no-key-no-session dead end hard-fails); `base/capabilities.py` resolves effective capabilities through pins to the stamped root build (N11/N24); plugins supply prerequisites (`okta`: sftd dormant; `efs`/`s3`/`ebs`) and the AWS runtime's `session_mechanism: ssm` agent; instance images bake the owning group's activation (`sftd.tx.group` label) after their mods; `base/launch_params.py` generates user-data templates (mounts, group subtree by gid reference, enrollment token via sensitive var), records them in `meta-state/launch-params.yaml`, enforces immutability after launch, whitelists decommissions; `aws_instance` module gains `ignore_changes=[ami]`, EBS attachments, user_data, instance profile | `test_v2_gate5_capabilities_activation.py` |
 | 6 F3–F5 + M lineage, pins, mods | `base/lineage.py`: every source carries `csis_*` lineage tags (series, parent, run, fingerprint, stamped capabilities); unique `ami_name` now actually renders the run timestamp (V1 emitted the literal template); packer manifests → `meta-state/lineage.yaml` records (build id, parent, input fingerprint, capabilities, mods with content hashes per N23c) and first-bind pins (image → base build built this run; instance → launched build); rebuilds bake FROM the pinned base (`image-id` filter, never `most_recent`); first bind of an unpinned consumer goes to the recorded series head; pinned instances emit a literal AMI; `upgrade instance` / `upgrade image` moves exactly one edge, an instance upgrade plans `-replace` and whitelists that destroy; `aws_instance` ignores AMI drift | `test_v2_gate6_lineage_pins.py` |
-| 7 G headless | interactive finalization countdown deleted (nothing waits on a TTY; `sleep_before_finalization` ignored); `run`/`validate`/`gate-plan`/`upgrade` exit nonzero on failure with `generated/run-summary.json` always written; per-lifecycle credential contract, apply flags, meta-state files and operating procedures in [docs/OPERATIONS.md](docs/OPERATIONS.md); docs/LEDGER.md items 3 and 6 closed, item 9 (verify the OPA gid field) opened | `test_v2_gate7_headless.py` (drives the real CLI through typer's runner with no input); `just v2-dry-run` for the live read-only dry run |
+| 7 G headless | interactive finalization countdown deleted (nothing waits on a TTY; `sleep_before_finalization` ignored); `run`/`validate`/`gate-plan`/`upgrade` exit nonzero on failure with `generated/run-summary.json` always written; per-lifecycle credential contract, apply flags, meta-state files and operating procedures in [docs/OPERATIONS.md](../OPERATIONS.md) (a live file, not part of this record); docs/LEDGER.md items 3 and 6 closed, item 9 (verify the OPA gid field) opened | `test_v2_gate7_headless.py` (drives the real CLI through typer's runner with no input); `just v2-dry-run` for the live read-only dry run |
 
 ### Findings while executing (pre-existing, fixed in passing)
 
@@ -1341,13 +1341,13 @@ terraform label character.*
 No user Terraform is emitted **anywhere** in the system:
 
 - `OktaTfGroupBuilder.generate_items_during` has a `for user in self.get_users_for_builder()`
-  loop ([okta_opa_tf_group_builder.py](packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/okta_opa_tf_group_builder.py))
+  loop ([okta_opa_tf_group_builder.py](../../packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/okta_opa_tf_group_builder.py) (a live file, not part of this record))
   that always iterates **zero** times: the `users` ItemKind attaches to `VCT.USER_BUILDER`
-  ([global_context.py:1203-1206](packages/base/src/cs_image_system/base/global_context.py#L1203-L1206)),
+  ([global_context.py:1203-1206](../../packages/base/src/cs_image_system/base/global_context.py#L1203-L1206) (a live file, not part of this record)),
   so `GroupBuilderBase.local_users` is never populated. Confirmed on disk — no `*-users.tf` exists.
 - The emitters it would call are hard-coded `commented_out=True` because the provider's
   `oktapam_user` resource "does not currently function"
-  ([okta_tf_models.py:63-64](packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/okta_tf_models.py#L63-L64)).
+  ([okta_tf_models.py:63-64](../../packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/okta_tf_models.py#L63-L64) (a live file, not part of this record)).
 - `OktaTfUserBuilderModel` is not Terraform-ready: no `register_hcl_requirements`, no
   `transform_provider`, no credential fields, and `required_providers` is typed
   `list[dict[str, str]]` where the group model uses `list[ConfiguredTerraformProvider]`.
@@ -1393,7 +1393,7 @@ These were found during design and are load-bearing:
 
 1. **Root-level resources need an explicit `provider =` meta-argument.**
    `configure_provider` *always* aliases (defaults to `ssn(workspace)`,
-   [collector.py:161-183](packages/hashicorp-utils/src/cs_image_system/hashicorp_utils/collector.py#L161-L183)),
+   [collector.py:161-183](../../packages/hashicorp-utils/src/cs_image_system/hashicorp_utils/collector.py#L161-L183) (a live file, not part of this record)),
    so no default `okta` provider block is emitted. Every root-level `okta_user` must carry
    `provider = okta.okta_tf_users`, taken from `provider_bindings(self.name)["okta"]` — never
    hand-written. Existing roots get away without this because all their resources live in modules.
@@ -1407,14 +1407,14 @@ These were found during design and are load-bearing:
 5. **Do not use `User.as_profile()`** — see the R6 explanation at the bottom of this plan.
 6. **`email_as_username` breaks the email template**, which must be fixed with it. See step 2.
 7. **`"required": True` metadata is not enforcement.** `field_is_required`
-   ([orchestrator.py:99](packages/base/src/cs_image_system/base/orchestrator.py#L99)) is called
+   ([orchestrator.py:99](../../packages/base/src/cs_image_system/base/orchestrator.py#L99) (a live file, not part of this record)) is called
    from exactly one place, `upgrade_deferred_fill_defaults`, and only back-fills the default
    when the value is `None` — it never rejects a missing value. Making a field genuinely
    required means a dataclass field with **no default**, so cattrs raises. `User` is
    `kw_only=True`, so adding non-default fields after defaulted ones is legal.
 
 Plus one mechanical trap: `AssetSet.add()` silently drops falsy values
-([asset.py:110-112](packages/base/src/cs_image_system/base/basic/asset.py#L110-L112)), so
+([asset.py:110-112](../../packages/base/src/cs_image_system/base/basic/asset.py#L110-L112) (a live file, not part of this record)), so
 `render_blocks(..., separator="")` loses its separators. Use `separator="\n"`.
 
 ### Implementation, as independently-green commits
@@ -1429,7 +1429,7 @@ Everything user generation needs already exists (`require_provider`, `configure_
 `search {}`). Workspace-keyed state paths come free from `BackendRegistration.state_file_path`.
 
 - **Collapse `collector._hcl_value` into `blocks.hcl_value`.**
-  [collector.py:118-124](packages/hashicorp-utils/src/cs_image_system/hashicorp_utils/collector.py#L118-L124)
+  [collector.py:118-124](../../packages/hashicorp-utils/src/cs_image_system/hashicorp_utils/collector.py#L118-L124) (a live file, not part of this record)
   is a weaker duplicate — no `Raw`, no list/dict recursion. `blocks.py` imports only
   `.hashicorp`, so the import is acyclic. Keep the `_hcl_value` name as an alias so the two
   call sites are untouched.
@@ -1444,7 +1444,7 @@ Everything user generation needs already exists (`require_provider`, `configure_
   exists and is honored; the group model just never set it.
 
 **Explicitly deferred as scope creep:** generalizing `render_block`'s hard-coded two labels
-([blocks.py:114-115](packages/hashicorp-utils/src/cs_image_system/hashicorp_utils/blocks.py#L114-L115))
+([blocks.py:114-115](../../packages/hashicorp-utils/src/cs_image_system/hashicorp_utils/blocks.py#L114-L115) (a live file, not part of this record))
 to single-label kinds, and an `OutputSpec`. Decision 4 removes the only reason this change
 would need `output` blocks. When it *is* needed: add `labels: list[str] | None` to `BlockSpec`
 and default it to today's two-label form.
@@ -1452,10 +1452,10 @@ and default it to today's two-label form.
 #### 2. `email_as_username` + required names — the R1 fix (base + config)
 
 **The flag.** Add `email_as_username: bool = True` to `UserBuilderModel`
-([user_builder.py](packages/base/src/cs_image_system/base/models/user_builder.py)), beside
+([user_builder.py](../../packages/base/src/cs_image_system/base/models/user_builder.py) (a live file, not part of this record)), beside
 the existing `default_user_email_template`, plus a matching accessor property on
 `UserBuilderBase` mirroring `default_user_email_template`
-([builder_base_user.py:22-26](packages/base/src/cs_image_system/base/basic/builder_base_user.py#L22-L26)).
+([builder_base_user.py:22-26](../../packages/base/src/cs_image_system/base/basic/builder_base_user.py#L22-L26) (a live file, not part of this record)).
 Generic to all user builders, not okta-specific.
 
 **Enforcement** in `UserBuilderBase.add_user_to_builder` — the only place holding both the
@@ -1484,7 +1484,7 @@ explicitly per user).
 implemented**, ahead of the rest of this step). It is what makes `email_as_username` safe
 rather than merely tolerable:
 
-- `split_name()` ([user.py:104-114](packages/base/src/cs_image_system/base/models/user.py#L104-L114))
+- `split_name()` ([user.py:104-114](../../packages/base/src/cs_image_system/base/models/user.py#L104-L114) (a live file, not part of this record))
   splits the whole `name` on `.`, so an email-shaped name gives `first_name="avery"`,
   `last_name="alpha@example invalid"` — verified by running it. That value would land directly in
   `okta_user.last_name`. It has a second latent bug independent of this change:
@@ -1526,7 +1526,7 @@ generated Terraform label is unaffected either way, since `ssn()` lowercases.
 
 **One caveat on the blank-name branch: it is unreachable, and deleting `split_name()` does
 not change that.** `RootItem.__post_init__`
-([root_item.py:28-29](packages/base/src/cs_image_system/base/models/root_item.py#L28-L29))
+([root_item.py:28-29](../../packages/base/src/cs_image_system/base/models/root_item.py#L28-L29) (a live file, not part of this record))
 raises when `name in OOPS_DEFAULTS`, and that list is `[DEFAULT, None, "", SELF]` — so a blank
 name dies before any builder sees the user, independently of the parser. Implement the branch
 as specified for defensiveness, but making it actually live requires moving the coercion ahead
@@ -1541,9 +1541,9 @@ asks for.
 #### 3. Instance-level `local_users` — the R4 fix (base)
 
 `local_users` is a **class**-level mutable list on `UserBuilderBase`
-([builder_base_user.py:13](packages/base/src/cs_image_system/base/basic/builder_base_user.py#L13)),
+([builder_base_user.py:13](../../packages/base/src/cs_image_system/base/basic/builder_base_user.py#L13) (a live file, not part of this record)),
 and `local_users` + `local_groups` likewise on `GroupBuilderBase`
-([builder_base_group.py:13-14](packages/base/src/cs_image_system/base/basic/builder_base_group.py#L13-L14)).
+([builder_base_group.py:13-14](../../packages/base/src/cs_image_system/base/basic/builder_base_group.py#L13-L14) (a live file, not part of this record)).
 `self.local_users.append(...)` mutates the class attribute, so every instance of a given base
 shares one list. With one user builder this is invisible; with two, both roots emit **all**
 users, producing duplicate `okta_user` resources in two state files fighting over the same
@@ -1551,7 +1551,7 @@ Okta identities.
 
 Fix: allocate per instance in `__init__` (calling `super().__init__(model)` first), following
 the `TofuInstanceBuilder.__init__` precedent
-([tf_instance_builder.py:32-34](packages/tf-ebs-instance-plugin/src/cs_image_system/tf_ebs_instance_plugin/tf_instance_builder.py#L32-L34)).
+([tf_instance_builder.py:32-34](../../packages/tf-ebs-instance-plugin/src/cs_image_system/tf_ebs_instance_plugin/tf_instance_builder.py#L32-L34) (a live file, not part of this record)).
 Keep the class-level annotation for typing, drop the shared default.
 
 Do this **before** step 7 — the new builder tests otherwise need the leak-workaround fixture,
@@ -1594,7 +1594,7 @@ bases so its `finalize()` precedes `BuilderModel.finalize()` in the MRO; everyth
 *Fallback if the dataclass/cattrs interaction misbehaves:* make the mixin behavior-only (no
 fields) and re-declare the credential fields on `OktaUserBuilderModel`.
 
-#### 5. Rewrite `OktaTFUser` ([okta_tf_models.py:37-86](packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/okta_tf_models.py#L37-L86))
+#### 5. Rewrite `OktaTFUser` ([okta_tf_models.py:37-86](../../packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/okta_tf_models.py#L37-L86) (a live file, not part of this record))
 
 **Replace** the commented `oktapam_user` output rather than keeping both — one identity should
 not have two contradictory representations in the generated root. Move the
@@ -1614,24 +1614,24 @@ decision 8.
 
 #### 6. Fix `gen_users.py` (base)
 
-[gen_users.py](packages/base/src/cs_image_system/base/commands/gen_users.py) is wired into the
+[gen_users.py](../../packages/base/src/cs_image_system/base/commands/gen_users.py) (a live file, not part of this record) is wired into the
 lifecycle (`LIFECYCLE_FUNCTIONS` derives the name; `commands/__init__.py` exports it) but
 `predefined_user_generation` just logs a warning, and the orphaned `generate_users` is broken
 independent of this feature — it collects assets into a discarded local list, never calls
 `sort_and_write()`, and never executes its `build_executables`.
 
 Mirror `gen_groups.py` exactly: iterate `ctx.user_builders` (property confirmed at
-[global_context.py:300](packages/base/src/cs_image_system/base/global_context.py#L300)) in
+[global_context.py:300](../../packages/base/src/cs_image_system/base/global_context.py#L300) (a live file, not part of this record)) in
 sorted order → `generate_items_during` → `sort_and_write()` → `get_commands_to_run_during`
 → `extend_finalization_phase` → execute. Align the parameter order with
 `generate_groups(phase, gbb)`. Drop the stale "short-circuited" comment at
-[lifecycle.py:57-59](packages/base/src/cs_image_system/base/lifecycle.py#L57-L59).
+[lifecycle.py:57-59](../../packages/base/src/cs_image_system/base/lifecycle.py#L57-L59) (a live file, not part of this record).
 Nothing asserts on the removed warning.
 
 #### 7. Implement `OktaTfUserBuilder` + remove group dead code
 
 Five distinct artifact paths — **required**, because `sort_and_write` uses
-`mode = 'w' if exists else 'a'` ([asset.py:201](packages/base/src/cs_image_system/base/basic/asset.py#L201)),
+`mode = 'w' if exists else 'a'` ([asset.py:201](../../packages/base/src/cs_image_system/base/basic/asset.py#L201) (a live file, not part of this record)),
 so a second write to one path truncates:
 
 | Content | Suffix / discriminator |
@@ -1781,10 +1781,10 @@ Breaks: **`test_resource_emitters.py:24-30` `test_user_emits_commented_resource`
 
 ### R6 explained: why `User.as_profile()` must not feed `okta_user`
 
-`as_profile()` ([user.py:116-173](packages/base/src/cs_image_system/base/models/user.py#L116-L173))
+`as_profile()` ([user.py:116-173](../../packages/base/src/cs_image_system/base/models/user.py#L116-L173) (a live file, not part of this record))
 builds the **Okta REST API** request body — the JSON you would `POST /api/v1/users` if you
 called Okta directly with no Terraform involved. The comment block right below it
-([user.py:176-185](packages/base/src/cs_image_system/base/models/user.py#L176-L185)) shows
+([user.py:176-185](../../packages/base/src/cs_image_system/base/models/user.py#L176-L185) (a live file, not part of this record)) shows
 exactly that shape, nested under a `"profile"` key.
 
 The Terraform `okta_user` **resource** is a different serialization of the same data, one
@@ -1807,7 +1807,7 @@ silent mismatch.
 
 Two further ways it is wrong for this use, beyond key casing:
 
-- It sets **`login = self.name`** ([user.py:119](packages/base/src/cs_image_system/base/models/user.py#L119)),
+- It sets **`login = self.name`** ([user.py:119](../../packages/base/src/cs_image_system/base/models/user.py#L119) (a live file, not part of this record)),
   whereas decision 6 sets `login = email`. (Under decision 7 these coincide — but the
   disagreement is baked into a function that does not know about the flag.)
 - It **omits `firstName`/`lastName`**, which `okta_user` *requires* — even though its own
@@ -1828,7 +1828,7 @@ like the resource shape while still being unusable for it.
 
 ## Execution worksheet archive (TODO.md stages 1–18, 20–28, 31–36, 38 and 39)
 
-*Formerly §6 of the document that became [docs/DESIGN.md](docs/DESIGN.md) (moved here 2026-09-10, content unchanged). References of the form "stage N", and old ones of the form "V2_PLAN §6.N", mean stage N below. Each stage is kept verbatim as it left the worksheet: its landed summary, its decisions, its original plan or candidate list.*
+*Formerly §6 of the document that became [docs/DESIGN.md](../DESIGN.md) (a live file, not part of this record) (moved here 2026-09-10, content unchanged). References of the form "stage N", and old ones of the form "V2_PLAN §6.N", mean stage N below. Each stage is kept verbatim as it left the worksheet: its landed summary, its decisions, its original plan or candidate list.*
 
 `TODO.md` was reset to its opening paragraph on 2026-09-09 after every
 stage it carried had landed (stages 1–11, 2026-09-04 → 2026-09-09). Each
@@ -1861,7 +1861,7 @@ untouched until the user says otherwise.
 ### 1. Switch the GCE chain to AlmaLinux 10 — DONE 2026-09-04
 
 **Landed on feature/gce-alma-10** (squash-merged; PLAN.md entry +
-findings 42–46 in [docs/LEDGER.md](docs/LEDGER.md)). Live chain:
+findings 42–46 in [docs/LEDGER.md](LEDGER.md)). Live chain:
 `basic-rh-10-gcloud-east1-20260904-105520` →
 `imgfile-basic-dask-pckr-gce-ans-20260904-111543`; RHEL images
 destroyed and disposal-recorded; dual-cloud state query zero image
@@ -1870,7 +1870,7 @@ superseded intermediates `...-103257` and `...-110544`) was authorized
 and done under §3 on 2026-09-05. Original plan follows for reference:
 
 1. **Point the GCE os-builder at Alma 10 vendor images**: in
-   [test_folder/cfg/runtime-builders.yml](test_folder/cfg/runtime-builders.yml),
+   [test_folder/cfg/runtime-builders.yml](../../tests/fixtures/config/cfg/runtime-builders.yml) (a live file, not part of this record),
    replace the RHEL source for the `gcloud-east1` runtime with
    `source_image_family: almalinux-10` /
    `source_image_project: almalinux-cloud`. First confirm the family
@@ -1893,13 +1893,13 @@ and done under §3 on 2026-09-05. Original plan follows for reference:
 4. Re-run the free proof: `just verify` green, dry-run `run --all`,
    `packer validate` clean for the Alma base + dask blocks. (Fold in
    the already-failing stale assertion at
-   [tests/test_v2_explore_gcp.py:148](tests/test_v2_explore_gcp.py#L148),
+   [tests/test_v2_explore_gcp.py:148](../../tests/test_v2_explore_gcp.py#L148) (a live file, not part of this record),
    which still expects `e2-micro` for the dask bake that finding 41
    moved to `e2-medium`.)
 5. Re-bake on GCE, one lifecycle at a time (the 2026-09-03 shape):
    Alma base image, then the dask instance image; dual-cloud
    `state query` **no drift**. **Pin gotcha (verified in
-   [lineage.py:162](packages/base/src/cs_image_system/base/lineage.py#L162)):**
+   [lineage.py:162](../../packages/base/src/cs_image_system/base/lineage.py#L162) (a live file, not part of this record)):**
    the standing parent pin `imgfile-basic-dask@gcloud-east1` still
    points at the RHEL base and WINS over "parent built this run" — a
    naive re-bake would bake dask from the old RHEL image. Between the
@@ -1970,7 +1970,7 @@ ssh`.
    SSH leg.
 
 4. **DONE 2026-09-05** — documented as operator prerequisites in
-   [docs/OPERATIONS.md](docs/OPERATIONS.md) "IAP sessions on GCE"
+   [docs/OPERATIONS.md](../OPERATIONS.md) (a live file, not part of this record) "IAP sessions on GCE"
    (the SSM-instance-profile analogue); readiness §5 bullet ticked.
 
 ### 3. Launch the instance and prove the IAP session path — DONE 2026-09-05
@@ -1995,7 +1995,7 @@ for reference:
 2. Pre-flight: `state query` clean (dual-cloud, no drift), then a full
    dry run; read `generated/final_execution.sh` end to end and price
    every deferred command against §§3 and 6 of
-   [GCP-READINESS.md](docs/history/GCP-READINESS.md) — the still-open §8 item —
+   [GCP-READINESS.md](GCP-READINESS.md) — the still-open §8 item —
    **before** any `--no-dry-run`.
 3. Flip **only** the instance-lifecycle apply flag (all others off);
    scope the run so nothing re-bakes (the scoped-runs selector).
@@ -2014,7 +2014,7 @@ for reference:
 
 ### 4. Capture evidence, tear down, record findings — DONE 2026-09-07
 
-The stage-1 close-out shape ([GCP-READINESS.md §9–10](docs/history/GCP-READINESS.md)).
+The stage-1 close-out shape ([GCP-READINESS.md §9–10](GCP-READINESS.md)).
 
 1. Evidence captured 2026-09-05: state query "no drift" with the
    launched instance recorded (run 2026_09_05t06_53_10); the operator's
@@ -2040,8 +2040,8 @@ The stage-1 close-out shape ([GCP-READINESS.md §9–10](docs/history/GCP-READIN
    snapshots were verified **already gone** from us-east-2 (nothing in
    the account references those ids); no deletion was needed.
 4. **DONE 2026-09-07** — findings 42–54 are in [PLAN.md](PLAN.md) and
-   the [docs/LEDGER.md](docs/LEDGER.md) ledger; the RHEL→Alma decision is
-   noted in [GCP-READINESS.md §9](docs/history/GCP-READINESS.md), and every readiness
+   the [docs/LEDGER.md](LEDGER.md) ledger; the RHEL→Alma decision is
+   noted in [GCP-READINESS.md §9](GCP-READINESS.md), and every readiness
    box with recorded evidence is ticked (the boxes still open there are
    listed in §8 below).
 5. **DONE 2026-09-05 (authorized)** — `default-allow-ssh` and
@@ -2049,7 +2049,7 @@ The stage-1 close-out shape ([GCP-READINESS.md §9–10](docs/history/GCP-READIN
    remaining rules: `allow-iap-ssh`, `default-allow-icmp`,
    `default-allow-internal`.
 6. **DONE (user, 2026-09-07)** — §10 hygiene loop: the Apple Reminders
-   from [BILLING_REMINDERS.md §3](BILLING_REMINDERS.md) are in place, the
+   from [BILLING_REMINDERS.md §3](../../REMINDERS.md) (a live file, not part of this record) are in place, the
    budget-alert emails are verified as arriving (the Google Chat
    notification is not useful and is ignored), and BILLING_REMINDERS.md
    is the operator's reference for cost queries. The trial-credit review
@@ -2301,7 +2301,7 @@ decision 2026-09-07: they are fine); they become shorthand, not the
 only way.
 
 1. **Audit what `input_fingerprint` covers** —
-   [lineage.py](packages/base/src/cs_image_system/base/lineage.py):
+   [lineage.py](../../packages/base/src/cs_image_system/base/lineage.py) (a live file, not part of this record):
    it must include everything that changes the artifact: the OS
    builder's settings, the runtime's bake settings that end up in the
    image (disk size, source family), every mod's content hash, the
@@ -2315,7 +2315,7 @@ only way.
 2. **The bake decision, per image per runtime** — one function,
    `bake_reason(ctx, image, runtime) -> str | None`, consulted at the
    `get_images` choke point
-   ([builder_base_image.py](packages/base/src/cs_image_system/base/basic/builder_base_image.py)),
+   ([builder_base_image.py](../../packages/base/src/cs_image_system/base/basic/builder_base_image.py) (a live file, not part of this record)),
    returning why the image bakes or `None` to skip. Bake when: (a) the
    series has no build on this runtime; (b) the series head's recorded
    fingerprint differs from the current one; (c) the parent policy
@@ -2426,7 +2426,7 @@ the operator wants), but nothing *depends* on them.
    ("resources standing on ephemeral runtime X", step 5) until the
    operator decommissions it (undeclare, or `just gce-decommission`).
    Whether that should be configurable per instance/runtime is an
-   investigation item in [docs/DESIGN.md §3H](docs/DESIGN.md).
+   investigation item in [docs/DESIGN.md §3H](../DESIGN.md) (a live file, not part of this record).
 2. **Verification as a runtime hook** — `verify_instance(name) ->
    Verification` on the runtime builder base; GCE implements what
    `gce-verify` does today (serial console: startup scripts finished,
@@ -3216,7 +3216,7 @@ a real address anywhere outside prose and tests — it caught the roster's own
 comment on the first run. The golden moved once (the eight identity files);
 the V1 baseline carries the same substitution beside its stage-35 note; ten
 test modules, PLAN.md, EXPLORE.md, one OPERATIONS example and one code comment
-name personas now; [tests/test_fixture_personas.py](tests/test_fixture_personas.py)
+name personas now; [tests/test_fixture_personas.py](../../tests/test_fixture_personas.py) (a live file, not part of this record)
 decrypts the rosters and pins that a real roster cannot return. The live
 configuration is untouched. The substitution table is the operator's,
 outside the repository. The plan as it left the worksheet:
@@ -3237,8 +3237,8 @@ use them as test data (`test_group_module_call.py`,
 `test_group_gid.py`, `test_v2_gate4_identity_storage.py`,
 `test_v2_detach.py`, `test_v2_encrypted_values.py`,
 `test_v2_gate1_layout_equivalence.py`), in [PLAN.md](PLAN.md),
-[EXPLORE.md](EXPLORE.md), [BILLING_REMINDERS.md](BILLING_REMINDERS.md),
-one [docs/OPERATIONS.md](docs/OPERATIONS.md) import example and one
+[EXPLORE.md](EXPLORE.md), [BILLING_REMINDERS.md](../../REMINDERS.md) (a live file, not part of this record),
+one [docs/OPERATIONS.md](../OPERATIONS.md) (a live file, not part of this record) import example and one
 comment in `ansible_builder.py`. The publication note lists this
 redaction as a precondition of the swapover (§40); it is a stage because
 it moves the golden by design and touches every test that pins a name.
@@ -3277,7 +3277,7 @@ The live configuration is untouched: its rosters are real by decision.
 ### 35. DONE 2026-09-15 — a commit-time gate over everything staged
 
 **Built on feature/public-safe-gate, proven 2026-09-15 (ledger 90).** One
-scanner ([public_safe.py](packages/base/src/cs_image_system/base/public_safe.py))
+scanner ([public_safe.py](../../packages/base/src/cs_image_system/base/public_safe.py) (a live file, not part of this record))
 reads bytes, zipped plans included, refuses plans, state, tfvars and key
 material by name and the secret shapes everywhere; addresses and long
 tokens outside prose and tests; allowances by decision in `cfg/_config.yml`
@@ -3409,7 +3409,7 @@ decrypted configuration.
 ### 33. DONE 2026-09-15 — encrypted configuration values
 
 **Built on feature/encrypted-values, proven 2026-09-15 (ledger 88).**
-`EncryptedStr` ([encryption.py](packages/base/src/cs_image_system/base/encryption.py),
+`EncryptedStr` ([encryption.py](../../packages/base/src/cs_image_system/base/encryption.py) (a live file, not part of this record),
 a `PlainValidator` — the only validator kind that keeps a `str`
 subclass) decrypts `ENC[age:<base64>]` at load with the identity in
 `CSIS_CONFIG_IDENTITY`, refuses by name when there is none, passes
@@ -3543,24 +3543,24 @@ reference:
 `generated_base_image` have any use?" in the live tree (2026-09-15; the
 stray empty `basic/` was removed by hand). `generated_base_image/` is
 created on every configuration load —
-[global_context.py:735](packages/base/src/cs_image_system/base/global_context.py#L735)
+[global_context.py:735](../../packages/base/src/cs_image_system/base/global_context.py#L735) (a live file, not part of this record)
 makes the parent of a base-image state marker that nothing writes — and
 never written to: the V2 loader always passes `base_only=False`
-([cli.py:905](packages/system/src/cs_image_system/system/cli.py#L905)),
+([cli.py:905](../../packages/system/src/cs_image_system/system/cli.py#L905) (a live file, not part of this record)),
 so the context's `_base_only` switch is never on from the CLI, the
 base-image lifecycle emits under `generated/base-image/` like every
 other, and `--base-only` now means only "run the base-image lifecycle
 alone". What the switch still steers is dead or test-only: the
 generation path
-([:265](packages/base/src/cs_image_system/base/global_context.py#L265)),
+([:265](../../packages/base/src/cs_image_system/base/global_context.py#L265) (a live file, not part of this record)),
 the state marker
-([:317](packages/base/src/cs_image_system/base/global_context.py#L317)),
+([:317](../../packages/base/src/cs_image_system/base/global_context.py#L317) (a live file, not part of this record)),
 the final-execution path
-([:445](packages/base/src/cs_image_system/base/global_context.py#L445)),
+([:445](../../packages/base/src/cs_image_system/base/global_context.py#L445) (a live file, not part of this record)),
 and which item kinds the loader reads
-([:748](packages/base/src/cs_image_system/base/global_context.py#L748)),
+([:748](../../packages/base/src/cs_image_system/base/global_context.py#L748) (a live file, not part of this record)),
 a mode two tests in
-[test_config_resolution_e2e.py](tests/test_config_resolution_e2e.py)
+[test_config_resolution_e2e.py](../../tests/test_config_resolution_e2e.py) (a live file, not part of this record)
 exercise by passing `True` although no command can. Alongside it, the
 residue ledger 85 deferred: `sleep_between_phases` (a property with no
 reader now that §31 deleted the loops; fed by the `sleep_between_steps`
@@ -3575,13 +3575,13 @@ headless test).
 
 1. **Triage the base-only load first.** The loader's `base_only`
    parameter gates `_read_item_kind` at
-   [global_context.py:748](packages/base/src/cs_image_system/base/global_context.py#L748);
+   [global_context.py:748](../../packages/base/src/cs_image_system/base/global_context.py#L748) (a live file, not part of this record);
    the two e2e tests that pass `True` assert on a partial load. Decide
    whether a "read only the base item kinds" mode is a capability (then
    it needs a command that reaches it) or a V1 leftover (then the tests
    load fully and the parameter goes). The resolver's own `is_base` is
    NOT this switch — it comes from the lifecycle
-   ([run_lifecycles.py:178](packages/base/src/cs_image_system/base/commands/run_lifecycles.py#L178))
+   ([run_lifecycles.py:178](../../packages/base/src/cs_image_system/base/commands/run_lifecycles.py#L178) (a live file, not part of this record))
    and stays.
 2. **The base-image generation path goes**: the `base_image_generation_directory`
    config key and its default, the context's `_base_image_generation_path`,
@@ -3589,7 +3589,7 @@ headless test).
    `base_image_generation_path`, the `_base_only` branches in
    `generation_path`/`state_marker`/`final_execution_path`, the
    equal-directories check at
-   [:1274](packages/base/src/cs_image_system/base/global_context.py#L1274),
+   [:1274](../../packages/base/src/cs_image_system/base/global_context.py#L1274) (a live file, not part of this record),
    and the mkdir. After this a load creates nothing under the root but
    `generated/`; the empty `generated_base_image/` in the live tree is
    then deleted by hand (it is untracked) and the ignore for it in this
@@ -3626,23 +3626,23 @@ lines, 22 files. The one live function in the old build module moved to
 its only caller. Golden byte-identical; the live configuration validates
 without the file. Original plan for reference:
 
-**Why**: [lifecycle.py](packages/base/src/cs_image_system/base/lifecycle.py)
+**Why**: [lifecycle.py](../../packages/base/src/cs_image_system/base/lifecycle.py) (a live file, not part of this record)
 carries two phase enums that must mirror each other by hand — the FIXME at
 line 187 says so — plus a `LifecycleStep` class, state and function-type
 enums, two step lists and two function-name mappings built by filtering
 enum values on their `pre-`/`post-` string prefix. All of it served the V1
 phase loops in
-[commands/build.py](packages/base/src/cs_image_system/base/commands/build.py)
+[commands/build.py](../../packages/base/src/cs_image_system/base/commands/build.py) (a path that no longer exists; not part of this record)
 (`build_base_image_lifecycle`, `build_execution_lifecycle`), which have had
 **zero callers** since `build-all` became a V2 alias
-([cli.py:146](packages/system/src/cs_image_system/system/cli.py#L146)).
+([cli.py:146](../../packages/system/src/cs_image_system/system/cli.py#L146) (a live file, not part of this record)).
 Measured 2026-09-15: the V2 runner's `_run_phase`
-([run_lifecycles.py:183](packages/base/src/cs_image_system/base/commands/run_lifecycles.py#L183))
+([run_lifecycles.py:183](../../packages/base/src/cs_image_system/base/commands/run_lifecycles.py#L183) (a live file, not part of this record))
 uses its own phase→function table and exactly one function from build.py,
 `execute_before_or_after_phase` (every builder's before/after hooks); the
 14 `predefined_base_*` functions are referenced once each, by the dead
 mapping; the `predefined_lifecycle:` configuration key's only file,
-[predefined-lifecycle.yml](tests/fixtures/config/cfg/predefined-lifecycle.yml),
+[predefined-lifecycle.yml](../../tests/fixtures/config/cfg/predefined-lifecycle.yml) (a path that no longer exists; not part of this record),
 is entirely commented out; and nothing in the emission comes from that
 path, so the golden cannot move. The enum's 34 members themselves stay:
 a plugin-registered lifecycle may bind any of them (`LifecycleSpec.phases`)
@@ -3663,7 +3663,7 @@ the unused members are extension points, not dead weight (decided
    are bindable by registered lifecycles.
 3. **The config model and context.** Delete the `predefined_lifecycle`
    field and the `lifecycle` / `base_image_lifecycle` properties from
-   [ia_config.py](packages/base/src/cs_image_system/base/models/ia_config.py)
+   [ia_config.py](../../packages/base/src/cs_image_system/base/models/ia_config.py) (a live file, not part of this record)
    and the `_lifecycle` / `_base_image_lifecycle` holders from
    `global_context.py`; remove `cfg/predefined-lifecycle.yml` from the
    frozen fixture AND the live repository in the same step (an unknown key
@@ -3677,7 +3677,7 @@ the unused members are extension points, not dead weight (decided
    `predefined_resolve`, the five `predefined_*_generation`,
    `predefined_default_image_resolution` and `predefined_finalization` are
    live and untouched.
-5. **Records**: ledger; [DESCRIPTION.md:93](DESCRIPTION.md#L93) stops
+5. **Records**: ledger; [DESCRIPTION.md:93](../DESCRIPTION.md#L93) (a live file, not part of this record) stops
    calling test/commit/execute/verify/cleanup "currently stubs" (they are
    enum members with no code behind them, bindable by a plugin lifecycle);
    OPERATIONS' lifecycle paragraph names the extension point. Golden
@@ -3721,7 +3721,7 @@ configuration on the machine; no submodule; `test_folder/` is removed.
 `.claude/CLAUDE.md` names that repo as the source of configuration for
 testing purposes; this stage reads it as: the fast suite owns a frozen
 copy, and every recipe that needs a *real* tree reads the sibling.
-See [GOLDEN.md](GOLDEN.md) for why the golden is the proof at each step.
+See [GOLDEN.md](../../GOLDEN.md) (a live file, not part of this record) for why the golden is the proof at each step.
 
 1. **The frozen fixture** at `tests/fixtures/config/`: the 47 tracked
    non-meta-state files of today's `test_folder` (use `git ls-files` as
@@ -3987,7 +3987,7 @@ Take it in two branches; do not do both at once.
 - If §23 is adopted: **§20 and §21 are not separate stages**, they are
   steps 6–7, and §17 keeps only its base-class design work.
 - If §23 is refused: §20, §21 and §17 stand as written, and the reason for
-  refusing belongs in [docs/LEDGER.md](docs/LEDGER.md) so the measurement
+  refusing belongs in [docs/LEDGER.md](LEDGER.md) so the measurement
   is not repeated.
 
 ### 21. DONE 2026-09-12 — forbid unknown keys
@@ -4259,10 +4259,10 @@ readers look for it, and the document itself is gone:
 
 - the **design record** — the stakeholder Q&A (Q1–Q7, N1–N26), the plan
   sections (§3A–H, M, M2) and the gate table (§4) — in
-  [docs/DESIGN.md](docs/DESIGN.md), numbering unchanged, so an old
+  [docs/DESIGN.md](../DESIGN.md) (a live file, not part of this record), numbering unchanged, so an old
   citation "V2_PLAN §3F5" reads as "DESIGN §3F5";
 - the **findings ledger and standing constraints** (formerly §5, entries
-  1–71) in [docs/LEDGER.md](docs/LEDGER.md) — "ledger 68" and "TODO.md
+  1–71) in [docs/LEDGER.md](LEDGER.md) — "ledger 68" and "TODO.md
   item N" resolve there;
 - the **execution worksheet archive** (formerly §6, TODO stages 1–14) as
   the last section of [PLAN.md](PLAN.md) — "stage 10.14" resolves there.

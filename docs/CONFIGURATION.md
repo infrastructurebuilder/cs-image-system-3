@@ -122,25 +122,12 @@ generated/
   run-summary.json  state-report.json
 ```
 
-`meta-state/` is the committed record of what the system knows:
-
-| File | Holds |
-| --- | --- |
-| `identity.yaml` | the identity read-model: groups (builder, identity type, gid policy, managed, members, admins), users, user builders |
-| `storage.yaml` | the storage read-model: builder, requested and current state, allowed groups, share mode, lifecycle, attachments |
-| `storage-state.yaml` | every recorded storage transition |
-| `lineage.yaml` | every recorded build |
-| `pins.yaml` | instance pins and image pins (`<image>@<runtime>`) |
-| `launch-params.yaml` | what each launched instance was launched with |
-| `runs.yaml` | run summaries |
-| `verifications.yaml` | every instance's verification verdicts (ephemeral and durable; the last 500) |
-| `image-tests.yaml` | post-bake test results per build |
-| `releases.yaml` | every release and the current release per model |
-| `mod-tests.yaml` | local modification test results |
-| `state-locations.yaml` | every workspace's resolved state location and every recorded move |
-| `instance-state.yaml` | per name, the durable and ephemeral generation counters, the open generation and its history |
-| `login-proofs.yaml` | the login proofs (`verify login`, the CI job) |
-| `aliases.txt` | the pool of memorable names, hand-appended, each line spent once by a launch |
+`meta-state/` is the committed record of what the system knows: the
+identity and storage read-models, the storage transitions, lineage, pins,
+launch parameters, run summaries, verification verdicts, image and mod
+test results, releases, state locations, instance generations, login
+proofs and the alias pool, one file each. The file-by-file table is in
+[OPERATIONS.md](OPERATIONS.md#meta-state-config-rootmeta-state).
 
 ## 2. `cfg/_config.yml`
 
@@ -153,15 +140,15 @@ any `cfg/` file; they are documented in their own sections.
 | --- | --- | --- | --- |
 | `id` | str | required | the configuration's identifier |
 | `generation_directory` | str | `generated` | where a run writes, relative to the root |
-| `dateformat` | str | `%Y%m%d_%H%M%S` | `strftime` format of `execution.timestamp` (used in generated image names); read as raw text before the model loads. One field with one default (stage 63): the model's default and the fallback the run uses are the same `DEFAULT_DATEFORMAT`; until 2026-09-25 the model's own default was `%Y-%m-%d-%H%M%S`, read only by a `last_updated` formatter nothing called. A tree that declares nothing gets the same output names as before |
+| `dateformat` | str | `%Y%m%d_%H%M%S` | `strftime` format of `execution.timestamp` (used in generated image names); read as raw text before the model loads. One field, one default: the model's default and the fallback the run uses are the same `DEFAULT_DATEFORMAT`, so a tree that declares nothing gets the same output names as one that declares this value |
 | `gitignore` | list[str] | `[]` | entries appended to the built-in list (`target/`, `.terraform/`, `terraform.tfstate`, `terraform.tfstate.backup`, `!.terraform.lock.hcl`) and written to `generated/.gitignore`; duplicates keep their last position |
-| `sleep_before_finalization` | int | `1` | read, then ignored: finalization waits for nothing. A real (`--no-dry-run`) run with a non-zero value logs `sleep_before_finalization=<n> is ignored: finalization never waits on a terminal (DESIGN §3G)`; a dry run says nothing. Kept with this behaviour by decision (stage 63) |
+| `sleep_before_finalization` | int | `1` | read, then ignored: finalization waits for nothing. A real (`--no-dry-run`) run with a non-zero value logs `sleep_before_finalization=<n> is ignored: finalization never waits on a terminal (DESIGN §3G)`; a dry run says nothing. Kept, with this behaviour, by decision: a tree that declares it keeps loading |
 | `encryption` | mapping | `{recipients: []}` | see 2.1 |
 | `public_safe` | mapping | `{allow: []}` | see 2.2 |
 | `config` | mapping | `{}` | the global settings the run reads; see 2.3 |
 | `executables` | list | `[]` | section 3 (usually in its own file) |
 | `working_directory` | str | `./workdir` | accepted; the CLI's `--root-dir` (or the current directory) is the working directory, so this value is not used |
-| `last_updated` | -- | -- | gone (stage 63): declaring it is an unknown key, refused at load. Until 2026-09-25 it was accepted and not used |
+| `last_updated` | -- | -- | **refused**: an unknown key at load; remove it from a tree that carries it ([when this changed](CHANGES.md#s63)) |
 
 ### 2.1 `encryption`
 
@@ -187,8 +174,8 @@ Any key is accepted under `config:` except seventeen: `self`, `this`,
 `same`, `runtime`, `os`, `default`, `defaults`, `any`, `anything`,
 `none`, `null`, the empty string, `timestamp`, `date`, `datetime`,
 `config` and `configuration`, in any case. The load refuses one where the
-file is read, naming the file and the key (the guard `INVALID_CONFIG_KEYS`,
-written in 2026-07 and switched on in stage 76). Avoid, too, a key named
+file is read, naming the file and the key (the guard
+`INVALID_CONFIG_KEYS`). Avoid, too, a key named
 after a mapping method (`items`, `keys`, `values`, `get`, `update`,
 `copy`, `pop`): it is accepted, but `{{ config.items }}` in the string
 stage renders the method, not your value, and says nothing. Of the rest,
@@ -202,7 +189,7 @@ template scope: `{{ config.x }}` does not resolve in model fields).
 | `apply_storage` | bool or list[str] | `false` | let the storage roots apply |
 | `apply_instances` | bool or list[str] | `false` | let the instance roots apply |
 | `apply_release` | bool or list[str] | `false` | let the release lifecycle mark artifacts in the cloud |
-| `use_state_backends` | bool | `false` | emit terraform `backend` and remote-state blocks (needs real state locations). Required in effect: the instance and storage roots read gids, tokens and volume ids through remote state, so `validate` (and every run) refuses the flag off when any root would read a producer, naming each root and what it reads (stage 63 item 19). Only a tree where nothing reads anything (no storages, no instance on a grouped image, no storage carrying a group) may turn it off |
+| `use_state_backends` | bool | `false` | emit terraform `backend` and remote-state blocks (needs real state locations). Required in effect: the instance and storage roots read gids, tokens and volume ids through remote state, so `validate` (and every run) refuses the flag off when any root would read a producer, naming each root and what it reads. Only a tree where nothing reads anything (no storages, no instance on a grouped image, no storage carrying a group) may turn it off |
 | `module_source_base` | str | `../tfmodules` | where generated `module` calls find the modules: a relative path is relative to the configuration root and rewritten for each root's depth; an absolute path or a git/registry URL passes through |
 | `admin_public_keys` | list[str] (a single string is accepted) | `[]` | OpenSSH public key lines for the mandatory local admin user of every base image; anything resembling private-key material is refused; per-base override on the OS builder |
 | `okta_gateway_selector` | str | none | fallback `gateway_selector` for an OPA group builder that sets none |
@@ -276,7 +263,7 @@ Builders refer to an executable by its `name` (`executable: open-tofu-1`).
 | `description` | str or null | null | free text |
 | `aliases` | list[str] | `[]` | extra names |
 
-**What `validate` checks (stage 48.1).** Every entry's binary must exist
+**What `validate` checks.** Every entry's binary must exist
 (an absolute path, or a name on PATH), and when it declares a `version`
 the version its checker reads must satisfy that PEP 440 specifier set; a
 mismatch, a missing binary or an unreadable version fails validation and
@@ -289,7 +276,7 @@ another name); the default type, `executable`, is the generic checker:
 `<binary> --version`, the first dotted number on the first line (`jq`,
 `yq`, `docker`). One INFO line records what was checked and the versions
 found. The fixture's requirements are the floors CI's runners and the
-operator's machine ran in 2026-09.
+operator's local machine meet.
 
 [`cfg/executables.yml`](../tests/fixtures/config/cfg/executables.yml):
 
@@ -367,9 +354,9 @@ image, instance and storage builders) add:
 | --- | --- | --- | --- |
 | `default_machine_type` | str | required | the machine type for bakes and instances that name none |
 | `default_image_builder` | str | `default` | accepted and checked as a foreign key to an image builder; not read: an image's runtime entry that names no `image_builder` (or names `default`) resolves to the registry's default image builder, not to this field |
-| `default_owners` | list[str] or null | null | joins the owners of every vendor image query made for this runtime: an OS builder entry's owners are the builder's, then these, then the entry's own, without repeats (stage 63 item 22; the lookup that should have read it keyed the runtime by the wrong name until 2026-09-25) |
+| `default_owners` | list[str] or null | null | joins the owners of every vendor image query made for this runtime: an OS builder entry's owners are the builder's, then these, then the entry's own, without repeats |
 | `credentials` | mapping | `{}` | provider-specific (4.3, 4.4); an unknown key is refused |
-| `default_config_username` | str or null | null | the bake ssh user for images on this runtime when nothing more specific names one: step 5 of the bake-user order (5.1.1); read since stage 63 item 22 |
+| `default_config_username` | str or null | null | the bake ssh user for images on this runtime when nothing more specific names one: step 5 of the bake-user order (5.1.1) |
 | `ephemeral` | bool | `false` | nothing baked here survives a successful run: the closing `retention` lifecycle disposes every image on this runtime. Declared storages are never touched. |
 | `retention_keep` | int or null | null | how many builds per image series survive on this runtime when the image declares no `retention`; null keeps all |
 | `on_failure` | str or null | null | runtime default for ephemeral instances: `keep` or `teardown` |
@@ -385,12 +372,12 @@ image, instance and storage builders) add:
 | --- | --- | --- | --- |
 | `account_id` | str or null | null | the account (a number is coerced to a string) |
 | `state_configuration` | str | `default` | a state backend (section 10); `default` inherits the runtime's, else the default backend |
-| `ena_support` | bool or null | null | emitted into the amazon-ebs packer source when declared (stage 63; it was read by nothing); unset, packer's default applies |
-| `sriov_support` | bool or null | null | emitted into the amazon-ebs packer source when declared (stage 63) |
+| `ena_support` | bool or null | null | emitted into the amazon-ebs packer source when declared; unset, packer's default applies |
+| `sriov_support` | bool or null | null | emitted into the amazon-ebs packer source when declared; unset, packer's default applies |
 | `iam_instance_profile` | str or null | null | instance profile attached to build VMs when `session_instance_profile` is unset; with both set the SSM profile wins |
 | `session_mechanism` | str or null | null | `ssm`: bakes and debug sessions go through SSM (the agent is baked into base images) |
 | `session_instance_profile` | str or null | null | the profile attached to launched instances for SSM sessions |
-| `ssh_username` | str | `default` | the bake ssh user for every image on this runtime that names none more specifically: step 4 of the bake-user order (5.1.1). Until stage 63 it overrode every entry |
+| `ssh_username` | str | `default` | the bake ssh user for every image on this runtime that names none more specifically: step 4 of the bake-user order (5.1.1); an entry's own `ssh_username` wins over it |
 | `networking` | mapping or null | null | 4.5 with the AWS additions |
 | `credentials` | mapping | `{}` | `AwsCredentials`: `profile_name`, `aws_access_key_id`, `aws_secret_access_key`, `aws_session_token` (all str or null). Values belong in the environment: name a profile, or carry `{{ ENV['…'] }}` templates. |
 
@@ -432,21 +419,21 @@ and warns about a network tag no firewall rule targets.
 | `network` | str | `default` | the VPC id (AWS) or network name (GCP); `default` resolves to the account's default VPC / the project's `default` network |
 | `subnets` | list | required, at least one | exactly one entry must have `is_default: true` |
 | `subnets[].name` | str | the subnet id | label |
-| `subnets[].subnet_id` | str | required | the subnet id (AWS) or `projects/…/subnetworks/…` path (GCP); on AWS every declared subnet must be in the declared VPC, checked at load against the account (stage 63) |
+| `subnets[].subnet_id` | str | required | the subnet id (AWS) or `projects/…/subnetworks/…` path (GCP); on AWS every declared subnet must be in the declared VPC, checked at load against the account |
 | `subnets[].is_default` | bool | `false` | the subnet bakes and instances use |
 | `subnets[].public` | bool | `false` | informational |
 | `subnets[].cidr` | str or null | null | informational |
 | `subnets[].availability_zone` | str or null | null | the subnet's zone, read by `validate`'s zone check (section 12a) |
 | `subnets[].config` | mapping | `{}` | free-form; accepted, not read |
 | `availability_zones` | list | `[]` | entries `{name, is_default}`; on AWS the default zone is passed to the instance root; on GCE the instance root takes the runtime's `zone` and the default here is read by `validate`'s zone check only |
-| `security_group_ids` (aws) | | | refused at load since stage 63: it was counted and emitted nowhere; `addl_security_groups` is the list instances wear |
+| `security_group_ids` (aws) | | | **refused** at load: `addl_security_groups` is the list instances wear ([when this changed](CHANGES.md#s63)) |
 | `addl_security_groups` (aws) | list[str] | `[]` | existing groups every instance also wears; never modified |
 | `ssh_ingress_security_group_ids` (aws) | list[str] | `[]` | groups whose members may SSH in; when set, port-22 ingress references only these groups, never a CIDR |
 | `network_tags` (gcloud) | list[str] | `[]` | network tags that select firewall rules |
 
 ### 4.6 `docker`
 
-A container runtime (stage 103): a durable host running a daemon that
+A container runtime: a durable host running a daemon that
 speaks the Docker Engine API (Docker Engine, Docker Desktop, OrbStack,
 colima, Podman's API service), reached through the `docker` CLI and never
 through a cloud API. It has no region, no subnets and no zones.
@@ -578,8 +565,8 @@ Types: `rhel` (dnf; adds `subscription_id`; serves the families `rhel`,
 `alma-linux`, `rocky-linux`, `centos`, `centos-stream`), `fedora` (dnf),
 `debian` (apt), `ubuntu` (apt), `alpine` (apk)
 ([`default-os-plugin`](../packages/default-os-plugin/src/cs_image_system/default_os_plugin/)).
-Since stage 106 `type` may be left out when exactly one registered type
-serves what the family IS (section 5a); a type that does not serve it
+`type` may be left out when exactly one registered type serves what the
+family IS (section 5a); a type that does not serve it
 (`type: debian` under `family: alma-linux`) is refused at load, naming the
 type that does.
 
@@ -590,15 +577,15 @@ type that does.
 | `architecture` | str | `default` | passed to images that leave `architecture` at its default; otherwise `x86_64` |
 | `default_primary_disk_size` | str or int | `default` (= 200) | GB; the default for images built from this base |
 | `tags` | mapping[str, str] | `{}` | tags on the baked image |
-| `output_image_name` | str or null | null | the PREFIX of this base image's build names on every runtime whose entry (5.1) names none; a template rendered at load (`this` is this builder: `"{{ this.name }}-{{ this.family }}-{{ this.family_version }}"`); the run's timestamp is appended by the system. Null: `<name>-<runtime>`, the shape every build carried before stage 105. Rules and effects: 5.5 |
+| `output_image_name` | str or null | null | the PREFIX of this base image's build names on every runtime whose entry (5.1) names none; a template rendered at load (`this` is this builder: `"{{ this.name }}-{{ this.family }}-{{ this.family_version }}"`); the run's timestamp is appended by the system. Null: `<name>-<runtime>`. Rules and effects: 5.5 |
 | `owners` | list[str] | `[]` | publishers for the vendor-image query (`self`, `amazon`, an account id, `almalinux-cloud`); with the runtime's `default_owners` and the entry's `owners`, they REPLACE the catalog's `publisher` (5a) |
 | `query` | mapping | `{}` | the vendor-image query in the system's vocabulary (5a: `name`, `family`, `architecture`, `publisher`, `state`, `virtualization`, `root_device`, `tags`, `newest`, `native`), landing key by key on the image-source catalog's block for each runtime; the newest match is the source. The old spellings (`filters:` nested, `root_device_type`, `virtualization_type`, `owners`) still read; any other key is refused by name |
 | `runtimes` | list | required, at least one | one entry per image builder (5.1); `image_builder` unique within the list |
-| `config_username` | str or null | null | the sudo-capable ssh user on this OS's vendor image, for every runtime whose entry names none: step 3 of the bake-user order (5.1.1); read since stage 63 item 22 |
+| `config_username` | str or null | null | the sudo-capable ssh user on this OS's vendor image, for every runtime whose entry names none: step 3 of the bake-user order (5.1.1) |
 | `auto_update` | bool | `false` | alias for `update: {policy: full}` when `update` is absent |
 | `update` | mapping | null | 5.2 |
 | `identity_types` | list[str] | `[]` | identity types this base bakes prerequisites for (`okta`); an instance image whose group's builder is of another type is refused |
-| `storage_types` | list[str] | `[]` | storage types instances of this base may attach (`ebs`, `efs`, `s3`, `pd`, `filestore`, `gcs`); each must have a configured storage builder. A bake on a runtime prepares for, stamps and fingerprints only the types whose storage builder lives on that runtime (hygiene XII item 21): a type added for one cloud re-bakes nothing on another, and a build's recorded capabilities are what it carries. A field every runtime shares (`admin_user`, `admin_public_keys`, `update`, the vendor source) still re-bakes the base everywhere |
+| `storage_types` | list[str] | `[]` | storage types instances of this base may attach (`ebs`, `efs`, `s3`, `pd`, `filestore`, `gcs`); each must have a configured storage builder. A bake on a runtime prepares for, stamps and fingerprints only the types whose storage builder lives on that runtime, so a type added for one cloud re-bakes nothing on another, and a build's recorded capabilities are what it carries. A field every runtime shares (`admin_user`, `admin_public_keys`, `update`, the vendor source) still re-bakes the base everywhere |
 | `admin_user` | str | `csisadmin` | the mandatory local admin user; must not be empty |
 | `admin_public_keys` | list[str] or null | null | per-base override of `config.admin_public_keys`; public keys only |
 | `local_test_image` | str or null | null | the container standing in for this OS in local mod tests; null: the image-source catalog's `docker` block for the family (5a), else the family it IS |
@@ -617,25 +604,24 @@ type that does.
 | `name` | str | set by the loader | a label; unique within the builder; leave it out rather than write null, which is a reserved word (1.2) |
 | `type` | str | the parent's name | set by the loader |
 | `description` | str | templated | free text |
-| `image_id` | str or null | null | a fixed vendor image on this runtime: when set the vendor query is skipped and the image is looked up by id (AWS: the AMI id; GCE: the image name, searched in the entry's owner projects); an id the provider does not know stops resolution. Stage 63; it was read by nothing |
-| `image_name` | | | refused at load since stage 63 (it was read by nothing); select by name with `query.filters.name`, pin with `image_id` |
+| `image_id` | str or null | null | a fixed vendor image on this runtime: when set the vendor query is skipped and the image is looked up by id (AWS: the AMI id; GCE: the image name, searched in the entry's owner projects); an id the provider does not know stops resolution |
+| `image_name` | | | **refused** at load; select by name with `query.name` (5a), pin with `image_id` ([when this changed](CHANGES.md#s63)) |
 | `auto_update` | bool or null | null | overrides the builder's `auto_update` for this runtime |
 | `default_machine_type` | str or null | null | machine type for the base image's bakes on this runtime; when unset, the image builder's `default_machine_type` (section 6) when it declares one, else the runtime's `default_machine_type` |
-| `default_primary_disk_size` | int or null | null | GB; the base image's bake disk on this runtime when declared, else the OS builder's `default_primary_disk_size`; a runtime's own `default_disk_size` wins over both (GCE, finding 51). The packer sources and the fingerprint use this one rule (stage 63; the fingerprint hashed the entry's old default 100 while the bake used 200, so AWS base images read DUE once after it lands until `lineage restamp`) |
+| `default_primary_disk_size` | int or null | null | GB; the base image's bake disk on this runtime when declared, else the OS builder's `default_primary_disk_size`; a runtime's own `default_disk_size` wins over both (GCE). The packer sources and the fingerprint use this one rule, so the size that is hashed is the size that is baked |
 | `tags` | mapping[str, str] | `{}` | merged over the builder's tags |
-| `output_image_name` | str or null | null | the PREFIX of the base image's build names on this runtime, over the OS builder's (5.5); a template rendered at load (`this` is this entry, `this.parent` the OS builder: `"NOSCSB-AWS-RH10-{{ this.parent.name }}-{{ this.name }}"`). Until stage 105 a computed property of the same name shadowed any declared value |
+| `output_image_name` | str or null | null | the PREFIX of the base image's build names on this runtime, over the OS builder's (5.5); a template rendered at load (`this` is this entry, `this.parent` the OS builder: `"NOSCSB-AWS-RH10-{{ this.parent.name }}-{{ this.name }}"`) |
 | `owners` | list[str] | `[]` | appended to the builder's owners (and the runtime's `default_owners`); the result replaces the catalog's `publisher` |
 | `query` | mapping | `{}` | in the system's vocabulary (5a), landing key by key on the builder's query, which lands on the catalog's block for this runtime's type; `validate` prints the result in both vocabularies, refuses a key this runtime cannot translate, and refuses an entry with no source at all |
 | `ssh_username` | str | `default` | the bake ssh user on this runtime, for this OS and every image built on it: step 2 of the bake-user order (5.1.1), ahead of anything the runtime says |
 | `tests` | mapping or null | null | when set, **replaces** the builder's `tests` for bakes on this runtime |
 | `tags` | mapping[str, str] | `{}` | merged over the builder's tags |
-| `config` | mapping | `{}` | free-form; since stage 63 `{{ config.x }}` in the entry's own templated fields (e.g. `description`) resolves from it, shadowing the OS builder's `config` for this entry. `aliases` are refused |
+| `config` | mapping | `{}` | free-form; `{{ config.x }}` in the entry's own templated fields (e.g. `description`) resolves from it, shadowing the OS builder's `config` for this entry. `aliases` are refused |
 
 #### 5.1.1 The bake ssh user
 
 Packer reaches every build VM as one ssh user, and on GCE the ansible
-provisioner must connect as the same one. Since stage 63 (items 22 and 23,
-2026-09-25) one function decides it,
+provisioner must connect as the same one. One function decides it,
 [`bake_user.py`](../packages/base/src/cs_image_system/base/bake_user.py),
 and every reader asks it: both packer sources, the GCE ansible provisioner
 and the OS builder that fills a base image's entry. The first of these that
@@ -654,16 +640,14 @@ names a user wins; `default` counts as naming none:
    name works).
 
 When none answers, `validate` refuses, naming the places a user could be
-set. The more specific setting always wins, on AWS and GCE alike; before
-stage 63 the runtime's `ssh_username` overrode every entry, the two
-`config_username` fields were read by nothing, and the GCE ansible
-provisioner connected as the runtime's user or `packer` even when the entry
-named another, so the source and the provisioner could disagree.
+set. The more specific setting always wins, on AWS and GCE alike, and
+because the packer source and the ansible provisioner ask the same
+function they can never disagree about the user.
 
 **One user per GCE chain.** A GCE build VM keeps the user it was baked as,
 and at the next image's first boot the guest agent removes a user that is
 not in its metadata; when that removal fails it abandons key setup and
-packer cannot log in (finding 43). So on GCE every image of a chain must
+packer cannot log in. So on GCE every image of a chain must
 resolve to the same user as its chain root, and `validate` refuses an image
 whose own `runtimes[]` entry names a different one. Naming the user on the
 OS builder's GCE entry, as the reference configuration does
@@ -767,8 +751,8 @@ the first of these that is set, each level overriding the one above it:
 3. the OS builder's own `output_image_name` (5), for that base on every
    runtime whose entry names none;
 4. nothing declared: `<image>-<image builder>` for an instance image and
-   `<OS builder>-<runtime>` for a base image, the shape every build
-   carried before stage 105 (`imgfile-basic-dask-pckr-gce-ans-20260926-064527`,
+   `<OS builder>-<runtime>` for a base image
+   (`imgfile-basic-dask-pckr-gce-ans-20260926-064527`,
    `basic-rh-10-aws-east2-runtime-20260826_120000`).
 
 The value is a Jinja template rendered at load. At the string stage `this`
@@ -813,8 +797,8 @@ operator's own `just record` first.
 
 ## 5a. `cfg/image-sources*.yml`
 
-Key: `image_sources`. The tree's layer of the **image-source catalog**
-(stage 106): where a vendor image comes from, per family and runtime
+Key: `image_sources`. The tree's layer of the **image-source catalog**:
+where a vendor image comes from, per family and runtime
 type, written in the SYSTEM's own query vocabulary, which each runtime
 translates to its own. The release ships a catalog
 ([`image-sources.yml`](../packages/base/src/cs_image_system/base/data/image-sources.yml)
@@ -888,9 +872,11 @@ name=AlmaLinux OS 10*x86_64*, publisher=['764336703387'], ... ->
 
 **The fingerprint** (OPERATIONS "When an image bakes") hashes the
 EFFECTIVE query, so a source that moves in the catalog re-bakes the base
-exactly as a moved declaration always did. When stage 106 lands, every
-base image's fingerprint moves once (the query is hashed in the new
-vocabulary); `lineage restamp` re-stamps standing builds without a bake.
+exactly as a moved declaration does. The query is hashed in the system's
+vocabulary, so a tree whose lineage records predate the catalog finds
+every base image's fingerprint moved once; `lineage restamp` re-stamps
+standing builds without a bake
+([the change that introduced it](CHANGES.md#s106)).
 
 **An override, landing on the catalog's value.** The release's `ubuntu`
 block names a loose pattern; a tree that wants one release's gp3 line
@@ -989,7 +975,7 @@ plugin owns the source block.
 | --- | --- | --- | --- |
 | common builder fields (4.1) | | | `executable` names the packer entry |
 | `runtime` | str | `default` | the runtime this builder bakes on |
-| `default_machine_type` | str | `default` | machine type for this builder's bakes when the image's (or base image's) runtime entry names none; `default` means "not declared" and passes to the runtime's `default_machine_type`. The order is: the runtime entry's `machine_type`, else this field, else the runtime's. Read for instance images since stage 63 (they skipped it, straight to the runtime's default, until 2026-09-25); base images already followed this order |
+| `default_machine_type` | str | `default` | machine type for this builder's bakes when the image's (or base image's) runtime entry names none; `default` means "not declared" and passes to the runtime's `default_machine_type`. The order is: the runtime entry's `machine_type`, else this field, else the runtime's, for base images and instance images alike |
 | `required_plugins` | list | `[]` | packer plugins: `{name (required), version (required), source, config}` |
 
 [`cfg/image-builders.yml`](../tests/fixtures/config/cfg/image-builders.yml):
@@ -1069,19 +1055,18 @@ Key: `mod_builders`. A modification builder turns an image's
 | --- | --- | --- | --- |
 | common builder fields (4.1) | | | `executable` names the ansible-playbook entry |
 | `extra_arguments` | list[str] | `[]` | passed as the provisioner's `extra_arguments` (the system appends `-e ansible_python_interpreter=…`) |
-| `ansible_connection` | str or null | null | the provisioner's `connection_type`; normally unset |
+| `ansible_connection` | str or null | null | passed to ansible as `ansible_connection=<value>` in the provisioner's `--extra-vars` (packer's ansible provisioner has no option for it); normally unset |
 | `expect_disconnect` | bool | `false` | the provisioner's `expect_disconnect` |
-| `configuration_user` | str or null | null | when set, the provisioner's `user` for this builder's items, beating the bake-user order (5.1.1): the one place a modification connects as someone other than the bake user. Unset, the `user` comes from the runtime's bake ssh user. Read since stage 63 (accepted and ignored until 2026-09-25) |
+| `configuration_user` | str or null | null | when set, the provisioner's `user` for this builder's items, beating the bake-user order (5.1.1): the one place a modification connects as someone other than the bake user. Unset, the `user` comes from the runtime's bake ssh user |
 
 Every string the ansible builder writes into a provisioner
-(`playbook_file`, `user`, each `extra_arguments` entry,
-`connection_type`) is escaped as an HCL string: backslash and `"` are
+(`playbook_file`, `user`, each `extra_arguments` entry, the
+`--extra-vars` string that carries `ansible_connection`) is escaped as an HCL string: backslash and `"` are
 escaped and packer's `${` / `%{` are doubled, so a value reaches ansible
-literally (stage 63; a `"` used to break the build file). A relative
-playbook path that does not exist is refused at generation:
+literally and a `"` cannot break the build file. A relative playbook
+path that does not exist is refused at generation, before packer runs:
 `modification '<name>': playbook '<path>' does not exist (a relative path
-is read from the configuration root)` (stage 63; it used to be emitted and
-fail only when packer ran).
+is read from the configuration root)`.
 
 ### 7.2 `bash-remote`
 
@@ -1094,10 +1079,10 @@ at load.
 | --- | --- | --- | --- |
 | common builder fields (4.1) | | | |
 | `execute_command` | str or null | null | the provisioner's `execute_command`, the way to change how an item's script is invoked; it cannot carry packer's own `{{ .Path }}` syntax, since every configuration string is rendered as a Jinja template at load. Refused together with `configuration_user` |
-| `configuration_user` | str or null | null | when set, each item's lines run as this user: the provisioner's `execute_command` becomes `chmod +x {{ .Path }}; sudo su - <user> -c '{{ .Vars }} {{ .Path }}'` (the plugin writes it after the load, so packer's syntax survives), and the bake user only launches them. Declaring it with `execute_command` is refused at load (`` mod builder '<name>': `configuration_user` and `execute_command` both say how the script runs; declare one ``). Read since stage 63 (accepted and not emitted until 2026-09-25) |
+| `configuration_user` | str or null | null | when set, each item's lines run as this user: the provisioner's `execute_command` becomes `chmod +x {{ .Path }}; sudo su - <user> -c '{{ .Vars }} {{ .Path }}'` (the plugin writes it after the load, so packer's syntax survives), and the bake user only launches them. Declaring it with `execute_command` is refused at load (`` mod builder '<name>': `configuration_user` and `execute_command` both say how the script runs; declare one ``) |
 | `environment_vars` | list[str] | `[]` | the provisioner's `environment_vars` |
 | `expect_disconnect` | bool | `false` | emitted as `expect_disconnect = true` on every block of the builder's items when set |
-| `extra_arguments` | | | **refused** as an unknown key since stage 63 (it was accepted and never emitted); change the invocation with `execute_command` |
+| `extra_arguments` | | | **refused** as an unknown key; change the invocation with `execute_command` ([when this changed](CHANGES.md#s63)) |
 
 ### 7.3 The modification item (inside an image's `modifications:`)
 
@@ -1110,11 +1095,11 @@ that omits `type` is refused at load: the builder-list check says `No
 default builder found in mod_builder list.`, and an item that reaches the
 orchestrator anyway is refused with `` modification '<name>' names no
 builder (`type`) and no mod builder is `is_default: true`; name one with
-`type:` or mark a default `` (stage 63; it used to become an
-`AttributeError` at generation). Whatever the item writes, the loader rewrites `type` to
-the builder's own name, so every later reader (the image builder looks
-mod builders up by name) sees one spelling; an unknown name is refused
-at load. The builder's type decides which item model applies.
+`type:` or mark a default ``. Whatever the item writes, the loader
+rewrites `type` to the builder's own name, so every later reader (the
+image builder looks mod builders up by name) sees one spelling; an
+unknown name is refused at load. The builder's type decides which item
+model applies.
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
@@ -1122,7 +1107,7 @@ at load. The builder's type decides which item model applies.
 | `type` | str | `default` | the mod builder |
 | `description`, `aliases`, `tags` | | | as elsewhere |
 | `config` | mapping | `{}` | free-form. It is **part of the build's content hash** (a change re-bakes the image) and available to templates as `{{ this.config.x }}`; it is **not** passed to ansible or to the shell. |
-| `playbooks` (ansible) | list[str] | `[]` | the playbooks this item runs, in order, paths relative to the configuration root (the builder has no playbooks of its own since stage 48.4). **Required in effect**: an item with no playbooks has nothing to modify with (`config:` alone provisions nothing) and is refused at load, by name |
+| `playbooks` (ansible) | list[str] | `[]` | the playbooks this item runs, in order, paths relative to the configuration root (the builder has no playbooks of its own). **Required in effect**: an item with no playbooks has nothing to modify with (`config:` alone provisions nothing) and is refused at load, by name |
 | `script` (bash-remote) | list[str] | `[]` | inline shell lines, run in order (no templating; literal) |
 | `scripts` (bash-remote) | list[str] | `[]` | script files, relative to the configuration root (resolved against the working directory, which the load sets to the root), copied beside the packer root |
 | `ensure` (bash-remote) | mapping | `{}` | declarative, idempotent steps: `packages: [..]`, `files: [{path, content, mode (0644)}]`, `services: [..]` (enabled and started), `commands: [{run, unless}]` (run only when `unless` fails); any other key is refused, and every entry's shape is checked at load (a list where a list belongs, `path` and `run` present, a mode of three or four octal digits, not every kind empty). An unquoted `mode: 0644` is read by YAML as 420 and rendered back as `0644`; an unquoted `644` is refused. Packages install with the first of `dnf`, `yum`, `apt-get` the host has |
@@ -1134,8 +1119,7 @@ one with `script`/`scripts` as `idempotent: unknown`.
 The on-image mods bundle (`/opt/csis/mods/NN-<item>/`, replayed by
 `csis-mods rerun`) carries a bash item's script files and an `inline.sh`
 holding its guarded `ensure` lines followed by its `script` lines, the
-order the bake runs them, so a rerun re-applies the declarative form too
-(stage 63; until 2026-09-25 `inline.sh` held only the `script` lines).
+order the bake runs them, so a rerun re-applies the declarative form too.
 
 **An ansible item with only `config:`** is refused at load, by name (`ValueError`:
 an item with no playbooks has nothing to modify with; nothing reads the
@@ -1406,11 +1390,11 @@ character replaced by `_` (`nos-coastal-modeling-cloud-sandbox` →
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `gateway_selector` | str or null | null | the resource-group project's `gateway_selector`; falls back to `config.okta_gateway_selector` |
-| `workload_connection` | str or null | null | the team's workload connection, by name, made by hand once (CI_SETUP.md section 3.5); with `workload_role` it makes the builder keep one CI login policy per managed group (stage 56) |
+| `workload_connection` | str or null | null | the team's workload connection, by name, made by hand once (CI_SETUP.md section 3.5); with `workload_role` it makes the builder keep one CI login policy per managed group |
 | `workload_role` | str or null | null | the team's workload role, by name; the only principal of every CI login policy |
 | `account_discovery` | bool | `true` | the project's `account_discovery` |
-| `posix` | str | **required** on `okta-tf`, no default | stage 75: a `type: posix` group builder that makes these groups exist on their machines (created after each applying run with OPA's gid; members join at each login through a baked PAM hook), or `none` for no posix configuration (`validate` and the state query note what that keeps off the machines). Absent, empty, an undeclared name or a non-posix builder is refused at `validate`. Not read by `okta-tf-ro` |
-| `posix_ssh_keys` | bool | `false` | stage 75, opt-in: the login hook also installs each member's declared `public_keys:` as their `authorized_keys` |
+| `posix` | str | **required** on `okta-tf`, no default | a `type: posix` group builder that makes these groups exist on their machines (created after each applying run with OPA's gid; members join at each login through a baked PAM hook), or `none` for no posix configuration (`validate` and the state query note what that keeps off the machines). Absent, empty, an undeclared name or a non-posix builder is refused at `validate`. Not read by `okta-tf-ro` |
+| `posix_ssh_keys` | bool | `false` | opt-in: the login hook also installs each member's declared `public_keys:` as their `authorized_keys` |
 
 For every managed group `<g>` the `okta-tf` builder emits: the `oktapam`
 groups `<g>_user` and `<g>_admin`; the resource group `<g>_rg`, delegated
@@ -1427,15 +1411,14 @@ token is `okta`.
 The `dummy` plugin registers a `dummy` group builder and a `dummy` user
 builder as the extension template. Each takes `org` and `team`, both
 required, validated at load and read by nothing (the example shape of what
-a provider needs). `key`, `secret` and `api_host` are gone from the group
-builder (stage 63): they are unknown keys now, refused at load, so the
-template never suggests a credential in the tree (until 2026-09-25 they
-were accepted and not read). No tree declares either builder; a declared
+a provider needs). `key`, `secret` and `api_host` are unknown keys on
+the dummy group builder, refused at load, so the template never suggests
+a credential in the tree. No tree declares either builder; a declared
 one loads, validates and runs the identity lifecycle, the group builder
 writing nothing and the user builder one comment-only file under its own
-root, `generated/identity/<builder>/user-generation/<builder>-user-generation-users.tf`
-(stage 63; it wrote `Dummy-tf/dummy_users.tf` beside the builder
-directories until 2026-09-25). See the
+root,
+`generated/identity/<builder>/user-generation/<builder>-user-generation-users.tf`.
+See the
 [dummy plugin's README](../packages/dummy-plugin/README.md).
 
 ### 9.3 User builders
@@ -1488,7 +1471,7 @@ user_builders:
 
 ## 10. `cfg/state-backends*.yml`
 
-Key: `state_backends`. Three types exist (stage 47): `s3`, model
+Key: `state_backends`. Three types exist: `s3`, model
 `TofuS3StateBuilderModel`
 ([`tf_s3_state_models.py`](../packages/tf-s3-state-plugin/src/cs_image_system/tf_s3_state_plugin/tf_s3_state_models.py)),
 `local`, model `LocalStateBuilderModel`
@@ -1506,7 +1489,7 @@ and `local` types, and `<prefix>/<root name>/default.tfstate` for `gcs`;
 the root name is lowercased with `-`, `.`, `:`, `+`, `/`, `\`, `@` and
 spaces replaced by `_` (other characters pass through).
 
-**Where a root's state lives (stage 46).** A configured root keeps its state
+**Where a root's state lives.** A configured root keeps its state
 in exactly one *location*, the tuple (backend type, container, key): a
 bucket and an object key for `s3` and `gcs`, a directory and a file name
 for `local`, compared as written after the key is normalised. No two roots
@@ -1582,9 +1565,7 @@ Refused at load, each naming what to do instead: `access_key` and
 `assume_role`), `skips_credentials_validation` (the old spelling; the
 argument is `skip_credentials_validation`) and `required_plugins` (a
 backend has no plugins). A nested object refuses a member it does not
-know. Before stage 63 every argument in this table beyond the core six
-was accepted and read by nothing, and the nested objects demanded a
-`name` member no backend argument has.
+know.
 
 A root's location is `s3://<bucket>/<key>/<root name>.tfstate`; the backend
 file carries `bucket`, `key`, `region`, `encrypt`, `use_lockfile` and the
@@ -1593,7 +1574,7 @@ Both also carry every passed-through argument that is declared, so a
 consumer reads the state the way the root writes it. A setting declared
 encrypted is written as its ciphertext and restored in the private copy
 tofu runs from. A root's `state_configuration` may name a backend by its
-`name` or by one of its `aliases` (stage 63).
+`name` or by one of its `aliases`.
 
 [`cfg/state-backends.yml`](../tests/fixtures/config/cfg/state-backends.yml)
 and [`cfg/state-backends-2.yml`](../tests/fixtures/config/cfg/state-backends-2.yml):
@@ -1630,7 +1611,7 @@ type, so its golden carries two backend types and reads across them.
 | Field | Type | Default | Meaning and allowed values |
 | --- | --- | --- | --- |
 | common builder fields (4.1) | | | `is_default` marks the backend `default` resolves to |
-| `path` | str | `state` | a directory, relative to the configuration root or absolute; non-empty; a `.` or `..` segment inside a longer path and a bare `/` are refused at load, while `.` alone (the configuration root) is accepted (one directory, one spelling: `a/../b` and `b` used to be two locations to the collision check, and `/` rendered `//<root>.tfstate`) |
+| `path` | str | `state` | a directory, relative to the configuration root or absolute; non-empty; a `.` or `..` segment inside a longer path and a bare `/` are refused at load, while `.` alone (the configuration root) is accepted, so that one directory has one spelling: `a/../b` and `b` cannot be two locations to the collision check, and `/` cannot render `//<root>.tfstate` |
 | `executable` | str or null | null | as for `s3` |
 
 A root's location is `local://<directory>/<root name>.tfstate`. The backend
@@ -1672,7 +1653,8 @@ A root's location is `gcs://<bucket>/<prefix>/<root name>/default.tfstate`
 `default.tfstate` under the prefix, so each root gets its own prefix). The
 backend file carries `bucket`, `prefix`, the identity fields and the
 encryption keys when set; a consumer's data source `bucket`, `prefix` and
-the identity fields only. `required_plugins` is refused at load (a backend has no plugins; stage 63).
+the identity fields only. `required_plugins` is refused at load (a
+backend has no plugins).
 
 [`cfg/state-gcm.yml`](../tests/fixtures/config/cfg/state-gcm.yml):
 
@@ -1733,7 +1715,7 @@ owned by exactly one group.
 | `is_default` | bool | `false` | |
 | `architecture` | str | the OS builder's, else `x86_64` | |
 | `primary_disk_size` | str or int | the OS builder's `default_primary_disk_size`, else 200 | GB |
-| `variables` | mapping | `{}` | packer variables (stage 63): each entry becomes a `variable` of the image builder's roots, in every block's `-vars.pkr.hcl`, typed by its value (`string`, `number`, `bool`) with the value as its default. A list, a mapping, or a name packer cannot take (a letter or `_` first, then letters, digits, `_`, `-`) is refused at generation naming the image and key; two images of one builder declaring the same name are refused by the collector (`Packer variable '<name>' redefined with different attributes in workspace '<builder>'`). Nothing a configuration writes today references `var.<name>`, so a declared variable is carried but not yet consumed by any provisioner. Until 2026-09-25 the field was read only by `gen_packer.py`, a dead module now deleted |
+| `variables` | mapping | `{}` | packer variables: each entry becomes a `variable` of the image builder's roots, in every block's `-vars.pkr.hcl`, typed by its value (`string`, `number`, `bool`) with the value as its default. A list, a mapping, or a name packer cannot take (a letter or `_` first, then letters, digits, `_`, `-`) is refused at generation naming the image and key; two images of one builder declaring the same name are refused by the collector (`Packer variable '<name>' redefined with different attributes in workspace '<builder>'`). Nothing a configuration writes today references `var.<name>`, so a declared variable is carried but not yet consumed by any provisioner |
 | `tags` | mapping[str, str] | `{}` | tags on the baked image |
 | `description` | str or null | `Image <name> from source image <source_image>` | |
 | `auto_update` | bool or null | null | accepted; updates apply to base images only |
@@ -1748,12 +1730,12 @@ owned by exactly one group.
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `image_builder` | str | `default` | the image builder; its runtime is the runtime of this bake |
-| `machine_type` | str or null | null | the bake machine type; when unset it is filled at load from the image builder's `default_machine_type` when that builder declares one, else the runtime's `default_machine_type` (stage 63; the image builder's value was skipped until 2026-09-25) |
+| `machine_type` | str or null | null | the bake machine type; when unset it is filled at load from the image builder's `default_machine_type` when that builder declares one, else the runtime's `default_machine_type` |
 | `ssh_username` | str | `default` | the bake ssh user for this image on this runtime: step 1 of the bake-user order (5.1.1); on GCE it must match the chain root's |
 | `image_identifier` | str or null | null | a fixed provider image id to bake from instead of the pinned parent |
 | `owners` | list[str] | `[self]` | owners for the parent-image query |
 | `tags` | mapping[str, str] | `{}` | merged over the builder's and the image's |
-| `output_image_name` | str or null | null | the PREFIX of this image's build names on this runtime (5.5); a template rendered at load (`this` is this entry). Null: `<image>-<image builder>`, the shape every build carried before stage 105 |
+| `output_image_name` | str or null | null | the PREFIX of this image's build names on this runtime (5.5); a template rendered at load (`this` is this entry). Null: `<image>-<image builder>` |
 | `name` | str | the image builder | label |
 | `type` | str | the image builder | set by the loader |
 | `description`, `aliases` | | | accepted |
@@ -1839,11 +1821,11 @@ grace, so a durable instance can prove a build on itself).
 The mapping is a launch parameter: on a launched instance a mapping may
 be REMOVED (a detach; OPERATIONS "Storages") but not changed, and the same
 `mount_point` naming a different storage -- a mount move -- is refused
-until the instance is replaced. Across generations it is ordinary: stage
-73 moved the coops model's `/mnt/efs` from one EFS filesystem to a second,
-empty one by decommissioning the machine, editing the `name`, applying the
-storage root and relaunching; the old filesystem kept its data, mounted
-nowhere, still declared.
+until the instance is replaced. Across generations it is ordinary: a
+mount moves from one EFS filesystem to a second, empty one by
+decommissioning the machine, editing the `name`, applying the storage
+root and relaunching; the old filesystem keeps its data, mounted nowhere,
+still declared.
 
 [`instances/instances.yaml`](../tests/fixtures/config/instances/instances.yaml):
 
@@ -2006,7 +1988,7 @@ Key `users:` (any file under `groups/`).
 
 | Field | Type | Default | Meaning and allowed values |
 | --- | --- | --- | --- |
-| `name` | str | required | the username: the bare OPA username that group `members`/`admins` list and attachments use. **Committed in clear** by decision (2026-10-14, hygiene XII item 15): the identity roots' HCL, `meta-state/identity.yaml` and `meta-state/login-proofs.yaml` carry it in clear whatever the roster does, so a marker on it (still accepted, still decrypted) hides nothing; what the markers protect is the e-mail domain and the personal names |
+| `name` | str | required | the username: the bare OPA username that group `members`/`admins` list and attachments use. **Committed in clear** by decision: the identity roots' HCL, `meta-state/identity.yaml` and `meta-state/login-proofs.yaml` carry it in clear whatever the roster does, so a marker on it (still accepted, still decrypted) hides nothing; what the markers protect is the e-mail domain and the personal names |
 | `first_name` | EncryptedStr | required, non-blank | never derived from `name` |
 | `last_name` | EncryptedStr | required, non-blank | never derived from `name` |
 | `email` | EncryptedStr | the builder's `default_user_email_template` | the Okta login and lookup key; explicit, or derived from the template (`<name>@example.invalid` in the fixture) |
@@ -2127,7 +2109,7 @@ Options of `cs-image-system run` ([`cli.py`](../packages/system/src/cs_image_sys
 | Option | Effect |
 | --- | --- |
 | `--only <image>[@<runtime>]` (repeatable) | restrict the **bake** surface to the named images (an OS builder or an image name; with `@<runtime>`, on that runtime only). Terraform roots are untouched (beside `--only-runtime`: that runtime's alone). An unknown name fails. `--only none` bakes nothing. |
-| `--only-runtime <rt>` | the terraform roots of other runtimes emit nothing. Alone: `--only <img>@<rt>` for every image baked on that runtime. Beside `--only` it **narrows**: the named images on that runtime, never the runtime's others; a name not baked there, a name `@` another runtime, or `none` beside names is refused (exit 2). Stage 79: until 2026-10-04 the pair was a union, and a run naming two images also planned every due image of the runtime |
+| `--only-runtime <rt>` | the terraform roots of other runtimes emit nothing. Alone: `--only <img>@<rt>` for every image baked on that runtime. Beside `--only` it **narrows**: the named images on that runtime, never the runtime's others; a name not baked there, a name `@` another runtime, or `none` beside names is refused (exit 2), so a run naming two images never also plans every due image of the runtime |
 | `--apply-runtime <rt>` | sets `apply_storage` and `apply_instances` to `[<rt>]` for the run (the generated `apply-check` carries it) **and** implies `--only-runtime <rt>` unless `--only`/`--only-runtime` is given |
 | `--allow-unscoped-bakes` | let a `--no-dry-run` run bake on runtimes outside its apply scope (a list-valued `apply_*` flag or `--apply-runtime`); without it such a run refuses |
 | `--force-bake <image>` (repeatable; `all`) | bake even when current; otherwise an image bakes only when its inputs changed, its parent moved under `parent_policy: follow`, or `update.refresh_days` is due |
@@ -2136,12 +2118,10 @@ Options of `cs-image-system run` ([`cli.py`](../packages/system/src/cs_image_sys
 Global options (before the command): `--root-dir`, `--verbose`,
 `--dry-run/--no-dry-run` (dry run is the default: finalization commands
 are enumerated, not executed), `--overlay`, `--undeclare`,
-`--base-only`. There is no `--only-providers` (stage 67: it was recorded,
-split and warned about, and read by nothing; `--only-runtime` is the
-runtime filter). There is
-no global `--force` (stage 63): it was stored and read by nothing, and
-passing it is now `No such option` (until 2026-09-25 it was accepted and
-ignored). The overrides that act are named for what they override:
+`--base-only`. There is no `--only-providers` (`--only-runtime` is the
+runtime filter) and no global `--force` (passing it is `No such option`;
+[when this changed](CHANGES.md#s63)). The overrides that act are named
+for what they override:
 `--force-bake` above, `gate-plan --allow-destroy`, and `test-mods --force`
 (a different flag, which re-tests mods that already passed).
 
@@ -2161,17 +2141,14 @@ A runtime asserts a zone through `networking.default_availability_zone`, else
 through its default subnet's declared `availability_zone`, else through its
 own `zone` (how a GCE runtime states it). A storage is checked against its
 BUILDER's runtime, the one it is actually created on; the storage item's own
-`runtime` is only the fallback for a builder that names none (stage 63 item
-20: the check read the item's `runtime`, which defaults to the default
-runtime, so a zoned GCE disk failed against an AWS subnet unless the item
-named `gcloud-east1` too). An EBS storage's own
-declaration wins over its runtime's when the module call is emitted, so
-declaring a zone pins the volume rather than decorating the file. A GCP
-persistent disk does the same since stage 63 item 21: its own
-`availability_zone` wins over the runtime's `zone` in the module call, the
-state query's lookup and the archive script, and the runtime's `zone` is
-the fallback when it declares none (until 2026-09-25 the declaration was
-validated and then ignored).
+`runtime` is only the fallback for a builder that names none, because the
+item's `runtime` defaults to the default runtime and a zoned GCE disk must
+not be judged against an AWS subnet. An EBS storage's own declaration wins
+over its runtime's when the module call is emitted, so declaring a zone
+pins the volume rather than decorating the file. A GCP persistent disk
+does the same: its own `availability_zone` wins over the runtime's `zone`
+in the module call, the state query's lookup and the archive script, and
+the runtime's `zone` is the fallback when it declares none.
 
 **Why it is refused early.** A zone is a replace-forcing attribute. Pointing a
 runtime at a subnet in another zone does not fail to attach a volume — it plans
@@ -2185,7 +2162,7 @@ does so at apply time.
 
 A value may be the marker `ENC[age:<base64 of an age-encryption.org/v1
 file>]`, encrypted to every key in `encryption.recipients`. **Any value
-anywhere decrypts at load** (stage 49): no field has to be declared for it,
+anywhere decrypts at load**: no field has to be declared for it,
 and each element of a list or set is encrypted on its own, so a roster is
 encrypted entry by entry. A marked value with no identity in the environment
 is a load-time refusal naming the value's path; a decrypted value prints as
@@ -2197,9 +2174,9 @@ emission under `generated/`, which carries the ciphertext by reference
 protect a value the system must write in clear elsewhere: a user's `name`
 is the OPA username, and the identity roots' HCL, `meta-state/identity.yaml`
 (`members`, `admins`) and `meta-state/login-proofs.yaml` carry it in clear
-whatever the roster does. Usernames are therefore public by decision
-(2026-10-14, hygiene XII item 15); the e-mail domain and the personal
-names are what the roster's markers keep private, and a person declared in
+whatever the roster does. Usernames are therefore public by decision;
+the e-mail domain and the personal names are what the roster's markers
+keep private, and a person declared in
 a public configuration repository is published by username.
 
 Three places a marker may NOT stand, each refused at load by name:
@@ -2252,7 +2229,7 @@ The guard is not a guess: the system knows every plaintext it opened, and
 `validate` and every commit refuse if one of them stands in clear under
 `generated/` or `meta-state/`, naming the file and line.
 
-**A derived value inherits its inputs' encryption** (stage 51). A value
+**A derived value inherits its inputs' encryption.** A value
 computed from a decrypted one — an address from `default_user_email_template` —
 is declared nowhere and so has no ciphertext of its own; one is built from the
 pieces, so the emission carries `blake.bravo@ENC[age:…]` and `materialize` puts
@@ -2269,7 +2246,7 @@ it is the join key between a roster and an access grant.
 | --- | --- | --- |
 | `CSIS_CONFIG_ROOT` | the system's Justfile | the reference configuration `just cli`, `preflight`, `test-mods` and `full-test` read (default: the sibling `cs-image-system-testconfig` checkout); the CLI itself takes `--root-dir`, and a configuration repository's own Justfile passes its own directory |
 | `CSIS_CONFIG_IDENTITY` | every load; `decrypt`; `reencrypt`; `mask`; `materialize` (the runner's every command) | the age identity (section 13) |
-| `OPA_TOKEN` | `verify login` as the workload | the OPA token minted from the GitHub OIDC token (`cs-image-system workload token`, since stage 64; `scripts/opa-workload-token` before it); absent, the proof runs as the enrolled client |
+| `OPA_TOKEN` | `verify login` as the workload | the OPA token minted from the GitHub OIDC token (`cs-image-system workload token`); absent, the proof runs as the enrolled client |
 | `OPA_WORKLOAD_CONNECTION`, `OPA_WORKLOAD_ROLE`, `SFT_TEAM`, `OPA_ADDR` | `workload token` | the workload connection, role, team and API address to present the run's OIDC token to; any that is missing comes from the configuration's first group builder that names a workload connection |
 | `TF_PLUGIN_CACHE_DIR` | `--locked`; every `tofu init` | OpenTofu's provider cache; the Justfile exports `.tofu-plugin-cache/`; the lock `--locked` holds is `.lock` under it |
 | `USER` / `USERNAME` | `unmount --confirm` | who is recorded on an unmount receipt |

@@ -38,12 +38,12 @@ model, `gce_name`, `gce_label`, and the GCP client helpers).
 | `tf-gcp-gcs` | `TofuGcsStorageBuilderModel` | `TofuGcsStorageBuilder` | `STORAGE_BUILDER_MODEL`, `STORAGE_BUILDER` |
 
 `tf-gcp` is a base: it inherits the abstract `module_dirname()` and
-`module_args()` from `TofuStorageBuilder`, so it cannot emit anything, and
-since stage 63 item 17 a builder entry with `type: tf-gcp` is refused when
-the tree loads, naming the three concrete types (it used to load and fail
-at generation). This package registers no version
-checker; an executable entry with `type: tofu` is checked by the
-`TofuVersionChecker` of the AWS plugin.
+`module_args()` from `TofuStorageBuilder`, so it cannot emit anything. A
+builder entry with `type: tf-gcp` is therefore refused when the tree
+loads, naming the three concrete types, rather than loading and failing
+at generation. This package registers no version checker; an executable
+entry with `type: tofu` is checked by the `TofuVersionChecker` of the AWS
+plugin.
 
 ### Two levels of `type:`
 
@@ -69,13 +69,18 @@ The inherited base fields (`name`, `type`, `description`, `aliases`,
 `executable`, `is_default`, `config`, `gitignore`, `tags`, `runtime`) are
 those of every builder model; see
 [builder_model.py](../base/src/cs_image_system/base/models/builder_model.py).
-The AWS-plugin fields every class here inherits:
+The full field tables are the configuration reference's
+([instance builders](../../docs/CONFIGURATION.md#81-instance-builders),
+[storage builders](../../docs/CONFIGURATION.md#82-storage-builders)).
+What this package does with the AWS-plugin fields every class here
+inherits:
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `executable` | str \| None | `"tofu"` | Name of an entry in `cfg/executables.yml`. |
-| `required_plugins` | list[`TFTofuPluginModel`] | [] | Terraform providers for the root. Empty means one `google` provider from `hashicorp/google` with no version constraint. |
-| `state_configuration` | str (foreign key to `STATE_BACKEND_MODEL`) | `default` | The state backend for the workspace, by name. A GCP root may use the S3 backend. |
+- `executable` names an entry in `cfg/executables.yml` (default `tofu`).
+- `required_plugins` lists the terraform providers for the root; empty
+  means one `google` provider from `hashicorp/google` with no version
+  constraint.
+- `state_configuration` names the state backend for the workspace; a GCP
+  root may use the S3 backend.
 
 ### `TofuGceInstanceBuilderModel` (`tofu-gce`)
 
@@ -96,10 +101,9 @@ root:
   `machine_type` is always the runtime's `default_machine_type`.
 - `tags` become GCE `labels`, each key and value passed through `gce_label`
   (lowercase; anything outside `[a-z0-9_-]` becomes `-`; cut to 63
-  characters). `gce_label` cannot supply a leading letter, so since stage
-  63 `validate` refuses a tag key whose label form does not start with a
-  lowercase letter (it used to reach GCE and fail at apply until
-  2026-09-25).
+  characters). `gce_label` cannot supply a leading letter, so `validate`
+  refuses a tag key whose label form does not start with a lowercase
+  letter, rather than letting it reach GCE and fail at apply.
 - The instance name is passed through `gce_name` (lowercase; anything
   outside `[a-z0-9-]` becomes `-`; leading and trailing `-` stripped; an
   `i-` prefix when the result does not start with a letter; cut to 63
@@ -132,33 +136,34 @@ refused; the module tunables (`size`, `disk_type`, `tier`, `capacity_gb`,
 
 ### `TofuPdStorageBuilderModel` (`tf-gcp-pd`)
 
-Persistent disk: the EBS equivalent, single-attach, POSIX.
+Persistent disk: the EBS equivalent, single-attach, POSIX. Its own keys
+(the full table is in the
+[configuration reference](../../docs/CONFIGURATION.md#82-storage-builders)):
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `size` | int | 100 | Disk size in GB. |
-| `disk_type` | str | `"pd-balanced"` | GCE disk type (for example `pd-standard`, `pd-balanced`, `pd-ssd`). |
-| `variables` | `GcpVariables` | `GcpVariables()` | Default labels. |
+- `size` (default 100): disk size in GB.
+- `disk_type` (default `pd-balanced`): the GCE disk type, for example
+  `pd-standard`, `pd-balanced`, `pd-ssd`.
+- `variables`: a `GcpVariables`, the default labels.
 
 ### `TofuFilestoreStorageBuilderModel` (`tf-gcp-filestore`)
 
-Filestore: the EFS equivalent, many-attach NFS, POSIX.
+Filestore: the EFS equivalent, many-attach NFS, POSIX. Its own keys:
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `tier` | str | `"BASIC_HDD"` | Filestore tier. |
-| `capacity_gb` | int | 1024 | Capacity; the module notes 1024 GB as the minimum for BASIC tiers. |
-| `variables` | `GcpVariables` | `GcpVariables()` | Default labels. |
+- `tier` (default `BASIC_HDD`): the Filestore tier.
+- `capacity_gb` (default 1024): the capacity; the module notes 1024 GB
+  as the minimum for BASIC tiers.
+- `variables`: a `GcpVariables`, the default labels.
 
 ### `TofuGcsStorageBuilderModel` (`tf-gcp-gcs`)
 
-GCS bucket: the S3 equivalent, many-attach object store, non-POSIX.
+GCS bucket: the S3 equivalent, many-attach object store, non-POSIX. Its
+own keys:
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `bucket_name` | str | required | Bucket name used when the storage item declares none. |
-| `location` | str \| None | None | Bucket location; None means the runtime's `region`. |
-| `variables` | `GcpVariables` | `GcpVariables()` | Default labels. |
+- `bucket_name` (required): the bucket name used when the storage item
+  declares none.
+- `location` (optional): the bucket location; unset means the runtime's
+  `region`.
+- `variables`: a `GcpVariables`, the default labels.
 
 ### The `Storage` item the storage builders read
 
@@ -166,17 +171,16 @@ Base `Storage` from
 [storage.py](../base/src/cs_image_system/base/models/storage.py):
 `type`, `runtime`, `groups`, `public_read`, `share_mode` (`2770` | `2775`),
 `state` (`active` | `archived` | `destroyed`), `bucket_name` (GCS), `tags`.
-Its `tags` keys are checked at `validate` against the builder's runtime
-(stage 63): on a `gcloud` runtime a key whose `gce_label` form does not
-start with a lowercase letter is refused, naming the storage and the key.
+Its `tags` keys are checked at `validate` against the builder's runtime:
+on a `gcloud` runtime a key whose `gce_label` form does not start with a
+lowercase letter is refused, naming the storage and the key.
 `lifecycle:` is **refused** on all three GCP builders: none of them realizes
 a data lifecycle, so the base `validate_lifecycle` rejects any declaration.
 `availability_zone` is checked by `validate` (a persistent disk is zonal,
-so it joins the zone-compatibility check) and, since stage 63 item 21,
-**pins the disk**: `_disk_zone(storage)` returns it when declared and the
-runtime's `zone` otherwise, and the module call, the state query's lookup
-and the archive script all read it there (until 2026-09-25 the pd module
-call always took the runtime's `zone`).
+so it joins the zone-compatibility check) and **pins the disk**:
+`_disk_zone(storage)` returns it when declared and the runtime's `zone`
+otherwise, and the module call, the state query's lookup and the archive
+script all read it there.
 `mount_point`, `source`, `ephemeral`, `generative`, `singleton`,
 `is_default` and `config` are not read.
 
@@ -254,21 +258,21 @@ requirement but no destroy whitelist entry. `_replacements()` names
 `module.instance_<label>.google_compute_instance.this` for pending upgrades
 and `follow` targets.
 
-**Inherited unchanged.** `get_commands_to_run_after` (generation-time `fmt`,
-`init`, `validate`; deferred `rm -f tfplan`, `init -input=false
--reconfigure [-backend-config=...]`, unmounts, `plan -out=tfplan
-[-replace=...]`, `gate-plan`, and `apply-check --lifecycle instances --root
-<B> --root-alias <runtime>` plus `apply` when `config.apply_instances`
-allows the root), the ephemeral verify-and-teardown sequence, the
-decommission whitelist, `pre_finalize_phase` and `post_finalize_phase`.
+**Inherited unchanged.** `get_commands_to_run_after`: the generation-time
+`fmt`, `init` and `validate`, then the deferred gated sequence of
+[OPERATIONS.md](../../docs/OPERATIONS.md#the-apply-gate), with this
+root's unmount steps and `-replace` targets on the plan and `apply-check
+--lifecycle instances --root <B> --root-alias <runtime>` plus `apply` only
+when `config.apply_instances` allows the root. Also inherited: the
+ephemeral verify-and-teardown sequence, the decommission whitelist,
+`pre_finalize_phase` and `post_finalize_phase`.
 
 Two consequences of the inheritance:
 
 - `pre_finalize_phase` writes `instances.auto.tfvars` with `<label>_image`
-  lines (the builder's `_ami_var` names the GCE root's variable since stage
-  63 item 7; until 2026-09-24 it wrote `<label>_ami_id`, which no GCE root
-  declared, so a build this run baked never reached the module call). An
-  image that is deferred at generation launches through `image_family`.
+  lines (the builder's `_ami_var` names the GCE root's own variable, so a
+  build this run baked reaches the module call). An image that is
+  deferred at generation launches through `image_family`.
 - `post_finalize_phase` then binds the pin from reality: the gcloud runtime
   answers `can_query_instance_boot_image()`, so an unpinned, non-ephemeral
   instance is bound to the image it actually booted, provided lineage
@@ -302,7 +306,7 @@ applies `gce_name`, because GCE resource names must match
 | `lifecycle:` | refused | refused | refused |
 | `destroyed` transition action | delete the archive snapshot when the disk was archived | none | `wipe-<label>.sh`: `gcloud storage rm --recursive gs://<bucket>/**`, treating "matched no objects" as success |
 | Base-image prerequisites | none (a comment) | `nfs-common` (Debian family) or `nfs-utils`; verify: `mount.nfs`/`mount.nfs4` present | the gcloud CLI from the official installer; verify: `gcloud` present |
-| State query | `compute_v1.DisksClient.get` by disk name (or `SnapshotsClient.get` on the archive when recorded archived); `NotFound` means absent | `gcloud filestore instances describe <name> --location <zone>` through the runtime's declared gcloud; not found means absent, any other failure is "unavailable" (stage 63 item 17; it raised `NotImplementedError` and the query dropped the builder silently) | `gcloud storage buckets describe gs://<bucket> --format=json`; "not found" means absent, any other failure is "unavailable" |
+| State query | `compute_v1.DisksClient.get` by disk name (or `SnapshotsClient.get` on the archive when recorded archived); `NotFound` means absent | `gcloud filestore instances describe <name> --location <zone>` through the runtime's declared gcloud; not found means absent, any other failure is "unavailable" | `gcloud storage buckets describe gs://<bucket> --format=json`; "not found" means absent, any other failure is "unavailable" |
 
 Module arguments (`module_args(storage)`):
 
@@ -505,7 +509,7 @@ that the runtime is a GCP one: with an AWS runtime named by mistake the
 `google` provider block is emitted with no `project`, `region` or `zone`,
 the module calls carry no `zone`, and the failure arrives from `tofu
 plan` (a missing required argument) rather than from the system. The one
-place the plugin itself notices (stage 63) is a pd archive, unarchive or
+place the plugin itself notices is a pd archive, unarchive or
 restore: its script needs a project, which an AWS runtime cannot supply,
 so the storage is refused at generation (see
 [When it fails](#when-it-fails)). The label-key check at `validate` also
@@ -542,19 +546,18 @@ whether ADC exists as a `session:` line; they never read the value.
 
 **An AWS session as well, when the state is in S3.** The root's state
 location is `state_configuration` on the builder, else the runtime's,
-else the default backend (stage 46). The fixture and the live tree keep
+else the default backend. The fixture and the live tree keep
 the GCE roots on the S3 backend, so every `tofu init`, `plan`, `apply`
 and every `terraform_remote_state` read of a GCE root needs a live AWS
 session, and a session that lapses mid-run stops GCE work with GCP fully
-authenticated (finding 65, 2026-09-08). Read the session's expiry before
-a long run.
+authenticated. Read the session's expiry before a long run.
 
 **Tools on the machine that runs the scripts.**
 
 | Tool | Found how | Used for |
 |---|---|---|
 | `tofu` (or terraform) | the builder's `executable:` names an entry in `cfg/executables.yml`; its `binary` is the path the runner calls and its `version:` is checked by `TofuVersionChecker` (`tofu --version -json`) at `validate` and at every run | `fmt`, `init`, `validate` at generation; `plan`, `apply` deferred |
-| `gcloud` | the `binary` of the `cfg/executables.yml` entry the storage builder's RUNTIME names in its `executable` (default `gcloud`; stage 63 item 14): the generated `archive-*.sh`, `unarchive-*.sh`, `restore-*.sh` and `wipe-*.sh` embed that path (shell-quoted), and `TofuGcsStorageBuilder._lookup` runs it for `gcloud storage buckets describe`. Until 2026-09-25 all of these called a bare `gcloud` from `PATH`. The ON-IMAGE `gcloud` the gcs prerequisites install is the VM's own and stays a bare name | pd archive, restore and archive deletion; the GCS wipe; the GCS state query |
+| `gcloud` | the `binary` of the `cfg/executables.yml` entry the storage builder's RUNTIME names in its `executable` (default `gcloud`): the generated `archive-*.sh`, `unarchive-*.sh`, `restore-*.sh` and `wipe-*.sh` embed that path (shell-quoted), and `TofuGcsStorageBuilder._lookup` runs it for `gcloud storage buckets describe`; none of them calls a bare `gcloud` from `PATH`. The ON-IMAGE `gcloud` the gcs prerequisites install is the VM's own and stays a bare name | pd archive, restore and archive deletion; the GCS wipe; the GCS state query |
 | `bash` | the scripts run as `bash <script>` from the root's directory | the transition scripts |
 | the `hashicorp/google` provider | fetched by `tofu init` from the registry, or from `TF_PLUGIN_CACHE_DIR` when the Justfile exports it | every root |
 
@@ -616,8 +619,7 @@ Fields common to all five service names:
 
 `tofu-gce` and `tf-gcp` add no fields. `tf-gcp` cannot emit (abstract
 `module_dirname`/`module_args`), so a builder entry of that type is refused
-at load (stage 63 item 17; it loaded and failed at generation with
-`NotImplementedError` until 2026-09-25).
+at load rather than failing at generation with `NotImplementedError`.
 
 `tf-gcp-pd`:
 
@@ -647,7 +649,7 @@ at load (stage 63 item 17; it loaded and failed at generation with
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `tags` | map[str, str] | `{}` | builder-wide default labels, under the storage item's `tags`, under the `csis_*` labels; every key and value through `gce_label`. Unlike an item's `tags`, these keys are not checked by `validate`'s label-key check (stage 63), so a key that does not start with a letter still fails at apply |
+| `tags` | map[str, str] | `{}` | builder-wide default labels, under the storage item's `tags`, under the `csis_*` labels; every key and value through `gce_label`. Unlike an item's `tags`, these keys are not checked by `validate`'s label-key check, so a key that does not start with a letter still fails at apply |
 
 The AWS `variables` keys (`volume_type`, `encrypted`, `performance_mode`,
 `force_destroy`) are not accepted here: a GCP builder that declares one
@@ -662,7 +664,7 @@ fails at load.
 | `storages[].name`, `storages[].mount_point` | the core's `compute_launch_params`, then the plugin | `attached_disks` for `pd` mounts, `filestore` template variables for Filestore mounts; the launch script's mount lines |
 | `ephemeral` | the plugin | `count = var.ephemeral_present ? 1 : 0` on the module call and the verify-and-teardown sequence |
 | `image_policy` (`pinned`, `follow`) | the core's lineage, then `_replacements()` | `follow` puts `-replace=module.instance_<label>.google_compute_instance.this` on the plan when the series head moved |
-| `tags` | the plugin; `validate`'s `check_label_keys` | `labels`, each key and value through `gce_label`; a key whose label form does not start with a lowercase letter (`2024`) is refused at `validate` (stage 63; it failed at apply until 2026-09-25) |
+| `tags` | the plugin; `validate`'s `check_label_keys` | `labels`, each key and value through `gce_label`; a key whose label form does not start with a lowercase letter (`2024`) is refused at `validate` |
 | `userdata` | the core | extra lines in the launch script |
 | `on_failure`, `teardown_after` | the base's ephemeral sequence | `--record-only` on the verify, and a teardown without re-verifying |
 | `runtime` | the core | the session mechanism recorded in the launch parameters; the root's provider comes from the builder's runtime, not the instance's |
@@ -679,9 +681,9 @@ fails at load.
 | `share_mode` | the core's launch script | the mode of the per-group subtree created at first mount |
 | `state` | the base | `active` emits the module call; `archived` (pd only) emits nothing and snapshots; `destroyed` emits a tombstone comment and whitelists the destroy |
 | `bucket_name` | the plugin (GCS) | the bucket, over the builder's `bucket_name` |
-| `tags` | the plugin; `validate`'s `check_label_keys` | labels, over the builder's `variables.tags`; a key whose `gce_label` form does not start with a lowercase letter is refused at `validate` against the builder's runtime (stage 63; it failed at apply until 2026-09-25) |
+| `tags` | the plugin; `validate`'s `check_label_keys` | labels, over the builder's `variables.tags`; a key whose `gce_label` form does not start with a lowercase letter is refused at `validate` against the builder's runtime |
 | `lifecycle` | the base's `validate_lifecycle` | refused when set, on all three builders |
-| `availability_zone` | the core's `validate`; the pd builder's `_disk_zone` | pd is zonal, so it takes part in the compatibility check, and a declared value is the disk's zone in the module call, the lookup and the archive script (stage 63 item 21) |
+| `availability_zone` | the core's `validate`; the pd builder's `_disk_zone` | pd is zonal, so it takes part in the compatibility check, and a declared value is the disk's zone in the module call, the lookup and the archive script |
 | `mount_point` | the instance side | not read by the storage builders |
 | `runtime` | the core | must resolve; the storage root's runtime is the builder's |
 | `source`, `ephemeral`, `generative`, `singleton`, `is_default`, `config` | | accepted, not read |
@@ -690,9 +692,9 @@ fails at load.
 
 | Field | Where it lands |
 |---|---|
-| `project_id` | `provider "google" { project }` on every root; `--project` of the pd scripts, which are refused at generation when it is missing (stage 63; they carried the literal `None` until 2026-09-25); the pd state query's project (`self_to_gcp_client_config()` then `resolve_project()`) |
+| `project_id` | `provider "google" { project }` on every root; `--project` of the pd scripts, which are refused at generation when it is missing, so no script carries a literal `None`; the pd state query's project (`self_to_gcp_client_config()` then `resolve_project()`) |
 | `region` | `provider "google" { region }`; the GCS `location` when the builder declares none |
-| `zone` | `provider "google" { zone }`; `zone` of the instance and Filestore module calls; the pd's `zone`, `--zone` of its archive script and its state query's zone when the storage declares no `availability_zone` (with neither, archiving a pd is refused at generation, stage 63) |
+| `zone` | `provider "google" { zone }`; `zone` of the instance and Filestore module calls; the pd's `zone`, `--zone` of its archive script and its state query's zone when the storage declares no `availability_zone` (with neither, archiving a pd is refused at generation) |
 | `networking.subnets[]` (the `is_default: true` one) | `subnetwork` of the instance module call |
 | `networking.network` | Filestore `network`, unless it is `default`, `none`, empty, null or `self` (`OOPS_DEFAULTS`), in which case the module's own default `default` applies. Not read by the instance root |
 | `networking.network_tags` | `network_tags` of the instance module call, when any |
@@ -774,8 +776,8 @@ pending replacements. All of these are the core's, documented in
   (undeclared) is treated as `destroyed` from its recorded state, with
   the record's `bucket_name` for the wipe. The three pd scripts are
   refused at generation when their project (and, for the archive, the
-  disk's zone) cannot be resolved (stage 63; until 2026-09-25 they were
-  written with the literal `None` and failed when gcloud ran).
+  disk's zone) cannot be resolved, so no script is written with a literal
+  `None` that fails only when gcloud runs it.
 - **Groups declared or not.** With groups: `csis_group_<g>` labels, the
   Filestore `group_subtrees` / GCS `group_prefixes` list, a remote-state
   reference to each group's identity workspace, and the launch script's
@@ -795,8 +797,8 @@ pending replacements. All of these are the core's, documented in
   are the instance's `tags` alone. A key on an instance or storage item
   whose label form starts with a lowercase letter is emitted; one that
   does not (`2024`, `-env`) is refused by `validate` with the item's name
-  and the key (stage 63; until 2026-09-25 it was emitted and GCE refused
-  it at apply). The builder's `variables.tags` keys are not checked.
+  and the key, so GCE never refuses it at apply. The builder's
+  `variables.tags` keys are not checked.
 - **Names.** Every GCE resource name and the pd `device_name` go through
   `gce_name`; the terraform labels (`instance_<label>`,
   `storage_<label>`, `<label>_image`, the file names) go through
@@ -817,12 +819,12 @@ pending replacements. All of these are the core's, documented in
   sequence is only enumerated under `--dry-run`, and the
   `pre_finalize_phase`/`post_finalize_phase` hooks run only in-process
   under `--no-dry-run`.
-- **Apply flag on vs off.** Off: `rm -f tfplan`, `init -reconfigure
-  -backend-config=...`, the unmount steps, `plan -out=tfplan [-replace]`,
-  `gate-plan`. On: the same, then `apply-check --lifecycle <storage or
-  instances> --root <B> --root-alias <runtime>` and `apply`; the
-  ephemeral sequence, the pd post-restore script and the pin binding
-  exist only with it on.
+- **Apply flag on vs off.** Off: the deferred sequence of
+  [OPERATIONS.md](../../docs/OPERATIONS.md#the-apply-gate) ends at
+  `gate-plan`, after this root's unmount steps and `-replace` targets.
+  On: `apply-check --lifecycle <storage or instances> --root <B>
+  --root-alias <runtime>` and `apply` follow; the ephemeral sequence, the
+  pd post-restore script and the pin binding exist only with it on.
 - **Encrypted vs clear values.** The plugin makes no distinction: it
   passes the values it reads through `str()` into the collector and
   neither recognises nor opens an `ENC[age:...]` marker. How a marker
@@ -854,7 +856,7 @@ the builders:
 | `supports_archive` | `true` (pd), `false` (Filestore, GCS) | `state: archived` on Filestore or GCS: `... requests archived, which its builder does not realize (snapshot + restore)` |
 | `is_zonal` | `true` (pd), `false` (Filestore, GCS) | a pd whose `availability_zone` differs from its instance's or its runtime's subnet's |
 | `capability_type` | `pd`, `filestore`, `gcs` | a base image `storage_types` entry with no builder of that type; an instance attaching a type its base image did not declare |
-| `label_key_problem` (the gcloud RUNTIME's hook, asked by `check_label_keys`; stage 63) | a reason when `gce_label(key)` does not start with a lowercase letter, else `None` | a tag key on an instance (its runtime) or a storage (its builder's runtime) that GCE cannot take as a label key: `<instance\|storage> '<name>': tag key '<key>' on runtime <rt>: GCE label keys must start with a lowercase letter; '<key>' becomes '<label>'; rename the key`. Until 2026-09-25 such a key passed here and failed at apply |
+| `label_key_problem` (the gcloud RUNTIME's hook, asked by `check_label_keys`) | a reason when `gce_label(key)` does not start with a lowercase letter, else `None` | a tag key on an instance (its runtime) or a storage (its builder's runtime) that GCE cannot take as a label key: `<instance\|storage> '<name>': tag key '<key>' on runtime <rt>: GCE label keys must start with a lowercase letter; '<key>' becomes '<label>'; rename the key`. Refused here so that it does not fail at apply |
 | the state machine (base) | | an illegal transition, a new storage not starting `active`, an `archived`/`destroyed` request while attached, attaching a non-active storage, an undeclared storage whose record names no builder |
 
 Verdict: `validate` exits 1 listing every error; `run` exits 1 before
@@ -870,8 +872,8 @@ module call will not resolve an image` and goes on; a runtime whose
 `session_mechanism` is neither empty nor `iap` raises `ValueError` from
 the runtime plugin. A missing `project_id` or `zone` is, in general, not
 detected: the provider block omits the field and the module calls omit
-`zone`, so the verdict is tofu's at plan time. The exception (stage 63) is
-the persistent-disk transition scripts: `_require_script_inputs` runs for
+`zone`, so the verdict is tofu's at plan time. The exception is the
+persistent-disk transition scripts: `_require_script_inputs` runs for
 exactly the three transitions that write a script and refuses the storage
 when an input the script needs cannot be resolved. `archive-<disk>.sh`
 (active to archived) needs the project and the disk's zone (the storage's
@@ -883,8 +885,8 @@ the project. The refusal is a `ValueError` that ends the run (exit 1):
 storage '<name>' on builder <b>: the archive scripts need <project and zone|project>, and the runtime declares none (set `project_id` and `zone` on the GCP runtime)
 ```
 
-Until 2026-09-25 the scripts were written with the literal `None` in
-`--project`/`--zone` and failed only when gcloud ran them. Every other
+Without the check a script would carry the literal `None` in
+`--project`/`--zone` and fail only when gcloud ran it. Every other
 transition (and every storage that is not a pd) writes no script and is
 not checked.
 
@@ -928,16 +930,14 @@ every declared and undeclared storage of the builder:
   absent; any other non-zero exit raises `RuntimeError("gcloud storage
   buckets describe gs://<bucket>: <stderr tail>")`; a missing `gcloud`
   binary raises the `FileNotFoundError` from `subprocess`.
-- `tf-gcp-filestore` (stage 63 item 17): `_lookup` runs `<declared gcloud>
+- `tf-gcp-filestore`: `_lookup` runs `<declared gcloud>
   filestore instances describe <gce name> --location <runtime zone>
   --project <project> --format=json`. A not-found answer (`NOT_FOUND`,
   "not found", 404) is absent; any other non-zero exit raises
   `RuntimeError("gcloud filestore instances describe <name>: <stderr
   tail>")`, which the query reports as unavailable. The record carries
   `id` (the instance's short name), `state` (`READY`, ...), `tags` (the
-  labels) and `size` (the first file share's `capacityGb`). Until
-  2026-09-25 the lookup raised `NotImplementedError` and the query
-  dropped the builder's storages with no `unavailable:` line.
+  labels) and `size` (the first file share's `capacityGb`).
 
 Verdicts land in the state report: `missing storage <n>: recorded
 <state> but not found in reality [HARD]`, `foreign storage <n>: <type>
@@ -969,81 +969,79 @@ Nothing reaches GCP from the tests.
 
 ## When it fails
 
-Failures that have happened, oldest first. The dates and details are in
-[docs/history/LEDGER.md](../../docs/history/LEDGER.md) (findings by
-number) and [docs/history/GCP-READINESS.md](../../docs/history/GCP-READINESS.md).
+Incidents that have happened, with their cause and fix, are recorded on
+[INCIDENTS.md](../../docs/INCIDENTS.md); what follows keeps each
+failure's symptom, its meaning and what to do.
 
-- **2026-09-03, finding 35: `tofu apply` refused a disk named `gce_data`.**
-  GCE resource names must match `[a-z]([-a-z0-9]*[a-z0-9])?`; the storage
-  root emitted the YAML name verbatim. Now every resource name goes
-  through `gce_name`. If the provider ever reports an invalid `name`
-  again, a name reached the module call without the sanitizer; the module
-  call in `generated/storage/<B>/storage-generation/<B>-storage-generation-storage-<label>.tf`
+Failures by symptom: what each means and what to do.
+
+- **`tofu apply` refuses a disk whose `name` is invalid (a YAML name such
+  as `gce_data`).** GCE resource names must match
+  `[a-z]([-a-z0-9]*[a-z0-9])?`, so every resource name goes through
+  `gce_name`. If the provider reports an invalid `name`, a name reached
+  the module call without the sanitizer; the module call in
+  `generated/storage/<B>/storage-generation/<B>-storage-generation-storage-<label>.tf`
   shows which.
-- **2026-09-05, finding 50: the pd was attached but not mounted.**
-  `df /mnt/gce-data` resolved to the root filesystem. The module attached
-  the disk as `device_name = "gce_data"` while the launch script waited
-  for `/dev/disk/by-id/google-gce-data` (GCE exposes
-  `google-<device_name>`), and under `set -e` the script died at the
-  missing device, so nothing after it ran either. Both now use
-  `gce_name`. Symptom today, if a mount is missing: the serial console
-  (`gcloud compute instances get-serial-port-output <name>`, or the
-  runtime's `verify instance`) shows the 60-iteration wait loop ending
-  without the device; check the `device_name` in the module call against
-  the `DEV=` line of `user-data-<label>.sh.tftpl`.
-- **2026-09-05, findings 52 and 53: undeclaring the last GCE instance
-  planned no destroy, and a dry run erased its record.** The root vanished
-  with its last declaration, so the whitelist named a module no plan
-  contained; and the "forget launch params and pin" ran at generation.
-  Now the root is emitted while any recorded instance is undeclared, and
-  the forget is an after-apply hook. Symptom to recognise: `gate-plan`
-  reports `0 to destroy` for a decommission, or `state query` reports a
-  `foreign` instance right after a dry run. Both mean the record and the
-  plan disagree; run the decommission again with the record intact.
-- **2026-09-07, finding 57: the teardown died wiping an empty bucket.**
-  `gcloud storage rm --recursive gs://<bucket>/**` exits 1 when nothing
-  matches, and an empty bucket is the normal end of a cycle. The wipe is
-  now `wipe-<label>.sh`, which prints `gs://<bucket> is already empty`
-  and exits 0 on "matched no objects" and otherwise prints gcloud's
-  output and exits with its status, stopping the run before terraform's
-  destroy. Any other message in that output (permission denied, no
-  credentials) is a real failure: fix ADC or the bucket's IAM and rerun
-  the storage lifecycle; the transition is not recorded until the apply
-  succeeds.
-- **2026-09-08, finding 63: the first ephemeral verification failed on
-  "booted image" and left the instance standing.** The instance's image
-  had been baked in the same run, so the launch record said `unbound` and
-  the check compared literally. Verification now requires the booted
-  image to be a recorded build of the instance's image series. Symptom:
-  `state query` says `ephemeral instance <name> is STANDING`; the next
+- **The pd is attached but not mounted** (`df /mnt/gce-data` resolves to
+  the root filesystem). GCE exposes an attached disk as
+  `/dev/disk/by-id/google-<device_name>`, so the module's `device_name`
+  and the launch script's device path must agree; both go through
+  `gce_name`. Under `set -e` the script dies at a missing device and
+  nothing after it runs either. The serial console (`gcloud compute
+  instances get-serial-port-output <name>`, or the runtime's `verify
+  instance`) shows the 60-iteration wait loop ending without the device;
+  check the `device_name` in the module call against the `DEV=` line of
+  `user-data-<label>.sh.tftpl`.
+- **Undeclaring the last GCE instance plans no destroy, or a dry run
+  erases its record.** The root stays emitted while any recorded instance
+  is undeclared, so the whitelist names a module the plan contains; and
+  the "forget launch params and pin" is an after-apply hook, never a
+  generation step. Symptom: `gate-plan` reports `0 to destroy` for a
+  decommission, or `state query` reports a `foreign` instance right after
+  a dry run. Both mean the record and the plan disagree; run the
+  decommission again with the record intact.
+- **The teardown dies wiping an empty bucket.** `gcloud storage rm
+  --recursive gs://<bucket>/**` exits 1 when nothing matches, and an
+  empty bucket is the normal end of a cycle, so the wipe is
+  `wipe-<label>.sh`, which prints `gs://<bucket> is already empty` and
+  exits 0 on "matched no objects" and otherwise prints gcloud's output
+  and exits with its status, stopping the run before terraform's destroy.
+  Any other message in that output (permission denied, no credentials) is
+  a real failure: fix ADC or the bucket's IAM and rerun the storage
+  lifecycle; the transition is not recorded until the apply succeeds.
+- **An ephemeral verification fails on "booted image" and leaves the
+  instance standing.** The instance's image was baked in the same run, so
+  nothing was pinned at launch; verification therefore requires the
+  booted image to be a recorded build of the instance's image series
+  rather than comparing against a literal `unbound`. Symptom: `state
+  query` says `ephemeral instance <name> is STANDING`; the next
   `instance-image` run resumes the sequence (plan no-change, verify,
   teardown), which is the intended recovery.
-- **2026-09-08, finding 65: `tofu plan` of the `tofu-gce` root failed with
-  `No valid credential sources found ... backend s3 ... the SSO session has
-  expired`.** The AWS SSO session lapsed fifteen minutes into a GCE cycle
-  that had passed preflight. The GCE roots keep their state in S3, so
-  AWS is a hard dependency of every GCE lifecycle. `aws sso login` and
-  rerun; the bakes of the failed run are recorded and are not repeated.
-  The same dependency makes `empty --runtime gcloud-east1` need AWS
-  credentials, because every runtime validates its networking at load.
-- **2026-09-10, ledger 70: `data.google_compute_image.family` returned
-  404 for `family/imgfile-basic-dask`.** A run scoped to the AWS runtime
-  still planned the GCE instance root, whose deferred image resolved
-  through its family, and the previous cycle's retention had disposed
-  every GCE image. Scoped runs no longer plan other runtimes' roots.
-  The failure still exists on its own runtime: a root whose instance
-  image is deferred and whose family holds no image on GCP fails at plan
-  with that 404. Bake the image first (the `instance-image` lifecycle
-  bakes before it plans), or launch with a pinned build.
-- **2026-09-10, ledger 71: the post-bake suite failed `python3 -c 'import
-  dask'` on the standing ephemeral instance.** Not this plugin's failure
-  (the image was wrong), but the plugin's `on_failure: keep` behaviour is
-  what the operator saw: the instance stood, the verdict was recorded per
-  build, and `just gce-decommission` then re-ran the ephemeral sequence
-  because the instance was still declared. The decommission recipe now
+- **`tofu plan` of the `tofu-gce` root fails with `No valid credential
+  sources found ... backend s3 ... the SSO session has expired`.** The
+  AWS SSO session lapsed mid-cycle, after preflight passed. The GCE roots
+  keep their state in S3, so AWS is a hard dependency of every GCE
+  lifecycle. `aws sso login` and rerun; the bakes of the failed run are
+  recorded and are not repeated. The same dependency makes `empty
+  --runtime gcloud-east1` need AWS credentials, because every runtime
+  validates its networking at load.
+- **`data.google_compute_image.family` returns 404 for
+  `family/imgfile-basic-dask`.** A root whose instance image is deferred
+  resolves it through its family at plan time, and the family holds no
+  image on GCP (the previous cycle's retention disposed every GCE image,
+  for example). A run scoped to one runtime plans no other runtime's
+  root, so the symptom belongs to the root's own runtime. Bake the image
+  first (the `instance-image` lifecycle bakes before it plans), or launch
+  with a pinned build.
+- **The post-bake suite fails (`python3 -c 'import dask'`) on the
+  standing ephemeral instance.** Not this plugin's failure (the image is
+  wrong), but the plugin's `on_failure: keep` behaviour is what the
+  operator sees: the instance stands and the verdict is recorded per
+  build. A decommission of an instance that is still declared re-runs
+  the ephemeral sequence, which is why the `just gce-decommission` recipe
   uses `--undeclare instance:gce-test`.
 
-Failures the code raises that have not happened live:
+Failures the code raises:
 
 - **`storage '<n>' (<type>) declares a data lifecycle ...`,
   `... requests archived, which its builder does not realize ...`,
@@ -1057,25 +1055,24 @@ Failures the code raises that have not happened live:
   gs://<bucket>: <stderr>`**: the CLI could not answer (no ADC, no
   permission, no network); the tail of stderr says which. **`...: [Errno
   2] No such file or directory: '<path>'`**: the `binary` of the gcloud
-  entry the runtime names is not there (stage 63 item 14: the lookup runs
-  the declared binary, not a `gcloud` from `PATH`); fix the entry's
+  entry the runtime names is not there (the lookup runs the declared
+  binary, not a `gcloud` from `PATH`); fix the entry's
   `binary` in `cfg/executables.yml`, which `validate` also checks.
 - **`unavailable: storages/<builder>: gcloud filestore instances describe
-  <name>: <stderr tail>`**: the Filestore lookup could not answer (stage
-  63 item 17; until 2026-09-25 a Filestore storage was simply missing from
-  the report with no line at all). The stderr tail says why: no ADC, no
-  permission, or the Filestore API not enabled.
+  <name>: <stderr tail>`**: the Filestore lookup could not answer. The
+  stderr tail says why: no ADC, no permission, or the Filestore API not
+  enabled.
 - **``storage '<name>' on builder <b>: the archive scripts need <project
   and zone|project>, and the runtime declares none (set `project_id` and
-  `zone` on the GCP runtime)``** at generation (stage 63, a `ValueError`,
-  exit 1): a pd storage is being archived (needs `project and zone`),
-  destroyed from archived or restored from archived (need `project`), and
-  the builder's runtime resolves no project (no `project_id`) or, for the
+  `zone` on the GCP runtime)``** at generation (a `ValueError`, exit 1):
+  a pd storage is being archived (needs `project and zone`), destroyed
+  from archived or restored from archived (need `project`), and the
+  builder's runtime resolves no project (no `project_id`) or, for the
   archive, the disk has no zone (neither the storage's `availability_zone`
   nor the runtime's `zone`). Declare them on the GCP runtime and rerun.
-  Until 2026-09-25 the scripts were generated with a literal `--project
-  "None"` (or `--zone "None"`) and failed only inside gcloud when the
-  storage lifecycle ran them.
+  The refusal keeps a literal `--project "None"` (or `--zone "None"`) out
+  of a script that would fail only inside gcloud when the storage
+  lifecycle ran it.
 - **`tofu plan`: `Unsupported attribute ... outputs.storage_<label>`** on
   the instance root, or **`... outputs.group_gids`** on a storage root:
   the producer workspace has not applied yet (or applied to a different
@@ -1086,15 +1083,14 @@ Failures the code raises that have not happened live:
   runtime. Add the image builder's runtime entry.
 - **`<instance|storage> '<name>': tag key '<key>' on runtime <rt>: GCE
   label keys must start with a lowercase letter; '<key>' becomes
-  '<label>'; rename the key`** from `validate` (stage 63, exit 1; the check
-  is `check_label_keys`, the reason the gcloud runtime's
+  '<label>'; rename the key`** from `validate` (exit 1; the check is
+  `check_label_keys`, the reason the gcloud runtime's
   `label_key_problem`): `gce_label` lowercases and replaces characters but
   cannot force a leading letter, so a tag key such as `2024` or `-env` on
-  an instance or storage item would become a label key GCE refuses. Rename
-  the key in the YAML; it is never renamed silently. Until 2026-09-25 such
-  a key passed `validate` and generation and GCE refused it at apply
-  (`Invalid value for field 'resource.labels'` or similar). The builder's
-  `variables.tags` keys are not part of the check, so a bad key there still
+  an instance or storage item would become a label key GCE refuses at
+  apply (`Invalid value for field 'resource.labels'` or similar). Rename
+  the key in the YAML; it is never renamed silently. The builder's
+  `variables.tags` keys are not part of the check, so a bad key there
   surfaces only at apply: rename it the same way.
 - **`capacity_gb` below the tier's minimum**, an unknown `tier`, an
   unknown `disk_type`, a bucket name already taken: refused by the
@@ -1105,12 +1101,13 @@ Failures the code raises that have not happened live:
   failed). `sft`/`gcloud compute ssh` in, unmount by hand, then `unmount
   storage --confirm ...` records the operator's word.
 - **`Value for undeclared variable` warnings from tofu** on the GCE root
-  after a bake in the same run (until stage 63 item 7, 2026-09-24):
-  `pre_finalize_phase` wrote `<label>_ami_id = "..."` into
-  `instances.auto.tfvars` while the GCE root declares `<label>_image`, so
-  the instance launched through the family instead of the build. Fixed:
-  the line names `<label>_image`; a warning like it now means a root and
-  its tfvars disagree for another reason.
+  after a bake in the same run: `pre_finalize_phase` writes
+  `<label>_image = "..."` into `instances.auto.tfvars`, the variable the
+  GCE root declares, so the build reaches the module call. The warning
+  means the root and its tfvars disagree (a hand-edited tfvars, or a root
+  regenerated under another label), and the instance then launches
+  through the family instead of the build. Regenerate the root and look
+  at the tfvars line.
 - **The startup script stops before "Finished running startup scripts"**
   (`verify instance` times out or reports a failure line): under `set
   -e`, a failed `mkfs`, `mount` or `chgrp` ends it. The serial console

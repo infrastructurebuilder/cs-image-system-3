@@ -29,7 +29,7 @@ and whose `builders_for_models` binds the model to its builder.
 |---|---|---|---|
 | `AwsCloudBuilderModel` ([aws_runtime_models.py](src/cs_image_system/aws_runtime/aws_runtime_models.py)) | `aws` | `VCT.CLOUD_BUILDER_MODEL` | `cloud_builder_model` and, because the loader re-registers cloud models as runtimes, `runtime_builder_model` |
 | `AwsCloudBuilder` ([aws_runtime_builders.py](src/cs_image_system/aws_runtime/aws_runtime_builders.py)) | `aws` | `VCT.RUNTIME_BUILDER` | `runtime_builder` |
-| `AwsCLIVersionChecker` ([aws_runtime_builders.py](src/cs_image_system/aws_runtime/aws_runtime_builders.py)) | `aws-cli` | `VCT.VERSION_CHECKER` | `version_checker`, since stage 48.1 (2026-09-17) |
+| `AwsCLIVersionChecker` ([aws_runtime_builders.py](src/cs_image_system/aws_runtime/aws_runtime_builders.py)) | `aws-cli` | `VCT.VERSION_CHECKER` | `version_checker` |
 
 A YAML entry selects the model and builder with `type: aws` under
 `runtime_builders:`. There are no type aliases; `aws` is the only type key.
@@ -51,15 +51,15 @@ Present in the package but not registered as a service:
 
 - `AwsProviderSpecificImage` ([aws_provider_specific_image.py](src/cs_image_system/aws_runtime/aws_provider_specific_image.py)), reached through the builder's `provider_specific_image_class()` hook.
 
-**The AWS section of the bootstrap** (stage 70 step 4), through the
+**The AWS section of the bootstrap**, through the
 `cs_image_system.bootstrap` entry-point group: `aws =
 cs_image_system.aws_runtime.bootstrap:aws_section`. It owns the questions
 and the terraform for this cloud's one-time initialisation -- the GitHub
 OIDC identity provider, the READ-ONLY and WRITE roles of CI_SETUP.md 3.3
 with their trust and permission documents, and the state buckets (the
-default backend's, and since hygiene XX every other declared S3
-backend's that a root is bound to) and the Session Manager instance
-profile when the account lacks them (`tfmodules/bootstrap_aws`). The
+default backend's and every other declared S3 backend's that a root is
+bound to) and the Session Manager instance profile when the account
+lacks them (`tfmodules/bootstrap_aws`). The
 section renders its coverage audit for the generated README: what it
 made, read, adopted, or leaves by hand and why (a backend bound to no
 root is left out and said so). The section is wanted by default where the
@@ -83,14 +83,13 @@ S3 backend when the bucket exists. See OPERATIONS.md, "The bootstrap".
 Extends `CredentialsBase` in
 [credentials.py](../base/src/cs_image_system/base/models/credentials.py).
 The base declares no fields; each provider narrows it. Field names are
-boto3 `Session` keyword arguments and pass straight through.
-
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `profile_name` | `str \| None` | `None` | A named profile in the operator's AWS configuration. The fixture uses `noaa`. |
-| `aws_access_key_id` | `str \| None` | `None` | Key id; carries a template such as `{{ ENV['AWS_ACCESS_KEY_ID_east2'] }}`, never a literal. |
-| `aws_secret_access_key` | `str \| None` | `None` | Secret; same rule. |
-| `aws_session_token` | `str \| None` | `None` | Session token; same rule. |
+boto3 `Session` keyword arguments and pass straight through. The four
+keys, all `str | None` and `None` by default, are tabled in
+[CONFIGURATION 4.3](../../docs/CONFIGURATION.md#43-aws): `profile_name` names a
+profile in the operator's AWS configuration (the fixture uses `noaa`);
+`aws_access_key_id`, `aws_secret_access_key` and `aws_session_token`
+carry a template such as `{{ ENV['AWS_ACCESS_KEY_ID_east2'] }}`, never a
+literal.
 
 `as_dict()` omits unset fields, so an absent key never reaches boto3 as
 `None`. The shared model config forbids extra keys, so a misspelled key
@@ -104,24 +103,39 @@ Extends `CloudNetworkingConfig` in
 [cloud_builder.py](../base/src/cs_image_system/base/models/cloud_builder.py),
 which is `RuntimeNetworkingModel` in
 [runtime.py](../base/src/cs_image_system/base/models/runtime.py) under
-another name.
+another name. The field table, base keys and AWS additions, is
+[CONFIGURATION 4.5](../../docs/CONFIGURATION.md#45-networking).
 
-Fields it adds:
+The keys it adds:
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `addl_security_groups` | `list[str]` | `[]` | Existing groups every launched instance also wears, unmodified. Checked against the account at load and the only list counted toward the limit of five below. The instance module's `vpc_security_group_ids` lists them after the generated group; the EFS storage builder uses them as the mount targets' client groups. |
-| `ssh_ingress_security_group_ids` | `list[str]` | `[]` | Groups whose members may reach port 22 on launched instances. The generated instance security group's ingress references only these groups, never a CIDR range. Not checked against the account. |
-| `_model_id` | `str \| None` | `None` (not an init field) | Back-reference to the owning runtime model. |
+- `addl_security_groups` (`list[str]`, `[]`): existing groups every
+  launched instance also wears, unmodified. Checked against the account
+  at load and the only list counted toward the limit of five below. The
+  instance module's `vpc_security_group_ids` lists them after the
+  generated group; the EFS storage builder uses them as the mount
+  targets' client groups. The accessor is `get_addl_security_groups()`.
+- `ssh_ingress_security_group_ids` (`list[str]`, `[]`): groups whose
+  members may reach port 22 on launched instances. The generated instance
+  security group's ingress references only these groups, never a CIDR
+  range; when the list is empty the ingress is the VPC's own CIDR block
+  instead. Not checked against the account.
+- `_model_id` (not an init field): the back-reference to the owning
+  runtime model.
 
-Base fields it inherits:
-
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `name` | `str` | the network id | Empty or `default` falls back to `network`. |
-| `network` | `str` | `default` | The VPC id. `default` resolves at load to the account's default VPC. |
-| `subnets` | `list[RuntimeSubnetModel]` | required, non-empty | Each has `name`, `subnet_id`, `is_default`, `public`, `cidr`, `availability_zone`, `config`. The first entry with `is_default: true` is the default subnet; without one the model refuses to load. |
-| `availability_zones` | `list[RuntimeAvailabilityZoneModel]` | `[]` | `name`, `is_default`. The default zone, when declared, becomes the packer source's `availability_zone`. |
+What this runtime does with the base keys: `name` empty or `default`
+falls back to the network id; `network` (`default` resolves at load to
+the account's default VPC) is written as the packer `vpc_id`, the
+instance root's `data "aws_vpc"` id and the EFS builder's `vpc_id`; the
+first `subnets[]` entry with `is_default: true` is the default subnet,
+the packer `subnet_id` and the instance module's `subnet_id`, and without
+one the model refuses to load; the EFS builder mounts on every non-public
+subnet, one per zone, reading `subnets[].public` (the operator's
+statement, not overwritten by discovery) and `subnets[].availability_zone`
+(declared, never inferred; `validate` refuses a zone incompatible with an
+instance's zonal storages); `subnets[].cidr` is informational and
+`subnets[].config` accepted, not read; the default entry of
+`availability_zones`, when declared, becomes the packer source's
+`availability_zone`.
 
 It strips `name` and refuses one that is empty afterwards (only a
 whitespace-only name can reach that check, because the base already
@@ -130,16 +144,11 @@ substitutes the network id for an empty or `default` name).
 security groups by name, only by id, and it refuses more than five groups in
 `addl_security_groups`.
 
-There is no `security_group_ids` field any more (stage 63). Until
-2026-09-25 the model accepted it, checked its ids against the account and
-counted them toward the limit of five, but no emitter ever read it, so a
-group listed there reached neither the packer source nor the instance and
-storage roots. It was removed rather than wired in, because
-`addl_security_groups` already is the list that reaches the roots. Declaring
-it is now an unknown-key refusal at load (the shared model config forbids
-extra keys), and the error names the key; move the ids into
-`addl_security_groups`. The accessor `get_security_group_ids()` went with
-it; `get_addl_security_groups()` remains.
+There is no `security_group_ids` key: declaring it is an unknown-key
+refusal at load naming the key (the shared model config forbids extra
+keys), because `addl_security_groups` is the list that reaches the packer
+source and the instance and storage roots; put the ids there
+([when this changed](../../docs/CHANGES.md#s63)).
 
 ### `AwsCloudBuilderModel`
 
@@ -149,39 +158,73 @@ which extends `RuntimeBuilderModel` in
 [runtime.py](../base/src/cs_image_system/base/models/runtime.py), which
 extends `BuilderModel` and `NameTyped` in
 [builder_model.py](../base/src/cs_image_system/base/models/builder_model.py).
+The field tables, base and own, are
+[CONFIGURATION 4.1 to 4.3](../../docs/CONFIGURATION.md#43-aws); what follows is what
+this plugin does with each key.
 
-Fields it adds:
+The keys it adds:
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `account_id` | `str \| None` | `None` | The AWS account. Reported by `runtime describe`; usable in templates as `{{ this.account_id }}`. Nothing else reads it: the account boto3 acts in is the profile's. |
-| `credentials` | `AwsCredentials` | empty | Narrows the base `CredentialsBase`. |
-| `state_configuration` | `str` | `DEFAULT` | Foreign key to a state backend. The second rung of every storage and instance root's backend resolution on this runtime: a root whose own `state_configuration` is `default` inherits this one; `default` here falls through to the default backend (stage 46.2, [orchestrator.py](../base/src/cs_image_system/base/orchestrator.py)). |
-| `ena_support` | `bool \| None` | `None` | When declared, written into the `amazon-ebs` packer source as `ena_support = true\|false`, so the baked AMI's Elastic Network Adapter flag is set explicitly; unset, nothing is written and packer's default applies (stage 63; until 2026-09-25 accepted and read by nothing). |
-| `sriov_support` | `bool \| None` | `None` | When declared, written into the `amazon-ebs` packer source as `sriov_support = true\|false` (enhanced networking through the Intel SR-IOV interface); unset, nothing is written and packer's default applies (stage 63; until 2026-09-25 accepted and read by nothing). |
-| `iam_instance_profile` | `str \| None` | `None` | Instance profile written into the packer source for build instances when `session_instance_profile` is unset (it is also the SSM fallback then). When both are set the SSM profile wins (stage 63 item 9, decided 2026-09-24; until then this one, written after the SSM block, replaced it). Never attached to launched instances. |
-| `session_mechanism` | `str \| None` | `None` | `ssm` (any case, surrounding whitespace ignored) is the only value. Any other string is an error the first time the builder's `session_mechanism()` is called, which is at generation. |
-| `session_instance_profile` | `str \| None` | `None` | The SSM-capable instance profile given to launched instances (through the instance plugin) and to build instances (through the packer source). |
-| `ssh_username` | `str` | `DEFAULT` | The bake's SSH user for images on this runtime that name none more specifically: step 4 of the bake-user order ([CONFIGURATION 5.1.1](../../docs/CONFIGURATION.md#511-the-bake-ssh-user)). Until stage 63 it overrode every entry. |
-| `networking` | `AwsCloudNetworkingModel \| None` | `None` | Narrows the base type and makes it optional. Missing networking logs a warning at load; image generation then fails (the packer source reads the VPC and subnet from it). |
-| `vpc_map` | `dict` | discovered | Not an init field. `{vpc_id: {"subnets": [...]}}` from the account. |
-| `default_vpc_id` | `str \| None` | discovered | Not an init field. |
-| `all_security_groups` | `dict[str, dict]` | discovered | Not an init field. `{group_id: description}` from the account. |
+- `account_id` (`str | None`): the AWS account. Reported by
+  `runtime describe`; usable in templates as `{{ this.account_id }}`.
+  Nothing else reads it: the account boto3 acts in is the profile's.
+- `credentials` (`AwsCredentials`, empty): narrows the base
+  `CredentialsBase`.
+- `state_configuration` (`str`, `default`): foreign key to a state
+  backend. The second rung of every storage and instance root's backend
+  resolution on this runtime: a root whose own `state_configuration` is
+  `default` inherits this one; `default` here falls through to the
+  default backend
+  ([orchestrator.py](../base/src/cs_image_system/base/orchestrator.py)).
+- `ena_support` and `sriov_support` (`bool | None`): when declared,
+  written into the `amazon-ebs` packer source as `ena_support =
+  true|false` (the baked AMI's Elastic Network Adapter flag, set
+  explicitly) and `sriov_support = true|false` (enhanced networking
+  through the Intel SR-IOV interface); unset, nothing is written and
+  packer's default applies.
+- `iam_instance_profile` (`str | None`): the instance profile written
+  into the packer source for build instances when
+  `session_instance_profile` is unset (it is also the SSM fallback then).
+  When both are set the SSM profile wins. Never attached to launched
+  instances.
+- `session_mechanism` (`str | None`): `ssm` (any case, surrounding
+  whitespace ignored) is the only value. Any other string is an error the
+  first time the builder's `session_mechanism()` is called, which is at
+  generation.
+- `session_instance_profile` (`str | None`): the SSM-capable instance
+  profile given to launched instances (through the instance plugin) and
+  to build instances (through the packer source).
+- `ssh_username` (`str`, `default`): the bake's SSH user for images on
+  this runtime that name none more specifically: step 4 of the bake-user
+  order ([CONFIGURATION 5.1.1](../../docs/CONFIGURATION.md#511-the-bake-ssh-user)); an entry's
+  own `ssh_username` wins over it.
+- `networking` (`AwsCloudNetworkingModel | None`): narrows the base type
+  and makes it optional. Missing networking logs a warning at load; image
+  generation then fails (the packer source reads the VPC and subnet from
+  it).
+- Not init fields, discovered at load: `vpc_map`
+  (`{vpc_id: {"subnets": [...]}}` from the account), `default_vpc_id`
+  and `all_security_groups` (`{group_id: description}`).
 
-Base fields it inherits, and what this runtime does with them:
-
-| Field | From | Default | Meaning here |
-|---|---|---|---|
-| `name`, `type`, `description`, `aliases` | `NameTyped` | `name`/`type` required | `type` is `aws`. |
-| `executable`, `is_default`, `config`, `gitignore`, `tags` | `BuilderModel` | | `tags` merge into every image's tags; `is_default` makes this the runtime `default` resolves to. |
-| `region` | `CloudBuilderModel` | required | boto3 `region_name`, the packer `region`, the `aws` provider block, `--region` on the release and storage-transition commands. |
-| `default_machine_type` | `RuntimeBuilderModel` | required | Instance type when neither an OS-builder runtime entry nor an image names one; the instance type of a launched instance that declares no `machine_type`. |
-| `default_image_builder` | `RuntimeBuilderModel` | `DEFAULT` | The image builder an OS-builder runtime entry with `image_builder: default` resolves to. |
-| `default_owners` | `RuntimeBuilderModel` | `None` | Joins every vendor-image query's owner list on this runtime, after the OS builder's owners and before the entry's own. Read since stage 63 item 22: the lookup in [os_builder_runtime_config.py](../base/src/cs_image_system/base/models/os_builder_runtime_config.py) keyed the runtime by the entry's `image_builder` name and never found it; it now takes the image builder's runtime. |
-| `default_config_username` | `RuntimeBuilderModel` | `None` | The bake's SSH user when nothing more specific names one: step 5 of the bake-user order ([CONFIGURATION 5.1.1](../../docs/CONFIGURATION.md#511-the-bake-ssh-user)), read since stage 63 item 22. |
-| `ephemeral` | `RuntimeBuilderModel` | `False` | See "Retention and the cycle". |
-| `retention_keep` | `RuntimeBuilderModel` | `None` | Builds kept per series on this runtime when the image declares no retention. |
-| `on_failure`, `teardown_after` | `RuntimeBuilderModel` | `None` | Runtime-level defaults for ephemeral instances. |
+What this runtime does with the keys it inherits: `type` is `aws`;
+`tags` merge into every image's tags, so they reach the AMI and the
+packer source, and `is_default` makes this the runtime `default`
+resolves to; `region` (required) is boto3's `region_name`, the packer
+`region`, the `aws` provider block and `--region` on the release and
+storage-transition commands; `default_machine_type` (required) is the
+instance type when neither an OS-builder runtime entry nor an image
+names one, and the instance type of a launched instance that declares no
+`machine_type`; `default_image_builder` is accepted and checked as a
+foreign key but read by nothing: an OS-builder runtime entry with
+`image_builder: default` resolves to the registry's default image builder
+(the one declared `is_default: true`), not to this field;
+`default_owners` joins every vendor-image query's owner list on this
+runtime, after the OS builder's owners and before the entry's own (the
+lookup in
+[os_builder_runtime_config.py](../base/src/cs_image_system/base/models/os_builder_runtime_config.py)
+takes the image builder's runtime); `default_config_username` is the
+bake's SSH user when nothing more specific names one, step 5 of the
+bake-user order; `ephemeral`, `retention_keep`, `on_failure` and
+`teardown_after` are read as "Retention and the cycle" says.
 
 It overrides `finalize()` to run `update_networking()` after the base
 finalization, and `csis_name()` to return `aws`. It carries the class
@@ -208,7 +251,7 @@ hooks. In the order a run reaches them:
 | Configuration load | `AwsCloudBuilderModel.finalize()` | Runs `update_networking()` (network discovery below). |
 | Resolution | `provider_specific_image_class()` | Returns `AwsProviderSpecificImage`. |
 | Resolution | `query_provider_image(subconfig)` | Finds the vendor AMI for one OS-builder runtime entry (image query below). Returns `(ami_id, owner, raw_result)` or `None`. |
-| Resolution | `query_provider_image_by_id(subconfig, image_id)` | Stage 63: the AMI an entry pins with `image_id`, looked up with `DescribeImages` by id (`aws_utils._query_by_ami_id`) instead of the query. Same return shape; `None` when AWS does not know the id. |
+| Resolution | `query_provider_image_by_id(subconfig, image_id)` | The AMI an entry pins with `image_id`, looked up with `DescribeImages` by id (`aws_utils._query_by_ami_id`) instead of the query. Same return shape; `None` when AWS does not know the id. |
 | Image generation | `packer_source_type()` | `amazon-ebs`. |
 | Image generation | `packer_source_blocks(...)` | The `data "amazon-ami"` lookup and the `source "amazon-ebs"` block for one image. |
 | Image generation | `session_mechanism()` | `ssm` or `None`; raises on any other declared value. |
@@ -220,9 +263,9 @@ hooks. In the order a run reaches them:
 | Instance generation | `session_instance_profile()` | The instance profile the instance module attaches when the mechanism is `ssm`; `None` otherwise. |
 | Instance verification | `verify_instance(name, expected_build, expect_mounts, timeout)` | Over SSM: waits for the launch completion marker `/var/lib/csis/launch-applied`, counts mounts under `/mnt`, compares the booted AMI with the expected build. |
 | Instance operations | `run_session_command(name, script, timeout)` | `AWS-RunShellScript` through SSM on the RUNNING instance whose `Name` tag matches; polls the invocation to completion. |
-| Power state (stage 57) | `can_query_instance_power_state()`, `query_instance_power_state(name)` | `True`; EC2's `State.Name` mapped onto the system's vocabulary (`pending` -> starting, `running`, `stopping`/`shutting-down` -> stopping, `stopped`, `terminated` -> absent, no instance -> absent, anything else -> unknown); `None` only when the cloud could not be asked. |
-| Power state (stage 57) | `can_set_instance_power_state()`, `start_instance(name, timeout)`, `stop_instance(name, timeout)` | `True`; `start_instances` / `stop_instances` followed by the EC2 `instance_running` / `instance_stopped` waiter (5 s delay, `timeout // 5` attempts). Only `running_for_task` calls them. |
-| Identity (stage 58) | `can_query_instance_identity()`, `query_instance_identity(name)` | `True`; `{"instance_id": InstanceId, "provider_hostname": PrivateDnsName}` of the named instance whatever its power state, or `None`. |
+| Power state | `can_query_instance_power_state()`, `query_instance_power_state(name)` | `True`; EC2's `State.Name` mapped onto the system's vocabulary (`pending` -> starting, `running`, `stopping`/`shutting-down` -> stopping, `stopped`, `terminated` -> absent, no instance -> absent, anything else -> unknown); `None` only when the cloud could not be asked. |
+| Power state | `can_set_instance_power_state()`, `start_instance(name, timeout)`, `stop_instance(name, timeout)` | `True`; `start_instances` / `stop_instances` followed by the EC2 `instance_running` / `instance_stopped` waiter (5 s delay, `timeout // 5` attempts). Only `running_for_task` calls them. |
+| Identity | `can_query_instance_identity()`, `query_instance_identity(name)` | `True`; `{"instance_id": InstanceId, "provider_hostname": PrivateDnsName}` of the named instance whatever its power state, or `None`. |
 | Release | `release_commands(build_id, tags)` | One `aws ec2 create-tags --region ... --resources <ami> --tags Key=..,Value=..` executable, with `--profile` when `credentials.profile_name` is set. Runs only under `--no-dry-run` and only when the global `apply_release` is true. |
 | State reconciliation | `retag_image(image_id, tags)` | `create-tags` on one of the system's own AMIs (`lineage relabel`, `lineage restamp`). |
 | Retention | `dispose_image(build_id)` | Deregisters the AMI and deletes every EBS snapshot in its block device mappings. A missing AMI returns `False` (already gone). |
@@ -268,18 +311,17 @@ calls `get_vpc_map_and_default_vpc_id()` in
 
 Then it validates the declaration: `network: default` becomes the default
 VPC (an error when the account has none); the VPC must exist; every
-declared `subnets[].subnet_id` must be one of that VPC's subnets (stage 63,
-below); every id in `addl_security_groups` must exist; more than five of
+declared `subnets[].subnet_id` must be one of that VPC's subnets (below);
+every id in `addl_security_groups` must exist; more than five of
 them is an error. The declared `subnets[].public` flag is the operator's
 statement and is not overwritten by the discovered `is_public`.
 
-The subnet check (stage 63) compares each declared `subnet_id` with the
-subnets the account listed for the declared VPC in `vpc_map`. When a
-declared id is not among them the load is refused with
+The subnet check compares each declared `subnet_id` with the subnets
+the account listed for the declared VPC in `vpc_map`. When a declared id
+is not among them the load is refused with
 `Subnet <id> (<name>) in networking configuration for AWS cloud builder
-<runtime> is not in VPC <vpc>.` Until 2026-09-25 the declared subnet ids were
-not checked at all, so a subnet from another VPC (or a typo) passed the load
-and failed only at the first bake or apply. The check makes a claim only
+<runtime> is not in VPC <vpc>.`, so a subnet from another VPC (or a typo)
+fails at load rather than at the first bake or apply. The check makes a claim only
 when the account's answer lists subnets for the VPC: a VPC listed without
 any subnets (an empty VPC, or a session that cannot see them) leaves every
 declared subnet unchecked rather than refusing all of them. A load
@@ -294,14 +336,14 @@ included).
 [os_builder_runtime_config.py](../base/src/cs_image_system/base/models/os_builder_runtime_config.py))
 and asks it for its effective query, `entry.image_query()`: an
 `ImageQuery` in the SYSTEM's vocabulary
-([contract/image.py](../contract/src/cs_image_system/contract/image.py);
-stage 106). That query is the image-source catalog's `aws` block for the
+([contract/image.py](../contract/src/cs_image_system/contract/image.py)).
+That query is the image-source catalog's `aws` block for the
 OS builder's family (the release's layer under the tree's
 `cfg/image-sources*.yml`), with the OS builder's own `query` landing on it
 key by key and the runtime entry's landing on that; the publishers declared
 anywhere (the OS builder's `owners`, this runtime's `default_owners`, the
 entry's `owners`, in that order, deduplicated) replace the catalog's. The
-entry's own `query` mapping is never rewritten (stage 63). The builder then
+entry's own `query` mapping is never rewritten. The builder then
 translates it with `translate_image_query()` (the table below) and
 `query_image()` in [aws_utils.py](src/cs_image_system/aws_runtime/aws_utils.py)
 runs the `DescribeImages` request `describe_images_request()` makes from
@@ -318,14 +360,13 @@ runtime cannot translate, or has no source at all, and has printed every
 entry's query in both vocabularies (`image source: OS builder '<name>' on
 runtime <rt> (aws): <system query> -> <EC2 query>`).
 
-Before stage 106 the entry's `query.filters` were EC2's field names in
-snake case (the system started on AWS and used its filter keys: the
-operator's incidental choice), passed through a key map, with unknown keys
-going to a post-query exact-match filter. The vocabulary is the system's
-now, EC2's spellings kept where they were good names; the old spellings
-still read (`root_device_type`, `virtualization_type`, `owners`, the
-nested `filters:` form), and an unknown key is refused by name instead of
-buried.
+The vocabulary is the system's, with EC2's spellings kept where they
+were good names; the older spellings of an entry's query (EC2's field
+names in snake case, from when the system started on AWS and used its
+filter keys: `root_device_type`, `virtualization_type`, `owners`, the
+nested `filters:` form) still read, and an unknown key is refused by name
+instead of going to a post-query filter
+([when the vocabulary changed](../../docs/CHANGES.md#s106)).
 
 ### Image query translation
 
@@ -350,7 +391,7 @@ holds this table to it). The answer is `{"owners": [...], "filters":
 | `newest` | `most_recent` | true when unset; false refuses more than one match |
 | `native` | verbatim | each key an EC2 filter name, passed as written |
 
-When the entry declares `image_id` (stage 63), the base's resolve step
+When the entry declares `image_id`, the base's resolve step
 does not call `query_provider_image()` at all: it calls
 `query_provider_image_by_id(entry, image_id)`, which runs `DescribeImages`
 with `ImageIds=[<id>]` through `_query_by_ami_id` in
@@ -392,11 +433,11 @@ which build a client from the same session config. The state query in
 asks `query_instance_boot_image` only because `can_query_instance_boot_image()`
 is `True`. When that answers `None` it asks `query_instance_power_state`
 before calling the silence `unavailable`: a `stopped` machine becomes a
-`note` in the report, not drift and not a failure to answer (stage 57).
+`note` in the report, not drift and not a failure to answer.
 `verify_instance` is the deferred verification step of the instance
 lifecycle; `run_session_command` is how the system runs a script on an
 instance (the unmount before a detach, the post-bake tests, the AltNames
-write of stage 58). `query_instance_identity` feeds the generation ledger
+write). `query_instance_identity` feeds the generation ledger
 and the alias pass in
 [provider_aliases.py](../base/src/cs_image_system/base/provider_aliases.py).
 
@@ -446,8 +487,8 @@ The plugin's output is visible in the golden emission under
   `source_ami`, `ami_name`, `instance_type` (the runtime entry's machine
   type, else the runtime default), `region`, `vpc_id`, `subnet_id` (the
   default subnet), the merged lineage `tags`, `profile`, `ena_support` and
-  `sriov_support` only when the runtime declares them (stage 63; the
-  fixture declares neither, so the golden source carries neither), and, because the
+  `sriov_support` only when the runtime declares them (the fixture
+  declares neither, so the golden source carries neither), and, because the
   runtime declares `session_mechanism: ssm`, `ssh_interface =
   "session_manager"`, `iam_instance_profile`, `associate_public_ip_address =
   false`, `ssh_timeout = "15m"` and a `user_data` script that installs the
@@ -458,7 +499,7 @@ The plugin's output is visible in the golden emission under
   user: `admin` for debian, `ubuntu` for ubuntu, `ec2-user` otherwise). `launch_block_device_mappings` uses the source
   AMI's real `RootDeviceName` (else `/dev/xvda` for debian and amazon roots,
   `/dev/sda1` otherwise), `gp3`, and `volume_size` from
-  `lineage.bake_disk_size(ctx, image, runtime)` (stage 63), the one rule the
+  `lineage.bake_disk_size(ctx, image, runtime)`, the one rule the
   input fingerprint also hashes: this runtime declares no
   `default_disk_size`, so for a base image it is the OS builder entry's
   `default_primary_disk_size` for this runtime when declared, else the OS
@@ -586,7 +627,8 @@ Because `update_networking()` runs at configuration load, the session must
 be live for every load, dry runs and GCE-only work included. An
 `sso-session` profile's token renews itself only while the browser portal
 session lives; a session that lapses mid-run costs the legs that were
-running (2026-09-08, and again 2026-09-21).
+running
+([the incident](../../docs/INCIDENTS.md#the-aws-session-lapsed-mid-cycle-and-then-before-the-preflight-could-say-so)).
 
 **IAM permissions for the caller.** What the plugin itself calls, all with
 the session above: `ec2:DescribeVpcs`, `DescribeSubnets`,
@@ -660,63 +702,20 @@ machine over SSM when asked.
 
 ## Configuration reference
 
-Every field the plugin reads from the YAML it owns (the `type: aws` entry
-under `runtime_builders:`). The base's own fields are included because this
-plugin is what reads them on AWS. Types are the model's; `default` in a
-value column means the literal string `default`.
-
-### The runtime entry
-
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `name` | str | required | The runtime's name; the value other builders' `runtime:` and the lineage records carry. |
-| `type` | str | required | `aws`. |
-| `description` | str or null | null | Free text; templates such as `{{ this.region }}` resolve. |
-| `aliases` | list[str] | `[]` | Extra names the runtime answers to. |
-| `is_default` | bool | `false` | The runtime `default` resolves to; at most one per class. |
-| `tags` | mapping[str, str] | `{}` | Merged into every image's tags, so they reach the AMI and the packer source. |
-| `region` | str | required | boto3 `region_name`; the packer `region`; the provider block; `--region` on the CLI commands the plugin and the storage builders emit. |
-| `default_machine_type` | str | required | The bake instance type when neither the OS-builder runtime entry (`default_machine_type`) nor the image's runtime entry (`machine_type`) names one; the instance type of a launched instance without `machine_type`. |
-| `default_image_builder` | str | `default` | What an OS-builder runtime entry with `image_builder: default` resolves to. |
-| `credentials` | `AwsCredentials` | `{}` | See the model above. An unknown key is a validation error naming its path. |
-| `credentials.profile_name` | str or null | null | The profile. Reaches boto3, the packer source, the release command, the provider blocks and the backend files. |
-| `credentials.aws_access_key_id`, `aws_secret_access_key`, `aws_session_token` | str or null | null | Static keys through `{{ ENV[...] }}` templates; reach boto3 only. |
-| `account_id` | str or null | null | Reported by `runtime describe`; a template value. A bare number is coerced to a string. |
-| `state_configuration` | str | `default` | The backend a storage or instance root on this runtime inherits when its own is `default`; `default` here means the default backend. |
-| `session_mechanism` | str or null | null | `ssm` bakes the SSM agent into base images, makes packer connect through Session Manager, attaches `session_instance_profile` to instances, and makes every instance operation possible (verification, unmount, post-bake tests, aliases). Any other value is refused at generation. |
-| `session_instance_profile` | str or null | null | The instance profile for launched instances and (when `iam_instance_profile` is unset) build instances. Read only when the mechanism is `ssm`. |
-| `iam_instance_profile` | str or null | null | The build instances' profile in the packer source when `session_instance_profile` is unset; with both set the SSM profile wins (stage 63 item 9). Never reaches launched instances. |
-| `ssh_username` | str | `default` | The bake SSH user for images that name none more specifically (step 4 of the bake-user order, CONFIGURATION 5.1.1). |
-| `networking` | mapping or null | null | See below. Null loads with a warning and fails at image generation. |
-| `ephemeral` | bool | `false` | Nothing baked here survives a successful run: the closing retention disposes every build on this runtime. |
-| `retention_keep` | int or null | null | Builds kept per series when the image declares no `retention`; null keeps all. |
-| `on_failure` | str or null | null | Default failure policy for ephemeral instances here: `keep` or `teardown`. |
-| `teardown_after` | str or null | null | Default grace for ephemeral instances here: `<number>` then `m`, `h` or `d`. |
-| `default_owners` | list[str] or null | null | Owners added to every vendor-image query on this runtime (stage 63 item 22). |
-| `default_config_username` | str or null | null | The bake SSH user when no image entry, OS entry, `config_username` or runtime `ssh_username` names one (stage 63 item 22). |
-| `ena_support` | bool or null | null | Declared `true` or `false`: written as `ena_support = true\|false` in the `amazon-ebs` packer source of every image baked here. Null: not written; packer's default applies (stage 63; until 2026-09-25 accepted and read by nothing). |
-| `sriov_support` | bool or null | null | Declared `true` or `false`: written as `sriov_support = true\|false` in the same source. Null: not written; packer's default applies (stage 63; until 2026-09-25 accepted and read by nothing). |
-| `executable`, `config`, `gitignore` | | | Accepted from `BuilderModel`; this plugin reads none of them. |
-| `profile`, `parameters`, `runtime_classifier`, `executables` | | | Refused (unknown keys); the fixture's comments record the replacements. |
-
-### `networking`
-
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `name` | str | the network id | A label; stripped, and refused when empty afterwards. |
-| `network` | str | `default` | The VPC id; `default` resolves at load to the account's default VPC. Written as the packer `vpc_id`, the instance root's `data "aws_vpc"` id and the EFS builder's `vpc_id`. |
-| `subnets` | list | required, at least one | Exactly one entry with `is_default: true`; the load refuses none. |
-| `subnets[].name` | str | the subnet id | Label. |
-| `subnets[].subnet_id` | str | required | The subnet id. The default one is the packer `subnet_id` and the instance module's `subnet_id`; the EFS builder mounts on every non-public one (one per zone). Checked at load against the subnets the account lists for the declared VPC, and refused when it is not one of them (stage 63; until 2026-09-25 not checked). A VPC the account lists without subnets makes no claim. |
-| `subnets[].is_default` | bool | `false` | The subnet bakes and instances use. |
-| `subnets[].public` | bool | `false` | The operator's statement; not overwritten by discovery. The EFS builder skips public subnets. |
-| `subnets[].cidr` | str or null | null | Informational. |
-| `subnets[].availability_zone` | str or null | null | Declared, never inferred; `validate` refuses a zone incompatible with an instance's zonal storages. The EFS builder uses it to pick one subnet per zone. |
-| `subnets[].config` | mapping | `{}` | Accepted, not read. |
-| `availability_zones` | list | `[]` | `{name, is_default}`; the default one becomes the packer `availability_zone`. |
-| `addl_security_groups` | list[str] | `[]` | Checked to exist at load; the only list counted toward the limit of five; appended to the instance's `vpc_security_group_ids`; the EFS mount targets' client groups. |
-| `ssh_ingress_security_group_ids` | list[str] | `[]` | Not checked at load. The generated instance group's port-22 source; when empty the ingress is the VPC's own CIDR block instead. |
-| `security_group_ids` | | | Refused (unknown key) since stage 63. Until 2026-09-25 it was checked and counted but reached no emitter; put the ids in `addl_security_groups`. |
+The YAML this plugin owns is the `type: aws` entry under
+`runtime_builders:`. Its field tables are
+[CONFIGURATION 4.1](../../docs/CONFIGURATION.md#41-fields-common-to-every-builder) (every
+builder), [4.2](../../docs/CONFIGURATION.md#42-fields-common-to-every-runtime) (every runtime),
+[4.3](../../docs/CONFIGURATION.md#43-aws) (the `aws` keys) and [4.5](../../docs/CONFIGURATION.md#45-networking)
+(`networking`); the base's own fields are there because this plugin is
+what reads them on AWS, and the Models section above says what it does
+with each. Three things to know that the tables do not say: `executable`,
+`config` and `gitignore` are accepted from `BuilderModel` and this plugin
+reads none of them; `profile`, `parameters`, `runtime_classifier` and
+`executables` are refused as unknown keys (the fixture's comments record
+the replacements: the modelled key is `credentials.profile_name`, and the
+load names the replacement for `parameters`); and `networking` left null
+loads with a warning and fails at image generation.
 
 ### What other entries contribute
 
@@ -727,8 +726,8 @@ These are not this plugin's fields, but the packer source reads them:
 | OS builder `runtimes[]` entry | `default_machine_type` | The bake instance type for that base (the fixture bakes on `t3.medium` because a `t2.micro` OOMs). |
 | OS builder `runtimes[]` entry | `ssh_username` | The bake user for that OS on this runtime (step 2 of the bake-user order); unset, the order continues down to the chain root family's vendor user. |
 | OS builder `runtimes[]` entry | `owners`, `query` | The `describe_images` request. |
-| OS builder `runtimes[]` entry | `image_id` | Stage 63: an AMI id that replaces the query; looked up by id with `DescribeImages`. |
-| OS builder `runtimes[]` entry | `default_primary_disk_size` | Stage 63: the base image's `volume_size` on this runtime when declared. |
+| OS builder `runtimes[]` entry | `image_id` | An AMI id that replaces the query; looked up by id with `DescribeImages`. |
+| OS builder `runtimes[]` entry | `default_primary_disk_size` | The base image's `volume_size` on this runtime when declared. |
 | OS builder | `default_primary_disk_size` | The base image's `volume_size` when the entry declares none (200 by default). |
 | image `runtimes[]` entry | `machine_type` | The bake instance type for that instance image. |
 | image | `primary_disk_size` | The root volume size of an instance-image bake, in GB. |
@@ -739,18 +738,16 @@ These are not this plugin's fields, but the packer source reads them:
 - **A queried vs a pinned vendor AMI.** Without `image_id` on the OS
   builder's entry, resolution runs the `describe_images` query and takes
   the newest match, so the next base bake may start from a newer vendor
-  AMI. With `image_id` (stage 63) the query is skipped and that one AMI is
+  AMI. With `image_id` the query is skipped and that one AMI is
   looked up by id; it must exist in this runtime's region, and the id is
   part of the fingerprint's vendor source.
 - **Where the bake disk comes from.** `volume_size` is
-  `lineage.bake_disk_size` (stage 63): this runtime has no
-  `default_disk_size`, so a base image takes its entry's
-  `default_primary_disk_size`, else the OS builder's (200). Until
-  2026-09-25 the fingerprint hashed the entry's value (then defaulting to
-  100) while the bake used the OS builder's 200; the fingerprint now
-  hashes what is baked, so every AWS base image's recorded fingerprint
-  moved once and reads DUE until `lineage restamp --runtime <rt> --commit`
-  records the new one.
+  `lineage.bake_disk_size`: this runtime has no `default_disk_size`, so a
+  base image takes its entry's `default_primary_disk_size`, else the OS
+  builder's (200). The input fingerprint hashes the same rule, so the
+  size that is hashed is the size that is baked; a fingerprint recorded
+  under an older rule reads DUE until `lineage restamp --runtime <rt>
+  --commit` records the current one ([when the rule changed](../../docs/CHANGES.md#s63)).
 
 - **`session_mechanism: ssm` declared, with a profile.** The packer source
   gets `ssh_interface = "session_manager"`, the profile as
@@ -766,24 +763,21 @@ These are not this plugin's fields, but the packer source reads them:
   the source keeps the SSH communicator (the SSM block needs a profile).
 - **`iam_instance_profile` set beside `session_instance_profile`.** Both
   build and launched instances wear `session_instance_profile` (the SSM
-  profile wins, stage 63 item 9); `iam_instance_profile` applies to build
+  profile wins); `iam_instance_profile` applies to build
   instances only when the SSM profile is unset.
 - **`networking.network: default`** resolves to the account's default VPC
   at load and is refused when the account has none. **A VPC id** must be one
   the session can describe. Either way, **a declared subnet in that VPC**
   loads and **a subnet id from another VPC** (or a mistyped one) is refused
-  at load (stage 63; it used to pass and fail at the first bake or apply);
+  at load (rather than at the first bake or apply);
   **a VPC the account lists without subnets** leaves the declared subnets
   unchecked.
 - **Security groups in `addl_security_groups`** are checked, counted
   (at most five) and worn by every launched instance; **the same ids under
-  `security_group_ids`** are an unknown-key refusal at load (stage 63; until
-  2026-09-25 accepted, checked and counted, but never emitted).
+  `security_group_ids`** are an unknown-key refusal at load.
 - **`ena_support` / `sriov_support` declared** (`true` or `false`) are
   written into the `amazon-ebs` source as that value; **not declared**, the
-  source carries neither line and packer's defaults decide (stage 63; until
-  2026-09-25 the fields were accepted and read by nothing, whatever their
-  value).
+  source carries neither line and packer's defaults decide.
 - **`ephemeral: true`** keeps nothing baked here past a successful run;
   **`false`** (the fixture) keeps everything until `retention_keep`, an
   image's `retention` or an explicit `dispose image`.
@@ -792,8 +786,8 @@ These are not this plugin's fields, but the packer source reads them:
   the data lookup; **an unpinned or deferred parent** writes the
   name-pattern / most-recent lookup from `get_query_assets()`; **a
   resolved vendor image** writes its exact id and owner.
-- **An entry's `ssh_username`** wins over the runtime's (stage 63 item 23;
-  the runtime's used to win); the OS builder's `config_username` wins over
+- **An entry's `ssh_username`** wins over the runtime's; the OS
+  builder's `config_username` wins over
   the runtime's too. With nothing named anywhere, an image takes `admin`
   (debian root), `ubuntu` (ubuntu root) or `ec2-user`.
 - **A vendor query that resolved** gives the bake the real
@@ -810,7 +804,7 @@ These are not this plugin's fields, but the packer source reads them:
   in meta-state and tags nothing in the cloud.
 - **`apply_instances` on for this runtime** lets the instance root apply,
   after which the plugin's instance hooks have something to find; **off**,
-  the lookups answer "absent" and the stage-58 alias pass does nothing.
+  the lookups answer "absent" and the alias pass does nothing.
 - **A stopped instance** is a `note` in the state report, skips
   verification and login proof unless the task may start it, and is left
   off by the alias pass; **a running one** is verified and aliased; **a
@@ -833,16 +827,14 @@ These are not this plugin's fields, but the packer source reads them:
   account (four describe calls) and refuses a `default` network with no
   default VPC, a VPC the account does not have, a declared
   `subnets[].subnet_id` that is not among the subnets the account lists for
-  that VPC (stage 63; skipped when the account lists none for it), a
+  that VPC (skipped when the account lists none for it), a
   security group in `addl_security_groups` the account does not have, and
   more than five groups in `addl_security_groups`. Missing
   `networking` is a warning, not an error. Every verdict is a `ValueError`
   with the message logged at ERROR first; the load fails and `run` exits 1
   (`validate` exits 1).
 - `security_group_ids` under `networking:` is refused as an unknown key by
-  the shared model config, like any other undeclared key (stage 63; until
-  2026-09-25 it was a field that was validated and counted but never
-  emitted).
+  the shared model config, like any other undeclared key.
 - The AWS CLI version: `validate` and every run look up the checker for
   each declared executable; for the entry named `aws-cli` it is this
   package's, and a missing binary, an unreadable version or one below the
@@ -858,13 +850,13 @@ other than `ssm`. `amazon_ebs_source()` asserts that the source image has
 query assets (an `AssertionError` naming the image and runtime; it cannot
 fire for a resolved or deferred PSI). `ena_support` and `sriov_support` are
 written into the source only when declared, as the declared boolean; there
-is no further check on them (stage 63). Resolution's `query_provider_image`
+is no further check on them. Resolution's `query_provider_image`
 raises when the region is unset or the AMI record carries neither
 `ImageOwnerAlias` nor `OwnerId`, and returns `None` on no match, which
 [resolve.py](../base/src/cs_image_system/base/commands/resolve.py) turns
 into a failed run. For an entry that pins `image_id`,
 `query_provider_image_by_id` returns `None` when AWS does not know the id,
-and resolve.py stops the run naming the id and the runtime (stage 63).
+and resolve.py stops the run naming the id and the runtime.
 
 **At apply.** Nothing in this package runs at apply: packer and tofu do,
 with what this package emitted. Packer's own in-bake verification carries
@@ -920,111 +912,36 @@ a root carrying the GitHub and AWS sections together.
 
 ## When it fails
 
-Failures that have happened, oldest first, then the ones the code raises
-that have not. Dates are from [docs/history/LEDGER.md](../../docs/history/LEDGER.md),
-[docs/OPERATIONS.md](../../docs/OPERATIONS.md) and the tests.
+What the operator sees, what it means and what to do, for the failures
+this plugin raises or takes part in. The failures that have happened live
+are recorded, dated, in [INCIDENTS.md](../../docs/INCIDENTS.md); a row below links its
+entry where one exists.
 
 ### Seen live
 
-- **2026-08-31, stage 1: packer's `data "amazon-ami"` found no credentials.**
-  `No valid credential sources found` from the datasource although the
-  operator's shell was logged in: packer does not read a profile it is not
-  told about. The source now carries `profile = "<profile_name>"` on both
-  the lookup and the source. If it recurs, the runtime's
-  `credentials.profile_name` is unset or the profile has no live session.
-- **2026-08-31, stage 1: `Timeout waiting for SSH` on every bake.** The
-  VPC has no internet gateway, so packer's SSH communicator could never
-  reach the build instance. `session_mechanism: ssm` with a profile makes
-  packer connect through Session Manager; the same message today means the
-  Session Manager plugin is missing on the baking machine, the build
-  instance never registered with SSM (no route to the SSM endpoints from
-  the default subnet, the `user_data` bootstrap failed, or the profile
-  lacks the SSM policy), or the bake ran past `ssh_timeout = "15m"`. Look at
-  the packer log of the bake and at SSM Fleet Manager for the instance.
-- **2026-08-31, stage 1: a Debian chain baked as `ec2-user` never
-  authenticated** (again `Timeout waiting for SSH`, over the SSM tunnel).
-  Only the vendor user's `authorized_keys` receives packer's key, so the
-  bake user now follows the chain root's family (`admin` for debian). A
-  runtime `ssh_username` or an entry `ssh_username` that names the wrong
-  user brings it back.
-- **2026-08-31, stage 1: two root-slot volumes on the deb-11 chain.** A
-  hard-coded `/dev/sda1` device on a Debian root (whose root is
-  `/dev/xvda`) baked an AMI carrying two volumes in the root slot; instances
-  from it never booted. The mapping now uses the source AMI's real
-  `RootDeviceName`, else the family default. A deferred source still falls
-  back by family, so a chain whose root family is unknown to
-  `_chain_root_family` gets `/dev/sda1`.
-- **2026-08-31 to 2026-09-01, stage 1: `t2.micro` out of memory** at bake
-  (`dnf update` killed) and on instances (the SSM agent killed, finding 25).
-  The OS builder entries bake on `t3.medium`; an instance declares its own
-  `machine_type`. The symptom is a bake that dies mid-provisioner or an
-  instance that stops answering SSM after boot.
-- **Stage 1: `curl: (23)` re-downloading the SSM agent** on Debian during
-  the agent provisioner, because the `user_data` bootstrap had already left
-  a root-owned `/tmp/ssm.deb`. The provisioner now skips the install when
-  the agent is present and downloads to its own file name.
-- **2026-09-01 to 2026-09-02, stage 1, findings 27 to 31: `sft ssh` hung
-  on the advertised private address.** Instances wore only the VPC default
-  group; the instance root now creates `csis-instances` with SSH ingress
-  from `ssh_ingress_security_group_ids` only (opening the shared CIDRs is
-  forbidden), and the gateway relay also needs the target in the gateway's
-  own group (`addl_security_groups`). An instance that cannot be reached by
-  the relay while SSM works points at those two lists.
-- **2026-09-02 and 2026-09-03: orphan AMIs from failed and unrequested
-  bakes.** Eleven AMIs and twelve snapshots from stage 1, and two more from
-  stale runner scripts, appeared as `foreign` in the state query (they carry
-  our tags, no record has them). The operator deregistered them by hand;
-  `state import` adopts such an image, `dispose image` removes a recorded
-  one. A `foreign` line is never hard drift, but every line is actionable.
-- **2026-09-08: a follow image kept its generation-time tags.** A child
-  baked in the same run as its parent was tagged with a `series-...`
-  parent and a placeholder fingerprint; the state query reported `changed`.
-  The packer plugin now calls `retag_image` after every bake, and `lineage
-  relabel --runtime <rt>` re-tags any build whose tags still disagree with
-  its record.
-- **2026-09-08: the AWS SSO session lapsed mid-run.** A `tofu plan` failed
-  with `No valid credential sources found ... backend s3 ... the SSO
-  session has expired` after `cloud-preflight` had passed at the start;
-  the same lapse ends any load with `AWS Error: ...` from
-  `get_vpc_map_and_default_vpc_id`, on GCE work too. Environmental, not a
-  defect: `aws sso login --profile noaa`, then `just full-test-legs` or the
-  legs that were running. `preflight` and the strict state query flag a
-  session expiring within `config.preflight.expected_run_minutes`;
-  an `sso-session` profile reports no fixed expiry.
-- **2026-09-09: the first live AWS disposal** (`dispose image <two EL8
-  AMIs> --no-dry-run --commit`) deregistered both and deleted their
-  snapshots; `describe-images` on both ids answered an empty list
-  afterwards. Not a failure, but the proof that a disposal's success is
-  read from the cloud, not from the log line.
-- **2026-09-10, ledger 72: `InvocationDoesNotExist` right after
-  `send_command`.** The unmount had already run on the instance when
-  `get_command_invocation` raised, so no receipt was written and the gate
-  refused the detach. The poll now tolerates that code until its deadline
-  ([test_v2_aws_parity.py](../../tests/test_v2_aws_parity.py)); any other
-  SSM error still raises.
-- **2026-09-12, stage 17: `credentials.profile_nme` was silently dropped.**
-  With `credentials` a plain mapping the typo left the profile unset and
-  boto3 fell back to `AWS_PROFILE` or nothing. The typed `AwsCredentials`
-  makes it a validation error naming `credentials.profile_nme`.
-- **2026-09-21, stage 57: a stopped machine was reported as "the provider
-  could not answer".** The boot-image probe filters on `running`, so a
-  machine the operator had switched off looked like an unreachable cloud
-  and `run_session_command` said `no running instance` for both. The
-  power-state hook separates them: the state report says `STOPPED (switched
-  off; not drift)` in a `note`, and a session command on a stopped machine
-  fails with `cannot run a command on '<name>': it is STOPPED (switched off;
-  not drift)`.
-- **2026-09-22: the strict query refused the launch that finishes an
-  upgrade.** After `upgrade instance` moved the pin, the booted AMI was
-  behind it by design, and `cloud-launch`'s preflight called that
-  `changed`. With the pending-replacement marker present it is now a
-  `note`; without the marker it is drift again.
-- **2026-09-22, stage 58: the first live replacement wrote no aliases.**
-  The alias pass ran before the new machine had enrolled; a machine launched
-  in the same run is now waited for, and one that never enrolls gets no
-  alias that run (the log says so).
+| Symptom | Meaning | What to do |
+|---|---|---|
+| `No valid credential sources found` from packer's `data "amazon-ami"` while your shell is logged in ([the entry](../../docs/INCIDENTS.md#packers-ami-lookup-found-no-credentials)) | packer reads no profile it is not told about; the source carries `profile = "<profile_name>"` on both the lookup and the source, so the runtime's `credentials.profile_name` is unset or the profile has no live session. | Set the profile; `aws sso login --profile <p>`. |
+| `Timeout waiting for SSH` on every bake ([the entry](../../docs/INCIDENTS.md#every-aws-bake-timed-out-waiting-for-ssh)) | The VPC has no internet gateway, so packer's SSH communicator can never reach the build instance; `session_mechanism: ssm` with a profile makes packer connect through Session Manager. With that declared, the Session Manager plugin is missing on the baking host, the build instance never registered with SSM (no route to the SSM endpoints from the default subnet, the `user_data` bootstrap failed, or the profile lacks the SSM policy), or the bake ran past `ssh_timeout = "15m"`. | Read the packer log of the bake and SSM Fleet Manager for the instance. |
+| `Timeout waiting for SSH` over the SSM tunnel on a Debian chain ([the entry](../../docs/INCIDENTS.md#a-debian-chain-baked-as-ec2-user-never-authenticated)) | Only the vendor user's `authorized_keys` receives packer's key, so the bake user follows the chain root's family (`admin` for debian); a runtime `ssh_username` or an entry `ssh_username` that names the wrong user brings it back. | Fix or remove that `ssh_username`. |
+| An AMI carrying two volumes in the root slot; instances from it never boot ([the entry](../../docs/INCIDENTS.md#a-baked-ami-carried-two-root-slot-volumes)) | A device hard-coded for a Debian root, whose root is `/dev/xvda`. The mapping uses the source AMI's real `RootDeviceName`, else the family default, so only a deferred source whose chain root family is unknown to `_chain_root_family` still gets `/dev/sda1`. | Resolve the vendor query, or make the chain root's family one the map knows. |
+| A bake that dies mid-provisioner (`dnf update` killed), or an instance that stops answering SSM after boot ([the entry](../../docs/INCIDENTS.md#a-1-gb-bake-host-starved-the-package-manager-and-the-ssm-agent)) | A 1 GB `t2.micro` cannot keep the package manager and the SSM agent alive at once. | Bake on `t3.medium` (the OS builder entries' `default_machine_type`); give the instance its own `machine_type`. |
+| `curl: (23)` in the agent provisioner on Debian ([the entry](../../docs/INCIDENTS.md#curl-refused-to-re-download-the-ssm-agent-on-debian)) | The `user_data` bootstrap had already left a root-owned `/tmp/ssm.deb`. The provisioner skips the install when the agent is present and downloads to its own file name. | Nothing; a recurrence means the agent is absent and the download target clashes again. |
+| `sft ssh` hangs on the advertised private address while SSM works ([the entry](../../docs/INCIDENTS.md#sft-ssh-hung-on-an-instance-every-step-had-reported-as-launched)) | The instance root creates `csis-instances` with SSH ingress from `ssh_ingress_security_group_ids` only (opening the shared CIDRs is forbidden), and the gateway relay needs the target in the gateway's own group (`addl_security_groups`). | Check those two lists. |
+| `foreign` AMIs in the state query: our tags, no record ([the entry](../../docs/INCIDENTS.md#orphan-amis-from-failed-and-unrequested-bakes)) | Orphans from failed or unrequested bakes (a stale runner script). | `state import` adopts one, `dispose image` removes a recorded one, the console deregisters the rest. A `foreign` line is never hard drift, but every line is actionable. |
+| `changed` for a child baked in the same run as its parent ([the entry](../../docs/INCIDENTS.md#a-follow-image-kept-its-generation-time-tags)) | Generation-time tags (a `series-...` parent, a placeholder fingerprint); the packer plugin calls `retag_image` after every bake. | `lineage relabel --runtime <rt>` re-tags any build whose tags still disagree with its record. |
+| `No valid credential sources found ... backend s3 ... the SSO session has expired` from a `tofu plan` after `cloud-preflight` passed, or `AWS Error: ...` from `get_vpc_map_and_default_vpc_id` on any load, GCE work included ([the entry](../../docs/INCIDENTS.md#the-aws-session-lapsed-mid-cycle-and-then-before-the-preflight-could-say-so)) | The session lapsed mid-run. Environmental, not a defect: `preflight` and the strict state query flag a session expiring within `config.preflight.expected_run_minutes`, and an `sso-session` profile reports no fixed expiry. | `aws sso login --profile noaa`, then `just full-test-legs` or the legs that were running. |
+| `InvocationDoesNotExist` right after `send_command` ([the entry](../../docs/INCIDENTS.md#invocationdoesnotexist-right-after-send_command)) | SSM had not yet registered the invocation. The poll tolerates that code until its deadline ([test_v2_aws_parity.py](../../tests/test_v2_aws_parity.py)); any other SSM error still raises. | Nothing; the receipt is written once the poll completes. |
+| A validation error naming `credentials.profile_nme` ([the entry](../../docs/INCIDENTS.md#a-misspelt-credentials-key-was-silently-dropped)) | The typed `AwsCredentials` refuses a misspelt key, so a typo cannot leave the profile unset with boto3 falling back to `AWS_PROFILE` or nothing. | Fix the key. |
+| `STOPPED (switched off; not drift)` in a `note`, or `cannot run a command on '<name>': it is STOPPED (switched off; not drift)` ([the entry](../../docs/INCIDENTS.md#a-stopped-machine-was-reported-as-the-provider-could-not-answer)) | The power-state hook separates a machine the operator switched off from an unreachable cloud. | Leave it off, or start it yourself; the system starts one only for a bounded task. |
+| The strict query refuses the launch that finishes an upgrade ([the entry](../../docs/INCIDENTS.md#the-first-live-replacement-four-traps-in-one-afternoon)) | After `upgrade instance` moves the pin, the booted AMI is behind it by design; with the pending-replacement marker present it is a `note`, without the marker it is drift. | Run the launch; if the marker is gone, `upgrade instance` again. |
+| A replacement writes no aliases (the same entry) | The alias pass waits for a machine launched in the same run; one that never enrolls gets no alias that run (the log says so). | Enroll the machine; the next run writes the alias. |
 
-### Raised by the code, not yet seen
+A disposal's success is read from the cloud, not from the log line:
+after `dispose image <ids> --no-dry-run --commit`, `describe-images` on
+the ids answers an empty list.
+
+### Raised by the code
 
 Load (`ValueError`, logged at ERROR, `run`/`validate` exit 1):
 
@@ -1038,19 +955,18 @@ AWS Error: <botocore message>
 Networking configuration name cannot be empty for <model>.
 ```
 
-The subnet line (stage 63) means a declared `subnets[].subnet_id` is not one
-of the subnets the account lists for the declared VPC: a typo, a subnet from
+The subnet line means a declared `subnets[].subnet_id` is not one of the
+subnets the account lists for the declared VPC: a typo, a subnet from
 another VPC or account, or a `network: default` that resolved to a VPC other
 than the one the subnets belong to. Fix the subnet id or the `network` in the
-tree. Before 2026-09-25 this passed the load and surfaced at the first bake
-or apply as a packer or tofu error about the subnet. The security-group
-count line counts only `addl_security_groups` since stage 63.
+tree; without this check the mistake surfaces at the first bake or apply
+as a packer or tofu error about the subnet. The security-group count line
+counts only `addl_security_groups`.
 
-Declaring `networking.security_group_ids` fails the load as an unknown key
-(stage 63), with the shared model config's extra-key error naming
-`security_group_ids`. Until 2026-09-25 the field was accepted, checked and
-counted but never emitted; move its ids into `addl_security_groups`, which
-is the list that reaches the instance and storage roots.
+Declaring `networking.security_group_ids` fails the load as an unknown key,
+with the shared model config's extra-key error naming
+`security_group_ids`; move its ids into `addl_security_groups`, which is
+the list that reaches the instance and storage roots.
 
 `AWS Error:` wraps every `BotoCoreError`/`ClientError` of the discovery: an
 unknown profile (`The config profile (<p>) could not be found`), an expired
@@ -1070,7 +986,7 @@ Region must be specified in builder config to resolve image identifier, but got 
 Could not get owner alias or owner id for image <ami> in region <region>, got <dict>
 No resolved Image identifiers for OS <os builder> in predefined_resolve   (base: the query matched nothing)
 Failed to query AMI by ID: <e>                        (AMIQueryError: a DescribeImages refusal other than NotFound/Malformed, for a pinned image_id)
-OS builder <name>: image_id '<id>' on runtime <rt> is not known to the provider   (base, stage 63: the pinned AMI is not in this region, is deregistered, or is malformed)
+OS builder <name>: image_id '<id>' on runtime <rt> is not known to the provider   (base: the pinned AMI is not in this region, is deregistered, or is malformed)
 ```
 
 The `No resolved Image identifiers` line is the usual symptom of a vendor query that is too narrow, an
@@ -1159,7 +1075,7 @@ when the installed version is below it.
 - [default-os-plugin](../default-os-plugin/README.md): the OS builders whose runtime entries this plugin resolves to AMIs.
 - [packer-plugin](../packer-plugin/README.md): the image builder that asks this plugin for the `amazon-ebs` source and the session provisioners.
 - [tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md): the instance and storage roots that read this model's networking, profile and session profile.
-- [dummy-plugin](../dummy-plugin/README.md): the extension template (an unregistered copy of its group model sat at the bottom of this package's models module until stage 63).
+- [dummy-plugin](../dummy-plugin/README.md): the extension template.
 - Base classes: [runtime.py](../base/src/cs_image_system/base/models/runtime.py), [cloud_builder.py](../base/src/cs_image_system/base/models/cloud_builder.py), [credentials.py](../base/src/cs_image_system/base/models/credentials.py), [provider_specific_image.py](../base/src/cs_image_system/base/models/provider_specific_image.py), [builder_base_runtime.py](../base/src/cs_image_system/base/basic/builder_base_runtime.py), [abstract_version_checker.py](../base/src/cs_image_system/base/basic/abstract_version_checker.py).
 - Consumers of the hooks: [state_query.py](../base/src/cs_image_system/base/state_query.py), [retention.py](../base/src/cs_image_system/base/retention.py), [dispose.py](../base/src/cs_image_system/base/commands/dispose.py), [verify_instance.py](../base/src/cs_image_system/base/commands/verify_instance.py), [unmount.py](../base/src/cs_image_system/base/commands/unmount.py), [relabel.py](../base/src/cs_image_system/base/commands/relabel.py), [release.py](../base/src/cs_image_system/base/release.py), [power_state.py](../base/src/cs_image_system/base/power_state.py), [provider_aliases.py](../base/src/cs_image_system/base/provider_aliases.py), [runtime_facts.py](../base/src/cs_image_system/base/commands/runtime_facts.py).
 - [docs/OPERATIONS.md](../../docs/OPERATIONS.md) for the credential contract and the operator's cycles; [docs/DESIGN.md](../../docs/DESIGN.md) for the design; [docs/PLUGINS.md](../../docs/PLUGINS.md) for the package index.

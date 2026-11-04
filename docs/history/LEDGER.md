@@ -22,7 +22,7 @@ here. References elsewhere of the form "TODO.md item N" mean this list.
 3. **Instance-builder apply guard re-armed — DONE (V2 gate 5/7).**
    `plan -out=tfplan` → `gate-plan` → `apply tfplan`, the apply emitted
    only under `config.apply_instances` (see
-   [docs/OPERATIONS.md](OPERATIONS.md)).
+   [docs/OPERATIONS.md](../OPERATIONS.md) (a live file, not part of this record)).
 4. **Read-only GROUP builder (`okta-tf-ro` group type) — KEEP
    (decision 2026-08-26).** No consumer today; not to be removed. Sharp
    edge: the okta provider's group-name search is prefix-based, so a
@@ -89,7 +89,7 @@ Stakeholder question: does the image builder actually allow modifications using 
 2. **The bash builder emits invalid HCL.** It wrote the script's raw lines (and an `exit 0`) straight into the packer build file, not inside a `provisioner "shell"` block; any build carrying a real bash mod would fail `packer validate`.
 3. **`scripts:` (script files) was not a recognized bash field** — only inline `script:` lines — so the fixture's `scripts: [...]` was dropped.
 
-The requirement this restated stays in [../GOALS.md](../GOALS.md) ("Modifications: shell scripts AND ansible playbooks"); plan and execution: [DESIGN.md](DESIGN.md) §3M2 / gate 8.
+The requirement this restated stays in [../GOALS.md](../../GOALS.md) (a live file, not part of this record) ("Modifications: shell scripts AND ansible playbooks"); plan and execution: [DESIGN.md](../DESIGN.md) (a live file, not part of this record) §3M2 / gate 8.
 
 ## Stage 1 live-run findings ledger (moved from TODO.md, 2026-09-02)
 

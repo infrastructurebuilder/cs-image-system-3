@@ -16,7 +16,7 @@ own version; `tests/test_v2_package_metadata.py` holds it to that.
 
 | Package | What it is |
 | --- | --- |
-| [contract](../packages/contract/README.md) | The plugin contract (stage 30): the protocols a model and a builder satisfy, the constants and field helpers a model is declared with, the lifecycle phases a hook keys on, the data carriers a hook returns. Depends on nothing of the system; `base` depends on it. A plugin is written against this package. |
+| [contract](../packages/contract/README.md) | The plugin contract: the protocols a model and a builder satisfy, the constants and field helpers a model is declared with, the lifecycle phases a hook keys on, the data carriers a hook returns. Depends on nothing of the system; `base` depends on it. A plugin is written against this package. |
 | [base](../packages/base/README.md) | The core: the base models and builder bases that implement the contract, the registry and the plugin loader, the lifecycles and phases, the run context, meta-state, encryption, the public-safe gate, lineage, releases, retention, launch parameters. Every built-in plugin depends on it; an external one need not. |
 | [system](../packages/system/README.md) | The CLI host: the `cs-image-system` command and every subcommand. |
 | [hashicorp-utils](../packages/hashicorp-utils/README.md) | A library, not a plugin: the terraform collector (providers, plugins, backends, sensitive values by reference), the terraform root mixin (init, the gated plan → gate → apply sequence), HCL rendering. Six plugins use it. |
@@ -30,20 +30,20 @@ registers model and builder classes under the classifications it claims.
 | --- | --- | --- |
 | [aws-runtime-plugin](../packages/aws-runtime-plugin/README.md) | runtime | `aws` |
 | [gcloud-runtime-plugin](../packages/gcloud-runtime-plugin/README.md) | runtime | `gcloud` |
-| [docker-runtime-plugin](../packages/docker-runtime-plugin/README.md) | runtime | `docker` (a durable host's container daemon, reached through the Docker Engine API; stage 103) |
-| [tf-docker-plugin](../packages/tf-docker-plugin/README.md) | instance and storage builders | `tofu-docker` (containers through OpenTofu's `kreuzwerker/docker` provider) and `tf-docker-volume` (named volumes); stage 103 |
+| [docker-runtime-plugin](../packages/docker-runtime-plugin/README.md) | runtime | `docker` (a durable host's container daemon, reached through the Docker Engine API) |
+| [tf-docker-plugin](../packages/tf-docker-plugin/README.md) | instance and storage builders | `tofu-docker` (containers through OpenTofu's `kreuzwerker/docker` provider) and `tf-docker-volume` (named volumes) |
 | [default-os-plugin](../packages/default-os-plugin/README.md) | OS families | the family names an OS builder declares |
 | [packer-plugin](../packages/packer-plugin/README.md) | image builders | the packer builders for EBS, GCE and docker images (`packer-ebs`, `packer-gce`, `packer-docker`) |
 | [ansible-plugin](../packages/ansible-plugin/README.md) | modifications | `ansible` (playbooks) |
 | [bash-mod-plugin](../packages/bash-mod-plugin/README.md) | modifications | `bash-remote` (script, scripts, ensure) |
 | [okta-opa-plugin](../packages/okta-opa-plugin/README.md) | groups and users | the OPA group builder, the managed and read-only user builders |
-| [posix-identity-plugin](../packages/posix-identity-plugin/README.md) | groups and users | `posix` (a group and a user builder: POSIX accounts with declared ids; stage 75) |
+| [posix-identity-plugin](../packages/posix-identity-plugin/README.md) | groups and users | `posix` (a group and a user builder: POSIX accounts with declared ids) |
 | [tf-ebs-instance-plugin](../packages/tf-ebs-instance-plugin/README.md) | instances and storages | the terraform instance and storage builders |
 | [tf-gcp-plugin](../packages/tf-gcp-plugin/README.md) | GCE terraform pieces | see its README for exactly what it registers |
 | [tf-s3-state-plugin](../packages/tf-s3-state-plugin/README.md) | state backends | `s3` |
-| [contract-example-plugin](../packages/contract-example-plugin/README.md) | state backends | `inmem` (OpenTofu's in-memory state; the proof of the contract, stage 30: written against the contract alone, never a backend for a real tree) |
-| [local-state-plugin](../packages/local-state-plugin/README.md) | state backends | `local` (a state file on disk; stage 47) |
-| [gcs-state-plugin](../packages/gcs-state-plugin/README.md) | state backends | `gcs` (a Google Cloud Storage bucket; declared in the fixture, bound to nothing; stage 47) |
+| [contract-example-plugin](../packages/contract-example-plugin/README.md) | state backends | `inmem` (OpenTofu's in-memory state; the proof of the contract: written against the contract alone, never a backend for a real tree) |
+| [local-state-plugin](../packages/local-state-plugin/README.md) | state backends | `local` (a state file on disk) |
+| [gcs-state-plugin](../packages/gcs-state-plugin/README.md) | state backends | `gcs` (a Google Cloud Storage bucket; declared in the fixture, bound to nothing) |
 | [dummy-plugin](../packages/dummy-plugin/README.md) | extension template and test double | see its README |
 
 The exact keys, aliases and classifications are in each README's "What it
@@ -55,9 +55,9 @@ reads is [CONFIGURATION.md](CONFIGURATION.md).
 
 Every package README ends with the same four sections, in this order, so
 a reader finds the same thing in the same place in every package; only a
-`## Related` section may follow them. Stage 62 (2026-09-23) set the
-contract; [tests/test_docs_contract.py](../tests/test_docs_contract.py)
-holds every README to it and checks that every relative link in the
+`## Related` section may follow them.
+[tests/test_docs_contract.py](../tests/test_docs_contract.py) holds
+every README to the contract and checks that every relative link in the
 READMEs, in this file, in the root README, in the starter trees'
 CI setup guide and in [DAILY_DRIVER.md](DAILY_DRIVER.md) resolves.
 

@@ -1,7 +1,7 @@
 # cs-image-system-base
 
 The core library of cs-image-system. It implements the plugin contract
-([contract](../contract/README.md), stage 30) with its base models and
+([contract](../contract/README.md)) with its base models and
 builder bases, and defines the registry, the plugin loader, the lifecycle
 runner, the cross-run meta-state, value encryption, the public-safe gate,
 and the lineage, release, retention, launch-parameter and capability
@@ -52,9 +52,9 @@ back to.
 
 ## The plugin contract
 
-The contract itself is the [contract](../contract/README.md) package
-(stage 30): the protocols a model and a builder satisfy, the constants and
-field helpers, the lifecycle phases, the data carriers a hook returns. This
+The contract itself is the [contract](../contract/README.md) package:
+the protocols a model and a builder satisfy, the constants and field
+helpers, the lifecycle phases, the data carriers a hook returns. This
 package implements it -- the base models and builder bases below carry a
 default for every hook -- and reads it: the loader and the registry are
 here. Source: [`loader.py`](src/cs_image_system/base/loader.py),
@@ -119,7 +119,7 @@ does the same from constructor arguments in this order (the plugin's
 | `builders_for_models`         | `dict[type, type]`                    | Model class to builder class. One builder per model. |
 | `injected_models`             | `dict[VCT, type]`                     | Item models the plugin injects under a classification. |
 | `is_injected_models_default`  | `bool`                                | Whether injected models become the default for their classification. |
-| `version`                     | `str`                                 | The plugin's own version: the one given, else the version of the distribution that ships the metadata class, else `0`. Until stage 30 it returned the metadata version. |
+| `version`                     | `str`                                 | The plugin's own version: the one given, else the version of the distribution that ships the metadata class, else `0`. |
 
 `PluginArtifactProtocol` is two class methods:
 
@@ -235,9 +235,9 @@ Per-kind bases add a contract:
 
 | Base class            | Classification     | Notable members |
 | ----------------------- | -------------------- | ----------------- |
-| `RuntimeBuilderBase`  | `RUNTIME_BUILDER`  | `query_provider_image`, `query_provider_image_by_id(entry, image_id)` (stage 63: the vendor image an OS builder entry pins by `image_id`, same return shape as `query_provider_image`, `None` when the provider does not know it; the base raises `NotImplementedError`, AWS and GCE implement it), `query_images`, `verify_instance`, `run_session_command`, `inventory`, `dispose_image`, `retag_image`, `packer_source_type`, `packer_source_blocks`, `build_id_from_artifact`, `session_mechanism`, `session_agent_commands`, `session_verify_commands`, `bake_finalize_commands`, `bake_ssh_username(image)`, `default_bake_user(family)` and `one_bake_user_per_chain()` (stage 63: the last step of the bake-user order and the GCE one-user rule), `label_key_problem(key)` (stage 63: why a declared tag key cannot become a label on this runtime; the base says nothing, GCE wants a lowercase letter first), `release_commands`, `session_instance_profile`, `provider_specific_image_class`, `create_provider_specific_image_resolved` / `_deferred`; and the gated reality hooks, each behind a `can_*` predicate so an unsupported cloud makes no claim: `can_query_instance_boot_image` / `query_instance_boot_image`, `can_query_instance_power_state` / `query_instance_power_state` (the vocabulary of [`power_state.py`](src/cs_image_system/base/power_state.py); `None` means "cannot answer", never "stopped"), `can_set_instance_power_state` / `start_instance` / `stop_instance`, `can_query_instance_identity` / `query_instance_identity` (`instance_id`, `provider_hostname`). |
+| `RuntimeBuilderBase`  | `RUNTIME_BUILDER`  | `query_provider_image`, `query_provider_image_by_id(entry, image_id)` (the vendor image an OS builder entry pins by `image_id`, same return shape as `query_provider_image`, `None` when the provider does not know it; the base raises `NotImplementedError`, AWS and GCE implement it), `query_images`, `verify_instance`, `run_session_command`, `inventory`, `dispose_image`, `retag_image`, `packer_source_type`, `packer_source_blocks`, `build_id_from_artifact`, `session_mechanism`, `session_agent_commands`, `session_verify_commands`, `bake_finalize_commands`, `bake_ssh_username(image)`, `default_bake_user(family)` and `one_bake_user_per_chain()` (the last step of the bake-user order and the GCE one-user rule), `label_key_problem(key)` (why a declared tag key cannot become a label on this runtime; the base says nothing, GCE wants a lowercase letter first), `release_commands`, `session_instance_profile`, `provider_specific_image_class`, `create_provider_specific_image_resolved` / `_deferred`; and the gated reality hooks, each behind a `can_*` predicate so an unsupported cloud makes no claim: `can_query_instance_boot_image` / `query_instance_boot_image`, `can_query_instance_power_state` / `query_instance_power_state` (the vocabulary of [`power_state.py`](src/cs_image_system/base/power_state.py); `None` means "cannot answer", never "stopped"), `can_set_instance_power_state` / `start_instance` / `stop_instance`, `can_query_instance_identity` / `query_instance_identity` (`instance_id`, `provider_hostname`). |
 | `CloudBuilderBase` / `ContainerBuilderBase` | runtime | Thin subclasses of `RuntimeBuilderBase`. |
-| `GroupBuilderBase`    | `GROUP_BUILDER`    | `identity_type()`, `gid_policy()` (`config-time`, `creation-only`, `provider-assigned`), `manages_groups()` (stage 63: `False` for a lookup-only builder, whose groups the read-model records `managed: false` and which comes after a managing builder of its type), `managed_groups()`, `enrollment_token_reference()`, `base_image_prerequisites()`, `verify_commands()`, `activation_commands()`, `activation_verify_commands()`, `launch_parameters()`, `query_state()`, `validate_attributes()`, `query_attributes()`, `attribute_conflicts()`, `export_gids()`; the server registry (stage 55): `can_query_servers()`, `registered_servers(group)` (`None` when the provider could not be asked, never an empty list), `retire_servers_named(group, hostname)`; `prune_stale_attachments(tofu, run_id, cwd)` (stage 61, a runner step, default no-op); and the CI login policy (stage 56): `can_manage_workload_access()`, `workload_access_expected(group)`, `workload_access_state(group)`, `ensure_workload_access(group)`. |
+| `GroupBuilderBase`    | `GROUP_BUILDER`    | `identity_type()`, `gid_policy()` (`config-time`, `creation-only`, `provider-assigned`), `manages_groups()` (`False` for a lookup-only builder, whose groups the read-model records `managed: false` and which comes after a managing builder of its type), `managed_groups()`, `enrollment_token_reference()`, `base_image_prerequisites()`, `verify_commands()`, `activation_commands()`, `activation_verify_commands()`, `launch_parameters()`, `query_state()`, `validate_attributes()`, `query_attributes()`, `attribute_conflicts()`, `export_gids()`; the server registry: `can_query_servers()`, `registered_servers(group)` (`None` when the provider could not be asked, never an empty list), `retire_servers_named(group, hostname)`; `prune_stale_attachments(tofu, run_id, cwd)` (a runner step, default no-op); and the CI login policy: `can_manage_workload_access()`, `workload_access_expected(group)`, `workload_access_state(group)`, `ensure_workload_access(group)`. |
 | `UserBuilderBase`     | `USER_BUILDER`     | `add_user_to_builder()` enforces `email_as_username`; `default_managed()`, `is_managed()`, `validate_user()`, `validate_attributes()`, `query_attributes()`. |
 | `StorageBuilderBase`  | `STORAGE_BUILDER`  | `capability_type()`, `attachment_cardinality()` (`single` or `many`), `is_zonal()` (default `False`: a regional storage constrains no availability zone), `is_posix()`, `base_image_prerequisites()`, `verify_commands()`, `transition_actions()`, `validate_lifecycle()`, `query_state()`, `destroy_whitelist()`. |
 | `ImageBuilderBase`    | `IMAGE_BUILDER`    | `add_image()`, `get_images()`, `build_target_label()`, block paths per phase. |
@@ -300,8 +300,8 @@ tree on disk is never changed.
 
 ### Image sources (`cfg/image-sources*.yml`, key `image_sources`)
 
-Source: [`image_sources.py`](src/cs_image_system/base/image_sources.py)
-(stage 106). The catalog of vendor image sources per family and runtime
+Source: [`image_sources.py`](src/cs_image_system/base/image_sources.py).
+The catalog of vendor image sources per family and runtime
 type, in the system's query vocabulary (`contract.image.ImageQuery`):
 the release's layer ships in this package
 ([`data/image-sources.yml`](src/cs_image_system/base/data/image-sources.yml))
@@ -333,19 +333,18 @@ text by the ordered resolution passes:
    `execution.timestamp` is the run start formatted with the tree's
    `dateformat` (default `%Y%m%d_%H%M%S`, `DEFAULT_DATEFORMAT` in
    [ia_config.py](src/cs_image_system/base/models/ia_config.py), the same
-   default the model carries since stage 63); `execution.date` is the ISO
+   default the model carries); `execution.date` is the ISO
    date; `execution.dateformat` is the format string.
 2. `scope-this` renders, per plugin key (`runtime_builders`,
    `os_builders`, ...), with `this` bound to the nearest enclosing mapping
    and `this.parent` to the mapping that owns it. `config` is scoped the
    same way: a top-level item's own `config:` is merged over the
-   document's `config:` for that item, and (stage 63) a NESTED mapping's
+   document's `config:` for that item, and a NESTED mapping's
    own `config:` (an OS builder's `runtimes[]` entry, for example) is
    merged over the enclosing one for its subtree, key by key, so
    `{{ config.x }}` in the entry's `description` resolves from the entry's
    own `config` first (`_render_scoped` in
    [`template_utils.py`](src/cs_image_system/base/template_utils.py)).
-   Until 2026-09-25 a nested item's `config` was reachable by nothing.
 
 Tags that cannot render are kept as written, so a later stage can render
 them.
@@ -422,7 +421,7 @@ keeps the original spelling for output. A name or alias may not contain
 `OOPS_DEFAULTS` -- `default`, `self`, `none`, empty or `None` -- in any
 case or spacing, because those words mean "not set" wherever a value is
 read: an item named after one would be unreachable, and a reference to
-it would mean something else (stage 76). The rule is held twice:
+it would mean something else. The rule is held twice:
 [`reserved_names.py`](src/cs_image_system/base/reserved_names.py)
 refuses such a `name:` at any depth, and such an `aliases:` entry, where
 each configuration file is read -- every `cfg/` file, every item file
@@ -495,9 +494,7 @@ instances, groups and users. `SubRootItem` adds the parent link
 `execute(*args, skips=False)` runs `[binary] + prepended + args + appended`
 with `subprocess.run(check=True, capture_output=True)` in the working
 directory (`skips=True` leaves out the prepended and appended arguments).
-It builds that command list once (stage 63; until 2026-09-25 a first list
-was built and thrown away before the real one, with no effect on what ran).
-Names must be unique.
+It builds that command list once. Names must be unique.
 
 ### Runtime builders (`cfg/runtime-builders.yml`, key `runtime_builders`)
 
@@ -507,7 +504,7 @@ Names must be unique.
 | ------- | ------ | --------- | --------- |
 | `default_machine_type` | `str` | required | Machine type when nothing more specific is given. |
 | `default_image_builder` | `str` (fk `IMAGE_BUILDER_MODEL`) | `default` | Image builder used for bakes on this runtime. |
-| `default_owners` | `list[str] \| None` | `None` | Owners added to vendor image queries, between the OS builder's and the entry's (reached since stage 63 item 22: the entry's lookup keyed the runtime by the image builder's name). |
+| `default_owners` | `list[str] \| None` | `None` | Owners added to vendor image queries, between the OS builder's and the entry's. |
 | `credentials` | `CredentialsBase` | empty | Declared object; each plugin narrows it to its own subclass, so an unknown key is an error. Values name a profile or read the environment; no credential value belongs in the tree. |
 | `default_config_username` | `str \| None` | `None` | Step 5 of the bake-user order ([bake_user.py](src/cs_image_system/base/bake_user.py); CONFIGURATION 5.1.1). |
 | `ephemeral` | `bool` | `False` | Nothing baked here survives a successful run; the retention lifecycle disposes every image. Declared storages are never touched. |
@@ -516,8 +513,8 @@ Names must be unique.
 | `teardown_after` | `str \| None` | `None` | Runtime default duration (`30m`, `2h`, `1d`). |
 
 `CloudBuilderModel` adds `region: str` (required) and `networking:
-CloudNetworkingConfig` (required). `ContainerBuilderModel` (stage 103;
-`contract.runtime.ContainerBuilderModelProtocol`) adds `host` and
+CloudNetworkingConfig` (required). `ContainerBuilderModel`
+(`contract.runtime.ContainerBuilderModelProtocol`) adds `host` and
 `context` (one or neither), `networking: ContainerNetworkingModel | None`
 (a network by NAME, default `bridge`; no subnets, no zones) and
 `machine_types: dict[str, {cpus, memory}]`, of which `default_machine_type`
@@ -578,22 +575,22 @@ live credentials for each.
 | `name` | `str \| None` | `None` | Unique within the OS builder. |
 | `type` | `str` (templated) | the OS builder name | Filled from the parent. |
 | `description` | `str` | templated | Free text. |
-| `image_id` | `str \| None` | `None` | A pinned vendor image instead of a query (stage 63; until 2026-09-25 it was accepted and read only by the fingerprint). On the base-image lifecycle `predefined_resolve` skips `query_provider_image` and calls the runtime's `query_provider_image_by_id(entry, image_id)`: on AWS an AMI id, on GCE an image name searched in the entry's owner projects. An id the provider does not know stops resolution. Pinning makes base bakes reproducible. |
+| `image_id` | `str \| None` | `None` | A pinned vendor image instead of a query. On the base-image lifecycle `predefined_resolve` skips `query_provider_image` and calls the runtime's `query_provider_image_by_id(entry, image_id)`: on AWS an AMI id, on GCE an image name searched in the entry's owner projects. An id the provider does not know stops resolution. Pinning makes base bakes reproducible. |
 | `auto_update` | `bool \| None` | `None` | `None` inherits the OS builder's. |
 | `default_machine_type` | `str \| None` | `None` | Bake machine type on this runtime. |
-| `default_primary_disk_size` | `int \| None` | `None` | The base image's bake disk on this runtime when declared (stage 63), step 2 of `lineage.bake_disk_size`; the runtime's own `default_disk_size` still wins. Until 2026-09-25 it defaulted to `100` and only the fingerprint read it. |
+| `default_primary_disk_size` | `int \| None` | `None` | The base image's bake disk on this runtime when declared, step 2 of `lineage.bake_disk_size`; the runtime's own `default_disk_size` still wins. |
 | `tags` | mapping | `{}` | Merged over the OS builder's tags. |
 | `owners` | `list[str]` | `[]` | Added to the OS builder's and the runtime's default owners. |
 | `query` | mapping | `{}` | Merged over the OS builder's query. |
 | `ssh_username` | `str` | `default` | Step 2 of the bake-user order; unset, the order continues with the OS builder's `config_username`, the runtime's `ssh_username` and `default_config_username`, then the runtime's family default, and refuses when none answers. The entry's `finalize()` no longer fills it (it had no caller, and would have put `config_username` ahead of the runtime's `ssh_username`). |
 | `tests` | mapping or `None` | `None` | When set, replaces the OS builder's tests for bakes on this runtime. |
-| `config` | mapping | `{}` | Free-form templating values (stage 63): `get_config()` returns it (it returned `{}` always until 2026-09-25), and the string stage lets it shadow the enclosing `config` for the entry's own templated fields. |
+| `config` | mapping | `{}` | Free-form templating values: `get_config()` returns it, and the string stage lets it shadow the enclosing `config` for the entry's own templated fields. |
 
-Aliases are refused on subconfig entries. `image_name` is no longer a
-field (stage 63): it was accepted and read by nothing, so declaring it is
-now an unknown-key refusal at load. The fingerprint's vendor-source record
-still carries an `image_name: null` member, so no fingerprint moved when it
-went.
+Aliases are refused on subconfig entries. `image_name` is not a field:
+declaring it is an unknown-key refusal at load. The fingerprint's
+vendor-source record carries an `image_name: null` member, so no
+fingerprint depends on the field's absence ([when it
+went](../../docs/CHANGES.md#s63)).
 
 `UpdatePolicy` (`update:`, always a mapping; `update: none` is refused):
 
@@ -608,8 +605,8 @@ went.
 `policy: packages` needs `packages` or `pin`; a package cannot be both
 updated and excluded. `UpdatePolicy.from_config` refuses anything that is
 not a mapping with ``update: must be a mapping (`update: {policy: <name>}`), got <type>``
-(stage 63 removed a branch there that seemed to accept a bare name; the
-field's own type refuses one at load first). The base class realizes only `none` and `full`;
+(the field's own type refuses a bare name at load first). The base class
+realizes only `none` and `full`;
 package-manager families implement the targeted policies. Every bake also
 writes a package manifest to `/var/lib/csis/packages.txt`.
 
@@ -775,34 +772,19 @@ registers under `PROVIDER_SPECIFIC_IMAGE` with the key
 
 ## `cfg/_config.yml` key by key
 
-`IAConfig` is the top-level document after the plugin keys are removed.
-
-| Key | Type | Default | Meaning |
-| ----- | ------ | --------- | --------- |
-| `id` | `str` | required | The configuration's identifier. |
-| `working_directory` | `str` | `./workdir` | Superseded by `--root-dir`. |
-| `generation_directory` | `str \| None` | `generated` | Where generated output lands, relative to the root. |
-| `dateformat` | `str` | `%Y%m%d_%H%M%S` (`DEFAULT_DATEFORMAT`) | The `strftime` format of the run's `execution.timestamp`. One field, one default (stage 63; the model's own default used to be `%Y-%m-%d-%H%M%S`, read only by a `last_updated` formatter nothing called, until 2026-09-25). |
-| `executables` | list of `ExecutableModel` | `[]` | Tools builders run; names unique. |
-| `runtime_builders`, `image_builders`, `instance_builders`, `os_builders`, `mod_builders`, `storage_builders`, `group_builders`, `user_builders`, `state_backends` | lists in YAML | `[]` | Builder declarations, each with `name` and `type`. Structured per `type` and stored by name. |
-| `gitignore` | `list[str]` | `[]` | Appended to the built-in entries (`target/`, `.terraform/`, `terraform.tfstate`, `terraform.tfstate.backup`, `!.terraform.lock.hcl`); the last occurrence of a duplicate keeps its place. |
-| `sleep_before_finalization` | `int` | `1` | Read into the context, then ignored: finalization never waits on a terminal. A real run with a non-zero value logs `sleep_before_finalization=<n> is ignored: finalization never waits on a terminal (DESIGN §3G)`; a dry run logs nothing about it. Kept by decision in stage 63. |
-| `encryption` | `{recipients: [age1...]}` | `[]` | age public keys every encrypted value is encrypted to. |
-| `public_safe` | `{allow: [...]}` | `[]` | Substrings and `path:<glob>` entries the scanner accepts. |
-| `config` | mapping | `{}` | Free key-value settings, available as `config.<key>` in templates and read by name in code. |
-
-Keys under `config:` that the base package reads:
-
-| Key | Type | Effect |
-| ----- | ------ | -------- |
-| `use_state_backends` | `bool` | Emit terraform backend and remote-state blocks. |
-| `apply_identity`, `apply_storage`, `apply_instances`, `apply_release` | `bool` or list of names | Whether the lifecycle's roots apply. `true` enables every root; a list enables the roots whose builder name or runtime is listed; unset means plan and gate only. |
-| `module_source_base` | `str` | Base of terraform module sources; a relative path is relative to the configuration root and rewritten per workspace. Default `../tfmodules`. |
-| `admin_public_keys` | list of OpenSSH public key lines | Keys for the admin user on every base image without its own override. Private key material is refused. |
-| `require_mod_tests` | `bool` | A release refuses a build whose modification has no local mod test result. |
-| `require_image_tests` | `bool` (default `true`) | A release of an image with `tests.post_bake` requires a passing post-bake record. |
-| `require_released_builds` | `bool` | An instance may pin only to a released build. |
-| `preflight.expected_run_minutes` | `int` (default `30`) | A session expiring within this window blocks a strict preflight. |
+`IAConfig` is the top-level document after the plugin keys are removed:
+the tree's `id`, its generation directory and `dateformat`, the
+`executables` and the nine builder lists, the extra `gitignore` entries,
+the `encryption` recipients, the `public_safe` allowances and the free
+`config:` mapping, of which the core reads the four apply flags,
+`use_state_backends`, `module_source_base`, `admin_public_keys`, the
+`require_*` release gates and `preflight.expected_run_minutes`. Every
+key with its type, default and meaning is the table in
+[CONFIGURATION section 2](../../docs/CONFIGURATION.md#2-cfg_configyml),
+and the `config:` keys the code reads are its
+[section 2.3](../../docs/CONFIGURATION.md#23-config-keys-the-code-reads);
+which of those the core itself acts on, and where, is under
+[Configuration reference](#configuration-reference) below.
 
 ## Lifecycles and phases
 
@@ -935,7 +917,7 @@ What it exposes:
 
 | Member | Meaning |
 | -------- | --------- |
-| `dry_run`, `verbose` | The invocation's flags (stage 67: `force` and `only_providers` are gone with the options that set them). |
+| `dry_run`, `verbose` | The invocation's flags. |
 | `root_dir`, `working_path` | The configuration root. |
 | `generation_path` | Where generated files land now: `generated/<lifecycle>/` while a lifecycle is current, else `generated/`. |
 | `root_generation_path`, `lifecycle_generation_path(lc)`, `runner_script_path(lc)`, `gating_script_path`, `final_execution_path` | Generated-tree paths. |
@@ -963,23 +945,26 @@ generated directory, so a lifecycle wipe never touches it. Reads are lazy
 and cached; writes are atomic per file and refused when a hard public-safe
 rule matches the content.
 
-| File | Written by | Records |
-| ------ | ----------- | --------- |
-| `identity.yaml` | after the identity lifecycle generates | `run`; `groups` (per group: `builder`, `identity_type`, `gid_policy`, `managed`, `is_root`, `members`, `admins`); `users`; `user_builders`. Structural facts only; gids travel by terraform reference. |
-| `storage.yaml` | after the storage lifecycle generates, and after a real storage apply | `run`; `storages` (per storage: `builder`, `requested_state`, `current_state`, `generation`, `allowed_groups`, `public_read`, `share_mode`, `lifecycle`, `attachments`, `type`, `plugin`, `attachment_cardinality`, `posix`). |
-| `storage-state.yaml` | after a real storage apply | The authoritative state machine: per storage `state`, `generation`, `facts`, and `history` entries (`from`, `to`, `run`, `generation`, `action`). A destroyed-to-active transition increments the generation. |
-| `lineage.yaml` | after a bake is recorded | `builds`: per build `build_id`, `series`, `runtime`, `name`, `parent`, `input_fingerprint`, `run`, `capabilities`, `mods` (name, type, operation, idempotent, content hash, run), `local_mods`, `tests` (`in_bake`, `assertions`), `update`, `chain`. Disposal removes a record. |
-| `pins.yaml` | on first bind, upgrade, follow, dispose, decommission | `instances` (instance to build), `images` (`<image>@<runtime>` to parent build), `upgrades` (every move: `kind`, `name`, `from`, `to`, `run`, `op`), `pending_replacements`. |
-| `launch-params.yaml` | after the instance-image lifecycle generates and after applies | Per instance the recorded launch parameters ([Launch parameters](#launch-parameters)) plus `user_data_sha256`, `run`, `launched`, `launched_run`. |
-| `runs.yaml` | every run | The journal: `run`, `requested`, `dry_run`, `ok`, `apply`, `error`; bounded to the last 200. |
-| `verifications.yaml` | `verify instance` | Verification verdicts; bounded to the last 500. |
-| `image-tests.yaml` | `verify instance` for images with `tests.post_bake` | Per build: `ok`, `run`, `instance`, `runtime`, `time`, `checks`. |
-| `releases.yaml` | `release` | `releases` (every release: `image`, `build_id`, `model`, `run`, `note`, `name`, `capabilities`) and `current` (per model, image to build). |
-| `mod-tests.yaml` | `test-mods` | Local modification test results keyed by content hash. |
-| `state-locations.yaml` | every run that generates a terraform root; `state-migration finish` | `workspaces` (per root: the backend's `backend`, `type`, `location` and the settings its `.tfbackend.hcl` carried, plus `run`) and `migrations` (every performed move: `workspace`, `from`, `to`, `run`, `at`, `serial`, `backup`). The record, not the emission, is what the move guard compares against. |
-| `instance-state.yaml` | `mark_launched`, the after-apply observation, the forgets | Per instance name: `generation` counters (`durable`, `ephemeral`), `current` (the open generation: `number`, `kind`, `how` (`observed`, `inferred`, `adopted`), `opened_run`, `opened_at`, `instance_id`, `provider_hostname`, a `launch_params` snapshot) and `history` (every closed generation with `closed_run`, `closed_at`, `why`). Nothing is ever deleted from it. |
-| `login-proofs.yaml` | `verify login` | Every CI login verdict (`instance`, `runtime`, `hostname`, `group`, `run`, `as`, `time`, `ok`, `skipped`, `checks`, `evidence`); bounded to the last 500. |
-| `aliases.txt` | the operator (appends), the run that launches a new durable machine (comments a line out) | Not a record file but a pool: one free name per line; a spent line is `# <name>  -- instance <i> as <hostname> <time> run <run>`. Absent means no aliases and no error. |
+The module owns the read-models (`identity.yaml`, `storage.yaml`:
+structural facts only, gids travel by terraform reference), the
+authoritative storage state machine (`storage-state.yaml`, where a
+destroyed-to-active transition increments the generation), the lineage
+and pin records (`lineage.yaml`, from which a disposal removes the
+record, and `pins.yaml`, where every pin move is journaled under
+`upgrades` with its `op`), the launch parameters (`launch-params.yaml`),
+the run journal (`runs.yaml`, bounded to the last 200 runs), the
+verdicts (`verifications.yaml` and `login-proofs.yaml`, bounded to the
+last 500; `image-tests.yaml`; `mod-tests.yaml`, keyed by content hash),
+the releases (`releases.yaml`), the state locations and every performed
+move (`state-locations.yaml`: the record, not the emission, is what the
+move guard compares against), the instance generations
+(`instance-state.yaml`, from which nothing is ever deleted) and the alias
+pool (`aliases.txt`: not a record but a pool of free names, one per
+line; the run that launches a new durable machine comments the first
+free line out as `# <name>  -- instance <i> as <hostname> <time> run
+<run>`; an absent file means no aliases and no error). What each file
+holds and which step writes it is the one table under
+[Meta-state in OPERATIONS](../../docs/OPERATIONS.md#meta-state-config-rootmeta-state).
 
 `MetaState` also exposes `series_head(series, runtime)`, `image_pin`,
 `instance_pin`, `bind_image`, `bind_instance`, `move_pin`,
@@ -1025,6 +1010,15 @@ The identity that decrypts comes from the environment variable
 A marked value with no identity set is a load-time `MissingIdentityError`
 naming the variable, never a silent plaintext. A value none of the
 identities can open is a `ValueError`.
+
+The emission under `generated/` carries the ciphertext a `Decrypted`
+remembers (emission by reference), and
+[`materialize.py`](src/cs_image_system/base/materialize.py) replaces it
+with the plaintext in the private mirror `_private/` before a deferred
+command runs. The rules a tree follows -- which values may be encrypted,
+where a marker may not stand, what a marker protects and what stays
+public by decision -- are
+[CONFIGURATION section 13](../../docs/CONFIGURATION.md#13-encrypted-values).
 
 Helpers: `encrypt_value(plaintext, recipients)` produces a marker;
 `recipients_from_config(root)` reads `cfg/_config.yml` as text (no identity
@@ -1101,25 +1095,23 @@ input fingerprint), `csis_identity_types` and `csis_storage_types`. After
 a bake `record_build` appends the lineage record and performs the first
 bind of the parent edge. The input fingerprint hashes what determines the
 build's content: series, the parent image's own fingerprint on that
-runtime (`parent_fingerprint`, stage 67: never a build id; until
-2026-09-26 the effective parent build was hashed, and a child on an
-ephemeral runtime re-baked every cycle because retention disposed the
-build it was recorded against), capability stamp, every
-modification's content hash, the in-bake verification commands, the bake
-disk size, and for base images the declared vendor source, admin user and
-keys, and update policy. Machine type, usernames, run ids and timestamps
-are excluded. The bake disk size is `bake_disk_size(ctx, image, runtime)`,
-the one rule the packer sources (AWS `volume_size`, GCE `disk_size`) also
-use (stage 63): the runtime's own `default_disk_size` when declared
-(finding 51); else, for a base image, its OS builder entry's
-`default_primary_disk_size` for that runtime when declared, else the OS
-builder's `default_primary_disk_size`; for an instance image, its own
-`primary_disk_size`. Before 2026-09-25 the fingerprint hashed the entry's
-value (then defaulting to 100) while AWS bakes used the OS builder's 200;
-since the fingerprint now hashes what is baked, every AWS base image's
-recorded fingerprint moved once and reads DUE until
-`lineage restamp --runtime <rt> --commit`. GCE was unaffected (its
-runtime's `default_disk_size` already won). `bake_reason(ctx, image, runtime)` decides whether an image
+runtime (`parent_fingerprint`, never a build id: hashing the parent's
+build id would make a child on an ephemeral runtime re-bake every
+cycle, because retention disposes the build it was recorded against),
+capability stamp, every modification's content hash, the in-bake
+verification commands, the bake disk size, and for base images the
+declared vendor source, admin user and keys, and update policy. Machine
+type, usernames, run ids and timestamps are excluded. The bake disk
+size is `bake_disk_size(ctx, image, runtime)`, the one rule the packer
+sources (AWS `volume_size`, GCE `disk_size`) also use: the runtime's
+own `default_disk_size` when declared; else, for a base image, its OS
+builder entry's `default_primary_disk_size` for that runtime when
+declared, else the OS builder's `default_primary_disk_size`; for an
+instance image, its own `primary_disk_size`. The fingerprint hashes
+what is baked, so a recorded fingerprint that predates the current
+recipe reads DUE until `lineage restamp --runtime <rt> --commit`
+re-records it ([when the recipe last
+moved](../../docs/CHANGES.md#s63)). `bake_reason(ctx, image, runtime)` decides whether an image
 bakes in this run: forced by `--force-bake`, no build yet on that runtime,
 the parent moved under `parent_policy: follow`, the parent re-bakes this
 run under `follow`, the fingerprint differs from the series head's, or
@@ -1149,7 +1141,7 @@ execution releases each runtime's series head whose post-bake tests
 passed. With `config.apply_release` true it also defers each runtime's
 `release_commands` (for example tagging the cloud image). The validator
 `validate_released_pins` enforces `config.require_released_builds`, with
-one grace since stage 61: an unreleased pin is admitted while it is the
+one grace: an unreleased pin is admitted while it is the
 head of the image's series on its runtime, its record carries an in-bake
 verification, no post-bake record for it FAILED, and the instance is
 either a pending replacement onto it or stands on it (its open generation
@@ -1210,7 +1202,7 @@ changes are sanctioned and recorded instead
 (unmounted first; the gate refuses the plan without the receipt), and
 changing `machine_type`, which is a resize of the same machine (the
 provider stops, changes and starts it; the generation's snapshot is
-updated and a `resized` event is kept in the ledger).
+updated and a `resized` event is kept in `instance-state.yaml`).
 
 ## Capabilities
 
@@ -1251,11 +1243,11 @@ lines. `admin_public_keys` returns a base image's own list when set, else
 | [`utils.py`](src/cs_image_system/base/utils.py) | `safe_name`, `super_safe_name`, `system_cli_executable` (a deferred call of the system's own CLI), `apply_enabled` / `apply_flag_allows` (the `apply_<lifecycle>` rule), `module_source`, `hcl_expr` and `render_module_call` (terraform module call rendering). |
 | [`ansible_launch.py`](src/cs_image_system/base/ansible_launch.py) | Renders the same launch parameters as an ansible inventory and playbook. |
 | [`power_state.py`](src/cs_image_system/base/power_state.py) | The system's power-state vocabulary (`running`, `stopped`, `suspended`, `starting`, `stopping`, `absent`, `unknown`; `None` is "cannot answer"), `wait_until_reachable`, and `running_for_task`, the one bounded exception under which a stopped machine is started for work that needs it and stopped again afterwards. |
-| [`generations.py`](src/cs_image_system/base/generations.py) | Instance generations (stage 60): one per machine, opened `inferred` by a launch and confirmed `observed` (or closed as `replaced-out-of-band`) by the provider's instance id after a real apply; a pre-ledger machine is `adopted` as generation 1 of the record. |
-| [`alias_pool.py`](src/cs_image_system/base/alias_pool.py) | The pool of pre-approved names in `meta-state/aliases.txt` (stage 59): a new durable machine's alias is the first free line, burnt in place under an exclusive lock by the run that can launch it. |
+| [`generations.py`](src/cs_image_system/base/generations.py) | Instance generations: one per machine, opened `inferred` by a launch and confirmed `observed` (or closed as `replaced-out-of-band`) by the provider's instance id after a real apply; a machine launched before the record existed is `adopted` as generation 1 of it. |
+| [`alias_pool.py`](src/cs_image_system/base/alias_pool.py) | The pool of pre-approved names in `meta-state/aliases.txt`: a new durable machine's alias is the first free line, burnt in place under an exclusive lock by the run that can launch it. |
 | [`provider_aliases.py`](src/cs_image_system/base/provider_aliases.py) | After a real instance-image apply, gives each launched, running instance back the names it lost at boot (the bare declared name, the pool alias, the provider's `ip-...` label) as an `AltNames` block in `/etc/sft/sftd.yaml`, skipping every collision and every silent registry; and the `reality.instances` entries and notes of the state report. |
-| [`workload_access.py`](src/cs_image_system/base/workload_access.py) | After a real identity apply, reconciles each managed group's CI login policy through the group builder (stage 56) and records the outcome in the identity read-model. |
-| [`reserved_names.py`](src/cs_image_system/base/reserved_names.py) | The read-time refusals of stage 76: `refuse_reserved_names` (a `name:` at any depth, or an `aliases:` entry, that is a word of `OOPS_DEFAULTS` in any case or spacing, every one listed with the file, the entry's place and the word, `ReservedNameError`) and `refuse_invalid_config_keys` (a key of a document's top-level `config:` that is in `INVALID_CONFIG_KEYS`, `InvalidConfigKeyError`). Called by `read_and_process` for each `cfg/` file, by the item-file reader after decryption, and by `load_overlay`; pure functions of the parsed document, no identity or network. |
+| [`workload_access.py`](src/cs_image_system/base/workload_access.py) | After a real identity apply, reconciles each managed group's CI login policy through the group builder and records the outcome in the identity read-model. |
+| [`reserved_names.py`](src/cs_image_system/base/reserved_names.py) | The read-time refusals: `refuse_reserved_names` (a `name:` at any depth, or an `aliases:` entry, that is a word of `OOPS_DEFAULTS` in any case or spacing, every one listed with the file, the entry's place and the word, `ReservedNameError`) and `refuse_invalid_config_keys` (a key of a document's top-level `config:` that is in `INVALID_CONFIG_KEYS`, `InvalidConfigKeyError`). Called by `read_and_process` for each `cfg/` file, by the item-file reader after decryption, and by `load_overlay`; pure functions of the parsed document, no identity or network. |
 | [`materialize.py`](src/cs_image_system/base/materialize.py) | The private mirror `_private/` beside `generated/`, at the same depth: a root is copied there with every `ENC[age:...]` marker replaced by its plaintext before a deferred command runs, incrementally; only `.terraform.lock.hcl` is ever copied back. `ensure_ignored` appends `_private/` to the configuration root's `.gitignore`. |
 | [`commands/login_proof.py`](src/cs_image_system/base/commands/login_proof.py) | `verify login`: for each standing instance of a group that names a workload connection and role, checks the machine is running, exactly one registration answers to its hostname, `sft resolve` resolves it and `sft ssh ... id` logs in; every verdict goes to `meta-state/login-proofs.yaml`. |
 | [`commands/state_migration.py`](src/cs_image_system/base/commands/state_migration.py) | The runner steps of `--migrate-state` (`begin`, `finish`) and the same-day state `backup` a runner takes into `_private/state-backups/` before any `state rm` it decided on. |
@@ -1277,7 +1269,7 @@ implemented (`can_*` false, or `NotImplementedError`) makes no claim. The
 state query says so rather than staying silent: a builder whose
 `query_state` (or an image or storage lookup under it) raises
 `NotImplementedError` adds `<kind>/<builder>: cannot be queried (<why>)`
-to `unavailable` (stage 63 item 17; it used to vanish from the report). What
+to `unavailable`, never dropped from the report. What
 the core needs outside itself is therefore short, and each item says how
 the core finds it.
 
@@ -1404,20 +1396,25 @@ with `extra="forbid"`: an unknown key is refused at load.
 
 ### `cfg/_config.yml`, top level
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `id` | str | required | The configuration's identifier. Read into `IAConfig.id`; nothing in the core acts on the value. |
-| `generation_directory` | str or null | `generated` | Where a run writes, relative to the root. The CLI resolves it once at load; every `generated/<lifecycle>/`, `run-summary.json`, `state-report.json` and `final_execution.sh` path hangs under it, and `_private/` replaces its NAME beside it (`mirror_path`). |
-| `dateformat` | str | `%Y%m%d_%H%M%S` | The `strftime` format of `execution.timestamp` (and the value of `execution.dateformat`) in the string stage, which reads the raw key and falls back to `DEFAULT_DATEFORMAT`, the model's own default. One field, one default since stage 63: until 2026-09-25 the model's default was `%Y-%m-%d-%H%M%S`, read only by a `last_updated_timestamp_str` formatter nothing called (removed with `last_updated`). A tree that declares nothing produces the same output names as before. |
-| `executables` | list of `ExecutableModel` | `[]` | The tools builders run; usually in `cfg/executables.yml`. Names unique and never a reserved word (`default`, `self`, `none`, empty); checked for presence and version at `validate` and every run. See [`ExecutableModel`](#executablemodel-cfgexecutablesyml-key-executables). |
-| `runtime_builders`, `state_backends`, `os_builders`, `mod_builders`, `storage_builders`, `group_builders`, `user_builders`, `image_builders`, `instance_builders` | lists | `[]` | The builder declarations, each with `name` and `type`; structured per `type` against the plugin model and stored by name. Accepted at the top level of ANY `cfg/*.yml`; lists are concatenated across files. |
-| `gitignore` | list[str] | `[]` | Appended to the built-in entries (`target/`, `.terraform/`, `terraform.tfstate`, `terraform.tfstate.backup`, `!.terraform.lock.hcl`); a duplicate keeps its LAST position. Written as `.gitignore` into `generated/` (plus the run-local names there) and into every lifecycle directory. |
-| `encryption.recipients` | list[str] | `[]` | age public keys (`age1...`) every `ENC[age:...]` value is encrypted to. Read as TEXT by `encrypt` and `reencrypt` (no identity needed); a marker here is refused. |
-| `public_safe.allow` | list[str] | `[]` | What the scanner lets through by decision: a plain entry is a case-insensitive substring a matched span may contain; `path:<glob>` accepts a file whole (path or basename). Read as text by the commit gate, `public-safe` and the hook; must be a list of strings. A marker here is refused. |
-| `config` | mapping | `{}` | Free settings: available as `config.<key>` in the string stage and on the context as `ctx.config`; the keys the core reads are tabled next. An overlay's `config:` overrides these key by key for one invocation. |
-| `sleep_before_finalization` | int | `1` | Read (into the context's `sleep_before_finalization`), then IGNORED: finalization never waits on a terminal. A real (`--no-dry-run`) run with a non-zero value logs, at info, `sleep_before_finalization=<n> is ignored: finalization never waits on a terminal (DESIGN §3G)`; a dry run says nothing. Kept with this behaviour by decision in stage 63. |
-| `working_directory` | str | `./workdir` | Accepted, not read: `--root-dir` is the working directory. |
-| `last_updated` | -- | -- | GONE (stage 63): declaring it is an unknown key, refused at load like any other. Until 2026-09-25 it was accepted and read by nothing but the unused `last_updated_timestamp_str` formatter, removed with it. |
+The document is `IAConfig`: `id` (read, acted on by nothing in the
+core), `generation_directory` (under which every `generated/<lifecycle>/`,
+`run-summary.json`, `state-report.json` and `final_execution.sh` path
+hangs, and whose NAME `_private/` replaces beside it, `mirror_path`),
+`dateformat` (read raw by the string stage, falling back to
+`DEFAULT_DATEFORMAT`, the model's own default), `executables` (names
+unique and never a reserved word; presence and version checked at
+`validate` and every run), the nine builder lists (accepted at the top
+level of ANY `cfg/*.yml`, concatenated across files), `gitignore`
+(appended to the built-in entries, a duplicate keeping its LAST position,
+written into `generated/` and every lifecycle directory),
+`encryption.recipients` and `public_safe.allow` (both read as TEXT by the
+value tools, the commit gate and the hook, so a marker in either is
+refused), the free `config` mapping (on the context as `ctx.config`,
+overridden key by key by an overlay's `config:`), and the accepted but
+unread `working_directory` and `sleep_before_finalization`;
+`last_updated` is an unknown key, refused at load. Every field with its
+type, default and meaning is the table in
+[CONFIGURATION section 2](../../docs/CONFIGURATION.md#2-cfg_configyml).
 
 ### `config:` keys the core reads
 
@@ -1428,27 +1425,47 @@ that are refused where the file is read (`INVALID_CONFIG_KEYS`:
 `datetime`, `config`, `configuration`, in any case;
 `refuse_invalid_config_keys` in
 [`reserved_names.py`](src/cs_image_system/base/reserved_names.py)).
-The guard was written in 2026-07 and switched on in stage 76; a probe
-that day found none of the seventeen collides with the template context.
-The collision that does exist is not guarded: a key named after a mapping
-method (`items`, `keys`, `values`, `get`, `update`, `copy`, `pop`)
-renders the method in `{{ config.<key> }}`, not the value -- so avoid
-those names.
+None of the seventeen collides with the template context. The collision
+that does exist is not guarded: a key named after a mapping method
+(`items`, `keys`, `values`, `get`, `update`, `copy`, `pop`) renders the
+method in `{{ config.<key> }}`, not the value -- so avoid those names.
 
-| Key | Type | Default | Read by | Effect |
-|---|---|---|---|---|
-| `apply_identity` | bool, str or list[str] | `false` | `apply_enabled("identity")` in [`utils.py`](src/cs_image_system/base/utils.py); the identity plugins at generation; `apply-check` at execution; `workload_access`, `reconcile_generations` and the launch-params hooks read the sibling flags | `true`: every root of the lifecycle applies; `false`, unset or an empty list: plan and gate only; a list: only the roots whose builder NAME or RUNTIME is listed apply (a string is a one-element list; entries are stripped). May not be encrypted (read raw by `apply-check`). |
-| `apply_storage` | same | `false` | as above; `record_storage_transitions` | Same rule, the storage roots. Also feeds the run's apply SCOPE (below). |
-| `apply_instances` | same | `false` | as above; `mark_launched`, `forget_decommissioned`, `forget_ephemerals`, `record_detachments`, `register_provider_aliases`, `reconcile_generations`, `validate_claimed_hostnames`, `alias_for` | Same rule, the instance roots. When ON, the after-apply recorders claim reality, the hostname claims are checked against the registry, and a run that can launch draws from the alias pool. |
-| `apply_release` | same | `false` | `release.after_generate` | On: the runtime's `release_commands` for every CURRENT release are deferred into the release runner (the cloud-side marking). Off: only the read-model and the `release --declared` step. |
-| `use_state_backends` | bool | `false` | hashicorp-utils' collector (`backends_enabled`); the core's `check_state_locations` and `_record_state_locations` skip when off | Off: no backend block, no `.tfbackend.hcl`, no remote-state data source, no location record, no collision or move check. |
-| `module_source_base` | str | `../tfmodules` | `module_source` in `utils.py` | The base of terraform module sources; a relative value is relative to the configuration root and rewritten per workspace depth; absolute paths and URLs pass through. |
-| `admin_public_keys` | list[str] (a lone string is accepted) | `[]` | `admin_public_keys` in [`capabilities.py`](src/cs_image_system/base/capabilities.py); `validate_base_images`; the fingerprint; the in-bake tests | The mandatory local admin user's OpenSSH public keys for every base image without its own `admin_public_keys`; each must be one public-key line and never private-key material. May be `ENC[age:...]` (the fixture's is). |
-| `require_mod_tests` | bool | `false` | `release()` | A release refuses a build whose modification has no local mod-test record; off, a missing record is tolerated (a FAILED or non-idempotent one always refuses). |
-| `require_image_tests` | bool | `true` | `release()` | A release of an image declaring `tests.post_bake` needs a PASSING post-bake record for that build. |
-| `require_released_builds` | bool | `false` | `validate_released_pins` | An instance may be pinned only to a released build of its image, or to the series head under the release grace. |
-| `preflight.expected_run_minutes` | int | `30` | `expected_run_minutes` and `raw_expected_run_minutes` in [`commands/preflight.py`](src/cs_image_system/base/commands/preflight.py) | A session expiring within this many minutes is `blocking`: `preflight --strict` and `state query --strict` exit 1 on it, a run warns. Read raw (before the load) from `cfg/_config.yml` and the overlays, so it may not be encrypted; a non-integer falls back to 30. |
-| any other key | any | | `ctx.config`, the string stage | Carried for plugins (`okta_gateway_selector` is the identity plugin's) and usable as `{{ config.<key> }}` in `cfg/` strings. |
+The keys the core reads, and who reads them: the four apply flags
+`apply_identity`, `apply_storage`, `apply_instances` and `apply_release`
+(`apply_enabled` in [`utils.py`](src/cs_image_system/base/utils.py), the
+plugins at generation, `apply-check` at execution and every after-apply
+recorder: `true` applies every root of the lifecycle, `false`, unset or
+an empty list plans and gates only, and a list applies only the roots
+whose builder NAME or RUNTIME is listed; a string is a one-element list;
+read raw by `apply-check`, so never encrypted; with `apply_instances` on,
+the recorders claim reality, the hostname claims are checked against the
+registry and a run that can launch draws from the alias pool; with
+`apply_release` on, the runtime's `release_commands` for every CURRENT
+release are deferred into the release runner); `use_state_backends`
+(hashicorp-utils' collector and the core's `check_state_locations` and
+`_record_state_locations`: off, no backend block, no `.tfbackend.hcl`, no
+remote-state data source, no location record, no collision or move
+check); `module_source_base` (`module_source` in `utils.py`: a relative
+value is relative to the configuration root and rewritten per workspace
+depth, absolute paths and URLs pass through); `admin_public_keys`
+([`capabilities.py`](src/cs_image_system/base/capabilities.py),
+`validate_base_images`, the fingerprint and the in-bake tests: one
+OpenSSH public-key line each, never private material, a lone string
+accepted, encryption allowed); `require_mod_tests`, `require_image_tests`
+(default `true`) and `require_released_builds` (`release()` and
+`validate_released_pins`: a missing mod-test record is tolerated unless
+required, a FAILED one never; a declared `tests.post_bake` needs a
+PASSING record; a pin must be released or under the release grace); and
+`preflight.expected_run_minutes` (`expected_run_minutes` and
+`raw_expected_run_minutes` in
+[`commands/preflight.py`](src/cs_image_system/base/commands/preflight.py):
+a session expiring within the window is `blocking` -- `preflight
+--strict` and `state query --strict` exit 1, a run warns; read raw before
+the load, so never encrypted; a non-integer falls back to 30). Any other
+key is carried for plugins (`okta_gateway_selector` is the identity
+plugin's) and usable as `{{ config.<key> }}` in `cfg/` strings. Each
+key's type, default, reader and effect is the table in
+[CONFIGURATION section 2.3](../../docs/CONFIGURATION.md#23-config-keys-the-code-reads).
 
 Which apply flags shape the run's SCOPE: `apply_scope_runtimes` in
 [`commands/run_scope.py`](src/cs_image_system/base/commands/run_scope.py)
@@ -1524,7 +1541,7 @@ plugin's README.
 |---|---|---|
 | `name` | everything | System-wide unique; the storage state machine, the read-model, attachments and facts key on it. |
 | `type` | the load (`also_set_on_update`), `validate_storages`, `storage_type_of`, `storage_facts`, `_root_applied` | The storage builder: fixes the capability type, the cardinality, whether it is zonal, and the runtime the root applies on. |
-| `runtime` | `check_availability_zones`, as a fallback only (`_storage_runtime`) | The BUILDER's runtime governs everywhere, the zone check included since stage 63 item 20; the item's own value is read only when the builder names no runtime. Until 2026-09-25 the zone check read this field, whose `default` resolved to the default runtime, not the builder's. |
+| `runtime` | `check_availability_zones`, as a fallback only (`_storage_runtime`) | The BUILDER's runtime governs everywhere, the zone check included; the item's own value is read only when the builder names no runtime (read first, its `default` would resolve to the default runtime, not the builder's). |
 | `groups` | the load (`ALL` refused), `validate_storages`, `allows_group`, the read-model | The groups allowed to attach; each must be declared. |
 | `public_read` | `allows_group`, `compute_launch_params`, the read-model | Anyone may mount read-only. |
 | `share_mode` | the load (`2770` or `2775`), `compute_launch_params`, the read-model | The mode of each group's subtree. |
@@ -1587,8 +1604,8 @@ builder model is its plugin's):
 | OS builder | `admin_user`, `admin_public_keys` | `validate_base_images`, `admin_public_keys`, the fingerprint, the in-bake tests |
 | OS builder | `update`, `auto_update` | `validate_update_policies`, `update_policy_of` (the fingerprint, `refresh_days`) |
 | OS builder | `tests`, `runtimes[].tests` | `validate_test_specs`, the in-bake tests, the fingerprint |
-| OS builder | `runtimes[].image_builder`, `image_id`, `query`, `default_primary_disk_size` | `base_image_runtimes`, `_vendor_source`, `bake_disk_size` (the fingerprint and the packer sources); `image_id` also `predefined_resolve` (the lookup by id, stage 63) |
-| OS builder | `runtimes[].config` | the string stage (`_render_scoped`), `get_config()` (stage 63) |
+| OS builder | `runtimes[].image_builder`, `image_id`, `query`, `default_primary_disk_size` | `base_image_runtimes`, `_vendor_source`, `bake_disk_size` (the fingerprint and the packer sources); `image_id` also `predefined_resolve` (the lookup by id) |
+| OS builder | `runtimes[].config` | the string stage (`_render_scoped`), `get_config()` |
 | OS builder | `default_primary_disk_size` | `bake_disk_size`, when neither the runtime nor the entry declares a size |
 | OS builder | `family`, `family_version`, `architecture`, `query` | `_vendor_source` (the fingerprint); the plugins |
 | every builder | `executable` | `check_existence_of_executable`: must name an entry under `executables:` |
@@ -1604,9 +1621,9 @@ builder model is its plugin's):
   no `pre_finalize_phase`/`post_finalize_phase`, no after-apply hook, no
   materialisation into `_private/`, no pin moves under `follow`, no
   forgets, no alias draw (the log says what it WOULD take), no
-  `--migrate-state` (refused). The hostname claim check is NOT gated on
-  the dry run: it runs whenever the instance-image lifecycle is requested
-  and `apply_instances` allows the root, and asks the registry. Deferred system-CLI steps
+  `--migrate-state` (refused), and no hostname claim check: it asks the
+  registry only when a launch is possible (the instance-image lifecycle
+  requested, `apply_instances` allowing the root, a real run). Deferred system-CLI steps
   are recorded with `--no-dry-run`, so they only ever run inside a real
   run. A real run executes each generated lifecycle's deferred commands in
   process, each terraform or packer command from its private mirror, and
@@ -1741,14 +1758,14 @@ builder model is its plugin's):
   builder's runtime entry, the base-image lifecycle asks the runtime's
   `query_provider_image` for the newest image matching the merged
   `owners` and `query`, so a base bake can start from a newer vendor image
-  each time. With `image_id` (stage 63) it asks
+  each time. With `image_id` it asks
   `query_provider_image_by_id` for exactly that image instead; an unknown
   id stops resolution. The id enters the fingerprint's vendor source, so
   setting or changing it re-bakes that base on that runtime.
 - **Where the bake disk comes from.** The runtime's `default_disk_size`
   when it declares one; else the entry's `default_primary_disk_size`;
   else the OS builder's (200). One rule, `bake_disk_size`, for the packer
-  sources and the fingerprint (stage 63).
+  sources and the fingerprint.
 - **One runtime vs another.** The core never branches on a cloud's name;
   what differs is which hooks a plugin implements. Block-device names in
   the launch parameters are the one place the core knows two storage
@@ -1795,9 +1812,9 @@ is written.
   `RuntimeBuilderModel` needs `default_machine_type`; networking needs a
   `network`, at least one subnet and exactly one default subnet; an OS
   builder needs at least one `runtimes[]` entry with unique image
-  builders (an OS builder entry may not declare `image_name`, removed in
-  stage 63, nor an `update` that is not a mapping); a `rhel` OS builder's
-  `family_version` major must be 8, 9 or 10 (stage 63, whatever the update
+  builders (an OS builder entry may not declare `image_name`, nor an
+  `update` that is not a mapping); a `rhel` OS builder's
+  `family_version` major must be 8, 9 or 10 (whatever the update
   policy); an image needs `source_image` and at least one `runtimes[]`
   entry; an instance may not declare `groups`; a storage mapping needs a
   non-empty `mount_point` and a positive `min_size`; a storage refuses
@@ -1805,12 +1822,10 @@ is written.
   must be an int of at least 1024 or a deferral; a user needs non-blank
   `first_name` and `last_name` and may not have aliases; an executable's
   name may not be a default placeholder and must be unique; `last_updated`
-  in `cfg/_config.yml` is now an unknown key (stage 63). An instance with
+  in `cfg/_config.yml` is an unknown key. An instance with
   no `image` logs the warning `Instance '<name>' does not have an image
   specified; the load refuses it when the configuration finalizes.` while
-  it is structured, and its `finalize()` then refuses it (stage 63: the
-  warning used to say the instance "will be ignored during generation",
-  which never happened, until 2026-09-25).
+  it is structured, and its `finalize()` then refuses it.
 - **After the items are read**: exactly one group is `is_root: true`;
   every group member is a declared user (`_validate_groups`); every item's
   `type` resolves to a configured builder, or to the registered default
@@ -1852,7 +1867,7 @@ where they differ.
 | capabilities | `validate_capabilities` | an image that does not chain to a base; a group with no identity builder; an identity type or attached storage type the root base does not carry (resolved through the pins to the stamped build, else the declaration) |
 | identity items | `validate_identity_items` | whatever the owning user or group plugin's `validate_user` / `validate_attributes` returns |
 | immutability | `validate_immutability` | a launched instance whose launch parameters changed, unless a replacement is pending, a follow target exists, or the only change is a removed mount |
-| claimed hostnames | `validate_claimed_hostnames` (only when the instance-image lifecycle is requested AND `apply_instances` allows the root AND the run is not a dry run, since stage 63 item 10) | an unlaunched instance whose canonical hostname is already registered; a launched one with more than one registration; a registry that could not be asked |
+| claimed hostnames | `validate_claimed_hostnames` (only when the instance-image lifecycle is requested AND `apply_instances` allows the root AND the run is not a dry run) | an unlaunched instance whose canonical hostname is already registered; a launched one with more than one registration; a registry that could not be asked |
 | released pins | `validate_released_pins` (only with `require_released_builds`) | a pin that is neither released nor under the grace, naming what is missing |
 | the state report | `validate_state_report` | any `hard: true` drift in the last `generated/state-report.json` (re-run `state query` after fixing) |
 
@@ -1867,7 +1882,7 @@ journaled under `bake_plan`) and applies the scope check.
 
 - **Resolution** (`predefined_resolve`): a base-image lifecycle asks each
   runtime for the vendor image (by query, or by id when the entry pins an
-  `image_id`, stage 63); no image builder, no runtime builder, no resolved
+  `image_id`); no image builder, no runtime builder, no resolved
   identifier for an OS builder, or a pinned id the provider does not know
   raises and the lifecycle is recorded `failed`. Template resolution runs up to five passes; what
   still carries `{{` stays as written.
@@ -1907,7 +1922,10 @@ journaled under `bake_plan`) and applies the scope check.
   their code is in this package
   ([`commands/gate.py`](src/cs_image_system/base/commands/gate.py),
   `apply_flag_allows`), their behaviour in
-  [system's README](../system/README.md).
+  [system's README](../system/README.md), and the sequence they sit in
+  (`rm -f tfplan`, `init`, `prune-attachments`, `plan`, `gate-plan`,
+  `apply-check`, `apply`) under
+  [the apply gate in OPERATIONS](../../docs/OPERATIONS.md#the-apply-gate).
 - The deferred system-CLI steps verify as they go: `verify instance`
   (the runtime's checks, the booted image against the pin or the series,
   the declared post-bake tests; verdict in `verifications.yaml` and
@@ -1970,16 +1988,16 @@ The package's own tests under [`tests/`](tests/) cover the registry,
 plugin registration, field helpers and kinds, resolution stages, template
 utilities, item kinds, display names, `email_as_username`, group gids,
 provider-specific images and the finalization executor. The workspace
-suite pins the rest of what this section describes; the recent ones are
-[`tests/test_v2_hygiene_five.py`](../../tests/test_v2_hygiene_five.py)
-(stage 61), [`tests/test_v2_power_state.py`](../../tests/test_v2_power_state.py),
+suite pins the rest of what this section describes; among them
+[`tests/test_v2_hygiene_five.py`](../../tests/test_v2_hygiene_five.py),
+[`tests/test_v2_power_state.py`](../../tests/test_v2_power_state.py),
 [`tests/test_v2_canonical_names.py`](../../tests/test_v2_canonical_names.py),
 [`tests/test_v2_hostname_claims.py`](../../tests/test_v2_hostname_claims.py),
 [`tests/test_v2_provider_aliases.py`](../../tests/test_v2_provider_aliases.py),
 [`tests/test_v2_generations.py`](../../tests/test_v2_generations.py),
 [`tests/test_v2_alias_pool.py`](../../tests/test_v2_alias_pool.py),
 [`tests/test_v2_defects_dead.py`](../../tests/test_v2_defects_dead.py)
-(stage 63: the single `dateformat` default, the command built once, a
+(the single `dateformat` default, the command built once, a
 zero-minute session is expired),
 [`tests/test_v2_login_proof.py`](../../tests/test_v2_login_proof.py),
 [`tests/test_v2_workload_access.py`](../../tests/test_v2_workload_access.py)
@@ -1988,263 +2006,50 @@ and [`tests/test_v2_identity_plan_in_mirror.py`](../../tests/test_v2_identity_pl
 
 ## When it fails
 
-### Failures that have happened
+Incidents -- what a live run showed, what it meant and what the system
+does about it now -- are recorded once, newest first, on
+[INCIDENTS.md](../../docs/INCIDENTS.md). This section keeps the symptom,
+its meaning and the action to take, and links the story where there is
+one; the table is the short form, and the messages the code writes, in
+the order the operator meets them, follow it.
 
-Newest first. Each names the date, what the operator saw, what it meant,
-and what changed; the tests named pin the fix. Older findings are in
-[docs/history/LEDGER.md](../../docs/history/LEDGER.md), frozen.
-
-- **2026-09-23, the runner's state backup pulled nothing and let the
-  removal run** (stage 61 item 3). The first version of `backup` in
-  [`commands/state_migration.py`](src/cs_image_system/base/commands/state_migration.py)
-  was invoked with the configuration root as its directory, pulled an
-  empty state, said "nothing to keep" and let `state rm` proceed unbacked.
-  Now a directory that is not an initialised root, a pull that fails, or a
-  location holding no state each exit 1 with `state backup for workspace
-  '<ws>' REFUSED ...` and stop the runner before anything leaves state.
-  The backup lands in `_private/state-backups/<ws>.backup-<run>.tfstate`;
-  the log line names the serial and the resource count (`serial 36` on
-  2026-09-23 10:46). Pinned by `test_the_backup_keeps_the_pulled_state_under_the_private_root_and_refuses_everything_else`.
-- **2026-09-23 10:15, a runner step acted in the wrong directory.** The
-  CLI's callback loads the configuration, which changes directory to the
-  root AND replaces the context object, so `state-migration begin` and
-  `finish` and the prune step ran from the configuration root instead of
-  the initialised root the runner entered. The steps now use the recorded
-  invocation directory. Symptom: a `begin` or `backup` reporting no state
-  where `tofu state pull` in the mirror shows one. Pinned by
-  `test_the_migration_commands_run_from_the_directory_the_runner_entered`.
-- **2026-09-23, the identity read-model is no witness of state** (same
-  item). The read-model is written at generation and outlives a failed
-  runner, so it cannot say what is in state; the prune step lists the
-  state the root is bound to instead. Also learnt: a pipe to `tail` masks
-  the bar's exit code.
-- **2026-09-22 (and 2026-09-20), `require_released_builds` switched off
-  by hand for the middle of a release** (stage 61 item 4). A durable
-  instance whose volume allows one attachment can only prove a new build
-  on itself, after `upgrade instance` pinned it to that build, which the
-  validator refused: `instance '<name>' is pinned to build <id> of
-  '<image>', which is not a released build`. The release grace now admits
-  the series head while its own proof is under way and refuses naming
-  what is missing (`no grace: <reason>`). Proved 2026-09-23 12:58 to 13:11
-  as the coops model's third release with the flag never touched. Pinned
-  by `test_the_series_head_under_its_own_proof_is_allowed_and_refused_when_the_proof_fails`.
-- **2026-09-22, a stale attachment in state blocked the identity plan**
-  (stage 61 item 3, filed by stage 56). A membership dropped from the
-  declaration that OPA no longer held made the provider ERROR on refresh
-  (`user "x" is not present within group "g"`) instead of planning the
-  destroy. Every identity runner now carries a `prune-attachments` step
-  between its `init` and its plan (a silent OPA removes nothing), and the
-  group root's generation-time plan is a preview with `-refresh=false`.
-  Three live attempts; proved 2026-09-23 10:46, restored through the gate
-  at 11:00.
-- **2026-09-22, the release and retention lifecycles wrote an instance
-  root's `instances.auto.tfvars` under their own directories** (stage 61
-  item 5): the instance builder's finalize hook acted for every lifecycle.
-  It now acts for instance-image alone. Symptom: a stray tfvars file
-  under `generated/release/` or `generated/retention/`, which the scanner
-  refuses by name at commit. Pinned by
-  `test_release_and_retention_never_write_an_instance_roots_tfvars`.
-- **2026-09-22, the first live replacement wrote no alias.** The alias
-  pass ran before the new machine had answered and enrolled, and wrote
-  nothing (`provider_aliases.register_provider_aliases`). It now waits
-  for a machine launched in the same run to be reachable
-  (`REACHABLE_WAIT_SECONDS`, 300) and then for its registration
-  (`REGISTRATION_WAIT_SECONDS`, 300), and gives up loudly: `not reachable
-  within 300s of its launch; no alias this run` or `not enrolled within
-  300s`. The next applies-on run gives the names back.
-- **2026-09-22, the strict state query refused the run that finished an
-  upgrade.** After `upgrade instance` moved the pin, the booted image
-  behind the pin was `changed` drift and `cloud-launch`'s preflight
-  refused the very launch that would finish the replacement. A pending
-  replacement is now a `note:` (`booted image <x> is behind its pin <y>;
-  the replacement is PENDING`).
-- **2026-09-22, the gate refused the volume attachment alone.** A
-  replaced instance's volume attachments bind to the instance id, so the
-  replace plan destroyed them too and the gate refused the attachment as
-  an unwhitelisted destroy. The attachments are whitelisted with the
-  replace (the instance plugin's whitelist; the gate's rule is in
-  [`commands/gate.py`](src/cs_image_system/base/commands/gate.py)).
-- **2026-09-22, a replaced machine's registration claimed the new
-  machine's alias.** Found in review before the first live replacement:
-  the old machine's OPA registration under `<name>-001` would have
-  outlived it and claimed the bare alias. `mark_launched` now retires the
-  registration of the hostname the previous generation booted with when
-  the new one differs.
-- **2026-09-22, `sft resolve --quiet` exit 126 with no output.** The
-  client wanted a browser and `--quiet` forbade it: by hand, an expired
-  client session; as the workload, no token. The login proof now says
-  so in the `resolves` check (`the client has no session ...`).
-- **2026-09-22, the identity plan ran on ciphertext.** The first real
-  identity run after stage 51: the generation-time plan ran in
-  `generated/`, where a derived address's domain is `ENC[age:...]`, so
-  every Okta user lookup failed with "no users found". The generation-time
-  plan now runs in the private mirror too; a dry run plans nothing at
-  generation time. Pinned by
-  [`tests/test_v2_identity_plan_in_mirror.py`](../../tests/test_v2_identity_plan_in_mirror.py).
-- **2026-09-22, the first live CI-policy reconcile was refused by hard
-  drift.** An absent CI login policy read as `missing [HARD]`, and the
-  validator refuses a run on hard drift, so the identity apply that
-  would CREATE the policy could not run. Workload drift is never hard now
-  (`workload_drift`); it stays drift for the strict query and the login
-  proof.
-- **2026-09-21, a lapsed OPA key read as five missing groups** (stage 61
-  item 1, found while landing stage 57). Under an unsourced `.envrc` the
-  provider answered `HTTP 401` and every managed group became `missing
-  ... [HARD]`, which refused every run. A group the provider could not
-  be ASKED about is now an `unavailable:` line naming the group and the
-  error (`group_drift`); only an answered absence (a 404) is hard. Pinned
-  by `test_a_group_the_provider_could_not_be_asked_about_is_unavailable_not_missing`.
-- **2026-09-21, three `coops-model` registrations in OPA, one live**
-  (stages 55 and 60). Every relaunch of one declaration enrolled another
-  server under the same name and nothing retired the old one; `sft ssh`
-  could not choose. Now a decommission retires the registration with the
-  pin and the launch parameters (a failure is `its OPA registration as
-  '<host>' was NOT retired ... a stale server will answer to that name
-  until it is deregistered by hand`), `validate_claimed_hostnames` refuses
-  a claimed name before a run that can launch, a new machine is named
-  `<declared>-NNN`, and generations are observed through the provider's
-  instance id. To deregister by hand, servers live under the resource
-  group path (`DELETE` answers 204); the team-level path answers `401
-  Missing capability`.
-- **2026-09-21, an invalid hostname failed silently at boot.** The launch
-  script's `hostnamectl set-hostname '<name>' || true` swallowed an
-  invalid name; the machine kept the hyperscaler's `ip-10-26-34-156`,
-  enrolled under it, and `sft ssh <declared>` found nothing while every
-  step reported success. `check_canonical_hostnames` refuses at validate
-  what the boot swallowed, and the state report notes a machine
-  `registered in OPA as '<x>' but its generation booted as '<y>'`.
-- **2026-09-21, the sso-session profile's `expiresAt` was the access
-  token, not the window.** Read against a 30-minute run it refused a
-  full-test on its last leg while the CLI would have refreshed the token;
-  for an hour the readiness check read the refreshable token as ABSENT
-  and skipped the live legs while `full-test` "passed". `aws_sso_expiry`
-  now reports a profile with a `refreshToken` as `present; refreshes
-  itself ... (no fixed expiry readable)`, and readiness counts it present.
-  A session that lapses mid-run is environmental; the repair is `aws sso
-  login --profile <p>` then `just full-test-legs`.
-- **2026-09-21, a stopped machine was reported as "the provider could not
-  answer"** (stage 57). The boot-image probe filters on `running`, so the
-  operator's own stopped `coops-model` was indistinguishable from an
-  unreachable cloud, and a stopped ephemeral was invisible while its
-  disks billed. `power_state` separates `None` from `STOPPED`; the report
-  says `note: instances/<name>: STOPPED (switched off; not drift) ...`,
-  and a stopped ephemeral shows as standing. Confirmed live: a plan over
-  the stopped machine reported no changes and left it stopped.
-- **2026-09-20, the run's commit failed while the instance it launched
-  was running** (stage 54.1). Stage 49 excluded the private mirror by an
-  `:(exclude)` pathspec and stage 54 named it in the root's `.gitignore`;
-  together `git add -A` exited 1 saying the path is ignored, so stage 19's
-  launch succeeded and its commit did not. The pathspec is gone; the
-  `.gitignore`, `refused_path` and the scanner's skip keep the mirror out.
-  The regression test runs a real `git add`.
-- **2026-09-20, a pin outlived its instance** (stage 54). `coops-model`
-  was destroyed through the gate and `pins.yaml` kept binding it, with its
-  launch parameters; with `require_released_builds` on, `validate`
-  refused every run, including the one that would release the build, so
-  the declaration had to be commented out. The forgetting mechanism was
-  found to work and a test now proves it; the live cause stays
-  unexplained; `forget instance <name>` (the system CLI) drops a record
-  that outlived its instance and refuses while the instance is declared.
-- **2026-09-20, an in-bake assertion could not fail a build** (stage 53).
-  A package assertion was written `a || { b && c; }`, POSIX suppresses
-  errexit inside an AND-OR list, and stage 19's first image baked green
-  twice asserting `rpm -q vim` on AlmaLinux 10, which has no such
-  package; the instance launched from it then failed the same check.
-  Package checks now test and `exit 1` for themselves naming the package
-  on stderr; the storage and runtime PREREQUISITE checks shared the shape
-  (an image missing its mount tooling could pass its own verification).
-  Pinned by [`tests/test_v2_in_bake_tests_enforce.py`](../../tests/test_v2_in_bake_tests_enforce.py),
-  which runs each generated assertion under `sh -e` with a sentinel.
-- **2026-09-19, the private mirror stood one level too deep.** Stage 49
-  put it at `_private/generated/...`; every relative path in an emission
-  counts directories up to the configuration root, so `tofu init` in the
-  mirror could not read its module. `mirror_path` replaces the generation
-  directory's name with `_private` instead of nesting under it.
-- **2026-09-19, a zone change planned to DESTROY a data volume** (stage
-  52). Proven against a copy of the live tree: pointing the runtime at a
-  subnet in another zone planned `us-east-2a -> us-east-2b # forces
-  replacement` on a 100 GiB volume holding data; the gate refused it as an
-  unwhitelisted destroy, but at apply time and naming the volume rather
-  than the cause. `check_availability_zones` refuses at validate, naming
-  every claimant. Live subnets and `mnt_data` declare their zones since.
-- **2026-09-18, the stage-49 guard read the emission the run was about to
-  replace** (stage 51): run before generation, the first run after a
-  value was newly encrypted could never regenerate the tree that made it
-  fail. The plaintext scan moved to the commit (and to `validate` by hand
-  as `check_no_plaintext_emitted`).
-- **2026-09-17, the version checkers had never run** (stage 48): they
-  were registered by name while the lookup keyed on the type in the wrong
-  table, so no declared version was ever checked; and a foreign key that
-  resolved to nothing fell back to the raw id with a warning, which let
-  both trees name a non-existent image builder for months. Both are
-  refusals now (`check_single_version`, `check_foreign_keys`).
-- **2026-09-11, the generated `.gitignore` dropped a restated rule.** The
-  first-wins dedupe kept the built-in `!.terraform.lock.hcl` ahead of a
-  configuration's own `.*`, so the negation did nothing; the last
-  occurrence keeps its place now.
-- **2026-09-09, `--apply-runtime gcloud-east1` without `--only-runtime`
-  baked two AMIs on AWS** (ledger 68). `--apply-runtime` scoped the
-  applies while the bake surface was unfiltered. The CLI now implies
-  `--only-runtime`, and a real run whose bake plan would bake outside a
-  proper-subset apply scope refuses: `run scope: bake(s) outside the apply
-  scope [...]: <series>@<rt> -- pass --allow-unscoped-bakes, or select
-  images with --only / --only-runtime`.
-- **2026-09-09, the first preflight could not report an expired
-  session.** Loading the configuration validates every runtime against
-  its cloud and died on the expired session before any preflight could
-  say so; `raw_session_infos` reads `cfg/runtime-builders.yml` before the
-  load. And **2026-09-08** (ledger 65) a fifteen-minute cycle failed at
-  its GCE instance plan because the AWS SSO session lapsed AFTER the
-  preflight had passed; hence `expected_run_minutes` and the blocking
-  window.
-- **Until 2026-09-25 (stage 63), a session with exactly zero minutes left
-  was not expired.** The expiry test read `(minutes_left or 1) <= 0`, so
-  `0.0` counted as one minute left. `_expired` in
-  [preflight.py](src/cs_image_system/base/commands/preflight.py) now calls
-  a session expired when its minutes left are known and `<= 0`; one whose
-  expiry cannot be read (`None`) is still not expired.
-- **2026-09-09, a `verify assert` as the runner's last step failed the
-  run after the teardown** (ledger 68, `teardown` policy). The records
-  then described an instance that no longer existed; the verdict now
-  fails the run from `forget_ephemerals`, after the records are
-  consistent with reality.
-- **2026-09-08, a follow image baked in the same run as its parent saw
-  no move** (ledger 70). The parent's new head is not recorded at plan
-  time, so the pin/head comparison saw nothing; `_bake_reason` now reads a
-  parent that bakes this run as a move (`parent <build> re-bakes this run
-  (parent_policy: follow)`), kept out of the fingerprint on purpose.
-- **2026-09-07 to 09, the ephemeral runtime had no moment to release**
-  (ledger 71): retention disposed the verified build before the operator
-  could release it; hence `release: {model}` on an image and the
-  `release --declared` step of the same run.
-- **2026-09-05, decommissioning the last GCE instance** (findings 52 and
-  53). The runtime's root vanished with its last declaration, so nothing
-  planned the destroy and the VM stayed orphaned; and the forget ran at
-  generation, so a DRY run erased the record and the gate then had
-  nothing to whitelist. The root is still emitted for a recorded instance
-  and the forget waits for the real apply.
-- **2026-09-03, the apply step executed an unrequested lifecycle's stale
-  runner script** (finding 34): `run storage --no-dry-run` ran the
-  previous day's base-image script hook-lessly and baked two unrecorded
-  AMIs. A script of a lifecycle not generated this run is
-  `stale-script-skipped` with a warning.
-- **2026-09-02, a recorder claimed reality no apply produced** (finding
-  21): the transition recorder wrote `None -> active` on a run whose
-  apply flag was off; the state query's hard drift caught it. Every
-  reality-claiming after-apply hook is gated on its lifecycle's flag.
-- **2026-09-02 onwards, the ledger's shape** (findings 25, 28, 32, 33,
-  47 to 50): a `t2.micro` OOM-killed the SSM agent (per-instance
-  `machine_type`); `/dev/xvdf` never appears on Nitro instances (the
-  by-id fallback in `user_data_template`); an enrollment token deleted
-  out of band makes the oktapam provider ERROR on refresh (hard drift
-  naming `state rm` as the repair); a failed plan left a stale planfile
-  the gate accepted (`planfile_is_stale`); GCE forbids underscores in
-  device names and attached `gce_data` while the script mounted
-  `google-gce-data` (`_gce_device_name`); the booted image was never
-  compared with the pin (`instance_boot_drift`); the first successful
-  bake's meta-state commit hit a gitignored tree (skipped with a
-  warning); an unmount ran on the instance with no receipt written
-  (`write_receipt` on success and failure).
+| Symptom | Meaning | Action |
+| --- | --- | --- |
+| `Error reading config file : <e>` and a traceback, exit 1, nothing generated | The load refused a declaration: an unknown key, a reserved name, a marker where none may stand, a marker no identity opens, a `type` no installed plugin registers | Read the line before the traceback; it names the file, the entry or the value. A refusal that still ends in a bare stack is a defect to report ([the ones made into one line so far](../../docs/INCIDENTS.md#refusals-that-surfaced-as-tracebacks)). |
+| `validation: <exe>: binary '<b>' not found` / `<exe> <v> does not meet its requirement` | A declared tool is absent, or its version floor moved | Install or repoint it; in CI a failure naming a version means the floor moved. Every declared version is checked at `validate` and every run ([the checks that once never ran](../../docs/INCIDENTS.md#checks-that-had-never-run-versions-foreign-keys-playbooks-the-manifest)). |
+| `validation: state: <class> <kind> <name> ... [HARD]` | Reality disagrees with the record: a pinned build gone, a recorded storage absent, a managed group the provider answered does not exist | Repair through `state import`, `upgrade`, `forget instance` or the provider, never by editing the record. A provider that could not be ASKED is an `unavailable:` line, never hard drift ([a lapsed key once read as five missing groups](../../docs/INCIDENTS.md#a-lapsed-opa-key-read-as-five-missing-groups)). |
+| `run scope: bake(s) outside the apply scope [...]` | The bake surface is wider than the apply scope of a real run | Select images with `--only` / `--only-runtime`, or pass `--allow-unscoped-bakes` ([the scoped apply that baked on the other cloud](../../docs/INCIDENTS.md#an-apply-scoped-to-gce-baked-two-amis-on-aws)). |
+| `apply: stale-script-skipped` in the summary | A runner script of a lifecycle not generated this run lies under `generated/` | Not an error; request the lifecycle to regenerate it ([the stale script that baked two unrecorded AMIs](../../docs/INCIDENTS.md#the-apply-step-executed-another-lifecycles-stale-runner-script)). |
+| `storage-state.yaml` or `launch-params.yaml` claims a transition or a launch no apply produced | A reality-claiming recorder ran with its lifecycle's apply flag off | Every reality-claiming after-apply hook is gated on its flag; the state query's hard drift is what catches a wrong claim ([the recorder that claimed a reality no apply produced](../../docs/INCIDENTS.md#a-recorder-claimed-a-reality-no-apply-produced)). |
+| `instance '<i>' is pinned to build <b> ... not a released build (no grace: <why>)` | `require_released_builds` is on and the pin is neither released nor the series head under its own proof | Release the build, `upgrade instance` back, or `forget instance` for a pin that outlived its machine; the flag is never switched off for a release ([the release grace](../../docs/INCIDENTS.md#the-release-flag-had-to-be-switched-off-by-hand-mid-release), [a pin that outlived its instance](../../docs/INCIDENTS.md#a-pin-outlived-its-instance)). |
+| `canonical hostname '<h>' is already registered to <n> server(s)` / `could not check whether canonical hostname ... is already claimed` | Another registration answers to the name, or the registry was silent | Retire the stale registration; silence is never a free name ([three registrations of one name](../../docs/INCIDENTS.md#three-registrations-of-one-hostname-in-opa-one-live), [the hostname that failed silently at boot](../../docs/INCIDENTS.md#an-invalid-hostname-failed-silently-at-boot)). A dry run never asks ([it once did](../../docs/INCIDENTS.md#a-dry-run-asked-the-hostname-registry)). |
+| `instance '<i>' cannot be in more than one availability zone: ...` | A zone is replace-forcing: the instance, its zonal storages and its runtime's subnet disagree | Fix the declaration, never the plan ([the zone change that planned to destroy a data volume](../../docs/INCIDENTS.md#a-zone-change-planned-to-destroy-a-data-volume)). |
+| `instance '<i>' was launched (run <r>) and its launch parameters changed` | A launched instance is immutable | Replace it (`upgrade instance`, or decommission and redeclare); a removed mount and a `machine_type` change are the two sanctioned in-place changes. |
+| `the machine bearing this name is <id2>, not <id1> -- generation ... closed as replaced out of band` | Something outside the system replaced the machine | The records match reality again; find out who did it. |
+| `not reachable within 300s of its launch; no alias this run` / `not enrolled within 300s` | The new machine had not answered or enrolled when the alias pass ran | The next applies-on run gives the names back ([the first live replacement](../../docs/INCIDENTS.md#the-first-live-replacement-four-traps-in-one-afternoon)). |
+| `note: instances/<name>: STOPPED (switched off; not drift)` | The operator switched the machine off | Nothing: only `verify instance` starts it, and stops it again ([a stopped machine once read as an unreachable cloud](../../docs/INCIDENTS.md#a-stopped-machine-was-reported-as-the-provider-could-not-answer)). |
+| `retention debt: <b> (<series>@<rt>) would be disposed but an instance is pinned to it` | Declared retention would dispose a build still in use | Nothing, or release the build: a released build is kept by decision ([the ephemeral runtime that had no moment to release](../../docs/INCIDENTS.md#the-ephemeral-runtime-had-no-moment-to-release)). |
+| `bake plan: <series>@<rt>: skip` for a `follow` child whose parent bakes this run | The parent's new head is not recorded at plan time | Nothing: `bake_reason` reads a parent that bakes this run as a move, kept out of the fingerprint on purpose ([the follow image that saw no move](../../docs/INCIDENTS.md#a-follow-image-baked-in-the-same-run-as-its-parent-saw-no-move)). |
+| A `follow` child on an ephemeral runtime is due every run with reason `inputs changed` | The parent's build id changes every cycle by design, so a fingerprint over it could never agree with the record | The fingerprint hashes the parent's own fingerprint, never a build id ([the image that re-baked every cycle](../../docs/INCIDENTS.md#a-follow-image-re-baked-every-cycle-on-the-ephemeral-runtime)). |
+| `instance <n> failed verification: <check>` on a build that baked green | An in-bake assertion that could not fail the bake | Package, storage and runtime assertions test and `exit 1` for themselves; re-bake ([the assertion that could not stop the bake](../../docs/INCIDENTS.md#a-false-in-bake-assertion-could-not-stop-the-bake)). |
+| `verify assert` fails the run with the records describing a torn-down instance | Under the `teardown` policy the verdict must fail the run after the records match reality | The verdict fails the run from `forget_ephemerals`, after the forget ([the assert that failed the run after the teardown](../../docs/INCIDENTS.md#a-verify-assert-as-the-runners-last-step-failed-the-run-after-the-teardown)). |
+| `user "<x>" is not present within group "<g>"` from the identity provider on refresh | A membership attachment in state that the provider no longer holds | The identity runner's `prune-attachments` step removes it after a state backup; a silent provider removes nothing ([the stale attachment that blocked every plan](../../docs/INCIDENTS.md#a-stale-attachment-in-state-blocked-every-identity-plan)). |
+| `no users found` from every user lookup in an identity plan | The plan ran on ciphertext | Plans run in the private mirror; a dry run plans nothing at generation ([the plan that ran on ciphertext](../../docs/INCIDENTS.md#the-identity-plan-ran-on-ciphertext)). |
+| `CI login policy '...' is absent` / `workload role '...' is not known to OPA` in the state report | Workload drift is reported, never hard: the policy's absence is the state the identity apply repairs | The identity apply that creates the policy runs; the strict query and the login proof still see the drift ([the reconcile once refused by hard drift](../../docs/INCIDENTS.md#the-first-ci-policy-reconcile-was-refused-by-hard-drift)). |
+| `state backup for workspace '<ws>' REFUSED` | The runner step ran where no initialised root, or no state, is | Initialise the root against its location and rerun; the runner's `materialize` wrapper puts the step in the right directory ([the backup that kept nothing](../../docs/INCIDENTS.md#a-runner-step-acted-in-the-configuration-root-and-the-backup-kept-nothing)). |
+| `Refusing meta-state/<file>: material that must not be public` / `Refusing the run's meta-state commit` | A hard public-safe rule matched a value about to be written or staged | Encrypt the value or allow it by decision in `public_safe.allow`; nothing was written. The plaintext scan runs at the commit, never before generation ([the guard that read the emission it was about to replace](../../docs/INCIDENTS.md#the-plaintext-guard-read-the-emission-the-run-was-about-to-replace)). |
+| `run --commit` fails with git saying the mirror's path is ignored | The commit must exclude `_private/` without an exclude pathspec | The root's `.gitignore`, `refused_path` and the scanner's skip keep the mirror out; commit by hand or re-run ([the commit that failed under a running launch](../../docs/INCIDENTS.md#the-runs-commit-failed-while-the-instance-it-launched-was-running)). |
+| A `.gitignore` negation such as `!.terraform.lock.hcl` does nothing | A restated rule was deduplicated into the wrong place | The last occurrence of a duplicate keeps its place ([the dropped rule](../../docs/INCIDENTS.md#the-generated-gitignore-dropped-a-restated-rule)). |
+| A stray `instances.auto.tfvars` under `generated/release/` or `generated/retention/`, refused by name at commit | A lifecycle that does not own the instance roots wrote one | The instance builder's finalize hook acts for instance-image alone ([the stray tfvars file](../../docs/INCIDENTS.md#the-release-and-retention-runs-left-a-stray-tfvars-file)). |
+| `tofu init` in the mirror cannot read `../tfmodules` or its local state | The mirror does not stand at the emission's depth | Compare the depth of `_private/<...>` with `generated/<...>`; `mirror_path` replaces the generation directory's name ([the mirror that stood one level too deep](../../docs/INCIDENTS.md#the-private-mirror-stood-one-level-too-deep)). |
+| A decommissioned instance's root plans nothing, or a dry run erased its record | The root is emitted for a recorded instance and the forget waits for the real apply | Re-run as a real run; nothing is forgotten by a dry run ([the last GCE instance](../../docs/INCIDENTS.md#decommissioning-the-last-gce-instance-planned-no-destroy-and-a-dry-run-erased-its-record)). |
+| `preflight: a session ... EXPIRED` / `a session expires before the expected run length` | The credential cache lapsed, or lapses within `preflight.expected_run_minutes` | `aws sso login --profile <p>` and rerun; a session that lapses mid-run is environmental ([the session that lapsed mid-cycle](../../docs/INCIDENTS.md#the-aws-session-lapsed-mid-cycle-and-then-before-the-preflight-could-say-so), [the zero-minute session](../../docs/INCIDENTS.md#a-session-with-exactly-zero-minutes-left-was-not-expired), [the refreshing profile read as absent](../../docs/INCIDENTS.md#an-sso-session-profile-was-read-as-absent-for-an-hour)). |
+| `sft resolve <h>: exit 126 -- the client has no session` in a login proof | The client wanted a browser and `--quiet` forbade it | As the enrolled client, `sft login`; as the workload, `OPA_TOKEN` is missing or was refused ([the silent exit 126](../../docs/INCIDENTS.md#sft-resolve-exited-126-with-nothing-on-stderr)). |
+| The SSM agent or the package manager dies on a bake host | The bake host is too small for the update | Declare a per-instance `machine_type` ([the starved bake host](../../docs/INCIDENTS.md#a-1-gb-bake-host-starved-the-package-manager-and-the-ssm-agent)). |
+| `/dev/xvdf` never appears on a launched instance | Nitro instances expose the device under another name | The launch script falls back to the by-id path ([the device that never appeared](../../docs/INCIDENTS.md#the-ebs-device-never-appeared-as-xvdf-on-a-nitro-instance)). |
+| The identity provider ERRORs on refresh naming an enrollment token | The token was deleted out of band | Hard drift names `state rm` as the repair ([the token deleted out of band](../../docs/INCIDENTS.md#an-enrollment-token-deleted-out-of-band)). |
+| `STALE PLANFILE: ...` from the gate | A failed plan left an older `tfplan` behind | The plan step did not run or did not succeed; read the runner's output above the gate line ([the stale plan that once passed](../../docs/INCIDENTS.md#a-stale-plan-file-passed-the-gate)). |
+| A GCE data disk attached but not mounted | GCE forbids underscores in device names | `_gce_device_name` renders the name GCE uses ([the refused underscores](../../docs/INCIDENTS.md#gce-refused-underscores-in-resource-names)). |
 
 ### Failures the code raises
 
@@ -2310,20 +2115,16 @@ code writes it (values in angle brackets).
 - Warning `Instance '<name>' does not have an image specified; the load
   refuses it when the configuration finalizes.`, then `Instance '<name>'
   cannot be finalized without an image specified.` (`ValueError`) -- an
-  instance declares no `image`. Name the image to launch (stage 63: the
-  warning's old wording, "will be ignored during generation", was never
-  true; corrected 2026-09-25).
+  instance declares no `image`. Name the image to launch.
 - `Image <n> must have at least one runtime specified in the 'runtimes'
   field` / `Image <n> must have either 'os' or 'source_image' specified`.
 - `OS builder <n> must have at least one runtime configuration.` /
-  ``OS builder <n>: two `runtimes` entries name image builder <ib>; one entry per image builder``
-  (stage 63; it used to read `Duplicate runtime configuration name <ib>
-  in OS builder <n>`).
+  ``OS builder <n>: two `runtimes` entries name image builder <ib>; one entry per image builder``.
 - `Unsupported RHEL version '<v>' in OS builder <n> (supported: 8, 9, 10)`
   / `Could not determine RHEL version from family_version '<v>' in OS
   builder <n>` -- a `type: rhel` OS builder whose major is not 8, 9 or 10,
-  or whose `family_version` does not parse; refused at load since stage 63
-  (until 2026-09-25 only when update commands were generated).
+  or whose `family_version` does not parse; refused at load, whatever
+  the update policy.
 - `Runtime builder <n> must have a default machine type specified.` /
   `RuntimeNetworkingModel must have a network specified.` /
   `... has no subnets defined.` / `No default subnet defined for network
@@ -2397,8 +2198,7 @@ summary):
   `tests.post_bake must be a map` / `every mounts entry is an absolute mount
   point`.
 - ``base image '<n>': update: must be a mapping (`update: {policy: <name>}`), got <type>``
-  (stage 63; it used to read "must be a mapping or a policy name", though
-  a bare name was never accepted) / the
+  (a bare name is never accepted) / the
   update-policy messages (`packages` needs packages or pins; a package
   both updated and excluded; `update.refresh_days must be a positive
   number of days`).
@@ -2469,8 +2269,8 @@ lifecycle `failed` or the apply `failed`; exit 1):
 - `OS builder <n>: image_id '<id>' on runtime <rt> is not known to the
   provider` -- an OS builder entry pins an `image_id` the runtime's
   `query_provider_image_by_id` cannot find (an AMI id from another region,
-  a deregistered AMI, a GCE image name not in the entry's owner projects;
-  stage 63). A runtime plugin that does not implement the hook raises
+  a deregistered AMI, a GCE image name not in the entry's owner
+  projects). A runtime plugin that does not implement the hook raises
   `<class> cannot look a vendor image up by id` instead.
 - `[<lc>] before-phase hooks failed for <phase>` / `generation failed for
   <phase>` / `after-phase hooks failed for <phase>` / `Command failed

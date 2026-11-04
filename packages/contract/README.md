@@ -11,9 +11,8 @@ first. The core's base classes are the convenient implementation of the
 contract, not the contract itself; a class that satisfies the protocols
 structurally is a first-class plugin, and
 [`testing.assert_conforms`](src/cs_image_system/contract/testing.py) is the
-check that says so. Stage 30 made the package (2026-10-29); until then the
-protocols lived inside `base`, imported the registry, and a plugin's
-`pyproject.toml` depended on the CLI host.
+check that says so. Nothing in the package imports the registry, and a
+plugin's `pyproject.toml` never needs the CLI host.
 
 One module per kind of builder, over a shared core:
 
@@ -30,33 +29,33 @@ One module per kind of builder, over a shared core:
 | [`names`](src/cs_image_system/contract/names.py), [`hcl`](src/cs_image_system/contract/hcl.py) | `safe_name`, `super_safe_name`; `HclRaw`, `hcl_expr`, `render_module_call`. |
 | [`testing`](src/cs_image_system/contract/testing.py) | `assert_conforms(cls, protocol)` and `conformance_problems`. |
 
-### What moved where
+### What the contract holds, and where the core re-exports it
 
-Stage 30 moved these from the core into the package. Every old path but
-`cs_image_system.base.protocols` still resolves: the module that held a
-name re-exports it from here (the shims), kept on purpose while the
-package is provisional. Removing the shims is the commitment to the
-contract, and is done together with moving the package to a repository
-of its own; until then an undo of the stage is a swap of which side
-holds the bodies, with no import rewritten anywhere.
+Every name the contract holds has a path in the core that re-exports it
+from here (the shims), except the protocols: `cs_image_system.base.protocols`
+does not exist. The shims are kept on purpose while the package is
+provisional. Removing them is the commitment to the contract, and is done
+together with moving the package to a repository of its own; until then
+the package can be undone by a swap of which side holds the bodies, with
+no import rewritten anywhere ([the stage index](../../docs/CHANGES.md#s30)
+records the move).
 
-| Was | Is now |
+| Core path (re-exports) | Contract module |
 | --- | --- |
 | `base.constants` (all of it: `VCT`, the sentinels, the field metadata keys, `PLUGIN_TYPES`, the collection and file names) | `contract.constants` |
 | `base.models.model_config.CSIS_MODEL_CONFIG` | `contract.model_config` |
-| `base.helpers.field_helpers` (`fk_field`, `templated_field`, `deferred_list_field`, `deferred_list_fk_field`, `lookup_dataclass_field`) | `contract.fields`, plus the new `parent_field` |
+| `base.helpers.field_helpers` (`fk_field`, `templated_field`, `deferred_list_field`, `deferred_list_fk_field`, `lookup_dataclass_field`) | `contract.fields`, plus `parent_field`, which has no core path |
 | `base.helpers.field_kinds` (the field-kind registry) | `contract.field_kinds` |
 | `base.lifecycle.ExecutionLifecyclePhase` | `contract.lifecycle` |
-| `base.lifecycles`: `Lifecycle`, `LifecycleSpec`, `LifecycleLike`, `LIFECYCLE_ORDER`, `LIFECYCLE_PHASES`, `LIFECYCLE_BUILDER_VCTS` (the registry functions stay in `base`) | `contract.lifecycles` |
-| `base.basic.asset`: `Asset`, `AssetSet` (`sort_and_write` now takes the generation path) | `contract.assets` |
-| `base.models.executable_adds.CFExecutables` (now generic over `ExecutableProtocol`) | `contract.executables` |
-| `base.protocols.plugin_metadata`: `PluginArtifactProtocol`, `PluginMetadataProtocol`; `base.protocols.name_typed_protocol`: `NameTypedProtocol`, `SelfInjectedNameProtocol`, `SubItemOverrideProtocol`; `base.protocols.builder_model_protocol`: `BuilderModelProtocol`; `base.protocols.parent_property_holding_protocol`: `ParentPropertyHoldingProtocol` (deleted, no shim; their default bodies are `base.models.mixins` and the base classes) | `contract.core` |
-| `base.protocols.state_management.StateManagementRootProtocol` (zero implementers) | deleted |
+| `base.lifecycles`: `Lifecycle`, `LifecycleSpec`, `LifecycleLike`, `LIFECYCLE_ORDER`, `LIFECYCLE_PHASES`, `LIFECYCLE_BUILDER_VCTS` (the registry functions are the core's) | `contract.lifecycles` |
+| `base.basic.asset`: `Asset`, `AssetSet` (`sort_and_write` takes the generation path) | `contract.assets` |
+| `base.models.executable_adds.CFExecutables` (generic over `ExecutableProtocol`) | `contract.executables` |
+| none: `base.protocols` has no shim, and the default bodies of `PluginArtifactProtocol`, `PluginMetadataProtocol`, `NameTypedProtocol`, `SelfInjectedNameProtocol`, `SubItemOverrideProtocol`, `BuilderModelProtocol` and `ParentPropertyHoldingProtocol` are `base.models.mixins` and the base classes | `contract.core` |
 | `base.utils.safe_name`, `super_safe_name` | `contract.names` |
 | `base.utils.HclRaw`, `hcl_expr`, `render_module_call` | `contract.hcl` |
 | `base.models.provider_specific_image.PSIState`, `PSISourceKind`, `psi_key` | `contract.image` |
-| `hashicorp_utils.collector.StateLocation`, `BackendRegistration`, the `BackendKind` protocol (still importable from the collector) | `contract.state` (`BackendKindProtocol`; `BackendWithoutKind` is new) |
-| nothing: new | `contract.metadata.PluginMetadata`, the kind protocols, `contract.testing` |
+| `hashicorp_utils.collector.StateLocation`, `BackendRegistration`, the `BackendKind` protocol (importable from the collector) | `contract.state` (`BackendKindProtocol`, `BackendWithoutKind`) |
+| none: contract-only | `contract.metadata.PluginMetadata`, the kind protocols, `contract.testing` |
 
 The protocols carry no implementation. Where a default body existed
 (`global_id`, `get_classification`, `get_self_injected_name`, the parent
@@ -78,7 +77,8 @@ that returns one `PluginMetadata` or a list of them.
 
 1. **Depend on the contract.** In `pyproject.toml`, `dependencies =
    ["cs-image-system-contract>=X"]`, with `X` the first release that
-   carries the contract (0.1.3 and before do not): a floor, not a pin --
+   carries the contract ([the stage index](../../docs/CHANGES.md#s30)
+   names it; 0.1.3 and before do not): a floor, not a pin --
    the workspace's own packages pin each other at `==` because they
    release together, an external plugin does not. Add `cs-image-system-base` only
    if the plugin subclasses the core's base classes (every built-in plugin
@@ -136,8 +136,8 @@ written the convenient way on the base classes; the
 user builder and for a hook plugin.
 
 Not in the contract yet, so a plugin that needs them depends on `base`:
-the run context (`GlobalTypeContext`, reached today through a base
-builder's `_get_context()`; its protocol is a later stage), the
+the run context (`GlobalTypeContext`, reached through a base builder's
+`_get_context()`; it has no protocol yet), the
 `cs_image_system.plugins.hooks` entry point (`HookSet`, typed on the
 context) and the `cs_image_system.bootstrap` entry point (the bootstrap's
 sections).
@@ -173,7 +173,7 @@ adds.
 
 ### The image query
 
-`image.ImageQuery` (stage 106) is the system's own vocabulary for "which
+`image.ImageQuery` is the system's own vocabulary for "which
 vendor image": the image-source catalog, an OS builder's `query` and its
 runtime entry's are all written in it, and a runtime plugin translates it
 to its own words through two hooks on `runtime.RuntimeBuilderProtocol`,
@@ -219,7 +219,7 @@ under a dry run and a real one, on every runtime.
   a property or a dataclass field, a class method a class method.
   Annotations are not compared here; pyright does that where a class
   lists its protocol as a base (its override check,
-  `reportIncompatibleMethodOverride`, is on as an error since hygiene XIX),
+  `reportIncompatibleMethodOverride`, is on as an error),
   and a protocol a class lists as a base is the question, not an answer,
   so its stubs never count. The core's
   [tests/test_v2_contract.py](../../tests/test_v2_contract.py) runs it
@@ -238,6 +238,10 @@ under a dry run and a real one, on every runtime.
   classification (`Type Collision`).
 
 ## When it fails
+
+Incidents that have happened, with their cause and fix, are recorded on
+[INCIDENTS.md](../../docs/INCIDENTS.md); what follows keeps each
+failure's symptom, its meaning and what to do.
 
 - `AssertionError: <class> does not conform to <protocol>: <member>: ...`
   from `assert_conforms`: the class lacks a member or a method's
@@ -258,11 +262,11 @@ under a dry run and a real one, on every runtime.
   model does not declare (`CSIS_MODEL_CONFIG` refuses unknown keys); the
   plugin's README names the fields it reads.
 - `ModuleNotFoundError: No module named 'cs_image_system.base.protocols'`
-  from a plugin written before stage 30 running on this tree: the
-  protocols moved here, with no shim; import them from
+  from a plugin that imports the protocols from the core: the protocols
+  live here and that path has no shim; import them from
   `cs_image_system.contract.core`.
 
-No failure of this package has happened in the field yet (2026-10-29).
+No failure of this package has been seen in the field.
 
 ## Related
 

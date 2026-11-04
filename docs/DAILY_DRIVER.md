@@ -1,10 +1,11 @@
 # The daily driver
 
-*Walked from nothing on 2026-10-05 to 2026-10-14 against releases
-0.1.1.dev14 to 0.1.1.dev23 (stage 65): two configuration repositories
-made, bootstrapped, baked, launched, logged into and torn down by an
-operator typing from a page; what that found is in this page's words and
-in [docs/history/WALK-2026-10.md](history/WALK-2026-10.md).*
+*This page was proved by a walk: two configuration repositories made,
+bootstrapped, baked, launched, logged into and torn down by an operator
+typing from this page alone, and what the walk found is in this page's
+words. The walk itself is a frozen record,
+[docs/history/WALK-2026-10.md](history/WALK-2026-10.md); nothing here
+depends on it.*
 
 *How a team actually uses cs-image-system: what must exist before the
 first command, the first run, making groups, storages, images and
@@ -102,7 +103,7 @@ pinned, PyPI as the extra index for the dependencies that live there,
 and `--index-strategy unsafe-first-match`: uv asks PyPI first and, by
 default, stops at the first index that has a name at all -- and PyPI
 has had `cs-image-system` since 0.1.1 -- so without it the pinned `.dev`
-version is never looked for on TestPyPI (stage 99):
+version is never looked for on TestPyPI:
 
 ```sh
 uv tool install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ \
@@ -131,14 +132,14 @@ release").
 
 Some releases do ask something of the tree, and then `validate` refuses
 the tree until it is given, so the release and the change land in ONE
-commit. The first was 0.1.1.dev13 (2026-10-04, the POSIX identity
-plugin): every group builder of `type: okta-tf` must now carry a
-`posix:` line -- the name of a `type: posix` group builder, which makes
-the Okta groups exist on their machines, or `none`, which keeps them
-off (section 3.1). The reference configuration took it as one commit:
-`.csis-version` raised, `init-config --force` for the release-owned
-files, a `posix-local` group builder declared, and `posix: posix-local`
-on its Okta group builder.
+commit. The POSIX identity plugin is the standing example (its
+release: [CHANGES.md](CHANGES.md#s75)): every group builder of `type:
+okta-tf` carries a `posix:` line -- the name of a `type: posix` group
+builder, which makes the Okta groups exist on their machines, or `none`,
+which keeps them off (section 3.1) -- and a tree from before it takes
+the release as one commit: `.csis-version` raised, `init-config --force`
+for the release-owned files, a `posix-local` group builder declared, and
+`posix: posix-local` on its Okta group builder.
 
 ### 1.2 Tools and their floors
 
@@ -174,11 +175,11 @@ form (`just sft-install` does Okta's on an apt system; on an rpm system
 add Okta's yum repository and `dnf install scaleft-client-tools`);
 `ansible-core` with `uv tool install ansible-core` (what CI does);
 `docker` as Docker Engine, Docker Desktop or any daemon the `docker`
-command reaches. The walk of 2026-10 installed all of them on a Fedora
-43 container from those sources and nothing else. That list is for your
+command reaches. Every one of them installs on a Fedora 43 container
+from those sources and nothing else. That list is for your
 local machine; CI does not install them: every job runs inside the
 system's own runner image, AlmaLinux 10 with each of these tools at a
-pinned version ([docs/CI_RUNNER.md](CI_RUNNER.md), stage 92), and
+pinned version ([docs/CI_RUNNER.md](CI_RUNNER.md)), and
 the image's probe asks every tool its version before the image is
 published.
 
@@ -218,7 +219,7 @@ passphrase (a session hook cannot prompt). Every GCE cycle ends with
 `just cloud-empty <runtime>`, so nothing billable is left standing beyond
 the declared storages; another configuration's things in the same
 project are counted and left alone, since everything the system makes
-carries `csis_config` (stage 93). Read [OPERATIONS.md](OPERATIONS.md),
+carries `csis_config`. Read [OPERATIONS.md](OPERATIONS.md),
 "GCE cost discipline".
 
 A service account two configurations share (the reference tree and a
@@ -251,7 +252,7 @@ material is a path (`tls_cert_path`), never a value. The system never
 installs, patches or configures a daemon and never creates or changes a
 network (a network is referenced by name).
 
-What a container is not, so the first walk is not a surprise: it has no init
+What a container is not, so the first cycle is not a surprise: it has no init
 system (a keepalive runs under `--init`, and the launch work is delivered by
 `exec` once it is up), no sshd (you reach it with `docker exec -it -u
 <user> <name> bash`, and there is no ssh login proof), and no systemd
@@ -318,9 +319,10 @@ just preflight                        # every session the runtimes need, without
 
 With direnv, the same `.envrc` of `export` lines is loaded whenever you
 enter the directory and unloaded when you leave it (so a shell that has
-not entered it has nothing: see section 6, the `MissingIdentityError`
-row); direnv refuses a file that changed until you run `direnv allow`
-in that directory, after every edit of `.envrc`. `source .envrc` still
+not entered it has nothing: see section 6, the `CSIS_CONFIG_IDENTITY
+is not set` row); direnv refuses a file that changed until you run
+`direnv allow` in that directory, after every edit of `.envrc`. `source
+.envrc` still
 works in a shell that has no direnv.
 
 `just validate` is the first thing to run after any edit. An `sso-session`
@@ -377,7 +379,7 @@ failures a first setup meets). It is written for GitHub; the GitLab
 sections are placeholders.
 
 Most of its GitHub section can be generated rather than clicked: `just
-bootstrap` (stage 70) interviews you -- or takes every default with
+bootstrap` interviews you -- or takes every default with
 `--quiet`, refusing by name any it cannot derive -- writes the answers to
 `bootstrap.yaml` at the root of the tree, and generates
 `generated/bootstrap/`: terraform you apply once (`tofu init && tofu
@@ -409,7 +411,7 @@ starters, and three ways to get one, each giving the same tree:
 
 1. **On GitHub, "Use this template"** on the starter's template
    repository. Each is generated from its starter with every final
-   release (stage 66), takes no pull requests, and says so in its
+   release, takes no pull requests, and says so in its
    README's first lines; its `.csis-version` names the release:
    [cs-image-system-starter-standard-aws](https://github.com/infrastructurebuilder/cs-image-system-starter-standard-aws)
    (the default),
@@ -446,9 +448,9 @@ every value you must replace an obvious `REPLACE-ME` and every line that
 is a decision commented; [docs/examples/standard-gce/](examples/standard-gce/README.md)
 is the same for GCE; [docs/examples/standard-aws-posix/](examples/standard-aws-posix/README.md)
 is `standard-aws` with no Okta: its people are POSIX accounts on the machines
-(the posix identity plugin, stage 75), and CI's login proof uses a key;
+(the posix identity plugin), and CI's login proof uses a key;
 [docs/examples/standard-docker/](examples/standard-docker/README.md)
-is the same identity on the docker runtime (stage 103): no cloud, no account,
+is the same identity on the docker runtime: no cloud, no account,
 state in a local directory, containers for machines, and no login proof,
 because a container runs no sshd;
 [docs/examples/complete/](examples/complete/README.md)
@@ -462,13 +464,13 @@ it. `.csis-version` in the written tree names that release, and the
 starter's Markdown links that lead out of it -- into the system
 repository's documents, or to another starter -- point at that
 release's tag on GitHub, since a relative one would point nowhere in a
-repository of its own (hygiene XV; a template repository's do the
-same).
+repository of its own (a template repository's do the same).
 
-`just take <version>` does the whole walk of moving a tree onto a release in
-one box, on `develop`: it fast-forwards `develop` from `origin/main` first
-(and refuses if it cannot), installs the release (a development one from
-TestPyPI), asks `init-config . --changes-since` which files the release owns
+`just take <version>` does the whole procedure of moving a tree onto a
+release in one command, on `develop`: it fast-forwards `develop` from
+`origin/main` first (and refuses if it cannot), installs the release (a
+development one from TestPyPI), asks `init-config . --changes-since`
+which files the release owns
 and changed, and **stops there if any did**, because refreshing them is yours
 to do by hand. The listing splits them in two: the files your tree still holds
 exactly as the previous release wrote them (a workflow with only your values
@@ -603,8 +605,9 @@ root group's admins are merged into every group's. A declared person's
 username is committed in clear: it is what OPA, the identity roots and
 the records carry, and a marker on it in the roster hides nothing (the
 e-mail domain and the personal names are what the markers hide). In a
-public configuration repository, declare a person knowing that
-(2026-10-08, F36; decided 2026-10-14). Run the identity
+public configuration repository, declare a person knowing that:
+usernames are public by decision ([CONFIGURATION.md](CONFIGURATION.md),
+section 13, "What a marker protects"). Run the identity
 lifecycle with `apply_identity: true` (a convergent flag, safe to leave
 on: it applies only what the YAML says, and the gate refuses destroys):
 
@@ -667,8 +670,9 @@ it alone, whose private half reaches the proof as `CSIS_PROOF_SSH_KEY`
 login is real ssh through the runtime's session tunnel -- SSM's
 `AWS-StartSSHSession` on AWS, an IAP tunnel on GCE -- so no machine
 needs a public address, and the proof passes only when the group is
-among the account's groups. It was first proved on 2026-10-04, on a
-posix-only AlmaLinux 10 machine in a private subnet.
+among the account's groups. The proof holds on a posix-only AlmaLinux
+10 machine in a private subnet, which is the shape of the
+`standard-aws-posix` starter.
 
 **A person's own login to a posix machine** is the same ssh, with their
 own key, which no recipe makes for them:
@@ -795,11 +799,11 @@ the system cannot stop the machine again it says `ERROR`, names it,
 and the machine is then RUNNING: stop it by hand. A runtime that
 cannot start machines skips the verification instead. This is
 deliberate ([OPERATIONS.md](OPERATIONS.md), "Starting a machine is
-a bounded exception"). It was walked on 2026-10-09, when it surprised
-its own operator; the decision that day was to keep it, and it is
-reviewed every month until February 2027 (the F44 item under "Monthly
-General Items" in [REMINDERS.md](../REMINDERS.md)). If you do not want
-a machine booted, do not verify it while it is off.
+a bounded exception"). It has surprised its own operator, and it is
+kept by decision; the decision is reviewed every month until February
+2027 (the item under "Monthly General Items" in
+[REMINDERS.md](../REMINDERS.md)). If you do not want a machine booted,
+do not verify it while it is off.
 
 A durable instance's FIRST launch of a brand-new image is the one case
 where `require_released_builds: true` and `release` pull against each
@@ -812,14 +816,13 @@ the second release".
 ### 3.6 A second cloud
 
 A tree made from `standard-aws` or `standard-gce` has one cloud; adding
-the other is ten declarations, and the walk of 2026-10 added GCE to an
-AWS tree this way (stage 15). In load order: the cloud's tool in
+the other is ten declarations. In load order: the cloud's tool in
 `cfg/executables.yml` (`gcloud`, or `aws`); a runtime in
 `cfg/runtime-builders.yml` (`type: gcloud` with project and zone, or
 `type: aws` with profile and region; its session mechanism); a state
 backend in `cfg/state-backends.yml` only if the new cloud's roots keep
 their state somewhere else (they may keep it in the first cloud's
-bucket, as the walk's did); an image builder (`packer-gce` or
+bucket, as the reference deployment's do); an image builder (`packer-gce` or
 `packer-ebs`), an instance builder (`tofu-gce` or `tofu-aws`) and a
 storage builder (`gcp-pd` or `aws-ebs`) in their `cfg/` files, each
 bound to the new runtime; on the base, a second source under
@@ -834,7 +837,7 @@ account's address allowed through `public_safe.allow`
 (`".iam.gserviceaccount.com"`), which the hook otherwise reads as an
 email. Two things to expect: a storage type added for the new cloud
 re-bakes nothing on the old one (a bake takes only the types whose
-builder lives on its runtime, hygiene XII item 21), while a field every
+builder lives on its runtime), while a field every
 runtime shares (`admin_user`, the keys, `update`) still re-bakes the base
 everywhere; and `validate` names each declaration the new runtime still
 lacks, so declare, validate, and read what it says until it is quiet.
@@ -856,14 +859,14 @@ reach it ([CI_SETUP.md](examples/complete/CI_SETUP.md), 3.4a).
 `complete` declares one beside its two clouds.
 
 **Two trees in one project or account.** Everything the system makes
-carries the configuration's id, `csis_config` (images since stage 82,
-storages and machines since stage 93), so a second tree that shares
-your project or account is not in your way: the state query and
+carries the configuration's id, `csis_config`, so a second tree that
+shares your project or account is not in your way: the state query and
 `cloud-empty` count your things alone and say how many of the other
 tree's they left alone, and a lookup by name takes yours, never theirs.
-What stood before stage 93 carries no id yet and is listed as `(no
-csis_config)` until `just cloud-relabel <runtime> no` gives it one, in
-place, nothing replaced. Two trees that declare the same storage name
+A thing made before the system labelled what it makes carries no id
+yet and is listed as `(no csis_config)` until `just cloud-relabel
+<runtime> no` gives it one, in place, nothing replaced. Two trees that
+declare the same storage name
 on one cloud still collide where the cloud's names are unique (a GCE
 disk in one zone, a bucket); the query then says `a persistent disk of
 that name belongs to configuration '<id>'`, and ours is absent.
@@ -930,7 +933,7 @@ below; this is the order a person meets them.
 | Archive, restore, destroy a storage | `state: archived` (EBS and pd only), `active` again, `destroyed`, or delete the entry | each goes through the gate; tombstones stay in `storage-state.yaml` |
 | Who may log in | edit `members` or `admins` | `just run identity`. A removal OPA still holds is a destroy the plan shows. A membership already gone from OPA (removed in the console, or a roster conformed to OPA by hand) is pruned from terraform state by the runner's `prune-attachments` step, after a backup to `_private/state-backups/`, so the provider's refresh error never blocks the plan |
 | Who is in a group on its machines | edit `members` or `admins`; beside Okta, `just run identity` first, as above | the next applying instance run, `just cloud-launch <runtime>`, rewrites the member list on every running machine (beside Okta) or makes the accounts, keys and sudo true (a posix group). Beside Okta a member added joins at their next login after that run, and one removed is taken out of the group if their account stands then. Never a re-bake, and nothing is deleted: an account dropped from the YAML stays on the machine. Section 3.1; OPERATIONS "Identity" |
-| Stop managing a group | `unmanaged: true` | released from state, never destroyed; deleting the entry is a validation failure. The identity run's pre-plan step decides it from what the state holds when it runs (stage 90), so a dry run or a `just record` made first changes nothing: look, then run. (Before 0.1.1.dev23 either one spent the release: the run that followed planned the group's destruction, and the gate refused it.) A retired posix group stays the same way, and needs no members (2026-10-04: the posix proof's group, its gid still claimed by the name) |
+| Stop managing a group | `unmanaged: true` | released from state, never destroyed; deleting the entry is a validation failure. The identity run's pre-plan step decides it from what the state holds when it runs, so a dry run or a `just record` made first changes nothing: look, then run (why that order is safe: [INCIDENTS.md](INCIDENTS.md#a-dry-run-spent-a-groups-release)). A retired posix group stays the same way, and needs no members; its gid stays claimed by the name |
 | Decommission an instance | delete the entry, or `just cli --undeclare instance:<name> run instance-image --only none --apply-runtime <runtime> --commit` for one run | the gate whitelists exactly its destroy; the launch record, pin and OPA registration are forgotten; the pool name it took stays spent |
 | Rotate the admin key | add the new key, bake, upgrade every instance, remove the old key, repeat | "Rotate the admin key" |
 | Move a root's state | change `state_configuration`, `just cli --no-dry-run run <lifecycle> --migrate-state <root>` | backs up, copies, accepts only a clean plan at the new location, records the move |
@@ -953,28 +956,29 @@ and name the way, a replacement or a detach. And after any applying
 `cloud-*` run, `just record` before you push: the applying run committed
 the script it executed, and a recording run restores the resting
 emission with the journal's closing entry (CI's `config-drift` ignores
-the apply-only lines since hygiene VIII item 4, so this is tidiness, not
-a requirement). Between a decommission and its relaunch push `develop`
+the apply-only lines, so this is tidiness, not a requirement). Between a
+decommission and its relaunch push `develop`
 only -- a push to `main` would have the `perform` job launch the new
 machine from CI.
 
 ### 4.1 Taking a configuration down
 
-The walk of 2026-10 took two down (stage 17); this is the order it
-found, each thing destroyed by what made it, through the gate, and a
-look before every removal. Machines first: `just cloud-decommission
-<runtime> <instance>` for each (its dry form `... yes` first), then
+This is the order: each thing destroyed by what made it, through the
+gate, and a look before every removal. Machines first: `just
+cloud-decommission <runtime> <instance>` for each (its dry form `...
+yes` first), then
 `instances: []` committed. Images: `just cloud-dispose-images <runtime>`
 (dry form first; it refuses while a machine is pinned to a build).
 Storages: `state: destroyed` on each, `just dry storage` to read the
 gate line, `just run storage`. Groups: `unmanaged: true` on each, `just
-run identity` (section 4's row; from 0.1.1.dev23 a dry run first is
-safe). Then `just record`, `just state-query --strict` with nothing
-declared, and push `develop` only: never `main` again from this tree,
-whose `perform` would bake what you disposed of. Since 0.1.1.dev25 the instance root is still emitted, empty, once nothing
-is declared on it, and that run lets the group it had made for its
-machines go through the gate (before, the security group stood in the
-cloud and in the root's state with no run to plan it, and went by hand).
+run identity` (section 4's row; a dry run first is safe). Then `just
+record`, `just state-query --strict` with nothing declared, and push
+`develop` only: never `main` again from this tree, whose `perform` would
+bake what you disposed of. The instance root is still emitted, empty,
+once nothing is declared on it, so that last run lets the security group
+it had made for its machines go through the gate instead of leaving it
+standing in the cloud and in the root's state with no run to plan it.
+
 By hand, in this order: CI disabled (`gh workflow disable ci.yml`), because its
 roles are about to go; each bootstrap root destroyed from its own state
 (`tofu -chdir=generated/bootstrap plan -destroy -out=<file>`, read it,
@@ -985,7 +989,7 @@ list-object-versions`, `delete-objects`, then `delete-bucket`); the
 OPA objects in the console, which the system never destroys: the
 workload role and connection, the three security policies, the
 resource group with its project, token and server records, then the
-two groups; the walk's repository taken out of the Google provider's
+two groups; this repository taken out of the Google provider's
 attribute condition; the repository's secrets deleted and the
 repository archived or deleted; the GitHub token. The proof is the
 picture before against the picture after: the same reads, empty, and
@@ -1005,7 +1009,7 @@ a place the verdict lands. Nothing is taken on faith.
 | `require_released_builds`, `require_image_tests` | `cfg/_config.yml` | `validate` refuses an unreleased pin, except the series head under its own proof (the release grace, which says why it allowed or refused); `release` refuses without the record | a validation error naming what is missing; a refused release |
 | `parent_policy`, `image_policy` | `images/`, `instances/` | the bake plan; the state query's `stale` | `run-summary.json` `bake_plan`; `state-report.json` |
 | `ephemeral`, `on_failure`, `teardown_after` | `instances/` | launch, `verify instance`, teardown in one run | `meta-state/verifications.yaml`; the launch record forgotten |
-| `storages[]` and `mount_point` | `instances/` | verify's "data disks mounted": on GCE each declared mount point's own line from the startup script on the serial console (`csis-mount: <mount point> mounted`; before hygiene XII a count of the kernel's clean XFS mounts, which the image's own filesystems satisfied, 2026-10-09, F50), on AWS the count under `/mnt` over SSM; an unmount receipt before a detach | `meta-state/verifications.yaml`; `unmount-receipts/` in the workspace |
+| `storages[]` and `mount_point` | `instances/` | verify's "data disks mounted": on GCE each declared mount point's own line from the startup script on the serial console (`csis-mount: <mount point> mounted`, because a count of the kernel's mounts is satisfied by the image's own filesystems), on AWS the count under `/mnt` over SSM; an unmount receipt before a detach | `meta-state/verifications.yaml`; `unmount-receipts/` in the workspace |
 | a storage's `state` and `lifecycle` | `storages/` | the storage lifecycle; the state query's `missing` and `stale` | `meta-state/storage-state.yaml`, `storage.yaml` |
 | `apply_*` | `cfg/_config.yml` | `apply-check` at execution; the gate before it | `run-summary.json` `apply` |
 | `members`, `admins` | `groups/` | the identity apply; the runner's prune step against OPA; the state query's membership diff; the login proof | `meta-state/identity.yaml`; `meta-state/login-proofs.yaml` |
@@ -1037,71 +1041,72 @@ ciphertext. State backups the runner took before a `state rm` are under
 the job summary says whether a job ran at all.
 
 The failures below all happened in the reference deployment, and each row
-names what was done. New ones get a row here and, if they need work, an
-item in the open hygiene bundle: the one the Open list in
-[INPROGRESS/TODO.md](../INPROGRESS/TODO.md) names, hygiene bundle XXIV
-([INPROGRESS/STAGE-130.md](../INPROGRESS/STAGE-130.md)).
+says what to do. A row that tells a story links its entry in
+[INCIDENTS.md](INCIDENTS.md), which holds the symptom, the cause, the fix
+and the date of each. A new failure gets an entry there (newest first)
+and, when it is a defect, an item in the open hygiene bundle, the one the
+Open list in [INPROGRESS/TODO.md](../INPROGRESS/TODO.md) names.
 
 | Symptom | Meaning | Do |
 | --- | --- | --- |
 | `init: 'cs-image-system' is not runnable` | the release is not installed, or `CSIS` names a command that does not run | `uv tool install cs-image-system`, or `export CSIS="uv run cs-image-system"` beside a pyproject that depends on it |
-| `preflight: a session has EXPIRED`; `Token has expired and refresh failed`; `the configuration cannot load: AWS refused the credentials (RequestExpired)` (before hygiene XII: `Error reading config file : AWS Error ... Request has expired` under a traceback) | the AWS portal session behind the profile ended (8h from a browser sign-in; less if the CLI token was minted mid-session); an `sso-session` profile's token lasts an hour and is judged only once it has lapsed, so a lapse mid-run is environmental, not a defect. `RequestExpired` is what temporary keys pasted into the shell or a credentials file say when they lapse, and `preflight` cannot see that coming: it reads no expiry for keys (2026-10-09, F30 and F40) | `aws sso login --profile <profile>` for an SSO profile; FRESH keys for pasted ones (`aws sso login` does nothing for them); then re-run |
-| `preflight: N session(s) present; 1 NOT JUDGED (no expiry readable: ...)` in yellow, exit 0, where it used to say `every session present` | a session preflight can see but not time: static keys in a profile or in the environment. Present is all it can say without a cloud call, which it makes none of by design (stage 16); before hygiene XII the line was green over keys that had already lapsed | nothing, if you know the keys are fresh; if the next command says `RequestExpired`, fresh keys |
+| `preflight: a session has EXPIRED`; `Token has expired and refresh failed`; `the configuration cannot load: AWS refused the credentials (RequestExpired)` | the AWS portal session behind the profile ended (8h from a browser sign-in; less if the CLI token was minted mid-session); an `sso-session` profile's token lasts an hour and is judged only once it has lapsed, so a lapse mid-run is environmental, not a defect. `RequestExpired` is what temporary keys pasted into the shell or a credentials file say when they lapse, and `preflight` cannot see that coming: it reads no expiry for keys ([static keys](INCIDENTS.md#static-keys-lapsed-under-a-green-session-preflight), [the sso-session hour](INCIDENTS.md#an-sso-session-profile-was-read-as-absent-for-an-hour)) | `aws sso login --profile <profile>` for an SSO profile; FRESH keys for pasted ones (`aws sso login` does nothing for them); then re-run |
+| `preflight: N session(s) present; 1 NOT JUDGED (no expiry readable: ...)` in yellow, exit 0, in place of `every session present` | a session preflight can see but not time: static keys in a profile or in the environment. Present is all it can say without a cloud call, which it makes none of by design, and it says so rather than printing a green line over keys that may already have lapsed ([INCIDENTS.md](INCIDENTS.md#static-keys-lapsed-under-a-green-session-preflight)) | nothing, if you know the keys are fresh; if the next command says `RequestExpired`, fresh keys |
 | `runtime <gce> could not answer` under `unavailable:` | no Application Default Credentials, or they expired, or Google was unreachable | `gcloud auth application-default login --impersonate-service-account=...`; an `unavailable` line is not drift, but the strict query refuses on it |
-| `state query storages/<pd> unavailable: ... oauth2.googleapis.com ... Read timed out` (2026-09-23) | the network to Google, not the system; `cloud-preflight` then exits 1 and the recipe stops before its first step | check `gcloud auth application-default print-access-token`; run the recipe again |
+| `state query storages/<pd> unavailable: ... oauth2.googleapis.com ... Read timed out` | the network to Google, not the system; `cloud-preflight` then exits 1 and the recipe stops before its first step ([INCIDENTS.md](INCIDENTS.md#the-network-to-google-timed-out-under-the-state-query)) | check `gcloud auth application-default print-access-token`; run the recipe again |
 | `Validation failed with N error(s)` | a rule failed before anything was generated; each line names the file and the rule | fix the declaration; `just validate` alone re-checks in seconds |
-| `unavailable: groups/<g>: HTTP 401 ...` for every group at once | the OPA API could not be asked: a lapsed key pair, or `.envrc` not sourced (before 2026-09-23 this read as five `missing` groups) | `source .envrc`; a real absence is one `missing [HARD]` group, from an answered 404 |
-| `the configuration cannot load: Okta builder <b> is missing a key value. Expected to find environment variable TF_VAR_<team>_key ...` from `validate` or a run (the gid shim's form is `OPA credentials for team '<t>' not found in the environment`); before hygiene XII, under a traceback (F10) | the `TF_VAR_<team>_key` / `_secret` pair is needed by `validate` and dry runs too, not only at apply | export them (`.envrc`); in CI, the secrets the workflow names |
-| `no users found using search criteria: profile.login eq "x@ENC[age:..."` | a plan ran on the committed emission, where the e-mail domain is ciphertext | the system plans in the mirror since 2026-09-22; by hand, run terraform under `_private/`, never `generated/` |
-| `user "x" is not present within group "g"` at plan | a membership the YAML dropped and OPA already lacks is still in terraform state; the provider errors on refresh instead of dropping it | since 2026-09-23 the identity runner's `prune-attachments` step removes it after a backup, and the group root's generation-time plan does not refresh; if it still appears, the runner did not reach that step: read the run's output above the plan |
-| `state backup for workspace '...' REFUSED: ... is not an initialised terraform root` | the backup step was started somewhere other than the root the runner initialised; nothing left state | the runner stops; report it, since the step is the system's and ran where the system put it (2026-09-23 10:15, fixed the same day) |
-| `DESTROY NOT WHITELISTED: <address>` (gate, exit 3) | the plan destroys something no operation sanctioned | read the plan; if a decommission, detach or replacement was intended, declare it so; never widen the whitelist by hand. Several such lines under `module.group_<name>` for a group you marked `unmanaged: true` are a release that was not carried out, in a tree on a release before 0.1.1.dev23 after a dry run or a record (2026-10-13): the gate was right, nothing was destroyed; take the release and run the identity lifecycle again. A replacement whitelists the instance AND its volume attachments (2026-09-22) |
+| `unavailable: groups/<g>: HTTP 401 ...` for every group at once | the OPA API could not be asked: a lapsed key pair, or `.envrc` not sourced; it is reported as `unavailable`, never as `missing`, because an unanswered question is not an absence ([INCIDENTS.md](INCIDENTS.md#a-lapsed-opa-key-read-as-five-missing-groups)) | `source .envrc`; a real absence is one `missing [HARD]` group, from an answered 404 |
+| `the configuration cannot load: Okta builder <b> is missing a key value. Expected to find environment variable TF_VAR_<team>_key ...` from `validate` or a run (the gid shim's form is `OPA credentials for team '<t>' not found in the environment`) | the `TF_VAR_<team>_key` / `_secret` pair is needed by `validate` and dry runs too, not only at apply ([the refusal](INCIDENTS.md#refusals-that-surfaced-as-tracebacks); [in CI](INCIDENTS.md#ci-was-red-for-245-runs-on-a-missing-key-pair)) | export them (`.envrc`); in CI, the secrets the workflow names |
+| `no users found using search criteria: profile.login eq "x@ENC[age:..."` | a plan ran on the committed emission, where the e-mail domain is ciphertext | the system itself plans in the mirror ([INCIDENTS.md](INCIDENTS.md#the-identity-plan-ran-on-ciphertext)); by hand, run terraform under `_private/`, never `generated/` |
+| `user "x" is not present within group "g"` at plan | a membership the YAML dropped and OPA already lacks is still in terraform state; the provider errors on refresh instead of dropping it | the identity runner's `prune-attachments` step removes it after a backup, and the group root's generation-time plan does not refresh ([INCIDENTS.md](INCIDENTS.md#a-stale-attachment-in-state-blocked-every-identity-plan)); if it still appears, the runner did not reach that step: read the run's output above the plan |
+| `state backup for workspace '...' REFUSED: ... is not an initialised terraform root` | the backup step was started somewhere other than the root the runner initialised; nothing left state | the runner stops; report it, since the step is the system's and ran where the system put it ([INCIDENTS.md](INCIDENTS.md#a-runner-step-acted-in-the-configuration-root-and-the-backup-kept-nothing)) |
+| `DESTROY NOT WHITELISTED: <address>` (gate, exit 3) | the plan destroys something no operation sanctioned | read the plan; if a decommission, detach or replacement was intended, declare it so; never widen the whitelist by hand. Several such lines under `module.group_<name>` for a group you marked `unmanaged: true` are a release from state that was not carried out before the plan: the gate was right, nothing was destroyed; take a current release and run the identity lifecycle again (why an old one plans it: [INCIDENTS.md](INCIDENTS.md#a-dry-run-spent-a-groups-release)). A replacement whitelists the instance AND its volume attachments ([INCIDENTS.md](INCIDENTS.md#the-first-live-replacement-four-traps-in-one-afternoon)) |
 | `launch parameters are immutable after launch` | a launched instance's declaration changed in place | revert, or make it a replacement (`upgrade instance`), or a detach (remove the mount) |
-| `instance 'x' is pinned to build ... which is not a released build (...; no grace: <reason>)` | `require_released_builds` and an unreleased pin the grace does not cover; the reason says which condition failed (not the series head, no in-bake record, a failed post-bake, or the instance neither stands on it nor is being replaced onto it) | act on the reason: move the pin, fix the build, or verify; never switch the flag off |
+| `instance 'x' is pinned to build ... which is not a released build (...; no grace: <reason>)` | `require_released_builds` and an unreleased pin the grace does not cover; the reason says which condition failed (not the series head, no in-bake record, a failed post-bake, or the instance neither stands on it nor is being replaced onto it) | act on the reason: move the pin, fix the build, or verify; never switch the flag off ([INCIDENTS.md](INCIDENTS.md#the-release-flag-had-to-be-switched-off-by-hand-mid-release)) |
 | `upgrade: instance 'x' is already pinned to <build>` (exit 1) | the pin is already at the target, usually because `cloud-upgrade` already ran to completion | nothing to do; the recipe stops here by design |
 | `release: ... no passing post-bake record` | the build has never been verified on a launched machine | verify first (an ephemeral cycle, or the standing machine after the replace) |
 | `changed instance x: booted image ... != pinned build ...` | the pin moved without a replacement, or a replacement is pending (then a `note`, not drift) | `upgrade instance` then `cloud-launch`; or move the pin back |
-| `CI login policy '<g>_v1_security_policy_ci' is absent` | the identity apply has not run since the workload objects were named | `just run identity` with `apply_identity` on; never hard drift |
-| `resource group '<g>_rg' is not what the identity module makes` (or `user policy` / `admin policy`) | someone changed the object in OPA: a hand edit, or another configuration that holds the same objects in its own tofu state (2026-10-19, `basic`) | if another configuration manages them, it lets go first (`tofu state rm` there, never a destroy); then `just run identity` puts them back; never hard drift |
-| `workload role '...' is not known to OPA` | the operator's object is missing | [CI_SETUP.md, section 3.5, step 2](examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access) |
-| `sft resolve ...: exit 126` with nothing on stderr | the `sft` client's session lapsed and `--quiet` forbade the browser (2026-09-23, after a replace: the registration half of the proof had passed) | `sft login`, then the proof again; as the workload, the token was missing or refused |
-| `'<name>' has 2 registrations: ...` in a login proof | two servers answer to one canonical hostname | retire the stale one (a replacement now does this itself); `sft ssh` would reach either |
+| `CI login policy '<g>_v1_security_policy_ci' is absent` | the identity apply has not run since the workload objects were named | `just run identity` with `apply_identity` on; never hard drift ([INCIDENTS.md](INCIDENTS.md#the-first-ci-policy-reconcile-was-refused-by-hard-drift)) |
+| `resource group '<g>_rg' is not what the identity module makes` (or `user policy` / `admin policy`) | someone changed the object in OPA: a hand edit, or another configuration that holds the same objects in its own tofu state ([INCIDENTS.md](INCIDENTS.md#the-reference-trees-identity-objects-were-rewritten-by-another-configuration)) | if another configuration manages them, it lets go first (`tofu state rm` there, never a destroy); then `just run identity` puts them back; never hard drift |
+| `workload role '...' is not known to OPA` | the operator's object is missing; `missing`, never hard drift | [CI_SETUP.md, section 3.5, step 2](examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access) ([INCIDENTS.md](INCIDENTS.md#the-first-ci-policy-reconcile-was-refused-by-hard-drift)) |
+| `sft resolve ...: exit 126` with nothing on stderr | the `sft` client's session lapsed and `--quiet` forbade the browser; the registration half of the proof can already have passed ([INCIDENTS.md](INCIDENTS.md#sft-resolve-exited-126-with-nothing-on-stderr)) | `sft login`, then the proof again; as the workload, the token was missing or refused |
+| `'<name>' has 2 registrations: ...` in a login proof | two servers answer to one canonical hostname | retire the stale one (a replacement does this itself); `sft ssh` would reach either ([INCIDENTS.md](INCIDENTS.md#three-registrations-of-one-hostname-in-opa-one-live)) |
 | `Instance x: alias 'y' SKIPPED -- already claimed by <id>` | a stale record holds the name | retire that record; the alias comes back on the next applies-on run |
-| `instance <x> verified` for a machine you had switched off, with `STARTING it because verifying instance <x>` above it; `login SKIPPED for <x> (nothing proved)`; `verify <x>: SKIPPED -- the machine is STOPPED` only on a runtime that cannot start machines | someone switched the machine off: a note, not drift. **Verification STARTS it, checks it and stops it again** (section 3.5); the login proof starts nothing and is skipped | nothing, when the log ends `stopping it again`; an `ERROR` there means the machine is now RUNNING and must be stopped by hand. For the login proof, start the machine yourself and run it again |
-| `Instance x: not enrolled within 300s of its launch; no alias this run` | the machine booted this run and sftd had not enrolled in time | the next applies-on run gives the names back |
-| `--locked: another tofu-using command holds ...` (exit 75) | one tofu process at a time; another recipe is running | wait; remove the lock directory only if the process is gone |
-| `full-test: passed` above `SKIPPED the credential-gated legs` | the legs did not run: a session was absent | not a pass; source the shell, log in, run again |
-| `Meta-state commit: never staging generated/.../instances.auto.tfvars` | the instance root's variable file is where it belongs and is never committed by design; before 2026-09-23 the release and retention runs left stray copies too | nothing; a stray copy under `generated/release/` or `generated/retention/` from an older run is deleted by hand once |
+| `instance <x> verified` for a machine you had switched off, with `STARTING it because verifying instance <x>` above it; `login SKIPPED for <x> (nothing proved)`; `verify <x>: SKIPPED -- the machine is STOPPED` only on a runtime that cannot start machines | someone switched the machine off: a note, not drift. **Verification STARTS it, checks it and stops it again** (section 3.5); the login proof starts nothing and is skipped | nothing, when the log ends `stopping it again`; an `ERROR` there means the machine is now RUNNING and must be stopped by hand. For the login proof, start the machine yourself and run it again ([INCIDENTS.md](INCIDENTS.md#a-stopped-machine-was-reported-as-the-provider-could-not-answer)) |
+| `Instance x: not enrolled within 300s of its launch; no alias this run` | the machine booted this run and sftd had not enrolled in time | the next applies-on run gives the names back ([INCIDENTS.md](INCIDENTS.md#the-first-live-replacement-four-traps-in-one-afternoon)) |
+| `--locked: another tofu-using command holds ...` (exit 75) | one tofu process at a time; another recipe is running | wait; remove the lock directory only if the process is gone ([INCIDENTS.md](INCIDENTS.md#a-fresh-clones-runner-failed-at-its-first-plan)) |
+| `full-test: passed` above `SKIPPED the credential-gated legs` | the legs did not run: a session was absent | not a pass; source the shell, log in, run again ([INCIDENTS.md](INCIDENTS.md#an-sso-session-profile-was-read-as-absent-for-an-hour)) |
+| `Meta-state commit: never staging generated/.../instances.auto.tfvars` | the instance root's variable file is where it belongs and is never committed by design | nothing; a stray copy under `generated/release/` or `generated/retention/`, left by a run on an old release, is deleted by hand once ([INCIDENTS.md](INCIDENTS.md#the-release-and-retention-runs-left-a-stray-tfvars-file)) |
 | `mod tests: N failed` or `not idempotent` | a modification fails, or changes something on its second run | make it idempotent: `ensure`, `unless`, `changed_when: false`; read `meta-state/mod-tests.yaml` |
-| `rpm -q vim` fails on AlmaLinux 10; `dnf install amazon-efs-utils` finds nothing | the package is `vim-enhanced`; efs-utils is not in AlmaLinux's repositories | name the real package; build efs-utils from source as the reference image does |
+| `rpm -q vim` fails on AlmaLinux 10; `dnf install amazon-efs-utils` finds nothing | the package is `vim-enhanced`; efs-utils is not in AlmaLinux's repositories | name the real package; build efs-utils from source as the reference image does ([INCIDENTS.md](INCIDENTS.md#a-false-in-bake-assertion-could-not-stop-the-bake)) |
 | Annotations on every CI run naming the runner image or an action as deprecated or migrating; later, jobs never picked up, or a failure in "Set up job" before any step of yours | the workflow's names are old: an image or an action major GitHub is withdrawing | take the newest release (it carries the move); if none does yet, section 9.1, which also says how often to look |
-| `verify` (or any job) fails in "Install the released system" with the index unreachable or `503`, on a tree whose `.csis-version` names a `.dev` release | TestPyPI is down; a development release is nowhere else | environmental: wait and rerun (`gh run rerun <run> --failed`); nothing in the tree is wrong (2026-10-05, F16) |
-| you cannot find the job summary; `gh run watch` and `gh run view` show steps and annotations but no `SKIPPED` line | the summary is on the run's page, not in those commands; a skipped job has no summary at all | `gh run view <run> --web`, or Actions in the browser; the gate's own line (`live: SKIPPED -- ...`) is in the log of the step "Gate on the secrets" (2026-10-07, F20) |
-| an applying identity run's log shows the group root's plan twice, the first saying `1 to destroy` and the second `No changes` | the first is a preview made as the run writes its files, never saved and never applied; the second, after the prune step, is the one the gate reads and the apply uses | read the second; a destroy in the first alone means the prune step took the attachment out of state because OPA no longer held it (2026-10-08, F39) |
-| `the configuration cannot load: <tree>/cfg: ...: an encrypted value is present but CSIS_CONFIG_IDENTITY is not set`, exit 2, before anything is asked of a cloud (before hygiene XII a `MissingIdentityError` traceback) | the shell never loaded `.envrc` (a new terminal, a directory direnv has not entered or allowed) | `source .envrc`, or `direnv allow`; it is the first thing an unsourced shell meets in any tree that holds an encrypted value (2026-10-09, F41) |
-| ` - <file>: instances[0].name: a name may not be 'none'` under `Validation failed with 1 error(s).`, exit 1, from `validate` or a run (before hygiene XII a `ReservedNameError` traceback) | a reserved word was used as a name, exactly as section 3 says it may not be | rename it (2026-10-09, F42) |
-| `CANNOT START <image>/<mod>: cannot start a container from almalinux:10: docker pull (after 3 attempts) exited 1: ... context deadline exceeded` from `test-mods` (CI's `live` job), exit 1; the record says `unstarted` | the registry or the daemon did not answer: every `live` run pulls its test image from Docker Hub, without an account, at that moment, and the pull was retried three times over about half a minute. Nothing about the modification was tested, so it is not a failed modification (before hygiene XII: `CalledProcessError` under eighty lines of traceback, docker's words lost). `perform` waits behind `live`, so a registry outage stops every bake | a pull from your own machine tells the registry from the daemon (2026-10-09, F54: three runs in forty-five minutes while Docker Hub's sign-in service did not answer); wait and rerun (`gh run rerun <run> --failed`). The run's log says which modification it is on and which image it waits for |
-| `Unable to find remote state ... No stored state was found` planning an instance root, after the bakes | the instance root reads its storage root's state, and that root has never applied (`apply_storage: false` from the first commit, the first `perform` before any storage run) | run the storage lifecycle with `apply_storage` first; the strict state query says it beforehand as a note (`mounts storage ... whose root has no state yet`; 2026-10-07, F26) |
-| `cs-image-system run (FAILED) <id>` in the git log | an applying run failed after a root had applied; its record was committed so what applied is not lost (the after-apply hooks ran first) | read `meta-state/runs.yaml` for the error; a decommission that failed on another cloud's plan left the machine gone and the records right (since 0.1.1.dev25; 2026-10-13, F62) |
-| `meta-state/runs.yaml` says `ok: false` with `error: interrupted (KeyboardInterrupt) during <lifecycle>` | you cancelled the run with Ctrl-C; nothing after that point ran, and what ran before stands as its own commands left it | read what it was in; a generation can simply be run again, an interrupted apply is read in the root's state first (until 0.1.1.dev25 a cancelled run was journalled `ok: true`; 2026-10-09, F45) |
-| `config-drift: ... the vendor's newest image moved under a base this tree has not baked` (exit 0) | the vendor published a new image and the emission of a base with no build yet names the one of the day it was generated; nothing of yours changed | `just record`, and commit it; before 0.1.1.dev25 this was `BEHIND ... (1 files)` and a red scheduled run that could not be re-run green (2026-10-12, F55) |
-| `runtime-unchanged: ... unchanged since <ref> (...), but the vendor's newest image moved under a base this tree has not baked` (exit 0), in `perform` | the same move on the guarded runtime: the job's record took it, and there is nothing to apply by hand | nothing; on 0.1.2 and before the guard read it as `CHANGED` and failed `perform` (hygiene XVII item 1), and the record the job had pushed already held the move, so the next push to `main` passed |
-| the log of an apply shows the root's outputs and no `Apply complete!` line | the run keeps the last 40 lines of a command's output, and tofu prints its verdict BEFORE the outputs | since 0.1.1.dev25 every verdict line (`Plan:`, `Apply complete!`, the gate's, a bake's `Build ... finished`) is printed ahead of the tail with its line number; before, `just cli --verbose` or the DEBUG log (2026-10-07, F25) |
-| `role <name>: not granted` from the workload probe dispatched on `main`; or `granted` from a branch that is not `main` | the first: the role is not bound to the connection, or its pin names another branch; the second: the pin does not hold. The probe's first line says `accepted` either way, since authenticating to the connection takes the role as a hint only (2026-10-08, F35) | [CI_SETUP.md, section 3.5](examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access), steps 2 and 6; `not judged` means no machine of a managed group stands yet |
-| `data disks mounted` failed with `missing: /mnt/<x>` on GCE, the kernel's XFS count above it | the startup script did not report that mount point mounted: the device never attached, or `mount` failed and the script went on (`nofail`) | the script's own lines on the serial console (`csis-mount:`), then the storage's attachment in the instance root |
-| a base shown DUE on a cloud you changed nothing for | a field every runtime shares moved (`admin_user`, the admin keys, `update`, the vendor source); a storage type added for one cloud re-bakes only there since hygiene XII (before, `pd` for a GCE disk re-baked the AWS base: 2026-10-09, F49) | read the run's reason for the bake; a shared field re-bakes everywhere by design |
-| `unavailable: storages/<s3>: REFUSED (the identity lacks a permission, ...): An error occurred (AccessDenied) when calling the GetBucketTagging operation: User: ...assumed-role/csis-github-apply/... is not authorized` on a `perform` | the role the step ran as lacks a read the state query makes: the applied role's document lags the release's module (until 2026-10-14 the WRITE role carried no `StorageReality` statement at all, so every performing run read its S3 storage as unavailable and stayed green over it; hygiene XII item 33) | take the release, then apply the bootstrap root again (CI_SETUP.md 3.0, the Apply block; IAM writes are yours); a `REFUSED` line is never a retry |
-| `note: storages/<s>: a persistent disk of that name belongs to configuration '<id>' (csis_config); ... ours is absent`; `empty: left alone on <rt>: N disks of configuration '<id>'` | another tree shares the project or account and made a thing of that name; it is theirs, counted and left alone (stage 93) | nothing for theirs; if ours is absent, declare a name the cloud does not hold yet |
-| `empty: disks still present on <rt>: old-scratch (no csis_config)` | a thing with no configuration id, made before stage 93; it is counted as ours to answer for | if it is ours and declared, `just cloud-relabel <rt> no` gives it the id; if it is nothing of ours, remove it by hand |
-| a job fails in "Initialize containers" before any step of yours: `denied`, `unauthorized` or `manifest unknown` pulling `ghcr.io/.../csis-ci:alma10-<date>` | the runner image (stage 92) could not be pulled: the tag does not exist yet (the Runner image workflow has not published the date the workflow pins); or the job's `permissions:` block lacks `packages: read`, so its token pulls as nobody (2026-10-16: `verify`, with no block, pulled; `live`, with one, was denied); or the package is PRIVATE and this repository was not granted access to it (the first publish came out private, and the organisation had disabled public packages) | a missing tag: the system's maintainers run the Runner image workflow and you rerun; a missing line: take the release that carries it; a private package: on the package's page, "Manage Actions access", add this repository with Read (same organisation), or have the organisation's administrators allow public packages ([docs/CI_RUNNER.md](CI_RUNNER.md), section 4); never a credential in the workflow for it |
-| `release: testpypi cannot take an upload now (above) -- nothing was changed; it is the index's condition, not the release's` (exit 75) | the index's upload endpoint or one of the twenty-two project pages did not answer, or answered 5xx; the release stopped before the bar, or after it and before the bump, so the tree is clean (stage 83; on 2026-10-05 the same outage was found only at the upload) | `just index-ready test wait`, then the release again; nothing to discard |
-| `release: this checkout is on '<branch>'; a release is cut on main alone (or a maintenance branch release/<major.minor>)` | the checkout is not on `main` (stage 107; the walk's F31: a version was once cut, committed and tagged on a walk branch) | `git checkout main && git merge --ff-only develop`, then the release again |
+| `verify` (or any job) fails in "Install the released system" with the index unreachable or `503`, on a tree whose `.csis-version` names a `.dev` release | TestPyPI is down; a development release is nowhere else | environmental: wait and rerun (`gh run rerun <run> --failed`); nothing in the tree is wrong ([INCIDENTS.md](INCIDENTS.md#testpypi-was-down-and-a-release-found-it-only-at-the-upload)) |
+| you cannot find the job summary; `gh run watch` and `gh run view` show steps and annotations but no `SKIPPED` line | the summary is on the run's page, not in those commands; a skipped job has no summary at all | `gh run view <run> --web`, or Actions in the browser; the gate's own line (`live: SKIPPED -- ...`) is in the log of the step "Gate on the secrets" |
+| an applying identity run's log shows the group root's plan twice, the first saying `1 to destroy` and the second `No changes` | the first is a preview made as the run writes its files, never saved and never applied; the second, after the prune step, is the one the gate reads and the apply uses | read the second; a destroy in the first alone means the prune step took the attachment out of state because OPA no longer held it ([INCIDENTS.md](INCIDENTS.md#a-stale-attachment-in-state-blocked-every-identity-plan)) |
+| `the configuration cannot load: <tree>/cfg: ...: an encrypted value is present but CSIS_CONFIG_IDENTITY is not set`, exit 2, before anything is asked of a cloud | the shell never loaded `.envrc` (a new terminal, a directory direnv has not entered or allowed) | `source .envrc`, or `direnv allow`; it is the first thing an unsourced shell meets in any tree that holds an encrypted value ([INCIDENTS.md](INCIDENTS.md#refusals-that-surfaced-as-tracebacks)) |
+| ` - <file>: instances[0].name: a name may not be 'none'` under `Validation failed with 1 error(s).`, exit 1, from `validate` or a run | a reserved word was used as a name, exactly as section 3 says it may not be | rename it ([INCIDENTS.md](INCIDENTS.md#refusals-that-surfaced-as-tracebacks)) |
+| `CANNOT START <image>/<mod>: cannot start a container from almalinux:10: docker pull (after 3 attempts) exited 1: ... context deadline exceeded` from `test-mods` (CI's `live` job), exit 1; the record says `unstarted` | the registry or the daemon did not answer: every `live` run pulls its test image from Docker Hub, without an account, at that moment, and the pull was retried three times over about half a minute. Nothing about the modification was tested, so it is not a failed modification. `perform` waits behind `live`, so a registry outage stops every bake | a pull from your own machine tells the registry from the daemon ([INCIDENTS.md](INCIDENTS.md#docker-hub-did-not-answer-and-the-modification-tests-could-not-start-a-container)); wait and rerun (`gh run rerun <run> --failed`). The run's log says which modification it is on and which image it waits for |
+| `Unable to find remote state ... No stored state was found` planning an instance root, after the bakes | the instance root reads its storage root's state, and that root has never applied (`apply_storage: false` from the first commit, the first `perform` before any storage run) | run the storage lifecycle with `apply_storage` first; the strict state query says it beforehand as a note (`mounts storage ... whose root has no state yet`; [INCIDENTS.md](INCIDENTS.md#the-instance-root-planned-before-its-storage-root-had-ever-applied)) |
+| `cs-image-system run (FAILED) <id>` in the git log | an applying run failed after a root had applied; its record was committed so what applied is not lost (the after-apply hooks ran first) | read `meta-state/runs.yaml` for the error; a decommission that failed on another cloud's plan leaves the machine gone and the records right ([INCIDENTS.md](INCIDENTS.md#a-failed-applying-run-lost-its-record-and-a-cancelled-one-was-journalled-as-a-success)) |
+| `meta-state/runs.yaml` says `ok: false` with `error: interrupted (KeyboardInterrupt) during <lifecycle>` | you cancelled the run with Ctrl-C; nothing after that point ran, and what ran before stands as its own commands left it | read what it was in; a generation can simply be run again, an interrupted apply is read in the root's state first; a cancelled run is never journalled as a success ([INCIDENTS.md](INCIDENTS.md#a-failed-applying-run-lost-its-record-and-a-cancelled-one-was-journalled-as-a-success)) |
+| `config-drift: ... the vendor's newest image moved under a base this tree has not baked` (exit 0) | the vendor published a new image and the emission of a base with no build yet names the one of the day it was generated; nothing of yours changed | `just record`, and commit it; the move is named rather than reported as `BEHIND`, because a red scheduled run over it could not be re-run green ([INCIDENTS.md](INCIDENTS.md#the-vendors-newest-image-moved-under-a-base-this-tree-had-not-baked)) |
+| `runtime-unchanged: ... unchanged since <ref> (...), but the vendor's newest image moved under a base this tree has not baked` (exit 0), in `perform` | the same move on the guarded runtime: the job's record took it, and there is nothing to apply by hand | nothing; the guard names the move and passes rather than reading it as `CHANGED`, since the record the job pushed already holds it ([INCIDENTS.md](INCIDENTS.md#the-vendors-newest-image-moved-under-a-base-this-tree-had-not-baked)) |
+| the log of an apply shows the root's outputs and no `Apply complete!` line | the run keeps the last 40 lines of a command's output, and tofu prints its verdict BEFORE the outputs | every verdict line (`Plan:`, `Apply complete!`, the gate's, a bake's `Build ... finished`) is printed ahead of the tail with its line number; for the whole output, `just cli --verbose` or the DEBUG log ([INCIDENTS.md](INCIDENTS.md#the-applys-verdict-could-not-be-read-in-the-log)) |
+| `role <name>: not granted` from the workload probe dispatched on `main`; or `granted` from a branch that is not `main` | the first: the role is not bound to the connection, or its pin names another branch; the second: the pin does not hold. The probe's first line says `accepted` either way, since authenticating to the connection takes the role as a hint only | [CI_SETUP.md, section 3.5](examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access), steps 2 and 6; `not judged` means no machine of a managed group stands yet |
+| `data disks mounted` failed with `missing: /mnt/<x>` on GCE, the kernel's XFS count above it | the startup script did not report that mount point mounted: the device never attached, or `mount` failed and the script went on (`nofail`) | the script's own lines on the serial console (`csis-mount:`), then the storage's attachment in the instance root ([INCIDENTS.md](INCIDENTS.md#the-gce-data-disk-was-attached-but-never-mounted)) |
+| a base shown DUE on a cloud you changed nothing for | a field every runtime shares moved (`admin_user`, the admin keys, `update`, the vendor source); a storage type added for one cloud re-bakes only there, never the other cloud's base ([INCIDENTS.md](INCIDENTS.md#a-storage-type-added-for-one-cloud-re-baked-the-other-clouds-base)) | read the run's reason for the bake; a shared field re-bakes everywhere by design |
+| `unavailable: storages/<s3>: REFUSED (the identity lacks a permission, ...): An error occurred (AccessDenied) when calling the GetBucketTagging operation: User: ...assumed-role/csis-github-apply/... is not authorized` on a `perform` | the role the step ran as lacks a read the state query makes: the applied role's document lags the release's module: the write role needs the `StorageReality` statement, without which every performing run reads its S3 storage as unavailable and stays green over it ([INCIDENTS.md](INCIDENTS.md#the-ci-apply-role-could-not-read-the-storage-it-had-applied)) | take the release, then apply the bootstrap root again (CI_SETUP.md 3.0, the Apply block; IAM writes are yours); a `REFUSED` line is never a retry |
+| `note: storages/<s>: a persistent disk of that name belongs to configuration '<id>' (csis_config); ... ours is absent`; `empty: left alone on <rt>: N disks of configuration '<id>'` | another tree shares the project or account and made a thing of that name; it is theirs, counted and left alone | nothing for theirs; if ours is absent, declare a name the cloud does not hold yet |
+| `empty: disks still present on <rt>: old-scratch (no csis_config)` | a thing with no configuration id, made before the system labelled what it makes; it is counted as ours to answer for | if it is ours and declared, `just cloud-relabel <rt> no` gives it the id; if it is nothing of ours, remove it by hand |
+| a job fails in "Initialize containers" before any step of yours: `denied`, `unauthorized` or `manifest unknown` pulling `ghcr.io/.../csis-ci:alma10-<date>` | the runner image could not be pulled: the tag does not exist yet (the Runner image workflow has not published the date the workflow pins); or the job's `permissions:` block lacks `packages: read`, so its token pulls as nobody (a job with no block pulls; one with a block that lacks the line is denied); or the package is PRIVATE and this repository was not granted access to it (a package publishes private when the organisation disallows public packages) | a missing tag: the system's maintainers run the Runner image workflow and you rerun; a missing line: take the release that carries it; a private package: on the package's page, "Manage Actions access", add this repository with Read (same organisation), or have the organisation's administrators allow public packages ([docs/CI_RUNNER.md](CI_RUNNER.md), section 4); never a credential in the workflow for it ([INCIDENTS.md](INCIDENTS.md#the-ci-runner-image-took-four-builds-and-its-first-pull-was-refused)) |
+| `release: testpypi cannot take an upload now (above) -- nothing was changed; it is the index's condition, not the release's` (exit 75) | the index's upload endpoint or one of the twenty-two project pages did not answer, or answered 5xx; the release stopped before the bar, or after it and before the bump, so the tree is clean; the probe exists because an outage found only at the upload wastes the whole bar ([INCIDENTS.md](INCIDENTS.md#testpypi-was-down-and-a-release-found-it-only-at-the-upload)) | `just index-ready test wait`, then the release again; nothing to discard |
+| `release: this checkout is on '<branch>'; a release is cut on main alone (or a maintenance branch release/<major.minor>)` | the checkout is not on `main`; the rule exists so that a version is never cut, committed and tagged on a branch `main` does not hold ([CHANGES.md](CHANGES.md#s107)) | `git checkout main && git merge --ff-only develop`, then the release again |
 | `release: main is behind develop -- a release never leaves a stage behind` | a stage landed on `develop` that `main` has not taken | on `main`: `git merge --ff-only develop`, then the release again |
 | `public-safe: ... <file>:<line>` from the hook | a committed line looks like a secret, a key, a plan or a state file | never bypass the hook; encrypt the value, or allow it BY DECISION in `cfg/_config.yml` `public_safe.allow` |
-| `Build '<image>' errored after 20 minutes ...: Timeout waiting for SSH.` with `ssm error: ... StartSession, context canceled` | the bake machine booted and its SSM agent was Online, but packer's ssh session through SSM never opened: the bake host was a 1 GB t2.micro, too small for the image it boots (three `perform` runs, 2026-10-04 and -05; the same parent baked on an r5.4xlarge, and on a t3.medium once declared) | give the bake host 4 GB: `machine_type: t3.medium` on the image's runtime entry, or the runtime's `default_machine_type` (the starters ship t3.medium; the reference tree since stage 80). Since stage 79 the builds that completed before the failure are recorded anyway (a warning names them) |
-| `foreign image <id>: ... tagged series=<s> run=<r> is not in lineage` | an image the system tagged and lineage does not record: a bake still running in another process (2026-10-04: `just full-test`'s strict query raced CI's `perform`), or one a failed run baked before stage 79, when a failed run recorded nothing | if a run is still baking, wait for it to finish and record. Otherwise `just cli state import --no-storages` adopts it (2026-10-04: five images), then `just record`; the adopted build counts as current, so it is not baked again |
-| `identity: group '<g>' was managed by the system but is missing from the YAML; groups never leave the configuration` | a group the system once managed was deleted from the YAML (2026-10-04: removing the posix proof's declarations after the proof) | put the entry back with `unmanaged: true`; its members may go. The records stay, and its gid stays claimed by the name |
-| the `live` or `perform` job green with `SKIPPED` in its summary | no secret was configured, so nothing ran | not a pass: set the secrets the workflow names |
+| `Build '<image>' errored after 20 minutes ...: Timeout waiting for SSH.` with `ssm error: ... StartSession, context canceled` | the bake machine booted and its SSM agent was Online, but packer's ssh session through SSM never opened: the bake host is a 1 GB machine (a t2.micro), too small for the image it boots; the same parent bakes on a t3.medium | give the bake host 4 GB: `machine_type: t3.medium` on the image's runtime entry, or the runtime's `default_machine_type` (the starters ship t3.medium). The builds that completed before the failure are recorded anyway, and a warning names them ([INCIDENTS.md](INCIDENTS.md#a-1-gb-bake-host-starved-the-package-manager-and-the-ssm-agent)) |
+| `foreign image <id>: ... tagged series=<s> run=<r> is not in lineage` | an image the system tagged and lineage does not record: a bake still running in another process (a strict query run by hand can race CI's `perform`), or one baked by a failed run on an old release that recorded nothing of a failed run | if a run is still baking, wait for it to finish and record. Otherwise `just cli state import --no-storages` adopts it ([INCIDENTS.md](INCIDENTS.md#an-image-the-system-tagged-was-not-in-lineage)), then `just record`; the adopted build counts as current, so it is not baked again |
+| `identity: group '<g>' was managed by the system but is missing from the YAML; groups never leave the configuration` | a group the system once managed was deleted from the YAML (removing a proof's declarations after the proof, say) | put the entry back with `unmanaged: true`; its members may go. The records stay, and its gid stays claimed by the name ([INCIDENTS.md](INCIDENTS.md#a-group-deleted-from-the-yaml-was-refused)) |
+| the `live` or `perform` job green with `SKIPPED` in its summary | no secret was configured, so nothing ran | not a pass: set the secrets the workflow names ([INCIDENTS.md](INCIDENTS.md#three-green-ci-jobs-ran-nothing)) |
 
 ## 7. Every plugin, in one paragraph each
 
@@ -1112,8 +1117,8 @@ four links after each paragraph go straight to them. The three core
 packages come first; a plugin is selected by the `type:` a builder entry
 declares.
 
-- [contract](../packages/contract/README.md): the plugin contract (stage
-  30). The protocols a model and a builder satisfy, the constants and
+- [contract](../packages/contract/README.md): the plugin contract. The
+  protocols a model and a builder satisfy, the constants and
   field helpers a model is declared with, the lifecycle phases, the data
   carriers a hook returns; it depends on nothing of the system, and
   `base` depends on it. A plugin is written against this package alone;
@@ -1161,14 +1166,14 @@ declares.
   [tests](../packages/gcloud-runtime-plugin/README.md#what-it-tests-and-verifies) ·
   [failures](../packages/gcloud-runtime-plugin/README.md#when-it-fails)
 - [docker-runtime-plugin](../packages/docker-runtime-plugin/README.md): a
-  durable host's container daemon as a runtime (stage 103): images in the
+  durable host's container daemon as a runtime: images in the
   daemon's store, builds named by tags, bakes through `docker exec`.
   [prerequisites](../packages/docker-runtime-plugin/README.md#prerequisites-and-integration) ·
   [configuration](../packages/docker-runtime-plugin/README.md#configuration-reference) ·
   [tests](../packages/docker-runtime-plugin/README.md#what-it-tests-and-verifies) ·
   [failures](../packages/docker-runtime-plugin/README.md#when-it-fails)
 - [tf-docker-plugin](../packages/tf-docker-plugin/README.md): containers and
-  volumes on the docker runtime as OpenTofu roots (stage 103): `tofu-docker`
+  volumes on the docker runtime as OpenTofu roots: `tofu-docker`
   and `tf-docker-volume`; a stopped container is left stopped, the launch
   script arrives by `docker exec`, labels are fixed at creation.
   [prerequisites](../packages/tf-docker-plugin/README.md#prerequisites-and-integration) ·
@@ -1247,7 +1252,7 @@ declares.
   [gcs: configuration](../packages/gcs-state-plugin/README.md#configuration-reference) ·
   [gcs: failures](../packages/gcs-state-plugin/README.md#when-it-fails)
 - [contract-example-plugin](../packages/contract-example-plugin/README.md):
-  the proof of the contract (stage 30): OpenTofu's `inmem` state backend
+  the proof of the contract: OpenTofu's `inmem` state backend
   as a plugin written against the contract alone, subclassing nothing of
   the core; never a backend for a real tree.
   [prerequisites](../packages/contract-example-plugin/README.md#prerequisites-and-integration) ·
@@ -1272,16 +1277,16 @@ declares.
    starts; that is the point.
 4. Real runs commit their records; you push. `main` performs; everything
    else is read-only in CI.
-6. `just test` before every commit (the sessions present), `just
+5. `just test` before every commit (the sessions present), `just
    full-test` before a performing run you make by hand.
-7. GCP costs are yours: a cycle there ends with `just cloud-empty`, and
+6. GCP costs are yours: a cycle there ends with `just cloud-empty`, and
    any billable resource left standing is named with its cost.
-8. When something fails, the row in section 6 first, then the open
-   hygiene bundle, hygiene bundle XXIV
-   ([INPROGRESS/STAGE-130.md](../INPROGRESS/STAGE-130.md)), the one the
-   Open list in [INPROGRESS/TODO.md](../INPROGRESS/TODO.md) names; a new
-   failure gets a row.
-9. Upgrade the system deliberately: a new release, then `just validate`,
+7. When something fails, the row in section 6 first, then its entry in
+   [INCIDENTS.md](INCIDENTS.md), then the open hygiene bundle, the one
+   the Open list in [INPROGRESS/TODO.md](../INPROGRESS/TODO.md) names; a
+   new failure gets an entry there and, when it is a defect, an item in
+   the bundle.
+8. Upgrade the system deliberately: a new release, then `just validate`,
    `just dry`, and the diff of `generated/` read before anything runs.
 
 ## 9. If you develop the system itself
@@ -1298,8 +1303,8 @@ copy of the reference configuration, which is checked out BESIDE this
 repository as `cs-image-system-testconfig` for that purpose alone;
 `just fixture-live` proves the frozen fixture against the real accounts
 (what the system's CI does); `just release <part|version> [test|pypi]`
-cuts a release to the index, from `main` alone (stage 107: `main` takes
-`develop` by fast-forward first and `develop` takes `main` back after; a
+cuts a release to the index, from `main` alone (`main` takes `develop`
+by fast-forward first and `develop` takes `main` back after; a
 maintenance branch `release/<major.minor>` for an old version's fix).
 Before anything
 changes, and again after the bar, it asks the index whether it can take
@@ -1308,7 +1313,7 @@ an upload (`just index-ready [test|pypi]` asks the same on its own, and
 means the index cannot take an upload now, nothing was changed, and it
 is the index's condition, not the release's
 ([OPERATIONS.md](OPERATIONS.md), "`just build`, `just release`,
-`just publish`, `just publish-tree`"; stage 83). The recipes here drive that reference
+`just publish`, `just publish-tree`"). The recipes here drive that reference
 configuration only through `just cli ...`, for the system's own live
 proofs; its cycles, like any team's, run from its own `Justfile` (`cd
 ../cs-image-system-testconfig && just cloud-cycle gcloud-east1`), which
@@ -1324,15 +1329,14 @@ The workflows, this repository's and every starter's, say which GitHub
 runner image they run on (`runs-on: ubuntu-24.04`), which version of
 each action they use (`actions/checkout@v5`,
 `aws-actions/configure-aws-credentials@v6`,
-`google-github-actions/auth@v3`; stage 91) and, since stage 92, which
-date of the system's own runner image every job runs inside
+`google-github-actions/auth@v3`) and which date of the system's own
+runner image every job runs inside
 (`container: image: ghcr.io/infrastructurebuilder/csis-ci:alma10-<YYYYMMDD>`).
 None of the three moves by itself, and that is the point: a tree's CI
-does not change at no commit. Until stage 91 they said `ubuntu-latest`,
-which GitHub moves when it chooses (to Ubuntu 26 from 2026-10-19), and
-one action followed a branch. A test now refuses a floating image, a
-second image, an action at a branch, and an action older than the
-majors above.
+does not change at no commit. A floating name such as `ubuntu-latest`
+moves when GitHub chooses, and an action at a branch moves when its
+author does. A test refuses a floating image, a second image, an action
+at a branch, and an action older than the majors above.
 
 The price of a name is a duty. GitHub publishes a runner image for each
 Ubuntu LTS, about every two years, and withdraws the oldest; an
@@ -1340,8 +1344,8 @@ action's major version is withdrawn when the Node.js it was built for
 is. A withdrawn name does not fail quietly: first every run's
 annotations say so, for some months, then jobs wait and are never
 picked up, or fail in "Set up job" before any step of yours. (What
-this paragraph says of GitHub's schedule is from the notices seen on
-2026-10-13; read GitHub's pages when you act on it.)
+this paragraph says of GitHub's schedule is from GitHub's notices as
+they stood when it was written; read GitHub's pages when you act on it.)
 
 **When to look.** Twice a year, in the first working week of April and
 of October, and at once whenever a run's annotations name an image or

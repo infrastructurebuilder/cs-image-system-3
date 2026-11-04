@@ -5,9 +5,10 @@ init-config` (or copied from a starter tree) from "it validates on my
 machine" to "its CI proves it, records it and performs on `main`". It is
 the same text in every starter tree and in the release; the system's
 tests hold its secrets table to the workflow the release ships, so the
-names below are the names the workflow reads. It was walked from nothing
-twice between 2026-10-05 and 2026-10-14, on `standard-aws` and
-`standard-aws-posix` (stage 65), and says what that found.
+names below are the names the workflow reads. It has been walked from
+nothing on `standard-aws` and `standard-aws-posix`
+([the walk's entry in the stage index](https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/docs/CHANGES.md#s65)),
+and says what those walks found.
 
 Every value that is yours appears as a placeholder: `<owner>` and
 `<repo>` for the repository, `<account-id>` and `<region>` for AWS,
@@ -145,8 +146,8 @@ how you decline it. The project roles of a service account that already
 exists default to none. Whoever made the account granted what it holds,
 and a grant this root makes sits in this root's state, so a `tofu
 destroy` here would take it from every tree that reads the account
-(two configurations reading one account were found holding the same
-grant each, 2026-10-09). The generated README lists, under "What a
+(two configurations reading one account each hold the same grant).
+The generated README lists, under "What a
 destroy would take that this root did not make", everything of that
 kind: those grants, and an AWS role adopted by import, which the
 destroy deletes outright.
@@ -404,9 +405,9 @@ role starts sessions and passes the SSM instance profile:
 `iam_instance_profile`). The WRITE role also carries the READ-ONLY
 document above, as a second policy (`cs-image-system-write-reads`):
 a performing run reads reality before it applies, and a write role
-without those reads reported the S3 storage `unavailable` with
-`AccessDenied` on `GetBucketTagging` on every `perform` (2026-10-14,
-hygiene XII item 33). The lifecycles generate no IAM. These roles are
+without those reads reports the S3 storage `unavailable` with
+`AccessDenied` on `GetBucketTagging` on every `perform`. The
+lifecycles generate no IAM. These roles are
 made once: either by the bootstrap (3.0), which writes exactly these
 documents as terraform you apply, or by a person in the console as
 described here. A role made before a release that changed a document
@@ -591,9 +592,9 @@ policy with the role as its only principal.
    `role <name>: not granted` (OPA still issues the connection's token
    there, since the role is only a hint when authenticating to the
    connection, and `sft resolve` then exits 125). A probe that says
-   `granted` from the other branch means the pin does not hold
-   (2026-10-08, F35: the first line alone said `accepted` from
-   `develop` with the pin in place).
+   `granted` from the other branch means the pin does not hold. Read
+   the `granted` line, not the first: the first line says `accepted`
+   from any branch, with the pin in place or not.
 
 **What the names trust.** The claims match by name, so a person can read
 every value off the remote URL. A fork's token names the fork and never
@@ -654,7 +655,7 @@ optional there (without them the job uses the runner's own daemon) and
 required by `perform` when it records.
 
 One secret no gate reads: **`CSIS_PROOF_SSH_KEY`**, the private key of a
-posix group's proof user (stage 75) -- a member declared
+posix group's proof user -- a member declared
 `is_service_account: true` on a posix user builder, with a `uid:` and its
 public key in `public_keys:`. The perform job's login proof logs in as
 that user over ssh, through the runtime's session tunnel (SSM on AWS, IAP
@@ -663,8 +664,8 @@ proof user needs no such secret; a posix proof without it fails its first
 check, naming the secret.
 
 The login proof runs while the WRITE identity is still held, straight
-after the performing step and before the read-only identity is taken back
-(stage 89). The reason is the tunnel: opening a session to a machine is a
+after the performing step and before the read-only identity is taken
+back. The reason is the tunnel: opening a session to a machine is a
 permission. On AWS it is `ssm:StartSession` (the "SessionManagerBake"
 statement of section 3.3): the WRITE role has it because a bake travels
 the same way, and the READ-ONLY role is not given it. On GCE it is the IAP
@@ -736,7 +737,7 @@ step "Gate on the secrets".
 | "Reach the docker host" ends with `Host key verification failed` or `Permission denied (publickey)` | the known-hosts line is not the host's, or the key is not authorized for `DOCKER_HOST_USER` there | re-take the line from the host and check it (section 3.4a, step 3); authorize the public half for that user |
 | "Reach the docker host" ends with `Cannot connect to the Docker daemon` | the user cannot use the daemon, or the daemon is not listening on the host | run `docker version` as that user on the host |
 | `Not authorized to perform sts:AssumeRoleWithWebIdentity` | the role's trust condition does not match the token's `sub` or `aud` | compare the trust policy with the subject form your organisation's tokens carry (section 3.2, step 4); CloudTrail's denied event shows the token's subject |
-| `login proof <instance>: login: FAILED -- ssh <user>@<instance> id: exit 255` with `is not authorized to perform: ssm:StartSession` and the READ-ONLY role's name | the proof ran under the read-only role, which may not open a session: this tree's workflow is from a release before 0.1.1.dev22 (stage 89) | take the newer release (section 3.1): its workflow makes the proof while the write identity is held. Do not give the read-only role the session |
+| `login proof <instance>: login: FAILED -- ssh <user>@<instance> id: exit 255` with `is not authorized to perform: ssm:StartSession` and the READ-ONLY role's name | the proof ran under the read-only role, which may not open a session: this tree's workflow is from a release before 0.1.1.dev22 | take the newer release (section 3.1): its workflow makes the proof while the write identity is held. Do not give the read-only role the session |
 | the load says the AWS profile was not found, or no credentials | the profile step did not run, or the YAML names a different profile | read the "Name the federated credentials" step; it writes the profile the runtimes name |
 | the probe exits 0 but issues no token | the connection is still a draft | activate it (section 3.5, step 5) |
 | the probe's client refuses the token | a claim does not match | compare the claims the probe printed with the connection's Required Claims |
