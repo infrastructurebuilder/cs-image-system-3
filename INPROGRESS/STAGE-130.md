@@ -37,7 +37,7 @@ commit on the bundle's branch.
    move to an `archive/` namespace (names kept, the listing shorter);
    the default is no change, the kept-branch rule being the
    operator's.
-10. The starter count in code strings (found by [§118](STAGE-118.md), which
+10. The starter count in code strings (found by §118, which
     changes no code): the Justfile's `publish-starters` comment and
     `[doc]` say four template repositories; `packages/system/
     pyproject.toml` and `hatch_build.py` say three. Five exist, and
@@ -45,7 +45,7 @@ commit on the bundle's branch.
     five.
 11. `tests/test_docs_image_sources.py` parametrises the aws and gcloud
     query tables only; docker-runtime's README now carries the same
-    table ([§118](STAGE-118.md)) and `_runtimes()` gains it.
+    table (§118) and `_runtimes()` gains it.
 12. `ansible_models.py`'s refusal of an item with only `config:` says the
     playbooks are "files the config keys feed as variables"; the builder
     passes only connection variables in `--extra-vars` and CONFIGURATION

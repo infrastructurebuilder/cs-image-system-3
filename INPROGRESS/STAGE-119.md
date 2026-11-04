@@ -1,7 +1,7 @@
 # 119. The stage index and the end of narration
 
 **Status: OPEN 2026-11-04. Waits for "do 119". Documentation only;
-changes no code. After [§118](STAGE-118.md).**
+changes no code. After §118.**
 
 About 400 tokens of the form "stage N", "§N", "hygiene N", "FNN" and
 ISO dates sit in the current documents (REEXAMINE1 §3.4, §4.3;
