@@ -24,20 +24,20 @@ manual documents it, and every field carries a comment giving its meaning
 
 | Kind | Count | Where | Plugins (`type:`) |
 | --- | --- | --- | --- |
-| runtimes | 3 | [`cfg/runtime-builders.yml`](cfg/runtime-builders.yml) | `aws` (a default region and a second one), `gcloud` (ephemeral) |
+| runtimes | 4 | [`cfg/runtime-builders.yml`](cfg/runtime-builders.yml) | `aws` (a default region and a second one), `gcloud` (ephemeral), `docker` (the host's daemon: containers as instances, named volumes as storages) |
 | state backends | 4 | [`cfg/state-backends.yml`](cfg/state-backends.yml), [`-2`](cfg/state-backends-2.yml), [`-3`](cfg/state-backends-3.yml), [`state-gcs.yml`](cfg/state-gcs.yml) | `s3` (two buckets), `local` (the identity roots), `gcs` (declared, bound to nothing) |
 | executables | 10 | [`cfg/executables.yml`](cfg/executables.yml) | checkers by name and by type |
-| OS builders (base images) | 3 | [`cfg/os-builders.yml`](cfg/os-builders.yml) | `rhel` (the family `alma-linux`, on three runtimes, one from a fixed image id), `debian`, `ubuntu` (its query an override on the catalog's) |
+| OS builders (base images) | 3 | [`cfg/os-builders.yml`](cfg/os-builders.yml) | `rhel` (the family `alma-linux`, on four runtimes, one from a fixed image id), `debian`, `ubuntu` (its query an override on the catalog's) |
 | image sources | 0 | [`cfg/image-sources.yml`](cfg/image-sources.yml) | the tree's layer of the vendor-image catalog, empty: the release's answers for every family here (CONFIGURATION 5a) |
-| image builders | 3 | [`cfg/image-builders.yml`](cfg/image-builders.yml) | `packer-ebs` (two regions), `packer-gce` |
+| image builders | 4 | [`cfg/image-builders.yml`](cfg/image-builders.yml) | `packer-ebs` (two regions), `packer-gce`, `packer-docker` |
 | modification builders | 2 | [`cfg/mod-builders.yml`](cfg/mod-builders.yml) | `ansible`, `bash-remote` |
-| instance builders | 3 | [`cfg/instance-builders.yml`](cfg/instance-builders.yml) | `tofu` (two regions), `tofu-gce` |
-| storage builders | 6 | [`cfg/storage-builders.yml`](cfg/storage-builders.yml) | `tf-aws-ebs`, `tf-aws-efs`, `tf-aws-s3`, `tf-gcp-pd`, `tf-gcp-filestore`, `tf-gcp-gcs` |
-| group and user builders | 1 + 2 | [`cfg/group-builders.yml`](cfg/group-builders.yml) | `okta-tf` (with the workload connection and role, an encrypted key pair), `okta-tf-ro` (default, read-only), `okta-tf` (a managed user builder) |
+| instance builders | 4 | [`cfg/instance-builders.yml`](cfg/instance-builders.yml) | `tofu` (two regions), `tofu-gce`, `tofu-docker` |
+| storage builders | 7 | [`cfg/storage-builders.yml`](cfg/storage-builders.yml) | `tf-aws-ebs`, `tf-aws-efs`, `tf-aws-s3`, `tf-gcp-pd`, `tf-gcp-filestore`, `tf-gcp-gcs`, `tf-docker-volume` |
+| group and user builders | 2 + 3 | [`cfg/group-builders.yml`](cfg/group-builders.yml) | group builders `okta-tf` (with the workload connection and role, an encrypted key pair) and `posix` (`posix-local`, the delegate the Okta builder names to make its groups on the machine); user builders `okta-tf-ro` (default, read-only), `posix` (`posix-users`, the no-Okta way in) and `okta-tf` (a managed user builder) |
 | users | 20 | [`groups/users.yaml`](groups/users.yaml) | nineteen encrypted personas, one managed user with every profile field |
 | groups | 6 | [`groups/`](groups/) | the root group, four team groups (`in_both`, `gid`, `attributes`, `include_root_group_in_admins`), one `unmanaged` |
-| storages | 9 | [`storages/storages-aws.yaml`](storages/storages-aws.yaml), [`storages-gce.yaml`](storages/storages-gce.yaml) | every kind; `active`, `archived` and `destroyed`; EFS and S3 lifecycles; an adopted filesystem; a public bucket |
-| images | 5 | [`images/images-coops.yaml`](images/images-coops.yaml), [`images-other-groups.yaml`](images/images-other-groups.yaml) | `parent_policy` follow and pinned, retention and release intent, post-bake tests, an image chained from an image, a fixed `image_identifier`, ensure and script modifications |
+| storages | 10 | [`storages/storages-aws.yaml`](storages/storages-aws.yaml), [`storages-gce.yaml`](storages/storages-gce.yaml), [`storages-docker.yaml`](storages/storages-docker.yaml) | every kind; `active`, `archived` and `destroyed`; EFS and S3 lifecycles; an adopted filesystem; a public bucket; a docker volume |
+| images | 4 | [`images/images-coops.yaml`](images/images-coops.yaml), [`images-other-groups.yaml`](images/images-other-groups.yaml) | `parent_policy` follow and pinned, retention and release intent, post-bake tests, an image chained from an image, a fixed `image_identifier`, ensure and script modifications |
 | instances | 5 | [`instances/instances.yaml`](instances/instances.yaml) | durable pinned, durable `image_policy: follow`, ephemeral with `on_failure`/`teardown_after`, the second region, GCE |
 | overlays | 5 | [`overlays/`](overlays/README.md) | config-only, a transient instance, the `undeclare` form, updated storages |
 | meta-state | 2 | [`meta-state/`](meta-state/README.md) | the alias pool (`aliases.txt`) and a synthetic storage-state record |
@@ -75,16 +75,14 @@ part ways; each is worked around here and commented at the spot:
   `endpoints` mappings each need a `name`, and the web-identity form has no
   `role_arn`/`duration`/`policy`/`session_name`
   ([`cfg/state-backends.yml`](cfg/state-backends.yml));
-- the availability-zone check reads a storage's own `runtime` field, not its
-  builder's runtime, so a zonal GCE storage that declares a zone names its
-  runtime ([`storages/storages-gce.yaml`](storages/storages-gce.yaml));
 - a bash-remote builder's `execute_command` cannot carry packer's own
   `{{ .Path }}`: every string under `cfg/` is rendered with Jinja
   ([`cfg/mod-builders.yml`](cfg/mod-builders.yml)).
 
 The smallest trees are [`../standard-aws/`](../standard-aws/README.md),
-[`../standard-gce/`](../standard-gce/README.md) and, with no Okta,
-[`../standard-aws-posix/`](../standard-aws-posix/README.md).
+[`../standard-gce/`](../standard-gce/README.md), with no Okta
+[`../standard-aws-posix/`](../standard-aws-posix/README.md), and with no
+cloud at all [`../standard-docker/`](../standard-docker/README.md).
 
 ## What travels with the tree
 
@@ -126,5 +124,7 @@ narrative, from the first command on.
   catalogue of every field and variation, loadable as it stands; a team
   starts from a standard tree and looks things up here.
 
-The standard trees are [`../standard-aws/`](../standard-aws/README.md) and
-[`../standard-gce/`](../standard-gce/README.md).
+The standard trees are [`../standard-aws/`](../standard-aws/README.md),
+[`../standard-gce/`](../standard-gce/README.md),
+[`../standard-aws-posix/`](../standard-aws-posix/README.md) and
+[`../standard-docker/`](../standard-docker/README.md).

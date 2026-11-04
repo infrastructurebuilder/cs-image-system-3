@@ -324,7 +324,8 @@ no environment variable. What must exist outside the system:
   business (Session Manager on AWS, IAP on GCE), not this plugin's.
 
 Python side: Python 3.13 or later, `pydantic>=2.13`, and
-`cs-image-system-system` at the same version ([pyproject.toml](pyproject.toml)).
+`cs-image-system-contract` and `cs-image-system-base` at the same version
+([pyproject.toml](pyproject.toml)).
 
 ## Configuration reference
 

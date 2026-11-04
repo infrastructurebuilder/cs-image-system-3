@@ -460,10 +460,16 @@ group_builders:
     state_configuration: local-dev
     org: "noaa"
     team: "nos-coastal-modeling-cloud-sandbox"
+    # required: the posix group builder that makes these groups exist on
+    # the machines of their images (or `none` for no posix configuration)
+    posix: posix-local
     required_providers:
       - name: oktapam
         source: okta/oktapam
         version: '>= 0.6.3'
+  # the delegate `posix:` names, from the posix identity plugin
+  - name: posix-local
+    type: posix
 
 user_builders:
   - name: okta-tf-users
@@ -481,6 +487,12 @@ user_builders:
         source: okta/okta
         version: '>= 6.0'
 ```
+
+`posix:` is required on every `okta-tf` group builder (see
+[`posix`](#configuration-reference) in the configuration reference): an
+entry without it fails `validate`. `posix-local` is a group builder of the
+[posix identity plugin](../posix-identity-plugin/README.md), declared in
+the same file; it takes no further fields.
 
 The live tree adds `workload_connection: "github-cs-image-system"` and
 `workload_role: "cs-image-system-ci"` to the group builder and binds both

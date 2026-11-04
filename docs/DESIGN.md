@@ -18,7 +18,7 @@ design as built.
 | --- | --- |
 | Identity lifecycle; create-vs-read as separate plugins | The identity lifecycle packages the user and group builders. The okta plugin ships a managed (`okta-tf`) and a read-only (`okta-tf-ro`) variant of each; users are read-only and OPA groups are managed (§3D). Other providers are future plugins against the same seam. |
 | Storage lifecycle (S3, Azure Blob, GCS, local FS) | Storage builders exist for `ebs`, `efs` and `s3` (AWS), `pd`, `filestore` and `gcs` (GCP) and `volume` (a docker volume on a container runtime), each realized by a terraform module; access is group-based (§3E). Azure Blob and a bind-mounted local directory are future plugins. |
-| Base vs instance images, OS-independent | `base_images` and `images` (instance images) are distinct collections; packer bakes both on the AWS, GCP and docker runtimes (a container image is committed into the daemon's store, §3F). An Azure image builder is a future plugin. |
+| Base vs instance images, OS-independent | Base images and instance images are distinct models: a base image is an OS builder, declared under `os_builders:` in `cfg/`; an instance image is an entry of the `images/` collection chained off one through `source_image` (a `base_images/` directory is read by nobody; [CONFIGURATION.md](CONFIGURATION.md) §1). Packer bakes both on the AWS, GCP and docker runtimes (a container image is committed into the daemon's store, §3F). An Azure image builder is a future plugin. |
 | The instance-image lifecycle includes *launching instances* | Instances belong to the instance-image lifecycle (§3A). Group ownership lives on the image, so the image's `sftd.tx.group` label follows every instance (§3F2). |
 | CLI-only, headless, CI/CD end-to-end | A typer CLI, dry-run by default, no interactive step anywhere; a failed run exits nonzero and writes a machine-readable summary (§3G). |
 | Entirely plugin-based | An entry-point plugin registry supplies the builders; a plugin is written against the contract package alone (§3P). Lifecycles themselves may be plugin-registered (`release`, `retention`). |
@@ -29,8 +29,10 @@ design as built.
 | Meta-workflow: identity → storage → base image → instance image, each optional, independently state-managed, script-existence apply gating | Four lifecycle units with per-lifecycle generated directories, state and runner scripts (§3A, §3C). |
 
 Preserved by design: the plugin/registry architecture, the YAML → pydantic →
-builder pipeline, the HCL collectors, per-workspace S3 state, the applied
-Okta/OPA end state, and the never-destroy / gated-apply discipline.
+builder pipeline, the HCL collectors, one state location per terraform
+root in a declared backend (`s3`, `gcs` or `local`; "Where state lives" in
+[OPERATIONS.md](OPERATIONS.md)), the applied Okta/OPA end state, and the
+never-destroy / gated-apply discipline.
 
 ---
 
@@ -827,9 +829,11 @@ order. The apply step and its gate are described operationally in
      ignore_changes }` on the image reference (and on user data /
      metadata) so even an erroneous regeneration cannot replace a
      running instance via apply.
-6. Terminology: the configuration keys are `base_images:` (base
-   images), `images:` (instance images) and `instances:`; prose uses
-   GOALS.md's names, *base images* and *instance images*.
+6. Terminology: the configuration keys are `os_builders:` (base
+   images, in `cfg/os-builders.yml`), `images:` (instance images) and
+   `instances:`. A `base_images` kind is registered base-only and read
+   by nobody ([CONFIGURATION.md](CONFIGURATION.md) §1 and §11.1). Prose
+   uses GOALS.md's names, *base images* and *instance images*.
 7. **Ephemeral instances and their failure policy.** An instance may
    declare `ephemeral: true`: the instance-image lifecycle launches it,
    runs the runtime's verification, and destroys it in the same run.
@@ -988,30 +992,25 @@ repository for it once stable, with an external plugin as the proof.
 **Reversibility (the operator's condition, 2026-10-29).** The stage may
 have to be undone if it interferes with later work; what would be
 expensive is not abandoning a package or a repository but reversing a
-work stream built on it. So: the stage is code only (the emission is
-byte-identical, no YAML key, record or cloud state changed), landed as
-one squash per branch, and bracketed on develop by the annotated tags
-`s30-1-before` and `s30-1-after` (branch 2: `s30-2-before`,
-`s30-2-after`), whose messages carry the recipe. The core's old import
-paths stay as re-exports of the contract (the shims:
+work stream built on it. So the stage changed code alone (the emission
+is byte-identical; no YAML key, record or cloud state moved), and the
+core's old import paths stay as re-exports of the contract (the shims:
 `base/constants.py`, `models/model_config.py`, `helpers/field_helpers.py`,
 `helpers/field_kinds.py`, `lifecycle.py`, `lifecycles.py`,
 `basic/asset.py`, `models/executable_adds.py`, the PSI enums and the
-`utils` helpers), so the undo is a swap -- the bodies go back into those
-files and the contract modules become the re-exports -- with no import
-rewritten in the core or in any plugin; every stream that only imports
-contract names, the plugins and the proof plugin included, needs no
-reversal. The contract README's "What moved where" table is the map.
-Pieces worth keeping under an undo, to re-apply from the squash: the
-`issubclass` TypeError fix, the plugin `version` fix, the public names
-for the three private cross-plugin helpers, the manifests (no plugin
-depends on `system`), the runtime base's TypeVar. The one later stream
+`utils` helpers). While the shims stand the undo is soft: a swap of which
+side holds the bodies, with no import rewritten in the core or in any
+plugin, so every stream that only imports contract names, the plugins
+and the proof plugin included, needs no reversal. The one later stream
 that would need reversing is a Tier C that injects the context
-(`bind(ctx)`) into the plugins' 53 `_get_context()` sites; while the
-stage is provisional, Tier C declares and types the context protocol
-without the injection. Removing the shims is the commitment to the
-contract, and is done together with moving the package to its own
-repository; a weekly reminder stands until then ([REMINDERS.md](../REMINDERS.md)).
+(`bind(ctx)`) into the plugins' `_get_context()` sites; while the stage
+is provisional, Tier C declares and types the context protocol without
+the injection. Removing the shims is the commitment to the contract: it
+is done together with moving the package to its own repository, and
+never unprompted. The operational state -- the tags that bracket the
+work, the undo recipe, the pieces worth re-applying and the standing
+reminder -- is kept in [REMINDERS.md](../REMINDERS.md), under "The §30
+shims".
 
 ## 4. Standing constraints
 

@@ -4,9 +4,9 @@
 storages:
   - name: gce_data
     type: gcp-pd                   # zonal disk, single-attach; archived = snapshot + delete on GCE too
-    # the manual says the builder's runtime governs, but the availability-zone
-    # check reads the ITEM's `runtime` (default: the default runtime, aws-east2),
-    # so a zonal GCE storage that declares a zone must name its runtime here
+    # the availability-zone check reads the BUILDER's runtime; this field is the
+    # fallback for a builder that names none, and naming it here keeps the item
+    # readable on its own
     runtime: gcloud-east1
     mount_point: /mnt/gce-data
     groups: [coops]

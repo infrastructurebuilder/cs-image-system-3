@@ -450,11 +450,13 @@ when they are not. A
 dry run needs no network for the backend at all: its `init -backend=false`
 never contacts S3.
 
-**Inside the system.** The plugin depends on `cs-image-system-system` and
-`cs-image-system-hashicorp-utils` ([pyproject.toml](pyproject.toml)); the
-collector it registers into, the roots mixin that builds the `init`
-arguments and the location record all live in `hashicorp-utils`. It is
-wired to the rest of the configuration by:
+**Inside the system.** The plugin depends on `cs-image-system-contract`,
+`cs-image-system-base` and `pydantic` ([pyproject.toml](pyproject.toml))
+and imports nothing else; the collector it registers into, the roots
+mixin that builds the `init` arguments and the location record all live
+in `cs-image-system-hashicorp-utils`, which the base reaches on its own
+(it is installed beside them in the workspace) when it records and checks
+state locations. It is wired to the rest of the configuration by:
 
 - `config.use_state_backends` in `cfg/_config.yml` -- off (the default is
   `false`), nothing below is emitted;
@@ -591,7 +593,9 @@ checked for `/` and `\`, for the reserved words (`default`, `self`,
 `none`, empty, null), and normalised; an
 empty `key` is refused; `key` gains its trailing slash; nested `endpoints`,
 `assume_role` and `assume_role_with_web_identity` values must fit their
-dataclasses (each needs a `name`). The loader then refuses a duplicate name
+dataclasses (strict: an unknown member is refused; `role_arn` is the one
+required member of the two `assume_role` objects, and none of the three
+takes a `name`). The loader then refuses a duplicate name
 in the class, an alias that collides with another entry's name or alias,
 and a second `is_default: true`. The core hands the registration to the
 collector once the backends are loaded; a name already registered with different
@@ -616,8 +620,11 @@ instance pinned to a build) -- the move guard, which names the root, both
 locations, what stands in it and both ways out. A root with nothing
 deployed moves with one INFO line
 (`workspace '<ws>' moves its state from ... to ...: nothing is deployed`).
-The executable/version check does **not** cover state backends (their
-`executable` is not read). Verdict: one line per error on stderr, `validate`
+The executable/version check covers state backends too
+(`check_state_backend_executables`): a backend's declared `executable`
+must name an entry of `cfg/executables.yml`, where it is version-checked
+like every other entry; a backend that declares none is skipped. Verdict:
+one line per error on stderr, `validate`
 exits 1 with `Validation failed with N error(s).`; a `run` stops before
 generating anything with the same errors in `generated/run-summary.json`
 under `validation_errors`, `ok: false`, exit 1.

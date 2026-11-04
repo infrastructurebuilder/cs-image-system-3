@@ -38,12 +38,12 @@ entry named or typed `packer` is version-checked by `PackerVersionChecker`
 (`packer version -machine-readable`, fourth comma-separated field of the
 first line).
 
-The package depends on `cs-image-system-system`,
-`cs-image-system-aws-runtime-plugin`, `cs-image-system-hashicorp-utils`,
-`Jinja2`, `python-hcl2`, `pydantic` and `PyYAML`
-([pyproject.toml](pyproject.toml)). It makes no cloud API call of its own:
+The package depends on `cs-image-system-contract`, `cs-image-system-base`,
+`cs-image-system-hashicorp-utils`, `Jinja2`, `python-hcl2`, `pydantic` and
+`PyYAML` ([pyproject.toml](pyproject.toml)); it depends on no runtime
+plugin and imports none. It makes no cloud API call of its own:
 everything provider-specific goes through the runtime plugin bound by
-`runtime`.
+`runtime`, whichever plugin provides it.
 
 ## Models
 

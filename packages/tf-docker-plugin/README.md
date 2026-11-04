@@ -222,9 +222,11 @@ validation).
   runtime's settle step installs with `sudo` and `python3` where a vendor
   container lacks them.
 
-The plugin depends on `cs-image-system-tf-ebs-instance-plugin` (the tofu
-bases) and `cs-image-system-docker-runtime-plugin` (the names and the
-runtime's hooks).
+The plugin depends on `cs-image-system-contract` and `cs-image-system-base`
+(as every built-in plugin does), `cs-image-system-hashicorp-utils` (the
+collector), `cs-image-system-tf-ebs-instance-plugin` (the tofu bases),
+`cs-image-system-docker-runtime-plugin` (the names and the runtime's
+hooks) and `pydantic` ([pyproject.toml](pyproject.toml)).
 
 ## Configuration reference
 

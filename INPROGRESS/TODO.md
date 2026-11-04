@@ -12,12 +12,12 @@ Stages from the re-examination of 2026-11-03.
 [REEXAMINE4.md](REEXAMINE4.md) digests the three reviews
 ([REEXAMINE1.md](REEXAMINE1.md), [REEXAMINE2.md](REEXAMINE2.md),
 [REEXAMINE3.md](REEXAMINE3.md)); each stage file
-([§118](STAGE-118.md) to [§130](STAGE-130.md)) cites the review section
+([§119](STAGE-119.md) to [§130](STAGE-130.md); §118 landed) cites the review section
 it answers. The conventions are the ones above: one file per stage; a
 stage is a plan until the operator says "do N"; **YOUR DECISION** marks
 an operator choice and states the default; **USER** marks a step only
 the operator can take; a landed stage's file is removed and its squash
-message is the record. Numbering starts at [§118](STAGE-118.md). §117 is
+message is the record. Numbering starts at §118. §117 is
 reserved by [§116](STAGE-116.md) item 7 (the contract to its own
 repository).
 
@@ -33,7 +33,7 @@ repositories.
 to follow (REEXAMINE1 §5.2, REEXAMINE3 §3.1) and that
 [§116](STAGE-116.md)'s proof as planned would install the AWS runtime
 under the GCE one (REEXAMINE1 §5.3, REEXAMINE3 §3.1 flaw 1). The
-proposal: [§118](STAGE-118.md) to [§125](STAGE-125.md) land before
+proposal: §118 to [§125](STAGE-125.md) land before
 [§113](STAGE-113.md) is executed, each small and each proved by the
 golden; [§113](STAGE-113.md) is then re-planned on the numbers
 [§124](STAGE-124.md) prints, and [§125](STAGE-125.md) absorbs
@@ -43,7 +43,7 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
 
 **Open**
 
-- [§118](STAGE-118.md) and [§119](STAGE-119.md), the documents: no code; either may start now.
+- [§119](STAGE-119.md), the documents: no code; may start now (§118 landed).
 - [§120](STAGE-120.md) to [§125](STAGE-125.md), the seams: in that
   order; each waits for its "do N".
 - [§126](STAGE-126.md), the package shape: a decision stage; before
@@ -53,7 +53,7 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
   sources stop narrating: any time after [§119](STAGE-119.md).
 - [§130](STAGE-130.md), hygiene bundle XXIV: the open bundle for the small findings.
 - [§112](STAGE-112.md), a release in two boxes: planned 2026-11-03; waits for
-  "do 112". No hygiene bundle or documentation stage is open.
+  "do 112".
 - [§113](STAGE-113.md) to [§116](STAGE-116.md), the decomposition (the kit and the engine, the run
   context's protocol, the services behind it, a runtime installed from
   outside): planned 2026-11-03 (their files), in that order; each waits for
@@ -74,7 +74,6 @@ and validated by the operator before its "do N")
 - [§114, Tier C: the run context is a protocol](STAGE-114.md)
 - [§115, The services behind the context](STAGE-115.md)
 - [§116, A runtime installed from outside](STAGE-116.md)
-- [§118, The summary layer comes current](STAGE-118.md)
 - [§119, The stage index and the end of narration](STAGE-119.md)
 - [§120, A provider-neutral terraform root](STAGE-120.md)
 - [§121, The core names no runtime](STAGE-121.md)
@@ -131,6 +130,15 @@ and validated by the operator before its "do N")
 
 **Landed since 2026-10-05** (newest first)
 
+- §118, the summary layer comes current: 2026-11-04, its squash commit
+  (feature/stage-118-summary-layer kept). Every row of REEXAMINE1 §4.2
+  and REEXAMINE3 §2.3 checked against the tree and fixed or refuted,
+  row by row in the squash message: README, DESCRIPTION, DESIGN, GOALS
+  (a preface mapping the goals), GOLDEN, PARITY, OPERATIONS,
+  CONFIGURATION, the daily driver, two starters, fourteen package
+  READMEs; the reference's README points at the records (53f8a8f on
+  its develop). Four code-side findings went to bundle XXIV (items 10
+  to 13). Documentation only.
 - §111, hygiene bundle XXIII: 2026-11-02, its squash commit
   (feature/stage-111-hygiene-xxiii kept). `preflight` judges an
   sso-session profile whose cached token has lapsed with one read-only

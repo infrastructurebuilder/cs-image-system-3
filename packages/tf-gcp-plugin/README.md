@@ -479,13 +479,16 @@ directory beside the configuration root); see
 the GCP classes need on top of that, and how each is found.
 
 **Python packages.** From [pyproject.toml](pyproject.toml):
-`cs-image-system-tf-ebs-instance-plugin` (the base classes and the
+`cs-image-system-contract` and `cs-image-system-base` (the contract and
+the core's base classes, as for every built-in plugin),
+`cs-image-system-tf-ebs-instance-plugin` (the tofu base classes and the
 `TofuVersionChecker`), `cs-image-system-gcloud-runtime-plugin` (the
 runtime model, `gce_name`, `gce_label`, `resolve_project`,
 `make_credentials`), `cs-image-system-hashicorp-utils` (the collector
 that renders the terraform, provider, variable, backend and remote-state
-blocks) and `google-cloud-compute>=1.49`. The compute client is imported
-lazily, inside `TofuPdStorageBuilder._lookup`, so it is needed only by
+blocks), `google-cloud-compute>=1.49` and `pydantic>=2.13`. The compute
+client is imported lazily, inside `TofuPdStorageBuilder._lookup`, so it
+is needed only by
 `state query` and by the runs that perform one; generation never imports
 it.
 

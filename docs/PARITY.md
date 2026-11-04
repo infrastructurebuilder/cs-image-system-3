@@ -73,3 +73,10 @@ When a change lands: if it adds or changes a model field, a `type:` key, a
 recipe, a CLI option, a CI step or a secret, the matching document changes
 in the same commit. The checks above take minutes; run the ones that match
 what you touched.
+
+The tests the "What could automate it" column proposes are written by
+stage 128 ([INPROGRESS/STAGE-128.md](../INPROGRESS/STAGE-128.md)): every
+registered model's fields appear in CONFIGURATION, every recipe in
+OPERATIONS, every plugin package in the root README's list, every CLI
+command in OPERATIONS's table, and the starter count is one constant the
+docs tests read. Once they exist, that column points at them.

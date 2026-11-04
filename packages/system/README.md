@@ -8,8 +8,9 @@ every command delegates to the base library or to a plugin.
 
 Licensed under Apache-2.0. Requires Python 3.13 or later. Declared
 dependencies ([`pyproject.toml`](pyproject.toml)): `cs-image-system-base`
-(pinned to the same version), `typer`, `rich` and `PyYAML`. The entry point
-is `cs_image_system.system.cli:app` (a Typer application); `python -m
+(pinned to the same version), `typer`, `rich`, `PyYAML` and `packaging`
+(`init-config` compares release versions with it). The entry point is
+`cs_image_system.system.cli:app` (a Typer application); `python -m
 cs_image_system.system` runs the same application through a wrapper that
 prints `Error: <e>` and exits 1 on any exception the application lets
 through.
@@ -65,7 +66,6 @@ name. Which commands honour which is in the
 | `--locked` | off | Hold the tofu lock for the whole command (stage 64, replacing `scripts/with-tofu-lock`): a directory `.lock` under `TF_PLUGIN_CACHE_DIR`, taken before anything else runs and released when the command ends however it ends. The provider cache is not safe under concurrent `init`, so every recipe that may execute the roots passes it. A second holder is refused with `--locked: another tofu-using command holds <lock> (pid N) -- one tofu process at a time ...` and exit 75; an unset `TF_PLUGIN_CACHE_DIR` is exit 2. A dry run never needs it. |
 | `--base-only` | off | Makes `build-all` and `generate` select the base-image lifecycle only. The configuration is still read in full. |
 | `--version` | | Prints `cs-image-system <version>`, the installed release (the `cs-image-system` distribution's version, the one a tree's `.csis-version` pins), and exits. Eager: it answers before the callback runs, so nothing loads and `--root-dir` is not looked at. A starter's `just init` asks it for its `init: cs-image-system <version> ready against <root>` line; on 0.1.3 and before the option did not exist and that line gave the bare name (hygiene XVIII item 1). |
-| `--only-providers` | | Retired (stage 67, 2026-09-26): it was recorded, split and warned about (`Only providers ... specified but configuration will still be read in full`), and read by nothing; `--only-runtime <rt>` is the runtime filter. Passing it is `No such option`. |
 
 There is no global `--force` (stage 63). It was "Force execution even if
 the system balks", stored on the context and read by nothing; it was
@@ -73,7 +73,10 @@ removed on 2026-09-25, and passing it is now refused by the CLI parser
 with `No such option: --force` (exit 2). The overrides that do something
 are named for what they override and stay: `run --force-bake`,
 `gate-plan --allow-destroy`, and `test-mods --force` (a different,
-command-level flag that re-tests mods that already passed).
+command-level flag that re-tests mods that already passed). Nor is there
+a global `--only-providers`: the runtime filter is `run --only-runtime
+<rt>`, and passing `--only-providers` meets the same parser refusal
+(`No such option`, exit 2).
 
 ## What the callback does before a command
 
@@ -750,14 +753,14 @@ itself when it runs `decrypt --json` or `identity export-gids`, needs
 `cs-image-system` on `PATH`: `just` and `uv run` provide that; a hand
 `tofu plan` in a generated root needs the venv on the path. The base
 library is pinned to the same version in
-[`pyproject.toml`](pyproject.toml); `typer`, `rich` and `PyYAML` are the
-only other declared dependencies.
+[`pyproject.toml`](pyproject.toml); `typer`, `rich`, `PyYAML` and
+`packaging` are the only other declared dependencies.
 
 **The plugins.** The CLI has no builder of its own; every model and
 builder comes from a plugin discovered through the
 `cs_image_system.plugins.<type>` entry points, and the `release` and
 `retention` lifecycles (plus every validator and recorder hook) from the
-`cs_image_system.plugins.hooks` group. The workspace pins all sixteen. A
+`cs_image_system.plugins.hooks` group. The workspace pins all seventeen. A
 missing runtime plugin surfaces at load as `No runtime providers
 configured.` or `<kind> builder '<type>' specified for '<name>' not
 configured`; a missing hook plugin makes `run release` an unknown
@@ -858,7 +861,6 @@ base and the plugins ([docs/CONFIGURATION.md](../../docs/CONFIGURATION.md)).
 | `--overlay` | path, repeatable | none | a transient declaration file | every loading command; `preflight` and the `run`/`state` session check (their `config:` keys, for `preflight.expected_run_minutes`); ignored by the value tools, `gate-plan` (which has none), `apply-check` (which has its own), `identity export-gids` |
 | `--undeclare` | `kind:name`, repeatable | none | treat a tree entry as absent | every loading command; ignored elsewhere |
 | `--base-only` | bool | `false` | select the base-image lifecycle alone | `build-all`, `generate` |
-| `--only-providers` | | | retired (stage 67): `No such option`; `--only-runtime` filters runtimes | |
 
 ### Environment variables
 

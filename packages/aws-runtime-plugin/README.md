@@ -638,8 +638,9 @@ it.
 - `tofu` with the `hashicorp/aws` provider for the instance and storage
   roots, declared on those builders.
 - Python: `boto3>=1.43`, `botocore>=1.43`, `python-hcl2>=8.1`,
-  `pydantic>=2.13`, and the `cs-image-system-hashicorp-utils` package for
-  the HCL formatter ([pyproject.toml](pyproject.toml)).
+  `pydantic>=2.13`, and the system's own `cs-image-system-contract`,
+  `cs-image-system-base` and `cs-image-system-hashicorp-utils` (the HCL
+  formatter) at the same version ([pyproject.toml](pyproject.toml)).
 
 **Vendor images.** Found through the OS builders' `owners` and `query`
 (fixture: AlmaLinux 10 from owner `764336703387`, the Debian images by

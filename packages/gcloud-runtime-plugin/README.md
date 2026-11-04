@@ -622,8 +622,9 @@ stopped GCE work with GCP fully authenticated). See
 **Python dependencies**, from [pyproject.toml](pyproject.toml):
 `google-cloud-compute>=1.49`, `google-api-core>=2.31`, `google-auth>=2.55`,
 `python-hcl2>=8.1`, `pydantic>=2.13`, and the system's own
-`cs-image-system-system` and `cs-image-system-hashicorp-utils` at the same
-version. Python 3.13 or later.
+`cs-image-system-contract`, `cs-image-system-base` and
+`cs-image-system-hashicorp-utils` at the same version. Python 3.13 or
+later.
 
 Environment variables the plugin or its checks read: `GOOGLE_APPLICATION_CREDENTIALS`
 (optional; the ADC file), and in CI `GCP_WORKLOAD_IDENTITY_PROVIDER` and

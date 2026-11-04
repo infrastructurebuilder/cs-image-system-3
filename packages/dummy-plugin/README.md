@@ -312,8 +312,9 @@ need:
   `notify` lifecycle does not exist. In this repository it is a workspace
   member pinned by the root `cs-image-system` metapackage; `just init`
   installs it. Its own requirements ([pyproject.toml](pyproject.toml)) are
-  Python 3.13 or newer, `cs-image-system-system` at the same version (the
-  CLI package, which brings the base) and `pydantic` 2.13 or newer.
+  Python 3.13 or newer, `cs-image-system-contract` and
+  `cs-image-system-base` at the same version (never the CLI host,
+  `cs-image-system-system`) and `pydantic` 2.13 or newer.
 - **Two environment variables**, both optional, both read by
   [hooks.py](src/cs_image_system/dummy_plugin/hooks.py) straight from
   `os.environ`:
