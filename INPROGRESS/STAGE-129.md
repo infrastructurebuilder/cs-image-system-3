@@ -1,6 +1,6 @@
 # 129. The sources stop narrating
 
-**Status: OPEN 2026-11-04. Waits for "do 129", after [§119](STAGE-119.md).**
+**Status: OPEN 2026-11-04. Waits for "do 129", after §119.**
 
 690 stage, date and finding tokens sit in `base`'s sources alone and
 207 source files carry at least one; 43 in the Justfile, 11 in the
@@ -14,7 +14,7 @@ read.
 
 1. Docstrings and comments: each "stage N", "hygiene X", "FNN" and
    date becomes the behaviour's name or goes; where the why matters, a
-   reference to the CHANGES entry ([§119](STAGE-119.md)) is the one allowed form. A
+   reference to the CHANGES entry (§119) is the one allowed form. A
    grep-test over `packages/*/src`, `Justfile`, `pyproject.toml` and
    `tfmodules/` holds zero.
 2. The fixture's comments (`tests/fixtures/config`) the same way; the
@@ -24,7 +24,7 @@ read.
 4. The Justfile's comments name each recipe's purpose; the release
    family's history moves with the script in [§130](STAGE-130.md).
 
-**Out of scope**: any behaviour; any rename; the documents ([§119](STAGE-119.md)).
+**Out of scope**: any behaviour; any rename; the documents (§119).
 
 **Acceptance**: emission byte-identical; the grep-test green; `just
 test`; one squash, branch kept. Records: the squash; this section goes
