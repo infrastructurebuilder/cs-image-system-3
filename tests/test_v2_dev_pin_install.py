@@ -23,7 +23,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 LINE = ('case "$pin" in *.dev*) indexes="--index-url https://test.pypi.org/simple/ '
         '--extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match" ;; esac')
-DOCS = [REPO / "DAILY_DRIVER.md", REPO / "docs" / "OPERATIONS.md", *sorted((REPO / "docs" / "examples").glob("*/CI_SETUP.md"))]
+DOCS = [REPO / "docs" / "DAILY_DRIVER.md", REPO / "docs" / "OPERATIONS.md", *sorted((REPO / "docs" / "examples").glob("*/CI_SETUP.md"))]
 
 
 def test_every_starter_job_installs_a_dev_pin_with_the_strategy():

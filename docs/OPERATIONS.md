@@ -3289,13 +3289,13 @@ real host should not rely on that.
 | Document | Holds |
 | --- | --- |
 | [README.md](../README.md) | the entry point: the Justfile contract and the layout |
-| [DESCRIPTION.md](../DESCRIPTION.md) | what the system does: the estate, the pipeline, the posture |
+| [DESCRIPTION.md](DESCRIPTION.md) | what the system does: the estate, the pipeline, the posture |
 | [GOALS.md](../GOALS.md) | the target goals the system is measured against |
 | [GOLDEN.md](../GOLDEN.md) | the golden fixture: what it is, how it is produced and enforced |
 | [CONFIGURATION.md](CONFIGURATION.md) | the configuration reference: every key of the YAML tree |
 | [PLUGINS.md](PLUGINS.md) | the index of the package READMEs under `packages/` |
 | [packages/contract/README.md](../packages/contract/README.md) | the plugin contract: what a plugin is written against, and how to write one |
-| [PARITY.md](../PARITY.md) | how the documentation and the system can diverge, and the check for each |
+| [PARITY.md](PARITY.md) | how the documentation and the system can diverge, and the check for each |
 | [DESIGN.md](DESIGN.md) | the design record |
 | [history/](history/) | frozen: the findings ledger, the GCP readiness study and the live-proof overlays; evidence, not documentation |
 | [tests/fixtures/config/README.md](../tests/fixtures/config/README.md) | the frozen fixture |

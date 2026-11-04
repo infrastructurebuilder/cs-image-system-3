@@ -82,7 +82,7 @@ def test_the_starters_write_usernames_in_clear_and_say_why():
     guide = (REPO / "docs" / "CONFIGURATION.md").read_text()
     assert "**What a marker protects**" in guide and "Usernames are therefore public by decision" in guide
     assert "| `name` | str | required | the username" in guide
-    driver = (REPO / "DAILY_DRIVER.md").read_text()
+    driver = (REPO / "docs" / "DAILY_DRIVER.md").read_text()
     assert "username is committed in clear" in driver
 
 

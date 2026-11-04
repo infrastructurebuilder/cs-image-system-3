@@ -113,7 +113,7 @@ def test_the_docs_say_main():
     assert "the checkout is on `main`" in ops
     assert "`release/<major.minor>`" in ops
     assert "`develop` takes `main` back" in ops
-    daily = (REPO / "DAILY_DRIVER.md").read_text()
+    daily = (REPO / "docs" / "DAILY_DRIVER.md").read_text()
     assert "a release is cut on main alone" in daily
     assert "from `main` alone" in daily
     assert "cut on develop alone" not in daily

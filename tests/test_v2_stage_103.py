@@ -296,7 +296,7 @@ def test_the_docs_name_the_runtime():
     cfg = (REPO / "docs" / "CONFIGURATION.md").read_text()
     assert "### 4.6 `docker`" in cfg and "### 4.7 Examples" in cfg
     assert "docker-runtime-plugin" in (REPO / "docs" / "PLUGINS.md").read_text()
-    assert "packages/docker-runtime-plugin/README.md" in (REPO / "DAILY_DRIVER.md").read_text()
+    assert "packages/docker-runtime-plugin/README.md" in (REPO / "docs" / "DAILY_DRIVER.md").read_text()
     readme = (REPO / "packages" / "docker-runtime-plugin" / "README.md").read_text()
     assert "## When it fails" in readme and "test-docker-bake" in readme
     assert "test-docker-bake" in (REPO / "Justfile").read_text()
