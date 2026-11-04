@@ -4,7 +4,7 @@
 0.1.1.dev14 to 0.1.1.dev23 (stage 65): two configuration repositories
 made, bootstrapped, baked, launched, logged into and torn down by an
 operator typing from a page; what that found is in this page's words and
-in [docs/history/WALK-2026-10.md](docs/history/WALK-2026-10.md).*
+in [docs/history/WALK-2026-10.md](history/WALK-2026-10.md).*
 
 *How a team actually uses cs-image-system: what must exist before the
 first command, the first run, making groups, storages, images and
@@ -12,9 +12,9 @@ instances, changing them, what each declaration promises and what proves
 it, and what to do when a run fails. Written in the order you meet things,
 for the person who USES a release of the system in their own configuration
 repository. Where the reference manuals already say it, this page links
-rather than repeats: [docs/CONFIGURATION.md](docs/CONFIGURATION.md) is
-every file and field, [docs/OPERATIONS.md](docs/OPERATIONS.md) is every
-run, rule and procedure, [docs/PLUGINS.md](docs/PLUGINS.md) is every
+rather than repeats: [docs/CONFIGURATION.md](CONFIGURATION.md) is
+every file and field, [docs/OPERATIONS.md](OPERATIONS.md) is every
+run, rule and procedure, [docs/PLUGINS.md](PLUGINS.md) is every
 package, and each package's README ends with the same four sections in the
 same place: prerequisites, configuration, what it tests, when it fails. The
 standard this page is held to: no one should be surprised by the system's
@@ -122,7 +122,7 @@ CI installs the release the same way, pinned by the content of
 `.csis-version` when that file exists (section 1.8). Upgrading the system
 is upgrading the package; the configuration repository usually does not
 change. The versions on the index, and what each carries, are the system
-repository's releases ([OPERATIONS.md](docs/OPERATIONS.md), "Installing a
+repository's releases ([OPERATIONS.md](OPERATIONS.md), "Installing a
 release").
 
 Some releases do ask something of the tree, and then `validate` refuses
@@ -139,7 +139,7 @@ on its Okta group builder.
 ### 1.2 Tools and their floors
 
 The configuration pins the tools it expects in `cfg/executables.yml`
-([CONFIGURATION.md](docs/CONFIGURATION.md), section 3), and `validate` and
+([CONFIGURATION.md](CONFIGURATION.md), section 3), and `validate` and
 every run check that each exists at its path and meets its floor. The
 floors the reference deployment runs today:
 
@@ -174,7 +174,7 @@ command reaches. The walk of 2026-10 installed all of them on a Fedora
 43 container from those sources and nothing else. That list is for your
 local machine; CI does not install them: every job runs inside the
 system's own runner image, AlmaLinux 10 with each of these tools at a
-pinned version ([docs/CI_RUNNER.md](docs/CI_RUNNER.md), stage 92), and
+pinned version ([docs/CI_RUNNER.md](CI_RUNNER.md), stage 92), and
 the image's probe asks every tool its version before the image is
 published.
 
@@ -196,7 +196,7 @@ tool's version means the floor moved, not that the tool broke.
 The network rules are absolute and are yours to keep, not the system's to
 enforce: never modify existing security groups, subnets or routes; never
 open ingress to the shared address space; new security groups are fine.
-The system generates no IAM. Read [OPERATIONS.md](docs/OPERATIONS.md),
+The system generates no IAM. Read [OPERATIONS.md](OPERATIONS.md),
 "Network" and "Instance access and sizing".
 
 ### 1.4 GCP, if you use the GCE runtime
@@ -214,7 +214,7 @@ passphrase (a session hook cannot prompt). Every GCE cycle ends with
 `just cloud-empty <runtime>`, so nothing billable is left standing beyond
 the declared storages; another configuration's things in the same
 project are counted and left alone, since everything the system makes
-carries `csis_config` (stage 93). Read [OPERATIONS.md](docs/OPERATIONS.md),
+carries `csis_config` (stage 93). Read [OPERATIONS.md](OPERATIONS.md),
 "GCE cost discipline".
 
 A service account two configurations share (the reference tree and a
@@ -223,7 +223,7 @@ nothing by default: a grant held in one root's state leaves with that
 root's destroy, and the other tree loses it too. Name roles at the
 interview only when this tree is the one to hold them; the generated
 bootstrap README lists what a destroy would take that the root did not
-make ([CI_SETUP.md](docs/examples/standard-aws/CI_SETUP.md), 3.0).
+make ([CI_SETUP.md](examples/standard-aws/CI_SETUP.md), 3.0).
 
 ### 1.4a A container host, if you use the docker runtime
 
@@ -237,7 +237,7 @@ never makes.
 | A host running a daemon that speaks the Docker Engine API: Docker Engine, Docker Desktop, OrbStack, colima, or Podman's API service | images are baked into its store and containers run on it | `host:` or `context:` on the runtime; with neither, the daemon your shell's `DOCKER_HOST` names, else the local socket |
 | The `docker` CLI at the floor `cfg/executables.yml` names (`>=24`), reaching that daemon | every call the system makes to it | the `docker` entry of `cfg/executables.yml`; `just preflight` asks `docker version` against the daemon in one line |
 | `packer` and `tofu`, as for any runtime | the bakes and the container and volume roots | `cfg/executables.yml` |
-| For CI: an ssh key to the host's user who may use the daemon, and the host's `known_hosts` line, as repository secrets, or the runtime named in `GUARD_RUNTIME` so CI never bakes on it | CI performs only against a daemon it can reach | repository secrets `DOCKER_HOST_SSH_KEY`, `DOCKER_HOST_KNOWN_HOSTS` ([CI_SETUP.md](docs/examples/standard-docker/CI_SETUP.md), 3.4a) |
+| For CI: an ssh key to the host's user who may use the daemon, and the host's `known_hosts` line, as repository secrets, or the runtime named in `GUARD_RUNTIME` so CI never bakes on it | CI performs only against a daemon it can reach | repository secrets `DOCKER_HOST_SSH_KEY`, `DOCKER_HOST_KNOWN_HOSTS` ([CI_SETUP.md](examples/standard-docker/CI_SETUP.md), 3.4a) |
 
 **Whoever can reach a docker daemon is root on its host.** Docker's API has
 no narrower grant, so the daemon's host is best one that holds nothing else,
@@ -253,11 +253,11 @@ system (a keepalive runs under `--init`, and the launch work is delivered by
 <user> <name> bash`, and there is no ssh login proof), and no systemd
 services (an image test for `services_enabled` does not apply on this
 runtime). Its power state is yours, as everywhere: `docker stop` is left
-alone by the next apply. Read [OPERATIONS.md](docs/OPERATIONS.md), "Container
+alone by the next apply. Read [OPERATIONS.md](OPERATIONS.md), "Container
 hosts" under the rules.
 
 Podman's API service serves as the daemon too (proved, with its setup, in
-[OPERATIONS.md](docs/OPERATIONS.md), "Podman as the daemon"), on Linux and as
+[OPERATIONS.md](OPERATIONS.md), "Podman as the daemon"), on Linux and as
 Podman Desktop's machine on a Mac beside OrbStack; the Mac leg is `just
 test-podman-desktop-cycle`.
 
@@ -272,7 +272,7 @@ run it on, which is the way to try it before you name a durable host.
 | An Okta API services app with key-based auth and the read scopes, DPoP off, the `*.manage` scopes ungranted | user lookups by the `okta/okta` provider | `OKTA_API_CLIENT_ID`, `OKTA_API_PRIVATE_KEY`, `OKTA_API_PRIVATE_KEY_ID`, `OKTA_API_SCOPES` |
 | An OPA team, and a service user's API key pair | groups, policies, memberships, enrollment tokens, the gid shim, the server registry, the state query | `team:` on the group builder; `TF_VAR_<team>_key` / `TF_VAR_<team>_secret` (the team name with non-alphanumerics as `_`); needed at load, not only at apply |
 | A resource group the system's projects live under, and a gateway | the login projects, the relay | `OKTA_RESOURCE_GROUP`; `okta_gateway_selector` |
-| For CI: a workload connection and a workload role, made by hand once | CI logs in as a workload, never with a key | `workload_connection`, `workload_role` on the group builder; [CI_SETUP.md, section 3.5](docs/examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access), which every starter tree carries, is the checklist, step by step |
+| For CI: a workload connection and a workload role, made by hand once | CI logs in as a workload, never with a key | `workload_connection`, `workload_role` on the group builder; [CI_SETUP.md, section 3.5](examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access), which every starter tree carries, is the checklist, step by step |
 | For people: the `sft` client, enrolled in the team (`sft enroll`), with a live session (`sft login`) | `sft ssh <machine>` | your machine |
 
 Enrollment tokens are the system's: one per project, created and rotated
@@ -293,8 +293,8 @@ its environment, and a load that meets a marker no identity can open
 refuses with the field's path. A removed recipient is followed by `just
 cli reencrypt`. The starter trees carry a TEST identity so they load as
 they stand; replacing it is the first thing a team does (section 1.9).
-Read [CONFIGURATION.md](docs/CONFIGURATION.md), section 13, and
-[OPERATIONS.md](docs/OPERATIONS.md), "Encrypted values".
+Read [CONFIGURATION.md](CONFIGURATION.md), section 13, and
+[OPERATIONS.md](OPERATIONS.md), "Encrypted values".
 
 ### 1.7 The shell
 
@@ -324,8 +324,8 @@ profile whose one-hour token is still good reports "refreshes itself (no
 fixed expiry readable)": that is normal. Once the token has lapsed,
 `preflight` asks the CLI once whether the refresh still works and says
 EXPIRED, with the login command, if it does not. The variable table is
-[CONFIGURATION.md](docs/CONFIGURATION.md), section 14; the credentials
-contract is [OPERATIONS.md](docs/OPERATIONS.md), "Credentials contract".
+[CONFIGURATION.md](CONFIGURATION.md), section 14; the credentials
+contract is [OPERATIONS.md](OPERATIONS.md), "Credentials contract".
 
 ### 1.8 CI
 
@@ -334,7 +334,7 @@ from the starter tree, has three jobs. Each runs inside the system's
 runner image on GitHub's machine (`container: image:
 ghcr.io/infrastructurebuilder/csis-ci:alma10-<date>`, with the host's
 docker socket mounted so the modification tests can run containers;
-section 1.2 and [docs/CI_RUNNER.md](docs/CI_RUNNER.md)) and installs the
+section 1.2 and [docs/CI_RUNNER.md](CI_RUNNER.md)) and installs the
 release the way section 1.1 does (pinned by `.csis-version` when
 present):
 
@@ -364,7 +364,7 @@ workflow is a team value: the runtime it performs on, the region, the
 `TF_VAR_<team>` names.
 
 How to make those secrets exist, from nothing, is the guide every starter
-tree carries: [CI_SETUP.md](docs/examples/standard-aws/CI_SETUP.md)
+tree carries: [CI_SETUP.md](examples/standard-aws/CI_SETUP.md)
 (the repository's settings, the AWS OIDC provider and its two roles with
 their trust and permission documents, the GCP workload identity pool and
 service accounts, the OPA workload connection and role, CI's age
@@ -436,18 +436,18 @@ clone), takes the whole starter; a directory that already holds a
 configuration takes only the release-owned parts (below); any other
 directory is refused by name and nothing is written, so the command
 typed in the wrong place cannot replace that place's files.
-[docs/examples/standard-aws/](docs/examples/standard-aws/README.md) is the
+[docs/examples/standard-aws/](examples/standard-aws/README.md) is the
 smallest repository that works on the AWS plugin set, one of everything,
 every value you must replace an obvious `REPLACE-ME` and every line that
-is a decision commented; [docs/examples/standard-gce/](docs/examples/standard-gce/README.md)
-is the same for GCE; [docs/examples/standard-aws-posix/](docs/examples/standard-aws-posix/README.md)
+is a decision commented; [docs/examples/standard-gce/](examples/standard-gce/README.md)
+is the same for GCE; [docs/examples/standard-aws-posix/](examples/standard-aws-posix/README.md)
 is `standard-aws` with no Okta: its people are POSIX accounts on the machines
 (the posix identity plugin, stage 75), and CI's login proof uses a key;
-[docs/examples/standard-docker/](docs/examples/standard-docker/README.md)
+[docs/examples/standard-docker/](examples/standard-docker/README.md)
 is the same identity on the docker runtime (stage 103): no cloud, no account,
 state in a local directory, containers for machines, and no login proof,
 because a container runs no sshd;
-[docs/examples/complete/](docs/examples/complete/README.md)
+[docs/examples/complete/](examples/complete/README.md)
 has every plugin, every field and every variation, and is where to look
 when the reference manual's table needs a living example. Those
 directories are the source the release is built from: all five load and
@@ -495,7 +495,7 @@ Then, in the written tree:
 
 1. `git init -b develop` (git's own default branch is `master`, and
    this page and CI_SETUP expect `develop` and `main`; `main` does not
-   exist until the first push of it, [CI_SETUP.md](docs/examples/complete/CI_SETUP.md),
+   exist until the first push of it, [CI_SETUP.md](examples/complete/CI_SETUP.md),
    section 3.8), `just init` (the hook, the plugin cache, and a line naming
    the release it found, `init: cs-image-system <version> ready against
    <root>`; a release of 0.1.3 or before has no `--version`, and the line
@@ -526,7 +526,7 @@ Then, in the written tree:
    there and in `groups/` that call the recipient the TEST one. From here
    the tree opens only to your keys, and the starter's key can never open
    it again.
-3. **`cfg/`**, file by file ([CONFIGURATION.md](docs/CONFIGURATION.md),
+3. **`cfg/`**, file by file ([CONFIGURATION.md](CONFIGURATION.md),
    section 1, is the load order): `_config.yml` (every `apply_*` flag
    `false` to begin with, `public_safe.allow`, `admin_public_keys`,
    `preflight.expected_run_minutes`, `require_released_builds`,
@@ -570,7 +570,7 @@ flag at execution, and only then applies; the run commits its records and
 emission, and you push. The terraform commands run in a private mirror of
 the emission, `_private/<lifecycle>/<root>/`, where the ciphertext is
 opened; the mirror is never committed. Read
-[OPERATIONS.md](docs/OPERATIONS.md), "What a run is" and "The apply gate".
+[OPERATIONS.md](OPERATIONS.md), "What a run is" and "The apply gate".
 
 ## 3. Making things
 
@@ -589,11 +589,11 @@ different thing: `type: default` asks for the builder marked
 `validate` says what to write instead. A few fields give `none` a
 meaning of their own and say so where they are described
 (`update: {policy: none}`, `--only none`).
-[CONFIGURATION.md](docs/CONFIGURATION.md) 1.2 is the whole rule.
+[CONFIGURATION.md](CONFIGURATION.md) 1.2 is the whole rule.
 
 ### 3.1 A group and its access
 
-Declare users and the group in `groups/` ([CONFIGURATION.md](docs/CONFIGURATION.md),
+Declare users and the group in `groups/` ([CONFIGURATION.md](CONFIGURATION.md),
 section 11): `members` may log in, `admins` may log in with sudo, and the
 root group's admins are merged into every group's. A declared person's
 username is committed in clear: it is what OPA, the identity roots and
@@ -624,7 +624,7 @@ runner itself, after a backup, so the plan does not trip on it (section
 **The group on its machines.** OPA lets a member in; it does not make
 the group exist on the machine. Every `okta-tf` group builder therefore
 names, in `posix:`, a group builder of `type: posix` that does
-([CONFIGURATION.md](docs/CONFIGURATION.md), 9.2). With one named, each
+([CONFIGURATION.md](CONFIGURATION.md), 9.2). With one named, each
 applying instance run (`just cloud-launch <runtime>`) creates every
 group on its running machines with OPA's gid and writes its member list
 under `/etc/csis/groups/`, and a PAM hook -- baked into the image and
@@ -639,7 +639,7 @@ keeps off. A machine that is switched off waits for a run that finds
 it running.
 
 **A group without Okta.** A group whose builder is itself `type: posix`
-lives on its machines alone ([CONFIGURATION.md](docs/CONFIGURATION.md),
+lives on its machines alone ([CONFIGURATION.md](CONFIGURATION.md),
 11.5 and 11.6; the starter `standard-aws-posix` is a whole tree of
 them). The group declares its `gid:`; each member is a user of a
 `type: posix` user builder with a `uid:` and `public_keys:`. Both ids
@@ -659,7 +659,7 @@ group's access by logging in as its proof user: a member declared
 `is_service_account: true`, with a `uid:` and one public key made for
 it alone, whose private half reaches the proof as `CSIS_PROOF_SSH_KEY`
 (the key itself, or a path to it; in CI a repository secret,
-[CI_SETUP.md](docs/examples/standard-aws-posix/CI_SETUP.md), 3.7). The
+[CI_SETUP.md](examples/standard-aws-posix/CI_SETUP.md), 3.7). The
 login is real ssh through the runtime's session tunnel -- SSM's
 `AWS-StartSSHSession` on AWS, an IAP tunnel on GCE -- so no machine
 needs a public address, and the proof passes only when the group is
@@ -696,7 +696,7 @@ An EBS volume is bound to one availability zone and, with
 default subnet decides where instances land, and validation refuses a
 combination that cannot attach. The records are `meta-state/storage.yaml`
 (what was declared) and `meta-state/storage-state.yaml` (every transition,
-with tombstones). Read [OPERATIONS.md](docs/OPERATIONS.md), "Storages",
+with tombstones). Read [OPERATIONS.md](OPERATIONS.md), "Storages",
 for archive, restore, detach and the tombstone rules.
 
 ### 3.3 A base image
@@ -715,12 +715,12 @@ just cloud-bake <runtime>       # the bakes that are due on that runtime; prefli
 The build lands in `meta-state/lineage.yaml` with its fingerprint and
 tags, and the cloud image carries the same tags, so the state query can
 tell a recorded image from a foreign one. Read
-[OPERATIONS.md](docs/OPERATIONS.md), "When an image bakes". A build is
+[OPERATIONS.md](OPERATIONS.md), "When an image bakes". A build is
 named `<prefix>-<timestamp>`; the prefix is `output_image_name` where the
 tree declares it (the OS builder, its runtime entry, or an image's
 entry), else `<OS builder>-<runtime>` for a base and `<image>-<image
 builder>` for an instance image, and `validate` refuses a prefix another
-image's begins ([OPERATIONS.md](docs/OPERATIONS.md), "How an image is
+image's begins ([OPERATIONS.md](OPERATIONS.md), "How an image is
 named").
 
 ### 3.4 An instance image
@@ -741,11 +741,11 @@ just cloud-perform <runtime>    # the due bakes, the declared releases and reten
 
 The in-bake tests fail the bake; a build is recorded only on success,
 and when one bake of a run fails, the bakes that completed before it
-are still recorded ([OPERATIONS.md](docs/OPERATIONS.md), "When a bake
+are still recorded ([OPERATIONS.md](OPERATIONS.md), "When a bake
 fails"). The release lifecycle records the build as the model's
 current release only once its post-bake tests have passed on a
 launched machine, which for a brand-new image means launching an
-instance of it first. Read [OPERATIONS.md](docs/OPERATIONS.md),
+instance of it first. Read [OPERATIONS.md](OPERATIONS.md),
 "Post-bake tests and releases".
 
 ### 3.5 An instance
@@ -790,10 +790,10 @@ which says `SKIPPED` and proves nothing while the machine is off. If
 the system cannot stop the machine again it says `ERROR`, names it,
 and the machine is then RUNNING: stop it by hand. A runtime that
 cannot start machines skips the verification instead. This is
-deliberate ([OPERATIONS.md](docs/OPERATIONS.md), "Starting a machine is
+deliberate ([OPERATIONS.md](OPERATIONS.md), "Starting a machine is
 a bounded exception"). It was walked on 2026-10-09, when it surprised
 its own operator; the decision that day was to keep it, and it is
-reviewed every month until February 2027 ([TODO.md](TODO.md)). If you
+reviewed every month until February 2027 ([INPROGRESS/TODO.md](../INPROGRESS/TODO.md)). If you
 do not want a machine booted, do not verify it while it is off.
 
 A durable instance's FIRST launch of a brand-new image is the one case
@@ -801,7 +801,7 @@ where `require_released_builds: true` and `release` pull against each
 other, since the proof can only run on the machine itself: the release
 grace admits the series head while its own proof is under way, so the
 sequence is launch, verify, then `just run release`, with the flag left
-on. Read [OPERATIONS.md](docs/OPERATIONS.md), "A model image, end to end:
+on. Read [OPERATIONS.md](OPERATIONS.md), "A model image, end to end:
 the second release".
 
 ### 3.6 A second cloud
@@ -823,7 +823,7 @@ in `storage_types`; on each image that should exist there, a second
 `runtimes[]` entry (a bake per runtime); a storage and an instance
 declared on the new runtime (`runtime:` and the `type:` of its
 builder). Then the credentials of section 1.3 or 1.4, CI's secrets for
-the cloud ([CI_SETUP.md](docs/examples/complete/CI_SETUP.md), 3.3 or 3.4,
+the cloud ([CI_SETUP.md](examples/complete/CI_SETUP.md), 3.3 or 3.4,
 and the bootstrap's section for it), and, for GCE, the runner service
 account's address allowed through `public_safe.allow`
 (`".iam.gserviceaccount.com"`), which the hook otherwise reads as an
@@ -847,7 +847,7 @@ by name; the builders are `packer-docker`, `tofu-docker` and
 `local` backend unless you declare another; and an image's group must be a
 `posix` one, since OPA's agent needs an init system a container lacks. The
 bootstrap's `docker` section reads the runtime and asks whether CI can
-reach it ([CI_SETUP.md](docs/examples/complete/CI_SETUP.md), 3.4a).
+reach it ([CI_SETUP.md](examples/complete/CI_SETUP.md), 3.4a).
 `complete` declares one beside its two clouds.
 
 **Two trees in one project or account.** Everything the system makes
@@ -909,7 +909,7 @@ catalog's value and the rest stays.
 ## 4. Changing things
 
 Every change is a change to the YAML, then a run. The procedures are in
-[OPERATIONS.md](docs/OPERATIONS.md), "Procedures" and the sections named
+[OPERATIONS.md](OPERATIONS.md), "Procedures" and the sections named
 below; this is the order a person meets them.
 
 | Change | Do | Then |
@@ -1011,7 +1011,7 @@ a place the verdict lands. Nothing is taken on faith.
 | that nothing published is secret | everything committed | `just public-safe`, the pre-commit hook, the commit gate, the plaintext scan of the run's own decrypted values; the `verify` job | a refusal naming the file and line |
 | the tools and their floors | `cfg/executables.yml` | `validate` and every run | a validation error by name |
 
-Read [OPERATIONS.md](docs/OPERATIONS.md), "The state query", for the drift
+Read [OPERATIONS.md](OPERATIONS.md), "The state query", for the drift
 classes and which are hard: `missing` when the record claims liveness;
 `stale`, `changed` and `foreign` never; `unavailable:` is a provider that
 could not answer and is never a claim, though the strict query refuses on
@@ -1028,12 +1028,12 @@ terraform command a run ran can be re-run by hand in the private mirror,
 `_private/<lifecycle>/<root>/`, never in `generated/`, which carries
 ciphertext. State backups the runner took before a `state rm` are under
 `_private/state-backups/`. The exit codes are
-[OPERATIONS.md](docs/OPERATIONS.md), "Run outputs and exit codes". In CI,
+[OPERATIONS.md](OPERATIONS.md), "Run outputs and exit codes". In CI,
 the job summary says whether a job ran at all.
 
 The failures below all happened in the reference deployment, and each row
 names what was done. New ones get a row here and, if they need work, an
-item in the open hygiene bundle in [TODO.md](TODO.md).
+item in the open hygiene bundle in [INPROGRESS/TODO.md](../INPROGRESS/TODO.md).
 
 | Symptom | Meaning | Do |
 | --- | --- | --- |
@@ -1056,7 +1056,7 @@ item in the open hygiene bundle in [TODO.md](TODO.md).
 | `changed instance x: booted image ... != pinned build ...` | the pin moved without a replacement, or a replacement is pending (then a `note`, not drift) | `upgrade instance` then `cloud-launch`; or move the pin back |
 | `CI login policy '<g>_v1_security_policy_ci' is absent` | the identity apply has not run since the workload objects were named | `just run identity` with `apply_identity` on; never hard drift |
 | `resource group '<g>_rg' is not what the identity module makes` (or `user policy` / `admin policy`) | someone changed the object in OPA: a hand edit, or another configuration that holds the same objects in its own tofu state (2026-10-19, `basic`) | if another configuration manages them, it lets go first (`tofu state rm` there, never a destroy); then `just run identity` puts them back; never hard drift |
-| `workload role '...' is not known to OPA` | the operator's object is missing | [CI_SETUP.md, section 3.5, step 2](docs/examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access) |
+| `workload role '...' is not known to OPA` | the operator's object is missing | [CI_SETUP.md, section 3.5, step 2](examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access) |
 | `sft resolve ...: exit 126` with nothing on stderr | the `sft` client's session lapsed and `--quiet` forbade the browser (2026-09-23, after a replace: the registration half of the proof had passed) | `sft login`, then the proof again; as the workload, the token was missing or refused |
 | `'<name>' has 2 registrations: ...` in a login proof | two servers answer to one canonical hostname | retire the stale one (a replacement now does this itself); `sft ssh` would reach either |
 | `Instance x: alias 'y' SKIPPED -- already claimed by <id>` | a stale record holds the name | retire that record; the alias comes back on the next applies-on run |
@@ -1080,13 +1080,13 @@ item in the open hygiene bundle in [TODO.md](TODO.md).
 | `config-drift: ... the vendor's newest image moved under a base this tree has not baked` (exit 0) | the vendor published a new image and the emission of a base with no build yet names the one of the day it was generated; nothing of yours changed | `just record`, and commit it; before 0.1.1.dev25 this was `BEHIND ... (1 files)` and a red scheduled run that could not be re-run green (2026-10-12, F55) |
 | `runtime-unchanged: ... unchanged since <ref> (...), but the vendor's newest image moved under a base this tree has not baked` (exit 0), in `perform` | the same move on the guarded runtime: the job's record took it, and there is nothing to apply by hand | nothing; on 0.1.2 and before the guard read it as `CHANGED` and failed `perform` (hygiene XVII item 1), and the record the job had pushed already held the move, so the next push to `main` passed |
 | the log of an apply shows the root's outputs and no `Apply complete!` line | the run keeps the last 40 lines of a command's output, and tofu prints its verdict BEFORE the outputs | since 0.1.1.dev25 every verdict line (`Plan:`, `Apply complete!`, the gate's, a bake's `Build ... finished`) is printed ahead of the tail with its line number; before, `just cli --verbose` or the DEBUG log (2026-10-07, F25) |
-| `role <name>: not granted` from the workload probe dispatched on `main`; or `granted` from a branch that is not `main` | the first: the role is not bound to the connection, or its pin names another branch; the second: the pin does not hold. The probe's first line says `accepted` either way, since authenticating to the connection takes the role as a hint only (2026-10-08, F35) | [CI_SETUP.md, section 3.5](docs/examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access), steps 2 and 6; `not judged` means no machine of a managed group stands yet |
+| `role <name>: not granted` from the workload probe dispatched on `main`; or `granted` from a branch that is not `main` | the first: the role is not bound to the connection, or its pin names another branch; the second: the pin does not hold. The probe's first line says `accepted` either way, since authenticating to the connection takes the role as a hint only (2026-10-08, F35) | [CI_SETUP.md, section 3.5](examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access), steps 2 and 6; `not judged` means no machine of a managed group stands yet |
 | `data disks mounted` failed with `missing: /mnt/<x>` on GCE, the kernel's XFS count above it | the startup script did not report that mount point mounted: the device never attached, or `mount` failed and the script went on (`nofail`) | the script's own lines on the serial console (`csis-mount:`), then the storage's attachment in the instance root |
 | a base shown DUE on a cloud you changed nothing for | a field every runtime shares moved (`admin_user`, the admin keys, `update`, the vendor source); a storage type added for one cloud re-bakes only there since hygiene XII (before, `pd` for a GCE disk re-baked the AWS base: 2026-10-09, F49) | read the run's reason for the bake; a shared field re-bakes everywhere by design |
 | `unavailable: storages/<s3>: REFUSED (the identity lacks a permission, ...): An error occurred (AccessDenied) when calling the GetBucketTagging operation: User: ...assumed-role/csis-github-apply/... is not authorized` on a `perform` | the role the step ran as lacks a read the state query makes: the applied role's document lags the release's module (until 2026-10-14 the WRITE role carried no `StorageReality` statement at all, so every performing run read its S3 storage as unavailable and stayed green over it; hygiene XII item 33) | take the release, then apply the bootstrap root again (CI_SETUP.md 3.0, the Apply block; IAM writes are yours); a `REFUSED` line is never a retry |
 | `note: storages/<s>: a persistent disk of that name belongs to configuration '<id>' (csis_config); ... ours is absent`; `empty: left alone on <rt>: N disks of configuration '<id>'` | another tree shares the project or account and made a thing of that name; it is theirs, counted and left alone (stage 93) | nothing for theirs; if ours is absent, declare a name the cloud does not hold yet |
 | `empty: disks still present on <rt>: old-scratch (no csis_config)` | a thing with no configuration id, made before stage 93; it is counted as ours to answer for | if it is ours and declared, `just cloud-relabel <rt> no` gives it the id; if it is nothing of ours, remove it by hand |
-| a job fails in "Initialize containers" before any step of yours: `denied`, `unauthorized` or `manifest unknown` pulling `ghcr.io/.../csis-ci:alma10-<date>` | the runner image (stage 92) could not be pulled: the tag does not exist yet (the Runner image workflow has not published the date the workflow pins); or the job's `permissions:` block lacks `packages: read`, so its token pulls as nobody (2026-10-16: `verify`, with no block, pulled; `live`, with one, was denied); or the package is PRIVATE and this repository was not granted access to it (the first publish came out private, and the organisation had disabled public packages) | a missing tag: the system's maintainers run the Runner image workflow and you rerun; a missing line: take the release that carries it; a private package: on the package's page, "Manage Actions access", add this repository with Read (same organisation), or have the organisation's administrators allow public packages ([docs/CI_RUNNER.md](docs/CI_RUNNER.md), section 4); never a credential in the workflow for it |
+| a job fails in "Initialize containers" before any step of yours: `denied`, `unauthorized` or `manifest unknown` pulling `ghcr.io/.../csis-ci:alma10-<date>` | the runner image (stage 92) could not be pulled: the tag does not exist yet (the Runner image workflow has not published the date the workflow pins); or the job's `permissions:` block lacks `packages: read`, so its token pulls as nobody (2026-10-16: `verify`, with no block, pulled; `live`, with one, was denied); or the package is PRIVATE and this repository was not granted access to it (the first publish came out private, and the organisation had disabled public packages) | a missing tag: the system's maintainers run the Runner image workflow and you rerun; a missing line: take the release that carries it; a private package: on the package's page, "Manage Actions access", add this repository with Read (same organisation), or have the organisation's administrators allow public packages ([docs/CI_RUNNER.md](CI_RUNNER.md), section 4); never a credential in the workflow for it |
 | `release: testpypi cannot take an upload now (above) -- nothing was changed; it is the index's condition, not the release's` (exit 75) | the index's upload endpoint or one of the twenty-two project pages did not answer, or answered 5xx; the release stopped before the bar, or after it and before the bump, so the tree is clean (stage 83; on 2026-10-05 the same outage was found only at the upload) | `just index-ready test wait`, then the release again; nothing to discard |
 | `release: this checkout is on '<branch>'; a release is cut on main alone (or a maintenance branch release/<major.minor>)` | the checkout is not on `main` (stage 107; the walk's F31: a version was once cut, committed and tagged on a walk branch) | `git checkout main && git merge --ff-only develop`, then the release again |
 | `release: main is behind develop -- a release never leaves a stage behind` | a stage landed on `develop` that `main` has not taken | on `main`: `git merge --ff-only develop`, then the release again |
@@ -1105,154 +1105,154 @@ four links after each paragraph go straight to them. The three core
 packages come first; a plugin is selected by the `type:` a builder entry
 declares.
 
-- [contract](packages/contract/README.md): the plugin contract (stage
+- [contract](../packages/contract/README.md): the plugin contract (stage
   30). The protocols a model and a builder satisfy, the constants and
   field helpers a model is declared with, the lifecycle phases, the data
   carriers a hook returns; it depends on nothing of the system, and
   `base` depends on it. A plugin is written against this package alone;
   its README says how.
-  [prerequisites](packages/contract/README.md#prerequisites-and-integration) ·
-  [configuration](packages/contract/README.md#configuration-reference) ·
-  [tests](packages/contract/README.md#what-it-tests-and-verifies) ·
-  [failures](packages/contract/README.md#when-it-fails)
-- [base](packages/base/README.md): the core. Models and builder bases that
+  [prerequisites](../packages/contract/README.md#prerequisites-and-integration) ·
+  [configuration](../packages/contract/README.md#configuration-reference) ·
+  [tests](../packages/contract/README.md#what-it-tests-and-verifies) ·
+  [failures](../packages/contract/README.md#when-it-fails)
+- [base](../packages/base/README.md): the core. Models and builder bases that
   implement the contract, the plugin registry and loader,
   lifecycles and phases, the run context, meta-state, encryption, the
   public-safe gate, lineage, releases, retention, launch parameters,
   generations, aliases, the state query. Every rule in the manual's
   section 5 is enforced here.
-  [prerequisites](packages/base/README.md#prerequisites-and-integration) ·
-  [configuration](packages/base/README.md#configuration-reference) ·
-  [tests](packages/base/README.md#what-it-tests-and-verifies) ·
-  [failures](packages/base/README.md#when-it-fails)
-- [system](packages/system/README.md): the `cs-image-system` command and
+  [prerequisites](../packages/base/README.md#prerequisites-and-integration) ·
+  [configuration](../packages/base/README.md#configuration-reference) ·
+  [tests](../packages/base/README.md#what-it-tests-and-verifies) ·
+  [failures](../packages/base/README.md#when-it-fails)
+- [system](../packages/system/README.md): the `cs-image-system` command and
   every subcommand; the global options that decide dry or real, overlays,
   undeclares; the commands runner scripts call back into.
-  [prerequisites](packages/system/README.md#prerequisites-and-integration) ·
-  [configuration](packages/system/README.md#configuration-reference) ·
-  [tests](packages/system/README.md#what-it-tests-and-verifies) ·
-  [failures](packages/system/README.md#when-it-fails)
-- [hashicorp-utils](packages/hashicorp-utils/README.md): the terraform/tofu
+  [prerequisites](../packages/system/README.md#prerequisites-and-integration) ·
+  [configuration](../packages/system/README.md#configuration-reference) ·
+  [tests](../packages/system/README.md#what-it-tests-and-verifies) ·
+  [failures](../packages/system/README.md#when-it-fails)
+- [hashicorp-utils](../packages/hashicorp-utils/README.md): the terraform/tofu
   library: providers and backends by reference, the init, the gated plan
   then gate then apply sequence, the private mirror for plans and applies.
-  [prerequisites](packages/hashicorp-utils/README.md#prerequisites-and-integration) ·
-  [configuration](packages/hashicorp-utils/README.md#configuration-reference) ·
-  [tests](packages/hashicorp-utils/README.md#what-it-tests-and-verifies) ·
-  [failures](packages/hashicorp-utils/README.md#when-it-fails)
-- [aws-runtime-plugin](packages/aws-runtime-plugin/README.md): the AWS
+  [prerequisites](../packages/hashicorp-utils/README.md#prerequisites-and-integration) ·
+  [configuration](../packages/hashicorp-utils/README.md#configuration-reference) ·
+  [tests](../packages/hashicorp-utils/README.md#what-it-tests-and-verifies) ·
+  [failures](../packages/hashicorp-utils/README.md#when-it-fails)
+- [aws-runtime-plugin](../packages/aws-runtime-plugin/README.md): the AWS
   cloud context: credentials, network discovery, the image query, power
   state and identity hooks, SSM sessions, retention.
-  [prerequisites](packages/aws-runtime-plugin/README.md#prerequisites-and-integration) ·
-  [configuration](packages/aws-runtime-plugin/README.md#configuration-reference) ·
-  [tests](packages/aws-runtime-plugin/README.md#what-it-tests-and-verifies) ·
-  [failures](packages/aws-runtime-plugin/README.md#when-it-fails)
-- [gcloud-runtime-plugin](packages/gcloud-runtime-plugin/README.md): the
+  [prerequisites](../packages/aws-runtime-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](../packages/aws-runtime-plugin/README.md#configuration-reference) ·
+  [tests](../packages/aws-runtime-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](../packages/aws-runtime-plugin/README.md#when-it-fails)
+- [gcloud-runtime-plugin](../packages/gcloud-runtime-plugin/README.md): the
   GCE context: ADC and impersonation, IAP sessions, labels, the cost
   posture.
-  [prerequisites](packages/gcloud-runtime-plugin/README.md#prerequisites-and-integration) ·
-  [configuration](packages/gcloud-runtime-plugin/README.md#configuration-reference) ·
-  [tests](packages/gcloud-runtime-plugin/README.md#what-it-tests-and-verifies) ·
-  [failures](packages/gcloud-runtime-plugin/README.md#when-it-fails)
-- [docker-runtime-plugin](packages/docker-runtime-plugin/README.md): a
+  [prerequisites](../packages/gcloud-runtime-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](../packages/gcloud-runtime-plugin/README.md#configuration-reference) ·
+  [tests](../packages/gcloud-runtime-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](../packages/gcloud-runtime-plugin/README.md#when-it-fails)
+- [docker-runtime-plugin](../packages/docker-runtime-plugin/README.md): a
   durable host's container daemon as a runtime (stage 103): images in the
   daemon's store, builds named by tags, bakes through `docker exec`.
-  [prerequisites](packages/docker-runtime-plugin/README.md#prerequisites-and-integration) ·
-  [configuration](packages/docker-runtime-plugin/README.md#configuration-reference) ·
-  [tests](packages/docker-runtime-plugin/README.md#what-it-tests-and-verifies) ·
-  [failures](packages/docker-runtime-plugin/README.md#when-it-fails)
-- [tf-docker-plugin](packages/tf-docker-plugin/README.md): containers and
+  [prerequisites](../packages/docker-runtime-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](../packages/docker-runtime-plugin/README.md#configuration-reference) ·
+  [tests](../packages/docker-runtime-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](../packages/docker-runtime-plugin/README.md#when-it-fails)
+- [tf-docker-plugin](../packages/tf-docker-plugin/README.md): containers and
   volumes on the docker runtime as OpenTofu roots (stage 103): `tofu-docker`
   and `tf-docker-volume`; a stopped container is left stopped, the launch
   script arrives by `docker exec`, labels are fixed at creation.
-  [prerequisites](packages/tf-docker-plugin/README.md#prerequisites-and-integration) ·
-  [configuration](packages/tf-docker-plugin/README.md#configuration-reference) ·
-  [tests](packages/tf-docker-plugin/README.md#what-it-tests-and-verifies) ·
-  [failures](packages/tf-docker-plugin/README.md#when-it-fails)
-- [default-os-plugin](packages/default-os-plugin/README.md): the OS
+  [prerequisites](../packages/tf-docker-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](../packages/tf-docker-plugin/README.md#configuration-reference) ·
+  [tests](../packages/tf-docker-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](../packages/tf-docker-plugin/README.md#when-it-fails)
+- [default-os-plugin](../packages/default-os-plugin/README.md): the OS
   families: vendor image lookup, updates, the admin user and its keys, the
   prerequisites a base image bakes for its identity and storage types.
-  [prerequisites](packages/default-os-plugin/README.md#prerequisites-and-integration) ·
-  [configuration](packages/default-os-plugin/README.md#configuration-reference) ·
-  [tests](packages/default-os-plugin/README.md#what-it-tests-and-verifies) ·
-  [failures](packages/default-os-plugin/README.md#when-it-fails)
-- [packer-plugin](packages/packer-plugin/README.md): bakes: sources, build
+  [prerequisites](../packages/default-os-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](../packages/default-os-plugin/README.md#configuration-reference) ·
+  [tests](../packages/default-os-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](../packages/default-os-plugin/README.md#when-it-fails)
+- [packer-plugin](../packages/packer-plugin/README.md): bakes: sources, build
   blocks in dependency order, the in-bake tests, the manifest that becomes
   an image id, lineage.
-  [prerequisites](packages/packer-plugin/README.md#prerequisites-and-integration) ·
-  [configuration](packages/packer-plugin/README.md#configuration-reference) ·
-  [tests](packages/packer-plugin/README.md#what-it-tests-and-verifies) ·
-  [failures](packages/packer-plugin/README.md#when-it-fails)
-- [ansible-plugin](packages/ansible-plugin/README.md): ansible
+  [prerequisites](../packages/packer-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](../packages/packer-plugin/README.md#configuration-reference) ·
+  [tests](../packages/packer-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](../packages/packer-plugin/README.md#when-it-fails)
+- [ansible-plugin](../packages/ansible-plugin/README.md): ansible
   modifications: playbooks staged into the on-image bundle, run in the
   bake and twice in the modification tests.
-  [prerequisites](packages/ansible-plugin/README.md#prerequisites-and-integration) ·
-  [configuration](packages/ansible-plugin/README.md#configuration-reference) ·
-  [tests](packages/ansible-plugin/README.md#what-it-tests-and-verifies) ·
-  [failures](packages/ansible-plugin/README.md#when-it-fails)
-- [bash-mod-plugin](packages/bash-mod-plugin/README.md): bash
+  [prerequisites](../packages/ansible-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](../packages/ansible-plugin/README.md#configuration-reference) ·
+  [tests](../packages/ansible-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](../packages/ansible-plugin/README.md#when-it-fails)
+- [bash-mod-plugin](../packages/bash-mod-plugin/README.md): bash
   modifications: `script`, `scripts` and the declarative `ensure` steps,
   and what idempotence means for each.
-  [prerequisites](packages/bash-mod-plugin/README.md#prerequisites-and-integration) ·
-  [configuration](packages/bash-mod-plugin/README.md#configuration-reference) ·
-  [tests](packages/bash-mod-plugin/README.md#what-it-tests-and-verifies) ·
-  [failures](packages/bash-mod-plugin/README.md#when-it-fails)
-- [okta-opa-plugin](packages/okta-opa-plugin/README.md): groups and users:
+  [prerequisites](../packages/bash-mod-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](../packages/bash-mod-plugin/README.md#configuration-reference) ·
+  [tests](../packages/bash-mod-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](../packages/bash-mod-plugin/README.md#when-it-fails)
+- [okta-opa-plugin](../packages/okta-opa-plugin/README.md): groups and users:
   OPA groups, resource groups, projects, policies, enrollment tokens, the
   gid shim, the server registry and retirements, the CI login policy, the
   prune step for memberships OPA no longer holds.
-  [prerequisites](packages/okta-opa-plugin/README.md#prerequisites-and-integration) ·
-  [configuration](packages/okta-opa-plugin/README.md#configuration-reference) ·
-  [tests](packages/okta-opa-plugin/README.md#what-it-tests-and-verifies) ·
-  [failures](packages/okta-opa-plugin/README.md#when-it-fails)
-- [posix-identity-plugin](packages/posix-identity-plugin/README.md): groups
+  [prerequisites](../packages/okta-opa-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](../packages/okta-opa-plugin/README.md#configuration-reference) ·
+  [tests](../packages/okta-opa-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](../packages/okta-opa-plugin/README.md#when-it-fails)
+- [posix-identity-plugin](../packages/posix-identity-plugin/README.md): groups
   and users as POSIX accounts on the machines, with the ids the
   configuration declares (`gid:`, `uid:`): the owning group baked into an
   instance image, the ids resolved at `validate`, the accounts script
   (users, memberships, keys, sudo) tested on EL10 and Debian.
-  [prerequisites](packages/posix-identity-plugin/README.md#prerequisites-and-integration) ·
-  [configuration](packages/posix-identity-plugin/README.md#configuration-reference) ·
-  [tests](packages/posix-identity-plugin/README.md#what-it-tests-and-verifies) ·
-  [failures](packages/posix-identity-plugin/README.md#when-it-fails)
-- [tf-ebs-instance-plugin](packages/tf-ebs-instance-plugin/README.md):
+  [prerequisites](../packages/posix-identity-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](../packages/posix-identity-plugin/README.md#configuration-reference) ·
+  [tests](../packages/posix-identity-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](../packages/posix-identity-plugin/README.md#when-it-fails)
+- [tf-ebs-instance-plugin](../packages/tf-ebs-instance-plugin/README.md):
   terraform/tofu-backed instances and storages on AWS: the instance root, EBS, EFS and S3,
   attachments, detaches, archives, the gate's whitelist, the release
   grace's evidence.
-  [prerequisites](packages/tf-ebs-instance-plugin/README.md#prerequisites-and-integration) ·
-  [configuration](packages/tf-ebs-instance-plugin/README.md#configuration-reference) ·
-  [tests](packages/tf-ebs-instance-plugin/README.md#what-it-tests-and-verifies) ·
-  [failures](packages/tf-ebs-instance-plugin/README.md#when-it-fails)
-- [tf-gcp-plugin](packages/tf-gcp-plugin/README.md): the GCE instance and
+  [prerequisites](../packages/tf-ebs-instance-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](../packages/tf-ebs-instance-plugin/README.md#configuration-reference) ·
+  [tests](../packages/tf-ebs-instance-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](../packages/tf-ebs-instance-plugin/README.md#when-it-fails)
+- [tf-gcp-plugin](../packages/tf-gcp-plugin/README.md): the GCE instance and
   storage pieces.
-  [prerequisites](packages/tf-gcp-plugin/README.md#prerequisites-and-integration) ·
-  [configuration](packages/tf-gcp-plugin/README.md#configuration-reference) ·
-  [tests](packages/tf-gcp-plugin/README.md#what-it-tests-and-verifies) ·
-  [failures](packages/tf-gcp-plugin/README.md#when-it-fails)
-- [tf-s3-state-plugin](packages/tf-s3-state-plugin/README.md),
-  [local-state-plugin](packages/local-state-plugin/README.md),
-  [gcs-state-plugin](packages/gcs-state-plugin/README.md): where a root's
+  [prerequisites](../packages/tf-gcp-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](../packages/tf-gcp-plugin/README.md#configuration-reference) ·
+  [tests](../packages/tf-gcp-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](../packages/tf-gcp-plugin/README.md#when-it-fails)
+- [tf-s3-state-plugin](../packages/tf-s3-state-plugin/README.md),
+  [local-state-plugin](../packages/local-state-plugin/README.md),
+  [gcs-state-plugin](../packages/gcs-state-plugin/README.md): where a root's
   state lives, and how it moves.
-  [s3: prerequisites](packages/tf-s3-state-plugin/README.md#prerequisites-and-integration) ·
-  [s3: configuration](packages/tf-s3-state-plugin/README.md#configuration-reference) ·
-  [s3: tests](packages/tf-s3-state-plugin/README.md#what-it-tests-and-verifies) ·
-  [s3: failures](packages/tf-s3-state-plugin/README.md#when-it-fails) ·
-  [local: configuration](packages/local-state-plugin/README.md#configuration-reference) ·
-  [local: failures](packages/local-state-plugin/README.md#when-it-fails) ·
-  [gcs: configuration](packages/gcs-state-plugin/README.md#configuration-reference) ·
-  [gcs: failures](packages/gcs-state-plugin/README.md#when-it-fails)
-- [contract-example-plugin](packages/contract-example-plugin/README.md):
+  [s3: prerequisites](../packages/tf-s3-state-plugin/README.md#prerequisites-and-integration) ·
+  [s3: configuration](../packages/tf-s3-state-plugin/README.md#configuration-reference) ·
+  [s3: tests](../packages/tf-s3-state-plugin/README.md#what-it-tests-and-verifies) ·
+  [s3: failures](../packages/tf-s3-state-plugin/README.md#when-it-fails) ·
+  [local: configuration](../packages/local-state-plugin/README.md#configuration-reference) ·
+  [local: failures](../packages/local-state-plugin/README.md#when-it-fails) ·
+  [gcs: configuration](../packages/gcs-state-plugin/README.md#configuration-reference) ·
+  [gcs: failures](../packages/gcs-state-plugin/README.md#when-it-fails)
+- [contract-example-plugin](../packages/contract-example-plugin/README.md):
   the proof of the contract (stage 30): OpenTofu's `inmem` state backend
   as a plugin written against the contract alone, subclassing nothing of
   the core; never a backend for a real tree.
-  [prerequisites](packages/contract-example-plugin/README.md#prerequisites-and-integration) ·
-  [configuration](packages/contract-example-plugin/README.md#configuration-reference) ·
-  [tests](packages/contract-example-plugin/README.md#what-it-tests-and-verifies) ·
-  [failures](packages/contract-example-plugin/README.md#when-it-fails)
-- [dummy-plugin](packages/dummy-plugin/README.md): the extension template
+  [prerequisites](../packages/contract-example-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](../packages/contract-example-plugin/README.md#configuration-reference) ·
+  [tests](../packages/contract-example-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](../packages/contract-example-plugin/README.md#when-it-fails)
+- [dummy-plugin](../packages/dummy-plugin/README.md): the extension template
   and the tests' double.
-  [prerequisites](packages/dummy-plugin/README.md#prerequisites-and-integration) ·
-  [configuration](packages/dummy-plugin/README.md#configuration-reference) ·
-  [tests](packages/dummy-plugin/README.md#what-it-tests-and-verifies) ·
-  [failures](packages/dummy-plugin/README.md#when-it-fails)
+  [prerequisites](../packages/dummy-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](../packages/dummy-plugin/README.md#configuration-reference) ·
+  [tests](../packages/dummy-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](../packages/dummy-plugin/README.md#when-it-fails)
 
 ## 8. The daily habits
 
@@ -1270,7 +1270,7 @@ declares.
 7. GCP costs are yours: a cycle there ends with `just cloud-empty`, and
    any billable resource left standing is named with its cost.
 8. When something fails, the row in section 6 first, then the hygiene
-   bundle in [TODO.md](TODO.md); a new failure gets a row.
+   bundle in [INPROGRESS/TODO.md](../INPROGRESS/TODO.md); a new failure gets a row.
 9. Upgrade the system deliberately: a new release, then `just validate`,
    `just dry`, and the diff of `generated/` read before anything runs.
 
@@ -1297,7 +1297,7 @@ an upload (`just index-ready [test|pypi]` asks the same on its own, and
 `just index-ready test wait` waits for it, two hours at most): exit 75
 means the index cannot take an upload now, nothing was changed, and it
 is the index's condition, not the release's
-([OPERATIONS.md](docs/OPERATIONS.md), "`just build`, `just release`,
+([OPERATIONS.md](OPERATIONS.md), "`just build`, `just release`,
 `just publish`, `just publish-tree`"; stage 83). The recipes here drive that reference
 configuration only through `just cli ...`, for the system's own live
 proofs; its cycles, like any team's, run from its own `Justfile` (`cd
@@ -1305,8 +1305,8 @@ proofs; its cycles, like any team's, run from its own `Justfile` (`cd
 the release shipped and `init-config` wrote. The starter trees under
 `docs/examples/` are the source the release is built from: change them
 there, and the tests hold the built wheel to them. Read
-[OPERATIONS.md](docs/OPERATIONS.md), sections 2 and 3,
-[GOLDEN.md](GOLDEN.md), and [PARITY.md](PARITY.md).
+[OPERATIONS.md](OPERATIONS.md), sections 2 and 3,
+[GOLDEN.md](../GOLDEN.md), and [PARITY.md](PARITY.md).
 
 ### 9.1 The machine CI runs on, and its actions: a name ages
 
@@ -1343,7 +1343,7 @@ often. The Runner image workflow of this repository builds
 `ci/runner-image/Dockerfile` monthly and on any change to it, probes
 every tool, and publishes `csis-ci:alma10-<YYYYMMDD>`; a tool's new
 version is a change to the Dockerfile's `ARG` line and to the table in
-[docs/CI_RUNNER.md](docs/CI_RUNNER.md), which a test holds equal. A
+[docs/CI_RUNNER.md](CI_RUNNER.md), which a test holds equal. A
 release carries the newest date in every workflow it ships, and a tree
 takes it with `init-config --force` as it takes the other names; a
 tree may also pin a newer date by hand, since nothing but the date
@@ -1375,7 +1375,7 @@ to 4; a tree's holder does only step 5.
    something the new image lacks, the fix is a step in the workflow
    that installs it, never a return to a floating name.
 5. Every other tree takes it as it takes any release
-   ([CI_SETUP.md](docs/examples/complete/CI_SETUP.md), section 3.1).
+   ([CI_SETUP.md](examples/complete/CI_SETUP.md), section 3.1).
 
 **What it looks like when it was not done:** annotations on every run
 naming the image or an action; later, jobs that wait and are never

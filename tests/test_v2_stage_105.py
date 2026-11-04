@@ -267,5 +267,5 @@ def test_the_docs_say_how_a_build_is_named():
     explore = (REPO / "docs" / "history" / "EXPLORE.md").read_text()
     head = explore.index("### Explore having the `output_image_name` config restored")
     assert "stage 105" in explore[head:head + 800]
-    daily = " ".join((REPO / "DAILY_DRIVER.md").read_text().split())
+    daily = " ".join((REPO / "docs" / "DAILY_DRIVER.md").read_text().split())
     assert '"How an image is named"' in daily

@@ -1,7 +1,7 @@
 # Monthly General Items
 
 Things to check at intervals collect in this file; the system's work in
-flight stays in [TODO.md](TODO.md). The assistant raises each item when it
+flight stays in [INPROGRESS/TODO.md](INPROGRESS/TODO.md). The assistant raises each item when it
 falls due, and records the outcome here.
 
 ## F44: a verification starts a machine its operator switched off
@@ -18,7 +18,7 @@ exception); the daily driver's failure table said the opposite. The
 operator's decision that day: "let's keep the behavior for F44 but make a
 very prominent note about it somewhere. We should revisit that question at
 least once a month for the next 4 months." The note is made:
-[DAILY_DRIVER.md](DAILY_DRIVER.md) 3.5 in capitals, and the section 6 row
+[docs/DAILY_DRIVER.md](docs/DAILY_DRIVER.md) 3.5 in capitals, and the section 6 row
 corrected.
 
 **The reviews.**

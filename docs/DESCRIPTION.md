@@ -100,7 +100,7 @@ lifecycles.
   builders, the GCP and docker terraform pieces, the S3 state backend, and a dummy plugin as an
   extension template. Adding a cloud, a storage kind or a modification
   mechanism means adding a plugin, not editing the core. Each package has
-  its own README ([docs/PLUGINS.md](docs/PLUGINS.md)).
+  its own README ([docs/PLUGINS.md](PLUGINS.md)).
 - **Lifecycles.** Four generation lifecycles run in order — identity,
   storage, base-image, instance-image — followed by release and
   retention. Each is optional, regenerates only its own

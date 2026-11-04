@@ -118,7 +118,7 @@ section 3.0 says what the bootstrap makes and what is still yours.
 The system itself is installed from a release, never cloned beside the
 tree: `uv tool install cs-image-system` puts the command on `PATH`, or a
 `pyproject.toml` here that depends on it and `export CSIS="uv run
-cs-image-system"`. [DAILY_DRIVER.md](../../../DAILY_DRIVER.md) is the
+cs-image-system"`. [DAILY_DRIVER.md](../../DAILY_DRIVER.md) is the
 narrative, from the first command on.
 
 ## Before the first run

@@ -35,7 +35,7 @@ are refreshed after an upgrade with `cs-image-system init-config .
 What each file and field means is in the system's
 [configuration reference](https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/docs/CONFIGURATION.md);
 how a person works with such a repository day to day is its
-[daily driver](https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/DAILY_DRIVER.md);
+[daily driver](https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/docs/DAILY_DRIVER.md);
 the operating manual, section 3, describes the workflow job by job.
 
 ## 2. Before CI

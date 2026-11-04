@@ -59,7 +59,7 @@ a reader finds the same thing in the same place in every package; only a
 contract; [tests/test_docs_contract.py](../tests/test_docs_contract.py)
 holds every README to it and checks that every relative link in the
 READMEs, in this file, in the root README, in the starter trees'
-CI setup guide and in [DAILY_DRIVER.md](../DAILY_DRIVER.md) resolves.
+CI setup guide and in [DAILY_DRIVER.md](DAILY_DRIVER.md) resolves.
 
 | Section | Answers |
 | --- | --- |

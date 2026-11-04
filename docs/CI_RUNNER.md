@@ -12,7 +12,7 @@ is another; both are tested against this page.*
 A configuration repository's CI is three jobs, and every step of them is
 a `just` target of the tree, so a runner that can run `just` in the
 checkout runs the same thing a person does
-([DAILY_DRIVER.md](../DAILY_DRIVER.md), 1.8). In the order the starter
+([DAILY_DRIVER.md](DAILY_DRIVER.md), 1.8). In the order the starter
 workflow calls them:
 
 | Job | Targets, in order | Needs |
