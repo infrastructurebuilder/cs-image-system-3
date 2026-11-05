@@ -5,22 +5,23 @@
 """Pins the run-scoped TerraformCollector: registration, conflicts, generation."""
 import pytest
 
+from types import SimpleNamespace
+
+from v2_support import bare_run
+
 from cs_image_system.hashicorp_utils.collector import (
     BackendRegistration,
     TerraformCollector,
     TerraformVariable,
+    terraform_collector,
 )
 from cs_image_system.contract.state import BackendWithoutKind
 from cs_image_system.hashicorp_utils.versions import HclConfigConflictError
 
 
 @pytest.fixture
-def col(monkeypatch):
-    c = TerraformCollector()
-    c.reset()
-    monkeypatch.setattr(c, "backends_enabled", lambda: False)
-    yield c
-    c.reset()
+def col():
+    return TerraformCollector()          # backends off, as a fresh tree's
 
 
 def s3_registration(name: str = "s3-east2", bucket: str = "my-bucket", region: str = "us-east-2",
@@ -40,8 +41,27 @@ def backend():
     return s3_registration()
 
 
-def test_singleton_and_reset(col):
-    assert TerraformCollector() is col
+def test_a_collector_lives_with_its_run_and_sees_nothing_of_another():
+    """No process singleton: a run's collector is made on the first ask,
+    is the same object on every later ask on that run, and a second run
+    has its own, with none of the first's registrations; a new run holder
+    therefore IS the reset. The flag and the declared backends come from
+    the run on creation."""
+    declared = SimpleNamespace(model=SimpleNamespace(to_backend_registration=lambda: s3_registration()))
+    a = bare_run(config={"use_state_backends": True}, state_backends={"s3-east2": declared})
+    b = bare_run()
+    col_a = terraform_collector(a)
+    assert terraform_collector(a) is col_a and isinstance(col_a, TerraformCollector)
+    assert col_a.backends_enabled() and col_a.resolve_backend("s3-east2") is not None
+    col_a.require_provider("ws", "aws")
+    col_b = terraform_collector(b)
+    assert col_b is not col_a
+    assert not col_b.backends_enabled() and col_b.resolve_backend(None) is None
+    assert col_b.merged_providers("ws") == [] and [p.name for p in col_a.merged_providers("ws")] == ["aws"]
+    assert TerraformCollector() is not TerraformCollector()
+
+
+def test_reset_clears_one_instance(col):
     col.require_provider("ws", "aws")
     col.reset()
     assert col.merged_providers("ws") == []
@@ -206,7 +226,7 @@ def test_a_state_location_is_the_normalised_tuple():
     assert StateLocation.of("s3", "b", "Statefiles/CSIA", "ws").key == "Statefiles/CSIA/ws.tfstate"   # case kept
     with pytest.raises(ValueError, match=r"'\.\.'"):
         StateLocation.of("s3", "b", "a/../b", "ws")
-    assert TerraformCollector().state_collisions({"C": c, "D": d, "A": a}) == \
+    assert TerraformCollector.state_collisions({"C": c, "D": d, "A": a}) == \
         ["workspaces C, D would share the state object s3://BUCKET1/xyz/p.tfstate"]
 
 

@@ -37,8 +37,8 @@ def _rebind_storage(root: Path, backend: str) -> None:
 
 
 def _errors(ctx) -> list[str]:
-    from cs_image_system.base.commands.validate import check_state_locations
-    return [str(e) for e in check_state_locations(ctx)]
+    from cs_image_system.tofu_roots.hooks import state_location_problems
+    return [str(e) for e in state_location_problems(ctx)]
 
 
 def _records(run: V2Run) -> dict[str, dict]:
@@ -288,9 +288,9 @@ def test_the_gcs_backend_is_declared_bound_to_nothing_and_its_commented_twin_loa
     to it, so it registers, renders, and moves nothing in the golden; the
     live tree carries the same file with every line commented out, which
     loads as no declaration at all."""
-    from cs_image_system.hashicorp_utils.collector import TerraformCollector
+    from cs_image_system.hashicorp_utils.collector import terraform_collector
     v2 = V2Run(tmp_path, monkeypatch)
-    reg = TerraformCollector().resolve_backend("gcs-east1")
+    reg = terraform_collector(v2.ctx).resolve_backend("gcs-east1")
     assert reg is not None and reg.type == "gcs" and reg.settings["bucket"] == "csis-sandbox-tfstate"
     assert str(reg.state_location("gcp-pd")) == "gcs://csis-sandbox-tfstate/statefiles/csia/gcp_pd/default.tfstate"
     assert v2.run("all", apply=False).ok
@@ -299,5 +299,5 @@ def test_the_gcs_backend_is_declared_bound_to_nothing_and_its_commented_twin_loa
     source = (root / "cfg" / "state-gcm.yml").read_text().splitlines()
     (root / "cfg" / "state-gcm.yml").write_text("\n".join(f"# {line}" if line and not line.startswith("#") else line or "#" for line in source) + "\n")
     assert not [line for line in (root / "cfg" / "state-gcm.yml").read_text().splitlines() if not line.startswith("#")]
-    V2Run(tmp_path / "live-shape", monkeypatch, config_root=root)
-    assert TerraformCollector().resolve_backend("gcs-east1") is None
+    live = V2Run(tmp_path / "live-shape", monkeypatch, config_root=root)
+    assert terraform_collector(live.ctx).resolve_backend("gcs-east1") is None

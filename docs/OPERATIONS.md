@@ -1363,9 +1363,11 @@ reading the identity root's) emits a `terraform_remote_state` datasource
 carrying the producer's bucket, key and region, whichever backend it is
 in.
 
-Every run records each generated root's resolved location in
-`meta-state/state-locations.yaml` (the record, not the emission, is the
-memory: `generated/` can be pruned or regenerated). A later run whose
+Both the check and the record are the tofu-roots hook plugin's, installed
+through the run hooks whenever the package is present: the core itself
+knows no state backend. Every run records each generated root's resolved
+location in `meta-state/state-locations.yaml` (the record, not the
+emission, is the memory: `generated/` can be pruned or regenerated). A later run whose
 resolution differs from the record is refused while the records show live
 resources in that root -- a storage not destroyed, a group or user the
 identity read-model attributes to the root after an applied identity run,
@@ -1408,7 +1410,10 @@ A run ends with `generated/run-summary.json`: `run_id`, `requested`,
 (per lifecycle: `executed`, `dry-run`, `no-script`, `failed`,
 `not-attempted`, `stale-script-skipped`), `meta_state_commit`, `error`,
 `state` (the pre-run state query's counts), `overlays`, `undeclared`,
-`bake_plan`. The pre-run state query writes `generated/state-report.json`.
+`bake_plan`, `state_bindings` (per lifecycle, each terraform root and
+the state file it binds to: the state-isolation evidence the tofu-roots
+hook plugin answers; every lifecycle is named, bound to nothing where no
+plugin answers). The pre-run state query writes `generated/state-report.json`.
 Both are **run-local**: the emitted `generated/.gitignore` names them, a
 `--commit` run never stages them, and a run whose configuration
 repository tracked them from an older tree removes them from the index
@@ -1937,7 +1942,7 @@ line per endpoint) reads the target's `[[tool.uv.index]]` entry and
 asks two things of it: the upload endpoint (`publish-url`) answers
 below 500 to a request that uploads nothing, and the simple index
 answers for EVERY project a release uploads -- the root project and each
-`packages/*` member, twenty-two today -- with 200, or 404 for a project
+`packages/*` member, twenty-three today -- with 200, or 404 for a project
 it has never seen. With `--version` it also says which projects already
 hold that version: none (a fresh release), all, or some (a partial
 upload, which `just publish` completes). Exit 0 is ready; **75 is "not
@@ -2002,11 +2007,11 @@ from the environment or, absent that, the index's own name --
 `.envrc` line serves the shell and CI alike -- and never in the Justfile:
 while versions are being deleted and re-cut, an account-scoped TestPyPI
 token; trusted publishing
-(a pending publisher per project name, twenty-two registrations) waits until
+(a pending publisher per project name, twenty-three registrations) waits until
 the names are stable, and is then the CI job's credential.
 
-The version lives in twenty-two `version =` lines -- the root's and the
-twenty-one packages' -- and in every `== <version>` pin between the
+The version lives in twenty-three `version =` lines -- the root's and the
+twenty-two packages' -- and in every `== <version>` pin between the
 packages, and `bump-my-version` is the
 one thing that changes them (`uv version` bumps the lines but never a
 pin, so it is not used). The scheme is `MAJOR.MINOR.PATCH[.devN]`; every
@@ -2017,7 +2022,7 @@ asserts nothing of the old version is left.
 
 ### Installing a release
 
-The twenty-one packages are on the index as `cs-image-system` (the whole
+The twenty-two packages are on the index as `cs-image-system` (the whole
 system: no sources, a `==` pin on every package) and
 `cs-image-system-<package>`. TestPyPI does not carry the third-party
 dependencies, so an install from it names PyPI as the extra index. In
@@ -2054,7 +2059,7 @@ system drives (`tofu`, `packer`, `gcloud`, `ansible-playbook`, docker) are
 not Python packages and are not installed by this; the configuration's
 `cfg/executables.yml` pins where they are. The same install from the
 built files, without an index, is `uv pip install --find-links dist
-cs-image-system==<version>` after `just build`; the twenty-one wheels
+cs-image-system==<version>` after `just build`; the twenty-two wheels
 installed that way into a fresh virtualenv run `cs-image-system --help`
 and `decrypt`, which is the proof that every package declares what it
 imports.

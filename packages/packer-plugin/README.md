@@ -72,7 +72,7 @@ What this plugin adds, and the rules it alone enforces:
 - `required_plugins`: the Packer plugins the root declares in its
   `packer { required_plugins {} }` block. Each entry has `name`,
   `version`, optional `source` and `config`
-  ([plugin_config.py](../base/src/cs_image_system/base/helpers/plugin_config.py)).
+  ([hashicorp_models.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/hashicorp_models.py)).
 - `runtime` (inherited from `RuntimeEnabledBuilderModel` in
   [builder_model.py](../base/src/cs_image_system/base/models/builder_model.py)):
   the name or alias of the `runtime_builders:` entry this builder bakes

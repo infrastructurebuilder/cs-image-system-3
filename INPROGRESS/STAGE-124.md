@@ -1,6 +1,6 @@
 # 124. The run context and the engine part ways
 
-**Status: OPEN 2026-11-04. Waits for "do 124", after [§123](STAGE-123.md). [§113](STAGE-113.md) is
+**Status: OPEN 2026-11-04. Waits for "do 124", after §123. [§113](STAGE-113.md) is
 re-planned on this stage's numbers.**
 
 `GlobalTypeContext` is 1,587 lines, 68 methods (49 properties),

@@ -89,12 +89,13 @@ def test_a_state_backend_alias_binds(tmp_path: Path, monkeypatch):
     stub_environment(monkeypatch)
     load_context(root)
     try:
-        from cs_image_system.hashicorp_utils.collector import TerraformCollector
-        reg = TerraformCollector().resolve_backend("on-disk")
-        assert reg is not None and reg.name == "local-dev"
-        from cs_image_system.base.commands.validate import check_state_locations
         from cs_image_system.base.global_context import GlobalTypeContext
-        errors = [str(e) for e in check_state_locations(GlobalTypeContext())]
+        from cs_image_system.hashicorp_utils.collector import terraform_collector
+        from cs_image_system.tofu_roots.hooks import state_location_problems
+        ctx = GlobalTypeContext()
+        reg = terraform_collector(ctx).resolve_backend("on-disk")
+        assert reg is not None and reg.name == "local-dev"
+        errors = [str(e) for e in state_location_problems(ctx)]
         assert not any("not declared" in e for e in errors), errors
     finally:
         reset_singletons()

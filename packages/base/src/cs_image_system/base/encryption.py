@@ -37,6 +37,8 @@ from typing import Annotated, Any, Iterable
 
 from pydantic import PlainValidator
 
+from cs_image_system.contract.hcl import emitted
+
 IDENTITY_ENV = "CSIS_CONFIG_IDENTITY"
 MARKER_PREFIX = "ENC[age:"
 MARKER_RE = re.compile(r"^ENC\[age:([A-Za-z0-9+/=]+)\]$")
@@ -450,16 +452,13 @@ def like(original: Any, text: str) -> Any:
     return Decrypted(text, marker=marker) if marker else text
 
 
-def emit(value: Any) -> Any:
-    """What an EMISSION writes for ``value``: the ciphertext it was read from
-    when it carries one, else the value itself (stage 49).
-
-    The committed artifact therefore says ``ENC[age:...]`` wherever the
-    configuration did, and :func:`materialize` substitutes the plaintext into
-    the private mirror the tools actually run from. Age is randomised, so the
-    SOURCE marker is reused rather than re-encrypted: re-encrypting would move
-    every emitted byte on every run."""
-    return getattr(value, "marker", None) or value
+# What an EMISSION writes for a value: the ciphertext it was read from when
+# it carries one, else the value itself. The rule is the contract's
+# (``contract.hcl.emitted``) so a library rendering HCL needs nothing from
+# here to follow it; ``emit`` stays the name this package's callers use.
+# :func:`materialize` substitutes the plaintext into the private mirror the
+# tools actually run from.
+emit = emitted
 
 
 def _path_str(path: tuple[Any, ...]) -> str:

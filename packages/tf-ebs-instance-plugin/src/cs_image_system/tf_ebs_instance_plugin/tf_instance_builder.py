@@ -24,7 +24,7 @@ from cs_image_system.base.models.instance import Instance
 from cs_image_system.contract.constants import OOPS_DEFAULTS
 from cs_image_system.contract.hcl import HclRaw, hcl_expr
 from cs_image_system.hashicorp_utils.collector import TerraformCollector
-from cs_image_system.hashicorp_utils.tofu_instance_builder import TofuInstanceBuilderBase, TofuVersionChecker
+from cs_image_system.tofu_roots.tofu_instance_builder import TofuInstanceBuilderBase, TofuVersionChecker
 
 from .tf_instance_models import TOFU, TofuInstanceBuilderModel
 

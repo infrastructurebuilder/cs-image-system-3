@@ -38,8 +38,8 @@ from cs_image_system.contract.executables import CFExecutables
 from cs_image_system.contract.hcl import HclRaw, render_module_call
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
-from .blocks import OutputSpec, Raw, render_blocks
-from .collector import TerraformCollector
+from cs_image_system.hashicorp_utils.blocks import OutputSpec, Raw, render_blocks
+from cs_image_system.hashicorp_utils.collector import TerraformCollector, terraform_collector
 from .roots import TerraformRootMixin
 from .tofu_models import TofuStorageBuilderModelBase
 
@@ -233,9 +233,9 @@ class TofuStorageBuilderBase(StorageBuilderBase[Q], TerraformRootMixin):
         items = items.with_default_path(rpath)
         for line in self._root_header_lines():
             items.add(line)
-        col = TerraformCollector()
-        ws = self.name
         ctx = self._get_context()
+        col = terraform_collector(ctx)
+        ws = self.name
         rtb = ctx.runtime_builders.get(self.model.get_runtime_provider(), None)
         self._require_provider(col, ws, rtb)
         col.bind_workspace(ws, self.model.state_configuration, self.runtime_state_configuration())   # own, runtime's, default
@@ -259,7 +259,7 @@ class TofuStorageBuilderBase(StorageBuilderBase[Q], TerraformRootMixin):
             return items                                    # outside --only-runtime, nothing
         src = utils.module_source(self.module_dirname(),
                                   self.get_path_for_phase(phase, suffix=".tf").parent)
-        bindings = TerraformCollector().provider_bindings(self.name)
+        bindings = terraform_collector(self._get_context()).provider_bindings(self.name)
         for storage in self.live_storages():
             label = self.storage_label(storage)
             rpath = self.get_path_for_phase(phase, f"storage-{label}", suffix=".tf")

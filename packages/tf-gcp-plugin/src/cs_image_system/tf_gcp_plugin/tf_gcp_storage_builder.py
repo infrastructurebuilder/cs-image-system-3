@@ -32,7 +32,7 @@ from cs_image_system.base.basic.builder_base_storage import CARDINALITY_MANY, CA
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.executable import ExecutableModel
 from cs_image_system.base.models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED, STORAGE_STATE_DESTROYED, Storage
-from cs_image_system.hashicorp_utils.tofu_storage_builder import TofuStorageBuilderBase, storage_groups, storage_public_read
+from cs_image_system.tofu_roots.tofu_storage_builder import TofuStorageBuilderBase, storage_groups, storage_public_read
 
 from .tf_gcp_models import (
     TF_GCP, TF_GCP_FILESTORE, TF_GCP_GCS, TF_GCP_PD,

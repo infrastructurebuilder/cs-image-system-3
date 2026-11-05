@@ -76,32 +76,29 @@ def test_init_args_carry_backend_config_when_enabled(monkeypatch):
     from pathlib import Path
 
     from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
-    from cs_image_system.hashicorp_utils.collector import TerraformCollector
+    from cs_image_system.hashicorp_utils.collector import terraform_collector
+    from v2_support import bare_run
 
-    col = TerraformCollector()
-    col.reset()
-    try:
-        stub = SimpleNamespace(
-            name="open-tofu",
-            get_path_for_phase=lambda phase, suffix: Path(
-                f"open-tofu/{phase.value}/open-tofu-{phase.value}{suffix}"),
-        )
-        stub._backend_config_path = (
-            TofuInstanceBuilder._backend_config_path.__get__(stub))
-        stub._init_args = TofuInstanceBuilder._init_args.__get__(stub)
-        phase = ExecutionLifecyclePhase.INSTANCE_GENERATION
+    run = bare_run(config={"use_state_backends": True})     # the collector lives with the run
+    col = terraform_collector(run)
+    stub = SimpleNamespace(
+        name="open-tofu",
+        get_path_for_phase=lambda phase, suffix: Path(
+            f"open-tofu/{phase.value}/open-tofu-{phase.value}{suffix}"),
+        _get_context=lambda: run,
+    )
+    for m in ("_backend_config_path", "_collector", "_context", "_init_args"):
+        setattr(stub, m, getattr(TofuInstanceBuilder, m).__get__(stub))
+    phase = ExecutionLifecyclePhase.INSTANCE_GENERATION
 
-        # No backend bound (or backends gated off): bare init.
-        assert stub._init_args(phase) == ["init"]
+    # No backend bound: bare init.
+    assert stub._init_args(phase) == ["init"]
 
-        monkeypatch.setattr(TerraformCollector(), "backends_enabled", lambda: True)
-        col.register_backend(_s3())
-        col.set_backend("open-tofu", "s3-east2")
-        assert stub._init_args(phase) == [
-            "init",
-            "-reconfigure", "-backend-config=open-tofu-instance-generation.tfbackend.hcl"]
-    finally:
-        col.reset()
+    col.register_backend(_s3())
+    col.set_backend("open-tofu", "s3-east2")
+    assert stub._init_args(phase) == [
+        "init",
+        "-reconfigure", "-backend-config=open-tofu-instance-generation.tfbackend.hcl"]
 
 
 def test_deferred_psi_also_wires_ami_variable():

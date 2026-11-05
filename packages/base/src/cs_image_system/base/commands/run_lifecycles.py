@@ -34,7 +34,7 @@ from ..basic.asset import AssetSet
 from ..basic.builder_base import BuilderBase
 from ..global_context import GlobalTypeContext
 from ..lifecycle import ExecutionLifecyclePhase
-from ..lifecycles import Lifecycle, LifecycleLike, all_lifecycles, builder_vcts_of, phases_of
+from ..lifecycles import Lifecycle, LifecycleLike, all_lifecycles, phases_of
 from ..constants import RUN_LOCAL_FILENAMES, RUN_SUMMARY_FILENAME
 from ..meta_state import commit_meta_state
 from ..orchestrator import TemplateResolver
@@ -63,12 +63,16 @@ _DURING: dict[ExecutionLifecyclePhase, Callable[[GlobalTypeContext, ExecutionLif
 ValidatorHook = Callable[[GlobalTypeContext, list[LifecycleLike]], list[str]]
 LifecycleHook = Callable[[GlobalTypeContext, LifecycleLike], None]
 SummaryHook = Callable[["RunSummary"], None]
+# {lifecycle: {workspace: state file}} -- the state-isolation evidence a
+# plugin that owns state-managed roots answers (the terraform roots do)
+StateBindingsHook = Callable[[GlobalTypeContext], dict[str, dict[str, str]]]
 
 _VALIDATORS: list[ValidatorHook] = []
 _AFTER_GENERATE: list[LifecycleHook] = []
 _BEFORE_APPLY: list[LifecycleHook] = []
 _AFTER_APPLY: list[LifecycleHook] = []
 _ON_SUMMARY: list[SummaryHook] = []
+_STATE_BINDINGS: list[StateBindingsHook] = []
 
 
 def register_validator(hook: ValidatorHook) -> None:
@@ -101,6 +105,14 @@ def register_on_summary(hook: SummaryHook) -> None:
         _ON_SUMMARY.append(hook)
 
 
+def register_state_bindings(hook: StateBindingsHook) -> None:
+    """A state-bindings hook answers ``{lifecycle: {workspace: state
+    file}}``; the answers merge into the runner-script headers and the run
+    summary's ``state_bindings``."""
+    if hook not in _STATE_BINDINGS:
+        _STATE_BINDINGS.append(hook)
+
+
 @dataclass(config=CSIS_MODEL_CONFIG)
 class LifecycleResult:
     lifecycle: str
@@ -125,6 +137,7 @@ class RunSummary:
     overlays: list[str] = field(default_factory=list)   # transient declaration files (stage 8)
     undeclared: list[str] = field(default_factory=list)   # `--undeclare kind:name` for this run (stage 28)
     bake_plan: dict[str, str] = field(default_factory=dict)   # "<series>@<runtime>" -> bake: why | skip: why (stage 9)
+    state_bindings: dict[str, dict[str, str]] = field(default_factory=dict)   # lifecycle -> {workspace: state file}, from the state-bindings hooks
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -341,56 +354,22 @@ def generate_lifecycle(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> Life
     return result
 
 
-def lifecycle_state_bindings(ctx: GlobalTypeContext) -> dict[str, dict[str, str]]:
+def collect_state_bindings(ctx: GlobalTypeContext) -> dict[str, dict[str, str]]:
     """``{lifecycle: {workspace: state file}}`` -- the state-isolation
-    evidence (DESIGN §3C). A workspace is a builder; a builder belongs to
-    exactly one lifecycle (LIFECYCLE_BUILDER_VCTS), so 'apply identity only'
-    provably touches only identity state files."""
-    try:
-        from cs_image_system.hashicorp_utils.collector import TerraformCollector
-    except ImportError:  # pragma: no cover - hashicorp-utils is always installed here
-        return {lc.value: {} for lc in all_lifecycles()}
-    col = TerraformCollector()
+    evidence, every lifecycle named, merged from the registered
+    state-bindings hooks. The core manages no state itself: a tree whose
+    plugins answer nothing shows every lifecycle bound to nothing."""
     out: dict[str, dict[str, str]] = {lc.value: {} for lc in all_lifecycles()}
-    for lifecycle in all_lifecycles():
-        for builder in ctx.all_sorted_builders:
-            if builder.get_classification() not in builder_vcts_of(lifecycle):
-                continue
-            reg = col.workspace_backend(builder.get_name())
-            if reg is not None:
-                out[lifecycle.value][builder.get_name()] = str(reg.state_location(builder.get_name()))
+    for hook in _STATE_BINDINGS:
+        for lifecycle, bindings in hook(ctx).items():
+            out.setdefault(lifecycle, {}).update(bindings)
     return out
-
-
-def _record_state_locations(ctx: GlobalTypeContext) -> None:
-    """Every workspace generated this run records its resolved state location
-    in meta-state (stage 46.4.1): the record, not the emission, is the memory
-    a later run's move guard compares against (``generated/`` can be pruned or
-    regenerated). A workspace migrating this run keeps its old record until
-    the migration's ``finish`` step moves it, which is what ``begin`` reads."""
-    try:
-        from cs_image_system.hashicorp_utils.collector import TerraformCollector
-    except ImportError:  # pragma: no cover - hashicorp-utils is always installed here
-        return
-    col = TerraformCollector()
-    if not col.backends_enabled():
-        return
-    migrating = set(getattr(ctx, "migrate_state", None) or [])
-    records = {}
-    for workspace in col.bound_workspaces():
-        if workspace in migrating:
-            continue
-        record = col.backend_record(workspace)
-        if record is not None:
-            records[workspace] = record
-    if records:
-        ctx.meta_state.record_state_locations(records, ctx.run_id)
 
 
 def _script_header(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> list[str]:
     """Runner-script header lines listing the state files this lifecycle's
     workspaces bind to."""
-    bindings = lifecycle_state_bindings(ctx).get(lifecycle.value, {})
+    bindings = collect_state_bindings(ctx).get(lifecycle.value, {})
     return [f"# state: workspace {ws} -> {key}" for ws, key in bindings.items()]
 
 
@@ -574,7 +553,7 @@ def run_lifecycles(requested: list[LifecycleLike], *, apply: bool = True,
         for lifecycle in ordered:
             result = generate_lifecycle(ctx, lifecycle)
             summary.lifecycles.append(result)
-        _record_state_locations(ctx)         # stage 46.4: where each generated workspace keeps its state
+        summary.state_bindings = collect_state_bindings(ctx)   # the state-isolation evidence
         ctx.write_gating_script()
         if apply:
             apply_lifecycles(ctx, summary)
@@ -663,6 +642,7 @@ class HookSet:
     before_apply: list[LifecycleHook] = field(default_factory=list)
     after_apply: list[LifecycleHook] = field(default_factory=list)
     on_summary: list[SummaryHook] = field(default_factory=list)
+    state_bindings: list[StateBindingsHook] = field(default_factory=list)
     lifecycles: list = field(default_factory=list)   # list[LifecycleSpec]
 
 
@@ -680,6 +660,8 @@ def install_hook_set(hooks: HookSet) -> None:
         register_after_apply(h)
     for h in hooks.on_summary:
         register_on_summary(h)
+    for h in hooks.state_bindings:
+        register_state_bindings(h)
 
 
 def load_hook_plugins(force: bool = False) -> int:

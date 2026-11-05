@@ -6,8 +6,8 @@
 lookups only (no module calls, no resources), empty-guarded scaffolding, and
 the credential-gated command list."""
 import os
-from types import SimpleNamespace
 from pathlib import Path
+from typing import Any, cast
 from unittest import mock
 
 import pytest
@@ -16,8 +16,9 @@ from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.group import Group
 from cs_image_system.hashicorp_utils.collector import (
     ConfiguredTerraformProvider,
-    TerraformCollector,
+    terraform_collector,
 )
+from v2_support import bare_run
 from cs_image_system.okta_opa_plugin.okta_opa_tf_group_ro_builder import OktaTfGroupRoBuilder
 from cs_image_system.okta_opa_plugin.okta_opa_tf_group_models import OktaTfGroupRoBuilderModel
 
@@ -36,14 +37,14 @@ def _model():
 
 @pytest.fixture
 def builder():
-    TerraformCollector().reset()
+    run = bare_run(dry_run=False)        # a REAL run unless a test says otherwise
     model = _model()
     b = OktaTfGroupRoBuilder(model)
+    b._get_context = lambda: cast(Any, run)
     for name in ("stofs", "coops"):
         b.add_group_to_builder(Group(name=name))
-    model.register_hcl_requirements(b.name)
-    yield b
-    TerraformCollector().reset()
+    model.register_hcl_requirements(b.name, terraform_collector(run))
+    return b
 
 
 def _by_path(assets) -> dict[Path, str]:
@@ -76,9 +77,9 @@ def test_data_lookups_only_no_modules_or_resources(builder):
 
 
 def test_commands_gated_on_credentials(builder):
-    # the command list depends on the run mode; pin a REAL run explicitly, so a
-    # context another test left behind (dry by default) cannot decide it
-    builder._get_context = lambda: SimpleNamespace(dry_run=False)
+    # the command list depends on the run mode; the builder's own run is pinned
+    # REAL, so a context another test left behind (dry by default) cannot decide it
+    builder._get_context().dry_run = False
     env = {k: v for k, v in os.environ.items()
            if not k.startswith(("OKTA_API", "OKTA_ACCESS"))}
     with mock.patch.dict(os.environ, env, clear=True):
@@ -95,7 +96,7 @@ def test_commands_gated_on_credentials(builder):
 
     # a DRY run initialises without the backend and never plans at generation
     # time, credentials or not: it must not need the remote state
-    builder._get_context = lambda: SimpleNamespace(dry_run=True)
+    builder._get_context().dry_run = True
     with mock.patch.dict(os.environ, {**env, "OKTA_API_PRIVATE_KEY": "pem"}, clear=True):
         with mock.patch.object(builder, "get_executable_copy") as gec:
             gec.side_effect = lambda: mock.MagicMock()
@@ -105,12 +106,11 @@ def test_commands_gated_on_credentials(builder):
 
 def test_no_groups_no_output_no_commands():
     """Unlike the managed group builder, the RO root is skipped when empty."""
-    TerraformCollector().reset()
     b = OktaTfGroupRoBuilder(_model())
+    b._get_context = lambda: cast(Any, bare_run())
     assert list(b.generate_items_before(PHASE)) == []
     assert list(b.generate_items_during(PHASE)) == []
     assert b.get_commands_to_run_after(PHASE).build_executables == []
-    TerraformCollector().reset()
 
 
 def test_other_phases_are_silent(builder):

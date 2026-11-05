@@ -110,15 +110,11 @@ def test_user_finalize_quiet_with_credentials(caplog):
 
 
 def test_register_hcl_requirements_end_to_end():
-    col = TerraformCollector()
-    col.reset()
-    try:
-        _user().register_hcl_requirements("okta-tf-users")
-        assert col.provider_bindings("okta-tf-users") == {"okta": "okta.okta_tf_users"}
-        assert col.generate_variable_blocks("okta-tf-users") == []
-        phcl = "\n".join(col.generate_provider_blocks("okta-tf-users"))
-        assert 'provider "okta"' in phcl
-        assert 'org_name = "noaa"' in phcl
-        assert 'alias   = "okta_tf_users"' in phcl.replace("alias  =", "alias =") or "alias" in phcl
-    finally:
-        col.reset()
+    col = TerraformCollector()          # the run's, handed over by the builder
+    _user().register_hcl_requirements("okta-tf-users", col)
+    assert col.provider_bindings("okta-tf-users") == {"okta": "okta.okta_tf_users"}
+    assert col.generate_variable_blocks("okta-tf-users") == []
+    phcl = "\n".join(col.generate_provider_blocks("okta-tf-users"))
+    assert 'provider "okta"' in phcl
+    assert 'org_name = "noaa"' in phcl
+    assert 'alias   = "okta_tf_users"' in phcl.replace("alias  =", "alias =") or "alias" in phcl

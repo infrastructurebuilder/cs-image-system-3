@@ -16,7 +16,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Sequence
 
-from .collector import TerraformCollector
+from cs_image_system.hashicorp_utils.collector import TerraformCollector, terraform_collector
 
 if TYPE_CHECKING:
     from cs_image_system.base.basic.builder_base import BuilderBase
@@ -63,6 +63,15 @@ class TerraformRootMixin(_Base):
         except ValueError:      # the context refuses until a configuration is loaded
             return None
 
+    def _collector(self) -> TerraformCollector | None:
+        """The run's terraform collector, reached through the context the
+        builder's accessor gives (``terraform_collector(ctx)``: one per
+        run, kept beside the context). None for a builder driven outside a
+        run -- no context -- which has registered nothing and bound no
+        backend; every reach below treats None as "no backend"."""
+        ctx = self._context()
+        return None if ctx is None else terraform_collector(ctx)
+
     def _backend_config_path(self, phase: "ExecutionLifecyclePhase") -> Path:
         """The workspace's ``.tfbackend.hcl`` partial-configuration file."""
         return self.get_path_for_phase(phase, suffix=".tfbackend.hcl")
@@ -101,7 +110,8 @@ class TerraformRootMixin(_Base):
         without it tofu refuses with "Backend configuration changed"."""
         if run_is_dry(self):
             return ["init", "-backend=false"]
-        if TerraformCollector().generate_backend_config(self.name):
+        col = self._collector()
+        if col is not None and col.generate_backend_config(self.name):
             return ["init", "-reconfigure", f"-backend-config={self._backend_config_path(phase).name}"]
         return ["init"]
 
@@ -141,7 +151,8 @@ class TerraformRootMixin(_Base):
         run repeats it (idempotent, seconds) and the script stays a faithful
         record of what finalization executes."""
         args = ["init", "-input=false", "-reconfigure"]
-        if TerraformCollector().generate_backend_config(self.name):
+        col = self._collector()
+        if col is not None and col.generate_backend_config(self.name):
             args.append(f"-backend-config={self._backend_config_path(phase).name}")
         return args
 
@@ -232,7 +243,8 @@ class TerraformRootMixin(_Base):
         migrating = self.name in (getattr(ctx, "migrate_state", None) or [])
         if migrating:
             backend_file = self._backend_config_path(phase).name
-            reg = TerraformCollector().workspace_backend(self.name)
+            col = self._collector()
+            reg = col.workspace_backend(self.name) if col is not None else None
             location = str(reg.state_location(self.name)) if reg is not None else ""
             commands.append(system_cli_executable_with_config(
                 ["state-migration", "begin", "--workspace", self.name, "--tofu", tofu_bin,

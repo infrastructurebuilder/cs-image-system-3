@@ -5,7 +5,7 @@
 import logging
 
 from cs_image_system.base.basic.abstract_plugin_metadata import AbstractPluginMetadata
-from cs_image_system.hashicorp_utils.tofu_instance_builder import TofuVersionChecker
+from cs_image_system.tofu_roots.tofu_instance_builder import TofuVersionChecker
 
 from .tf_docker_instance_builder import TofuDockerInstanceBuilder
 from .tf_docker_models import TF_DOCKER_VOLUME, TOFU_DOCKER, TofuDockerInstanceBuilderModel, TofuDockerVolumeStorageBuilderModel

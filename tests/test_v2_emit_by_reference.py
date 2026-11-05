@@ -38,9 +38,6 @@ RECIPIENT = (FIXTURE_CONFIG / ".age-recipient").read_text().strip()
 @pytest.fixture(autouse=True)
 def _identity(monkeypatch):
     monkeypatch.setenv("CSIS_CONFIG_IDENTITY", str(FIXTURE_CONFIG / ".age-identity"))
-    TerraformCollector().reset()
-    yield
-    TerraformCollector().reset()
 
 
 def _user(**over: Any) -> User:
@@ -104,11 +101,12 @@ def test_a_declared_encrypted_workspace_credential_reaches_the_provider_block_by
     ws = OktaTfGroupBuilderModel(type_=OKTATF, name="ws", org="o", team="team", key=key, required_providers=[
         ConfiguredTerraformProvider(name=OKTAPAM_PROVIDER, source="okta/oktapam", version=">= 0.4")])
     ws.finalize()
-    cfg = ws.transform_provider(ws.required_providers[0], "ws").config
+    col = TerraformCollector()                                        # the run's, handed over by the builder
+    cfg = ws.transform_provider(ws.required_providers[0], "ws", col).config
     assert str(cfg["oktapam_key"]) == 'local.sensitive["oktapam_key"]'
     assert str(cfg["oktapam_secret"]) == "var.team_secret"
-    assert "real-key" not in "\n".join(TerraformCollector().generate_sensitive_blocks("ws"))
-    assert TerraformCollector().sensitive_values("ws") == {"oktapam_key": key}
+    assert "real-key" not in "\n".join(col.generate_sensitive_blocks("ws"))
+    assert col.sensitive_values("ws") == {"oktapam_key": key}
 
 
 def test_decrypt_json_speaks_the_external_data_source_protocol():

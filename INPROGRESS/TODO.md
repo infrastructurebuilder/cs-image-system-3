@@ -12,7 +12,7 @@ Stages from the re-examination of 2026-11-03.
 [REEXAMINE4.md](REEXAMINE4.md) digests the three reviews
 ([REEXAMINE1.md](REEXAMINE1.md), [REEXAMINE2.md](REEXAMINE2.md),
 [REEXAMINE3.md](REEXAMINE3.md)); each stage file
-([§123](STAGE-123.md) to [§130](STAGE-130.md); §118 to §122 landed) cites the review section
+([§124](STAGE-124.md) to [§130](STAGE-130.md); §118 to §123 landed) cites the review section
 it answers. The conventions are the ones above: one file per stage; a
 stage is a plan until the operator says "do N"; **YOUR DECISION** marks
 an operator choice and states the default; **USER** marks a step only
@@ -47,9 +47,9 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
 
 - §118 and §119, the documents, landed 2026-11-04; the rolling
   documentation stage is not open.
-- §120, §121 and §122, the first three seams, landed 2026-11-04 to
-  2026-11-05; [§123](STAGE-123.md) to [§125](STAGE-125.md), the
-  seams: in that order; each waits for its "do N".
+- §120 to §123, the first four seams, landed 2026-11-04 to
+  2026-11-05; [§124](STAGE-124.md) and [§125](STAGE-125.md), the last
+  two: in that order; each waits for its "do N".
 - [§126](STAGE-126.md), the package shape: a decision stage; before
   [§112](STAGE-112.md) and [§116](STAGE-116.md).
 - [§127](STAGE-127.md), loading once: after [§124](STAGE-124.md).
@@ -81,7 +81,6 @@ and validated by the operator before its "do N")
 - [§114, Tier C: the run context is a protocol](STAGE-114.md)
 - [§115, The services behind the context](STAGE-115.md)
 - [§116, A runtime installed from outside](STAGE-116.md)
-- [§123, hashicorp-utils stops reaching back](STAGE-123.md)
 - [§124, The run context and the engine part ways](STAGE-124.md)
 - [§125, The contract's surface, its services and its version](STAGE-125.md)
 - [§126, The package shape](STAGE-126.md)
@@ -134,6 +133,16 @@ and validated by the operator before its "do N")
 
 **Landed since 2026-10-05** (newest first)
 
+- §123, hashicorp-utils stops reaching back: 2026-11-05, its squash
+  commit (feature/stage-123-hashicorp-utils-leaf kept). The library
+  imports only the contract; the provider-neutral roots and the root
+  mixin are the new tofu-roots package (the twenty-second), also a
+  hook plugin carrying the state-location check, the records and the
+  state-isolation evidence, so the core imports no terraform library;
+  the collectors are per-run instances beside the context; the
+  direction and DAG tests hold the order. Golden and reference
+  emission byte-identical. Not yet released (the release registers
+  tofu-roots on the indexes: one of the day's four new projects).
 - §122, storage and identity leave the core: 2026-11-05, its squash
   commit (feature/stage-122-storage-identity-leave-core kept). The
   storage protocol asks a builder for its mount record, its launch

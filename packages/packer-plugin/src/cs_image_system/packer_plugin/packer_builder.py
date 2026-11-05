@@ -22,7 +22,7 @@ from cs_image_system.base.models.base_image import BaseImage
 from cs_image_system.base.models.image import Image
 from cs_image_system.base.basic.builder_base_os import OsBuilderBase
 
-from cs_image_system.hashicorp_utils.collector import PackerCollector, PackerVariableDecl
+from cs_image_system.hashicorp_utils.collector import PackerVariableDecl, packer_collector
 
 from .packer_models import PACKER, PackerImageBuilderModel
 
@@ -67,7 +67,7 @@ class PackerImageBuilderBase(ImageBuilderBase[T]):
         event."""
         items: AssetSet = AssetSet()
         if phase == ExecutionLifecyclePhase.IMAGE_GENERATION:
-            col = PackerCollector()
+            col = packer_collector(self._get_context())
             ws = self.get_discriminator()
             for plugin in self.model.required_plugins:
                 col.require_plugin(ws, plugin.name,

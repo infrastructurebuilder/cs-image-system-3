@@ -43,7 +43,7 @@ One entry point under `cs_image_system.plugins.instance`
 | `tf-docker-volume` | `TofuDockerVolumeStorageBuilderModel` | `TofuDockerVolumeStorageBuilder` | a storage builder |
 
 Both subclass the provider-neutral terraform roots of
-[cs-image-system-hashicorp-utils](../hashicorp-utils/README.md#the-terraform-roots)
+[cs-image-system-tofu-roots](../tofu-roots/README.md#the-terraform-roots)
 (`TofuInstanceBuilderBase`, `TofuStorageBuilderBase`), not the AWS
 plugin's classes: the root's layout, the variables, the state binding and
 the remote-state references, the module calls and outputs, the gated
@@ -328,7 +328,7 @@ failure's symptom, its meaning and what to do.
 
 - [cs-image-system-docker-runtime-plugin](../docker-runtime-plugin/README.md):
   the runtime, the bake and the instance hooks.
-- [cs-image-system-hashicorp-utils](../hashicorp-utils/README.md#the-terraform-roots):
+- [cs-image-system-tofu-roots](../tofu-roots/README.md#the-terraform-roots):
   the provider-neutral terraform roots this plugin subclasses, their
   hooks and the version checker.
 - [cs-image-system-tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md):

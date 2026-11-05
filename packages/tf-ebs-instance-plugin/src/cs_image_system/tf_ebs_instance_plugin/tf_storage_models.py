@@ -8,7 +8,7 @@ from pydantic.dataclasses import dataclass
 
 from cs_image_system.base.models.module_variables import ModuleVariables
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from cs_image_system.hashicorp_utils.tofu_models import TofuStorageBuilderModelBase
+from cs_image_system.tofu_roots.tofu_models import TofuStorageBuilderModelBase
 
 TF_AWS: str = "tf-aws"
 TF_AWS_EBS = TF_AWS + "-ebs"

@@ -16,7 +16,7 @@ from pydantic.dataclasses import dataclass  # stage 23: validation at constructi
 
 from cs_image_system.contract.constants import VCT  # noqa: F401  (re-exported for symmetry
 
-from cs_image_system.hashicorp_utils.tofu_models import TofuInstanceBuilderModelBase, TofuStorageBuilderModelBase
+from cs_image_system.tofu_roots.tofu_models import TofuInstanceBuilderModelBase, TofuStorageBuilderModelBase
 
 TF_GCP: str = "tf-gcp"
 TF_GCP_PD = TF_GCP + "-pd"

@@ -11,9 +11,10 @@ import pytest
 
 from cs_image_system.hashicorp_utils.collector import (
     BackendRegistration,
-    TerraformCollector,
+    terraform_collector,
 )
-from cs_image_system.hashicorp_utils.roots import TerraformRootMixin
+from cs_image_system.tofu_roots.roots import TerraformRootMixin
+from v2_support import bare_run
 
 
 def _s3(name="s3-east2", bucket="b", key_prefix="statefiles/", is_default=True):
@@ -35,79 +36,83 @@ def _phase(value: str = "user-generation"):
     return cast(Any, SimpleNamespace(value=value))
 
 
-def _root(name: str = "okta-tf-users") -> Any:
+def _root(run: Any, name: str = "okta-tf-users") -> Any:
+    """A root stub in ``run`` (a bare run context: the collector lives there)."""
     stub = SimpleNamespace(
         name=name,
+        _get_context=lambda: run,
         get_path_for_phase=lambda phase, discriminator=None, suffix=None: (
             Path(name) / phase.value / f"{name}-{phase.value}{suffix or ''}"
         ),
         get_executable_copy=_Exe,
     )
-    for m in ("_backend_config_path", "_dry_run", "_init_args", "_runner_init_args", "terraform_commands"):
+    for m in ("_backend_config_path", "_collector", "_context", "_dry_run", "_init_args", "_runner_init_args",
+              "terraform_commands"):
         setattr(stub, m, getattr(TerraformRootMixin, m).__get__(stub))
     return stub
 
 
-def _root_in_run(dry_run: bool, name: str = "okta-tf-users") -> Any:
-    """A root that can see its run context, as every real builder can."""
-    stub = _root(name)
-    stub._get_context = lambda: SimpleNamespace(dry_run=dry_run)
-    return stub
+def _root_in_run(run: Any, dry_run: bool, name: str = "okta-tf-users") -> Any:
+    """A root whose run is dry or real, as every real builder can see."""
+    run.dry_run = dry_run
+    return _root(run, name)
 
 
 @pytest.fixture
-def col(monkeypatch):
-    c = TerraformCollector()
-    c.reset()
-    monkeypatch.setattr(c, "backends_enabled", lambda: True)
-    yield c
-    c.reset()
+def run():
+    """A bare run with backends enabled; its collector is ``col``."""
+    return bare_run(config={"use_state_backends": True})
 
 
-def test_init_args_without_backend(col):
-    assert _root()._init_args(_phase()) == ["init"]
+@pytest.fixture
+def col(run):
+    return terraform_collector(run)
 
 
-def test_init_args_with_backend_uses_bare_filename(col):
+def test_init_args_without_backend(run, col):
+    assert _root(run)._init_args(_phase()) == ["init"]
+
+
+def test_init_args_with_backend_uses_bare_filename(run, col):
     col.register_backend(_s3())
     col.set_backend("okta-tf-users", "s3-east2")
-    args = _root()._init_args(_phase())
+    args = _root(run)._init_args(_phase())
     assert args == ["init", "-reconfigure", "-backend-config=okta-tf-users-user-generation.tfbackend.hcl"]
     assert "/" not in args[1]  # tofu runs inside the phase dir
 
 
-def test_a_dry_run_initialises_without_the_backend(col):
+def test_a_dry_run_initialises_without_the_backend(run, col):
     """A dry run never touches remote state (it holds decrypted values):
     providers are installed and the emission validated with -backend=false,
     whether or not a backend is registered; a real run keeps the backend."""
-    assert _root_in_run(dry_run=True)._init_args(_phase()) == ["init", "-backend=false"]
+    assert _root_in_run(run, dry_run=True)._init_args(_phase()) == ["init", "-backend=false"]
     col.register_backend(_s3())
     col.set_backend("okta-tf-users", "s3-east2")
-    assert _root_in_run(dry_run=True)._init_args(_phase()) == ["init", "-backend=false"]
-    assert _root_in_run(dry_run=False)._init_args(_phase()) == [
+    assert _root_in_run(run, dry_run=True)._init_args(_phase()) == ["init", "-backend=false"]
+    assert _root_in_run(run, dry_run=False)._init_args(_phase()) == [
         "init", "-reconfigure", "-backend-config=okta-tf-users-user-generation.tfbackend.hcl"]
 
 
-def test_the_runner_script_initialises_in_the_real_form_whatever_the_run_mode(col):
+def test_the_runner_script_initialises_in_the_real_form_whatever_the_run_mode(run, col):
     """Stage 38: a committed run script inits its own root -- with the backend,
     reconfiguring (a dry run left a backend-less .terraform/, or a backend
     argument such as `encrypt` changed since, stage 39) -- even when the run
     that wrote it was dry."""
-    assert _root_in_run(dry_run=True)._runner_init_args(_phase()) == ["init", "-input=false", "-reconfigure"]
+    assert _root_in_run(run, dry_run=True)._runner_init_args(_phase()) == ["init", "-input=false", "-reconfigure"]
     col.register_backend(_s3())
     col.set_backend("okta-tf-users", "s3-east2")
     for dry in (True, False):
-        assert _root_in_run(dry_run=dry)._runner_init_args(_phase()) == [
+        assert _root_in_run(run, dry_run=dry)._runner_init_args(_phase()) == [
             "init", "-input=false", "-reconfigure", "-backend-config=okta-tf-users-user-generation.tfbackend.hcl"]
 
 
-def test_backend_config_path(col):
-    p = _root()._backend_config_path(_phase())
+def test_backend_config_path(run):
+    p = _root(run)._backend_config_path(_phase())
     assert p == Path("okta-tf-users/user-generation/okta-tf-users-user-generation.tfbackend.hcl")
 
 
-def test_terraform_commands_copies_per_command(col):
-    root = _root()
+def test_terraform_commands_copies_per_command(run):
+    root = _root(run)
     wd = Path("okta-tf-users/user-generation")
     cmds = root.terraform_commands(_phase(), [["fmt"], ["validate"], ["plan"]], wd)
     assert [c.args for c in cmds] == [["fmt"], ["validate"], ["plan"]]

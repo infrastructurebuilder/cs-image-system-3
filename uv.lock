@@ -30,6 +30,7 @@ members = [
     "cs-image-system-tf-ebs-instance-plugin",
     "cs-image-system-tf-gcp-plugin",
     "cs-image-system-tf-s3-state-plugin",
+    "cs-image-system-tofu-roots",
 ]
 
 [[package]]
@@ -480,6 +481,7 @@ dependencies = [
     { name = "cs-image-system-tf-ebs-instance-plugin" },
     { name = "cs-image-system-tf-gcp-plugin" },
     { name = "cs-image-system-tf-s3-state-plugin" },
+    { name = "cs-image-system-tofu-roots" },
 ]
 
 [package.dev-dependencies]
@@ -515,6 +517,7 @@ requires-dist = [
     { name = "cs-image-system-tf-ebs-instance-plugin", editable = "packages/tf-ebs-instance-plugin" },
     { name = "cs-image-system-tf-gcp-plugin", editable = "packages/tf-gcp-plugin" },
     { name = "cs-image-system-tf-s3-state-plugin", editable = "packages/tf-s3-state-plugin" },
+    { name = "cs-image-system-tofu-roots", editable = "packages/tofu-roots" },
 ]
 
 [package.metadata.requires-dev]
@@ -745,7 +748,6 @@ name = "cs-image-system-hashicorp-utils"
 version = "0.1.7.dev1"
 source = { editable = "packages/hashicorp-utils" }
 dependencies = [
-    { name = "cs-image-system-base" },
     { name = "cs-image-system-contract" },
     { name = "packaging" },
     { name = "pydantic" },
@@ -754,7 +756,6 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cs-image-system-base", editable = "packages/base" },
     { name = "cs-image-system-contract", editable = "packages/contract" },
     { name = "packaging", specifier = ">=26.2" },
     { name = "pydantic", specifier = ">=2.13" },
@@ -787,6 +788,7 @@ dependencies = [
     { name = "cs-image-system-base" },
     { name = "cs-image-system-contract" },
     { name = "cs-image-system-hashicorp-utils" },
+    { name = "cs-image-system-tofu-roots" },
     { name = "pydantic" },
     { name = "typer" },
 ]
@@ -797,6 +799,7 @@ requires-dist = [
     { name = "cs-image-system-base", editable = "packages/base" },
     { name = "cs-image-system-contract", editable = "packages/contract" },
     { name = "cs-image-system-hashicorp-utils", editable = "packages/hashicorp-utils" },
+    { name = "cs-image-system-tofu-roots", editable = "packages/tofu-roots" },
     { name = "pydantic", specifier = ">=2.13" },
     { name = "typer", specifier = ">=0.26" },
 ]
@@ -873,6 +876,7 @@ dependencies = [
     { name = "cs-image-system-contract" },
     { name = "cs-image-system-docker-runtime-plugin" },
     { name = "cs-image-system-hashicorp-utils" },
+    { name = "cs-image-system-tofu-roots" },
     { name = "pydantic" },
 ]
 
@@ -882,6 +886,7 @@ requires-dist = [
     { name = "cs-image-system-contract", editable = "packages/contract" },
     { name = "cs-image-system-docker-runtime-plugin", editable = "packages/docker-runtime-plugin" },
     { name = "cs-image-system-hashicorp-utils", editable = "packages/hashicorp-utils" },
+    { name = "cs-image-system-tofu-roots", editable = "packages/tofu-roots" },
     { name = "pydantic", specifier = ">=2.13" },
 ]
 
@@ -894,6 +899,7 @@ dependencies = [
     { name = "cs-image-system-base" },
     { name = "cs-image-system-contract" },
     { name = "cs-image-system-hashicorp-utils" },
+    { name = "cs-image-system-tofu-roots" },
     { name = "pydantic" },
 ]
 
@@ -903,6 +909,7 @@ requires-dist = [
     { name = "cs-image-system-base", editable = "packages/base" },
     { name = "cs-image-system-contract", editable = "packages/contract" },
     { name = "cs-image-system-hashicorp-utils", editable = "packages/hashicorp-utils" },
+    { name = "cs-image-system-tofu-roots", editable = "packages/tofu-roots" },
     { name = "pydantic", specifier = ">=2.13" },
 ]
 
@@ -915,6 +922,7 @@ dependencies = [
     { name = "cs-image-system-contract" },
     { name = "cs-image-system-gcloud-runtime-plugin" },
     { name = "cs-image-system-hashicorp-utils" },
+    { name = "cs-image-system-tofu-roots" },
     { name = "google-cloud-compute" },
     { name = "pydantic" },
 ]
@@ -925,6 +933,7 @@ requires-dist = [
     { name = "cs-image-system-contract", editable = "packages/contract" },
     { name = "cs-image-system-gcloud-runtime-plugin", editable = "packages/gcloud-runtime-plugin" },
     { name = "cs-image-system-hashicorp-utils", editable = "packages/hashicorp-utils" },
+    { name = "cs-image-system-tofu-roots", editable = "packages/tofu-roots" },
     { name = "google-cloud-compute", specifier = ">=1.49" },
     { name = "pydantic", specifier = ">=2.13" },
 ]
@@ -943,6 +952,25 @@ dependencies = [
 requires-dist = [
     { name = "cs-image-system-base", editable = "packages/base" },
     { name = "cs-image-system-contract", editable = "packages/contract" },
+    { name = "pydantic", specifier = ">=2.13" },
+]
+
+[[package]]
+name = "cs-image-system-tofu-roots"
+version = "0.1.7.dev1"
+source = { editable = "packages/tofu-roots" }
+dependencies = [
+    { name = "cs-image-system-base" },
+    { name = "cs-image-system-contract" },
+    { name = "cs-image-system-hashicorp-utils" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cs-image-system-base", editable = "packages/base" },
+    { name = "cs-image-system-contract", editable = "packages/contract" },
+    { name = "cs-image-system-hashicorp-utils", editable = "packages/hashicorp-utils" },
     { name = "pydantic", specifier = ">=2.13" },
 ]
 

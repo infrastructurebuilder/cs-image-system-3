@@ -65,7 +65,7 @@ whose.
    three roots carry stays three registrations of one class.
    **YOUR DECISION:** that (the default), or hashicorp-utils gains an
    entry point and registers it once under its own namespace, which
-   makes the library a plugin ([§123](STAGE-123.md) decides what the
+   makes the library a plugin (§123 decides what the
    library is; the default leaves that to it).
 6. Tests. Two synthetic plugins register `tofu` under one
    classification in two namespaces: the load succeeds, the bare word

@@ -92,8 +92,8 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
                 # super().generate_items_before registered this builder's
                 # plugins/variables into the PackerCollector; each block dir is
                 # its own packer root, so emit the setup + vars per block.
-                from cs_image_system.hashicorp_utils.collector import PackerCollector
-                col = PackerCollector()
+                from cs_image_system.hashicorp_utils.collector import packer_collector
+                col = packer_collector(self._get_context())
                 ws = self.get_discriminator()
                 for block in blocks:
                     vpath = self.get_block_path_for_phase(phase,block = block, suffix="-vars.pkr.hcl")

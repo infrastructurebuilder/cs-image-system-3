@@ -101,19 +101,19 @@ def _bind_the_storage_roots_to_inmem(root: Path) -> None:
 
 
 def test_the_entry_structures_from_yaml_and_reaches_the_collector(tmp_path, monkeypatch):
-    from cs_image_system.hashicorp_utils.collector import TerraformCollector
+    from cs_image_system.hashicorp_utils.collector import terraform_collector
     root = copy_config(tmp_path)
     _bind_the_storage_roots_to_inmem(root)
     v2 = V2Run(tmp_path, monkeypatch, config_root=root)
     backends = v2.ctx.state_backends
     assert isinstance(backends["scratch"], InmemStateBuilder)
     assert isinstance(backends["scratch"].model, InmemStateBackendModel)
-    registration = TerraformCollector().resolve_backend("mem")
+    registration = terraform_collector(v2.ctx).resolve_backend("mem")
     assert registration is not None and registration.name == "scratch" and registration.type == INMEM
 
 
 def test_a_dry_run_emits_the_backend_for_every_root_that_names_it(tmp_path, monkeypatch):
-    from cs_image_system.hashicorp_utils.collector import TerraformCollector
+    from cs_image_system.hashicorp_utils.collector import terraform_collector
     root = copy_config(tmp_path)
     _bind_the_storage_roots_to_inmem(root)
     v2 = V2Run(tmp_path, monkeypatch, config_root=root)
@@ -127,7 +127,7 @@ def test_a_dry_run_emits_the_backend_for_every_root_that_names_it(tmp_path, monk
         assert roots, f"no root beside {backend_file.name} carries backend \"inmem\""
     consumers = [p for p in (v2.generated / "instance-image").rglob("*.tf") if 'backend = "inmem"' in p.read_text()]
     assert consumers, "no instance root reads the storage state through an inmem remote-state data source"
-    locations = TerraformCollector().state_locations()
+    locations = terraform_collector(v2.ctx).state_locations()
     inmem = {ws: str(loc) for ws, loc in locations.items() if loc.type == INMEM}
     assert len(inmem) == len(backend_files), (inmem, backend_files)
     assert all(loc == f"inmem://memory/{super_safe_name(ws)}.tfstate" for ws, loc in inmem.items()), inmem

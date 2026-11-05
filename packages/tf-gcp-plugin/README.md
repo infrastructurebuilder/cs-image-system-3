@@ -7,7 +7,7 @@ builders** (`tf-gcp-pd`, `tf-gcp-filestore`, `tf-gcp-gcs`), which turn every
 declared storage into a `module` call against the matching
 `tfmodules/gcp_storage_*` module. It contains no generic machinery of its
 own: every builder subclasses the provider-neutral terraform roots of
-[cs-image-system-hashicorp-utils](../hashicorp-utils/README.md#the-terraform-roots)
+[cs-image-system-tofu-roots](../tofu-roots/README.md#the-terraform-roots)
 (`TofuInstanceBuilderBase`, `TofuStorageBuilderBase`) and answers their
 hooks with what is Google Cloud's own: the `google` provider configured
 from the runtime's project, region and zone, the `gce_instance` and
@@ -49,7 +49,7 @@ and leaves `module_dirname()` and `module_args()` unanswered, so it
 cannot emit anything. A builder entry with `type: tf-gcp` is therefore
 refused when the tree loads, naming the three concrete types, rather than
 loading and failing at generation. The entry point also registers
-hashicorp-utils' `TofuVersionChecker` (under the service `tofu-gce`; its
+tofu-roots' `TofuVersionChecker` (under the service `tofu-gce`; its
 own name is `tofu`), so an executable entry with `type: tofu` is checked
 in a tree whose only terraform roots are GCE roots; the registry takes
 the one class from several plugins as one registration, so a tree with
@@ -83,8 +83,8 @@ The full field tables are the configuration reference's
 ([instance builders](../../docs/CONFIGURATION.md#81-instance-builders),
 [storage builders](../../docs/CONFIGURATION.md#82-storage-builders)).
 What this package does with the fields every class here inherits from
-the neutral models of hashicorp-utils
-([tofu_models.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/tofu_models.py)):
+the neutral models of tofu-roots
+([tofu_models.py](../tofu-roots/src/cs_image_system/tofu_roots/tofu_models.py)):
 
 - `executable` names an entry in `cfg/executables.yml` (default `tofu`).
 - `required_plugins` lists the terraform providers for the root; empty
@@ -96,7 +96,7 @@ the neutral models of hashicorp-utils
 ### `TofuGceInstanceBuilderModel` (`tofu-gce`)
 
 Extends `TofuInstanceBuilderModelBase` from
-[tofu_models.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/tofu_models.py)
+[tofu_models.py](../tofu-roots/src/cs_image_system/tofu_roots/tofu_models.py)
 (`executable`, `required_plugins`, `state_configuration`), which extends
 the base `InstanceBuilderModel`
 ([instance_builder.py](../base/src/cs_image_system/base/models/instance_builder.py)).
@@ -126,7 +126,7 @@ root:
 ### `TofuGcpStorageBuilderModel` (`tf-gcp`)
 
 Extends `TofuStorageBuilderModelBase` from
-[tofu_models.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/tofu_models.py)
+[tofu_models.py](../tofu-roots/src/cs_image_system/tofu_roots/tofu_models.py)
 (`executable`, `required_plugins`, `state_configuration`, `variables`;
 it extends the base `StorageBuilderModel`,
 [storage_builder.py](../base/src/cs_image_system/base/models/storage_builder.py)).
@@ -216,8 +216,8 @@ The hook order, the file naming, the variables, the state binding and
 remote-state references, the module-call rendering, the deferred
 `plan -> gate -> apply` sequence, the detach and decommission whitelists,
 the ephemeral sequence, the finalization hooks, the storage state
-machine and the state query are the neutral roots' of hashicorp-utils;
-see [The terraform roots](../hashicorp-utils/README.md#the-terraform-roots)
+machine and the state query are the neutral roots' of tofu-roots;
+see [The terraform roots](../tofu-roots/README.md#the-terraform-roots)
 there for what the bases own and the full hook table. This section lists
 what the GCP classes answer and what they leave at the base's default.
 
@@ -226,7 +226,7 @@ what the GCP classes answer and what they leave at the base's default.
 Source:
 [tf_gce_instance_builder.py](src/cs_image_system/tf_gcp_plugin/tf_gce_instance_builder.py).
 Extends `TofuInstanceBuilderBase`
-([tofu_instance_builder.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/tofu_instance_builder.py)).
+([tofu_instance_builder.py](../tofu-roots/src/cs_image_system/tofu_roots/tofu_instance_builder.py)).
 
 **The hooks it answers.** `_provider_name()` is `google` and
 `_provider_source()` `hashicorp/google`; `_provider_config(rtb)` is
@@ -323,7 +323,7 @@ Two consequences of the inheritance:
 Source:
 [tf_gcp_storage_builder.py](src/cs_image_system/tf_gcp_plugin/tf_gcp_storage_builder.py).
 Extends `TofuStorageBuilderBase`
-([tofu_storage_builder.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/tofu_storage_builder.py));
+([tofu_storage_builder.py](../tofu-roots/src/cs_image_system/tofu_roots/tofu_storage_builder.py));
 the storage state machine, the live/tombstone/archived split, the
 `output "storage_<label>"` blocks, the gid-by-reference rule, the state
 query over every declared and recorded storage and the deferred command
@@ -668,7 +668,7 @@ Fields common to all five service names:
 | `is_default` | bool | `false` | the builder an item's `type: default` resolves to (read by the core) |
 | `runtime` | str | `default` | the `gcloud` runtime builder, by name or alias; the provider block, the zone, the network, the machine type and the IAP decision all come from it |
 | `executable` | str or null | `"tofu"` | an entry of `cfg/executables.yml` |
-| `required_plugins` | list | `[]` | terraform providers for `required_providers`; entries `{name, version, source, config}` where `name` and `version` are required by the model ([plugin_config.py](../base/src/cs_image_system/base/helpers/plugin_config.py)) and `config` is accepted, not read. Empty means one `google` provider from `hashicorp/google` with no version constraint. The `provider "google"` block is emitted whatever this lists |
+| `required_plugins` | list | `[]` | terraform providers for `required_providers`; entries `{name, version, source, config}` where `name` and `version` are required by the model ([hashicorp_models.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/hashicorp_models.py)) and `config` is accepted, not read. Empty means one `google` provider from `hashicorp/google` with no version constraint. The `provider "google"` block is emitted whatever this lists |
 | `state_configuration` | str (foreign key to a state backend) | `default` | the root's state location; `default` inherits the runtime's, else the default backend |
 | `description`, `config`, `gitignore`, `tags` | | | accepted, not read by this package |
 
@@ -1172,7 +1172,7 @@ Failures the code raises:
 
 ## Related
 
-- [cs-image-system-hashicorp-utils](../hashicorp-utils/README.md#the-terraform-roots):
+- [cs-image-system-tofu-roots](../tofu-roots/README.md#the-terraform-roots):
   the provider-neutral terraform roots these builders subclass, what the
   bases own, the full hook table and the version checker.
 - [cs-image-system-tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md):

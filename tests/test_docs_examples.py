@@ -60,7 +60,7 @@ PLUGIN_TYPES: dict[str, set[str]] = {
     "tf-docker-plugin": {"tofu-docker", "tf-docker-volume"},
     "tf-s3-state-plugin": {"s3"},
 }
-NOT_PLUGINS = {"base", "contract", "contract-example-plugin", "system", "hashicorp-utils", "dummy-plugin"}
+NOT_PLUGINS = {"base", "contract", "contract-example-plugin", "system", "hashicorp-utils", "tofu-roots", "dummy-plugin"}
 MARKER = re.compile(r"ENC\[age:[A-Za-z0-9+/=]+\]")
 
 

@@ -179,7 +179,7 @@ def test_every_sibling_pin_is_exactly_the_shared_version():
 
 def test_the_root_is_the_whole_system_in_one_install():
     """41.3: `cs-image-system` is buildable, has no sources of its own, and pins all
-    twenty-one packages (nothing else), so one install gets the CLI and every plugin."""
+    twenty-two packages (nothing else), so one install gets the CLI and every plugin."""
     root = tomllib.loads(ROOT.read_text())
     assert root["project"]["name"] == OWN
     assert root["build-system"]["build-backend"] == "hatchling.build"
@@ -187,7 +187,7 @@ def test_the_root_is_the_whole_system_in_one_install():
     siblings, third = _requirements(root["project"])
     assert not third, sorted(third)
     assert set(siblings) == {canonicalize_name(_project(p / "pyproject.toml")["name"]) for p in PACKAGES}
-    assert len(siblings) == 21                  # stage 75 the posix identity plugin, stage 30 the contract and its proof, stage 103 the docker runtime and its tofu plugin
+    assert len(siblings) == 22                  # stage 75 the posix identity plugin, stage 30 the contract and its proof, stage 103 the docker runtime and its tofu plugin, stage 123 tofu-roots
     names = {i["name"]: i for i in root["tool"]["uv"]["index"]}
     assert names["testpypi"]["publish-url"] == "https://test.pypi.org/legacy/"
     assert names["testpypi"]["url"] == "https://test.pypi.org/simple/"

@@ -19,8 +19,8 @@ from cs_image_system.contract.group import LOGIN_HOOK
 from cs_image_system.contract.operating_system import PACKAGE_LOCK_TIMEOUT
 from cs_image_system.base.models.group import Group
 from cs_image_system.hashicorp_utils.blocks import BlockSpec, DataSpec, OutputSpec, Raw, render_blocks
-from cs_image_system.hashicorp_utils.collector import TerraformCollector
-from cs_image_system.hashicorp_utils.roots import TerraformRootMixin
+from cs_image_system.hashicorp_utils.collector import terraform_collector
+from cs_image_system.tofu_roots.roots import TerraformRootMixin
 
 from .okta_opa_tf_group_models import OktaTfGroupBuilderModel
 from .okta_tf_models import OKTATF
@@ -493,7 +493,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
 
     # ------------------------------------------------------- emission
     def _external_provider_ref(self) -> str | None:
-        return TerraformCollector().provider_bindings(self.name).get(EXTERNAL_PROVIDER)
+        return terraform_collector(self._get_context()).provider_bindings(self.name).get(EXTERNAL_PROVIDER)
 
     def generate_items_before(
         self, phase: ExecutionLifecyclePhase
@@ -509,8 +509,8 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
                 f"{self.__class__.__name__} ({self.name})",
             )
             items.add( "\n")
-            col = TerraformCollector()
-            self.model.register_hcl_requirements(self.name)
+            col = terraform_collector(self._get_context())
+            self.model.register_hcl_requirements(self.name, col)
             # The gid shim (N7) is a data "external" lookup: declare the provider.
             col.require_provider(self.name, EXTERNAL_PROVIDER, source="hashicorp/external")
             col.configure_provider(self.name, EXTERNAL_PROVIDER, {})
@@ -667,7 +667,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         quoted_members = ", ".join(f'"{m}"' for m in members)
         quoted_admins = ", ".join(f'"{a}"' for a in admins)
         delegated = "[]"
-        bindings = TerraformCollector().provider_bindings(self.name)
+        bindings = terraform_collector(self._get_context()).provider_bindings(self.name)
         providers = ", ".join(f"{k} = {v}" for k, v in sorted(bindings.items())
                               if k != EXTERNAL_PROVIDER)
         lines = [
