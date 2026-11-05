@@ -25,6 +25,8 @@ the entry without naming the number in its text.
 
 | Stage | Landed | Released in | Squash subject |
 | --- | --- | --- | --- |
+| <a id="s120"></a>§120 | 2026-11-04 | not yet | Stage 120: a provider-neutral terraform root |
+| <a id="s119"></a>§119 | 2026-11-04 | not yet | Stage 119: the stage index and the end of narration |
 | <a id="s118"></a>§118 | 2026-11-04 | not yet | Stage 118: the summary layer comes current |
 | <a id="r0-1-7-dev1"></a>release 0.1.7.dev1 | 2026-11-02 | 0.1.7.dev1 | release 0.1.7.dev1 |
 | <a id="s111"></a>§111 | 2026-11-02 | 0.1.7.dev1 | Stage 111: hygiene bundle XXIII, a lapsed SSO token is judged |

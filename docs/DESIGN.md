@@ -987,6 +987,17 @@ the context through a base builder until then), the hooks and bootstrap
 entry points, the contract's own compatibility version (it moves in
 lockstep with the workspace until it stops changing), and a separate
 repository for it once stable, with an external plugin as the proof.
+The same direction holds among the plugins themselves: a terraform
+root's provider-neutral machinery (the workspace, its variables, the
+state binding and remote-state references, the module calls and outputs,
+the gated runner lines, the finalization hooks, the state query) lives
+in `hashicorp-utils` as two bases, and a provider's root plugin
+subclasses a base and answers its hooks -- the provider and its
+configuration, the module, the module arguments, the addresses a
+replacement or a detach names. No root plugin depends on another
+provider's root plugin, so the GCE and container roots install without
+the AWS root, its runtime or its SDK
+([the stage index](CHANGES.md#s120)).
 
 **Reversibility (the operator's condition).** The split may have to be
 undone if it interferes with later work; what would be

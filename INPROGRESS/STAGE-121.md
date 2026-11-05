@@ -1,6 +1,6 @@
 # 121. The core names no runtime
 
-**Status: OPEN 2026-11-04. Waits for "do 121", after [§120](STAGE-120.md).**
+**Status: OPEN 2026-11-04. Waits for "do 121", after §120.**
 
 "Every opinion about a specific cloud lives at the edge" (DESCRIPTION)
 is not yet true (REEXAMINE1 §3.3, §5.3; REEXAMINE3 §3.2). `preflight`
@@ -58,5 +58,5 @@ branching ([§122](STAGE-122.md)).
 packer keys (the fixture and the reference keep them this stage;
 **YOUR DECISION:** the reference moves to `packer` in the same take,
 default no); the grep-test green with its list; the isolation test of
-[§120](STAGE-120.md) still green; `just test`; one squash, branch kept. Records: the
+§120 still green; `just test`; one squash, branch kept. Records: the
 squash; this section goes at "merge 121".

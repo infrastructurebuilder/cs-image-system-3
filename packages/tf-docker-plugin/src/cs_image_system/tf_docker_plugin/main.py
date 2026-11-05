@@ -5,6 +5,7 @@
 import logging
 
 from cs_image_system.base.basic.abstract_plugin_metadata import AbstractPluginMetadata
+from cs_image_system.hashicorp_utils.tofu_instance_builder import TofuVersionChecker
 
 from .tf_docker_instance_builder import TofuDockerInstanceBuilder
 from .tf_docker_models import TF_DOCKER_VOLUME, TOFU_DOCKER, TofuDockerInstanceBuilderModel, TofuDockerVolumeStorageBuilderModel
@@ -19,7 +20,7 @@ class TFDockerTypes(AbstractPluginMetadata):
 
     def __init__(self) -> None:
         super().__init__("1", "3.13",
-                         {TOFU_DOCKER: [TofuDockerInstanceBuilderModel, TofuDockerInstanceBuilder],
+                         {TOFU_DOCKER: [TofuDockerInstanceBuilderModel, TofuDockerInstanceBuilder, TofuVersionChecker],
                           TF_DOCKER_VOLUME: [TofuDockerVolumeStorageBuilderModel, TofuDockerVolumeStorageBuilder]},
                          {TofuDockerInstanceBuilderModel: TofuDockerInstanceBuilder,
                           TofuDockerVolumeStorageBuilderModel: TofuDockerVolumeStorageBuilder})

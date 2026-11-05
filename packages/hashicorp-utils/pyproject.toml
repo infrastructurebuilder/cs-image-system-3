@@ -15,6 +15,7 @@ dependencies = [
     "cs-image-system-contract==0.1.7.dev1",
     "cs-image-system-base==0.1.7.dev1",
     "packaging>=26.2",
+    "pydantic>=2.13",
     "python-hcl2>=8.1",
 ]
 

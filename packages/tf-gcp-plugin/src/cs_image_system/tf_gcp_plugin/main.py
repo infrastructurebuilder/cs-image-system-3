@@ -5,6 +5,7 @@
 import logging
 
 from cs_image_system.base.basic.abstract_plugin_metadata import AbstractPluginMetadata
+from cs_image_system.hashicorp_utils.tofu_instance_builder import TofuVersionChecker
 
 from .tf_gce_instance_builder import TofuGceInstanceBuilder
 from .tf_gcp_models import (
@@ -24,7 +25,7 @@ class TFGcpTypes(AbstractPluginMetadata):
 
     def __init__(self) -> None:
         super().__init__("1", "3.13",
-                         {TOFU_GCE: [TofuGceInstanceBuilderModel, TofuGceInstanceBuilder],
+                         {TOFU_GCE: [TofuGceInstanceBuilderModel, TofuGceInstanceBuilder, TofuVersionChecker],
                           TF_GCP: [TofuGcpStorageBuilderModel, TofuGcpStorageBuilder],
                           TF_GCP_PD: [TofuPdStorageBuilderModel, TofuPdStorageBuilder],
                           TF_GCP_FILESTORE: [TofuFilestoreStorageBuilderModel, TofuFilestoreStorageBuilder],

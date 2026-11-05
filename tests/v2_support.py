@@ -168,7 +168,7 @@ def stub_environment(monkeypatch) -> list[str]:
     # of ours exists" by default. Tests of the query itself re-patch these
     # AFTER constructing their V2Run.
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
-    from cs_image_system.tf_ebs_instance_plugin.tf_storage_builder import TofuStorageBuilder
+    from cs_image_system.hashicorp_utils.tofu_storage_builder import TofuStorageBuilderBase
     monkeypatch.setattr(AwsCloudBuilder, "query_images", lambda self, series: [])
     monkeypatch.setattr(GCPCloudBuilder, "query_images", lambda self, series: [])
     # zero-drift-report: post-bake retagging would reach EC2; journal it.
@@ -195,7 +195,7 @@ def stub_environment(monkeypatch) -> list[str]:
     monkeypatch.setattr(GCPCloudBuilder, "retag_image",                    # ledger 66: GCE relabels too
                         lambda self, image_id, tags: retags.append((image_id, dict(tags))) or True)
     stub_environment.retags = retags  # type: ignore[attr-defined]
-    monkeypatch.setattr(TofuStorageBuilder, "query_state",
+    monkeypatch.setattr(TofuStorageBuilderBase, "query_state",
                         lambda self: {s.get_name(): {"present": False, "type": self.capability_type()}
                                       for s in self.model._storages})
     monkeypatch.setattr(OktaTfGroupBuilder, "query_state",

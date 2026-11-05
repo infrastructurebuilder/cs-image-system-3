@@ -41,7 +41,7 @@ def _ctx(psi):
 
 
 def _module_args(psi, instance=None, rtb=None, params=None):
-    stub = SimpleNamespace(_ami_var=TofuDockerInstanceBuilder._ami_var, _image_var=TofuDockerInstanceBuilder._image_var)
+    stub = SimpleNamespace(_image_var=TofuDockerInstanceBuilder._image_var)
     return TofuDockerInstanceBuilder._module_args(cast(Any, stub), _ctx(psi), rtb or _rtb(),
                                                   cast(Any, instance or _instance()), params)
 
@@ -69,7 +69,7 @@ def test_a_deferred_image_is_the_variable_with_the_floating_tag_as_the_fallback(
 
 def test_the_hostname_and_generation_come_from_the_launch_parameters():
     psi = DockerProviderSpecificImage.resolved(source_name="i", source_kind=PSISourceKind.IMAGE, runtime="r", identifier=ID)
-    stub = SimpleNamespace(_ami_var=TofuDockerInstanceBuilder._ami_var, _image_var=TofuDockerInstanceBuilder._image_var,
+    stub = SimpleNamespace(_image_var=TofuDockerInstanceBuilder._image_var,
                            _launch_args=lambda ctx, label, params: {"launch_script": "x"})
     args = TofuDockerInstanceBuilder._module_args(cast(Any, stub), _ctx(psi), _rtb(), cast(Any, _instance()),
                                                   {"hostname": "docker-test-007", "mounts": []})

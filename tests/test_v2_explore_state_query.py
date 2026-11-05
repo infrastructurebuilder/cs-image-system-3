@@ -46,13 +46,13 @@ def world(tmp_path: Path, monkeypatch):
     """A context whose plugins answer from canned reality."""
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
-    from cs_image_system.tf_ebs_instance_plugin.tf_storage_builder import TofuStorageBuilder
+    from cs_image_system.hashicorp_utils.tofu_storage_builder import TofuStorageBuilderBase
 
     reality: dict = {"images": {}, "storages": {}, "groups": {}}   # images keyed by runtime name
     run = V2Run(tmp_path, monkeypatch)   # first: its stubs would override ours
     monkeypatch.setattr(AwsCloudBuilder, "query_images",
                         lambda self, series: list(reality["images"].get(self.get_name(), [])))
-    monkeypatch.setattr(TofuStorageBuilder, "query_state",
+    monkeypatch.setattr(TofuStorageBuilderBase, "query_state",
                         lambda self: {s.get_name(): reality["storages"].get(s.get_name(), {"present": False, "type": self.capability_type()})
                                       for s in self.model._storages})
     monkeypatch.setattr(OktaTfGroupBuilder, "query_state",

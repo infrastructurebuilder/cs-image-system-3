@@ -42,10 +42,24 @@ One entry point under `cs_image_system.plugins.instance`
 | `tofu-docker` | `TofuDockerInstanceBuilderModel` | `TofuDockerInstanceBuilder` | an instance builder |
 | `tf-docker-volume` | `TofuDockerVolumeStorageBuilderModel` | `TofuDockerVolumeStorageBuilder` | a storage builder |
 
-Both subclass the AWS plugin's tofu bases (`TofuInstanceBuilder`,
-`TofuStorageBuilder`), so the apply gate, the decommission whitelist, the
-ephemeral sequence, the storage state machine and the state query are the
-shared machinery.
+Both subclass the provider-neutral terraform roots of
+[cs-image-system-hashicorp-utils](../hashicorp-utils/README.md#the-terraform-roots)
+(`TofuInstanceBuilderBase`, `TofuStorageBuilderBase`), not the AWS
+plugin's classes: the root's layout, the variables, the state binding and
+the remote-state references, the module calls and outputs, the gated
+plan, gate and apply sequence, the decommission whitelist, the ephemeral
+sequence, the finalization hooks, the storage state machine and the
+state query are the base's, and this package answers the base's hooks
+with what is the daemon's own: the `docker` provider from
+`kreuzwerker/docker` with an empty provider block, the module
+directories `docker_container` and `docker_volume`, the resource type
+`docker_container` a replacement names, the word `container`, the launch
+script `launch-<label>.sh.tftpl` that is uploaded rather than passed as
+user data, and the module arguments below. The entry point also
+registers the library's `TofuVersionChecker` under `tofu-docker`, so a
+tree whose only terraform roots are container roots still has its
+`tofu` version checked; the registry takes the one class from several
+plugins as one registration.
 
 ## Models
 
@@ -223,9 +237,16 @@ validation).
 
 The plugin depends on `cs-image-system-contract` and `cs-image-system-base`
 (as every built-in plugin does), `cs-image-system-hashicorp-utils` (the
-collector), `cs-image-system-tf-ebs-instance-plugin` (the tofu bases),
-`cs-image-system-docker-runtime-plugin` (the names and the runtime's
-hooks) and `pydantic` ([pyproject.toml](pyproject.toml)).
+provider-neutral terraform roots this plugin subclasses, the collector
+and the version checker), `cs-image-system-docker-runtime-plugin` (the
+names and the runtime's hooks) and `pydantic`
+([pyproject.toml](pyproject.toml)). It does not depend on the AWS root
+(`cs-image-system-tf-ebs-instance-plugin`) or on `aws-runtime-plugin`:
+installing this plugin installs no AWS package and no `boto3`. The
+proof is the neutral-root test,
+[tests/test_v2_stage_120_neutral_root.py](../../tests/test_v2_stage_120_neutral_root.py),
+which syncs an environment for this plugin and the GCE one alone and
+imports, registers and constructs both there.
 
 ## Configuration reference
 
@@ -300,7 +321,10 @@ failure's symptom, its meaning and what to do.
 
 - [cs-image-system-docker-runtime-plugin](../docker-runtime-plugin/README.md):
   the runtime, the bake and the instance hooks.
+- [cs-image-system-hashicorp-utils](../hashicorp-utils/README.md#the-terraform-roots):
+  the provider-neutral terraform roots this plugin subclasses, their
+  hooks and the version checker.
 - [cs-image-system-tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md):
-  the tofu bases this plugin subclasses.
+  the AWS root on the same bases, for comparison; not a dependency.
 - `tfmodules/docker_container`, `tfmodules/docker_volume`: the modules.
 - `docs/OPERATIONS.md`: the cycle, power states and generations.

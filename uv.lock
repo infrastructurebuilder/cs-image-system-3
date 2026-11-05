@@ -748,6 +748,7 @@ dependencies = [
     { name = "cs-image-system-base" },
     { name = "cs-image-system-contract" },
     { name = "packaging" },
+    { name = "pydantic" },
     { name = "python-hcl2" },
 ]
 
@@ -756,6 +757,7 @@ requires-dist = [
     { name = "cs-image-system-base", editable = "packages/base" },
     { name = "cs-image-system-contract", editable = "packages/contract" },
     { name = "packaging", specifier = ">=26.2" },
+    { name = "pydantic", specifier = ">=2.13" },
     { name = "python-hcl2", specifier = ">=8.1" },
 ]
 
@@ -869,7 +871,6 @@ dependencies = [
     { name = "cs-image-system-contract" },
     { name = "cs-image-system-docker-runtime-plugin" },
     { name = "cs-image-system-hashicorp-utils" },
-    { name = "cs-image-system-tf-ebs-instance-plugin" },
     { name = "pydantic" },
 ]
 
@@ -879,7 +880,6 @@ requires-dist = [
     { name = "cs-image-system-contract", editable = "packages/contract" },
     { name = "cs-image-system-docker-runtime-plugin", editable = "packages/docker-runtime-plugin" },
     { name = "cs-image-system-hashicorp-utils", editable = "packages/hashicorp-utils" },
-    { name = "cs-image-system-tf-ebs-instance-plugin", editable = "packages/tf-ebs-instance-plugin" },
     { name = "pydantic", specifier = ">=2.13" },
 ]
 
@@ -913,7 +913,6 @@ dependencies = [
     { name = "cs-image-system-contract" },
     { name = "cs-image-system-gcloud-runtime-plugin" },
     { name = "cs-image-system-hashicorp-utils" },
-    { name = "cs-image-system-tf-ebs-instance-plugin" },
     { name = "google-cloud-compute" },
     { name = "pydantic" },
 ]
@@ -924,7 +923,6 @@ requires-dist = [
     { name = "cs-image-system-contract", editable = "packages/contract" },
     { name = "cs-image-system-gcloud-runtime-plugin", editable = "packages/gcloud-runtime-plugin" },
     { name = "cs-image-system-hashicorp-utils", editable = "packages/hashicorp-utils" },
-    { name = "cs-image-system-tf-ebs-instance-plugin", editable = "packages/tf-ebs-instance-plugin" },
     { name = "google-cloud-compute", specifier = ">=1.49" },
     { name = "pydantic", specifier = ">=2.13" },
 ]

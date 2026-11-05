@@ -3,15 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 
-from cs_image_system.contract.constants import DEFAULT, VCT
-from cs_image_system.contract.fields import fk_field
+from pydantic.dataclasses import dataclass
+
 from cs_image_system.base.models.module_variables import ModuleVariables
-from cs_image_system.base.models.storage_builder import StorageBuilderModel
-from cs_image_system.hashicorp_utils.hashicorp_models import TFTofuPluginModel
-
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+from cs_image_system.hashicorp_utils.tofu_models import TofuStorageBuilderModelBase
 
 TF_AWS: str = "tf-aws"
 TF_AWS_EBS = TF_AWS + "-ebs"
@@ -20,22 +17,16 @@ TF_AWS_S3 = TF_AWS + "-s3"
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
-class TofuStorageBuilderModel(StorageBuilderModel):
-    """OpenTofu IaC storage builder configuration data object."""
+class TofuStorageBuilderModel(TofuStorageBuilderModelBase):
+    """The AWS storage roots' shared configuration (``type: tf-aws``): what
+    every tofu storage root declares; each service narrows ``variables``."""
     type = TF_AWS
-    executable: str | None = "tofu"
-    required_plugins: list[TFTofuPluginModel] = field(default_factory=list)
-    state_configuration: str = fk_field(target=VCT.STATE_BACKEND_MODEL,
-                                        default=DEFAULT, metadata={
-        "description": "State backend used for this builder's terraform workspace",
-    })
-    # stage 26: declared inputs to the module call; each provider narrows the type
-    variables: ModuleVariables = field(default_factory=ModuleVariables)
-
 
     @classmethod
     def csis_name(cls) -> str:
         return TF_AWS
+
+
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
 class EbsVariables(ModuleVariables):
     """tfmodules/aws_storage_ebs: the tunables not derived from the storage

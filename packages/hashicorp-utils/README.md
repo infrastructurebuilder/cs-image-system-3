@@ -9,11 +9,15 @@ blocks in memory, and gives a builder that owns a terraform root its
 **This is a library, not a plugin.** It declares no
 `cs_image_system.plugins.*` entry point, registers nothing in the registry
 and contributes no builder of its own. Plugins import it. In the
-workspace, six packages depend on it directly: the terraform-root plugins
-(`okta-opa-plugin`, `tf-ebs-instance-plugin`, `tf-gcp-plugin`) mix in the
-root mixin and drive the terraform collector; `packer-plugin` uses the
-packer collector; the two runtime plugins (`aws-runtime-plugin`,
-`gcloud-runtime-plugin`) import the formatter options. The state plugins
+workspace, eight packages depend on it directly: the identity root
+plugin (`okta-opa-plugin`) mixes in the root mixin and drives the
+terraform collector; the three provider root plugins
+(`tf-ebs-instance-plugin`, `tf-gcp-plugin`, `tf-docker-plugin`) subclass
+the provider-neutral terraform roots of this package (see [The terraform
+roots](#the-terraform-roots)) and register its tofu version checker;
+`packer-plugin` uses the packer collector; the three runtime plugins
+(`aws-runtime-plugin`, `gcloud-runtime-plugin`, `docker-runtime-plugin`)
+import the formatter options for their packer sources. The state plugins
 (`tf-s3-state-plugin`, `local-state-plugin`, `gcs-state-plugin`) do not
 depend on it: their models answer a registration the core hands to the
 terraform collector at load, and they import the contract alone. The
@@ -33,6 +37,7 @@ workspace depends on `cs-image-system-system`, the CLI host.
 - [TerraformCollector](#terraformcollector)
 - [PackerCollector](#packercollector)
 - [TerraformRootMixin](#terraformrootmixin)
+- [The terraform roots](#the-terraform-roots)
 - [HCL rendering helpers](#hcl-rendering-helpers)
 - [Versions](#versions)
 - [Tests](#tests)
@@ -47,6 +52,9 @@ workspace depends on `cs-image-system-system`, the CLI host.
 | -------- | ---------- |
 | [`collector.py`](src/cs_image_system/hashicorp_utils/collector.py) | `TerraformCollector`, `PackerCollector`, the declaration dataclasses `ProviderRequirement`, `ConfiguredTerraformProvider`, `ProviderConfig`, `TerraformVariable`, `RemoteStateReference`, `PackerPluginRequirement`, `PackerVariableDecl`. `BackendRegistration`, the `StateLocation` tuple and the `BackendKind` protocol are the contract's (`cs_image_system.contract.state`) and stay importable from here. |
 | [`roots.py`](src/cs_image_system/hashicorp_utils/roots.py) | `TerraformRootMixin` and `run_is_dry()`. |
+| [`tofu_models.py`](src/cs_image_system/hashicorp_utils/tofu_models.py) | `TofuInstanceBuilderModelBase` and `TofuStorageBuilderModelBase`, what every terraform instance and storage root declares whatever its provider (`executable`, `required_plugins`, `state_configuration`, and for a storage root `variables`), and `TOFU_EXECUTABLE`. |
+| [`tofu_instance_builder.py`](src/cs_image_system/hashicorp_utils/tofu_instance_builder.py) | `TofuInstanceBuilderBase`, the provider-neutral instance root, and `TofuVersionChecker`, the version checker for OpenTofu. |
+| [`tofu_storage_builder.py`](src/cs_image_system/hashicorp_utils/tofu_storage_builder.py) | `TofuStorageBuilderBase`, the provider-neutral storage root; `RecordedStorage`, the stand-in for a storage known only from meta-state; the accessors `storage_groups()` and `storage_public_read()`. |
 | [`blocks.py`](src/cs_image_system/hashicorp_utils/blocks.py) | The declarative block model: `Raw`, `hcl_value`, `NestedBlock`, `BlockSpec`, `ResourceSpec`, `DataSpec`, `OutputSpec`, `render_block`, `render_blocks`. |
 | [`hashicorp.py`](src/cs_image_system/hashicorp_utils/hashicorp.py) | The formatter options `FO`, the `QString` quoting wrapper, the `TerraformGenerator` protocol, `packer_variable`, and the S3-backend field dataclasses `TStateRoot`, `StateEndpoints`, `AssumeRoleBaseClass`, `AssumeRoleConfig`, `AssumeRoleWithWebIdentityConfig`. |
 | [`hashicorp_models.py`](src/cs_image_system/hashicorp_utils/hashicorp_models.py) | `TFTofuPluginModel` and `PackerPluginConfig`, both `GenericPluginModel` subclasses (`name`, `version`, `source`, `config`) that builders use for their `required_providers:` / `required_plugins:` lists. |
@@ -260,9 +268,10 @@ subclass. The mixin is duck-typed against `BuilderBase`: it relies on
 `self.name`, `self.get_path_for_phase(phase, suffix=...)`,
 `self.get_executable_copy()` and, when present, `self._get_context()` and
 `self.model`. In the workspace the mixin is on `OktaTfGroupBuilder` (and
-its read-only subclass), `OktaTfUserBuilder`, `TofuInstanceBuilder` and
-`TofuStorageBuilder`; the GCE instance and GCP storage builders inherit
-it from the AWS ones.
+its read-only subclass) and `OktaTfUserBuilder` in the identity plugin,
+and on the two provider-neutral roots of this package,
+`TofuInstanceBuilderBase` and `TofuStorageBuilderBase`, from which every
+provider's instance and storage root inherits it.
 
 ### Backend file and init arguments
 
@@ -418,6 +427,221 @@ The instance root's ephemeral-teardown sequence passes `apply=True`
 because it is only built when the root may apply; `apply-check` still
 stands in front of its apply.
 
+## The terraform roots
+
+An instance root and a storage root are the same terraform whatever the
+cloud or daemon underneath: one workspace per builder, one `module` call
+per instance or per storage against a module the provider names, driven
+by OpenTofu, bound to a state manager by reference, planned, gated and
+applied by the lifecycle runner. What differs between providers is small
+and nameable: which provider and how it is configured, which module,
+what the module call carries, how the launch script reaches the machine,
+which address a replacement or a detach names. So the root lives here,
+once, as two provider-neutral bases, and a provider's root plugin
+subclasses a base and answers its hooks. The three root plugins of the
+workspace ([tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md)
+for AWS, [tf-gcp-plugin](../tf-gcp-plugin/README.md) for Google Cloud,
+[tf-docker-plugin](../tf-docker-plugin/README.md) for a container
+daemon) are each such a subclass, and no root plugin depends on another
+provider's root plugin: installing the GCE or the container root
+installs neither the AWS root, nor `aws-runtime-plugin`, nor `boto3`.
+The change that put the root here is recorded in the stage index under
+[a provider-neutral terraform root](../../docs/CHANGES.md#s120).
+
+### The two bases
+
+[`tofu_instance_builder.py`](src/cs_image_system/hashicorp_utils/tofu_instance_builder.py)
+holds `TofuInstanceBuilderBase`, an `InstanceBuilderBase` with
+`TerraformRootMixin` mixed in;
+[`tofu_storage_builder.py`](src/cs_image_system/hashicorp_utils/tofu_storage_builder.py)
+holds `TofuStorageBuilderBase`, the same over `StorageBuilderBase`. Each
+is generic in its model (`TofuInstanceBuilderBase[Q]` with `Q` bound to
+`TofuInstanceBuilderModelBase`), so a subclass that binds the parameter
+to its own model reads that model's fields through `self.model`. Neither
+base has a `csis_name()`: the bases register nothing, and no tree ever
+writes a `type:` that names one; the `type:` is always the subclass's.
+
+**The instance base owns** everything no provider owns:
+
+- the root's layout (the main file `<B>-instance-generation.tf`, one
+  `<B>-instance-generation-instance-<label>.tf` per instance with the
+  launch template beside it, the partial backend file) and the header
+  comment that opens the main file;
+- the provider requirement (from the builder's `required_plugins`, or
+  the provider's own bare requirement when none is declared) and the
+  aliased provider block, both filled through the hooks;
+- the variables, in the order `_declare_variables` emits them: the
+  ephemeral toggle `ephemeral_present` (when any instance is ephemeral),
+  one image variable per instance that finalization fills from the
+  packer manifests (`_image_var(label)`, default `<label>_image`), and
+  the enrollment-token variable `sft_enrollment_token` (sensitive, empty
+  by default, supplied at apply time and never recorded);
+- the state-manager binding (`bind_workspace` with the builder's own
+  `state_configuration` and the runtime's) and the remote-state
+  references to every storage builder that owns storages and to every
+  identity workspace that owns an instance image's group, so storage
+  outputs and gids enter by terraform reference and never as literals;
+- the module call per instance (`render_module_call` over the
+  provider's `_module_args`, with the `count` an ephemeral instance
+  gets) and the launch template (`user_data_template` over the recorded
+  launch parameters);
+- the runner lines: `fmt`, `init` and `validate` at generation, and at
+  finalization the [gated plan, gate and apply
+  sequence](#the-gated-plan-gate-apply-sequence) of the mixin with this
+  root's unmount steps and gate requirements for every detach, the
+  `-replace` of every pending upgrade or `follow`, and the destroy
+  whitelist: the decommissioned instances (recorded, no longer declared,
+  scoped to this runtime by the pinned build's lineage), the detached
+  attachments, the replaced instances' attachments, and the root's own
+  resources once no instance is declared;
+- the ephemeral sequence after the launch applied: `verify instance`
+  per ephemeral (`--record-only` under `on_failure: teardown`; skipped
+  once `teardown_after` has elapsed since a failed verdict), then the
+  same root planned with `-var=ephemeral_present=false` and that
+  whitelisted destroy applied;
+- when the root is emitted at all (`_root_has_work()`): declared
+  instances, or a recorded instance no longer declared, or a recorded
+  state location whose state may still hold the root's own resources;
+  nothing for another runtime's root under `--only-runtime`;
+- the two finalization hooks that pin an instance to the build it
+  launched from: `pre_finalize_phase` writes `instances.auto.tfvars`
+  with the resolved image id of every instance whose build this run
+  baked, under the name `_image_var` gives, for the `instance-image`
+  lifecycle alone and only for a root in the run's runtime scope;
+  `post_finalize_phase`, after a real apply, moves a `follow` pin and
+  binds every unpinned durable instance to the build it launched from
+  (from the resolved image, else from the image the runtime reports it
+  booted when lineage records that build).
+
+**The storage base owns**, in the same way: the root's layout and
+header; the provider requirement and block through the hooks; the
+state-manager binding and the identity remote-state references (gids by
+reference, never a literal: `gid_reference(group)` is the group
+builder's expression, `group_subtrees(storage)` maps each allowed group
+to `{gid, path, permissions}`); the module call and the
+`output "storage_<label>"` per live storage, the tombstone comment per
+`destroyed` storage and the archive comment per `archived` one on a
+builder that supports archiving; the runner lines (`fmt`, `init`,
+`validate`, then the transition scripts of every storage moving to
+`destroyed` or `archived`, the gated plan, gate and apply, and the
+post-transition actions after the apply); `_script(name, body)`, which
+writes a bash script beside the root as a deferred step; `RecordedStorage`,
+the stand-in for a storage that left the YAML but is still recorded
+(name, recorded state, the record's facts), so its destroy is planned
+and whitelisted; the state query (`query_state()` over every declared
+and recorded storage, through the provider's `_lookup`, with `present`
+and the capability type); and the ownership test a shared account needs
+(`_owned` and `_elsewhere`: a thing of our name whose tags belong to
+another configuration is reported absent for us and noted, never
+claimed). `storage_groups(storage)` and `storage_public_read(storage)`
+are the duck-typed accessors a stand-in satisfies.
+
+### The hooks
+
+A hook is a method the base calls and a subclass answers. A hook with no
+default raises `NotImplementedError` naming the subclass (`<Class> must
+name its provider`) from the first generation that needs it; a hook with
+a default is overridden only where the provider differs. The columns
+give the three workspace answers as examples.
+
+The instance root's hooks (`TofuInstanceBuilderBase`):
+
+| Hook | What it answers | AWS (`TofuInstanceBuilder`) | GCE (`TofuGceInstanceBuilder`) | docker (`TofuDockerInstanceBuilder`) |
+|---|---|---|---|---|
+| `_provider_name()` | the provider required and configured when the builder declares no `required_plugins` | `aws` | `google` | `docker` |
+| `_provider_source()` | that provider's registry source | `hashicorp/aws` | `hashicorp/google` | `kreuzwerker/docker` |
+| `_provider_config(rtb)` | the provider block's arguments from the runtime builder; `None` is no provider block at all, `{}` a block with no arguments | `region` and, when the runtime names one, `profile`; `None` without a region | `project`, `region`, `zone`, each when the runtime names it; `None` when it names none | `{}`: the daemon's address rides in the environment of every tofu process |
+| `_module_dirname()` | the `tfmodules/` directory every instance's module call targets | `aws_instance` | `gce_instance` | `docker_container` |
+| `_module_resource()` | the resource type inside the module a replacement names (`module.instance_<label>.<type>.this`) | `aws_instance` | `google_compute_instance` | `docker_container` |
+| `_instance_word()` | how the module-call comment calls one instance (default `instance`) | the default | `GCE instance` | `container` |
+| `_root_header_lines()` | the comment lines that open the main file (default: one line naming the class and the builder) | the default | `# Terraform configuration for GCE instances generated by ...` | three lines, the last two saying the daemon's address is not in the file |
+| `_root_extra_blocks(rtb)` | root-level blocks of the provider's own, emitted after the shared ones (default none) | the VPC lookup and the instances' security group, both bound to the aliased provider | none | none |
+| `_image_var(label)` | the per-instance variable finalization fills (default `<label>_image`) | `<label>_ami_id` | the default | the default |
+| `_launch_template_name(label)` | the launch script template beside the root (default `user-data-<label>.sh.tftpl`) | the default | the default | `launch-<label>.sh.tftpl`, uploaded into the container at creation |
+| `_declare_variables(col, ws)` | the root's variables in emission order (default: the ephemeral toggle, the image variables, the enrollment variable) | the image variables first, then the toggle, then the enrollment variable | the default | the default |
+| `_attachment_address(instance, storage)` | the terraform address whose destroy IS the detach; `None` when the attachment is an in-place attribute of the instance (default `None`) | `module.instance_<label>.aws_volume_attachment.this` | the default | the default |
+| `_own_resources_to_let_go()` | the root's own resources the gate may let a plan destroy once no instance is declared (default none) | `aws_security_group.csis_instances` | the default | the default |
+| `_module_args(ctx, rtb, instance, params)` | the module call's inputs for one instance: the image (the pinned build, else the resolved image, else the variable with the provider's own fallback), the machine type, the network, the labels, and the launch arguments when the parameters are given | `ami_id` with `ami_name_pattern` as the fallback, `instance_type`, `associate_public_ip_address`, the security groups, `subnet_id`, `iam_instance_profile`, `tags` | `image` with `image_family` as the fallback, `machine_type`, `zone`, `subnetwork`, `network_tags`, `public_ip`, `labels` | `image` with `image_tag` as the fallback, `hostname`, `cpus`, `memory`, `network`, `labels` |
+| `_launch_args(ctx, label, params)` | the launch script (`templatefile` over the recorded launch parameters) and the storage attachments, each runtime value by terraform reference | `user_data`, `ebs_volumes` | `startup_script`, `attached_disks` | `launch_script`, `volumes` |
+
+The storage root's hooks (`TofuStorageBuilderBase`; the last five are
+`StorageBuilderBase` hooks the root calls at the places named):
+
+| Hook | What it answers | AWS (`TofuStorageBuilder` and its services) | GCP (`TofuGcpStorageBuilder` and its services) | docker (`TofuDockerVolumeStorageBuilder`) |
+|---|---|---|---|---|
+| `_provider_name()`, `_provider_source()`, `_provider_config(rtb)` | as on the instance root | `aws`, `hashicorp/aws`, the region and profile | `google`, `hashicorp/google`, the project, region and zone | `docker`, `kreuzwerker/docker`, `{}` |
+| `_root_header_lines()` | the main file's opening comment (default: one line naming the class and the builder) | the default | `# Terraform configuration for GCP storages generated by ...` | three lines, as the container instance root |
+| `module_dirname()` | the `tfmodules/` directory this builder's storages map to | `aws_storage_ebs`, `aws_storage_efs`, `aws_storage_s3`, one per service subclass | `gcp_storage_pd`, `gcp_storage_filestore`, `gcp_storage_gcs` | `docker_volume` |
+| `module_args(storage)` | the module call's inputs for one storage | the declared `variables`, the name, the size, the placement, the lifecycle, the access points or prefixes, the tags | the name through `gce_name`, the size and disk type, or tier and capacity, or location; the labels; the zone | the volume name, the driver and its options, the labels |
+| `_lookup(storage)` | the provider's record of one storage by name, `None` when absent; raise when the answer is unavailable | boto3: `describe_volumes` or the archive snapshot, `describe_file_systems`, `get_bucket_tagging` | the compute client for a disk or its snapshot; `gcloud` for a share or a bucket | `docker volume inspect` |
+| `supports_archive()` | whether the builder realizes `archived` (default no) | EBS yes; EFS and S3 no | pd yes; Filestore and GCS no | no |
+| `transition_actions(storage, from, to)` | the commands run before the apply of a transition (default none) | the EBS snapshot and snapshot-delete scripts, the S3 wipe | the `gcloud` snapshot and snapshot-delete scripts, the GCS wipe script | none: the volume goes with its data |
+| `post_transition_actions(storage, from, to)` | the commands run after the apply of a transition (default none) | the EBS restore's snapshot delete | the pd restore's snapshot delete | none |
+| `retag_storage(storage, tags)` | re-tag a standing storage for `lineage relabel` | `create_tags`, `tag_resource`, `put_bucket_tagging` | `set_labels`, `gcloud ... update --update-labels` | refuses: a volume's labels are fixed at creation |
+| `destroy_whitelist(storage)` | the addresses the gate may let a transition destroy (default `module.storage_<label>`) | the default | the default | the default |
+
+### The models
+
+[`tofu_models.py`](src/cs_image_system/hashicorp_utils/tofu_models.py)
+holds the two model bases, both pydantic dataclasses under
+`CSIS_MODEL_CONFIG`, and `TOFU_EXECUTABLE`
+(`"tofu"`). `TofuInstanceBuilderModelBase` extends the core's
+`InstanceBuilderModel` with what every terraform instance root declares
+whatever its provider: `executable` (default `tofu`, the
+`cfg/executables.yml` entry), `required_plugins` (a list of
+`TFTofuPluginModel`; empty means the provider's own bare requirement)
+and `state_configuration` (a foreign key to a state backend, default
+`default`, the first rung of the chain the mixin's
+[runtime rung](#the-runtime-rung) continues). `TofuStorageBuilderModelBase`
+extends `StorageBuilderModel` with the same three and `variables`, a
+`ModuleVariables` each provider narrows to its module's own tunables
+(`EbsVariables`, `GcpVariables`, `DockerVolumeVariables`). A provider's
+model subclasses a base, sets `type` and answers `csis_name()`; the base
+answers neither, because the `type:` a tree writes is the subclass's,
+never one of these (`tofu`, `tofu-gce`, `tofu-docker` for the instance
+roots; `tf-aws-ebs`, `tf-gcp-pd`, `tf-docker-volume` and their siblings
+for the storage roots).
+
+### The version checker
+
+`TofuVersionChecker` in
+[`tofu_instance_builder.py`](src/cs_image_system/hashicorp_utils/tofu_instance_builder.py)
+is the version checker for OpenTofu: an `AbstractVersionChecker` named `tofu`,
+so an entry of `cfg/executables.yml` with `type: tofu` is checked by it;
+it runs `<binary> --version -json` and reads `terraform_version`, and
+the base library compares that with the entry's `version` requirement at
+`validate` and at every run. **Every root plugin registers it** (under
+its instance service: `tofu`, `tofu-gce`, `tofu-docker`), so a tree
+whose terraform roots are on one provider alone still has its tofu
+checked. The registry's rule makes that safe: the same class registered
+under one name by several plugins is one registration; only a
+*different* class under an existing name is a `Type Collision`.
+
+### Writing a new provider's root
+
+1. Subclass the models: a `TofuInstanceBuilderModelBase` and, per
+   storage service, a `TofuStorageBuilderModelBase`, each with its
+   `type` and `csis_name()`; narrow `variables` to the module's
+   tunables.
+2. Subclass `TofuInstanceBuilderBase[YourModel]` and answer the hooks
+   with no default (`_provider_name`, `_provider_source`,
+   `_provider_config`, `_module_dirname`, `_module_resource`,
+   `_module_args`, `_launch_args`) and whichever defaults the provider
+   differs on. The module arguments resolve the image in the base's
+   order (the pinned build, else the resolved provider-specific image,
+   else `var.<image var>` with the provider's own fallback) and put
+   every runtime value in the launch arguments by terraform reference.
+3. Subclass `TofuStorageBuilderBase[YourModel]` per service: the
+   provider hooks, `module_dirname`, `module_args`, `_lookup`, the
+   capability type, the cardinality, whether it is zonal, and the
+   transition and re-tag hooks where the service realizes them.
+4. Register the models, the builders and `TofuVersionChecker` from the
+   plugin's `initialize()`; depend on this package and on the
+   provider's runtime plugin, never on another provider's root plugin
+   (the neutral-root test refuses the import and the dependency).
+5. Add the provider's modules under `tfmodules/` with the inputs the
+   module arguments name.
+
 ## HCL rendering helpers
 
 ### Blocks
@@ -463,9 +687,11 @@ and the S3-backend field dataclasses (`StateEndpoints` with `dynamodb`,
 `web_identity_token`, `web_identity_token_file`). The S3 state plugin
 imports the three dataclasses; the collector does not read them.
 
-Terraform **module calls** are rendered by the base library
-(`render_module_call` and `hcl_expr` in `cs_image_system.base.utils`),
-not here; this package renders blocks and the collector-level scaffolding.
+Terraform **module calls** are rendered by the contract
+(`render_module_call` and `hcl_expr` in `cs_image_system.contract.hcl`,
+which the base library's `utils` re-exports), not by this package's
+renderers; the terraform roots above call it, and the rest of this
+package renders blocks and the collector-level scaffolding.
 The same holds for `config: module_source_base`: the base library reads it
 when it renders a module call, and nothing in this package does.
 
@@ -474,8 +700,10 @@ when it renders a module call, and nothing in this package does.
 `versions.py` turns terraform and packer constraint strings into
 `packaging` specifier sets for conflict analysis while preserving the
 original strings for emission. These are the **provider and plugin**
-constraint helpers; the checks on the tools themselves (`tofu --version`
-against `cfg/executables.yml`) live in the base library, not here.
+constraint helpers; the check on the tool itself (`tofu --version -json`
+against the `cfg/executables.yml` entry's `version`) is
+[the version checker](#the-version-checker) above, run by the base
+library's version-check machinery.
 
 | Function | Behaviour |
 | ---------- | ----------- |
@@ -497,7 +725,16 @@ redefinition, the state-location tuple and its collisions, the binding
 chain, the rebinding refusal, the backend record, a registration without a
 kind), the packer collector, the root mixin (dry-run and real-run init
 arguments, the runner's own init, the backend path, one executable copy
-per command), the block model and the version helpers. `QString`'s
+per command), the block model and the version helpers. The terraform
+roots have no test of their own here: their behaviour is pinned through
+the root plugins that subclass them (their module-call tests), through
+the golden emission of the frozen fixture
+([tests/test_v2_golden.py](../../tests/test_v2_golden.py)) and through
+the neutral-root test
+([tests/test_v2_stage_120_neutral_root.py](../../tests/test_v2_stage_120_neutral_root.py)),
+which holds the import graph, the declared dependencies and an isolated
+install to the rule that no root plugin depends on another provider's
+root. `QString`'s
 default quoting (quoted unless `quoted=False`) is pinned by
 [test_v2_defects_dead.py](../../tests/test_v2_defects_dead.py)
 (`test_a_qstring_is_quoted_by_default_and_prints`) in the workspace
@@ -572,6 +809,18 @@ operator sees fail.
   Outside a run (the bare harness) they degrade: the commands run in
   `generated/` and no `--root-dir` is rendered.
 
+**What depends on the roots.** The three provider root plugins subclass
+`TofuInstanceBuilderBase` and `TofuStorageBuilderBase` and register
+`TofuVersionChecker`: [tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md)
+(AWS, which also depends on `aws-runtime-plugin` for its boto3 session),
+[tf-gcp-plugin](../tf-gcp-plugin/README.md) (Google Cloud) and
+[tf-docker-plugin](../tf-docker-plugin/README.md) (a container daemon).
+Each depends on this package and on its own runtime plugin, and on no
+other provider's root plugin. A provider's prerequisites (the account,
+the credentials, the CLI the transition scripts call, the network) are
+that plugin's and are listed in its README; what the roots emit needs
+only what is listed above.
+
 Integration points the rest of the system relies on, all read through the
 collector singleton after the builders have registered:
 
@@ -590,9 +839,9 @@ package does with it.
 
 | Field (file) | Type | Default | Handed over by | What this package does with it |
 | --- | --- | --- | --- | --- |
-| `executables[].binary`, `.name`, `.prepended_arguments`, `.appended_arguments` (`cfg/executables.yml`) | see [section 3](../../docs/CONFIGURATION.md) | | the root builder's `get_executable_copy()` | Every tofu command is a deep copy of the entry named by the builder's `executable`; the mixin sets `args` and `working_directory` on the copy and passes `binary` (else `name`) to `gate-plan --tofu` and the `state-migration` steps. `version` is checked by the base library, not here. |
+| `executables[].binary`, `.name`, `.prepended_arguments`, `.appended_arguments` (`cfg/executables.yml`) | see [section 3](../../docs/CONFIGURATION.md) | | the root builder's `get_executable_copy()` | Every tofu command is a deep copy of the entry named by the builder's `executable`; the mixin sets `args` and `working_directory` on the copy and passes `binary` (else `name`) to `gate-plan --tofu` and the `state-migration` steps. `version` is checked against `TofuVersionChecker`'s reading of `<binary> --version -json` by the base library's version-check machinery. |
 | `<builder>.executable` (instance, storage, group, user builders) | str or null | `tofu` | `BuilderBase.get_executable_copy()` | Selects the entry above. Missing from `cfg/executables.yml`: `ValueError` at the first command. |
-| `<builder>.required_plugins[]` / `required_providers[]` (`name`, `version`, `source`, `config`) | list of `TFTofuPluginModel` | `[]` | instance and storage builders (`required_plugins`), the Okta workspace mixin (`required_providers`) | `require_provider(ws, name, source, version)` per entry; merged, conflict-checked, emitted into `required_providers {}`. `name` and `version` are required by `GenericPluginModel`; `source` is optional and omitted from the block when absent; `config` is read by the Okta builders (provider arguments) and ignored by the storage and instance builders. An empty list on a storage or instance root falls back to a bare `hashicorp/aws` requirement with no version. |
+| `<builder>.required_plugins[]` / `required_providers[]` (`name`, `version`, `source`, `config`) | list of `TFTofuPluginModel` | `[]` | instance and storage builders (`required_plugins`), the Okta workspace mixin (`required_providers`) | `require_provider(ws, name, source, version)` per entry; merged, conflict-checked, emitted into `required_providers {}`. `name` and `version` are required by `GenericPluginModel`; `source` is optional and omitted from the block when absent; `config` is read by the Okta builders (provider arguments) and ignored by the storage and instance builders. An empty list on a storage or instance root falls back to the provider's own bare requirement (`_provider_name()` from `_provider_source()`: `aws` from `hashicorp/aws` on the AWS roots, `google` from `hashicorp/google` on the GCE roots, `docker` from `kreuzwerker/docker` on the container roots) with no version. |
 | `image_builders[].required_plugins[]` (`cfg/image-builders.yml`) | list of `PackerPluginConfig` | `[]` | `PackerBuilderBase.generate_items_before` | `require_plugin(ws, name, source, version)`; emitted into `packer { required_plugins {} }`, one file per block. |
 | `<builder>.state_configuration` (instance, storage, group, user builders) | str | `default` | `bind_workspace(ws, own, runtime's)` | First rung of the chain. A value outside `default`, `self`, empty, unset names a backend registration; the name must exist (`validate` refuses one that does not). `none` is refused by `validate` by name: it would read as unset. |
 | `runtime_builders[].state_configuration` (`cfg/runtime-builders.yml`) | str | `default` | `runtime_state_configuration()` | Second rung, for storage and instance roots only. |
@@ -733,6 +982,31 @@ The verdict of all of these is an exception out of the generating builder;
 the run logs it and exits 1, `run-summary.json` carries it as `error`, and
 nothing of that lifecycle is emitted.
 
+**At generation (the terraform roots).**
+
+- A subclass that answers no `_provider_name()`, `_provider_source()`,
+  `_provider_config()`, `_module_dirname()` or `_module_resource()` --
+  `NotImplementedError` naming the class (`<Class> must name its
+  provider`, `... must name its provider's source`, `... must configure
+  its provider`, `... must name its terraform module`, `... must name
+  its instance resource`) from the first generation that needs the
+  answer; an unanswered `_module_args`, `_launch_args`, `module_args` or
+  `_lookup` raises a bare `NotImplementedError` from the first module
+  call or state query. A builder entry whose `type:` names a provider's
+  shared storage base (`tf-aws`) reaches the module-dirname refusal; the
+  GCP one (`tf-gcp`) is refused by its model at load instead.
+- A storage whose allowed group has no identity builder, or whose
+  identity builder supplies no gid -- `ValueError` from `gid_reference`
+  naming the builder and the group.
+- An instance with no provider-specific image on the builder's runtime
+  -- a warning, and a module call without an image argument (the plan
+  fails later, in the module).
+
+**At plugin load (the registry).** `TofuVersionChecker` registered by
+several root plugins under one name is one registration; a *different*
+class registered under a name the registry already holds is
+`ValueError: Type Collision: <name>`, and the load stops.
+
 **At `validate` (the base library, using this package).** Every root's
 backend name resolves to a registration, every location is well-formed,
 no two collide, and a root whose location differs from the record while
@@ -755,7 +1029,9 @@ and the [system CLI](../system/src/cs_image_system/system/cli.py)).**
 | `state-migration finish` | the begin record exists | the move recorded in meta-state and the location record moved |
 | `apply -input=false tfplan` | tofu's own | the runner stops on failure; the after-apply hooks never run |
 
-**Not checked here.** The tool versions (base library); the
+**Not checked here.** The comparison of the tool's version with the
+entry's requirement (the base library's version-check machinery, fed by
+`TofuVersionChecker` here); the
 existence of the providers a `required_plugins` entry names (tofu's `init`
 finds out); the syntax of a `version` constraint beyond what `packaging`
 parses; the validity of a `sensitive_ref` key as an HCL attribute name;
@@ -793,6 +1069,9 @@ and what to do.
 | `Workspace '<ws>' references remote state of '<producer>' but no backend is registered for it` | a consumer references a producer that is bound to nothing and there is no default | bind the producer (`state_configuration`) or mark a default backend |
 | `Sensitive value '<key>' registered twice with different ciphertexts in workspace '<ws>'` | one key, two markers | the Okta workspace's `key`/`secret` registered from two models under one workspace name |
 | `Executable '<key>' not found for builder '<name>' of type '<type>'` (`ValueError`) | the builder's `executable` names no entry in `cfg/executables.yml` | add the entry or fix the name; `validate` also reports unresolved foreign keys |
+| `NotImplementedError: <Class> must name its provider` (or `... its provider's source`, `... must configure its provider`, `... must name its terraform module`, `... must name its instance resource`) at generation | a root subclass left a hook with no default unanswered, or a builder entry's `type:` names a provider's shared storage base (`tf-aws`) rather than a service | a plugin defect when the class is a provider's root: answer the hook; a configuration error when the class is a shared base: use the service type (`tf-aws-ebs`, `tf-aws-efs`, `tf-aws-s3`) |
+| `ValueError: Type Collision: <name>` at plugin load | two plugins register *different* classes under one service name (the same class from several plugins, as `TofuVersionChecker` is, is one registration) | the two plugins' `initialize()`; rename one service or share the class |
+| `Storage builder <B>: group '<g>' has no identity builder` / `... supplies no gid` (`ValueError`) at generation | a storage's allowed group is owned by no group builder, or by one that answers no gid expression | declare the group under a group builder that supplies gids, or remove it from `groups:` (`validate` usually reports the unknown group first) |
 | `Working directory for commands in phase <phase> cannot be None for builder <class>` (`AssertionError`) | a plugin called `terraform_commands` with no directory | a plugin defect |
 | `ValueError` from `packaging` naming an invalid specifier | a `version` constraint such as `>= 1.x` | the entry's `version`; use `>=`, `<`, `~>`, `=`, `!=` forms |
 | tofu: `Backend configuration changed` | a hand `tofu init` without `-reconfigure` in a root the system initialised, after a backend argument (`encrypt`, for example) changed; the state is remote, so nothing needs migrating | run the system's form (`init -reconfigure -backend-config=<file>`), never `-migrate-state` by hand (that flag is reserved for `--migrate-state`) |

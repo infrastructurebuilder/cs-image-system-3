@@ -4,7 +4,7 @@
 
 """GCP storage and instance builder models (GCP increment 3, PLAN.md).
 
-Same shape as the AWS tofu models: one terraform root per builder, a state
+The shape of every tofu root: one terraform root per builder, a state
 backend by reference (the S3 backend works for GCP roots too), and the
 runtime builder supplies project/zone/network.
 """
@@ -16,8 +16,7 @@ from pydantic.dataclasses import dataclass  # stage 23: validation at constructi
 
 from cs_image_system.contract.constants import VCT  # noqa: F401  (re-exported for symmetry
 
-from cs_image_system.tf_ebs_instance_plugin.tf_instance_models import TofuInstanceBuilderModel
-from cs_image_system.tf_ebs_instance_plugin.tf_storage_models import TofuStorageBuilderModel
+from cs_image_system.hashicorp_utils.tofu_models import TofuInstanceBuilderModelBase, TofuStorageBuilderModelBase
 
 TF_GCP: str = "tf-gcp"
 TF_GCP_PD = TF_GCP + "-pd"
@@ -27,7 +26,7 @@ TOFU_GCE: str = "tofu-gce"
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
-class TofuGcpStorageBuilderModel(TofuStorageBuilderModel):
+class TofuGcpStorageBuilderModel(TofuStorageBuilderModelBase):
     type = TF_GCP
 
     @classmethod
@@ -94,7 +93,7 @@ class TofuGcsStorageBuilderModel(TofuGcpStorageBuilderModel):
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
-class TofuGceInstanceBuilderModel(TofuInstanceBuilderModel):
+class TofuGceInstanceBuilderModel(TofuInstanceBuilderModelBase):
     type = TOFU_GCE
 
     @classmethod
