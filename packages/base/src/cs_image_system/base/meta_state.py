@@ -544,7 +544,7 @@ class MetaState:
         """What makes a location THE location (stage 46): the type's rendering of
         it, ``<type>://<container>/<key>`` (stage 47); region, profile and
         encryption are how it is reached, not where it is. A record from before
-        the `location` field is read through its S3 fields."""
+        the `location` field is read through its backend's fields."""
         location = record.get("location")
         if location:
             return str(location)

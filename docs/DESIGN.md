@@ -38,8 +38,8 @@ never-destroy / gated-apply discipline.
 
 ## 2. Rulings: the founding questions (Q1–Q7)
 
-The stakeholder rulings in §2–§2k are binding on §3. Their labels
-(Q1–Q7, N1–N26) are the names the code cites.
+The stakeholder rulings in §2–§2n are binding on §3. Their labels
+(Q1–Q7, N1–N29) are the names the code cites.
 
 - **Q1 — Storage types are declared base-image capability.** A storage
   type indicates *any* prerequisite changes an image needs. **A base
@@ -450,6 +450,89 @@ as the closed generations, in order. The history is therefore the
 machine's biography, not only its obituaries: read it top to bottom and
 every generation's closing and every resize is there with the run that
 did it.
+
+## 2m. Ruling: the package manager is the OS type's (N28)
+
+**N28.** Every shell line that installs, refreshes or asserts a package,
+or enables a service, on an image is the OS TYPE's: the registered OS
+builder model class that serves the image's family answers it through
+the contract's hooks on `OsBuilderModelProtocol` (`package_format`,
+`package_install_command`, `package_update_command`,
+`package_present_check`, `service_enable_command`,
+`ansible_python_install_command`). A plugin that bakes a prerequisite --
+an identity type's agent, a storage type's mount tooling, a runtime's
+session agent -- names the PACKAGES it needs and, where a vendor ships
+one artifact per package format, chooses by `package_format()`; it never
+writes a manager's command line of its own. The core resolves the type
+from the family (`os_types.os_type_for_family`) and never branches on a
+family name; no source of the contract, the core or the system package
+carries a package manager's name.
+
+*Why the type.* The family is the OS plugin's knowledge: it is the one
+place that knows a rebuild is its parent (an AlmaLinux image IS rhel for
+every purpose here) and the one place that knows which manager a family
+runs. Every caller that branched `if family in (debian, ubuntu)` and took
+the rest for an rpm family was right for the two families it had seen
+and wrong for every other, and the registered alpine type showed it: a
+bake for alpine would have run another family's manager. A type that
+cannot answer a hook fails by name at the first bake that asks, which is
+a better failure than a line for the wrong manager.
+
+*Why the lines stay exactly what they were.* The hooks reproduce, byte
+for byte, every line the bakes already carried, differences included: the
+rpm families' bake lines say `yum` (the compatibility name every
+supported release answers to) while their update policy says `dnf`; the
+deb families' lines carry `DPkg::Lock::Timeout`, a wait the other
+managers have no option for and ignore; the package assertion of the rpm
+and deb families is the same rpm-then-dpkg test the bakes always ran.
+Each of those is recorded as a difference, not unified: the ruling moves
+WHO writes the line, and a change to WHAT the line says is its own
+decision, made against a running bake, not inside a refactor.
+
+## 2n. Ruling: device and mount lines are the storage's (N29)
+
+**N29.** What a mounted storage contributes to an instance's launch is the
+storage builder's answer, not the core's: the storage-specific keys of the
+mount record (a block store's device name, in declaration order among the
+mounts of its type), the mount's whole block of the launch script -- from
+its header to the group's subtree, or the comment that an object store is
+not mounted -- the mount's ansible tasks, and the names of the template
+variables those lines read by reference (`launch_mount`,
+`launch_script_lines`, `launch_tasks`, `launch_variables` on
+`StorageBuilderProtocol`). The core computes the universal keys of the
+record, assembles the blocks in declaration order, and adds only what
+every instance shares: the hostname, the gid, the enrollment, the
+declared userdata, the completion marker. No storage kind is named in the
+core; the base class holds the shared pieces (the header, the mount mark,
+the subtree, the block-device sequence, an fstab entry, and their ansible
+counterparts) so that a plugin composes its block rather than copying it.
+
+*Why the storage.* A device name is a fact about one cloud's attachment
+model, and a mount line is a fact about one service's protocol; both were
+once written in the core beside a table of device names and a by-id
+fallback that only one cloud needed. Every such fact was a plugin's line
+in the wrong package: the plugin that attaches the disk is the one that
+knows what the machine will call it ([the disk was once attached under
+one name and mounted under
+another](INCIDENTS.md#the-gce-data-disk-was-attached-but-never-mounted)).
+Putting the answer where the knowledge is removes the branch per kind,
+and with it the need for the core to change when a kind is added.
+
+*Why whole blocks.* A hook that returned fragments for the core to arrange
+would still make the core decide which kinds get a subtree, which get a
+mark, which mount at all. The block is the storage's from the header down,
+and the one thing the core reads off it is the mount mark: a block that
+carries the mark is one the script mounts, and that is how the
+verification knows which declared mount points to look for.
+
+*Why the record stays as it was.* A launch parameter is immutable after
+launch (N26), so the hook that adds keys to the mount record answers
+exactly what the core answered before -- a device for a block store, a
+platform-mounted flag for a storage the platform mounts -- and nothing
+more; a new key would make every launched instance of that kind read as
+changed. The same holds for the lines: each block reproduces, byte for
+byte, what the core rendered, including what the playbook did NOT do for
+some kinds; a change to what a block says is its own decision.
 
 ## 3. The design
 

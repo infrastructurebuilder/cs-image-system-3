@@ -6,7 +6,7 @@
 an enrollment renders its own launch steps; the core names no agent.
 
 A group builder's ``launch_parameters(group)`` returns an ``enrollment``
-kind (OPA's is ``sftd-token``), and the kind travels in the instance's
+kind (a name the plugin chooses), and the kind travels in the instance's
 recorded launch parameters. Both launch renderers -- the cloud-init script
 (``launch_params.user_data_template``) and its ansible equivalent
 (``ansible_launch.launch_playbook``) -- look the kind up here and append

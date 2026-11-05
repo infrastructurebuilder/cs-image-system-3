@@ -5,8 +5,8 @@
 """Declarative OS update policy for base images (EXPLORE "More Targeted
 Updates?").
 
-``dnf -y update`` everything is heavy-handed and breaks things. A base
-image now declares WHAT to update:
+Updating everything a vendor image carries is heavy-handed and breaks
+things. A base image declares WHAT to update:
 
 .. code-block:: yaml
 

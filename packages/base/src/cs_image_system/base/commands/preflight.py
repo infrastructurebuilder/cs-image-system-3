@@ -37,15 +37,17 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, cast
 
+from cs_image_system.contract.constants import VCT
 from cs_image_system.contract.session import SessionStatus
 
 DEFAULT_EXPECTED_RUN_MINUTES = 30
 # the environment names the SYSTEM reads credentials and identities from; each
-# runtime adds its own through `credential_environment_prefixes()`. One that
-# is SET but EMPTY is not an absence: three green CI jobs ran nothing because
-# a secret had been set from a checkout missing the file it was read from --
-# the variable existed and its value was "".
-CORE_CREDENTIAL_ENV_PREFIXES: tuple[str, ...] = ("TF_VAR_", "CSIS_", "OKTA_")
+# runtime and each identity provider adds its own through its class's
+# `credential_environment_prefixes()`. One that is SET but EMPTY is not an
+# absence: three green CI jobs ran nothing because a secret had been set from
+# a checkout missing the file it was read from -- the variable existed and
+# its value was "".
+CORE_CREDENTIAL_ENV_PREFIXES: tuple[str, ...] = ("TF_VAR_", "CSIS_")
 # a session whose expiry cannot be read -- static keys in a profile or in the
 # environment -- is PRESENT but NOT JUDGED. Before, preflight closed green over
 # keys that had lapsed, and the next provider call refused them under a traceback.
@@ -117,9 +119,12 @@ def _registry():
 
 def credential_environment_prefixes() -> tuple[str, ...]:
     """The system's own credential prefixes plus every registered runtime's
-    (``credential_environment_prefixes()``), sorted."""
+    and every registered group builder's (each class's
+    ``credential_environment_prefixes()``), sorted."""
     prefixes = set(CORE_CREDENTIAL_ENV_PREFIXES)
-    for cls in _registry().runtime_builder_classes().values():
+    reg = _registry()
+    classes = list(reg.runtime_builder_classes().values()) + list(reg.vct_type_registry.get(VCT.GROUP_BUILDER, []))
+    for cls in classes:
         hook = cast(Callable[[], tuple[str, ...]] | None, getattr(cls, "credential_environment_prefixes", None))
         if callable(hook):
             prefixes.update(str(p) for p in hook())

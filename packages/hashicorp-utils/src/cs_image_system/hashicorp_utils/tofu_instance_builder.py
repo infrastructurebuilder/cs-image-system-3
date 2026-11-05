@@ -278,7 +278,7 @@ class TofuInstanceBuilderBase(InstanceBuilderBase[Q], TerraformRootMixin):
             # The launch script template lives beside the root; runtime values
             # are passed in by reference from the templatefile() call.
             tpath = rpath.parent / self._launch_template_name(label)
-            items.add(tpath, user_data_template(params))
+            items.add(tpath, user_data_template(params, ctx))
         return items
 
     def get_commands_to_run_after(self, phase: ExecutionLifecyclePhase) -> CFExecutables:

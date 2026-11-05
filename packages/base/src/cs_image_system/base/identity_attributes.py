@@ -20,7 +20,7 @@ path:
 4. **apply**: deliberately *disabled*. It prints exactly what it would
    change and refuses to write until DESIGN Q7 ("IaC-managed users may
    reappear") is confirmed by the stakeholder. Nothing here has ever
-   written to Okta or OPA.
+   written to any identity provider.
 """
 from __future__ import annotations
 

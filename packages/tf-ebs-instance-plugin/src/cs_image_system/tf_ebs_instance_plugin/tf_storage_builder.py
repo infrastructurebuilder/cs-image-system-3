@@ -16,6 +16,7 @@ from cs_image_system.base.basic.abstract_version_checker import AbstractVersionC
 from cs_image_system.base.basic.builder_base_storage import CARDINALITY_MANY, CARDINALITY_SINGLE
 from cs_image_system.base.models.executable import ExecutableModel
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.operating_system import PACKAGE_LOCK_TIMEOUT
 from cs_image_system.base.models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED, STORAGE_STATE_DESTROYED, Storage
 from cs_image_system.hashicorp_utils.tofu_storage_builder import (
     RecordedStorage,
@@ -30,11 +31,22 @@ from .tf_storage_models import (
 )
 
 __all__ = [
-    "RecordedStorage", "TofuEbsStorageBuilder", "TofuEfsStorageBuilder", "TofuS3StorageBuilder",
+    "EBS_DEVICES", "RecordedStorage", "TofuEbsStorageBuilder", "TofuEfsStorageBuilder", "TofuS3StorageBuilder",
     "TofuStorageBuilder", "TofuStorageVersionChecker", "storage_groups", "storage_public_read",
 ]
 
 Q = TypeVar("Q", bound=TofuStorageBuilderModel)
+
+#: Device names handed to EBS attachments in declaration order; the
+#: seventh volume onwards continues the alphabet (``/dev/xvdl``...).
+EBS_DEVICES = ["/dev/xvdf", "/dev/xvdg", "/dev/xvdh", "/dev/xvdi", "/dev/xvdj", "/dev/xvdk"]
+
+
+def ebs_device(index: int) -> str:
+    """The device name of an instance's ``index``-th EBS mount (0-based)."""
+    if index < len(EBS_DEVICES):
+        return EBS_DEVICES[index]
+    return f"/dev/xvd{chr(ord('l') + index - len(EBS_DEVICES))}"
 
 
 class TofuStorageBuilder(TofuStorageBuilderBase[Q]):
@@ -134,6 +146,39 @@ class TofuEbsStorageBuilder(TofuStorageBuilder[R]):
     def base_image_prerequisites(self, os_family: str | None = None) -> list[str]:
         # No tooling to bake (N4: still must be declared to be used).
         return [f"# storage type 'ebs' declared: no prerequisites to bake ({self.get_name()})"]
+
+    # ------------------------------------------------------- launch hooks
+    def launch_mount(self, storage: Storage, mapping: Any, index: int) -> dict[str, Any]:
+        """The device the volume is attached under: ``/dev/xvdf`` onwards in
+        declaration order; the instance root attaches with the same name."""
+        return {"device": ebs_device(index)}
+
+    def launch_script_lines(self, mount: dict[str, Any], group: str | None) -> list[str]:
+        """Wait for the device, format it when blank, mount it, make the
+        group's subtree. On Nitro instances (t3 and later) EBS volumes
+        surface as ``/dev/nvme*`` and RHEL-family vendor images create no
+        legacy symlinks (found live: user-data died at mkfs and everything
+        after never ran), so the block waits for the legacy name OR the
+        stable by-id name built from the volume id, which the root passes
+        by reference as ``ebs["<storage>"].volume_id``."""
+        name = mount["storage"]
+        return [
+            *self.mount_header_lines(mount),
+            f"DEV='{mount['device']}'",
+            f"VOL=\"${{ebs[\"{name}\"].volume_id}}\"",
+            "BYID=\"/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_$(printf '%s' \"$VOL\" | tr -d -)\"",
+            *self.block_device_lines(mount),
+            *self.group_subtree_lines(mount, group),
+        ]
+
+    def launch_tasks(self, mount: dict[str, Any], group: str | None) -> list[dict[str, Any]]:
+        tasks = [self.mount_directory_task(mount), *self.block_device_tasks(mount, str(mount["device"]))]
+        if group:
+            tasks.append(self.group_subtree_task(mount, group))
+        return tasks
+
+    def launch_variables(self) -> tuple[str, ...]:
+        return ("ebs",)
 
     def _lookup(self, storage: Storage) -> dict[str, Any] | None:
         ec2 = self._aws_client("ec2")
@@ -263,14 +308,45 @@ class TofuEfsStorageBuilder(TofuStorageBuilder[S]):
         return CARDINALITY_MANY
 
     def base_image_prerequisites(self, os_family: str | None = None) -> list[str]:
-        fam = (os_family or "").lower()
-        pkg = "sudo apt-get -o DPkg::Lock::Timeout=600 install -y nfs-common" if fam in ("debian", "ubuntu") \
-            else "sudo yum install -y amazon-efs-utils || sudo yum install -y nfs-utils"
+        # the packages that carry an NFS client per package format (the
+        # EFS helper exists only as an rpm, and only on Amazon's own
+        # distribution: the plain NFS client is the fallback); the lines are the OS type's
+        from cs_image_system.base.os_types import os_type_for_family
+        os_type = os_type_for_family(os_family)
+        packages = {"deb": ["nfs-common"], "rpm": ["amazon-efs-utils", "nfs-utils"], "apk": ["nfs-utils"]}
+        pkg = " || ".join(os_type.package_install_command([p], lock_timeout=PACKAGE_LOCK_TIMEOUT)
+                          for p in packages[os_type.package_format()])
         return [f"# storage type 'efs' prerequisites ({self.get_name()}): NFS/EFS mount tooling", pkg]
 
     def verify_commands(self, os_family: str | None = None) -> list[str]:
         return ["# verify: EFS/NFS mount tooling present",
                 "command -v mount.efs >/dev/null 2>&1 || command -v mount.nfs >/dev/null 2>&1 || command -v mount.nfs4 >/dev/null 2>&1"]
+
+    # ------------------------------------------------------- launch hooks
+    def launch_script_lines(self, mount: dict[str, Any], group: str | None) -> list[str]:
+        """Mount the filesystem through the group's access point (both ids by
+        reference as ``efs["<storage>"]``), TLS on. No subtree lines: the
+        access point creates the group's subtree itself (Q3)."""
+        name, mp = mount["storage"], mount["mount_point"]
+        return [
+            *self.mount_header_lines(mount),
+            f"EFS_ID=\"${{efs[\"{name}\"].file_system_id}}\"",
+            f"EFS_AP=\"${{efs[\"{name}\"].access_point_id}}\"",
+            *self.fstab_mount_lines(mount, f"$EFS_ID:/ {mp} efs _netdev,tls,accesspoint=$EFS_AP,nofail 0 0"),
+        ]
+
+    def launch_tasks(self, mount: dict[str, Any], group: str | None) -> list[dict[str, Any]]:
+        name, mp = mount["storage"], mount["mount_point"]
+        return [self.mount_directory_task(mount),
+                {"name": f"mount EFS {name} at {mp}",
+                 "ansible.posix.mount": {
+                     "path": mp, "fstype": "efs",
+                     "src": "{{ efs['" + name + "'].file_system_id }}:/",
+                     "opts": "_netdev,tls,accesspoint={{ efs['" + name + "'].access_point_id }},nofail",
+                     "state": "mounted"}}]
+
+    def launch_variables(self) -> tuple[str, ...]:
+        return ("efs",)
 
     def _lookup(self, storage: Storage) -> dict[str, Any] | None:
         efs = self._aws_client("efs")
@@ -397,9 +473,12 @@ class TofuS3StorageBuilder(TofuStorageBuilder[B]):
         return False
 
     def base_image_prerequisites(self, os_family: str | None = None) -> list[str]:
-        fam = (os_family or "").lower()
-        tooling = ("sudo apt-get -o DPkg::Lock::Timeout=600 install -y curl unzip" if fam in ("debian", "ubuntu")
-                   else "sudo yum install -y unzip")   # curl ships on RHEL; unzip does not (found live)
+        # what the CLI's installer needs per package format: curl ships on
+        # the rpm families, not on the deb or apk ones; unzip on none (found live)
+        from cs_image_system.base.os_types import os_type_for_family
+        os_type = os_type_for_family(os_family)
+        needed = {"deb": ["curl", "unzip"], "rpm": ["unzip"], "apk": ["curl", "unzip"]}
+        tooling = os_type.package_install_command(needed[os_type.package_format()], lock_timeout=PACKAGE_LOCK_TIMEOUT)
         return [f"# storage type 's3' prerequisites ({self.get_name()}): AWS CLI for object access",
                 f"command -v aws >/dev/null 2>&1 || {{ command -v unzip >/dev/null 2>&1 || {tooling}; "
                 "curl -fsSL https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o /tmp/awscliv2.zip && "
@@ -407,6 +486,18 @@ class TofuS3StorageBuilder(TofuStorageBuilder[B]):
 
     def verify_commands(self, os_family: str | None = None) -> list[str]:
         return ["# verify: AWS CLI present", "command -v aws >/dev/null 2>&1"]
+
+    # ------------------------------------------------------- launch hooks
+    def launch_script_lines(self, mount: dict[str, Any], group: str | None) -> list[str]:
+        """An object store is reached through the AWS CLI: the mount point
+        is made and a comment says there is no mount (and no mark)."""
+        return [*self.mount_header_lines(mount),
+                f"# s3 storage {mount['storage']}: object access via the cloud CLI; no mount"]
+
+    def launch_tasks(self, mount: dict[str, Any], group: str | None) -> list[dict[str, Any]]:
+        name = mount["storage"]
+        return [{"name": f"storage {name} (s3): object access via the cloud's CLI, no mount",
+                 "ansible.builtin.debug": {"msg": f"s3 storage {name} is not mounted"}}]
 
     def _lookup(self, storage: Storage) -> dict[str, Any] | None:
         s3 = self._aws_client("s3")

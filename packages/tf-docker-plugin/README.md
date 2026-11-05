@@ -117,7 +117,14 @@ One `module "instance_<label>"` call per instance against
   number of the configuration). On this runtime the script sets no hostname
   (the container was created with it) and, for a volume, formats and mounts
   nothing: the daemon mounted it, and the script makes the group's subtree
-  and sets its ownership and mode.
+  and sets its ownership and mode. That block is the volume builder's
+  answer to the storage launch hooks, through the base's platform-mounted
+  default: `launch_mount()` puts `platform_mounted: true` in the mount
+  record (because `platform_mounts()` is true), `launch_script_lines()` is
+  the header and `mkdir`, the mount mark (`csis-mount: <mount point>
+  mounted`, which `verify instance` reads back) and the subtree lines,
+  `launch_tasks()` is the directory task alone, and `launch_variables()`
+  is empty (nothing is read by reference at launch).
 
 The module declares `must_run = false`, `start = true`, `init = true`, the
 restart policy `unless-stopped`, and ignores later changes to `image`,

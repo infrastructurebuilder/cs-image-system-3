@@ -29,8 +29,8 @@ class UserBuilderModel(BuilderModel, UserBuilderModelProtocol):
     # One marker serves every user, so the emission is stable across a run.
     email_domain: str | None = None
     # When true, user.name must equal user.email (casefolded): the name doubles
-    # as the identity's login everywhere (e.g. OPA group attachment usernames
-    # match the Okta login by construction). Blank names are set from the email;
+    # as the identity's login everywhere (a directory's group attachment
+    # usernames match its login by construction). Blank names are set from the email;
     # a non-blank mismatch aborts the run.
     email_as_username: bool = True
 

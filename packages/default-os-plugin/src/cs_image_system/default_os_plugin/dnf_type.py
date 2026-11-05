@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from collections.abc import Sequence
+
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 
@@ -14,6 +16,8 @@ from cs_image_system.base.models.update_policy import (
     UpdatePolicy,
 )
 
+from .helpers import rpm_or_dpkg_present_check
+
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
 class DnfOsBuilderModel(OsBuilderModel):
@@ -23,6 +27,41 @@ class DnfOsBuilderModel(OsBuilderModel):
 
     def repo_setup_commands(self) -> list[str]:
         return []
+
+    # ------------------------------------------------ the package manager
+    # The bake lines say `yum`: the compatibility name every supported
+    # release (EL 8, 9, 10; fedora) answers to, and the one every bake
+    # carried before the type owned them. The update policy above says
+    # `dnf`; one name for both is a later decision.
+    @classmethod
+    def package_format(cls) -> str:
+        return "rpm"
+
+    @classmethod
+    def package_install_command(cls, packages: Sequence[str], *, lock_timeout: int | None = None) -> str:
+        # no lock option: dnf waits for the rpm database on its own
+        return f"sudo yum install -y {' '.join(packages)}"
+
+    @classmethod
+    def package_update_command(cls, *, lock_timeout: int | None = None) -> str:
+        return "sudo yum -y makecache"
+
+    @classmethod
+    def package_present_check(cls, package: str) -> str:
+        return rpm_or_dpkg_present_check(package)
+
+    @classmethod
+    def service_enable_command(cls, service: str) -> str:
+        return f"sudo systemctl enable {service}"
+
+    @classmethod
+    def ansible_python_install_command(cls) -> str:
+        # ansible needs a python its controller supports and EL8-era images
+        # ship 3.6: install the newest python3.x the release offers, else
+        # whatever python3 is (yum where an image has no dnf)
+        return ("for v in 3.12 3.11 3.9; do command -v python$v >/dev/null 2>&1 && exit 0; "
+                "dnf -y install python$v >/dev/null 2>&1 && exit 0; done; "
+                "command -v python3 >/dev/null 2>&1 || dnf -y install python3 || yum -y install python3")
 
     def commands_for_policy(self, policy: UpdatePolicy) -> list[str]:
         if policy.policy == POLICY_NONE and not policy.pin:

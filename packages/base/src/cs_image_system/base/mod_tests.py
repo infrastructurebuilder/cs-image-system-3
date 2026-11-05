@@ -52,14 +52,10 @@ MOD_TESTS_FILE = "mod-tests.yaml"
 # ``local_test_image``); this module keeps no table of its own.
 
 # Ansible modules need a Python the controller's ansible-core supports; bare
-# OS containers have none, and RHEL-8-era images ship 3.6. Install the newest
-# python3.x the family offers, then point ansible at it.
-ANSIBLE_PREP = (
-    "for v in 3.12 3.11 3.9; do command -v python$v >/dev/null 2>&1 && exit 0; "
-    "(command -v dnf >/dev/null 2>&1 && dnf -y install python$v >/dev/null 2>&1) && exit 0; done; "
-    "command -v python3 >/dev/null 2>&1 || (command -v dnf >/dev/null 2>&1 && dnf -y install python3) || "
-    "(command -v yum >/dev/null 2>&1 && yum -y install python3) || "
-    "(apt-get update && apt-get install -y python3)")
+# OS containers have none, and some older images ship one too old. The OS
+# type that serves the image's family installs the newest python3.x it
+# offers (``ansible_python_install_command``, the type's own package
+# manager); the interpreter lookup below is generic and points ansible at it.
 ANSIBLE_INTERPRETER = "ls /usr/bin/python3.[0-9]* 2>/dev/null | grep -v config | sort -V | tail -1 || echo /usr/bin/python3"
 
 # A sudo shim for containers running as root without sudo installed. It
@@ -167,6 +163,17 @@ def test_image_for(ctx: "GlobalTypeContext", image: Any) -> str | None:
     return container_reference(block) if block is not None else None
 
 
+def ansible_prep_command(ctx: "GlobalTypeContext", image: Any) -> str:
+    """The line that readies the instance image's stand-in for ansible:
+    the OS type's (resolved from the image's root OS family)."""
+    from .capabilities import image_chain
+    from .os_types import os_type_for_family
+    _, root = image_chain(ctx, image)
+    osb = ctx.os_builders.get(root) if root else None
+    family = osb.get_family() if osb is not None else None
+    return os_type_for_family(family).ansible_python_install_command()
+
+
 def _inline_lines(mod: Any) -> list[str]:
     """ensure-generated guarded lines (bash items) + free-form script lines."""
     out: list[str] = []
@@ -242,7 +249,7 @@ def test_mod(ctx: "GlobalTypeContext", image: Any, mod: Any, record: dict[str, A
     try:
         target.exec(SUDO_SHIM)
         if getattr(mod, "playbooks", None):
-            rc0, out0 = target.exec(ANSIBLE_PREP)
+            rc0, out0 = target.exec(ansible_prep_command(ctx, image))
             if rc0 != 0:
                 result.status = "fail"
                 result.detail = "target preparation for ansible failed: " + out0[-1500:]

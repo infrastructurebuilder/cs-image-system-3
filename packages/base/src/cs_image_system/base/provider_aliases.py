@@ -4,13 +4,16 @@
 
 """An instance answers to its provider's names too (stage 58).
 
-The instance id already resolves natively -- OPA ranks Cloud Instance ID
-above AltNames, and sftd reads it from IMDS at enrollment -- and so does the
-address. The one name that does NOT resolve is the provider's own hostname
-(``ip-10-26-34-156`` out of ``ip-10-26-34-156.us-east-2.compute.internal``),
-because the launch script overwrites it with the declared name before sftd
-ever enrolls. This module gives that name back, as an ``AltNames`` entry in
-``/etc/sft/sftd.yaml``, after launch.
+The instance id and the address already resolve natively in the identity
+provider's registry (the agent reads the id from the instance metadata
+service at enrollment). The one name that does NOT resolve is the
+provider's own hostname (``ip-10-26-34-156`` out of
+``ip-10-26-34-156.us-east-2.compute.internal``), because the launch script
+overwrites it with the declared name before the agent ever enrolls. This
+module gives that name back, after launch, as an alias in the machine's
+registration -- through the group builder's ``alias_registration_script``,
+which renders the script that writes its agent's alias block; the core
+decides which names, when, and on which machine.
 
 After launch, and from the control side, because the rule is "skip the
 alias on any collision" and a booted machine holds an enrollment token and
@@ -22,12 +25,12 @@ runtime's session command.
 
 Three rules, in order of how much they matter:
 
-* **A collision is skipped, and said.** OPA ranks a record's Hostname above
-  another record's AltNames, so a colliding alias resolves to a DEAD machine
-  or errors as ambiguous -- it breaks resolution for both. Any match against
-  a registered hostname, canonical name or alt name, or a name the
-  configuration declares, skips the alias; the skip is logged with the
-  record that claims the name.
+* **A collision is skipped, and said.** A registry ranks a record's own
+  hostname above another record's aliases, so a colliding alias resolves
+  to a DEAD machine or errors as ambiguous -- it breaks resolution for
+  both. Any match against a registered hostname, canonical name or alias,
+  or a name the configuration declares, skips the alias; the skip is
+  logged with the record that claims the name.
 * **A machine that is off is left off.** The write needs the machine
   running, and an alias is not work worth starting one for (stage 57). It
   is picked up by the next run that finds the machine on.
@@ -40,11 +43,12 @@ machine booted with, and these are discovered afterwards. Reality is the
 record -- the registry entry carries ``alt_names`` -- and the state query
 reports from it.
 """
-
 from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, Any
+
+from cs_image_system.contract.group import ALIASES_CHANGED
 
 from . import power_state
 from .capabilities import group_builder_of
@@ -56,8 +60,6 @@ if TYPE_CHECKING:
     from .state_query import StateReport
 
 log = logging.getLogger(__name__)
-
-SFTD_YAML = "/etc/sft/sftd.yaml"
 
 
 # ------------------------------------------------------------ pure rules
@@ -106,42 +108,10 @@ def claimed_names(servers: list[dict[str, Any]], declared: set[str]) -> dict[str
 
 
 def own_record(servers: list[dict[str, Any]], instance_id: str) -> dict[str, Any] | None:
-    """This launch's own registry entry, found by the provider id sftd read
-    from IMDS -- which is how a launch tells its record from a stale one
-    bearing the same hostname."""
+    """This launch's own registry entry, found by the provider id the agent
+    read from the instance metadata at enrollment -- which is how a launch
+    tells its record from a stale one bearing the same hostname."""
     return next((s for s in servers if instance_id and s.get("instance_id") == instance_id), None)
-
-
-def alt_names_script(names: list[str]) -> str:
-    """Rewrite the ``AltNames`` block of sftd.yaml -- kept LAST in the file,
-    so it can be replaced from its heading to the end -- and restart sftd
-    only when the block actually changed. Idempotent: the same names twice
-    print ``ALTNAMES_UNCHANGED`` and touch nothing. Every name was validated
-    as a hostname label (letters, digits, hyphens), so nothing is quoted.
-
-    The bake truncates this file (``Labels:``) and the launch appends
-    ``AccessAddress`` only when absent; this joins the second pattern and
-    never truncates."""
-    for n in names:
-        if hostname_problems(n):
-            raise ValueError(f"refusing to write {n!r} as an alias: not a hostname label")
-    if names:
-        want = "AltNames:\\n" + "".join(f"  - {n}\\n" for n in names)
-        want_line = f"want=\"$(printf '{want}')\""
-    else:
-        want_line = 'want=""'
-    return "\n".join([
-        "set -eu",
-        f"f={SFTD_YAML}",
-        "sudo mkdir -p /etc/sft && sudo touch \"$f\"",
-        want_line,
-        "cur=\"$(sudo sed -n '/^AltNames:/,$p' \"$f\")\"",
-        "if [ \"$cur\" = \"${want%$'\\n'}\" ]; then echo ALTNAMES_UNCHANGED; exit 0; fi",
-        "sudo sed -i '/^AltNames:/,$d' \"$f\"",
-        "[ -n \"$want\" ] && printf '%s' \"$want\" | sudo tee -a \"$f\" >/dev/null",
-        "sudo systemctl restart sftd",
-        "echo ALTNAMES_CHANGED",
-    ])
 
 
 # -------------------------------------------------------- the reconciler
@@ -151,7 +121,7 @@ def _group_of(ctx: "GlobalTypeContext", instance: Any) -> str:
 
 
 REACHABLE_WAIT_SECONDS = 300      # a fresh machine: sshd and the session agent after `running`
-REGISTRATION_WAIT_SECONDS = 300   # then sftd's enrollment, which the launch script performs
+REGISTRATION_WAIT_SECONDS = 300   # then the identity agent's enrollment, which the launch script performs
 REGISTRATION_POLL_SECONDS = 15
 
 
@@ -207,10 +177,10 @@ def register_provider_aliases(ctx: "GlobalTypeContext", lifecycle: Lifecycle) ->
             continue
         if str((recorded.get(name) or {}).get("launched_run") or "") == str(ctx.run_id):
             # the machine booted THIS run: the apply returns on `running`, and
-            # the session agent, then sftd's enrollment, come up a minute or
-            # more later. Writing the alias block before that races the launch
-            # script for sftd's configuration -- the first live replacement
-            # (2026-09-22) wrote nothing. So: wait until the machine answers,
+            # the session agent, then the identity agent's enrollment, come up
+            # a minute or more later. Writing the alias block before that races
+            # the launch script for the agent's configuration -- the first live
+            # replacement wrote nothing. So: wait until the machine answers,
             # then until its registration exists, bounded; give up loudly.
             if not power_state.wait_until_reachable(rtb, name, timeout=REACHABLE_WAIT_SECONDS):
                 log.warning(f"Instance {name}: not reachable within {REACHABLE_WAIT_SECONDS}s of its launch; "
@@ -237,20 +207,30 @@ def register_provider_aliases(ctx: "GlobalTypeContext", lifecycle: Lifecycle) ->
                 final.append(alias)   # already there; keep it
             elif alias in claims:
                 log.warning(f"Instance {name}: alias {alias!r} SKIPPED -- already claimed by "
-                            f"{claims[alias]} (OPA would resolve it to that record, or refuse as ambiguous)")
+                            f"{claims[alias]} (the registry would resolve it to that record, or refuse as ambiguous)")
             else:
                 final.append(alias)
         if own and sorted(own.get("alt_names") or []) == sorted(final):
             continue   # reality already agrees; no session command
         try:
-            rc, out = rtb.run_session_command(name, alt_names_script(final), timeout=120)
+            # the script is the identity plugin's: it knows its agent's
+            # configuration file and how the agent is told about a new name
+            script = gb.alias_registration_script(final)
+        except ValueError as e:
+            log.error(f"Instance {name}: could not render its aliases {final}: {e}")
+            continue
+        if not script:
+            log.info(f"Instance {name}: group {group!r}'s builder writes no aliases; {final} not written")
+            continue
+        try:
+            rc, out = rtb.run_session_command(name, script, timeout=120)
         except Exception as e:  # noqa: BLE001 - reported, never fatal to the run
             log.error(f"Instance {name}: could not write its aliases {final}: {e}")
             continue
         if rc != 0:
             log.error(f"Instance {name}: alias write failed ({rc}): {out.strip()[-300:]}")
-        elif "ALTNAMES_CHANGED" in out:
-            log.info(f"Instance {name}: now also answers to {final} (sftd restarted)")
+        elif ALIASES_CHANGED in out:
+            log.info(f"Instance {name}: now also answers to {final} (the identity agent restarted)")
         else:
             log.info(f"Instance {name}: aliases {final} already in place")
 
@@ -297,9 +277,9 @@ def instance_identity_notes(ctx: "GlobalTypeContext", report: "StateReport") -> 
                 # kept the hyperscaler's name and enrolled under it.
                 booted_as = entry.get("booted_as") or ""
                 if booted_as and entry["registered_as"] != booted_as:
-                    report.notes.append(f"instances/{name}: registered in OPA as {entry['registered_as']!r} "
+                    report.notes.append(f"instances/{name}: registered as {entry['registered_as']!r} "
                                         f"but its generation booted as {booted_as!r} -- the hostname did not "
-                                        "take at boot; sft ssh by the declared name will not find it")
+                                        "take at boot; a login by the declared name will not find it")
                 state = rtb.query_instance_power_state(name) if rtb.can_query_instance_power_state() else None
                 # the names this MACHINE should answer to are judged against the
                 # name it registered under, not the name a pending replacement

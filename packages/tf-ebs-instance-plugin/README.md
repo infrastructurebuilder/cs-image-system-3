@@ -385,17 +385,26 @@ derives, from validated configuration only: the image, the pinned build (or
 `unbound`), the owning group (the image's), the identity type, the mounts
 (storage, capability type, builder, mount point, group, share mode,
 public_read, and for EBS the device `/dev/xvdf`, `/dev/xvdg`, ... in
-declaration order), the enrollment trigger from the group builder, the
+declaration order -- the EBS storage builder's `launch_mount()` answer,
+from its `EBS_DEVICES` table; `/dev/xvdl` onwards after the sixth), the
+enrollment trigger from the group builder, the
 runtime's session mechanism, the canonical hostname (`<name>-NNN`, the
 declared name plus the generation the machine will be), the pool alias when
 one is drawn, `ephemeral`, and any `userdata`.
 `user_data_template()` renders them as a bash script: set the hostname,
-create each mount point, wait for the device (EBS falls back to the
-`/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_<id>` name), `mkfs -t xfs`
-when blank, add an `fstab` line, mount, create and `chgrp`/`chmod` the
-group's subtree, write the enrollment token when one is supplied, then the
-instance's own `userdata` lines, then the completion marker
-`/var/lib/csis/launch-applied`. The parameters are recorded in
+then one block per mount, which is the storage builder's own
+(`launch_script_lines()`; the core adds nothing to it), then the
+enrollment token when one is supplied, then the instance's own `userdata`
+lines, then the completion marker `/var/lib/csis/launch-applied`. What
+the three storage builders here answer for a mount:
+
+| | EBS (`launch_variables() == ("ebs",)`) | EFS (`("efs",)`) | S3 (none) |
+|---|---|---|---|
+| Mount record | `device` from the table above | -- | -- |
+| Script block | header and `mkdir`; `DEV='<device>'`; the volume id by reference (`${ebs["<storage>"].volume_id}`) and the by-id name built from it (`/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_<id without hyphens>`), because on Nitro instances the legacy name never appears; wait for either name, `mkfs -t xfs` when blank, the `fstab` line, mount, the mount mark; the group's subtree made, `chgrp`'d to `$GID` and `chmod`'d to the share mode | header and `mkdir`; the filesystem and access-point ids by reference (`${efs["<storage>"]...}`); the `efs` `fstab` line with `tls,accesspoint=`, `mount` (allowed to fail), the mount mark; no subtree lines, the access point makes the group's subtree | header and `mkdir`; a comment that the bucket is reached through the AWS CLI and not mounted (no mark, so `verify instance` does not look for it) |
+| Playbook tasks | the directory, `community.general.filesystem` (xfs), `ansible.posix.mount`, the subtree with `group: "{{ group_gid }}"` | the directory, `ansible.posix.mount` with `fstype: efs` and the ids as `{{ efs['<storage>']... }}` | one `ansible.builtin.debug` task saying the bucket is not mounted |
+
+The parameters are recorded in
 `meta-state/launch-params.yaml` and are **immutable after launch**: a change
 is refused by a validator unless it is a mount removal (a detach) or the
 instance is being replaced.

@@ -2007,6 +2007,16 @@ Model: `User`
 ([`user.py`](../packages/base/src/cs_image_system/base/models/user.py)).
 Key `users:` (any file under `groups/`).
 
+The core's `User` carries what every identity reads: the name, the
+personal names, the email, the keys, the posix `uid`, the management
+mode. An identity plugin may inject a subclass with more fields as the
+default item model, and the loader then structures every `users:` item
+into it: with the okta-opa plugin installed the model is its `OktaUser`
+([`okta_user.py`](../packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/okta_user.py)),
+which adds the Okta profile fields in the last row below. A tree that
+writes one of those fields loads only with that plugin installed; without
+it the key is unknown and the load refuses the file, naming the key.
+
 | Field | Type | Default | Meaning and allowed values |
 | --- | --- | --- | --- |
 | `name` | str | required | the username: the bare OPA username that group `members`/`admins` list and attachments use. **Committed in clear** by decision: the identity roots' HCL, `meta-state/identity.yaml` and `meta-state/login-proofs.yaml` carry it in clear whatever the roster does, so a marker on it (still accepted, still decrypted) hides nothing; what the markers protect is the e-mail domain and the personal names |
@@ -2021,7 +2031,7 @@ Key `users:` (any file under `groups/`).
 | `attributes` | mapping or null | null | OPA accepts `unix_uid` (int), `unix_gid` (int), `unix_user_name` (str), `windows_user_name` (str) |
 | `is_service_account` | bool | `false` | accepted; not emitted |
 | `public_keys` | list[str] | `[]` | accepted; not emitted |
-| `mobile_phone`, `honorific_prefix`, `honorific_suffix`, `title`, `display_name`, `nick_name`, `profile_url`, `second_email`, `primary_phone`, `street_address`, `city`, `state`, `zip_code`, `country_code`, `postal_address`, `preferred_language`, `locale`, `timezone`, `user_type`, `employee_number`, `cost_center`, `organization`, `division`, `department`, `manager_id`, `manager` | str or null | null | `okta_user` profile arguments, emitted when set |
+| `mobile_phone`, `honorific_prefix`, `honorific_suffix`, `title`, `display_name`, `nick_name`, `profile_url`, `second_email`, `primary_phone`, `street_address`, `city`, `state`, `zip_code`, `country_code`, `postal_address`, `preferred_language`, `locale`, `timezone`, `user_type`, `employee_number`, `cost_center`, `organization`, `division`, `department`, `manager_id`, `manager` | str or null | null | **okta-opa's fields** (`OktaUser`, not the core's `User`): the `okta_user` profile arguments, emitted when set; a tree that writes one loads only with the okta-opa plugin installed |
 | `tags`, `config` | | | accepted |
 | `aliases` | | | **refused** |
 

@@ -22,11 +22,12 @@ lineage):
         files: [{path: /etc/derivative.conf, contains: "version=1.0.0", mode: "0644"}]
         packages: [git]
         commands: [{run: "dask --version", expect_rc: 0, contains: "dask"}]
-        services_enabled: [sftd]
+        services_enabled: [chronyd]
         users: [csisadmin]
 
-Assertions are plain POSIX shell (``test``, ``grep``, ``rpm -q || dpkg -s``),
-so they run inside packer's shell provisioner on any Linux family. The
+Assertions are plain POSIX shell (``test``, ``grep``; the package test is
+the OS type's own, through its ``package_present_check`` hook), so they run
+inside packer's shell provisioner on any Linux family. The
 lineage record notes how many assertions the build passed.
 """
 from __future__ import annotations
@@ -91,30 +92,31 @@ def post_bake_spec(image: Any) -> dict[str, Any]:
     return dict(post) if isinstance(post, dict) else {}
 
 
-def post_bake_assertions(spec: dict[str, Any]) -> list[tuple[str, str]]:
+def post_bake_assertions(spec: dict[str, Any], *, os_type: type | None = None) -> list[tuple[str, str]]:
     """``[(label, shell assertion)]`` for a post-bake map: the in-bake
     vocabulary plus ``mounts`` (each mount point must be a mounted
-    filesystem, `findmnt`)."""
+    filesystem, `findmnt`). ``os_type`` is the image's OS type, which a
+    ``packages`` assertion needs (``declared_test_commands``)."""
     out: list[tuple[str, str]] = []
     base = {k: v for k, v in (spec or {}).items() if k != "mounts"}
-    for cmd in declared_test_commands(base):
+    for cmd in declared_test_commands(base, os_type=os_type):
         out.append((cmd, cmd))
     for mp in (spec or {}).get("mounts", []) or []:
         out.append((f"mount {mp}", f"findmnt -n {shlex.quote(str(mp))} >/dev/null 2>&1"))
     return out
 
 
-def post_bake_script(spec: dict[str, Any]) -> str:
+def post_bake_script(spec: dict[str, Any], *, os_type: type | None = None) -> str:
     """One session script running every assertion and printing one
     ``CSIS_TEST <n> <PASS|FAIL>`` line each (never aborts on a failure,
     so every outcome is reported)."""
     lines = ["set +e"]
-    for i, (_, cmd) in enumerate(post_bake_assertions(spec)):
+    for i, (_, cmd) in enumerate(post_bake_assertions(spec, os_type=os_type)):
         lines.append(f"if ( {cmd} ); then echo \"CSIS_TEST {i} PASS\"; else echo \"CSIS_TEST {i} FAIL\"; fi")
     return "\n".join(lines) + "\n"
 
 
-def parse_post_bake_output(spec: dict[str, Any], output: str) -> list[dict[str, Any]]:
+def parse_post_bake_output(spec: dict[str, Any], output: str, *, os_type: type | None = None) -> list[dict[str, Any]]:
     """Per-assertion outcomes from the script's output; an assertion with no
     line reported is a failure (the session died before it ran)."""
     seen: dict[int, bool] = {}
@@ -124,14 +126,18 @@ def parse_post_bake_output(spec: dict[str, Any], output: str) -> list[dict[str, 
             seen[int(parts[1])] = parts[2] == "PASS"
     return [{"name": label, "ok": seen.get(i, False),
              "detail": "pass" if seen.get(i) else ("FAIL" if i in seen else "no result (session ended early)")}
-            for i, (label, _) in enumerate(post_bake_assertions(spec))]
+            for i, (label, _) in enumerate(post_bake_assertions(spec, os_type=os_type))]
 
 
-def declared_test_commands(spec: dict[str, Any], *, services: bool = True) -> list[str]:
+def declared_test_commands(spec: dict[str, Any], *, services: bool = True,
+                           os_type: type | None = None) -> list[str]:
     """Shell assertions for a ``tests:`` map. ``services=False`` (stage 103:
     a bake on a container runtime, which has no init system) answers each
     ``services_enabled`` entry with a comment that the check does not apply
-    there, instead of a ``systemctl`` that cannot run.
+    there, instead of a ``systemctl`` that cannot run. ``os_type`` is the
+    image's OS type (``os_types.os_type_for_family``): a ``packages`` entry
+    is asserted with its ``package_present_check``, the type's own package
+    manager, and refused without one.
 
     Every line must ABORT the script it is spliced into, not merely exit
     nonzero: these run as packer `inline` lines under `set -e`, and errexit
@@ -146,17 +152,20 @@ def declared_test_commands(spec: dict[str, Any], *, services: bool = True) -> li
             out.append(f"test \"$(stat -c %a {path})\" = {shlex.quote(str(f['mode']).lstrip('0') or '0')}")
         if f.get("contains"):
             out.append(f"grep -q -- {shlex.quote(str(f['contains']))} {path}")
-    for p in spec.get("packages", []) or []:
-        q = shlex.quote(str(p))
+    packages = list(spec.get("packages", []) or [])
+    if packages and os_type is None:
+        raise ValueError(f"a packages test ({', '.join(map(str, packages))}) needs the image's OS type: "
+                         "its package manager answers whether a package is installed")
+    for p in packages:
         # An `a || { b && c; }` cannot fail a bake, however false it is: POSIX
         # suppresses errexit for a command in an AND-OR list, so `set -e` never
         # fires and packer's shell provisioner carries on to the next line.
-        # Stage 19's first image baked green twice while asserting `rpm -q vim`
-        # on a system that has no package by that name. The test must therefore
-        # exit for itself -- and while it is doing that, say which package.
-        out.append(f"if ! rpm -q {q} >/dev/null 2>&1 && "
-                   f"! {{ command -v dpkg >/dev/null 2>&1 && dpkg -s {q} >/dev/null 2>&1; }}; "
-                   f"then printf 'package %s is not installed\\n' {q} >&2; exit 1; fi")
+        # Stage 19's first image baked green twice while asserting a package
+        # on a system that has no package by that name. The type's test must
+        # therefore exit for itself -- and while it is doing that, say which
+        # package (tests/test_v2_in_bake_tests_enforce.py holds it to both).
+        assert os_type is not None
+        out.append(os_type.package_present_check(shlex.quote(str(p))))
     for c in spec.get("commands", []) or []:
         run = str(c["run"]); rc = int(c.get("expect_rc", 0))
         if c.get("contains"):
@@ -211,6 +220,11 @@ def _has_init_system(ctx: "GlobalTypeContext", runtime_name: str | None) -> bool
     return not isinstance(getattr(rtb, "model", None), ContainerBuilderModel)
 
 
+def _os_type_of(ctx: "GlobalTypeContext", osb: Any) -> type | None:
+    from .os_types import os_type_for_family
+    return os_type_for_family(osb.get_family()) if osb is not None else None
+
+
 def base_image_verify_commands(ctx: "GlobalTypeContext", base: Any, runtime_name: str) -> list[str]:
     osb = ctx.os_builders.get(base.get_name())
     family = osb.get_family() if osb is not None else None
@@ -239,8 +253,16 @@ def base_image_verify_commands(ctx: "GlobalTypeContext", base: Any, runtime_name
                     and str(ib.model.get_runtime_provider()) == str(runtime_name)):
                 declared = sub.tests
                 break
-    cmds += declared_test_commands(declared, services=_has_init_system(ctx, runtime_name))
+    cmds += declared_test_commands(declared, services=_has_init_system(ctx, runtime_name), os_type=_os_type_of(ctx, osb))
     return cmds
+
+
+def root_os_type(ctx: "GlobalTypeContext", image: Any) -> type | None:
+    """The OS type of the instance image's root base image (None when the
+    chain reaches no OS builder)."""
+    from .capabilities import image_chain
+    _, root = image_chain(ctx, image)
+    return _os_type_of(ctx, ctx.os_builders.get(root) if root else None)
 
 
 def instance_image_verify_commands(ctx: "GlobalTypeContext", image: Any, runtime_name: str | None = None) -> list[str]:
@@ -251,7 +273,8 @@ def instance_image_verify_commands(ctx: "GlobalTypeContext", image: Any, runtime
         g = next((x for x in gb.get_groups_for_builder() if x.get_name() == group), None)
         if g is not None:
             cmds += gb.activation_verify_commands(image, g)
-    cmds += declared_test_commands(getattr(image, "tests", None) or {}, services=_has_init_system(ctx, runtime_name))
+    cmds += declared_test_commands(getattr(image, "tests", None) or {}, services=_has_init_system(ctx, runtime_name),
+                                   os_type=root_os_type(ctx, image))
     return cmds
 
 

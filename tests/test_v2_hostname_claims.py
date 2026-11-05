@@ -124,7 +124,7 @@ def test_a_launched_instance_with_one_registration_is_fine_and_with_two_is_not(w
     _opa(monkeypatch, [{"id": "10ff7662", "hostname": "test", "address": "10.26.34.156"},
                        {"id": "772d4058", "hostname": "test", "address": "10.26.35.236"}])
     errs = lp.validate_claimed_hostnames(world.ctx, _launchable(world.ctx))
-    assert len(errs) == 1 and "2 servers" in errs[0] and "sft ssh cannot choose" in errs[0]
+    assert len(errs) == 1 and "2 servers" in errs[0] and "a login by name cannot choose" in errs[0]
 
 
 def test_silence_is_a_refusal_not_a_free_name(world, monkeypatch):

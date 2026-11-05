@@ -806,7 +806,13 @@ everywhere else.
 
 **The proof itself** is `cs-image-system verify login [<instance>...]
 [--runtime <rt>]` (`just ci-login-proof`, and the `sft` leg of
-`cloud-verify`). For each standing instance -- launched, not ephemeral --
+`cloud-verify`). Both `verify login` and the `workload` commands are the
+okta-opa plugin's: it mounts them on the command line through the command
+entry-point group ([PLUGINS.md](PLUGINS.md#what-a-plugin-adds-to-the-command-line)),
+so they exist when that plugin is installed and are absent from a tree
+without it; the driver behind `verify login` (which instances are
+targets, the skips, the record) is the core's, and every identity
+plugin's checks run through it. For each standing instance -- launched, not ephemeral --
 of a group whose builder names the workload objects it checks, in order:
 the machine is RUNNING (a stopped one is skipped and never started,
 because the power state is the operator's); exactly one server answers
@@ -1420,7 +1426,7 @@ changed).
 | `run` | 1 | any failure (validation, generation, apply, hard drift, an expired session before the load); a configuration that fails to LOAD exits 1 too, as `Error reading config file : <e>` followed by the traceback |
 | `run` | 2 | no or unknown lifecycle; unknown `--apply-runtime`/`--only-runtime`; an `--only` name that `--only-runtime` cannot honour (not baked on that runtime, written `@` another, or `none` beside names) |
 | `validate` | 1 | any rule fails; generates nothing |
-| `preflight` | 2 | a session absent or expired (the configuration could not load), no runtimes, or a credential-shaped environment variable (`TF_VAR_*`, `CSIS_*`, `OKTA_*`, plus every prefix the installed runtimes declare: `AWS_*`, `GOOGLE_*`, `CLOUDSDK_*`, `DOCKER_*`) that is set but EMPTY -- reported by name, never by value |
+| `preflight` | 2 | a session absent or expired (the configuration could not load), no runtimes, or a credential-shaped environment variable (`TF_VAR_*`, `CSIS_*`, plus every prefix the installed runtimes and identity plugins declare: `AWS_*`, `GOOGLE_*`, `CLOUDSDK_*`, `DOCKER_*`, `OKTA_*`) that is set but EMPTY -- reported by name, never by value |
 | `preflight --strict` | 1 | a session expires within `config.preflight.expected_run_minutes` (default 30) |
 | `state query` | 1 | hard drift |
 | `state query --strict` | 1 | hard drift; any drift class but `stale`; `unavailable` (a provider that could not answer); a session expiring within the window |
@@ -1428,10 +1434,10 @@ changed).
 | `apply-check` | 3 | the flag is off now, no `cfg/_config.yml` found, or an overlay is gone |
 | `public-safe` | 1 | a finding; 2 when `--staged` is used outside a git repository |
 | `mask`, `materialize` | 1 | the identity cannot open a marker, a file does not parse or a marker is malformed; `mask` ends with exit 1 naming the file for every per-file failure, a missing identity included, so a masking pass never passes silently |
-| `verify login` | 1 | the login proof failed (registration count, resolve, login); 2 with no standing instance |
+| `verify login` (the okta-opa plugin's command) | 1 | the login proof failed (registration count, resolve, login); 2 with no standing instance |
 | `forget instance` | 2 | the instance is still declared |
-| `workload describe --env` | 2 | the builder names no workload connection or role |
-| `workload token` | 1 | the connection issued nothing; 2 outside an Actions job, or with a connection or role name it cannot find |
+| `workload describe --env` (the okta-opa plugin's command) | 2 | the builder names no workload connection or role |
+| `workload token` (the okta-opa plugin's command) | 1 | the connection issued nothing; 2 outside an Actions job, or with a connection or role name it cannot find |
 | `state-migration`, `prune-attachments` | 1 | the step failed (a pull, a list or a removal); the runner stops; 2 on a wrong action, a step without its inputs, or an unknown builder |
 | `run --migrate-state` under a dry run | 2 | a move needs `--no-dry-run` |
 | `--locked` (global) | 75 | another command holds the tofu lock (`.tofu-plugin-cache/.lock`); the holder's pid is named; 2 without `TF_PLUGIN_CACHE_DIR` in the environment |
@@ -3063,6 +3069,7 @@ is likely to break the GCE code path; then one live cycle, torn down.
 | `dispose image …` | removes a recorded image (above) |
 | `verify instance <name> [--expect-build] [--timeout] [--record-only]`, `verify assert <name>` | the runtime's verification; the closing check of the `teardown` policy |
 | `unmount storage --instance --storage --mount-point [--workdir] [--confirm] [--timeout]` | the unmount receipt before a detach |
+| `workload describe\|token\|probe`, `verify login` | the okta-opa plugin's commands, present only while it is installed (a plugin mounts commands through the `cs_image_system.commands` entry-point group): what CI's workload login needs, the token for an Actions run, the probe of the role's reach, and the login proof ("CI logs in" above) |
 | `state query [--strict] [--json]`, `state import` | reality versus records; adopt foreign artifacts |
 | `lineage restamp`, `lineage relabel` | the record side and the tag side of the fingerprint |
 | `runtime describe <rt>`, `empty --runtime <rt>` | the configuration's facts; the end-of-cycle assertion |

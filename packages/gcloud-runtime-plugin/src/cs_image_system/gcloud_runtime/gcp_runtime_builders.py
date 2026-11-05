@@ -154,9 +154,11 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         22) and roles/iap.tunnelResourceAccessor are operator prerequisites."""
         if self.session_mechanism() != self.IAP:
             return []
-        fam = (os_family or "").lower()
-        install = ("sudo apt-get -o DPkg::Lock::Timeout=600 install -y google-guest-agent" if fam in ("debian", "ubuntu")
-                   else "sudo yum install -y google-guest-agent")
+        # the guest agent's package bears one name on every family; the line is the OS type's
+        from cs_image_system.base.os_types import os_type_for_family
+        from cs_image_system.contract.operating_system import PACKAGE_LOCK_TIMEOUT
+        install = os_type_for_family(os_family).package_install_command(["google-guest-agent"],
+                                                                        lock_timeout=PACKAGE_LOCK_TIMEOUT)
         return ["# debug session mechanism: IAP TCP forwarding (operator: IAP firewall rule + tunnelResourceAccessor)",
                 f"command -v google_guest_agent >/dev/null 2>&1 || {install}",
                 "sudo systemctl enable google-guest-agent sshd 2>/dev/null || sudo systemctl enable google-guest-agent ssh"]

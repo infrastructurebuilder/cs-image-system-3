@@ -38,8 +38,9 @@ STEP_RUNNER = "/run/csis-step"
 STEP_TRIES = 10
 STEP_WAIT_SECONDS = 30
 
-#: What a package tool says when someone else holds the package database:
-#: rpm and dnf ("can't create transaction lock"), apt and dpkg.
+#: What a package tool says when someone else holds the package database
+#: ("can't create transaction lock" on the rpm families; the lock messages
+#: of the deb ones).
 BUSY_PATTERN = ("transaction lock|Could not get lock|dpkg frontend lock|"
                 "Unable to lock the administration directory")
 

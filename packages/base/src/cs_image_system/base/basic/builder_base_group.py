@@ -15,14 +15,16 @@ from ..models.group_builder import GroupBuilderModel
 from ..constants import VCT
 
 from .builder_base import BuilderBase
-from cs_image_system.contract.group import GroupBuilderProtocol
+from cs_image_system.contract.group import (WORKLOAD_CONNECTION_ABSENT, WORKLOAD_CONNECTION_INACTIVE,
+                                            WORKLOAD_CONNECTION_UNREAD, WORKLOAD_POLICY_ABSENT,
+                                            WORKLOAD_POLICY_DIVERGED, WORKLOAD_ROLE_ABSENT, GroupBuilderProtocol)
 
 if TYPE_CHECKING:
     from ..models.image import Image
 
 # GID authority policies (N1): who defines a group's gid, and when.
 GID_POLICY_CONFIG_TIME = "config-time"      # settable in YAML (bash-style groupadd)
-GID_POLICY_CREATION_ONLY = "creation-only"  # settable only when the group is created (okta)
+GID_POLICY_CREATION_ONLY = "creation-only"  # settable only when the group is created (a directory that assigns ids)
 GID_POLICY_PROVIDER_ASSIGNED = "provider-assigned"
 
 
@@ -82,8 +84,8 @@ class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
     # ---------------------------------------------------------- V2 contract
     @classmethod
     def identity_type(cls) -> str:
-        """The identity-type token (e.g. ``okta``). Defaults to the plugin's
-        canonical name."""
+        """The identity-type token a base image declares under
+        ``identity_types:``. Defaults to the plugin's canonical name."""
         try:
             return str(cls.csis_name())
         except NotImplementedError:             # a base that names no type (stage 30)
@@ -148,7 +150,8 @@ class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
     # ------------------------------------------- server registry (stage 55)
     def can_query_servers(self) -> bool:
         """Whether this identity provider keeps a registry of enrolled
-        servers that the builder can read and retire (OPA does). Gated like
+        servers that the builder can read and retire (a provider whose agent
+        enrolls the machine does). Gated like
         the stage-57 runtime hooks: a provider without one makes no claim."""
         return False
 
@@ -167,6 +170,17 @@ class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
         entries, one live). Raises when it cannot: a retirement that did
         not happen must not be reported as one."""
         raise NotImplementedError(f"{self.__class__.__name__} keeps no server registry")
+
+    def alias_registration_script(self, names: list[str]) -> str | None:
+        """A root shell script that makes this provider's agent on a machine
+        answer to ``names`` too (the bare declared name, the pool alias, the
+        provider's own hostname label), idempotently: it prints the
+        contract's ``ALIASES_CHANGED`` when it changed the registration and
+        ``ALIASES_UNCHANGED`` when the names were already there. ``None``
+        when this provider keeps no registration to alias. Every name has
+        been validated as a hostname label; a name that is not one is a
+        ``ValueError``. Default: None."""
+        return None
 
     # ------------------------------------ stale memberships (stage 61 item 3)
     def prune_stale_attachments(self, tofu: str, run_id: str, cwd: Path) -> int:
@@ -194,8 +208,8 @@ class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
 
     def groups_script(self, groups: dict[str, int], members: dict[str, list[str]],
                       keys: dict[str, list[str]] | None = None) -> str | None:
-        """A root script for groups ANOTHER builder owns (beside Okta): each
-        group with its gid and its member list for the login hook, the
+        """A root script for groups ANOTHER builder owns (beside a directory
+        provider): each group with its gid and its member list for the login hook, the
         members whose accounts stand joined now; no account is created.
         None when this builder cannot. Default: None."""
         return None
@@ -292,6 +306,50 @@ class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
         Raises when it cannot -- a policy that was not written must not be
         recorded as one."""
         raise NotImplementedError(f"{self.__class__.__name__} keeps no CI login policy")
+
+    def workload_access_detail(self, condition: str, expected: dict[str, Any], real: dict[str, Any]) -> str:
+        """The sentence the state query prints for ``condition`` (one of
+        the contract's ``WORKLOAD_*`` conditions) found when it compared
+        ``expected`` (``workload_access_expected``'s record, as the identity
+        read-model holds it) against ``real`` (``workload_access_state``'s).
+        The comparison is the core's; the words are the provider's, because
+        the objects, who makes them and the checklist that says how are
+        the plugin's. Default: a sentence that names no provider."""
+        role, policy = expected.get("role"), expected.get("policy")
+        return {
+            WORKLOAD_ROLE_ABSENT: f"workload role {role!r} named in the configuration is not known to the "
+                                  "identity provider; the operator creates it",
+            WORKLOAD_POLICY_ABSENT: f"CI login policy {policy!r} is absent; an identity run with apply_identity "
+                                    "creates it",
+            WORKLOAD_POLICY_DIVERGED: f"CI login policy {policy!r} no longer mirrors the policy it copies; the "
+                                      "next identity apply rewrites it",
+            WORKLOAD_CONNECTION_ABSENT: "the workload connection named in the configuration is not known to the "
+                                        "identity provider; CI cannot log in until it exists",
+            WORKLOAD_CONNECTION_INACTIVE: "the workload connection is not active; CI cannot log in until the "
+                                          "operator activates it",
+            WORKLOAD_CONNECTION_UNREAD: "the workload connection's status could not be read from its record",
+        }.get(condition, f"workload access: {condition}")
+
+    # ------------------------------ where its machines may run (stage 103)
+    def container_runtime_objection(self) -> str | None:
+        """Why an instance image owned by one of this builder's groups may
+        NOT bake on a container runtime, or ``None`` when it may. A
+        provider whose identity lives on the machine itself (accounts the
+        image carries) has no objection; one whose agent enrolls the
+        machine with a service says what the agent needs that a container
+        lacks. Default: an objection, because an identity type that has not
+        said it works in a container is not assumed to."""
+        return (f"its identity type {self.identity_type()!r} has not said it works on a container runtime "
+                "(access there is through the daemon; an identity agent in a container is a later stage)")
+
+    # ----------------------------------- what it reads from the environment
+    @classmethod
+    def credential_environment_prefixes(cls) -> tuple[str, ...]:
+        """The prefixes of the environment variables this identity provider
+        reads credentials from, so preflight can report one that is set but
+        EMPTY (a failure, never an absence) without naming the provider
+        itself. Default: none."""
+        return ()
 
     # ------------------------------------------- EXPLORE identity hooks
     def validate_attributes(self, group: Any, attributes: dict[str, Any]) -> list[str]:

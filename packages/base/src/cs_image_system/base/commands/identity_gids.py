@@ -5,7 +5,7 @@
 """The gid shim entry point (DESIGN N7).
 
 Every identity plugin must make its produced gids queryable downstream. Where
-terraform's own provider cannot carry them (oktapam exposes no group gid),
+terraform's own provider cannot carry them (a provider that exposes no group gid),
 the identity root emits a ``data "external"`` block whose program is this
 system's CLI; the query names the identity type and the plugin answers from
 its provider's API, read-only. Credentials reach the plugin from the

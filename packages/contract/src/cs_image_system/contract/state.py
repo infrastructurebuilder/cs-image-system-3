@@ -32,7 +32,7 @@ class StateLocation:
     container, key), normalised so that two spellings of one place compare
     equal -- repeated slashes collapsed, leading and trailing ones stripped,
     case kept (object keys are case-sensitive), ``.`` and ``..`` segments
-    refused. The container is what the type addresses (an S3 or GCS bucket, a
+    refused. The container is what the type addresses (a cloud bucket, a
     local directory) and the key the state object within it; the type decides
     both (stage 47), which is why ``BUCKET1//xyz`` and ``BUCKET1/xyz`` are one
     location and the emitted key is the normalised one."""

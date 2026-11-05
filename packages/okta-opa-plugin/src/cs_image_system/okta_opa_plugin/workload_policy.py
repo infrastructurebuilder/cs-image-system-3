@@ -25,6 +25,10 @@ import copy
 from dataclasses import dataclass, field
 from typing import Any
 
+from cs_image_system.contract.group import (WORKLOAD_CONNECTION_ABSENT, WORKLOAD_CONNECTION_INACTIVE,
+                                            WORKLOAD_CONNECTION_UNREAD, WORKLOAD_POLICY_ABSENT,
+                                            WORKLOAD_POLICY_DIVERGED, WORKLOAD_ROLE_ABSENT)
+
 USER_POLICY_SUFFIX = "_v1_security_policy_user"
 CI_POLICY_SUFFIX = "_v1_security_policy_ci"
 
@@ -182,3 +186,31 @@ def workload_state(snapshot: WorkloadSnapshot, group: str, connection_name: str,
         conn = by_name(snapshot.connections, connection_name)
         out["connection"] = {"present": conn is not None, "active": connection_active(conn)}
     return out
+
+
+def describe_condition(condition: str, expected: dict[str, Any], real: dict[str, Any]) -> str:
+    """The state query's sentence for one of the contract's ``WORKLOAD_*``
+    conditions, in OPA's words: the role is the operator's and its absence
+    names the checklist (CI_SETUP.md section 3.5); the policy is the
+    system's and its absence or divergence names the apply that repairs
+    it; a connection that is present but a draft waits for the operator."""
+    role, policy, mirrors = expected.get("role"), expected.get("policy"), expected.get("mirrors")
+    if condition == WORKLOAD_ROLE_ABSENT:
+        return (f"workload role {role!r} named in the configuration is not known to OPA; the operator "
+                "creates it (CI_SETUP.md section 3.5, step 2)")
+    if condition == WORKLOAD_POLICY_ABSENT:
+        return (f"CI login policy {policy!r} is absent; an identity run with apply_identity creates it as a "
+                f"copy of {mirrors!r} (stage 56)")
+    if condition == WORKLOAD_POLICY_DIVERGED:
+        diff = (real.get("policy") or {}).get("diff") or []
+        return (f"CI login policy {policy!r} no longer mirrors {mirrors!r}; the next identity apply rewrites it"
+                + (" -- " + "; ".join(str(d) for d in diff) if diff else ""))
+    if condition == WORKLOAD_CONNECTION_ABSENT:
+        return ("the workload connection named in the configuration is not known to OPA; CI cannot log in "
+                "until it exists (CI_SETUP.md section 3.5)")
+    if condition == WORKLOAD_CONNECTION_INACTIVE:
+        return ("the workload connection is still a DRAFT; CI cannot log in until the operator activates it "
+                "(CI_SETUP.md section 3.5, step 5)")
+    if condition == WORKLOAD_CONNECTION_UNREAD:
+        return "the workload connection's status could not be read from its record"
+    return f"workload access: {condition}"

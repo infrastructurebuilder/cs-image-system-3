@@ -622,7 +622,7 @@ class PydanticConverter:
         MAPPING supplied where a list is declared iterates to its KEYS.
 
         That second one is load-bearing today and wrong: the fixture declares
-        `parameters:` on the EFS and EBS storage builders as a mapping
+        `parameters:` on two storage builders as a mapping
         (performance-mode, encrypted, volume_type, tags), the field is
         `list[str]`, and so the system has only ever held the key NAMES and
         discarded every value. Nothing reads `parameters` and it reaches no

@@ -47,6 +47,20 @@ Two further registrations come with the group builder:
   prerequisites.
 - `OktaTfGroupBuilder.export_gids` is the gid shim behind
   `cs-image-system identity export-gids`.
+- The `users:` item model: `OktaUser`
+  ([okta_user.py](src/cs_image_system/okta_opa_plugin/okta_user.py)), the
+  core's `User` plus the optional `okta_user` profile fields, injected
+  under `USER_MODEL` as the default item model, so every `users:` item
+  in a tree loads into it while this plugin is installed (and a tree
+  that writes a profile field needs this plugin to load at all).
+
+A second entry point mounts this plugin's commands on the console script
+(the contract's `cs_image_system.commands` group; see "Commands" below):
+
+```toml
+[project.entry-points."cs_image_system.commands"]
+okta_opa_plugin = "cs_image_system.okta_opa_plugin.cli:command_mounts"
+```
 
 ## Models
 
@@ -195,10 +209,12 @@ defaults every user to lookup-only and refuses `managed: true`.
 
 ### How the group and user items are read
 
-The items themselves are the base
-[`Group`](../base/src/cs_image_system/base/models/group.py) and
-[`User`](../base/src/cs_image_system/base/models/user.py) models; this
-plugin adds no item subclasses.
+The group items are the base
+[`Group`](../base/src/cs_image_system/base/models/group.py) model; the
+user items are this plugin's `OktaUser`
+([okta_user.py](src/cs_image_system/okta_opa_plugin/okta_user.py)), the base
+[`User`](../base/src/cs_image_system/base/models/user.py) with the Okta
+profile fields added (the base carries none of them).
 
 Group fields consumed: `name`, `members`, `admins`, `is_root` (the root
 group's admins are merged into every other group's admins),
@@ -215,9 +231,9 @@ User fields consumed: `name`, `first_name`, `last_name`, `email`,
 `is_enabled` (false maps to status `SUSPENDED`), `managed` (per-item
 override of the builder's default), `attributes` (validated against
 `unix_uid: int`, `unix_gid: int`, `unix_user_name: str`,
-`windows_user_name: str`), and every optional `okta_user` argument that is
-also a `User` field (`middle_name`, `mobile_phone`, `title`, `department`,
-`manager`, ...) when it is set. Not emitted: `public_keys`,
+`windows_user_name: str`), the base's `middle_name`, and every optional
+`okta_user` profile argument `OktaUser` carries (`mobile_phone`, `title`,
+`department`, `manager`, ...) when it is set. Not emitted: `public_keys`,
 `is_service_account`, `description`.
 
 ### Terraform emitters
@@ -333,13 +349,17 @@ Hooks other lifecycles call on this builder:
 |---|---|
 | `identity_type()` | `okta`. |
 | `gid_policy()` | `creation-only`. |
-| `base_image_prerequisites(os_family)` | Shell lines that install `scaleft-server-tools` from the OktaPAM repository (an `apt` path for `debian`/`ubuntu`, first installing `curl` and `gnupg` when absent; an `rpm`/`yum` path otherwise), then `systemctl disable --now sftd` and remove `/var/lib/sftd/enrollment.token`. |
+| `base_image_prerequisites(os_family)` | Shell lines that install `scaleft-server-tools` from the OktaPAM repository, then `systemctl disable --now sftd` and remove `/var/lib/sftd/enrollment.token`. The repository recipe is this plugin's, chosen by the OS type's `package_format()`: a deb recipe (the signing key dearmored into a keyring, a sources list; `curl` and `gnupg` installed first when absent) or an rpm recipe (`rpm --import`, a repo file). The install and refresh lines are the OS type's own hooks (`package_install_command`, `package_update_command`), never written here; a format OktaPAM publishes nothing for (alpine) is refused with a `ValueError` naming it. |
 | `verify_commands(os_family)` | Assertions that `sftd` exists, is not enabled, and has no enrollment token. |
 | `activation_commands(image, group)` | Writes `Labels:\n  tx.group: <group>` to `/etc/sft/sftd.yaml` and enables `sftd`. |
-| `activation_verify_commands(image, group)` | Asserts the label is present and `sftd` is enabled. |
+| `activation_verify_commands(image, group)` | Asserts the label is present and `sftd` is enabled; with a `posix:` delegate, also that the delegate's login hook stands at the contract's `LOGIN_HOOK` path (`cs_image_system.contract.group`, the one declaration both plugins read) and is wired into `/etc/pam.d/sshd`. |
 | `launch_parameters(group)` | `{"enrollment": "sftd-token", "server_label": "sftd.tx.group=<group>"}`. |
 | `export_gids(query, groups)` | `{group: gid}` read from OPA (`<group>_user`'s `unix_gid` attribute, then the bare name; a group without one is absent, never invented). Credentials come from `TF_VAR_<team>_key`/`_secret` or `OKTAPAM_KEY`/`OKTAPAM_SECRET`. |
 | `query_state()` | Per managed group: `present`, `gid`, `local_name`, `members`, `admins` (when OPA answers), whether an IaC-owned enrollment token exists on the login project (`enrollment_token`), and, when the workload fields are set, `workload` (role, policy, connection). A call that failed is `{present: false, error: ...}`; a 404 is `{present: false}`. Read-only. |
+| `alias_registration_script(names)` | The root script that rewrites the `AltNames` block of `/etc/sft/sftd.yaml` (kept last in the file) with `names` and restarts `sftd` only when the block changed, printing the contract's `ALIASES_CHANGED` or `ALIASES_UNCHANGED` ([server_aliases.py](src/cs_image_system/okta_opa_plugin/server_aliases.py)). The core decides which names a machine gets back after launch (the bare declared name, the pool alias, the provider's `ip-...` label) and runs the script over the runtime's session; this is the only place the file and the agent are named. |
+| `container_runtime_objection()` | Why an image owned by an Okta group may not bake on a container runtime: `sftd` needs systemd, sshd, a reachable address and a cloud identity. `validate` refuses such an image with this sentence. |
+| `workload_access_detail(condition, expected, real)` | The sentence the state query prints for each of the contract's `WORKLOAD_*` conditions (role absent, policy absent or diverged, connection absent, a draft, or unreadable), in OPA's words and naming the CI setup guide's step; the comparison itself is the core's. |
+| `credential_environment_prefixes()` | `("OKTA_",)`: `preflight` reports an `OKTA_*` variable that is set but empty. |
 | `can_query_servers()`, `registered_servers(group)`, `retire_servers_named(group, hostname)` | The OPA server registry of `<group>_rg_login`: every enrolled server as `{id, hostname, address, canonical_name, alt_names, instance_id}`, or `None` when OPA could not be asked; retirement `DELETE`s every registration of a hostname and returns the ids, raising when the registry cannot be read. A `DELETE` answered 404 counts as already gone, judged by the error's status code and never by the text of the message, so a 500 whose text mentions 404 is a failure. |
 | `can_manage_workload_access()`, `workload_access_expected(group)`, `workload_access_state(group)`, `ensure_workload_access(group)` | The CI login policy: true only with both `workload_connection` and `workload_role` set; what the configuration expects; what OPA holds; and the reconcile that creates, updates or leaves the `<group>_v1_security_policy_ci` policy as a copy of `<group>_v1_security_policy_user` with the role as its only principal and admin-level permissions forced off. |
 | `prune_stale_attachments(tofu, run, cwd)` | The runner step: lists tofu state, keeps every `oktapam_user_group_attachment` the declaration still has, asks OPA about each dropped one and removes from state, after a backup, only those OPA no longer holds. |
@@ -563,6 +583,36 @@ Because `basic` is the root group, its admin `avery.alpha` appears in the
 shape: `name`, `first_name`, `last_name` (all required, all declared
 encrypted) and an optional `email`; with no `email`, the builder's template
 derives `<name>@example.invalid`.
+
+## Commands
+
+This plugin mounts two things on the console script through the contract's
+`cs_image_system.commands` entry-point group
+([cli.py](src/cs_image_system/okta_opa_plugin/cli.py)); both exist exactly
+when the plugin is installed, and `cs-image-system --help` lists them.
+
+- **`cs-image-system workload`** -- what CI's workload login needs:
+  `describe [--env]` prints the team's workload connection and role, the
+  team and the API address from the first group builder that names them
+  (`--env` as shell exports: `OPA_WORKLOAD_CONNECTION`,
+  `OPA_WORKLOAD_ROLE`, `SFT_TEAM`, `OPA_ADDR`); `token` presents the
+  GitHub Actions run's OIDC token to the connection and prints the OPA
+  token it yields, and nothing else, on standard output (both tokens
+  masked in the job log; the names come from the environment, and the
+  configuration loads only when one is missing); `probe` does the same,
+  discards the token and says whether the ROLE reaches a standing machine
+  of a managed group (`sft resolve` as the workload). The sub-app loads the
+  configuration only when a command needs it.
+- **`cs-image-system verify login [<instance>...] [--runtime <rt>]
+  [--timeout] [--record-only]`** -- the login proof: over `sft ssh` for
+  this plugin's groups, as the workload when `OPA_TOKEN` is set, else as
+  the enrolled client. The command is the core's one callback
+  (`cs_image_system.base.commands.login_proof.verify_login_command`: which
+  instances are targets, the skips, the record in
+  `meta-state/login-proofs.yaml`), **shared with the posix-identity
+  plugin**: each identity plugin mounts the same callback and the console
+  script mounts it once, so the proof is there whichever of them a tree
+  installs, and each plugin's checks run through the one driver.
 
 ## Prerequisites and integration
 

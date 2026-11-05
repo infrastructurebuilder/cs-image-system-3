@@ -113,6 +113,49 @@ runtime declares only what it has.
   public-safety scan adds them to the rules it carries itself (tokens,
   PEM bodies, an age identity, a literal `TF_VAR_*=` value).
 
+### What a plugin adds to the command line
+
+The console script `cs-image-system` owns the root command and its
+built-in sub-apps (`run`, `verify`, `state`, ...). A plugin whose work
+needs a command of its own -- a token only its client can mint, a login
+proof only its client can drive -- registers one entry point in the group
+`cs_image_system.commands`. The entry point is a callable that returns a
+list of the contract's `CommandMount` records
+([`contract/commands.py`](../packages/contract/src/cs_image_system/contract/commands.py));
+the console script reads every installed entry point when it starts and
+mounts each record, so the command appears exactly when the plugin is
+installed and is absent otherwise (`cs-image-system --help` lists what is
+there). A mount is one of two things:
+
+- a **sub-app**: `CommandMount(name="workload", app=<a typer.Typer>)`
+  adds the whole sub-app under the root. With `deferred_load=True` the
+  sub-app's commands decide for themselves whether the configuration tree
+  loads: they find a `deferred_load` callable in the typer context's
+  `obj` and call it when they need the tree (the okta-opa plugin's
+  `workload token` takes its names from the environment, because the probe
+  workflow runs on a checkout with no configuration, and loads only when a
+  name is missing);
+- a **command under an existing sub-app**: `CommandMount(name="login",
+  path=("verify",), callback=<a function>)` adds `cs-image-system verify
+  login`; the callback's signature and docstring make its options and help
+  the way any typer command's do, and it loads the tree the way the
+  enclosing sub-app does.
+
+The shared-command rule: two plugins may mount the *same* callback (the
+same function object) or the same sub-app object under the same name and
+path, and the script mounts it once -- `verify login` is one callback in
+the core (`cs_image_system.base.commands.login_proof.verify_login_command`)
+that every identity plugin mounts, so the proof is there whichever
+identity plugin a tree installs. A *different* callback or sub-app under a
+name a built-in command or an earlier mount already took is refused when
+the script starts: two owners of one command is a packaging error, never a
+silent replacement. The examples: the okta-opa plugin's
+[`cli.py`](../packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/cli.py)
+mounts the `workload` sub-app (`describe`, `token`, `probe`) and `verify
+login`; the posix-identity plugin's
+[`cli.py`](../packages/posix-identity-plugin/src/cs_image_system/posix_identity_plugin/cli.py)
+mounts `verify login`.
+
 ## The README contract
 
 Every package README ends with the same four sections, in this order, so

@@ -121,3 +121,26 @@ def test_the_volume_builder_declares_its_capability():
     assert b.transition_actions(stub, cast(Any, None), "active", "destroyed") == []
     with pytest.raises(NotImplementedError, match="fixed when it is created"):
         b.retag_storage(stub, cast(Any, SimpleNamespace(get_name=lambda: "v")), {"csis_config": "x"})
+
+
+def test_the_volume_builder_answers_the_launch_hooks_as_platform_mounted():
+    """The daemon mounts the volume before the first command: the record says
+    so, the script only marks the mount and makes the group's subtree, the
+    playbook keeps the directory task alone."""
+    b = cast(Any, object.__new__(TofuDockerVolumeStorageBuilder))
+    storage = SimpleNamespace(get_name=lambda: "docker_data")
+    assert b.launch_mount(storage, None, 0) == {"platform_mounted": True}
+    assert b.launch_variables() == ()
+    m = {"storage": "docker_data", "type": "volume", "builder": "docker-volumes", "mount_point": "/mnt/data",
+         "group": "pxgroup", "share_mode": "2770", "public_read": False, "platform_mounted": True}
+    assert b.launch_script_lines(m, "pxgroup") == [
+        "# mount storage docker_data (volume) at /mnt/data",
+        "mkdir -p '/mnt/data'",
+        "findmnt -rn '/mnt/data' >/dev/null 2>&1 && echo 'csis-mount: /mnt/data mounted' || echo 'csis-mount: /mnt/data NOT mounted'",
+        "mkdir -p '/mnt/data/pxgroup'",
+        'chgrp "$GID" \'/mnt/data/pxgroup\'',
+        "chmod 2770 '/mnt/data/pxgroup'",
+    ]
+    assert b.launch_script_lines(m, None)[-1].startswith("findmnt")
+    assert b.launch_tasks(m, "pxgroup") == [{"name": "mount point /mnt/data for storage docker_data (volume)",
+                                             "ansible.builtin.file": {"path": "/mnt/data", "state": "directory"}}]

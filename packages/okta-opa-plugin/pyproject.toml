@@ -17,6 +17,7 @@ dependencies = [
     "cs-image-system-hashicorp-utils==0.1.7.dev1",
     "pydantic>=2.13",
     "cryptography>=49.0",   # stage 70 step 6: the Okta services app check signs a private-key JWT
+    "typer>=0.26",          # the plugin's own commands (`workload`, `verify login`)
 ]
 
 [project.urls]
@@ -30,6 +31,11 @@ okta_opa_plugin = "cs_image_system.okta_opa_plugin.main:initialize"
 # stage 70 step 6: the Okta and OPA section of the bootstrap interview
 [project.entry-points."cs_image_system.bootstrap"]
 okta = "cs_image_system.okta_opa_plugin.bootstrap:okta_section"
+
+# the commands only this plugin can drive: `workload` (describe, token, probe)
+# and `verify login`, mounted by the system's console script when installed
+[project.entry-points."cs_image_system.commands"]
+okta_opa_plugin = "cs_image_system.okta_opa_plugin.cli:command_mounts"
 
 [build-system]
 requires = ["hatchling"]

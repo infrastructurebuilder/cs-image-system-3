@@ -44,7 +44,7 @@ class UserBuilderBase(BuilderBase[TUSER], UserBuilderProtocol):
         """Attach a user to this builder, enforcing email_as_username.
 
         Runs after template resolution, so user.email is already expanded.
-        Comparison is casefolded: Okta logins are case-insensitive, so
+        Comparison is casefolded: a directory's logins are case-insensitive, so
         'Pat.Trip@example.org' vs 'pat.trip@example.org' is not a mismatch.
         """
         if self.email_as_username:

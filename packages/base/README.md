@@ -98,6 +98,13 @@ is idempotent: a second call in the same process returns at once unless
 `Registry().reset()` was called. After every plugin registered, the loader
 drops the cached converter so the next structuring sees the full model set.
 
+A plugin that has commands of its own registers one entry point in the
+group `cs_image_system.commands`: a callable returning a list of the
+contract's `CommandMount` records (`contract/commands.py`), each a
+sub-app under the root or a command under an existing sub-app by path,
+which the system package's console script mounts when it starts
+([docs/PLUGINS.md](../../docs/PLUGINS.md#what-a-plugin-adds-to-the-command-line)).
+
 A separate group, `cs_image_system.plugins.hooks`, carries run hooks
 (see [Other extension seams](#other-extension-seams)); it and the
 `cs_image_system.bootstrap` group are not part of the contract yet, so a
@@ -244,7 +251,7 @@ Per-kind bases add a contract:
 | `CloudBuilderBase` / `ContainerBuilderBase` | runtime | Thin subclasses of `RuntimeBuilderBase`. |
 | `GroupBuilderBase`    | `GROUP_BUILDER`    | `identity_type()`, `gid_policy()` (`config-time`, `creation-only`, `provider-assigned`), `manages_groups()` (`False` for a lookup-only builder, whose groups the read-model records `managed: false` and which comes after a managing builder of its type), `managed_groups()`, `enrollment_token_reference()`, `base_image_prerequisites()`, `verify_commands()`, `activation_commands()`, `activation_verify_commands()`, `launch_parameters()`, `query_state()`, `validate_attributes()`, `query_attributes()`, `attribute_conflicts()`, `export_gids()`; the server registry: `can_query_servers()`, `registered_servers(group)` (`None` when the provider could not be asked, never an empty list), `retire_servers_named(group, hostname)`; `prune_stale_attachments(tofu, run_id, cwd)` (a runner step, default no-op); and the CI login policy: `can_manage_workload_access()`, `workload_access_expected(group)`, `workload_access_state(group)`, `ensure_workload_access(group)`. |
 | `UserBuilderBase`     | `USER_BUILDER`     | `add_user_to_builder()` enforces `email_as_username`; `default_managed()`, `is_managed()`, `validate_user()`, `validate_attributes()`, `query_attributes()`. |
-| `StorageBuilderBase`  | `STORAGE_BUILDER`  | `capability_type()`, `attachment_cardinality()` (`single` or `many`), `is_zonal()` (default `False`: a regional storage constrains no availability zone), `is_posix()`, `base_image_prerequisites()`, `verify_commands()`, `transition_actions()`, `validate_lifecycle()`, `query_state()`, `destroy_whitelist()`. |
+| `StorageBuilderBase`  | `STORAGE_BUILDER`  | `capability_type()`, `attachment_cardinality()` (`single` or `many`), `is_zonal()` (default `False`: a regional storage constrains no availability zone), `is_posix()`, `platform_mounts()`, `base_image_prerequisites()`, `verify_commands()`, `transition_actions()`, `validate_lifecycle()`, `query_state()`, `destroy_whitelist()`, `retag_storage()`; and the launch hooks, because the device and mount lines are the storage's: `launch_mount(storage, mapping, index)` (the storage-specific keys of an instance's mount record, such as a block store's device name; `index` counts the earlier mounts of the same capability type), `launch_script_lines(mount, group)` (the mount's whole block of the launch script, header to subtree), `launch_tasks(mount, group)` (its whole ansible task list) and `launch_variables()` (the template variables its lines read by reference). The shared pieces are static helpers a plugin composes: `mount_header_lines`, `mount_mark_line`, `group_subtree_lines`, `block_device_lines`, `fstab_mount_lines`, `mount_directory_task`, `group_subtree_task`, `block_device_tasks`. The defaults: no extra keys (`platform_mounted` when the platform mounts the storage), the header alone (plus the mark and the subtree when platform-mounted), the directory task alone, no variables. |
 | `ImageBuilderBase`    | `IMAGE_BUILDER`    | `add_image()`, `get_images()`, `build_target_label()`, block paths per phase. |
 | `InstanceBuilderBase` | `INSTANCE_BUILDER` | `add_instance()`; `finalize()` registers the builder with its runtime. |
 | `OsBuilderBase`       | `OS_BUILDER`       | `generate_resolved_image()`, `generate_items_for_os_update()`, `get_configs_for_image_builders()`. |
@@ -751,9 +758,16 @@ ignored.
 | `managed` | `bool \| None` | `None` | `None` means the builder's default (a resource, or a lookup only). |
 | `attributes` | `dict \| None` | `None` | Provider attributes. |
 | `public_keys` | `list[str]` | `[]` | |
-| profile fields | `str \| None` | `None` | `mobile_phone`, `honorific_prefix`, `honorific_suffix`, `title`, `display_name`, `nick_name`, `profile_url`, `second_email`, `primary_phone`, `street_address`, `city`, `state`, `zip_code`, `country_code`, `postal_address`, `preferred_language`, `locale`, `timezone`, `user_type`, `employee_number`, `cost_center`, `organization`, `division`, `department`, `manager_id`, `manager`. |
+| `uid` | `int \| None` | `None` | A POSIX uid the configuration declares (the posix user builder); the twin of `Group.gid`. |
 
-Aliases are not allowed on users.
+Aliases are not allowed on users. The core's `User` carries only what
+every identity reads; an identity plugin that keeps more on a user
+injects a subclass under `USER_MODEL` as the default item model
+(`injected_models`, `is_injected_models_default`), and the loader
+(`item_model_class` in `global_context.py`) structures every `users:`
+item into that subclass while the plugin is installed -- the okta-opa
+plugin's `OktaUser` adds the Okta profile fields this way. The YAML key
+and the `isinstance` check stay the kind's; a subclass only adds fields.
 
 ### `Storage` (`storages/`, key `storages`)
 
@@ -1196,9 +1210,11 @@ specific to one instance, computed from validated configuration and
 recorded in `meta-state/launch-params.yaml`. `compute_launch_params`
 returns `image`, `build` (the pin, or `unbound`), `group` (the image's
 owning group), `identity_type`, `mounts` (per attached storage: `storage`,
-`type`, `builder`, `mount_point`, `group`, `share_mode`, `public_read`, and
-a `device` for block storage: `/dev/xvdf` onwards in declaration order on
-EBS, `/dev/disk/by-id/google-<name>` on GCE), `enrollment` (from the group
+`type`, `builder`, `mount_point`, `group`, `share_mode`, `public_read`,
+plus whatever the storage builder's `launch_mount()` adds -- a `device`
+for a block store, named by its plugin's own rule, in declaration order
+among the mounts of its type; `platform_mounted` for a storage the
+platform mounts itself), `enrollment` (from the group
 builder), `session` (the runtime's mechanism), `hostname` (the canonical
 hostname: for a launched machine this run does not replace, the hostname
 it was recorded with; for a new machine, `<declared name>-NNN` where NNN
@@ -1207,11 +1223,21 @@ when a name was drawn from `meta-state/aliases.txt` for a new durable
 machine by a run that can launch it, or was recorded earlier), `ephemeral`,
 and `userdata` when declared. `user_data_template`
 renders these as a bash script for terraform's `templatefile`: hostname,
-group gid by reference (`${group_gid}`), block-device wait, format and
-fstab lines, EFS (`${efs[...]}`) and Filestore (`${filestore[...]}`) mounts,
-the group's private subtree with its share mode, the enrollment trigger
-(`${sft_enrollment_token}`, never recorded), the instance's own `userdata`
-lines, and finally the marker `/var/lib/csis/launch-applied`. Runtime
+group gid by reference (`${group_gid}`), then one block per mount, then
+the enrollment trigger (`${sft_enrollment_token}`, never recorded), the
+instance's own `userdata` lines, and finally the marker
+`/var/lib/csis/launch-applied`. The core knows no storage kind: each
+mount's block, from its `# mount storage <name> (<type>) at <mount point>`
+header to the group's private subtree (or the comment that an object
+store is not mounted), is the storage builder's `launch_script_lines()`,
+and the builder names the template variables its block reads
+(`launch_variables()`: a map per storage kind, such as a shared
+filesystem's ids, keyed by storage name); `launch_variables(ctx)` lists
+them for a tree as `group_gid`, the builders' own in declaration order,
+the enrollment token. A block that mounts something ends in the mount
+mark line (`csis-mount: <mount point> mounted` or `NOT mounted`), which
+is how `mounted_points()` -- and so `verify instance` -- knows which
+declared mount points to look for. Runtime
 values enter only by terraform reference. After a real apply, hooks mark
 every declared instance launched, forget decommissioned and ephemeral
 instances, and re-record detachments. Launched instances are immutable: a
@@ -1261,15 +1287,15 @@ lines. `admin_public_keys` returns a base image's own list when set, else
 | [`commands/gate.py`](src/cs_image_system/base/commands/gate.py) | The apply gate over a `tofu show -json` plan: every planned destroy must match a whitelisted address or prefix; a plan file older than the newest `.tf` in its root is stale. |
 | [`commands/upgrade.py`](src/cs_image_system/base/commands/upgrade.py), [`commands/dispose.py`](src/cs_image_system/base/commands/dispose.py), [`commands/restamp.py`](src/cs_image_system/base/commands/restamp.py), [`commands/relabel.py`](src/cs_image_system/base/commands/relabel.py), [`commands/verify_instance.py`](src/cs_image_system/base/commands/verify_instance.py), [`commands/unmount.py`](src/cs_image_system/base/commands/unmount.py), [`commands/runtime_facts.py`](src/cs_image_system/base/commands/runtime_facts.py), [`commands/identity_gids.py`](src/cs_image_system/base/commands/identity_gids.py), [`commands/run_scope.py`](src/cs_image_system/base/commands/run_scope.py) | The operations behind the CLI's `upgrade`, `dispose image`, `lineage restamp`, `lineage relabel`, `verify instance`, `unmount storage`, `runtime describe` / `empty`, `identity export-gids`, and the bake scope check. |
 | [`utils.py`](src/cs_image_system/base/utils.py) | `safe_name`, `super_safe_name`, `system_cli_executable` (a deferred call of the system's own CLI), `apply_enabled` / `apply_flag_allows` (the `apply_<lifecycle>` rule), `module_source`, `hcl_expr` and `render_module_call` (terraform module call rendering). |
-| [`ansible_launch.py`](src/cs_image_system/base/ansible_launch.py) | Renders the same launch parameters as an ansible inventory and playbook. |
+| [`ansible_launch.py`](src/cs_image_system/base/ansible_launch.py) | Renders the same launch parameters as an ansible inventory and playbook: the hostname task, each mount's tasks from its storage builder's `launch_tasks()`, the enrollment kind's tasks; `extra_vars(ctx)` is the playbook's variable list, the same names as the launch template's. |
 | [`power_state.py`](src/cs_image_system/base/power_state.py) | The system's power-state vocabulary (`running`, `stopped`, `suspended`, `starting`, `stopping`, `absent`, `unknown`; `None` is "cannot answer"), `wait_until_reachable`, and `running_for_task`, the one bounded exception under which a stopped machine is started for work that needs it and stopped again afterwards. |
 | [`generations.py`](src/cs_image_system/base/generations.py) | Instance generations: one per machine, opened `inferred` by a launch and confirmed `observed` (or closed as `replaced-out-of-band`) by the provider's instance id after a real apply; a machine launched before the record existed is `adopted` as generation 1 of it. |
 | [`alias_pool.py`](src/cs_image_system/base/alias_pool.py) | The pool of pre-approved names in `meta-state/aliases.txt`: a new durable machine's alias is the first free line, burnt in place under an exclusive lock by the run that can launch it. |
-| [`provider_aliases.py`](src/cs_image_system/base/provider_aliases.py) | After a real instance-image apply, gives each launched, running instance back the names it lost at boot (the bare declared name, the pool alias, the provider's `ip-...` label) as an `AltNames` block in `/etc/sft/sftd.yaml`, skipping every collision and every silent registry; and the `reality.instances` entries and notes of the state report. |
+| [`provider_aliases.py`](src/cs_image_system/base/provider_aliases.py) | After a real instance-image apply, gives each launched, running instance back the names it lost at boot (the bare declared name, the pool alias, the provider's `ip-...` label), skipping every collision and every silent registry: the core decides the names, the machine and the moment, and the group builder's `alias_registration_script` renders the script that tells its agent (the core reads only the contract's `ALIASES_CHANGED` / `ALIASES_UNCHANGED` from its output); and the `reality.instances` entries and notes of the state report. |
 | [`workload_access.py`](src/cs_image_system/base/workload_access.py) | After a real identity apply, reconciles each managed group's CI login policy through the group builder and records the outcome in the identity read-model. |
 | [`reserved_names.py`](src/cs_image_system/base/reserved_names.py) | The read-time refusals: `refuse_reserved_names` (a `name:` at any depth, or an `aliases:` entry, that is a word of `OOPS_DEFAULTS` in any case or spacing, every one listed with the file, the entry's place and the word, `ReservedNameError`) and `refuse_invalid_config_keys` (a key of a document's top-level `config:` that is in `INVALID_CONFIG_KEYS`, `InvalidConfigKeyError`). Called by `read_and_process` for each `cfg/` file, by the item-file reader after decryption, and by `load_overlay`; pure functions of the parsed document, no identity or network. |
 | [`materialize.py`](src/cs_image_system/base/materialize.py) | The private mirror `_private/` beside `generated/`, at the same depth: a root is copied there with every `ENC[age:...]` marker replaced by its plaintext before a deferred command runs, incrementally; only `.terraform.lock.hcl` is ever copied back. `ensure_ignored` appends `_private/` to the configuration root's `.gitignore`. |
-| [`commands/login_proof.py`](src/cs_image_system/base/commands/login_proof.py) | `verify login`: for each standing instance of a group that names a workload connection and role, checks the machine is running, exactly one registration answers to its hostname, `sft resolve` resolves it and `sft ssh ... id` logs in; every verdict goes to `meta-state/login-proofs.yaml`. |
+| [`commands/login_proof.py`](src/cs_image_system/base/commands/login_proof.py) | The login proof's driver: which declared instances are targets (launched, not ephemeral, on the runtime asked for), the skips (a group whose builder has no login to prove; a machine that is not running, never started for this), the group builder's own `login_checks` over each target, and every verdict recorded in `meta-state/login-proofs.yaml`. The command that drives it (`verify login`) is mounted by the identity plugin whose client logs in. |
 | [`commands/state_migration.py`](src/cs_image_system/base/commands/state_migration.py) | The runner steps of `--migrate-state` (`begin`, `finish`) and the same-day state `backup` a runner takes into `_private/state-backups/` before any `state rm` it decided on. |
 
 ## Tests

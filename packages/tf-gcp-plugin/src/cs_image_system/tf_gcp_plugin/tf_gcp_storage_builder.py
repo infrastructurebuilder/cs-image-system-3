@@ -27,6 +27,7 @@ from typing import Any, TypeVar, cast
 
 from cs_image_system.base import utils
 from cs_image_system.contract.constants import OOPS_DEFAULTS
+from cs_image_system.contract.operating_system import PACKAGE_LOCK_TIMEOUT
 from cs_image_system.base.basic.builder_base_storage import CARDINALITY_MANY, CARDINALITY_SINGLE
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.executable import ExecutableModel
@@ -161,6 +162,26 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
 
     def base_image_prerequisites(self, os_family: str | None = None) -> list[str]:
         return [f"# storage type 'pd' declared: no prerequisites to bake ({self.get_name()})"]
+
+    # ------------------------------------------------------- launch hooks
+    def launch_mount(self, storage: Storage, mapping: Any, index: int) -> dict[str, Any]:
+        """GCE names an attached disk ``/dev/disk/by-id/google-<device_name>``;
+        the instance root attaches with ``gce_name(<storage>)`` as the device
+        name, so the by-id path takes the same sanitised name (finding 50: the
+        two once disagreed -- the raw name attached, the sanitised name mounted
+        -- and the startup script died at the missing device)."""
+        return {"device": "/dev/disk/by-id/google-" + self._gce_resource_name(storage.get_name())}
+
+    def launch_script_lines(self, mount: dict[str, Any], group: str | None) -> list[str]:
+        """Wait for the by-id device (it is the stable name, so the fallback
+        is the device itself), format when blank, mount, the group's subtree."""
+        return [
+            *self.mount_header_lines(mount),
+            f"DEV='{mount['device']}'",
+            'BYID="$DEV"',
+            *self.block_device_lines(mount),
+            *self.group_subtree_lines(mount, group),
+        ]
 
     def module_dirname(self) -> str:
         return "gcp_storage_pd"
@@ -328,13 +349,33 @@ class TofuFilestoreStorageBuilder(TofuGcpStorageBuilder[S]):
         return CARDINALITY_MANY
 
     def base_image_prerequisites(self, os_family: str | None = None) -> list[str]:
-        fam = (os_family or "").lower()
-        pkg = "sudo apt-get -o DPkg::Lock::Timeout=600 install -y nfs-common" if fam in ("debian", "ubuntu") else "sudo yum install -y nfs-utils"
+        # the package that carries an NFS client per package format; the line is the OS type's
+        from cs_image_system.base.os_types import os_type_for_family
+        os_type = os_type_for_family(os_family)
+        packages = {"deb": "nfs-common", "rpm": "nfs-utils", "apk": "nfs-utils"}
+        pkg = os_type.package_install_command([packages[os_type.package_format()]], lock_timeout=PACKAGE_LOCK_TIMEOUT)
         return [f"# storage type 'filestore' prerequisites ({self.get_name()}): NFS mount tooling", pkg]
 
     def verify_commands(self, os_family: str | None = None) -> list[str]:
         return ["# verify: NFS mount tooling present",
                 "command -v mount.nfs >/dev/null 2>&1 || command -v mount.nfs4 >/dev/null 2>&1"]
+
+    # ------------------------------------------------------- launch hooks
+    def launch_script_lines(self, mount: dict[str, Any], group: str | None) -> list[str]:
+        """Mount the share over NFS (address and share name by reference as
+        ``filestore["<storage>"]``), then make the group's subtree: Filestore
+        has no access points, so the launch makes the subtree itself."""
+        name, mp = mount["storage"], mount["mount_point"]
+        return [
+            *self.mount_header_lines(mount),
+            f"FS_IP=\"${{filestore[\"{name}\"].ip_address}}\"",
+            f"FS_SHARE=\"${{filestore[\"{name}\"].share_name}}\"",
+            *self.fstab_mount_lines(mount, f"$FS_IP:/$FS_SHARE {mp} nfs defaults,_netdev,nofail 0 0"),
+            *self.group_subtree_lines(mount, group),
+        ]
+
+    def launch_variables(self) -> tuple[str, ...]:
+        return ("filestore",)
 
     def module_dirname(self) -> str:
         return "gcp_storage_filestore"
@@ -438,6 +479,14 @@ class TofuGcsStorageBuilder(TofuGcpStorageBuilder[G]):
 
     def verify_commands(self, os_family: str | None = None) -> list[str]:
         return ["# verify: gcloud CLI present", "command -v gcloud >/dev/null 2>&1"]
+
+    # ------------------------------------------------------- launch hooks
+    def launch_script_lines(self, mount: dict[str, Any], group: str | None) -> list[str]:
+        """An object store is reached through the gcloud CLI: the mount point
+        is made and a comment says there is no mount (and no mark). The
+        playbook keeps the base's directory task alone."""
+        return [*self.mount_header_lines(mount),
+                f"# gcs storage {mount['storage']}: object access via the cloud CLI; no mount"]
 
     def module_dirname(self) -> str:
         return "gcp_storage_gcs"

@@ -13,9 +13,10 @@ machine. Run here, on every applying run, a membership change is neither a
 re-bake nor a replacement, and a standing machine is brought up to date in
 place.
 
-The script is the plugin's (the posix plugin's ``accounts_script``): run as
-root, idempotent, adopting what is equal and refusing what differs. Its own
-lines start ``posix accounts:``; they are the report, logged here. A
+The script is the plugin's (``accounts_script``): run as root, idempotent,
+adopting what is equal and refusing what differs. Its own lines start with
+the contract's ``ACCOUNTS_REPORT_PREFIX``; they are the report, logged
+here, and ``ACCOUNTS_IN_PLACE`` is the line that says the machine agrees. A
 failure is logged as an error and never stops the run -- the apply has
 happened, and the next applying run tries again -- the same rule as the
 provider aliases (stage 58). A machine that is off is the operator's
@@ -26,6 +27,8 @@ from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, Any
+
+from cs_image_system.contract.group import ACCOUNTS_IN_PLACE, ACCOUNTS_REPORT_PREFIX
 
 from . import power_state
 from .capabilities import group_builder_of
@@ -68,7 +71,7 @@ def reconcile_accounts(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
         gb = group_builder_of(ctx, group) if group else None
         try:
             script = gb.accounts_script(group) if gb is not None else None
-        except Exception as e:  # noqa: BLE001 - a provider that cannot be asked (OPA's gid): reported, never fatal
+        except Exception as e:  # noqa: BLE001 - a provider that cannot be asked (a gid it holds): reported, never fatal
             log.error(f"Instance {name}: the accounts script of group {group} could not be made: {e}")
             continue
         if not script:
@@ -91,10 +94,10 @@ def reconcile_accounts(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
         except Exception as e:  # noqa: BLE001 - reported, never fatal to the run
             log.error(f"Instance {name}: could not run the accounts script of group {group}: {e}")
             continue
-        report = [ln.strip() for ln in out.splitlines() if ln.strip().startswith("posix accounts:")]
-        done = rc == 0 and "posix accounts: in place" in report
+        report = [ln.strip() for ln in out.splitlines() if ln.strip().startswith(ACCOUNTS_REPORT_PREFIX)]
+        done = rc == 0 and ACCOUNTS_IN_PLACE in report
         for line in report:
-            if line != "posix accounts: in place":
+            if line != ACCOUNTS_IN_PLACE:
                 (log.warning if done else log.error)(f"Instance {name}: {line}")
         if done:
             log.info(f"Instance {name}: the accounts of group {group} are in place")

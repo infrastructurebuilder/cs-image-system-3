@@ -16,7 +16,13 @@ and a contradiction between the two refused.
 Stage 105: ``output_image_name`` is the declared PREFIX of every build's
 name (the run's timestamp is appended); unset, the core names a build
 ``<image>-<image builder>`` (a base image: ``<OS builder>-<runtime>``). A
-runtime entry's value overrides the OS builder's."""
+runtime entry's value overrides the OS builder's.
+
+The package manager is the OS type's. A type answers, as classmethods,
+what its manager's lines are (install, refresh, a presence test, enabling
+a service, the python ansible needs); every plugin that bakes a package
+asks the type that serves the image's family (the core resolves the type
+from the family) and never names a manager itself."""
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -25,6 +31,12 @@ from typing import Any, Protocol
 from .assets import AssetSet
 from .core import BuilderModelProtocol, BuilderProtocol
 from .lifecycle import ExecutionLifecyclePhase
+
+#: How long a bake's package line waits for the package database when the
+#: machine's own first-boot updater holds it (seconds). A type whose
+#: manager takes no such option ignores it; a caller that passes nothing
+#: gets the manager's own default.
+PACKAGE_LOCK_TIMEOUT = 600
 
 
 class OsBuilderModelProtocol(BuilderModelProtocol, Protocol):
@@ -90,6 +102,47 @@ class OsBuilderModelProtocol(BuilderModelProtocol, Protocol):
 
     @classmethod
     def families(cls) -> tuple[str, ...]: ...
+
+    # --- the package manager: the type's lines, never a caller's
+    @classmethod
+    def package_format(cls) -> str:
+        """The package format the type's manager installs, by the
+        format's own short name (``deb``, ``rpm``, alpine's): what a
+        plugin reads to choose which vendor artifact or repository recipe
+        to fetch."""
+        ...
+
+    @classmethod
+    def package_install_command(cls, packages: Sequence[str], *, lock_timeout: int | None = None) -> str:
+        """One shell line that installs the named packages (a package may
+        be a path or URL the manager accepts), waiting ``lock_timeout``
+        seconds for the package database where the manager can."""
+        ...
+
+    @classmethod
+    def package_update_command(cls, *, lock_timeout: int | None = None) -> str:
+        """One shell line that refreshes the manager's package lists."""
+        ...
+
+    @classmethod
+    def package_present_check(cls, package: str) -> str:
+        """One shell line that exits non-zero, naming the package on
+        stderr, unless the package is installed. It must exit for itself:
+        ``set -e`` ignores a command in an AND-OR list, so a bare
+        ``query || fail`` cannot stop a bake."""
+        ...
+
+    @classmethod
+    def service_enable_command(cls, service: str) -> str:
+        """One shell line that enables a service at boot."""
+        ...
+
+    @classmethod
+    def ansible_python_install_command(cls) -> str:
+        """One shell line that leaves a python ansible's modules can run
+        under on a bare image of this type (the newest the type offers);
+        the interpreter is then found by a generic lookup."""
+        ...
 
 
 class OsBuilderProtocol(BuilderProtocol, Protocol):

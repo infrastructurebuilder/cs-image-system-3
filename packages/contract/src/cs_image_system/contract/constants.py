@@ -31,7 +31,6 @@ RUNTIME_PROVIDER_TYPE: str = "runtime"
 CLOUD_PROVIDER_TYPE: str = "cloud_provider"
 CONTAINER_PROVIDER_TYPE: str = "container_provider"
 STATE_BACKEND_TYPE: str = "state_backend"
-S3_TYPE: str = "s3"
 STATE_BACKEND_FIELD: str = "state_configuration"
 
 CONFIGURED_OS: str = "configured_os_builders"

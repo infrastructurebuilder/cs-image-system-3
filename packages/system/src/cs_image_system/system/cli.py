@@ -13,12 +13,14 @@ import json
 import logging
 import os
 import sys
+from importlib.metadata import entry_points
 from pathlib import Path
 from typing import Annotated
 
 import typer
 from rich.logging import RichHandler
 
+from cs_image_system.contract.commands import COMMANDS_ENTRY_POINT_GROUP, CommandMount
 from cs_image_system.base.lifecycles import Lifecycle, all_lifecycles, parse_lifecycles
 from cs_image_system.base.loader import load_plugins
 from cs_image_system.base.utils import is_base
@@ -1124,125 +1126,6 @@ def unmount_storage_command(
     typer.secho(f"unmount receipt written for {instance}:{storage}", fg=typer.colors.GREEN)
 
 
-workload_app = typer.Typer(help="Stage 56: what CI's workload login needs from the configuration.")
-app.add_typer(workload_app, name="workload")
-
-
-@workload_app.command(name="describe")
-def workload_describe_command(
-    typer_cntx: typer.Context,
-    env: Annotated[bool, typer.Option("--env", help="Print shell exports (OPA_WORKLOAD_CONNECTION, "
-                                                    "OPA_WORKLOAD_ROLE, SFT_TEAM, OPA_ADDR) for the first builder")] = False,
-) -> None:
-    """Stage 56: what a workload login needs from the configuration -- the
-    team's workload connection and role as named on the group builder, the
-    team and the API address. Nothing secret; empty when none is named.
-    Its own group, not `identity`: that group is exempt from loading the
-    configuration (export-gids reads stdin), and this needs it loaded."""
-    from cs_image_system.base.commands.login_proof import workload_facts
-    from cs_image_system.base.global_context import GlobalTypeContext
-    typer_cntx.obj["deferred_load"]()
-    facts = workload_facts(GlobalTypeContext())
-    if env:
-        if not facts:
-            typer.secho("workload describe: no group builder names a workload connection and role", fg=typer.colors.RED, err=True)
-            raise typer.Exit(code=2)
-        f = facts[0]
-        import shlex
-        for key, val in (("OPA_WORKLOAD_CONNECTION", f["connection"]), ("OPA_WORKLOAD_ROLE", f["role"]),
-                         ("SFT_TEAM", f["team"]), ("OPA_ADDR", f["api_host"])):
-            typer.echo(f"export {key}={shlex.quote(val)}")
-        return
-    typer.echo(json.dumps(facts, indent=2, sort_keys=True))
-
-
-@workload_app.command(name="token")
-def workload_token_command(typer_cntx: typer.Context) -> None:
-    """This GitHub Actions run's OIDC token, presented to the team's workload
-    connection; the OPA token it yields is the ONLY thing printed on standard
-    output (stage 56; a command since stage 64, replacing
-    scripts/opa-workload-token).
-
-    Both tokens are masked in the job log (`::add-mask::` lines on standard
-    error, which the runner scans as it scans standard output), the OIDC
-    token's public claims and the client's verdict follow there. The four
-    names -- OPA_WORKLOAD_CONNECTION, OPA_WORKLOAD_ROLE, SFT_TEAM, OPA_ADDR --
-    come from the environment; any that is missing comes from the
-    configuration's first group builder that names a workload connection,
-    which loads the configuration. Needs a job holding `id-token: write`
-    (ACTIONS_ID_TOKEN_REQUEST_URL / _TOKEN) and the `sft` client. Exit 2 when
-    not in such a job or a name cannot be found, 1 when OPA issued nothing."""
-    from cs_image_system.base.commands.workload_token import WorkloadTokenError, mint_token
-    env = dict(os.environ)
-    names = _workload_names(typer_cntx, env, "workload token")
-    try:
-        token = mint_token(names, env, say=lambda line: typer.echo(line, err=True))
-    except WorkloadTokenError as e:
-        typer.secho(f"workload token: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=e.exit_code)
-    typer.echo(token, nl=False)
-
-
-def _workload_names(typer_cntx: typer.Context, env: dict[str, str], what: str):
-    """The four names from the environment, else from the configuration's
-    first group builder that names a workload connection (loads it)."""
-    from cs_image_system.base.commands.workload_token import NAME_VARS, WorkloadNames
-    names = WorkloadNames.from_environment(env)
-    if names is not None:
-        return names
-    load = typer_cntx.obj.get("deferred_load")
-    if load is not None:
-        load()
-    from cs_image_system.base.commands.login_proof import workload_facts
-    from cs_image_system.base.global_context import GlobalTypeContext
-    facts = workload_facts(GlobalTypeContext())
-    if not facts:
-        typer.secho(f"{what}: no group builder names a workload connection and role, and the "
-                    f"environment lacks {', '.join(v for v in NAME_VARS if not env.get(v))}",
-                    fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=2)
-    f = facts[0]
-    return WorkloadNames(connection=env.get("OPA_WORKLOAD_CONNECTION") or f["connection"],
-                         role=env.get("OPA_WORKLOAD_ROLE") or f["role"],
-                         team=env.get("SFT_TEAM") or f["team"],
-                         api_host=env.get("OPA_ADDR") or f["api_host"])
-
-
-@workload_app.command(name="probe")
-def workload_probe_command(typer_cntx: typer.Context) -> None:
-    """The workload probe (hygiene XII item 14; `just opa-workload-probe`):
-    present this run's OIDC token to the team's workload connection as
-    `workload token` does, discard the token it issues, and say two
-    things: `connection: accepted this run's token and issued one`, and
-    whether that token CARRIES THE ROLE -- `role: granted` when `sft
-    resolve` of a standing machine of a managed group exits 0 as the
-    workload, `role: not granted` when it does not (the connection issues
-    its token from any branch; only the second line proves the role's
-    branch pin), `role: not judged` when no such machine stands. Exit 0
-    once the connection accepted the token, whatever the role verdict; the
-    exits of `workload token` otherwise."""
-    from cs_image_system.base.commands.workload_token import WorkloadTokenError, mint_token, probe_role
-    env = dict(os.environ)
-    names = _workload_names(typer_cntx, env, "workload probe")
-    try:
-        token = mint_token(names, env, say=lambda line: typer.echo(line, err=True))
-    except WorkloadTokenError as e:
-        typer.secho(f"workload probe: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=e.exit_code)
-    typer.secho(f"workload probe: connection {names.connection}: accepted this run's token and issued one (masked)",
-                fg=typer.colors.GREEN)
-    load = typer_cntx.obj.get("deferred_load")
-    if load is not None:
-        load()
-    from cs_image_system.base.commands.login_proof import probe_target
-    from cs_image_system.base.global_context import GlobalTypeContext
-    target = probe_target(GlobalTypeContext())
-    verdict, detail = probe_role(names, token, target[0] if target else None)
-    colour = {"granted": typer.colors.GREEN, "not granted": typer.colors.YELLOW}.get(verdict)
-    typer.secho(f"workload probe: role {names.role}: {verdict} -- {detail}"
-                + (f" (group {target[1]})" if target else ""), fg=colour)
-
-
 verify_app = typer.Typer(help="Verify launched instances through the runtime (stage 10.2).")
 app.add_typer(verify_app, name="verify")
 
@@ -1275,39 +1158,6 @@ def verify_instance_command(
         typer.secho(f"instance {name} verified", fg=typer.colors.GREEN)
     else:
         typer.secho(f"instance {name} FAILED verification (recorded; teardown proceeds)", fg=typer.colors.YELLOW, err=True)
-
-
-@verify_app.command(name="login")
-def verify_login_command(
-    names: Annotated[list[str] | None, typer.Argument(help="Instances to log into (default: every standing one)")] = None,
-    runtime: Annotated[str | None, typer.Option("--runtime", help="Only the standing instances on this runtime")] = None,
-    timeout: Annotated[int, typer.Option("--timeout", help="Seconds per client call")] = 120,
-    record_only: Annotated[bool, typer.Option("--record-only",
-        help="Record the verdicts but exit 0 even on failure")] = False,
-) -> None:
-    """Stage 56: log into each standing instance over `sft ssh` -- as the
-    workload when OPA_TOKEN is set (`workload token` mints it), else as the
-    enrolled client -- and record the verdict in meta-state/login-proofs.yaml.
-    A stopped machine is skipped, never started. Exits 1 on a failed login."""
-    from cs_image_system.base.commands.login_proof import LoginProofFailed, login_proof
-    try:
-        records = login_proof(list(names or []) or None, runtime=runtime, timeout=timeout, record_only=record_only)
-    except LoginProofFailed as e:
-        typer.echo(json.dumps(e.records, indent=2, sort_keys=True))
-        typer.secho(str(e), fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
-    except (ValueError, NotImplementedError, RuntimeError) as e:
-        typer.secho(f"verify login: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
-    typer.echo(json.dumps(records, indent=2, sort_keys=True))
-    proved = [r["instance"] for r in records if r.get("ok")]
-    skipped = [r["instance"] for r in records if r.get("skipped")]
-    if proved:
-        typer.secho(f"login proved for {', '.join(proved)}", fg=typer.colors.GREEN)
-    if skipped:
-        typer.secho(f"login SKIPPED for {', '.join(skipped)} (nothing proved)", fg=typer.colors.YELLOW, err=True)
-    if not records:
-        typer.secho("no standing instance to log into", fg=typer.colors.YELLOW, err=True)
 
 
 @verify_app.command(name="assert")
@@ -1453,8 +1303,9 @@ def state_import_command(
     storages: Annotated[bool, typer.Option("--storages/--no-storages", help="Adopt foreign storages into storage-state")] = True,
 ) -> None:
     """Adopt *foreign* artifacts (tagged as ours, unrecorded) into meta-state
-    -- the migration path. Writes meta-state only; never the cloud, OPA or
-    tofu state (importing into tofu state stays a deliberate human step)."""
+    -- the migration path. Writes meta-state only; never the cloud, the
+    identity provider or tofu state (importing into tofu state stays a
+    deliberate human step)."""
     from cs_image_system.base.global_context import GlobalTypeContext
     from cs_image_system.base.state_query import import_foreign, query_state, write_state_report
     ctx = GlobalTypeContext()
@@ -1561,6 +1412,82 @@ def _version_callback(value: bool) -> None:
     raise typer.Exit()
 
 
+# ------------------------------------------------ what the plugins add
+
+_DEFERRED_LOAD_COMMANDS: set[str] = set()
+
+
+def deferred_load_commands() -> set[str]:
+    """The names of the mounted sub-apps whose commands load the configuration
+    themselves (``CommandMount.deferred_load``)."""
+    return set(_DEFERRED_LOAD_COMMANDS)
+
+
+def plugin_command_mounts() -> list[CommandMount]:
+    """Every mount the installed plugins register in the contract's
+    ``cs_image_system.commands`` entry-point group, in entry-point name order
+    (a plugin's entry point is a callable returning the list)."""
+    out: list[CommandMount] = []
+    for ep in sorted(entry_points(group=COMMANDS_ENTRY_POINT_GROUP), key=lambda e: e.name):
+        mounts = ep.load()()
+        for mount in mounts:
+            if not isinstance(mount, CommandMount):
+                raise TypeError(f"command entry point {ep.name!r} returned {mount!r}, not a CommandMount")
+            out.append(mount)
+    return out
+
+
+def _sub_app(root: typer.Typer, path: tuple[str, ...]) -> typer.Typer:
+    """The sub-app ``path`` names, outermost first; the root for ``()``."""
+    current = root
+    for name in path:
+        found = next((g.typer_instance for g in current.registered_groups if g.name == name and g.typer_instance),
+                     None)
+        if found is None:
+            raise ValueError(f"no sub-app {name!r} under {'/'.join(path[:path.index(name)]) or 'the root'}")
+        current = found
+    return current
+
+
+def mount_plugin_commands(root: typer.Typer, mounts: list[CommandMount] | None = None) -> list[str]:
+    """Mount each record on ``root``: a sub-app under the root by its name, a
+    command under the sub-app its path names. Returns what was mounted, as
+    ``name`` or ``path/name``, each once. The shared-command rule: the SAME
+    callback (by identity) or the same sub-app object mounted again under
+    the same name and path is one command, recorded once -- several plugins
+    may each mount the core's ``verify login`` -- while a DIFFERENT callback
+    or sub-app under a name a built-in or an earlier mount took is refused:
+    two owners of one command is a packaging error, never a silent
+    replacement."""
+    mounted: list[str] = []
+    for mount in (plugin_command_mounts() if mounts is None else mounts):
+        parent = _sub_app(root, mount.path)
+        where = "/".join((*mount.path, mount.name))
+        if mount.is_app:
+            earlier = next((g for g in parent.registered_groups if g.name == mount.name), None)
+            if earlier is not None and earlier.typer_instance is mount.app:
+                continue                                   # the same sub-app again: one mount
+        else:
+            earlier = next((c for c in parent.registered_commands if c.name == mount.name), None)
+            if earlier is not None and earlier.callback is mount.callback:
+                continue                                   # the same callback again: one mount
+        taken = {g.name for g in parent.registered_groups} | {c.name for c in parent.registered_commands}
+        if mount.name in taken:
+            raise ValueError(f"command {where!r} is already mounted; a plugin may not replace a built-in command "
+                             "or another plugin's (the same callback or sub-app object may be mounted again)")
+        if mount.is_app:
+            root.add_typer(mount.app, name=mount.name)
+            if mount.deferred_load:
+                _DEFERRED_LOAD_COMMANDS.add(mount.name)
+        elif mount.callback is not None:
+            parent.command(name=mount.name)(mount.callback)
+        mounted.append(where)
+    return mounted
+
+
+mount_plugin_commands(app)
+
+
 @app.callback(invoke_without_command=False)
 def main(
     typer_cntx: typer.Context,
@@ -1641,6 +1568,8 @@ def main(
     # was invoked -- found live 2026-09-23 when a state backup pulled from
     # the configuration root instead of the mirror and kept nothing
     typer_cntx.obj["invoked_cwd"] = Path(saved_dir)
+    if any(arg in ("--help", "-h") for arg in sys.argv[1:]):
+        return                      # a help request loads nothing: the command's own text answers it
     if typer_cntx.invoked_subcommand in ("test", "cleanup"):
         return                      # retired V1 names: refuse without loading anything
     if typer_cntx.invoked_subcommand == "preflight":
@@ -1671,12 +1600,14 @@ def main(
         # a private copy; this process loads nothing.
         typer_cntx.obj["config_root"] = Path(root_dir or os.getcwd())
         return
-    if typer_cntx.invoked_subcommand == "workload":
-        # stage 64: `workload token` takes its four names from the environment
-        # (the probe workflow runs on a checkout with no configuration) and
-        # loads the configuration only when one is missing; `workload
-        # describe` loads at once. The group's commands call the load
-        # themselves because click hands the callback no sub-subcommand name.
+    if typer_cntx.invoked_subcommand in deferred_load_commands():
+        # a plugin's sub-app mounted with `deferred_load`: its commands decide
+        # whether the configuration loads (an identity plugin's `workload
+        # token` takes its names from the environment -- the probe workflow
+        # runs on a checkout with no configuration -- and loads only when one
+        # is missing; its `workload describe` loads at once). The sub-app's
+        # commands call the load themselves because click hands the callback
+        # no sub-subcommand name.
         def deferred_load() -> None:
             load_plugins()
             from cs_image_system.base.global_context import read_config_and_transform

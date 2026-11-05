@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from collections.abc import Sequence
+
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 
@@ -35,3 +37,32 @@ class AlpineOsBuilderModel(OsBuilderModel):
             "sudo apk update",
             "sudo apk upgrade --available",
         ]
+
+    # ------------------------------------------------ the package manager
+    @classmethod
+    def package_format(cls) -> str:
+        return "apk"
+
+    @classmethod
+    def package_install_command(cls, packages: Sequence[str], *, lock_timeout: int | None = None) -> str:
+        # apk has no lock-wait option; --no-cache keeps the image's index out of the layer
+        return f"sudo apk add --no-cache {' '.join(packages)}"
+
+    @classmethod
+    def package_update_command(cls, *, lock_timeout: int | None = None) -> str:
+        return "sudo apk update"
+
+    @classmethod
+    def package_present_check(cls, package: str) -> str:
+        # exits for itself: `set -e` ignores a command in an AND-OR list
+        return (f"if ! apk info -e {package} >/dev/null 2>&1; "
+                f"then printf 'package %s is not installed\\n' {package} >&2; exit 1; fi")
+
+    @classmethod
+    def service_enable_command(cls, service: str) -> str:
+        # OpenRC, not systemd
+        return f"sudo rc-update add {service} default"
+
+    @classmethod
+    def ansible_python_install_command(cls) -> str:
+        return "command -v python3 >/dev/null 2>&1 || apk add --no-cache python3"

@@ -241,7 +241,59 @@ Extends `OsBuilderModel` directly and adds no fields. Its
 only `policy: none` and `policy: full` (or `auto_update: true`); `security`,
 `packages`, `exclude` and `pin` raise `NotImplementedError`. The commands
 use `sudo`; an Alpine image that ships only `doas` needs the command list
-changed.
+changed. It answers every package-manager hook (next section) with `apk`
+and OpenRC lines, so a plugin's prerequisites bake on alpine through the
+hooks without the plugin knowing the family.
+
+### The package-manager hooks
+
+The OS type owns the package manager. Every plugin that bakes a package
+into an image -- an identity type's agent, a storage type's mount tooling,
+a runtime's session agent, the in-bake `packages:` assertion, the local
+modification tests' python for ansible -- asks the type that serves the
+image's family and never writes a manager's command line itself. The hooks
+are classmethods on the model (declared on the contract's
+`OsBuilderModelProtocol`; the core's `OsBuilderModel` raises
+`NotImplementedError` naming the type for each one it does not implement),
+and the core finds the type from a family with
+`cs_image_system.base.os_types.os_type_for_family(family)` (the class whose
+`families()` names it; a `ValueError` names the family and the families
+every installed type serves when none does).
+
+| Hook | `AptOsBuilderModel` (`debian`, `ubuntu`) | `DnfOsBuilderModel` (`rhel`, `fedora`) | `AlpineOsBuilderModel` |
+|---|---|---|---|
+| `package_format()` | `deb` | `rpm` | `apk` |
+| `package_install_command(packages, *, lock_timeout=None)` | `sudo apt-get [-o DPkg::Lock::Timeout=<n>] install -y <packages>` | `sudo yum install -y <packages>` (a package may be an rpm URL; the timeout is ignored: dnf waits for the rpm database on its own) | `sudo apk add --no-cache <packages>` (no timeout option) |
+| `package_update_command(*, lock_timeout=None)` | `sudo apt-get [-o DPkg::Lock::Timeout=<n>] update -y` | `sudo yum -y makecache` | `sudo apk update` |
+| `package_present_check(package)` | the rpm-then-dpkg test below | the same test | `if ! apk info -e <package> ...; then printf ...; exit 1; fi` |
+| `service_enable_command(service)` | `sudo systemctl enable <service>` | `sudo systemctl enable <service>` | `sudo rc-update add <service> default` (OpenRC) |
+| `ansible_python_install_command()` | `apt-get install -y python3` when there is no python3 | the newest of python3.12/3.11/3.9 the release offers, else python3 | `apk add --no-cache python3` when there is no python3 |
+
+Two things to know about the table:
+
+- **The lines are exactly what the bakes carried before the type owned
+  them, differences included.** The dnf type's bake lines say `yum`, the
+  compatibility name every supported release (EL 8, 9 and 10; Fedora)
+  answers to, while its update policy says `dnf`; the apt type's lines take
+  `lock_timeout` (`PACKAGE_LOCK_TIMEOUT` in the contract's
+  `operating_system` module is the 600 seconds every caller passes) so a
+  bake waits for a freshly booted machine's own updater instead of failing
+  on the lock, and its `update` carries `-y` where the update policy's does
+  not. Making those one is a decision to take against a running bake, not
+  inside this table.
+- **The package assertion of the apt and dnf types is one line**
+  (`helpers.rpm_or_dpkg_present_check`): rpm's answer, else dpkg's where
+  dpkg exists, and an exit naming the package when neither says installed.
+  Both types answer with it so the bake's bytes stand; one manager each is
+  a later decision. Every type's assertion exits for itself: under `set -e`
+  a bare `query || fail` cannot stop a bake, because the shell ignores a
+  failing command in an AND-OR list.
+
+A plugin that needs a different artifact per format (an agent shipped as a
+deb and as an rpm; a vendor repository recipe) branches on
+`package_format()` and uses the hooks for the lines; a plugin whose vendor
+ships nothing for a format says so (`ValueError`) rather than emitting
+another family's line.
 
 ### What the models do not support
 

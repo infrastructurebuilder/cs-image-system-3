@@ -10,8 +10,7 @@ reader needs, and its sources not at all.
 
 The exception list is the committed set of lines allowed to carry a word
 despite the rule. A line that needs one is a plugin's line in the wrong
-package; the two it holds are owed to the stage that moves storage mounts
-out of the core, and it is empty after that.
+package, or a name that committed emission pins; each entry says which.
 """
 from __future__ import annotations
 
@@ -23,25 +22,29 @@ CORE = [REPO / "packages" / p / "src" for p in ("contract", "base", "system")]
 
 #: The words: each is one provider's, or one provider's tool's, or its
 #: cloud's vocabulary (the operator's choice at the stage that wrote this
-#: test: the clouds' words too, not only the plugins' names). A word counts
-#: however it is cased and whatever ``_`` or ``-`` joins it to, so
-#: ``aws_region`` and ``AWS-StartSSHSession`` count; the identity and state
-#: words (okta, opa, posix, s3, gcs) are another stage's.
+#: test: the clouds' words too, not only the plugins' names), and since
+#: the stage that moved storage and identity out of the core, the
+#: identity plugins' words (okta, sft, sftd, oktapam), the package
+#: managers (yum, dnf, apt, apk) and the storage kinds (ebs, efs, pd,
+#: filestore, s3, gcs). A word counts however it is cased and whatever
+#: ``_`` or ``-`` joins it to, so ``aws_region`` and ``sft_enrollment_token``
+#: count. ``posix`` counts only as the quoted type word (``"posix"``): the
+#: POSIX standard (ids, filesystems, ``as_posix()``, ``ansible.posix``) is
+#: not a plugin's.
 PROVIDER_WORDS = re.compile(
-    r"(?<![a-z0-9])(?:aws|ec2|ami|amis|ssm|iap|gcp|gce|gcloud|google|googlecompute|docker|boto|boto3|botocore|sso)"
-    r"(?![a-z0-9])|ami-|amazon-ebs", re.IGNORECASE)
+    r"(?<![a-z0-9])(?:aws|ec2|ami|amis|ssm|iap|gcp|gce|gcloud|google|googlecompute|docker|boto|boto3|botocore|sso"
+    r"|okta|sft|sftd|oktapam|yum|dnf|apt|apk|ebs|efs|pd|filestore|s3|gcs)(?![a-z0-9])"
+    r"|ami-|amazon-ebs|[\"']posix[\"']", re.IGNORECASE)
 
 #: Every line allowed to carry a word despite the rule, as (path relative
 #: to the repo, a substring of the line that identifies it), so an edit
-#: elsewhere in the file does not move the entry. Two lines, by the
-#: operator's decision at the stage that wrote this test: the storage
-#: mount code's device naming for persistent disks belongs with the EBS
-#: device table and the nvme fallback beside it, and the stage that moves
-#: storage mounts and identity out of the core owns the whole block and
-#: empties this list.
+#: elsewhere in the file does not move the entry. Each entry says why it
+#: is here; an entry whose reason has gone goes with it.
 EXCEPTIONS: tuple[tuple[str, str], ...] = (
-    ("packages/base/src/cs_image_system/base/launch_params.py", "def _gce_device_name("),
-    ("packages/base/src/cs_image_system/base/launch_params.py", '"/dev/disk/by-id/google-"'),
+    # the enrollment credential's terraform variable: its name is pinned by
+    # every tree's committed emission (the launch scripts and the roots carry
+    # it), so it stays until a hygiene item renames it with a re-record
+    ("packages/base/src/cs_image_system/base/launch_params.py", 'ENROLLMENT_TOKEN_VARIABLE = "sft_enrollment_token"'),
 )
 
 

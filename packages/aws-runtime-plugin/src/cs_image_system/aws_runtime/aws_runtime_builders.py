@@ -459,18 +459,28 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
     def session_agent_commands(self, os_family: str | None = None) -> list[str]:
         if self.session_mechanism() != self.SSM:
             return []
-        fam = (os_family or "").lower()
         region = self.model.get_region()
-        if fam in ("debian", "ubuntu"):
+        # Amazon ships the agent as a deb and as an rpm: the OS type's
+        # package format picks the artifact, its hooks give the lines
+        from cs_image_system.base.os_types import os_type_for_family
+        os_type = os_type_for_family(os_family)
+        fmt = os_type.package_format()
+        if fmt == "deb":
             # Guarded: the SSM-communicator bootstrap has usually installed the
             # agent already (and owns /tmp/ssm.deb as root -- found live:
             # curl(23) on re-download); unique filename, root-owned download.
+            # The deb is installed by dpkg, the format's own tool: apt-get
+            # cannot take a downloaded file on every supported release.
             install = ["command -v amazon-ssm-agent >/dev/null 2>&1 || snap list amazon-ssm-agent >/dev/null 2>&1 || "
                        f"(sudo curl -fsSL https://s3.{region}.amazonaws.com/amazon-ssm-{region}/latest/debian_amd64/amazon-ssm-agent.deb -o /tmp/ssm-agent-bake.deb && sudo dpkg -i /tmp/ssm-agent-bake.deb)"]
+        elif fmt == "rpm":
+            rpm_url = f"https://s3.{region}.amazonaws.com/amazon-ssm-{region}/latest/linux_amd64/amazon-ssm-agent.rpm"
+            install = [" || ".join(os_type.package_install_command([p]) for p in (rpm_url, "amazon-ssm-agent"))]
         else:
-            install = [f"sudo yum install -y https://s3.{region}.amazonaws.com/amazon-ssm-{region}/latest/linux_amd64/amazon-ssm-agent.rpm || sudo yum install -y amazon-ssm-agent"]
+            raise ValueError(f"AWS runtime {self.get_name()}: session mechanism 'ssm' has no agent package in the "
+                             f"{fmt} format, so a base image of family {os_family!r} cannot bake it")
         return [f"# session mechanism 'ssm' ({self.get_name()}): SSM agent for debug sessions"] + install + [
-            "sudo systemctl enable amazon-ssm-agent"]
+            os_type.service_enable_command("amazon-ssm-agent")]
 
     #: stage 86: how long a bake waits for Systems Manager to leave a new
     #: machine alone -- quiet for QUIET checks in a row, STEP seconds apart;
