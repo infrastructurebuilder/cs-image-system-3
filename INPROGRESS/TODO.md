@@ -20,6 +20,8 @@ the operator can take; a landed stage's file is removed and its squash
 message is the record. Numbering starts at §118. §117 is
 reserved by [§116](STAGE-116.md) item 7 (the contract to its own
 repository).
+[§131](STAGE-131.md), from a finding of [§120](STAGE-120.md), is
+the first stage planned after the review's set.
 
 **Scope** (the operator, 2026-11-04): separation of layers,
 consolidation of the base classes, and the documentation. Out of
@@ -53,6 +55,9 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
 - [§128](STAGE-128.md) and [§129](STAGE-129.md), the tests and the
   sources stop narrating: any time after §119.
 - [§130](STAGE-130.md), hygiene bundle XXIV: the open bundle for the small findings.
+- [§131](STAGE-131.md), registrations carry their plugin's namespace:
+  planned 2026-11-04; any time after [§120](STAGE-120.md) and before
+  [§125](STAGE-125.md) versions the contract; waits for "do 131".
 - [§112](STAGE-112.md), a release in two boxes: planned 2026-11-03; waits for
   "do 112".
 - [§113](STAGE-113.md) to [§116](STAGE-116.md), the decomposition (the kit and the engine, the run
@@ -86,6 +91,7 @@ and validated by the operator before its "do N")
 - [§128, Tests named for behaviour](STAGE-128.md)
 - [§129, The sources stop narrating](STAGE-129.md)
 - [§130, Hygiene bundle XXIV](STAGE-130.md)
+- [§131, Registrations carry their plugin's namespace](STAGE-131.md)
 
 **Release**
 
