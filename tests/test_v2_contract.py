@@ -29,7 +29,7 @@ from v2_support import FIXTURE_CONFIG, REPO, load_context, reset_singletons
 
 CONTRACT = REPO / "packages/contract/src/cs_image_system/contract"
 LEAVES = {"constants", "model_config", "fields", "field_kinds", "lifecycle", "lifecycles", "assets", "executables",
-          "names", "hcl"}
+          "names", "hcl", "session"}
 # what each non-leaf module may import from the package, beside the leaves
 ALLOWED = {
     "core": set(),

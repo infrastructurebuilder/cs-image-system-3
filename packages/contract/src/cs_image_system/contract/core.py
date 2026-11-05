@@ -33,6 +33,7 @@ from .assets import AssetSet
 from .constants import VCT
 from .executables import CFExecutables
 from .lifecycle import ExecutionLifecyclePhase
+from .session import LoadFailureReport
 
 
 @runtime_checkable
@@ -239,6 +240,15 @@ class BuilderProtocol(NameTypedProtocol, PluginArtifactProtocol, Protocol):
     def post_failed_phase(self, phase: ExecutionLifecyclePhase) -> None: ...
 
     def get_builder_path(self) -> Path: ...
+
+    @classmethod
+    def classify_failure(cls, exc: BaseException) -> LoadFailureReport | None:
+        """The one-line form of a load-time failure this builder's kind
+        recognises as its own (a runtime's lapsed credentials, a container
+        runtime's unreachable daemon, a group builder's missing key pair),
+        or ``None`` for one it does not. The core asks every registered
+        builder class and walks the exception's cause chain itself."""
+        ...
 
     def get_discriminator(self) -> str: ...
 

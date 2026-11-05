@@ -19,10 +19,12 @@ Items of other kinds (images, subconfigs, provider-specific images) are
 ``Any`` here: their protocols are a later stage."""
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from typing import Any, Protocol
 
 from .core import BuilderModelProtocol, BuilderProtocol
 from .image import ImageQuery, PSISourceKind
+from .session import SessionStatus
 
 #: How an instance's launch script reaches the machine (stage 103 branch 2):
 #: ``boot`` -- the platform runs it at first boot (EC2 user data, a GCE
@@ -206,6 +208,41 @@ class RuntimeBuilderProtocol(BuilderProtocol, Protocol):
     def create_provider_specific_image_deferred(self, *, image: Any, subconfig: Any,
                                                 source_kind: PSISourceKind = PSISourceKind.IMAGE,
                                                 architecture: str | None = None) -> Any: ...
+
+    # --- what the core asks of the runtime's CLASS, before or without a tree
+    @classmethod
+    def session_status(cls, settings: Mapping[str, Any], executables: Mapping[str, Any]) -> SessionStatus | None:
+        """The session a runtime declared by ``settings`` (the entry's keys
+        as written, or the model's fields) will use: read from the
+        credential caches, never a credential value; ``executables`` the
+        tree's executables by name (a daemon probe reads its binary from
+        them). ``None`` when the runtime needs no session."""
+        ...
+
+    @classmethod
+    def credential_environment_prefixes(cls) -> tuple[str, ...]:
+        """The prefixes of the environment variables this runtime reads
+        credentials from (the preflight reports one that is set and
+        empty, by name, never by value). Empty for a runtime that reads
+        none."""
+        ...
+
+    @classmethod
+    def image_source_entries(cls) -> list[Mapping[str, Any]]:
+        """The runtime's part of the release-owned image-source catalog:
+        entries in the catalog's shape (``family``, ``sources`` keyed by
+        this runtime's type, ``description``, ``is``, ``versions``), read
+        from the plugin's package data. Empty for a runtime that ships
+        none."""
+        ...
+
+    @classmethod
+    def local_test_target(cls) -> Callable[..., Any] | None:
+        """A factory for the local target the modification tests run on
+        (``factory(image, executables) -> LocalTarget``), or ``None`` for a
+        runtime that offers none. The catalog block the tests read is the
+        one keyed by this runtime's type."""
+        ...
 
     # --- wiring: the builders that operate in this runtime
     def add_image_builder(self, image: Any) -> None: ...

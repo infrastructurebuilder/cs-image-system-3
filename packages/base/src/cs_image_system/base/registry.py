@@ -109,6 +109,19 @@ class Registry:
             self.models.setdefault(classifier, {})[name] = model_type
             if metadata.is_injected_models_default:
                 self.set_default_for(classifier, name)
+    def runtime_builder_classes(self) -> dict[str, type]:
+        """Every registered runtime builder class by its canonical name:
+        the clouds, the containers and the plain runtimes, which the
+        loader registers under their own classifications."""
+        out: dict[str, type] = {}
+        for classifier in (VCT.RUNTIME_BUILDER, VCT.CLOUD_BUILDER, VCT.CONTAINER_BUILDER):
+            out.update(self.models.get(classifier, {}))
+        return out
+
+    def state_builder_classes(self) -> dict[str, type]:
+        """Every registered state backend builder class by its canonical name."""
+        return dict(self.models.get(VCT.STATE_BACKEND, {}))
+
     def get_model(self, classifier: VCT, canonical_name: str) -> type[PluginArtifactProtocol] | None:
         return self.models.get(classifier, {}).get(canonical_name, None)
     def get_instance(self, classifier: VCT, name_or_alias: str) -> NameTypedProtocol | None:

@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Generic, TypeVar
 import logging
 log = logging.getLogger(__name__)
 from ..constants import NO_MODEL_ID, UNSET_MODEL_ID, VCT
+from cs_image_system.contract.session import LoadFailureReport
 from cs_image_system.contract.core import BuilderProtocol
 
 from ..models.builder_model import BuilderModel
@@ -71,6 +72,11 @@ class BuilderBase(ABC, BuilderProtocol, Generic[C]):
         """The type key the builder answers to, the same as its model's: a
         concrete builder defines it; the bases name no type of their own."""
         raise NotImplementedError(f"{cls.__name__} names no type: a concrete builder defines csis_name()")
+
+    @classmethod
+    def classify_failure(cls, exc: BaseException) -> LoadFailureReport | None:
+        """Default: no load-time failure is this builder's to explain."""
+        return None
     @classmethod
     def csis_classifier(cls) -> VCT:
         """The classification the builder registers under: a kind's base

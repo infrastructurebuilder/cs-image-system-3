@@ -2,13 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import TypeVar
+from collections.abc import Mapping
+from typing import Any, TypeVar
 
 from ..models.state_builder import StateBuilderModel
 
 from ..constants import VCT
 
 from .builder_base import BuilderBase
+from cs_image_system.contract.session import SessionStatus
 from cs_image_system.contract.state import StateBuilderProtocol
 
 
@@ -17,4 +19,8 @@ class StateBuilderBase(BuilderBase[TSTATE], StateBuilderProtocol):
     @classmethod
     def csis_classifier(cls) -> VCT:
         return VCT.STATE_BACKEND
-    pass
+
+    @classmethod
+    def session_status(cls, settings: Mapping[str, Any], executables: Mapping[str, Any]) -> SessionStatus | None:
+        """Default: the backend needs no session the preflight can read."""
+        return None

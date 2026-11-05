@@ -6,10 +6,12 @@ from __future__ import annotations
 
 import logging
 from cs_image_system.contract.image import ImageQuery
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from .builder_base import BuilderBase
 from cs_image_system.contract.runtime import RuntimeBuilderProtocol
+from cs_image_system.contract.session import LoadFailureReport, SessionStatus
 from ..constants import VCT
 from ..models.image import Image, ImageImageBuilderSubconfig
 from ..models.provider_specific_image import (
@@ -194,6 +196,32 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
 
     def get_default_machine_type(self) -> str:
         return self.model.get_default_machine_type()
+
+    # ------------------------------------------- asked of the class itself
+    @classmethod
+    def session_status(cls, settings: Mapping[str, Any], executables: Mapping[str, Any]) -> SessionStatus | None:
+        """Default: the runtime needs no session the preflight can read."""
+        return None
+
+    @classmethod
+    def classify_failure(cls, exc: BaseException) -> LoadFailureReport | None:
+        """Default: no load-time failure is this runtime's to explain."""
+        return None
+
+    @classmethod
+    def credential_environment_prefixes(cls) -> tuple[str, ...]:
+        """Default: the runtime reads no credentials from the environment."""
+        return ()
+
+    @classmethod
+    def image_source_entries(cls) -> list[Mapping[str, Any]]:
+        """Default: the runtime ships no part of the image-source catalog."""
+        return []
+
+    @classmethod
+    def local_test_target(cls) -> Callable[..., Any] | None:
+        """Default: the runtime offers no local target for modification tests."""
+        return None
 
     # ---------------------------------------------------------- V2 contract
     def session_mechanism(self) -> str | None:
