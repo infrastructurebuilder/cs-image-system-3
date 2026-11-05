@@ -458,7 +458,8 @@ def check_availability_zones(ctx: GlobalTypeContext) -> list[Exception]:
     """Everything that shares a zone must ask for a COMPATIBLE one (stage 52).
 
     An availability zone is declared, never inferred, so an absent value
-    constrains nothing and a REGIONAL storage (EFS, S3, GCS) constrains
+    constrains nothing and a REGIONAL storage (a shared filesystem, an
+    object store: whatever its builder says is not zonal) constrains
     nothing either -- which is what compatible means here, rather than
     identical. What is refused is a set with more than one distinct zone in
     it: an instance, the zonal storages it mounts and its runtime's subnet
@@ -466,9 +467,9 @@ def check_availability_zones(ctx: GlobalTypeContext) -> list[Exception]:
 
     It is worth refusing early because the alternative is late and obscure. A
     zone is a replace-forcing attribute: pointing a runtime at a subnet in
-    another zone does not fail to attach the volume, it plans to DESTROY and
+    another zone does not fail to attach the storage, it plans to DESTROY and
     recreate it. The plan gate catches that as an unwhitelisted destroy, but
-    it names the volume, not the cause."""
+    it names the storage, not the cause."""
     exs: list[Exception] = []
 
     # a zonal storage against its own runtime
@@ -537,14 +538,15 @@ def check_canonical_hostnames(ctx: GlobalTypeContext) -> list[Exception]:
     The canonical name IS the OS hostname -- the launch script runs
     ``hostnamectl set-hostname '<name>'`` -- so what binds is Linux's
     HOST_NAME_MAX and RFC 1123: at most 63 characters of letters, digits and
-    hyphens, not starting or ending with one. Okta documents no limit of its
-    own.
+    hyphens, not starting or ending with one. The identity provider
+    documents no limit of its own.
 
     Refused here because the alternative is silent: that line ends in
     ``|| true``, so an invalid name does not stop the boot. The machine keeps
-    the hyperscaler's name (``ip-10-26-34-156``), enrolls in OPA under THAT,
-    and ``sft ssh <declared name>`` finds nothing while every step reports
-    success. Nothing checked this before 2026-09-21."""
+    the hyperscaler's name (``ip-10-26-34-156``), enrolls with the identity
+    provider under THAT, and a login by the declared name finds nothing
+    while every step reports success. Nothing checked this before
+    2026-09-21."""
     from ..launch_params import HOSTNAME_LABEL_MAX, canonical_hostname, hostname_problems
     exs: list[Exception] = []
     for inst in ctx.instances:
@@ -553,7 +555,7 @@ def check_canonical_hostnames(ctx: GlobalTypeContext) -> list[Exception]:
             exs.append(Exception(
                 f"instance '{inst.get_name()}': canonical hostname {name!r} {why} "
                 f"(RFC 1123 label, at most {HOSTNAME_LABEL_MAX} characters of letters, digits "
-                f"and hyphens; it becomes the OS hostname and the OPA canonical name)"))
+                f"and hyphens; it becomes the OS hostname and the identity provider's canonical name)"))
     return exs
 
 
@@ -870,20 +872,26 @@ def _is_container_runtime(rtb: Any) -> bool:
 
 
 def check_container_runtimes(ctx: GlobalTypeContext) -> list[Exception]:
-    """Stage 103, decision 3: POSIX accounts only on a container runtime. An
-    instance image owned by a group whose identity type is not ``posix``
-    (an OPA group: its agent needs systemd, sshd, a reachable address and
-    a cloud identity) is refused on a container runtime, in one sentence
-    naming the image, the group and the runtime."""
-    from cs_image_system.base.capabilities import identity_type_of_group
+    """Stage 103, decision 3: on a container runtime, only a group whose
+    identity lives on the machine itself. Each group builder answers
+    ``container_runtime_objection()``: None when its groups may own an
+    image there (accounts the image carries), else why not (an agent that
+    needs systemd, sshd, a reachable address and a cloud identity). An
+    instance image owned by an objecting group is refused on a container
+    runtime, in one sentence naming the image, the group, the runtime and
+    the objection."""
+    from cs_image_system.base.capabilities import group_builder_of
     exs: list[Exception] = []
     container_runtimes = {name for name, rtb in ctx.runtime_builders.items() if _is_container_runtime(rtb)}
     if not container_runtimes:
         return exs
     for name, image in sorted(ctx.images_map.items()):
         group = getattr(image, "group", None)
-        kind = identity_type_of_group(ctx, group) if group else None
-        if not kind or kind == "posix":
+        gb = group_builder_of(ctx, group) if group else None
+        if gb is None:
+            continue
+        objection = gb.container_runtime_objection()
+        if not objection:
             continue
         for entry in getattr(image, "runtimes", None) or []:
             ib = ctx.image_builders.get(str(getattr(entry, "image_builder", None) or ""))
@@ -892,9 +900,8 @@ def check_container_runtimes(ctx: GlobalTypeContext) -> list[Exception]:
             except ValueError:
                 rt = None
             if rt in container_runtimes:
-                exs.append(Exception(f"image '{name}' is owned by group '{group}' ({kind}) and bakes on container runtime "
-                                     f"{rt}: only a posix group can own an image there (access is through the daemon; "
-                                     f"enrolling an identity agent in a container is a later stage)"))
+                exs.append(Exception(f"image '{name}' is owned by group '{group}' ({gb.identity_type()}) and bakes on "
+                                     f"container runtime {rt}: {objection}"))
     return exs
 
 

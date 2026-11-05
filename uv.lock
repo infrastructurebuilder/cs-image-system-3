@@ -788,6 +788,7 @@ dependencies = [
     { name = "cs-image-system-contract" },
     { name = "cs-image-system-hashicorp-utils" },
     { name = "pydantic" },
+    { name = "typer" },
 ]
 
 [package.metadata]
@@ -797,6 +798,7 @@ requires-dist = [
     { name = "cs-image-system-contract", editable = "packages/contract" },
     { name = "cs-image-system-hashicorp-utils", editable = "packages/hashicorp-utils" },
     { name = "pydantic", specifier = ">=2.13" },
+    { name = "typer", specifier = ">=0.26" },
 ]
 
 [[package]]

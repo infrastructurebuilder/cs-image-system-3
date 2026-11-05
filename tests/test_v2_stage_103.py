@@ -184,8 +184,9 @@ def test_an_opa_group_on_a_docker_runtime_is_refused_in_one_sentence(tmp_path, m
     stub_environment(monkeypatch)
     _stub_daemon(monkeypatch)
     errors = _errors(root, monkeypatch)
-    hits = [e for e in errors if IMAGE in e and "only a posix group can own an image there" in e]
+    hits = [e for e in errors if IMAGE in e and "can own an image there" in e]
     assert len(hits) == 1 and "coops" in hits[0] and RUNTIME in hits[0], errors
+    assert "(okta)" in hits[0] and "sftd" in hits[0], "the objection is the okta builder's, in its words"
 
 
 def test_both_addresses_or_an_unknown_machine_type_are_refused_at_load(tmp_path, monkeypatch):

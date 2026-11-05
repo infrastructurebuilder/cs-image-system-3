@@ -20,9 +20,18 @@ from __future__ import annotations
 
 import subprocess
 
-from cs_image_system.base.image_tests import declared_test_commands
+from cs_image_system.base.image_tests import declared_test_commands as _declared
+from cs_image_system.base.os_types import os_type_for_family
 
 SENTINEL = "REACHED-THE-LINE-AFTER"
+
+
+def declared_test_commands(spec):
+    """The assertions as a bake of an rpm-family image gets them: the
+    package test is the OS type's, and the behaviour tested here is the
+    type's line's (the other types are held to the same in
+    test_v2_os_types.py)."""
+    return _declared(spec, os_type=os_type_for_family("rhel"))
 
 
 def _aborts(assertion: str) -> bool:

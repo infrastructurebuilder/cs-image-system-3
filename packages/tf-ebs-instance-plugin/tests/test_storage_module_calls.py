@@ -167,3 +167,92 @@ def test_efs_without_networking_asks_for_no_mount_targets(_=None):
     args = TofuEfsStorageBuilder.module_args(_builder(), _storage("share"))
     for key in ("vpc_id", "mount_target_subnet_ids", "client_security_group_ids"):
         assert key not in args
+
+
+# ------------------------------------------------- the launch hooks (device and mount lines)
+
+def _mount(name, mp, stype, **extra) -> dict:
+    return {"storage": name, "type": stype, "builder": f"aws-{stype}", "mount_point": mp,
+            "group": "coops", "share_mode": "2770", "public_read": False, **extra}
+
+
+def _hooks(cls) -> Any:
+    """A builder with no model: the launch hooks read only the mount record."""
+    return object.__new__(cls)
+
+
+def test_the_ebs_builder_owns_the_device_table_and_the_nvme_fallback():
+    from cs_image_system.tf_ebs_instance_plugin.tf_storage_builder import TofuEbsStorageBuilder, ebs_device
+    b = _hooks(TofuEbsStorageBuilder)
+    assert [ebs_device(i) for i in range(8)] == ["/dev/xvdf", "/dev/xvdg", "/dev/xvdh", "/dev/xvdi",
+                                                 "/dev/xvdj", "/dev/xvdk", "/dev/xvdl", "/dev/xvdm"]
+    assert b.launch_mount(_storage("mnt_data"), None, 0) == {"device": "/dev/xvdf"}
+    assert b.launch_mount(_storage("mnt_data"), None, 2) == {"device": "/dev/xvdh"}
+    assert b.launch_variables() == ("ebs",)
+    m = _mount("mnt_data", "/mnt/data", "ebs", device="/dev/xvdf")
+    assert b.launch_script_lines(m, "coops") == [
+        "# mount storage mnt_data (ebs) at /mnt/data",
+        "mkdir -p '/mnt/data'",
+        "DEV='/dev/xvdf'",
+        'VOL="${ebs["mnt_data"].volume_id}"',
+        'BYID="/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_$(printf \'%s\' "$VOL" | tr -d -)"',
+        "# the attachment lands after boot: wait for either name",
+        'for i in $(seq 1 60); do [ -e "$DEV" ] && break; [ -e "$BYID" ] && DEV="$BYID" && break; sleep 2; done',
+        'if ! blkid "$DEV" >/dev/null 2>&1; then mkfs -t xfs "$DEV"; fi',
+        "grep -q ' /mnt/data ' /etc/fstab || echo \"$DEV /mnt/data xfs defaults,nofail 0 2\" >> /etc/fstab",
+        "mount '/mnt/data' || mount \"$DEV\" '/mnt/data'",
+        "findmnt -rn '/mnt/data' >/dev/null 2>&1 && echo 'csis-mount: /mnt/data mounted' || echo 'csis-mount: /mnt/data NOT mounted'",
+        "mkdir -p '/mnt/data/coops'",
+        'chgrp "$GID" \'/mnt/data/coops\'',
+        "chmod 2770 '/mnt/data/coops'",
+    ]
+    assert b.launch_script_lines(m, None)[-1].startswith("findmnt"), "no group, no subtree"
+    assert b.launch_tasks(m, "coops") == [
+        {"name": "mount point /mnt/data for storage mnt_data (ebs)",
+         "ansible.builtin.file": {"path": "/mnt/data", "state": "directory"}},
+        {"name": "filesystem on /dev/xvdf (mnt_data)", "community.general.filesystem": {"fstype": "xfs", "dev": "/dev/xvdf"}},
+        {"name": "mount /dev/xvdf at /mnt/data",
+         "ansible.posix.mount": {"path": "/mnt/data", "src": "/dev/xvdf", "fstype": "xfs",
+                                 "opts": "defaults,nofail", "state": "mounted"}},
+        {"name": "private subtree /mnt/data/coops (gid by reference)",
+         "ansible.builtin.file": {"path": "/mnt/data/coops", "state": "directory",
+                                  "group": "{{ group_gid }}", "mode": "2770"}},
+    ]
+    assert len(b.launch_tasks(m, None)) == 3
+
+
+def test_the_efs_builder_mounts_through_the_access_point_and_makes_no_subtree():
+    b = _hooks(TofuEfsStorageBuilder)
+    m = _mount("share", "/mnt/share", "efs")
+    assert b.launch_mount(_storage("share"), None, 0) == {} and b.launch_variables() == ("efs",)
+    assert b.launch_script_lines(m, "coops") == [
+        "# mount storage share (efs) at /mnt/share",
+        "mkdir -p '/mnt/share'",
+        'EFS_ID="${efs["share"].file_system_id}"',
+        'EFS_AP="${efs["share"].access_point_id}"',
+        "grep -q ' /mnt/share ' /etc/fstab || echo \"$EFS_ID:/ /mnt/share efs _netdev,tls,accesspoint=$EFS_AP,nofail 0 0\" >> /etc/fstab",
+        "mount '/mnt/share' || true",
+        "findmnt -rn '/mnt/share' >/dev/null 2>&1 && echo 'csis-mount: /mnt/share mounted' || echo 'csis-mount: /mnt/share NOT mounted'",
+    ]
+    assert b.launch_tasks(m, "coops") == [
+        {"name": "mount point /mnt/share for storage share (efs)",
+         "ansible.builtin.file": {"path": "/mnt/share", "state": "directory"}},
+        {"name": "mount EFS share at /mnt/share",
+         "ansible.posix.mount": {"path": "/mnt/share", "fstype": "efs", "src": "{{ efs['share'].file_system_id }}:/",
+                                 "opts": "_netdev,tls,accesspoint={{ efs['share'].access_point_id }},nofail",
+                                 "state": "mounted"}},
+    ]
+
+
+def test_the_s3_builder_mounts_nothing_and_says_so():
+    b = _hooks(TofuS3StorageBuilder)
+    m = _mount("bucket", "/mnt/bucket", "s3")
+    assert b.launch_mount(_storage("bucket"), None, 0) == {} and b.launch_variables() == ()
+    assert b.launch_script_lines(m, "coops") == [
+        "# mount storage bucket (s3) at /mnt/bucket",
+        "mkdir -p '/mnt/bucket'",
+        "# s3 storage bucket: object access via the cloud CLI; no mount",
+    ]
+    assert b.launch_tasks(m, "coops") == [
+        {"name": "storage bucket (s3): object access via the cloud's CLI, no mount",
+         "ansible.builtin.debug": {"msg": "s3 storage bucket is not mounted"}}]

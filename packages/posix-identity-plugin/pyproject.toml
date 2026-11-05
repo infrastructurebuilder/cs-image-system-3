@@ -25,6 +25,11 @@ Documentation = "https://github.com/infrastructurebuilder/cs-image-system-3/blob
 [project.entry-points."cs_image_system.plugins.group"]
 posix_identity_plugin = "cs_image_system.posix_identity_plugin.main:initialize"
 
+# `verify login`: the core's one callback, which every identity plugin mounts
+# (a shared command, mounted once whichever plugin is installed)
+[project.entry-points."cs_image_system.commands"]
+posix_identity_plugin = "cs_image_system.posix_identity_plugin.cli:command_mounts"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

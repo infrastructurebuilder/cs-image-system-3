@@ -99,8 +99,9 @@ class Storage(NameTyped, SelfInjectedName):
     tags: dict[str, str] = field(default_factory=dict)
     config: dict[str, Any] = field(default_factory=dict)
     # Systemic data lifecycle (stage 15, DESIGN §3H / N19): a declaration the
-    # storage's builder realizes on the resource itself -- S3: {transition_days,
-    # storage_class, expire_days, prefix}; EFS: {ia_days, archive_days}. A
+    # storage's builder realizes on the resource itself -- an object store:
+    # {transition_days, storage_class, expire_days, prefix}; a tiered shared
+    # filesystem: {ia_days, archive_days}; each builder documents its keys. A
     # builder without a data lifecycle refuses the key at validation.
     lifecycle: dict[str, Any] | None = None
 

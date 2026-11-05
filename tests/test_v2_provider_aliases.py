@@ -72,15 +72,20 @@ def test_own_record_is_found_by_the_provider_id_not_the_name():
 
 
 def test_the_script_rewrites_the_last_block_and_restarts_only_on_change():
-    s = pa.alt_names_script(["ip-10-26-34-156"])
+    """The script is the identity plugin's (its agent, its file); the core
+    asks the group builder for it and reads only the two closing words."""
+    from cs_image_system.okta_opa_plugin.server_aliases import alt_names_script
+    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
+    assert OktaTfGroupBuilder.alias_registration_script(None, ["a-b"]) == alt_names_script(["a-b"])  # type: ignore[arg-type]
+    s = alt_names_script(["ip-10-26-34-156"])
     assert "AltNames:" in s and "  - ip-10-26-34-156" in s
     assert "sed -i '/^AltNames:/,$d'" in s          # replace from the heading to EOF
     assert "ALTNAMES_UNCHANGED; exit 0" in s          # idempotent path first
     assert "systemctl restart sftd" in s and s.index("UNCHANGED") < s.index("restart sftd")
     assert "tee -a" in s and "| sudo tee " not in s.replace("tee -a", "")   # append, never truncate
-    assert 'want=""' in pa.alt_names_script([])       # no aliases: the block is removed
+    assert 'want=""' in alt_names_script([])       # no aliases: the block is removed
     with pytest.raises(ValueError, match="not a hostname label"):
-        pa.alt_names_script(["ip 10"])
+        alt_names_script(["ip 10"])
 
 
 # ------------------------------------------------------------- the hook

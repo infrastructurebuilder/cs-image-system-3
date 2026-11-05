@@ -188,7 +188,9 @@ def test_every_named_model_class_refuses_every_word_as_a_name_and_an_alias(monke
     try:
         load_context(FIXTURE_CONFIG)
         models = _loaded_models()
-        names = {cls.__name__ for cls in models}
+        # a plugin may load its own subclass of a core item model (an identity
+        # plugin's user with its profile fields): the base class's name counts
+        names = {base.__name__ for cls in models for base in cls.__mro__}
         assert {"Group", "User", "Storage", "Image", "Instance"} <= names, names
         assert len(models) >= 30, names                     # 31 on 2026-10-03
         accepted: list[str] = []

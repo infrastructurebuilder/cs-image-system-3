@@ -4,18 +4,18 @@
 
 """Pins OktaTFUser's live okta_user emission (formerly commented oktapam_user)."""
 
-from cs_image_system.base.models.user import User
 from cs_image_system.okta_opa_plugin.okta_tf_models import OktaTFUser
+from cs_image_system.okta_opa_plugin.okta_user import OktaUser
 
 PROVIDER = "okta.okta_tf_users"
 
 
-def _user(**kw) -> User:
+def _user(**kw) -> OktaUser:
     kw.setdefault("name", "alice.smith@x.com")
     kw.setdefault("email", "alice.smith@x.com")
     kw.setdefault("first_name", "Alice")
     kw.setdefault("last_name", "Smith")
-    return User(**kw)
+    return OktaUser(**kw)
 
 
 def test_resource_shape():

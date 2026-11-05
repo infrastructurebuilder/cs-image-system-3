@@ -94,7 +94,7 @@ def storage_read_model(ctx: "GlobalTypeContext") -> dict[str, Any]:
             rec["type"] = builder.capability_type()
             rec["plugin"] = builder.get_type()
             rec["attachment_cardinality"] = builder.attachment_cardinality()
-            rec["posix"] = builder.is_posix()
+            rec.update(posix=builder.is_posix())      # POSIX filesystem semantics, the storage's word
         storages[s.get_name()] = rec
     return {"run": ctx.run_id, "storages": storages}
 

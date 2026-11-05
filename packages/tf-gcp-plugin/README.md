@@ -282,9 +282,12 @@ workspace; `efs = {}`; `filestore` = per-storage `{ip_address, share_name}`
 by reference; `sft_enrollment_token = var.sft_enrollment_token` when the
 group has an enrollment trigger (the GCE root does not add the identity
 plugin's token reference the AWS root adds). The launch script is the same
-`user_data_template()` as on AWS: a persistent disk is mounted from
-`/dev/disk/by-id/google-<device_name>`, which is why the attachment's
-`device_name` and the launch parameters use the same `gce_name` rule.
+`user_data_template()` as on AWS, and each mount's block in it is the
+storage builder's own (`launch_script_lines()`): a persistent disk is
+mounted from `/dev/disk/by-id/google-<device_name>`, the `device` the PD
+builder's `launch_mount()` puts in the mount record, which is why the
+attachment's `device_name` and the mount path use the same `gce_name` rule.
+The table under the storage builders says what each kind answers.
 
 **Hooks left at the base's default, and what follows.**
 `_attachment_address()` is `None`: a persistent disk attachment is an
@@ -350,6 +353,7 @@ applies `gce_name`, because GCE resource names must match
 | `lifecycle:` | refused | refused | refused |
 | `destroyed` transition action | delete the archive snapshot when the disk was archived | none | `wipe-<label>.sh`: `gcloud storage rm --recursive gs://<bucket>/**`, treating "matched no objects" as success |
 | Base-image prerequisites | none (a comment) | `nfs-common` (Debian family) or `nfs-utils`; verify: `mount.nfs`/`mount.nfs4` present | the gcloud CLI from the official installer; verify: `gcloud` present |
+| At launch (`launch_mount`, `launch_script_lines`, `launch_tasks`, `launch_variables`) | the mount record gets `device = /dev/disk/by-id/google-<gce_name(storage)>`; the script block: header and `mkdir`, `DEV='<device>'`, `BYID="$DEV"` (the by-id name is already the stable one), wait, `mkfs -t xfs` when blank, the `fstab` line, mount, the mount mark, the group's subtree; the playbook: the directory task alone; no variables | no record key; the script block: header and `mkdir`, the address and share name by reference (`${filestore["<storage>"].ip_address}` / `.share_name`), the `nfs` `fstab` line, `mount` (allowed to fail), the mount mark, the group's subtree (Filestore has no access points, so the launch makes it); the playbook: the directory task alone; variables `("filestore",)` | no record key; the script block: header and `mkdir`, a comment that the bucket is reached through the gcloud CLI and not mounted (no mark); the playbook: the directory task alone; no variables |
 | State query | `compute_v1.DisksClient.get` by disk name (or `SnapshotsClient.get` on the archive when recorded archived); `NotFound` means absent | `gcloud filestore instances describe <name> --location <zone>` through the runtime's declared gcloud; not found means absent, any other failure is "unavailable" | `gcloud storage buckets describe gs://<bucket> --format=json`; "not found" means absent, any other failure is "unavailable" |
 
 Module arguments (`module_args(storage)`):

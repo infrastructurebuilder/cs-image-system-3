@@ -14,6 +14,14 @@ This module computes the structural launch parameters for an instance and
 the user-data template the instance root feeds through ``templatefile``;
 runtime values (gids, filesystem ids, the enrollment token) enter only by
 terraform reference at apply time, never as literals here.
+
+The device and mount lines are the storage's. The core knows no storage
+kind: each mount's record keys beyond the universal ones, its block of the
+script and of the playbook, and the template variables it reads come from
+the storage builder's ``launch_*`` hooks (the base's defaults in
+``basic/builder_base_storage.py``); this module assembles them in
+declaration order and adds what every instance shares -- the hostname, the
+gid, the enrollment, the declared userdata and the completion marker.
 """
 from __future__ import annotations
 
@@ -22,6 +30,7 @@ import re
 import logging
 from typing import TYPE_CHECKING, Any
 
+from .basic.builder_base_storage import MOUNT_MARK, StorageBuilderBase, mount_mark_line  # noqa: F401 - the mark is read here by name
 from .capabilities import group_builder_of, storage_type_of
 from .launch_enrollment import enrollment_kind_for
 from . import generations
@@ -33,30 +42,61 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-# Device names handed to EBS attachments in declaration order.
-EBS_DEVICES = ["/dev/xvdf", "/dev/xvdg", "/dev/xvdh", "/dev/xvdi", "/dev/xvdj", "/dev/xvdk"]
 ENROLLMENT_TOKEN_VARIABLE = "sft_enrollment_token"
 
 # Keys that may legitimately differ between generations of an instance's
 # launch params without meaning "replacement".
 _VOLATILE = ("run", "user_data_sha256", "launched", "launched_run", "build")
-#: hygiene XII item 22 (the walk's F50): the startup script says, per declared
-#: mount point, whether it is mounted -- one line a verification can read off
-#: the cloud's serial console by name. The kernel's own `XFS (...): Ending clean
-#: mount` lines count the image's filesystems too, so a count could not fail.
-MOUNT_MARK = "csis-mount:"
 
 
-def mount_mark_line(mount_point: str) -> str:
-    """The script line that reports one mount point's state, after the mount."""
-    return (f"findmnt -rn '{mount_point}' >/dev/null 2>&1 && echo '{MOUNT_MARK} {mount_point} mounted' "
-            f"|| echo '{MOUNT_MARK} {mount_point} NOT mounted'")
+def mount_script_lines(mount: dict[str, Any], group: str | None, ctx: "GlobalTypeContext | None" = None) -> list[str]:
+    """One mount's block of the launch script: its storage builder's
+    ``launch_script_lines`` (the record's ``builder`` names it; the context
+    is the configured one unless given). A mount whose builder is not
+    configured renders the shared header alone, as an unknown kind always
+    did."""
+    builder = _mount_builder(mount, ctx)
+    if builder is None:
+        return StorageBuilderBase.mount_header_lines(mount)
+    return list(builder.launch_script_lines(mount, group))
 
 
-def mounted_points(params: dict[str, Any]) -> list[str]:
-    """The mount points the startup script mounts: every storage that is not
-    object storage (s3 and gcs are reached through the cloud CLI, no mount)."""
-    return [str(m["mount_point"]) for m in params.get("mounts", []) if m.get("type") not in ("s3", "gcs")]
+def mount_tasks(mount: dict[str, Any], group: str | None, ctx: "GlobalTypeContext | None" = None) -> list[dict[str, Any]]:
+    """One mount's ansible tasks: its storage builder's ``launch_tasks``;
+    the directory task alone for a builder that is not configured."""
+    builder = _mount_builder(mount, ctx)
+    if builder is None:
+        return [StorageBuilderBase.mount_directory_task(mount)]
+    return list(builder.launch_tasks(mount, group))
+
+
+def _mount_builder(mount: dict[str, Any], ctx: "GlobalTypeContext | None") -> Any:
+    if ctx is None:
+        from .global_context import GlobalTypeContext
+        ctx = GlobalTypeContext()
+    return ctx.storage_builders.get(str(mount.get("builder") or ""))
+
+
+def mounted_points(params: dict[str, Any], ctx: "GlobalTypeContext | None" = None) -> list[str]:
+    """The mount points the startup script mounts: every mount whose storage
+    block carries the mount mark (an object store reached through its cloud
+    CLI renders a comment and no mark)."""
+    group = params.get("group")
+    return [str(m["mount_point"]) for m in params.get("mounts", [])
+            if mount_mark_line(str(m["mount_point"])) in mount_script_lines(m, group, ctx)]
+
+
+def launch_variables(ctx: "GlobalTypeContext") -> tuple[str, ...]:
+    """The names a launch template (and the playbook's extra-vars) takes by
+    reference: ``group_gid``, then every storage builder's own in
+    declaration order (each once), then the enrollment token."""
+    names: list[str] = ["group_gid"]
+    for builder in ctx.storage_builders.values():
+        for name in getattr(builder, "launch_variables", tuple)():
+            if name not in names:
+                names.append(str(name))
+    names.append(ENROLLMENT_TOKEN_VARIABLE)
+    return tuple(names)
 
 
 #: RFC 1123 caps one hostname label at 63 characters; Linux's HOST_NAME_MAX
@@ -130,16 +170,6 @@ def _storage_by_name(ctx: "GlobalTypeContext"):
     return {s.get_name(): s for s in ctx.storages}
 
 
-def _gce_device_name(value: str) -> str:
-    """The device name a persistent-disk storage is attached under -- the same
-    rule as its cloud plugin's own name sanitiser (lowercase; anything outside
-    ``[a-z0-9-]`` becomes ``-``), kept here so the base package stays plugin-free;
-    that cloud's instance builder attaches with the identical name (finding 50)."""
-    import re
-    v = re.sub(r"[^a-z0-9-]+", "-", str(value).lower()).strip("-")
-    return v or "disk"
-
-
 def effective_machine_type(instance: "Instance", rtb: Any) -> str:
     """The type the instance launches on: its own ``machine_type``, else the
     runtime's default -- the same rule as both instance builders apply."""
@@ -170,7 +200,7 @@ def compute_launch_params(ctx: "GlobalTypeContext", instance: "Instance") -> dic
     group = getattr(image, "group", None) if image is not None else None
     storages = _storage_by_name(ctx)
     mounts: list[dict[str, Any]] = []
-    ebs_index = 0
+    seen: dict[str, int] = {}      # mounts so far per capability type: a block store's device index
     for mapping in instance.storage_mappings():
         storage = storages.get(mapping.get_name())
         if storage is None:
@@ -186,21 +216,11 @@ def compute_launch_params(ctx: "GlobalTypeContext", instance: "Instance") -> dic
             "public_read": bool(storage.public_read),
         }
         builder = ctx.storage_builders.get(storage.type_)
-        if builder is not None and getattr(builder, "platform_mounts", lambda: False)():
-            # stage 103 branch 2: the daemon mounts a container volume at the
-            # declared path before the first command; the script only makes
-            # the group's subtree (one kind, not a branch per storage type)
-            mount["platform_mounted"] = True
-        if stype == "ebs":
-            mount["device"] = EBS_DEVICES[ebs_index] if ebs_index < len(EBS_DEVICES) else f"/dev/xvd{chr(ord('l') + ebs_index - len(EBS_DEVICES))}"
-            ebs_index += 1
-        elif stype == "pd":
-            # the persistent-disk cloud names attached disks by device_name
-            # under /dev/disk/by-id with its vendor prefix; its instance builder
-            # attaches with exactly this sanitized name (finding 50: the two once
-            # disagreed -- the raw name attached, the prefixed sanitised name mounted --
-            # and the startup script died at the missing device)
-            mount["device"] = "/dev/disk/by-id/google-" + _gce_device_name(storage.get_name())
+        if builder is not None:
+            # the storage's own keys (a device name, a platform-mounted flag):
+            # its hook, with how many mounts of its type came before it
+            mount.update(builder.launch_mount(storage, mapping, seen.get(str(stype), 0)))
+        seen[str(stype)] = seen.get(str(stype), 0) + 1
         mounts.append(mount)
     gb = group_builder_of(ctx, group) if group else None
     group_obj = None
@@ -243,17 +263,20 @@ def compute_launch_params(ctx: "GlobalTypeContext", instance: "Instance") -> dic
     }
 
 
-def user_data_template(params: dict[str, Any]) -> str:
+def user_data_template(params: dict[str, Any], ctx: "GlobalTypeContext | None" = None) -> str:
     """The cloud-init shell script as a terraform ``templatefile`` template.
 
     Template variables (supplied by the instance root, all by reference):
-    ``group_gid`` (number), ``efs`` (map storage -> {file_system_id,
-    access_point_id}), ``filestore`` (map storage -> {ip_address,
-    share_name}), ``sft_enrollment_token`` (sensitive; empty when no
-    enrollment; the name is historical -- it carries whatever credential
-    the group's identity plugin enrolls a machine with, and that plugin's
-    registered enrollment kind renders the lines that use it). Shell parameter expansion is written ``$${...}`` so
-    terraform passes it through.
+    ``group_gid`` (number), one map per storage kind that reads values at
+    boot (storage name -> the values its root binds; the storage builder's
+    ``launch_variables`` names them), the enrollment token under
+    ``ENROLLMENT_TOKEN_VARIABLE`` (sensitive;
+    empty when no enrollment; the name is historical -- it carries whatever
+    credential the group's identity plugin enrolls a machine with, and that
+    plugin's registered enrollment kind renders the lines that use it).
+    Shell parameter expansion is written ``$${...}`` so terraform passes it
+    through. Each mount's block is its storage builder's (``ctx`` is the
+    configured context unless given).
     """
     lines = [
         "#!/usr/bin/env bash",
@@ -275,66 +298,11 @@ def user_data_template(params: dict[str, Any]) -> str:
         lines.append(f"# owning group: {group} (gid by reference)")
         lines.append('GID="${group_gid}"')
     for m in params.get("mounts", []):
-        mp = m["mount_point"]
-        name = m["storage"]
-        lines.append(f"# mount storage {name} ({m['type']}) at {mp}")
-        lines.append(f"mkdir -p '{mp}'")
-        if m.get("platform_mounted"):
-            # the platform mounted it before the first command (a container
-            # volume): nothing to format or mount, the mark says whether it is there
-            lines.append(mount_mark_line(mp))
-        elif m["type"] in ("ebs", "pd"):
-            dev = m["device"]
-            lines.append(f"DEV='{dev}'")
-            if m["type"] == "ebs":
-                # On Nitro instances (t3+) EBS volumes surface as /dev/nvme*
-                # and RHEL-family vendor images create no legacy symlinks (found live:
-                # user-data died at mkfs and everything after never ran), so
-                # fall back to the stable by-id name built from the volume id.
-                lines += [
-                    f"VOL=\"${{ebs[\"{name}\"].volume_id}}\"",
-                    "BYID=\"/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_"
-                    "$(printf '%s' \"$VOL\" | tr -d -)\"",
-                ]
-            else:
-                lines.append('BYID="$DEV"')
-            lines += [
-                "# the attachment lands after boot: wait for either name",
-                'for i in $(seq 1 60); do [ -e "$DEV" ] && break;'
-                ' [ -e "$BYID" ] && DEV="$BYID" && break; sleep 2; done',
-                'if ! blkid "$DEV" >/dev/null 2>&1; then mkfs -t xfs "$DEV"; fi',
-                f"grep -q ' {mp} ' /etc/fstab || echo \"$DEV {mp} xfs defaults,nofail 0 2\" >> /etc/fstab",
-                f"mount '{mp}' || mount \"$DEV\" '{mp}'",
-                mount_mark_line(mp),
-            ]
-        elif m["type"] == "efs":
-            lines += [
-                f"EFS_ID=\"${{efs[\"{name}\"].file_system_id}}\"",
-                f"EFS_AP=\"${{efs[\"{name}\"].access_point_id}}\"",
-                f"grep -q ' {mp} ' /etc/fstab || echo \"$EFS_ID:/ {mp} efs _netdev,tls,accesspoint=$EFS_AP,nofail 0 0\" >> /etc/fstab",
-                f"mount '{mp}' || true",
-                mount_mark_line(mp),
-            ]
-        elif m["type"] == "filestore":
-            lines += [
-                f"FS_IP=\"${{filestore[\"{name}\"].ip_address}}\"",
-                f"FS_SHARE=\"${{filestore[\"{name}\"].share_name}}\"",
-                f"grep -q ' {mp} ' /etc/fstab || echo \"$FS_IP:/$FS_SHARE {mp} nfs defaults,_netdev,nofail 0 0\" >> /etc/fstab",
-                f"mount '{mp}' || true",
-                mount_mark_line(mp),
-            ]
-        elif m["type"] in ("s3", "gcs"):
-            lines.append(f"# {m['type']} storage {name}: object access via the cloud CLI; no mount")
-            continue
-        if group and (m["type"] in ("ebs", "pd", "filestore") or m.get("platform_mounted")):
-            # per-group private subtree (N13/N15) -- EFS access points create theirs
-            lines += [
-                f"mkdir -p '{mp}/{group}'",
-                f"chgrp \"$GID\" '{mp}/{group}'",
-                f"chmod {m['share_mode']} '{mp}/{group}'",
-            ]
+        # the mount's whole block -- header, device, mount, mark, the
+        # group's subtree -- is the storage's; the core adds nothing to it
+        lines += mount_script_lines(m, group, ctx)
     # stage 75 step 2: the identity plugin that issued the enrollment renders
-    # its steps (OPA's `sftd-token`: the agent's address and the token); the
+    # its steps (the agent's address and the token, for the kind it registered); the
     # core names no agent, and a kind nothing renders is refused
     kind = enrollment_kind_for(params)
     if kind is not None:
@@ -365,7 +333,7 @@ def record_launch_params(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None
             # recorders): record_detachments re-records it after the apply
             continue
         params = compute_launch_params(ctx, instance)
-        params["user_data_sha256"] = hashlib.sha256(user_data_template(params).encode()).hexdigest()
+        params["user_data_sha256"] = hashlib.sha256(user_data_template(params, ctx).encode()).hexdigest()
         params["run"] = ctx.run_id
         old = existing.get(instance.get_name()) or {}
         params["launched"] = bool(old.get("launched", False))
@@ -439,7 +407,7 @@ def record_detachments(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
             continue
         old = ms.launch_params().get(instance.get_name()) or {}
         params = compute_launch_params(ctx, instance)
-        params["user_data_sha256"] = hashlib.sha256(user_data_template(params).encode()).hexdigest()
+        params["user_data_sha256"] = hashlib.sha256(user_data_template(params, ctx).encode()).hexdigest()
         params["run"] = ctx.run_id
         params["launched"] = bool(old.get("launched", False))
         if old.get("launched_run"):
@@ -638,7 +606,7 @@ def validate_claimed_hostnames(ctx: "GlobalTypeContext", requested: list[Lifecyc
     the group's server registry: an unlaunched instance whose name is already
     registered would enroll a second server under it, and a launched one with
     more than one registration already has -- both are refusals naming the
-    records, because that ambiguity is what made ``sft ssh`` unusable.
+    records, because that ambiguity is what made a login by name unusable.
 
     Two deliberate limits. It runs only when the instance-image lifecycle is
     requested AND applies are enabled AND the run is not a dry run, so a dry
@@ -686,7 +654,7 @@ def validate_claimed_hostnames(ctx: "GlobalTypeContext", requested: list[Lifecyc
             errors.append(
                 f"instance '{name}': canonical hostname {hostname!r} is registered to {len(claims)} servers "
                 f"in group {group!r} ({', '.join(f'{c['id']} at {c['address'] or '?'}' for c in claims)}), "
-                "and only one of them is this machine; sft ssh cannot choose. Deregister the others")
+                "and only one of them is this machine; a login by name cannot choose. Deregister the others")
     return errors
 
 

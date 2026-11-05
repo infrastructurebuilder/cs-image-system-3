@@ -183,13 +183,13 @@ def runtime_of_type(facts: Facts, kind: str) -> dict[str, Any] | None:
     return next((r for r in mine if r.get("is_default")), mine[0] if mine else None)
 
 
-def default_state_backend(facts: Facts, kind: str = "s3") -> dict[str, Any] | None:
+def default_state_backend(facts: Facts, kind: str) -> dict[str, Any] | None:
     """The tree's declared state backend of a type: the default, else the first."""
     mine = [b for b in facts.state_backends if str(b.get("type", "")).lower() == kind]
     return next((b for b in mine if b.get("is_default")), mine[0] if mine else None)
 
 
-def other_state_backends(facts: Facts, kind: str = "s3") -> list[dict[str, Any]]:
+def other_state_backends(facts: Facts, kind: str) -> list[dict[str, Any]]:
     """The tree's OTHER declared backends of a type (hygiene XX item 1): every
     one but the default, in declaration order."""
     default = default_state_backend(facts, kind)

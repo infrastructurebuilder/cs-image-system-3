@@ -54,7 +54,13 @@ What it does, and when:
 
 `verify login` (CI's perform job runs it) logs into each standing machine
 of a posix group as the group's **proof user** and checks it is in the
-group -- access proved, not only health:
+group -- access proved, not only health. The checks below are this
+plugin's and run through the core's driver (`login_proof`); the command
+is the core's one callback, which this plugin mounts on the command line
+([cli.py](src/cs_image_system/posix_identity_plugin/cli.py), through the
+contract's `cs_image_system.commands` entry point) as every identity
+plugin does -- a shared command, mounted once -- so a tree with posix
+accounts alone has `verify login`:
 
 - **The proof user** is a member or admin declared on a posix user
   builder with `is_service_account: true`, a `uid:` and its public key in
@@ -89,6 +95,11 @@ delegate makes them exist on the machines:
   `/etc/pam.d/sshd` runs `/usr/local/sbin/csis-group-login`, which adds
   the logging-in user to every group whose member list
   (`/etc/csis/groups/<group>.members`) names them. It never fails a login.
+  The hook's path is declared once, as `LOGIN_HOOK` in the contract's
+  `group` module (`cs_image_system.contract.group`), and both plugins
+  read it: this one to write the script and its PAM line, the Okta
+  plugin to verify, at every instance bake with a delegate, that the
+  script stands and the PAM line is there.
 - **The hook is baked** into every instance image of an Okta group whose
   builder names a delegate, and **installed again by every applying run**
   (idempotently), so a machine that stands and is never re-baked gets it.
@@ -107,7 +118,8 @@ delegate makes them exist on the machines:
 
 - **Installed** with the release (it is one of the packages `cs-image-system`
   pins); its entry point is `cs_image_system.plugins.group`, which registers
-  both builders.
+  both builders, and a second, `cs_image_system.commands`, mounts `verify
+  login` (shared with every other identity plugin; mounted once).
 - **Machines**: any family with the shadow tools and sudo -- AlmaLinux/RHEL
   (`shadow-utils`, `sudo`) and Debian (`passwd`, `sudo`) do by default. The
   bake fails at the prerequisite check otherwise, naming nothing more than
@@ -118,6 +130,13 @@ delegate makes them exist on the machines:
   not declare.
 - **No credentials, no network, no state.** The builders read the
   configuration only.
+- **Container runtimes.** `validate` asks each group builder
+  `container_runtime_objection()` before it lets an instance image bake
+  on a container runtime. This plugin has none: a posix group's accounts
+  live in the image itself and access is through the daemon, so a posix
+  group may own an image there. An Okta group's agent needs systemd,
+  sshd, a reachable address and a cloud identity, so the Okta plugin
+  objects and such an image is refused.
 
 ## Configuration reference
 

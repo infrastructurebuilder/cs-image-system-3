@@ -4,7 +4,9 @@
 
 """This GitHub Actions run's OIDC token, presented to the team's workload
 connection (stage 56 step 2; a command of the CLI since stage 64 item 2,
-where it replaced ``scripts/opa-workload-token``).
+where it replaced ``scripts/opa-workload-token``; this plugin's since the
+core stopped naming OPA -- ``cs-image-system workload`` is mounted by
+this plugin's ``cli`` module and exists only when it is installed).
 
 The token OPA issues is the ONLY thing on standard output, so a caller's
 ``OPA_TOKEN="$(cs-image-system workload token)"`` captures it and nothing
@@ -36,7 +38,14 @@ import os
 import subprocess
 import urllib.request
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping
+from typing import TYPE_CHECKING, Any, Callable, Mapping
+
+from cs_image_system.base.basic.builder_base_group import GroupBuilderBase
+from cs_image_system.base.commands.login_proof import standing_instances
+from cs_image_system.base.launch_params import group_builder_of
+
+if TYPE_CHECKING:
+    from cs_image_system.base.global_context import GlobalTypeContext
 
 NAME_VARS: tuple[str, ...] = ("OPA_WORKLOAD_CONNECTION", "OPA_WORKLOAD_ROLE", "SFT_TEAM", "OPA_ADDR")
 CLAIMS = ("iss", "aud", "sub", "repository", "repository_owner", "ref", "ref_type", "workflow_ref", "exp")
@@ -162,3 +171,43 @@ def probe_role(names: WorkloadNames, token: str, hostname: str | None,
     return ROLE_NOT_GRANTED, (f"sft resolve {hostname}: exit {rc}" + (f" -- {words}" if words else "")
                               + "; the connection issued a token, the role is not in it (unbound, or pinned to "
                                 "another branch)")
+
+
+# ---------------------------------------- what the configuration names
+
+def workload_facts(ctx: "GlobalTypeContext") -> list[dict[str, Any]]:
+    """What a workload login needs from the configuration, per group
+    builder that names the team's objects: the connection and role names,
+    the team and the API address. Nothing secret."""
+    out: list[dict[str, Any]] = []
+    for name, gb in sorted(ctx.group_builders.items()):
+        if not isinstance(gb, GroupBuilderBase) or not gb.can_manage_workload_access():
+            continue
+        model = gb.model
+        out.append({"builder": name,
+                    "connection": str(getattr(model, "workload_connection", "") or ""),
+                    "role": str(getattr(model, "workload_role", "") or ""),
+                    "team": str(getattr(model, "team", "") or ""),
+                    "api_host": str(getattr(model, "api_host", "") or "")})
+    return out
+
+
+def _group_of(ctx: "GlobalTypeContext", instance: Any) -> str:
+    image = ctx.images_map.get(str(instance.image))
+    return str(getattr(image, "group", None) or "") if image is not None else ""
+
+
+def probe_target(ctx: "GlobalTypeContext") -> tuple[str, str] | None:
+    """``(hostname, group)`` of the first standing machine whose group's
+    builder names the workload objects -- what the workload probe resolves
+    to judge the role (hygiene XII item 14); None when none stands."""
+    launched = ctx.meta_state.launch_params()
+    for inst in standing_instances(ctx):
+        group = _group_of(ctx, inst)
+        gb = group_builder_of(ctx, group) if group else None
+        if not isinstance(gb, GroupBuilderBase) or not gb.can_manage_workload_access():
+            continue
+        hostname = str((launched.get(inst.get_name()) or {}).get("hostname") or "")
+        if hostname:
+            return hostname, group
+    return None

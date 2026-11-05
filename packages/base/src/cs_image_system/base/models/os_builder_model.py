@@ -164,8 +164,9 @@ class OsBuilderModel(BuilderModel, OsBuilderModelProtocol):
         return None
     def get_command_to_update(self) -> list[str]:
         """The full update for a family without a package-manager policy
-        model: alpine's one path (stage 67; every dnf and apt family answers
-        through ``commands_for_policy`` and never reaches this)."""
+        model: alpine's one path (stage 67; every family with a policy
+        model answers through ``commands_for_policy`` and never reaches
+        this)."""
         return []
 
     def effective_update_policy(self) -> UpdatePolicy:
@@ -173,15 +174,51 @@ class OsBuilderModel(BuilderModel, OsBuilderModelProtocol):
 
     def commands_for_policy(self, policy: UpdatePolicy) -> list[str]:
         """Family-specific commands realizing an update policy. The base
-        implementation knows only 'none' and 'full'; package-manager
-        families (dnf, apt) implement the targeted policies."""
+        implementation knows only 'none' and 'full'; the types with a
+        policy model implement the targeted policies."""
         if policy.policy == POLICY_NONE and not policy.pin:
             return []
         if policy.policy == POLICY_FULL and not policy.exclude and not policy.pin:
             return self.get_command_to_update()
         raise NotImplementedError(
             f"OS builder {self.name} ({self.type_}) does not implement update policy {policy.policy!r} "
-            "with exclude/pin; use a dnf/apt family or policy: full")
+            "with exclude/pin; use a family whose type has a policy model, or policy: full")
+    # ------------------------------------------------ the package manager
+    # The type's, never the core's: the base answers nothing, by name, so a
+    # type that forgets one hook fails at the first bake that asks, not
+    # with a line for some other family's manager.
+    @classmethod
+    def _no_package_manager(cls, hook: str) -> NotImplementedError:
+        try:
+            name = cls.csis_name()
+        except NotImplementedError:
+            name = cls.__name__
+        return NotImplementedError(f"OS type {name!r} declares no package manager: it does not implement {hook}()")
+
+    @classmethod
+    def package_format(cls) -> str:
+        raise cls._no_package_manager("package_format")
+
+    @classmethod
+    def package_install_command(cls, packages: Sequence[str], *, lock_timeout: int | None = None) -> str:
+        raise cls._no_package_manager("package_install_command")
+
+    @classmethod
+    def package_update_command(cls, *, lock_timeout: int | None = None) -> str:
+        raise cls._no_package_manager("package_update_command")
+
+    @classmethod
+    def package_present_check(cls, package: str) -> str:
+        raise cls._no_package_manager("package_present_check")
+
+    @classmethod
+    def service_enable_command(cls, service: str) -> str:
+        raise cls._no_package_manager("service_enable_command")
+
+    @classmethod
+    def ansible_python_install_command(cls) -> str:
+        raise cls._no_package_manager("ansible_python_install_command")
+
     def get_identity_types(self) -> list[str]:
         return [str(t).strip().lower() for t in (self.identity_types or []) if str(t).strip()]
     def get_storage_types(self) -> list[str]:

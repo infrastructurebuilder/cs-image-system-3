@@ -23,6 +23,8 @@ from __future__ import annotations
 
 import shlex
 
+from cs_image_system.contract.group import ACCOUNTS_IN_PLACE, ACCOUNTS_REPORT_PREFIX, LOGIN_HOOK
+
 SUDOERS_DIR = "/etc/sudoers.d"
 CONFLICT_EXIT = 3
 
@@ -39,7 +41,7 @@ def header() -> list[str]:
     return ["#!/usr/bin/env bash",
             "# cs-image-system posix accounts (stage 75): idempotent; adopts what is equal, refuses what differs",
             "set -euo pipefail",
-            "conflict() { echo \"posix accounts: $*\" >&2; exit " + str(CONFLICT_EXIT) + "; }"]
+            "conflict() { echo \"" + ACCOUNTS_REPORT_PREFIX + " $*\" >&2; exit " + str(CONFLICT_EXIT) + "; }"]
 
 
 def group_part(name: str, gid: int) -> list[str]:
@@ -86,7 +88,7 @@ def membership_part(group: str, members: list[str], *, note_absent: bool = True)
     wanted = sorted(set(members))
     lines = [f"# members of {group}: {', '.join(wanted) or 'none'}", "present=()"]
     for m in wanted:
-        absent = (f"echo \"posix accounts: {m} has no account here yet; not a member of {group} until it does\" >&2"
+        absent = (f"echo \"{ACCOUNTS_REPORT_PREFIX} {m} has no account here yet; not a member of {group} until it does\" >&2"
                   if note_absent else ":")
         lines += [f"if getent passwd {_q(m)} >/dev/null; then present+=({_q(m)}); else {absent}; fi"]
     lines += ["want=$(IFS=,; echo \"${present[*]:-}\")",
@@ -153,7 +155,7 @@ def accounts_script(*, groups: dict[str, int], users: dict[str, int] | None = No
         lines += keys_part(user, ks)
     for group, ads in sorted((admins or {}).items()):
         lines += sudo_part(group, ads)
-    lines += ["echo 'posix accounts: in place'"]
+    lines += [f"echo '{ACCOUNTS_IN_PLACE}'"]
     return "\n".join(lines) + "\n"
 
 
@@ -168,7 +170,7 @@ def accounts_script(*, groups: dict[str, int], users: dict[str, int] | None = No
 
 GROUPS_DIR = "/etc/csis/groups"
 KEYS_DIR = "/etc/csis/keys"
-LOGIN_HOOK = "/usr/local/sbin/csis-group-login"
+# LOGIN_HOOK (the hook's path) is the contract's: cs_image_system.contract.group
 PAM_FILE = "/etc/pam.d/sshd"
 PAM_LINE = f"session optional pam_exec.so quiet {LOGIN_HOOK}"
 
@@ -247,5 +249,5 @@ def groups_script(*, groups: dict[str, int], members: dict[str, list[str]],
         lines += [f"# members of {group} without an account here join it at their next login (the login hook)"]
     for user, ks in sorted((keys or {}).items()):
         lines += keys_file_part(user, ks)
-    lines += ["echo 'posix accounts: in place'"]
+    lines += [f"echo '{ACCOUNTS_IN_PLACE}'"]
     return "\n".join(lines) + "\n"

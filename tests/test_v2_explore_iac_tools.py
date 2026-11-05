@@ -7,6 +7,9 @@ launch-parameter ansible emitter says the same things as the cloud-init
 user-data template, task for task."""
 from __future__ import annotations
 
+from types import SimpleNamespace
+from typing import Any, cast
+
 import yaml
 
 from tests.v2_support import V2Run
@@ -85,5 +88,75 @@ def test_launch_params_are_unchanged_by_the_emitter(tmp_path, monkeypatch):
             ansible_launch.launch_playbook(p, name)
         assert (run.meta_state / "launch-params.yaml").read_text() == before
         assert Lifecycle.INSTANCE_IMAGE in run.ctx.generated_lifecycles
+    finally:
+        run.restore_cwd()
+
+
+# ------------------------------------------- the storage's lines are used as-is
+
+class _StubStorageBuilder:
+    """A storage builder that answers the launch hooks with its own lines."""
+
+    def __init__(self, variables=()):
+        self.variables = tuple(variables)
+
+    def launch_mount(self, storage, mapping, index):
+        return {"slot": index}
+
+    def launch_script_lines(self, mount, group):
+        return [f"# stub block for {mount['storage']} at {mount['mount_point']} (group {group})", "stub-mount-line"]
+
+    def launch_tasks(self, mount, group):
+        return [{"name": f"stub task for {mount['storage']}", "ansible.builtin.debug": {"msg": group or ""}}]
+
+    def launch_variables(self):
+        return self.variables
+
+
+def _ctx(**builders) -> Any:
+    return cast(Any, SimpleNamespace(storage_builders=builders))
+
+
+def _stub_params(builder="stub-b"):
+    return {"hostname": "box-001", "image": "img", "build": "b1", "group": "g", "enrollment": {}, "session": None,
+            "mounts": [{"storage": "s1", "type": "stub", "builder": builder, "mount_point": "/mnt/s1",
+                        "group": "g", "share_mode": "2770", "public_read": False}]}
+
+
+def test_a_storage_builders_script_block_and_tasks_are_used_as_is():
+    ctx = _ctx(**{"stub-b": _StubStorageBuilder()})
+    script = launch_params.user_data_template(_stub_params(), ctx)
+    lines = script.splitlines()
+    i = lines.index("# stub block for s1 at /mnt/s1 (group g)")
+    assert lines[i + 1] == "stub-mount-line" and lines[i - 1] == 'GID="${group_gid}"'
+    assert "mkdir -p '/mnt/s1'" not in script, "the core adds nothing to the storage's block"
+    play = yaml.safe_load(ansible_launch.launch_playbook(_stub_params(), "box", ctx))[0]
+    assert [t["name"] for t in play["tasks"]] == ["hostname box-001", "stub task for s1"]
+    # no mark in the stub's block: the script mounts nothing it can verify
+    assert launch_params.mounted_points(_stub_params(), ctx) == []
+    # a mount whose builder is not configured renders the shared header alone
+    ctx_none = _ctx()
+    assert "# mount storage s1 (stub) at /mnt/s1\nmkdir -p '/mnt/s1'\n" in launch_params.user_data_template(_stub_params(), ctx_none)
+    play = yaml.safe_load(ansible_launch.launch_playbook(_stub_params(), "box", ctx_none))[0]
+    assert [t["name"] for t in play["tasks"]] == ["hostname box-001", "mount point /mnt/s1 for storage s1 (stub)"]
+
+
+def test_launch_variables_are_gathered_in_declaration_order():
+    ctx = _ctx(z=_StubStorageBuilder(("zeta",)), a=_StubStorageBuilder(("alpha", "zeta")), n=_StubStorageBuilder())
+    token = launch_params.ENROLLMENT_TOKEN_VARIABLE
+    assert launch_params.launch_variables(ctx) == ("group_gid", "zeta", "alpha", token)
+    assert ansible_launch.extra_vars(ctx) == launch_params.launch_variables(ctx)
+    assert launch_params.launch_variables(_ctx()) == ("group_gid", token)
+
+
+def test_the_fixture_tree_lists_its_storage_variables_in_declaration_order(tmp_path, monkeypatch):
+    run = V2Run(tmp_path, monkeypatch)
+    try:
+        names = launch_params.launch_variables(run.ctx)
+        assert names[0] == "group_gid" and names[-1] == launch_params.ENROLLMENT_TOKEN_VARIABLE
+        # the kinds that read values at launch, as the tree declares them
+        declared = [v for b in run.ctx.storage_builders.values() for v in b.launch_variables()]
+        assert declared and list(names[1:-1]) == declared
+        assert set(declared) == {"ebs", "efs"}, "the frozen fixture: a block store and a shared filesystem"
     finally:
         run.restore_cwd()

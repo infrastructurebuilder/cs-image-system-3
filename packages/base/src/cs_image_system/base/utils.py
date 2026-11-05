@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -139,8 +140,13 @@ def roots_on_runtime(builders: Mapping[str, Any], runtime: str | None) -> list[s
 DEFAULT_MODULE_SOURCE_BASE = "../tfmodules"
 
 
+#: terraform's forced getter: a `<getter>::` prefix on a module source (any getter)
+_FORCED_GETTER = re.compile(r"^[a-z0-9]+::")
+
+
 def _is_remote_module_source(base: str) -> bool:
-    return "://" in base or base.startswith(("git@", "git::", "github.com/", "s3::", "gcs::"))
+    # a `<getter>::` prefix is terraform's forced getter (any of its getters)
+    return "://" in base or base.startswith(("git@", "github.com/")) or bool(_FORCED_GETTER.match(base))
 
 
 def module_source(module_dirname: str, workspace_dir: Path | None = None) -> str:

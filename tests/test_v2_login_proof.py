@@ -138,7 +138,8 @@ def test_only_standing_durable_instances_are_targets(world):
 
 def test_workload_facts_come_from_the_builder(world):
     run, _ = world
-    facts = lp.workload_facts(run.ctx)
+    from cs_image_system.okta_opa_plugin.workload_token import workload_facts
+    facts = workload_facts(run.ctx)
     assert len(facts) == 1 and facts[0]["connection"] == CONNECTION and facts[0]["role"] == ROLE
     assert facts[0]["team"] and facts[0]["api_host"].startswith("https://")
 

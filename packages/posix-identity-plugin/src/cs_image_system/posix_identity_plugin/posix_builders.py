@@ -201,6 +201,13 @@ class PosixGroupBuilder(_NoGeneration, GroupBuilderBase[PosixGroupBuilderModel])
         return ssh_login.login_checks(group=group, user=user.get_name(), instance_name=target, proxy=proxy,
                                       timeout=timeout)
 
+    # ------------------------------------------- a container runtime (step 7)
+    def container_runtime_objection(self) -> str | None:
+        """None: a posix group's accounts live in the image itself, so an
+        image it owns may bake on a container runtime, where access is
+        through the daemon and no agent needs to enroll."""
+        return None
+
     # ------------------------------------------------------- the state query
     def query_state(self) -> dict[str, dict[str, Any]]:
         """No provider to ask: a posix group lives on the machines of its

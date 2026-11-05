@@ -11,6 +11,7 @@ from cs_image_system.base.models.group import Group
 from cs_image_system.base.models.group_builder import GroupBuilderModel
 from cs_image_system.base.models.user import User
 from cs_image_system.base.models.user_builder import UserBuilderModel
+from .okta_user import OKTA_PROFILE_FIELDS
 from cs_image_system.contract.names import super_safe_name as ssn
 from cs_image_system.hashicorp_utils.blocks import (
     DataSpec,
@@ -37,17 +38,10 @@ class OKTA_USER_STATUS(StrEnum):
     DEPROVISIONED = "DEPROVISIONED"
 
 
-# okta_user optional arguments that are simultaneously User field names.
-# Emitted only when truthy; snake_case is the resource's argument style
-# (User.as_profile() is the camelCase API wire shape -- do NOT use it here).
-_OKTA_USER_OPTIONAL_ATTRS = (
-    "middle_name", "mobile_phone", "honorific_prefix", "honorific_suffix",
-    "title", "display_name", "nick_name", "profile_url", "second_email",
-    "primary_phone", "street_address", "city", "state", "zip_code",
-    "country_code", "postal_address", "preferred_language", "locale",
-    "timezone", "user_type", "employee_number", "cost_center",
-    "organization", "division", "department", "manager_id", "manager",
-)
+# okta_user optional arguments that are simultaneously user-item field names:
+# the core's `middle_name` and this plugin's profile fields (`okta_user.OktaUser`).
+# Emitted only when truthy; snake_case is the resource's argument style.
+_OKTA_USER_OPTIONAL_ATTRS = ("middle_name", *OKTA_PROFILE_FIELDS)
 
 
 class OktaTFUser(TerraformGenerator):

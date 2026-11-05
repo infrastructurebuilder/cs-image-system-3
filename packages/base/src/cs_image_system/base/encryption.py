@@ -82,8 +82,8 @@ class InlineMarkerError(ValueError):
 _OPENED_KEYS: dict[str, set[str]] = {}
 
 #: Public by decision since stage 34: "no declared-encrypted value other than a
-#: USERNAME in clear". A username is emitted as a quoted literal in the okta
-#: group module call and stands in the identity read-model, because it is the
+#: USERNAME in clear". A username is emitted as a quoted literal in the identity
+#: root's group module call and stands in the identity read-model, because it is the
 #: join key between a roster and an access grant. Every other decrypted value
 #: is refused in the emission and recorded as ciphertext.
 PUBLIC_BY_DECISION_KEYS: frozenset[str] = frozenset({"name", "members", "admins"})

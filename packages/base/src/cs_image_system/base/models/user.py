@@ -63,8 +63,9 @@ class User(RootItem, SelfInjectedName, ParentPropertyHolding):
     is_service_account: bool = False
     is_enabled: bool = True
     # EXPLORE identity: per-item management mode. None = the builder's
-    # default (okta-tf: managed, okta-tf-ro: lookup only). A managed user is
-    # emitted as a resource; an unmanaged one only as a data lookup.
+    # default (a managing builder: managed; a lookup-only one: lookup only).
+    # A managed user is emitted as a resource; an unmanaged one only as a
+    # data lookup.
     managed: bool | None = None
     # Provider attributes to hold on the identity (e.g. OPA unix_uid,
     # unix_user_name); names/types validated by the user builder's plugin.
@@ -73,35 +74,11 @@ class User(RootItem, SelfInjectedName, ParentPropertyHolding):
     # the twin of Group.gid. None: no id declared here (another side may own it)
     uid: int | None = None
     public_keys: list[str] = field(default_factory=list)
-    mobile_phone: str | None = None
-    honorific_prefix: str | None = None
-    honorific_suffix: str | None = None
-    title: str | None = None
-    # an Okta profile attribute, written by the user's YAML; it shadows the base
-    # models' display property (the human-entered name) on purpose, and
-    # get_display_name below keeps the base meaning (hygiene XIX item 1)
-    display_name: str | None = None  # pyright: ignore[reportIncompatibleMethodOverride]
-    nick_name: str | None = None
-    profile_url: str | None = None
-    second_email: str | None = None
-    primary_phone: str | None = None
-    street_address: str | None = None
-    city: str | None = None
-    state: str | None = None
-    zip_code: str | None = None
-    country_code: str | None = None
-    postal_address: str | None = None
-    preferred_language: str | None = None
-    locale: str | None = None
-    timezone: str | None = None
-    user_type: str | None = None
-    employee_number: str | None = None
-    cost_center: str | None = None
-    organization: str | None = None
-    division: str | None = None
-    department: str | None = None
-    manager_id: str | None = None
-    manager: str | None = None
+    # An identity plugin that keeps more on a user (a directory's profile
+    # attributes) declares a subclass carrying those fields and injects it
+    # under VCT.USER_MODEL as the default; the loader then structures every
+    # `users:` item into it, and a tree that writes such a field loads only
+    # with that plugin installed (an unknown key is refused).
 
     _model_id: str | None = parent_field(VCT.USER_BUILDER_MODEL, description="The name of the model for the builder holding object is associated with")
 
@@ -139,9 +116,17 @@ class User(RootItem, SelfInjectedName, ParentPropertyHolding):
                 )
 
     def get_display_name(self) -> str:
-        """The human-entered name, as on every model (the base property this
-        class's Okta ``display_name`` attribute shadows)."""
+        """The human-entered name, as on every model. Kept explicit here
+        because an identity plugin's user subclass may declare a profile
+        attribute called ``display_name`` that shadows the base property;
+        this method keeps the base meaning whatever the subclass adds."""
         return getattr(self, "_display_name", None) or self.name
+
+    def get_self_injected_name(self) -> str:
+        """Every user item enters the Jinja context as ``user`` (the
+        templates say ``{{ user.name }}``), whatever subclass an identity
+        plugin injected it as."""
+        return "user"
 
     @classmethod
     def csis_name(cls) -> str:
@@ -157,87 +142,3 @@ class User(RootItem, SelfInjectedName, ParentPropertyHolding):
             if format:
                 self.email = format.format(**self.__dict__)
                 log.info("Setting email to {self.email}")
-
-    def as_profile(self) -> dict[str, str]:
-        """Okta REST API wire shape (camelCase, for ``POST /api/v1/users``) --
-        **not** the terraform ``okta_user`` resource argument shape.
-
-        Do not feed this into terraform emission: the resource wants
-        snake_case arguments (``mobile_phone``, not ``mobilePhone``), sets
-        ``login`` from email rather than name, and requires
-        ``first_name``/``last_name``, which this body omits. ``OktaTFUser``
-        (okta-opa-plugin) is the emitter for the resource shape. Do not
-        "complete" this method by adding firstName/lastName -- that only
-        makes it look more like the resource shape while remaining unusable
-        for it. Currently uncalled; reserved for a future direct-API path
-        such as ``query_existing_users()``.
-        """
-        p: dict[str, str] = {
-            "email": self.email,
-            "login": self.name,
-        }
-        if self.mobile_phone:
-            p["mobilePhone"] = self.mobile_phone
-        if self.honorific_prefix:
-            p["honorificPrefix"] = self.honorific_prefix
-        if self.honorific_suffix:
-            p["honorificSuffix"] = self.honorific_suffix
-        if self.title:
-            p["title"] = self.title
-        if self.display_name:
-            p["displayName"] = self.display_name
-        if self.nick_name:
-            p["nickName"] = self.nick_name
-        if self.profile_url:
-            p["profileUrl"] = self.profile_url
-        if self.second_email:
-            p["secondEmail"] = self.second_email
-        if self.primary_phone:
-            p["primaryPhone"] = self.primary_phone
-        if self.street_address:
-            p["streetAddress"] = self.street_address
-        if self.city:
-            p["city"] = self.city
-        if self.state:
-            p["state"] = self.state
-        if self.zip_code:
-            p["zipCode"] = self.zip_code
-        if self.country_code:
-            p["countryCode"] = self.country_code
-        if self.postal_address:
-            p["postalAddress"] = self.postal_address
-        if self.preferred_language:
-            p["preferredLanguage"] = self.preferred_language
-        if self.locale:
-            p["locale"] = self.locale
-        if self.timezone:
-            p["timezone"] = self.timezone
-        if self.user_type:
-            p["userType"] = self.user_type
-        if self.employee_number:
-            p["employeeNumber"] = self.employee_number
-        if self.cost_center:
-            p["costCenter"] = self.cost_center
-        if self.organization:
-            p["organization"] = self.organization
-        if self.division:
-            p["division"] = self.division
-        if self.department:
-            p["department"] = self.department
-        if self.manager_id:
-            p["managerId"] = self.manager_id
-        if self.manager:
-            p["manager"] = self.manager
-        return p
-
-
-# Body is like this with fields from example below
-# {
-#   "profile": {
-#     "firstName": "Isaac",
-#     "lastName": "Brock",
-#     "email": "isaac.brock@example.com",
-#     "login": "isaac.brock@example.com",
-#     "mobilePhone": "555-415-1337"
-#   }
-# }

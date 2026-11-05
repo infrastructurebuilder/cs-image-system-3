@@ -14,6 +14,43 @@ from typing import Any, Protocol
 
 from .core import BuilderModelProtocol, BuilderProtocol
 
+#: The login hook: the one script every identity plugin that installs or
+#: checks it names. A posix group builder bakes it into an image beside
+#: another identity provider's agent and wires it into ``/etc/pam.d/sshd``
+#: as an ``optional`` ``pam_exec`` session line; at each login it joins the
+#: user to every group whose member list on the machine names them and
+#: installs any keys kept for them. It exists because a provider's agent
+#: may create an account at login and delete it afterwards, dropping its
+#: supplementary groups, so a membership written once would not hold. The
+#: plugin that installs it (``login_hook_commands``) and the plugin whose
+#: activation verifies it both read this path; nothing writes it twice.
+LOGIN_HOOK = "/usr/local/sbin/csis-group-login"
+
+#: The accounts report: the lines a group builder's ``accounts_script``
+#: prints for the core to log start with this prefix, and the one that says
+#: the machine agrees with the configuration is :data:`ACCOUNTS_IN_PLACE`.
+#: The script is the plugin's; the core reads its report by these two
+#: strings and nothing else.
+ACCOUNTS_REPORT_PREFIX = "posix accounts:"
+ACCOUNTS_IN_PLACE = "posix accounts: in place"
+
+#: The alias script's two closing words: ``alias_registration_script``
+#: returns a script that prints exactly one of them, so the core can log
+#: whether the machine's registration changed or already agreed.
+ALIASES_CHANGED = "ALTNAMES_CHANGED"
+ALIASES_UNCHANGED = "ALTNAMES_UNCHANGED"
+
+#: The conditions the state query finds when it compares a group's expected
+#: workload access against what the provider holds; the group builder's
+#: ``workload_access_detail`` renders each in its provider's words. The
+#: comparison is the core's, the sentence is the plugin's.
+WORKLOAD_ROLE_ABSENT = "role-absent"
+WORKLOAD_POLICY_ABSENT = "policy-absent"
+WORKLOAD_POLICY_DIVERGED = "policy-diverged"
+WORKLOAD_CONNECTION_ABSENT = "connection-absent"
+WORKLOAD_CONNECTION_INACTIVE = "connection-inactive"
+WORKLOAD_CONNECTION_UNREAD = "connection-unread"
+
 
 class GroupBuilderModelProtocol(BuilderModelProtocol, Protocol):
     """An entry under ``group_builders:``: the universal fields; the plugin
@@ -90,6 +127,8 @@ class GroupBuilderProtocol(BuilderProtocol, Protocol):
 
     def retire_servers_named(self, group: str, hostname: str) -> list[str]: ...
 
+    def alias_registration_script(self, names: list[str]) -> str | None: ...
+
     def prune_stale_attachments(self, tofu: str, run_id: str, cwd: Path) -> int: ...
 
     def can_prove_login(self, group: str | None = None) -> bool: ...
@@ -108,6 +147,14 @@ class GroupBuilderProtocol(BuilderProtocol, Protocol):
     def workload_access_state(self, group: str) -> dict[str, Any] | None: ...
 
     def ensure_workload_access(self, group: str) -> dict[str, Any]: ...
+
+    def workload_access_detail(self, condition: str, expected: dict[str, Any], real: dict[str, Any]) -> str: ...
+
+    # --- where its machines may run, and what it reads from the environment
+    def container_runtime_objection(self) -> str | None: ...
+
+    @classmethod
+    def credential_environment_prefixes(cls) -> tuple[str, ...]: ...
 
     # --- identity attributes (uids, gids on the identity side)
     def validate_attributes(self, group: Any, attributes: dict[str, Any]) -> list[str]: ...

@@ -129,6 +129,28 @@ class ItemKind:
 _ITEM_KINDS: list[ItemKind] = []
 
 
+def item_model_class(reg: "registry.Registry", spec: ItemKind) -> type:
+    """The class a kind's items structure into: the plugin-injected default
+    model of the kind's classification when one is registered and extends
+    the kind's own model (an identity plugin's user subclass carrying its
+    directory's profile fields), else the kind's model. The YAML key and
+    the ``isinstance`` check stay the kind's: a subclass only adds fields."""
+    classify = getattr(spec.model_cls, "csis_classifier", None)
+    if not callable(classify):
+        return spec.model_cls
+    try:
+        classifier = classify()
+    except Exception:  # noqa: BLE001 - a model that classifies nothing has no injected default
+        return spec.model_cls
+    if not isinstance(classifier, VCT):
+        return spec.model_cls
+    name = reg.defaults_registry.get(classifier)
+    injected = reg.get_model(classifier, name) if name else None
+    if isinstance(injected, type) and issubclass(injected, spec.model_cls) and injected is not spec.model_cls:
+        return injected
+    return spec.model_cls
+
+
 def register_item_kind(spec: ItemKind) -> None:
     """Register a domain-item kind to be read during ``GlobalTypeContext.__post_init__``."""
     _ITEM_KINDS.append(spec)
@@ -599,11 +621,12 @@ class GlobalTypeContext:
         reset_unresolved_fks()          # stage 48.3: a fresh load starts with no unresolved foreign keys
         reg = self.reg
         items: list[NameTyped] = []
+        model_cls = item_model_class(reg, spec)
         try:
             read_dict = read_and_preprocess_yaml_files(spec.model_cls, yaml_files)[0]
             apply_overlays(self, spec, read_dict)
             for _key, raw in read_dict.items():
-                structured = cvt.structure(raw, spec.model_cls)
+                structured = cvt.structure(raw, model_cls)
                 for ri in (structured if isinstance(structured, list) else [structured]):
                     if isinstance(ri, spec.model_cls):
                         items.append(ri)

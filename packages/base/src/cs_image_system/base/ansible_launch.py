@@ -12,20 +12,32 @@ an ansible playbook for targets that have no user-data (metal, containers,
 an already-running host): identical decisions, a different executor.
 
 Runtime values still arrive by reference, as extra-vars rather than
-terraform template variables: ``group_gid``, ``efs`` (storage ->
-{file_system_id, access_point_id}) and ``sft_enrollment_token``. Nothing
-here reads meta-state or the cloud; it is a pure rendering of what
-``compute_launch_params`` already produced.
+terraform template variables: ``group_gid``, one map per storage kind
+that reads values at launch (storage name -> the values the instance root
+binds; each storage builder names its own in ``launch_variables``) and
+the enrollment token (``launch_params.ENROLLMENT_TOKEN_VARIABLE``) --
+:func:`extra_vars` lists them for a configuration. Nothing here reads meta-state or the cloud; it is a pure
+rendering of what ``compute_launch_params`` already produced, each
+mount's tasks being its storage builder's ``launch_tasks``.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from .launch_enrollment import enrollment_kind_for
+from .launch_params import launch_variables, mount_tasks
 
-EXTRA_VARS = ("group_gid", "efs", "sft_enrollment_token")
+if TYPE_CHECKING:
+    from .global_context import GlobalTypeContext
+
+
+def extra_vars(ctx: "GlobalTypeContext") -> tuple[str, ...]:
+    """The extra-vars a playbook takes: the launch template's variables,
+    in the same order (``group_gid``, the storage builders' own in
+    declaration order, the enrollment token)."""
+    return launch_variables(ctx)
 
 
 def launch_inventory(params_by_instance: dict[str, dict[str, Any]]) -> str:
@@ -41,13 +53,16 @@ def launch_inventory(params_by_instance: dict[str, dict[str, Any]]) -> str:
     return yaml.safe_dump(inv, sort_keys=False)
 
 
-def launch_playbook(params: dict[str, Any], inventory_name: str | None = None) -> str:
+def launch_playbook(params: dict[str, Any], inventory_name: str | None = None,
+                    ctx: "GlobalTypeContext | None" = None) -> str:
     """The playbook equivalent of ``user_data_template(params)``.
     ``inventory_name`` is the instance's declared name -- the key
     ``launch_inventory`` uses -- and is what the play TARGETS;
     ``params["hostname"]`` is the canonical name the machine is GIVEN (since
     stage 55 step 4 the two differ: ``test`` versus ``test-001``). Without
-    it the play targets the hostname, as it did when they coincided."""
+    it the play targets the hostname, as it did when they coincided.
+    ``ctx`` is the configured context unless given (it names each mount's
+    storage builder)."""
     host = params["hostname"]
     target = inventory_name or host
     group = params.get("group")
@@ -55,32 +70,7 @@ def launch_playbook(params: dict[str, Any], inventory_name: str | None = None) -
         {"name": f"hostname {host}", "ansible.builtin.hostname": {"name": host}},
     ]
     for m in params.get("mounts", []):
-        mp, name, stype = m["mount_point"], m["storage"], m["type"]
-        if stype == "s3":
-            tasks.append({"name": f"storage {name} (s3): object access via the cloud's CLI, no mount",
-                          "ansible.builtin.debug": {"msg": f"s3 storage {name} is not mounted"}})
-            continue
-        tasks.append({"name": f"mount point {mp} for storage {name} ({stype})",
-                      "ansible.builtin.file": {"path": mp, "state": "directory"}})
-        if stype == "ebs":
-            dev = m["device"]
-            tasks.append({"name": f"filesystem on {dev} ({name})",
-                          "community.general.filesystem": {"fstype": "xfs", "dev": dev}})
-            tasks.append({"name": f"mount {dev} at {mp}",
-                          "ansible.posix.mount": {"path": mp, "src": dev, "fstype": "xfs",
-                                                  "opts": "defaults,nofail", "state": "mounted"}})
-            if group:
-                tasks.append({"name": f"private subtree {mp}/{group} (gid by reference)",
-                              "ansible.builtin.file": {"path": f"{mp}/{group}", "state": "directory",
-                                                       "group": "{{ group_gid }}",
-                                                       "mode": str(m["share_mode"])}})
-        elif stype == "efs":
-            tasks.append({"name": f"mount EFS {name} at {mp}",
-                          "ansible.posix.mount": {
-                              "path": mp, "fstype": "efs",
-                              "src": "{{ efs['" + name + "'].file_system_id }}:/",
-                              "opts": "_netdev,tls,accesspoint={{ efs['" + name + "'].access_point_id }},nofail",
-                              "state": "mounted"}})
+        tasks += mount_tasks(m, group, ctx)        # the mount's whole task list is the storage's
     # stage 75 step 2: the identity plugin that issued the enrollment renders its tasks
     kind = enrollment_kind_for(params)
     if kind is not None:

@@ -76,8 +76,8 @@ def group_builders_by_identity_type(ctx: "GlobalTypeContext") -> dict[str, list[
     """``{identity type: [group builders]}``. Callers bake and verify with
     the FIRST builder of a type, so a builder that manages its groups comes
     before a lookup-only one, then by name (stage 63 item 18: by name alone,
-    a read-only builder called ``okta-groups-ro`` sorted before the managed
-    ``oktagroups`` and its name went into every base image's bake)."""
+    a read-only builder called ``<type>-groups-ro`` sorted before the managed
+    ``<type>groups`` and its name went into every base image's bake)."""
     out: dict[str, list[GroupBuilderBase]] = {}
     for name in sorted(ctx.group_builders):
         b = ctx.group_builders[name]
@@ -155,7 +155,7 @@ def storage_types_on_runtime(ctx: "GlobalTypeContext", types: list[str], runtime
     """Of ``types``, those a bake on ``runtime`` prepares for: the ones with
     a storage builder on that runtime (or on none). Hygiene XII item 21
     (the walk's F49): `storage_types` is one list on the OS builder, and it
-    stamped and fingerprinted every bake whole, so a `pd` added for one
+    stamped and fingerprinted every bake whole, so a type added for one
     cloud's disk re-baked the other cloud's base with nothing to change in it. With no
     runtime named, every type (the declaration as written)."""
     if runtime is None:

@@ -62,6 +62,23 @@ commit on the bundle's branch.
     move is this item, its own commit on the reference's develop,
     re-recorded if anything moves). The fixture keeps the old keys
     as the standing proof that the aliases resolve.
+15. Rename `sft_enrollment_token` (the launch credential's terraform
+    variable, a core constant whose value names OPA's client) to a
+    neutral name (`enrollment_token`): every instance root and
+    launch script template moves, so the golden is regenerated and
+    the reference re-records at its next take; the one excused line
+    in `tests/test_core_names_no_runtime.py` goes with it (the
+    operator, 2026-11-05, at §122).
+16. The ansible plugin's Python-prep line for a bake (`ansible_builder.py`,
+    the `dnf` install of the interpreter) is dnf-only and breaks a
+    debian bake; route it through the OS type's
+    `ansible_python_install_command` (three golden lines move; found
+    by §122).
+17. The instance roots (tf-ebs-instance, tf-gcp, tf-docker) still
+    assemble their `templatefile` maps by storage kind in
+    `_launch_args`; the storage builders' `launch_variables()` names
+    what each kind reads, so the roots can build the map from the
+    hooks (output unchanged; found by §122).
 
 **Acceptance**: each item its own commit; `just test` green after
 each; one squash, branch kept. Records: the squash; this section goes

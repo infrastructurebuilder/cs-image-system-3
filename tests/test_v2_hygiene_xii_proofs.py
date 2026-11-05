@@ -30,7 +30,7 @@ runner = CliRunner()
 # ------------------------------------------------------------ item 14: the role verdict
 
 def test_the_role_verdict_comes_from_resolving_a_machine_as_the_workload():
-    from cs_image_system.base.commands.workload_token import WorkloadNames, probe_role
+    from cs_image_system.okta_opa_plugin.workload_token import WorkloadNames, probe_role
     names = WorkloadNames("conn", "role", "team", "https://x.pam.okta.com")
     calls: list[tuple] = []
 
@@ -48,7 +48,7 @@ def test_the_role_verdict_comes_from_resolving_a_machine_as_the_workload():
 
 
 def test_the_probe_target_is_a_standing_machine_of_a_managed_group(tmp_path, monkeypatch):
-    from cs_image_system.base.commands.login_proof import probe_target
+    from cs_image_system.okta_opa_plugin.workload_token import probe_target
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_models import OktaTfGroupBuilderModel
     run = V2Run(tmp_path, monkeypatch)
@@ -69,14 +69,14 @@ def test_the_probe_target_is_a_standing_machine_of_a_managed_group(tmp_path, mon
 
 def test_the_probe_command_prints_both_verdicts_and_exits_0(tmp_path, monkeypatch):
     from cs_image_system.system.cli import app
-    from cs_image_system.base.commands import login_proof, workload_token as wt
+    from cs_image_system.okta_opa_plugin import workload_token as wt
     stub_environment(monkeypatch)
     reset_singletons()
     root = copy_config(tmp_path)
     _stub_minting(monkeypatch)
     _job_env(monkeypatch, OPA_WORKLOAD_CONNECTION="conn", OPA_WORKLOAD_ROLE="role", SFT_TEAM="team",
              OPA_ADDR="https://x.pam.okta.com")
-    monkeypatch.setattr(login_proof, "probe_target", lambda ctx: ("h.example.invalid", "stofs"))
+    monkeypatch.setattr(wt, "probe_target", lambda ctx: ("h.example.invalid", "stofs"))
     resolves: list[str] = []
     monkeypatch.setattr(wt, "sft_resolve", lambda n, token, host: (resolves.append(host), (0, ""))[1])
     result = runner.invoke(app, ["--root-dir", str(root), "workload", "probe"])
@@ -89,7 +89,7 @@ def test_the_probe_command_prints_both_verdicts_and_exits_0(tmp_path, monkeypatc
     reset_singletons()
     result = runner.invoke(app, ["--root-dir", str(root), "workload", "probe"])
     assert result.exit_code == 0 and "role role: not granted -- sft resolve h.example.invalid: exit 125" in result.stdout
-    monkeypatch.setattr(login_proof, "probe_target", lambda ctx: None)
+    monkeypatch.setattr(wt, "probe_target", lambda ctx: None)
     reset_singletons()
     result = runner.invoke(app, ["--root-dir", str(root), "workload", "probe"])
     assert result.exit_code == 0 and "role role: not judged -- no standing machine" in result.stdout

@@ -15,6 +15,8 @@ from cs_image_system.base.basic.builder_base_group import GID_POLICY_CREATION_ON
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.contract.executables import CFExecutables
 from cs_image_system.contract.session import LoadFailureReport
+from cs_image_system.contract.group import LOGIN_HOOK
+from cs_image_system.contract.operating_system import PACKAGE_LOCK_TIMEOUT
 from cs_image_system.base.models.group import Group
 from cs_image_system.hashicorp_utils.blocks import BlockSpec, DataSpec, OutputSpec, Raw, render_blocks
 from cs_image_system.hashicorp_utils.collector import TerraformCollector
@@ -33,8 +35,9 @@ POSIX_IDENTITY_TYPE = "posix"
 from .opa_gids import (ADMIN_GROUP_SUFFIX, GROUP_NAME_ATTRIBUTE, USER_GROUP_SUFFIX, OpaGidResolver,
                        credentials_from_env, resolve_waiting)
 from .module_objects import module_objects_state
-from .workload_policy import (WorkloadSnapshot, by_name, ci_policy_from, ci_policy_name, policies_equal,
-                              user_policy_name, workload_state)
+from .workload_policy import (WorkloadSnapshot, by_name, ci_policy_from, ci_policy_name, describe_condition,
+                              policies_equal, user_policy_name, workload_state)
+from .server_aliases import alt_names_script
 
 """
 Group provider implementation via Terraform/Tofu for Okta groups using okta/oktapam
@@ -98,22 +101,32 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         """Bake the OPA server agent (sftd), installed but DORMANT: no
         enrollment token, service disabled. Activation happens per instance
         image (activation_commands) and enrollment at launch (N26)."""
-        fam = (os_family or "").lower()
-        if fam in ("debian", "ubuntu"):
+        # the OS type owns the package manager's lines; this plugin owns
+        # the OktaPAM repository recipe per package format
+        from cs_image_system.base.os_types import os_type_for_family
+        os_type = os_type_for_family(os_family)
+        fmt = os_type.package_format()
+        if fmt == "deb":
             install = [
                 # Debian vendor AMIs ship neither curl nor gnupg (found live)
-                "command -v curl >/dev/null 2>&1 && command -v gpg >/dev/null 2>&1 || { sudo apt-get -o DPkg::Lock::Timeout=600 update -y; sudo apt-get -o DPkg::Lock::Timeout=600 install -y curl gnupg; }",
+                "command -v curl >/dev/null 2>&1 && command -v gpg >/dev/null 2>&1 || { "
+                f"{os_type.package_update_command(lock_timeout=PACKAGE_LOCK_TIMEOUT)}; "
+                f"{os_type.package_install_command(['curl', 'gnupg'], lock_timeout=PACKAGE_LOCK_TIMEOUT)}; }}",
                 "curl -fsSL https://dist.scaleft.com/GPG-KEY-OktaPAM-2023 | sudo gpg --dearmor -o /usr/share/keyrings/oktapam-2023-archive-keyring.gpg",
                 "echo 'deb [signed-by=/usr/share/keyrings/oktapam-2023-archive-keyring.gpg] https://dist.scaleft.com/repos/deb focal okta' | sudo tee /etc/apt/sources.list.d/oktapam-stable.list",
-                "sudo apt-get -o DPkg::Lock::Timeout=600 update -y",
-                "sudo apt-get -o DPkg::Lock::Timeout=600 install -y scaleft-server-tools",
+                os_type.package_update_command(lock_timeout=PACKAGE_LOCK_TIMEOUT),
+                os_type.package_install_command(["scaleft-server-tools"], lock_timeout=PACKAGE_LOCK_TIMEOUT),
             ]
-        else:
+        elif fmt == "rpm":
             install = [
                 "sudo rpm --import https://dist.scaleft.com/GPG-KEY-OktaPAM-2023",
                 "printf '[oktapam-stable]\\nname=Okta PAM Stable - $basearch\\nbaseurl=https://dist.scaleft.com/repos/rpm/stable/rhel/$releasever/$basearch\\ngpgcheck=1\\nrepo_gpgcheck=1\\nenabled=1\\ngpgkey=https://dist.scaleft.com/GPG-KEY-OktaPAM-2023\\n' | sudo tee /etc/yum.repos.d/oktapam-stable.repo",
-                "sudo yum install -y scaleft-server-tools",
+                os_type.package_install_command(["scaleft-server-tools"], lock_timeout=PACKAGE_LOCK_TIMEOUT),
             ]
+        else:
+            raise ValueError(f"identity type '{OKTA_IDENTITY_TYPE}' ({self.get_name()}): OktaPAM publishes no "
+                             f"{fmt} package of its server agent, so a base image of family {os_family!r} "
+                             f"cannot declare it")
         return [f"# identity type '{OKTA_IDENTITY_TYPE}' prerequisites ({self.get_name()}): OPA agent, dormant"] + install + [
             "sudo systemctl disable --now sftd || true",
             "sudo rm -f /var/lib/sftd/enrollment.token",
@@ -129,8 +142,8 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
 
     def activation_verify_commands(self, image: Any, group: Group) -> list[str]:
         hook = (["# verify: the posix login hook is installed (stage 75)",
-                 "test -x /usr/local/sbin/csis-group-login",
-                 "grep -q csis-group-login /etc/pam.d/sshd"] if self.posix_delegate() is not None else [])
+                 f"test -x {LOGIN_HOOK}",
+                 f"grep -q {Path(LOGIN_HOOK).name} /etc/pam.d/sshd"] if self.posix_delegate() is not None else [])
         return [
             f"# verify: activated for group '{group.get_name()}'",
             f"grep -q 'tx.group: {group.get_name()}' /etc/sft/sftd.yaml",
@@ -302,9 +315,32 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
                 gone.append(s["id"])
         return gone
 
+    def alias_registration_script(self, names: list[str]) -> str | None:
+        """The ``AltNames`` block of ``sftd.yaml``, rewritten and the agent
+        restarted only when it changed (``server_aliases``)."""
+        return alt_names_script(names)
+
+    # ----------------------------------- a container runtime (stage 103)
+    def container_runtime_objection(self) -> str | None:
+        return ("its OPA agent (sftd) needs systemd, sshd, a reachable address and a cloud identity, none of "
+                "which a container has, so only a group whose identity lives on the machine itself can own an "
+                "image there (access is through the daemon; enrolling an identity agent in a container is a "
+                "later stage)")
+
+    # --------------------------------------------- the environment it reads
+    @classmethod
+    def credential_environment_prefixes(cls) -> tuple[str, ...]:
+        """The Okta API services app's variables (``OKTA_API_...``); the OPA
+        key pair travels as ``TF_VAR_<team>_key``/``_secret``, which the
+        core already watches."""
+        return ("OKTA_",)
+
     # ------------------------------------------- CI login policy (stage 56)
     def can_manage_workload_access(self) -> bool:
         return bool(self.model.workload_connection and self.model.workload_role)
+
+    def workload_access_detail(self, condition: str, expected: dict[str, Any], real: dict[str, Any]) -> str:
+        return describe_condition(condition, expected, real)
 
     # gids by reference into this builder's identity root (N7; stage 75 step 3
     # made it the builder's answer instead of every consumer's assumption)

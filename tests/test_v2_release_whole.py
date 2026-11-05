@@ -600,7 +600,7 @@ def test_runtime_unchanged_compares_one_runtimes_directories_across_records(tmp_
 # -------------------------------------------------------- workload token
 
 def _stub_minting(monkeypatch, *, rc=0, token="opa-token-value", verdict="ok\n"):
-    from cs_image_system.base.commands import workload_token as wt
+    from cs_image_system.okta_opa_plugin import workload_token as wt
     jwt = "hdr." + __import__("base64").urlsafe_b64encode(
         b'{"iss":"https://token.actions.githubusercontent.com","repository":"o/r","sub":"repo:o/r:ref:refs/heads/main"}').decode().rstrip("=") + ".sig"
     monkeypatch.setattr(wt, "fetch_oidc_token", lambda url, bearer: jwt)
@@ -624,7 +624,7 @@ def test_workload_token_prints_the_token_alone_and_masks_both_on_stderr(monkeypa
     _job_env(monkeypatch, OPA_WORKLOAD_CONNECTION="conn", OPA_WORKLOAD_ROLE="role", SFT_TEAM="team",
              OPA_ADDR="https://x.pam.okta.com")
     monkeypatch.delenv("CSIS_CONFIG_IDENTITY", raising=False)
-    from cs_image_system.base.commands.workload_token import mint_token, WorkloadNames
+    from cs_image_system.okta_opa_plugin.workload_token import mint_token, WorkloadNames
     said: list[str] = []
     token = mint_token(WorkloadNames("conn", "role", "team", "https://x.pam.okta.com"), dict(os.environ),
                        say=said.append, fetch=lambda u, b: jwt,
@@ -644,7 +644,7 @@ def test_the_client_is_handed_the_address_and_the_team_in_its_environment(monkey
     """Hygiene VII item 4: `sft workload authenticate` reads OPA_ADDR (and the
     team) from its environment; the first performing run from the reference
     configuration failed with `environment variable OPA_ADDR is not set`."""
-    from cs_image_system.base.commands import workload_token as wt
+    from cs_image_system.okta_opa_plugin import workload_token as wt
     seen: dict = {}
 
     class _Proc:

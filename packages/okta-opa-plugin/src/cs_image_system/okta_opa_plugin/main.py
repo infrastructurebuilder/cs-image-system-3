@@ -11,6 +11,8 @@ from .okta_opa_tf_group_ro_builder import OktaTfGroupRoBuilder
 from .okta_opa_tf_user_builder import OktaTfUserBuilder
 from .okta_opa_tf_user_models import OktaTfUserBuilderModel, OktaTfUserRoBuilderModel
 from .okta_opa_tf_user_ro_builder import OktaTfUserRoBuilder
+from .okta_user import OktaUser
+from cs_image_system.contract.constants import VCT
 
 log = logging.getLogger(__name__)
 
@@ -30,7 +32,11 @@ class OktaTypes(AbstractPluginMetadata):
                      {OktaTfGroupBuilderModel: OktaTfGroupBuilder,
                       OktaTfUserBuilderModel: OktaTfUserBuilder,
                       OktaTfGroupRoBuilderModel: OktaTfGroupRoBuilder,
-                      OktaTfUserRoBuilderModel: OktaTfUserRoBuilder}
+                      OktaTfUserRoBuilderModel: OktaTfUserRoBuilder},
+                     # the `users:` item model with Okta's profile fields: the
+                     # default item model while this plugin is installed
+                     {VCT.USER_MODEL: OktaUser},
+                     True,
                      )
   
 def initialize():

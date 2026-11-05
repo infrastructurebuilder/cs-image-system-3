@@ -65,7 +65,7 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
     ssh_username: str  = DEFAULT
     # Per-runtime in-bake tests: when set, REPLACES the os builder's tests
     # for bakes on this runtime (finding 40: the fixture's first-cloud package test
-    # asserted nfs-utils on the other cloud's bake where the efs prerequisite rightly
+    # asserted nfs-utils on the other cloud's bake where the shared-filesystem prerequisite rightly
     # never ran). None inherits the builder-level tests.
     tests: Mapping[str, Any] | None = None
     _runtime_image: BaseImage | None = field(init=False, default=None)

@@ -23,6 +23,9 @@ One module per kind of builder, over a shared core:
   :mod:`.field_kinds`, :mod:`.lifecycle`, :mod:`.lifecycles`,
   :mod:`.assets`, :mod:`.executables`, :mod:`.metadata`, :mod:`.names`,
   :mod:`.hcl` -- what a plugin declares, constructs and returns;
+- :mod:`.commands` -- the record a plugin returns from its
+  ``cs_image_system.commands`` entry point to mount a command on the
+  console script;
 - :mod:`.testing` -- ``assert_conforms``, the signature-level check the
   core's tests run over every base class and every built-in plugin.
 

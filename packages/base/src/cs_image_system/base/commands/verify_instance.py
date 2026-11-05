@@ -99,7 +99,7 @@ def verify_instance(name: str, expected_build: str | None = None, timeout: int =
     # hygiene XII item 22: the declared mount points by name (object storage
     # mounts nothing), and their count for a runtime that can only count
     from ..launch_params import compute_launch_params, mounted_points
-    mount_points = mounted_points(compute_launch_params(ctx, inst))
+    mount_points = mounted_points(compute_launch_params(ctx, inst), ctx)
     mounts = len(mount_points)
     # stage 57: verification is the archetypal task that NEEDS a running
     # machine, so it is allowed to start one -- for this task alone, and
@@ -140,16 +140,17 @@ def verify_instance(name: str, expected_build: str | None = None, timeout: int =
             build = booted if ok else None
         # stage 14: the image's declared post-bake tests run ON the instance over
         # the runtime's session command, as one more check; recorded per build
-        from ..image_tests import parse_post_bake_output, post_bake_script, post_bake_spec
+        from ..image_tests import parse_post_bake_output, post_bake_script, post_bake_spec, root_os_type
         image = ctx.images_map.get(str(inst.image))
         spec = post_bake_spec(image) if image is not None else {}
         test_checks: list[dict[str, Any]] = []
         if spec:
+            os_type = root_os_type(ctx, image)
             try:
-                _rc, out = rtb.run_session_command(name, post_bake_script(spec), timeout=timeout)
+                _rc, out = rtb.run_session_command(name, post_bake_script(spec, os_type=os_type), timeout=timeout)
             except Exception as e:  # noqa: BLE001 - a dead session is a failed suite, recorded as such
                 out = f"session failed: {e}"
-            test_checks = parse_post_bake_output(spec, out)
+            test_checks = parse_post_bake_output(spec, out, os_type=os_type)
             suite_ok = bool(test_checks) and all(c["ok"] for c in test_checks)
             failed = [c["name"] for c in test_checks if not c["ok"]]
             result.setdefault("checks", []).append({

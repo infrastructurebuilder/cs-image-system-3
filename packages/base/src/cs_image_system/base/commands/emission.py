@@ -45,6 +45,9 @@ import yaml
 
 from ..constants import RUN_LOCAL_FILENAMES
 
+#: terraform's forced getter: a `<getter>::` prefix on a module source (any getter)
+_FORCED_GETTER = re.compile(r"^[a-z0-9]+::")
+
 log = logging.getLogger(__name__)
 
 # names pruned wherever they are, and path suffixes pruned
@@ -239,7 +242,7 @@ def copy_tree_for_a_dry_run(root: Path, work: Path) -> Path:
     place, so the dry run's ``tofu init`` still finds the modules."""
     base = _module_source_base(root)
     depth = 0
-    if base and not base.startswith(("/", "git", "s3::", "gcs::")) and "://" not in base:
+    if base and not base.startswith(("/", "git")) and not _FORCED_GETTER.match(base) and "://" not in base:
         rel = Path(os.path.relpath((root / base).resolve(), root))
         depth = sum(1 for part in rel.parts if part == "..")
     parent = work.joinpath(*(["d"] * depth)) if depth else work
