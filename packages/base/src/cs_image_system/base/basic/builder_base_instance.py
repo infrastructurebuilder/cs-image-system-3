@@ -4,11 +4,11 @@
 
 from typing import TypeVar
 
-from cs_image_system.base import registry
 
 from ..models.instance_builder import InstanceBuilderModel
 from .builder_base_runtime import RuntimeBuilderBase
 
+from cs_image_system.base.registry import current_registry
 from ..constants import VCT
 
 from .builder_base import BuilderBase
@@ -29,7 +29,9 @@ class InstanceBuilderBase(BuilderBase[TINSTANCE], InstanceBuilderProtocol):
         if self._finalized:
             return
         super().finalize()
-        reg = registry.Registry()
+        # finalize runs in the loader before the run context exists and is
+        # bound; the loader bound the run's registry first (stage 124 shim)
+        reg = current_registry()
         rtb = self.model.get_runtime_provider()
         if not rtb:
             raise ValueError(

@@ -46,7 +46,7 @@ class Widget:
 
 
 def test_smartcontext_resolves_fk_string_to_object(clean_registry):
-    reg = _registry.Registry()
+    reg = _registry.current_registry()
     rt = Runtime("aws")
     reg.register_built_instance(rt)
     w = Widget("w1", runtime="aws")
@@ -60,7 +60,7 @@ def test_smartcontext_resolves_fk_string_to_object(clean_registry):
 
 def test_templated_field_resolves_via_method_call_on_fk_object(clean_registry):
     tr = clean_registry  # the fixture yields the TemplateResolver singleton (map cleared)
-    reg = _registry.Registry()
+    reg = _registry.current_registry()
     rt = Runtime("aws")
     reg.register_built_instance(rt)
     tr.flattened_map[rt.global_id] = rt

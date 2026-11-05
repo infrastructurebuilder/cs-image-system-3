@@ -24,6 +24,13 @@ from cs_image_system.gcloud_runtime import gcp_utils, session
 from .gcp_utils import GCP_QUERY_KEYS, query_image, translate_image_query
 from cs_image_system.contract.image import ImageQuery
 from cs_image_system.contract.session import SessionStatus
+from cs_image_system.base.os_types import os_type_for_family
+from cs_image_system.contract.operating_system import PACKAGE_LOCK_TIMEOUT
+from .gcp_packer_source import gce_label, gce_name, GOOGLECOMPUTE, googlecompute_source
+from cs_image_system.base.bake_user import resolve_bake_user
+from cs_image_system.base.lineage import TAG_PREFIX, belongs_to_another_configuration, CONFIG_TAG
+from .gcp_utils import _make_images_client, resolve_project, make_credentials
+from cs_image_system.base.launch_params import MOUNT_MARK
 
 GCP_RUNTIME: str = "gcloud"
 
@@ -155,8 +162,6 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         if self.session_mechanism() != self.IAP:
             return []
         # the guest agent's package bears one name on every family; the line is the OS type's
-        from cs_image_system.base.os_types import os_type_for_family
-        from cs_image_system.contract.operating_system import PACKAGE_LOCK_TIMEOUT
         install = os_type_for_family(os_family).package_install_command(["google-guest-agent"],
                                                                         lock_timeout=PACKAGE_LOCK_TIMEOUT)
         return ["# debug session mechanism: IAP TCP forwarding (operator: IAP firewall rule + tunnelResourceAccessor)",
@@ -181,7 +186,6 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         GCE wants a lowercase letter first; ``gce_label`` lowercases and
         replaces what it cannot keep, but it cannot invent a first letter, so
         a key such as ``2024`` failed at apply (stage 63: refused at validate)."""
-        from .gcp_packer_source import gce_label
         label = gce_label(key)
         if not label or not ("a" <= label[0] <= "z"):
             return f"GCE label keys must start with a lowercase letter; {key!r} becomes {label!r}"
@@ -191,7 +195,6 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         """What GCE makes of a build name (stage 105): ``gce_name`` --
         lowercase, dashes for what it cannot keep, a letter first, at most
         63 characters -- the name the packer source writes."""
-        from .gcp_packer_source import gce_name
         return gce_name(name)
 
     def image_name_problem(self, name: str) -> str | None:
@@ -218,7 +221,6 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         # no longer bakes as itself while ansible connects as `packer`.
         if image is None:
             return self.default_bake_user("")
-        from cs_image_system.base.bake_user import resolve_bake_user
         return resolve_bake_user(self._get_context(), image, self.get_name())
 
     def bake_finalize_commands(self, os_family: str | None = None) -> list[str]:
@@ -236,8 +238,6 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
 
     def query_images(self, series: list[str]) -> list[dict[str, Any]]:
         """Every image in the project labelled with ``csis_series`` (read-only)."""
-        from cs_image_system.base.lineage import TAG_PREFIX
-        from .gcp_utils import _make_images_client, resolve_project
         cfg = self.model.self_to_gcp_client_config()
         project = resolve_project(cfg)
         if not project:
@@ -249,7 +249,6 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         # stage 63: only the images of the series asked about (the argument
         # was ignored, so every labelled image in the project came back); a
         # series label carries gce_label(<series>), so compare in that form
-        from .gcp_packer_source import gce_label
         wanted = {gce_label(s) for s in (series or [])}
         for img in client.list(request=request):
             labels = dict(getattr(img, "labels", {}) or {})
@@ -261,8 +260,6 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
 
     def serial_console(self, instance_name: str) -> str:
         """The instance's serial port 1 output (read-only)."""
-        from .gcp_packer_source import gce_name
-        from .gcp_utils import make_credentials, resolve_project
         from google.cloud import compute_v1  # noqa: PLC0415
         cfg = self.model.self_to_gcp_client_config()
         project, zone = resolve_project(cfg), getattr(self.model, "zone", None)
@@ -311,7 +308,6 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         else:
             checks.append({"name": "booted image", "ok": booted is not None, "detail": f"booted {booted}"})
         if mount_points:
-            from cs_image_system.base.launch_params import MOUNT_MARK  # noqa: PLC0415
             seen = [mp for mp in mount_points if re.search(rf"{re.escape(MOUNT_MARK)} {re.escape(mp)} mounted\b", out)]
             missing = [mp for mp in mount_points if mp not in seen]
             kernel = len(re.findall(r"XFS \([a-z0-9]+\): Ending clean mount", out))
@@ -331,8 +327,6 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         """An IAP TCP tunnel to the instance's port, on stdin/stdout: no
         public address, the IAP firewall rule and grant the session
         mechanism already needs (stage 75 step 6)."""
-        from .gcp_packer_source import gce_name
-        from .gcp_utils import resolve_project
         if self.session_mechanism() != self.IAP:
             return None
         project = resolve_project(self.model.self_to_gcp_client_config())
@@ -346,8 +340,6 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         """``gcloud compute ssh --tunnel-through-iap --command`` as the
         operator's gcloud account (the IAP grant, stage 2)."""
         import subprocess  # noqa: PLC0415
-        from .gcp_packer_source import gce_name
-        from .gcp_utils import resolve_project
         if self.session_mechanism() != self.IAP:
             # stage 63 item 14: a runtime that declares no mechanism has no
             # IAP firewall rule or grant to lean on; tunnelling anyway failed
@@ -365,13 +357,11 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
 
     def _theirs(self, resource: Any) -> bool:
         """Stage 93: whether a GCE resource's labels name another configuration."""
-        from cs_image_system.base.lineage import belongs_to_another_configuration
         return belongs_to_another_configuration(self._get_context(), dict(getattr(resource, "labels", {}) or {}))
 
     def instance_tags(self, instance_name: str) -> dict[str, str] | None:
         """The named machine's labels (stage 93's relabel reads them); None
         when no such machine stands."""
-        from .gcp_packer_source import gce_name
         got = self._instances_client()
         if got is None:
             return None
@@ -388,7 +378,6 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         """``setLabels`` on the named machine (stage 93: the id, in place,
         through the same ``gce_label`` the emission uses)."""
         from google.cloud import compute_v1  # noqa: PLC0415
-        from .gcp_packer_source import gce_label, gce_name
         got = self._instances_client()
         if got is None:
             return False
@@ -408,14 +397,12 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         93), so the emptiness check counts this configuration's alone."""
         import subprocess  # noqa: PLC0415
         from google.cloud import compute_v1  # noqa: PLC0415
-        from .gcp_utils import make_credentials, resolve_project
         cfg = self.model.self_to_gcp_client_config()
         project, zone = resolve_project(cfg), getattr(self.model, "zone", None)
         if not project or not zone:
             raise RuntimeError(f"GCP runtime {self.get_name()}: no project/zone to inventory")
         creds = make_credentials(cfg)
         kw = {"credentials": creds} if creds else {}
-        from cs_image_system.base.lineage import CONFIG_TAG
         owners: dict[str, dict[str, str]] = {"instances": {}, "images": {}, "disks": {}, "buckets": {}}
 
         def seen(kind: str, name: str, labels: Any) -> str:
@@ -447,7 +434,6 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         """Delete the GCE image named by the build id and wait for the
         operation (stage 8.4). NotFound = already gone."""
         from google.api_core.exceptions import NotFound  # noqa: PLC0415
-        from .gcp_utils import _make_images_client, resolve_project
         cfg = self.model.self_to_gcp_client_config()
         project = resolve_project(cfg)
         if not project:
@@ -467,8 +453,6 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         with the lineage truth, through the same ``gce_label`` sanitizer the
         packer source used, so the state query compares like with like."""
         from google.cloud import compute_v1  # noqa: PLC0415
-        from .gcp_packer_source import gce_label
-        from .gcp_utils import _make_images_client, resolve_project
         cfg = self.model.self_to_gcp_client_config()
         project = resolve_project(cfg)
         if not project:
@@ -493,8 +477,6 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         (finding 49): instance -> boot disk -> disk.source_image basename.
         Read-only; None when the instance, disk, zone or project cannot be
         resolved, so the caller makes no claim."""
-        from .gcp_packer_source import gce_name
-        from .gcp_utils import make_credentials, resolve_project
         try:
             from google.cloud import compute_v1  # noqa: PLC0415
             cfg = self.model.self_to_gcp_client_config()
@@ -540,7 +522,6 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
     def _instances_client(self):
         """(client, project, zone) for instance calls, or None when the
         runtime is not resolvable."""
-        from .gcp_utils import make_credentials, resolve_project
         from google.cloud import compute_v1  # noqa: PLC0415
         cfg = self.model.self_to_gcp_client_config()
         project, zone = resolve_project(cfg), getattr(self.model, "zone", None)
@@ -556,7 +537,6 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
     def query_instance_power_state(self, instance_name: str) -> str | None:
         """GCE's own ``status`` for the named instance. None means this
         runtime could not find out -- never that the machine is off."""
-        from .gcp_packer_source import gce_name
         try:
             got = self._instances_client()
             if got is None:
@@ -589,7 +569,6 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         ``hostname`` when set, else ``<name>.c.<project>.internal``). The
         first label of the default is the instance name itself, so on GCE the
         provider-hostname alias usually has nothing to give back."""
-        from .gcp_packer_source import gce_name
         try:
             got = self._instances_client()
             if got is None:
@@ -608,7 +587,6 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         return True
 
     def start_instance(self, instance_name: str, timeout: int = 300) -> bool:
-        from .gcp_packer_source import gce_name
         got = self._instances_client()
         if got is None:
             raise RuntimeError(f"GCP runtime {self.get_name()}: no project/zone to start an instance")
@@ -617,7 +595,6 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         return self.query_instance_power_state(instance_name) == power_state.RUNNING
 
     def stop_instance(self, instance_name: str, timeout: int = 300) -> bool:
-        from .gcp_packer_source import gce_name
         got = self._instances_client()
         if got is None:
             raise RuntimeError(f"GCP runtime {self.get_name()}: no project/zone to stop an instance")
@@ -627,14 +604,12 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
 
     # ------------------------------------------------- packer source hooks
     def packer_source_type(self) -> str:
-        from .gcp_packer_source import GOOGLECOMPUTE
         return GOOGLECOMPUTE
 
     def packer_source_blocks(self, image: Any, *, runtime: str, source_type: str, subconfig: Any,
                              self_subconfig: Any, psi: Any, tags: dict[str, str],
                              final_name: str, pinned: str | None) -> list[str]:
-        from .gcp_packer_source import googlecompute_source
-        return googlecompute_source(self.model, image, runtime=runtime, source_type=source_type,
+        return googlecompute_source(self._get_context(), self.model, image, runtime=runtime, source_type=source_type,
                                     subconfig=subconfig, self_subconfig=self_subconfig, psi=psi,
                                     tags=tags, final_name=final_name, pinned=pinned)
 

@@ -85,7 +85,7 @@ class SmartContext(dict):
         super().__init__(this=obj)
         if DEFAULT in flattened_map:
             raise ValueError(f"Flattened map cannot have an entry with the key '{DEFAULT}' as it is reserved for default lookups.")
-        reg = registry.Registry()
+        reg = registry.current_registry()   # the resolver holds no context (stage 124 shim)
         # Shallow copy: we need a private dict (so adding 'this' below doesn't mutate
         # the shared flattened_map), but the objects must be shared by reference so
         # Jinja renders against the live, being-resolved instances. A deepcopy here
@@ -176,7 +176,7 @@ class TemplateResolver:
 
     def upgrade_deferred_list_generated(self, obj, dfield):
         conv = Orchestrator().get_converter() 
-        reg = registry.Registry()
+        reg = registry.current_registry()   # the resolver holds no context (stage 124 shim)
         data_field = dfield.name
         deferred_override_types:dict[VCT,type] = obj.get_subitem_overrides() if isinstance(obj, SubItemOverrideProtocol) else {}
         field_metadata: dict[str, Any] = dfield.metadata if hasattr(dfield, "metadata") else {} # type: ignore                
@@ -301,7 +301,7 @@ class TemplateResolver:
             setattr(obj, data_field, structured_mods)
         return obj
     def upgrade_deferred_list_object(self, obj, dfield):        
-        reg = registry.Registry()
+        reg = registry.current_registry()   # the resolver holds no context (stage 124 shim)
         data_field = dfield.name
         field_metadata: dict[str, Any] = dfield.metadata if hasattr(dfield, "metadata") else {} # type: ignore                
         target_fk: VCT | None = field_metadata.get(FK_TARGET, None)
@@ -327,7 +327,7 @@ class TemplateResolver:
             setattr(obj, data_field, resolved_fks)
         return obj
     def upgrade_deferred_fill_defaults(self, obj, dfield):        
-        reg = registry.Registry()
+        reg = registry.current_registry()   # the resolver holds no context (stage 124 shim)
         data_field = dfield.name
         field_metadata: dict[str, Any] = dfield.metadata if hasattr(dfield, "metadata") else {} # type: ignore                
         target_fk: VCT | None = field_metadata.get(FK_TARGET, None)
@@ -346,7 +346,7 @@ class TemplateResolver:
         Deep-casts generic dictionaries (like modifications) into concrete dataclasses 
         now that all builders are safely loaded into the Registry.
         """
-        reg = registry.Registry()
+        reg = registry.current_registry()   # the resolver holds no context (stage 124 shim)
         # Grab the orchestrator locally. We use ignore_collections to prevent infinite loops 
         # or overwriting things we are manually managing here.
         conv = Orchestrator().get_converter() 
@@ -389,7 +389,7 @@ class TemplateResolver:
     def resolve_all(self):
         """Iterates until no more templates exist (handles cascading dependencies)."""
         self.upgrade_deferred_types()
-        reg = registry.Registry()
+        reg = registry.current_registry()   # the resolver holds no context (stage 124 shim)
         for _ in range(5):  # Max depth to prevent infinite loops
             any_changed = False
             for obj_id, obj in self.flattened_map.items():
@@ -565,7 +565,6 @@ def _str_collection_kind(ann: Any) -> str | None:
     return "dict" if origin is dict else None
 
 
-@singleton
 class PydanticConverter:
     """Mapping and validation on pydantic, exposing cattrs' two verbs."""
 
@@ -706,11 +705,14 @@ class Orchestrator:
         is built lazily and memoized. Call :meth:`invalidate_converter` if the
         registered model schema changes (e.g. after loading more plugins).
         """
-        if self._converter is None:
+        reg = registry.current_registry()   # the orchestrator holds no context (stage 124 shim)
+        if self._converter is None or self._converter._reg is not reg:
             # stage 23: pydantic behind the same two verbs. The cattrs builder it
             # replaced was kept for one release and removed in stage 41 (it is in
             # the history before the first published version).
-            self._converter = PydanticConverter(registry.Registry())
+            # stage 124: one registry per run -- a converter built against an
+            # earlier run's registry is rebuilt against this one.
+            self._converter = PydanticConverter(reg)
         return self._converter
 
     def invalidate_converter(self) -> None:

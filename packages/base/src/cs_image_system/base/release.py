@@ -33,6 +33,9 @@ from .lifecycle import ExecutionLifecyclePhase
 from .lifecycles import LifecycleLike, LifecycleSpec
 from .meta_state import MetaState
 from .utils import apply_enabled
+from .image_tests import post_bake_spec
+from .utils import system_cli_executable_with_config
+from .lifecycles import register_lifecycle
 
 if TYPE_CHECKING:
     from .global_context import GlobalTypeContext
@@ -95,7 +98,6 @@ def release(ctx: "GlobalTypeContext", image: str, build_id: str, model: str = DE
                                f"mod test (status={r.get('status')}, idempotent={r.get('idempotent')})")
     # stage 14.3: an image that declares post-bake tests releases only a build
     # with a PASSING record (config.require_image_tests, default on)
-    from .image_tests import post_bake_spec
     img = ctx.images_map.get(image)
     if post_bake_spec(img) if img is not None else False:
         if ctx.config.get("require_image_tests", True):
@@ -125,7 +127,6 @@ def declared_release_targets(ctx: "GlobalTypeContext") -> list[tuple[str, str, s
     ``release: {model}``, each runtime's series head that has a PASSING
     post-bake record and is not already the model's current release
     (stage 14; recomputed at execution by the deferred `release` step)."""
-    from .image_tests import post_bake_spec
     ms = ctx.meta_state
     tests = ms.image_tests()
     current = releases(ms).get("current") or {}
@@ -155,7 +156,6 @@ def after_generate(ctx: "GlobalTypeContext", lifecycle: LifecycleLike) -> None:
     # bakes and verifications were recorded) and releases the head whose
     # post-bake tests passed. Runs only in a real run (the executable carries
     # --no-dry-run); the operator's explicit `release` command is unchanged.
-    from .utils import system_cli_executable_with_config
     declared = [(n, getattr(i, "release", None)) for n, i in sorted(ctx.images_map.items())
                 if isinstance(getattr(i, "release", None), dict)]
     if declared:
@@ -164,7 +164,7 @@ def after_generate(ctx: "GlobalTypeContext", lifecycle: LifecycleLike) -> None:
                      "(recomputed at execution)")
         wd = ctx.generation_path / "release"
         wd.mkdir(parents=True, exist_ok=True)
-        execs = [system_cli_executable_with_config(["release", "--declared"], wd)]
+        execs = [system_cli_executable_with_config(ctx, ["release", "--declared"], wd)]
         ctx.extend_finalization_phase(ExecutionLifecyclePhase.INSTANCE_GENERATION, execs)
     data = releases(ctx.meta_state)
     out = ctx.generation_path / "releases.yaml"
@@ -172,7 +172,7 @@ def after_generate(ctx: "GlobalTypeContext", lifecycle: LifecycleLike) -> None:
                                    "count": len(data["releases"])}, sort_keys=True))
     # Defer the cloud-side marking of every current release to the runner
     # script; it runs only under --no-dry-run and only if apply_release.
-    if not apply_enabled("release"):
+    if not apply_enabled(ctx, "release"):
         return
     execs = []
     for model, images in sorted(data["current"].items()):
@@ -248,7 +248,6 @@ def validate_released_pins(ctx: "GlobalTypeContext", requested: list[LifecycleLi
 
 
 def register(runner) -> None:
-    from .lifecycles import register_lifecycle
     register_lifecycle(RELEASE_LIFECYCLE)
     runner.register_after_generate(after_generate)
     runner.register_validator(validate_released_pins)

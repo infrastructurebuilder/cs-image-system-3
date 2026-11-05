@@ -2070,7 +2070,7 @@ An overlay is a YAML file merged over the tree for **one invocation**; the
 tree on disk never changes. Named with the global `--overlay <file>`
 option (repeatable, before the command). A missing overlay is a refusal.
 
-Shape ([`load_overlay`](../packages/base/src/cs_image_system/base/global_context.py)):
+Shape ([`load_overlay`](../packages/base/src/cs_image_system/base/config_loader.py)):
 a mapping whose keys are `config` and/or a collection key — `users`,
 `groups`, `storages`, `images`, `instances`, `base_images`. Any other key
 is refused. `config` must be a mapping; a collection must be a list of

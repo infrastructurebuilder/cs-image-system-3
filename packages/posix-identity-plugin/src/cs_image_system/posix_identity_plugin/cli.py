@@ -14,8 +14,8 @@ over the runtime's tunnel) run through the core's driver.
 from __future__ import annotations
 
 from cs_image_system.contract.commands import CommandMount
+from cs_image_system.base.commands.login_proof import verify_login_command
 
 
 def command_mounts() -> list[CommandMount]:
-    from cs_image_system.base.commands.login_proof import verify_login_command
     return [CommandMount(name="login", path=("verify",), callback=verify_login_command)]

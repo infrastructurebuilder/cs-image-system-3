@@ -60,7 +60,7 @@ def world(tmp_path: Path, monkeypatch):
 
 def test_a_standing_instance_is_logged_into_and_the_verdict_recorded(world):
     run, w = world
-    records = lp.login_proof(runtime="aws-east2-runtime")
+    records = lp.login_proof(run.ctx, runtime="aws-east2-runtime")
     assert [r["instance"] for r in records] == ["test"], "launched, durable, on the runtime: only `test`"
     rec = records[0]
     assert rec["ok"] and not rec.get("skipped") and rec["hostname"] == "test-001" and rec["as"] == "workload"
@@ -73,58 +73,60 @@ def test_a_standing_instance_is_logged_into_and_the_verdict_recorded(world):
 def test_a_stopped_machine_is_skipped_and_never_started(world):
     run, w = world
     w["power"] = ps.STOPPED
-    records = lp.login_proof(["test"])
+    records = lp.login_proof(run.ctx, ["test"])
     assert records[0]["skipped"] and not records[0]["ok"] and "stopped" in records[0]["checks"][0]["detail"].lower()
     assert w["calls"] == [], "no client call: the operator's decision stands"
     assert run.ctx.meta_state.login_proofs()[-1]["skipped"]
 
 
 def test_a_duplicate_hostname_fails_before_any_login(world):
-    _, w = world
+    run, w = world
     w["registry"] = [{"id": "s-1", "hostname": "test-001", "address": "10.0.0.1"},
                      {"id": "s-2", "hostname": "test-001", "address": "10.0.0.2"}]
     with pytest.raises(lp.LoginProofFailed) as e:
-        lp.login_proof(["test"])
+        lp.login_proof(run.ctx, ["test"])
     rec = e.value.records[0]
     assert rec["checks"] == [rec["checks"][0]] and "2 registrations" in rec["checks"][0]["detail"]
     assert "s-2@10.0.0.2" in rec["checks"][0]["detail"] and w["calls"] == []
 
 
 def test_a_silent_registry_is_a_failed_check_not_one_server(world):
-    _, w = world
+    run, w = world
     w["registry"] = None
-    records = lp.login_proof(["test"], record_only=True)
+    records = lp.login_proof(run.ctx, ["test"], record_only=True)
     assert not records[0]["ok"] and "could not be asked" in records[0]["checks"][0]["detail"]
     assert w["calls"] == []
 
 
 def test_an_expired_client_session_is_named_not_silent(world):
-    _, w = world
+    run, w = world
     w["sft"]["resolve"] = (126, "")            # --quiet forbade the browser step (live 2026-09-22)
-    records = lp.login_proof(["test"], record_only=True)
+    records = lp.login_proof(run.ctx, ["test"], record_only=True)
     resolves = records[0]["checks"][1]
     assert not resolves["ok"] and "sft login" in resolves["detail"] and "OPA_TOKEN" in resolves["detail"]
 
 
 def test_a_refused_login_names_the_client_output(world):
-    _, w = world
+    run, w = world
     w["sft"]["ssh"] = (255, "Permission denied (publickey)")
     with pytest.raises(lp.LoginProofFailed) as e:
-        lp.login_proof(["test"])
+        lp.login_proof(run.ctx, ["test"])
     rec = e.value.records[0]
     assert [c["ok"] for c in rec["checks"]] == [True, True, False]
     assert "Permission denied" in rec["checks"][-1]["detail"] and "test" in str(e.value)
 
 
 def test_without_an_opa_token_the_enrolled_client_logs_in_and_the_record_says_so(world, monkeypatch):
+    run, _ = world
     monkeypatch.delenv("OPA_TOKEN")
-    assert lp.login_proof(["test"])[0]["as"] == "client"
+    assert lp.login_proof(run.ctx, ["test"])[0]["as"] == "client"
 
 
 def test_a_group_without_workload_names_has_nothing_to_prove(world, monkeypatch):
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
+    run, _ = world
     monkeypatch.setattr(OktaTfGroupBuilder, "can_manage_workload_access", lambda self: False)
-    rec = lp.login_proof(["test"])[0]
+    rec = lp.login_proof(run.ctx, ["test"])[0]
     assert rec["skipped"] and "names no workload connection" in rec["checks"][0]["detail"]
 
 
@@ -132,8 +134,8 @@ def test_only_standing_durable_instances_are_targets(world):
     run, _ = world
     assert [i.get_name() for i in lp.standing_instances(run.ctx)] == ["test"]
     with pytest.raises(ValueError, match="not declared"):
-        lp.login_proof(["nope"])
-    assert lp.login_proof(runtime="gcloud-east1") == [], "gce-test is not launched: nothing to prove"
+        lp.login_proof(run.ctx, ["nope"])
+    assert lp.login_proof(run.ctx, runtime="gcloud-east1") == [], "gce-test is not launched: nothing to prove"
 
 
 def test_workload_facts_come_from_the_builder(world):
@@ -150,14 +152,14 @@ def test_as_the_workload_the_client_is_handed_the_team_and_the_address(world, mo
     run, w = world
     monkeypatch.delenv("SFT_TEAM", raising=False)
     monkeypatch.delenv("OPA_ADDR", raising=False)
-    lp.login_proof(["test"])
+    lp.login_proof(run.ctx, ["test"])
     assert w["calls"][-2][0] == "resolve" and w["calls"][-1][0] == "ssh"
     for env in w["envs"][-2:]:
         assert env["SFT_TEAM"] == "nos-coastal-modeling-cloud-sandbox" and env["OPA_ADDR"].endswith(".pam.okta.com")
     # the environment's own values win, and the enrolled client is left alone
     monkeypatch.setenv("OPA_ADDR", "https://other.example.invalid")
-    lp.login_proof(["test"])
+    lp.login_proof(run.ctx, ["test"])
     assert "OPA_ADDR" not in w["envs"][-1] and w["envs"][-1]["SFT_TEAM"]
     monkeypatch.delenv("OPA_TOKEN")
-    lp.login_proof(["test"])
+    lp.login_proof(run.ctx, ["test"])
     assert w["envs"][-1] == {}

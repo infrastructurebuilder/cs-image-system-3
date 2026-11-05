@@ -2,23 +2,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Pins final_execute: real execution, fail-fast, phase ordering, hooks."""
+"""Pins final_execute: real execution, fail-fast, phase ordering, hooks.
+
+Stage 124: ``final_execute`` is the :class:`Finalizer`'s, bound to a run
+context; these drive one over a stand-in context carrying what it reads.
+"""
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
-from cs_image_system.base import global_context as gc
+from cs_image_system.base.finalizer import Finalizer
 from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
-
-
-def _gtc_cls():
-    """GlobalTypeContext is @singleton-wrapped; recover the real class from the closure."""
-    # GlobalTypeContext is typed as a class but is a closure at runtime.
-    for cell in cast(Any, gc.GlobalTypeContext).__closure__:
-        val = cell.cell_contents
-        if isinstance(val, type) and val.__name__ == "GlobalTypeContext":
-            return val
-    raise AssertionError("GlobalTypeContext class not found in singleton closure")
 
 
 class StubExecutable:
@@ -51,23 +45,22 @@ class StubBuilder:
         self._journal.append(f"failed:{phase.value}")
 
 
-def _stub_ctx(finalization, journal, tmp_path, dry_run=False):
+def _finalizer(finalization, journal, tmp_path, dry_run=False) -> Finalizer:
     ctx = SimpleNamespace(
-        get_finalization_executables_for_phase=lambda phase: finalization.get(phase, []),
         all_sorted_builders=[StubBuilder(journal)],
         generation_path=Path(tmp_path),
-        final_execution_path=Path(tmp_path) / "final_execution.sh",
+        root_generation_path=Path(tmp_path),
+        current_lifecycle=None,          # the legacy single-script bucket
         dry_run=dry_run,
     )
-    ctx.write_final_execution_script = (
-        lambda: _gtc_cls().write_final_execution_script(ctx))
-    ctx.after_failed_phase = lambda phase: _gtc_cls().after_failed_phase(ctx, phase)
-    return ctx
+    fin = Finalizer(cast(Any, ctx))
+    for phase, executables in finalization.items():
+        fin.extend_finalization_phase(phase, executables)
+    return fin
 
 
 def _run(finalization, journal, tmp_path, dry_run=False):
-    ctx = _stub_ctx(finalization, journal, tmp_path, dry_run=dry_run)
-    return _gtc_cls().final_execute(ctx)
+    return _finalizer(finalization, journal, tmp_path, dry_run=dry_run).final_execute()
 
 
 def test_runs_executables_in_phase_order_with_hooks(tmp_path):

@@ -26,6 +26,23 @@ from cs_image_system.hashicorp_utils.hashicorp import FO # noqa: F401
 from .packer_models import (PACKER, PACKER_DOCKER, PACKER_EBS, PACKER_GCE, PackerDockerImageBuilderModel,
                             PackerEbsImageBuilderModel, PackerGceImageBuilderModel, PackerImageBuilderModel)
 from .packer_builder import PackerImageBuilderBase
+from cs_image_system.hashicorp_utils.collector import packer_collector
+from .v2_provisioners import settle_provisioner, base_image_provisioners, instance_image_provisioners
+from cs_image_system.base.image_tests import (
+    base_image_verify_commands,
+    finalize_provisioner,
+    verify_provisioner,
+    instance_image_verify_commands,
+)
+from .v2_local_mods import stage_local_mods
+from cs_image_system.base.lineage import (
+    record_build,
+    FINGERPRINT_TAG_LENGTH,
+    TAG_PREFIX,
+    lineage_tags,
+    pinned_parent_build,
+)
+from cs_image_system.contract.lifecycles import Lifecycle
 
 log = logging.getLogger(__name__)
 
@@ -92,7 +109,6 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
                 # super().generate_items_before registered this builder's
                 # plugins/variables into the PackerCollector; each block dir is
                 # its own packer root, so emit the setup + vars per block.
-                from cs_image_system.hashicorp_utils.collector import packer_collector
                 col = packer_collector(self._get_context())
                 ws = self.get_discriminator()
                 for block in blocks:
@@ -135,7 +151,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
         """Generate a list of items to create during a specific execution
         lifecycle event."""
 
-        ctx = GlobalTypeContext()
+        ctx = self._get_context()
         items: AssetSet = AssetSet()
 
         if phase == ExecutionLifecyclePhase.IMAGE_GENERATION:
@@ -182,7 +198,6 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
                             # stage 86: before anything else the build machine
                             # settles (its own first boot, the account's fleet
                             # management) and gets the step runner.
-                            from .v2_provisioners import settle_provisioner
                             settle_osb = ctx.os_builders.get(image.get_name(), None)
                             items.add_list(build_path, settle_provisioner(
                                 ctx, f"{self.get_packer_source_type()}.{image.get_name()}",
@@ -204,14 +219,11 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
                                         image, self, phase, build_path))
                                 # V2 (§3F1/N9): admin user, declared-type
                                 # prerequisites (dormant) and the session agent.
-                                from .v2_provisioners import base_image_provisioners
                                 items.add_list(build_path, base_image_provisioners(
                                     ctx, image, self.get_packer_source_type(),
                                     self.model.get_runtime_provider()))
                                 # EXPLORE image tests: verification is the LAST step
                                 # (bar the runtime's bake finalization, finding 47).
-                                from cs_image_system.base.image_tests import (
-                                    base_image_verify_commands, finalize_provisioner, verify_provisioner)
                                 items.add_list(build_path, verify_provisioner(
                                     f"{self.get_packer_source_type()}.{image.get_name()}",
                                     base_image_verify_commands(ctx, image, self.model.get_runtime_provider()),
@@ -239,18 +251,14 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
                             # V2 (§3F2): activation for the image's OWN owning
                             # group, after its modifications, overwriting the
                             # parent image's activation.
-                            from .v2_provisioners import instance_image_provisioners
                             items.add_list(build_path, instance_image_provisioners(
                                 ctx, image, self.get_packer_source_type()))
                             # EXPLORE local mods: install this bake's modifications
                             # on the image (/opt/csis/mods + csis-mods runner).
-                            from .v2_local_mods import stage_local_mods
                             items.add_list(build_path, stage_local_mods(
                                 ctx, image, block_dir, f"{self.get_packer_source_type()}.{image.get_name()}"))
                             # EXPLORE image tests: verification is the LAST step
                             # (bar the runtime's bake finalization, finding 47).
-                            from cs_image_system.base.image_tests import (
-                                finalize_provisioner, instance_image_verify_commands, verify_provisioner)
                             items.add_list(build_path, verify_provisioner(
                                 f"{self.get_packer_source_type()}.{image.get_name()}",
                                 instance_image_verify_commands(ctx, image, self.model.get_runtime_provider()),
@@ -266,7 +274,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
                         if rtb_pp is not None:
                             for image in block_list:
                                 sub_pp = image.get_image_runtime_subconfig_for_runtime(rtb_pp.get_name())
-                                final_pp = self._final_name(sub_pp) if sub_pp is not None else None
+                                final_pp = self._final_name(ctx, sub_pp) if sub_pp is not None else None
                                 items.add_list(build_path, rtb_pp.packer_post_processor_blocks(
                                     image, runtime=rtb_pp.get_name(), source_type=self.get_packer_source_type(),
                                     subconfig=sub_pp, final_name=final_pp or ""))
@@ -301,7 +309,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
         that exists was written by THIS run."""
         if phase != ExecutionLifecyclePhase.IMAGE_GENERATION:
             return
-        ctx = GlobalTypeContext()
+        ctx = self._get_context()
         blocks, _ = self.get_blocks()
         for block in blocks:
             for manifest in self._manifest_paths(ctx, phase, block):
@@ -341,7 +349,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
     def _record_built_images(self, phase: ExecutionLifecyclePhase) -> dict[str, str]:
         """Read this builder's manifests, resolve each built image's PSI and
         record its lineage. Returns ``{image name: build id}``."""
-        ctx = GlobalTypeContext()
+        ctx = self._get_context()
         rtb = ctx.runtime_builders.get(self.model.get_runtime_provider(), None)
         if rtb is None:
             log.warning(f"No runtime builder for {self.get_display_name()}; "
@@ -369,7 +377,6 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
         # Lineage (DESIGN §3F4, N11, N23c): record every built artifact with
         # its stamp and mods; first-bind parent edges for images whose parent
         # was built this run.
-        from cs_image_system.base.lineage import record_build
 
         def _resolve_parent(series: str) -> str | None:
             if series in built:
@@ -377,13 +384,12 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
             psi = ctx.get_provider_specific_image(series, rtb.get_name())
             return psi.identifier if psi is not None and psi.is_resolved() else None
 
-        from cs_image_system.base.lineage import FINGERPRINT_TAG_LENGTH, TAG_PREFIX
         for image_name, ami in built.items():
             image = images_by_name.get(image_name)
             if image is None:
                 continue
             subconfig = image.get_image_runtime_subconfig_for_runtime(rtb.get_name())
-            name = self._final_name(subconfig) if subconfig is not None else None
+            name = self._final_name(ctx, subconfig) if subconfig is not None else None
             record = record_build(ctx, image, rtb.get_name(), ami, name, _resolve_parent)
             # zero-drift-report: a parent resolved only after its bake leaves
             # generation-time `series:<name>`/stale-fingerprint tags on the
@@ -407,7 +413,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
             blocks, block_map = self.get_blocks()
             # stage 103: what the runtime's tools need in their environment
             # (the docker runtime's daemon address); the clouds add nothing
-            rtb_env = GlobalTypeContext().runtime_builders.get(self.model.get_runtime_provider())
+            rtb_env = self._get_context().runtime_builders.get(self.model.get_runtime_provider())
             tool_env = dict(rtb_env.tool_environment()) if rtb_env is not None else {}
             for block in blocks:
                 wd = self.get_block_path_for_phase(phase, block=block, suffix=".tf").parent
@@ -438,7 +444,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
         return CFExecutables(commands_now, commands_final)
 
     @staticmethod
-    def _final_name(subconfig) -> str | None:
+    def _final_name(ctx: GlobalTypeContext, subconfig) -> str | None:
         """The unique artifact name (DESIGN §3F4): the subconfig's templated
         final name with the run's execution values rendered. The
         ``execution.timestamp`` template never resolved through the field
@@ -448,7 +454,6 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
             return name
         if "{{" in name:
             import jinja2
-            ctx = GlobalTypeContext()
             dtfmt = getattr(ctx.read_config, "dateformat", None) or "%Y%m%d_%H%M%S"
             execution = {
                 "timestamp": ctx.start_time.strftime(dtfmt),
@@ -466,8 +471,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
         instance-image lifecycle only user images. With no lifecycle current
         (legacy flow) both ranges are emitted, base images first.
         """
-        from cs_image_system.contract.lifecycles import Lifecycle
-        lifecycle = GlobalTypeContext().current_lifecycle
+        lifecycle = self._get_context().current_lifecycle
         blocks: list[str] = []
         block_map: dict[str, list[Image|BaseImage]] = {}
         images:list[Image|BaseImage] = (self.get_images(os_builder=True)  # type: ignore
@@ -632,7 +636,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
 
     def image_to_source(self, type: str, runtime: str, image: Image|BaseImage) -> list[str]:
         """Convert an Image object to a list of packer 'source' lines for use in builds."""
-        ctx = GlobalTypeContext()
+        ctx = self._get_context()
         rtb = ctx.runtime_builders.get(self.model.runtime)
         assert rtb is not None, (
             f"Runtime builder must be available to convert image {image.name} "
@@ -691,14 +695,13 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
         #     raise ValueError(err)
 
         self_rtc = irtsc      # stage 63: the same subconfig, fetched once
-        final_name = self._final_name(self_rtc)
+        final_name = self._final_name(ctx, self_rtc)
         if not final_name:
             raise ValueError(
                 f"Image {image.name} does not have a valid output image name in its "
                 f"runtime-specific data for runtime {runtime} required to convert to "
                 "source configuration."
             )
-        from cs_image_system.base.lineage import lineage_tags, pinned_parent_build
         tags.update(lineage_tags(ctx, image, runtime))
         # N17: a rebuild bakes FROM its pinned base build (an image-id filter),
         # never a most-recent lookup; unpinned images bind at first bake.

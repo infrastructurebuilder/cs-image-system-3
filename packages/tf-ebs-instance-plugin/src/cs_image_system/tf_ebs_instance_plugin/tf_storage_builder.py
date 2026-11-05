@@ -29,6 +29,9 @@ from .tf_storage_models import (
     TF_AWS, TF_AWS_EBS, TF_AWS_EFS, TF_AWS_S3,
     TofuEbsStorageBuilderModel, TofuEfsStorageBuilderModel, TofuS3StorageBuilderModel, TofuStorageBuilderModel,
 )
+from cs_image_system.aws_runtime.aws_utils import aws_client
+from cs_image_system.base.lineage import config_tags, belongs_to_another_configuration, owner_of
+from cs_image_system.base.os_types import os_type_for_family
 
 __all__ = [
     "EBS_DEVICES", "RecordedStorage", "TofuEbsStorageBuilder", "TofuEfsStorageBuilder", "TofuS3StorageBuilder",
@@ -102,7 +105,6 @@ class TofuStorageBuilder(TofuStorageBuilderBase[Q]):
 
     # ------------------------------------------------------- state query
     def _aws_client(self, service: str) -> Any:
-        from cs_image_system.aws_runtime.aws_utils import aws_client
         ctx = self._get_context()
         rtb = ctx.runtime_builders.get(self.model.get_runtime_provider(), None)
         session: dict[str, Any] = {"region_name": self._region()}
@@ -116,7 +118,6 @@ def _tags_for(builder: Any, storage: Storage) -> dict[str, str]:
     """The tags a storage's module call carries: the builder's defaults
     under the item's own, and the configuration's id last. A stand-in
     without a context (the module-call tests) gets no id."""
-    from cs_image_system.base.lineage import config_tags
     merged = dict(builder.model.variables.merged_tags(storage.tags) or {})
     get_ctx: Any = getattr(builder, "_get_context", None)
     if callable(get_ctx):
@@ -311,7 +312,6 @@ class TofuEfsStorageBuilder(TofuStorageBuilder[S]):
         # the packages that carry an NFS client per package format (the
         # EFS helper exists only as an rpm, and only on Amazon's own
         # distribution: the plain NFS client is the fallback); the lines are the OS type's
-        from cs_image_system.base.os_types import os_type_for_family
         os_type = os_type_for_family(os_family)
         packages = {"deb": ["nfs-common"], "rpm": ["amazon-efs-utils", "nfs-utils"], "apk": ["nfs-utils"]}
         pkg = " || ".join(os_type.package_install_command([p], lock_timeout=PACKAGE_LOCK_TIMEOUT)
@@ -475,7 +475,6 @@ class TofuS3StorageBuilder(TofuStorageBuilder[B]):
     def base_image_prerequisites(self, os_family: str | None = None) -> list[str]:
         # what the CLI's installer needs per package format: curl ships on
         # the rpm families, not on the deb or apk ones; unzip on none (found live)
-        from cs_image_system.base.os_types import os_type_for_family
         os_type = os_type_for_family(os_family)
         needed = {"deb": ["curl", "unzip"], "rpm": ["unzip"], "apk": ["curl", "unzip"]}
         tooling = os_type.package_install_command(needed[os_type.package_format()], lock_timeout=PACKAGE_LOCK_TIMEOUT)
@@ -520,7 +519,6 @@ class TofuS3StorageBuilder(TofuStorageBuilder[B]):
                 return None
             if code not in ("NoSuchTagSet",):
                 raise
-        from cs_image_system.base.lineage import belongs_to_another_configuration, owner_of
         if belongs_to_another_configuration(self._get_context(), tags):
             return self._elsewhere(owner_of(tags), "an S3 bucket")      # stage 93: the name is theirs
         rec: dict[str, Any] = {"id": bucket, "state": "active", "tags": tags}

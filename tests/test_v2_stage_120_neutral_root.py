@@ -101,14 +101,10 @@ def test_every_root_plugin_registers_the_tofu_version_checker():
 
 def test_the_registry_takes_one_class_from_several_plugins_as_one_registration():
     from cs_image_system.base import registry
-    reg = registry.Registry()
-    reg.reset()
-    try:
-        for module in ("cs_image_system.tf_ebs_instance_plugin.main", "cs_image_system.tf_gcp_plugin.main",
-                       "cs_image_system.tf_docker_plugin.main"):
-            reg.register_plugin_metadata(__import__(module, fromlist=["initialize"]).initialize())
-    finally:
-        reg.reset()
+    reg = registry.Registry()            # stage 124: a registry of this test's own, nothing to reset
+    for module in ("cs_image_system.tf_ebs_instance_plugin.main", "cs_image_system.tf_gcp_plugin.main",
+                   "cs_image_system.tf_docker_plugin.main"):
+        reg.register_plugin_metadata(__import__(module, fromlist=["initialize"]).initialize())
 
 
 _ISOLATION = """

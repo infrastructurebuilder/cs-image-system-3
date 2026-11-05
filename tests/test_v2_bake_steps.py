@@ -366,8 +366,8 @@ def test_the_base_bake_itself_installs_what_the_starters_base_test_asserts(start
     stub_opa_credentials_from(monkeypatch, root)
     cwd = os.getcwd()
     try:
-        load_context(root, dry_run=True)
-        assert run_v2(["base-image"], apply=False).ok
+        ctx = load_context(root, dry_run=True)
+        assert run_v2(ctx, ["base-image"], apply=False).ok
         text = "".join(p.read_text() for p in (root / "generated").rglob("*-build.pkr.hcl") if "base-image" in str(p))
     finally:
         os.chdir(cwd)

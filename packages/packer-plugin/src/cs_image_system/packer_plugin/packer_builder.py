@@ -49,9 +49,8 @@ class PackerImageBuilderBase(ImageBuilderBase[T]):
         """The packer source type: the bound runtime's say, and only its.
         A runtime that declares none cannot bake with packer; the error
         names it."""
-        from cs_image_system.base.global_context import GlobalTypeContext
         runtime = self.model.get_runtime_provider()
-        rtb = GlobalTypeContext().runtime_builders.get(runtime)
+        rtb = self._get_context().runtime_builders.get(runtime)
         if rtb is None:
             raise ValueError(f"image builder {self.name!r}: its runtime {runtime!r} is not loaded, "
                              f"so no packer source type can be named")
@@ -163,11 +162,9 @@ class PackerImageBuilderBase(ImageBuilderBase[T]):
         rbb: RuntimeBuilderBase,
         images: list[Image]
     ) -> tuple[AssetSet, list[ExecutableModel]]:
-        from cs_image_system.base.global_context import GlobalTypeContext
-
         genfiles = AssetSet()
         gencommands: list[ExecutableModel] = []
-        ctx = GlobalTypeContext()
+        ctx = self._get_context()
         log.debug(f"Generating images for runtime provider: {rbb.get_display_name()}")
         gen_path: Path = ctx.generation_path
         gen_path.parent.mkdir(parents=True, exist_ok=True)
@@ -180,9 +177,7 @@ class PackerImageBuilderBase(ImageBuilderBase[T]):
 
     @deprecated("This method is deprecated and will be removed in a future version. Performed in a setup phase")
     def get_sources(self, images: list[Image]) -> list[dict[str, Any]]:
-        from cs_image_system.base.global_context import GlobalTypeContext
-
-        ctx = GlobalTypeContext()
+        ctx = self._get_context()
         configured_os_builders: dict[str, OsBuilderBase] = ctx.os_builders
         sources: list[dict[str, Any]] = []
         for image in images:

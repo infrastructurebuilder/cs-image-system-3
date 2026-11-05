@@ -768,7 +768,7 @@ def test_verify_login_proves_a_posix_machine_as_its_proof_user(tmp_path, monkeyp
     monkeypatch.setenv("CSIS_PROOF_SSH_KEY", PROOF_PEM)
     run = _posix_instance_run(tmp_path, monkeypatch, prepare=_with_proof_user)
     try:
-        rec = lp.prove_login(next(i for i in run.ctx.instances if i.get_name() == "test"))
+        rec = lp.prove_login(run.ctx, next(i for i in run.ctx.instances if i.get_name() == "test"))
         assert rec["ok"] and rec["as"] == "proof key" and rec["group"] == "pxgroup", rec
         assert [c["name"] for c in rec["checks"]] == ["proof key", "tunnel", "login", "in its group"]
     finally:
@@ -780,7 +780,7 @@ def test_a_posix_group_without_a_proof_user_is_skipped_naming_why(tmp_path, monk
     _Session(monkeypatch)
     run = _posix_instance_run(tmp_path, monkeypatch)
     try:
-        rec = lp.prove_login(next(i for i in run.ctx.instances if i.get_name() == "test"))
+        rec = lp.prove_login(run.ctx, next(i for i in run.ctx.instances if i.get_name() == "test"))
         assert rec["skipped"] and "has no posix proof user" in rec["checks"][0]["detail"], rec
     finally:
         run.restore_cwd()

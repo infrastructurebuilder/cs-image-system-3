@@ -21,19 +21,12 @@ REPO = Path(__file__).resolve().parents[1]
 
 
 def _reset_gtc_singleton():
-    """GlobalTypeContext is @singleton-wrapped; clear the cached instance.
-
-    The singleton factory ignores constructor args once an instance exists, so
-    a test that needs a differently-configured context (e.g. base_only=False
-    after a base_only=True test) must clear the closure's instances dict.
-    """
-    from cs_image_system.base import global_context as gc
-    for cell in cast(Any, gc.GlobalTypeContext).__closure__:
-        val = cell.cell_contents
-        if isinstance(val, dict):
-            val.clear()
-            return
-    raise AssertionError("singleton instances dict not found in closure")
+    """Drop the process's current run context (stage 124: the context is no
+    singleton -- every load makes a new one -- but the one-release shim
+    ``current_context()`` still remembers the last, and a test must not see
+    an earlier test's)."""
+    from cs_image_system.base.run_context import bind_current
+    bind_current(None)
 
 
 @pytest.fixture
@@ -89,6 +82,11 @@ def no_cloud(monkeypatch):
 def test_pipeline_loads_and_resolves_builders(monkeypatch, cwd_guard, tmp_path):
     monkeypatch.setenv("USER", "testuser")
     from cs_image_system.base.loader import load_plugins
+    from cs_image_system.base.orchestrator import Orchestrator, TemplateResolver
+    # stage 124: the loader makes the run's registry; the resolver's map is
+    # still process-wide, so an earlier test's load must not be in it
+    TemplateResolver().flattened_map = {}
+    Orchestrator().invalidate_converter()
     load_plugins()
     from cs_image_system.base.global_context import read_config_and_transform
 
@@ -158,10 +156,10 @@ def test_image_to_source_emits_psi_backed_data_block(monkeypatch, cwd_guard, tmp
     the data "amazon-ami" block carries the PSI's resolved image-id filter.
     """
     monkeypatch.setenv("USER", "testuser")
-    from cs_image_system.base import registry
+    from cs_image_system.base.registry import bind_current_registry
     from cs_image_system.base.orchestrator import Orchestrator, TemplateResolver
 
-    registry.Registry().reset()
+    bind_current_registry(None)          # stage 124: the loader makes the run's registry
     TemplateResolver().flattened_map = {}
     Orchestrator().invalidate_converter()
 
@@ -233,10 +231,10 @@ def test_execution_run_defers_base_images_no_query_no_build(monkeypatch, cwd_gua
     consume as an owners=self / most_recent data lookup.
     """
     monkeypatch.setenv("USER", "testuser")
-    from cs_image_system.base import registry
+    from cs_image_system.base.registry import bind_current_registry
     from cs_image_system.base.orchestrator import Orchestrator, TemplateResolver
 
-    registry.Registry().reset()
+    bind_current_registry(None)          # stage 124: the loader makes the run's registry
     TemplateResolver().flattened_map = {}
     Orchestrator().invalidate_converter()
     _reset_gtc_singleton()

@@ -61,8 +61,7 @@ class AnsiblePackerModBuilder(ModBuilderBase[Q]):
                                            phase: ExecutionLifecyclePhase,
                                            path: Path | None = None) -> AssetSet:
         retval = AssetSet()
-        from cs_image_system.base.global_context import GlobalTypeContext
-        ctx = GlobalTypeContext()
+        ctx = self._get_context()
         gen_root = ctx.generation_path
         for playbook in mod.playbooks:
             if path is None:

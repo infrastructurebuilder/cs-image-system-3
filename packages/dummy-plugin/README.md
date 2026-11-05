@@ -365,8 +365,8 @@ is every field these two models accept and what, if anything, reads it.
 ### Items that attach to these builders
 
 Users ([user.py](../base/src/cs_image_system/base/models/user.py)) and
-groups carry a `type:` whose default is `default`. The context
-([global_context.py](../base/src/cs_image_system/base/global_context.py))
+groups carry a `type:` whose default is `default`. The loader
+([config_loader.py](../base/src/cs_image_system/base/config_loader.py))
 resolves `default` to the list's default builder and any other value to a
 builder by name or alias, then calls the builder's `add_user_to_builder()`
 or `add_group_to_builder()`. So `type: dummy-users` on a user attaches it

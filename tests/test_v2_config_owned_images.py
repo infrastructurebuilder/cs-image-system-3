@@ -102,7 +102,7 @@ def test_relabel_adds_the_tag_to_a_recorded_image_that_lacks_it(run, monkeypatch
     plan = relabel_plan(run.ctx, AWS)
     assert [(r.build_id, r.differences) for r in plan] == [
         ("ami-0mine00001", [f"config: tag absent, record's configuration is {OURS}"])]
-    assert relabel(AWS)[0].retagged is True
+    assert relabel(run.ctx, AWS)[0].retagged is True
     assert retagged[-1][0] == "ami-0mine00001" and retagged[-1][1]["csis_config"] == OURS
     monkeypatch.setattr(AwsCloudBuilder, "query_images",
                         lambda self, series: [_image("ami-0mine00001", "basic-rh-10", OURS)])

@@ -5,6 +5,8 @@
 """Tests for the ProviderSpecificImage model and its registry/runtime wiring."""
 from typing import Any
 
+import types
+
 import pytest
 
 from cs_image_system.base import registry as _registry
@@ -97,7 +99,7 @@ class TestNameTypedSurface:
 
 class TestRegistryRoundTrip:
     def test_register_and_lookup(self, clean_registry):
-        reg = _registry.Registry()
+        reg = _registry.current_registry()
         psi = make_resolved()
         reg.register_built_instance(psi)
         got = reg.get_instance_by_name_or_alias(
@@ -106,7 +108,7 @@ class TestRegistryRoundTrip:
         assert got is psi
 
     def test_reregistration_overwrites(self, clean_registry):
-        reg = _registry.Registry()
+        reg = _registry.current_registry()
         first = make_resolved()
         second = make_resolved(identifier="ami-fedcba9876543210f")
         reg.register_built_instance(first)
@@ -151,10 +153,14 @@ class TestRuntimeBuilderCreation:
             def get_name(self):
                 return "stub-runtime"
 
+            def _get_context(self):
+                # stage 124: a builder registers into its run's registry
+                return types.SimpleNamespace(reg=_registry.current_registry())
+
         return Stub()
 
     def test_create_resolved_registers(self, clean_registry, stub_rtb):
-        reg = _registry.Registry()
+        reg = _registry.current_registry()
         psi = stub_rtb.create_provider_specific_image_resolved(
             source_name="some-os",
             source_kind=PSISourceKind.OS_BUILDER,
@@ -182,7 +188,7 @@ class TestRuntimeBuilderCreation:
             def get_name(self):
                 return "my-image"
 
-        reg = _registry.Registry()
+        reg = _registry.current_registry()
         psi = stub_rtb.create_provider_specific_image_deferred(
             image=StubImage(), subconfig=StubSubconfig()
         )

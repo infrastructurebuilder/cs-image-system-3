@@ -15,12 +15,13 @@ from typing import Annotated, Any
 from ..constants import DEFAULT, SELF,  VCT
 
 from ..helpers.field_helpers import fk_field, parent_field, templated_field
-from ..registry import Registry
+from ..registry import current_registry
 from .builder_model import NameTyped
 from .root_item import RootItem
 
 from .mixins import ParentPropertyHolding, SelfInjectedName
 from typing import TYPE_CHECKING
+from ..image_names import default_output_image_name
 if TYPE_CHECKING:
     from ..basic.builder_base_image import ImageBuilderBase
     from ..basic.builder_base_os import OsBuilderBase
@@ -113,7 +114,6 @@ class BaseImageImageBuilderSubconfig(NameTyped, ParentPropertyHolding):
         ``_final_name``; the deferred lookup asks for ``<prefix>*``."""
         if self.output_image_name:
             return self.output_image_name
-        from ..image_names import default_output_image_name
         head = self._image.get_display_name() if self._image and self._image.name else str(self.model_id)
         return default_output_image_name(head, self.runtime)
     def get_final_name(self) -> str:
@@ -148,7 +148,7 @@ class BaseImageImageBuilderSubconfig(NameTyped, ParentPropertyHolding):
         return self.machine_type
     def get_tags(self) -> dict[str, str] | None:
         _tags: dict[str, str] = {}
-        reg =  Registry()
+        reg = self._reg
         image_build:ImageBuilderBase = reg.get_instance_by_name_or_alias(VCT.IMAGE_BUILDER_MODEL, self.image_builder) if self.image_builder else None # type: ignore
         if image_build:
             _tags.update(image_build.get_tags() or {})
@@ -211,7 +211,6 @@ class BaseImage(RootItem, SelfInjectedName):
 
     def __post_init__(self):
         super().__post_init__()
-        reg = Registry()
         self._is_base = False
         # self._final_name:str = None # type: ignore
         self._dependencies: set[str] = set()
@@ -277,7 +276,7 @@ class BaseImage(RootItem, SelfInjectedName):
         if not self._image_builder:
             if self.source_image:
                 log.debug(f"Image {self.name} has source image {self.source_image} specified, using this to determine image builder.")
-                reg = Registry()
+                reg = current_registry()  # a model holds no context (stage 124 shim)
                 inst = reg.get_all_instances_by_classification(VCT.BASE_IMAGE_MODEL)
                 if self.source_image in inst:
                     source_image = inst[self.source_image]

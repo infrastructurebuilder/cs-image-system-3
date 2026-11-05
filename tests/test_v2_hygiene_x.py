@@ -26,7 +26,7 @@ import pytest
 import typer
 import yaml
 
-from tests.v2_support import V2Run, copy_config
+from tests.v2_support import V2Run, cli_context, copy_config
 
 GCE = "gcloud-east1"
 AWS = "aws-east2-runtime"
@@ -98,17 +98,17 @@ def test_the_run_bakes_only_the_named_image_on_the_runtime(run):
 def test_the_cli_passes_the_narrowed_selection_and_refuses_with_exit_2(run, monkeypatch):
     from cs_image_system.system import cli
     seen: dict[str, Any] = {}
-    monkeypatch.setattr(cli, "_run", lambda lifecycles, **kw: seen.update(kw))
+    monkeypatch.setattr(cli, "_run", lambda ctx, lifecycles, **kw: seen.update(kw))
     saved = (run.ctx.only_runtime_scope, getattr(run.ctx, "explicit_bake_selection", False),
              getattr(run.ctx, "allow_unscoped_bakes", False))
     try:
-        cli.run_command(cast(Any, None), lifecycles=["base-image", "instance-image"],
+        cli.run_command(cli_context(run.ctx), lifecycles=["base-image", "instance-image"],
                         only=["imgfile-basic-dask"], only_runtime=GCE)
         assert seen["only"] == [f"imgfile-basic-dask@{GCE}"]
         assert run.ctx.only_runtime_scope == GCE
         seen.clear()
         with pytest.raises(typer.Exit) as e:
-            cli.run_command(cast(Any, None), lifecycles=["base-image"], only=["imgfile-posix"], only_runtime=GCE)
+            cli.run_command(cli_context(run.ctx), lifecycles=["base-image"], only=["imgfile-posix"], only_runtime=GCE)
         assert e.value.exit_code == 2 and not seen
     finally:
         run.ctx.only_runtime_scope, run.ctx.explicit_bake_selection, run.ctx.allow_unscoped_bakes = saved
@@ -226,10 +226,11 @@ def test_the_runner_calls_the_failure_hook_instead_of_post(run, tmp_path, how):
         finalization_phases_for=lambda lc: [ExecutionLifecyclePhase.IMAGE_GENERATION],
         get_finalization_executables_for_phase=lambda phase, lc: [SimpleNamespace(execute=execute)],
         render_executable_line=lambda e: "packer build .")
-    # the decorated name is a factory at runtime (base/singleton.py): the real
-    # method comes from the instance's type
-    context_class = type(run.ctx)
-    ctx.after_failed_phase = lambda phase: context_class.after_failed_phase(cast(Any, ctx), phase)
+    # stage 124: the failure hook is the finalizer's, bound to the run; the
+    # fake context gets a real Finalizer over itself
+    from cs_image_system.base.finalizer import Finalizer
+    ctx.finalizer = Finalizer(cast(Any, ctx))
+    ctx.after_failed_phase = ctx.finalizer.after_failed_phase
     cwd = os.getcwd()
     assert _execute_in_process(cast(Any, ctx), Lifecycle.INSTANCE_IMAGE) is False
     # every builder's failure hook ran, even after the first one raised; no post hook ran

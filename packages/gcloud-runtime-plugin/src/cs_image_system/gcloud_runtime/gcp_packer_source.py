@@ -21,13 +21,18 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import hcl2
 from hcl2 import Builder
 
 from cs_image_system.contract.constants import OOPS_DEFAULTS, SELF
 from cs_image_system.hashicorp_utils.hashicorp import FO
+from cs_image_system.base.lineage import series_of, bake_disk_size
+from cs_image_system.base.bake_user import resolve_bake_user
+
+if TYPE_CHECKING:
+    from cs_image_system.base.global_context import GlobalTypeContext
 
 log = logging.getLogger(__name__)
 
@@ -48,10 +53,9 @@ def gce_label(value: str) -> str:
     return re.sub(r"[^a-z0-9_-]+", "-", str(value).lower())[:_NAME_MAX]
 
 
-def googlecompute_source(model: Any, image: Any, *, runtime: str, source_type: str,
+def googlecompute_source(ctx: GlobalTypeContext, model: Any, image: Any, *, runtime: str, source_type: str,
                          subconfig: Any, self_subconfig: Any, psi: Any, tags: dict[str, str],
                          final_name: str, pinned: str | None) -> list[str]:
-    from cs_image_system.base.lineage import series_of
 
     c: dict[str, Any] = {}
     if model.project_id:
@@ -106,18 +110,14 @@ def googlecompute_source(model: Any, image: Any, *, runtime: str, source_type: s
     # instance launched from the image is exactly this size
     # stage 63: the one bake-disk rule the fingerprint also hashes (the
     # runtime's default_disk_size first, finding 51)
-    from cs_image_system.base.global_context import GlobalTypeContext
-    from cs_image_system.base.lineage import bake_disk_size
-    size = bake_disk_size(GlobalTypeContext(), image, runtime)
+    size = bake_disk_size(ctx, image, runtime)
     if size:
         c["disk_size"] = int(size)
     # stage 63 items 22-23: the one resolver, the same the ansible provisioner
     # asks (the runtime's ssh_username used to override the entry here, and
     # the provisioner never read the entry); `packer` is the family default
     # on GCE (googlecompute creates the account from metadata keys)
-    from cs_image_system.base.bake_user import resolve_bake_user
-    from cs_image_system.base.global_context import GlobalTypeContext
-    c["ssh_username"] = resolve_bake_user(GlobalTypeContext(), image, runtime)
+    c["ssh_username"] = resolve_bake_user(ctx, image, runtime)
     networking = getattr(model, "networking", None)
     if networking is not None:
         if getattr(networking, "network", None) and networking.network not in OOPS_DEFAULTS:

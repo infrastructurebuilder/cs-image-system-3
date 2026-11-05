@@ -27,6 +27,8 @@ from cs_image_system.tofu_roots.tofu_instance_builder import TofuInstanceBuilder
 
 from .tf_gcp_models import TOFU_GCE, TofuGceInstanceBuilderModel
 from .tf_gcp_storage_builder import google_provider_config
+from cs_image_system.base.lineage import pinned_instance_build, config_tags
+from cs_image_system.gcloud_runtime.gcp_packer_source import gce_name, gce_label
 
 log = logging.getLogger(__name__)
 
@@ -64,8 +66,6 @@ class TofuGceInstanceBuilder(TofuInstanceBuilderBase[Q]):
                 f"{self.__class__.__name__} ({self.name})"]
 
     def _module_args(self, ctx, rtb, instance: Instance, params: dict[str, Any] | None = None) -> dict[str, Any]:
-        from cs_image_system.base.lineage import pinned_instance_build
-        from cs_image_system.gcloud_runtime.gcp_packer_source import gce_name
         label = utils.super_safe_name(instance.get_name())
         args: dict[str, Any] = {"name": gce_name(instance.get_name())}
         pinned = pinned_instance_build(ctx, instance) if hasattr(ctx, "meta_state") else None
@@ -102,10 +102,8 @@ class TofuGceInstanceBuilder(TofuInstanceBuilderBase[Q]):
                 # no public IP: the IAP tunnel is the way in (operator prerequisite:
                 # firewall rule from 35.235.240.0/20 to tcp:22)
                 args["public_ip"] = False
-        from cs_image_system.base.lineage import config_tags
         labels = {k: str(v) for k, v in {**(instance.get_tags() or {}), **config_tags(ctx)}.items()}   # stage 93
         if labels:
-            from cs_image_system.gcloud_runtime.gcp_packer_source import gce_label
             args["labels"] = {gce_label(k): gce_label(v) for k, v in labels.items()}
         if params is not None:
             args.update(self._launch_args(ctx, label, params))
@@ -134,7 +132,6 @@ class TofuGceInstanceBuilder(TofuInstanceBuilderBase[Q]):
                 # missing device and nothing was ever mounted. One
                 # sanitization for both: the by-id path's suffix IS the
                 # device name.
-                from cs_image_system.gcloud_runtime.gcp_packer_source import gce_name
                 disks[m["storage"]] = {"disk_self_link": HclRaw(f"{ref}.self_link"),
                                        "device_name": gce_name(m["storage"])}
             elif m["type"] == "filestore":

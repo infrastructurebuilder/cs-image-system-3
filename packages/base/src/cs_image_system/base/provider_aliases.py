@@ -54,6 +54,7 @@ from . import power_state
 from .capabilities import group_builder_of
 from .launch_params import canonical_hostname, hostname_problems
 from .lifecycles import Lifecycle
+from .utils import apply_enabled
 
 if TYPE_CHECKING:
     from .global_context import GlobalTypeContext
@@ -143,15 +144,14 @@ def register_provider_aliases(ctx: "GlobalTypeContext", lifecycle: Lifecycle) ->
     name is claimed, the registry is silent, or the machine is off."""
     if lifecycle != Lifecycle.INSTANCE_IMAGE:
         return
-    from .utils import apply_enabled
-    if not apply_enabled("instances"):
+    if not apply_enabled(ctx, "instances"):
         return
     recorded = ctx.meta_state.launch_params()
     declared = {canonical_hostname(ctx, i) for i in ctx.instances}
     registries: dict[str, list[dict[str, Any]] | None] = {}
     for instance in ctx.instances:
         name = instance.get_name()
-        if not apply_enabled("instances", str(instance.type_), [str(instance.runtime)]):
+        if not apply_enabled(ctx, "instances", str(instance.type_), [str(instance.runtime)]):
             continue
         if not (recorded.get(name) or {}).get("launched"):
             continue

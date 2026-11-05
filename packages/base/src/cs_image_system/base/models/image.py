@@ -13,7 +13,6 @@ import logging
 from typing import Annotated, Any
 
 from ..helpers.field_helpers import deferred_list_field, fk_field, parent_field, templated_field
-from ..registry import Registry
 
 log = logging.getLogger(__name__)
 
@@ -23,10 +22,13 @@ from .builder_model import NameTyped
 from .mixins import ParentPropertyHolding, SelfInjectedName
 from .root_item import RootItem #, SubRootItem
 from typing import TYPE_CHECKING
+from ..registry import current_registry
+from ..image_names import default_output_image_name
+from .image_builder_model import ImageBuilderModel
+from cs_image_system.base.run_context import current_context
 if TYPE_CHECKING:
     from ..basic.builder_base_image import ImageBuilderBase
     from ..basic.builder_base_os import OsBuilderBase
-    from .image_builder_model import ImageBuilderModel
 
 @dataclass(config=CSIS_MODEL_CONFIG)
 class ImageImageBuilderSubconfig(NameTyped, ParentPropertyHolding):
@@ -92,7 +94,7 @@ class ImageImageBuilderSubconfig(NameTyped, ParentPropertyHolding):
         if self.image_builder in OOPS_DEFAULTS:
             # No image_builder given: fall back to the registered default so the
             # subconfig gets a real identity (name/type derive from it below).
-            dflt = Registry().get_default_for(VCT.IMAGE_BUILDER_MODEL)
+            dflt = current_registry().get_default_for(VCT.IMAGE_BUILDER_MODEL)  # a model holds no context (stage 124 shim)
             if dflt:
                 self.image_builder = dflt
         self.type_ = self.image_builder # There maybe needs to be a type specified
@@ -126,7 +128,6 @@ class ImageImageBuilderSubconfig(NameTyped, ParentPropertyHolding):
         ``_final_name``; the deferred lookup asks for ``<prefix>*``."""
         if self.output_image_name:
             return self.output_image_name
-        from ..image_names import default_output_image_name
         head = self._image.get_display_name() if self._image and self._image.name else str(self.model_id)
         return default_output_image_name(head, self.image_builder)
     def get_final_name(self) -> str:
@@ -148,7 +149,6 @@ class ImageImageBuilderSubconfig(NameTyped, ParentPropertyHolding):
     def get_image_builder(self) -> str:
         return self._get_image_builder_model().get_name()
     def _get_image_builder_model(self) -> ImageBuilderModel:
-        from .image_builder_model import ImageBuilderModel
         ret = self._reg.get_instance_by_name_or_alias(VCT.IMAGE_BUILDER_MODEL, self.image_builder) if self.image_builder else None
         if ret is None:
             errstr = f"Image builder {self.image_builder} specified for runtime configuration {self.name} not found in registry."
@@ -170,7 +170,7 @@ class ImageImageBuilderSubconfig(NameTyped, ParentPropertyHolding):
         return self.machine_type
     def get_tags(self) -> dict[str, str] | None:
         _tags: dict[str, str] = {}
-        reg =  Registry()
+        reg = self._reg
         image_build:ImageBuilderBase = reg.get_instance_by_name_or_alias(VCT.IMAGE_BUILDER_MODEL, self.image_builder) if self.image_builder else None # type: ignore
         if image_build:
             _tags.update(image_build.get_tags() or {})
@@ -246,7 +246,6 @@ class Image(RootItem, SelfInjectedName):
 
     def __post_init__(self):
         super().__post_init__()
-        reg = Registry()
         self._is_base = False
         # self._final_name:str = None # type: ignore
         self._dependencies: set[str] = set()
@@ -292,7 +291,6 @@ class Image(RootItem, SelfInjectedName):
     def finalize(self) -> None:
         if self._finalized:
             return
-        reg = Registry()
         super().finalize()
         # if self.os:
         #     log.debug(f"Finalizing image {self.name} with OS {self.os}")
@@ -315,7 +313,7 @@ class Image(RootItem, SelfInjectedName):
         if not self._image_builder:
             if self.source_image:
                 log.debug(f"Image {self.name} has source image {self.source_image} specified, using this to determine image builder.")
-                reg = Registry()
+                reg = current_registry()  # a model holds no context (stage 124 shim)
                 inst = reg.get_all_instances_by_classification(VCT.IMAGE_MODEL)
                 if self.source_image in inst:
                     source_image = inst[self.source_image]
@@ -328,9 +326,8 @@ class Image(RootItem, SelfInjectedName):
                     log.warning(f"Source image {self.source_image} for image {self.name} not found in registry. Cannot determine image builder for {self.name}.")
 
             if self._osbuilder:
-                from cs_image_system.base.global_context import GlobalTypeContext
-                _ctx = GlobalTypeContext()
-                ctx =  _ctx.image_builders
+                # a model holds no context (stage 124): the process's current one, through the shim
+                ctx = current_context().image_builders
                 ib = ctx.get(self._osbuilder.model.get_image_builder(), None)
                 if not ib:
                     log.warning(f"OS builder {self._osbuilder.get_name()} specifies image builder "

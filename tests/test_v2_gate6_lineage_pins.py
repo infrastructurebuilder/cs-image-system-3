@@ -231,7 +231,7 @@ def test_upgrade_moves_exactly_one_edge_and_replaces_the_instance(tmp_path, monk
         {"instances": {"test2": "ami-0dask0001"}, "images": {"imgfile-basic-dask": "ami-0base0001"}}))
     try:
         from cs_image_system.base.commands.upgrade import upgrade
-        previous, target = upgrade("instance", "test2")      # default: series head
+        previous, target = upgrade(run.ctx, "instance", "test2")      # default: series head
         assert (previous, target) == ("ami-0dask0001", "ami-0dask0002")
         pins = yaml.safe_load((run.meta_state / "pins.yaml").read_text())
         assert pins["instances"]["test2"] == "ami-0dask0002"
@@ -239,11 +239,11 @@ def test_upgrade_moves_exactly_one_edge_and_replaces_the_instance(tmp_path, monk
         assert pins["upgrades"][-1]["op"] == "upgrade"
         assert pins["pending_replacements"] == {"test2": "ami-0dask0002"}
         with pytest.raises(ValueError, match="already pinned"):
-            upgrade("instance", "test2", "ami-0dask0002")
+            upgrade(run.ctx, "instance", "test2", "ami-0dask0002")
         with pytest.raises(ValueError, match="not recorded in lineage"):
-            upgrade("instance", "test2", "ami-0nope")
+            upgrade(run.ctx, "instance", "test2", "ami-0nope")
         with pytest.raises(ValueError, match="belongs to series"):
-            upgrade("instance", "test2", "ami-0base0001")
+            upgrade(run.ctx, "instance", "test2", "ami-0base0001")
         assert run.run(["instance-image"], apply=False).ok
         module = (run.generated / "instance-image" / "open-tofu" / "instance-generation"
                   / "open-tofu-instance-generation-instance-test2.tf").read_text()
@@ -252,7 +252,7 @@ def test_upgrade_moves_exactly_one_edge_and_replaces_the_instance(tmp_path, monk
         assert "tofu plan -input=false -out=tfplan -replace=module.instance_test2.aws_instance.this" in script
         assert "--allow-destroy module.instance_test2.aws_instance.this" in script
         # the image edge can be upgraded independently -- and it does not touch the instance
-        upgrade("image", "imgfile-basic-dask", "ami-0base0001") if False else None
+        upgrade(run.ctx, "image", "imgfile-basic-dask", "ami-0base0001") if False else None
     finally:
         run.restore_cwd()
 
@@ -265,7 +265,7 @@ def test_image_upgrade_never_touches_instance_pins(tmp_path, monkeypatch):
         {"instances": {"test2": "ami-0dask0001"}, "images": {"imgfile-basic-dask": "ami-0base0001"}}))
     try:
         from cs_image_system.base.commands.upgrade import upgrade
-        assert upgrade("image", "imgfile-basic-dask", runtime="aws-east2-runtime") == ("ami-0base0001", "ami-0base0002")
+        assert upgrade(run.ctx, "image", "imgfile-basic-dask", runtime="aws-east2-runtime") == ("ami-0base0001", "ami-0base0002")
         pins = yaml.safe_load((run.meta_state / "pins.yaml").read_text())
         assert pins["images"]["imgfile-basic-dask@aws-east2-runtime"] == "ami-0base0002"
         assert pins["instances"]["test2"] == "ami-0dask0001"

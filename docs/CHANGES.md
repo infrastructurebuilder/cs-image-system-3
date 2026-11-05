@@ -25,6 +25,7 @@ the entry without naming the number in its text.
 
 | Stage | Landed | Released in | Squash subject |
 | --- | --- | --- | --- |
+| <a id="s124"></a>§124 | 2026-11-05 | not yet | Stage 124: the run context and the engine part ways |
 | <a id="s123"></a>§123 | 2026-11-05 | not yet | Stage 123: hashicorp-utils stops reaching back |
 | <a id="s122"></a>§122 | 2026-11-05 | not yet | Stage 122: storage and identity leave the core |
 | <a id="s121"></a>§121 | 2026-11-05 | not yet | Stage 121: the core names no runtime |

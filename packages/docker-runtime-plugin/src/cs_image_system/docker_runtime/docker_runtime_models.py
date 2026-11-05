@@ -17,6 +17,7 @@ from pydantic.dataclasses import dataclass  # stage 23: validation at constructi
 
 from cs_image_system.base.models.container_builder import ContainerBuilderModel
 from .docker_names import repository_name
+from cs_image_system.base.encryption import decrypt_marker, is_marker, emit
 
 log = logging.getLogger(__name__)
 
@@ -61,7 +62,6 @@ class DockerContainerBuilderModel(ContainerBuilderModel):
         host = self.host
         if not host:
             return None
-        from cs_image_system.base.encryption import decrypt_marker, is_marker
         return decrypt_marker(host) if is_marker(host) else str(host)
 
     def daemon_environment(self) -> dict[str, str]:
@@ -77,7 +77,6 @@ class DockerContainerBuilderModel(ContainerBuilderModel):
         if self.host:
             # the loader opens a marker into a value that remembers its
             # ciphertext; `emit` gives the ciphertext back (stage 49)
-            from cs_image_system.base.encryption import emit
             env["DOCKER_HOST"] = str(emit(self.host))
         elif self.context:
             env["DOCKER_CONTEXT"] = str(self.context)
@@ -100,7 +99,6 @@ class DockerContainerBuilderModel(ContainerBuilderModel):
         """How the daemon is addressed, for messages (never the plain host
         of an ENC marker)."""
         if self.host:
-            from cs_image_system.base.encryption import emit, is_marker
             return "host (encrypted)" if is_marker(emit(self.host)) else f"host {self.host}"
         if self.context:
             return f"context {self.context}"

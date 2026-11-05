@@ -6,6 +6,8 @@ import logging
 from typing import Any
 
 from cs_image_system.base.models.provider_specific_image import ProviderSpecificImage
+from cs_image_system.contract.image import ImageQuery
+from .aws_utils import translate_image_query
 
 log = logging.getLogger(__name__)
 
@@ -31,8 +33,6 @@ class AwsProviderSpecificImage(ProviderSpecificImage):
         # most recent image matching the output-name pattern. stage 106: the
         # lookup is an ImageQuery in the system's vocabulary, translated like
         # a vendor query, then quoted for the packer data source.
-        from cs_image_system.contract.image import ImageQuery
-        from .aws_utils import translate_image_query
         native = translate_image_query(ImageQuery(
             name=f"{self.deferred_name_pattern}*", root_device="ebs", virtualization="hvm",
             architecture=self.architecture if self.architecture else "x86_64", publisher=("self",), newest=True))

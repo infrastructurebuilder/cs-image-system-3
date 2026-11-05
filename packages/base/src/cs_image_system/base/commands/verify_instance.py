@@ -17,6 +17,8 @@ from typing import Any
 
 from ..global_context import GlobalTypeContext
 from .. import power_state
+from ..launch_params import compute_launch_params, mounted_points
+from ..image_tests import parse_post_bake_output, post_bake_script, post_bake_spec, root_os_type
 
 log = logging.getLogger(__name__)
 
@@ -82,9 +84,8 @@ class VerificationFailed(RuntimeError):
         self.record = record
 
 
-def verify_instance(name: str, expected_build: str | None = None, timeout: int = 600,
+def verify_instance(ctx: GlobalTypeContext, name: str, expected_build: str | None = None, timeout: int = 600,
                     record_only: bool = False) -> dict[str, Any]:
-    ctx = GlobalTypeContext()
     instances = {i.get_name(): i for i in ctx.instances}
     inst = instances.get(name)
     if inst is None:
@@ -98,7 +99,6 @@ def verify_instance(name: str, expected_build: str | None = None, timeout: int =
     build = expected_build or (recorded if recorded and recorded != "unbound" else None)
     # hygiene XII item 22: the declared mount points by name (object storage
     # mounts nothing), and their count for a runtime that can only count
-    from ..launch_params import compute_launch_params, mounted_points
     mount_points = mounted_points(compute_launch_params(ctx, inst), ctx)
     mounts = len(mount_points)
     # stage 57: verification is the archetypal task that NEEDS a running
@@ -140,7 +140,6 @@ def verify_instance(name: str, expected_build: str | None = None, timeout: int =
             build = booted if ok else None
         # stage 14: the image's declared post-bake tests run ON the instance over
         # the runtime's session command, as one more check; recorded per build
-        from ..image_tests import parse_post_bake_output, post_bake_script, post_bake_spec, root_os_type
         image = ctx.images_map.get(str(inst.image))
         spec = post_bake_spec(image) if image is not None else {}
         test_checks: list[dict[str, Any]] = []
@@ -178,10 +177,9 @@ def verify_instance(name: str, expected_build: str | None = None, timeout: int =
     return record
 
 
-def assert_last_verification(name: str) -> dict[str, Any]:
+def assert_last_verification(ctx: GlobalTypeContext, name: str) -> dict[str, Any]:
     """The closing step of a `teardown` failure policy: the instance was
     torn down regardless, but a failed verdict still fails the run."""
-    ctx = GlobalTypeContext()
     last = last_verification(ctx, name)
     if last is None:
         raise VerificationFailed({"instance": name, "checks": [{"name": "verification", "ok": False,

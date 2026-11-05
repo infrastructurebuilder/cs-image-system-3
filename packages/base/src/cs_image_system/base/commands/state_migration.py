@@ -38,6 +38,7 @@ import re
 import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from cs_image_system.base.public_safe import PRIVATE_DIRNAME
 
 if TYPE_CHECKING:
     from ..global_context import GlobalTypeContext
@@ -120,7 +121,6 @@ def state_backup_dir(ctx: "GlobalTypeContext | None", cwd: Path) -> Path:
     under the configuration root -- never committed (the mirror's rule), and
     outside every directory a run wipes or re-materialises. Without a
     configuration root (the bare harness) the backup lands beside the root."""
-    from cs_image_system.base.public_safe import PRIVATE_DIRNAME
     root = getattr(ctx, "working_path", None) if ctx is not None else None
     return (Path(root) / PRIVATE_DIRNAME / STATE_BACKUP_DIRNAME) if root else cwd
 

@@ -11,7 +11,6 @@ from .. import utils
 from pathlib import Path
 from typing import Any, TypeVar
 
-from cs_image_system.base import registry
 
 from typing import TYPE_CHECKING
 
@@ -22,10 +21,12 @@ from ..models.base_image import BaseImage
 if TYPE_CHECKING:
     from .builder_base_os import OsBuilderBase
 
+from cs_image_system.base.registry import current_registry
 from ..constants import DEFAULT, VCT
 from ..lifecycle import ExecutionLifecyclePhase
 
 from .builder_base import BuilderBase
+from ..lineage import bake_reason
 
 TIMAGE = TypeVar("TIMAGE", bound=ImageBuilderModel)
 class ImageBuilderBase(BuilderBase[TIMAGE], ImageBuilderProtocol):
@@ -65,7 +66,9 @@ class ImageBuilderBase(BuilderBase[TIMAGE], ImageBuilderProtocol):
         if self._finalized:
             return
         super().finalize()
-        reg = registry.Registry()
+        # finalize runs in the loader before the run context exists and is
+        # bound; the loader bound the run's registry first (stage 124 shim)
+        reg = current_registry()
         rt = self.model.get_runtime_provider()
         if not rt:
             raise ValueError(
@@ -115,7 +118,6 @@ class ImageBuilderBase(BuilderBase[TIMAGE], ImageBuilderProtocol):
         # Convergent bakes (stage 9): an image whose series head was built
         # from the same inputs is current and leaves no bake surface at all.
         if hasattr(ctx, "meta_state"):
-            from ..lineage import bake_reason
             imgs = [i for i in imgs if bake_reason(ctx, i, rt) is not None]
         return imgs
 

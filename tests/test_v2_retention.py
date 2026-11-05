@@ -149,7 +149,7 @@ def test_retention_disposal_deletes_only_the_disposable_builds(prepared, monkeyp
     _set_image(root, "imgfile-basic-dask", retention={"keep": 1})
     run = make(dry_run=False)
     run.ctx.meta_state.bind_instance("gce-test", "dask-gce-1", run.ctx.run_id)
-    results = dispose_images(retention=True)
+    results = dispose_images(run.ctx, retention=True)
     assert deleted == ["dask-gce-2"] and [r.build_id for r in results] == ["dask-gce-2"]
     assert {b["build_id"] for b in run.ctx.meta_state.builds()} == {"dask-gce-1", "dask-gce-3", "base-gce-1"}
 

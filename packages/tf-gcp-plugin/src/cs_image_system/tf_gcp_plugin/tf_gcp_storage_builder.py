@@ -39,6 +39,10 @@ from .tf_gcp_models import (
     TofuFilestoreStorageBuilderModel, TofuGcpStorageBuilderModel, TofuGcsStorageBuilderModel,
     TofuPdStorageBuilderModel,
 )
+from cs_image_system.gcloud_runtime.gcp_utils import resolve_project, make_credentials
+from cs_image_system.gcloud_runtime.gcp_packer_source import gce_name, gce_label
+from cs_image_system.base.lineage import config_tags, belongs_to_another_configuration, owner_of
+from cs_image_system.base.os_types import os_type_for_family
 
 log = logging.getLogger(__name__)
 
@@ -95,7 +99,6 @@ class TofuGcpStorageBuilder(TofuStorageBuilderBase[Q]):
         return str(resolve()) if callable(resolve) else "gcloud"
 
     def _project(self) -> str | None:
-        from cs_image_system.gcloud_runtime.gcp_utils import resolve_project
         rtb = self._runtime()
         to_cfg: Any = getattr(getattr(rtb, "model", None), "self_to_gcp_client_config", None)
         return resolve_project(cast(dict[str, Any], to_cfg())) if callable(to_cfg) else None
@@ -109,17 +112,14 @@ class TofuGcpStorageBuilder(TofuStorageBuilderBase[Q]):
         """GCE resource names must match ``[a-z]([-a-z0-9]*[a-z0-9])?`` --
         found live: a disk named ``gce_data`` fails the apply. Same rule the
         packer sources apply via ``gce_name``."""
-        from cs_image_system.gcloud_runtime.gcp_packer_source import gce_name
         return gce_name(name)
 
     def _labels(self, storage: Storage) -> dict[str, str]:
-        from cs_image_system.gcloud_runtime.gcp_packer_source import gce_label
         # stage 26: the builder's declared default labels under the item's own
         merged = getattr(self.model, "variables", None)
         base = merged.merged_tags(storage.tags) if merged is not None else dict(storage.tags or {})
         labels = {gce_label(k): gce_label(str(v)) for k, v in base.items()}
         labels["csis_storage"] = gce_label(storage.get_name())
-        from cs_image_system.base.lineage import config_tags
         get_ctx: Any = getattr(self, "_get_context", None)      # a stand-in without a context gets no id
         if callable(get_ctx):
             labels.update(config_tags(cast(Any, get_ctx())))   # stage 93: the disk, bucket, share carry the id
@@ -135,12 +135,10 @@ class TofuGcpStorageBuilder(TofuStorageBuilderBase[Q]):
         """Stage 93: a thing of our name whose labels name another
         configuration is not ours (GCE names are unique per zone or project,
         so it stands where ours would)."""
-        from cs_image_system.base.lineage import belongs_to_another_configuration
         return belongs_to_another_configuration(self._get_context(), labels)
 
     @staticmethod
     def _elsewhere_by_labels(labels: dict[str, Any], what: str) -> dict[str, Any]:
-        from cs_image_system.base.lineage import owner_of
         return {"present": False, "elsewhere": owner_of(labels), "what": what}
 
 
@@ -188,8 +186,6 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
 
     def retag_storage(self, storage: Storage, tags: dict[str, str]) -> bool:
         from google.cloud import compute_v1  # noqa: PLC0415
-        from cs_image_system.gcloud_runtime.gcp_packer_source import gce_label
-        from cs_image_system.gcloud_runtime.gcp_utils import make_credentials, resolve_project
         rtb = self._runtime()
         to_cfg: Any = getattr(getattr(rtb, "model", None), "self_to_gcp_client_config", None)
         cfg: dict[str, Any] = cast(dict[str, Any], to_cfg()) if callable(to_cfg) else {}
@@ -302,7 +298,6 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
 
     def _lookup(self, storage: Storage) -> dict[str, Any] | None:
         from google.cloud import compute_v1  # noqa: PLC0415
-        from cs_image_system.gcloud_runtime.gcp_utils import make_credentials, resolve_project
         rtb = self._runtime()
         to_cfg: Any = getattr(getattr(rtb, "model", None), "self_to_gcp_client_config", None)
         cfg: dict[str, Any] = cast(dict[str, Any], to_cfg()) if callable(to_cfg) else {}
@@ -350,7 +345,6 @@ class TofuFilestoreStorageBuilder(TofuGcpStorageBuilder[S]):
 
     def base_image_prerequisites(self, os_family: str | None = None) -> list[str]:
         # the package that carries an NFS client per package format; the line is the OS type's
-        from cs_image_system.base.os_types import os_type_for_family
         os_type = os_type_for_family(os_family)
         packages = {"deb": "nfs-common", "rpm": "nfs-utils", "apk": "nfs-utils"}
         pkg = os_type.package_install_command([packages[os_type.package_format()]], lock_timeout=PACKAGE_LOCK_TIMEOUT)
@@ -382,7 +376,6 @@ class TofuFilestoreStorageBuilder(TofuGcpStorageBuilder[S]):
 
     def retag_storage(self, storage: Storage, tags: dict[str, str]) -> bool:
         import subprocess  # noqa: PLC0415
-        from cs_image_system.gcloud_runtime.gcp_packer_source import gce_label
         project, zone = self._project(), self._zone()
         if not project or not zone:
             raise RuntimeError("no project/zone to retag in")
@@ -493,7 +486,6 @@ class TofuGcsStorageBuilder(TofuGcpStorageBuilder[G]):
 
     def retag_storage(self, storage: Storage, tags: dict[str, str]) -> bool:
         import subprocess  # noqa: PLC0415
-        from cs_image_system.gcloud_runtime.gcp_packer_source import gce_label
         if self._lookup(storage) is None:
             return False
         bucket = getattr(storage, "bucket_name", None) or getattr(self.model, "bucket_name", None) or storage.get_name()

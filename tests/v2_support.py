@@ -133,10 +133,16 @@ def bare_run(**attrs: Any) -> BareRun:
 
 
 def reset_singletons() -> None:
-    from cs_image_system.base import global_context as gc
-    from cs_image_system.base import registry
+    """Fresh process-wide state between loads. The run context is NO
+    singleton since stage 124 (a new context per load; the loader binds the
+    one it makes as the process's current); only the process binding is
+    dropped here so a test that forgets to load cannot see an earlier test's."""
+    from cs_image_system.base.registry import bind_current_registry
+    from cs_image_system.base.run_context import bind_current
     from cs_image_system.base.orchestrator import Orchestrator, TemplateResolver
-    registry.Registry().reset()
+    # the registry is per run too (stage 124): the loader makes the next one;
+    # the process binding is dropped so `load_plugins()` below fills a fresh one
+    bind_current_registry(None)
     from cs_image_system.base.image_sources import ImageSourceCatalog
     ImageSourceCatalog().reset()
     TemplateResolver().flattened_map = {}
@@ -146,10 +152,7 @@ def reset_singletons() -> None:
     # the terraform and packer collectors are per-run instances kept beside
     # the context (plugin_state): a new context starts with none, so nothing
     # of theirs is reset here
-    for cell in cast(Any, gc.GlobalTypeContext).__closure__:
-        val = cell.cell_contents
-        if isinstance(val, dict):
-            val.clear()
+    bind_current(None)
     from cs_image_system.base.loader import load_plugins
     load_plugins()
 
@@ -163,8 +166,8 @@ def stub_environment(monkeypatch) -> list[str]:
     # stage 33: the frozen fixture's TEST identity opens its encrypted values
     monkeypatch.setenv("CSIS_CONFIG_IDENTITY", str(FIXTURE_CONFIG / ".age-identity"))
 
-    from cs_image_system.base import global_context as gc
-    monkeypatch.setattr(gc, "datetime", _FixedDT)
+    from cs_image_system.base import config_loader
+    monkeypatch.setattr(config_loader, "datetime", _FixedDT)     # the loader's clock is the run's
 
     from cs_image_system.aws_runtime import aws_utils
     monkeypatch.setattr(aws_utils, "get_vpc_map_and_default_vpc_id",
@@ -256,8 +259,10 @@ def stub_environment(monkeypatch) -> list[str]:
 
 def load_context(config_root: Path, dry_run: bool = True, overlays: list[Path] | None = None,
                  undeclare: list[str] | None = None):
-    """Fresh singletons + a GlobalTypeContext over ``config_root`` (plus any
-    transient ``--overlay`` files, stage 8, and ``--undeclare`` specs, stage 28)."""
+    """Fresh singletons + the loader's run context over ``config_root`` (plus
+    any transient ``--overlay`` files, stage 8, and ``--undeclare`` specs,
+    stage 28). A new context per load: the returned one is THE context of the
+    run the test drives (and the process's current one, for the shim)."""
     reset_singletons()
     from cs_image_system.base.global_context import read_config_and_transform
     return read_config_and_transform(cast(Any, types.SimpleNamespace(obj={})),
@@ -265,15 +270,23 @@ def load_context(config_root: Path, dry_run: bool = True, overlays: list[Path] |
                                      overlays=list(overlays or []), undeclare=list(undeclare or []))
 
 
-def run_v2(lifecycles: list[str] | str = "all", *, apply: bool = True, commit: bool = False,
+def cli_context(ctx) -> Any:
+    """The typer context a console-script command reads the loaded context
+    from (``typer_cntx.obj["ctx"]``, stage 124), for calling a command
+    function directly."""
+    return cast(Any, types.SimpleNamespace(obj={"ctx": ctx}))
+
+
+def run_v2(ctx, lifecycles: list[str] | str = "all", *, apply: bool = True, commit: bool = False,
            state_query: bool = False, only: list[str] | None = None,
            force_bake: list[str] | None = None):
-    """``state_query`` is OFF here: the real hooks would reach AWS/OPA. Tests
+    """``ctx`` is the context ``load_context`` returned (stage 124: passed,
+    never fetched). ``state_query`` is OFF here: the real hooks would reach AWS/OPA. Tests
     of the pre-run query stub the hooks and pass ``state_query=True``."""
     from cs_image_system.base.commands.run_lifecycles import run_lifecycles
     from cs_image_system.base.lifecycles import parse_lifecycles
     names = [lifecycles] if isinstance(lifecycles, str) else lifecycles
-    return run_lifecycles(parse_lifecycles(names), apply=apply, commit=commit,
+    return run_lifecycles(ctx, parse_lifecycles(names), apply=apply, commit=commit,
                           state_query=state_query, only=only, force_bake=force_bake)
 
 
@@ -293,7 +306,7 @@ class V2Run:
     def run(self, lifecycles: list[str] | str = "all", *, apply: bool = True, commit: bool = False,
             state_query: bool = False, only: list[str] | None = None,
             force_bake: list[str] | None = None):
-        summary = run_v2(lifecycles, apply=apply, commit=commit, state_query=state_query, only=only,
+        summary = run_v2(self.ctx, lifecycles, apply=apply, commit=commit, state_query=state_query, only=only,
                          force_bake=force_bake)
         return summary
 

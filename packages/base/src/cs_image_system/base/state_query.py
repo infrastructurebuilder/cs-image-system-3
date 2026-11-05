@@ -69,6 +69,8 @@ from .lineage import CONFIG_TAG, TAG_PREFIX, belongs_to_another_configuration
 from .meta_state import assert_public_safe
 from . import power_state
 from .models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_DESTROYED
+from .commands.verify_instance import failure_policy, last_verification, teardown_due
+from .provider_aliases import instance_identity_notes
 
 if TYPE_CHECKING:
     from .global_context import GlobalTypeContext
@@ -607,7 +609,6 @@ def standing_ephemeral_drift(ctx: "GlobalTypeContext", report: StateReport) -> l
         state = (_query(report, f"instances/{name}", lambda: probe.query_instance_power_state(name))
                  if probe.can_query_instance_power_state() else None)
         if booted or power_state.is_off(state):
-            from .commands.verify_instance import failure_policy, last_verification, teardown_due
             policy, after = failure_policy(ctx, inst) if inst is not None else ("keep", None)
             last = last_verification(ctx, name)
             when = f"; verification failed at {last.get('time')}" if last and not last.get("ok") else ""
@@ -635,7 +636,6 @@ def query_state(ctx: "GlobalTypeContext") -> StateReport:
                     + storage_drift(ctx, storages) + group_drift(ctx, groups, report)
                     + instance_boot_drift(ctx, report)
                     + standing_ephemeral_drift(ctx, report))
-    from .provider_aliases import instance_identity_notes
     instance_identity_notes(ctx, report)   # stage 58: what each machine answers to
     workload_notes(groups, report, ctx)    # stage 56: the connection behind CI's login
     storage_state_notes(ctx, report)       # hygiene XII item 9: a storage root with no state yet

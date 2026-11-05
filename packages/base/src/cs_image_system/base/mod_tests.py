@@ -39,6 +39,9 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 
 from .lineage import mod_records
+from .image_sources import _runtime_classes, stand_in_runtime_type, ImageSourceCatalog, container_reference
+from .capabilities import image_chain
+from .os_types import os_type_for_family
 
 if TYPE_CHECKING:
     from .global_context import GlobalTypeContext
@@ -118,7 +121,6 @@ def stand_in_target_factory() -> tuple[str, TargetFactory] | None:
     """The runtime type that offers the local test target and its factory,
     read from the registered runtime builder classes; None when no
     installed runtime offers one."""
-    from .image_sources import _runtime_classes, stand_in_runtime_type
     classes = _runtime_classes()
     runtime_type = stand_in_runtime_type(classes)
     if runtime_type is None:
@@ -150,7 +152,6 @@ class ModTestResult:
 
 def test_image_for(ctx: "GlobalTypeContext", image: Any) -> str | None:
     """The container image for the instance image's root OS family."""
-    from .capabilities import image_chain
     _, root = image_chain(ctx, image)
     osb = ctx.os_builders.get(root) if root else None
     if osb is None:
@@ -158,7 +159,6 @@ def test_image_for(ctx: "GlobalTypeContext", image: Any) -> str | None:
     override = getattr(osb.model, "local_test_image", None)
     if override:
         return str(override)
-    from .image_sources import ImageSourceCatalog, container_reference
     block = ImageSourceCatalog().stand_in_block(osb.model.get_vendor_family(), osb.get_family_version())
     return container_reference(block) if block is not None else None
 
@@ -166,8 +166,6 @@ def test_image_for(ctx: "GlobalTypeContext", image: Any) -> str | None:
 def ansible_prep_command(ctx: "GlobalTypeContext", image: Any) -> str:
     """The line that readies the instance image's stand-in for ansible:
     the OS type's (resolved from the image's root OS family)."""
-    from .capabilities import image_chain
-    from .os_types import os_type_for_family
     _, root = image_chain(ctx, image)
     osb = ctx.os_builders.get(root) if root else None
     family = osb.get_family() if osb is not None else None

@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.v2_support import V2Run, copy_config, load_context, stub_environment
+from tests.v2_support import V2Run, cli_context, copy_config, load_context, stub_environment
 
 GCE_RT = "gcloud-east1"
 AWS_RT = "aws-east2-runtime"
@@ -285,14 +285,14 @@ def test_strict_state_query_reports_stale_but_does_not_fail_on_it(monkeypatch, c
         r = StateReport(run="r")
         r.drift = report_drift
         return r
-    monkeypatch.setattr(cli, "GlobalTypeContext", lambda: object(), raising=False)
-    import cs_image_system.base.state_query as sq
+    sq = cli      # patched where they are read (top-level imports since stage 124)
     monkeypatch.setattr(sq, "query_state", lambda ctx: fake_query([Drift("image", "x@rt", DRIFT_STALE, "behind")]))
     monkeypatch.setattr(sq, "write_state_report", lambda ctx, r: "report.json")
-    monkeypatch.setattr("cs_image_system.base.global_context.GlobalTypeContext", lambda: object())
-    cli.state_query_command(strict=True, as_json=False)          # exits 0
+    from types import SimpleNamespace
+    typer_cntx = cli_context(SimpleNamespace(run_id="run-1"))   # the command passes what the load returned (stage 124: and reads its run_id)
+    cli.state_query_command(typer_cntx, strict=True, as_json=False)          # exits 0
     assert "stale" in capsys.readouterr().out
     monkeypatch.setattr(sq, "query_state", lambda ctx: fake_query([Drift("image", "y", DRIFT_MISSING, "gone")]))
     with pytest.raises(typer.Exit) as e:
-        cli.state_query_command(strict=True, as_json=False)
+        cli.state_query_command(typer_cntx, strict=True, as_json=False)
     assert e.value.exit_code == 1

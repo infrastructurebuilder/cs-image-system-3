@@ -29,6 +29,7 @@ from cs_image_system.contract.runtime import LAUNCH_DELIVERY_SESSION
 
 from . import power_state
 from .lifecycles import Lifecycle
+from .utils import apply_enabled
 
 if TYPE_CHECKING:
     from .global_context import GlobalTypeContext
@@ -58,13 +59,12 @@ def _session_delivered(rtb: Any) -> bool:
 def deliver_launch_scripts(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
     if lifecycle != Lifecycle.INSTANCE_IMAGE:
         return
-    from .utils import apply_enabled
-    if not apply_enabled("instances"):
+    if not apply_enabled(ctx, "instances"):
         return
     recorded = ctx.meta_state.launch_params()
     for instance in ctx.instances:
         name = instance.get_name()
-        if not apply_enabled("instances", str(instance.type_), [str(instance.runtime)]):
+        if not apply_enabled(ctx, "instances", str(instance.type_), [str(instance.runtime)]):
             continue
         if not (recorded.get(name) or {}).get("launched"):
             continue

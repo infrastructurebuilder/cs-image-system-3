@@ -147,7 +147,7 @@ def test_an_images_entry_names_its_builds_and_the_deferred_lookup(tmp_path: Path
         # the timestamp tag stays in `_final_name` until the packer builder renders the run's values
         assert sub.get_final_name() == "coops-dask-pckr-ebs-ans-{{ execution.timestamp }}"
         from cs_image_system.packer_plugin.packer_image_builder import PackerEbsImageBuilder
-        assert PackerEbsImageBuilder._final_name(sub) == f"coops-dask-pckr-ebs-ans-{FIXED_TIMESTAMP}"
+        assert PackerEbsImageBuilder._final_name(ctx, sub) == f"coops-dask-pckr-ebs-ans-{FIXED_TIMESTAMP}"
         rtb = ctx.runtime_builders[AWS]
         psi = rtb.create_provider_specific_image_deferred(image=ctx.images_map["imgfile-basic-dask"], subconfig=sub)
         assert psi.deferred_name_pattern == "coops-dask-pckr-ebs-ans"

@@ -77,7 +77,7 @@ class ParentPropertyHolding(ParentPropertyHoldingProtocol):
             metadata = holder.metadata if hasattr(holder, "metadata") else {}
             if not metadata.get(FK_TARGET):
                 raise ValueError(f"No resolvable target type assigned for {self}")
-            model = registry.Registry().get_instance_by_global_id(self._model_id)
+            model = registry.current_registry().get_instance_by_global_id(self._model_id)  # a model holds no context (stage 124 shim)
             if model is None:
                 raise ValueError(f"Model with name {self.model_id} not found in registry for {self}")
             return model
@@ -105,7 +105,7 @@ class ParentPropertyHolding(ParentPropertyHoldingProtocol):
             else:
                 log.debug(f"{type(self).__name__} {getattr(self, 'name', '')}: parent {self._model_id!r} refined to {model_name!r}")
         self._model_id = model_name
-        reg = registry.Registry()
+        reg = registry.current_registry()  # a model holds no context (stage 124 shim)
         try:
             reg.register_built_instance(self) # Register the child object in the global registry for resolution by other builders that depend on it
         except Exception:

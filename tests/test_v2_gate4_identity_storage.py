@@ -278,7 +278,7 @@ def test_absent_apply_flag_key_means_false(tmp_path, monkeypatch):
         from cs_image_system.base import utils
         for key in ("storage", "instances", "identity", "release", "never-a-lifecycle"):
             run.ctx.config.pop(f"apply_{key}", None)
-            assert utils.apply_enabled(key) is False
+            assert utils.apply_enabled(run.ctx, key) is False
     finally:
         run.restore_cwd()
 

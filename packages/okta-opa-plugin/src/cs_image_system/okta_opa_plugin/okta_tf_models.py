@@ -20,6 +20,7 @@ from cs_image_system.hashicorp_utils.blocks import (
     render_blocks,
 )
 from cs_image_system.hashicorp_utils.hashicorp import TerraformGenerator
+from cs_image_system.base.run_context import current_context   # a model holds no context (stage 124 shim)
 
 OKTATF: str = "okta-tf"
 OKTATF_RO: str = "okta-tf-ro"
@@ -479,8 +480,7 @@ class OktaGroupBuilderModel(GroupBuilderModel):
         """
         if self.gateway_selector is not None:
             return self.gateway_selector
-        from cs_image_system.base.global_context import GlobalTypeContext
-        return GlobalTypeContext().config.get(OKTA_GATEWAY_SELECTOR_CONFIG_KEY) or None
+        return current_context().config.get(OKTA_GATEWAY_SELECTOR_CONFIG_KEY) or None
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
 class OktaUserBuilderModel(UserBuilderModel):
     """Dataclass representing an Okta user configuration."""

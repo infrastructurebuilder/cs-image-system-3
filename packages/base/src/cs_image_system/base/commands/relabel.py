@@ -32,6 +32,9 @@ from pydantic.dataclasses import dataclass  # stage 23: validation at constructi
 from typing import Any
 
 from ..global_context import GlobalTypeContext
+from ..lineage import FINGERPRINT_TAG_LENGTH, TAG_PREFIX, CONFIG_TAG, configuration_tag, owner_of
+from ..state_query import _TAGGED_FACTS
+from ..basic.builder_base_storage import StorageBuilderBase
 
 log = logging.getLogger(__name__)
 
@@ -53,15 +56,12 @@ class Relabel:
 
 def record_tags(record: dict[str, Any]) -> dict[str, str]:
     """The lineage tags a record says its image must carry."""
-    from ..lineage import FINGERPRINT_TAG_LENGTH, TAG_PREFIX
-    from ..state_query import _TAGGED_FACTS
     tags = {f"{TAG_PREFIX}{fact}": str(record.get(fact) or "") for fact in _TAGGED_FACTS}
     tags[f"{TAG_PREFIX}fingerprint"] = str(record.get("input_fingerprint") or "")[:FINGERPRINT_TAG_LENGTH]
     return {k: v for k, v in tags.items() if v}
 
 
 def relabel_plan(ctx: GlobalTypeContext, runtime: str, builds: list[str] | None = None) -> list[Relabel]:
-    from ..lineage import CONFIG_TAG, TAG_PREFIX, configuration_tag
     ms = ctx.meta_state
     if runtime not in ctx.runtime_builders:
         raise ValueError(f"relabel: unknown runtime {runtime!r}; known: {sorted(ctx.runtime_builders)}")
@@ -110,8 +110,6 @@ def resource_relabel_plan(ctx: GlobalTypeContext, runtime: str) -> list[Relabel]
     stands without the configuration's id, and the launched instances there
     whose machine stands without it. Nothing else about them is compared:
     the id is the one thing they must carry and did not, before the stage."""
-    from ..basic.builder_base_storage import StorageBuilderBase
-    from ..lineage import CONFIG_TAG, configuration_tag, owner_of
     owner = configuration_tag(ctx)
     if not owner:
         return []
@@ -162,7 +160,6 @@ def resource_relabel_plan(ctx: GlobalTypeContext, runtime: str) -> list[Relabel]
 
 
 def _storage_builder_of(ctx: GlobalTypeContext, name: str):
-    from ..basic.builder_base_storage import StorageBuilderBase
     for sb in ctx.storage_builders.values():
         if isinstance(sb, StorageBuilderBase):
             for storage in list(getattr(getattr(sb, "model", None), "_storages", None) or []):
@@ -171,8 +168,7 @@ def _storage_builder_of(ctx: GlobalTypeContext, name: str):
     return None, None
 
 
-def relabel(runtime: str, builds: list[str] | None = None) -> list[Relabel]:
-    ctx = GlobalTypeContext()
+def relabel(ctx: GlobalTypeContext, runtime: str, builds: list[str] | None = None) -> list[Relabel]:
     plan = relabel_plan(ctx, runtime, builds)
     if ctx.dry_run:
         for r in plan:

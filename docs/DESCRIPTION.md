@@ -97,8 +97,8 @@ lifecycles.
   and scope-aware `this.*` references), then structured by Pydantic into
   typed dataclass models, dispatching on each entry's `type:` through a
   central registry. Unknown keys are refused. One configuration object
-  (`IAConfig`) is the read-model for the run context, `GlobalTypeContext`,
-  which every builder reads. Overlays passed on the command line adjust a
+  (`IAConfig`) is the read-model for the run context (`RunContext`),
+  which the loader makes and binds to every builder. Overlays passed on the command line adjust a
   configuration for one invocation without touching the tree.
 - **Plugins.** Every capability is a plugin discovered through Python
   entry points (`cs_image_system.plugins.*`). A plugin registers model

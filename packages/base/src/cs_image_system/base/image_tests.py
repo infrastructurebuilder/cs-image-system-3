@@ -41,6 +41,9 @@ from .capabilities import (
     group_builders_by_identity_type,
     storage_builders_by_type,
 )
+from cs_image_system.base.models.container_builder import ContainerBuilderModel
+from .os_types import os_type_for_family
+from .capabilities import image_chain
 
 if TYPE_CHECKING:
     from .global_context import GlobalTypeContext
@@ -215,13 +218,11 @@ def _has_init_system(ctx: "GlobalTypeContext", runtime_name: str | None) -> bool
     services with: every runtime but a container one (stage 103)."""
     if not runtime_name:
         return True
-    from cs_image_system.base.models.container_builder import ContainerBuilderModel
     rtb = ctx.runtime_builders.get(str(runtime_name))
     return not isinstance(getattr(rtb, "model", None), ContainerBuilderModel)
 
 
 def _os_type_of(ctx: "GlobalTypeContext", osb: Any) -> type | None:
-    from .os_types import os_type_for_family
     return os_type_for_family(osb.get_family()) if osb is not None else None
 
 
@@ -260,7 +261,6 @@ def base_image_verify_commands(ctx: "GlobalTypeContext", base: Any, runtime_name
 def root_os_type(ctx: "GlobalTypeContext", image: Any) -> type | None:
     """The OS type of the instance image's root base image (None when the
     chain reaches no OS builder)."""
-    from .capabilities import image_chain
     _, root = image_chain(ctx, image)
     return _os_type_of(ctx, ctx.os_builders.get(root) if root else None)
 

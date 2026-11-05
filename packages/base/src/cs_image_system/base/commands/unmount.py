@@ -20,7 +20,10 @@ import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ..global_context import GlobalTypeContext
 
 log = logging.getLogger(__name__)
 
@@ -72,7 +75,7 @@ def read_receipt(workdir: Path, instance: str, storage: str) -> dict[str, Any] |
         return None
 
 
-def unmount_storage(instance: str, storage: str, mount_point: str, workdir: Path,
+def unmount_storage(ctx: "GlobalTypeContext", instance: str, storage: str, mount_point: str, workdir: Path,
                     confirm: bool = False, timeout: int = 300) -> dict[str, Any]:
     """Run the unmount through the runtime, or record the operator's
     confirmation; either way a receipt is written. Raises on failure."""
@@ -82,8 +85,6 @@ def unmount_storage(instance: str, storage: str, mount_point: str, workdir: Path
                       {"mount_point": mount_point, "confirmed_by": operator, "method": "operator-confirmation"})
         log.warning(f"unmount of {storage} on {instance}: taken on the operator's word ({operator})")
         return {"ok": True, "method": "operator-confirmation", "operator": operator}
-    from ..global_context import GlobalTypeContext
-    ctx = GlobalTypeContext()
     inst = next((i for i in ctx.instances if i.get_name() == instance), None)
     if inst is None:
         raise ValueError(f"unmount: instance {instance!r} is not declared")

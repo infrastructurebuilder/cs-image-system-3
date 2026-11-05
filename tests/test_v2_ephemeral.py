@@ -118,7 +118,7 @@ def test_gce_verification_reads_the_serial_console_and_records_the_verdict(prepa
     monkeypatch.setattr(GCPCloudBuilder, "serial_console", lambda self, name: CONSOLE_OK)
     monkeypatch.setattr(GCPCloudBuilder, "query_instance_boot_image", lambda self, name: "dask-build-1")
     monkeypatch.setattr("time.sleep", lambda s: None)
-    record = verify_instance("gce-test", expected_build="dask-build-1", timeout=1)
+    record = verify_instance(run.ctx, "gce-test", expected_build="dask-build-1", timeout=1)
     assert record["ok"] and record["ephemeral"] is True
     names = {c["name"]: c["ok"] for c in record["checks"]}
     assert names == {"startup scripts": True, "booted image": True, "data disks mounted": True,
@@ -127,16 +127,16 @@ def test_gce_verification_reads_the_serial_console_and_records_the_verdict(prepa
     # an explicit failure line fails fast, and the record says which check
     monkeypatch.setattr(GCPCloudBuilder, "serial_console", lambda self, name: CONSOLE_FAIL)
     with pytest.raises(VerificationFailed, match="startup scripts: an explicit failure line"):
-        verify_instance("gce-test", expected_build="dask-build-1", timeout=1)
+        verify_instance(run.ctx, "gce-test", expected_build="dask-build-1", timeout=1)
     assert run.ctx.meta_state.verifications()[-1]["ok"] is False
     # a wrong booted image fails too
     monkeypatch.setattr(GCPCloudBuilder, "serial_console", lambda self, name: CONSOLE_OK)
     with pytest.raises(VerificationFailed, match="booted image"):
-        verify_instance("gce-test", expected_build="dask-build-2", timeout=1)
+        verify_instance(run.ctx, "gce-test", expected_build="dask-build-2", timeout=1)
     # no completion within the timeout
     monkeypatch.setattr(GCPCloudBuilder, "serial_console", lambda self, name: "booting...\n")
     with pytest.raises(VerificationFailed, match="no completion"):
-        verify_instance("gce-test", expected_build="dask-build-1", timeout=0)
+        verify_instance(run.ctx, "gce-test", expected_build="dask-build-1", timeout=0)
 
 
 def test_a_runtime_without_verification_refuses(prepared, monkeypatch):
@@ -150,7 +150,7 @@ def test_a_runtime_without_verification_refuses(prepared, monkeypatch):
     assert run.run(["instance-image"], apply=False, only=["none"]).ok
     monkeypatch.setattr(AwsCloudBuilder, "verify_instance", RuntimeBuilderBase.verify_instance)
     with pytest.raises(NotImplementedError, match="cannot verify"):
-        verify_instance("test")
+        verify_instance(run.ctx, "test")
 
 
 def test_state_query_reports_a_standing_ephemeral(prepared, monkeypatch):
@@ -183,12 +183,12 @@ def test_verification_without_a_pin_accepts_a_recorded_build_of_the_series(prepa
     monkeypatch.setattr(GCPCloudBuilder, "serial_console", lambda self, name: CONSOLE_OK)
     monkeypatch.setattr(GCPCloudBuilder, "query_instance_boot_image", lambda self, name: "dask-gce-9")
     monkeypatch.setattr("time.sleep", lambda s: None)
-    record = verify_instance("gce-test", timeout=1)
+    record = verify_instance(run.ctx, "gce-test", timeout=1)
     assert record["ok"] and record["build"] == "dask-gce-9"
     assert "a recorded build of imgfile-basic-dask" in next(c["detail"] for c in record["checks"] if c["name"] == "booted image")
     monkeypatch.setattr(GCPCloudBuilder, "query_instance_boot_image", lambda self, name: "someone-elses-image")
     with pytest.raises(VerificationFailed, match="lineage does not record"):
-        verify_instance("gce-test", timeout=1)
+        verify_instance(run.ctx, "gce-test", timeout=1)
 
 
 # --------------------------------------------- failure policy (stage 11.3)
@@ -314,12 +314,12 @@ def test_assert_last_verification(prepared):
     root, make = prepared
     run = make()
     with pytest.raises(VerificationFailed, match="no verification record"):
-        assert_last_verification("gce-test")
+        assert_last_verification(run.ctx, "gce-test")
     _record_failed_verification(run, "gce-test", "2026-09-08T10:00:00+00:00")
     with pytest.raises(VerificationFailed, match="booted image"):
-        assert_last_verification("gce-test")
+        assert_last_verification(run.ctx, "gce-test")
     run.ctx.meta_state.record_verification({"instance": "gce-test", "run": "r1", "ok": True, "time": "t", "checks": []})
-    assert assert_last_verification("gce-test")["ok"]
+    assert assert_last_verification(run.ctx, "gce-test")["ok"]
 
 
 def test_standing_report_states_the_policy(prepared, monkeypatch):

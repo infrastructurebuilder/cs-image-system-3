@@ -122,7 +122,7 @@ def test_runtime_facts_carry_builders_and_emission_directories(repo):
     assert "base-image/pckr-gce-ans" in dirs and "instance-image/tofu-gce" in dirs and "storage/gcp-pd" in dirs
     assert all((run.generated / d).is_dir() for d in dirs)
     assert not any("pckr-ebs-ans" in d or "aws-" in d for d in dirs)
-    facts = describe_runtime(GCE)
+    facts = describe_runtime(run.ctx, GCE)
     assert facts["builders"] == gce and facts["emission"] == dirs
 
 
@@ -139,8 +139,8 @@ def test_a_scoped_retention_disposes_within_its_runtime_alone(repo, monkeypatch)
     captured: list[list[str]] = []
     monkeypatch.setattr(retention, "ephemeral_runtimes", lambda ctx: [GCE])
     monkeypatch.setattr(retention, "transient_storages_on_ephemeral_runtimes", lambda ctx: [])
-    from cs_image_system.base import utils
-    monkeypatch.setattr(utils, "system_cli_executable_with_config", lambda args, wd: captured.append(list(args)) or ["true"])
+    # the consuming module's name (retention imports it at top level since stage 124)
+    monkeypatch.setattr(retention, "system_cli_executable_with_config", lambda ctx, args, wd: captured.append(list(args)) or ["true"])
     monkeypatch.setattr(run.ctx, "extend_finalization_phase", lambda phase, steps: None)
 
     run.ctx.only_runtime_scope = AWS

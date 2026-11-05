@@ -1,8 +1,55 @@
 # 113. The kit and the engine: `base` splits where the plugins stop
 
-**Status: OPEN 2026-11-03. Waits for "do 113". First of the four
-decomposition stages (§113 to [§116](STAGE-116.md)); the measurement that shaped them
-is below.**
+**Status: OPEN 2026-11-03; RE-PLANNED 2026-11-05 on §124's numbers
+(below). Waits for "do 113". First of the four decomposition stages
+(§113 to [§116](STAGE-116.md)).**
+
+**Re-planned on §124's numbers (2026-11-05).** The measurement of
+2026-11-03 below ("70 modules, and the closure is closed") does not
+hold: it was taken over a lazy-import web that hid most of what the
+plugins reach (REEXAMINE3). After §124 every cycle-free import is a
+top-level one and `tests/test_import_closure.py` holds the figures:
+`base` is 138 modules (25,020 lines); the plugins' top-level closure
+is **118** of them; only **20** are engine-only (`init`, `tofu_lock`,
+`ansible_launch`, `bootstrap.interview`, `helpers/{async_utils,config,
+yaml_process}`, and the commands `emission`, `finalization`, `gate`,
+`identity_gids`, `load_failures`, `relabel`, `restamp`,
+`runtime_facts`, `unmount`, `upgrade`). Twenty-three engine modules
+(`orchestrator`, `template_utils`, `meta_state`, `release`,
+`retention`, `state_query`, `config_loader`, `finalizer`, `loader`
+and fourteen commands) sit inside the plugins' closure, and they enter
+through four doors, each a few plugin imports:
+
+- `global_context` (seven plugin modules, for the `GlobalTypeContext`
+  annotation and one `read_config_and_transform`): it pulls
+  `config_loader` and `finalizer`. Closed by annotating with
+  `RunContext` (or [§125](STAGE-125.md)'s protocol) and by the one
+  caller taking the loader from the engine.
+- `commands.run_lifecycles` (dummy-plugin and tofu-roots, for
+  `HookSet`): it pulls `orchestrator`, `template_utils`, `meta_state`,
+  `release`. Closed by item 3(b), `HookSet` in the contract.
+- `os_types` (five plugins): it imports `loader.load_plugins`. Closed
+  by `os_types` reading the registry it is given.
+- `commands.validate` and `commands.verify_instance` (tofu-roots, for
+  `deployed_in_workspace`, `terraform_workspaces`, the verify
+  policies): closed by moving those helpers to the kit module that
+  owns the vocabulary.
+
+So the stage's first act is no longer the script (it exists) but
+closing the four doors, with `kit_top` read after each; the expected
+kit after that is the 45-module component the closure test names
+(`run_context`, `basic/*`, `models/*`, `lineage`, `launch_params`,
+`utils`, `capabilities`, `meta_state`, `generations`,
+`commands.verify_instance`, held together by typing-only edges) plus
+the vocabulary modules, and the engine the rest. That component is
+the layering question this stage answers: `run_context` is in the kit
+because the plugins annotate with it, and it names the models and the
+builder bases only under `TYPE_CHECKING`; [§125](STAGE-125.md)'s
+protocol cuts those edges. The engine-package decision in item 1
+stands; the re-export shims of item 1 must not import the engine from
+the kit (REEXAMINE3 flaw 2), so an old path either moves with its
+module or is dropped. The list of halves below is the 2026-11-03
+reading and is superseded by the closure test's sets.
 
 The goal (the operator, 2026-11-03): decompose the system until a
 runtime is defined outside it, so the system installs without any

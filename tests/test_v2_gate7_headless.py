@@ -115,9 +115,9 @@ def test_gate_plan_command_exit_codes(tmp_path):
 def test_export_gids_stdout_is_pure_json(monkeypatch):
     """terraform's external provider parses stdout as a JSON string map; every
     log line (plugin discovery warnings included) must go to stderr."""
-    from cs_image_system.base.commands import identity_gids
+    from cs_image_system.system import cli as climod
     from cs_image_system.system.cli import app
-    monkeypatch.setattr(identity_gids, "export_gids", lambda q: {"coops": "180007"})
+    monkeypatch.setattr(climod, "export_gids", lambda q: {"coops": "180007"})   # patched where it is read (a top-level import since stage 124)
     result = runner.invoke(app, ["identity", "export-gids"], input='{"identity_type": "okta", "groups": "coops"}')
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout) == {"coops": "180007"}

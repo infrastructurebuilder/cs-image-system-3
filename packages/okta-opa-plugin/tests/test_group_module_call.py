@@ -80,8 +80,8 @@ def _bare_model(gateway_selector):
 
 
 def test_effective_gateway_selector_falls_back_to_config(monkeypatch):
-    import cs_image_system.base.global_context as gc
-    monkeypatch.setattr(gc, "GlobalTypeContext",
+    import cs_image_system.okta_opa_plugin.okta_tf_models as otm
+    monkeypatch.setattr(otm, "current_context",   # stage 124: the model reads the current context
                         lambda: SimpleNamespace(config={"okta_gateway_selector": "environment=staging"}))
     assert _bare_model(None).effective_gateway_selector == "environment=staging"
     # An explicit model value always wins over config.
@@ -89,8 +89,8 @@ def test_effective_gateway_selector_falls_back_to_config(monkeypatch):
 
 
 def test_effective_gateway_selector_none_when_config_unset(monkeypatch):
-    import cs_image_system.base.global_context as gc
-    monkeypatch.setattr(gc, "GlobalTypeContext",
+    import cs_image_system.okta_opa_plugin.okta_tf_models as otm
+    monkeypatch.setattr(otm, "current_context",
                         lambda: SimpleNamespace(config={}))
     assert _bare_model(None).effective_gateway_selector is None
 

@@ -278,7 +278,7 @@ def test_dispose_dry_run_deletes_nothing_and_reports_the_plan(tmp_path, monkeypa
     _seed_gce_chain(root)
     run = V2Run(tmp_path, monkeypatch, config_root=root)          # dry_run=True
     try:
-        results = dispose_images(runtime="gcloud-east1", all_on_runtime=True)
+        results = dispose_images(run.ctx, runtime="gcloud-east1", all_on_runtime=True)
         assert [r.build_id for r in results] == [GCE_BUILD, BASE_BUILD]   # children first
         assert all(r.deleted is None for r in results)
         assert results[1].unpinned == ["imgfile-basic-dask@gcloud-east1"]
@@ -295,7 +295,7 @@ def test_dispose_deletes_drops_records_and_unpins(tmp_path, monkeypatch, stub_gc
     _seed_gce_chain(root)
     run = V2Run(tmp_path, monkeypatch, config_root=root, dry_run=False)
     try:
-        results = dispose_images(runtime="gcloud-east1", all_on_runtime=True)
+        results = dispose_images(run.ctx, runtime="gcloud-east1", all_on_runtime=True)
         assert stub_gce_delete == [GCE_BUILD, BASE_BUILD]
         assert all(r.deleted is True for r in results)
         ms = run.ctx.meta_state
@@ -322,16 +322,16 @@ def test_dispose_refuses_unrecorded_and_in_use_builds(tmp_path, monkeypatch, stu
     run = V2Run(tmp_path, monkeypatch, config_root=root, dry_run=False)
     try:
         with pytest.raises(ValueError, match="not recorded in lineage"):
-            dispose_images(["no-such-build"])
+            dispose_images(run.ctx, ["no-such-build"])
         with pytest.raises(ValueError, match="decommission them first"):
-            dispose_images([GCE_BUILD])
+            dispose_images(run.ctx, [GCE_BUILD])
         with pytest.raises(ValueError, match="decommission them first"):
-            dispose_images(runtime="gcloud-east1", all_on_runtime=True)
+            dispose_images(run.ctx, runtime="gcloud-east1", all_on_runtime=True)
         with pytest.raises(ValueError, match="was baked on"):
-            dispose_images([BASE_BUILD], runtime="aws-east2-runtime")
+            dispose_images(run.ctx, [BASE_BUILD], runtime="aws-east2-runtime")
         assert stub_gce_delete == [] and len(run.ctx.meta_state.builds()) == 3
         # the base alone is disposable (no instance on it): explicit id works
-        results = dispose_images([BASE_BUILD])
+        results = dispose_images(run.ctx, [BASE_BUILD])
         assert stub_gce_delete == [BASE_BUILD] and results[0].unpinned == ["imgfile-basic-dask@gcloud-east1"]
     finally:
         run.restore_cwd()
@@ -349,7 +349,7 @@ def test_dispose_refuses_a_runtime_that_cannot_dispose(tmp_path, monkeypatch, st
     run = V2Run(tmp_path, monkeypatch, config_root=root, dry_run=False)
     try:
         with pytest.raises(NotImplementedError, match="cannot dispose"):
-            dispose_images(["ami-0829ccceee6db194e"])
+            dispose_images(run.ctx, ["ami-0829ccceee6db194e"])
         assert len(run.ctx.meta_state.builds()) == 3                       # nothing recorded
     finally:
         run.restore_cwd()
@@ -413,7 +413,7 @@ def test_gce_retag_merges_lineage_truth_into_the_image_labels(tmp_path, monkeypa
     generation-time labels (`csis_parent: series-…`, a placeholder
     fingerprint); after the bake the runtime relabels it from the record,
     keeping every other label and the label fingerprint GCE requires."""
-    from cs_image_system.gcloud_runtime import gcp_utils
+    from cs_image_system.gcloud_runtime import gcp_runtime_builders   # patched where it is read (a top-level import since stage 124)
 
     class Image:
         labels = {"csis_parent": "series-basic-rh-10", "csis_fingerprint": "293d6de5ab5f3b4f",
@@ -438,7 +438,7 @@ def test_gce_retag_merges_lineage_truth_into_the_image_labels(tmp_path, monkeypa
             return Op()
 
     fake = FakeImages()
-    monkeypatch.setattr(gcp_utils, "_make_images_client", lambda cfg: fake)
+    monkeypatch.setattr(gcp_runtime_builders, "_make_images_client", lambda cfg: fake)
     root = copy_config(tmp_path)
     run = V2Run(tmp_path, monkeypatch, config_root=root)
     try:

@@ -4,28 +4,22 @@
 
 """Shared fixtures for base-package tests.
 
-`Registry` and `TemplateResolver` are process-wide singletons. `clean_registry`
-snapshots the registry's (instance-level) state, resets it for the test, and
-restores it afterward so unit tests don't leak into each other (or into the
-end-to-end pipeline test).
+`TemplateResolver` is a process-wide singleton; the registry is one per run
+since stage 124 (the loader makes it), and what a model or a builder without
+a bound context reads is the process's current one. `clean_registry` binds a
+fresh, empty registry as the current one for the test and restores the
+previous binding afterward so unit tests don't leak into each other (or
+into the end-to-end pipeline test).
 """
 import pytest
 
 from cs_image_system.base import registry as _registry
 from cs_image_system.base.orchestrator import TemplateResolver, Orchestrator
 
-_REG_ATTRS = [
-    "registry", "vct_type_registry", "reverse_registry", "builder_for_model",
-    "aliases", "classified_aliases", "defaults_registry", "instances",
-    "instances_by_global_id", "models", "builders",
-]
-
-
 @pytest.fixture
 def clean_registry():
-    reg = _registry.Registry()  # the singleton instance (state lives here now)
-    snap = {a: getattr(reg, a) for a in _REG_ATTRS}
-    reg.reset()  # fresh empty state for this test
+    previous = _registry.current_registry()
+    _registry.bind_current_registry(_registry.Registry())   # fresh, empty, and what the test's models read
 
     tr = TemplateResolver()
     tr_snap = tr.flattened_map
@@ -37,7 +31,6 @@ def clean_registry():
     try:
         yield tr
     finally:
-        for a, v in snap.items():
-            setattr(reg, a, v)
+        _registry.bind_current_registry(previous)
         tr.flattened_map = tr_snap
         Orchestrator().invalidate_converter()

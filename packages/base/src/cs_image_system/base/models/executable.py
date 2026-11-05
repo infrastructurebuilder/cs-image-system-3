@@ -22,6 +22,7 @@ import sys
 from typing import Annotated, Any
 
 from ..constants import SYSTEM_CLI, DEFAULT, VCT
+from ..encryption import decrypt_marker, is_marker
 
 
 #: hygiene VIII item 3: how much of a successful command's output the log
@@ -138,7 +139,6 @@ class ExecutableModel(NameTyped, PluginArtifactProtocol):
         2): the model carries the ciphertext (a container runtime's private
         ``host``), the process gets the value, and the runner script renders
         the marker as a `decrypt` call (see render_executable_line)."""
-        from ..encryption import decrypt_marker, is_marker
         return {str(k): (decrypt_marker(v) if isinstance(v, str) and is_marker(v) else str(v))
                 for k, v in self.environment.items()}
 

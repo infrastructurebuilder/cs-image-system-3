@@ -30,6 +30,8 @@ from typing import TYPE_CHECKING, Any
 from .capabilities import declared_capabilities, effective_capabilities, image_chain
 from .constants import SELF
 from .encryption import MARKER_PREFIX, substitute_markers
+from .image_tests import base_image_verify_commands, instance_image_verify_commands, assertion_count
+from .lifecycles import Lifecycle
 
 if TYPE_CHECKING:
     from .global_context import GlobalTypeContext
@@ -185,7 +187,6 @@ def input_fingerprint(ctx: "GlobalTypeContext", image: Any, runtime: str | None 
 
 def _verify_commands(ctx: "GlobalTypeContext", image: Any, runtime: str | None) -> list[str]:
     try:
-        from .image_tests import base_image_verify_commands, instance_image_verify_commands
         if is_base_image(ctx, image):
             return list(base_image_verify_commands(ctx, image, str(runtime))) if runtime else []
         return list(instance_image_verify_commands(ctx, image))
@@ -395,6 +396,7 @@ def validate_policies(ctx: "GlobalTypeContext") -> list[str]:
         keep = getattr(getattr(rtb, "model", None), "retention_keep", None)
         if keep is not None and (not isinstance(keep, int) or keep < 0):
             errors.append(f"runtime '{rt}': retention_keep must be a non-negative int, got {keep!r}")
+    # lazy: commands.verify_instance imports this module (via launch_params)
     from .commands.verify_instance import ON_FAILURE_POLICIES, parse_duration
     for instance in ctx.instances:
         pol = getattr(instance, "on_failure", None)
@@ -438,7 +440,6 @@ def pinned_parent_build(ctx: "GlobalTypeContext", image: Any, runtime: str | Non
     src = getattr(image, "source_image", None)
     if not src or src == SELF:
         return None
-    from .lifecycles import Lifecycle
     parent_built_this_run = ((src in ctx.os_builders and Lifecycle.BASE_IMAGE in ctx.generated_lifecycles) or (
         src in ctx.images_map and ctx.current_lifecycle == Lifecycle.INSTANCE_IMAGE)) \
         and _will_bake_this_run(ctx, str(src), runtime)
@@ -512,7 +513,6 @@ def lineage_tags(ctx: "GlobalTypeContext", image: Any, runtime: str | None = Non
 
 
 def _assertion_count(ctx: "GlobalTypeContext", image: Any, runtime: str) -> int:
-    from .image_tests import assertion_count, base_image_verify_commands, instance_image_verify_commands
     cmds = (base_image_verify_commands(ctx, image, runtime) if is_base_image(ctx, image)
             else instance_image_verify_commands(ctx, image))
     return assertion_count(cmds)
@@ -571,7 +571,6 @@ def pinned_instance_build(ctx: "GlobalTypeContext", instance: Any) -> str | None
     image = str(instance.image) if instance.image else None
     if not image:
         return None
-    from .lifecycles import Lifecycle
     runtime = str(instance.runtime) if getattr(instance, "runtime", None) else None
     if (ctx.current_lifecycle == Lifecycle.INSTANCE_IMAGE and image in ctx.images_map
             and _will_bake_this_run(ctx, image, runtime)):

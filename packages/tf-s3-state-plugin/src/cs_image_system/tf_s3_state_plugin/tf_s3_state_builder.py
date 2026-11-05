@@ -33,9 +33,10 @@ class TofuS3StateBuilder(StateBuilderBase[Q]):
         through the registry by its type key, so this plugin depends on
         no other. Without that plugin the session is present and NOT
         JUDGED, and the line says why."""
-        from cs_image_system.base.registry import Registry
+        from cs_image_system.base.registry import current_registry
         profile = settings.get("profile")
-        runtime = Registry().runtime_builder_classes().get(AWS_RUNTIME_TYPE)
+        # a class-level session read, before any run is loaded (stage 124 shim)
+        runtime = current_registry().runtime_builder_classes().get(AWS_RUNTIME_TYPE)
         hook = cast(Callable[[Mapping[str, Any], Mapping[str, Any]], SessionStatus | None] | None,
                     getattr(runtime, "session_status", None))
         if not callable(hook):

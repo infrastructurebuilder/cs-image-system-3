@@ -1,6 +1,6 @@
 # 125. The contract's surface, its services and its version
 
-**Status: OPEN 2026-11-04. Waits for "do 125", after [§124](STAGE-124.md). Absorbs
+**Status: OPEN 2026-11-04. Waits for "do 125", after §124. Absorbs
 [§114](STAGE-114.md) and [§115](STAGE-115.md); the commitment to the contract in substance.**
 
 The contract holds 31 protocols; the runtime's has 49 methods and the
@@ -22,7 +22,7 @@ satisfy. No test says what a plugin may import.
    plugin's test stubs one service, not the world. [§115](STAGE-115.md)'s four
    helpers become members of the service they belong to.
 3. `RunContextProtocol` ([§114](STAGE-114.md) item 1) typed over
-   [§124](STAGE-124.md)'s `RunContext`; `bind(ctx)` takes the protocol;
+   §124's `RunContext`; `bind(ctx)` takes the protocol;
    no plugin and not hashicorp-utils names a kit class for the context
    ([§114](STAGE-114.md) item 4's test).
 4. The surface review: a protocol method stays only if a plugin

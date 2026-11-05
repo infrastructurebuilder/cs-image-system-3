@@ -61,14 +61,14 @@ def test_absolute_and_remote_module_sources_pass_through(relocated):
     ctx = relocated.ctx
     ws = Path("aws-ebs/storage-generation")
     ctx.config["module_source_base"] = "/opt/tfmodules"
-    assert module_source("aws_storage_ebs", ws) == "/opt/tfmodules/aws_storage_ebs"
+    assert module_source(ctx, "aws_storage_ebs", ws) == "/opt/tfmodules/aws_storage_ebs"
     ctx.config["module_source_base"] = "git::https://example.com/modules.git//tf"
-    assert module_source("aws_storage_ebs", ws) == "git::https://example.com/modules.git//tf/aws_storage_ebs"
+    assert module_source(ctx, "aws_storage_ebs", ws) == "git::https://example.com/modules.git//tf/aws_storage_ebs"
     ctx.config["module_source_base"] = "../tfmodules"
     from cs_image_system.base.lifecycles import Lifecycle
     ctx.current_lifecycle = Lifecycle.STORAGE
     try:
-        assert module_source("aws_storage_ebs", ws) == "../../../../../tfmodules/aws_storage_ebs"
+        assert module_source(ctx, "aws_storage_ebs", ws) == "../../../../../tfmodules/aws_storage_ebs"
     finally:
         ctx.current_lifecycle = None
 

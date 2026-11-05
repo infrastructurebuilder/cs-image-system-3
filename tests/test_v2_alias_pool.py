@@ -133,7 +133,7 @@ def test_a_replacement_is_a_new_machine_and_draws(real, monkeypatch):
     rec = dict(ms.launch_params().get("test") or {})
     rec.update({"launched": True, "hostname": "test-001", "alias": "old-name"})
     ms.record_launch_params("test", rec)
-    monkeypatch.setattr(lp, "will_replace", lambda c, i: True)
+    monkeypatch.setattr(ap, "will_replace", lambda c, i: True)      # patched where it is read (a top-level import since stage 124)
     params = lp.compute_launch_params(ctx, _inst(ctx))
     assert params["alias"] == "bright-otter" and ap.free_names(p) == ["quiet-heron", "red-cod"]
 

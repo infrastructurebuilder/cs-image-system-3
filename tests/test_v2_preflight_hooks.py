@@ -61,7 +61,7 @@ def test_preflight_prints_the_session_a_stub_runtime_class_answers(tmp_path):
     from cs_image_system.contract.constants import VCT
     StubModel, StubRuntime = _stub_classes()
     reset_singletons()
-    reg = cast(Any, registry.Registry())                            # a throwaway registration: no plugin behind it
+    reg = cast(Any, registry.current_registry())                    # a throwaway registration: no plugin behind it
     reg.models[VCT.RUNTIME_BUILDER]["stub"] = StubRuntime
     reg.builders[StubModel] = StubRuntime
     try:

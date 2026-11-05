@@ -39,12 +39,12 @@ CANNED = {
 
 @pytest.fixture
 def plugins():
-    from cs_image_system.base import registry
     from cs_image_system.base.loader import load_plugins
-    registry.Registry().reset()
+    from cs_image_system.base.registry import bind_current_registry
+    bind_current_registry(None)          # stage 124: a fresh process registry for the plugins
     load_plugins()
     yield
-    registry.Registry().reset()
+    bind_current_registry(None)
 
 
 def _fake(tmp_path: Path, name: str, output: str) -> str:

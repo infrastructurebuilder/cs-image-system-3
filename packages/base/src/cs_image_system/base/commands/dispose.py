@@ -23,6 +23,7 @@ from pydantic.dataclasses import dataclass  # stage 23: validation at constructi
 from typing import Any
 
 from ..global_context import GlobalTypeContext
+from ..release import releases
 
 log = logging.getLogger(__name__)
 
@@ -107,7 +108,6 @@ def retention_plan(ctx: GlobalTypeContext, runtime: str | None = None
     # stage 14.4 (operator, 2026-09-09): released builds are exempt from
     # retention and from an ephemeral runtime's disposal -- kept, reported
     # like debt, removed only by an explicit `dispose image <id>`
-    from ..release import releases
     released = {str(b) for images in (releases(ms).get("current") or {}).values() for b in images.values()}
     by_key: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for b in ms.builds():
@@ -133,9 +133,8 @@ def retention_plan(ctx: GlobalTypeContext, runtime: str | None = None
     return disposable, debt
 
 
-def dispose_images(build_ids: list[str] | None = None, runtime: str | None = None,
+def dispose_images(ctx: GlobalTypeContext, build_ids: list[str] | None = None, runtime: str | None = None,
                    all_on_runtime: bool = False, retention: bool = False) -> list[Disposal]:
-    ctx = GlobalTypeContext()
     ms = ctx.meta_state
     if retention:
         records, debt = retention_plan(ctx, runtime)

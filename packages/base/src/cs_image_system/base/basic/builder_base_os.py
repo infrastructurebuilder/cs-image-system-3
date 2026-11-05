@@ -11,7 +11,6 @@ import pprint
 
 from .. import utils
 
-from .. import registry
 from ..orchestrator import Orchestrator, TemplateResolver
 log = logging.getLogger(__name__)
 from typing import Any, Sequence, TypeVar,Mapping
@@ -27,6 +26,9 @@ from .asset import AssetSet
 from .builder_base import BuilderBase
 from cs_image_system.contract.operating_system import OsBuilderProtocol
 from .builder_base_image import build_target_label_of
+from ..bake_user import resolve_for_entry
+from ..bake_steps import execute_command_line
+from ..models.update_policy import POLICY_FULL, UpdatePolicy, manifest_commands
 
 OSRTC = TypeVar("OSRTC", bound=OSBuilderBaseImageBuilderSubconfig)
 # Deliberate bound exception: this pseudo-builder wraps an os-image-builder
@@ -89,10 +91,9 @@ class OsBuilderBase(BuilderBase[TOS], OsBuilderProtocol):
         # resolved=False synthesizes the BaseImage for chaining metadata only
         # (execution runs, where the base run already built the artifact and no
         # vendor-image query is made) — image_identifier stays None.
-        from ..global_context import GlobalTypeContext
-        ctx = GlobalTypeContext()
+        ctx = self._get_context()
         cvt = Orchestrator().get_converter()
-        reg = registry.Registry()
+        reg = ctx.reg
         template_resolver = TemplateResolver() # Already has 'addl' fields registered
         rt_list = []
         for os_imgbld_name, os_img_subconfig in self.get_configs_for_image_builders().items():
@@ -176,7 +177,6 @@ class OsBuilderBase(BuilderBase[TOS], OsBuilderProtocol):
             # runtime's ssh_username and default_config_username, the family
             # user); this used to take the entry or a hard-coded vendor-user
             # map for the first cloud, never the two config_username fields
-            from ..bake_user import resolve_for_entry
             ssun = resolve_for_entry(ctx, self, os_img_subconfig, str(image_builder_runtime),
                                      what=f"OS builder {self.get_display_name()}")
             log.debug(f"Bake user for OS builder {self.get_display_name()} on {image_builder_runtime}: {ssun}")
@@ -269,8 +269,6 @@ class OsBuilderBase(BuilderBase[TOS], OsBuilderProtocol):
         hook outright (e.g. an ansible-based update).
         """
         items = AssetSet()
-        from ..bake_steps import execute_command_line
-        from ..models.update_policy import POLICY_FULL, UpdatePolicy, manifest_commands
         subconfig = image.get_image_runtime_subconfig_for_runtime(
             image_builder.model.get_runtime_provider())
         # Legacy/stub models expose only get_command_to_update(); real OS

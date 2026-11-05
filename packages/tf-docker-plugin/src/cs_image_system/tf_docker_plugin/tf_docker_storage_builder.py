@@ -27,6 +27,7 @@ from cs_image_system.docker_runtime.docker_names import tag_name
 from cs_image_system.tofu_roots.tofu_storage_builder import TofuStorageBuilderBase, storage_groups
 
 from .tf_docker_models import TF_DOCKER_VOLUME, TofuDockerVolumeStorageBuilderModel
+from cs_image_system.base.lineage import config_tags, belongs_to_another_configuration, owner_of
 
 log = logging.getLogger(__name__)
 
@@ -104,7 +105,6 @@ class TofuDockerVolumeStorageBuilder(TofuStorageBuilderBase[Q]):
         return subprocess.run(["docker", *args], capture_output=True, text=True, check=False)
 
     def _labels(self, storage: Storage) -> dict[str, str]:
-        from cs_image_system.base.lineage import config_tags
         merged = getattr(self.model, "variables", None)
         base = merged.merged_tags(storage.tags) if merged is not None else dict(storage.tags or {})
         labels = {str(k): str(v) for k, v in base.items()}
@@ -139,7 +139,6 @@ class TofuDockerVolumeStorageBuilder(TofuStorageBuilderBase[Q]):
             return None
         info = dict(data[0])
         labels = {str(k): str(v) for k, v in dict(info.get("Labels") or {}).items()}
-        from cs_image_system.base.lineage import belongs_to_another_configuration, owner_of
         if belongs_to_another_configuration(self._get_context(), labels):
             return {"present": False, "elsewhere": owner_of(labels), "what": "a volume"}
         return {"id": str(info.get("Name") or name), "state": "active", "driver": str(info.get("Driver") or ""),

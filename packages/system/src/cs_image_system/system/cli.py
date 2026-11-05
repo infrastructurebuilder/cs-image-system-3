@@ -15,7 +15,7 @@ import os
 import sys
 from importlib.metadata import entry_points
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 from rich.logging import RichHandler
@@ -24,6 +24,87 @@ from cs_image_system.contract.commands import COMMANDS_ENTRY_POINT_GROUP, Comman
 from cs_image_system.base.lifecycles import Lifecycle, all_lifecycles, parse_lifecycles
 from cs_image_system.base.loader import load_plugins
 from cs_image_system.base.utils import is_base
+from cs_image_system.base.commands.run_lifecycles import run_lifecycles, load_hook_plugins, validate_only
+from cs_image_system.base.commands.runtime_facts import runtime_bake_selection, describe_runtime, emptiness
+from cs_image_system.base.commands.upgrade import upgrade
+from cs_image_system.base.commands.preflight import (
+    raw_session_readiness,
+    empty_environment_credentials,
+    NOT_JUDGED,
+    NOT_JUDGED_WHY,
+    session_lines,
+    raw_session_lines,
+)
+from cs_image_system.base.encryption import (
+    encrypt_fields_in_text,
+    encrypt_value,
+    recipients_from_config,
+    decrypt_fields_in_text,
+    decrypt_marker,
+    is_marker,
+    decrypt_tree,
+    decrypted_plaintexts,
+    reset_decrypted_plaintexts,
+    INLINE_MARKER_RE,
+    identities_from_env,
+    rotate_text,
+)
+from cs_image_system.base.materialize import PRIVATE_DIRNAME, ensure_ignored, materialize, mirror_path, sync_back
+from cs_image_system.system.starters import changes_since as _changes_since, init_config
+from cs_image_system.base.bootstrap import (
+    ANSWERS_FILE,
+    Refused,
+    discover,
+    gather,
+    read_answers,
+    regenerate,
+    run_interview,
+    write_answers,
+)
+from cs_image_system.base.bootstrap.hcl import apply_env
+from cs_image_system.base.commands.emission import config_drift, runtime_unchanged
+from cs_image_system.base.public_safe import (
+    allow_from_config,
+    candidate_files,
+    config_for,
+    format_findings,
+    git_toplevel,
+    scan_staged,
+    scan_tree,
+    staged_paths,
+)
+from cs_image_system.base.mod_tests import run_mod_tests
+from cs_image_system.base.release import ReleaseError, declared_release_targets, release
+from cs_image_system.base.commands.state_migration import backup, begin, finish
+from cs_image_system.base.commands.gate import (
+    gate_plan,
+    plan_json_from_planfile,
+    planfile_is_stale,
+    planned_destroys,
+    sanctioned_addresses,
+)
+from cs_image_system.base.commands.unmount import read_receipt, unmount_storage
+from cs_image_system.base.utils import apply_flag_allows
+from cs_image_system.base.commands.identity_gids import export_gids
+from cs_image_system.base.state_query import DRIFT_STALE, query_state, write_state_report, import_foreign
+from cs_image_system.base.commands.restamp import restamp
+from cs_image_system.base.meta_state import commit_meta_state
+from cs_image_system.base.commands.relabel import relabel
+from cs_image_system.base.commands.verify_instance import VerificationFailed, verify_instance, assert_last_verification
+from cs_image_system.base.commands.dispose import dispose_images
+from cs_image_system.base.identity_attributes import (
+    AttributeApplyDisabled,
+    apply,
+    attributes_plan,
+    probe as probe_fn,
+    read_attributes_plan,
+)
+from cs_image_system.base import tofu_lock
+from cs_image_system.base.global_context import read_config_and_transform
+from cs_image_system.base.commands.load_failures import classify_load_failure
+
+if TYPE_CHECKING:
+    from cs_image_system.base.global_context import GlobalTypeContext
 
 DEFAULT_CONFIG_FILE = "./image-actions.yml"
 
@@ -49,11 +130,16 @@ app = typer.Typer(help="CLI for managing cloud sandbox image actions.",
                   context_settings={"help_option_names": ["-h", "--help"]})
 
 
-def _run(lifecycles, apply: bool, commit: bool, state_query: bool = True,
+def _loaded(typer_cntx: typer.Context) -> "GlobalTypeContext":
+    """The context the callback's load returned (stage 124: a command PASSES
+    the context to every base function; nothing fetches it)."""
+    return typer_cntx.obj["ctx"]
+
+
+def _run(ctx: "GlobalTypeContext", lifecycles, apply: bool, commit: bool, state_query: bool = True,
          only: list[str] | None = None, force_bake: list[str] | None = None) -> None:
     """Run lifecycles; nonzero exit on any failure (DESIGN §3G)."""
-    from cs_image_system.base.commands.run_lifecycles import run_lifecycles
-    summary = run_lifecycles(lifecycles, apply=apply, commit=commit, state_query=state_query,
+    summary = run_lifecycles(ctx, lifecycles, apply=apply, commit=commit, state_query=state_query,
                              only=only, force_bake=force_bake)
     typer.echo(json.dumps(summary.to_dict(), indent=2, sort_keys=True))
     if not summary.ok:
@@ -116,7 +202,6 @@ def run_command(
     # registered lifecycles (release, retention) must exist before `all` /
     # a name is resolved -- found live: a fresh process resolved --all to
     # the four built-ins because the hooks loaded only inside the run
-    from cs_image_system.base.commands.run_lifecycles import load_hook_plugins
     load_hook_plugins()
     try:
         selected = parse_lifecycles(lifecycles, all_)
@@ -127,8 +212,7 @@ def run_command(
         typer.secho("No lifecycles selected; pass names or --all "
                     f"({', '.join(lc.value for lc in all_lifecycles())}).", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=2)
-    from cs_image_system.base.global_context import GlobalTypeContext
-    gctx = GlobalTypeContext()
+    gctx = _loaded(ctx)
     gctx.explicit_bake_selection = bool(only or only_runtime)
     gctx.allow_unscoped_bakes = allow_unscoped_bakes
     workspaces = [w.strip() for w in (migrate_state or []) if w.strip()]
@@ -157,7 +241,6 @@ def run_command(
             only_runtime = apply_runtime
             gctx.implied_scope = apply_runtime
     if only_runtime:
-        from cs_image_system.base.commands.runtime_facts import runtime_bake_selection
         if only_runtime not in gctx.runtime_builders:
             typer.secho(f"--only-runtime: unknown runtime {only_runtime!r}", fg=typer.colors.RED, err=True)
             raise typer.Exit(code=2)
@@ -174,21 +257,20 @@ def run_command(
         # 404 during a bake scoped to the other cloud, after a cycle had
         # disposed every image on the first)
         gctx.only_runtime_scope = only_runtime
-    _run(selected, apply=apply, commit=commit, state_query=state_query, only=only,
+    _run(gctx, selected, apply=apply, commit=commit, state_query=state_query, only=only,
          force_bake=force_bake)
 
 
 @app.command(name="build-all")
 def all(ctx: typer.Context) -> None:
     """Alias: run every lifecycle (with --base-only: the base-image lifecycle only)."""
-    _run([Lifecycle.BASE_IMAGE] if is_base(ctx) else all_lifecycles(), apply=True, commit=False)
+    _run(_loaded(ctx), [Lifecycle.BASE_IMAGE] if is_base(ctx) else all_lifecycles(), apply=True, commit=False)
 
 
 @app.command(name="validate")
 def validate_command(ctx: typer.Context) -> None:
     """Validate the configuration (V1 checks plus every V2 rule); generates nothing."""
-    from cs_image_system.base.commands.run_lifecycles import validate_only
-    errors = validate_only()
+    errors = validate_only(_loaded(ctx))
     for err in errors:
         typer.secho(f" - {err}", fg=typer.colors.RED, err=True)
     if errors:
@@ -200,7 +282,7 @@ def validate_command(ctx: typer.Context) -> None:
 @app.command(name="generate")
 def generate_command(ctx: typer.Context) -> None:
     """Alias: generate every lifecycle (base-image only with --base-only) without the apply step."""
-    _run([Lifecycle.BASE_IMAGE] if is_base(ctx) else all_lifecycles(), apply=False, commit=False)
+    _run(_loaded(ctx), [Lifecycle.BASE_IMAGE] if is_base(ctx) else all_lifecycles(), apply=False, commit=False)
 
 
 @app.command(name="upgrade")
@@ -215,9 +297,8 @@ def upgrade_command(
 ) -> None:
     """Move exactly one pin (DESIGN §3F5) -- the only way an instance or image
     changes the build it is bound to. Image pins are per runtime."""
-    from cs_image_system.base.commands.upgrade import upgrade
     try:
-        previous, target = upgrade(kind, name, to, runtime)
+        previous, target = upgrade(_loaded(ctx), kind, name, to, runtime)
     except Exception as e:
         typer.secho(str(e), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
@@ -242,9 +323,7 @@ def preflight_command(
     says so instead of "every session present". Each session line names
     what was read and, when the session is absent or lapsed, the command
     that renews it."""
-    from cs_image_system.base.commands.preflight import raw_session_readiness
     root_dir, overlays = typer_cntx.obj["preflight_args"]
-    from cs_image_system.base.commands.preflight import empty_environment_credentials
     lines, absent, expired, blocking, unjudged = raw_session_readiness(root_dir, overlays)
     if not lines:
         typer.secho(f"preflight: no runtimes declared under {root_dir} (cfg/runtime-builders.yml)",
@@ -276,7 +355,6 @@ def preflight_command(
     if unjudged:
         # hygiene XII item 17: a session with no readable expiry is present
         # and NOT JUDGED; the closing line says so and is never green over it
-        from cs_image_system.base.commands.preflight import NOT_JUDGED, NOT_JUDGED_WHY
         typer.secho(f"preflight: {len(lines) - len(unjudged)} session(s) present; {len(unjudged)} {NOT_JUDGED} "
                     f"({NOT_JUDGED_WHY})", fg=typer.colors.YELLOW, err=True)
         return
@@ -294,7 +372,6 @@ def encrypt_command(
     `encryption.recipients` (stage 33). Each value becomes its own
     ENC[age:...] marker -- a list entry by entry -- and everything else in a
     file is preserved byte for byte. Needs no identity."""
-    from cs_image_system.base.encryption import encrypt_fields_in_text, encrypt_value, recipients_from_config
     root: Path = typer_cntx.obj["config_root"]
     try:
         recipients = recipients_from_config(root)
@@ -334,7 +411,6 @@ def decrypt_command(
     the plaintext -- for the operator, never for a script that logs. With
     --json it is the program behind every generated root's
     `data "external" "sensitive"`, run by terraform at plan time."""
-    from cs_image_system.base.encryption import decrypt_fields_in_text, decrypt_marker, is_marker
     try:
         if file:
             if not field:
@@ -379,8 +455,6 @@ def mask_command(
     defence, not the first: the emission carries the ciphertext, and the
     committed tree is scanned for these same plaintexts before every commit."""
     import yaml
-    from cs_image_system.base.encryption import decrypt_tree, decrypted_plaintexts, reset_decrypted_plaintexts
-    from cs_image_system.base.materialize import PRIVATE_DIRNAME
     root = Path(typer_cntx.obj.get("config_root") or os.getcwd())
     reset_decrypted_plaintexts()
     # Stage 63 item 2: a masking pass that skipped a file is a pass that may
@@ -422,7 +496,6 @@ def materialize_command(
     The committed emission carries the ciphertext; the tools cannot read that,
     so every deferred command runs from the mirror instead. The mirror is
     never committed. Needs CSIS_CONFIG_IDENTITY; loads no configuration."""
-    from cs_image_system.base.materialize import ensure_ignored, materialize, mirror_path, sync_back
     root = Path(typer_cntx.obj.get("config_root") or os.getcwd())
     src = source if source.is_absolute() else (Path(os.getcwd()) / source)
     try:
@@ -472,7 +545,6 @@ def init_config_command(
     which release-owned files this release changed in the tree (hygiene XXI),
     split into those the tree still holds as the previous release wrote them
     and those it has also edited, and exits 1 when there is any."""
-    from cs_image_system.system.starters import changes_since as _changes_since, init_config
     if changes_since is not None:
         try:
             changes = _changes_since(destination, changes_since, starter)
@@ -519,9 +591,6 @@ def bootstrap_command(
     generated/bootstrap/ from them: one root module, bootstrap.auto.tfvars,
     set-secrets.sh and a README. Every run regenerates that directory from
     the answers; applying it is the operator's act (tofu apply there)."""
-    from cs_image_system.base.bootstrap import (
-        ANSWERS_FILE, Refused, discover, gather, read_answers, regenerate, run_interview, write_answers,
-    )
     root = Path(typer_cntx.obj.get("config_root") or os.getcwd())
     if not (root / "cfg").is_dir():
         typer.secho(f"bootstrap: {root} holds no cfg/ -- run it in a configuration repository", fg=typer.colors.RED, err=True)
@@ -543,7 +612,6 @@ def bootstrap_command(
     typer.echo(f"bootstrap: answers in {ANSWERS_FILE}; sections wanted: {', '.join(wanted) or 'none'}")
     for p in written:
         typer.echo(f"bootstrap: wrote {p.relative_to(root)}")
-    from cs_image_system.base.bootstrap.hcl import apply_env
     rendered = [s.render(result[s.name]) for s in sorted(sections, key=lambda s: s.name)
                 if (result.get(s.name) or {}).get("wanted")]
     by_hand = [line for r in rendered for line in r.by_hand]
@@ -578,7 +646,6 @@ def config_drift_command(typer_cntx: typer.Context) -> None:
     committed under generated/ or the dry run itself fails. A dry run's init
     skips the backend, so no state access is needed; the copy's run needs
     whatever a load needs (the sessions, CSIS_CONFIG_IDENTITY)."""
-    from cs_image_system.base.commands.emission import config_drift
     root = Path(typer_cntx.obj.get("config_root") or os.getcwd())
     code, lines = config_drift(root, progress=lambda line: typer.echo(line, err=True))
     for line in lines:
@@ -591,6 +658,7 @@ def config_drift_command(typer_cntx: typer.Context) -> None:
 
 @app.command(name="runtime-unchanged")
 def runtime_unchanged_command(
+    typer_cntx: typer.Context,
     runtime: Annotated[str, typer.Argument(help="the runtime whose emission is compared")],
     ref: Annotated[str, typer.Option("--ref", help="the git ref to compare against (default HEAD)")] = "HEAD",
 ) -> None:
@@ -605,8 +673,7 @@ def runtime_unchanged_command(
     changed, 2 for an unknown runtime. CI's performing job asks this of the
     runtime that stays out of CI by the cost decision: a change there fails
     the job loudly rather than bake."""
-    from cs_image_system.base.commands.emission import runtime_unchanged
-    code, lines = runtime_unchanged(runtime, ref)
+    code, lines = runtime_unchanged(_loaded(typer_cntx), runtime, ref)
     for line in lines:
         typer.secho(line, fg=typer.colors.GREEN if code == 0 else typer.colors.RED if line.startswith("runtime-unchanged:") else None,
                     err=code != 0)
@@ -626,9 +693,6 @@ def public_safe_command(
     file, plans and state by name; addresses and long tokens outside prose and
     tests -- in a tree or in the index. Exit 1 with every finding; allow a
     value by decision in cfg/_config.yml public_safe.allow."""
-    from cs_image_system.base.public_safe import (
-        allow_from_config, candidate_files, config_for, format_findings, git_toplevel, scan_staged, scan_tree, staged_paths,
-    )
     root = Path(tree) if tree is not None else Path(typer_cntx.obj["config_root"])
     root = root.resolve()
     cfg = Path(config) if config is not None else config_for(root)
@@ -661,7 +725,6 @@ def reencrypt_command(
     CURRENT `encryption.recipients`: decrypt each with CSIS_CONFIG_IDENTITY,
     re-encrypt to all recipients, write in place. Run after adding or
     removing a recipient. Nothing is written unless every value opens."""
-    from cs_image_system.base.encryption import INLINE_MARKER_RE, identities_from_env, recipients_from_config, rotate_text
     root: Path = typer_cntx.obj["config_root"]
     try:
         recipients = recipients_from_config(root)
@@ -699,9 +762,7 @@ def test_mods_command(
 ) -> None:
     """Run every modification against a throwaway local container, twice
     (apply + idempotence); results in meta-state/mod-tests.yaml (EXPLORE)."""
-    from cs_image_system.base.mod_tests import run_mod_tests
-    results = run_mod_tests(__import__("cs_image_system.base.global_context", fromlist=["GlobalTypeContext"]).GlobalTypeContext(),
-                            images=image, force=force)
+    results = run_mod_tests(_loaded(ctx), images=image, force=force)
     typer.echo(json.dumps([r.to_dict() for r in results], indent=2, sort_keys=True))
     failed = [r for r in results if r.status == "fail" or r.idempotent is False]
     skipped = [r for r in results if r.status in ("skipped", "unsupported")]
@@ -730,9 +791,7 @@ def release_command(
              "the release lifecycle's deferred step")] = False,
 ) -> None:
     """Mark a tested build as released for a model (EXPLORE release lifecycle)."""
-    from cs_image_system.base.global_context import GlobalTypeContext
-    from cs_image_system.base.release import ReleaseError, declared_release_targets, release
-    gctx = GlobalTypeContext()
+    gctx = _loaded(ctx)
     if declared:
         targets = declared_release_targets(gctx)
         if not targets:
@@ -782,9 +841,7 @@ def state_migration_command(
 ) -> None:
     """One step of a state migration (stage 46.4.3), emitted into a root's runner by
     `run --migrate-state <workspace>`; never a by-hand command."""
-    from cs_image_system.base.commands.state_migration import backup, begin, finish
-    from cs_image_system.base.global_context import GlobalTypeContext
-    gctx = GlobalTypeContext()
+    gctx = _loaded(typer_cntx)
     # the root the runner entered, not the configuration root the load moved to
     cwd = Path(typer_cntx.obj.get("invoked_cwd") or os.getcwd())
     if action == "begin":
@@ -812,8 +869,7 @@ def prune_attachments_command(
     and before its plan, in the initialised root -- drop from terraform state
     the membership attachments the declaration no longer has and the
     provider no longer holds, after a state backup. Never a by-hand command."""
-    from cs_image_system.base.global_context import GlobalTypeContext
-    gctx = GlobalTypeContext()
+    gctx = _loaded(typer_cntx)
     gb = gctx.group_builders.get(builder)
     if gb is None:
         typer.secho(f"prune-attachments: no group builder named {builder!r}", fg=typer.colors.RED, err=True)
@@ -843,9 +899,6 @@ def gate_plan_command(
 ) -> None:
     """Apply gate: fail unless every planned destroy is whitelisted (DESIGN N19)
     and every detach was unmounted first (stage 10.14)."""
-    from cs_image_system.base.commands.gate import (
-        gate_plan, plan_json_from_planfile, planfile_is_stale, planned_destroys, sanctioned_addresses)
-    from cs_image_system.base.commands.unmount import read_receipt
     missing = []
     for pair in require_unmounted or []:
         inst, _, storage = pair.partition(":")
@@ -908,7 +961,6 @@ def apply_check_command(
     Per-root scoping (stage 7): the flag may be a list of root/runtime
     names, in which case only a listed root passes."""
     import yaml as _yaml
-    from cs_image_system.base.utils import apply_flag_allows
     root = config_root
     if root is None:
         for cand in [Path.cwd(), *Path.cwd().parents]:
@@ -954,7 +1006,6 @@ def export_gids_command() -> None:
     {group: gid}. Credentials come from the environment, never from the query.
     """
     import sys
-    from cs_image_system.base.commands.identity_gids import export_gids
     try:
         query = json.load(sys.stdin)
         result = export_gids(query)
@@ -970,14 +1021,14 @@ app.add_typer(runtime_app, name="runtime")
 
 @runtime_app.command(name="describe")
 def runtime_describe_command(
+    typer_cntx: typer.Context,
     name: Annotated[str, typer.Argument(help="The runtime builder name")],
 ) -> None:
     """Project/zone, ephemerality, retention, the images baked there, the
     declared storages with their cloud names, the instances -- as JSON, so
     recipes read facts from the configuration instead of hardcoding them."""
-    from cs_image_system.base.commands.runtime_facts import describe_runtime
     try:
-        typer.echo(json.dumps(describe_runtime(name), indent=2, sort_keys=True))
+        typer.echo(json.dumps(describe_runtime(_loaded(typer_cntx), name), indent=2, sort_keys=True))
     except ValueError as e:
         typer.secho(f"runtime describe: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
@@ -985,16 +1036,15 @@ def runtime_describe_command(
 
 @app.command(name="empty")
 def empty_command(
+    typer_cntx: typer.Context,
     runtime: Annotated[str, typer.Option("--runtime", help="The runtime to check")],
 ) -> None:
     """Assert the runtime holds nothing beyond its declared storages (no
     instances, no custom images, no other disks or buckets) and that the
     strict state query agrees. Exit 1 naming every leftover."""
-    from cs_image_system.base.commands.runtime_facts import emptiness
-    from cs_image_system.base.global_context import GlobalTypeContext
-    from cs_image_system.base.state_query import DRIFT_STALE, query_state, write_state_report
+    ctx = _loaded(typer_cntx)
     try:
-        result = emptiness(runtime)
+        result = emptiness(ctx, runtime)
     except (ValueError, NotImplementedError, RuntimeError) as e:
         typer.secho(f"empty: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=2)
@@ -1011,7 +1061,6 @@ def empty_command(
             typer.echo(f"empty: left alone on {runtime}: {count} {kind} of configuration {owner!r}")
     if not result["empty"]:
         raise typer.Exit(code=1)
-    ctx = GlobalTypeContext()
     report = query_state(ctx)
     write_state_report(ctx, report)
     real = [d for d in report.drift if d.drift != DRIFT_STALE]
@@ -1029,6 +1078,7 @@ app.add_typer(lineage_app, name="lineage")
 
 @lineage_app.command(name="restamp")
 def lineage_restamp_command(
+    typer_cntx: typer.Context,
     runtime: Annotated[str, typer.Option("--runtime", help="Restamp the series heads baked on this runtime")],
     series: Annotated[list[str] | None, typer.Option("--series", help="Only these series (repeatable)")] = None,
     commit: Annotated[bool, typer.Option("--commit/--no-commit",
@@ -1038,11 +1088,9 @@ def lineage_restamp_command(
     one predates a fingerprint-recipe change (§9), and re-tag the cloud
     image to match -- an operator statement that those builds are current.
     Under the global --dry-run it reports the plan."""
-    from cs_image_system.base.commands.restamp import restamp
-    from cs_image_system.base.global_context import GlobalTypeContext
-    ctx = GlobalTypeContext()
+    ctx = _loaded(typer_cntx)
     try:
-        results = restamp(runtime, series)
+        results = restamp(ctx, runtime, series)
     except (ValueError, RuntimeError) as e:
         typer.secho(f"restamp: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
@@ -1055,7 +1103,6 @@ def lineage_restamp_command(
                     fg=typer.colors.YELLOW)
         return
     if commit:
-        from cs_image_system.base.meta_state import commit_meta_state
         sha = commit_meta_state(ctx.working_path, ctx.generation_path, ctx.run_id, ["restamp"], ctx.dry_run)
         if sha:
             typer.secho(f"meta-state committed: {sha}", fg=typer.colors.GREEN)
@@ -1064,6 +1111,7 @@ def lineage_restamp_command(
 
 @lineage_app.command(name="relabel")
 def lineage_relabel_command(
+    typer_cntx: typer.Context,
     runtime: Annotated[str, typer.Option("--runtime", help="Relabel the builds recorded on this runtime")],
     build: Annotated[list[str] | None, typer.Option("--build", help="Only these build ids (repeatable)")] = None,
 ) -> None:
@@ -1073,11 +1121,9 @@ def lineage_relabel_command(
     give the configuration's id (`csis_config`) to every declared storage
     and launched machine on the runtime that stands without it. No
     meta-state change. Under the global --dry-run it reports the plan."""
-    from cs_image_system.base.commands.relabel import relabel
-    from cs_image_system.base.global_context import GlobalTypeContext
-    ctx = GlobalTypeContext()
+    ctx = _loaded(typer_cntx)
     try:
-        results = relabel(runtime, build)
+        results = relabel(ctx, runtime, build)
     except (ValueError, RuntimeError, NotImplementedError) as e:
         typer.secho(f"relabel: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
@@ -1104,6 +1150,7 @@ app.add_typer(unmount_app, name="unmount")
 
 @unmount_app.command(name="storage")
 def unmount_storage_command(
+    typer_cntx: typer.Context,
     instance: Annotated[str, typer.Option("--instance", help="The launched instance")],
     storage: Annotated[str, typer.Option("--storage", help="The storage being detached")],
     mount_point: Annotated[str, typer.Option("--mount-point", help="Where it is mounted on the instance")],
@@ -1115,10 +1162,10 @@ def unmount_storage_command(
 ) -> None:
     """Unmount the storage ON the instance through the runtime's session
     mechanism and write the receipt gate-plan --require-unmounted checks."""
-    from cs_image_system.base.commands.unmount import unmount_storage
     wd = (workdir or Path.cwd()).resolve()
     try:
-        result = unmount_storage(instance, storage, mount_point, wd, confirm=confirm, timeout=timeout)
+        result = unmount_storage(_loaded(typer_cntx), instance, storage, mount_point, wd, confirm=confirm,
+                                 timeout=timeout)
     except (ValueError, NotImplementedError, RuntimeError) as e:
         typer.secho(f"unmount: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
@@ -1132,6 +1179,7 @@ app.add_typer(verify_app, name="verify")
 
 @verify_app.command(name="instance")
 def verify_instance_command(
+    typer_cntx: typer.Context,
     name: Annotated[str, typer.Argument(help="The declared instance to verify")],
     expect_build: Annotated[str | None, typer.Option("--expect-build",
         help="The build the instance must have booted (default: its pin / launch record)")] = None,
@@ -1143,9 +1191,9 @@ def verify_instance_command(
     """Run the runtime's verification of a launched instance (serial console,
     booted image, data disks) and record the verdict in meta-state. Exits 1
     on failure -- the runner stops, and an ephemeral instance stays standing."""
-    from cs_image_system.base.commands.verify_instance import VerificationFailed, verify_instance
     try:
-        record = verify_instance(name, expected_build=expect_build, timeout=timeout, record_only=record_only)
+        record = verify_instance(_loaded(typer_cntx), name, expected_build=expect_build, timeout=timeout,
+                                 record_only=record_only)
     except VerificationFailed as e:
         typer.echo(json.dumps(e.record, indent=2, sort_keys=True))
         typer.secho(str(e), fg=typer.colors.RED, err=True)
@@ -1162,13 +1210,13 @@ def verify_instance_command(
 
 @verify_app.command(name="assert")
 def verify_assert_command(
+    typer_cntx: typer.Context,
     name: Annotated[str, typer.Argument(help="The instance whose last verification must have passed")],
 ) -> None:
     """Fail (exit 1) if the instance's last recorded verification failed --
     the closing step of the `teardown` failure policy."""
-    from cs_image_system.base.commands.verify_instance import VerificationFailed, assert_last_verification
     try:
-        assert_last_verification(name)
+        assert_last_verification(_loaded(typer_cntx), name)
     except VerificationFailed as e:
         typer.secho(str(e), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
@@ -1181,6 +1229,7 @@ app.add_typer(forget_app, name="forget")
 
 @forget_app.command(name="instance")
 def forget_instance_command(
+    typer_cntx: typer.Context,
     name: Annotated[str, typer.Argument(help="the instance whose records are to be dropped")],
 ) -> None:
     """Drop a destroyed instance's pin and launch parameters.
@@ -1194,8 +1243,7 @@ def forget_instance_command(
     Refused while the instance is still declared: the way to remove a live
     instance is to undeclare it and let its destroy apply, which forgets the
     records for you. This only cleans up after that did not happen."""
-    from cs_image_system.base.global_context import GlobalTypeContext
-    ctx = GlobalTypeContext()
+    ctx = _loaded(typer_cntx)
     if any(i.get_name() == name for i in ctx.instances):
         typer.secho(f"forget: instance '{name}' is still declared -- undeclare it and let its "
                     f"destroy apply (that forgets the records); this is for records that "
@@ -1218,6 +1266,7 @@ app.add_typer(dispose_app, name="dispose")
 
 @dispose_app.command(name="image")
 def dispose_image_command(
+    typer_cntx: typer.Context,
     build_ids: Annotated[list[str] | None, typer.Argument(
         help="Lineage build id(s) to dispose of (the runtime's own image identifier)")] = None,
     runtime: Annotated[str | None, typer.Option("--runtime",
@@ -1233,11 +1282,9 @@ def dispose_image_command(
     record and any image pin at them, in one operation. Refuses unrecorded
     builds and builds an instance is pinned to or launched from. Under the
     global --dry-run (default) nothing is deleted: the plan is reported."""
-    from cs_image_system.base.commands.dispose import dispose_images
-    from cs_image_system.base.global_context import GlobalTypeContext
-    ctx = GlobalTypeContext()
+    ctx = _loaded(typer_cntx)
     try:
-        results = dispose_images(build_ids, runtime, all_, retention=retention)
+        results = dispose_images(ctx, build_ids, runtime, all_, retention=retention)
     except (ValueError, NotImplementedError, RuntimeError) as e:
         typer.secho(str(e), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
@@ -1250,7 +1297,6 @@ def dispose_image_command(
                     fg=typer.colors.YELLOW)
         return
     if commit:
-        from cs_image_system.base.meta_state import commit_meta_state
         sha = commit_meta_state(ctx.working_path, ctx.generation_path, ctx.run_id, ["dispose"], ctx.dry_run)
         if sha:
             typer.secho(f"meta-state committed: {sha}", fg=typer.colors.GREEN)
@@ -1264,6 +1310,7 @@ app.add_typer(state_app, name="state")
 
 @state_app.command(name="query")
 def state_query_command(
+    typer_cntx: typer.Context,
     strict: Annotated[bool, typer.Option("--strict",
         help="Exit 1 on any reality drift (missing/foreign/changed); `stale` -- a pin "
              "behind its series head -- is reported but is a policy state, not drift")] = False,
@@ -1273,9 +1320,7 @@ def state_query_command(
     (images by lineage tags, storages by name, groups by gid) and diff it
     against meta-state. Writes generated/state-report.json; runs consult it
     and refuse to proceed on hard drift. Touches nothing."""
-    from cs_image_system.base.global_context import GlobalTypeContext
-    from cs_image_system.base.state_query import query_state, write_state_report
-    ctx = GlobalTypeContext()
+    ctx = _loaded(typer_cntx)
     report = query_state(ctx)
     path = write_state_report(ctx, report)
     if as_json:
@@ -1285,9 +1330,7 @@ def state_query_command(
     typer.secho(f"state report written to {path}", err=True)
     # stage 12.3: the sessions were printed by the callback before the load;
     # the strict verdict uses the same reading
-    from cs_image_system.base.commands.preflight import session_lines
     _, blocking = session_lines(ctx)
-    from cs_image_system.base.state_query import DRIFT_STALE
     if report.hard or (strict and any(d.drift != DRIFT_STALE for d in report.drift)):
         raise typer.Exit(code=1)
     if strict and blocking:
@@ -1299,6 +1342,7 @@ def state_query_command(
 
 @state_app.command(name="import")
 def state_import_command(
+    typer_cntx: typer.Context,
     images: Annotated[bool, typer.Option("--images/--no-images", help="Adopt foreign tagged images into lineage")] = True,
     storages: Annotated[bool, typer.Option("--storages/--no-storages", help="Adopt foreign storages into storage-state")] = True,
 ) -> None:
@@ -1306,9 +1350,7 @@ def state_import_command(
     -- the migration path. Writes meta-state only; never the cloud, the
     identity provider or tofu state (importing into tofu state stays a
     deliberate human step)."""
-    from cs_image_system.base.global_context import GlobalTypeContext
-    from cs_image_system.base.state_query import import_foreign, query_state, write_state_report
-    ctx = GlobalTypeContext()
+    ctx = _loaded(typer_cntx)
     report = query_state(ctx)
     done = import_foreign(ctx, report, images=images, storages=storages)
     for line in done:
@@ -1320,6 +1362,7 @@ def state_import_command(
 
 @app.command(name="identity-attributes")
 def identity_attributes_command(
+    typer_cntx: typer.Context,
     probe: Annotated[bool, typer.Option("--probe", help="Read the provider's current attributes (read-only)")] = False,
     dry_run_apply: Annotated[bool, typer.Option("--dry-run-apply", help="Print what an apply would change")] = False,
     apply_for_real: Annotated[bool, typer.Option("--apply", help="Write attributes (DISABLED: DESIGN Q7)")] = False,
@@ -1328,10 +1371,7 @@ def identity_attributes_command(
     """Identity attributes (EXPLORE): show the plan written by the identity
     lifecycle, probe the provider read-only, and preview an apply. Writing is
     switched off until the stakeholder confirms DESIGN Q7."""
-    from cs_image_system.base.global_context import GlobalTypeContext
-    from cs_image_system.base.identity_attributes import (
-        AttributeApplyDisabled, apply, attributes_plan, probe as probe_fn, read_attributes_plan)
-    ctx = GlobalTypeContext()
+    ctx = _loaded(typer_cntx)
     plan = read_attributes_plan(ctx) or attributes_plan(ctx)
     if probe or dry_run_apply or apply_for_real:
         plan = probe_fn(ctx, plan)
@@ -1545,7 +1585,6 @@ def main(
     if locked:
         # stage 64 item 2: what scripts/with-tofu-lock did, held until the
         # context closes, however the command ends
-        from cs_image_system.base import tofu_lock
         try:
             release_lock = tofu_lock.acquire()
         except tofu_lock.NoCacheDir as e:
@@ -1608,12 +1647,15 @@ def main(
         # is missing; its `workload describe` loads at once). The sub-app's
         # commands call the load themselves because click hands the callback
         # no sub-subcommand name.
-        def deferred_load() -> None:
+        def deferred_load() -> "GlobalTypeContext":
             load_plugins()
-            from cs_image_system.base.global_context import read_config_and_transform
-            read_config_and_transform(typer_cntx, root_dir or Path(os.getcwd()), verbose, dry_run=dry_run,
-                                      overlays=[p.resolve() for p in (overlay or [])],
-                                      undeclare=list(undeclare or []))
+            loaded = read_config_and_transform(typer_cntx, root_dir or Path(os.getcwd()), verbose, dry_run=dry_run,
+                                               overlays=[p.resolve() for p in (overlay or [])],
+                                               undeclare=list(undeclare or []))
+            # the sub-command's own context object predates the load (the
+            # load replaces the root's), so the context is also RETURNED
+            typer_cntx.obj["ctx"] = loaded
+            return loaded
         typer_cntx.obj["deferred_load"] = deferred_load
         return
     load_plugins()
@@ -1623,7 +1665,6 @@ def main(
         # stage 12.3: sessions BEFORE the configuration loads -- the load
         # validates every runtime against its cloud and dies on an expired
         # session before any preflight could report it (found live 2026-09-09)
-        from cs_image_system.base.commands.preflight import raw_session_lines
         lines, blocking, expired = raw_session_lines(Path(root_dir), [p.resolve() for p in (overlay or [])])
         for line in lines:
             typer.secho(line, fg=typer.colors.YELLOW if line in blocking else None, err=True)
@@ -1633,15 +1674,16 @@ def main(
                         "the configuration can even load", fg=typer.colors.RED, err=True)
             raise typer.Exit(code=1)
     try:
-        from cs_image_system.base.global_context import read_config_and_transform
         # V2 reads the whole configuration every time; --base-only only selects
         # the base-image lifecycle (it no longer changes what is read).
-        read_config_and_transform(typer_cntx,
-                                  root_dir,
-                                  verbose,
-                                  dry_run=dry_run,
-                                  overlays=[p.resolve() for p in (overlay or [])],
-                                  undeclare=list(undeclare or []))
+        loaded = read_config_and_transform(typer_cntx,
+                                           root_dir,
+                                           verbose,
+                                           dry_run=dry_run,
+                                           overlays=[p.resolve() for p in (overlay or [])],
+                                           undeclare=list(undeclare or []))
+        # stage 124: the context is PASSED -- every command reads it here
+        typer_cntx.obj["ctx"] = loaded
         typer_cntx.obj["base_only"] = base_only
         # the load above REPLACES the context object; the invocation directory
         # is set again so a runner step still knows where it was started
@@ -1650,7 +1692,6 @@ def main(
         # hygiene XII (the walk's F10, F30, F41, F42): a known load-time
         # failure is one line and an exit code, not a traceback; an unknown
         # one keeps its traceback, and --verbose keeps every traceback
-        from cs_image_system.base.commands.load_failures import classify_load_failure
         failure = classify_load_failure(e)
         if failure is None:
             typer.echo(f"Error reading config file : {e}", err=True)

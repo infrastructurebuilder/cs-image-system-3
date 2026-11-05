@@ -30,14 +30,14 @@ def run(tmp_path: Path, monkeypatch):
 
 def test_describe_reads_the_runtime_facts_from_the_configuration(run):
     from cs_image_system.base.commands.runtime_facts import describe_runtime
-    facts = describe_runtime(GCE)
+    facts = describe_runtime(run.ctx, GCE)
     assert facts["project_id"] == "csis-sandbox" and facts["zone"] == "us-east1-b"
     assert facts["images"] == ["basic-rh-10", "imgfile-basic-dask"]
     assert facts["storages"]["gce_data"]["cloud_name"] == "gce-data"
     assert facts["storages"]["gce_bucket"]["cloud_name"] == "csis-sandbox-86233086783-default-bucket"
     assert facts["instances"] == ["gce-test"] and facts["ephemeral"] is False   # copies start non-ephemeral
     with pytest.raises(ValueError, match="unknown runtime"):
-        describe_runtime("nowhere")
+        describe_runtime(run.ctx, "nowhere")
 
 
 def test_emptiness_is_reality_minus_the_declared_storages(run, monkeypatch):
@@ -45,12 +45,12 @@ def test_emptiness_is_reality_minus_the_declared_storages(run, monkeypatch):
     from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
     monkeypatch.setattr(GCPCloudBuilder, "inventory", lambda self: {
         "instances": [], "images": [], "disks": ["gce-data"], "buckets": ["csis-sandbox-86233086783-default-bucket"]})
-    result = emptiness(GCE)
+    result = emptiness(run.ctx, GCE)
     assert result["empty"] and result["declared_storages"] == ["csis-sandbox-86233086783-default-bucket", "gce-data"]
     monkeypatch.setattr(GCPCloudBuilder, "inventory", lambda self: {
         "instances": ["gce-test"], "images": ["basic-rh-10-x"], "disks": ["gce-data", "scratch"],
         "buckets": ["csis-sandbox-86233086783-default-bucket"]})
-    result = emptiness(GCE)
+    result = emptiness(run.ctx, GCE)
     assert not result["empty"]
     assert result["leftovers"] == {"instances": ["gce-test"], "images": ["basic-rh-10-x"], "disks": ["scratch"],
                                    "buckets": []}
@@ -59,7 +59,7 @@ def test_emptiness_is_reality_minus_the_declared_storages(run, monkeypatch):
 def test_a_runtime_without_an_inventory_refuses(run, monkeypatch):
     from cs_image_system.base.commands.runtime_facts import emptiness
     with pytest.raises(NotImplementedError, match="cannot list its inventory"):
-        emptiness("aws-east2-runtime")
+        emptiness(run.ctx, "aws-east2-runtime")
 
 
 def test_only_runtime_is_the_bake_filter_for_everything_baked_there(run):

@@ -43,6 +43,7 @@ from cs_image_system.contract.hcl import HclRaw, hcl_expr
 from cs_image_system.tofu_roots.tofu_instance_builder import TofuInstanceBuilderBase
 
 from .tf_docker_models import TOFU_DOCKER, TofuDockerInstanceBuilderModel
+from cs_image_system.base.lineage import config_tags, pinned_instance_build
 
 log = logging.getLogger(__name__)
 
@@ -138,7 +139,6 @@ class TofuDockerInstanceBuilder(TofuInstanceBuilderBase[Q]):
         return f"launch-{label}.sh.tftpl"
 
     def _module_args(self, ctx, rtb, instance: Instance, params: dict[str, Any] | None = None) -> dict[str, Any]:
-        from cs_image_system.base.lineage import config_tags, pinned_instance_build
         label = utils.super_safe_name(instance.get_name())
         name = str(instance.get_name())
         hostname = str((params or {}).get("hostname") or name)

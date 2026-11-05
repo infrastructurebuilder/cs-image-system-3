@@ -27,6 +27,7 @@ from cs_image_system.hashicorp_utils.collector import TerraformCollector
 from cs_image_system.tofu_roots.tofu_instance_builder import TofuInstanceBuilderBase, TofuVersionChecker
 
 from .tf_instance_models import TOFU, TofuInstanceBuilderModel
+from cs_image_system.base.lineage import CONFIG_TAG, configuration_tag, pinned_instance_build, config_tags
 
 __all__ = ["TofuInstanceBuilder", "TofuVersionChecker"]
 
@@ -37,7 +38,6 @@ def _group_tags_line(ctx: Any) -> str:
     """The security group's tags: its name, and the configuration it belongs
     to (``csis_config``), so that in a shared account the state is not the
     only thing that says whose it is."""
-    from cs_image_system.base.lineage import CONFIG_TAG, configuration_tag
     tag = configuration_tag(ctx)
     if tag:
         return f'  tags = {{ Name = "csis-instances", {CONFIG_TAG} = "{tag}" }}'
@@ -173,7 +173,6 @@ class TofuInstanceBuilder(TofuInstanceBuilderBase[Q]):
         # Pinned build first (DESIGN §3F5): once bound, an instance keeps its
         # build until an explicit upgrade moves the pin; a rebuild of its
         # image's series never touches it.
-        from cs_image_system.base.lineage import pinned_instance_build
         pinned = pinned_instance_build(ctx, instance) if hasattr(ctx, "meta_state") else None
         # AMI via the image's provider-specific image
         psi = (ctx.get_provider_specific_image(instance.image, rtb.get_name())
@@ -213,7 +212,6 @@ class TofuInstanceBuilder(TofuInstanceBuilderBase[Q]):
             profile = profile_fn() if callable(profile_fn) else None
             if profile:
                 args["iam_instance_profile"] = profile
-        from cs_image_system.base.lineage import config_tags
         tags = {**(instance.get_tags() or {}), **config_tags(ctx)}     # the machine carries the id
         if tags:
             args["tags"] = dict(tags)

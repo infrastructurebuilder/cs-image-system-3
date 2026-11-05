@@ -35,6 +35,9 @@ from .capabilities import group_builder_of, storage_type_of
 from .launch_enrollment import enrollment_kind_for
 from . import generations
 from .lifecycles import Lifecycle
+from .lineage import instance_follow_target
+from cs_image_system.contract.runtime import LAUNCH_DELIVERY_BOOT
+from .utils import apply_enabled, roots_on_runtime
 
 if TYPE_CHECKING:
     from .global_context import GlobalTypeContext
@@ -49,19 +52,18 @@ ENROLLMENT_TOKEN_VARIABLE = "sft_enrollment_token"
 _VOLATILE = ("run", "user_data_sha256", "launched", "launched_run", "build")
 
 
-def mount_script_lines(mount: dict[str, Any], group: str | None, ctx: "GlobalTypeContext | None" = None) -> list[str]:
+def mount_script_lines(mount: dict[str, Any], group: str | None, ctx: "GlobalTypeContext | None") -> list[str]:
     """One mount's block of the launch script: its storage builder's
-    ``launch_script_lines`` (the record's ``builder`` names it; the context
-    is the configured one unless given). A mount whose builder is not
-    configured renders the shared header alone, as an unknown kind always
-    did."""
+    ``launch_script_lines`` (the record's ``builder`` names it in ``ctx``;
+    ``None`` configures no builder). A mount whose builder is not configured
+    renders the shared header alone, as an unknown kind always did."""
     builder = _mount_builder(mount, ctx)
     if builder is None:
         return StorageBuilderBase.mount_header_lines(mount)
     return list(builder.launch_script_lines(mount, group))
 
 
-def mount_tasks(mount: dict[str, Any], group: str | None, ctx: "GlobalTypeContext | None" = None) -> list[dict[str, Any]]:
+def mount_tasks(mount: dict[str, Any], group: str | None, ctx: "GlobalTypeContext | None") -> list[dict[str, Any]]:
     """One mount's ansible tasks: its storage builder's ``launch_tasks``;
     the directory task alone for a builder that is not configured."""
     builder = _mount_builder(mount, ctx)
@@ -72,12 +74,11 @@ def mount_tasks(mount: dict[str, Any], group: str | None, ctx: "GlobalTypeContex
 
 def _mount_builder(mount: dict[str, Any], ctx: "GlobalTypeContext | None") -> Any:
     if ctx is None:
-        from .global_context import GlobalTypeContext
-        ctx = GlobalTypeContext()
+        return None                     # no context: no storage builder is configured
     return ctx.storage_builders.get(str(mount.get("builder") or ""))
 
 
-def mounted_points(params: dict[str, Any], ctx: "GlobalTypeContext | None" = None) -> list[str]:
+def mounted_points(params: dict[str, Any], ctx: "GlobalTypeContext | None") -> list[str]:
     """The mount points the startup script mounts: every mount whose storage
     block carries the mount mark (an object store reached through its cloud
     CLI renders a comment and no mark)."""
@@ -111,7 +112,6 @@ def will_replace(ctx: "GlobalTypeContext", instance: Any) -> bool:
     left a pending replacement, or a follow policy has a newer head to move
     to. The same two exemptions validate_immutability honours -- so a name
     that changes here is exactly a name immutability lets change."""
-    from .lineage import instance_follow_target
     name = instance.get_name()
     return name in ctx.meta_state.pending_replacements() or instance_follow_target(ctx, instance) is not None
 
@@ -138,7 +138,6 @@ def canonical_hostname(ctx: "GlobalTypeContext", instance: Any) -> str:
 
     The pad is a minimum width: generation 1000 renders ``-1000``. Change
     the seam HERE and nowhere else."""
-    from . import generations
     name = str(instance.get_name())
     ms = ctx.meta_state
     recorded = ms.launch_params().get(name) or {}
@@ -229,10 +228,9 @@ def compute_launch_params(ctx: "GlobalTypeContext", instance: "Instance") -> dic
     enrollment = gb.launch_parameters(group_obj) if (gb is not None and group_obj is not None) else {}
     rtb = ctx.runtime_builders.get(instance.runtime) if instance.runtime else None
     session = rtb.session_mechanism() if rtb is not None else None
-    from cs_image_system.contract.runtime import LAUNCH_DELIVERY_BOOT
     delivery = str(rtb.launch_delivery()) if rtb is not None and hasattr(rtb, "launch_delivery") else LAUNCH_DELIVERY_BOOT
     hostname = canonical_hostname(ctx, instance)
-    from .alias_pool import alias_for
+    from .alias_pool import alias_for   # lazy: alias_pool imports this module
     alias = alias_for(ctx, instance, hostname)     # stage 59: a pool name, spent once, for a new machine
     machine_type = effective_machine_type(instance, rtb)
     return {
@@ -358,10 +356,9 @@ def forget_decommissioned(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> Non
     decommission whitelist: forget their launch parameters and pins (N19)."""
     if lifecycle != Lifecycle.INSTANCE_IMAGE:
         return
-    from .utils import apply_enabled, roots_on_runtime
     # same guard as mark_launched (finding 21): an after-apply hook runs only
     # when the apply step ran, and the flag decides whether it applied for real
-    if not apply_enabled("instances"):
+    if not apply_enabled(ctx, "instances"):
         return
     ms = ctx.meta_state
     declared = {i.get_name() for i in ctx.instances}
@@ -373,7 +370,7 @@ def forget_decommissioned(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> Non
         build_id = pins.get(name) or (params.get(name) or {}).get("build")
         rec = ms.build(str(build_id)) if build_id else None
         rt = str(rec.get("runtime")) if rec and rec.get("runtime") else None
-        if rt is not None and not apply_enabled("instances", rt, roots_on_runtime(ctx.instance_builders, rt)):
+        if rt is not None and not apply_enabled(ctx, "instances", rt, roots_on_runtime(ctx.instance_builders, rt)):
             continue
         log.info(f"Instance {name} is no longer declared and its destroy applied: "
                  "dropping its launch parameters and pin (decommission)")
@@ -397,13 +394,12 @@ def record_detachments(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
     re-recorded without the mount (stage 10.14)."""
     if lifecycle != Lifecycle.INSTANCE_IMAGE:
         return
-    from .utils import apply_enabled
-    if not apply_enabled("instances"):
+    if not apply_enabled(ctx, "instances"):
         return
     ms = ctx.meta_state
     for instance in ctx.instances:
         removed = detachments(ctx, instance)
-        if not removed or not apply_enabled("instances", str(instance.type_), [str(instance.runtime)]):
+        if not removed or not apply_enabled(ctx, "instances", str(instance.type_), [str(instance.runtime)]):
             continue
         old = ms.launch_params().get(instance.get_name()) or {}
         params = compute_launch_params(ctx, instance)
@@ -427,13 +423,12 @@ def record_resizes(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
     recomputes the record and would otherwise write the new type unnoticed."""
     if lifecycle != Lifecycle.INSTANCE_IMAGE:
         return
-    from .utils import apply_enabled
-    if not apply_enabled("instances"):
+    if not apply_enabled(ctx, "instances"):
         return
     ms = ctx.meta_state
     for instance in ctx.instances:
         resize = resize_of(ctx, instance)
-        if not resize or not apply_enabled("instances", str(instance.type_), [str(instance.runtime)]):
+        if not resize or not apply_enabled(ctx, "instances", str(instance.type_), [str(instance.runtime)]):
             continue
         name = instance.get_name()
         rec = dict(ms.launch_params().get(name) or {})
@@ -449,16 +444,16 @@ def forget_ephemerals(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
     forgotten; the verification record in verifications.yaml remains."""
     if lifecycle != Lifecycle.INSTANCE_IMAGE:
         return
-    from .utils import apply_enabled
-    if not apply_enabled("instances"):
+    if not apply_enabled(ctx, "instances"):
         return
-    from .commands.verify_instance import ON_FAILURE_TEARDOWN, VerificationFailed, failure_policy, last_verification
+    from .commands.verify_instance import (   # lazy: commands.verify_instance imports this module
+        ON_FAILURE_TEARDOWN, VerificationFailed, failure_policy, last_verification)
     ms = ctx.meta_state
     failed: list[dict[str, Any]] = []
     for inst in ctx.instances:
         if not getattr(inst, "ephemeral", False):
             continue
-        if not apply_enabled("instances", str(inst.type_), [str(inst.runtime)]):
+        if not apply_enabled(ctx, "instances", str(inst.type_), [str(inst.runtime)]):
             continue
         name = inst.get_name()
         log.info(f"Ephemeral instance {name}: verified and torn down this run; forgetting its launch record")
@@ -485,8 +480,7 @@ def mark_launched(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
     every declared instance is launched: its parameters are now immutable."""
     if lifecycle != Lifecycle.INSTANCE_IMAGE:
         return
-    from .utils import apply_enabled
-    if not apply_enabled("instances"):
+    if not apply_enabled(ctx, "instances"):
         return
     ms = ctx.meta_state
     declared = {i.get_name(): i for i in ctx.instances}
@@ -495,7 +489,7 @@ def mark_launched(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
         inst = declared.get(name)
         # Per-root scoping (stage 7): a declared instance is launched only
         # when ITS root (builder name / runtime) was allowed to apply.
-        if inst is not None and not apply_enabled("instances", str(inst.type_), [str(inst.runtime)]):
+        if inst is not None and not apply_enabled(ctx, "instances", str(inst.type_), [str(inst.runtime)]):
             continue
         if inst is not None:
             params = dict(params)
@@ -555,7 +549,6 @@ def validate_immutability(ctx: "GlobalTypeContext", requested: list[Lifecycle]) 
             continue
         if name in pending:
             continue
-        from .lineage import instance_follow_target
         if instance_follow_target(ctx, instance):
             continue   # a policy-driven replacement (stage 9.5) is a replacement
         new = compute_launch_params(ctx, instance)
@@ -618,14 +611,13 @@ def validate_claimed_hostnames(ctx: "GlobalTypeContext", requested: list[Lifecyc
     exactly when a duplicate would otherwise slip through."""
     if Lifecycle.INSTANCE_IMAGE not in requested:
         return []
-    from .utils import apply_enabled
-    if not apply_enabled("instances") or getattr(ctx, "dry_run", False):
+    if not apply_enabled(ctx, "instances") or getattr(ctx, "dry_run", False):
         return []
     errors: list[str] = []
     recorded = ctx.meta_state.launch_params()
     registries: dict[str, list[dict[str, Any]] | None] = {}
     for instance in ctx.instances:
-        if not apply_enabled("instances", str(instance.type_), [str(instance.runtime)]):
+        if not apply_enabled(ctx, "instances", str(instance.type_), [str(instance.runtime)]):
             continue
         image = ctx.images_map.get(str(instance.image))
         group = str(getattr(image, "group", None) or "") if image is not None else ""

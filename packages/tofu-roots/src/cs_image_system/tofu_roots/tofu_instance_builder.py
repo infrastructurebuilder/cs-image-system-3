@@ -45,6 +45,14 @@ from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.hashicorp_utils.collector import TerraformCollector, TerraformVariable, terraform_collector
 from .roots import TerraformRootMixin
 from .tofu_models import TOFU_EXECUTABLE, TofuInstanceBuilderModelBase
+from cs_image_system.base.launch_params import detachments
+from cs_image_system.base.utils import (
+    system_cli_executable_with_config as system_cli_executable,
+    system_cli_executable_with_config,
+)
+from cs_image_system.base.commands.verify_instance import ON_FAILURE_TEARDOWN, failure_policy, teardown_due
+from cs_image_system.base.lineage import pending_instance_replacements, instance_follow_target
+from cs_image_system.contract.lifecycles import Lifecycle
 
 log = logging.getLogger(__name__)
 
@@ -258,7 +266,7 @@ class TofuInstanceBuilderBase(InstanceBuilderBase[Q], TerraformRootMixin):
             return items                                    # outside --only-runtime, nothing
         ctx = self._get_context()
         rtb = self._runtime_builder()
-        src = utils.module_source(self._module_dirname(),
+        src = utils.module_source(ctx, self._module_dirname(),
                                   self.get_path_for_phase(phase, suffix=".tf").parent)
         bindings = terraform_collector(ctx).provider_bindings(self.name)
         word = self._instance_word()
@@ -301,7 +309,7 @@ class TofuInstanceBuilderBase(InstanceBuilderBase[Q], TerraformRootMixin):
             # apply scoping: a list-valued apply_instances names the roots
             # (builder name or runtime) that may apply.
             rt = str(self.model.get_runtime_provider())
-            apply = utils.apply_enabled("instances", self.name, [rt])
+            apply = utils.apply_enabled(self._get_context(), "instances", self.name, [rt])
             unmounts, require, detach_allow = self._detach_commands(wd)
             finalize.extend(self.gated_apply_commands(
                 phase, wd, apply=apply,
@@ -320,8 +328,6 @@ class TofuInstanceBuilderBase(InstanceBuilderBase[Q], TerraformRootMixin):
         the machine before the plan, the gate requires that receipt, and the
         attachment's destroy (where it is a resource) is whitelisted as a
         detach."""
-        from cs_image_system.base.launch_params import detachments
-        from cs_image_system.base.utils import system_cli_executable_with_config as system_cli_executable
         ctx = self._get_context()
         steps: list[ExecutableModel] = []
         require: list[str] = []
@@ -330,7 +336,7 @@ class TofuInstanceBuilderBase(InstanceBuilderBase[Q], TerraformRootMixin):
             for m in detachments(ctx, instance):
                 storage = str(m.get("storage"))
                 steps.append(system_cli_executable(
-                    ["unmount", "storage", "--instance", instance.get_name(), "--storage", storage,
+                    ctx, ["unmount", "storage", "--instance", instance.get_name(), "--storage", storage,
                      "--mount-point", str(m.get("mount_point")),
                      "--workdir", str(ctx.generation_path / wd)], wd))
                 require.append(f"{instance.get_name()}:{storage}")
@@ -357,7 +363,7 @@ class TofuInstanceBuilderBase(InstanceBuilderBase[Q], TerraformRootMixin):
             ctx = self._get_context()
             rt = str(self.model.get_runtime_provider())
             standing = ctx.meta_state.current_generation(instance.get_name()) is not None
-            if not standing and not utils.apply_enabled("instances", self.name, [rt]):
+            if not standing and not utils.apply_enabled(ctx, "instances", self.name, [rt]):
                 # between cycles an ephemeral machine neither stands nor is
                 # being launched by this run, and a root that only PLANS must
                 # not look up an image its cycle disposed of. Present only when
@@ -375,9 +381,6 @@ class TofuInstanceBuilderBase(InstanceBuilderBase[Q], TerraformRootMixin):
         ephemerals = self.ephemerals()
         if not ephemerals or not apply:
             return []
-        from cs_image_system.base.commands.verify_instance import (
-            ON_FAILURE_TEARDOWN, failure_policy, teardown_due)
-        from cs_image_system.base.utils import system_cli_executable_with_config
         ctx = self._get_context()
         out: list[ExecutableModel] = []
         for instance in ephemerals:
@@ -397,7 +400,7 @@ class TofuInstanceBuilderBase(InstanceBuilderBase[Q], TerraformRootMixin):
                 # script's last step failed the runner before the hook ran,
                 # leaving a launch record for an instance that no longer existed)
                 args.append("--record-only")
-            out.append(system_cli_executable_with_config(args, wd))
+            out.append(system_cli_executable_with_config(ctx, args, wd))
         out.extend(self.gated_apply_commands(
             phase, wd, apply=True,
             allow_destroy=[self._module_address(i.get_name()) for i in ephemerals],
@@ -412,7 +415,6 @@ class TofuInstanceBuilderBase(InstanceBuilderBase[Q], TerraformRootMixin):
     def _replacements(self) -> list[str]:
         """Instances whose pin an explicit upgrade moved: forced replacement."""
         ctx = self._get_context()
-        from cs_image_system.base.lineage import pending_instance_replacements
         names = pending_instance_replacements(ctx, self._instances)   # upgrades + follow
         resource = self._module_resource()
         return [f"{self._module_address(n)}.{resource}.this" for n in sorted(names)]
@@ -424,7 +426,6 @@ class TofuInstanceBuilderBase(InstanceBuilderBase[Q], TerraformRootMixin):
         operation-driven change the `-replace` sanctioned. None on a runtime
         whose attachment is an in-place attribute."""
         ctx = self._get_context()
-        from cs_image_system.base.lineage import pending_instance_replacements
         out: list[str] = []
         for n in sorted(pending_instance_replacements(ctx, self._instances)):
             addr = self._attachment_address(n, "")
@@ -463,7 +464,7 @@ class TofuInstanceBuilderBase(InstanceBuilderBase[Q], TerraformRootMixin):
         another runtime's root emits nothing. A root whose state location is
         recorded is emitted, empty, until its state holds nothing (its own
         resources, a security group, may still stand)."""
-        if not utils.root_in_runtime_scope(self.model.get_runtime_provider()):
+        if not utils.root_in_runtime_scope(self._get_context(), self.model.get_runtime_provider()):
             return False
         if self._instances or self._decommission_whitelist():
             return True
@@ -478,7 +479,7 @@ class TofuInstanceBuilderBase(InstanceBuilderBase[Q], TerraformRootMixin):
         ids into an .auto.tfvars so the instance modules use exact artifacts
         instead of their own lookup fallback.
         """
-        if not utils.root_in_runtime_scope(self.model.get_runtime_provider()):
+        if not utils.root_in_runtime_scope(self._get_context(), self.model.get_runtime_provider()):
             # another runtime's root emitted nothing this run, so there is no
             # tfvars to write for it
             return
@@ -488,7 +489,6 @@ class TofuInstanceBuilderBase(InstanceBuilderBase[Q], TerraformRootMixin):
         # The release and retention lifecycles extend this phase with one
         # deferred step of their own; only the lifecycle that generates
         # instance roots gets the tfvars.
-        from cs_image_system.contract.lifecycles import Lifecycle
         current = getattr(ctx, "current_lifecycle", None)      # a bare harness context has none
         if current is not None and str(current.value) != Lifecycle.INSTANCE_IMAGE.value:
             return
@@ -518,16 +518,15 @@ class TofuInstanceBuilderBase(InstanceBuilderBase[Q], TerraformRootMixin):
         instance to the build it was launched from (first bind, N5)."""
         if phase != ExecutionLifecyclePhase.INSTANCE_GENERATION or not self._instances:
             return
-        if not utils.root_in_runtime_scope(self.model.get_runtime_provider()):
+        if not utils.root_in_runtime_scope(self._get_context(), self.model.get_runtime_provider()):
             return      # a root out of this run's scope applied nothing to bind
-        if not utils.apply_enabled("instances", self.name, [str(self.model.get_runtime_provider())]):
+        if not utils.apply_enabled(self._get_context(), "instances", self.name, [str(self.model.get_runtime_provider())]):
             return
         ctx = self._get_context()
         rtb = self._runtime_builder()
         if rtb is None:
             return
         ms = ctx.meta_state
-        from cs_image_system.base.lineage import instance_follow_target
         for instance in self._instances:
             name = instance.get_name()
             if getattr(instance, "ephemeral", False):

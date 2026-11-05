@@ -40,6 +40,7 @@ from .encryption import decrypt_tree, decrypted_plaintexts
 from .public_safe import (COMMITTED_TFVARS, PRIVATE_DIRNAME, REFUSED_PATHS, PublicSafeError,  # noqa: F401
                           allow_from_config, assert_public_safe,
                           config_for, refused_path, scan_file, scan_for_plaintexts)
+from .models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_DESTROYED
 
 log = logging.getLogger(__name__)
 
@@ -200,7 +201,6 @@ class MetaState:
         counter moves on and the history keeps the earlier life. ``facts``
         (owning builder, type, bucket name) let an undeclared storage still
         be planned and wiped after its entry left the YAML."""
-        from .models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_DESTROYED
         data = self.read(STORAGE_STATE)
         storages = data.setdefault("storages", {})
         entry = storages.setdefault(name, {"state": to_state, "history": []})

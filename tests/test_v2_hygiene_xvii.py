@@ -37,7 +37,7 @@ def test_the_guard_passes_the_vendors_image_moving_under_an_unbaked_base(tmp_pat
     v2 = _generated_tree(tmp_path, monkeypatch)
     os.chdir(v2.config_root)
     _move_the_vendor_image(v2.config_root)
-    code, lines = runtime_unchanged("gcloud-east1", "HEAD")
+    code, lines = runtime_unchanged(v2.ctx, "gcloud-east1", "HEAD")
     assert code == 0, lines
     assert "unchanged since HEAD" in lines[0] and "vendor's newest image moved" in lines[0], lines
     assert "nothing of yours changed" in lines[0], lines
@@ -53,7 +53,7 @@ def test_the_guard_still_fails_a_vendor_move_beside_a_change_of_the_runtimes(tmp
     _move_the_vendor_image(root)
     f = _gce_source(root)
     f.write_text(f.read_text() + "# a declaration changed\n")
-    code, lines = runtime_unchanged("gcloud-east1", "HEAD")
+    code, lines = runtime_unchanged(v2.ctx, "gcloud-east1", "HEAD")
     assert code == 1 and "CHANGED since HEAD" in lines[0], lines
     v2.restore_cwd()
 

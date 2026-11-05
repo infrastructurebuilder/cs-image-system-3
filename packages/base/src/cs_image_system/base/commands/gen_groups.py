@@ -17,27 +17,21 @@ def predefined_group_generation(
     is_base_image_phase: bool = False
 ) -> bool:
     """Predefined function for group generation lifecycle phase."""
-    from ..global_context import GlobalTypeContext
-
-
-    ctx = GlobalTypeContext() # Initialize the global context
     configured_group_builders: dict[str, GroupBuilderBase] = ctx.group_builders
     for builder_name, builder in configured_group_builders.items():
         log.debug(
                 f"Generating groups for builder: {builder_name} "
                 # f"with runtime provider: {rtp.name}"
             )
-        if not generate_groups(phase, builder): #, rtp):
+        if not generate_groups(ctx, phase, builder): #, rtp):
             return False
     return True
 
 
 def generate_groups(
+    ctx: GlobalTypeContext,
     phase: ExecutionLifecyclePhase,
     gbb: GroupBuilderBase) -> bool:
-
-    from ..global_context import GlobalTypeContext
-    ctx = GlobalTypeContext()  # Initialize the global context
     log.debug(f"Generating groups for group builder {gbb.get_name()} during phase {phase.value}...")
     qv = gbb.generate_items_during(phase)
     qv.sort_and_write(ctx.generation_path)

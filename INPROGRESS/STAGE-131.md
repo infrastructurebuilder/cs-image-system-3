@@ -89,7 +89,7 @@ whose.
 type system; this stage keys the tables by a typed tuple and adds no
 string dispatch, and leaves the `hasattr` dispatch to
 [§125](STAGE-125.md) item 4. The registry stays a singleton here;
-[§124](STAGE-124.md) item 2's decision on dropping it is unchanged.
+§124 item 2's decision on dropping it is unchanged.
 The namespace is derived from packaging, not from a provider word
 (§121). Nothing worsens; no question before
 solidifying.
@@ -97,7 +97,7 @@ solidifying.
 **Out of scope**: the names a tree gives its builders and their
 aliases (the `instances` tables; collisions there are the operator's
 own and are right to refuse); the entry-point groups
-([§130](STAGE-130.md) item 8); the singleton ([§124](STAGE-124.md)).
+([§130](STAGE-130.md) item 8); the singleton (§124).
 
 **Acceptance**: emission byte-identical (the golden; the reference's
 `config-drift`); the tests of item 6; §120's

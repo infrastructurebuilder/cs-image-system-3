@@ -20,7 +20,7 @@ commit on the bundle's branch.
    tests behind a three-line recipe; the sibling repository's working
    tree is read through one documented function; the release appends
    `docs/CHANGES.md` (§119's owed item).
-5. The lint bar, once [§124](STAGE-124.md) and [§127](STAGE-127.md) have lowered the `Any` count:
+5. The lint bar, once §124 and [§127](STAGE-127.md) have lowered the `Any` count:
    ruff gains `B`, `I`, `C90` (a complexity ceiling measured first)
    and stops ignoring `F841`; pyright `standard` for contract,
    hashicorp-utils and the plugins, `basic` for base and system until
@@ -85,6 +85,30 @@ commit on the bundle's branch.
     the context before anything built it) and passes after any test
     that loads one; under the bar it passes by order. The test builds
     its own context or the helper tolerates none (found by §122).
+
+19. The one-release shims of §124 retire in the release after
+    0.1.7: the `GlobalTypeContext` name and `global_context.py`, the
+    no-argument fetch (`run_context.current_context`,
+    `registry.current_registry`, the fallback in
+    `BuilderBase._get_context()`), and the `RunContext` delegations to
+    the finalizer. The model methods that reach the current context
+    or registry (`models/image.py`, `base_image.py`, `mixins.py`,
+    `builder_model.py`, the okta and docker provider-specific image
+    models, `os_types`, `public_safe`, `image_sources`, the two state
+    builders' `session_status`) take what they need instead;
+    `version_checker_for(exe)` and the `TemplateResolver` (whose
+    `flattened_map` is still process-wide) get a per-run handle (found
+    by §124).
+20. Eleven function-local imports left beside §124's registry edits
+    are cycle-free and hoist to the top level (`commands/load_failures`,
+    `commands/preflight`, `image_sources`, `public_safe`: the
+    `load_plugins` + `current_registry` pairs; the two state builders'
+    `current_registry`; `loader.py`'s `Orchestrator`), after which
+    `LAZY_EDGES_CORE_MAX` in `tests/test_import_closure.py` falls from
+    13 to 3 (found by §124).
+21. `ImageSourceCatalog` (`image_sources.py`) is the last `@singleton`
+    a run reads; it goes per-run like the registry, reached through
+    the context (found by §124).
 
 **Acceptance**: each item its own commit; `just test` green after
 each; one squash, branch kept. Records: the squash; this section goes

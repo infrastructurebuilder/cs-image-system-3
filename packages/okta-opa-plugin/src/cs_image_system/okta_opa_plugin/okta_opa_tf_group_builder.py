@@ -38,6 +38,9 @@ from .module_objects import module_objects_state
 from .workload_policy import (WorkloadSnapshot, by_name, ci_policy_from, ci_policy_name, describe_condition,
                               policies_equal, user_policy_name, workload_state)
 from .server_aliases import alt_names_script
+from cs_image_system.base.os_types import os_type_for_family
+from cs_image_system.base.commands.state_migration import backup
+from cs_image_system.base.identity_attributes import declared_attributes
 
 """
 Group provider implementation via Terraform/Tofu for Okta groups using okta/oktapam
@@ -103,7 +106,6 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         image (activation_commands) and enrollment at launch (N26)."""
         # the OS type owns the package manager's lines; this plugin owns
         # the OktaPAM repository recipe per package format
-        from cs_image_system.base.os_types import os_type_for_family
         os_type = os_type_for_family(os_family)
         fmt = os_type.package_format()
         if fmt == "deb":
@@ -548,10 +550,9 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         event."""
         items = AssetSet()
         if phase == ExecutionLifecyclePhase.GROUP_GENERATION:
-            from cs_image_system.base.global_context import GlobalTypeContext
-            ctx = GlobalTypeContext()
+            ctx = self._get_context()
             rg: Group = ctx.root_group
-            src = utils.module_source("okta_opa_module",
+            src = utils.module_source(ctx, "okta_opa_module",
                                       self.get_path_for_phase(phase, suffix=".tf").parent)
 
             for group in self.get_groups_for_builder():
@@ -726,8 +727,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         """``{label: (group, {"members": {...}, "admins": {...}})}`` for every
         managed group, admins merged with the root group's exactly as the
         module call emits them."""
-        from cs_image_system.base.global_context import GlobalTypeContext
-        root_group = GlobalTypeContext().root_group
+        root_group = self._get_context().root_group
         out: dict[str, tuple[Group, dict[str, set[str]]]] = {}
         for g in self.get_groups_for_builder():
             if getattr(g, "unmanaged", False):
@@ -794,8 +794,6 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
             log.error(f"Identity builder {self.name}: `state list` failed in {cwd}; nothing is removed from state:\n"
                       f"{said}")
             return 1
-        from cs_image_system.base.commands.state_migration import backup
-        from cs_image_system.base.global_context import GlobalTypeContext
         # Stage 90 (the walk's F63): a group marked ``unmanaged: true`` leaves
         # state HERE, decided by what the state holds. It used to be decided at
         # generation, from the identity read-model's ``managed`` -- a file every
@@ -808,7 +806,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         backed_up = False
         for group, module, held in self._held_by_unmanaged([ln.strip() for ln in listed.stdout.splitlines()]):
             if not backed_up:
-                if backup(GlobalTypeContext(), self.name, tofu, run_id, cwd) != 0:
+                if backup(self._get_context(), self.name, tofu, run_id, cwd) != 0:
                     return 1
                 backed_up = True
             log.info(f"Identity builder {self.name}: group {group.get_name()!r} is unmanaged and the state still "
@@ -865,7 +863,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
             return 0
         # one backup a run, taken before the FIRST removal: a second would keep
         # the state as it stood after a release above, under the same name
-        if not backed_up and backup(GlobalTypeContext(), self.name, tofu, run_id, cwd) != 0:
+        if not backed_up and backup(self._get_context(), self.name, tofu, run_id, cwd) != 0:
             return 1
         for addr, group, kind, user in remove:
             log.info(f"Identity builder {self.name}: {kind[:-1]} {user!r} was dropped from group "
@@ -911,7 +909,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         # holds, from the state it can see, after a backup (prune_stale_attachments).
         tofu_bin = self.get_executable_copy()
         prune = utils.system_cli_executable_with_config(
-            ["prune-attachments", "--builder", self.name, "--tofu", str(tofu_bin.binary or tofu_bin.name),
+            self._get_context(), ["prune-attachments", "--builder", self.name, "--tofu", str(tofu_bin.binary or tofu_bin.name),
              "--run", str(self._get_context().run_id)], wd)
         # Per-root apply scoping (stage 7): the identity root is its builder name.
         # The prune step is the one place anything leaves state before the plan: a
@@ -920,19 +918,18 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         # stage 88: the gate reads the removals that step sanctioned (a membership
         # the YAML dropped), each by its exact address
         deferred = self.gated_apply_commands(
-            phase, wd, apply=utils.apply_enabled("identity", self.name),
+            phase, wd, apply=utils.apply_enabled(self._get_context(), "identity", self.name),
             pre_commands=[prune], apply_flag_key="identity", apply_root=self.name,
             allow_destroy_from=[self.SANCTIONED_REMOVALS])
         # EXPLORE identity: attributes travel outside terraform. When
         # anything is declared, the runner probes (read-only) after the
         # apply and shows what an attribute apply would change; the write
         # itself stays disabled (DESIGN Q7).
-        from cs_image_system.base.identity_attributes import declared_attributes
         declared = declared_attributes(self._get_context())
         if declared["groups"] or declared["users"]:
             # the probe loads the configuration, so it carries --root-dir like every
             # other runner step that does (stage 63 item 8: without it the step loaded
             # from the root's mirror, which has no cfg/, and failed after the apply)
             deferred.append(utils.system_cli_executable_with_config(
-                ["identity-attributes", "--probe", "--dry-run-apply"], wd))
+                self._get_context(), ["identity-attributes", "--probe", "--dry-run-apply"], wd))
         return CFExecutables(commands, deferred)

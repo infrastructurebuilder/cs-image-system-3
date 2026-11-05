@@ -36,6 +36,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from .constants import OOPS_DEFAULTS
+from .capabilities import image_chain
 
 if TYPE_CHECKING:
     from .global_context import GlobalTypeContext
@@ -51,7 +52,6 @@ def _set(value: Any) -> str | None:
 def root_os_builder(ctx: "GlobalTypeContext", image: Any) -> Any | None:
     """The OS builder at the root of ``image``'s chain (the image itself when
     it is a base image)."""
-    from .capabilities import image_chain
     name = image.get_name()
     root = name if name in ctx.os_builders else image_chain(ctx, image)[1]
     return ctx.os_builders.get(root) if root else None

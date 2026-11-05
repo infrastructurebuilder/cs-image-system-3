@@ -25,7 +25,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.v2_support import V2Run, copy_config
+from tests.v2_support import V2Run, cli_context, copy_config
 
 GCE_ROOT = Path("instance-image") / "tofu-gce" / "instance-generation"
 AWS_ROOT = Path("instance-image") / "open-tofu" / "instance-generation"
@@ -232,7 +232,7 @@ def test_forget_drops_records_that_outlived_their_instance(prepared):
         assert run.run(["instance-image"], apply=False).ok      # a dry run keeps them
         assert "gce-test" in yaml.safe_load((run.meta_state / "pins.yaml").read_text())["instances"]
 
-        forget_instance_command("gce-test")
+        forget_instance_command(cli_context(run.ctx), "gce-test")
 
         pins = yaml.safe_load((run.meta_state / "pins.yaml").read_text())
         params = yaml.safe_load((run.meta_state / "launch-params.yaml").read_text())
@@ -255,7 +255,7 @@ def test_forget_refuses_an_instance_that_is_still_declared(prepared):
     try:
         assert run.run(["instance-image"], apply=False).ok
         with pytest.raises(typer.Exit) as ei:
-            forget_instance_command("gce-test")
+            forget_instance_command(cli_context(run.ctx), "gce-test")
         assert ei.value.exit_code == 2
         pins = yaml.safe_load((run.meta_state / "pins.yaml").read_text())
         assert "gce-test" in pins["instances"], "a declared instance keeps its pin"

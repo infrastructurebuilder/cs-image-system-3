@@ -51,10 +51,10 @@ def _chain(exc: BaseException) -> Iterator[BaseException]:
 def _builder_classes() -> list[type]:
     """Every registered builder class once, in registration order."""
     from ..loader import load_plugins
-    from ..registry import Registry
+    from ..registry import current_registry
     load_plugins()
     seen: dict[int, type] = {}
-    for cls in Registry().builders.values():
+    for cls in current_registry().builders.values():   # pre-load: no run's registry yet
         seen.setdefault(id(cls), cls)
     return list(seen.values())
 

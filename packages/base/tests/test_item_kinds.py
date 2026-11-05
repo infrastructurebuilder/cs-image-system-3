@@ -16,23 +16,17 @@ from dataclasses import dataclass
 
 import pytest
 
+from cs_image_system.base import config_loader
 from cs_image_system.base import global_context as gc
 from cs_image_system.base import registry as _registry
 from cs_image_system.base.constants import VCT, NO_MODEL_ID
 from cs_image_system.base.models.builder_model import NameTyped
 
 
-def _gtc_cls():
-    """GlobalTypeContext is @singleton-wrapped; recover the real class from the closure."""
-    for cell in cast(Any, gc.GlobalTypeContext).__closure__:
-        val = cell.cell_contents
-        if isinstance(val, type) and val.__name__ == "GlobalTypeContext":
-            return val
-    raise RuntimeError("could not locate GlobalTypeContext class")
-
-
 def _read(stub, spec):
-    return _gtc_cls()._read_item_kind(stub, spec)
+    # stage 124: the reader is the loader's function over a context; a
+    # stand-in with the attributes it reads (working_path, reg) is a context
+    return config_loader.read_item_kind(cast(Any, stub), spec)
 
 
 # stage 23: ItemKind.model_cls is declared `type[NameTyped]` and its docstring
@@ -82,7 +76,7 @@ def _spec(**over: Any) -> gc.ItemKind:
 
 
 def test_read_item_kind_full_flow(clean_registry, tmp_path):
-    reg = _registry.Registry()
+    reg = _registry.current_registry()
     builder = _FakeBuilder("thing-builder")
     reg.register_built_instance(builder)
     _write_things(tmp_path, ("alpha", "thing-builder"), ("beta", "thing-builder"))
@@ -102,7 +96,7 @@ def test_read_item_kind_full_flow(clean_registry, tmp_path):
 
 
 def test_read_item_kind_fills_default_missing_type(clean_registry, tmp_path):
-    reg = _registry.Registry()
+    reg = _registry.current_registry()
     reg.register_built_instance(_FakeBuilder("thing-builder"))
     reg.set_default_for(VCT.STORAGE_BUILDER, "thing-builder")
     _write_things(tmp_path, ("gamma", "default"))  # 'default' is a DEFAULT sentinel
@@ -114,7 +108,7 @@ def test_read_item_kind_fills_default_missing_type(clean_registry, tmp_path):
 
 
 def test_read_item_kind_runs_validate_hook(clean_registry, tmp_path):
-    reg = _registry.Registry()
+    reg = _registry.current_registry()
     reg.register_built_instance(_FakeBuilder("thing-builder"))
     _write_things(tmp_path, ("delta", "thing-builder"))
     seen = {}
@@ -128,7 +122,7 @@ def test_read_item_kind_runs_validate_hook(clean_registry, tmp_path):
 
 
 def test_read_item_kind_errors_on_unconfigured_builder(clean_registry, tmp_path):
-    reg = _registry.Registry()  # no builder registered
+    reg = _registry.current_registry()  # no builder registered
     _write_things(tmp_path, ("epsilon", "missing-builder"))
     stub = types.SimpleNamespace(working_path=tmp_path, reg=reg)
     with pytest.raises(ValueError, match="not configured"):

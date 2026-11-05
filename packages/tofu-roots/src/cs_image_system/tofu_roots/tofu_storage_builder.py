@@ -42,6 +42,8 @@ from cs_image_system.hashicorp_utils.blocks import OutputSpec, Raw, render_block
 from cs_image_system.hashicorp_utils.collector import TerraformCollector, terraform_collector
 from .roots import TerraformRootMixin
 from .tofu_models import TofuStorageBuilderModelBase
+from cs_image_system.base.storage_state import undeclared_transitions
+from cs_image_system.base.lineage import belongs_to_another_configuration, owner_of
 
 Q = TypeVar("Q", bound=TofuStorageBuilderModelBase)
 
@@ -152,7 +154,6 @@ class TofuStorageBuilderBase(StorageBuilderBase[Q], TerraformRootMixin):
         destroys them; the gate whitelists that as the demise. Each is a
         stand-in built from the record's facts (name, bucket)."""
         ctx = self._get_context()
-        from cs_image_system.base.storage_state import undeclared_transitions
         out: list[Any] = []
         for t in undeclared_transitions(ctx):
             if t.builder != self.name:
@@ -162,7 +163,7 @@ class TofuStorageBuilderBase(StorageBuilderBase[Q], TerraformRootMixin):
         return out
 
     def _has_work(self) -> bool:
-        if not utils.root_in_runtime_scope(self.model.get_runtime_provider()):
+        if not utils.root_in_runtime_scope(self._get_context(), self.model.get_runtime_provider()):
             return False                                   # another runtime's root
         return bool(self.model._storages) or bool(self.undeclared_storages())
 
@@ -257,7 +258,7 @@ class TofuStorageBuilderBase(StorageBuilderBase[Q], TerraformRootMixin):
         items = AssetSet()
         if phase != ExecutionLifecyclePhase.STORAGE_GENERATION or not self._has_work():
             return items                                    # outside --only-runtime, nothing
-        src = utils.module_source(self.module_dirname(),
+        src = utils.module_source(self._get_context(), self.module_dirname(),
                                   self.get_path_for_phase(phase, suffix=".tf").parent)
         bindings = terraform_collector(self._get_context()).provider_bindings(self.name)
         for storage in self.live_storages():
@@ -333,7 +334,7 @@ class TofuStorageBuilderBase(StorageBuilderBase[Q], TerraformRootMixin):
                         after_apply.extend(self.post_transition_actions(storage, STORAGE_STATE_ARCHIVED, STORAGE_STATE_ACTIVE))
             # Per-root apply scoping: builder name or runtime
             rt = str(self.model.get_runtime_provider())
-            apply = utils.apply_enabled("storage", self.name, [rt])
+            apply = utils.apply_enabled(self._get_context(), "storage", self.name, [rt])
             deferred.extend(self.gated_apply_commands(
                 phase, wd, apply=apply, allow_destroy=allow,
                 apply_flag_key="storage", apply_root=self.name, apply_root_aliases=[rt]))
@@ -365,7 +366,6 @@ class TofuStorageBuilderBase(StorageBuilderBase[Q], TerraformRootMixin):
         """Of the things found by name, those this configuration may take for
         its own (ours, or unlabelled); and the id of another configuration
         that holds one of that name, for the note."""
-        from cs_image_system.base.lineage import belongs_to_another_configuration, owner_of
         ctx = self._get_context()
         ours = [f for f in found if not belongs_to_another_configuration(ctx, tags_of(f))]
         elsewhere = next((owner_of(tags_of(f)) for f in found if belongs_to_another_configuration(ctx, tags_of(f))), "")

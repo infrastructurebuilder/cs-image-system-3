@@ -87,12 +87,10 @@ def test_a_state_backend_alias_binds(tmp_path: Path, monkeypatch):
           lambda d: next(b for b in d["group_builders"] if b["name"] == "oktagroups").update(
               state_configuration="on-disk"))
     stub_environment(monkeypatch)
-    load_context(root)
+    ctx = load_context(root)
     try:
-        from cs_image_system.base.global_context import GlobalTypeContext
         from cs_image_system.hashicorp_utils.collector import terraform_collector
         from cs_image_system.tofu_roots.hooks import state_location_problems
-        ctx = GlobalTypeContext()
         reg = terraform_collector(ctx).resolve_backend("on-disk")
         assert reg is not None and reg.name == "local-dev"
         errors = [str(e) for e in state_location_problems(ctx)]
@@ -193,7 +191,7 @@ def test_the_image_query_never_rewrites_the_entrys_own_query(tmp_path: Path, mon
 
 def test_query_images_returns_only_the_series_asked_about(tmp_path: Path, monkeypatch):
     from types import SimpleNamespace
-    from cs_image_system.gcloud_runtime import gcp_utils
+    from cs_image_system.gcloud_runtime import gcp_runtime_builders    # the consuming module (top-level import since stage 124)
     from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
     real_query_images = GCPCloudBuilder.query_images      # the harness stubs it
     stub_environment(monkeypatch)
@@ -201,7 +199,7 @@ def test_query_images_returns_only_the_series_asked_about(tmp_path: Path, monkey
     try:
         images = [SimpleNamespace(name=n, status="READY", creation_timestamp="t", labels={"csis_series": s})
                   for n, s in (("a-1", "imgfile-basic-dask"), ("b-1", "basic-rh-10"), ("c-1", "someone-else"))]
-        monkeypatch.setattr(gcp_utils, "_make_images_client",
+        monkeypatch.setattr(gcp_runtime_builders, "_make_images_client",
                             lambda cfg: SimpleNamespace(list=lambda request: images))
         got = real_query_images(cast(Any, ctx.runtime_builders["gcloud-east1"]), ["imgfile-basic-dask", "basic-rh-10"])
         assert sorted(i["name"] for i in got) == ["a-1", "b-1"], got

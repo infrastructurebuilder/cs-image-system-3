@@ -269,6 +269,6 @@ def test_a_python_tag_in_the_configuration_is_refused_not_constructed(tmp_path: 
         load_context(root)
     assert "python/object" in str(exc.value) or "could not determine a constructor" in str(exc.value), str(exc.value)
     reset_singletons()
-    from cs_image_system.base import global_context
-    src = Path(global_context.__file__).read_text()
+    from cs_image_system.base import config_loader       # stage 124: the reader lives in the loader
+    src = Path(config_loader.__file__).read_text()
     assert "yaml.unsafe_load(stream)" not in src and "yaml.safe_load(stream)" in src
