@@ -109,7 +109,7 @@ measured (the transitive closure of what the plugins import). The engine
 is not the `system` package, which is the CLI, and not the contract,
 which is the leaf everything is written against. Read
 [INPROGRESS/STAGE-113.md](../INPROGRESS/STAGE-113.md) and
-[INPROGRESS/STAGE-124.md](../INPROGRESS/STAGE-124.md).
+[the stage index](CHANGES.md#s124).
 
 ### finding
 
@@ -208,7 +208,7 @@ exists today; the decomposition stages measure the line and may move it.
 The kit is not the contract: the contract is what a plugin is written
 against, the kit is what it imports beyond that. Read
 [INPROGRESS/STAGE-113.md](../INPROGRESS/STAGE-113.md) and
-[INPROGRESS/STAGE-124.md](../INPROGRESS/STAGE-124.md).
+[the stage index](CHANGES.md#s124).
 
 ### the ledger
 

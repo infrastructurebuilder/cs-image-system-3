@@ -12,7 +12,7 @@ Stages from the re-examination of 2026-11-03.
 [REEXAMINE4.md](REEXAMINE4.md) digests the three reviews
 ([REEXAMINE1.md](REEXAMINE1.md), [REEXAMINE2.md](REEXAMINE2.md),
 [REEXAMINE3.md](REEXAMINE3.md)); each stage file
-([§124](STAGE-124.md) to [§130](STAGE-130.md); §118 to §123 landed) cites the review section
+([§125](STAGE-125.md) to [§130](STAGE-130.md); §118 to §124 landed) cites the review section
 it answers. The conventions are the ones above: one file per stage; a
 stage is a plan until the operator says "do N"; **YOUR DECISION** marks
 an operator choice and states the default; **USER** marks a step only
@@ -38,7 +38,7 @@ under the GCE one (REEXAMINE1 §5.3, REEXAMINE3 §3.1 flaw 1). The
 proposal: §118 to [§125](STAGE-125.md) land before
 [§113](STAGE-113.md) is executed, each small and each proved by the
 golden; [§113](STAGE-113.md) is then re-planned on the numbers
-[§124](STAGE-124.md) prints, and [§125](STAGE-125.md) absorbs
+§124 prints, and [§125](STAGE-125.md) absorbs
 [§114](STAGE-114.md) and [§115](STAGE-115.md). **YOUR DECISION:** that
 order (the default), or [§113](STAGE-113.md) first as its file plans it.
 
@@ -47,12 +47,12 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
 
 - §118 and §119, the documents, landed 2026-11-04; the rolling
   documentation stage is not open.
-- §120 to §123, the first four seams, landed 2026-11-04 to
-  2026-11-05; [§124](STAGE-124.md) and [§125](STAGE-125.md), the last
-  two: in that order; each waits for its "do N".
+- §120 to §124, the first five seams, landed 2026-11-04 to
+  2026-11-05; [§125](STAGE-125.md), the last one, waits for its
+  "do 125".
 - [§126](STAGE-126.md), the package shape: a decision stage; before
   [§112](STAGE-112.md) and [§116](STAGE-116.md).
-- [§127](STAGE-127.md), loading once: after [§124](STAGE-124.md).
+- [§127](STAGE-127.md), loading once: after §124.
 - [§128](STAGE-128.md) and [§129](STAGE-129.md), the tests and the
   sources stop narrating: any time after §119.
 - [§130](STAGE-130.md), hygiene bundle XXIV: the open bundle for the small findings.
@@ -81,7 +81,6 @@ and validated by the operator before its "do N")
 - [§114, Tier C: the run context is a protocol](STAGE-114.md)
 - [§115, The services behind the context](STAGE-115.md)
 - [§116, A runtime installed from outside](STAGE-116.md)
-- [§124, The run context and the engine part ways](STAGE-124.md)
 - [§125, The contract's surface, its services and its version](STAGE-125.md)
 - [§126, The package shape](STAGE-126.md)
 - [§127, Loading once, without the cloud](STAGE-127.md)
@@ -133,6 +132,20 @@ and validated by the operator before its "do N")
 
 **Landed since 2026-10-05** (newest first)
 
+- §124, the run context and the engine part ways: 2026-11-05, its
+  squash commit (feature/stage-124-run-context kept). The context is
+  what a run knows (`run_context.py`); the loader (`config_loader.py`)
+  makes one per load and binds every builder to it; the finalizer
+  (`finalizer.py`) owns the deferred commands; the context and the
+  registry are no singletons (one registry per run, `ctx.reg`); the
+  old name stays one release as a shim. The lazy-import web is gone
+  where no cycle needs it (core function-local imports 137 to 13) and
+  `tests/test_import_closure.py` holds the import-graph ceilings;
+  §113 is re-planned on the honest closure (plugins reach 118 of 138
+  core modules, 20 are engine-only, four doors). Found on the way: a
+  model copy cloned the whole run through the bound context (cured
+  by identity on copy), and thirteen tests patched names where they
+  are defined rather than read.
 - §123, hashicorp-utils stops reaching back: 2026-11-05, its squash
   commit (feature/stage-123-hashicorp-utils-leaf kept). The library
   imports only the contract; the provider-neutral roots and the root

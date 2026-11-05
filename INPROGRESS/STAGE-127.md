@@ -1,6 +1,6 @@
 # 127. Loading once, without the cloud
 
-**Status: OPEN 2026-11-04. Waits for "do 127", after [§124](STAGE-124.md).**
+**Status: OPEN 2026-11-04. Waits for "do 127", after §124.**
 
 Loading a configuration is seven passes (REEXAMINE3 §1.1): the merged
 tree is dumped back to a YAML string, re-parsed and re-dumped once per
