@@ -1,6 +1,6 @@
 # 123. hashicorp-utils stops reaching back
 
-**Status: OPEN 2026-11-04. Waits for "do 123", after [§120](STAGE-120.md).**
+**Status: OPEN 2026-11-04. Waits for "do 123", after §120.**
 
 The library depends on `base` (eleven import statements) and `base`
 imports the library back lazily at four sites with "always installed
@@ -30,8 +30,8 @@ nothing documents or resets per plugin.
    a leaf on the contract alone (REEXAMINE1 §5.7 step C), waits for
    the builder base classes to leave `base`, and is not this stage
    (the default).
-5. The [§120](STAGE-120.md) tofu root base now sits in a library the kit does not
-   import, which [§120](STAGE-120.md) assumed.
+5. The §120 tofu root base now sits in a library the kit does not
+   import, which §120 assumed.
 
 **Out of scope**: the HCL builder's API; the engine split ([§124](STAGE-124.md)).
 

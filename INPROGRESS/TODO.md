@@ -12,7 +12,7 @@ Stages from the re-examination of 2026-11-03.
 [REEXAMINE4.md](REEXAMINE4.md) digests the three reviews
 ([REEXAMINE1.md](REEXAMINE1.md), [REEXAMINE2.md](REEXAMINE2.md),
 [REEXAMINE3.md](REEXAMINE3.md)); each stage file
-([§120](STAGE-120.md) to [§130](STAGE-130.md); §118 and §119 landed) cites the review section
+([§121](STAGE-121.md) to [§130](STAGE-130.md); §118 to §120 landed) cites the review section
 it answers. The conventions are the ones above: one file per stage; a
 stage is a plan until the operator says "do N"; **YOUR DECISION** marks
 an operator choice and states the default; **USER** marks a step only
@@ -20,7 +20,7 @@ the operator can take; a landed stage's file is removed and its squash
 message is the record. Numbering starts at §118. §117 is
 reserved by [§116](STAGE-116.md) item 7 (the contract to its own
 repository).
-[§131](STAGE-131.md), from a finding of [§120](STAGE-120.md), is
+[§131](STAGE-131.md), from a finding of §120, is
 the first stage planned after the review's set.
 
 **Scope** (the operator, 2026-11-04): separation of layers,
@@ -47,8 +47,9 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
 
 - §118 and §119, the documents, landed 2026-11-04; the rolling
   documentation stage is not open.
-- [§120](STAGE-120.md) to [§125](STAGE-125.md), the seams: in that
-  order; each waits for its "do N".
+- §120, the first seam, landed 2026-11-04; [§121](STAGE-121.md) to
+  [§125](STAGE-125.md), the seams: in that order; each waits for its
+  "do N".
 - [§126](STAGE-126.md), the package shape: a decision stage; before
   [§112](STAGE-112.md) and [§116](STAGE-116.md).
 - [§127](STAGE-127.md), loading once: after [§124](STAGE-124.md).
@@ -56,7 +57,7 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
   sources stop narrating: any time after §119.
 - [§130](STAGE-130.md), hygiene bundle XXIV: the open bundle for the small findings.
 - [§131](STAGE-131.md), registrations carry their plugin's namespace:
-  planned 2026-11-04; any time after [§120](STAGE-120.md) and before
+  planned 2026-11-04; any time after §120 and before
   [§125](STAGE-125.md) versions the contract; waits for "do 131".
 - [§112](STAGE-112.md), a release in two boxes: planned 2026-11-03; waits for
   "do 112".
@@ -80,7 +81,6 @@ and validated by the operator before its "do N")
 - [§114, Tier C: the run context is a protocol](STAGE-114.md)
 - [§115, The services behind the context](STAGE-115.md)
 - [§116, A runtime installed from outside](STAGE-116.md)
-- [§120, A provider-neutral terraform root](STAGE-120.md)
 - [§121, The core names no runtime](STAGE-121.md)
 - [§122, Storage and identity leave the core](STAGE-122.md)
 - [§123, hashicorp-utils stops reaching back](STAGE-123.md)
@@ -136,6 +136,16 @@ and validated by the operator before its "do N")
 
 **Landed since 2026-10-05** (newest first)
 
+- §120, a provider-neutral terraform root: 2026-11-04, its squash
+  commit (feature/stage-120-neutral-tofu-root kept). hashicorp-utils
+  holds the provider-neutral instance and storage roots and the tofu
+  version checker; the AWS, GCE and docker roots answer provider
+  hooks and nothing else; installing the GCE or docker root no longer
+  installs the AWS one or boto3 (an isolation test proves it from the
+  lock); the registry takes one class registered by several plugins
+  as one registration. Golden and reference emission byte-identical.
+  Not yet released. The §131 plan file rode in the same squash (the
+  operator's commit on the branch).
 - §119, the stage index and the end of narration: 2026-11-04, its
   squash commit (feature/stage-119-narration kept). 1,362 narration
   tokens on the current pages became the present rule with its reason;

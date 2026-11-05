@@ -1,7 +1,7 @@
 # 131. Registrations carry their plugin's namespace
 
 **Status: OPEN 2026-11-04. Waits for "do 131". Any time after
-[§120](STAGE-120.md); before [§125](STAGE-125.md) item 5 gives the
+§120; before [§125](STAGE-125.md) item 5 gives the
 contract its version, since this stage adds a field to
 `PluginMetadata`.**
 
@@ -15,7 +15,7 @@ know which words are taken (`tofu`, `aws`, `s3`, `local`, `docker`,
 `packer`, `posix` are all spent), and the registration order is the
 sorted entry-point name, so where no check exists (`register_service`
 writes `registry[name][classifier]` without one) the alphabetically
-later plugin wins silently. [§120](STAGE-120.md) met the first real
+later plugin wins silently. §120 met the first real
 case: the tofu version checker, one class carried by three root
 plugins, and taught the registry that the same class twice is one
 registration; a fork of a root plugin that keeps the checker's name
@@ -40,7 +40,7 @@ whose.
    namespace from the loader; the collision is the same
    classification, namespace and name with a different class, and
    the same class under several namespaces is one registration
-   (the [§120](STAGE-120.md) rule, generalised); `register_service`
+   (the §120 rule, generalised); `register_service`
    refuses what it used to overwrite. The loader's second
    registration of a cloud or container service as a runtime carries
    the namespace with it.
@@ -73,7 +73,7 @@ whose.
    qualified form resolves to its class, `register_service` refuses
    the second class; the same class under three namespaces is one
    registration and its bare word resolves (replaces
-   [§120](STAGE-120.md)'s identity test); a plugin without a
+   §120's identity test); a plugin without a
    distribution and without the field is refused at load with the
    field named.
 7. Documents: the contract README (`PluginMetadata`'s field; the
@@ -100,6 +100,6 @@ own and are right to refuse); the entry-point groups
 ([§130](STAGE-130.md) item 8); the singleton ([§124](STAGE-124.md)).
 
 **Acceptance**: emission byte-identical (the golden; the reference's
-`config-drift`); the tests of item 6; [§120](STAGE-120.md)'s
+`config-drift`); the tests of item 6; §120's
 isolation test still green; `just test`; one squash, branch kept.
 Records: the squash; this section goes at "merge 131".
