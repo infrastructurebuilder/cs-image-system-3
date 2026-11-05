@@ -14,9 +14,10 @@ from cs_image_system.contract.state import BackendRegistration, StateBackendMode
 class StateBuilderModel(BuilderModel, StateBackendModelProtocol):
     """State builder configuration data object: the core's implementation
     of the contract's ``StateBackendModelProtocol`` (stage 30). A backend
-    type's model answers ``to_backend_registration``; once the state
-    backends are loaded the core hands every registration to the terraform
-    collector (``register_declared_backends`` in the run context)."""
+    type's model answers ``to_backend_registration``; the terraform
+    library's accessor pulls every registration from the context's state
+    backends when it makes the run's collector, so the core hands nothing
+    over and imports nothing of the library for it."""
 
     @classmethod
     def csis_classifier(cls) -> VCT:

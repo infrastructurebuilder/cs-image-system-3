@@ -103,9 +103,11 @@ def test_regenerating_one_lifecycle_leaves_the_others_untouched(v2):
 
 
 def test_lifecycle_state_bindings_are_disjoint(v2):
-    from cs_image_system.base.commands.run_lifecycles import lifecycle_state_bindings
-    assert v2.run("all", apply=False).ok
+    from cs_image_system.tofu_roots.hooks import lifecycle_state_bindings
+    summary = v2.run("all", apply=False)
+    assert summary.ok
     bindings = lifecycle_state_bindings(v2.ctx)
+    assert summary.state_bindings == bindings      # the summary carries the same evidence
     # every lifecycle with terraform workspaces binds them to distinct state files
     # okta-groups-ro: the read-only group root (stage 63 item 18) has its own state file too
     assert set(bindings["identity"]) == {"okta-tf-users", "oktagroups", "okta-groups-ro"}

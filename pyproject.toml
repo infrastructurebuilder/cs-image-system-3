@@ -27,6 +27,7 @@ dependencies = [
     "cs-image-system-gcloud-runtime-plugin==0.1.7.dev1",
     "cs-image-system-gcs-state-plugin==0.1.7.dev1",
     "cs-image-system-hashicorp-utils==0.1.7.dev1",
+    "cs-image-system-tofu-roots==0.1.7.dev1",
     "cs-image-system-local-state-plugin==0.1.7.dev1",
     "cs-image-system-posix-identity-plugin==0.1.7.dev1",
     "cs-image-system-okta-opa-plugin==0.1.7.dev1",
@@ -86,6 +87,7 @@ cs-image-system-posix-identity-plugin = { workspace = true }
 cs-image-system-gcs-state-plugin = { workspace = true }
 cs-image-system-docker-runtime-plugin = { workspace = true }
 cs-image-system-tf-docker-plugin = { workspace = true }
+cs-image-system-tofu-roots = { workspace = true }
 
 # The indexes a release is published to (stage 41): `uv publish --index <name>` reads the
 # publish-url and skips files already present with the same content (the url is the check
@@ -164,7 +166,8 @@ testpaths = ["tests",
    "packages/posix-identity-plugin/tests",
    "packages/gcs-state-plugin/tests",
    "packages/docker-runtime-plugin/tests",
-   "packages/tf-docker-plugin/tests"
+   "packages/tf-docker-plugin/tests",
+   "packages/tofu-roots/tests"
    ]
 pythonpath = [
     "tests",
@@ -186,6 +189,7 @@ pythonpath = [
     "packages/tf-docker-plugin/src",
     "packages/gcs-state-plugin/src",
     "packages/hashicorp-utils/src",
+    "packages/tofu-roots/src",
     "packages/local-state-plugin/src",
     "packages/posix-identity-plugin/src",
     "packages/tf-s3-state-plugin/src",
@@ -229,6 +233,7 @@ exclude = ["**/.venv", "**/generated"]
 # Pylance treats them as library code and find-references/rename only sees open
 # files. Globs are not supported in extraPaths, so each src root is listed.
 extraPaths = [
+    "tests",
     "packages/ansible-plugin/src",
     "packages/aws-runtime-plugin/src",
     "packages/base/src",
@@ -242,6 +247,7 @@ extraPaths = [
     "packages/gcloud-runtime-plugin/src",
     "packages/gcs-state-plugin/src",
     "packages/hashicorp-utils/src",
+    "packages/tofu-roots/src",
     "packages/local-state-plugin/src",
     "packages/posix-identity-plugin/src",
     "packages/okta-opa-plugin/src",

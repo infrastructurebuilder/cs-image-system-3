@@ -5,16 +5,25 @@
 """Pins the PackerCollector: plugin merge/conflict and golden blocks."""
 import pytest
 
-from cs_image_system.hashicorp_utils.collector import PackerCollector, PackerVariableDecl
+from v2_support import bare_run
+
+from cs_image_system.hashicorp_utils.collector import PackerCollector, PackerVariableDecl, packer_collector
 from cs_image_system.hashicorp_utils.versions import HclConfigConflictError
 
 
 @pytest.fixture
 def col():
-    c = PackerCollector()
-    c.reset()
-    yield c
-    c.reset()
+    return PackerCollector()
+
+
+def test_a_packer_collector_lives_with_its_run():
+    """One per run context, made on the first ask; another run's holds
+    nothing of it."""
+    a, b = bare_run(), bare_run()
+    packer_collector(a).require_plugin("ws", "amazon", source="github.com/hashicorp/amazon")
+    assert packer_collector(a) is packer_collector(a)
+    assert [p.name for p in packer_collector(a).merged_plugins("ws")] == ["amazon"]
+    assert packer_collector(b) is not packer_collector(a) and packer_collector(b).merged_plugins("ws") == []
 
 
 def test_merge_across_registrations(col):

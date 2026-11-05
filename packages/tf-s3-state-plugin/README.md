@@ -213,7 +213,7 @@ storage and identity roots) through the collector:
    quoted. The list is empty, and no file is written, when backends are
    disabled or the workspace is unbound.
 4. **How `init` consumes it.** `TerraformRootMixin` in
-   [roots.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/roots.py)
+   [roots.py](../tofu-roots/src/cs_image_system/tofu_roots/roots.py)
    builds the arguments:
    - a **dry run** initializes without the backend:
      `init -backend=false`. Providers are installed and the emission is
@@ -654,7 +654,7 @@ backend or the location record. `state-locations.yaml` is read by
 (the partial block, the file contents, the gate, default resolution,
 duplicate registration, the chain, rebinding, collisions, cross-backend
 reads, the backend record);
-[test_roots.py](../hashicorp-utils/tests/test_roots.py) (the `init`
+[test_roots.py](../tofu-roots/tests/test_roots.py) (the `init`
 arguments in dry and real runs, the runner's init, the backend file path);
 [tests/test_v2_state_locations.py](../../tests/test_v2_state_locations.py)
 (every root resolves and is recorded, the runtime rung, collisions and
@@ -718,10 +718,10 @@ arrive from tofu; the rest are the load's and `validate`'s refusals.
   `TerraformCollector`, `RemoteStateReference`, and the generators for the
   terraform block, the partial configuration and the remote-state data
   sources; the core hands it the registrations at load.
-- [hashicorp-utils roots.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/roots.py):
+- [hashicorp-utils roots.py](../tofu-roots/src/cs_image_system/tofu_roots/roots.py):
   `TerraformRootMixin`, the `init` argument rules and the deferred sequence.
 - [hashicorp-utils tests/test_terraform_collector.py](../hashicorp-utils/tests/test_terraform_collector.py)
-  and [tests/test_roots.py](../hashicorp-utils/tests/test_roots.py): the unit
+  and [tests/test_roots.py](../tofu-roots/tests/test_roots.py): the unit
   tests that pin the backend block, the partial configuration and the init
   arguments.
 - [tests/test_v2_state_encryption.py](../../tests/test_v2_state_encryption.py):

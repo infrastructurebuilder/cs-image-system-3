@@ -42,7 +42,7 @@ from cs_image_system.contract.executables import CFExecutables
 from cs_image_system.contract.hcl import HclRaw, render_module_call
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
-from .collector import TerraformCollector, TerraformVariable
+from cs_image_system.hashicorp_utils.collector import TerraformCollector, TerraformVariable, terraform_collector
 from .roots import TerraformRootMixin
 from .tofu_models import TOFU_EXECUTABLE, TofuInstanceBuilderModelBase
 
@@ -214,7 +214,8 @@ class TofuInstanceBuilderBase(InstanceBuilderBase[Q], TerraformRootMixin):
         items = items.with_default_path(rpath)
         for line in self._root_header_lines():
             items.add(line)
-        col = TerraformCollector()
+        ctx = self._get_context()
+        col = terraform_collector(ctx)
         ws = self.name
         rtb = self._runtime_builder()
         self._require_provider(col, ws, rtb)
@@ -224,7 +225,6 @@ class TofuInstanceBuilderBase(InstanceBuilderBase[Q], TerraformRootMixin):
         # storage workspace so instances can bind to storage outputs, and per
         # identity workspace so gids flow by reference (N7).
         col.bind_workspace(ws, self.model.state_configuration, self.runtime_state_configuration())   # own, runtime's, default
-        ctx = self._get_context()
         for sb_name, sb in ctx.storage_builders.items():
             if getattr(sb.model, "_storages", None):
                 col.reference_remote_state(ws, producer_workspace=sb_name)
@@ -260,7 +260,7 @@ class TofuInstanceBuilderBase(InstanceBuilderBase[Q], TerraformRootMixin):
         rtb = self._runtime_builder()
         src = utils.module_source(self._module_dirname(),
                                   self.get_path_for_phase(phase, suffix=".tf").parent)
-        bindings = TerraformCollector().provider_bindings(self.name)
+        bindings = terraform_collector(ctx).provider_bindings(self.name)
         word = self._instance_word()
         for instance in self._instances:
             label = utils.super_safe_name(instance.get_name())

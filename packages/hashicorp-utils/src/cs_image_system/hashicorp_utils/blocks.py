@@ -18,7 +18,7 @@ from typing import Any, Sequence
 import hcl2
 from hcl2 import Builder
 
-from cs_image_system.base.encryption import emit
+from cs_image_system.contract.hcl import emitted as emit
 
 from .hashicorp import FO, QString
 

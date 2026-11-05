@@ -79,6 +79,12 @@ commit on the bundle's branch.
     `_launch_args`; the storage builders' `launch_variables()` names
     what each kind reads, so the roots can build the map from the
     hooks (output unchanged; found by §122).
+18. `packages/tf-ebs-instance-plugin/tests/test_instance_module_calls.py::
+    test_pre_finalize_writes_tfvars_for_resolved_psis` fails when it is
+    the first test in a process (`utils.root_in_runtime_scope` asks
+    the context before anything built it) and passes after any test
+    that loads one; under the bar it passes by order. The test builds
+    its own context or the helper tolerates none (found by §122).
 
 **Acceptance**: each item its own commit; `just test` green after
 each; one squash, branch kept. Records: the squash; this section goes

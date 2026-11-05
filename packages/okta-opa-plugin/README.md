@@ -254,7 +254,7 @@ by `_` (`avery.alpha` becomes `avery_alpha`).
 ## The builders
 
 All four own a terraform root through
-[`TerraformRootMixin`](../hashicorp-utils/src/cs_image_system/hashicorp_utils/roots.py).
+[`TerraformRootMixin`](../tofu-roots/src/cs_image_system/tofu_roots/roots.py).
 Paths below are relative to the run's generation directory
 (`generated/identity/` when the identity lifecycle runs). `<ws>` is the
 builder's name.
@@ -1317,7 +1317,7 @@ Failures the code raises:
   (providers, variables, backends, sensitive references),
   [blocks.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/blocks.py)
   (HCL rendering),
-  [roots.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/roots.py)
+  [roots.py](../tofu-roots/src/cs_image_system/tofu_roots/roots.py)
   (`TerraformRootMixin`, the gated apply sequence).
 - Terraform module called:
   [tfmodules/okta_opa_module](../../tfmodules/okta_opa_module)

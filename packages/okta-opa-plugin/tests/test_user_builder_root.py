@@ -5,8 +5,8 @@
 """Pins OktaTfUserBuilder's terraform root: paths, root blocks, per-user files,
 and the credential-gated command list."""
 import os
-from types import SimpleNamespace
 from pathlib import Path
+from typing import Any, cast
 from unittest import mock
 
 import pytest
@@ -15,8 +15,9 @@ from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.user import User
 from cs_image_system.hashicorp_utils.collector import (
     ConfiguredTerraformProvider,
-    TerraformCollector,
+    terraform_collector,
 )
+from v2_support import bare_run
 from cs_image_system.okta_opa_plugin.okta_opa_tf_user_builder import OktaTfUserBuilder
 from cs_image_system.okta_opa_plugin.okta_opa_tf_user_models import OktaTfUserBuilderModel
 
@@ -26,7 +27,7 @@ ROOT = Path("okta-tf-users/user-generation")
 
 @pytest.fixture
 def builder():
-    TerraformCollector().reset()
+    run = bare_run(dry_run=False)        # a REAL run unless a test says otherwise
     model = OktaTfUserBuilderModel(
         name="okta-tf-users", type_="okta-tf", org="noaa",
         team="nos-coastal-modeling-cloud-sandbox",
@@ -34,15 +35,16 @@ def builder():
             name="okta", source="okta/okta", version=">= 4.9", config={})],
     )
     b = OktaTfUserBuilder(model)
+    b._get_context = lambda: cast(Any, bare_run())
+    b._get_context = lambda: cast(Any, run)
     for name in ("kendall.kilo@example.com", "avery.alpha@example.invalid"):   # added out of order
         first, last = name.split("@")[0].split(".")
         b.add_user_to_builder(User(
             name=name, email=name, first_name=first, last_name=last))
     # The pipeline always runs generate_items_before (which registers the
     # workspace's providers) ahead of generate_items_during.
-    model.register_hcl_requirements(b.name)
-    yield b
-    TerraformCollector().reset()
+    model.register_hcl_requirements(b.name, terraform_collector(run))
+    return b
 
 
 def _by_path(assets) -> dict[Path, str]:
@@ -91,9 +93,9 @@ def test_login_email_name_identical(builder):
 
 
 def test_commands_gated_on_credentials(builder):
-    # the command list depends on the run mode; pin a REAL run explicitly, so a
-    # context another test left behind (dry by default) cannot decide it
-    builder._get_context = lambda: SimpleNamespace(dry_run=False)
+    # the command list depends on the run mode; the builder's own run is pinned
+    # REAL, so a context another test left behind (dry by default) cannot decide it
+    builder._get_context().dry_run = False
     env = {k: v for k, v in os.environ.items()
            if not k.startswith(("OKTA_API", "OKTA_ACCESS"))}
     with mock.patch.dict(os.environ, env, clear=True):
@@ -110,7 +112,7 @@ def test_commands_gated_on_credentials(builder):
 
     # a DRY run initialises without the backend and never plans at generation
     # time, credentials or not: it must not need the remote state
-    builder._get_context = lambda: SimpleNamespace(dry_run=True)
+    builder._get_context().dry_run = True
     with mock.patch.dict(os.environ, {**env, "OKTA_API_PRIVATE_KEY": "pem"}, clear=True):
         with mock.patch.object(builder, "get_executable_copy") as gec:
             gec.side_effect = lambda: mock.MagicMock()
@@ -119,7 +121,6 @@ def test_commands_gated_on_credentials(builder):
 
 
 def test_no_users_no_output_no_commands():
-    TerraformCollector().reset()
     model = OktaTfUserBuilderModel(
         name="okta-tf-users", type_="okta-tf", org="noaa", team="t",
         required_providers=[ConfiguredTerraformProvider(
@@ -128,7 +129,6 @@ def test_no_users_no_output_no_commands():
     assert list(b.generate_items_before(PHASE)) == []
     assert list(b.generate_items_during(PHASE)) == []
     assert b.get_commands_to_run_after(PHASE).build_executables == []
-    TerraformCollector().reset()
 
 
 def test_other_phases_are_silent(builder):

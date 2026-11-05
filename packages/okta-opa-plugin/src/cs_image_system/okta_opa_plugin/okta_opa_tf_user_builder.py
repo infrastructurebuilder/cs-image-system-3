@@ -13,8 +13,8 @@ from cs_image_system.contract.constants import USERS
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.contract.executables import CFExecutables
 from cs_image_system.base.models.user import User
-from cs_image_system.hashicorp_utils.collector import TerraformCollector
-from cs_image_system.hashicorp_utils.roots import TerraformRootMixin
+from cs_image_system.hashicorp_utils.collector import terraform_collector
+from cs_image_system.tofu_roots.roots import TerraformRootMixin
 
 from .okta_opa_tf_user_models import OktaTfUserBuilderModel
 from .opa_attributes import OPA_USER_ATTRIBUTES, validate_opa_attributes
@@ -58,7 +58,7 @@ class OktaTfUserBuilder(UserBuilderBase[OktaTfUserBuilderModel], TerraformRootMi
     def _okta_provider_ref(self) -> str | None:
         """Aliased provider reference for root-level resources (correction:
         the collector always aliases, so no default provider config exists)."""
-        ref = TerraformCollector().provider_bindings(self.name).get(OKTA_PROVIDER)
+        ref = terraform_collector(self._get_context()).provider_bindings(self.name).get(OKTA_PROVIDER)
         if ref is None:
             log.warning(
                 f"User builder {self.name} has no configured '{OKTA_PROVIDER}' "
@@ -82,8 +82,8 @@ class OktaTfUserBuilder(UserBuilderBase[OktaTfUserBuilderModel], TerraformRootMi
             f"{self.__class__.__name__} ({self.name})",
         )
         items.add("\n")
-        col = TerraformCollector()
-        self.model.register_hcl_requirements(self.name)
+        col = terraform_collector(self._get_context())
+        self.model.register_hcl_requirements(self.name, col)
         # stage 34: values the emission must not carry in plaintext are
         # registered before the terraform block, so the external provider the
         # decrypting data source needs is declared with the others
@@ -126,7 +126,7 @@ class OktaTfUserBuilder(UserBuilderBase[OktaTfUserBuilderModel], TerraformRootMi
         rpath = self.get_path_for_phase(phase, USERS, suffix=".tf")
         dpath = self.get_path_for_phase(phase, USERS, suffix="-data.tf")
         provider_ref = self._okta_provider_ref()
-        sensitive = partial(TerraformCollector().sensitive_ref, self.name)
+        sensitive = partial(terraform_collector(self._get_context()).sensitive_ref, self.name)
         for user in self._users():
             if self.is_managed(user):
                 otfu = OktaTFUser(user, provider=provider_ref, status=self.model.default_user_status,

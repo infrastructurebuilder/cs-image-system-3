@@ -6,14 +6,16 @@
 from types import SimpleNamespace
 
 from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
+from v2_support import bare_run
 
 
 def _stub_builder(*, account_discovery=True, gateway_selector=None):
-    from cs_image_system.hashicorp_utils.collector import TerraformCollector
-    TerraformCollector().reset()
-    TerraformCollector().configure_provider("oktagroups", "oktapam", {"oktapam_team": "t"})
+    from cs_image_system.hashicorp_utils.collector import terraform_collector
+    run = bare_run()
+    terraform_collector(run).configure_provider("oktagroups", "oktapam", {"oktapam_team": "t"})
     stub = SimpleNamespace(
         name="oktagroups",
+        _get_context=lambda: run,
         # The builder consumes effective_gateway_selector (model value with
         # config fallback); the stub bypasses the property with a plain attr.
         model=SimpleNamespace(account_discovery=account_discovery,

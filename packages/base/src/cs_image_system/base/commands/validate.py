@@ -212,8 +212,8 @@ def check_executables_exist_and_versions(ctx: GlobalTypeContext) -> list[Excepti
 def terraform_workspaces(ctx: GlobalTypeContext) -> dict[str, tuple[str | None, str | None]]:
     """workspace -> (its builder's own ``state_configuration``, its runtime's)
     for every builder that owns a terraform root, read from the models alone
-    so ``validate`` resolves the bindings without generating anything (stage
-    46.3.4). The runtime rung belongs to the roots that have a runtime -- the
+    so the tofu-roots state-location validator resolves the bindings without
+    generating anything. The runtime rung belongs to the roots that have a runtime -- the
     storage and instance roots; an identity root resolves its own value or
     the default, exactly as the builders bind at generation."""
     out: dict[str, tuple[str | None, str | None]] = {}
@@ -267,78 +267,6 @@ def deployed_in_workspace(ctx: GlobalTypeContext, workspace: str) -> list[str]:
         if builders_of.get(inst) == workspace:
             out.append(f"instance {inst} (build {build})")
     return out
-
-
-def check_state_locations(ctx: GlobalTypeContext) -> list[Exception]:
-    """Stage 46: every terraform root's state location resolved from the
-    declarations, then two refusals. Collisions (46.3): two roots that would
-    write one state object -- the same bucket and normalised prefix under two
-    backend names, two names that collapse under super_safe_name, a doubled
-    slash against a single one. Moves (46.4): a root whose resolved location
-    differs from the one meta-state recorded while the records show live
-    resources in it -- the new location is empty, so the next plan would
-    create everything again and strand the old state. A root with nothing
-    deployed moves freely. The escape is an operation, `--migrate-state
-    <workspace>`, never an override; giving resources up is a records
-    correction, not a rebinding."""
-    try:
-        from cs_image_system.hashicorp_utils.collector import StateLocation, TerraformCollector
-    except ImportError:  # pragma: no cover - hashicorp-utils is always installed here
-        return []
-    col = TerraformCollector()
-    if not col.backends_enabled():
-        return []
-    errors: list[Exception] = []
-    resolved: dict[str, StateLocation] = {}
-    for workspace, (own, runtime_value) in terraform_workspaces(ctx).items():
-        # stage 76: `none` reads as unset in the chain below (it is in
-        # OOPS_DEFAULTS so nothing can be named after it), which would put this
-        # root's state on the default backend -- the opposite of what `none`
-        # says. There is no "no state backend", so the word is refused here.
-        if NONE in (own, runtime_value):
-            errors.append(Exception(
-                f"workspace '{workspace}' names state backend 'none', which names nothing -- there is "
-                f"no 'no state backend': declare one of type `local` for state on disk, or leave the "
-                f"field out for the default backend"))
-            continue
-        name = col.effective_backend_name(own, runtime_value)
-        try:
-            reg = col.resolve_backend(name)
-        except Exception as ex:                       # more than one default: the existing guard
-            errors.append(ex)
-            continue
-        if reg is None:
-            errors.append(Exception(f"workspace '{workspace}' names state backend '{name}', which is not declared"))
-            continue
-        try:
-            resolved[workspace] = reg.state_location(workspace)
-        except ValueError as ex:                      # a `.` or `..` segment in the prefix
-            errors.append(Exception(f"workspace '{workspace}': {ex}"))
-    for message in col.state_collisions(resolved):
-        errors.append(Exception(f"state location collision: {message}"))
-    recorded = ctx.meta_state.state_locations()
-    migrating = set(getattr(ctx, "migrate_state", None) or [])
-    for workspace, location in sorted(resolved.items()):
-        old = recorded.get(workspace)
-        if not old:
-            continue
-        old_text = ctx.meta_state.location_key(old)
-        if old_text == str(location) or workspace in migrating:
-            continue
-        deployed = deployed_in_workspace(ctx, workspace)
-        if not deployed:
-            log.info(f"workspace '{workspace}' moves its state from {old_text} to {location}: "
-                     "nothing is deployed from it, so nothing is at risk")
-            continue
-        errors.append(Exception(
-            f"workspace '{workspace}' would move its state from {old_text} to {location} while "
-            f"{', '.join(deployed)} stand(s) in it: the new location is empty, so the next plan would "
-            f"create everything again and strand the old state. To MOVE the state: "
-            f"`run --no-dry-run ... --migrate-state {workspace}` (backs the old state up, copies it, "
-            f"accepts only a clean plan at the new location and records the move). If those resources "
-            f"are gone or being given up, correct the records instead (the state query's import and "
-            f"forget paths); never rebind past this refusal."))
-    return errors
 
 
 def check_posix_ids(ctx: GlobalTypeContext) -> list[Exception]:
@@ -907,15 +835,15 @@ def check_container_runtimes(ctx: GlobalTypeContext) -> list[Exception]:
 
 def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
     """The configuration checks, with no side effects on generated output:
-    unique global ids, executables present and version-compliant, every
-    terraform root's state location (stage 46)."""
+    unique global ids, executables present and version-compliant, foreign
+    keys, zones, names. A plugin's checks (a terraform root's state
+    location) come through the registered validators, after these."""
     exs: list[Exception] = []
     # Check to ensure that all OS Builder runtimes and all images have a unique id
     # This allouws us to use the name as the identifier for the dependency tree.
     exs.extend(check_name_uniquness(ctx))
     # Chec existence and versions of executables before we try doign any real work
     exs.extend(check_executables_exist_and_versions(ctx))
-    exs.extend(check_state_locations(ctx))
     exs.extend(check_foreign_keys(ctx))
     exs.extend(check_posix_ids(ctx))
     exs.extend(check_group_builders(ctx))

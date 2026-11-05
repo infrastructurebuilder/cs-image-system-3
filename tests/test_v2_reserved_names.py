@@ -219,10 +219,13 @@ def test_every_named_model_class_refuses_every_word_as_a_name_and_an_alias(monke
 # --------------------- (c) a reference written `none` names nothing, and is refused
 
 def _validation_errors(root: Path, monkeypatch) -> list[str]:
-    from cs_image_system.base.commands.validate import collect_validation_errors
+    """Every validation error, the registered validators' included: the
+    state-location check is a hook plugin's, so `validate_only` (which
+    loads the hook plugins) is the whole of what `validate` says."""
+    from cs_image_system.base.commands.run_lifecycles import validate_only
     stub_environment(monkeypatch)
     try:
-        return [str(e) for e in collect_validation_errors(load_context(root))]
+        return [str(e) for e in validate_only(load_context(root))]
     finally:
         reset_singletons()
 

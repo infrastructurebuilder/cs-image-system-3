@@ -15,6 +15,7 @@ dependencies = [
     "cs-image-system-contract==0.1.7.dev1",
     "cs-image-system-base==0.1.7.dev1",
     "cs-image-system-hashicorp-utils==0.1.7.dev1",
+    "cs-image-system-tofu-roots==0.1.7.dev1",
     "pydantic>=2.13",
     "cryptography>=49.0",   # stage 70 step 6: the Okta services app check signs a private-key JWT
     "typer>=0.26",          # the plugin's own commands (`workload`, `verify login`)

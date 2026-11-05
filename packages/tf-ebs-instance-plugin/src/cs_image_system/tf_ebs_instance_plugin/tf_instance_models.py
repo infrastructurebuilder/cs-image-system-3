@@ -5,7 +5,7 @@
 from pydantic.dataclasses import dataclass
 
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from cs_image_system.hashicorp_utils.tofu_models import TofuInstanceBuilderModelBase
+from cs_image_system.tofu_roots.tofu_models import TofuInstanceBuilderModelBase
 
 TOFU: str = "tofu"
 

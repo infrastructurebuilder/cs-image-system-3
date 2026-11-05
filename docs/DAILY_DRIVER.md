@@ -1145,12 +1145,21 @@ declares.
   [tests](../packages/system/README.md#what-it-tests-and-verifies) ·
   [failures](../packages/system/README.md#when-it-fails)
 - [hashicorp-utils](../packages/hashicorp-utils/README.md): the terraform/tofu
-  library: providers and backends by reference, the init, the gated plan
-  then gate then apply sequence, the private mirror for plans and applies.
+  library on the contract alone: the HCL builder, the per-run collectors
+  (providers and backends by reference), the tool version checks.
   [prerequisites](../packages/hashicorp-utils/README.md#prerequisites-and-integration) ·
   [configuration](../packages/hashicorp-utils/README.md#configuration-reference) ·
   [tests](../packages/hashicorp-utils/README.md#what-it-tests-and-verifies) ·
   [failures](../packages/hashicorp-utils/README.md#when-it-fails)
+- [tofu-roots](../packages/tofu-roots/README.md): the provider-neutral
+  terraform roots every OpenTofu root plugin subclasses: the root mixin
+  (backend file, init arguments, the gated plan and apply), the instance
+  and storage root bases, and the hooks that check state locations and
+  record them.
+  [prerequisites](../packages/tofu-roots/README.md#prerequisites-and-integration) ·
+  [configuration](../packages/tofu-roots/README.md#configuration-reference) ·
+  [tests](../packages/tofu-roots/README.md#what-it-tests-and-verifies) ·
+  [failures](../packages/tofu-roots/README.md#when-it-fails)
 - [aws-runtime-plugin](../packages/aws-runtime-plugin/README.md): the AWS
   cloud context: credentials, network discovery, the image query, power
   state and identity hooks, SSM sessions, retention.

@@ -124,13 +124,18 @@ class OktaTfWorkspaceModelMixin:
         return []
 
     def transform_provider(
-        self, provider: ConfiguredTerraformProvider, ctx: Any = None
+        self, provider: ConfiguredTerraformProvider, workspace: str | None = None,
+        collector: TerraformCollector | None = None,
     ) -> ConfiguredTerraformProvider:
         """Provider config for the generated ``provider`` block.
 
         Starts from the YAML-declared ``config:`` and fills in defaults only
         for keys the YAML omits, so any provider argument (client_id, scopes,
         private_key_id, ...) is expressible in config without code changes.
+        Given the workspace and the run's collector, a declared-encrypted
+        OPA credential is registered there and written by reference; with
+        neither (a bare transform, as in the tests) it is written as the
+        value, which the quoting policy still emits as its ciphertext.
         """
         if provider.name == OKTAPAM_PROVIDER:
             tcfg: dict[str, Any] = {
@@ -142,8 +147,8 @@ class OktaTfWorkspaceModelMixin:
             for k, v in tcfg.items():
                 # stage 34: a declared-encrypted credential is emitted as the
                 # reference to its ciphertext, never quoted into HCL
-                if ctx:
-                    v = TerraformCollector().sensitive_ref(str(ctx), k, v)
+                if workspace and collector is not None:
+                    v = collector.sensitive_ref(workspace, k, v)
                 newv = v if (isinstance(v, Raw) or v.startswith("var.")) else QString(v, quoted=True)
                 tcfg[k] = newv
         elif provider.name == OKTA_PROVIDER:
@@ -162,18 +167,19 @@ class OktaTfWorkspaceModelMixin:
             config=tcfg,
         )
 
-    def register_hcl_requirements(self, workspace: str) -> None:
-        """Declare this builder's terraform needs into the run-scoped collector.
+    def register_hcl_requirements(self, workspace: str, col: TerraformCollector) -> None:
+        """Declare this builder's terraform needs into the run's collector,
+        which the builder hands over (``terraform_collector(ctx)``: a model
+        has no context of its own).
 
         Providers (with credential-injecting config via transform_provider),
         their credential variables, and the workspace's state backend.
         """
-        col = TerraformCollector()
         for provider in self.required_providers:
             col.require_provider(workspace, provider.name,
                                  source=provider.source,
                                  version=provider.version)
-            configured = self.transform_provider(provider, workspace)
+            configured = self.transform_provider(provider, workspace, col)
             col.configure_provider(workspace, provider.name,
                                    dict(configured.config))
             for variable in self.provider_variables(provider):

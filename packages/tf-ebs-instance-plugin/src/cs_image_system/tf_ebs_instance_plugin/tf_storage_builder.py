@@ -18,7 +18,7 @@ from cs_image_system.base.models.executable import ExecutableModel
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.contract.operating_system import PACKAGE_LOCK_TIMEOUT
 from cs_image_system.base.models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED, STORAGE_STATE_DESTROYED, Storage
-from cs_image_system.hashicorp_utils.tofu_storage_builder import (
+from cs_image_system.tofu_roots.tofu_storage_builder import (
     RecordedStorage,
     TofuStorageBuilderBase,
     storage_groups,

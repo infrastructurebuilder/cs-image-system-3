@@ -18,7 +18,7 @@ lines, the detach and decommission whitelists, the ephemeral sequence,
 the finalization hooks, the storage state machine, `RecordedStorage` and
 the state query -- is `TofuInstanceBuilderBase` and
 `TofuStorageBuilderBase` in
-[cs-image-system-hashicorp-utils](../hashicorp-utils/README.md#the-terraform-roots),
+[cs-image-system-tofu-roots](../tofu-roots/README.md#the-terraform-roots),
 and this package subclasses them and answers their hooks with what is
 AWS: the `aws` provider configured with the runtime's region and
 profile, the `aws_instance` and `aws_storage_*` modules, the AMI
@@ -51,7 +51,7 @@ builders can be registered from an `instance` entry point.
 
 | Service name (`type:` of a builder entry) | Model class | Builder class | Classifications (VCT) | Also registered |
 |---|---|---|---|---|
-| `tofu` | `TofuInstanceBuilderModel` | `TofuInstanceBuilder` | `INSTANCE_BUILDER_MODEL`, `INSTANCE_BUILDER` | `TofuVersionChecker` (`VERSION_CHECKER`; hashicorp-utils' class, re-exported here) |
+| `tofu` | `TofuInstanceBuilderModel` | `TofuInstanceBuilder` | `INSTANCE_BUILDER_MODEL`, `INSTANCE_BUILDER` | `TofuVersionChecker` (`VERSION_CHECKER`; tofu-roots' class, re-exported here) |
 | `tf-aws` | `TofuStorageBuilderModel` | `TofuStorageBuilder` | `STORAGE_BUILDER_MODEL`, `STORAGE_BUILDER` | `TofuStorageVersionChecker` (`VERSION_CHECKER`) |
 | `tf-aws-ebs` | `TofuEbsStorageBuilderModel` | `TofuEbsStorageBuilder` | `STORAGE_BUILDER_MODEL`, `STORAGE_BUILDER` | |
 | `tf-aws-efs` | `TofuEfsStorageBuilderModel` | `TofuEfsStorageBuilder` | `STORAGE_BUILDER_MODEL`, `STORAGE_BUILDER` | |
@@ -69,8 +69,8 @@ is known to carry that model's fields.
 The version checkers are selected by an **executable** entry, not by a
 builder: an entry in `cfg/executables.yml` with `type: tofu` is checked by
 `TofuVersionChecker`, which runs `<binary> --version -json` and reads
-`terraform_version`. The class is hashicorp-utils'
-([tofu_instance_builder.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/tofu_instance_builder.py)),
+`terraform_version`. The class is tofu-roots'
+([tofu_instance_builder.py](../tofu-roots/src/cs_image_system/tofu_roots/tofu_instance_builder.py)),
 and every terraform root plugin registers it, so a tree whose roots are
 on one provider alone still has its tofu checked; the registry takes the
 one class from several plugins as one registration.
@@ -120,7 +120,7 @@ The base refuses a `parameters:` key on any builder with a message naming
 Defined in
 [tf_instance_models.py](src/cs_image_system/tf_ebs_instance_plugin/tf_instance_models.py).
 Extends `TofuInstanceBuilderModelBase`
-([tofu_models.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/tofu_models.py)),
+([tofu_models.py](../tofu-roots/src/cs_image_system/tofu_roots/tofu_models.py)),
 which declares the three fields below for every terraform instance root
 whatever its provider and itself extends `InstanceBuilderModel`
 ([instance_builder.py](../base/src/cs_image_system/base/models/instance_builder.py)),
@@ -187,7 +187,7 @@ A per-instance `groups:` key is refused: ownership lives on the image.
 Defined in
 [tf_storage_models.py](src/cs_image_system/tf_ebs_instance_plugin/tf_storage_models.py).
 Extends `TofuStorageBuilderModelBase`
-([tofu_models.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/tofu_models.py)),
+([tofu_models.py](../tofu-roots/src/cs_image_system/tofu_roots/tofu_models.py)),
 which declares `executable`, `required_plugins`, `state_configuration`
 and `variables` for every terraform storage root whatever its provider,
 over `StorageBuilderModel`
@@ -291,14 +291,14 @@ finalization the runner calls `pre_finalize_phase`, then the phase's deferred
 commands, then `post_finalize_phase`. A file for phase `P` of builder `B` is
 written at `<B>/<P>/<B>-<P>[-<label>]<suffix>`; the backend/init plumbing
 comes from `TerraformRootMixin` in
-[roots.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/roots.py).
+[roots.py](../tofu-roots/src/cs_image_system/tofu_roots/roots.py).
 
 The hooks the runner calls are implemented once, on the neutral bases in
-hashicorp-utils, and the numbered descriptions below are of those base
+tofu-roots, and the numbered descriptions below are of those base
 methods as they behave on this root: what is AWS in each is this
 package's answer to a named hook of the base (the full hook table, with
 the GCE and container answers beside the AWS ones, is in
-[The terraform roots](../hashicorp-utils/README.md#the-terraform-roots)).
+[The terraform roots](../tofu-roots/README.md#the-terraform-roots)).
 
 ### `TofuInstanceBuilder` (phase `instance-generation`)
 
@@ -798,7 +798,7 @@ holds them to.
 
 | Prerequisite | Why | How the plugin finds it |
 |---|---|---|
-| An OpenTofu (or terraform) binary | every root is `fmt`/`init`/`validate`d at generation and planned, gated and applied by the runner | the builder's `executable:` names an entry in `cfg/executables.yml`; that entry's `binary:` is the path and `type: tofu` selects `TofuVersionChecker` (hashicorp-utils' class, registered by this plugin and by every other root plugin), which runs `<binary> --version -json`. The entry's `version:` requirement is enforced: `validate` and every run refuse a binary outside it. The default `executable` value is the literal `"tofu"`, so an entry of that name must exist unless the builder names another. |
+| An OpenTofu (or terraform) binary | every root is `fmt`/`init`/`validate`d at generation and planned, gated and applied by the runner | the builder's `executable:` names an entry in `cfg/executables.yml`; that entry's `binary:` is the path and `type: tofu` selects `TofuVersionChecker` (tofu-roots' class, registered by this plugin and by every other root plugin), which runs `<binary> --version -json`. The entry's `version:` requirement is enforced: `validate` and every run refuse a binary outside it. The default `executable` value is the literal `"tofu"`, so an entry of that name must exist unless the builder names another. |
 | The terraform modules | each root is a `module` call against `tfmodules/aws_instance`, `aws_storage_ebs`, `aws_storage_efs` or `aws_storage_s3` | `config.module_source_base` in `cfg/_config.yml` (default `../tfmodules`, relative to the configuration root; an absolute path or a git/registry URL passes through). A fixture copy needs the `tfmodules` directory beside it. |
 | An AWS account, region and credentials | the `provider "aws"` block, every plan and apply, the state queries (boto3), the archive/restore/wipe scripts (the AWS CLI) | `region` from the runtime's `region:`; `profile` from the runtime's `credentials.profile_name` (emitted into the provider block, the backend file and the CLI scripts as `--profile`). With no profile named, the provider and boto3 fall back to the environment (`AWS_PROFILE`, or `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_SESSION_TOKEN`). An SSO profile needs a live session (`aws sso login --profile <p>`): the load itself refuses on an expired one, and a session that lapses mid-run is environmental. |
 | The `aws` CLI on the runner's `PATH` | `archive-<label>.sh` (`describe-snapshots`, `create-snapshot`, `wait snapshot-completed`), `unarchive-<label>.sh` and `restore-<label>.sh` (`delete-snapshot`), and the S3 wipe `aws s3 rm --recursive` before a bucket's destroy | run as deferred steps of `run-storage.sh` with `bash` and `aws` found on `PATH`; the EBS scripts pass `--region` and `--profile` from the runtime, the S3 wipe passes `--profile` only. Nothing checks the CLI's presence before the step runs. |
@@ -1331,11 +1331,11 @@ Each with the message or symptom, what it means, where to look, what to do.
 
 ## Related
 
-- [cs-image-system-hashicorp-utils](../hashicorp-utils/README.md#the-terraform-roots):
+- [cs-image-system-tofu-roots](../tofu-roots/README.md#the-terraform-roots):
   the provider-neutral terraform roots this package subclasses
-  ([tofu_instance_builder.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/tofu_instance_builder.py),
-  [tofu_storage_builder.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/tofu_storage_builder.py),
-  [tofu_models.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/tofu_models.py)),
+  ([tofu_instance_builder.py](../tofu-roots/src/cs_image_system/tofu_roots/tofu_instance_builder.py),
+  [tofu_storage_builder.py](../tofu-roots/src/cs_image_system/tofu_roots/tofu_storage_builder.py),
+  [tofu_models.py](../tofu-roots/src/cs_image_system/tofu_roots/tofu_models.py)),
   what the bases own, the full hook table and the version checker.
 - [cs-image-system-tf-gcp-plugin](../tf-gcp-plugin/README.md) and
   [cs-image-system-tf-docker-plugin](../tf-docker-plugin/README.md): the
@@ -1349,7 +1349,7 @@ Each with the message or symptom, what it means, where to look, what to do.
 - [hashicorp-utils collector.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/collector.py):
   the run-scoped `TerraformCollector` that renders the terraform, provider,
   variable, backend and remote-state blocks.
-- [hashicorp-utils roots.py](../hashicorp-utils/src/cs_image_system/hashicorp_utils/roots.py):
+- [tofu-roots roots.py](../tofu-roots/src/cs_image_system/tofu_roots/roots.py):
   `TerraformRootMixin`, the init arguments and the gated apply sequence.
 - [base launch_params.py](../base/src/cs_image_system/base/launch_params.py),
   [base storage_state.py](../base/src/cs_image_system/base/storage_state.py),

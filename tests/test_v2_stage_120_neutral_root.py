@@ -7,7 +7,7 @@ provider's root, and the GCE and docker roots install without the AWS one.
 
 Three proofs. The import graph: no source file of tf-gcp or tf-docker
 imports tf-ebs-instance or aws-runtime, and the AWS root imports no other
-provider's runtime; the neutral bases in hashicorp-utils import no provider
+provider's runtime; the neutral bases in tofu-roots import no provider
 plugin at all. The declared dependencies: the two pyprojects name no
 AWS package. The install: an environment synced from the lock for the two
 plugins alone holds neither the AWS root, nor aws-runtime, nor boto3, and
@@ -70,7 +70,7 @@ def test_the_aws_root_imports_no_other_providers_runtime_or_root():
 def test_the_neutral_bases_import_no_provider_plugin():
     bases = {"cs_image_system.aws_runtime", "cs_image_system.gcloud_runtime", "cs_image_system.docker_runtime",
              "cs_image_system.tf_ebs_instance_plugin", "cs_image_system.tf_gcp_plugin", "cs_image_system.tf_docker_plugin"}
-    hits = [f"{f.name}: {m}" for f in _sources("hashicorp-utils")
+    hits = [f"{f.name}: {m}" for f in _sources("tofu-roots")
             for m in _imports(f) if any(m == x or m.startswith(x + ".") for x in bases)]
     assert hits == []
 
@@ -92,7 +92,7 @@ def test_the_gce_and_docker_pyprojects_name_no_aws_package(package: str):
 
 
 def test_every_root_plugin_registers_the_tofu_version_checker():
-    from cs_image_system.hashicorp_utils.tofu_instance_builder import TofuVersionChecker
+    from cs_image_system.tofu_roots.tofu_instance_builder import TofuVersionChecker
     for module in ("cs_image_system.tf_ebs_instance_plugin.main", "cs_image_system.tf_gcp_plugin.main",
                    "cs_image_system.tf_docker_plugin.main"):
         md = __import__(module, fromlist=["initialize"]).initialize()
@@ -117,8 +117,8 @@ for absent in ("boto3", "botocore", "cs_image_system.aws_runtime", "cs_image_sys
     assert importlib.util.find_spec(absent) is None, absent + " is installed"
 from cs_image_system.tf_gcp_plugin.main import initialize as gcp
 from cs_image_system.tf_docker_plugin.main import initialize as docker
-from cs_image_system.hashicorp_utils.tofu_instance_builder import TofuInstanceBuilderBase, TofuVersionChecker
-from cs_image_system.hashicorp_utils.tofu_storage_builder import TofuStorageBuilderBase
+from cs_image_system.tofu_roots.tofu_instance_builder import TofuInstanceBuilderBase, TofuVersionChecker
+from cs_image_system.tofu_roots.tofu_storage_builder import TofuStorageBuilderBase
 seen = set()
 for md in (gcp(), docker()):
     for classes in md.services.values():

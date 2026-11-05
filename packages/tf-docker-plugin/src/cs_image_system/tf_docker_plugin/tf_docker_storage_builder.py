@@ -24,7 +24,7 @@ from cs_image_system.base.basic.builder_base_storage import CARDINALITY_MANY
 from cs_image_system.base.models.executable import ExecutableModel
 from cs_image_system.base.models.storage import Storage
 from cs_image_system.docker_runtime.docker_names import tag_name
-from cs_image_system.hashicorp_utils.tofu_storage_builder import TofuStorageBuilderBase, storage_groups
+from cs_image_system.tofu_roots.tofu_storage_builder import TofuStorageBuilderBase, storage_groups
 
 from .tf_docker_models import TF_DOCKER_VOLUME, TofuDockerVolumeStorageBuilderModel
 

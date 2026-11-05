@@ -71,6 +71,54 @@ def test_the_contract_imports_nothing_from_the_core():
                 f"{source.relative_to(REPO)} imports {module}"
 
 
+def _packages_reached(src: Path) -> set[str]:
+    """The ``cs_image_system.<package>`` names a source tree imports: every
+    absolute import in every file, at any depth, lazy ones included."""
+    reached: set[str] = set()
+    for source in sorted(src.rglob("*.py")):
+        for module, level in _imports(source):
+            if level == 0 and module.startswith("cs_image_system."):
+                reached.add(module.split(".")[1])
+    return reached
+
+
+def _src(package: str) -> Path:
+    return REPO / "packages" / package / "src" / "cs_image_system"
+
+
+def test_the_library_imports_only_the_contract():
+    """hashicorp-utils is a leaf on the contract: nothing under its source
+    imports the core (``base``), the CLI host (``system``), the terraform
+    roots (``tofu_roots``) or any plugin package, at any depth, lazily or
+    not. The run context it is handed is typed by its own protocol."""
+    for source in sorted(_src("hashicorp-utils").rglob("*.py")):
+        for module, level in _imports(source):
+            if level == 0 and module.startswith("cs_image_system."):
+                assert module.split(".")[1] in {"contract", "hashicorp_utils"}, \
+                    f"{source.relative_to(REPO)} imports {module}"
+
+
+def test_the_import_order_is_a_dag():
+    """contract <- hashicorp_utils <- tofu_roots, and contract <- base <-
+    tofu_roots: the contract imports no other package; the library only
+    the contract; the core neither the library, nor the roots, nor a
+    plugin; the roots only the contract, the core and the library. A
+    plugin may import any of the four; none of the four imports a plugin."""
+    core = {"contract", "base", "system", "hashicorp_utils", "tofu_roots"}
+    plugins = {p.name for p in (REPO / "packages").glob("*/src/cs_image_system/*") if p.is_dir()} - core
+    assert plugins, "no plugin package found"
+    allowed = {
+        "contract": {"contract"},
+        "hashicorp-utils": {"contract", "hashicorp_utils"},
+        "base": {"contract", "base"},
+        "tofu-roots": {"contract", "base", "hashicorp_utils", "tofu_roots"},
+    }
+    for package, may in allowed.items():
+        reached = _packages_reached(_src(package))
+        assert reached <= may, f"{package} imports {sorted(reached - may)}"
+        assert not (reached & plugins), f"{package} imports the plugin(s) {sorted(reached & plugins)}"
+
+
 def test_a_kind_module_imports_only_the_kinds_it_declares():
     """One module per kind over a shared core: a kind module reaches ``core``
     and the leaves, and another kind only when ALLOWED says so."""
@@ -319,20 +367,22 @@ def test_a_plugins_version_is_its_own():
 
 # ------------------------------------------------------------------ the state seam
 
-def test_the_collector_pulls_the_declared_backends_from_the_registry(tmp_path, monkeypatch):
+def test_the_collector_pulls_the_declared_backends_from_the_context(tmp_path, monkeypatch):
     """A state plugin's model no longer pushes its registration into the
-    collector from ``finalize``; once the state backends are loaded the core
-    hands every model's ``to_backend_registration()`` to the collector, so
-    the three state plugins import nothing from hashicorp-utils, and a
-    collector reset after the load leaves nothing behind (the builder
-    tests that reset it rely on that)."""
-    from cs_image_system.hashicorp_utils.collector import TerraformCollector
+    collector from ``finalize``, and the core hands nothing over either:
+    the library's accessor makes the run's collector on the first ask and
+    pulls every state backend model's ``to_backend_registration()`` from
+    the context, so the three state plugins and the core import nothing
+    from hashicorp-utils for it, and a collector reset after the load
+    leaves nothing behind."""
+    from cs_image_system.hashicorp_utils.collector import terraform_collector
     from v2_support import copy_config, stub_environment
     monkeypatch.setenv("CSIS_CONFIG_IDENTITY", str(FIXTURE_CONFIG / ".age-identity"))
     stub_environment(monkeypatch)
     root = copy_config(tmp_path)
-    load_context(root)
-    col = TerraformCollector()
+    ctx = load_context(root)
+    col = terraform_collector(ctx)
+    assert terraform_collector(ctx) is col, "one collector per run context"
     declared = {b.type for b in col._backends.values()}
     assert {"s3", "local", "gcs"} <= declared, declared
     default = col.resolve_backend(None)

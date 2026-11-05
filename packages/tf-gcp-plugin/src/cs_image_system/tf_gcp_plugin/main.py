@@ -5,7 +5,7 @@
 import logging
 
 from cs_image_system.base.basic.abstract_plugin_metadata import AbstractPluginMetadata
-from cs_image_system.hashicorp_utils.tofu_instance_builder import TofuVersionChecker
+from cs_image_system.tofu_roots.tofu_instance_builder import TofuVersionChecker
 
 from .tf_gce_instance_builder import TofuGceInstanceBuilder
 from .tf_gcp_models import (

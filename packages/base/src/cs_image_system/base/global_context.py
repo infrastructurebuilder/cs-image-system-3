@@ -303,6 +303,16 @@ class GlobalTypeContext:
         return set(self._generated_lifecycles)
     def mark_generated(self, lifecycle: LifecycleLike) -> None:
         self._generated_lifecycles.add(lifecycle)
+    def plugin_state(self, key: str, factory: Callable[[], Any]) -> Any:
+        """The one object a library or plugin keeps for this run under
+        ``key``: made by ``factory`` on the first ask, the same object after,
+        and gone when the context is. The core names none of them; this is
+        how a collector or a cache lives beside the context without being a
+        process singleton."""
+        if key not in self._plugin_state:
+            self._plugin_state[key] = factory()
+        return self._plugin_state[key]
+
     def reset_generated_lifecycles(self) -> None:
         """Start-of-run reset: 'generated in THIS run' must never carry over
         (finding 34 -- the apply step trusts this set to scope execution)."""
@@ -680,6 +690,9 @@ class GlobalTypeContext:
             )
         self.reg = registry.Registry()
         self._dry_run = dry_run
+        # per-run state that a library or plugin keeps beside this context (a
+        # terraform collector, say), created on first ask and gone with the context
+        self._plugin_state: dict[str, Any] = {}
         # Transient declarations (stage 8): overlay files merged over the tree
         # for THIS invocation only -- items by name, config keys by key.
         self.overlays: list[Path] = [Path(p).resolve() for p in (overlays or [])]
@@ -1267,7 +1280,6 @@ def read_config_and_transform(
         configured_state_builders = process_and_register_builders(
             config_data, VCT.STATE_BACKEND, "state_backends", addl_config
         )
-        register_declared_backends(reg)
     configured_os_builders = {}
     if config_data.os_builders:
         configured_os_builders = process_and_register_builders(
@@ -1355,20 +1367,6 @@ def read_config_and_transform(
         ).__post_init__()
     # Final action
     return ctx
-
-
-def register_declared_backends(reg: registry.Registry) -> None:
-    """Stage 30: every state backend model answers its registration
-    (``to_backend_registration``, the contract's ``StateBackendModelProtocol``)
-    and the core hands them all to the terraform collector here, once the
-    state backends are loaded and finalized -- the point at which each
-    plugin's model used to push its own from ``finalize``, which made the
-    plugin import the library. The library is optional to the core."""
-    try:
-        from cs_image_system.hashicorp_utils.collector import TerraformCollector
-    except ImportError:  # pragma: no cover - hashicorp-utils is always installed here
-        return
-    TerraformCollector().pull_declared_backends(reg.get_all_instances_by_classification(VCT.STATE_BACKEND_MODEL))
 
 
 def process_and_register_builders(

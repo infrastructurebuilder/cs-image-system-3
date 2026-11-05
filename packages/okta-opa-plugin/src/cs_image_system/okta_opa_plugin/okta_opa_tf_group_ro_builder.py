@@ -16,7 +16,7 @@ from cs_image_system.contract.assets import AssetSet
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.contract.executables import CFExecutables
 from cs_image_system.base.models.group import Group
-from cs_image_system.hashicorp_utils.collector import TerraformCollector
+from cs_image_system.hashicorp_utils.collector import terraform_collector
 
 from .okta_opa_tf_group_builder import OktaTfGroupBuilder
 from .okta_opa_tf_group_models import OktaTfGroupRoBuilderModel
@@ -91,7 +91,7 @@ class OktaTfGroupRoBuilder(OktaTfGroupBuilder):
     def _okta_provider_ref(self) -> str | None:
         """Aliased provider reference for root-level data sources (the
         collector always aliases, so no default provider config exists)."""
-        ref = TerraformCollector().provider_bindings(self.name).get(OKTA_PROVIDER)
+        ref = terraform_collector(self._get_context()).provider_bindings(self.name).get(OKTA_PROVIDER)
         if ref is None:
             log.warning(
                 f"Group builder {self.name} has no configured '{OKTA_PROVIDER}' "

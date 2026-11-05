@@ -46,7 +46,7 @@ def world(tmp_path: Path, monkeypatch):
     """A context whose plugins answer from canned reality."""
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
-    from cs_image_system.hashicorp_utils.tofu_storage_builder import TofuStorageBuilderBase
+    from cs_image_system.tofu_roots.tofu_storage_builder import TofuStorageBuilderBase
 
     reality: dict = {"images": {}, "storages": {}, "groups": {}}   # images keyed by runtime name
     run = V2Run(tmp_path, monkeypatch)   # first: its stubs would override ours

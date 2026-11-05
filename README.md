@@ -55,7 +55,7 @@ run and applied by the operator. The manual describes each.
 
 ## Layout
 
-`packages/` holds the uv workspace: four core packages and seventeen
+`packages/` holds the uv workspace: five core packages and seventeen
 plugins, each with its own README ([docs/PLUGINS.md](docs/PLUGINS.md)
 describes them together). The core:
 
@@ -65,7 +65,11 @@ describes them together). The core:
   registry and plugin loader, state and the records.
 - [system](packages/system/README.md) — the `cs-image-system` CLI.
 - [hashicorp-utils](packages/hashicorp-utils/README.md) — the terraform
-  library (a library, not a plugin).
+  library (a library, not a plugin): HCL rendering and the per-run
+  collectors, on the contract alone.
+- [tofu-roots](packages/tofu-roots/README.md) — the provider-neutral
+  terraform roots every OpenTofu root plugin subclasses (a library, not a
+  plugin).
 
 The plugins, discovered through Python entry points, one package each:
 

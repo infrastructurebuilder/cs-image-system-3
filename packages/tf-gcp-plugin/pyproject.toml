@@ -15,6 +15,7 @@ dependencies = [
     "cs-image-system-contract==0.1.7.dev1",
     "cs-image-system-base==0.1.7.dev1",
     "cs-image-system-hashicorp-utils==0.1.7.dev1",
+    "cs-image-system-tofu-roots==0.1.7.dev1",
     "cs-image-system-gcloud-runtime-plugin==0.1.7.dev1",
     "google-cloud-compute>=1.49",
     "pydantic>=2.13",

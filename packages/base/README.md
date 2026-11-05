@@ -275,7 +275,7 @@ and applies `get_regex()`. The result is compared with the executable's
 
 | Seam | Where | What it adds |
 | ------ | ------- | -------------- |
-| Run hooks | entry point group `cs_image_system.plugins.hooks`; `HookSet` in [`commands/run_lifecycles.py`](src/cs_image_system/base/commands/run_lifecycles.py) | `validators` (return error strings; any error aborts the run), `after_generate`, `before_apply`, `after_apply` (real runs only), `on_summary`, and `lifecycles` (a list of `LifecycleSpec`). |
+| Run hooks | entry point group `cs_image_system.plugins.hooks`; `HookSet` in [`commands/run_lifecycles.py`](src/cs_image_system/base/commands/run_lifecycles.py) | `validators` (return error strings; any error aborts the run), `after_generate`, `before_apply`, `after_apply` (real runs only), `on_summary`, `state_bindings` (answer `{lifecycle: {workspace: state file}}`, merged into the runner-script headers and the summary's `state_bindings`; the tofu-roots plugin answers for the terraform roots), and `lifecycles` (a list of `LifecycleSpec`). |
 | Lifecycles | `register_lifecycle(LifecycleSpec)` in [`lifecycles.py`](src/cs_image_system/base/lifecycles.py) | A lifecycle with its own phases, builder classifications, directory and runner script, positioned after an existing one. |
 | Field kinds | `register_field_kind(name, FieldKindHandler)` in [`helpers/field_kinds.py`](src/cs_image_system/base/helpers/field_kinds.py) | A late-binding behaviour for fields carrying `field_kind` metadata: `contribute_context`, `resolve`, `upgrade`. |
 | Resolution passes | `register_resolution_pass(name, fn, order)` in [`helpers/resolution_stages.py`](src/cs_image_system/base/helpers/resolution_stages.py) | A string-stage pass over the raw YAML document. Built in: `interpolate` (order 10) and `scope-this` (order 20). |
@@ -453,8 +453,8 @@ is built, the backstop for objects made in code. A REFERENCE written
 `none` is a different matter: a foreign key takes its default only when
 the value equals the field's own default (`field_set_to_default`), so
 `default` resolves and `none` names nothing -- `validate` refuses it
-(`check_foreign_keys`, `check_state_locations`) with what to write
-instead. A field that gives `none` a meaning of its own (`update:
+(`check_foreign_keys`; the tofu-roots state-location validator for a
+state backend) with what to write instead. A field that gives `none` a meaning of its own (`update:
 {policy: none}`, `--only none`) tests for the word by name, never
 through the list. An alias equal to the name is dropped. `super_safe_name()` additionally
 replaces `+ . / \ - @` with `_`; it names terraform workspaces and state
@@ -883,12 +883,14 @@ only=None, force_bake=None)` performs, in order:
    resolution; for `base-image` the vendor image query and base image
    synthesis; for `instance-image` the deferred or pinned
    provider-specific images), run each phase (before hooks, the during
-   generator, after hooks), run after-generate hooks, then write the runner
-   script if any deferred command was recorded. A lifecycle with no
-   deferred work leaves no script.
-6. Record every generated terraform root's resolved state location in
-   `meta-state/state-locations.yaml` (a root migrating this run keeps its
-   old record until the migration's `finish` step), then write
+   generator, after hooks), run after-generate hooks (the tofu-roots
+   plugin's records every generated terraform root's resolved state
+   location in `meta-state/state-locations.yaml`; a root migrating this
+   run keeps its old record until the migration's `finish` step), then
+   write the runner script if any deferred command was recorded. A
+   lifecycle with no deferred work leaves no script.
+6. Collect the state-isolation evidence from the state-bindings hooks
+   into the summary's `state_bindings`, then write
    `generated/final_execution.sh`, which runs each lifecycle's runner
    script if and only if it exists.
 7. **Apply** (unless `--no-apply`): for every lifecycle whose script exists
@@ -1323,8 +1325,10 @@ the core finds it.
   in [`pyproject.toml`](pyproject.toml); `just init` (`uv sync`) installs
   this package and every plugin beside it. The dependencies are the six
   named at the top of this file; nothing else is imported at runtime except
-  the standard library and, optionally,
-  [hashicorp-utils](../hashicorp-utils/README.md) (below).
+  the standard library. The core imports no terraform library: what the
+  roots need of [hashicorp-utils](../hashicorp-utils/README.md) and
+  [tofu-roots](../tofu-roots/README.md) reaches the run through hook
+  plugins and the context's plugin state (below).
 - **Plugins, through entry points.** The core registers no runtime, no
   image builder, no OS builder, no storage, group, user, instance or mod
   builder and no state backend. At every CLI start
@@ -1354,14 +1358,12 @@ the core finds it.
   [tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md),
   [tf-gcp-plugin](../tf-gcp-plugin/README.md),
   [tf-s3-state-plugin](../tf-s3-state-plugin/README.md).
-- **hashicorp-utils, for the state-location checks.**
-  `check_state_locations` in
-  [`commands/validate.py`](src/cs_image_system/base/commands/validate.py)
-  and the state-location recording and runner headers in
-  [`commands/run_lifecycles.py`](src/cs_image_system/base/commands/run_lifecycles.py)
-  import `cs_image_system.hashicorp_utils.collector` inside a `try`; an
-  `ImportError` skips them silently. The workspace always installs it, so
-  the skip is a packaging accident, never a configuration.
+- **Nothing of hashicorp-utils.** The core imports no terraform
+  library. The state-location check, the state-location records and the
+  runner headers' state bindings are the
+  [tofu-roots](../tofu-roots/README.md) hook plugin's, reached through
+  the run hooks above; a workspace without it validates and runs with
+  no state-location check and an empty `state_bindings`.
 - **A configuration root with `cfg/`.** `--root-dir` (the CLI's, default
   the current directory) must hold a `cfg/` directory with at least one
   YAML file, or the load stops with `Failed to read configuration from
@@ -1489,10 +1491,10 @@ the recorders claim reality, the hostname claims are checked against the
 registry and a run that can launch draws from the alias pool; with
 `apply_release` on, the runtime's `release_commands` for every CURRENT
 release are deferred into the release runner); `use_state_backends`
-(hashicorp-utils' collector and the core's `check_state_locations` and
-`_record_state_locations`: off, no backend block, no `.tfbackend.hcl`, no
-remote-state data source, no location record, no collision or move
-check); `module_source_base` (`module_source` in `utils.py`: a relative
+(hashicorp-utils' collector and the tofu-roots hook plugin's
+state-location validator and recorder: off, no backend block, no
+`.tfbackend.hcl`, no remote-state data source, no location record, no
+collision or move check); `module_source_base` (`module_source` in `utils.py`: a relative
 value is relative to the configuration root and rewritten per workspace
 depth, absolute paths and URLs pass through); `admin_public_keys`
 ([`capabilities.py`](src/cs_image_system/base/capabilities.py),
@@ -1896,7 +1898,7 @@ where they differ.
 |---|---|---|
 | unique global ids | `check_name_uniquness` | two OS builders, runtime configurations or images with one id |
 | executables | `check_executables_exist_and_versions` | a declared binary not found; a version that cannot be read or parsed; a version outside its requirement; a builder's `executable` naming no entry. What passed is one INFO line, `Executables: <name> <version> ok (...)` |
-| state locations | `check_state_locations` | a root (or its runtime) naming state backend `none`, which would otherwise read as unset and put the state on the DEFAULT backend -- there is no "no backend": declare one of type `local`, or leave the field out; a root naming an undeclared backend; two roots sharing one state object; a root whose location moved while resources stand in it (the fix is `--migrate-state`) |
+| state locations | `state_location_problems` in the [tofu-roots](../tofu-roots/README.md) hook plugin, a registered validator | a root (or its runtime) naming state backend `none`, which would otherwise read as unset and put the state on the DEFAULT backend -- there is no "no backend": declare one of type `local`, or leave the field out; a root naming an undeclared backend; two roots sharing one state object; a root whose location moved while resources stand in it (the fix is `--migrate-state`) |
 | foreign keys | `check_foreign_keys` | a field that names no object of its classification, naming the object, field, value and what is declared; a field written `none`, which names nothing (it is not the field's default, which resolves only by equality), with the remedy: leave the field out, or write `default` |
 | availability zones | `check_availability_zones` | a zonal storage in a zone other than its runtime's; an instance, its zonal storages and its runtime's subnet asking for more than one zone |
 | bake users | `check_bake_users` | an OS builder entry or image entry whose bake user nothing names; on a runtime with one user per chain (GCE), an image naming a user other than its chain root's |

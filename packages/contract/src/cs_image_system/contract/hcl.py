@@ -19,6 +19,20 @@ class HclRaw(str):
     __slots__ = ()
 
 
+def emitted(value: Any) -> Any:
+    """What an emission writes for ``value``: the ciphertext marker it was
+    read from when it carries one (``.marker``, as the core's decrypted
+    strings do), else the value itself.
+
+    A committed emission therefore says ``ENC[age:...]`` wherever the
+    configuration did, and the private mirror the tools run from is the
+    only place the plaintext is written. The marker is reused rather than
+    re-encrypted: age is randomised, so re-encrypting would move every
+    emitted byte on every run. The contract holds this rule so that a
+    library rendering HCL needs nothing from the core to follow it."""
+    return getattr(value, "marker", None) or value
+
+
 def hcl_expr(v: Any, indent: int = 2) -> str:
     """Render a Python value as an HCL expression.
 

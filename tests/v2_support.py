@@ -23,7 +23,7 @@ import subprocess
 import types
 from datetime import datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Callable, cast
 
 REPO = Path(__file__).resolve().parents[1]
 FIXTURE_CONFIG = REPO / "tests" / "fixtures" / "config"     # frozen (stage 28); the live tree is elsewhere
@@ -104,11 +104,38 @@ def plain(value: Any) -> Any:
     return value
 
 
+class BareRun:
+    """A bare run context for a builder driven outside a run: the global
+    ``config:`` map (backends off unless given), the declared state backends
+    (none unless given) and ``plugin_state``, the slot per key the terraform
+    library keeps its collectors in, exactly as the core's context has
+    them, plus ``dry_run`` and whatever else a test sets. Two holders are
+    two runs: a collector made on one is invisible to the other."""
+
+    dry_run: bool = False
+
+    def __init__(self, **attrs: Any) -> None:
+        self.config: dict[str, Any] = attrs.pop("config", {})
+        self.state_backends: dict[str, Any] = attrs.pop("state_backends", {})
+        self._state: dict[str, Any] = {}
+        for name, value in attrs.items():
+            setattr(self, name, value)
+
+    def plugin_state(self, key: str, factory: Callable[[], Any]) -> Any:
+        if key not in self._state:
+            self._state[key] = factory()
+        return self._state[key]
+
+
+def bare_run(**attrs: Any) -> BareRun:
+    """See :class:`BareRun`."""
+    return BareRun(**attrs)
+
+
 def reset_singletons() -> None:
     from cs_image_system.base import global_context as gc
     from cs_image_system.base import registry
     from cs_image_system.base.orchestrator import Orchestrator, TemplateResolver
-    from cs_image_system.hashicorp_utils.collector import PackerCollector, TerraformCollector
     registry.Registry().reset()
     from cs_image_system.base.image_sources import ImageSourceCatalog
     ImageSourceCatalog().reset()
@@ -116,8 +143,9 @@ def reset_singletons() -> None:
     from cs_image_system.base.orchestrator import reset_unresolved_fks
     reset_unresolved_fks()
     Orchestrator().invalidate_converter()
-    TerraformCollector().reset()
-    PackerCollector().reset()
+    # the terraform and packer collectors are per-run instances kept beside
+    # the context (plugin_state): a new context starts with none, so nothing
+    # of theirs is reset here
     for cell in cast(Any, gc.GlobalTypeContext).__closure__:
         val = cell.cell_contents
         if isinstance(val, dict):
@@ -168,7 +196,7 @@ def stub_environment(monkeypatch) -> list[str]:
     # of ours exists" by default. Tests of the query itself re-patch these
     # AFTER constructing their V2Run.
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
-    from cs_image_system.hashicorp_utils.tofu_storage_builder import TofuStorageBuilderBase
+    from cs_image_system.tofu_roots.tofu_storage_builder import TofuStorageBuilderBase
     monkeypatch.setattr(AwsCloudBuilder, "query_images", lambda self, series: [])
     monkeypatch.setattr(GCPCloudBuilder, "query_images", lambda self, series: [])
     # zero-drift-report: post-bake retagging would reach EC2; journal it.

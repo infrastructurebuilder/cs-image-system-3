@@ -17,7 +17,7 @@ from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 
 from cs_image_system.base.models.module_variables import ModuleVariables
-from cs_image_system.hashicorp_utils.tofu_models import TofuInstanceBuilderModelBase, TofuStorageBuilderModelBase
+from cs_image_system.tofu_roots.tofu_models import TofuInstanceBuilderModelBase, TofuStorageBuilderModelBase
 
 TOFU_DOCKER: str = "tofu-docker"
 TF_DOCKER_VOLUME: str = "tf-docker-volume"

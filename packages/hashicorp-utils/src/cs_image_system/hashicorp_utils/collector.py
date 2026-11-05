@@ -10,22 +10,29 @@ merge version constraints, abort on unresolvable conflicts (per-workspace AND
 run-wide), and generate in-memory HCL line lists. Nothing here writes files —
 builders wrap the generated lines in Asset/AssetSet objects.
 
-Both collectors are @singleton with Registry-style ``_init_state()`` /
-``reset()`` so registrations persist for the duration of a run and can be
+Each collector is one instance per run, kept beside the run context and
+reached through ``terraform_collector(ctx)`` / ``packer_collector(ctx)``
+(the accessors at the end of this module): made on the first ask, the same
+object for every later ask on that context, and gone when the context is.
+Registrations therefore persist for the duration of a run and can be
 consumed across plugins (e.g. tf-ebs-instance referencing tf-s3-state's
-backend registrations).
+backend registrations) without any process-wide state. ``reset()`` stays
+for a test that reuses one instance.
+
+This library imports only the contract: the context it is handed is typed
+by the small ``RunContext`` protocol below, never by the core's class.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 import logging
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping, Protocol
 
 import hcl2
 from hcl2 import Builder
 
 from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS
-from cs_image_system.base.singleton import singleton
+from cs_image_system.contract.hcl import emitted
 from cs_image_system.contract.names import super_safe_name as ssn
 
 # stage 30: where a workspace's state lives, a backend's registration and the
@@ -103,7 +110,6 @@ def render_backend_value(v: Any) -> str:
     decrypted setting is written as the ciphertext it was read from
     (stage 63; it was written in clear, and only the plaintext guard
     caught it); ``materialize`` restores it in the private copy."""
-    from cs_image_system.base.encryption import emit
     if isinstance(v, bool):
         return str(v).lower()
     if isinstance(v, (int, float)):
@@ -113,7 +119,7 @@ def render_backend_value(v: Any) -> str:
     if isinstance(v, dict):
         inner = ", ".join(f"{k} = {render_backend_value(x)}" for k, x in v.items())
         return "{ " + inner + " }"
-    text = str(emit(v)).replace("\\", "\\\\").replace('"', '\\"')
+    text = str(emitted(v)).replace("\\", "\\\\").replace('"', '\\"')
     return f'"{text}"'
 
 
@@ -154,11 +160,16 @@ class PackerVariableDecl:
 # Terraform collector
 # --------------------------------------------------------------------------
 
-@singleton
 class TerraformCollector:
-    """Run-scoped collector of terraform requirements, keyed by workspace."""
+    """Run-scoped collector of terraform requirements, keyed by workspace.
 
-    def __init__(self) -> None:
+    ``backends_enabled`` is the run's ``config: use_state_backends`` flag,
+    handed in by whoever makes the instance (the accessor reads it from the
+    context); it gates every backend block, backend file, remote-state data
+    source and location record, never the collision check."""
+
+    def __init__(self, *, backends_enabled: bool = False) -> None:
+        self._backends_enabled = bool(backends_enabled)
         self._init_state()
 
     def _init_state(self) -> None:
@@ -306,22 +317,18 @@ class TerraformCollector:
 
     # --- lookup / validation ----------------------------------------------
     def backends_enabled(self) -> bool:
-        """Backend/remote-state emission is gated by the global config flag."""
-        from cs_image_system.base.global_context import GlobalTypeContext
-        try:
-            return bool(GlobalTypeContext().config.get("use_state_backends", False))
-        except Exception:
-            return False
+        """Backend/remote-state emission is gated by the run's
+        ``use_state_backends`` flag, fixed when the instance was made."""
+        return self._backends_enabled
 
     def pull_declared_backends(self, models: Mapping[str, Any]) -> None:
         """Stage 30: the declared backends come from the state backend
         models, each answering ``to_backend_registration`` (the contract's
-        ``StateBackendModelProtocol``); the core hands them here once the
-        state backends are loaded and finalized, the point at which every
-        plugin's model used to push its own registration from ``finalize``
-        (which made the plugin import this library). A registration already
-        made under a model's name is kept; a model that answers nothing is
-        skipped."""
+        ``StateBackendModelProtocol``); the accessor hands them here from
+        the context's state backends when it makes the run's instance, so
+        no state plugin and no part of the core imports this library for
+        it. A registration already made under a model's name is kept; a
+        model that answers nothing is skipped."""
         for name, model in sorted(models.items()):
             if name in self._backends:
                 continue
@@ -570,7 +577,6 @@ class TerraformCollector:
 # Packer collector
 # --------------------------------------------------------------------------
 
-@singleton
 class PackerCollector:
     """Run-scoped collector of packer plugin requirements, keyed by workspace."""
 
@@ -661,3 +667,46 @@ class PackerCollector:
                             description=v.description, env_var=v.env_var,
                             sensitive=v.sensitive)
         return hcl2.dumps(doc.build(), formatter_options=FO).splitlines()
+
+
+# ------------------------------------------------- the per-run instances
+
+class RunContext(Protocol):
+    """What the accessors need of a run context: the global ``config:``
+    map, the declared state backends (name -> a builder whose ``model``
+    answers ``to_backend_registration``), and ``plugin_state``, the one
+    slot per key a library keeps beside the context for the run. The
+    core's context satisfies it; so does a bare holder in a test."""
+
+    @property
+    def config(self) -> Mapping[str, Any]: ...
+
+    @property
+    def state_backends(self) -> Mapping[str, Any]: ...
+
+    def plugin_state(self, key: str, factory: Callable[[], Any]) -> Any: ...
+
+
+TERRAFORM_COLLECTOR_KEY = "hashicorp-utils.terraform-collector"
+PACKER_COLLECTOR_KEY = "hashicorp-utils.packer-collector"
+
+
+def terraform_collector(ctx: RunContext) -> TerraformCollector:
+    """The run's terraform collector, kept beside the context
+    (``ctx.plugin_state``): one per context, made on the first ask with the
+    backend flag read from the tree's ``config: use_state_backends`` and
+    the tree's declared state backends pulled in (every state backend
+    model's ``to_backend_registration``). Every builder, hook and command
+    that reads or writes the collector reaches it here, never by
+    constructing one; a new context starts with no collector at all."""
+    def make() -> TerraformCollector:
+        col = TerraformCollector(backends_enabled=bool(ctx.config.get("use_state_backends", False)))
+        col.pull_declared_backends({name: sb.model for name, sb in ctx.state_backends.items()})
+        return col
+    return ctx.plugin_state(TERRAFORM_COLLECTOR_KEY, make)
+
+
+def packer_collector(ctx: RunContext) -> PackerCollector:
+    """The run's packer collector, kept beside the context as the
+    terraform one is: one per context, made on the first ask."""
+    return ctx.plugin_state(PACKER_COLLECTOR_KEY, PackerCollector)

@@ -40,7 +40,7 @@ from cs_image_system.base.launch_params import ENROLLMENT_TOKEN_VARIABLE
 from cs_image_system.base.models.executable import ExecutableModel
 from cs_image_system.base.models.instance import Instance
 from cs_image_system.contract.hcl import HclRaw, hcl_expr
-from cs_image_system.hashicorp_utils.tofu_instance_builder import TofuInstanceBuilderBase
+from cs_image_system.tofu_roots.tofu_instance_builder import TofuInstanceBuilderBase
 
 from .tf_docker_models import TOFU_DOCKER, TofuDockerInstanceBuilderModel
 
