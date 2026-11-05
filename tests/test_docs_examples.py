@@ -488,9 +488,10 @@ def test_an_unconfigured_copy_of_a_starter_skips_even_on_its_first_push_to_main(
 
 def test_the_built_release_carries_the_starters_byte_for_byte(tmp_path):
     """Stage 64 item 1: `just build` (uv build: the sdist, then the wheel FROM
-    the sdist) ships the three trees inside the system package, so a machine
-    that holds nothing but the release can write one out. The wheel is built
-    here and read; every file of every tree is in it, unchanged."""
+    the sdist) ships every starter tree, and the DEFAULT marker naming the
+    one a new tree gets, inside the system package, so a machine that holds
+    nothing but the release can write one out. The wheel is built here and
+    read; every file of every tree is in it, unchanged."""
     import shutil, subprocess, zipfile
     uv = shutil.which("uv")
     if not uv:
@@ -502,7 +503,7 @@ def test_the_built_release_carries_the_starters_byte_for_byte(tmp_path):
     prefix = "cs_image_system/system/starters/"
     with zipfile.ZipFile(wheel) as z:
         carried = {n[len(prefix):]: z.read(n) for n in z.namelist() if n.startswith(prefix)}
-    expected = {}
+    expected = {"DEFAULT": (EXAMPLES / "DEFAULT").read_bytes()}
     for name in TREES:
         for p in sorted((EXAMPLES / name).rglob("*")):
             if p.is_file() and p.name != ".DS_Store":

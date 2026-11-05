@@ -6,7 +6,7 @@
 
 A starter's Markdown is written where it lives, under ``docs/examples/<name>``
 in the system repository, and links into that repository by relative path
-(``../../CONFIGURATION.md``, ``../standard-aws/README.md``). A tree made from
+(``../../CONFIGURATION.md``, ``../<another starter>/README.md``). A tree made from
 the starter -- by ``init-config`` or as a template repository -- stands
 alone, where those paths point nowhere. Each such link becomes a link to the
 same file in the system repository at the release's tag; a link that stays

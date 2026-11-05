@@ -53,7 +53,7 @@ def check_version(sv: str | None, version: str | None) -> ComplianceState:
 
 def version_checker_for(exe: ExecutableModel) -> type[AbstractVersionChecker] | None:
     """The checker for an executable (stage 48.1): registered under its NAME
-    first -- packer, tofu, gcloud, aws-cli, ansible-playbook and bash have
+    first -- packer, tofu, each cloud's CLI, ansible-playbook and bash have
     their own -- then under its TYPE (`packer-1.9.4` with `type: packer`),
     which for the default type `executable` is the generic checker base
     registers. The checkers were always registered by name while the lookup
@@ -420,7 +420,7 @@ def _storage_runtime(ctx: GlobalTypeContext, storage) -> str | None:
 
     Every other reader places a storage by its builder's runtime; this check
     read the storage ITEM's ``runtime``, which defaults to the default runtime,
-    so a GCE disk with a zone was compared with an AWS subnet unless the item
+    so one cloud's disk with a zone was compared with another cloud's subnet unless the item
     named its runtime too. The item's own value is the fallback for a builder
     that names none."""
     builder = ctx.storage_builders.get(str(storage.get_type() or ""))
@@ -435,7 +435,7 @@ def _storage_runtime(ctx: GlobalTypeContext, storage) -> str | None:
 def _runtime_zone(ctx: GlobalTypeContext, runtime_name: str | None) -> tuple[str | None, str]:
     """The zone a runtime asserts, and where it said it: its networking's
     ``default_availability_zone``, else its DEFAULT SUBNET's declared zone,
-    else the runtime's own ``zone`` (a GCE runtime states its zone there and
+    else the runtime's own ``zone`` (a zonal cloud's runtime states its zone there and
     nowhere else, stage 63 item 20)."""
     rtb = ctx.runtime_builders.get(str(runtime_name or ""))
     own = getattr(getattr(rtb, "model", None), "zone", None)
@@ -632,7 +632,7 @@ def check_bake_users(ctx: GlobalTypeContext) -> list[Exception]:
     Each OS builder entry and each image's runtime entry is resolved through
     ``cs_image_system.base.bake_user`` at validate, so a user nothing can
     name is refused here rather than midway through generation. On a runtime
-    that needs ONE user per chain (GCE, finding 43), an image whose own
+    that needs ONE user per chain (the cloud of finding 43), an image whose own
     runtime entry names a user other than its chain root's is refused, naming
     both: that pair used to bake as two users and break metadata key setup at
     the instance's first boot."""
@@ -679,7 +679,7 @@ def check_bake_users(ctx: GlobalTypeContext) -> list[Exception]:
 
 def check_label_keys(ctx: GlobalTypeContext) -> list[Exception]:
     """Every declared tag key that becomes a label on a runtime whose labels
-    have rules (GCE: a lowercase letter first) is refused here, naming the
+    have rules (one cloud: a lowercase letter first) is refused here, naming the
     key and who declared it (stage 63; it used to fail at apply). The keys
     are the tags of each image on each runtime it bakes on, of each instance
     on its runtime, and of each storage on its builder's runtime."""
@@ -720,8 +720,9 @@ def check_image_sources(ctx: GlobalTypeContext) -> list[Exception]:
     per entry prints the query in both vocabularies, so a review sees what
     will be asked without opening the catalog."""
     exs: list[Exception] = []
-    from ..image_sources import ImageSourceCatalog, container_reference
+    from ..image_sources import ImageSourceCatalog, container_reference, stand_in_runtime_type
     catalog = ImageSourceCatalog()
+    stand_in_type = stand_in_runtime_type() or "no installed runtime offers a local test target"
     for osb_name, osb in sorted((ctx.os_builders or {}).items()):
         model = osb.model
         family, version = model.get_vendor_family(), model.get_family_version()
@@ -734,11 +735,12 @@ def check_image_sources(ctx: GlobalTypeContext) -> list[Exception]:
             block = catalog.stand_in_block(family, version)
             stand_in = container_reference(block) if block is not None else None
             if stand_in:
-                log.info(f"mod-test stand-in: OS builder '{osb_name}': {stand_in} (the catalog's docker block for "
-                         f"{family!r}" + (f", which is {real!r}" if real != family else "") + ")")
+                log.info(f"mod-test stand-in: OS builder '{osb_name}': {stand_in} (the catalog's stand-in block "
+                         f"({stand_in_type}) for {family!r}" + (f", which is {real!r}" if real != family else "") + ")")
             else:
-                log.info(f"mod-test stand-in: OS builder '{osb_name}': none (no docker block for {family!r} {version}: "
-                         "the modification tests report it unsupported; declare local_test_image or a catalog entry)")
+                log.info(f"mod-test stand-in: OS builder '{osb_name}': none (no stand-in block ({stand_in_type}) for "
+                         f"{family!r} {version}: the modification tests report it unsupported; declare local_test_image "
+                         "or a catalog entry)")
         for entry in model.get_runtimes():
             rt_model = entry._runtime_model()
             if rt_model is None:
@@ -805,9 +807,9 @@ def check_image_names(ctx: GlobalTypeContext) -> list[Exception]:
     (the loader rendered an ``execution.timestamp`` template at load, and
     the final name would carry two); it is a prefix of another image's on
     the same runtime, as the runtime makes them, so the ``<prefix>*``
-    lookups would cross (two names that collapse to one on GCE are the
-    same case); or the full name, prefix and timestamp, is one the runtime
-    cannot take (AWS's AMI name rules; GCE's 63 characters). One INFO line
+    lookups would cross (two names that collapse to one on a lowercasing
+    cloud are the same case); or the full name, prefix and timestamp, is one the runtime
+    cannot take (one cloud's image name rules; another's 63 characters). One INFO line
     per image and runtime says the prefix, whether it was declared, and
     what the runtime makes of it when that differs."""
     exs: list[Exception] = []

@@ -33,7 +33,7 @@ registers model and builder classes under the classifications it claims.
 | [docker-runtime-plugin](../packages/docker-runtime-plugin/README.md) | runtime | `docker` (a durable host's container daemon, reached through the Docker Engine API) |
 | [tf-docker-plugin](../packages/tf-docker-plugin/README.md) | instance and storage builders | `tofu-docker` (containers through OpenTofu's `kreuzwerker/docker` provider) and `tf-docker-volume` (named volumes); a subclass of hashicorp-utils' neutral roots, with no dependency on the AWS root |
 | [default-os-plugin](../packages/default-os-plugin/README.md) | OS families | the family names an OS builder declares |
-| [packer-plugin](../packages/packer-plugin/README.md) | image builders | the packer builders for EBS, GCE and docker images (`packer-ebs`, `packer-gce`, `packer-docker`) |
+| [packer-plugin](../packages/packer-plugin/README.md) | image builders | the one `packer` image builder, for every runtime (the older keys `packer-ebs`, `packer-gce` and `packer-docker` still load for one release) |
 | [ansible-plugin](../packages/ansible-plugin/README.md) | modifications | `ansible` (playbooks) |
 | [bash-mod-plugin](../packages/bash-mod-plugin/README.md) | modifications | `bash-remote` (script, scripts, ensure) |
 | [okta-opa-plugin](../packages/okta-opa-plugin/README.md) | groups and users | the OPA group builder, the managed and read-only user builders |
@@ -64,6 +64,54 @@ depend on `tf-ebs-instance-plugin`, so installing either installs
 neither the AWS root nor `aws-runtime-plugin` nor `boto3`. The change is
 recorded in the stage index under
 [a provider-neutral terraform root](CHANGES.md#s120).
+
+### What a runtime provides
+
+A runtime plugin registers a runtime builder class under its `type:` key
+(the contract's `RuntimeBuilderProtocol`, with defaults on the core's
+`RuntimeBuilderBase`). Besides the instance hooks a tree's declarations
+exercise, six things are asked of the CLASS itself, before or without a
+tree, so that the core can name no runtime and still carry the release's
+knowledge of each. Every one has a default that answers nothing, so a
+runtime declares only what it has.
+
+- `image_source_entries()`: the runtime's part of the release-owned
+  image-source catalog (CONFIGURATION 5a), the blocks keyed by its own
+  type, read from the plugin's package data (`data/image-sources.yml`
+  beside its code). The core merges what every installed runtime answers,
+  by family; a runtime that ships none answers an empty list.
+- `local_test_target()`: a factory `factory(image, executables)` for the
+  throwaway target the local modification tests run on, or `None` for a
+  runtime that offers none. The core takes the factory of the first
+  registered runtime, by name, that offers one, reads the tests' stand-in
+  block from the catalog under that runtime's type, and hands the factory
+  the tree's executables so the plugin can find its CLI. The docker
+  runtime plugin is the one that offers a target today.
+- `session_status(settings, executables)`: the session the runtime will
+  use, read from its caches and never a credential value: a
+  `SessionStatus` saying what was read, a fixed expiry when one is
+  readable, whether the credential renews itself, the command that renews
+  it, or that nothing was found. `settings` is the entry as written (or
+  the model's fields), so `preflight` can ask before a tree loads. A
+  runtime that needs no session answers `None` and prints nothing. A
+  state-backend builder class answers the same question (the `s3` and
+  `gcs` backends reach their cloud's reading through the registry by its
+  type key, without importing the runtime's package).
+- `credential_environment_prefixes()`: the prefixes of the environment
+  variables its tools read credentials from; `preflight` adds them to its
+  check for a variable that is set and empty, reported by name.
+- `classify_failure(exc)`: the one-line form of a load-time failure that
+  is this plugin's to explain (lapsed credentials, an unreachable daemon,
+  a missing key pair), as a `LoadFailureReport` with its exit code. This
+  one is every builder's, not only a runtime's: the OPA group builder
+  names its missing key pair. The core asks every registered builder
+  class about every exception in a failure's cause chain and prints the
+  first answer.
+- `secret_patterns()`: the shapes of the runtime's own secrets that must
+  never reach a public repository, as named regular expressions (an
+  access key id's prefix and length, a service-account key id). The
+  public-safety scan adds them to the rules it carries itself (tokens,
+  PEM bodies, an age identity, a literal `TF_VAR_*=` value).
 
 ## The README contract
 

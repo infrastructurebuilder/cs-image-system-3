@@ -599,7 +599,7 @@ to do:
   [abstract_version_checker.py](../base/src/cs_image_system/base/basic/abstract_version_checker.py).
 - The image builder that calls it and hosts its output:
   [packer-plugin](../packer-plugin)
-  ([packer_ebs_builder.py](../packer-plugin/src/cs_image_system/packer_plugin/packer_ebs_builder.py),
+  ([packer_image_builder.py](../packer-plugin/src/cs_image_system/packer_plugin/packer_image_builder.py),
   [v2_local_mods.py](../packer-plugin/src/cs_image_system/packer_plugin/v2_local_mods.py)).
 - Lineage records for modifications:
   [lineage.py](../base/src/cs_image_system/base/lineage.py) (`mod_records`);

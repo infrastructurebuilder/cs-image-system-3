@@ -822,8 +822,8 @@ the other is ten declarations. In load order: the cloud's tool in
 `type: aws` with profile and region; its session mechanism); a state
 backend in `cfg/state-backends.yml` only if the new cloud's roots keep
 their state somewhere else (they may keep it in the first cloud's
-bucket, as the reference deployment's do); an image builder (`packer-gce` or
-`packer-ebs`), an instance builder (`tofu-gce` or `tofu-aws`) and a
+bucket, as the reference deployment's do); an image builder (`packer`,
+bound to the new runtime), an instance builder (`tofu-gce` or `tofu-aws`) and a
 storage builder (`gcp-pd` or `aws-ebs`) in their `cfg/` files, each
 bound to the new runtime; on the base, a second source under
 `os_builders[].runtimes[]` for the new runtime, and the new storage type
@@ -850,8 +850,8 @@ builder, a storage builder, a second source on the base, a bake per image,
 a storage and an instance on it), with these differences: the tools are
 `docker` and `tofu`; the runtime names no region, subnet or account, only
 the daemon (section 1.4a), the limits of its `machine_types` and a network
-by name; the builders are `packer-docker`, `tofu-docker` and
-`tf-docker-volume`; a base lists the storage type `volume`; the state is a
+by name; the builders are `packer` (bound to the docker runtime),
+`tofu-docker` and `tf-docker-volume`; a base lists the storage type `volume`; the state is a
 `local` backend unless you declare another; and an image's group must be a
 `posix` one, since OPA's agent needs an init system a container lacks. The
 bootstrap's `docker` section reads the runtime and asks whether CI can

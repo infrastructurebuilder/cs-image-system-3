@@ -101,7 +101,12 @@ drops the cached converter so the next structuring sees the full model set.
 A separate group, `cs_image_system.plugins.hooks`, carries run hooks
 (see [Other extension seams](#other-extension-seams)); it and the
 `cs_image_system.bootstrap` group are not part of the contract yet, so a
-plugin that contributes to them depends on this package.
+plugin that contributes to them depends on this package. A bootstrap
+section (`bootstrap.Section`) declares, besides its questions and its
+render, the repository secrets its part of CI reads (`secrets`) and the
+Actions variables it reads, each valued by one of the section's answers
+(`variables`); the GitHub section's script and module set the unions, so
+the core names only its own.
 
 ### Plugin metadata
 
@@ -302,19 +307,29 @@ tree on disk is never changed.
 
 Source: [`image_sources.py`](src/cs_image_system/base/image_sources.py).
 The catalog of vendor image sources per family and runtime
-type, in the system's query vocabulary (`contract.image.ImageQuery`):
-the release's layer ships in this package
-([`data/image-sources.yml`](src/cs_image_system/base/data/image-sources.yml))
-and the tree's `image_sources:` entries land on it by family and version
-(`ImageSourceCatalog`, a singleton the tests reset with the others). An
-OS builder's runtime entry resolves its effective query through it
-(`image_query()`), `get_family()` reads what a family IS through it
-(`is:`), a missing OS builder `type` is defaulted from it
+type, in the system's query vocabulary (`contract.image.ImageQuery`).
+The release's layer is not a file of this package: each installed
+runtime plugin ships its own part as package data
+(`data/image-sources.yml` beside its code, the blocks keyed by its
+runtime type) and answers it from its builder class's
+`image_source_entries()`; `packaged_default_entries()` here asks every
+registered runtime builder class and merges the parts by family
+(`sources` is the union by runtime type; `description`, `is` and
+`versions` take the first non-empty value, a disagreement logged at
+WARNING). The catalog therefore depends on which runtime plugins are
+installed, never on which a tree declares, and this module names no
+runtime. The tree's `image_sources:` entries land on the merged result
+by family and version (`ImageSourceCatalog`, a singleton the tests reset
+with the others). An OS builder's runtime entry resolves its effective
+query through it (`image_query()`), `get_family()` reads what a family
+IS through it (`is:`), a missing OS builder `type` is defaulted from it
 (`default_os_type`), the modification tests take their stand-in
-container from its `docker` block (`container_reference`), and
-`validate.check_image_sources` refuses an unknown key, an entry with no
-source and a key the runtime cannot translate. CONFIGURATION 5a is the
-reference.
+container from its stand-in block (`stand_in_block`: the block keyed by
+the type of the one registered runtime whose `local_test_target()` is
+not None, `stand_in_runtime_type`; `container_reference` turns it into
+an image reference), and `validate.check_image_sources` refuses an
+unknown key, an entry with no source and a key the runtime cannot
+translate. CONFIGURATION 5a is the reference.
 
 ## How YAML becomes models
 
@@ -1043,18 +1058,23 @@ members scanned.
 `*.tfstate`, `*.tfstate.*`, `*.tfvars`, `*.tfvars.json`, `.envrc`, `*.pem`,
 `.private_key.*`, `.public_key.json`.
 
-**Hard rules** (apply everywhere):
+**Hard rules** (apply everywhere). The scan carries the shapes that are
+the same whoever issued them; each installed runtime plugin adds the
+shapes of its own cloud's keys through the contract's `secret_patterns()`
+hook (`hard_rules()` gathers them, loading the plugins if nothing has),
+so the core names no cloud and a new runtime brings its own shapes:
 
-| Rule | Shape |
-| ------ | ------- |
-| `jwt` | `eyJ` followed by 20 or more token characters |
-| `pem-private-key` | `-----BEGIN ... PRIVATE KEY-----` |
-| `aws-access-key` | `AKIA` or `ASIA` plus 16 upper-case alphanumerics |
-| `gcp-service-account` | a `private_key_id` with a value, or `"type": "service_account"` in a document that also carries `private_key` |
-| `slack-token` | `xox[baprs]-...` |
-| `github-token` | `gh[pousr]_...` |
-| `age-identity` | `AGE-SECRET-KEY-1` plus 58 characters |
-| `tfvar-assignment` | `TF_VAR_<name>=<literal>` (an assignment from `$VAR` passes) |
+| Rule | Shape | Declared by |
+| ------ | ------- | ------ |
+| `jwt` | `eyJ` followed by 20 or more token characters | the scan |
+| `pem-private-key` | `-----BEGIN ... PRIVATE KEY-----` | the scan |
+| `slack-token` | `xox[baprs]-...` | the scan |
+| `github-token` | `gh[pousr]_...` | the scan |
+| `age-identity` | `AGE-SECRET-KEY-1` plus 58 characters | the scan |
+| `tfvar-assignment` | `TF_VAR_<name>=<literal>` (an assignment from `$VAR` passes) | the scan |
+| `pkrvar-assignment` | `PKR_VAR_<name>=<literal>` (the same rule for packer) | the scan |
+| `aws-access-key` | `AKIA` or `ASIA` plus 16 upper-case alphanumerics | the aws-runtime plugin |
+| `gcp-service-account` | a `private_key_id` with a long hex value (the key body itself is a PEM block the scan's own rule refuses) | the gcloud-runtime plugin |
 
 **Soft rules** (skipped for `*.md`, `docs/*`, `tests/*.py`, `*/tests/*.py`,
 `test_*.py`, `conftest.py`):
@@ -1234,10 +1254,10 @@ lines. `admin_public_keys` returns a base image's own list when set, else
 | [`storage_state.py`](src/cs_image_system/base/storage_state.py) | The storage state machine: legal transitions (`active` to `archived` and back, either to `destroyed`, and regeneration of a destroyed name), the rule that a storage must be unattached to leave `active`, transitions for undeclared storages, and the recording of applied transitions. |
 | [`v2_validation.py`](src/cs_image_system/base/v2_validation.py) | Generation-time rules, all hard: managed groups may not disappear; allowed groups exist; the strict attach rule; single-attach cardinality; data lifecycles only where the builder realizes them; storage transitions are legal; an instance image's group exists and every instance image has one; declared types resolve to configured plugins; admin keys are public keys; every base image has a debug path (keys or a session mechanism); capability resolution on both axes; test specs use the known vocabulary; update policies are valid. |
 | [`image_tests.py`](src/cs_image_system/base/image_tests.py) | In-bake assertions emitted as the last packer provisioner: capability verification derived from plugin hooks, plus a declared `tests:` map with keys `files`, `packages`, `commands`, `services_enabled`, `users`. `tests.post_bake` adds `mounts` and runs on a launched instance. |
-| [`mod_tests.py`](src/cs_image_system/base/mod_tests.py) | Runs every modification of an instance image against a throwaway local container twice (apply, then idempotence), recording results in `meta-state/mod-tests.yaml` by content hash. |
+| [`mod_tests.py`](src/cs_image_system/base/mod_tests.py) | Runs every modification of an instance image against a throwaway local target twice (apply, then idempotence), recording results in `meta-state/mod-tests.yaml` by content hash. The harness drives an abstract `LocalTarget` (`exec`, `copy_in`, `diff`, `volatile`, `close`, and the ansible connection plugin that reaches it) and names no runtime: the target's factory comes from the one registered runtime builder class whose `local_test_target()` is not None, is handed the tree's executables, and returns nothing when its daemon does not answer (the modifications are then `skipped`, not failed); a target that cannot start raises `ContainerStartError` (`unstarted`). |
 | [`identity_attributes.py`](src/cs_image_system/base/identity_attributes.py) | Declared provider attributes on users and groups: validation per plugin, a plan written to `generated/identity/attributes-plan.json`, a read-only probe, and an apply that is deliberately disabled. |
 | [`read_models.py`](src/cs_image_system/base/read_models.py) | Writes the identity and storage read-models and records applied storage transitions. |
-| [`commands/preflight.py`](src/cs_image_system/base/commands/preflight.py) | Reads credential caches (AWS SSO token expiry per profile, GCP application default credentials) without loading the configuration and without reading a credential value. |
+| [`commands/preflight.py`](src/cs_image_system/base/commands/preflight.py) | The session lines: asks every declared runtime's and state backend's class the contract's `session_status` hook (from the raw `cfg/` files before the load, and from the loaded models after) and judges the answers against the expected run length; reads no credential cache itself and names no provider. |
 | [`commands/gate.py`](src/cs_image_system/base/commands/gate.py) | The apply gate over a `tofu show -json` plan: every planned destroy must match a whitelisted address or prefix; a plan file older than the newest `.tf` in its root is stale. |
 | [`commands/upgrade.py`](src/cs_image_system/base/commands/upgrade.py), [`commands/dispose.py`](src/cs_image_system/base/commands/dispose.py), [`commands/restamp.py`](src/cs_image_system/base/commands/restamp.py), [`commands/relabel.py`](src/cs_image_system/base/commands/relabel.py), [`commands/verify_instance.py`](src/cs_image_system/base/commands/verify_instance.py), [`commands/unmount.py`](src/cs_image_system/base/commands/unmount.py), [`commands/runtime_facts.py`](src/cs_image_system/base/commands/runtime_facts.py), [`commands/identity_gids.py`](src/cs_image_system/base/commands/identity_gids.py), [`commands/run_scope.py`](src/cs_image_system/base/commands/run_scope.py) | The operations behind the CLI's `upgrade`, `dispose image`, `lineage restamp`, `lineage relabel`, `verify instance`, `unmount storage`, `runtime describe` / `empty`, `identity export-gids`, and the bake scope check. |
 | [`utils.py`](src/cs_image_system/base/utils.py) | `safe_name`, `super_safe_name`, `system_cli_executable` (a deferred call of the system's own CLI), `apply_enabled` / `apply_flag_allows` (the `apply_<lifecycle>` rule), `module_source`, `hcl_expr` and `render_module_call` (terraform module call rendering). |
@@ -1355,18 +1375,19 @@ the core finds it.
   string, an identity file, or a directory of `*.age-identity` files),
   resolved lazily on the first marker seen, so a tree without markers
   needs no identity; see [Encryption](#encryption). `preflight` and the
-  session lines of every run read credential CACHES, never values: the
-  profile named by a runtime's `profile` or `credentials.profile_name`
-  (else `AWS_PROFILE`) in `~/.aws/config` and `~/.aws/sso/cache/<sha1>.json`
-  (the directory is `CSIS_AWS_DIR` when set); `AWS_ACCESS_KEY_ID` only for
-  its presence (static keys have no readable expiry); the GCP Application
-  Default Credentials at `GOOGLE_APPLICATION_CREDENTIALS` or
-  `~/.config/gcloud/application_default_credentials.json`, only for their
-  presence and `type`. `OPA_TOKEN` decides whether a login proof is
-  recorded `as: workload` or `as: client`; the core never reads its value.
-  `USER` (else `USERNAME`) names the operator in an `unmount --confirm`
-  receipt. A credential-shaped variable (`AWS_*`, `GOOGLE_*`, `OKTA_*`,
-  `TF_VAR_*`, `CSIS_*`) that is set but EMPTY is reported by name by
+  session lines of every run read credential CACHES, never values, and
+  the core reads none of them itself: each runtime's and state backend's
+  class answers the contract's `session_status` hook with what it read
+  (the AWS plugin a profile's SSO token cache under `~/.aws`, or
+  `CSIS_AWS_DIR`; the GCP plugin the Application Default Credentials file,
+  for presence and `type`; the docker plugin its daemon's answer), and
+  `preflight` prints and judges the answer. `OPA_TOKEN` decides whether a
+  login proof is recorded `as: workload` or `as: client`; the core never
+  reads its value. `USER` (else `USERNAME`) names the operator in an
+  `unmount --confirm` receipt. A credential-shaped variable (`TF_VAR_*`,
+  `CSIS_*`, `OKTA_*`, plus every prefix the installed runtimes declare
+  through `credential_environment_prefixes()`: `AWS_*`, `GOOGLE_*`,
+  `CLOUDSDK_*`, `DOCKER_*`) that is set but EMPTY is reported by name by
   `preflight` (`empty_environment_credentials`). `CSIS_CONFIG_ROOT` is the
   Justfile's, not the core's: the CLI takes `--root-dir`.
 - **The whole process environment, as `ENV`.** The string stage renders

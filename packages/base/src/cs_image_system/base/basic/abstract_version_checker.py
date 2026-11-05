@@ -59,7 +59,7 @@ class AbstractVersionChecker(ABC):
 class GenericVersionChecker(AbstractVersionChecker):
     """The checker for an executable that has no checker of its own (stage
     48.1): ``<binary> --version``, the first dotted number on the first line
-    -- ``jq-1.8.2``, ``Docker version 29.4.0, build ...``, ``yq (...) version
+    -- ``jq-1.8.2``, ``<engine> version 29.4.0, build ...``, ``yq (...) version
     v4.53.6``. Registered under the executable model's default type,
     ``executable``, so the name-then-type lookup ends here."""
 

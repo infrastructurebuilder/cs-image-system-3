@@ -1,0 +1,80 @@
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# The docker runtime's part of the release-owned image-source catalog:
+# the container image that stands for a vendor family, in the SYSTEM's
+# query vocabulary (CONFIGURATION.md section 5a). The core merges this
+# with every other installed runtime's part by family; a tree's own
+# `cfg/image-sources*.yml` extends or overrides the result by family (and
+# version); an OS builder's own `query`, and its runtime entry's, land on
+# top of the block, key by key. These blocks also give the local
+# modification tests their stand-in container, since this runtime offers
+# the local test target.
+#
+# `{version}` is the one placeholder: the OS builder's `family_version`.
+# Every repository here is a vendor fact, reviewed at the release that
+# ships it; a tree that distrusts one overrides it.
+image_sources:
+  # ------------------------------------------------ the Red Hat family
+  - family: rhel
+    description: Red Hat Enterprise Linux, the vendor's own images
+    sources:
+      docker:                               # Docker Hub's Rocky library stops at 9; see the 10 entry
+        publisher: ["library"]
+        name: rockylinux
+        version: "{version}"
+  - family: rhel
+    versions: ["10"]
+    description: RHEL 10 and above stand in as AlmaLinux in local tests
+    sources:
+      docker:
+        publisher: ["library"]
+        name: almalinux
+        version: "{version}"
+  - family: alma-linux
+    is: rhel
+    description: AlmaLinux, a RHEL rebuild
+    sources:
+      docker:
+        publisher: ["library"]
+        name: almalinux
+        version: "{version}"
+  - family: rocky-linux
+    is: rhel
+    description: Rocky Linux, a RHEL rebuild
+    sources:
+      docker:
+        publisher: ["library"]
+        name: rockylinux
+        version: "{version}"
+  - family: centos-stream
+    is: rhel
+    description: CentOS Stream
+    sources:
+      docker:
+        publisher: ["quay.io/centos"]
+        name: centos
+        version: "stream{version}"
+  - family: fedora
+    description: Fedora Cloud
+    sources:
+      docker:
+        publisher: ["library"]
+        name: fedora
+        version: "{version}"
+  # ------------------------------------------------ the Debian family
+  - family: debian
+    description: Debian, the vendor's own cloud images
+    sources:
+      docker:
+        publisher: ["library"]
+        name: debian
+        version: "{version}"
+  - family: ubuntu
+    description: Ubuntu
+    sources:
+      docker:
+        publisher: ["library"]
+        name: ubuntu
+        version: "{version}"

@@ -25,6 +25,7 @@ from cs_image_system.contract.constants import NO_MODEL_ID, VCT
 from cs_image_system.contract.executables import CFExecutables
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.contract.names import safe_name
+from cs_image_system.contract.session import LoadFailureReport, SessionStatus
 
 from .models import INMEM, InmemStateBackendModel
 
@@ -35,6 +36,15 @@ class InmemStateBuilder:
     def __init__(self, model: InmemStateBackendModel) -> None:
         self._model = model
         self._finalized = False
+
+    # --- asked of the class: no session, no failure of its own
+    @classmethod
+    def session_status(cls, settings: Mapping[str, Any], executables: Mapping[str, Any]) -> SessionStatus | None:
+        return None
+
+    @classmethod
+    def classify_failure(cls, exc: BaseException) -> LoadFailureReport | None:
+        return None
 
     # --- the model and its names (BuilderProtocol, NameTypedProtocol)
     @property

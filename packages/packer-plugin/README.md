@@ -1,10 +1,15 @@
 # cs-image-system-packer-plugin
 
-The image builder plugin for HashiCorp Packer. It registers the three image
-builders that turn the system's base images and instance images into Packer
-roots: `packer-ebs` for an AWS runtime (`amazon-ebs` source), `packer-gce`
-for a Google Compute runtime (`googlecompute` source) and `packer-docker`
-for a docker runtime (the `docker` source). The
+The image builder plugin for HashiCorp Packer. It registers one image
+builder, `packer`, that turns the system's base images and instance
+images into Packer roots on any runtime: the packer source type, the
+source block and the post-processors the build needs are the bound
+runtime plugin's answers (`packer_source_type`, `packer_source_blocks`,
+`packer_post_processor_blocks`), so the same builder bakes an AMI, a
+Compute Engine image or a container image. Three older keys,
+`packer-ebs`, `packer-gce` and `packer-docker`, still load as the same
+builder for one release; `validate` prints a line naming the
+replacement for each. The
 builder writes one Packer root per dependency block of images, fills the
 `build {}` block with provisioners it assembles from the OS builder, the
 identity and storage plugins, the runtime plugin and the modification
@@ -22,18 +27,23 @@ packer_plugin = "cs_image_system.packer_plugin.main:initialize"
 ```
 
 `initialize()` ([main.py](src/cs_image_system/packer_plugin/main.py))
-returns a `PackerEbsTypes` metadata object (metadata version `1`, Python
-`3.13`) with three service keys:
+returns a `PackerTypes` metadata object (metadata version `1`, Python
+`3.13`) with four service keys:
 
 | Service key (`type:`) | Classes | Classification (VCT) |
 |---|---|---|
-| `packer-ebs` | `PackerEbsImageBuilderModel`, `PackerEbsImageBuilder` | `IMAGE_BUILDER_MODEL` / `IMAGE_BUILDER` |
-| `packer-gce` | `PackerGceImageBuilderModel`, `PackerGceImageBuilder` | `IMAGE_BUILDER_MODEL` / `IMAGE_BUILDER` |
-| `packer-docker` | `PackerDockerImageBuilderModel`, `PackerDockerImageBuilder` | `IMAGE_BUILDER_MODEL` / `IMAGE_BUILDER` |
-| `packer` | `PackerVersionChecker` | `VERSION_CHECKER` |
+| `packer` | `PackerImageBuilderModel`, `PackerImageBuilder`, `PackerVersionChecker` | `IMAGE_BUILDER_MODEL` / `IMAGE_BUILDER` / `VERSION_CHECKER` |
+| `packer-ebs` | `PackerEbsImageBuilderModel`, `PackerEbsImageBuilder` | the same, under an older name |
+| `packer-gce` | `PackerGceImageBuilderModel`, `PackerGceImageBuilder` | the same, under an older name |
+| `packer-docker` | `PackerDockerImageBuilderModel`, `PackerDockerImageBuilder` | the same, under an older name |
 
-An `image_builders:` entry selects a model with `type: packer-ebs`,
-`type: packer-gce` or `type: packer-docker`; there are no aliases for these keys. An `executables:`
+An `image_builders:` entry selects the builder with `type: packer`; its
+`runtime` decides what is baked and how. The three older keys select the
+same builder: each is a subclass that differs only in the name it
+answers to, kept for one release so a tree that wrote one keeps loading,
+and `validate` logs `image builder '<name>': \`type: packer-ebs\` is an
+older name of \`packer\`, kept for one release; say \`type: packer\``.
+A tree written today says `packer`. An `executables:`
 entry named or typed `packer` is version-checked by `PackerVersionChecker`
 (`packer version -machine-readable`, fourth comma-separated field of the
 first line).
@@ -79,25 +89,19 @@ What this plugin adds, and the rules it alone enforces:
 - `executable` must name an `executables:` entry whose binary is Packer;
   `tags` are merged into every source's tags.
 
-### `PackerEbsImageBuilderModel` (`packer-ebs`)
+### The older keys (`packer-ebs`, `packer-gce`, `packer-docker`)
 
-Extends `PackerImageBuilderModel`; adds no fields.
-
-### `PackerGceImageBuilderModel` (`packer-gce`)
-
-Extends `PackerEbsImageBuilderModel`; adds no fields. It exists so a
-configuration can say `type: packer-gce`; the runtime plugin bound through
-`runtime` decides what the source block looks like.
-
-### `PackerDockerImageBuilderModel` (`packer-docker`)
-
-Extends `PackerEbsImageBuilderModel`; adds no fields. It exists
-so a configuration can say `type: packer-docker`; the docker runtime bound
-through `runtime` emits the `docker` source and, through
+`PackerEbsImageBuilderModel`, `PackerGceImageBuilderModel` and
+`PackerDockerImageBuilderModel` extend `PackerImageBuilderModel` and add
+no fields; each answers to its older key and nothing else differs. They
+exist so a tree that wrote one of the older keys keeps loading for one
+release; the model's `finalize()` logs the replacement. What the bake
+looks like has always been the runtime's: a docker runtime bound through
+`runtime` emits the `docker` source and, through
 `packer_post_processor_blocks`, the `docker-tag` post-processor the build
-block carries before the manifest. Every packer process this builder runs
-gets the runtime's `tool_environment()` (`DOCKER_HOST` or `DOCKER_CONTEXT`)
-on top of the caller's environment.
+block carries before the manifest, and every packer process the builder
+runs gets the runtime's `tool_environment()` (`DOCKER_HOST` or
+`DOCKER_CONTEXT`) on top of the caller's environment.
 
 ### Constraints and what is not supported
 
@@ -142,12 +146,13 @@ same name (its `update:` policy); the plugin only asks for it.
 
 ## The builder
 
-Class chain: `PackerImageBuilder`
+Class chain: `PackerImageBuilderBase`
 ([packer_builder.py](src/cs_image_system/packer_plugin/packer_builder.py))
--> `PackerEbsImageBuilder`
-([packer_ebs_builder.py](src/cs_image_system/packer_plugin/packer_ebs_builder.py))
--> `PackerGceImageBuilder` and `PackerDockerImageBuilder` (same file, each
-differs only in `csis_name()`). All extend
+-> `PackerImageBuilder`
+([packer_image_builder.py](src/cs_image_system/packer_plugin/packer_image_builder.py))
+-> `PackerEbsImageBuilder`, `PackerGceImageBuilder` and
+`PackerDockerImageBuilder` (same file, each differs only in
+`csis_name()`). All extend
 [`ImageBuilderBase`](../base/src/cs_image_system/base/basic/builder_base_image.py).
 Every hook keys on the `image-generation` phase.
 
@@ -500,7 +505,7 @@ and [builder_model.py](../base/src/cs_image_system/base/models/builder_model.py)
 | Field | Type | Default | Meaning |
 |---|---|---|---|
 | `name` | str | required | The builder name; `safe_name`-normalised; `/` and `\` refused; not `default`. It is the workspace of the emission (`generated/<lifecycle>/<name>/image-generation/block-NNN/`), the `PackerCollector` key, and the `build {}` block's name prefix. Every image's `runtimes[].image_builder` names it. |
-| `type` | str | required | `packer-ebs`, `packer-gce` or `packer-docker`; no aliases. The three behave identically; the runtime decides the source type and any post-processor before the manifest. |
+| `type` | str | required | `packer`. The older keys `packer-ebs`, `packer-gce` and `packer-docker` still load as the same builder for one release and `validate` names the replacement. The runtime decides the source type and any post-processor before the manifest. |
 | `runtime` | str (foreign key to `runtime_builders`) | `default` | The runtime this builder bakes on. `default` is resolved to the default runtime at load; a name that is no runtime is refused at `validate`. Everything provider-specific comes from it: source type, source block, credentials, machine type, session mechanism, bake finalization, manifest artifact-id parsing, after-build tagging. |
 | `executable` | str or null | null | The `executables:` entry whose binary is Packer. Read at generation for `fmt`, `init`, `validate` and the deferred `build`; an entry that does not exist raises at generation (`Executable '<x>' not found for builder '<name>'`), and `validate` reports it first (`Executable <x> specified for provider <name> not found in executables list`). A builder with no executable cannot bake. |
 | `required_plugins` | list | `[]` | The `packer { required_plugins { <name> { version, source } } }` block of every block root. Entries are deduplicated per builder; two entries for one plugin must agree on `source` and have satisfiable `version` requirements. |

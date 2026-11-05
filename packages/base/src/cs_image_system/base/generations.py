@@ -67,7 +67,7 @@ WHY_REPLACED_OUT_OF_BAND = "replaced-out-of-band"   # a different machine bears 
 
 def kind_of(params: dict[str, Any]) -> str:
     """Which counter a generation belongs to: its own ``ephemeral`` flag,
-    per instance NAME -- so ``gce-test`` churning never advances
+    per instance NAME -- so an ephemeral test instance churning never advances
     ``coops-model``'s number, and a name whose declaration flipped between
     ephemeral and durable keeps two honest counts."""
     return EPHEMERAL if params.get("ephemeral") else DURABLE

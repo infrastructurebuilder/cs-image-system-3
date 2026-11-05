@@ -444,7 +444,7 @@ def apply_lifecycles(ctx: GlobalTypeContext, summary: RunSummary) -> None:
     builder hooks, so its effects (bakes, applies) would change reality
     with no lineage or meta-state recording -- found live when
     `run storage --no-dry-run` executed the previous day's base-image
-    script and baked two unrecorded AMIs."""
+    script and baked two unrecorded images."""
     generated = ctx.generated_lifecycles
     for lifecycle in all_lifecycles():
         script = ctx.runner_script_path(lifecycle)

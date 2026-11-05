@@ -2,10 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 106: the translation belongs to the runtime, so it is documented
-with the runtime. Every runtime plugin's README carries an "Image query
+"""The translation belongs to the runtime, so it is documented with the
+runtime. Every runtime plugin's README carries an "Image query
 translation" table, one row per key of the system's vocabulary, and the
-table says exactly what the plugin's ``supported_query_keys()`` says."""
+table says exactly what the plugin's ``supported_query_keys()`` says. The
+same README names the plugin's part of the release-owned image-source
+catalog, the ``data/image-sources.yml`` it ships, since the catalog no
+longer lives in one file of the core."""
 from __future__ import annotations
 
 import re
@@ -23,8 +26,10 @@ ROW = re.compile(r"^\|\s*`([a-z_]+)`\s*\|\s*([^|]*?)\s*\|")
 
 def _runtimes():
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
+    from cs_image_system.docker_runtime.docker_runtime_builders import DockerContainerBuilder
     from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
-    return [("aws-runtime-plugin", AwsCloudBuilder), ("gcloud-runtime-plugin", GCPCloudBuilder)]
+    return [("aws-runtime-plugin", AwsCloudBuilder), ("gcloud-runtime-plugin", GCPCloudBuilder),
+            ("docker-runtime-plugin", DockerContainerBuilder)]
 
 
 def _table(readme: Path) -> dict[str, str]:
@@ -48,6 +53,15 @@ def test_the_translation_table_says_what_the_plugin_declares(package: str, build
     declared = builder.supported_query_keys(cast(Any, None))      # the hook reads nothing of self
     assert documented == declared, (f"{package}: the README says {sorted(documented)} are translated, "
                                     f"the plugin says {sorted(declared)}")
+
+
+@pytest.mark.parametrize("package, builder", _runtimes(), ids=[p for p, _ in _runtimes()])
+def test_the_readme_names_the_catalog_part_the_plugin_ships(package: str, builder: type):
+    text = (REPO / "packages" / package / "README.md").read_text()
+    data = next(d for d in (REPO / "packages" / package / "src" / "cs_image_system").iterdir()
+                if (d / "data" / "image-sources.yml").is_file()) / "data" / "image-sources.yml"
+    assert "data/image-sources.yml" in text, f"{package}: the README does not name {data.relative_to(REPO)}"
+    assert builder.image_source_entries(), f"{package}: the plugin ships no catalog entries"
 
 
 def test_the_contract_lists_the_vocabulary_once():

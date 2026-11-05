@@ -16,8 +16,8 @@ the daemon?*
   in the workflow, the transports the starters' workflow reaches): the two
   repository secrets that workflow reads to reach it, the ssh private key and
   the host's ``known_hosts`` line (``DOCKER_HOST_SSH_KEY`` and
-  ``DOCKER_HOST_KNOWN_HOSTS``, in the GitHub section's script with the rest),
-  are set from files, and the section says that neither is made here. The key
+  ``DOCKER_HOST_KNOWN_HOSTS``: this section's own, which the GitHub
+  section's script sets with the rest), are set from files, and the section says that neither is made here. The key
   belongs to a user on the host who may use the daemon; it is made on your
   machine, never by the system.
 * **No** (a local socket, a context, a ``tcp://`` host, or a host the YAML
@@ -35,10 +35,20 @@ from __future__ import annotations
 from typing import Any
 
 from cs_image_system.base.bootstrap.facts import Facts, ci_can_reach, real, runtime_of_type
-from cs_image_system.base.bootstrap.questions import BY_HAND, READ, Answers, Question, Rendered, Section
+from cs_image_system.base.bootstrap.questions import BY_HAND, READ, Answers, Question, Rendered, Secret, Section
 
 RUNTIME_TYPE = "docker"
 GUIDE = "CI_SETUP.md 3.4a"
+
+#: The repository secrets the starters' workflow reads to reach a docker
+#: host over ssh; both from files, since neither is made by any root.
+SECRETS: tuple[Secret, ...] = (
+    Secret("DOCKER_HOST_SSH_KEY", "file",
+           comment="the private key (PEM) of a user on the docker host who may use its daemon (3.4a; only with a docker host CI reaches)",
+           order=50),
+    Secret("DOCKER_HOST_KNOWN_HOSTS", "file",
+           comment="the docker host's known_hosts line, checked by hand (3.4a; only with a docker host CI reaches)", order=51),
+)
 
 def _runtime(facts: Facts) -> dict[str, Any]:
     return runtime_of_type(facts, RUNTIME_TYPE) or {}
@@ -125,5 +135,5 @@ def wanted(facts: Facts) -> bool:
 
 def docker_section() -> Section:
     return Section(name="docker", title="Container host", questions=QUESTIONS, render=render, wanted=wanted,
-                   wants_facts=True,
+                   wants_facts=True, secrets=SECRETS,
                    description="the docker daemon CI can or cannot reach, the secrets that reach it, the runtime to guard")

@@ -57,7 +57,7 @@ def render_module_call(label: str, source: str, args: Mapping[str, Any],
     (module./var./data./local.); dicts become (possibly nested) maps.
 
     ``providers`` renders the module providers meta-argument with raw provider
-    references on both sides: ``providers = { aws = aws.open_tofu }``.
+    references on both sides: ``providers = { <name> = <name>.<alias> }``.
     """
     lines = [f'module "{label}" {{', f'  source = "{source}"']
     if providers:

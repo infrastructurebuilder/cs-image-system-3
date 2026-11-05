@@ -38,9 +38,7 @@ def setup_rich_logging(verbose: bool = False):
         handlers=[RichHandler(rich_tracebacks=True, console=Console(stderr=True))],
         force=True,
     )
-    logging.getLogger('boto3').setLevel(logging.INFO)
-    logging.getLogger('botocore').setLevel(logging.INFO)
-    logging.getLogger('urllib3').setLevel(logging.INFO)  # boto3 uses urllib3 under the hood
+    # a provider SDK's loggers are quieted by the plugin that brings the SDK, in its initialize()
 
 
 log = logging.getLogger("rich")
@@ -147,12 +145,12 @@ def run_command(
             gctx.config[key] = [apply_runtime]
         if not only_runtime:
             # stage 12.1: the apply scope implies the bake filter -- an ad-hoc run
-            # without --only-runtime baked two AMIs on the other cloud (ledger 68).
+            # without --only-runtime baked two images on the other cloud (ledger 68).
             # Hygiene XII item 32 (the walk's F62): beside `--only` too. The
             # decommission recipe says `--only none --apply-runtime <rt>`, and
             # `--only` used to leave the scope unimplied, so the run planned every
             # other runtime's instance root after it had applied this one, and a
-            # GCE root with an ephemeral machine between cycles failed that plan
+            # root with an ephemeral machine between cycles failed that plan
             # after the destroy and before the record.
             only_runtime = apply_runtime
             gctx.implied_scope = apply_runtime
@@ -170,8 +168,9 @@ def run_command(
             raise typer.Exit(code=2)
         # ledger 70: a run scoped to one runtime's images plans no OTHER
         # runtime's terraform roots either (their plans can only fail or waste
-        # time -- the GCE instance root's image-family lookup 404'd during a
-        # scoped AWS bake after a cycle had disposed every GCE image)
+        # time -- one cloud's instance root looked its image family up and got a
+        # 404 during a bake scoped to the other cloud, after a cycle had
+        # disposed every image on the first)
         gctx.only_runtime_scope = only_runtime
     _run(selected, apply=apply, commit=commit, state_query=state_query, only=only,
          force_bake=force_bake)
@@ -229,16 +228,18 @@ def preflight_command(
     strict: Annotated[bool, typer.Option("--strict",
         help="Also exit 1 when a session expires within config.preflight.expected_run_minutes")] = False,
 ) -> None:
-    """The credential sessions the configuration's runtimes need (AWS SSO
-    profiles or static keys, GCP Application Default Credentials), read from
-    the caches WITHOUT loading the configuration -- never a credential
-    value; the one call it makes is a read-only `aws sts get-caller-identity`
-    for an SSO token that has already lapsed (hygiene XXIII). The Justfile's `full-test` gates its cloud-reading legs on this
-    (stage 16). Exit 0 when every session is present; 2 when one is absent
-    or EXPIRED (the configuration could not even load); 1 with --strict
-    when one expires within the expected run length. A session whose
-    expiry cannot be read (static keys) is present and NOT JUDGED: exit 0,
-    and the closing line says so instead of "every session present"."""
+    """The credential sessions the configuration's runtimes and state
+    backends need, each read by its own plugin from the caches WITHOUT
+    loading the configuration -- never a credential value; a plugin may make
+    one read-only call to decide whether a lapsed token still renews. The
+    Justfile's `full-test` gates its provider-reading legs on this. Exit 0
+    when every session is present; 2 when one is absent or EXPIRED (the
+    configuration could not even load); 1 with --strict when one expires
+    within the expected run length. A session whose expiry cannot be read
+    (static keys) is present and NOT JUDGED: exit 0, and the closing line
+    says so instead of "every session present". Each session line names
+    what was read and, when the session is absent or lapsed, the command
+    that renews it."""
     from cs_image_system.base.commands.preflight import raw_session_readiness
     root_dir, overlays = typer_cntx.obj["preflight_args"]
     from cs_image_system.base.commands.preflight import empty_environment_credentials
@@ -262,8 +263,8 @@ def preflight_command(
                     "give it its value or unset it", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=2)
     if absent or expired:
-        typer.secho("preflight: a session is absent or has EXPIRED -- the configuration cannot load "
-                    "(aws sso login --profile <p> / gcloud auth application-default login)",
+        typer.secho("preflight: a session is absent or has EXPIRED -- the configuration cannot load; "
+                    "renew it (the session line above names the command)",
                     fg=typer.colors.RED, err=True)
         raise typer.Exit(code=2)
     if strict and blocking:
@@ -692,7 +693,7 @@ def test_mods_command(
     ctx: typer.Context,
     image: Annotated[list[str] | None, typer.Option("--image", help="Only these instance images")] = None,
     force: Annotated[bool, typer.Option("--force", help="Re-test mods that already passed")] = False,
-    strict: Annotated[bool, typer.Option("--strict", help="Exit nonzero when tests are skipped (no docker)")] = False,
+    strict: Annotated[bool, typer.Option("--strict", help="Exit nonzero when tests are skipped (no container daemon)")] = False,
 ) -> None:
     """Run every modification against a throwaway local container, twice
     (apply + idempotence); results in meta-state/mod-tests.yaml (EXPLORE)."""
@@ -707,7 +708,7 @@ def test_mods_command(
         typer.secho(f"FAIL {r.image}/{r.mod}: rc={r.first_run_rc}/{r.second_run_rc} idempotent={r.idempotent} "
                     f"{r.changes_on_rerun or r.detail[:200]}", fg=typer.colors.RED, err=True)
     for r in unstarted:
-        # hygiene XII item 26: nothing about the modification was tested; docker's words, not a traceback
+        # hygiene XII item 26: nothing about the modification was tested; the daemon's words, not a traceback
         typer.secho(f"CANNOT START {r.image}/{r.mod}: {r.detail}", fg=typer.colors.RED, err=True)
     if failed or unstarted or (strict and skipped):
         raise typer.Exit(code=1)
@@ -1368,7 +1369,7 @@ app.add_typer(dispose_app, name="dispose")
 @dispose_app.command(name="image")
 def dispose_image_command(
     build_ids: Annotated[list[str] | None, typer.Argument(
-        help="Lineage build id(s) to dispose of (a GCE image name, an AMI id)")] = None,
+        help="Lineage build id(s) to dispose of (the runtime's own image identifier)")] = None,
     runtime: Annotated[str | None, typer.Option("--runtime",
         help="Restrict to builds baked on this runtime; with --all, every one of them")] = None,
     all_: Annotated[bool, typer.Option("--all", help="Every recorded build of --runtime")] = False,
@@ -1441,7 +1442,7 @@ def state_query_command(
         raise typer.Exit(code=1)
     if strict and blocking:
         typer.secho("preflight: a session expires before the expected run length (see above); "
-                    "renew it (aws sso login --profile <p>) or lower config.preflight.expected_run_minutes",
+                    "renew it (the session line names the command) or lower config.preflight.expected_run_minutes",
                     fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
 
@@ -1596,7 +1597,7 @@ def main(
     undeclare: Annotated[list[str] | None, typer.Option(
         "--undeclare", metavar="KIND:NAME",
         help="Treat a declared tree entry as absent for THIS invocation only "
-             "(repeatable), e.g. 'instance:gce-test': the instance decommissions "
+             "(repeatable), e.g. 'instance:scratch-test': the instance decommissions "
              "through the gate exactly as if its entry had left the YAML (stage 28; "
              "the overlay 'undeclare' form as a flag).",
     )] = None,
@@ -1643,10 +1644,10 @@ def main(
     if typer_cntx.invoked_subcommand in ("test", "cleanup"):
         return                      # retired V1 names: refuse without loading anything
     if typer_cntx.invoked_subcommand == "preflight":
-        # stage 16: the sessions alone, from the raw tree -- nothing loads, no
-        # plugin, and no cloud call but the one read-only sts call for an SSO
-        # token that has already lapsed (hygiene XXIII); the Justfile's
-        # full-test gates on this
+        # stage 16: the sessions alone, from the raw tree -- nothing loads; the
+        # plugins are loaded only to be asked their session hooks, and the one
+        # provider call allowed is a plugin's read-only check of whether a
+        # lapsed token still renews; the Justfile's full-test gates on this
         typer_cntx.obj["preflight_args"] = (Path(root_dir or os.getcwd()), [p.resolve() for p in (overlay or [])])
         return
     if typer_cntx.invoked_subcommand == "bootstrap":
@@ -1697,7 +1698,7 @@ def main(
             typer.secho(line, fg=typer.colors.YELLOW if line in blocking else None, err=True)
         typer_cntx.obj["preflight_sessions"] = (lines, blocking)
         if expired:
-            typer.secho("preflight: a session has EXPIRED; renew it (aws sso login --profile <p>) before "
+            typer.secho("preflight: a session has EXPIRED; renew it (the session line names the command) before "
                         "the configuration can even load", fg=typer.colors.RED, err=True)
             raise typer.Exit(code=1)
     try:

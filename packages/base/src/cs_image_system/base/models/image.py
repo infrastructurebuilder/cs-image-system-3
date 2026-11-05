@@ -347,7 +347,7 @@ class Image(RootItem, SelfInjectedName):
         if not image_builder:
             raise ValueError("Image builder cannot be None")
         if self._image_builder and self._image_builder != image_builder:
-            # EXPLORE GCP: one image may be baked by several image builders
+            # the second-cloud exploration: one image may be baked by several image builders
             # (one per runtime). The first stays the primary; the rest are
             # remembered so each builder's block sees the image.
             log.debug(f"Image {self.name} is also built by {image_builder.get_name()} "

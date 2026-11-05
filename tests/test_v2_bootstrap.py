@@ -36,7 +36,7 @@ TREES = ("standard-aws", "standard-gce", "complete", "standard-aws-posix", "stan
 GITHUB_ANSWERS = {"github": {
     "wanted": True, "repository": "acme/widgets", "default_branch": "develop", "production_branch": "main",
     "protect_production": True, "perform_runtime": "aws-east2-runtime", "guard_runtime": "gcloud-east1",
-    "aws_region": "us-east-2", "secrets_dir": "_uncommitted/secrets"}}
+    "secrets_dir": "_uncommitted/secrets"}}
 
 
 def _git(root: Path, *args: str) -> str:
@@ -182,6 +182,110 @@ def test_the_secrets_script_names_every_guide_secret_and_no_value(tmp_path: Path
     assert names and all(f"from_file {n}" in script or f"from_output {n} " in script for n in names), names
     assert 'DIR="${SECRETS_DIR:-_uncommitted/secrets}"' in script and 'REPO="${REPO:-acme/widgets}"' in script
     assert "AKIA" not in script and "BEGIN" not in script             # no value, ever
+
+
+def test_the_secrets_script_is_the_union_of_the_loaded_sections_secrets():
+    """The core names only its own secrets; each loaded section declares the
+    ones its part of CI reads (``Section.secrets``), and the script sets the
+    union -- the core's first, then each section's in section-name order,
+    each name once. A section with no secrets adds none, a section not
+    loaded contributes none, and a wanted section whose render sets a secret
+    from an output of the applied root beats the file."""
+    from cs_image_system.base.bootstrap.facts import ci_can_reach, runtime_of_type, runtimes_of_type
+    from cs_image_system.base.bootstrap.generate import render_files
+    from cs_image_system.base.bootstrap.github import SECRETS, github_section, secrets_union
+    from cs_image_system.base.bootstrap.questions import Secret
+
+    assert [s.name for s in SECRETS] == ["CSIS_CONFIG_IDENTITY", "CSIS_PROOF_SSH_KEY"]   # the system's own, nothing of a cloud's
+    quiet = Section(name="quiet", title="Quiet", questions=(), render=lambda a: Rendered())
+    zeta = Section(name="zeta", title="Zeta", questions=(), render=lambda a: Rendered(),
+                   secrets=(Secret("ZETA_TOKEN", "file", comment="zeta's"),))
+    beta = Section(name="beta", title="Beta", questions=(), secrets=(Secret("BETA_KEY", "file"), Secret("BETA_SECRET", "file")),
+                   render=lambda a: Rendered(secrets=(Secret("BETA_KEY", "output", "beta_key"),)))
+    github = github_section()
+    assert github.wants_sections and github.secrets == SECRETS
+    assert [s.name for s in secrets_union([zeta, quiet, beta])] == [
+        "CSIS_CONFIG_IDENTITY", "CSIS_PROOF_SSH_KEY", "BETA_KEY", "BETA_SECRET", "ZETA_TOKEN"]
+    assert secrets_union([quiet]) == SECRETS and secrets_union([zeta, zeta]) == secrets_union([zeta])
+    # loaded, not wanted: a section's secrets are set whether or not its questions were answered
+    files = render_files([github, zeta, quiet, beta], {**GITHUB_ANSWERS, "zeta": {"wanted": False}}, module_source="../../tfmodules")
+    script = files["set-secrets.sh"]
+    lines = [line for line in script.splitlines() if line.startswith(("from_file ", "from_output "))]
+    assert lines == ["from_file CSIS_CONFIG_IDENTITY", "from_file CSIS_PROOF_SSH_KEY", "from_file BETA_KEY",
+                     "from_file BETA_SECRET", "from_file ZETA_TOKEN"]
+    assert "# zeta's" in script and "| `ZETA_TOKEN` | a file named after it in the secrets directory |" in files["README.md"]
+    # the loaded section alone: the script names the core's two and nothing else
+    only = render_files([github], GITHUB_ANSWERS, module_source="../../tfmodules")["set-secrets.sh"]
+    assert [line for line in only.splitlines() if line.startswith(("from_file ", "from_output "))] == ["from_file CSIS_CONFIG_IDENTITY", "from_file CSIS_PROOF_SSH_KEY"]
+    # a wanted section's output wins over the file, wherever the file came from
+    wanted = render_files([github, beta], {**GITHUB_ANSWERS, "beta": {"wanted": True}}, module_source="../../tfmodules")["set-secrets.sh"]
+    assert "from_output BETA_KEY beta_key" in wanted and "from_file BETA_KEY" not in wanted and "from_file BETA_SECRET" in wanted
+    # every installed section's secrets, and only those, reach the script
+    installed = bs.discover()
+    assert {s.name for s in secrets_union(installed)} == {s.name for sec in installed for s in sec.secrets}
+    assert all(sec.secrets for sec in installed if sec.name != "github") or len(installed) == 1
+    # the facts know no type word: the caller passes it, and reachability is read from the declaration's shape
+    facts = Facts(config_root=Path("."), runtimes=[{"name": "a", "type": "alpha"}, {"name": "b", "type": "beta", "is_default": True},
+                                                   {"name": "c", "type": "Beta"}])
+    assert [r["name"] for r in runtimes_of_type(facts, "beta")] == ["b", "c"] and (runtime_of_type(facts, "beta") or {})["name"] == "b"
+    assert runtimes_of_type(facts, "gamma") == [] and runtime_of_type(facts, "gamma") is None
+    assert ci_can_reach({"type": "alpha"}) and ci_can_reach({"type": "alpha", "host": "ssh://h.example"})
+    assert not ci_can_reach({"type": "alpha", "host": "tcp://h.example:2376"}) and not ci_can_reach({"type": "alpha", "context": "c"})
+
+
+def test_the_secrets_keep_the_order_a_committed_root_has():
+    """A configuration repository commits its generated root, so the script
+    and the README must not reorder when the sections took over their own
+    secrets: each Secret carries its place, and the installed sections'
+    union is the order the list had when the core named them all."""
+    from cs_image_system.base.bootstrap.github import secrets_union
+    from cs_image_system.base.bootstrap.questions import Secret
+    assert [s.name for s in secrets_union(bs.discover())] == [
+        "AWS_ROLE_ARN", "AWS_APPLY_ROLE_ARN", "GCP_WORKLOAD_IDENTITY_PROVIDER", "GCP_SERVICE_ACCOUNT",
+        "GCP_APPLY_SERVICE_ACCOUNT", "OKTA_API_PRIVATE_KEY", "TF_VAR_KEY", "TF_VAR_SECRET", "CSIS_CONFIG_IDENTITY",
+        "DOCKER_HOST_SSH_KEY", "DOCKER_HOST_KNOWN_HOSTS", "CSIS_PROOF_SSH_KEY"]
+    assert Secret("X", "file").order == 100                     # a section that picks no place comes after them all
+    # an output replacing a file keeps the file's place, whichever the script met first
+    from cs_image_system.base.bootstrap.hcl import render_root
+    early = Rendered(secrets=(Secret("LATE", "output", "late_out"),))
+    core = Rendered(secrets=(Secret("FIRST", "file", order=1), Secret("LATE", "file", order=2), Secret("LAST", "file", order=3)))
+    script = render_root({"a": early, "b": core}, module_source_base="m", repository=None, secrets_dir=None)["set-secrets.sh"]
+    assert [line for line in script.splitlines() if line.startswith(("from_file ", "from_output "))] == [
+        "from_file FIRST", "from_output LATE late_out", "from_file LAST"]
+
+
+def test_the_actions_variables_are_the_union_of_the_wanted_sections_variables():
+    """The core names the runtime to perform on and the runtimes to guard;
+    a cloud's section declares the Actions variables its workflow reads,
+    each valued by one of its own answers (``Section.variables``), and the
+    GitHub module sets the union: a wanted section's non-empty answers only,
+    the core's first, then each section's in section-name order."""
+    from cs_image_system.base.bootstrap.generate import render_files
+    from cs_image_system.base.bootstrap.github import VARIABLES, actions_variables, declared_variables, github_section
+    from cs_image_system.base.bootstrap.questions import Variable
+    assert [v.name for v in VARIABLES] == ["PERFORM_RUNTIME", "GUARD_RUNTIME"]
+    github = github_section()
+    assert not any(q.id == "aws_region" for q in github.questions)         # the region question is a cloud's now
+    zeta = Section(name="zeta", title="Zeta", questions=(Question("zone", "The zone"),), render=lambda a: Rendered(),
+                   variables=(Variable("ZETA_ZONE", "zone"), Variable("ZETA_EMPTY", "nothing")))
+    assert [(n, v.name) for n, v in declared_variables([zeta])] == [
+        ("github", "PERFORM_RUNTIME"), ("github", "GUARD_RUNTIME"), ("zeta", "ZETA_ZONE"), ("zeta", "ZETA_EMPTY")]
+    wanted = {**GITHUB_ANSWERS, "zeta": {"wanted": True, "zone": "z-1", "nothing": ""}}
+    assert actions_variables([github, zeta], wanted) == {
+        "PERFORM_RUNTIME": "aws-east2-runtime", "GUARD_RUNTIME": "gcloud-east1", "ZETA_ZONE": "z-1"}
+    assert actions_variables([github, zeta], {**wanted, "zeta": {"wanted": False, "zone": "z-1"}}) == {
+        "PERFORM_RUNTIME": "aws-east2-runtime", "GUARD_RUNTIME": "gcloud-east1"}   # not wanted: nothing of its own
+    files = render_files([github, zeta], wanted, module_source="../../tfmodules")
+    tfvars = files["bootstrap.auto.tfvars"]
+    assert re.search(r'github_actions_variables\s*=\s*\{\n\s*"GUARD_RUNTIME"\s*=\s*"gcloud-east1"\n\s*"PERFORM_RUNTIME"\s*=\s*'
+                     r'"aws-east2-runtime"\n\s*"ZETA_ZONE"\s*=\s*"z-1"\n\}', tfvars), tfvars
+    readme = files["README.md"]
+    assert "Actions variables: PERFORM_RUNTIME=aws-east2-runtime, GUARD_RUNTIME=gcloud-east1, ZETA_ZONE=z-1" in readme
+    assert "REPLACE-ME: PERFORM_RUNTIME, GUARD_RUNTIME, ZETA_ZONE and ZETA_EMPTY are set" in readme
+    # the installed AWS section declares the region variable the AWS workflows read, from its own region answer
+    installed = {s.name: s for s in bs.discover()}
+    if "aws" in installed:
+        assert [(v.name, v.answer) for v in installed["aws"].variables] == [("AWS_REGION", "region")]
 
 
 @pytest.mark.skipif(shutil.which("tofu") is None, reason="tofu not installed")

@@ -56,8 +56,8 @@ def predefined_resolve(ctx: GlobalTypeContext,
     added_images: list[BaseImage] = []
     for osb_name, osb in ctx.os_builders.items():
         log.debug(f"Resolving default images for OS builder: {osb_name}")
-        # EXPLORE GCP: an OS builder may name several runtimes (AWS and
-        # GCE); the vendor image is resolved PER runtime, but exactly one
+        # the second-cloud exploration: an OS builder may name several runtimes
+        # (two clouds); the vendor image is resolved PER runtime, but exactly one
         # BaseImage is generated and handed to every image builder involved.
         resolutions: dict[str, tuple[str, list[str]]] = {}
         base_builders: list[tuple] = []

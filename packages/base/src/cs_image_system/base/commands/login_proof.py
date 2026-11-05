@@ -9,7 +9,8 @@ the skips, the record -- and the group's builder runs the checks
 (``login_checks``); OPA's, described below, live in the Okta plugin's
 ``sft_login`` module.
 
-Verifying an instance over SSM proves the box is healthy and says nothing
+Verifying an instance over the runtime's session mechanism proves the box is
+healthy and says nothing
 about access. This command logs in the way a scientist does -- ``sft
 ssh``, a short-lived OPA certificate -- as the WORKLOAD (``OPA_TOKEN`` in
 the environment, minted by ``cs-image-system workload token`` from the Actions

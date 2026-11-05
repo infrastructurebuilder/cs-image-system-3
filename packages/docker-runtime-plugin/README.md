@@ -56,8 +56,9 @@ Its render says what remains by hand (the daemon and its host, the network,
 CI's ssh key and `known_hosts` line, or, when CI cannot reach the daemon, to
 name the runtime in `GUARD_RUNTIME`) and its audit lines are all BY HAND or
 READ. The two secrets it concerns, `DOCKER_HOST_SSH_KEY` and
-`DOCKER_HOST_KNOWN_HOSTS`, are among the GitHub section's, set by its script
-from files.
+`DOCKER_HOST_KNOWN_HOSTS`, are the section's own (`Section.secrets`); the
+GitHub section's script sets them from files with the rest, so the core never
+names them.
 
 ## Models
 
@@ -103,8 +104,12 @@ The daemon answers the keys `name` (a repository), `version` (a tag),
 `publisher` (a registry namespace; `library` is Docker Hub's and is
 dropped), `architecture` (a platform, `x86_64` → `linux/amd64`) and
 `native.image` (a reference verbatim). The release catalog's `docker` block
-gives every family one (`almalinux:{version}`, `debian:{version}`, ...). The
-query PULLS the reference and records its digest reference
+gives every family one (`almalinux:{version}`, `debian:{version}`, ...);
+those blocks are this plugin's, shipped as package data in
+[`data/image-sources.yml`](src/cs_image_system/docker_runtime/data/image-sources.yml)
+and read by `DockerContainerBuilder.image_source_entries()`, so the
+release catalog a tree sees carries a `docker` block exactly when this
+plugin is installed. The query PULLS the reference and records its digest reference
 (`<repository>@sha256:...`) as the identifier, so a vendor moving a tag shows
 as a move. An entry's `image_id` pins a digest reference; a tag is refused
 there, because a tag moves.
@@ -132,6 +137,45 @@ key before anything runs; a query that names neither `name` nor
 | `tags` | refused | a pull cannot search by label |
 | `newest` | refused | a tag names one image; the pull resolves it |
 | `native` | `native.image` verbatim | a complete reference, used instead of `name`, `publisher` and `version`; no other `native` member is read |
+
+### The local test target
+
+The core's local modification tests (`cs-image-system test-mods`; the
+harness is [`mod_tests.py`](../base/src/cs_image_system/base/mod_tests.py)
+in the base package) run every modification of an instance image twice on
+a throwaway container and compare the filesystem diffs. The harness
+itself names no runtime: it asks the registered runtime builder classes
+which one offers a local test target, and this plugin is the one that
+does. `DockerContainerBuilder.local_test_target()` returns the factory
+`make_local_target(image, executables)` from
+[`local_target.py`](src/cs_image_system/docker_runtime/local_target.py),
+and everything that is docker's about the test container lives there:
+
+- the CLI: the `binary` of the tree's `docker` entry in
+  `cfg/executables.yml` (its `name` when no binary is given), else
+  `docker` from the host's PATH;
+- the daemon probe: `docker info`. When the daemon does not answer the
+  factory returns nothing and the harness records every modification as
+  `skipped` with the detail `docker: the daemon is not available`, never
+  as failed;
+- the pull, retried (three attempts, 5 then 20 seconds apart) so that a
+  registry that is down is named as such; a pull that fails every attempt
+  or a `docker run` that refuses raises the core's `ContainerStartError`
+  with docker's own last line, and the harness records the modifications
+  as `unstarted` (the container, not the modification);
+- the container itself, `DockerTarget`: `docker run -d --rm <image> sh -c
+  'sleep infinity'`, then `exec`, `cp` and `diff` against it, and `rm -f`
+  at close. Ansible modifications reach it through ansible's `docker`
+  connection plugin (`ansible_connection`), and the target knows which
+  `docker diff` lines are noise (`/tmp`, `/var/log`, the package caches,
+  ansible's own directories, `/run`) and tells the harness to ignore them.
+
+Which image the container starts from is the catalog's stand-in block,
+keyed by this runtime's type: the family's own `docker` block, else the
+block of the family it IS, with the OS builder's `local_test_image`
+overriding both. The daemon this runs on is the host's own (the
+local `docker` CLI's current context), not the daemon a `docker` runtime
+entry in the tree declares: the tests are local by design.
 
 ### Bakes
 
@@ -243,7 +287,8 @@ image_builders:
 
 - A daemon that speaks the Docker Engine API, reachable from the machine
   that runs the system: `docker version` against the runtime's `host` or
-  `context` must answer (preflight says so in one line per daemon).
+  `context` must answer (preflight says so in one line per daemon; the
+  probe is this plugin's own `session_status` hook).
 - The `docker` CLI, declared in `cfg/executables.yml` (`version: ">=24"`
   is the floor the system runs with); `--init` needs the daemon's
   `docker-init`, which every supported daemon ships.
@@ -282,8 +327,15 @@ digest reference. `output_image_name` is the tag prefix.
   the daemon cannot answer, a label key it cannot carry, a build name longer
   than a tag, a `default_machine_type` that names no declared machine type,
   and a runtime that declares both `host` and `context`.
-- `preflight` runs `docker version` against each docker runtime's daemon
-  and prints whether it answers.
+- `preflight` prints whether each docker runtime's daemon answers. The
+  probe is this plugin's: the builder class's `session_status` hook runs
+  `docker version` with the declared executable's binary against the
+  runtime's `host` or `context` (`probe_daemon`), and answers the core
+  with the engine and API versions or the first line of why not; a daemon
+  that answers is present and judged, one that does not is absent, with
+  the hint to start it or fix the address. The class also declares
+  `DOCKER_*` as its credential prefix (set-but-empty is refused) and
+  classifies `DockerUnreachable` into the one-line load failure below.
 - The unit tests ([tests/](tests/)) pin the names module (tags, repository
   names, movable tags), the query translation, the model's environment and
   the packer source and post-processor shapes without a daemon; the

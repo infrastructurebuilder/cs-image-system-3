@@ -221,7 +221,7 @@ def base_image_verify_commands(ctx: "GlobalTypeContext", base: Any, runtime_name
             cmds += b.verify_commands(family)
     st_plugins = storage_builders_by_type(ctx)
     for stype in sorted(base.storage_types or []):
-        # only the plugins ON THIS RUNTIME are verified (GCP increment 3, gate 1)
+        # only the plugins ON THIS RUNTIME are verified (second-cloud exploration increment 3, gate 1)
         on_runtime = [b for b in st_plugins.get(stype, []) if _runtime_of(b) in (None, runtime_name)]
         for b in on_runtime[:1]:
             cmds += b.verify_commands(family)

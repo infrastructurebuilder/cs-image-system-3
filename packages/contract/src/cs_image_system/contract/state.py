@@ -23,6 +23,7 @@ from typing import Any, Mapping, Protocol
 
 from .core import BuilderModelProtocol, BuilderProtocol
 from .names import super_safe_name
+from .session import SessionStatus
 
 
 @dataclass(frozen=True)
@@ -132,5 +133,13 @@ class StateBackendModelProtocol(BuilderModelProtocol, Protocol):
 
 
 class StateBuilderProtocol(BuilderProtocol, Protocol):
-    """A state backend's builder: the universal surface and nothing more. It
-    emits nothing and runs nothing; the consumers do."""
+    """A state backend's builder: the universal surface, and the one
+    question the preflight asks of its class. It emits nothing and runs
+    nothing; the consumers do."""
+
+    @classmethod
+    def session_status(cls, settings: Mapping[str, Any], executables: Mapping[str, Any]) -> SessionStatus | None:
+        """The session the backend declared by ``settings`` will use (a
+        bucket's cloud credentials), as the runtime protocol's; ``None``
+        for a backend that needs none (a local directory)."""
+        ...

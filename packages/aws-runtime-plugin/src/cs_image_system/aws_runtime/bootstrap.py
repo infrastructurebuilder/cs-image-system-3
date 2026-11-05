@@ -33,7 +33,7 @@ from typing import Any
 from cs_image_system.base.bootstrap.facts import (Facts, bound_backend_names, default_state_backend, other_state_backends,
                                                    real, runtime_of_type)
 from cs_image_system.base.bootstrap.questions import (ADOPTED, BY_HAND, MADE, READ, Answers, Question, Raw, Rendered,
-                                                       Secret, Section)
+                                                       Secret, Section, Variable)
 
 MODULE = "bootstrap_aws"
 OIDC_HOST = "token.actions.githubusercontent.com"
@@ -464,6 +464,22 @@ def wanted(facts: Facts) -> bool:
     return runtime_of_type(facts, "aws") is not None or default_state_backend(facts, "s3") is not None
 
 
+#: The repository secrets the starters' workflow reads to act on AWS (CI_SETUP.md
+#: 3.3), from files when this section is not wanted; a wanted section's render
+#: sets both from the applied root's outputs instead.
+SECRETS: tuple[Secret, ...] = (
+    Secret("AWS_ROLE_ARN", "file", comment="the READ-ONLY AWS role's ARN (CI_SETUP.md 3.3)", order=10),
+    Secret("AWS_APPLY_ROLE_ARN", "file", comment="the WRITE AWS role's ARN (3.3)", order=11),
+)
+
+#: The Actions variable the starters' AWS workflows read: the region of the
+#: AWS runtime, which is this section's `region` answer.
+VARIABLES: tuple[Variable, ...] = (
+    Variable("AWS_REGION", "region", "the region of the AWS runtime"),
+)
+
+
 def aws_section() -> Section:
     return Section(name="aws", title="AWS", questions=QUESTIONS, render=render, wanted=wanted, wants_facts=True,
+                   secrets=SECRETS, variables=VARIABLES,
                    description="the GitHub OIDC provider, the read-only and write roles, the state buckets and the instance profile")

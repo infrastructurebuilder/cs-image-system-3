@@ -8,9 +8,9 @@ state-report writes.
 
 It reads BYTES -- a zipped ``tfplan`` is opened and its members scanned, a
 gzip member likewise -- so a compressed plan is scanned, not skipped. It
-knows the shapes that must never be public (``HARD_RULES``: keys, tokens,
-PEM bodies, a service-account file, a ``TF_VAR_*=`` assignment with a value,
-an age identity) and the shapes that are usually private (``SOFT_RULES``: an
+knows the shapes that must never be public (``hard_rules()``: tokens, PEM
+bodies, a ``TF_VAR_*=`` assignment with a value, an age identity, and the
+shapes each installed runtime plugin declares for its cloud's keys) and the shapes that are usually private (``SOFT_RULES``: an
 email address, a long mixed-case base64 string), and it refuses some paths
 outright whatever they hold (``REFUSED_PATHS``: plans, state, tfvars,
 ``.envrc``, key material). Structural public material is blanked before the
@@ -86,21 +86,13 @@ def _regex(pattern: bytes) -> Rule:
     return lambda data: [m.span() for m in rx.finditer(data)]
 
 
-def _service_account_file(data: bytes) -> list[tuple[int, int]]:
-    """A GCP service-account JSON: its ``private_key_id`` with a value, or the
-    ``type`` marker in a document that also carries a private key (the bare
-    marker alone is what documentation says when it names the shape)."""
-    spans = [m.span() for m in re.finditer(rb'"private_key_id"\s*:\s*"[0-9a-f]{20,}"', data)]
-    if b'"private_key"' in data:
-        spans += [m.span() for m in re.finditer(rb'"type"\s*:\s*"service_account"', data)]
-    return spans
-
-
-HARD_RULES: dict[str, Rule] = {
+#: The shapes the scan knows on its own: tokens and keys whose form is the
+#: same whoever issued them, PEM bodies, an age identity, and a variable
+#: assignment carrying a literal value. A runtime plugin adds the shapes of
+#: its own cloud's secrets through ``secret_patterns()``.
+_OWN_RULES: dict[str, Rule] = {
     "jwt": _regex(rb"eyJ[A-Za-z0-9_-]{20,}"),          # no boundary: a plan's binary glues it to anything
     "pem-private-key": _regex(rb"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
-    "aws-access-key": _regex(rb"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"),
-    "gcp-service-account": _service_account_file,
     "slack-token": _regex(rb"\bxox[baprs]-[0-9A-Za-z-]{10,}"),
     "github-token": _regex(rb"\bgh[pousr]_[0-9A-Za-z]{20,}\b"),
     "age-identity": _regex(rb"\bAGE-SECRET-KEY-1[A-Z0-9]{58}\b"),
@@ -110,6 +102,27 @@ HARD_RULES: dict[str, Rule] = {
     # value as PKR_VAR_x="$(...)", never as a literal
     "pkrvar-assignment": _regex(rb"\bPKR_VAR_\w+=(?![\"']?\$)[^\s\"']{4,}"),
 }
+
+
+def _runtime_rules() -> dict[str, Rule]:
+    """The secret shapes every installed runtime plugin declares, by rule
+    name; the plugins are loaded here so the scan sees them whether or not
+    a configuration was loaded first."""
+    from .loader import load_plugins
+    from .registry import Registry
+    load_plugins()
+    out: dict[str, Rule] = {}
+    for cls in Registry().runtime_builder_classes().values():
+        for name, pattern in cls.secret_patterns().items():
+            out[str(name)] = _regex(str(pattern).encode())
+    return out
+
+
+def hard_rules() -> dict[str, Rule]:
+    """The scan's own rules and the runtimes', the runtimes' never shadowing
+    the scan's own."""
+    return {**_runtime_rules(), **_OWN_RULES}
+
 
 _EMAIL = re.compile(rb"[A-Za-z0-9._%+-]+@([A-Za-z0-9.-]+\.[A-Za-z]{2,})")
 _EXAMPLE_DOMAINS = (b"example.com", b"example.org", b"example.net", b".invalid", b".test", b"localhost")
@@ -215,7 +228,7 @@ def scan_bytes(data: bytes, path: str, allow: Sequence[str] = (), *,
     cleaned = data
     for rx in STRUCTURAL_PUBLIC:
         cleaned = rx.sub(b"", cleaned)
-    rules = dict(HARD_RULES)
+    rules = dict(hard_rules())
     if not hard_only and not soft_exempt(path.split("!")[0]):
         rules.update(SOFT_RULES)
     for name, rule in rules.items():

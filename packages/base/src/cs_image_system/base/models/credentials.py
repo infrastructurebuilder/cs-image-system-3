@@ -7,7 +7,7 @@
 A runtime's ``credentials:`` was ``dict[str, str]``. cattrs, and pydantic
 after it, treat a plain mapping as opaque: every key inside it is accepted,
 so ``profile_nme: noaa`` was silently kept and the profile silently became
-None -- falling back to ``AWS_PROFILE`` or to no profile at all. Stage 21's
+None -- falling back to the cloud CLI's profile variable or to no profile at all. Stage 21's
 rule cannot reach inside a mapping, which is why this stage exists and why
 its own step 3 says the rule alone does not close the gap.
 
@@ -28,14 +28,15 @@ from pydantic.dataclasses import dataclass
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
 class CredentialsBase:
-    """The empty base: a runtime that needs no declared credentials (GCE uses
-    Application Default Credentials) simply has none."""
+    """The empty base: a runtime that needs no declared credentials (a cloud
+    whose client library finds its default credentials in the environment)
+    simply has none."""
 
     def as_dict(self) -> dict[str, Any]:
         """The declared, non-empty values as a plain mapping.
 
-        Every consumer wants a dict -- boto3 session kwargs, the GCP client
-        config, the ``--profile`` flag -- so this is the one conversion point.
+        Every consumer wants a dict -- one cloud SDK's session kwargs, another's
+        client config, the ``--profile`` flag -- so this is the one conversion point.
         Unset fields are omitted so an absent key never reaches a client
         library as ``None``.
         """

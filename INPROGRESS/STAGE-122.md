@@ -1,6 +1,6 @@
 # 122. Storage and identity leave the core
 
-**Status: OPEN 2026-11-04. Waits for "do 122", after [§121](STAGE-121.md).**
+**Status: OPEN 2026-11-04. Waits for "do 122", after §121.**
 
 `launch_params.py` hardcodes the EBS device list, the NVMe by-id loop
 and the GCE device name and branches on `ebs`, `gce-pd`, `efs`,
@@ -45,7 +45,7 @@ rest is `yum`, which breaks the registered alpine type.
 behaviour; any change to what the launch script does on a machine.
 
 **Acceptance**: emission byte-identical (the launch scripts and the
-mount lines are in the golden); the alpine dry bake green; the [§121](STAGE-121.md)
+mount lines are in the golden); the alpine dry bake green; the §121
 grep-test extended with `okta`, `sft`, `oktapam`, `yum`, `dnf`, `apt`,
 `apk` over `contract`, `base` and `system`; `just test`; one squash,
 branch kept. Records: the squash; this section goes at "merge 122".

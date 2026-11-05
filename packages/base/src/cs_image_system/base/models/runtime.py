@@ -115,7 +115,7 @@ class RuntimeBuilderModel(BuilderModel, RuntimeBuilderModelProtocol):
     # stage 22.1: this was `init=False`, so cattrs never structured it and the
     # YAML value (`default_image_builder: pckr-ebs-ans`) never reached any
     # runtime -- every one of them silently held DEFAULT. Both cloud plugins
-    # read it through get_default_image_builder(), so AWS and GCE were equally
+    # read it through get_default_image_builder(), so both clouds were equally
     # affected. It is an ordinary init field now.
     default_image_builder: str = fk_field(target = VCT.IMAGE_BUILDER_MODEL,
                                           default=DEFAULT,

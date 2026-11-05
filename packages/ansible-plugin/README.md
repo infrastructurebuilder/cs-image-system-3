@@ -128,7 +128,7 @@ of its own, runs no generation-time commands and defers nothing to a
 `run-<lifecycle>.sh`.
 
 For every modification of an instance image, the Packer image builder
-([packer_ebs_builder.py](../packer-plugin/src/cs_image_system/packer_plugin/packer_ebs_builder.py))
+([packer_image_builder.py](../packer-plugin/src/cs_image_system/packer_plugin/packer_image_builder.py))
 calls, in order:
 
 1. `copy_external_assets(block_dir, mod)`: returns `{}`. Nothing is copied
@@ -596,7 +596,7 @@ Failures the code raises:
   [builder_base_image.py](../base/src/cs_image_system/base/basic/builder_base_image.py).
 - The image builder that calls it and hosts its output:
   [packer-plugin](../packer-plugin)
-  ([packer_ebs_builder.py](../packer-plugin/src/cs_image_system/packer_plugin/packer_ebs_builder.py),
+  ([packer_image_builder.py](../packer-plugin/src/cs_image_system/packer_plugin/packer_image_builder.py),
   [v2_local_mods.py](../packer-plugin/src/cs_image_system/packer_plugin/v2_local_mods.py)).
 - Lineage records for modifications:
   [lineage.py](../base/src/cs_image_system/base/lineage.py) (`mod_records`).

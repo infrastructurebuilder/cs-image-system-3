@@ -14,6 +14,7 @@ from cs_image_system.contract.assets import AssetSet
 from cs_image_system.base.basic.builder_base_group import GID_POLICY_CREATION_ONLY, GroupBuilderBase
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.contract.executables import CFExecutables
+from cs_image_system.contract.session import LoadFailureReport
 from cs_image_system.base.models.group import Group
 from cs_image_system.hashicorp_utils.blocks import BlockSpec, DataSpec, OutputSpec, Raw, render_blocks
 from cs_image_system.hashicorp_utils.collector import TerraformCollector
@@ -52,6 +53,14 @@ OKTA_IDENTITY_TYPE = "okta"
 EXTERNAL_PROVIDER = "external"
 GID_SHIM_LABEL = "group_gids"
 
+#: What a load says when the OPA key pair is not in the environment (the
+#: `ValueError` of `credentials_from_env`), and the remedy the one-line
+#: load failure names; the core asks this class through `classify_failure`.
+OPA_CREDENTIAL_MARKS: tuple[str, ...] = ("not found in the environment", "is missing a key value",
+                                         "is missing a secret value")
+OPA_REMEDY = ("the `TF_VAR_<team>_key` / `TF_VAR_<team>_secret` pair is needed by `validate` and every dry run, "
+              "not only at apply: `source .envrc`; in CI, the secrets the workflow names")
+
 
 log = logging.getLogger(__name__)
 
@@ -71,6 +80,14 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
     @classmethod
     def identity_type(cls) -> str:
         return OKTA_IDENTITY_TYPE
+
+    @classmethod
+    def classify_failure(cls, exc: BaseException) -> LoadFailureReport | None:
+        """A missing OPA key pair is the ENVIRONMENT's failure: one line
+        and exit 2, as the preflight's absent session ends."""
+        if isinstance(exc, ValueError) and "TF_VAR_" in str(exc) and any(m in str(exc) for m in OPA_CREDENTIAL_MARKS):
+            return LoadFailureReport("environment", [f"the configuration cannot load: {exc}", f"({OPA_REMEDY})"], code=2)
+        return None
 
     def gid_policy(self) -> str:
         # N1: okta allows defining a gid only at group creation; thereafter it

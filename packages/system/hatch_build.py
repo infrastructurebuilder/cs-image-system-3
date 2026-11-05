@@ -20,18 +20,26 @@ from pathlib import Path
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
-STARTERS = ("standard-aws", "standard-gce", "complete", "standard-aws-posix", "standard-docker")
+#: The file beside the starter trees naming the default one; the trees are
+#: the directories beside it that carry a ``cfg/``. The directory is the one
+#: list of starters: this hook ships whatever it finds there.
+DEFAULT_MARKER = "DEFAULT"
+
+
+def starter_names(source: Path) -> list[str]:
+    return sorted(c.name for c in source.iterdir() if c.is_dir() and (c / "cfg").is_dir())
 
 
 class StarterTreesHook(BuildHookInterface):
     def initialize(self, version: str, build_data: dict) -> None:  # noqa: ARG002 - hatchling's signature
         root = Path(self.root)
         candidates = [root / "starters", root.parents[1] / "docs" / "examples"]
-        source = next((c for c in candidates if all((c / s).is_dir() for s in STARTERS)), None)
+        source = next((c for c in candidates if (c / DEFAULT_MARKER).is_file() and starter_names(c)), None)
         if source is None:
             raise RuntimeError(f"the starter trees were found in none of {[str(c) for c in candidates]}; "
                                "a release must ship them (stage 64)")
         destination = "starters" if self.target_name == "sdist" else "cs_image_system/system/starters"
         force = build_data.setdefault("force_include", {})
-        for name in STARTERS:
+        force[str(source / DEFAULT_MARKER)] = f"{destination}/{DEFAULT_MARKER}"
+        for name in starter_names(source):
             force[str(source / name)] = f"{destination}/{name}"

@@ -23,7 +23,7 @@ from .lifecycle import ExecutionLifecyclePhase
 
 class PSIState(StrEnum):
     """State of a ProviderSpecificImage."""
-    RESOLVED = "resolved"  # A concrete provider identifier is known (e.g. an AMI id)
+    RESOLVED = "resolved"  # A concrete provider identifier is known (the vendor image's id on that runtime)
     DEFERRED = "deferred"  # The image does not exist yet; only a query/name pattern is known
 
 
@@ -68,9 +68,9 @@ class ImageBuilderProtocol(BuilderProtocol, Protocol):
 # ---------------------------------------------------------------- stage 106
 # The image query: the system's own vocabulary for "which vendor image", which
 # every runtime translates to its own (``RuntimeBuilderProtocol
-# .translate_image_query``). The spellings are the system's; where EC2's
-# were good names they were kept -- the system started on AWS and used its
-# filter keys, the operator's incidental choice, now a declared one.
+# .translate_image_query``). The spellings are the system's; where the first
+# cloud's were good names they were kept -- the system started on one cloud
+# and used its filter keys, the operator's incidental choice, now a declared one.
 
 #: The keys, in the order a query is written out.
 QUERY_KEYS: tuple[str, ...] = (
@@ -80,14 +80,14 @@ QUERY_KEYS: tuple[str, ...] = (
     "architecture",     # x86_64 or arm64
     "publisher",        # who owns the image: an account, a project, a registry namespace
     "state",            # available
-    "virtualization",   # the EC2 particular (hvm)
-    "root_device",      # the EC2 particular (ebs)
+    "virtualization",   # the first cloud's particular (its hardware-virtualised kind)
+    "root_device",      # the first cloud's particular (its block-store root kind)
     "tags",             # a tag or label per key
     "newest",           # take the latest match (the default); false refuses an ambiguous match
     "native",           # the one escape hatch: passed to the runtime verbatim, never translated
 )
 
-#: The spellings a tree may still write, each read as its key: EC2's field
+#: The spellings a tree may still write, each read as its key: the first cloud's field
 #: names (which the system started with) and the nested ``filters:`` form's
 #: companions. A key not in QUERY_KEYS and not here is refused.
 QUERY_KEY_ALIASES: dict[str, str] = {

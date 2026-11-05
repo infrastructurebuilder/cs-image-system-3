@@ -42,7 +42,7 @@ ENROLLMENT_TOKEN_VARIABLE = "sft_enrollment_token"
 _VOLATILE = ("run", "user_data_sha256", "launched", "launched_run", "build")
 #: hygiene XII item 22 (the walk's F50): the startup script says, per declared
 #: mount point, whether it is mounted -- one line a verification can read off
-#: the GCE serial console by name. The kernel's own `XFS (...): Ending clean
+#: the cloud's serial console by name. The kernel's own `XFS (...): Ending clean
 #: mount` lines count the image's filesystems too, so a count could not fail.
 MOUNT_MARK = "csis-mount:"
 
@@ -131,10 +131,10 @@ def _storage_by_name(ctx: "GlobalTypeContext"):
 
 
 def _gce_device_name(value: str) -> str:
-    """The GCE device name a storage is attached under -- the same rule as the
-    gcloud plugin's ``gce_name`` (lowercase; anything outside ``[a-z0-9-]``
-    becomes ``-``), kept here so the base package stays plugin-free; the
-    GCE instance builder attaches with the identical name (finding 50)."""
+    """The device name a persistent-disk storage is attached under -- the same
+    rule as its cloud plugin's own name sanitiser (lowercase; anything outside
+    ``[a-z0-9-]`` becomes ``-``), kept here so the base package stays plugin-free;
+    that cloud's instance builder attaches with the identical name (finding 50)."""
     import re
     v = re.sub(r"[^a-z0-9-]+", "-", str(value).lower()).strip("-")
     return v or "disk"
@@ -195,10 +195,10 @@ def compute_launch_params(ctx: "GlobalTypeContext", instance: "Instance") -> dic
             mount["device"] = EBS_DEVICES[ebs_index] if ebs_index < len(EBS_DEVICES) else f"/dev/xvd{chr(ord('l') + ebs_index - len(EBS_DEVICES))}"
             ebs_index += 1
         elif stype == "pd":
-            # GCE names attached disks by device_name under /dev/disk/by-id
-            # as "google-<device_name>"; the GCE instance builder attaches
-            # with exactly this sanitized name (finding 50: the two once
-            # disagreed -- "gce_data" attached, "google-gce-data" mounted --
+            # the persistent-disk cloud names attached disks by device_name
+            # under /dev/disk/by-id with its vendor prefix; its instance builder
+            # attaches with exactly this sanitized name (finding 50: the two once
+            # disagreed -- the raw name attached, the prefixed sanitised name mounted --
             # and the startup script died at the missing device)
             mount["device"] = "/dev/disk/by-id/google-" + _gce_device_name(storage.get_name())
         mounts.append(mount)
@@ -288,7 +288,7 @@ def user_data_template(params: dict[str, Any]) -> str:
             lines.append(f"DEV='{dev}'")
             if m["type"] == "ebs":
                 # On Nitro instances (t3+) EBS volumes surface as /dev/nvme*
-                # and RHEL-family AMIs create no legacy symlinks (found live:
+                # and RHEL-family vendor images create no legacy symlinks (found live:
                 # user-data died at mkfs and everything after never ran), so
                 # fall back to the stable by-id name built from the volume id.
                 lines += [
@@ -341,7 +341,8 @@ def user_data_template(params: dict[str, Any]) -> str:
         lines += kind.script_lines(params)
     # Completion marker (stage 11.1): the last act of the script under `set -e`,
     # so its presence means every launch parameter above was applied. The
-    # AWS verification reads it over SSM; GCE has the guest agent's own line.
+    # first cloud's verification reads it over the session mechanism; the
+    # second's guest agent writes its own line.
     if params.get("userdata"):
         # the declaration's own lines run last, under the same `set -e`: a
         # failing line is a failed startup, which a verification reports

@@ -25,8 +25,10 @@ def _builder(**model_fields):
 
 def _emit(builder, mod):
     image = SimpleNamespace(name="img")
+    # the image builder labels the build target through its runtime; a stub answers here
+    ibb = SimpleNamespace(build_target_label=lambda img: f"amazon-ebs.{img.name}")
     items = builder.generate_items_during_modification(
-        image, mod, cast(Any, None), ExecutionLifecyclePhase.IMAGE_GENERATION, Path("build.pkr.hcl"))
+        image, mod, cast(Any, ibb), ExecutionLifecyclePhase.IMAGE_GENERATION, Path("build.pkr.hcl"))
     return "\n".join(a.value for a in items)
 
 

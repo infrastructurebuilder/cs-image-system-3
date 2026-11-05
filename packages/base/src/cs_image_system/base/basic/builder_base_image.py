@@ -136,13 +136,12 @@ class ImageBuilderBase(BuilderBase[TIMAGE], ImageBuilderProtocol):
 
 
 
-LEGACY_SOURCE_TYPE = "amazon-ebs"
-
-
 def build_target_label_of(image_builder: Any, image: Any) -> str:
-    """``image_builder.build_target_label(image)`` when the builder can say;
-    the legacy ``amazon-ebs.<image>`` when there is no builder (plugin unit
-    tests pass ``None``) or it has no opinion."""
+    """``image_builder.build_target_label(image)``: the ``<source type>.<image>``
+    a provisioner's ``only`` names. The label is the image builder's to
+    give, through its runtime; with no builder, or one with no opinion,
+    there is no label and the error says so (a unit test passes a stub
+    that answers)."""
     label = getattr(image_builder, "build_target_label", None)
     if callable(label):
         try:
@@ -150,4 +149,4 @@ def build_target_label_of(image_builder: Any, image: Any) -> str:
         except NotImplementedError:
             pass
     name = getattr(image, "name", None) or image.get_name()
-    return f"{LEGACY_SOURCE_TYPE}.{name}"
+    raise ValueError(f"no image builder can label the build target of image {name!r}")

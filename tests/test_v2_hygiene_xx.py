@@ -241,8 +241,8 @@ def test_validate_prints_the_stand_in_per_os_builder_and_warns_on_a_query_naming
     messages = [r.getMessage() for r in caplog.records]
     stand_ins = [m for m in messages if m.startswith("mod-test stand-in:")]
     assert len(stand_ins) == 3, stand_ins
-    assert "mod-test stand-in: OS builder 'basic-rh-10': almalinux:10 (the catalog's docker block for 'rhel')" in stand_ins
-    assert "mod-test stand-in: OS builder 'my-deb-12': debian:12 (the catalog's docker block for 'debian')" in stand_ins
+    assert "mod-test stand-in: OS builder 'basic-rh-10': almalinux:10 (the catalog's stand-in block (docker) for 'rhel')" in stand_ins
+    assert "mod-test stand-in: OS builder 'my-deb-12': debian:12 (the catalog's stand-in block (docker) for 'debian')" in stand_ins
     warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING and "names 'alma-linux'" in r.getMessage()]
     assert len(warnings) == 1 and "under family 'rhel'" in warnings[0] and "`family: alma-linux`" in warnings[0], warnings
 

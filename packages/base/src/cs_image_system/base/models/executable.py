@@ -75,7 +75,7 @@ class ExecutableModel(NameTyped, PluginArtifactProtocol):
     Attributes
     ----------
     name : str
-        The name of the executable (e.g., "packer", "gcloud").
+        The name of the executable (e.g., "packer", "tofu").
     type : str
         The type of the executable, used for polymorphic deserialization.
         Type should be registered in the registry for proper parsing.
@@ -107,8 +107,8 @@ class ExecutableModel(NameTyped, PluginArtifactProtocol):
     config: dict[str, Any] = field(default_factory=dict)
     args: list[str] = field(default_factory=list)
     # stage 103: variables set on top of the caller's environment for this
-    # one process (a runtime's `tool_environment`: DOCKER_HOST for a bake
-    # on a docker runtime); never a secret VALUE from the configuration
+    # one process (a runtime's `tool_environment`: the daemon address for a
+    # bake on a container runtime); never a secret VALUE from the configuration
     environment: dict[str, str] = field(default_factory=dict)
     # Overridden by execution context at execution time
     working_directory: Path | None = None
@@ -135,7 +135,7 @@ class ExecutableModel(NameTyped, PluginArtifactProtocol):
 
     def resolved_environment(self) -> dict[str, str]:
         """The ``environment`` with every ENC marker opened (stage 103 branch
-        2): the model carries the ciphertext (a docker runtime's private
+        2): the model carries the ciphertext (a container runtime's private
         ``host``), the process gets the value, and the runner script renders
         the marker as a `decrypt` call (see render_executable_line)."""
         from ..encryption import decrypt_marker, is_marker

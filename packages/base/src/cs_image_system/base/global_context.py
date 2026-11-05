@@ -517,7 +517,7 @@ class GlobalTypeContext:
         run before INSTANCE_GENERATION's terraform plan/apply. Around each
         phase's commands, every builder's pre/post_finalize_phase hooks fire —
         e.g. the packer builder parses build manifests after its builds, and the
-        instance builder writes concrete AMI tfvars before its plan/apply.
+        instance builder writes concrete image-id tfvars before its plan/apply.
         """
         self.write_final_execution_script()
         pwd = Path(os.getcwd()).absolute()
@@ -791,8 +791,8 @@ def render_executable_line(executable: Any, base: Path | None = None, root: Path
         return f'"${ROOT_VARIABLE}"' if str(rel) == "." else f'"${ROOT_VARIABLE}/{rel}"'
     cmd_parts: list[str] = []
     for k, v in sorted((getattr(executable, "environment", None) or {}).items()):
-        # stage 103 branch 2: a runtime's tool environment (DOCKER_HOST, a
-        # context) rides on the line as an assignment prefix; a value that is
+        # stage 103 branch 2: a runtime's tool environment (a container daemon's
+        # address, a client context) rides on the line as an assignment prefix; a value that is
         # an ENC marker stays a marker here (the committed script carries only
         # ciphertext) and opens where the line runs
         from .encryption import is_marker
@@ -966,7 +966,7 @@ def parse_undeclare(specs: list[str] | None) -> list[tuple[str, str]]:
     for spec in specs or []:
         kind, sep, name = spec.partition(":")
         if not sep or not kind or not name:
-            raise ValueError(f"--undeclare {spec!r}: expected <kind>:<name> (e.g. instance:gce-test)")
+            raise ValueError(f"--undeclare {spec!r}: expected <kind>:<name> (e.g. instance:<name>)")
         key = kind if kind in allowed else kind + "s"
         if key not in allowed:
             raise ValueError(f"--undeclare {spec!r}: unknown kind {kind!r}; allowed: {sorted(allowed)}")
@@ -1552,8 +1552,8 @@ register_item_kind(ItemKind(
     attach=lambda b, it: b.add_storage(it),
 ))
 def _attach_image(builder: Any, image: Any) -> None:
-    """An image attaches to its ``type`` builder (the primary) and, EXPLORE
-    GCP, to every other image builder its ``runtimes`` name -- one bake per
+    """An image attaches to its ``type`` builder (the primary) and, since the
+    second-cloud exploration, to every other image builder its ``runtimes`` name -- one bake per
     runtime of the same logical image."""
     builder.add_image(image)
     reg = registry.Registry()

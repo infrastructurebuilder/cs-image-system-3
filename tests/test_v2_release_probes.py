@@ -100,9 +100,9 @@ def test_the_session_line_says_the_minutes_left_and_refuses_only_a_lapsed_token(
     fact, not a margin -- preflight now judges it too -- so that branch alone refuses."""
     just = (REPO / "Justfile").read_text()
     probes = just[just.index("\n_release-probes index"):just.index("\n# Build and upload the version in the tree")]
-    assert "scripts/sso-minutes-left" in probes
+    assert "scripts/session-minutes-left" in probes
     for needle in ("lapsed $((-left)) minutes ago", "log in again from a second terminal about halfway",
-                   "the AWS session has $left minutes left"):
+                   "the soonest-expiring session has $left minutes left"):
         assert needle in probes, needle
     branches = probes[probes.index("left=$("):].split("\n\tfi\n")[0]
     assert branches.count("exit 1") == 1 and branches.index("exit 1") < branches.index("elif [ \"$left\" -lt 60 ]")   # hygiene XXIII: only a lapsed token refuses

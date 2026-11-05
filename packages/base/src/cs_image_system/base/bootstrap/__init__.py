@@ -26,11 +26,11 @@ from .answers import ANSWERS_FILE, read_answers, write_answers
 from .facts import Facts, gather
 from .generate import BOOTSTRAP_DIRNAME, output_dir, prune, regenerate, regenerate_in_run
 from .interview import run_interview, terminal_ask
-from .questions import Question, Refused, Rendered, Secret, Section
+from .questions import Question, Refused, Rendered, Secret, Section, Variable
 from .sections import ENTRY_POINT_GROUP, discover
 
 __all__ = [
     "ANSWERS_FILE", "BOOTSTRAP_DIRNAME", "ENTRY_POINT_GROUP", "Facts", "Question", "Refused", "Rendered",
-    "Secret", "Section", "discover", "gather", "output_dir", "prune", "read_answers", "regenerate",
+    "Secret", "Section", "Variable", "discover", "gather", "output_dir", "prune", "read_answers", "regenerate",
     "regenerate_in_run", "run_interview", "terminal_ask", "write_answers",
 ]

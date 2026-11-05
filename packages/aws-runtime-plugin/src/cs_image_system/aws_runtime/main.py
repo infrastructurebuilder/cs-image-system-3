@@ -24,4 +24,8 @@ class AwsRuntimePluginMetadata(AbstractPluginMetadata):
 
 def initialize():
   log.debug("Initializing AWS Runtime Plugin")
+  # the SDK's loggers chatter at DEBUG under --verbose; this plugin is the
+  # one that brings them, so it is the one that quiets them
+  for name in ("boto3", "botocore", "urllib3"):     # boto3 uses urllib3 under the hood
+    logging.getLogger(name).setLevel(logging.INFO)
   return AwsRuntimePluginMetadata()

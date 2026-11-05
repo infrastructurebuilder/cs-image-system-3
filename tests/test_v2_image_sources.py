@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 106: the image-source catalog and the system's query vocabulary.
+"""The image-source catalog and the system's query vocabulary.
 
 The vocabulary (``contract.image.ImageQuery``) is the system's; each runtime
 translates it. The catalog has two layers (the release's, the tree's) and
@@ -12,6 +12,12 @@ what it IS, and everything that branches on a family reads that. ``validate``
 refuses an unknown key, an entry with no source, and a key the runtime cannot
 translate, naming the entry each time, and prints every resolved query in
 both vocabularies. The fingerprint hashes the effective query.
+
+The release's layer is the union of what the INSTALLED runtime plugins ship
+as package data (``image_source_entries()`` on each runtime builder class),
+merged by family; the core names no runtime, and the stand-in block the
+modification tests read is keyed by the one runtime that offers a local
+test target (``local_test_target()``).
 """
 from __future__ import annotations
 
@@ -97,6 +103,100 @@ def test_the_release_catalog_knows_the_families_the_plugins_serve():
     assert {"rhel", "alma-linux", "rocky-linux", "debian", "ubuntu", "fedora"} <= families
     assert all(e.block("docker") is not None for e in entries if e.family in ("rhel", "alma-linux", "debian"))
     assert next(e for e in entries if e.family == "alma-linux").is_ == "rhel"
+
+
+#: every (family, versions, runtime type, query) the release catalog carried
+#: when it was one file in the base package: the split by runtime must lose
+#: none of them and invent none
+CATALOG_BEFORE_THE_SPLIT: list[tuple[str, tuple[str, ...], str, dict]] = [
+    ('rhel', (), 'aws', {'publisher': ['309956199498'], 'name': 'RHEL-{version}*x86_64*', 'root_device': 'ebs', 'virtualization': 'hvm'}),
+    ('rhel', (), 'gcloud', {'publisher': ['rhel-cloud'], 'family': 'rhel-{version}'}),
+    ('rhel', (), 'docker', {'publisher': ['library'], 'name': 'rockylinux', 'version': '{version}'}),
+    ('rhel', ('10',), 'docker', {'publisher': ['library'], 'name': 'almalinux', 'version': '{version}'}),
+    ('alma-linux', (), 'aws', {'publisher': ['764336703387'], 'name': 'AlmaLinux OS {version}*x86_64*', 'root_device': 'ebs', 'virtualization': 'hvm'}),
+    ('alma-linux', (), 'gcloud', {'publisher': ['almalinux-cloud'], 'family': 'almalinux-{version}'}),
+    ('alma-linux', (), 'docker', {'publisher': ['library'], 'name': 'almalinux', 'version': '{version}'}),
+    ('rocky-linux', (), 'aws', {'publisher': ['792107900819'], 'name': 'Rocky-{version}-EC2-Base*x86_64*', 'root_device': 'ebs', 'virtualization': 'hvm'}),
+    ('rocky-linux', (), 'gcloud', {'publisher': ['rocky-linux-cloud'], 'family': 'rocky-linux-{version}'}),
+    ('rocky-linux', (), 'docker', {'publisher': ['library'], 'name': 'rockylinux', 'version': '{version}'}),
+    ('centos-stream', (), 'gcloud', {'publisher': ['centos-cloud'], 'family': 'centos-stream-{version}'}),
+    ('centos-stream', (), 'docker', {'publisher': ['quay.io/centos'], 'name': 'centos', 'version': 'stream{version}'}),
+    ('fedora', (), 'aws', {'publisher': ['125523088429'], 'name': 'Fedora-Cloud-Base*{version}*x86_64*', 'root_device': 'ebs', 'virtualization': 'hvm'}),
+    ('fedora', (), 'docker', {'publisher': ['library'], 'name': 'fedora', 'version': '{version}'}),
+    ('debian', (), 'aws', {'publisher': ['136693071363'], 'name': 'debian-{version}-amd64-*', 'root_device': 'ebs'}),
+    ('debian', (), 'gcloud', {'publisher': ['debian-cloud'], 'family': 'debian-{version}'}),
+    ('debian', (), 'docker', {'publisher': ['library'], 'name': 'debian', 'version': '{version}'}),
+    ('ubuntu', (), 'aws', {'publisher': ['099720109477'], 'name': 'ubuntu/images/hvm-ssd*/ubuntu-*-{version}*-amd64-server-*', 'root_device': 'ebs'}),
+    ('ubuntu', (), 'docker', {'publisher': ['library'], 'name': 'ubuntu', 'version': '{version}'}),
+]
+#: what each family said it IS before the split
+IS_BEFORE_THE_SPLIT = {"alma-linux": "rhel", "rocky-linux": "rhel", "centos-stream": "rhel"}
+
+
+def test_the_split_catalog_merges_back_to_exactly_what_the_one_file_held():
+    from cs_image_system.base.image_sources import packaged_default_entries
+    entries = packaged_default_entries()
+    merged = {(e.family, tuple(e.versions), rt) for e in entries for rt in e.sources}
+    assert len(CATALOG_BEFORE_THE_SPLIT) == 19
+    assert merged == {(f, v, rt) for f, v, rt, _ in CATALOG_BEFORE_THE_SPLIT}
+    assert sum(len(e.sources) for e in entries) == 19                       # no block counted twice
+    for f, v, rt, q in CATALOG_BEFORE_THE_SPLIT:
+        entry = next(e for e in entries if e.family == f and tuple(e.versions) == v)
+        assert entry.sources[rt] == q, (f, v, rt)
+        assert entry.is_ == IS_BEFORE_THE_SPLIT.get(f), f
+        assert entry.description, (f, v)                     # every family keeps a description
+
+
+@pytest.mark.parametrize("package, runtime_type", [
+    ("cs_image_system.aws_runtime.aws_runtime_builders", "aws"),
+    ("cs_image_system.gcloud_runtime.gcp_runtime_builders", "gcloud"),
+    ("cs_image_system.docker_runtime.docker_runtime_builders", "docker"),
+])
+def test_each_runtime_ships_only_its_own_blocks(package: str, runtime_type: str):
+    import importlib
+    from cs_image_system.base.image_sources import structure_entries
+    module = importlib.import_module(package)
+    cls = next(c for c in vars(module).values()
+               if isinstance(c, type) and getattr(c, "csis_name", None) and c.__module__ == package
+               and "Builder" in c.__name__ and not c.__name__.endswith(("Checker", "Model"))
+               and c.csis_name() == runtime_type)
+    raw = cls.image_source_entries()
+    assert raw, f"{runtime_type} ships no catalog entries"
+    entries = structure_entries(list(raw), where=runtime_type)
+    assert all(e.runtime_types() == [runtime_type] for e in entries), [(e.family, e.runtime_types()) for e in entries]
+    assert {f for f, _, rt, _ in CATALOG_BEFORE_THE_SPLIT if rt == runtime_type} == {e.family for e in entries}
+
+
+def test_the_stand_in_runtime_is_the_one_that_offers_a_local_target():
+    from cs_image_system.base.image_sources import ImageSourceCatalog, stand_in_runtime_type
+    from cs_image_system.base.registry import Registry
+    assert stand_in_runtime_type() == "docker"
+    assert stand_in_runtime_type(Registry().runtime_builder_classes()) == "docker"
+    # a registry holding no runtime that offers one: no stand-in at all
+    from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
+    assert stand_in_runtime_type({"aws": AwsCloudBuilder}) is None
+    assert stand_in_runtime_type({}) is None
+    # a merged catalog from one runtime alone carries only its blocks
+    from cs_image_system.base.image_sources import packaged_default_entries
+    only_aws = packaged_default_entries({"aws": AwsCloudBuilder})
+    assert {rt for e in only_aws for rt in e.runtime_types()} == {"aws"}
+    assert ImageSourceCatalog().stand_in_block("debian", "12") is not None
+
+
+def test_a_conflict_between_two_runtimes_parts_keeps_the_first_and_says_so(caplog):
+    from cs_image_system.base.image_sources import ImageSource, merge_entries, structure_entries
+    a = structure_entries([{"family": "x", "is": "rhel", "description": "one",
+                            "sources": {"alpha": {"name": "a-{version}"}}}], where="alpha")
+    b = structure_entries([{"family": "x", "is": "debian", "description": "one",
+                            "sources": {"beta": {"name": "b-{version}"}, "alpha": {"name": "other"}}}], where="beta")
+    with caplog.at_level(logging.WARNING, logger="cs_image_system.base.image_sources"):
+        merged = merge_entries([("alpha", a), ("beta", b)])
+    assert len(merged) == 1 and isinstance(merged[0], ImageSource)
+    assert merged[0].is_ == "rhel" and merged[0].runtime_types() == ["alpha", "beta"]
+    assert merged[0].sources["alpha"] == {"name": "a-{version}"}
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("says is='debian'" in m and "keeping the first" in m for m in messages), messages
+    assert any("`alpha` block differs" in m for m in messages), messages
 
 
 def test_the_tree_layer_lands_on_the_releases_and_a_version_on_the_generic(ctx):

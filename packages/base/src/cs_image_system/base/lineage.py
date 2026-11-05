@@ -153,7 +153,7 @@ def input_fingerprint(ctx: "GlobalTypeContext", image: Any, runtime: str | None 
     boot-disk size); and for base images the declared vendor source
     (family/version/architecture, the query, the runtime entry's image id),
     the admin user and keys, and the update policy.
-    OUT (execution detail, not content): machine type, preemptible, IAP,
+    OUT (execution detail, not content): machine type, preemptible, the tunnel,
     ssh username, the run id and timestamps, and the parent's BUILD ID
     (until 2026-09-26 the effective parent build was hashed, so on an
     ephemeral runtime -- whose retention disposes the base build every
@@ -197,8 +197,8 @@ def _verify_commands(ctx: "GlobalTypeContext", image: Any, runtime: str | None) 
 def bake_disk_size(ctx: "GlobalTypeContext", image: Any, runtime: str | None) -> int | str | None:
     """The disk a bake of ``image`` on ``runtime`` gets, in GB -- the ONE rule
     the packer sources and the fingerprint both use (stage 63): the runtime's
-    own ``default_disk_size`` when it declares one (finding 51: a GCE boot
-    disk is exactly its image's disk); for a base image, its OS builder
+    own ``default_disk_size`` when it declares one (finding 51: on one cloud a
+    boot disk is exactly its image's disk); for a base image, its OS builder
     entry's ``default_primary_disk_size`` for this runtime when declared, else
     the OS builder's; for an instance image, its own ``primary_disk_size``.
     Before stage 63 the fingerprint hashed the entry's value (default 100)
@@ -462,7 +462,7 @@ CONFIG_TAG = f"{TAG_PREFIX}config"
 def configuration_tag(ctx: "GlobalTypeContext") -> str:
     """The value of ``csis_config`` for this configuration: the top-level
     ``id`` of ``cfg/_config.yml``, made safe for the strictest carrier (a
-    GCE label value: lower case letters, digits, ``_`` and ``-``, at most 63
+    cloud label value: lower case letters, digits, ``_`` and ``-``, at most 63
     characters). Empty when the context carries no configuration."""
     raw = str(getattr(getattr(ctx, "_read_config", None), "id", "") or "")
     return re.sub(r"[^a-z0-9_-]", "-", raw.strip().lower())[:63]

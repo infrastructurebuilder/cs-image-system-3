@@ -132,25 +132,23 @@ def test_the_classifier_walks_the_cause_chain_and_names_nothing_it_does_not_know
 
 # ------------------------------------------------------------ item 17: preflight and keys
 
-def test_static_keys_are_present_and_not_judged(monkeypatch, tmp_path):
+def test_static_keys_are_present_and_not_judged(tmp_path):
     from datetime import datetime, timezone
+    from cs_image_system.aws_runtime import session as aws_session      # the plugin reads; the core judges
     from cs_image_system.base.commands import preflight
     d = tmp_path / "aws"
     d.mkdir()
     (d / "config").write_text("[profile static]\nregion = us-east-2\n")
-    monkeypatch.setattr(preflight, "_aws_dir", lambda: d)
-    monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
-    info = preflight._info_for("r", "aws", "static")
-    assert info is not None and info.present and not info.judged
+    info = preflight._from_status("r", "aws", aws_session.session_status({"profile": "static"}, environ={}, aws_dir_=d))
+    assert info.present and not info.judged
     line = info.line(datetime.now(timezone.utc), expected=30)
     assert "NOT JUDGED" in line and "not an SSO profile" in line
-    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIA-test")
-    monkeypatch.delenv("AWS_PROFILE", raising=False)
-    env = preflight._info_for("r", "aws", None)
-    assert env is not None and env.present and not env.judged and "NOT JUDGED" in env.line(datetime.now(timezone.utc), 30)
-    # the judged kinds are unchanged: a fixed expiry, a refreshable token, GCP ADC
+    env = preflight._from_status("r", "aws", aws_session.session_status({}, environ={"AWS_ACCESS_KEY_ID": "AKIA-test"}, aws_dir_=d))
+    assert env.present and not env.judged and "NOT JUDGED" in env.line(datetime.now(timezone.utc), 30)
+    assert "AKIA-test" not in env.line(datetime.now(timezone.utc), 30)          # never a value
+    # the judged kinds are unchanged: a fixed expiry, a credential that renews itself (and was checked)
     assert preflight.SessionInfo("r", "aws", "p", datetime.now(timezone.utc)).judged
-    assert preflight.SessionInfo("r", "gcp", "ADC", None, "present; refreshes itself").judged
+    assert preflight.SessionInfo("r", "gcloud", "ADC", None, "refreshes itself", renews=True).judged
 
 
 def test_preflight_never_closes_green_over_keys_it_cannot_judge(monkeypatch, tmp_path):
@@ -196,7 +194,8 @@ exit 0
 
 
 def test_a_pull_is_retried_and_dockers_own_words_survive(tmp_path, caplog):
-    from cs_image_system.base.mod_tests import ContainerStartError, DockerTarget
+    from cs_image_system.base.mod_tests import ContainerStartError
+    from cs_image_system.docker_runtime.local_target import DockerTarget
     waits: list[int] = []
     docker = _fake_docker(tmp_path / "flaky", pull_fails=2)
     t = DockerTarget("almalinux:10", docker=str(docker), sleep=waits.append)

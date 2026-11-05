@@ -1420,7 +1420,7 @@ changed).
 | `run` | 1 | any failure (validation, generation, apply, hard drift, an expired session before the load); a configuration that fails to LOAD exits 1 too, as `Error reading config file : <e>` followed by the traceback |
 | `run` | 2 | no or unknown lifecycle; unknown `--apply-runtime`/`--only-runtime`; an `--only` name that `--only-runtime` cannot honour (not baked on that runtime, written `@` another, or `none` beside names) |
 | `validate` | 1 | any rule fails; generates nothing |
-| `preflight` | 2 | a session absent or expired (the configuration could not load), no runtimes, or a credential-shaped environment variable (`AWS_*`, `GOOGLE_*`, `OKTA_*`, `TF_VAR_*`, `CSIS_*`) that is set but EMPTY -- reported by name, never by value |
+| `preflight` | 2 | a session absent or expired (the configuration could not load), no runtimes, or a credential-shaped environment variable (`TF_VAR_*`, `CSIS_*`, `OKTA_*`, plus every prefix the installed runtimes declare: `AWS_*`, `GOOGLE_*`, `CLOUDSDK_*`, `DOCKER_*`) that is set but EMPTY -- reported by name, never by value |
 | `preflight --strict` | 1 | a session expires within `config.preflight.expected_run_minutes` (default 30) |
 | `state query` | 1 | hard drift |
 | `state query --strict` | 1 | hard drift; any drift class but `stale`; `unavailable` (a provider that could not answer); a session expiring within the window |
@@ -1531,25 +1531,35 @@ Adopting is also the way out for an image that stands unrecorded for
 any other reason ("When a bake fails").
 
 **Sessions.** `state query`, every run, `preflight` and `just
-cloud-preflight` read the credential caches, never a credential value,
-and print one `session:` line per source: an AWS SSO profile's token
-expiry from `~/.aws/sso/cache` (static keys and non-SSO profiles have no
-readable expiry), and whether GCP Application Default Credentials exist.
-A session that is expired or expires within
+cloud-preflight` print one `session:` line per credential source, naming
+every runtime and state backend that uses it. The core reads no credential
+cache itself: each runtime plugin and each state-backend plugin answers
+the contract's session hook (`session_status`) with what it read, a fixed
+expiry when one is readable, whether the credential renews itself, and
+the command that renews it; the core prints and judges the answer. Never
+a credential value. The AWS runtime reads an SSO profile's token expiry
+from `~/.aws/sso/cache` (static keys and non-SSO profiles have no
+readable expiry and are present but NOT JUDGED); the GCP runtime reads
+whether Application Default Credentials exist; the docker runtime asks
+its daemon `docker version`; the `s3` and `gcs` backends reach the same
+reading through their runtime's class, so a backend's bucket credentials
+are preflighted too. A session that is expired or expires within
 `config.preflight.expected_run_minutes` (default 30) is flagged; the
 strict query refuses on it, a run warns, and an expired session refuses
 before the configuration even loads. An `sso-session` profile (the live
 `noaa`) holds a one-hour access token and a refresh token. While the
-access token has not lapsed `preflight` reports it present with no fixed
-expiry (it asks the cloud nothing); once it has lapsed `preflight` makes
-ONE read-only call (`aws sts get-caller-identity --profile <p>`), which
-refreshes the cache when the refresh token still works and says so when it
-does not: a lapsed token the CLI cannot refresh is EXPIRED, exit 2, with
-the login command, because a token that answers `Token has expired and
-refresh failed` is not one that "refreshes itself", and `preflight` must
-never say so of it. A session that lapses mid-run is environmental,
-not a defect: it costs the legs that were running, and the repair is `aws
-sso login --profile <p>` then `just full-test-legs` (never the whole bar).
+access token has not lapsed the AWS plugin reports it present and
+self-renewing (it asks the cloud nothing); once it has lapsed the plugin
+makes ONE read-only call (`aws sts get-caller-identity --profile <p>`),
+which refreshes the cache when the refresh token still works and says so
+when it does not: a lapsed token the CLI cannot refresh is EXPIRED, exit
+2, with the login command, because a token that answers `Token has
+expired and refresh failed` is not one that "refreshes itself", and
+`preflight` must never say so of it. A session that lapses mid-run is
+environmental, not a defect: it costs the legs that were running, and
+the repair is the renew command the session line names (for the AWS
+profile, `aws sso login --profile <p>`) then `just full-test-legs`
+(never the whole bar).
 
 ## 2. The developer workflow
 
@@ -1823,10 +1833,11 @@ order:
    with stale metadata) and, for PyPI, docker answers and every runtime
    session of the live configuration is present (`just preflight`; a
    `full-test` without them would skip its live legs, which a release
-   cannot accept), said with the minutes the AWS session has left
-   (`scripts/sso-minutes-left`, which reads the cached access token's
-   own `expiresAt`, because `preflight` calls a session with a refresh
-   token present and the CLI's refresh can fail on a lapsed token). A
+   cannot accept), said with the minutes the soonest-expiring session has left
+   (`scripts/session-minutes-left`, which reads each plugin's own expiry
+   -- for an SSO profile the cached access token's `expiresAt` -- even
+   where the session renews itself, because the CLI's refresh can fail
+   on a lapsed token). A
    PyPI release takes about an hour, start to commit, and an SSO login
    lasts one, so under an hour left the line says to log in again from
    a second terminal about halfway (a running run picks the new token
@@ -2300,10 +2311,27 @@ production branch -- no deletion, no force push; an ordinary push, which
 is all `perform` ever does, is unaffected, so no bypass actor is named (GitHub
 refuses the built-in Actions app as one) -- Actions
 enabled with read-only workflow permissions, the Actions variables that
-are not secret, and the secrets script naming all nine of the guide's
-secrets); the clouds' sections come from their plugins through the
-`cs_image_system.bootstrap` entry-point group, each owning the questions
-and the module for its cloud. The framework and the GitHub section are
+are not secret, and the secrets script); the clouds' sections come from
+their plugins through the `cs_image_system.bootstrap` entry-point group,
+each owning the questions and the module for its cloud. The core names no
+cloud's secret: it knows its own two (`CSIS_CONFIG_IDENTITY`, the age
+identity CI decrypts with, and `CSIS_PROOF_SSH_KEY`, a posix group's
+proof user's key), and each section declares the repository secrets its
+part of the workflow reads (`Section.secrets`: the AWS role ARNs, the GCP
+provider and service accounts, the Okta key and the OPA service user's
+pair, a docker host's ssh key and `known_hosts` line). The script sets the
+union -- the core's first, then each installed section's in section-name
+order, whether or not the section was wanted at the interview, since the
+workflow reads the same names either way -- each from a file named after
+it, except where a wanted section's applied root yields the value as an
+output (the AWS ARNs, the GCP addresses), which the script reads from the
+output instead. A plugin that is not installed contributes nothing, so
+the script lists exactly what this install's CI can read. The Actions
+variables that are not secret follow the same pattern: the core declares
+`PERFORM_RUNTIME` and `GUARD_RUNTIME` from its own answers, a cloud's
+section declares what its workflow steps read (the AWS section's
+`AWS_REGION`, valued by its `region` answer), and the GitHub module sets
+the union of every wanted section's non-empty answers. The framework and the GitHub section are
 the core's (decision D1); the AWS, GCP, Okta and container-host sections
 are below, and the guide's table in 3.0 says what each does and what
 stays by hand. A section's gate ("Do you want the X section?") defaults to
@@ -2429,8 +2457,8 @@ daemon. The workflow reaches an `ssh://` host, or the environment's own
 daemon whose address the workflow supplies (the `standard-docker`
 starter's runtime names none), with a key kept as the secret
 `DOCKER_HOST_SSH_KEY` and the host's `known_hosts` line as
-`DOCKER_HOST_KNOWN_HOSTS`; both are among the GitHub section's secrets,
-set from files by the script like the rest. A socket, a context, a
+`DOCKER_HOST_KNOWN_HOSTS`; both are the container-host section's own
+secrets, set from files by the GitHub section's script like the rest. A socket, a context, a
 `tcp://` host or an address kept as a marker is not something that
 workflow logs in to, so the runtime is one CI must never bake on, and the
 GitHub section's `GUARD_RUNTIME` default names the first runtime CI

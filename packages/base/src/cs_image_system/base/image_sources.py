@@ -2,16 +2,21 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The image-source catalog (stage 106): where a vendor image comes from,
-per family and runtime type, in the system's query vocabulary
+"""The image-source catalog: where a vendor image comes from, per family
+and runtime type, in the system's query vocabulary
 (``cs_image_system.contract.image.ImageQuery``).
 
-Two layers, one lookup. The release-owned default catalog ships with this
-package (``data/image-sources.yml``); a tree's ``image_sources:`` entries
-(``cfg/image-sources*.yml``) extend or override it by family and version.
-An entry may say what its family IS (``is: rhel``): everything that
-branches on a family reads that, so a custom family (``rhel-from-jerry``)
-is treated as what it is while its query is its own.
+Two layers, one lookup. The release-owned default catalog is the union of
+what the INSTALLED runtime plugins ship as package data: each runtime
+builder class answers ``image_source_entries()`` with its own part (the
+blocks keyed by its runtime type), and ``packaged_default_entries`` merges
+those by family. The core itself names no runtime: a runtime that is not
+installed contributes nothing, and a new runtime brings its own part. A
+tree's ``image_sources:`` entries (``cfg/image-sources*.yml``) extend or
+override the merged catalog by family and version. An entry may say what
+its family IS (``is: rhel``): everything that branches on a family reads
+that, so a custom family (``rhel-from-jerry``) is treated as what it is
+while its query is its own.
 
 A block is looked up by (family, version, runtime type): within a layer an
 entry naming the version lands on the generic entry for the family, and
@@ -19,10 +24,16 @@ the tree's layer lands on the default's. A runtime type with no block in
 either layer answers None; the OS builder's own ``query`` and its runtime
 entry's may still provide one, and ``validate`` refuses the entry when
 nothing does. The one placeholder, ``{version}``, is filled at lookup.
+
+The local modification tests read one more thing here: the STAND-IN
+block, keyed by the runtime type of the one installed runtime that offers
+a local test target (``local_test_target()``); ``container_reference``
+turns that block into an image reference a container tool can pull.
 """
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from dataclasses import field
 from importlib.resources import files
 from typing import Annotated, Any
@@ -39,10 +50,9 @@ from .singleton import singleton
 
 log = logging.getLogger(__name__)
 
-#: The runtime type the local modification tests read a stand-in container
-#: from, whether or not a container runtime plugin is installed.
-DOCKER_RUNTIME_TYPE = "docker"
 IMAGE_SOURCES_KEY = "image_sources"
+#: the one file a runtime plugin ships its part of the catalog in
+PACKAGED_CATALOG_FILE = "image-sources.yml"
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
@@ -107,11 +117,92 @@ def structure_entries(entries: list[Any], *, where: str) -> list[ImageSource]:
     return out
 
 
-def packaged_default_entries() -> list[ImageSource]:
-    """The release-owned catalog, read from this package's data file."""
-    text = (files("cs_image_system.base") / "data" / "image-sources.yml").read_text()
-    doc = yaml.safe_load(text) or {}
-    return structure_entries(list(doc.get(IMAGE_SOURCES_KEY) or []), where="the release's image-sources.yml")
+def packaged_entries_of(package: str) -> list[Mapping[str, Any]]:
+    """The raw entries of ``<package>/data/image-sources.yml``, the file a
+    runtime plugin ships its part of the catalog in: what a runtime builder
+    class returns from ``image_source_entries()``. Empty when the package
+    ships no such file."""
+    resource = files(package) / "data" / PACKAGED_CATALOG_FILE
+    if not resource.is_file():
+        return []
+    doc = yaml.safe_load(resource.read_text()) or {}
+    return [dict(e) for e in (doc.get(IMAGE_SOURCES_KEY) or []) if isinstance(e, Mapping)]
+
+
+def _runtime_classes() -> dict[str, type]:
+    """Every registered runtime builder class by name, the plugins loaded
+    first (idempotent), so the catalog is the INSTALLED runtimes' and never
+    depends on which a tree declares."""
+    from .loader import load_plugins
+    from .registry import Registry
+    load_plugins()
+    return dict(Registry().runtime_builder_classes())
+
+
+def _runtime_entries(classes: Mapping[str, type]) -> list[tuple[str, list[ImageSource]]]:
+    """Each runtime's part, structured so that an error names the runtime
+    whose file carries it, in name order for a deterministic merge."""
+    out: list[tuple[str, list[ImageSource]]] = []
+    for name, cls in sorted(classes.items()):
+        hook: Any = getattr(cls, "image_source_entries", None)
+        answered: Any = hook() if callable(hook) else None
+        raw: list[Mapping[str, Any]] = list(answered or [])
+        if raw:
+            out.append((name, structure_entries(raw, where=f"the {name} runtime's {PACKAGED_CATALOG_FILE}")))
+    return out
+
+
+def merge_entries(parts: list[tuple[str, list[ImageSource]]]) -> list[ImageSource]:
+    """The runtimes' parts as one catalog, merged by (family, versions):
+    ``sources`` is the union by runtime type; ``description``, ``is`` and
+    ``versions`` are the first non-empty value, a later part that says
+    something else logged at WARNING and ignored. Families keep the order
+    in which they were first seen."""
+    merged: dict[tuple[str, tuple[str, ...]], dict[str, Any]] = {}
+    owners: dict[tuple[str, tuple[str, ...]], str] = {}
+    for name, entries in parts:
+        for e in entries:
+            key = (e.family, tuple(e.versions))
+            raw = merged.get(key)
+            if raw is None:
+                merged[key] = {"family": e.family, "versions": list(e.versions), "is": e.is_,
+                               "description": e.description, "sources": {k: dict(v) for k, v in e.sources.items()}}
+                owners[key] = name
+                continue
+            for attr, mine in (("is", e.is_), ("description", e.description)):
+                if not mine:
+                    continue
+                if not raw[attr]:
+                    raw[attr] = mine
+                elif raw[attr] != mine:
+                    log.warning(f"image sources: family {e.family}: the {name} runtime says {attr}={mine!r}, "
+                                f"the {owners[key]} runtime said {raw[attr]!r}; keeping the first")
+            for runtime_type, block in e.sources.items():
+                if runtime_type not in raw["sources"]:
+                    raw["sources"][runtime_type] = dict(block)
+                elif raw["sources"][runtime_type] != dict(block):
+                    log.warning(f"image sources: family {e.family}: the {name} runtime's `{runtime_type}` block "
+                                f"differs from the {owners[key]} runtime's; keeping the first")
+    return structure_entries(list(merged.values()), where="the release's image-source catalog")
+
+
+def packaged_default_entries(classes: Mapping[str, type] | None = None) -> list[ImageSource]:
+    """The release-owned catalog: the parts every installed runtime plugin
+    ships, merged by family (``classes`` overrides the registry's runtime
+    builder classes, for tests)."""
+    return merge_entries(_runtime_entries(_runtime_classes() if classes is None else classes))
+
+
+def stand_in_runtime_type(classes: Mapping[str, type] | None = None) -> str | None:
+    """The runtime type whose catalog block the local modification tests
+    read: the ``csis_name()`` of the first registered runtime builder class
+    (by name) whose ``local_test_target()`` is not None; None when no
+    installed runtime offers a local target."""
+    for _name, cls in sorted((_runtime_classes() if classes is None else classes).items()):
+        hook = getattr(cls, "local_test_target", None)
+        if callable(hook) and hook() is not None:
+            return str(cls.csis_name())
+    return None
 
 
 @singleton
@@ -179,14 +270,19 @@ class ImageSourceCatalog:
         return merged.substituted(version=str(version or "")) if merged is not None else None
 
     def stand_in_block(self, family: str, version: str | None) -> ImageQuery | None:
-        """The ``docker`` block the local modification tests read: the
-        family's own, else the family it IS (a custom family with no
-        container of its own is tested as what it is)."""
-        own = self.block(family, version, DOCKER_RUNTIME_TYPE)
+        """The block the local modification tests read, keyed by the
+        runtime type that offers the local test target
+        (``stand_in_runtime_type``): the family's own, else the family it
+        IS (a custom family with no container of its own is tested as what
+        it is). None when no installed runtime offers a local target."""
+        runtime_type = stand_in_runtime_type()
+        if runtime_type is None:
+            return None
+        own = self.block(family, version, runtime_type)
         if own is not None:
             return own
         real = self.effective_family(family, version)
-        return self.block(real, version, DOCKER_RUNTIME_TYPE) if real != str(family).strip().lower() else None
+        return self.block(real, version, runtime_type) if real != str(family).strip().lower() else None
 
     def families(self) -> list[str]:
         out: list[str] = []
@@ -198,9 +294,10 @@ class ImageSourceCatalog:
 
 
 def container_reference(query: ImageQuery) -> str | None:
-    """A ``docker`` block as a container image reference: ``native.image``
-    verbatim when given; else ``<publisher>/<name>:<version>``, the
-    publisher omitted for Docker Hub's ``library``."""
+    """A catalog block as a container image reference, whatever runtime
+    type keyed it: ``native.image`` verbatim when given; else
+    ``<publisher>/<name>:<version>``, the publisher omitted when it is
+    ``library`` (the public registry's own namespace)."""
     image = query.native.get("image") if query.native else None
     if image:
         return str(image)
