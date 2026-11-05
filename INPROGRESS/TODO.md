@@ -12,7 +12,7 @@ Stages from the re-examination of 2026-11-03.
 [REEXAMINE4.md](REEXAMINE4.md) digests the three reviews
 ([REEXAMINE1.md](REEXAMINE1.md), [REEXAMINE2.md](REEXAMINE2.md),
 [REEXAMINE3.md](REEXAMINE3.md)); each stage file
-([§121](STAGE-121.md) to [§130](STAGE-130.md); §118 to §120 landed) cites the review section
+([§122](STAGE-122.md) to [§130](STAGE-130.md); §118 to §121 landed) cites the review section
 it answers. The conventions are the ones above: one file per stage; a
 stage is a plan until the operator says "do N"; **YOUR DECISION** marks
 an operator choice and states the default; **USER** marks a step only
@@ -47,9 +47,9 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
 
 - §118 and §119, the documents, landed 2026-11-04; the rolling
   documentation stage is not open.
-- §120, the first seam, landed 2026-11-04; [§121](STAGE-121.md) to
-  [§125](STAGE-125.md), the seams: in that order; each waits for its
-  "do N".
+- §120 and §121, the first two seams, landed 2026-11-04 and
+  2026-11-05; [§122](STAGE-122.md) to [§125](STAGE-125.md), the seams:
+  in that order; each waits for its "do N".
 - [§126](STAGE-126.md), the package shape: a decision stage; before
   [§112](STAGE-112.md) and [§116](STAGE-116.md).
 - [§127](STAGE-127.md), loading once: after [§124](STAGE-124.md).
@@ -81,7 +81,6 @@ and validated by the operator before its "do N")
 - [§114, Tier C: the run context is a protocol](STAGE-114.md)
 - [§115, The services behind the context](STAGE-115.md)
 - [§116, A runtime installed from outside](STAGE-116.md)
-- [§121, The core names no runtime](STAGE-121.md)
 - [§122, Storage and identity leave the core](STAGE-122.md)
 - [§123, hashicorp-utils stops reaching back](STAGE-123.md)
 - [§124, The run context and the engine part ways](STAGE-124.md)
@@ -136,6 +135,18 @@ and validated by the operator before its "do N")
 
 **Landed since 2026-10-05** (newest first)
 
+- §121, the core names no runtime: 2026-11-05, its squash commit
+  (feature/stage-121-core-names-no-runtime kept). The contract asks a
+  runtime's class for its session, its credential prefixes, its part
+  of the image catalogue, its local test target and its key shapes,
+  a backend's class for its session, every builder for its own load
+  failure's one line; preflight, the load-failure classifier, the
+  catalogue, the modification tests, the public-safety scan, the
+  bootstrap's secrets and variables and the starter list read the
+  installed plugins; packer is one `packer` key with three older
+  names kept for one release; a rule test forbids the clouds' words
+  in the core's sources, two storage-mount lines excused until §122.
+  Golden and reference emission byte-identical. Not yet released.
 - §120, a provider-neutral terraform root: 2026-11-04, its squash
   commit (feature/stage-120-neutral-tofu-root kept). hashicorp-utils
   holds the provider-neutral instance and storage roots and the tofu

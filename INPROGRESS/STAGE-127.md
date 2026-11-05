@@ -20,7 +20,7 @@ two materialisation mechanisms coexist (REEXAMINE3 §1.3).
    separate discovery hook fetches the network facts, called by `run`
    and `verify` (cached under `_private/` or the runtime-facts
    record), never by `validate` or a dry generation; `validate
-   --online` runs it on request. The raw pre-reader goes; [§121](STAGE-121.md)'s
+   --online` runs it on request. The raw pre-reader goes; §121's
    session hooks are the online check.
 2. One parse: each file is parsed once; interpolation and scoping
    walk the parsed tree; the dump/load round-trips in `cycle_yaml`

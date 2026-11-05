@@ -25,6 +25,7 @@ the entry without naming the number in its text.
 
 | Stage | Landed | Released in | Squash subject |
 | --- | --- | --- | --- |
+| <a id="s121"></a>§121 | 2026-11-05 | not yet | Stage 121: the core names no runtime |
 | <a id="s120"></a>§120 | 2026-11-04 | not yet | Stage 120: a provider-neutral terraform root |
 | <a id="s119"></a>§119 | 2026-11-04 | not yet | Stage 119: the stage index and the end of narration |
 | <a id="s118"></a>§118 | 2026-11-04 | not yet | Stage 118: the summary layer comes current |

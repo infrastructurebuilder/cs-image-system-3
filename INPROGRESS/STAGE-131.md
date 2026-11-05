@@ -91,7 +91,7 @@ string dispatch, and leaves the `hasattr` dispatch to
 [§125](STAGE-125.md) item 4. The registry stays a singleton here;
 [§124](STAGE-124.md) item 2's decision on dropping it is unchanged.
 The namespace is derived from packaging, not from a provider word
-([§121](STAGE-121.md)). Nothing worsens; no question before
+(§121). Nothing worsens; no question before
 solidifying.
 
 **Out of scope**: the names a tree gives its builders and their
