@@ -17,11 +17,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Sequence
 
 from cs_image_system.hashicorp_utils.collector import TerraformCollector, terraform_collector
+from cs_image_system.contract.constants import STATE_BACKEND_FIELD
+from cs_image_system.base.materialize import mirror_path
+from cs_image_system.base.utils import system_cli_executable_with_config, system_cli_executable
+from cs_image_system.base.models.executable import ExecutableModel
 
 if TYPE_CHECKING:
     from cs_image_system.base.basic.builder_base import BuilderBase
     from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
-    from cs_image_system.base.models.executable import ExecutableModel
 
     _Base = BuilderBase[Any]
 else:
@@ -38,7 +41,7 @@ def run_is_dry(builder: Any) -> bool:
     get_ctx = getattr(builder, "_get_context", None)
     try:
         ctx = get_ctx() if callable(get_ctx) else None
-    except ValueError:      # the context refuses until a configuration is loaded
+    except (ValueError, RuntimeError):      # no context bound yet (stage 124: RuntimeError)
         return False
     return bool(getattr(ctx, "dry_run", False))
 
@@ -60,7 +63,7 @@ class TerraformRootMixin(_Base):
         get_ctx = getattr(self, "_get_context", None)
         try:
             return get_ctx() if callable(get_ctx) else None
-        except ValueError:      # the context refuses until a configuration is loaded
+        except (ValueError, RuntimeError):      # no context bound yet (stage 124: RuntimeError)
             return None
 
     def _collector(self) -> TerraformCollector | None:
@@ -84,7 +87,6 @@ class TerraformRootMixin(_Base):
         rung of the chain a root's backend resolves through: the root's own
         value when it names a backend, else its runtime's, else the default.
         None for a root without a runtime (the identity roots) or outside a run."""
-        from cs_image_system.contract.constants import STATE_BACKEND_FIELD
         model = getattr(self, "model", None)
         get_runtime = getattr(model, "get_runtime_provider", None)
         try:
@@ -130,15 +132,13 @@ class TerraformRootMixin(_Base):
         stage 51 planned in ``generated/`` and every derived lookup failed.
         Without a configuration root to mirror under (the offline harness's
         bare context) the commands run where they always did."""
-        from cs_image_system.base.materialize import mirror_path
-        from cs_image_system.base.utils import system_cli_executable_with_config
         ctx = self._context()
         root = getattr(ctx, "working_path", None)
         if root is None:
             return self.terraform_commands(phase, list(arg_lists), working_directory)
         src = (Path(ctx.generation_path) / working_directory).resolve()
         mirror = mirror_path(Path(root), src)
-        commands: list[Any] = [system_cli_executable_with_config(["materialize", "."], working_directory)]
+        commands: list[Any] = [system_cli_executable_with_config(ctx, ["materialize", "."], working_directory)]
         commands += self.terraform_commands(phase, [self._runner_init_args(phase)] + list(arg_lists), mirror)
         return commands
 
@@ -221,8 +221,6 @@ class TerraformRootMixin(_Base):
         state can name (stage 88: a membership the YAML dropped). The gate
         matches them exactly.
         """
-        from cs_image_system.base.models.executable import ExecutableModel
-        from cs_image_system.base.utils import system_cli_executable, system_cli_executable_with_config
 
         ctx = self._context()
         run_id = str(getattr(ctx, "run_id", ""))
@@ -247,7 +245,7 @@ class TerraformRootMixin(_Base):
             reg = col.workspace_backend(self.name) if col is not None else None
             location = str(reg.state_location(self.name)) if reg is not None else ""
             commands.append(system_cli_executable_with_config(
-                ["state-migration", "begin", "--workspace", self.name, "--tofu", tofu_bin,
+                ctx, ["state-migration", "begin", "--workspace", self.name, "--tofu", tofu_bin,
                  "--backend-config", backend_file, "--location", location, "--run", run_id],
                 working_directory))
             init_args = ["init", "-input=false", "-migrate-state", "-force-copy", f"-backend-config={backend_file}"]
@@ -256,7 +254,7 @@ class TerraformRootMixin(_Base):
         commands.extend(self.terraform_commands(phase, [init_args], working_directory))
         if pre_plan and pre_plan_backup:
             commands.append(system_cli_executable_with_config(
-                ["state-migration", "backup", "--workspace", self.name, "--tofu", tofu_bin,
+                ctx, ["state-migration", "backup", "--workspace", self.name, "--tofu", tofu_bin,
                  "--run", run_id], working_directory))
         commands.extend(self.terraform_commands(phase, list(pre_plan), working_directory))
         commands.extend(pre_commands)               # e.g. the unmount before a detach (stage 10.14)
@@ -276,7 +274,7 @@ class TerraformRootMixin(_Base):
         commands.append(system_cli_executable(gate_args, working_directory))
         if migrating:
             commands.append(system_cli_executable_with_config(
-                ["state-migration", "finish", "--workspace", self.name, "--run", run_id],
+                ctx, ["state-migration", "finish", "--workspace", self.name, "--run", run_id],
                 working_directory))
         if apply:
             # Re-checked at EXECUTION time: a runner script generated under

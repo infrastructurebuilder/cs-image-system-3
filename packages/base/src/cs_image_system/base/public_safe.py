@@ -109,10 +109,10 @@ def _runtime_rules() -> dict[str, Rule]:
     name; the plugins are loaded here so the scan sees them whether or not
     a configuration was loaded first."""
     from .loader import load_plugins
-    from .registry import Registry
+    from .registry import current_registry
     load_plugins()
     out: dict[str, Rule] = {}
-    for cls in Registry().runtime_builder_classes().values():
+    for cls in current_registry().runtime_builder_classes().values():
         for name, pattern in cls.secret_patterns().items():
             out[str(name)] = _regex(str(pattern).encode())
     return out

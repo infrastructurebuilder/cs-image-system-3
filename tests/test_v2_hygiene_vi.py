@@ -177,10 +177,11 @@ def test_only_providers_is_gone_and_the_context_has_no_force(tmp_path: Path, mon
     result = CliRunner().invoke(climod.app, ["--root-dir", str(tmp_path), "--only-providers", "aws", "validate"])
     assert result.exit_code != 0 and "No such option" in result.output, result.output
     import inspect
-    from cs_image_system.base import global_context as gc
-    source = inspect.getsource(gc)
+    from cs_image_system.base import run_context, config_loader
+    from cs_image_system.base.models import ia_config
+    source = inspect.getsource(run_context) + inspect.getsource(config_loader)   # stage 124: the context and its loader
     assert "self.force = " not in source and "self.only_providers = " not in source
-    assert "_sleep_before_finalization: int = 1" in source     # the model's default (it said 10)
+    assert "sleep_before_finalization: int = 1" in inspect.getsource(ia_config)     # the model's default (it said 10)
     _ = GlobalTypeContext
 
 

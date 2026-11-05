@@ -14,6 +14,9 @@ from typing import Any
 
 from ..constants import NONE
 from ..global_context import GlobalTypeContext
+from ..lineage import base_image_runtimes, configuration_tag
+from ..lifecycles import all_lifecycles
+from ..release import releases
 
 log = logging.getLogger(__name__)
 
@@ -21,7 +24,6 @@ log = logging.getLogger(__name__)
 def images_on_runtime(ctx: GlobalTypeContext, runtime: str) -> list[str]:
     """Every series baked on the runtime: base images with a runtime entry
     there, instance images with an image builder there."""
-    from ..lineage import base_image_runtimes
     out: list[str] = []
     for series in ctx.os_builders:
         if runtime in base_image_runtimes(ctx, series):
@@ -95,8 +97,7 @@ def declared_storage_names(ctx: GlobalTypeContext, runtime: str) -> dict[str, di
     return out
 
 
-def describe_runtime(runtime: str) -> dict[str, Any]:
-    ctx = GlobalTypeContext()
+def describe_runtime(ctx: GlobalTypeContext, runtime: str) -> dict[str, Any]:
     rtb = ctx.runtime_builders.get(runtime)
     if rtb is None:
         raise ValueError(f"unknown runtime {runtime!r}; known: {sorted(ctx.runtime_builders)}")
@@ -144,7 +145,6 @@ def emission_dirs(ctx: GlobalTypeContext, runtime: str) -> list[str]:
     hold the runtime's emission and exist right now (stage 45): what a run
     scoped to another runtime leaves untouched, and what the CI job compares
     across records to know whether the runtime's declarations changed."""
-    from ..lifecycles import all_lifecycles
     names = {n for family in builders_on_runtime(ctx, runtime).values() for n in family}
     root = ctx.root_generation_path
     out: list[str] = []
@@ -155,11 +155,10 @@ def emission_dirs(ctx: GlobalTypeContext, runtime: str) -> list[str]:
     return out
 
 
-def emptiness(runtime: str) -> dict[str, Any]:
+def emptiness(ctx: GlobalTypeContext, runtime: str) -> dict[str, Any]:
     """Reality on the runtime minus what the tree declares there: instances
     (any), images (any custom), disks and buckets other than the declared
     storages' cloud names. ``leftovers`` empty = empty."""
-    ctx = GlobalTypeContext()
     rtb = ctx.runtime_builders.get(runtime)
     if rtb is None:
         raise ValueError(f"unknown runtime {runtime!r}; known: {sorted(ctx.runtime_builders)}")
@@ -168,7 +167,6 @@ def emptiness(runtime: str) -> dict[str, Any]:
     # stage 93: another configuration's things in the same project or account
     # are not leftovers of ours; they are counted and left alone. A thing with
     # no id at all is still ours to answer for, and named as unlabelled.
-    from ..lineage import configuration_tag
     owners: dict[str, dict[str, str]] = inv.get("owners") or {}
     mine = configuration_tag(ctx)
     elsewhere: dict[str, dict[str, int]] = {}
@@ -201,7 +199,6 @@ def emptiness(runtime: str) -> dict[str, Any]:
 def released_ids(ctx: Any, runtime: str) -> set[str]:
     """Build ids of released builds recorded on ``runtime`` (stage 14.4:
     they are declared to stay, so `empty --runtime` does not list them)."""
-    from ..release import releases
     ms = ctx.meta_state
     current = {str(b) for images in (releases(ms).get("current") or {}).values() for b in images.values()}
     return {str(b.get("build_id")) for b in ms.builds()

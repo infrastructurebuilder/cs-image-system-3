@@ -19,6 +19,17 @@ from ..basic.abstract_version_checker import AbstractVersionChecker
 from ..basic.builder_base import BuilderBase
 from ..models.executable import ExecutableModel
 from ..global_context import GlobalTypeContext
+from ..posix_ids import FIRST_REGULAR_ID, NAME_RE, Claim, resolve_posix_ids, supplied_id
+from ..orchestrator import UNRESOLVED_FKS
+from ..encryption import decrypted_plaintexts
+from ..public_safe import scan_for_plaintexts
+from ..launch_params import HOSTNAME_LABEL_MAX, canonical_hostname, hostname_problems
+from ..alias_pool import free_names, pool_path, pool_problems
+from ..capabilities import group_builder_of
+from ..bake_user import entry_for_runtime, resolve_bake_user, resolve_for_entry, root_os_builder
+from ..image_sources import ImageSourceCatalog, container_reference, stand_in_runtime_type
+from ..image_names import output_names_by_runtime
+from cs_image_system.base.models.container_builder import ContainerBuilderModel
 
 
 def check_version(sv: str | None, version: str | None) -> ComplianceState:
@@ -58,7 +69,7 @@ def version_checker_for(exe: ExecutableModel) -> type[AbstractVersionChecker] | 
     which for the default type `executable` is the generic checker base
     registers. The checkers were always registered by name while the lookup
     keyed on the type in the wrong table, so none had ever matched."""
-    reg = registry.Registry()
+    reg = registry.current_registry()   # an executable holds no context (stage 124 shim)
     for key in (exe.name, exe.type_):
         cc = reg.get_model(VCT.VERSION_CHECKER, key)
         if cc is not None:
@@ -277,7 +288,6 @@ def check_posix_ids(ctx: GlobalTypeContext) -> list[Exception]:
     declares must be a regular one (at least ``FIRST_REGULAR_ID``), and every
     claimed name must be one a machine accepts (``NAME_RE``). A configuration
     whose builders claim nothing -- no posix builder -- is not checked."""
-    from ..posix_ids import FIRST_REGULAR_ID, NAME_RE, Claim, resolve_posix_ids, supplied_id
     claims: list[Claim] = []
     for gb in ctx.group_builders.values():
         claims += gb.posix_id_claims()
@@ -316,8 +326,7 @@ def check_foreign_keys(ctx: GlobalTypeContext) -> list[Exception]:
     fallback to the raw id let the fixture and the live tree name a
     non-existent image builder for months. A `default` that has no default is
     not one (the consumer decides), and is never recorded."""
-    from ..orchestrator import UNRESOLVED_FKS
-    reg = registry.Registry()
+    reg = ctx.reg
     errors: list[Exception] = []
     for cls_name, obj_name, field_name, value, target in UNRESOLVED_FKS:
         try:
@@ -450,8 +459,6 @@ def check_no_plaintext_emitted(ctx: GlobalTypeContext) -> list[Exception]:
     tree that made it fail. The gate is the commit
     (:func:`meta_state.commit_meta_state`), which is where anything becomes
     public; this function is for asking the same question by hand."""
-    from ..encryption import decrypted_plaintexts
-    from ..public_safe import scan_for_plaintexts
     plaintexts = decrypted_plaintexts()
     if not plaintexts:
         return []
@@ -475,7 +482,6 @@ def check_canonical_hostnames(ctx: GlobalTypeContext) -> list[Exception]:
     provider under THAT, and a login by the declared name finds nothing
     while every step reports success. Nothing checked this before
     2026-09-21."""
-    from ..launch_params import HOSTNAME_LABEL_MAX, canonical_hostname, hostname_problems
     exs: list[Exception] = []
     for inst in ctx.instances:
         name = canonical_hostname(ctx, inst)
@@ -493,8 +499,6 @@ def check_alias_pool(ctx: GlobalTypeContext) -> list[Exception]:
     configuration already gives an instance -- checked here, where an
     unusable line is a typo to fix, not at launch when it is the next one
     up. Running out is a warning, not a failure."""
-    from ..alias_pool import free_names, pool_path, pool_problems
-    from ..launch_params import canonical_hostname
     path = pool_path(ctx.working_path)
     if not path.is_file():
         return []
@@ -522,7 +526,6 @@ def check_state_backends_needed(ctx: GlobalTypeContext) -> list[Exception]:
     stand-alone shape of every root, the flag off is refused here, naming
     each root and what it reads; a tree with no producer at all (nothing
     references anything) may still turn it off."""
-    from ..capabilities import group_builder_of
     if bool((ctx.config or {}).get("use_state_backends", False)):
         return []
     needs: list[tuple[str, list[str]]] = []
@@ -566,7 +569,6 @@ def check_bake_users(ctx: GlobalTypeContext) -> list[Exception]:
     runtime entry names a user other than its chain root's is refused, naming
     both: that pair used to bake as two users and break metadata key setup at
     the instance's first boot."""
-    from ..bake_user import entry_for_runtime, resolve_bake_user, resolve_for_entry, root_os_builder
     exs: list[Exception] = []
     for name, osb in sorted((ctx.os_builders or {}).items()):
         for entry in osb.get_configs_for_image_builders().values():
@@ -650,7 +652,6 @@ def check_image_sources(ctx: GlobalTypeContext) -> list[Exception]:
     per entry prints the query in both vocabularies, so a review sees what
     will be asked without opening the catalog."""
     exs: list[Exception] = []
-    from ..image_sources import ImageSourceCatalog, container_reference, stand_in_runtime_type
     catalog = ImageSourceCatalog()
     stand_in_type = stand_in_runtime_type() or "no installed runtime offers a local test target"
     for osb_name, osb in sorted((ctx.os_builders or {}).items()):
@@ -743,7 +744,6 @@ def check_image_names(ctx: GlobalTypeContext) -> list[Exception]:
     per image and runtime says the prefix, whether it was declared, and
     what the runtime makes of it when that differs."""
     exs: list[Exception] = []
-    from ..image_names import output_names_by_runtime
     dtfmt = getattr(ctx.read_config, "dateformat", None) or "%Y%m%d_%H%M%S"
     stamp = ctx.start_time.strftime(dtfmt)
     for rt_name, entries in sorted(output_names_by_runtime(ctx).items()):
@@ -795,7 +795,6 @@ def family_named_by_query(query: Any) -> str | None:
 
 
 def _is_container_runtime(rtb: Any) -> bool:
-    from cs_image_system.base.models.container_builder import ContainerBuilderModel
     return isinstance(getattr(rtb, "model", None), ContainerBuilderModel)
 
 
@@ -808,7 +807,6 @@ def check_container_runtimes(ctx: GlobalTypeContext) -> list[Exception]:
     instance image owned by an objecting group is refused on a container
     runtime, in one sentence naming the image, the group, the runtime and
     the objection."""
-    from cs_image_system.base.capabilities import group_builder_of
     exs: list[Exception] = []
     container_runtimes = {name for name, rtb in ctx.runtime_builders.items() if _is_container_runtime(rtb)}
     if not container_runtimes:

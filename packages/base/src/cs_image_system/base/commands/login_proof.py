@@ -92,9 +92,8 @@ def _skip(ctx: GlobalTypeContext, inst: Any, hostname: str, group: str, why: str
             "evidence": []}
 
 
-def prove_login(inst: Any, *, timeout: int = 120) -> dict[str, Any]:
+def prove_login(ctx: GlobalTypeContext, inst: Any, *, timeout: int = 120) -> dict[str, Any]:
     """One instance's proof; a record either way (skipped, failed, ok)."""
-    ctx = GlobalTypeContext()
     name = inst.get_name()
     rt = str(getattr(inst, "runtime", "") or "")
     group = _group_of(ctx, inst)
@@ -121,15 +120,14 @@ def prove_login(inst: Any, *, timeout: int = 120) -> dict[str, Any]:
     return record
 
 
-def login_proof(names: list[str] | None = None, *, runtime: str | None = None, timeout: int = 120,
-                record_only: bool = False) -> list[dict[str, Any]]:
-    ctx = GlobalTypeContext()
+def login_proof(ctx: GlobalTypeContext, names: list[str] | None = None, *, runtime: str | None = None,
+                timeout: int = 120, record_only: bool = False) -> list[dict[str, Any]]:
     targets = standing_instances(ctx, runtime=runtime, names=names)
     if not targets:
         log.info("login proof: no standing instance to log into"
                  + (f" on {runtime}" if runtime else "") + " -- nothing to prove, nothing recorded")
         return []
-    records = [prove_login(inst, timeout=timeout) for inst in targets]
+    records = [prove_login(ctx, inst, timeout=timeout) for inst in targets]
     for r in records:
         ctx.meta_state.record_login_proof(r)
     if any(not r["ok"] and not r.get("skipped") for r in records) and not record_only:
@@ -139,6 +137,7 @@ def login_proof(names: list[str] | None = None, *, runtime: str | None = None, t
 
 
 def verify_login_command(
+    typer_cntx: typer.Context,
     names: Annotated[list[str] | None, typer.Argument(help="Instances to log into (default: every standing one)")] = None,
     runtime: Annotated[str | None, typer.Option("--runtime", help="Only the standing instances on this runtime")] = None,
     timeout: Annotated[int, typer.Option("--timeout", help="Seconds per client call")] = 120,
@@ -152,7 +151,8 @@ def verify_login_command(
     is skipped, never started. Exits 1 on a failed login. Every identity
     plugin mounts this one command; it is present when any is installed."""
     try:
-        records = login_proof(list(names or []) or None, runtime=runtime, timeout=timeout, record_only=record_only)
+        records = login_proof(typer_cntx.obj["ctx"], list(names or []) or None, runtime=runtime, timeout=timeout,
+                              record_only=record_only)
     except LoginProofFailed as e:
         typer.echo(json.dumps(e.records, indent=2, sort_keys=True))
         typer.secho(str(e), fg=typer.colors.RED, err=True)

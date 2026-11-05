@@ -125,8 +125,8 @@ def test_the_startup_script_reports_each_mount_point(tmp_path, monkeypatch):
     try:
         inst = next(i for i in run.ctx.instances if i.get_name() == "gce-test")
         params = compute_launch_params(run.ctx, inst)
-        assert mounted_points(params) == ["/mnt/gce-data"]
-        script = user_data_template(params)
+        assert mounted_points(params, run.ctx) == ["/mnt/gce-data"]
+        script = user_data_template(params, run.ctx)
         assert "csis-mount: /mnt/gce-data mounted" in script and "csis-mount: /mnt/gce-data NOT mounted" in script
         assert script.index("mount '/mnt/gce-data'") < script.index("csis-mount: /mnt/gce-data mounted")
     finally:
@@ -144,13 +144,13 @@ def test_gce_mount_check_reads_the_declared_mount_points_lines_not_a_count(prepa
     # four clean XFS mounts on the console, none of them the declared disk: the check FAILS now
     monkeypatch.setattr(GCPCloudBuilder, "serial_console", lambda self, name: KERNEL_ONLY)
     with pytest.raises(VerificationFailed, match="data disks mounted"):
-        verify_instance("gce-test", expected_build="dask-build-1", timeout=1)
+        verify_instance(run.ctx, "gce-test", expected_build="dask-build-1", timeout=1)
     rec = run.ctx.meta_state.verifications()[-1]
     check = next(c for c in rec["checks"] if c["name"] == "data disks mounted")
     assert not check["ok"] and "missing: /mnt/gce-data" in check["detail"] and "4 clean XFS" in check["detail"]
     # the script's own line for the mount point: the check passes
     monkeypatch.setattr(GCPCloudBuilder, "serial_console", lambda self, name: WITH_MARK)
-    record = verify_instance("gce-test", expected_build="dask-build-1", timeout=1)
+    record = verify_instance(run.ctx, "gce-test", expected_build="dask-build-1", timeout=1)
     assert record["ok"]
     check = next(c for c in record["checks"] if c["name"] == "data disks mounted")
     assert check["ok"] and "mounted: /mnt/gce-data; missing: none" in check["detail"]

@@ -155,10 +155,12 @@ def test_gate_plan_requires_the_unmount_receipt(tmp_path, monkeypatch):
     gate_plan_command(plan_json=plan, require_unmounted=["gce-test:gce_data"])   # passes
 
 
-def test_operator_confirmation_is_a_receipt_with_their_name(tmp_path, monkeypatch):
+def test_operator_confirmation_is_a_receipt_with_their_name(prepared, tmp_path, monkeypatch):
     from cs_image_system.base.commands.unmount import read_receipt, unmount_storage
+    root, make = prepared
+    run = make()
     monkeypatch.setenv("USER", "avery.alpha")
-    result = unmount_storage("gce-test", "gce_data", "/mnt/gce-data", tmp_path, confirm=True)
+    result = unmount_storage(run.ctx, "gce-test", "gce_data", "/mnt/gce-data", tmp_path, confirm=True)
     assert result == {"ok": True, "method": "operator-confirmation", "operator": "avery.alpha"}
     receipt = read_receipt(tmp_path, "gce-test", "gce_data")
     assert receipt is not None
@@ -177,7 +179,7 @@ def test_gce_unmount_runs_over_the_iap_tunnel_and_writes_the_receipt(prepared, m
         calls.append(cmd)
         return SimpleNamespace(returncode=0, stdout="unmounted: /mnt/gce-data\n", stderr="")
     monkeypatch.setattr(subprocess, "run", fake_run)
-    result = unmount_storage("gce-test", "gce_data", "/mnt/gce-data", root / "ws")
+    result = unmount_storage(run.ctx, "gce-test", "gce_data", "/mnt/gce-data", root / "ws")
     assert result["ok"] and result["method"] == "session"
     cmd = calls[-1]
     # stage 63 item 14: the runtime's declared gcloud, not a bare name from PATH
@@ -192,7 +194,7 @@ def test_gce_unmount_runs_over_the_iap_tunnel_and_writes_the_receipt(prepared, m
     # a failed unmount raises and leaves a failed receipt
     monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: SimpleNamespace(returncode=1, stdout="", stderr="busy"))
     with pytest.raises(RuntimeError, match="failed"):
-        unmount_storage("gce-test", "gce_data", "/mnt/gce-data", root / "ws")
+        unmount_storage(run.ctx, "gce-test", "gce_data", "/mnt/gce-data", root / "ws")
     failed = read_receipt(root / "ws", "gce-test", "gce_data")
     assert failed is not None and failed["ok"] is False
 

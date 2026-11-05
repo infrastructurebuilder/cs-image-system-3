@@ -58,11 +58,9 @@ def test_without_the_plugin_validate_skips_the_state_location_check(tmp_path, mo
     root = copy_config(tmp_path)
     _rebind_storage(root, "nowhere")                      # an undeclared backend
     stub_environment(monkeypatch)
-    load_context(root)
+    ctx = load_context(root)
     from cs_image_system.base.commands.run_lifecycles import validate_only
-    from cs_image_system.base.global_context import GlobalTypeContext
     from cs_image_system.tofu_roots.hooks import state_location_problems
-    ctx = GlobalTypeContext()
     assert any("not declared" in str(e) for e in state_location_problems(ctx))
     assert not any("not declared" in e for e in validate_only(ctx))
 
@@ -71,9 +69,9 @@ def test_with_the_plugin_validate_refuses_an_undeclared_backend(tmp_path, monkey
     root = copy_config(tmp_path)
     _rebind_storage(root, "nowhere")
     stub_environment(monkeypatch)
-    load_context(root)
+    ctx = load_context(root)
     from cs_image_system.base.commands.run_lifecycles import validate_only
-    errors = validate_only()
+    errors = validate_only(ctx)
     assert any("workspace 'aws-ebs' names state backend 'nowhere', which is not declared" == e for e in errors), errors
 
 

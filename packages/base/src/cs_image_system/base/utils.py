@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import TYPE_CHECKING, Any, Iterable, Mapping
 
 import logging
 import typer
@@ -19,6 +19,9 @@ import typer
 log = logging.getLogger(__name__)
 
 from . import constants
+
+if TYPE_CHECKING:
+    from .global_context import GlobalTypeContext
 
 def is_base(typer_context: typer.Context) -> bool:
     return typer_context.obj.get("base_only", False)
@@ -69,6 +72,7 @@ from .constants import SYSTEM_CLI  # noqa: E402 - re-exported: the name every ca
 def system_cli_executable(args: list[str], working_directory: Path | None = None):
     """An ExecutableModel invoking this system's own CLI (e.g. the apply gate
     or the identity gid shim) from inside a runner script."""
+    # lazy: models.builder_model imports this module (via models.executable)
     from .models.executable import ExecutableModel
     e = ExecutableModel(name=SYSTEM_CLI, type_="executable", binary=SYSTEM_CLI)
     e.args = list(args)
@@ -76,13 +80,12 @@ def system_cli_executable(args: list[str], working_directory: Path | None = None
     return e
 
 
-def system_cli_executable_with_config(args: list[str], working_directory: Path | None = None):
+def system_cli_executable_with_config(ctx: "GlobalTypeContext", args: list[str],
+                                      working_directory: Path | None = None):
     """A deferred system-CLI command that needs the CONFIGURATION (verify
     instance, dispose --retention, unmount storage): it runs from a
     workspace directory, so it carries --root-dir and the run's overlays,
     and --no-dry-run (it only ever executes in a real run)."""
-    from .global_context import GlobalTypeContext
-    ctx = GlobalTypeContext()
     head: list[str] = ["--root-dir", str(ctx.working_path), "--no-dry-run"]
     for path in getattr(ctx, "overlays", None) or []:
         head += ["--overlay", str(path)]
@@ -113,13 +116,13 @@ def apply_flag_allows(value: Any, root: str | None = None, aliases: Iterable[str
     return bool(value)
 
 
-def apply_enabled(lifecycle_key: str, root: str | None = None, aliases: Iterable[str] = ()) -> bool:
+def apply_enabled(ctx: "GlobalTypeContext", lifecycle_key: str, root: str | None = None,
+                  aliases: Iterable[str] = ()) -> bool:
     """``config: apply_<lifecycle>`` flag (apply_identity, apply_storage,
     apply_instances) -- applies only ever run when the operator says so.
     With ``root`` (a terraform root's builder name) and its ``aliases``
     (e.g. its runtime), a list-valued flag scopes the apply to that root."""
-    from .global_context import GlobalTypeContext
-    return apply_flag_allows(GlobalTypeContext().config.get(f"apply_{lifecycle_key}", False), root, aliases)
+    return apply_flag_allows(ctx.config.get(f"apply_{lifecycle_key}", False), root, aliases)
 
 
 def roots_on_runtime(builders: Mapping[str, Any], runtime: str | None) -> list[str]:
@@ -149,7 +152,7 @@ def _is_remote_module_source(base: str) -> bool:
     return "://" in base or base.startswith(("git@", "github.com/")) or bool(_FORCED_GETTER.match(base))
 
 
-def module_source(module_dirname: str, workspace_dir: Path | None = None) -> str:
+def module_source(ctx: "GlobalTypeContext", module_dirname: str, workspace_dir: Path | None = None) -> str:
     """Terraform module source for a generated ``module`` call.
 
     The base comes from the global ``config: module_source_base`` setting:
@@ -167,8 +170,6 @@ def module_source(module_dirname: str, workspace_dir: Path | None = None) -> str
     which is where this repository keeps them relative to ``test_folder``.
     """
     import os
-    from .global_context import GlobalTypeContext
-    ctx = GlobalTypeContext()
     base = str(ctx.config.get("module_source_base", DEFAULT_MODULE_SOURCE_BASE)).rstrip("/")
     if _is_remote_module_source(base) or Path(base).is_absolute() or workspace_dir is None:
         return f"{base}/{module_dirname}"
@@ -177,13 +178,12 @@ def module_source(module_dirname: str, workspace_dir: Path | None = None) -> str
     return os.path.relpath(modules_dir, workspace_abs)
 
 
-def root_in_runtime_scope(runtime: str | None) -> bool:
+def root_in_runtime_scope(ctx: "GlobalTypeContext", runtime: str | None) -> bool:
     """Whether a terraform root bound to ``runtime`` takes part in THIS run
     (ledger 70): under ``--only-runtime <rt>`` (explicit, or implied by
     ``--apply-runtime``) only that runtime's roots are generated and
     planned; without it every root does, as before. List-valued
     ``apply_*`` flags are NOT a scope here -- by the stage 7 decision the
     other roots still plan and gate under them."""
-    from .global_context import GlobalTypeContext
-    scope = getattr(GlobalTypeContext(), "only_runtime_scope", None)
+    scope = getattr(ctx, "only_runtime_scope", None)
     return not scope or not runtime or str(runtime) == str(scope)

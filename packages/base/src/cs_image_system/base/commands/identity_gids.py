@@ -18,11 +18,11 @@ from typing import Any
 from ..basic.builder_base_group import GroupBuilderBase
 from ..constants import VCT
 from ..loader import load_plugins
-from ..registry import Registry
+from ..registry import current_registry
 
 
 def group_builder_class_for(identity_type: str) -> type[GroupBuilderBase]:
-    reg = Registry()
+    reg = current_registry()          # standalone (from terraform): no run is loaded
     if not reg.vct_type_registry.get(VCT.GROUP_BUILDER):
         # Standalone invocation (from terraform): plugins are not loaded yet.
         load_plugins()

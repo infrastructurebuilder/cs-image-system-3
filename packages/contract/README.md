@@ -136,8 +136,9 @@ written the convenient way on the base classes; the
 user builder and for a hook plugin.
 
 Not in the contract yet, so a plugin that needs them depends on `base`:
-the run context (`GlobalTypeContext`, reached through a base builder's
-`_get_context()`; it has no protocol yet), the
+the run context (`RunContext`, bound to every builder by the loader and
+reached through a base builder's `_get_context()`; it has no protocol
+yet), the
 `cs_image_system.plugins.hooks` entry point (`HookSet`, typed on the
 context) and the `cs_image_system.bootstrap` entry point (the bootstrap's
 sections).

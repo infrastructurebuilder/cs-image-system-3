@@ -23,6 +23,7 @@ from pydantic.dataclasses import dataclass  # stage 23: validation at constructi
 from typing import Any
 
 from ..global_context import GlobalTypeContext
+from ..lineage import TAG_PREFIX, find_image, input_fingerprint, FINGERPRINT_TAG_LENGTH
 
 log = logging.getLogger(__name__)
 
@@ -42,7 +43,6 @@ class Restamp:
 
 
 def restamp_plan(ctx: GlobalTypeContext, runtime: str, series: list[str] | None = None) -> list[Restamp]:
-    from ..lineage import TAG_PREFIX, find_image, input_fingerprint  # noqa: F401
     ms = ctx.meta_state
     if runtime not in ctx.runtime_builders:
         raise ValueError(f"restamp: unknown runtime {runtime!r}; known: {sorted(ctx.runtime_builders)}")
@@ -67,9 +67,7 @@ def restamp_plan(ctx: GlobalTypeContext, runtime: str, series: list[str] | None 
     return out
 
 
-def restamp(runtime: str, series: list[str] | None = None) -> list[Restamp]:
-    from ..lineage import FINGERPRINT_TAG_LENGTH, TAG_PREFIX
-    ctx = GlobalTypeContext()
+def restamp(ctx: GlobalTypeContext, runtime: str, series: list[str] | None = None) -> list[Restamp]:
     ms = ctx.meta_state
     plan = restamp_plan(ctx, runtime, series)
     if ctx.dry_run:

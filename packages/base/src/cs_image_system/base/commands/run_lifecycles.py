@@ -45,6 +45,27 @@ from .gen_storages import predefined_storage_generation
 from .gen_users import predefined_user_generation
 from .resolve import predefined_resolve
 from .validate import collect_validation_errors
+from ..lineage import validate_policies, bake_plan
+from ..state_query import query_state, write_state_report
+from .preflight import session_lines
+from .run_scope import check_bake_scope
+from ..bootstrap.generate import regenerate_in_run
+from ..alias_pool import release_unlaunched
+from ..lifecycles import register_lifecycle
+from .. import (
+    identity_attributes,
+    launch_params,
+    read_models,
+    release,
+    state_query,
+    v2_validation,
+    provider_aliases,
+    launch_delivery,
+    accounts_reconcile,
+    generations,
+    workload_access,
+    retention,
+)
 
 log = logging.getLogger(__name__)
 
@@ -220,7 +241,6 @@ def validate(ctx: GlobalTypeContext, requested: list[LifecycleLike]) -> list[str
     """Shared validation: V1 checks (unique names, executables) + registered
     V2 validators. Touches no generated output."""
     errors: list[str] = [str(e) for e in collect_validation_errors(ctx)]
-    from ..lineage import validate_policies
     errors.extend(validate_policies(ctx))   # parent_policy / image_policy (stage 9)
     for hook in _VALIDATORS:
         errors.extend(hook(ctx, requested))
@@ -244,7 +264,7 @@ def _resolve_for(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> None:
 
 
 def execute_before_or_after_phase(
-    is_before: bool, phase: ExecutionLifecyclePhase, verbose: bool,
+    ctx: GlobalTypeContext, is_before: bool, phase: ExecutionLifecyclePhase, verbose: bool,
 ) -> bool:
     """
     Execute all commands registered to run before a specific lifecycle phase.
@@ -261,7 +281,6 @@ def execute_before_or_after_phase(
 
     """
 
-    ctx = GlobalTypeContext()
     bef_aft = "before" if is_before else "after"
     log.debug(f"-> Executing {bef_aft} phase: {phase.value}...")
     gen_path: Path = ctx.generation_path
@@ -308,12 +327,12 @@ def execute_before_or_after_phase(
 
 def _run_phase(ctx: GlobalTypeContext, lifecycle: LifecycleLike, phase: ExecutionLifecyclePhase) -> None:
     log.info(f"[{lifecycle.value}] phase {phase.value}")
-    if not execute_before_or_after_phase(True, phase, ctx.verbose):
+    if not execute_before_or_after_phase(ctx, True, phase, ctx.verbose):
         raise LifecycleRunError(f"[{lifecycle.value}] before-phase hooks failed for {phase.value}")
     during = _DURING.get(phase)
     if during is not None and not during(ctx, phase):
         raise LifecycleRunError(f"[{lifecycle.value}] generation failed for {phase.value}")
-    if not execute_before_or_after_phase(False, phase, ctx.verbose):
+    if not execute_before_or_after_phase(ctx, False, phase, ctx.verbose):
         raise LifecycleRunError(f"[{lifecycle.value}] after-phase hooks failed for {phase.value}")
 
 
@@ -460,7 +479,7 @@ def apply_lifecycles(ctx: GlobalTypeContext, summary: RunSummary) -> None:
                 hook(ctx, lifecycle)
 
 
-def run_lifecycles(requested: list[LifecycleLike], *, apply: bool = True,
+def run_lifecycles(ctx: GlobalTypeContext, requested: list[LifecycleLike], *, apply: bool = True,
                    commit: bool = False, state_query: bool = True,
                    only: list[str] | None = None,
                    force_bake: list[str] | None = None) -> RunSummary:
@@ -478,7 +497,6 @@ def run_lifecycles(requested: list[LifecycleLike], *, apply: bool = True,
     roots are untouched -- instances stay declarative. Unknown names are
     a hard error.
     """
-    ctx = GlobalTypeContext()
     load_hook_plugins()
     ctx.reset_generated_lifecycles()
     ctx.only_images = None
@@ -519,7 +537,6 @@ def run_lifecycles(requested: list[LifecycleLike], *, apply: bool = True,
             # as at the CLI so that no other path moves state dry
             raise LifecycleRunError("--migrate-state moves state and needs --no-dry-run: a dry run never moves state")
         if state_query:
-            from ..state_query import query_state, write_state_report
             report = query_state(ctx)
             write_state_report(ctx, report)
             summary.state = {**report.as_dict()["summary"], "unavailable": len(report.unavailable),
@@ -527,7 +544,6 @@ def run_lifecycles(requested: list[LifecycleLike], *, apply: bool = True,
             for u in report.unavailable:
                 log.warning(f"state query: {u}")
             log.info(f"state query: {summary.state}")
-            from .preflight import session_lines
             lines, blocking = session_lines(ctx)              # stage 12.3: warn, never refuse, in a run
             for line in lines:
                 (log.warning if line in blocking else log.info)(f"preflight {line}")
@@ -538,17 +554,14 @@ def run_lifecycles(requested: list[LifecycleLike], *, apply: bool = True,
             raise LifecycleRunError(
                 f"Validation failed with {len(summary.validation_errors)} error(s)")
         if any(lc in (Lifecycle.BASE_IMAGE, Lifecycle.INSTANCE_IMAGE) for lc in ordered):
-            from ..lineage import bake_plan
             summary.bake_plan = bake_plan(ctx)
             for key, decision in sorted(summary.bake_plan.items()):
                 log.info(f"bake plan: {key}: {decision}")
-            from .run_scope import check_bake_scope
             refusal = check_bake_scope(ctx, summary.bake_plan)   # stage 12: before any bake
             if refusal:
                 raise LifecycleRunError(f"run scope: {refusal}")
         # stage 70 (decision D7): generated/bootstrap from the tree's
         # bootstrap.yaml, before the lifecycles -- generation only, every run
-        from ..bootstrap.generate import regenerate_in_run
         regenerate_in_run(ctx)
         for lifecycle in ordered:
             result = generate_lifecycle(ctx, lifecycle)
@@ -592,7 +605,6 @@ def run_lifecycles(requested: list[LifecycleLike], *, apply: bool = True,
         # hygiene VIII item 5: a name drawn at generation for a machine this
         # run did not launch goes back to the pool before anything is recorded
         try:
-            from ..alias_pool import release_unlaunched
             release_unlaunched(ctx)
         except Exception as e:  # the pool must never fail the run's record
             log.warning(f"alias pool: could not release this run's draws: {e}")
@@ -620,8 +632,7 @@ def _record(ctx: GlobalTypeContext, summary: RunSummary, root: Path) -> None:
         log.error(f"Could not write run summary: {e}")
 
 
-def validate_only(ctx: GlobalTypeContext | None = None) -> list[str]:
-    ctx = ctx or GlobalTypeContext()
+def validate_only(ctx: GlobalTypeContext) -> list[str]:
     load_hook_plugins()
     return validate(ctx, all_lifecycles())
 
@@ -647,7 +658,6 @@ class HookSet:
 
 
 def install_hook_set(hooks: HookSet) -> None:
-    from ..lifecycles import register_lifecycle
     for spec in hooks.lifecycles:
         register_lifecycle(spec)
     for h in hooks.validators:
@@ -691,23 +701,16 @@ def load_hook_plugins(force: bool = False) -> int:
 # Built-in hooks: V2 validators and the read-model writers/recorders.
 def _register_builtin_hooks() -> None:
     import sys
-    from .. import identity_attributes, launch_params, read_models, release, state_query, v2_validation
     this = sys.modules[__name__]
     v2_validation.register(this)
     read_models.register(this)
     launch_params.register(this)
-    from .. import provider_aliases
     provider_aliases.register(this)   # after mark_launched: it reads `launched` (stage 58)
-    from .. import launch_delivery
     launch_delivery.register(this)   # after mark_launched, before the accounts: the launch script by session (stage 103)
-    from .. import accounts_reconcile
     accounts_reconcile.register(this)   # after mark_launched: it reads `launched` (stage 75)
-    from .. import generations
     generations.register(this)   # after mark_launched and the forgets: the machine decides (stage 60)
-    from .. import workload_access
     workload_access.register(this)   # after the identity read-model is written: it records into it (stage 56)
     release.register(this)
-    from .. import retention
     retention.register(this)   # the closing lifecycle (stage 10.3-6), after release
     state_query.register(this)
     identity_attributes.register(this)

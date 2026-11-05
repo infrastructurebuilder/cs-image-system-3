@@ -321,7 +321,8 @@ def test_locked_holds_the_lock_for_the_command_and_releases_it_however_it_ends(m
     def spy(*a, **k):
         seen["held"] = (tmp_path / "cache" / ".lock" / "pid").is_file()
         return real(*a, **k)
-    monkeypatch.setattr(st, "init_config", spy)
+    from cs_image_system.system import cli as climod
+    monkeypatch.setattr(climod, "init_config", spy)   # patched where it is read (a top-level import since stage 124)
     result, cache = _locked(monkeypatch, tmp_path, "init-config", str(tmp_path / "t"))
     assert result.exit_code == 0, result.output
     assert seen["held"] is True                                  # held while the command ran
@@ -581,18 +582,18 @@ def test_runtime_unchanged_compares_one_runtimes_directories_across_records(tmp_
     v2 = _generated_tree(tmp_path, monkeypatch)
     root = v2.config_root
     os.chdir(root)
-    code, lines = runtime_unchanged("gcloud-east1", "HEAD")
+    code, lines = runtime_unchanged(v2.ctx, "gcloud-east1", "HEAD")
     assert code == 0 and "unchanged since HEAD" in lines[0] and "instance-image/" in lines[0], lines
     # a change under the OTHER runtime's directories is not this runtime's
     aws_dir = next(p for p in (root / "generated" / "instance-image").iterdir() if p.is_dir() and "gce" not in p.name)
     (aws_dir / "extra.tf").write_text("# aws only\n")
-    code, lines = runtime_unchanged("gcloud-east1", "HEAD")
+    code, lines = runtime_unchanged(v2.ctx, "gcloud-east1", "HEAD")
     assert code == 0, lines
     gce_dir = next(p for p in (root / "generated" / "instance-image").iterdir() if p.is_dir() and "gce" in p.name)
     (gce_dir / "extra.tf").write_text("# gce\n")
-    code, lines = runtime_unchanged("gcloud-east1", "HEAD")
+    code, lines = runtime_unchanged(v2.ctx, "gcloud-east1", "HEAD")
     assert code == 1 and "CHANGED since HEAD (1 files)" in lines[0] and any("extra.tf" in ln for ln in lines), lines
-    code, lines = runtime_unchanged("no-such-runtime", "HEAD")
+    code, lines = runtime_unchanged(v2.ctx, "no-such-runtime", "HEAD")
     assert code == 2 and "no runtime named" in lines[0]
     v2.restore_cwd()
 

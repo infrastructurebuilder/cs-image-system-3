@@ -32,6 +32,14 @@ from .docker_names import (full_id, is_digest_reference, is_image_id, label_key_
                            parse_movable_tag, same_repository, short_id, tag_name, tag_problem)
 from .docker_provider_specific_image import DockerProviderSpecificImage
 from .docker_runtime_models import DockerContainerBuilderModel
+from cs_image_system.base.encryption import decrypt_marker, is_marker
+from cs_image_system.base.image_sources import container_reference
+from .local_target import make_local_target
+from cs_image_system.base.lineage import TAG_PREFIX, CONFIG_TAG, belongs_to_another_configuration
+from cs_image_system.base.models.executable import ExecutableModel
+from cs_image_system.base.launch_delivery import LAUNCH_MARKER_PATH
+from cs_image_system.base.bake_user import resolve_bake_user
+from .docker_packer_source import bake_container_name, DOCKER_SOURCE, docker_source, docker_tag_post_processor
 
 DOCKER_RUNTIME: str = "docker"
 #: the keys of the system's image-query vocabulary a daemon can answer: a
@@ -85,7 +93,6 @@ def daemon_where(settings: Mapping[str, Any]) -> tuple[dict[str, str], str]:
     env: dict[str, str] = {}
     where = "the environment's daemon"
     if host:
-        from cs_image_system.base.encryption import decrypt_marker, is_marker
         env["DOCKER_HOST"] = decrypt_marker(str(host)) if is_marker(str(host)) else str(host)
         where = "host (encrypted)" if is_marker(str(host)) else f"host {host}"
     elif context:
@@ -103,7 +110,6 @@ def translate_image_query(query: ImageQuery) -> dict[str, Any]:
     """The system's query in the daemon's words: ``{"reference":
     "<repository>:<tag>", "platform": "<os/arch>" | None}``. A key the daemon
     cannot answer raises ValueError naming it (``validate`` refuses first)."""
-    from cs_image_system.base.image_sources import container_reference
     unsupported = sorted(k for k in query.keys() if k not in DOCKER_QUERY_KEYS)
     if unsupported:
         raise ValueError(f"a container daemon cannot translate image query key(s) {', '.join(unsupported)}")
@@ -220,7 +226,6 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
     def local_test_target(cls) -> Callable[..., Any] | None:
         """The local target the modification tests run on: a throwaway
         container on the host's daemon (``local_target.make_local_target``)."""
-        from .local_target import make_local_target
         return make_local_target
 
     def _pull(self, reference: str, platform: str | None) -> dict[str, Any]:
@@ -267,7 +272,6 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
     # ------------------------------------------------------- the inventory
     def _our_images(self) -> list[dict[str, Any]]:
         """Every image in the store that carries a lineage series label."""
-        from cs_image_system.base.lineage import TAG_PREFIX
         res = self._docker("image", "ls", "--no-trunc", "--filter", f"label={TAG_PREFIX}series", "--format", "{{.ID}}")
         ids = sorted({ln.strip() for ln in (res.stdout or "").splitlines() if ln.strip()})
         out: list[dict[str, Any]] = []
@@ -303,7 +307,6 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
         """Every image in the store labelled with ``csis_series`` (read-only),
         narrowed to the series asked about; its lineage facts are its labels
         as built, with what the movable tags say on top."""
-        from cs_image_system.base.lineage import TAG_PREFIX
         wanted = set(series or [])
         out: list[dict[str, Any]] = []
         for rec in self._our_images():
@@ -317,7 +320,6 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
     def inventory(self) -> dict[str, Any]:
         """Every container and every labelled image in the store (read-only),
         and under ``owners`` the ``csis_config`` label each carries."""
-        from cs_image_system.base.lineage import CONFIG_TAG
         owners: dict[str, dict[str, str]] = {"instances": {}, "images": {}, "disks": {}, "buckets": {}}
         images: list[str] = []
         for rec in self._our_images():
@@ -401,7 +403,6 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
     def release_commands(self, build_id: str, tags: dict[str, str]):
         """Mark a released build: the tag ``<repository>:<series>--<model>``
         moves onto it (reviewable, gated by config.apply_release)."""
-        from cs_image_system.base.models.executable import ExecutableModel
         series = tag_name(str(tags.get("csis_series") or "build"))
         model = tag_name(str(tags.get("csis_release") or "release"))
         e = ExecutableModel(name="docker", type_="executable", binary=self.docker_binary())
@@ -449,7 +450,6 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
         if not data:
             return None
         info = dict(data[0])
-        from cs_image_system.base.lineage import belongs_to_another_configuration
         labels = dict((info.get("Config") or {}).get("Labels") or {})
         if belongs_to_another_configuration(self._get_context(), labels):
             return None
@@ -559,7 +559,6 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
         means every launch parameter applied), each declared mount point
         in the container's own mount table, and the image the container was
         created from against the expected build."""
-        from cs_image_system.base.launch_delivery import LAUNCH_MARKER_PATH
         checks: list[dict[str, Any]] = []
         evidence: list[str] = []
         probe = (f"if [ -f {LAUNCH_MARKER_PATH} ]; then echo \"csis-marker: $(cat {LAUNCH_MARKER_PATH})\"; "
@@ -602,7 +601,6 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
     def bake_ssh_username(self, image=None) -> str | None:
         if image is None:
             return self.default_bake_user("")
-        from cs_image_system.base.bake_user import resolve_bake_user
         return resolve_bake_user(self._get_context(), image, self.get_name())
 
     def bake_settle_commands(self, os_family: str | None = None) -> list[str]:
@@ -623,24 +621,20 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
         """Ansible reaches the build container through the daemon, by name
         (packer's ansible provisioner documents this for its docker
         builder); the connection reads the same ``DOCKER_HOST``."""
-        from .docker_packer_source import bake_container_name
         return {"ansible_connection": "docker",
                 "ansible_host": bake_container_name(str(image.get_name()), self.get_name())}
 
     def packer_source_type(self) -> str:
-        from .docker_packer_source import DOCKER_SOURCE
         return DOCKER_SOURCE
 
     def packer_source_blocks(self, image: Any, *, runtime: str, source_type: str, subconfig: Any,
                              self_subconfig: Any, psi: Any, tags: dict[str, str],
                              final_name: str, pinned: str | None) -> list[str]:
-        from .docker_packer_source import docker_source
         return docker_source(self.model, image, runtime=runtime, source_type=source_type, subconfig=subconfig,
                              self_subconfig=self_subconfig, psi=psi, tags=tags, final_name=final_name, pinned=pinned)
 
     def packer_post_processor_blocks(self, image: Any, *, runtime: str, source_type: str, subconfig: Any,
                                      final_name: str) -> list[str]:
-        from .docker_packer_source import docker_tag_post_processor
         prefix = subconfig.get_image_output_name() if subconfig is not None else None
         return docker_tag_post_processor(image, repository=self.model.get_repository(), source_type=source_type,
                                          final_name=final_name, prefix=prefix)

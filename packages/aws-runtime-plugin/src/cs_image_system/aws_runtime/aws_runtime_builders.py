@@ -24,6 +24,10 @@ from .aws_utils import AWS_QUERY_KEYS, query_image, translate_image_query
 from cs_image_system.contract.image import ImageQuery
 from cs_image_system.contract.session import LoadFailureReport, SessionStatus
 from cs_image_system.aws_runtime import aws_utils, session
+from cs_image_system.base.lineage import TAG_PREFIX, ours_or_unlabelled
+from .aws_packer_source import AMAZON_EBS, amazon_ebs_source
+from cs_image_system.base.os_types import os_type_for_family
+from cs_image_system.base.models.executable import ExecutableModel
 
 log = logging.getLogger(__name__)
 
@@ -135,7 +139,6 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
 
     def query_images(self, series: list[str]) -> list[dict[str, Any]]:
         """Every AMI we own that carries a ``csis_series`` tag (read-only)."""
-        from cs_image_system.base.lineage import TAG_PREFIX
         ec2 = aws_utils.ec2_client(self.model.self_to_aws_client_config())
         out: list[dict[str, Any]] = []
         paginator = ec2.get_paginator("describe_images")
@@ -154,7 +157,6 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
         configuration may take for its own -- tagged with its id, or with no
         id at all (launched before the stage). Another configuration's
         machine of the same name is not ours to read, stop or log into."""
-        from cs_image_system.base.lineage import ours_or_unlabelled
         ctx = self._get_context()
         return [i for i in instances
                 if ours_or_unlabelled(ctx, {t["Key"]: t["Value"] for t in i.get("Tags", []) if "Key" in t})]
@@ -429,14 +431,12 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
 
     # ------------------------------------------------- packer source hooks
     def packer_source_type(self) -> str:
-        from .aws_packer_source import AMAZON_EBS
         return AMAZON_EBS
 
     def packer_source_blocks(self, image: Any, *, runtime: str, source_type: str, subconfig: Any,
                              self_subconfig: Any, psi: Any, tags: dict[str, str],
                              final_name: str, pinned: str | None) -> list[str]:
-        from .aws_packer_source import amazon_ebs_source
-        return amazon_ebs_source(self.model, image, runtime=runtime, source_type=source_type,
+        return amazon_ebs_source(self._get_context(), self.model, image, runtime=runtime, source_type=source_type,
                                  subconfig=subconfig, self_subconfig=self_subconfig, psi=psi,
                                  tags=tags, final_name=final_name, pinned=pinned)
 
@@ -462,7 +462,6 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
         region = self.model.get_region()
         # Amazon ships the agent as a deb and as an rpm: the OS type's
         # package format picks the artifact, its hooks give the lines
-        from cs_image_system.base.os_types import os_type_for_family
         os_type = os_type_for_family(os_family)
         fmt = os_type.package_format()
         if fmt == "deb":
@@ -527,7 +526,6 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
     def release_commands(self, build_id: str, tags: dict[str, str]):
         """Mark a released AMI in the cloud: tag it (reviewable, gated by
         config.apply_release)."""
-        from cs_image_system.base.models.executable import ExecutableModel
         args = ["ec2", "create-tags", "--region", str(self.model.get_region()), "--resources", build_id, "--tags"]
         args += [f"Key={k},Value={v}" for k, v in sorted(tags.items())]
         creds = self.model.get_credentials()        # stage 17

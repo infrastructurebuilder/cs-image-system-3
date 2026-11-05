@@ -111,8 +111,8 @@ configuration is loaded reads as none.
 the binding both count.
 
 `run_is_dry(builder)` reads the run context's `dry_run` flag; a builder
-used outside a run (no context yet, as in unit tests, where `_get_context`
-is absent or raises `ValueError`) is not in a dry run. `_dry_run()` is the
+used outside a run (no context bound, as in unit tests, where `_get_context`
+is absent or raises) is not in a dry run. `_dry_run()` is the
 method form.
 
 `_runner_init_args(phase)` is the `init` a committed runner script performs

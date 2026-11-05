@@ -18,6 +18,7 @@ from .builder_base import BuilderBase
 from cs_image_system.contract.group import (WORKLOAD_CONNECTION_ABSENT, WORKLOAD_CONNECTION_INACTIVE,
                                             WORKLOAD_CONNECTION_UNREAD, WORKLOAD_POLICY_ABSENT,
                                             WORKLOAD_POLICY_DIVERGED, WORKLOAD_ROLE_ABSENT, GroupBuilderProtocol)
+from .. import utils
 
 if TYPE_CHECKING:
     from ..models.image import Image
@@ -251,7 +252,6 @@ class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
         ws = self.gid_workspace()
         if ws is None:
             return None
-        from .. import utils
         return f'data.terraform_remote_state.{utils.super_safe_name(ws)}.outputs.group_gids["{group}"]'
 
     # ------------------------------------- the login proof (stage 75 step 2)

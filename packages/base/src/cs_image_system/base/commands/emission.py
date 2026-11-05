@@ -39,11 +39,15 @@ import tempfile
 import time
 from functools import partial
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 import yaml
 
 from ..constants import RUN_LOCAL_FILENAMES
+from .runtime_facts import emission_dirs
+
+if TYPE_CHECKING:
+    from ..global_context import GlobalTypeContext
 
 #: terraform's forced getter: a `<getter>::` prefix on a module source (any getter)
 _FORCED_GETTER = re.compile(r"^[a-z0-9]+::")
@@ -386,16 +390,13 @@ def vendor_image_moves(lines: list[str]) -> list[str]:
     return moves
 
 
-def runtime_unchanged(runtime: str, ref: str = "HEAD") -> tuple[int, list[str]]:
+def runtime_unchanged(ctx: "GlobalTypeContext", runtime: str, ref: str = "HEAD") -> tuple[int, list[str]]:
     """0 when the runtime's emission directories (``runtime describe`` ->
     ``emission``) in the working tree equal the same paths at ``ref`` once
     normalised, or differ only by the vendor's newest image under a base not
     yet baked (said, with the moves; hygiene XVII item 1), 1 with the diff
     when a declaration of that runtime changed, 2 when the emission
     directories cannot be read. Needs the configuration loaded."""
-    from ..global_context import GlobalTypeContext
-    from .runtime_facts import emission_dirs
-    ctx = GlobalTypeContext()
     root = Path(ctx.working_path).resolve()
     if runtime not in ctx.runtime_builders:
         return 2, [f"runtime-unchanged: no runtime named {runtime!r}"]

@@ -195,7 +195,16 @@ Two more enums live in `constants.py`: `OSFamilies` (`rhel`, `ubuntu`,
 
 ### The registry
 
-`Registry` is a process-wide singleton. It holds:
+`Registry` is one instance per run, no longer a process-wide singleton:
+the loader makes it, replays the plugins' registrations into it
+(`load_plugins(reg)`; discovery itself happens once per process) and binds
+it as the process's current registry before parsing the run's models, and
+the context carries it as `ctx.reg`. Code that holds a context reads
+`ctx.reg`; a model, the template resolver and the pre-load commands, which
+hold no context, reach the current one through `registry.current_registry()`
+(a one-release shim, like the context's own; it makes and binds a fresh
+registry on the first ask in a process with no run). A deep copy of a
+model keeps its registry handle rather than cloning the registry. It holds:
 
 | Store                     | Keyed by                          | Holds |
 | --------------------------- | ----------------------------------- | ------- |
@@ -208,8 +217,8 @@ Two more enums live in `constants.py`: `OSFamilies` (`rhel`, `ubuntu`,
 | `defaults_registry`       | `VCT`                             | The name of the default builder per classification. A default may not be a reserved word (`default`, `self`, `none`, empty or `None`). |
 
 `get_instance_by_name_or_alias(vct, "default")` resolves to the registered
-default. `reset()` clears everything, which is how tests and repeated loads
-start clean.
+default. `reset()` clears an instance; a repeated load makes a new registry
+instead, and the test harness unbinds the current one between loads.
 
 ### Builder base classes and hooks
 
@@ -241,7 +250,7 @@ Helpers on `BuilderBase`: `get_path_for_phase(phase, discriminator, suffix)`
 returns `<builder>/<phase>/<builder>-<phase>[-<discriminator>][<suffix>]`;
 `get_executable_copy()` returns a deep copy of the executable the model
 names (an error when it is not declared under `executables:`);
-`_get_context()` returns the run context.
+`_get_context()` returns the run context the loader bound to the builder (`bind(ctx)`).
 
 Per-kind bases add a contract:
 
@@ -279,7 +288,7 @@ and applies `get_regex()`. The result is compared with the executable's
 | Lifecycles | `register_lifecycle(LifecycleSpec)` in [`lifecycles.py`](src/cs_image_system/base/lifecycles.py) | A lifecycle with its own phases, builder classifications, directory and runner script, positioned after an existing one. |
 | Field kinds | `register_field_kind(name, FieldKindHandler)` in [`helpers/field_kinds.py`](src/cs_image_system/base/helpers/field_kinds.py) | A late-binding behaviour for fields carrying `field_kind` metadata: `contribute_context`, `resolve`, `upgrade`. |
 | Resolution passes | `register_resolution_pass(name, fn, order)` in [`helpers/resolution_stages.py`](src/cs_image_system/base/helpers/resolution_stages.py) | A string-stage pass over the raw YAML document. Built in: `interpolate` (order 10) and `scope-this` (order 20). |
-| Item kinds | `register_item_kind(ItemKind)` in [`global_context.py`](src/cs_image_system/base/global_context.py) | A new domain-item collection: directory, model class, owning builder classification, attach function, optional validation. |
+| Item kinds | `register_item_kind(ItemKind)` in [`config_loader.py`](src/cs_image_system/base/config_loader.py) | A new domain-item collection: directory, model class, owning builder classification, attach function, optional validation. |
 
 ## The configuration tree
 
@@ -343,7 +352,7 @@ translate. CONFIGURATION 5a is the reference.
 Source: [`template_utils.py`](src/cs_image_system/base/template_utils.py),
 [`orchestrator.py`](src/cs_image_system/base/orchestrator.py),
 [`helpers/field_helpers.py`](src/cs_image_system/base/helpers/field_helpers.py),
-[`global_context.py`](src/cs_image_system/base/global_context.py).
+[`config_loader.py`](src/cs_image_system/base/config_loader.py).
 
 ### The string stage
 
@@ -764,7 +773,7 @@ Aliases are not allowed on users. The core's `User` carries only what
 every identity reads; an identity plugin that keeps more on a user
 injects a subclass under `USER_MODEL` as the default item model
 (`injected_models`, `is_injected_models_default`), and the loader
-(`item_model_class` in `global_context.py`) structures every `users:`
+(`item_model_class` in `config_loader.py`) structures every `users:`
 item into that subclass while the plugin is installed -- the okta-opa
 plugin's `OktaUser` adds the Okta profile fields this way. The YAML key
 and the `isinstance` check stay the kind's; a subclass only adds fields.
@@ -939,12 +948,32 @@ nothing changed or the root is not in a git repository.
 
 ## The run context
 
-Source: [`global_context.py`](src/cs_image_system/base/global_context.py).
+Source: [`run_context.py`](src/cs_image_system/base/run_context.py) (the
+context), [`config_loader.py`](src/cs_image_system/base/config_loader.py)
+(the loader that makes one), [`finalizer.py`](src/cs_image_system/base/finalizer.py)
+(the deferred-command queue and executor of one run).
 
-`GlobalTypeContext` is a singleton constructed once by
-`read_config_and_transform` and returned by every later
-`GlobalTypeContext()` call. Builders reach it through `self._get_context()`.
-What it exposes:
+`RunContext` is what one run knows: the configuration, the collections,
+the paths and the flags. It is read-only in the sense that nothing on it
+loads or executes: the loader (`read_config_and_transform`) constructs
+it with the full configuration and returns it, and the finalizer, bound to
+it, owns the deferred commands and the runner scripts. There is one
+context per load and it is no singleton: the loader binds every builder
+it registers to the context it made (`BuilderBase.bind(ctx)`), a builder
+reaches it through `self._get_context()`, a command takes it as its
+`ctx` argument, and the console script keeps it on the typer context
+(`typer_cntx.obj["ctx"]`). A copy of a model that holds the context (an
+executable copy, a tag map) shares it, never clones it: the context and
+the registry answer `copy.deepcopy` with themselves.
+
+For one release the old name stays: `GlobalTypeContext` in
+[`global_context.py`](src/cs_image_system/base/global_context.py) is a
+subclass used for annotations, and `GlobalTypeContext()` with no
+arguments answers with the context the loader made last
+(`run_context.current_context()`), which is also what a model method
+with no context of its own reaches for. Every such fetch is a shim site
+to retire; new code takes the context it is given. What the context
+exposes:
 
 | Member | Meaning |
 | -------- | --------- |

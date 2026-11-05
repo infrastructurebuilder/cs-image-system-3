@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 from .basic.builder_base_group import GroupBuilderBase
 from .lifecycles import Lifecycle
+from .utils import apply_enabled
 
 if TYPE_CHECKING:
     from .global_context import GlobalTypeContext
@@ -31,8 +32,7 @@ log = logging.getLogger(__name__)
 def reconcile_workload_access(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
     if lifecycle != Lifecycle.IDENTITY:
         return
-    from .utils import apply_enabled
-    if not apply_enabled("identity"):
+    if not apply_enabled(ctx, "identity"):
         return
     model = ctx.meta_state.identity_read_model()
     groups: dict[str, Any] = model.setdefault("groups", {})

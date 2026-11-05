@@ -23,6 +23,7 @@ from .answers import ANSWERS_FILE, read_answers
 from .facts import Facts, gather, raw_yaml
 from .hcl import render_root
 from .questions import Rendered, Section
+from .sections import discover
 
 if TYPE_CHECKING:
     from ..global_context import GlobalTypeContext
@@ -149,7 +150,6 @@ def regenerate(config_root: Path, *, module_source_base: str | None = None,
             log.info(f"bootstrap: no {ANSWERS_FILE} in the tree; generated/{BOOTSTRAP_DIRNAME} pruned")
         return None
     if sections is None:
-        from .sections import discover
         sections = discover()
     answers = read_answers(answers_path)
     base = module_source_base or module_source_base_of(root)

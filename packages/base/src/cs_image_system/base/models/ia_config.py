@@ -20,16 +20,12 @@ from cs_image_system.base.models.storage_builder import StorageBuilderModel
 from cs_image_system.base.models.user_builder import UserBuilderModel
 log = logging.getLogger(__name__)
 
-from ..registry import Registry
 from .encryption_config import EncryptionConfig
 from .public_safe_config import PublicSafeConfig
 from .executable import ExecutableModel
 from ..image_sources import ImageSource
 
 from ..constants import  OOPS_DEFAULTS
-
-
-reg = Registry()
 
 
 # the run timestamp's format when the configuration names none

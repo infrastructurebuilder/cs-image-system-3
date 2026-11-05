@@ -12,13 +12,13 @@ from pydantic.dataclasses import dataclass  # stage 23: validation at constructi
 from typing import  Any, Sequence
 from packaging.version import Version, parse
 
-from cs_image_system.base import registry
 
 from .os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
 from .update_policy import POLICY_FULL, POLICY_NONE, UpdatePolicy
 
 from ..constants import DEFAULT,  VCT
 from .builder_model import BuilderModel
+from ..image_sources import ImageSourceCatalog
 
 log = logging.getLogger(__name__)
 
@@ -84,7 +84,6 @@ class OsBuilderModel(BuilderModel, OsBuilderModelProtocol):
                 f"OS builder {self.name} must have at least one runtime configuration."
             )
         nameset: set[str] = set()
-        reg = registry.Registry()
         for r in self.runtimes:
             if r.get_image_builder() in nameset:
                 raise ValueError(
@@ -105,7 +104,7 @@ class OsBuilderModel(BuilderModel, OsBuilderModelProtocol):
         real = self.get_family()
         served = tuple(f.lower() for f in type(self).families())
         if real not in served:
-            others = sorted(name for name, cls in registry.Registry().models.get(VCT.OS_BUILDER_MODEL, {}).items()
+            others = sorted(name for name, cls in self._reg.models.get(VCT.OS_BUILDER_MODEL, {}).items()
                             if real in tuple(f.lower() for f in getattr(cls, "families", lambda: ())()))
             if others:
                 raise ValueError(
@@ -127,7 +126,6 @@ class OsBuilderModel(BuilderModel, OsBuilderModelProtocol):
         """What the declared family IS (stage 106): the image-source
         catalog's ``is`` for it, else the token itself. Everything that
         branches on a family reads this one."""
-        from ..image_sources import ImageSourceCatalog
         return ImageSourceCatalog().effective_family(self.family, self.family_version)
     def get_vendor_family(self) -> str:
         """The family token as written (``rhel-from-jerry``): the catalog's key."""

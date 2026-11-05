@@ -245,9 +245,9 @@ KIND_PROTOCOLS: dict[VCT, tuple[type, type]] = {
 def test_every_built_in_plugin_conforms_to_its_kind():
     """Every built-in plugin's registered model and builder classes conform
     to the protocols of their kind; every shortfall is named at once."""
-    from cs_image_system.base.registry import Registry, sanitize_classifier
+    from cs_image_system.base.registry import current_registry, sanitize_classifier
     reset_singletons()
-    reg = Registry()
+    reg = current_registry()             # the process registry the plugins loaded into
     checked = 0
     problems: list[str] = []
     for model_cls, builder_cls in reg.builders.items():

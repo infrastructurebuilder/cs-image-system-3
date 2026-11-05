@@ -112,9 +112,10 @@ def _from_status(runtime: str, provider: str, status: SessionStatus) -> SessionI
 
 def _registry():
     from ..loader import load_plugins
-    from ..registry import Registry
+    from ..registry import current_registry
     load_plugins()
-    return Registry()
+    # pre-load (sessions BEFORE the configuration loads): no run's registry yet
+    return current_registry()
 
 
 def credential_environment_prefixes() -> tuple[str, ...]:

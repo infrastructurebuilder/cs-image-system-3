@@ -13,7 +13,7 @@ N5) and a ``source "amazon-ebs"`` block carrying the merged tags.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import hcl2
 from hcl2 import Builder
@@ -22,6 +22,12 @@ from cs_image_system.contract.constants import OOPS_DEFAULTS
 from cs_image_system.hashicorp_utils.hashicorp import FO
 
 from .aws_runtime_models import AwsCloudBuilderModel, AwsCloudNetworkingModel
+from cs_image_system.base.capabilities import image_chain
+from cs_image_system.base.lineage import bake_disk_size
+from cs_image_system.base.bake_user import resolve_bake_user
+
+if TYPE_CHECKING:
+    from cs_image_system.base.global_context import GlobalTypeContext
 
 log = logging.getLogger(__name__)
 
@@ -46,21 +52,18 @@ systemctl enable --now amazon-ssm-agent 2>/dev/null || true
 """
 
 
-def _root_device(image: Any, psi: Any) -> str:
+def _root_device(ctx: GlobalTypeContext, image: Any, psi: Any) -> str:
     """The bake source's root device name: from the resolved vendor query
     when available, else by the chain root's family."""
     raw = getattr(psi, "raw_query_result", None)
     if isinstance(raw, dict) and raw.get("RootDeviceName"):
         return str(raw["RootDeviceName"])
-    fam = _chain_root_family(image)
+    fam = _chain_root_family(ctx, image)
     return {"debian": "/dev/xvda", "amazon": "/dev/xvda"}.get(fam, "/dev/sda1")
 
 
-def _chain_root_family(image: Any) -> str:
+def _chain_root_family(ctx: GlobalTypeContext, image: Any) -> str:
     try:
-        from cs_image_system.base.capabilities import image_chain
-        from cs_image_system.base.global_context import GlobalTypeContext
-        ctx = GlobalTypeContext()
         name = image.get_name()
         root = name if name in ctx.os_builders else image_chain(ctx, image)[1]
         return (ctx.os_builders[root].get_family() or "").lower() if root in ctx.os_builders else ""
@@ -68,10 +71,8 @@ def _chain_root_family(image: Any) -> str:
         return ""
 
 
-def _bake_disk(image: Any, runtime: str) -> Any:
-    from cs_image_system.base.global_context import GlobalTypeContext
-    from cs_image_system.base.lineage import bake_disk_size
-    size = bake_disk_size(GlobalTypeContext(), image, runtime)
+def _bake_disk(ctx: GlobalTypeContext, image: Any, runtime: str) -> Any:
+    size = bake_disk_size(ctx, image, runtime)
     return size if size is not None else image.primary_disk_size
 
 
@@ -83,7 +84,7 @@ def _machine_type(subconfig: Any, model: AwsCloudBuilderModel) -> str:
     return str(model.get_default_machine_type())
 
 
-def amazon_ebs_source(model: AwsCloudBuilderModel, image: Any, *, runtime: str, source_type: str,
+def amazon_ebs_source(ctx: GlobalTypeContext, model: AwsCloudBuilderModel, image: Any, *, runtime: str, source_type: str,
                       subconfig: Any, self_subconfig: Any, psi: Any, tags: dict[str, str],
                       final_name: str, pinned: str | None) -> list[str]:
     networking: AwsCloudNetworkingModel = model.networking  # type: ignore[assignment]
@@ -147,9 +148,7 @@ def amazon_ebs_source(model: AwsCloudBuilderModel, image: Any, *, runtime: str, 
     # root's entry, config_username, the runtime's ssh_username, its
     # default_config_username, the family's vendor user); the runtime's
     # ssh_username used to override every entry here
-    from cs_image_system.base.bake_user import resolve_bake_user
-    from cs_image_system.base.global_context import GlobalTypeContext
-    c["ssh_username"] = resolve_bake_user(GlobalTypeContext(), image, runtime)
+    c["ssh_username"] = resolve_bake_user(ctx, image, runtime)
     if networking.default_availability_zone:
         c["availability_zone"] = networking.default_availability_zone
     if model.iam_instance_profile and "iam_instance_profile" not in c:
@@ -163,11 +162,11 @@ def amazon_ebs_source(model: AwsCloudBuilderModel, image: Any, *, runtime: str, 
         # on HVM the two names alias one device slot -- a mismatched mapping
         # bakes an AMI carrying TWO root-slot volumes whose derived
         # instances never boot (found live: the deb-11 chain).
-        "device_name": f'"{_root_device(image, psi)}"',
+        "device_name": f'"{_root_device(ctx, image, psi)}"',
         "volume_type": '"gp3"',
         "delete_on_termination": True,
         # stage 63: the one bake-disk rule the fingerprint also hashes
-        "volume_size": _bake_disk(image, runtime),
+        "volume_size": _bake_disk(ctx, image, runtime),
     }
     for k, v in c.items():
         if isinstance(v, str) and not (v.startswith("var.") or v.startswith("data.")):

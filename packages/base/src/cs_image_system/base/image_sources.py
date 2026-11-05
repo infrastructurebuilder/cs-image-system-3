@@ -134,9 +134,9 @@ def _runtime_classes() -> dict[str, type]:
     first (idempotent), so the catalog is the INSTALLED runtimes' and never
     depends on which a tree declares."""
     from .loader import load_plugins
-    from .registry import Registry
+    from .registry import current_registry
     load_plugins()
-    return dict(Registry().runtime_builder_classes())
+    return dict(current_registry().runtime_builder_classes())
 
 
 def _runtime_entries(classes: Mapping[str, type]) -> list[tuple[str, list[ImageSource]]]:

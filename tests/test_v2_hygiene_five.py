@@ -283,14 +283,13 @@ def test_the_migration_commands_run_from_the_directory_the_runner_entered(tmp_pa
     passed while the live step pulled from the configuration root
     (2026-09-23 10:15)."""
     from typer.testing import CliRunner
-    from cs_image_system.base.commands import state_migration as sm
     from cs_image_system.system import cli as climod
     from tests.v2_support import FIXTURE_CONFIG, reset_singletons, stub_environment
     reset_singletons()                      # the CLI loads the fixture into the singletons itself
     stub_environment(monkeypatch)
     monkeypatch.delenv("CSIS_CONFIG_ROOT", raising=False)
     seen: dict[str, Path] = {}
-    monkeypatch.setattr(sm, "backup", lambda gctx, ws, tofu, run, cwd: seen.setdefault("cwd", Path(cwd)) and 0)
+    monkeypatch.setattr(climod, "backup", lambda gctx, ws, tofu, run, cwd: seen.setdefault("cwd", Path(cwd)) and 0)   # patched where it is read (a top-level import since stage 124)
     started_in = tmp_path / "a-root-the-runner-entered"
     started_in.mkdir()
     monkeypatch.chdir(started_in)

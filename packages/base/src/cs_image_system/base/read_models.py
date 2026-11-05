@@ -19,6 +19,8 @@ from .basic.builder_base_group import GroupBuilderBase
 from .basic.builder_base_storage import StorageBuilderBase
 from .lifecycles import Lifecycle
 from .storage_state import all_transitions, attachments, record_applied_transitions
+from .state_query import read_state_report
+from .utils import apply_enabled
 
 if TYPE_CHECKING:
     from .global_context import GlobalTypeContext
@@ -31,7 +33,6 @@ def _groups_seen(ctx: "GlobalTypeContext") -> set[str]:
     3): those the previous read-model already marked, and those the run's
     own state query just found present. Observation, never inference: a
     group is not "seen" because an apply was requested."""
-    from .state_query import read_state_report
     previous = (ctx.meta_state.identity_read_model() or {}).get("groups", {}) or {}
     seen = {name for name, rec in previous.items() if isinstance(rec, dict) and rec.get("seen")}
     reality = ((read_state_report(ctx) or {}).get("reality") or {}).get("groups") or {}
@@ -113,8 +114,7 @@ def record_storage_transitions(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -
     authoritative and the read-model reflects them."""
     if lifecycle != Lifecycle.STORAGE:
         return
-    from .utils import apply_enabled
-    if not apply_enabled("storage"):
+    if not apply_enabled(ctx, "storage"):
         # A reality-claiming record requires a real apply (finding 21: this
         # hook once recorded None -> active on a run whose flag was off, so
         # zero applies executed and meta-state lied until the state query's
@@ -130,7 +130,7 @@ def record_storage_transitions(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -
         builder = ctx.storage_builders.get(str(root)) if root else None
         get_rt = getattr(getattr(builder, "model", None), "get_runtime_provider", None)
         rt = str(get_rt()) if callable(get_rt) else None
-        return apply_enabled("storage", root, [rt] if rt else ())
+        return apply_enabled(ctx, "storage", root, [rt] if rt else ())
 
     # declared transitions AND the demise of undeclared storages (stage 10.11)
     transitions = [t for t in all_transitions(ctx) if _root_applied(t)]

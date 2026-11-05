@@ -21,10 +21,12 @@ from ..utils import safe_name
 
 if TYPE_CHECKING:
     from ..global_context import GlobalTypeContext
+    from ..run_context import RunContext
 
 from ..lifecycle import ExecutionLifecyclePhase
 from ..models.executable import  ExecutableModel
 from ..models.executable_adds import CFExecutables
+from ..run_context import current_context
 
 C = TypeVar("C", bound=BuilderModel)
 # class BuilderBase(ABC, Generic[C, ItemT]):
@@ -109,9 +111,26 @@ class BuilderBase(ABC, BuilderProtocol, Generic[C]):
         return None
     def post_failed_phase(self, phase: ExecutionLifecyclePhase) -> None:
         return None
+    def bind(self, ctx: "RunContext") -> None:
+        """The context is passed (stage 124, DESIGN's phrase): the loader
+        binds every builder it registers to the run context it made, and
+        ``_get_context()`` answers with it."""
+        self._ctx = ctx
     def _get_context(self) -> "GlobalTypeContext":
-        from ..global_context import GlobalTypeContext
-        return GlobalTypeContext()
+        """The run context this builder was bound to at registration.
+
+        One-release note (stage 124): a builder made outside the loader (a
+        unit test's, a plugin's own) has no bound context and falls back to
+        the process's current one; that fallback goes with the next release,
+        when every builder is bound and the shim retires. Typed as the old
+        name so the plugins' annotations keep checking; the object is a
+        :class:`~..run_context.RunContext`.
+        """
+        from typing import cast
+        ctx = getattr(self, "_ctx", None)
+        if ctx is None:
+            ctx = current_context()
+        return cast("GlobalTypeContext", ctx)
     def get_builder_path(self) -> Path:
         return Path(safe_name(self.name))
     def get_discriminator(self) -> str:

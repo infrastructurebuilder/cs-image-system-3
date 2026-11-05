@@ -15,13 +15,13 @@ from __future__ import annotations
 import logging
 
 from ..global_context import GlobalTypeContext
+from ..lineage import primary_runtime_of
 
 log = logging.getLogger(__name__)
 
 
-def upgrade(kind: str, name: str, to: str | None = None,
+def upgrade(ctx: GlobalTypeContext, kind: str, name: str, to: str | None = None,
             runtime: str | None = None) -> tuple[str | None, str]:
-    ctx = GlobalTypeContext()
     ms = ctx.meta_state
     kind = kind.strip().lower()
     if kind not in ("instance", "image"):
@@ -42,7 +42,6 @@ def upgrade(kind: str, name: str, to: str | None = None,
         series = str(source)
         # image pins are per runtime: the primary runtime unless named; an
         # image baked on several runtimes must say which pin moves
-        from ..lineage import primary_runtime_of
         image = images[name]
         runtimes = sorted({r for r in [primary_runtime_of(ctx, image)]
                            + [b.model.get_runtime_provider() for b in getattr(image, "extra_image_builders", [])] if r})

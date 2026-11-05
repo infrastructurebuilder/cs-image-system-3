@@ -49,6 +49,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from .lifecycles import Lifecycle
+from .utils import apply_enabled
 
 if TYPE_CHECKING:
     from .global_context import GlobalTypeContext
@@ -139,14 +140,13 @@ def reconcile_generations(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> Non
     * the provider could not answer: nothing. Silence is not a change."""
     if lifecycle != Lifecycle.INSTANCE_IMAGE:
         return
-    from .utils import apply_enabled
-    if not apply_enabled("instances"):
+    if not apply_enabled(ctx, "instances"):
         return
     ms = ctx.meta_state
     recorded = ms.launch_params()
     for instance in ctx.instances:
         name = instance.get_name()
-        if not apply_enabled("instances", str(instance.type_), [str(instance.runtime)]):
+        if not apply_enabled(ctx, "instances", str(instance.type_), [str(instance.runtime)]):
             continue
         params = recorded.get(name) or {}
         if not params.get("launched"):

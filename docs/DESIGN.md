@@ -1064,9 +1064,19 @@ state backend seam is inverted: once the state backends are loaded the
 core hands every model's registration (`to_backend_registration`) to
 the terraform collector, rather than each model pushing its own from
 `finalize`, so a state plugin imports nothing from the library.
-Deferred, each a piece of work of its own: the run context's protocol
-(the expensive part; a plugin reaches
-the context through a base builder until then), the hooks and bootstrap
+The run context is read-only and the engine's work is not on it
+([the stage index](CHANGES.md#s124)): `RunContext` is what a run knows
+(the configuration, the collections, the paths, the flags), the loader
+makes one per load from the full configuration and binds it to every
+builder it registers, and the finalizer, bound to the context, owns the
+deferred commands and the runner scripts; nothing on the context loads
+or executes, and neither the context nor the registry is a process
+singleton. A builder reaches its context through `_get_context()`, a
+command takes it, and a model method with no context of its own reaches
+the process's current one through a shim that stands for one release
+with the old name. Deferred, each a piece of work of its own: the run
+context's protocol (the expensive part; the context is now small enough
+to type), the hooks and bootstrap
 entry points, the contract's own compatibility version (it moves in
 lockstep with the workspace until it stops changing), and a separate
 repository for it once stable, with an external plugin as the proof.
@@ -1095,10 +1105,11 @@ core's old import paths stay as re-exports of the contract (the shims:
 side holds the bodies, with no import rewritten in the core or in any
 plugin, so every stream that only imports contract names, the plugins
 and the proof plugin included, needs no reversal. The one later stream
-that would need reversing is a Tier C that injects the context
-(`bind(ctx)`) into the plugins' `_get_context()` sites; while the split
-is provisional, Tier C declares and types the context protocol without
-the injection. Removing the shims is the commitment to the contract: it
+that would need reversing is a Tier C that types the context's protocol
+in the contract; the injection itself (`bind(ctx)` at registration,
+[the stage index](CHANGES.md#s124)) lives in the core and reverses with
+it, so while the split is provisional Tier C declares and types the
+context protocol and nothing in the contract depends on the injection. Removing the shims is the commitment to the contract: it
 is done together with moving the package to its own repository, and
 never unprompted. The operational state -- the tags that bracket the
 work, the undo recipe, the pieces worth re-applying and the standing

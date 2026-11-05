@@ -31,8 +31,8 @@ def test_playbook_mirrors_user_data(tmp_path, monkeypatch):
         params = _params(run)
         assert params
         for name, p in params.items():
-            ud = launch_params.user_data_template(p)
-            play = yaml.safe_load(ansible_launch.launch_playbook(p, name))[0]
+            ud = launch_params.user_data_template(p, run.ctx)
+            play = yaml.safe_load(ansible_launch.launch_playbook(p, name, run.ctx))[0]
             assert play["hosts"] == name and play["become"] is True
             names = " ".join(t["name"] for t in play["tasks"])
             for m in p["mounts"]:
@@ -51,7 +51,7 @@ def test_playbook_mirrors_user_data(tmp_path, monkeypatch):
                 tok = next(t for t in play["tasks"] if "enrollment token" in t["name"])
                 assert tok["no_log"] is True and "sft_enrollment_token" in tok["ansible.builtin.copy"]["content"]
             # runtime values by reference only (extra-vars), never literals
-            text = ansible_launch.launch_playbook(p, name)
+            text = ansible_launch.launch_playbook(p, name, run.ctx)
             if p["group"] and any(m["type"] == "ebs" for m in p["mounts"]):
                 assert "{{ group_gid }}" in text
             if (p.get("enrollment") or {}).get("enrollment") == "sftd-token":
@@ -85,7 +85,7 @@ def test_launch_params_are_unchanged_by_the_emitter(tmp_path, monkeypatch):
         assert summary.ok, summary.error
         before = (run.meta_state / "launch-params.yaml").read_text()
         for name, p in _params(run).items():
-            ansible_launch.launch_playbook(p, name)
+            ansible_launch.launch_playbook(p, name, run.ctx)
         assert (run.meta_state / "launch-params.yaml").read_text() == before
         assert Lifecycle.INSTANCE_IMAGE in run.ctx.generated_lifecycles
     finally:

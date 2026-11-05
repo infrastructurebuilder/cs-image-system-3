@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.v2_support import V2Run, copy_config
+from tests.v2_support import V2Run, cli_context, copy_config
 
 GCE = "gcloud-east1"
 DASK = "imgfile-basic-dask"
@@ -85,7 +85,7 @@ def test_verify_runs_the_suite_on_the_instance_and_records_it_per_build(run, mon
     monkeypatch.setattr(GCPCloudBuilder, "run_session_command",
                         lambda self, name, script, timeout=300: (scripts.append(script) or
                                                                   (0, "CSIS_TEST 0 PASS\nCSIS_TEST 1 PASS\nCSIS_TEST 2 PASS\n")))
-    record = verify_instance("gce-test")
+    record = verify_instance(run.ctx, "gce-test")
     assert record["ok"] and record["checks"][-1] == {"name": "declared tests", "ok": True,
                                                      "detail": "3 assertion(s) passed"}
     assert scripts and "import dask" in scripts[0]
@@ -96,7 +96,7 @@ def test_verify_runs_the_suite_on_the_instance_and_records_it_per_build(run, mon
     monkeypatch.setattr(GCPCloudBuilder, "run_session_command",
                         lambda self, name, script, timeout=300: (0, "CSIS_TEST 0 PASS\nCSIS_TEST 1 FAIL\nCSIS_TEST 2 PASS\n"))
     with pytest.raises(VerificationFailed, match="declared tests: 1 of 3 failed"):
-        verify_instance("gce-test")
+        verify_instance(run.ctx, "gce-test")
     assert run.ctx.meta_state.image_tests()[BUILD]["ok"] is False
 
 
@@ -110,7 +110,7 @@ def test_an_image_without_post_bake_tests_verifies_as_before(run, monkeypatch):
         "evidence": []})
     monkeypatch.setattr(GCPCloudBuilder, "run_session_command",
                         lambda self, *a, **k: (_ for _ in ()).throw(AssertionError("no session expected")))
-    record = verify_instance("gce-test")
+    record = verify_instance(run.ctx, "gce-test")
     assert record["ok"] and [c["name"] for c in record["checks"]] == ["booted image"]
     assert run.ctx.meta_state.image_tests() == {}
 
@@ -156,11 +156,11 @@ def test_released_builds_survive_retention_and_count_as_declared(run, monkeypatc
     assert released_ids(run.ctx, GCE) == {BUILD}
     monkeypatch.setattr(GCPCloudBuilder, "inventory", lambda self: {
         "instances": [], "images": [BUILD], "disks": ["gce-data"], "buckets": ["csis-sandbox-86233086783-default-bucket"]})
-    result = emptiness(GCE)
+    result = emptiness(run.ctx, GCE)
     assert result["empty"] and result["leftovers"]["images"] == []       # a kept release is not a leftover
     monkeypatch.setattr(GCPCloudBuilder, "inventory", lambda self: {
         "instances": [], "images": [BUILD, BASE], "disks": ["gce-data"], "buckets": ["csis-sandbox-86233086783-default-bucket"]})
-    assert emptiness(GCE)["leftovers"]["images"] == [BASE]
+    assert emptiness(run.ctx, GCE)["leftovers"]["images"] == [BASE]
 
 
 # ---------------------------------------------- declared releases (ledger 71)
@@ -195,18 +195,16 @@ def test_declared_release_targets_the_verified_head_only(run):
 def test_release_cli_picks_the_runtimes_head(run):
     """`release <image> --runtime <rt>` releases that runtime's series head
     (the head without a runtime is runtime-blind: the most recent record)."""
-    from typing import Any, cast
-
     import typer
     from cs_image_system.system.cli import release_command
     _seed_gce_chain(run)
     ms = run.ctx.meta_state
     ms.record_image_test(BUILD, {"ok": True, "run": "r2", "checks": []})
-    release_command(ctx=cast(Any, None), image=DASK, build="", model="default", note="", runtime=GCE, declared=False)
+    release_command(ctx=cli_context(run.ctx), image=DASK, build="", model="default", note="", runtime=GCE, declared=False)
     from cs_image_system.base.release import releases
     assert releases(ms)["current"]["default"][DASK] == BUILD
     with pytest.raises(typer.Exit) as e:
-        release_command(ctx=cast(Any, None), image=None, build="", model="default", note="", runtime=None, declared=False)
+        release_command(ctx=cli_context(run.ctx), image=None, build="", model="default", note="", runtime=None, declared=False)
     assert e.value.exit_code == 2
 
 

@@ -13,7 +13,7 @@ instance root whose storage root has no state yet.
 """
 from __future__ import annotations
 
-from v2_support import V2Run, command_lines, tree
+from v2_support import V2Run, cli_context, command_lines, tree
 
 
 def _aws_instance_builder(ctx):
@@ -75,13 +75,12 @@ def test_apply_runtime_implies_the_scope_beside_only(tmp_path, monkeypatch):
     """The decommission recipe says `--only none --apply-runtime <rt>`; `--only`
     used to leave the scope unimplied, so the run planned every other
     runtime's instance root after applying this one."""
-    from typing import Any, cast
     from cs_image_system.system import cli
     run = V2Run(tmp_path, monkeypatch)
     try:
-        monkeypatch.setattr(cli, "_run", lambda lifecycles, **kw: None)
+        monkeypatch.setattr(cli, "_run", lambda ctx, lifecycles, **kw: None)
         rt = "aws-east2-runtime"
-        cli.run_command(cast(Any, None), lifecycles=["instance-image"], only=["none"], apply_runtime=rt)
+        cli.run_command(cli_context(run.ctx), lifecycles=["instance-image"], only=["none"], apply_runtime=rt)
         assert run.ctx.only_runtime_scope == rt and run.ctx.implied_scope == rt
         from cs_image_system.base.commands.run_lifecycles import out_of_scope_builder_dirs
         assert "tofu-gce" in out_of_scope_builder_dirs(run.ctx), "the other cloud's root is out of the scoped run"

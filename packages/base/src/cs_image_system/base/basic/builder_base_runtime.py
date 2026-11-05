@@ -20,6 +20,7 @@ from ..models.provider_specific_image import (
     PSISourceKind,
 )
 from ..models.runtime import RuntimeBuilderModel
+from cs_image_system.contract.runtime import LAUNCH_DELIVERY_BOOT
 if TYPE_CHECKING:
     from .builder_base_image import ImageBuilderBase
     from .builder_base_instance import InstanceBuilderBase
@@ -253,7 +254,6 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
         (the system runs it through ``run_session_command`` after the apply,
         exactly as it runs the accounts script; a container has no first
         boot). The script itself is the same on both."""
-        from cs_image_system.contract.runtime import LAUNCH_DELIVERY_BOOT
         return LAUNCH_DELIVERY_BOOT
 
     def bake_settle_commands(self, os_family: str | None = None) -> list[str]:
@@ -423,7 +423,6 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
         architecture: str | None = None,
     ) -> ProviderSpecificImage:
         """Create and register a resolved ProviderSpecificImage for this runtime."""
-        from ..registry import Registry
         psi = self.provider_specific_image_class().resolved(
             source_name=source_name,
             source_kind=source_kind,
@@ -433,7 +432,7 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
             raw_query_result=raw_query_result,
             architecture=architecture,
         )
-        Registry().register_built_instance(psi)
+        self._get_context().reg.register_built_instance(psi)
         log.debug(f"Registered resolved provider-specific image {psi.get_name()} -> {identifier}")
         return psi
 
@@ -451,7 +450,6 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
         this run (user Images) or a prior base-image run (BaseImages, which
         carry OS_BUILDER source_kind and must pass architecture explicitly).
         """
-        from ..registry import Registry
         psi = self.provider_specific_image_class().deferred(
             source_name=image.get_name(),
             source_kind=source_kind,
@@ -460,7 +458,7 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
             architecture=(architecture if architecture is not None
                           else getattr(image, "architecture", None)),
         )
-        Registry().register_built_instance(psi)
+        self._get_context().reg.register_built_instance(psi)
         log.debug(f"Registered deferred provider-specific image {psi.get_name()} "
                   f"with pattern {psi.deferred_name_pattern}")
         return psi

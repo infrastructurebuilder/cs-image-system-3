@@ -73,7 +73,7 @@ def test_dispose_image_command_now_works_for_amis(aws):
     ms = run.ctx.meta_state
     ms.add_build({"build_id": "ami-old", "series": "imgfile-basic-dask", "runtime": "aws-east2-runtime",
                   "name": "old", "parent": "vendor", "run": "r0"})
-    results = dispose_images(["ami-old"])
+    results = dispose_images(run.ctx, ["ami-old"])
     assert [r.build_id for r in results] == ["ami-old"] and results[0].deleted is True
     assert ms.build("ami-old") is None and ec2.deregistered == ["ami-old"]
 
@@ -104,7 +104,7 @@ def test_user_data_ends_with_the_completion_marker(aws):
     from cs_image_system.base.launch_params import compute_launch_params, user_data_template
     run, _ = aws
     inst = next(i for i in run.ctx.instances if i.get_name() == "test2")
-    text = user_data_template(compute_launch_params(run.ctx, inst))
+    text = user_data_template(compute_launch_params(run.ctx, inst), run.ctx)
     assert text.rstrip().splitlines()[-1] == "date -u +%FT%TZ > /var/lib/csis/launch-applied"
 
 
@@ -118,12 +118,12 @@ def test_instance_userdata_runs_before_the_marker_and_is_a_launch_parameter(aws)
     inst.userdata = "echo proof > /tmp/proof\nfalse"
     params = compute_launch_params(run.ctx, inst)
     assert params["userdata"] == "echo proof > /tmp/proof\nfalse"
-    tail = user_data_template(params).rstrip().splitlines()[-5:]
+    tail = user_data_template(params, run.ctx).rstrip().splitlines()[-5:]
     assert tail == ["# instance userdata (declared on the instance)", "echo proof > /tmp/proof", "false",
                     "mkdir -p /var/lib/csis", "date -u +%FT%TZ > /var/lib/csis/launch-applied"]
     inst.userdata = ""
     params = compute_launch_params(run.ctx, inst)
-    assert "userdata" not in params and "userdata" not in user_data_template(params)
+    assert "userdata" not in params and "userdata" not in user_data_template(params, run.ctx)
 
 
 def test_an_aws_instance_may_be_ephemeral(tmp_path, monkeypatch):
@@ -169,7 +169,7 @@ def test_restamp_records_the_current_fingerprint_on_heads_and_retags(tmp_path, m
         assert reason is not None and reason.startswith("inputs changed")
         plan = restamp_plan(run.ctx, "aws-east2-runtime", ["basic-rh-10"])
         assert [(r.build_id, r.previous[:4]) for r in plan] == [("ami-old-head", "0000")]   # heads only
-        results = restamp("aws-east2-runtime", ["basic-rh-10"])
+        results = restamp(run.ctx, "aws-east2-runtime", ["basic-rh-10"])
         assert results[0].retagged is True and retags[-1][0] == "ami-old-head"
         assert set(retags[-1][1]) == {"csis_fingerprint"}
         head = ms.build("ami-old-head")
@@ -192,7 +192,7 @@ def test_restamp_dry_run_changes_nothing(tmp_path, monkeypatch):
         ms = run.ctx.meta_state
         ms.add_build({"build_id": "ami-x", "series": "basic-rh-10", "runtime": "aws-east2-runtime", "name": "n",
                       "run": "2026_09_02t00_00_00_000000", "parent": "vendor", "input_fingerprint": "0" * 64})
-        plan = restamp("aws-east2-runtime")
+        plan = restamp(run.ctx, "aws-east2-runtime")
         assert [r.build_id for r in plan] == ["ami-x"] and plan[0].retagged is None
         untouched = ms.build("ami-x")
         assert untouched is not None and untouched["input_fingerprint"] == "0" * 64
@@ -241,7 +241,7 @@ def test_relabel_retags_only_the_images_whose_tags_disagree_with_their_record(tm
         assert [(r.build_id, r.differences) for r in plan] == [
             ("dask-1", ["parent: tag=series-basic-rh-10 record=base-1",
                         "fingerprint: tag=293d6de5ab5f3b4f record=1733b718d8c52101"])]
-        results = relabel("gcloud-east1")
+        results = relabel(run.ctx, "gcloud-east1")
         assert results[0].retagged is True
         assert retags[-1] == ("dask-1", {"csis_series": "imgfile-basic-dask", "csis_parent": "base-1",
                                          "csis_run": "2026_09_08t12_48_23_888542",
@@ -264,7 +264,7 @@ def test_relabel_dry_run_retags_nothing(tmp_path, monkeypatch):
     try:
         _seed_follow_pair(run.ctx.meta_state)
         monkeypatch.setattr(GCPCloudBuilder, "query_images", lambda self, series: _real_images())
-        plan = relabel("gcloud-east1", builds=["dask-1"])
+        plan = relabel(run.ctx, "gcloud-east1", builds=["dask-1"])
         assert [r.build_id for r in plan] == ["dask-1"] and plan[0].retagged is None
         assert run.retags == []
     finally:

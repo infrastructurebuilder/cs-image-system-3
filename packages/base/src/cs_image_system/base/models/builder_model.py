@@ -8,7 +8,6 @@ import yaml
 import logging
 
 from cs_image_system.base.helpers.field_helpers import fk_field
-from cs_image_system.base.registry import Registry
 
 
 log = logging.getLogger(__name__)
@@ -24,6 +23,8 @@ from cs_image_system.contract.core import (
     NameTypedProtocol,
     RuntimeEnabledBuilderModelProtocol,
 )
+from cs_image_system.base.registry import current_registry
+from ..orchestrator import Orchestrator
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
 class NameTyped(NameTypedProtocol):
@@ -62,7 +63,7 @@ class NameTyped(NameTypedProtocol):
         return f"{classifier}::{mid}::{self.get_name()}"
     def __post_init__(self) -> None:
         # No super().__post_init__() because this is the base class
-        self._reg = Registry()
+        self._reg = current_registry()  # a model holds no context (stage 124 shim)
         self._finalized:bool = False
         # Preserve the original name (case/spacing) before it is normalized below.
         self._display_name = self.name
@@ -281,7 +282,6 @@ class BuilderModel(NameTyped, BuilderModelProtocol):
         return exported_yaml
     def export_self_to_dict(self) -> dict[str, Any]:
         """Export the object to a dictionary, applying any necessary transformations in the process."""
-        from ..orchestrator import Orchestrator
         return Orchestrator().get_converter().unstructure(self)
     
 

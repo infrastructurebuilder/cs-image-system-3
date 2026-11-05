@@ -195,7 +195,7 @@ def test_emptiness_leaves_another_configurations_things_alone_and_names_the_unla
         "disks": ["gce-data", "their-data", "old-scratch"], "buckets": ["csis-sandbox-86233086783-default-bucket", "their-bucket"],
         "owners": {"instances": {"walk-gce-1": THEIRS, "scratch": OURS}, "images": {"team-node-x": THEIRS},
                    "disks": {"their-data": THEIRS, "gce-data": OURS}, "buckets": {"their-bucket": THEIRS}}})
-    result = emptiness(GCE)
+    result = emptiness(run.ctx, GCE)
     assert result["leftovers"] == {"instances": ["scratch"], "images": [], "disks": ["old-scratch"], "buckets": []}
     assert result["elsewhere"] == {"instances": {THEIRS: 1}, "images": {THEIRS: 1}, "disks": {THEIRS: 1}, "buckets": {THEIRS: 1}}
     assert result["unlabelled"] == {"disks": ["old-scratch"]}
@@ -204,7 +204,7 @@ def test_emptiness_leaves_another_configurations_things_alone_and_names_the_unla
     monkeypatch.setattr(GCPCloudBuilder, "inventory", lambda self: {
         "instances": ["walk-gce-1"], "images": [], "disks": ["gce-data"], "buckets": ["csis-sandbox-86233086783-default-bucket"],
         "owners": {"instances": {"walk-gce-1": THEIRS}}})
-    result = emptiness(GCE)
+    result = emptiness(run.ctx, GCE)
     assert result["empty"] and result["elsewhere"] == {"instances": {THEIRS: 1}}
 
 
@@ -234,7 +234,7 @@ def test_relabel_gives_the_id_to_standing_storages_and_machines_that_lack_it(run
     retagged: list[tuple[str, str]] = []
     monkeypatch.setattr(TofuEbsStorageBuilder, "retag_storage", lambda self, storage, tags: retagged.append(("storage", storage.get_name())) or True)
     monkeypatch.setattr(AwsCloudBuilder, "retag_instance", lambda self, name, tags: retagged.append(("instance", name)) or True)
-    done = relabel(AWS)
+    done = relabel(run.ctx, AWS)
     assert [r.retagged for r in done] == [True, True] and retagged == [("storage", ebs_name), ("instance", "test2")]
     # a build filter asks about images alone
     assert relabel_plan(run.ctx, AWS, ["ami-none"]) == []

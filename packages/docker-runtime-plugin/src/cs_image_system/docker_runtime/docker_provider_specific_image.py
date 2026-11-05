@@ -6,6 +6,8 @@ import logging
 from typing import Any
 
 from cs_image_system.base.models.provider_specific_image import ProviderSpecificImage
+from cs_image_system.base.run_context import current_context   # a model holds no context (stage 124 shim)
+from .docker_names import tag_name
 
 log = logging.getLogger(__name__)
 
@@ -26,9 +28,7 @@ class DockerProviderSpecificImage(ProviderSpecificImage):
         """``<repository>:<prefix as a tag>`` for a deferred image."""
         if not self.deferred_name_pattern:
             return None
-        from cs_image_system.base.global_context import GlobalTypeContext
-        from .docker_names import tag_name
-        rtb = GlobalTypeContext().runtime_builders.get(self.runtime)
+        rtb = current_context().runtime_builders.get(self.runtime)
         model = getattr(rtb, "model", None)
         repo = model.get_repository() if model is not None and hasattr(model, "get_repository") else "csis"
         return f"{repo}:{tag_name(self.deferred_name_pattern)}"

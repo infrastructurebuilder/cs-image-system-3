@@ -123,7 +123,7 @@ class ProviderSpecificImage(ABC):
         """
         ...
 
-    # --- NameTypedProtocol surface, so Registry().register_built_instance works as-is ---
+    # --- NameTypedProtocol surface, so Registry.register_built_instance works as-is ---
     def get_name(self) -> str:
         return psi_key(self.source_name, self.runtime)
 

@@ -67,7 +67,7 @@ def test_a_shell_with_no_age_identity_is_told_so_in_one_line(cli_root, monkeypat
 
 def test_lapsed_aws_keys_are_the_environments_failure_with_the_remedy_for_keys(cli_root, monkeypatch):
     from botocore.exceptions import ClientError
-    from cs_image_system.base import global_context as gc
+    from cs_image_system.system import cli as gc     # patched where it is read (a top-level import since stage 124)
     err = ClientError({"Error": {"Code": "RequestExpired", "Message": "Request has expired."}}, "DescribeVpcs")
 
     def boom(*a, **kw):
@@ -80,7 +80,7 @@ def test_lapsed_aws_keys_are_the_environments_failure_with_the_remedy_for_keys(c
 
 
 def test_a_missing_opa_key_pair_is_the_environments_failure(cli_root, monkeypatch):
-    from cs_image_system.base import global_context as gc
+    from cs_image_system.system import cli as gc     # patched where it is read (a top-level import since stage 124)
 
     def boom(*a, **kw):
         raise ValueError("Okta builder oktagroups is missing a key value.  Expected to find environment variable "
@@ -93,7 +93,7 @@ def test_a_missing_opa_key_pair_is_the_environments_failure(cli_root, monkeypatc
 
 
 def test_an_unknown_failure_keeps_its_traceback_and_so_does_verbose(cli_root, monkeypatch):
-    from cs_image_system.base import global_context as gc
+    from cs_image_system.system import cli as gc     # patched where it is read (a top-level import since stage 124)
 
     def boom(*a, **kw):
         raise RuntimeError("something nobody classified")
@@ -238,7 +238,7 @@ def test_a_container_that_cannot_start_is_unstarted_not_a_failed_modification(tm
 
 
 def test_the_command_says_cannot_start_and_exits_1(cli_root, monkeypatch):
-    from cs_image_system.base import mod_tests
+    from cs_image_system.system import cli as mod_tests     # patched where it is read (a top-level import since stage 124)
     from cs_image_system.base.mod_tests import ModTestResult
     unstarted = ModTestResult(image="img", mod="m", type="bash-remote", content_hash="h", target="almalinux:10",
                               status="unstarted", detail="cannot start a container from almalinux:10: docker pull "

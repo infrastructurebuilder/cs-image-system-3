@@ -26,6 +26,7 @@ from .capabilities import (
 )
 from .lifecycles import Lifecycle
 from .storage_state import attachments, validate_transitions
+from .image_tests import validate_tests_spec
 
 if TYPE_CHECKING:
     from .global_context import GlobalTypeContext
@@ -205,7 +206,6 @@ def validate_capabilities(ctx: "GlobalTypeContext", requested: list[Lifecycle]) 
 
 
 def validate_test_specs(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> list[str]:
-    from .image_tests import validate_tests_spec
     errors: list[str] = []
     for name in sorted(ctx.os_builders):
         errors += validate_tests_spec(getattr(ctx.os_builders[name].model, "tests", None) or {}, f"base image '{name}'")

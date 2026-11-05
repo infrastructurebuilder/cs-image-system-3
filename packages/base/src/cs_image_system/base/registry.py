@@ -10,8 +10,6 @@ from functools import reduce
 
 from cs_image_system.contract.core import NameTypedProtocol, PluginArtifactProtocol, PluginMetadataProtocol
 
-from .singleton import singleton
-
 log = logging.getLogger(__name__)
 
 from .constants import DEFAULT, OOPS_DEFAULTS, VCT
@@ -22,19 +20,23 @@ def sanitize_classifier(classifer:VCT| None) -> VCT:
     if classifer in [VCT.CLOUD_BUILDER_MODEL, VCT.CONTAINER_BUILDER_MODEL]:
         return VCT.RUNTIME_BUILDER_MODEL
     return classifer
-@singleton
 class Registry:
     """A registry for mapping type and key identifiers to classes for polymorphic deserialization.
     This registry allows for dynamic registration of classes that can be instantiated based on
     type and key identifiers found in configuration data. It supports multiple categories of
     classes (e.g., builders, executables) and allows for flexible deserialization of complex
     configurations.
+
+    One registry per run (stage 124): the loader makes it, loads the
+    installed plugins into it (:func:`~.loader.load_plugins`) and carries it
+    as ``ctx.reg``; a builder reads it through its bound context. The
+    process holds the one made last for the code that has no context handle
+    (a model, a pre-load command) -- :func:`current_registry`, the
+    one-release shim that stands where the ``@singleton`` fetch stood.
     """
 
-    # NOTE: state is instance-level (built in __init__), NOT class-level. Registry is
-    # a @singleton, so there is one shared instance and behavior is unchanged within a
-    # run -- but the state is no longer mutable class state shared across the process,
-    # and reset() gives an explicit lifecycle (clean reruns, test isolation).
+    # NOTE: state is instance-level (built in __init__), NOT class-level, so
+    # two registries share nothing; reset() gives an explicit lifecycle.
     registry: dict[str, dict[str, type]]
     vct_type_registry: dict[VCT, list[type]]
     reverse_registry: dict[type, dict[VCT, list[str]]]
@@ -50,6 +52,17 @@ class Registry:
 
     def __init__(self):
         self._init_state()
+
+    # The registry is an identity object: a model copy (`copy.deepcopy` of an
+    # executable or a tag map) keeps its handle to THE registry rather than
+    # cloning every registered model and builder (and, since stage 124,
+    # through a builder's bound context, the whole run).
+    def __deepcopy__(self, memo: dict[int, Any]) -> "Registry":
+        memo[id(self)] = self
+        return self
+
+    def __copy__(self) -> "Registry":
+        return self
 
     def _init_state(self) -> None:
         self.registry = {}
@@ -67,8 +80,8 @@ class Registry:
     def reset(self) -> None:
         """Clear all registered models, instances, builders, defaults and aliases.
 
-        Enables loading a fresh configuration into the (singleton) registry without
-        leaking state from a previous run.
+        A fresh run makes a fresh registry; this empties one in place for a
+        holder that keeps it (a unit test's fixture).
         """
         self._init_state()
 
@@ -313,3 +326,33 @@ class Registry:
         # return self.builder_for_model.get(model, None)
         return self.registry.get(type_name,{}).get(classification, None)
 
+
+
+# --- the one registry of this process (one-release shim, stage 124)
+_CURRENT: Registry | None = None
+
+
+def bind_current_registry(reg: Registry | None) -> None:
+    """Make ``reg`` the registry :func:`current_registry` answers with
+    (``None`` unbinds). The loader binds the one it made for its run before
+    any model of that run is parsed; the test harness unbinds between loads.
+    Nothing else should call this."""
+    global _CURRENT
+    _CURRENT = reg
+
+
+def current_registry() -> Registry:
+    """The registry of the run loaded last in this process, or -- before any
+    run is loaded (a pre-load command: the preflight, the catalog, the
+    scan) -- one made and bound here on the first ask, for the plugins to
+    load into.
+
+    This is the one-release shim that stands in for the retired
+    ``Registry()`` singleton fetch: a caller that reaches for it should hold
+    the registry instead (a builder has ``self._get_context().reg``; a
+    command has ``ctx.reg``; a model holds no context, so a model keeps
+    using this until the models are handed theirs)."""
+    global _CURRENT
+    if _CURRENT is None:
+        _CURRENT = Registry()
+    return _CURRENT

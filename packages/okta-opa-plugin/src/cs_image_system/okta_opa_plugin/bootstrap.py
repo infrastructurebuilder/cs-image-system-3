@@ -38,6 +38,7 @@ from cs_image_system.base.bootstrap.facts import Facts, collect, real
 from cs_image_system.base.bootstrap.questions import BY_HAND, Answers, Question, Rendered, Secret, Section
 
 from . import okta_app_check
+from .opa_gids import OpaGidResolver, credentials_from_env
 
 GUIDE = "CI_SETUP.md 3.5"
 UNASKABLE_OPA = ("OPA could not be asked: the team's key pair is not in the environment "
@@ -68,7 +69,6 @@ def api_host_default(facts: Facts, answers: Answers) -> str | None:
 # -------------------------------------------------------------- the world
 #: Seams the tests replace: the OPA listings and the Okta app check.
 def _listings(api_host: str, team: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]] | None:
-    from .opa_gids import OpaGidResolver, credentials_from_env
     try:
         key, secret = credentials_from_env(team)
     except ValueError:

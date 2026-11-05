@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from .os_builder_model import OsBuilderModel
     from .runtime import RuntimeBuilderModel
 from .base_image import BaseImage
+from ..image_sources import ImageSourceCatalog
 log = logging.getLogger(__name__)
 
 
@@ -218,7 +219,6 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
         family = parent.get_vendor_family() if parent is not None else ""
         version = parent.get_family_version() if parent is not None else None
         runtime_type = self.runtime_type()
-        from ..image_sources import ImageSourceCatalog
         q = (ImageSourceCatalog().block(family, version, runtime_type) if runtime_type and family else None) or ImageQuery()
         who = f"OS builder {parent.get_name() if parent is not None else '?'}"
         if parent is not None and parent.get_query():

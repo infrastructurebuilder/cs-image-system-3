@@ -95,12 +95,12 @@ def test_upgrade_image_moves_one_runtime_pin(tmp_path, monkeypatch):
         ms.add_build(_build("rhel8-gce-1", "basic-rh-10", GCE))
         ms.bind_image("imgfile-basic-dask", "ami-1", "run-1", AWS)
         # single-runtime image: --runtime optional, head is the AWS head
-        previous, to = upgrade("image", "imgfile-basic-dask", runtime="aws-east2-runtime")
+        previous, to = upgrade(run.ctx, "image", "imgfile-basic-dask", runtime="aws-east2-runtime")
         assert (previous, to) == ("ami-1", "ami-2")
         assert ms.image_pin("imgfile-basic-dask", AWS) == "ami-2"
         # a build from another runtime is refused
         try:
-            upgrade("image", "imgfile-basic-dask", to="rhel8-gce-1", runtime=AWS)
+            upgrade(run.ctx, "image", "imgfile-basic-dask", to="rhel8-gce-1", runtime=AWS)
             assert False, "expected refusal"
         except ValueError as e:
             assert "baked on runtime" in str(e)
@@ -108,7 +108,7 @@ def test_upgrade_image_moves_one_runtime_pin(tmp_path, monkeypatch):
         # is legal; the config-level refusal still holds for an image that
         # stays AWS-only
         try:
-            upgrade("image", "imgfile-data-science", runtime=GCE)
+            upgrade(run.ctx, "image", "imgfile-data-science", runtime=GCE)
             assert False, "expected refusal"
         except ValueError as e:
             assert "not baked on runtime" in str(e)

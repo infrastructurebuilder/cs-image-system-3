@@ -25,6 +25,9 @@ from typing import TYPE_CHECKING
 
 from .lifecycle import ExecutionLifecyclePhase
 from .lifecycles import LifecycleLike, LifecycleSpec
+from .commands.dispose import retention_plan
+from .utils import system_cli_executable_with_config, system_cli_executable
+from .lifecycles import register_lifecycle
 
 if TYPE_CHECKING:
     from .global_context import GlobalTypeContext
@@ -43,8 +46,6 @@ def ephemeral_runtimes(ctx: "GlobalTypeContext") -> list[str]:
 def after_generate(ctx: "GlobalTypeContext", lifecycle: LifecycleLike) -> None:
     if lifecycle.value != RETENTION_LIFECYCLE.name:
         return
-    from .commands.dispose import retention_plan
-    from .utils import system_cli_executable_with_config
     # stage 45: a run scoped to one runtime (--only-runtime, or --apply-runtime
     # implying it) disposes within that runtime alone -- CI performs on the
     # perform runtime with an identity that must never write to the other one
@@ -75,7 +76,7 @@ def after_generate(ctx: "GlobalTypeContext", lifecycle: LifecycleLike) -> None:
     wd = ctx.generation_path / RETENTION_LIFECYCLE.name
     wd.mkdir(parents=True, exist_ok=True)
     args = ["dispose", "image", "--retention", *(["--runtime", str(scope)] if scope else [])]
-    steps = [system_cli_executable_with_config(args, wd)]
+    steps = [system_cli_executable_with_config(ctx, args, wd)]
     if transient_on_ephemeral:
         steps.append(transient_storage_teardown_command(ctx, wd))
     ctx.extend_finalization_phase(ExecutionLifecyclePhase.INSTANCE_GENERATION, steps)
@@ -100,7 +101,6 @@ def transient_storage_teardown_command(ctx: "GlobalTypeContext", wd):
     transient storages are undeclared there and destroyed through the
     gate; no state query (this run's already ran), no commit (this run
     commits at its end)."""
-    from .utils import system_cli_executable
     head: list[str] = ["--root-dir", str(ctx.working_path), "--no-dry-run"]
     for path, data in zip(getattr(ctx, "overlays", []), getattr(ctx, "_overlay_data", [])):
         if not any(k != "config" for k in data):
@@ -113,6 +113,5 @@ def transient_storage_teardown_command(ctx: "GlobalTypeContext", wd):
 
 
 def register(runner) -> None:
-    from .lifecycles import register_lifecycle
     register_lifecycle(RETENTION_LIFECYCLE)
     runner.register_after_generate(after_generate)

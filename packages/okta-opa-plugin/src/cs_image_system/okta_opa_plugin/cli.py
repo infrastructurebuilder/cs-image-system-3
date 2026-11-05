@@ -28,6 +28,9 @@ from typing import Annotated
 import typer
 
 from cs_image_system.contract.commands import CommandMount
+from .workload_token import workload_facts, WorkloadTokenError, mint_token, NAME_VARS, WorkloadNames
+from . import workload_token as wt
+from cs_image_system.base.commands.login_proof import verify_login_command
 
 workload_app = typer.Typer(help="Stage 56: what CI's workload login needs from the configuration.")
 
@@ -43,10 +46,7 @@ def workload_describe_command(
     team and the API address. Nothing secret; empty when none is named.
     Its own group, not `identity`: that group is exempt from loading the
     configuration (export-gids reads stdin), and this needs it loaded."""
-    from cs_image_system.base.global_context import GlobalTypeContext
-    from .workload_token import workload_facts
-    typer_cntx.obj["deferred_load"]()
-    facts = workload_facts(GlobalTypeContext())
+    facts = workload_facts(_loaded(typer_cntx))
     if env:
         if not facts:
             typer.secho("workload describe: no group builder names a workload connection and role", fg=typer.colors.RED, err=True)
@@ -76,7 +76,6 @@ def workload_token_command(typer_cntx: typer.Context) -> None:
     which loads the configuration. Needs a job holding `id-token: write`
     (ACTIONS_ID_TOKEN_REQUEST_URL / _TOKEN) and the `sft` client. Exit 2 when
     not in such a job or a name cannot be found, 1 when OPA issued nothing."""
-    from .workload_token import WorkloadTokenError, mint_token
     env = dict(os.environ)
     names = _workload_names(typer_cntx, env, "workload token")
     try:
@@ -87,19 +86,22 @@ def workload_token_command(typer_cntx: typer.Context) -> None:
     typer.echo(token, nl=False)
 
 
+def _loaded(typer_cntx: typer.Context):
+    """The configuration's context: loaded now through ``deferred_load``
+    (which returns it -- the sub-command's context object predates the
+    load), else the one the console script's callback already put in the
+    context object (stage 124: the context is passed, never fetched)."""
+    load = typer_cntx.obj.get("deferred_load")
+    return load() if load is not None else typer_cntx.obj["ctx"]
+
+
 def _workload_names(typer_cntx: typer.Context, env: dict[str, str], what: str):
     """The four names from the environment, else from the configuration's
     first group builder that names a workload connection (loads it)."""
-    from .workload_token import NAME_VARS, WorkloadNames
     names = WorkloadNames.from_environment(env)
     if names is not None:
         return names
-    load = typer_cntx.obj.get("deferred_load")
-    if load is not None:
-        load()
-    from cs_image_system.base.global_context import GlobalTypeContext
-    from .workload_token import workload_facts
-    facts = workload_facts(GlobalTypeContext())
+    facts = workload_facts(_loaded(typer_cntx))
     if not facts:
         typer.secho(f"{what}: no group builder names a workload connection and role, and the "
                     f"environment lacks {', '.join(v for v in NAME_VARS if not env.get(v))}",
@@ -125,7 +127,6 @@ def workload_probe_command(typer_cntx: typer.Context) -> None:
     branch pin), `role: not judged` when no such machine stands. Exit 0
     once the connection accepted the token, whatever the role verdict; the
     exits of `workload token` otherwise."""
-    from . import workload_token as wt
     env = dict(os.environ)
     names = _workload_names(typer_cntx, env, "workload probe")
     try:
@@ -135,11 +136,7 @@ def workload_probe_command(typer_cntx: typer.Context) -> None:
         raise typer.Exit(code=e.exit_code)
     typer.secho(f"workload probe: connection {names.connection}: accepted this run's token and issued one (masked)",
                 fg=typer.colors.GREEN)
-    load = typer_cntx.obj.get("deferred_load")
-    if load is not None:
-        load()
-    from cs_image_system.base.global_context import GlobalTypeContext
-    target = wt.probe_target(GlobalTypeContext())
+    target = wt.probe_target(_loaded(typer_cntx))
     verdict, detail = wt.probe_role(names, token, target[0] if target else None)
     colour = {"granted": typer.colors.GREEN, "not granted": typer.colors.YELLOW}.get(verdict)
     typer.secho(f"workload probe: role {names.role}: {verdict} -- {detail}"
@@ -151,7 +148,6 @@ def command_mounts() -> list[CommandMount]:
     configuration themselves) and ``verify login`` under the system's
     ``verify`` sub-app -- the core's one callback, which every identity
     plugin mounts (a shared command: mounted once, whoever is installed)."""
-    from cs_image_system.base.commands.login_proof import verify_login_command
     return [
         CommandMount(name="workload", app=workload_app, deferred_load=True),
         CommandMount(name="login", path=("verify",), callback=verify_login_command),

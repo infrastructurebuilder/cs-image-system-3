@@ -167,10 +167,9 @@ def test_an_overlay_naming_an_item_none_is_refused(tmp_path, monkeypatch):
 
 # ---------------------------------------- (a) every model class, the backstop in code
 
-def _loaded_models() -> dict[type, Any]:
-    from cs_image_system.base.registry import Registry
+def _loaded_models(ctx) -> dict[type, Any]:
     seen: dict[type, Any] = {}
-    for instances in Registry().instances.values():
+    for instances in ctx.reg.instances.values():
         for inst in instances.values():
             model = getattr(inst, "model", inst)
             if dataclasses.is_dataclass(model) and hasattr(model, "name"):
@@ -186,8 +185,8 @@ def test_every_named_model_class_refuses_every_word_as_a_name_and_an_alias(monke
     the name it ends with is not reserved."""
     stub_environment(monkeypatch)
     try:
-        load_context(FIXTURE_CONFIG)
-        models = _loaded_models()
+        ctx = load_context(FIXTURE_CONFIG)
+        models = _loaded_models(ctx)
         # a plugin may load its own subclass of a core item model (an identity
         # plugin's user with its profile fields): the base class's name counts
         names = {base.__name__ for cls in models for base in cls.__mro__}

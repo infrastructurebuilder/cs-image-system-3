@@ -35,6 +35,9 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from .meta_state import META_STATE_DIRNAME
+from .launch_params import hostname_problems, will_replace
+from .utils import apply_enabled
 
 if TYPE_CHECKING:
     from .global_context import GlobalTypeContext
@@ -59,7 +62,6 @@ class PoolLine:
 
 
 def pool_path(config_root: Path | str) -> Path:
-    from .meta_state import META_STATE_DIRNAME
     return Path(config_root) / META_STATE_DIRNAME / POOL_FILE
 
 
@@ -106,7 +108,6 @@ def pool_problems(path: Path, *, reserved: set[str] | None = None) -> list[str]:
     label (RFC 1123, at most 63 characters -- it goes into OPA as an
     AltNames entry beside the canonical name, stage 58), a repeat of another
     free line, or a name the configuration already gives an instance."""
-    from .launch_params import hostname_problems
     problems: list[str] = []
     seen: set[str] = set()
     for ln in read_pool(path):
@@ -213,7 +214,6 @@ def release_unlaunched(ctx: "GlobalTypeContext") -> list[str]:
 def _new_machine(ctx: "GlobalTypeContext", instance: Any) -> bool:
     """Whether the launch parameters being computed are for a machine that
     does not exist yet: never launched, or a pending/follow replacement."""
-    from .launch_params import will_replace
     recorded = ctx.meta_state.launch_params().get(instance.get_name()) or {}
     return not recorded.get("launched") or will_replace(ctx, instance)
 
@@ -237,8 +237,7 @@ def alias_for(ctx: "GlobalTypeContext", instance: Any, canonical: str) -> str | 
         return _DRAWN[key]
     if str(recorded.get("run") or "") == str(ctx.run_id) and recorded.get("alias"):
         return str(recorded["alias"])              # drawn earlier in this run, already recorded
-    from .utils import apply_enabled
-    can_launch = (not ctx.dry_run) and apply_enabled("instances", str(instance.type_), [str(instance.runtime)])
+    can_launch = (not ctx.dry_run) and apply_enabled(ctx, "instances", str(instance.type_), [str(instance.runtime)])
     if not can_launch:
         would = peek(path)
         if would:

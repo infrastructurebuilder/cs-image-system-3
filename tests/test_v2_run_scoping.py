@@ -206,7 +206,7 @@ def test_only_runtime_scopes_the_terraform_roots_too(tmp_path, monkeypatch):
     run = V2Run(tmp_path, monkeypatch, config_root=root)
     try:
         run.ctx.only_runtime_scope = AWS
-        assert root_in_runtime_scope(AWS) and not root_in_runtime_scope(GCE) and root_in_runtime_scope(None)
+        assert root_in_runtime_scope(run.ctx, AWS) and not root_in_runtime_scope(run.ctx, GCE) and root_in_runtime_scope(run.ctx, None)
         summary = run.run(["storage", "instance-image"], apply=True, only=["none"])
         assert summary.ok, summary.error
         roots = {p.relative_to(run.generated).parts[1] for p in run.generated.rglob("*.tf")}

@@ -304,7 +304,6 @@ def test_destroying_an_archived_ebs_volume_deletes_the_archive_and_whitelists_no
 
 
 def test_archived_ebs_lookup_expects_the_snapshot_not_the_volume(prepared, monkeypatch):
-    from cs_image_system.aws_runtime import aws_utils
     root, make = prepared
     _record(root, "mnt_data", "archived", {"builder": "aws-ebs", "type": "ebs", "archive": "csis-mnt-data-archive"})
     run = make()
@@ -320,7 +319,8 @@ def test_archived_ebs_lookup_expects_the_snapshot_not_the_volume(prepared, monke
             self.calls.append(("volumes", kw)); return {"Volumes": []}
     ec2 = FakeEC2([{"SnapshotId": "snap-1", "State": "completed", "VolumeSize": 100,
                     "Tags": [{"Key": "Name", "Value": "csis-mnt-data-archive"}]}])
-    monkeypatch.setattr(aws_utils, "aws_client", lambda service, cfg: ec2)
+    from cs_image_system.tf_ebs_instance_plugin import tf_storage_builder
+    monkeypatch.setattr(tf_storage_builder, "aws_client", lambda service, cfg: ec2)   # patched where it is read (a top-level import since stage 124)
     builder = run.ctx.storage_builders["aws-ebs"]
     storage = next(s for s in run.ctx.storages if s.get_name() == "mnt_data")
     rec = builder._lookup(storage)

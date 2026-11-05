@@ -188,7 +188,7 @@ def _with_a_profile_field(root: Path) -> None:
 def test_a_tree_with_okta_profile_fields_loads_with_the_plugin_and_is_refused_without_it(tmp_path, monkeypatch):
     from cs_image_system.base.global_context import read_config_and_transform
     from cs_image_system.base.models.user import User
-    from cs_image_system.base.registry import Registry
+    from cs_image_system.base.registry import current_registry
     from cs_image_system.okta_opa_plugin.okta_user import OktaUser
     stub_environment(monkeypatch)
     root = copy_config(tmp_path)
@@ -208,12 +208,12 @@ def test_a_tree_with_okta_profile_fields_loads_with_the_plugin_and_is_refused_wi
     assert 'mobile_phone = "+1-555-0100"' in hcl and 'department = "Modeling"' in hcl
     # without the plugin's injected model, the core's User is the item model and the keys are unknown
     reset_singletons()
-    reg = Registry()
+    reg = current_registry()             # the plugins loaded into it; the run below loads into it too
     reg.models[VCT.USER_MODEL].clear()
     reg.defaults_registry.pop(VCT.USER_MODEL, None)
     with pytest.raises(Exception, match="mobile_phone|department|[Ee]xtra"):
         read_config_and_transform(cast(Any, SimpleNamespace(obj={})), root, False, dry_run=True, overlays=[],
-                                  undeclare=[])
+                                  undeclare=[], reg=reg)
 
 
 def test_the_core_user_carries_no_profile_field():

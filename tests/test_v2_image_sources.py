@@ -169,9 +169,9 @@ def test_each_runtime_ships_only_its_own_blocks(package: str, runtime_type: str)
 
 def test_the_stand_in_runtime_is_the_one_that_offers_a_local_target():
     from cs_image_system.base.image_sources import ImageSourceCatalog, stand_in_runtime_type
-    from cs_image_system.base.registry import Registry
+    from cs_image_system.base.registry import current_registry
     assert stand_in_runtime_type() == "docker"
-    assert stand_in_runtime_type(Registry().runtime_builder_classes()) == "docker"
+    assert stand_in_runtime_type(current_registry().runtime_builder_classes()) == "docker"
     # a registry holding no runtime that offers one: no stand-in at all
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
     assert stand_in_runtime_type({"aws": AwsCloudBuilder}) is None
