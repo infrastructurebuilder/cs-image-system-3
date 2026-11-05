@@ -119,8 +119,8 @@ class OsBuilderBase(BuilderBase[TOS], OsBuilderProtocol):
             if query_result is None:
                 query_result = {}
             # One BaseImage spans every runtime the OS builder names; each
-            # runtime subconfig carries ITS vendor image (EXPLORE GCP: a
-            # base image on AWS and GCE at once).
+            # runtime subconfig carries ITS vendor image (the second-cloud
+            # exploration: a base image on two clouds at once).
             rt_image_id, rt_owners = image_id, owners
             if resolutions and img_bldr.model.get_runtime_provider() in resolutions:
                 rt_image_id, rt_owners = resolutions[img_bldr.model.get_runtime_provider()]
@@ -174,8 +174,8 @@ class OsBuilderBase(BuilderBase[TOS], OsBuilderProtocol):
             }
             # stage 63 item 22: the one resolver (entry, config_username, the
             # runtime's ssh_username and default_config_username, the family
-            # user); this used to take the entry or a hard-coded AWS vendor
-            # map, never the two config_username fields
+            # user); this used to take the entry or a hard-coded vendor-user
+            # map for the first cloud, never the two config_username fields
             from ..bake_user import resolve_for_entry
             ssun = resolve_for_entry(ctx, self, os_img_subconfig, str(image_builder_runtime),
                                      what=f"OS builder {self.get_display_name()}")

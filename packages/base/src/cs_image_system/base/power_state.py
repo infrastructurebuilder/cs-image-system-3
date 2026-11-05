@@ -10,7 +10,7 @@ machine back to running, never calls one drifted for being off, and may start
 one only for a specific bounded task that needs it, putting it back after.
 
 Every value here is the system's vocabulary, never a cloud's. A caller must
-not be reading EC2 or GCE spellings, and each runtime plugin maps its own
+not be reading any cloud's spellings, and each runtime plugin maps its own
 provider's states onto these constants (the tables live with the plugins,
 which is where the cloud knowledge belongs).
 
@@ -35,7 +35,7 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------- the vocabulary
 RUNNING = "running"          # on, and the provider says so
 STOPPED = "stopped"          # off, and still exists -- the operator's choice
-SUSPENDED = "suspended"      # off with state preserved (GCE); not STOPPED
+SUSPENDED = "suspended"      # off with state preserved (a cloud that offers it); not STOPPED
 STARTING = "starting"        # on its way up; not yet reachable
 STOPPING = "stopping"        # on its way down, or being destroyed
 ABSENT = "absent"            # no such machine (never created, or gone)

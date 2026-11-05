@@ -226,6 +226,9 @@ def test_what_exists_is_read_or_adopted_and_the_state_binds_to_the_bucket_that_s
                        ("aws_subject_forms", '"both"'), ("aws_repo_id", '"987654"')):
         assert _assigned(tfvars, key, value), key
     assert '"ManagedBy"' in tfvars and "cs-image-system-bootstrap" in tfvars
+    # the AWS_REGION Actions variable is this section's, valued by its own region answer, set by the GitHub module
+    region = bs.read_answers(root / bs.ANSWERS_FILE)["aws"]["region"]
+    assert region and re.search(rf'"AWS_REGION"\s*=\s*"{region}"', tfvars) and '"PERFORM_RUNTIME"' in tfvars
     # the two role ARNs come from the applied root now, not from files; the rest still from files
     script = (out / "set-secrets.sh").read_text()
     assert "from_output AWS_ROLE_ARN aws_read_role_arn" in script and "from_output AWS_APPLY_ROLE_ARN aws_write_role_arn" in script

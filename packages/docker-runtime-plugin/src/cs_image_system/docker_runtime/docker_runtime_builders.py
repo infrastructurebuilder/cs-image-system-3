@@ -11,12 +11,14 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import subprocess
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
 from cs_image_system.base.basic.builder_base_container import ContainerBuilderBase
+from cs_image_system.base.image_sources import packaged_entries_of
 from cs_image_system.base.models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
 from cs_image_system.base.models.provider_specific_image import ProviderSpecificImage
 from cs_image_system.base import power_state
@@ -24,6 +26,7 @@ from cs_image_system.contract.constants import VCT
 from cs_image_system.contract.core import PluginArtifactProtocol
 from cs_image_system.contract.image import ImageQuery
 from cs_image_system.contract.runtime import LAUNCH_DELIVERY_SESSION
+from cs_image_system.contract.session import LoadFailureReport, SessionStatus
 
 from .docker_names import (full_id, is_digest_reference, is_image_id, label_key_problem, movable_tag,
                            parse_movable_tag, same_repository, short_id, tag_name, tag_problem)
@@ -42,6 +45,58 @@ log = logging.getLogger(__name__)
 
 class DockerUnreachable(RuntimeError):
     """The daemon could not be reached (one line; load failures classify it)."""
+
+
+#: the environment names the docker CLI reads its daemon and TLS settings from
+CREDENTIAL_ENVIRONMENT_PREFIXES: tuple[str, ...] = ("DOCKER_",)
+#: what renews a daemon's "session": there is no login, the daemon must answer
+DOCKER_RENEW = "start the daemon (OrbStack, Docker Desktop, the engine on the host), or fix the runtime's `host` / `context`"
+DOCKER_REMEDY = ("the runtime's daemon must answer `docker version` from this machine: start it (OrbStack, Docker "
+                 "Desktop, the engine on the host), or fix the runtime's `host` / `context`; `preflight` says which")
+
+
+def probe_daemon(binary: str, env: dict[str, str], timeout: int = 20) -> tuple[bool, str]:
+    """``docker version`` against ONE daemon: ``(answers, what it said)``
+    -- the engine and API versions, or the first line of why not. The one
+    cloud-like call the preflight makes on this runtime's behalf: a
+    daemon's "session" is its reachability, and nothing else can be read
+    for it."""
+    full = dict(os.environ)
+    full.update(env)
+    try:
+        res = subprocess.run([binary, "version", "--format", "{{.Server.Version}} (api {{.Server.APIVersion}})"],
+                             capture_output=True, text=True, check=False, timeout=timeout, env=full)
+    except FileNotFoundError:
+        return False, f"{binary} is not an executable on this machine"
+    except subprocess.TimeoutExpired:
+        return False, f"no answer within {timeout}s"
+    if res.returncode == 0 and (res.stdout or "").strip():
+        return True, f"answers: engine {(res.stdout or '').strip()}"
+    err = ((res.stderr or res.stdout or "").strip().splitlines() or ["no answer"])[0]
+    return False, f"does not answer: {err[:160]}"
+
+
+def daemon_where(settings: Mapping[str, Any]) -> tuple[dict[str, str], str]:
+    """The daemon environment and its description from a runtime's
+    settings (a raw entry or a model's fields): ``host`` (an ENC marker
+    opened, never shown) or ``context``."""
+    host = settings.get("host")
+    context = settings.get("context")
+    env: dict[str, str] = {}
+    where = "the environment's daemon"
+    if host:
+        from cs_image_system.base.encryption import decrypt_marker, is_marker
+        env["DOCKER_HOST"] = decrypt_marker(str(host)) if is_marker(str(host)) else str(host)
+        where = "host (encrypted)" if is_marker(str(host)) else f"host {host}"
+    elif context:
+        env["DOCKER_CONTEXT"] = str(context)
+        where = f"context {context}"
+    return env, where
+
+
+def _executable_field(exe: Any, key: str) -> Any:
+    """``binary`` / ``name`` of an executables entry, raw (a mapping) or loaded (a model)."""
+    return exe.get(key) if isinstance(exe, Mapping) else getattr(exe, key, None)
 
 
 def translate_image_query(query: ImageQuery) -> dict[str, Any]:
@@ -69,6 +124,30 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
     @property
     def model(self) -> DockerContainerBuilderModel:
         return self._model  # type: ignore
+
+    # ------------------------------------------- the session hooks (the CLASS)
+    @classmethod
+    def session_status(cls, settings: Mapping[str, Any], executables: Mapping[str, Any]) -> SessionStatus | None:
+        """The daemon's reachability, in one ``docker version``: the binary
+        is the ``executables`` entry the runtime's ``executable`` names
+        (default ``docker``), the daemon is ``host`` or ``context``. A
+        daemon that answers has been asked, so it is judged (``renews``),
+        unlike static keys whose lapse nothing can read."""
+        exe = executables.get(str(settings.get("executable") or "docker"))
+        binary = str(_executable_field(exe, "binary") or _executable_field(exe, "name") or "docker")
+        env, where = daemon_where(settings)
+        ok, said = probe_daemon(binary, env)
+        return SessionStatus(where, None, said, present=ok, renews=ok, renew=DOCKER_RENEW)
+
+    @classmethod
+    def credential_environment_prefixes(cls) -> tuple[str, ...]:
+        return CREDENTIAL_ENVIRONMENT_PREFIXES
+
+    @classmethod
+    def classify_failure(cls, exc: BaseException) -> LoadFailureReport | None:
+        if isinstance(exc, DockerUnreachable):
+            return LoadFailureReport("environment", [f"the configuration cannot load: {exc}", f"({DOCKER_REMEDY})"], code=2)
+        return None
 
     def provider_specific_image_class(self) -> type[ProviderSpecificImage]:
         return DockerProviderSpecificImage
@@ -129,6 +208,20 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
 
     def translate_image_query(self, query: ImageQuery) -> dict[str, Any]:
         return translate_image_query(query)
+
+    @classmethod
+    def image_source_entries(cls) -> list[Mapping[str, Any]]:
+        """This runtime's part of the release-owned image-source catalog:
+        the `docker` blocks, shipped as this package's ``data/image-sources.yml``;
+        the local modification tests read their stand-in container from them."""
+        return packaged_entries_of("cs_image_system.docker_runtime")
+
+    @classmethod
+    def local_test_target(cls) -> Callable[..., Any] | None:
+        """The local target the modification tests run on: a throwaway
+        container on the host's daemon (``local_target.make_local_target``)."""
+        from .local_target import make_local_target
+        return make_local_target
 
     def _pull(self, reference: str, platform: str | None) -> dict[str, Any]:
         args = ["pull", "--quiet"]

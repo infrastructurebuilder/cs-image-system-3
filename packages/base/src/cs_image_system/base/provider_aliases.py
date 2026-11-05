@@ -73,8 +73,9 @@ def wanted_aliases(identity: dict[str, Any] | None, canonical: str, declared: st
                    pool_alias: str = "") -> list[str]:
     """The names to give back. The provider-hostname label, when it is a
     different name from the canonical one and a name a hostname may be (on
-    GCE the default label IS the instance name, so nothing; on EC2 the
-    ``ip-…`` name the boot script took away). The bare DECLARED name, when
+    a cloud whose default label IS the instance name, nothing; on one whose
+    hostname is an address-derived ``ip-…`` name, the name the boot script
+    took away). The bare DECLARED name, when
     the canonical one carries a generation suffix (stage 55 step 4):
     ``coops-model`` stays the name a person types, and resolves to the
     machine that stands once the previous generation's registration is

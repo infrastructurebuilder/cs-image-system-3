@@ -71,7 +71,7 @@ current directory). The Justfile drives the live tree named by
 ### 1.2 `type`, aliases and `is_default`
 
 - On a **builder**, `type` names the plugin model that structures the entry
-  (`aws`, `packer-ebs`, `tf-aws-efs`, `okta-tf-ro`, `s3`, …). A plugin may
+  (`aws`, `packer`, `tf-aws-efs`, `okta-tf-ro`, `s3`, …). A plugin may
   register a model under several names; the canonical name is recorded.
 - On a **collection item**, `type` names the builder that owns it, by the
   builder's `name` or one of its `aliases` (`type: pckr-ebs-ans`,
@@ -460,9 +460,10 @@ records its digest; an `image_id` there is a digest reference
 (`almalinux@sha256:...`), never a tag. Bakes run as `root` through the
 daemon, with no init system: `services_enabled` tests do not apply, and an
 instance image owned by an OPA group is refused on this runtime (only a
-`posix` group can own one there). The image builder is `type:
-packer-docker` (6), the instance builder `tofu-docker` and the storage
-builder `tf-docker-volume` (8).
+`posix` group can own one there). The image builder is `type: packer`
+on this runtime (6; the older `packer-docker` key still loads), the
+instance builder `tofu-docker` and the storage builder `tf-docker-volume`
+(8).
 
 An instance on this runtime is a container, and the differences from a
 machine are the ones to know before declaring one: it has no init system
@@ -800,12 +801,23 @@ operator's own `just record` first.
 Key: `image_sources`. The tree's layer of the **image-source catalog**:
 where a vendor image comes from, per family and runtime
 type, written in the SYSTEM's own query vocabulary, which each runtime
-translates to its own. The release ships a catalog
-([`image-sources.yml`](../packages/base/src/cs_image_system/base/data/image-sources.yml)
-in the base package) for every family the plugins serve; the tree's file
-extends or overrides it by family (and version). A tree that declares
-nothing gets the release's catalog, and a tree whose OS builders still
-spell out their own `owners` and `query` is unchanged: those land on top.
+translates to its own. The release's catalog is split by runtime: each
+runtime plugin ships its own part as package data, the blocks keyed by
+its type, and the core merges the parts of every INSTALLED runtime by
+family (the `aws` blocks in
+[the aws plugin's `image-sources.yml`](../packages/aws-runtime-plugin/src/cs_image_system/aws_runtime/data/image-sources.yml),
+the `gcloud` blocks in
+[the gcloud plugin's](../packages/gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/data/image-sources.yml),
+the `docker` blocks in
+[the docker plugin's](../packages/docker-runtime-plugin/src/cs_image_system/docker_runtime/data/image-sources.yml)).
+So the release catalog a tree sees carries a block for a runtime type
+exactly when that runtime's plugin is installed, whether or not the tree
+declares a runtime of that type, and a runtime the release does not know
+brings its own part with its plugin; the core names none of them. The
+tree's file extends or overrides the merged catalog by family (and
+version). A tree that declares nothing gets the release's catalog, and a
+tree whose OS builders still spell out their own `owners` and `query` is
+unchanged: those land on top.
 
 Model: `ImageSource`
 ([`image_sources.py`](../packages/base/src/cs_image_system/base/image_sources.py)).
@@ -816,7 +828,7 @@ Model: `ImageSource`
 | `is` | str or null | null | what the family REALLY is, a family the plugins serve (`rhel`, `debian`, ...): the type is defaulted from it, and the bake user, the session agent, the in-bake tests and the mod tests' stand-in read it. Null: the token itself |
 | `versions` | list[str] | `[]` | when set, the entry answers only for these `family_version` values and lands on the family's generic entry; empty: every version |
 | `description` | str or null | null | free text |
-| `sources` | mapping | `{}` | one block per runtime TYPE (`aws`, `gcloud`, `docker`), each a query in the vocabulary below with `{version}` as the one placeholder; `docker` is what the local modification tests read, whether or not a container runtime is installed |
+| `sources` | mapping | `{}` | one block per runtime TYPE (`aws`, `gcloud`, `docker`, ...), each a query in the vocabulary below with `{version}` as the one placeholder. The local modification tests read the STAND-IN block: the one keyed by the type of the installed runtime that offers a local test target (the docker runtime's `docker`), whether or not the tree declares a runtime of that type |
 
 **The vocabulary.** The keys, in the order a query is written out; each
 runtime's README says which it translates and into what (its "Image
@@ -965,11 +977,19 @@ from a base or an instance image. Model: `ImageBuilderModel`
 ([`image_builder_model.py`](../packages/base/src/cs_image_system/base/models/image_builder_model.py))
 and `PackerImageBuilderModel`
 ([`packer_models.py`](../packages/packer-plugin/src/cs_image_system/packer_plugin/packer_models.py)).
-Types: `packer-ebs` (the `amazon-ebs` source), `packer-gce` (the
-`googlecompute` source) and `packer-docker` (the `docker` source, on a
-`docker` runtime: the container the bake ran in is committed and tagged
-into the daemon's image store); the three share one body, the runtime
-plugin owns the source block.
+Type: `packer`, on any runtime. What the bake looks like is the bound
+runtime's answer, not the builder's: an AWS runtime gives the `amazon-ebs`
+source, a Google Compute runtime the `googlecompute` source, a docker
+runtime the `docker` source (the container the bake ran in is committed
+and tagged into the daemon's image store) with its `docker-tag`
+post-processor; the builder's body is the same for all of them. Three
+older keys, `packer-ebs`, `packer-gce` and `packer-docker`, still load as
+the same builder for one release, so a tree that wrote one keeps working;
+`validate` logs one INFO line per such builder naming the replacement
+(`image builder 'pckr-ebs-ans': \`type: packer-ebs\` is an older name of
+\`packer\`, kept for one release; say \`type: packer\``). The examples
+below are the frozen fixture's and still carry the older keys; a tree
+written today says `packer`.
 
 | Field | Type | Default | Meaning and allowed values |
 | --- | --- | --- | --- |
@@ -1019,9 +1039,10 @@ image_builders:
         version: '>= 1.0.0'
 ```
 
-A `packer-docker` builder (from the
+A builder on a docker runtime (from the
 [`standard-docker`](examples/standard-docker/cfg/image-builders.yml)
-starter) names the `docker` and `ansible` plugins:
+starter, which still writes the older `packer-docker` key) names the
+`docker` and `ansible` plugins:
 
 ```yaml
 image_builders:

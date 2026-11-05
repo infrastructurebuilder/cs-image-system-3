@@ -127,7 +127,10 @@ def render_files(sections: Iterable[Section], answers: dict[str, dict[str, Any]]
             log.warning(f"bootstrap: section {name!r} is answered in {ANSWERS_FILE} but no installed plugin "
                         "offers it; its answers are kept and it contributes nothing")
             continue
-        rendered[name] = section.render(section_answers, facts) if section.wants_facts else section.render(section_answers)
+        kwargs: dict[str, Any] = ({"sections": tuple(by_name.values()), "all_answers": answers}
+                                  if section.wants_sections else {})
+        rendered[name] = (section.render(section_answers, facts, **kwargs) if section.wants_facts
+                          else section.render(section_answers, **kwargs))
         if name == "github":
             repository = str(section_answers.get("repository") or "") or None
             secrets_dir = str(section_answers.get("secrets_dir") or "") or None

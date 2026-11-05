@@ -9,6 +9,7 @@ bytes -- so the root is regenerable and ``config-drift`` can judge it."""
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from typing import Any, Iterable
 
 from .questions import Raw, Rendered, Secret
@@ -47,9 +48,9 @@ def tfv(value: Any, indent: int = 0) -> str:
 def apply_env(rendered: Iterable[Rendered]) -> list[tuple[str, str, str]]:
     """The credentials the apply needs, once each, in section order:
     ``(NAME, shell expression, why)``. They depend on the wanted sections
-    (GITHUB_TOKEN with GitHub, AWS_PROFILE when the AWS section names a
-    profile, GOOGLE_OAUTH_ACCESS_TOKEN with GCP), which is why the guide
-    cannot list them and the README and the command's closing lines do."""
+    (GITHUB_TOKEN with GitHub; a cloud's section names the profile or token
+    terraform acts with on that cloud), which is why the guide cannot list
+    them and the README and the command's closing lines do."""
     env: list[tuple[str, str, str]] = []
     for r in rendered:
         for item in r.apply_env:
@@ -134,14 +135,20 @@ def render_root(rendered: dict[str, Rendered], *, module_source_base: str, repos
         "# answers file is the source and the next run rewrites this. Committed on purpose\n"
         "# (decision D3): it holds names and ids, never a secret value.\n" + body)
 
-    # set-secrets.sh
+    # set-secrets.sh: each secret once, by name; an output of the applied root
+    # beats a file the operator would have to fill, whichever section came
+    # first, and the file's declared place in the list is kept either way
     secrets: list[Secret] = []
-    seen: set[str] = set()
     for _, r in sections:
         for s in r.secrets:
-            if s.name not in seen:
-                seen.add(s.name)
+            at = next((i for i, have in enumerate(secrets) if have.name == s.name), None)
+            if at is None:
                 secrets.append(s)
+            elif secrets[at].source == "file" and s.source == "output":
+                secrets[at] = replace(s, order=secrets[at].order)
+            elif secrets[at].source == "output" and s.source == "file":
+                secrets[at] = replace(secrets[at], order=s.order)
+    secrets.sort(key=lambda s: s.order)                       # stable: ties keep the order met
     files["set-secrets.sh"] = _secrets_script(secrets, repository=repository, secrets_dir=secrets_dir)
 
     # README.md

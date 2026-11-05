@@ -49,8 +49,9 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
     # computed property of the same name shadowed any declared value.
     output_image_name: str | None = None
     # stage 63: a fixed vendor image on this runtime; when set the vendor query
-    # is skipped and this image is looked up by id (AWS: the AMI id; GCE: the
-    # image name, searched in the entry's owner projects)
+    # is skipped and this image is looked up by id (the runtime's own identifier:
+    # an image id on one cloud; on another the image name, searched in the
+    # entry's owner projects)
     image_id: str | None = None
     auto_update: bool | None = None # None inherits the OS builder's auto_update
     default_machine_type: str | None = None # Only for image creation
@@ -63,8 +64,8 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
     query: Mapping[str, Any] = field(default_factory=dict)
     ssh_username: str  = DEFAULT
     # Per-runtime in-bake tests: when set, REPLACES the os builder's tests
-    # for bakes on this runtime (finding 40: the fixture's AWS package test
-    # asserted nfs-utils on a GCE bake where the efs prerequisite rightly
+    # for bakes on this runtime (finding 40: the fixture's first-cloud package test
+    # asserted nfs-utils on the other cloud's bake where the efs prerequisite rightly
     # never ran). None inherits the builder-level tests.
     tests: Mapping[str, Any] | None = None
     _runtime_image: BaseImage | None = field(init=False, default=None)
@@ -176,7 +177,7 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
     #         self.image_id = image.image_identifier
     def get_ssh_username(self) -> str | None:
         # A declared ssh_username on the runtime entry wins (finding 43: the
-        # GCE chain must bake every image as ONE user, or the guest agent's
+        # chain on one cloud must bake every image as ONE user, or its guest agent's
         # stale-user removal aborts metadata key provisioning). Unset entries
         # return None so consumers keep their own fallback resolution
         # (see builder_base_os.generate_resolved_image).
@@ -195,8 +196,9 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
         return tags
 
     def runtime_type(self) -> str | None:
-        """The TYPE of the runtime this entry bakes on (``aws``, ``gcloud``,
-        ...): the image-source catalog's key for it (stage 106)."""
+        """The TYPE of the runtime this entry bakes on (the runtime model's
+        ``type``, each plugin's own word): the image-source catalog's key for
+        it (stage 106)."""
         _rt = self._runtime_model()
         return str(_rt.get_type()) if _rt is not None else None
 

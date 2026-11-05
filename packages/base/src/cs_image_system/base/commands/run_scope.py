@@ -4,8 +4,8 @@
 
 """Run scoping safe by construction (stage 12).
 
-On 2026-09-09 an ad-hoc ``run … --apply-runtime gcloud-east1`` without
-``--only-runtime`` baked two AMIs on AWS (ledger 68): ``--apply-runtime``
+On 2026-09-09 an ad-hoc ``run … --apply-runtime <the other cloud's runtime>``
+without ``--only-runtime`` baked two images on the first cloud (ledger 68): ``--apply-runtime``
 scopes the terraform applies, while the bake surface is the convergent
 rule filtered only by ``--only`` / ``--only-runtime``. Two rules close it:
 

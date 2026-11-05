@@ -40,9 +40,11 @@ commit on the bundle's branch.
 10. The starter count in code strings (found by §118, which
     changes no code): the Justfile's `publish-starters` comment and
     `[doc]` say four template repositories; `packages/system/
-    pyproject.toml` and `hatch_build.py` say three. Five exist, and
-    `hatch_build.STARTERS` is the one list; the strings read it or say
-    five.
+    pyproject.toml` says three. Five exist. Since §121 the one list is
+    the `docs/examples/` directory itself (every tree with a `cfg/`,
+    beside the `DEFAULT` marker), read by `hatch_build.py` and by
+    `starters.py` at run time; the strings say "every starter tree"
+    or read the directory.
 11. `tests/test_docs_image_sources.py` parametrises the aws and gcloud
     query tables only; docker-runtime's README now carries the same
     table (§118) and `_runtimes()` gains it.
@@ -53,6 +55,13 @@ commit on the bundle's branch.
 13. `just --list` prints a comment fragment for every recipe without a
     `[doc]` attribute (`fixture-live`, `lint`, `test-bake-steps`,
     `verify` read as the last line of a paragraph); each gets a `[doc]`.
+14. After §121 lands and a release carries it: the reference's and
+    the starters' image builders move from `packer-ebs`, `packer-gce`
+    and `packer-docker` to the one `packer` key (the operator,
+    2026-11-04: the reference keeps the old keys at the take; the
+    move is this item, its own commit on the reference's develop,
+    re-recorded if anything moves). The fixture keeps the old keys
+    as the standing proof that the aliases resolve.
 
 **Acceptance**: each item its own commit; `just test` green after
 each; one squash, branch kept. Records: the squash; this section goes

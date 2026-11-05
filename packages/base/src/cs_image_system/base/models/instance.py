@@ -147,7 +147,7 @@ class Instance(RootItem, SubItemOverride, SelfInjectedName):
     teardown_after: str | None = None
     # Per-instance size; empty = the runtime's default machine type. The
     # default can be too small to run the image's services (a t2.micro's
-    # 1 GB OOM-killed the SSM agent minutes after boot, found live).
+    # 1 GB OOM-killed the session agent minutes after boot, found live).
     machine_type: str = ""
 
     @model_validator(mode="before")

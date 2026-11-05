@@ -135,7 +135,7 @@ def _aws_dir(tmp_path: Path, profile: str, start_url: str, expires: datetime | N
 
 
 def test_sso_expiry_is_read_from_the_cache_without_touching_the_token(tmp_path):
-    from cs_image_system.base.commands.preflight import aws_sso_expiry
+    from cs_image_system.aws_runtime.session import sso_expiry as aws_sso_expiry   # the plugin's reader, not the core's
     now = datetime.now(timezone.utc).replace(microsecond=0)
     d = _aws_dir(tmp_path, "noaa", "https://x.awsapps.com/start", now + timedelta(hours=8))
     exp, note = aws_sso_expiry("noaa", d)
@@ -155,11 +155,11 @@ def test_preflight_lines_flag_a_session_shorter_than_the_expected_run(fresh, tmp
     monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
     monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", str(tmp_path / "missing-adc.json"))
     lines, blocking = session_lines(run.ctx, now)
-    aws_line = next(ln for ln in lines if f"{AWS}" in ln and "(aws, profile noaa)" in ln)
+    aws_line = next(ln for ln in lines if f"{AWS}" in ln and "(aws, s3, profile noaa)" in ln)   # the runtimes AND the s3 backends on that profile
     assert "expires in 12 min -- SHORTER than the expected run (30 min)" in aws_line
     assert blocking == [aws_line]                                # one line per SOURCE, default window 30 min
     assert aws_line.startswith("session: aws-east1, aws-east2-runtime")   # every runtime on that profile
-    gcp_line = next(ln for ln in lines if f"{GCE}" in ln and "(gcp, " in ln)
+    gcp_line = next(ln for ln in lines if f"{GCE}" in ln and "(gcloud, gcs, " in ln)     # the entries' own type words
     assert "no Application Default Credentials found" in gcp_line and gcp_line not in blocking
     run.ctx.config["preflight"] = {"expected_run_minutes": 10}   # the operator's own window
     _, blocking = session_lines(run.ctx, now)
@@ -185,7 +185,7 @@ def test_raw_session_lines_need_no_loaded_configuration(tmp_path, monkeypatch):
     lines, blocking, expired = raw_session_lines(root, None, now)
     assert any(ln.startswith("session: aws-east1, aws-east2-runtime") and "EXPIRED" in ln for ln in lines)
     assert expired and expired == blocking[:1]
-    assert any("(gcp, ADC)" in ln for ln in lines)
+    assert any("(gcloud, gcs, ADC)" in ln for ln in lines)
     overlay = tmp_path / "pre.yaml"
     overlay.write_text("config:\n  preflight:\n    expected_run_minutes: 100000\n")
     monkeypatch.setenv("CSIS_AWS_DIR", str(_aws_dir(tmp_path / "f", "noaa", "https://x.awsapps.com/start",

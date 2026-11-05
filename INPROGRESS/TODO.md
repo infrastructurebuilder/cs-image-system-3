@@ -177,8 +177,8 @@ and validated by the operator before its "do N")
   release, and puts `.csis-version` back when `just init` or `just
   validate` fails after it was written; the PyPI release's probe line
   says the minutes the AWS session has left
-  (`scripts/sso-minutes-left`, read from the cached token's own
-  expiry; said, never refused on); `scripts/index-knows` prints its
+  (`scripts/sso-minutes-left`, since §121 `scripts/session-minutes-left`,
+  read from the cached token's own expiry; said, never refused on); `scripts/index-knows` prints its
   usage for a label. Not yet released; the reference takes it with the
   next release.
 - §103, a container runtime: 2026-10-31 to 2026-11-01 in three

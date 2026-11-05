@@ -8,7 +8,6 @@ import json
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-# import boto3
 import logging
 import typer
 

@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 from dataclasses import field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
@@ -14,16 +15,38 @@ PACKER_GCE: str = "packer-gce"
 PACKER_DOCKER: str = "packer-docker"
 
 
+log = logging.getLogger(__name__)
+
+#: The keys a tree may still write for a packer image builder: each is the
+#: one ``packer`` builder under an older name, kept for one release so a
+#: tree that wrote it keeps loading; ``validate`` names the replacement.
+ALIAS_KEYS: tuple[str, ...] = (PACKER_EBS, PACKER_GCE, PACKER_DOCKER)
+
+
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
 class PackerImageBuilderModel(ImageBuilderModel):
-    """Packer image builder model data object."""
+    """The packer image builder's entry (``type: packer``): the executable,
+    the required packer plugins and the variables, for any runtime. What
+    the bake's source block and its post-processors look like is the bound
+    runtime's answer, not this model's."""
     type = PACKER
     required_plugins: list[PackerPluginConfig] = field(default_factory=list)
+
+    @classmethod
+    def csis_name(cls) -> str:
+        return PACKER
+
+    def finalize(self) -> None:
+        super().finalize()
+        key = type(self).csis_name()
+        if key != PACKER:
+            log.info(f"image builder {self.name!r}: `type: {key}` is an older name of `{PACKER}`, kept for one "
+                     f"release; say `type: {PACKER}`")
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
 class PackerEbsImageBuilderModel(PackerImageBuilderModel):
-    """Packer image builder model data object."""
+    """``type: packer-ebs``: the ``packer`` builder under its older name."""
     type = PACKER_EBS
 
     @classmethod
@@ -32,10 +55,8 @@ class PackerEbsImageBuilderModel(PackerImageBuilderModel):
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
-class PackerGceImageBuilderModel(PackerEbsImageBuilderModel):
-    """Packer image builder for a Google Compute runtime (``googlecompute``
-    source). Same builder body as packer-ebs: the runtime plugin owns the
-    source block, so the two differ only in name (EXPLORE GCP increment 2)."""
+class PackerGceImageBuilderModel(PackerImageBuilderModel):
+    """``type: packer-gce``: the ``packer`` builder under its older name."""
     type = PACKER_GCE
 
     @classmethod
@@ -44,11 +65,8 @@ class PackerGceImageBuilderModel(PackerEbsImageBuilderModel):
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
-class PackerDockerImageBuilderModel(PackerEbsImageBuilderModel):
-    """Packer image builder for a docker runtime (the ``docker`` source of
-    HashiCorp's docker plugin, stage 103). The runtime plugin owns the
-    source block and the ``docker-tag`` post-processor; this differs from
-    packer-ebs only in name."""
+class PackerDockerImageBuilderModel(PackerImageBuilderModel):
+    """``type: packer-docker``: the ``packer`` builder under its older name."""
     type = PACKER_DOCKER
 
     @classmethod

@@ -393,7 +393,7 @@ class MetaState:
             if keyed:
                 return keyed
             # legacy key: honoured only when lineage cannot place that build on
-            # a DIFFERENT runtime (an AMI must never become a GCE parent)
+            # a DIFFERENT runtime (one cloud's image must never become another's parent)
             legacy = table.get(image)
             if legacy:
                 record = self.build(str(legacy))

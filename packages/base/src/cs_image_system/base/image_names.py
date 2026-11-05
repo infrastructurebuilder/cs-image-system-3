@@ -15,7 +15,7 @@ the deferred image lookup finds a build that has not happened yet by
 ``<prefix>*``. Nothing else reads the name: lineage, pins, release,
 retention, disposal and the state query go by the series tag and the
 recorded build ids. The runtime makes what it can of the name
-(``image_name_as_made``: GCE lowercases and shortens) and says what it
+(``image_name_as_made``: one cloud lowercases and shortens) and says what it
 cannot take (``image_name_problem``); ``validate`` applies both.
 """
 from __future__ import annotations

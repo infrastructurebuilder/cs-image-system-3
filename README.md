@@ -77,8 +77,8 @@ The plugins, discovered through Python entry points, one package each:
   `docker` runtime: a host's container daemon.
 - [default-os-plugin](packages/default-os-plugin/README.md) — the OS
   families a base image is built from.
-- [packer-plugin](packages/packer-plugin/README.md) — the image builders
-  for EBS, GCE and docker images.
+- [packer-plugin](packages/packer-plugin/README.md) — the one `packer`
+  image builder, which bakes on whichever runtime it is bound to.
 - [ansible-plugin](packages/ansible-plugin/README.md) — modifications as
   ansible playbooks.
 - [bash-mod-plugin](packages/bash-mod-plugin/README.md) — modifications as

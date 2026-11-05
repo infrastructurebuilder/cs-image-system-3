@@ -155,8 +155,8 @@ def storage_types_on_runtime(ctx: "GlobalTypeContext", types: list[str], runtime
     """Of ``types``, those a bake on ``runtime`` prepares for: the ones with
     a storage builder on that runtime (or on none). Hygiene XII item 21
     (the walk's F49): `storage_types` is one list on the OS builder, and it
-    stamped and fingerprinted every bake whole, so a `pd` added for a GCE
-    disk re-baked the AWS base with nothing to change in it. With no
+    stamped and fingerprinted every bake whole, so a `pd` added for one
+    cloud's disk re-baked the other cloud's base with nothing to change in it. With no
     runtime named, every type (the declaration as written)."""
     if runtime is None:
         return sorted(types)

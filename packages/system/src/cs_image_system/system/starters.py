@@ -37,7 +37,7 @@ be undone by hand):
   the starter whose workflow the tree's own ``.github/workflows/ci.yml`` is
   closest to (the trees differ only there) -- never silently the default:
   the reference configuration's workflow is ``complete``'s, and refreshing it
-  from ``standard-aws`` dropped every GCP step;
+  from a narrower starter dropped every step the narrower one lacks;
 * a team's values survive: wherever the release's file carries a
   ``REPLACE-ME`` placeholder and the tree's file has something else in that
   place, the tree's lines are kept (``carry_team_values``). A file that
@@ -62,9 +62,62 @@ from packaging.version import InvalidVersion, Version
 
 from .starter_links import rewrite_tree
 
-STARTERS: tuple[str, ...] = ("standard-aws", "standard-gce", "complete", "standard-aws-posix", "standard-docker")
-DEFAULT_STARTER = "standard-aws"
 VERSION_FILE = ".csis-version"
+#: The file beside the starter trees that names the one a new tree gets when
+#: nobody chose; the trees themselves are the directories beside it that
+#: carry a ``cfg/``. The release ships both, so the system carries no list
+#: of starters of its own and names none.
+DEFAULT_MARKER = "DEFAULT"
+
+
+def _is_starter(path: Path) -> bool:
+    return path.is_dir() and (path / "cfg").is_dir()
+
+
+def _starter_roots() -> list[Path]:
+    """Where the starter trees may be: inside the installed package (what a
+    release carries), else the workspace's ``docs/examples`` for an editable
+    checkout, where the hook's copies land in site-packages and the source is
+    what the tests hold the release to."""
+    packaged = Path(str(resources.files("cs_image_system.system") / "starters"))
+    workspace = Path(__file__).resolve().parents[5] / "docs" / "examples"
+    return [packaged, workspace]
+
+
+def starters_root() -> Path:
+    for root in _starter_roots():
+        if (root / DEFAULT_MARKER).is_file() and any(_is_starter(c) for c in root.iterdir()):
+            return root
+    raise RuntimeError(f"the starter trees are in none of {[str(r) for r in _starter_roots()]}; "
+                       "the release is incomplete")
+
+
+def default_starter(root: Path | None = None) -> str:
+    """The starter a new tree gets when nobody chose: the marker file's one line."""
+    root = root or starters_root()
+    name = (root / DEFAULT_MARKER).read_text().strip()
+    if not _is_starter(root / name):
+        raise RuntimeError(f"{root / DEFAULT_MARKER} names {name!r}, which is not a starter tree beside it")
+    return name
+
+
+def starters(root: Path | None = None) -> tuple[str, ...]:
+    """Every starter tree the release carries: the default first (a tie
+    between equally close starters resolves to it), the rest by name."""
+    root = root or starters_root()
+    default = default_starter(root)
+    others = sorted(c.name for c in root.iterdir() if _is_starter(c) and c.name != default)
+    return (default, *others)
+
+
+def _discovered() -> tuple[tuple[str, ...], str]:
+    try:
+        return starters(), default_starter()
+    except (RuntimeError, OSError):          # an incomplete install: the commands say so when asked
+        return (), ""
+
+
+STARTERS, DEFAULT_STARTER = _discovered()
 
 # The parts of a configuration repository that the release owns: written into
 # an existing tree by init-config, refreshed on an upgrade, and never a team's
@@ -171,24 +224,9 @@ def stale_install(installed: str | None = None, declared: str | None = None) -> 
             "then init-config again. Nothing was written")
 
 
-def starters_root() -> Path:
-    """Where the starter trees are: inside the installed package (what a
-    release carries), else the workspace's ``docs/examples`` for an editable
-    checkout, where the hook's copies land in site-packages and the source is
-    what the tests hold the release to."""
-    packaged = Path(str(resources.files("cs_image_system.system") / "starters"))
-    if all((packaged / s).is_dir() for s in STARTERS):
-        return packaged
-    workspace = Path(__file__).resolve().parents[5] / "docs" / "examples"
-    if all((workspace / s).is_dir() for s in STARTERS):
-        return workspace
-    raise RuntimeError(f"the starter trees are neither in the installed package ({packaged}) nor in a "
-                       f"workspace checkout ({workspace}); the release is incomplete")
-
-
 def starter_path(name: str) -> Path:
     if name not in STARTERS:
-        raise ValueError(f"no starter named {name!r}; the release carries {', '.join(STARTERS)}")
+        raise ValueError(f"no starter named {name!r}; the release carries {', '.join(STARTERS) or 'no starter tree'}")
     return starters_root() / name
 
 

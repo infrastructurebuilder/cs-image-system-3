@@ -57,7 +57,7 @@ def launch_playbook(params: dict[str, Any], inventory_name: str | None = None) -
     for m in params.get("mounts", []):
         mp, name, stype = m["mount_point"], m["storage"], m["type"]
         if stype == "s3":
-            tasks.append({"name": f"storage {name} (s3): object access via the AWS CLI, no mount",
+            tasks.append({"name": f"storage {name} (s3): object access via the cloud's CLI, no mount",
                           "ansible.builtin.debug": {"msg": f"s3 storage {name} is not mounted"}})
             continue
         tasks.append({"name": f"mount point {mp} for storage {name} ({stype})",

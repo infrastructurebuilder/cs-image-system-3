@@ -153,7 +153,7 @@ def test_the_deferred_image_is_the_floating_tag_and_the_build_id_the_image_id(pr
     assert sub is not None
     psi = rtb.create_provider_specific_image_deferred(image=image, subconfig=sub)
     assert psi.get_query_assets() == {"image": f"csis/test:{IMAGE}-{BUILDER}"}
-    from cs_image_system.packer_plugin.packer_ebs_builder import parse_packer_manifest
+    from cs_image_system.packer_plugin.packer_image_builder import parse_packer_manifest
     manifest = prepared / "m.json"
     manifest.write_text('{"last_run_uuid": "r1", "builds": [{"name": "%s", "packer_run_uuid": "r1", '
                         '"artifact_id": "sha256:%s"}]}' % (BASE, "e" * 64))
@@ -213,29 +213,33 @@ def test_a_too_long_prefix_is_refused_by_the_tag_rule(tmp_path, monkeypatch):
 
 # ------------------------------------------------------------------ outside the seam
 def test_preflight_reads_the_daemon_in_one_line(prepared, monkeypatch):
+    """The probe is the docker plugin's (its `session_status` hook); the core prints what it answers."""
     from cs_image_system.base.commands import preflight
+    from cs_image_system.docker_runtime import docker_runtime_builders as drb
     seen: list[tuple[str, dict[str, str]]] = []
 
     def probe(binary, env, timeout=20):
         seen.append((binary, dict(env)))
-        return True, "present; answers: engine 29.8.2 (api 1.56)"
-    monkeypatch.setattr(preflight, "docker_probe", probe)
+        return True, "answers: engine 29.8.2 (api 1.56)"
+    monkeypatch.setattr(drb, "probe_daemon", probe)
     infos = preflight.raw_session_infos(prepared)
     docker = [i for i in infos if i.provider == "docker"]
     assert len(docker) == 1 and docker[0].present and docker[0].source == "context orbstack"
-    assert docker[0].note.startswith("present; answers: engine 29.8.2") and docker[0].judged
+    assert docker[0].note.startswith("answers: engine 29.8.2") and docker[0].judged
     assert seen == [("/usr/local/bin/docker", {"DOCKER_CONTEXT": "orbstack"})]
-    # the state managers' sessions are read too: the fixture's s3 backends join the AWS line
-    assert any("state " in i.runtime for i in infos if i.provider == "aws")
+    # the state backends' sessions are read too, each by its own plugin's hook: the fixture's s3 backends
+    # share the runtimes' profile, so they ride in the one line per credential SOURCE, with their type word
+    assert any("state s3-" in i.runtime and "s3" in i.provider.split(", ") for i in infos), [i.runtime for i in infos]
     # a daemon that does not answer is absent, not an exception
-    monkeypatch.setattr(preflight, "docker_probe", lambda b, e, timeout=20: (False, "does not answer: no such context"))
+    monkeypatch.setattr(drb, "probe_daemon", lambda b, e, timeout=20: (False, "does not answer: no such context"))
     docker = [i for i in preflight.raw_session_infos(prepared) if i.provider == "docker"]
     assert docker and not docker[0].present and "does not answer" in docker[0].note
 
 
 def test_the_loaded_configuration_preflights_the_daemon_too(prepared, monkeypatch):
     from cs_image_system.base.commands import preflight
-    monkeypatch.setattr(preflight, "docker_probe", lambda b, e, timeout=20: (True, "present; answers: engine 29.8.2 (api 1.56)"))
+    from cs_image_system.docker_runtime import docker_runtime_builders as drb
+    monkeypatch.setattr(drb, "probe_daemon", lambda b, e, timeout=20: (True, "answers: engine 29.8.2 (api 1.56)"))
     ctx = load_context(prepared)
     infos = preflight.session_infos(ctx)
     docker = [i for i in infos if i.provider == "docker"]
@@ -253,10 +257,10 @@ def test_an_unreachable_daemon_is_a_one_line_environment_failure():
 
 
 def test_the_mod_tests_run_the_declared_docker_binary(prepared, monkeypatch):
-    from cs_image_system.base import mod_tests
+    from cs_image_system.docker_runtime.local_target import docker_binary
     ctx = load_context(prepared)
-    assert mod_tests.docker_binary(ctx) == "/usr/local/bin/docker"
-    assert mod_tests.docker_binary(object()) == "docker"
+    assert docker_binary(ctx.executables) == "/usr/local/bin/docker"
+    assert docker_binary(None) == "docker"
 
 
 def test_the_contract_declares_the_new_hooks_and_the_core_answers_them():

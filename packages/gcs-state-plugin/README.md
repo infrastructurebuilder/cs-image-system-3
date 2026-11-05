@@ -141,9 +141,12 @@ core, and a dry run never reaches the bucket.
   contract"). `preflight`, `state query` and every run report whether ADC
   exist (`GOOGLE_APPLICATION_CREDENTIALS`, else
   `~/.config/gcloud/application_default_credentials.json`) as one
-  `session:` line -- for the GCE runtimes that declare them; the line
-  knows nothing about a state backend, and no session check is made on a
-  backend's behalf.
+  `session:` line, for this backend as well as for the GCE runtimes: the
+  builder's `session_status` hook reaches the gcloud runtime plugin's
+  reading through the registry by its type key (`gcloud`), importing
+  nothing of that package, so a tree with the backend alone is
+  preflighted too. When that plugin is not installed the backend's line is
+  present and NOT JUDGED, and says so.
 - **Encryption keys, when declared.** `encryption_key` (a customer-supplied
   key) and `kms_encryption_key` (a Cloud KMS key name) are written verbatim
   into the root's `.tfbackend.hcl` when set. That file is part of the

@@ -10,6 +10,7 @@ from typing import Any
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
 from cs_image_system.contract.assets import AssetSet
 from cs_image_system.base.basic.builder_base_cloud import CloudBuilderBase
+from cs_image_system.base.image_sources import packaged_entries_of
 from cs_image_system.contract.constants import VCT
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
@@ -19,9 +20,10 @@ from cs_image_system.contract.core import PluginArtifactProtocol
 
 from .gcp_provider_specific_image import GcpProviderSpecificImage
 from .gcp_runtime_models import GCPCloudBuilderModel
-from cs_image_system.gcloud_runtime import gcp_utils
+from cs_image_system.gcloud_runtime import gcp_utils, session
 from .gcp_utils import GCP_QUERY_KEYS, query_image, translate_image_query
 from cs_image_system.contract.image import ImageQuery
+from cs_image_system.contract.session import SessionStatus
 
 GCP_RUNTIME: str = "gcloud"
 
@@ -42,12 +44,35 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
     def provider_specific_image_class(self) -> type[ProviderSpecificImage]:
         return GcpProviderSpecificImage
 
+    # --- the session hooks: what the preflight asks of the CLASS
+    @classmethod
+    def session_status(cls, settings: Mapping[str, Any], executables: Mapping[str, Any]) -> SessionStatus | None:
+        """Application Default Credentials: present and self-refreshing, or
+        absent (see ``session.py``); the settings name no credential."""
+        return session.session_status()
+
+    @classmethod
+    def credential_environment_prefixes(cls) -> tuple[str, ...]:
+        return session.CREDENTIAL_ENVIRONMENT_PREFIXES
+
     # --- the image query (stage 106)
     def supported_query_keys(self) -> frozenset[str]:
         return GCP_QUERY_KEYS
 
     def translate_image_query(self, query: ImageQuery) -> dict[str, Any]:
         return translate_image_query(query)
+
+    @classmethod
+    def secret_patterns(cls) -> Mapping[str, str]:
+        """A service-account key file names its key id as a long hex value;
+        the key body itself is a PEM block the scan's own rule refuses."""
+        return {"gcp-service-account": r'"private_key_id"\s*:\s*"[0-9a-f]{20,}"'}
+
+    @classmethod
+    def image_source_entries(cls) -> list[Mapping[str, Any]]:
+        """This runtime's part of the release-owned image-source catalog:
+        the `gcloud` blocks, shipped as this package's ``data/image-sources.yml``."""
+        return packaged_entries_of("cs_image_system.gcloud_runtime")
 
     def query_provider_image(self, os_builder: OSBuilderBaseImageBuilderSubconfig) -> tuple[str, str, Mapping[str,Any]] | None:
         retval: str | None = None

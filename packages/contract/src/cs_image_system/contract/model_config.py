@@ -13,7 +13,7 @@ did (an unknown key is dropped in silence), `forbid` makes it an error.
 from pydantic import ConfigDict
 
 CSIS_MODEL_CONFIG = ConfigDict(
-    # YAML writes `family_version: 11` and AWS account ids unquoted; cattrs
+    # YAML writes `family_version: 11` and all-digit cloud account ids unquoted; cattrs
     # coerced those to str, so keep doing it or the fixture stops loading.
     coerce_numbers_to_str=True,
     # a model may be built by field name (code) or by alias (YAML).

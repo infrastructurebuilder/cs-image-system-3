@@ -7,16 +7,16 @@
 Before this module the user was chosen in five places that disagreed: the OS
 builder filled the base image's runtime entry with the entry's user or a
 family default, each packer source then let the RUNTIME's ``ssh_username``
-override it, the GCE source fell back to ``packer``, the ansible provisioner
-on GCE used the runtime's user or ``packer`` without looking at the entry,
+override it, the second cloud's source fell back to ``packer``, the ansible
+provisioner on that cloud used the runtime's user or ``packer`` without looking at the entry,
 and ``config_username`` / ``default_config_username`` were declared,
 documented and read by nothing (the lookup that would have read them keyed
 the runtime by an image-builder name and never found it, inside a
-``finalize()`` nobody called). A GCE chain whose entry named a user and whose
+``finalize()`` nobody called). A chain on that cloud whose entry named a user and whose
 runtime named none baked as that user while ansible connected as ``packer``.
 
 The order, decided by the operator 2026-09-25 (the more specific setting
-wins, on AWS and GCE alike):
+wins, on every cloud alike):
 
 1. the IMAGE's own runtime entry ``ssh_username`` (``runtimes:`` on a base or
    instance image; the most specific place a user can be named),
@@ -25,8 +25,8 @@ wins, on AWS and GCE alike):
 4. the runtime's ``ssh_username``,
 5. the runtime's ``default_config_username``,
 6. the runtime's default for the OS family (``RuntimeBuilderBase.
-   default_bake_user``: the vendor image's user on AWS, ``packer`` on GCE,
-   where googlecompute creates the account from metadata keys).
+   default_bake_user``: the vendor image's user on one cloud, ``packer`` on
+   another, whose packer plugin creates the account from metadata keys).
 
 None of them answering is a refusal naming every place a user could be set.
 ``unset`` means absent or one of ``OOPS_DEFAULTS`` (``default``, ...).

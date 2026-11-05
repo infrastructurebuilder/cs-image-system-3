@@ -27,7 +27,7 @@ never in the result):
 classifies drift:
 
 ``missing``
-    recorded in meta-state, gone in reality (an AMI deregistered by hand,
+    recorded in meta-state, gone in reality (an image deregistered by hand,
     a volume deleted in the console, a group with no gid any more);
 ``foreign``
     tagged as ours in reality but unrecorded (a hand-built image, an
@@ -164,7 +164,7 @@ def _query(report: StateReport, label: str, fn) -> Any:
 
 
 #: The mark on an `unavailable` line whose cause is a permission the identity
-#: lacks (AWS AccessDenied / UnauthorizedOperation, GCP 403): the role's
+#: lacks (a cloud's access-denied or 403 answer): the role's
 #: document lags what the query reads, and a re-apply of the bootstrap root
 #: is the remedy, not a retry.
 REFUSED = "REFUSED (the identity lacks a permission, not a cloud that did not answer):"

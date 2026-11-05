@@ -47,7 +47,7 @@ def after_generate(ctx: "GlobalTypeContext", lifecycle: LifecycleLike) -> None:
     from .utils import system_cli_executable_with_config
     # stage 45: a run scoped to one runtime (--only-runtime, or --apply-runtime
     # implying it) disposes within that runtime alone -- CI performs on the
-    # AWS runtime with an identity that must never write to the other one
+    # perform runtime with an identity that must never write to the other one
     scope = getattr(ctx, "only_runtime_scope", None)
     disposable, debt = retention_plan(ctx, str(scope) if scope else None)
     for b, why in debt:

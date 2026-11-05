@@ -5,7 +5,7 @@
 """Pins packer manifest parsing (image name -> AMI id)."""
 import json
 
-from cs_image_system.packer_plugin.packer_ebs_builder import parse_packer_manifest
+from cs_image_system.packer_plugin.packer_image_builder import parse_packer_manifest
 
 
 def _write(tmp_path, data):

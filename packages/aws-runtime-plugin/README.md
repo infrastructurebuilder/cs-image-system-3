@@ -62,7 +62,12 @@ bound to) and the Session Manager instance profile when the account
 lacks them (`tfmodules/bootstrap_aws`). The
 section renders its coverage audit for the generated README: what it
 made, read, adopted, or leaves by hand and why (a backend bound to no
-root is left out and said so). The section is wanted by default where the
+root is left out and said so). The section declares the two repository
+secrets the AWS workflows read (`AWS_ROLE_ARN`, `AWS_APPLY_ROLE_ARN`; both
+set from the applied root's outputs when the section is wanted) and the
+`AWS_REGION` Actions variable, valued by its `region` answer; the GitHub
+section's script and module set them with the rest, so the core names
+neither. The section is wanted by default where the
 tree declares an AWS runtime or an S3 state backend. Its defaults come
 from the raw `cfg/runtime-builders.yml` and `cfg/state-backends.yml`
 (read as YAML, never loaded; a starter's `REPLACE-ME` values and its
@@ -296,6 +301,34 @@ command, and read by the state-backend, storage and instance plugins for
 their provider blocks, backend files and transition scripts, so packer,
 terraform and the plugin's own calls all authenticate the same way.
 
+### Sessions
+
+The preflight's reading of the AWS session is this plugin's, not the
+core's: the builder class answers the contract's `session_status` hook
+from [`session.py`](src/cs_image_system/aws_runtime/session.py), and the
+core prints and judges what it answers. The hook takes the runtime's (or
+an `s3` state backend's) settings, finds the profile in `profile`,
+`credentials.profile_name` or `AWS_PROFILE`, and reads the caches on the
+host -- `~/.aws/config` and `~/.aws/sso/cache` (`CSIS_AWS_DIR` when set)
+-- never a credential value. Static keys in the environment, or a profile
+without SSO, are present with no readable expiry, so the line says NOT
+JUDGED and why (keys lapse without notice, and the next call says
+`RequestExpired`). A legacy SSO profile's token has a fixed expiry, judged
+against the expected run length. An `sso-session` profile's token renews
+itself from its refresh token while the portal session lives: while the
+access token has not lapsed the session is present and self-renewing and
+nothing is asked of the cloud; once it has lapsed the hook makes ONE
+read-only `aws sts get-caller-identity --profile <p>`, which refreshes the
+cache when the refresh token still works and says EXPIRED, with
+`aws sso login --profile <p>` as the renew command, when it does not. The
+token's own expiry rides along for the release recipe, which wants to
+know how long the session it starts on has left. The class also declares
+`AWS_*` as its credential prefix (a variable set but empty is refused) and
+classifies the lapsed-credential codes (`RequestExpired`, `ExpiredToken`,
+...) and botocore's session classes into the one-line load failure under
+"When it fails". The plugin's `initialize()` quiets the `boto3`,
+`botocore` and `urllib3` loggers to INFO.
+
 ### Network discovery at load
 
 `update_networking()` in
@@ -359,6 +392,15 @@ match returns `None`, and the base's resolve step then fails the run.
 runtime cannot translate, or has no source at all, and has printed every
 entry's query in both vocabularies (`image source: OS builder '<name>' on
 runtime <rt> (aws): <system query> -> <EC2 query>`).
+
+The `aws` blocks of the release's catalog are this plugin's: it ships them
+as package data,
+[`data/image-sources.yml`](src/cs_image_system/aws_runtime/data/image-sources.yml),
+and `AwsCloudBuilder.image_source_entries()` reads that file. The core
+merges every installed runtime's part by family, so the release catalog a
+tree sees carries an `aws` block exactly when this plugin is installed;
+a family with no public AMI publisher (`centos-stream`) is absent from the
+file, and a tree that bakes it on EC2 declares its own block.
 
 The vocabulary is the system's, with EC2's spellings kept where they
 were good names; the older spellings of an entry's query (EC2's field
@@ -814,6 +856,12 @@ These are not this plugin's fields, but the packer source reads them:
   behaviour of its own for encryption.
 
 ## What it tests and verifies
+
+The plugin also tells the public-safety scan the shape of its own
+secret: `secret_patterns()` declares `aws-access-key` (`AKIA` or `ASIA`
+plus sixteen upper-case alphanumerics), and `just public-safe`, the
+pre-commit hook and the meta-state writes refuse one anywhere, so the
+core's scan names no cloud and still knows this one's keys.
 
 **At load (pydantic validators and `finalize`).**
 

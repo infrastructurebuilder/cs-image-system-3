@@ -112,6 +112,24 @@ class Secret:
     source: str                       # "file" | "output"
     detail: str = ""
     comment: str = ""
+    #: Where the script lists it: lower first, ties in the order met. The
+    #: core's two and the plugins' pick values that keep a generated script
+    #: and README in the order they had before sections declared their own
+    #: secrets, so a committed root does not reorder; a section that picks
+    #: none comes after them all.
+    order: int = 100
+
+
+@dataclass(frozen=True)
+class Variable:
+    """A repository Actions variable (not secret) the workflow reads, set by
+    the GitHub section's module from the interview: ``name`` is the
+    variable's, ``answer`` the id of the declaring section's question whose
+    answer is its value. An empty or missing answer sets nothing, and an
+    unwanted section's variables are not set."""
+    name: str
+    answer: str
+    comment: str = ""
 
 
 @dataclass(frozen=True)
@@ -164,11 +182,34 @@ class Section:
     #: answers. The generator gathers them from the raw ``cfg/`` without
     #: loading, as the interview does.
     wants_facts: bool = False
+    #: The render reads the loaded sections too (``render(answers, ...,
+    #: sections=...)``): the section that writes the secrets script sets
+    #: every loaded section's secrets, so it must see them. The generator
+    #: passes every section this install offers, wanted or not.
+    wants_sections: bool = False
     #: Whether the section is wanted when nobody has said: a cloud's section
-    #: asks the tree (an AWS section is wanted where the tree has an AWS
-    #: runtime or an S3 backend), so a GCE-only tree's quiet interview is not
-    #: refused on AWS questions. None means wanted.
+    #: asks the tree (it is wanted where the tree declares a runtime of its
+    #: type, or keeps its state in that cloud), so the quiet interview of a
+    #: tree on one cloud is not refused on another cloud's questions. None
+    #: means wanted.
     wanted: Callable[["Facts"], bool] | None = None
+    #: The repository secrets this section's part of CI reads, each set by
+    #: the generated script from a file named after it in the secrets
+    #: directory. The core knows only its own (the age identity, the proof
+    #: user's key); a cloud's section names the credentials its workflow
+    #: steps read, and the script sets the union, the core's first, then
+    #: each loaded section's in section-name order. A section whose render
+    #: can do better -- an ARN that is an output of the applied root -- also
+    #: lists that secret in its ``Rendered`` with ``source="output"``, and
+    #: the output wins over the file.
+    secrets: tuple[Secret, ...] = ()
+    #: The Actions variables this section's part of CI reads, each valued
+    #: by one of the section's answers: the GitHub section's module sets the
+    #: union of every wanted section's, the core's first, then each
+    #: section's in section-name order. The core names only the runtime to
+    #: perform on and the runtimes to guard; a cloud's section names what
+    #: its workflow steps read (a region, say).
+    variables: tuple[Variable, ...] = ()
 
     def gate_id(self) -> str:
         return f"want_{self.name}"

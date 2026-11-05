@@ -2,64 +2,80 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Session lifetime in the preflight (stage 12.3).
+"""Session lifetime in the preflight.
 
-On 2026-09-08 a fifteen-minute cycle failed at its GCE instance plan
-because the AWS SSO session lapsed AFTER the preflight had passed (ledger
-65). The preflight now reads the credential caches -- read-only, never a
-credential value -- and reports how long each runtime's session lasts
-against ``config.preflight.expected_run_minutes`` (default 30). It asks the
-cloud nothing, with one exception (hygiene XXIII): an SSO token that has
-already lapsed gets one read-only ``aws sts get-caller-identity``, because only
-the CLI can say whether its refresh token still works.
+A run that outlives its credential session dies in the middle, after the
+preflight had passed, so the preflight reports how long each session a
+configuration needs will last against ``config.preflight.expected_run_minutes``
+(default 30), and whether it exists at all. The core knows no provider:
+every runtime builder class and every state backend class answers the
+contract's ``session_status`` hook with a ``SessionStatus`` -- what was
+read, a fixed expiry when one is readable, whether the credential renews
+itself, and the command that renews it -- and this module prints and
+judges what they answer. It reads no credential cache and runs no
+provider command itself; whatever a plugin reads, it reads without ever
+reading a credential value.
 
-* AWS: the runtime's profile (``profile`` / ``credentials.profile_name``,
-  else ``AWS_PROFILE``); a profile with ``sso_session`` or ``sso_start_url``
-  has its token in ``~/.aws/sso/cache/<sha1>.json`` (``expiresAt``); static
-  keys in the environment have no readable expiry.
-* GCP: Application Default Credentials (``GOOGLE_APPLICATION_CREDENTIALS``
-  or the gcloud default path); an impersonated / authorized-user ADC
-  refreshes itself, so only its presence is reported.
+The sessions are read twice: from the LOADED configuration (``session_infos``)
+and from the RAW ``cfg/`` files before anything loads (``raw_session_infos``),
+because loading validates every runtime against its provider and dies on an
+expired session before any preflight could say so. The raw reading finds
+each entry's class through the registry by its ``type:`` word.
+
+A session with a fixed expiry is judged against the window; one that renews
+itself is present and cannot block; one with no readable expiry at all
+(static keys) is present and NOT JUDGED, and the closing line never turns
+green over it.
 """
 from __future__ import annotations
 
-import configparser
-import hashlib
-import json
+import dataclasses
 import os
 from ..models.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping, cast
+
+from cs_image_system.contract.session import SessionStatus
 
 DEFAULT_EXPECTED_RUN_MINUTES = 30
-# stage 43: the environment names the system reads credentials and identities
-# from. One that is SET but EMPTY is not an absence: three green CI jobs ran
-# nothing because a secret had been set from a checkout missing the file it
-# was read from -- the variable existed and its value was "".
-CREDENTIAL_ENV_PREFIXES: tuple[str, ...] = ("AWS_", "GOOGLE_", "OKTA_", "TF_VAR_", "CSIS_")
-# the one profile shape with no readable expiry that IS a credential (static keys in the profile)
-_PRESENT_WITHOUT_EXPIRY = "not an SSO profile"
-# hygiene XII item 17 (the walk's F40): a session whose expiry cannot be read
-# -- static keys in a profile or in the environment -- is PRESENT but NOT
-# JUDGED. Before, preflight closed green over keys that had lapsed, and the
-# next cloud call said RequestExpired under a traceback.
+# the environment names the SYSTEM reads credentials and identities from; each
+# runtime adds its own through `credential_environment_prefixes()`. One that
+# is SET but EMPTY is not an absence: three green CI jobs ran nothing because
+# a secret had been set from a checkout missing the file it was read from --
+# the variable existed and its value was "".
+CORE_CREDENTIAL_ENV_PREFIXES: tuple[str, ...] = ("TF_VAR_", "CSIS_", "OKTA_")
+# a session whose expiry cannot be read -- static keys in a profile or in the
+# environment -- is PRESENT but NOT JUDGED. Before, preflight closed green over
+# keys that had lapsed, and the next provider call refused them under a traceback.
 NOT_JUDGED = "NOT JUDGED"
-NOT_JUDGED_WHY = ("no expiry readable: keys lapse without notice, and the next cloud call says RequestExpired; "
-                  "preflight asks the cloud nothing about keys; its one call is for an SSO token that has already lapsed")
+NOT_JUDGED_WHY = ("no expiry readable: such a credential lapses without notice and the next call to its provider "
+                  "refuses it; preflight asks the provider nothing about it, and each session line says what it read")
 
 
 @dataclass(config=CSIS_MODEL_CONFIG)
 class SessionInfo:
     runtime: str
-    provider: str                 # aws | gcp | docker
-    source: str                   # what was read: profile name, ADC type, env
-    expires_at: datetime | None   # None: no fixed expiry readable
+    provider: str                 # the entry's declared `type` word
+    source: str                   # what was read: a profile name, a credentials file, a daemon's address
+    expires_at: datetime | None   # None: no expiry readable at all
     note: str = ""
-    present: bool = True          # False: nothing to read at all -- no token, no ADC (stage 16)
+    present: bool = True          # False: nothing to read at all
+    renews: bool = False          # True: the credential renews itself; `expires_at` is then advisory, never blocking
+    renew: str | None = None      # the command that renews the session, from the plugin
 
     def minutes_left(self, now: datetime) -> float | None:
+        """Minutes to the FIXED expiry; None when none is readable or the
+        credential renews itself (its expiry is the current token's, which
+        the provider's tooling replaces)."""
+        if self.expires_at is None or self.renews:
+            return None
+        return (self.expires_at - now).total_seconds() / 60
+
+    def advisory_minutes_left(self, now: datetime) -> float | None:
+        """Minutes to whatever expiry was read, renewing or not: what a long
+        run wants to know about the token it starts on."""
         if self.expires_at is None:
             return None
         return (self.expires_at - now).total_seconds() / 60
@@ -67,18 +83,19 @@ class SessionInfo:
     @property
     def judged(self) -> bool:
         """Whether preflight can say anything about the session's lifetime:
-        a fixed expiry was read, or the token renews itself (an sso-session
-        profile, GCP ADC). Static keys are present and not judged."""
-        return self.expires_at is not None or self.note.startswith("present;")
+        a fixed expiry was read, or the credential renews itself (and so was
+        checked). Static keys are present and not judged."""
+        return self.expires_at is not None or self.renews
 
     def line(self, now: datetime, expected: int) -> str:
         left = self.minutes_left(now)
-        if left is None or self.expires_at is None:
+        if left is None:
             if self.present and not self.judged:
                 return f"session: {self.runtime} ({self.provider}, {self.source}): {NOT_JUDGED} -- {self.note}"
             return f"session: {self.runtime} ({self.provider}, {self.source}): {self.note}"
         state = ("EXPIRED" if left <= 0 else f"expires in {left:.0f} min"
                  + (f" -- SHORTER than the expected run ({expected} min)" if left < expected else ""))
+        assert self.expires_at is not None
         return f"session: {self.runtime} ({self.provider}, {self.source}): {state} at {self.expires_at.isoformat()}"
 
     def blocking(self, now: datetime, expected: int) -> bool:
@@ -86,11 +103,35 @@ class SessionInfo:
         return left is not None and left < expected
 
 
+def _from_status(runtime: str, provider: str, status: SessionStatus) -> SessionInfo:
+    return SessionInfo(runtime, provider, status.source, status.expires_at, status.note, present=status.present,
+                       renews=status.renews, renew=status.renew)
+
+
+def _registry():
+    from ..loader import load_plugins
+    from ..registry import Registry
+    load_plugins()
+    return Registry()
+
+
+def credential_environment_prefixes() -> tuple[str, ...]:
+    """The system's own credential prefixes plus every registered runtime's
+    (``credential_environment_prefixes()``), sorted."""
+    prefixes = set(CORE_CREDENTIAL_ENV_PREFIXES)
+    for cls in _registry().runtime_builder_classes().values():
+        hook = cast(Callable[[], tuple[str, ...]] | None, getattr(cls, "credential_environment_prefixes", None))
+        if callable(hook):
+            prefixes.update(str(p) for p in hook())
+    return tuple(sorted(prefixes))
+
+
 def empty_environment_credentials(environ: Mapping[str, str] | None = None) -> list[str]:
     """The NAMES of credential-shaped environment variables (the prefixes
     above) whose value is the empty string -- set, and empty. Never a value."""
     env = os.environ if environ is None else environ
-    return sorted(k for k, v in env.items() if k.startswith(CREDENTIAL_ENV_PREFIXES) and v == "")
+    prefixes = credential_environment_prefixes()
+    return sorted(k for k, v in env.items() if k.startswith(prefixes) and v == "")
 
 
 def expected_run_minutes(ctx: Any) -> int:
@@ -101,250 +142,98 @@ def expected_run_minutes(ctx: Any) -> int:
         return DEFAULT_EXPECTED_RUN_MINUTES
 
 
-def _aws_dir() -> Path:
-    return Path(os.environ.get("CSIS_AWS_DIR") or Path.home() / ".aws")
-
-
-def aws_sso_expiry(profile: str, aws_dir: Path | None = None, *,
-                   cached: bool = False) -> tuple[datetime | None, str]:
-    """The SSO token expiry for ``profile`` and a note; ``(None, note)``
-    when nothing readable exists. ``cached`` (hygiene XXII item 3) reads the
-    cached access token's own ``expiresAt`` even where a refresh token sits
-    beside it: the release asks how long the session it starts on has left."""
-    aws_dir = aws_dir or _aws_dir()
-    cfg = configparser.ConfigParser()
-    cfg.read(aws_dir / "config")
-    section = f"profile {profile}" if profile != "default" else "default"
-    if not cfg.has_section(section):
-        return None, f"profile {profile!r} not in {aws_dir / 'config'}"
-    sec = cfg[section]
-    key_source = sec.get("sso_session") or sec.get("sso_start_url")
-    if not key_source:
-        return None, f"profile {profile!r} is {_PRESENT_WITHOUT_EXPIRY} (no expiry readable)"
-    cache = aws_dir / "sso" / "cache" / f"{hashlib.sha1(key_source.encode()).hexdigest()}.json"
-    if not cache.exists():
-        return None, f"no SSO token cached for profile {profile!r} (aws sso login --profile {profile})"
-    try:
-        data = json.loads(cache.read_text())
-        if data.get("refreshToken") and not cached:
-            # An sso-session profile's cache holds a ONE-HOUR access token
-            # and a refresh token. While the access token has not lapsed the
-            # session is present and nothing is asked of the cloud. Once it
-            # has, only the CLI can say whether its refresh token still
-            # works (hygiene V, 2026-09-21: read literally, the lapsed
-            # expiry refused a full-test the CLI would have carried;
-            # hygiene XXIII, 2026-11-02: with the token lapsed for 80
-            # minutes the refresh FAILED -- "Token has expired and refresh
-            # failed" -- while this said "refreshes itself"). So one
-            # read-only call decides, and only then.
-            lapsed = _cached_expiry(data)
-            if lapsed is None or lapsed > datetime.now(timezone.utc) or _refresh_works(profile, aws_dir):
-                return None, (f"present; refreshes itself from the refresh token in sso cache {cache.name[:8]} "
-                              "while the portal session lives (no fixed expiry readable)")
-            return lapsed, (f"sso cache {cache.name[:8]}; the cached token lapsed and the CLI's refresh failed "
-                            f"(aws sso login --profile {profile})")
-        exp = str(data.get("expiresAt") or "")
-        return datetime.fromisoformat(exp.replace("Z", "+00:00")), f"sso cache {cache.name[:8]}"
-    except (ValueError, OSError) as e:
-        return None, f"SSO cache for {profile!r} unreadable: {e}"
-
-
-def sso_minutes_left(root_dir: Path, now: datetime | None = None, aws_dir: Path | None = None) -> float | None:
-    """Hygiene XXII item 3: the fewest minutes the cached AWS SSO access token
-    of any profile the tree at ``root_dir`` uses has left (negative once it
-    lapsed), or None when no AWS profile with a cached token is declared.
-    On 2026-11-02 three logins each ended exactly an hour after they began
-    and the CLI's refresh failed on the lapsed token ("Token has expired and
-    refresh failed"), so a refresh token is not a longer session: this reads
-    the token's own expiry, whichever way ``preflight`` judged the session."""
+def session_minutes_left(root_dir: Path, now: datetime | None = None) -> float | None:
+    """The fewest minutes any session the tree at ``root_dir`` declares has
+    left to the expiry its plugin read -- renewing or not, because a token
+    the provider's tooling renews can still fail to renew once it has
+    lapsed, and a run of an hour wants to know about the token it starts
+    on -- negative once it lapsed; None when no session has a readable
+    expiry."""
     now = now or datetime.now(timezone.utc)
-    left: list[float] = []
-    for info in raw_session_infos(root_dir):
-        if info.provider != "aws" or not info.source.startswith("profile "):
-            continue
-        exp, _ = aws_sso_expiry(info.source[len("profile "):], aws_dir, cached=True)
-        if exp is not None:
-            left.append((exp - now).total_seconds() / 60)
+    left = [m for m in (i.advisory_minutes_left(now) for i in raw_session_infos(root_dir)) if m is not None]
     return min(left) if left else None
 
 
-def _cached_expiry(data: Mapping[str, Any]) -> datetime | None:
-    """The cached access token's own ``expiresAt``, or None when unreadable."""
-    try:
-        return datetime.fromisoformat(str(data.get("expiresAt") or "").replace("Z", "+00:00"))
-    except ValueError:
-        return None
-
-
-def _refresh_works(profile: str, aws_dir: Path | None = None) -> bool:
-    """Whether the AWS CLI can still get credentials for ``profile`` from a
-    lapsed cached token (its refresh token): one read-only
-    ``sts get-caller-identity``, which refreshes the cache when it can. A
-    machine without the CLI cannot be judged and keeps the old answer."""
-    import subprocess
-    env = dict(os.environ)
-    if aws_dir is not None:
-        env["AWS_CONFIG_FILE"] = str(aws_dir / "config")
-    try:
-        res = subprocess.run(["aws", "sts", "get-caller-identity", "--profile", profile, "--query", "Account",
-                              "--output", "text"], capture_output=True, text=True, check=False, timeout=30, env=env)
-    except FileNotFoundError:
-        return True
-    except subprocess.TimeoutExpired:
-        return False
-    return res.returncode == 0
-
-
-def _aws_profile(model: Any) -> str | None:
-    profile = getattr(model, "profile", None)
-    if not profile:
-        # stage 17: a declared object on a loaded model; raw_session_infos
-        # below still reads the YAML mapping, before any model exists.
-        getter = getattr(model, "get_credentials", None)
-        creds = getter() if callable(getter) else (getattr(model, "credentials", None) or {})
-        profile = creds.get("profile_name") if isinstance(creds, dict) else None
-    return str(profile) if profile else (os.environ.get("AWS_PROFILE") or None)
-
-
-def _gcp_adc() -> tuple[datetime | None, str, str]:
-    path = Path(os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-                or Path.home() / ".config" / "gcloud" / "application_default_credentials.json")
-    if not path.exists():
-        return None, "ADC", "no Application Default Credentials found (gcloud auth application-default login)"
-    try:
-        kind = str(json.loads(path.read_text()).get("type") or "unknown")
-    except (ValueError, OSError):
-        kind = "unreadable"
-    return None, f"ADC {kind}", "present; refreshes itself (no fixed expiry readable)"
-
-
 def _merge(infos: list[SessionInfo]) -> list[SessionInfo]:
-    """One entry per credential SOURCE (a profile, the ADC), naming every
-    runtime that uses it -- three runtimes on one profile are one session."""
-    merged: dict[tuple[str, str, str, datetime | None, bool], list[str]] = {}
+    """One entry per credential SOURCE (a profile, a credentials file, a
+    daemon's address), naming every runtime and backend that uses it --
+    three runtimes and two backends on one profile are one session -- and
+    every type word among them."""
+    merged: dict[tuple[str, str, datetime | None, bool, bool, str | None], tuple[list[str], list[str]]] = {}
     for info in infos:
-        merged.setdefault((info.provider, info.source, info.note, info.expires_at, info.present), []).append(info.runtime)
-    return [SessionInfo(", ".join(rts), provider, source, exp, note, present)
-            for (provider, source, note, exp, present), rts in merged.items()]
+        key = (info.source, info.note, info.expires_at, info.present, info.renews, info.renew)
+        runtimes, providers = merged.setdefault(key, ([], []))
+        runtimes.append(info.runtime)
+        if info.provider not in providers:
+            providers.append(info.provider)
+    return [SessionInfo(", ".join(rts), ", ".join(providers), source, exp, note, present=present, renews=renews, renew=renew)
+            for (source, note, exp, present, renews, renew), (rts, providers) in merged.items()]
 
 
-def docker_probe(binary: str, env: dict[str, str], timeout: int = 20) -> tuple[bool, str]:
-    """``docker version`` against ONE daemon (stage 103): ``(answers, what
-    it said)`` -- the engine and API versions, or the first line of why not.
-    The one cloud-like call preflight makes: a daemon's "session" is its
-    reachability, and nothing else can be read for it."""
-    import subprocess
-    full = dict(os.environ)
-    full.update(env)
+def _settings_of(model: Any) -> Mapping[str, Any]:
+    """A loaded model as the mapping of its fields, the shape a raw entry
+    has: a nested dataclass (a credentials object) becomes its own field
+    mapping, one level down, so a plugin reads both shapes alike."""
+    if isinstance(model, Mapping):
+        return model
+    if dataclasses.is_dataclass(model) and not isinstance(model, type):
+        out: dict[str, Any] = {}
+        for f in dataclasses.fields(model):
+            value = getattr(model, f.name, None)
+            if dataclasses.is_dataclass(value) and not isinstance(value, type):
+                value = {g.name: getattr(value, g.name, None) for g in dataclasses.fields(value)}
+            out[f.name] = value
+        return out
+    return dict(getattr(model, "__dict__", {}) or {})
+
+
+def _type_word(settings: Mapping[str, Any], cls: type) -> str:
+    declared = settings.get("type_") or settings.get("type")
+    if declared:
+        return str(declared)
+    name = getattr(cls, "csis_name", None)
     try:
-        res = subprocess.run([binary, "version", "--format", "{{.Server.Version}} (api {{.Server.APIVersion}})"],
-                             capture_output=True, text=True, check=False, timeout=timeout, env=full)
-    except FileNotFoundError:
-        return False, f"{binary} is not an executable on this machine"
-    except subprocess.TimeoutExpired:
-        return False, f"no answer within {timeout}s"
-    if res.returncode == 0 and (res.stdout or "").strip():
-        # "present;" marks the session JUDGED: a daemon that answers has
-        # been asked, unlike static keys whose lapse nothing can read
-        return True, f"present; answers: engine {(res.stdout or '').strip()}"
-    err = ((res.stderr or res.stdout or "").strip().splitlines() or ["no answer"])[0]
-    return False, f"does not answer: {err[:160]}"
+        return str(name()) if callable(name) else cls.__name__
+    except NotImplementedError:
+        return cls.__name__
 
 
-def _docker_where(entry: Any) -> tuple[dict[str, str], str]:
-    """The daemon environment and its description from a raw entry or a
-    model: ``host`` (an ENC marker opened, never shown) or ``context``."""
-    host = entry.get("host") if isinstance(entry, dict) else getattr(entry, "host", None)
-    context = entry.get("context") if isinstance(entry, dict) else getattr(entry, "context", None)
-    env: dict[str, str] = {}
-    where = "the environment's daemon"
-    if host:
-        from ..encryption import decrypt_marker, is_marker
-        env["DOCKER_HOST"] = decrypt_marker(str(host)) if is_marker(str(host)) else str(host)
-        where = "host (encrypted)" if is_marker(str(host)) else f"host {host}"
-    elif context:
-        env["DOCKER_CONTEXT"] = str(context)
-        where = f"context {context}"
-    return env, where
-
-
-def _info_for(name: str, provider: str, profile: str | None,
-              daemon: tuple[str, dict[str, str], str] | None = None) -> SessionInfo | None:
-    provider = provider.lower()
-    if "docker" in provider:
-        binary, env, where = daemon or ("docker", {}, "the environment's daemon")
-        ok, said = docker_probe(binary, env)
-        return SessionInfo(name, "docker", where, None, said, present=ok)
-    if "aws" in provider:
-        if os.environ.get("AWS_ACCESS_KEY_ID") and not os.environ.get("AWS_PROFILE"):
-            return SessionInfo(name, "aws", "env keys", None, "static credentials in the environment (no expiry readable)")
-        profile = profile or os.environ.get("AWS_PROFILE") or None
-        if not profile:
-            return SessionInfo(name, "aws", "no profile", None, "no profile configured and no AWS_PROFILE", present=False)
-        exp, note = aws_sso_expiry(profile)
-        # present: a fixed expiry, a non-SSO profile, or a refreshable token
-        # (note begins "present;", as the GCP ADC note does) -- the last was
-        # read as ABSENT for an hour on 2026-09-21 and skipped full-test's
-        # live legs while the CLI was refreshing the token underneath
-        return SessionInfo(name, "aws", f"profile {profile}", exp, note,
-                           present=exp is not None or _PRESENT_WITHOUT_EXPIRY in note or note.startswith("present;"))
-    if "gc" in provider or "google" in provider:
-        exp, source, note = _gcp_adc()
-        return SessionInfo(name, "gcp", source, exp, note, present=not note.startswith("no "))
-    return None
-
-
-def _state_provider(type_name: str) -> str:
-    """A state manager's provider for the session it needs, from its type:
-    ``aws`` for an s3 backend, ``gcp`` for a gcs one, else nothing (stage
-    103, decision 5: a tree's credential needs follow its managers as well
-    as its runtimes; a cloud-less tree with docker roots on a `local`
-    manager needs none)."""
-    t = str(type_name or "").lower()
-    if "s3" in t:
-        return "aws"
-    if "gcs" in t:
-        return "gcp"
-    return ""
+def _status(cls: type, settings: Mapping[str, Any], executables: Mapping[str, Any]) -> SessionStatus | None:
+    hook = cast(Callable[[Mapping[str, Any], Mapping[str, Any]], SessionStatus | None] | None,
+                getattr(cls, "session_status", None))
+    return hook(settings, executables) if callable(hook) else None
 
 
 def session_infos(ctx: Any) -> list[SessionInfo]:
+    """The sessions of the LOADED configuration: every runtime builder's
+    class and every state backend's class is asked for its session over the
+    model's fields; a class that needs none answers None and is skipped."""
     out: list[SessionInfo] = []
     executables = getattr(ctx, "executables", None) or {}
     for name, rtb in sorted((getattr(ctx, "runtime_builders", None) or {}).items()):
-        model = getattr(rtb, "model", None)
-        provider = str(getattr(model, "type_", "") or type(rtb).__name__)
-        daemon = None
-        if "docker" in provider.lower():
-            exe = executables.get(str(getattr(model, "executable", None) or "docker"))
-            binary = str(getattr(exe, "binary", None) or getattr(exe, "name", None) or "docker")
-            env, where = _docker_where(model)
-            daemon = (binary, env, where)
-        info = _info_for(name, provider, _aws_profile(model) if "aws" in provider.lower() else None, daemon)
-        if info:
-            out.append(info)
-    # the session of every state manager a run reaches (stage 103)
+        settings = _settings_of(getattr(rtb, "model", None))
+        status = _status(type(rtb), settings, executables)
+        if status is not None:
+            out.append(_from_status(name, _type_word(settings, type(rtb)), status))
+    # the session of every state backend a run reaches
     for name, sb in sorted((getattr(ctx, "state_backends", None) or {}).items()):
-        model = getattr(sb, "model", sb)
-        provider = _state_provider(str(getattr(model, "type_", "") or getattr(model, "type", "") or ""))
-        if not provider:
-            continue
-        profile = getattr(model, "profile", None)
-        info = _info_for(f"state {name}", provider, str(profile) if profile else None)
-        if info:
-            out.append(info)
+        settings = _settings_of(getattr(sb, "model", sb))
+        status = _status(type(sb), settings, executables)
+        if status is not None:
+            out.append(_from_status(f"state {name}", _type_word(settings, type(sb)), status))
     return _merge(out)
 
 
 def raw_session_infos(root_dir: Path) -> list[SessionInfo]:
     """The same sessions read from the RAW ``cfg/`` files -- before the
     configuration loads, because loading it validates every runtime's
-    networking against its cloud and dies on an expired session before any
-    preflight could say so (found live 2026-09-09). Every ``cfg/*.yml`` and
-    ``*.yaml`` directly under ``cfg/`` is read, as the loader reads them
-    (stage 63 item 11: only ``runtime-builders.yml`` by name was read, so a
-    runtime declared in another file was never preflighted and the pre-load
-    expired-session refusal never fired for it)."""
+    networking against its provider and dies on an expired session before
+    any preflight could say so. Every ``cfg/*.yml`` and ``*.yaml`` directly
+    under ``cfg/`` is read, as the loader reads them (a runtime declared in
+    any of them is preflighted). Each entry's class is found through the
+    registry by its ``type:`` word and asked over the raw entry mapping and
+    the raw executables; a type no installed plugin answers to is skipped
+    (``validate`` refuses it)."""
     import yaml
     cfg = Path(root_dir) / "cfg"
     if not cfg.is_dir():
@@ -363,32 +252,24 @@ def raw_session_infos(root_dir: Path) -> list[SessionInfo]:
             for exe in doc.get("executables") or []:
                 if isinstance(exe, dict) and exe.get("name"):
                     executables[str(exe["name"])] = exe
+    reg = _registry()
+    runtime_classes = reg.runtime_builder_classes()
+    state_classes = reg.state_builder_classes()
     out: list[SessionInfo] = []
     for entry in entries:
         if not isinstance(entry, dict) or not entry.get("name"):
             continue
-        creds = entry.get("credentials") or {}
-        profile = entry.get("profile") or (creds.get("profile_name") if isinstance(creds, dict) else None)
-        daemon = None
-        if "docker" in str(entry.get("type") or "").lower():
-            exe = executables.get(str(entry.get("executable") or "docker")) or {}
-            binary = str(exe.get("binary") or exe.get("name") or "docker")
-            env, where = _docker_where(entry)
-            daemon = (binary, env, where)
-        info = _info_for(str(entry["name"]), str(entry.get("type") or ""), str(profile) if profile else None, daemon)
-        if info:
-            out.append(info)
-    # stage 103: the state managers' sessions, read raw as the runtimes' are
+        cls = runtime_classes.get(str(entry.get("type") or ""))
+        status = _status(cls, entry, executables) if cls is not None else None
+        if status is not None:
+            out.append(_from_status(str(entry["name"]), str(entry.get("type") or ""), status))
     for entry in backends:
         if not isinstance(entry, dict) or not entry.get("name"):
             continue
-        provider = _state_provider(str(entry.get("type") or ""))
-        if not provider:
-            continue
-        profile = entry.get("profile")
-        info = _info_for(f"state {entry['name']}", provider, str(profile) if profile else None)
-        if info:
-            out.append(info)
+        cls = state_classes.get(str(entry.get("type") or ""))
+        status = _status(cls, entry, executables) if cls is not None else None
+        if status is not None:
+            out.append(_from_status(f"state {entry['name']}", str(entry.get("type") or ""), status))
     return _merge(sorted(out, key=lambda i: i.runtime))
 
 
@@ -426,12 +307,11 @@ def raw_session_lines(root_dir: Path, overlays: list[Path] | None = None,
 def raw_session_readiness(root_dir: Path, overlays: list[Path] | None = None,
                           now: datetime | None = None) -> tuple[list[str], list[str], list[str], list[str], list[str]]:
     """``(lines, absent, expired, blocking, unjudged)`` from the raw tree --
-    the `preflight` command's reading (stage 16): ``absent`` are the
-    sessions with nothing to read at all (no SSO token cached, no ADC, no
-    profile), ``expired`` those whose token has lapsed -- either way the
-    configuration cannot load; ``blocking`` the strict preflight's subset;
-    ``unjudged`` the present sessions whose lifetime preflight cannot
-    read at all (static keys; hygiene XII item 17), which never make the
+    the `preflight` command's reading: ``absent`` are the sessions with
+    nothing to read at all, ``expired`` those whose token has lapsed --
+    either way the configuration cannot load; ``blocking`` the strict
+    preflight's subset; ``unjudged`` the present sessions whose lifetime
+    preflight cannot read at all (static keys), which never make the
     closing line green."""
     now = now or datetime.now(timezone.utc)
     expected = raw_expected_run_minutes(root_dir, overlays)
@@ -445,7 +325,7 @@ def raw_session_readiness(root_dir: Path, overlays: list[Path] | None = None,
 
 
 def session_lines(ctx: Any, now: datetime | None = None) -> tuple[list[str], list[str]]:
-    """``(lines, blocking)``: one line per runtime, and the subset that a
+    """``(lines, blocking)``: one line per session, and the subset that a
     strict preflight refuses on (expired, or expiring within the expected
     run length)."""
     now = now or datetime.now(timezone.utc)
@@ -463,6 +343,6 @@ def soon(minutes: float, now: datetime | None = None) -> datetime:
 
 def _expired(minutes_left: float | None) -> bool:
     """A session with no time left is expired; one whose expiry cannot be
-    read is not (stage 63: `(minutes_left or 1) <= 0` read exactly 0.0 as one
+    read is not (`(minutes_left or 1) <= 0` once read exactly 0.0 as one
     minute left)."""
     return minutes_left is not None and minutes_left <= 0

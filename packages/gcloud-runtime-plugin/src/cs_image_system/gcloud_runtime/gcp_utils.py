@@ -53,29 +53,6 @@ GCP_DI_MAP: dict[str, str] = {
     "creation_timestamp": "creationTimestamp",
 }
 
-# Query keys that only make sense for AWS/EC2.  They have no Compute Engine
-# equivalent, so they are dropped (with a log line) instead of being pushed
-# into the post-query filter where they would exclude every result.
-AWS_ONLY_QUERY_KEYS: set[str] = {
-    "root_device_type",
-    "root-device-type",
-    "virtualization_type",
-    "virtualization-type",
-    "ena_support",
-    "sriov_net_support",
-    "hypervisor",
-    "platform",
-    "is_public",
-    "owner_alias",
-    "owner_id",
-    "kernel_id",
-    "ramdisk_id",
-    "free_tier_eligible",
-    "image_allowed",
-    "manifest_location",
-    "product_code",
-}
-
 # Common owner aliases -> GCP public image projects.
 GCP_OWNER_PROJECT_MAP: dict[str, str] = {
     "debian": "debian-cloud",

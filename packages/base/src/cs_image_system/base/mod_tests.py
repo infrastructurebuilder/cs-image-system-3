@@ -11,13 +11,16 @@ target matching the image's OS family -- a container -- twice:
 2. the second run must change nothing (idempotence): the target's
    filesystem diff after run two equals the diff after run one.
 
-The harness is plugin-shaped: the target is an abstract ``LocalTarget``
-(a ``docker`` implementation ships; tests use a fake), the OS plugin says
-which container image stands in for a family/version, and each mod
-builder's ``local_test`` runs its kind of modification on the target.
-Results are recorded in ``meta-state/mod-tests.yaml`` keyed by the mod's
-content hash, so an unchanged mod is not re-tested; nothing here touches a
-cloud.
+The harness is plugin-shaped and names no runtime. The target is an
+abstract ``LocalTarget``; the one installed runtime plugin that offers a
+local test target (``local_test_target()`` on its builder class) provides
+the factory that makes one, and the image-source catalog's block keyed by
+that runtime's type (``stand_in_block``) says which container image stands
+in for a family/version (overridable per OS builder through
+``local_test_image``). Each mod builder's ``local_test`` runs its kind of
+modification on the target; tests use a fake. Results are recorded in
+``meta-state/mod-tests.yaml`` keyed by the mod's content hash, so an
+unchanged mod is not re-tested; nothing here touches a cloud.
 """
 from __future__ import annotations
 
@@ -27,12 +30,13 @@ import shlex
 import shutil
 import subprocess
 import tempfile
-import time
 from dataclasses import asdict, field
 from .models.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from pathlib import Path
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Protocol
+
 
 from .lineage import mod_records
 
@@ -43,9 +47,9 @@ log = logging.getLogger(__name__)
 
 MOD_TESTS_FILE = "mod-tests.yaml"
 
-# stage 106: the container standing in for an OS is the image-source
-# catalog's ``docker`` block for its family (overridable per OS builder
-# through ``local_test_image``); the table this module kept is gone.
+# The container standing in for an OS is the image-source catalog's
+# stand-in block for its family (overridable per OS builder through
+# ``local_test_image``); this module keeps no table of its own.
 
 # Ansible modules need a Python the controller's ansible-core supports; bare
 # OS containers have none, and RHEL-8-era images ship 3.6. Install the newest
@@ -77,105 +81,54 @@ chmod 0755 /usr/local/bin/sudo; }"""
 
 
 class LocalTarget(Protocol):
-    """A throwaway machine the harness can drive."""
+    """A throwaway machine the harness can drive. A runtime plugin
+    implements it and hands the harness a factory through its builder
+    class's ``local_test_target()``; the harness itself knows nothing of
+    how the target is made."""
     name: str
+    #: the ansible connection plugin that reaches this target (``-c <name>``)
+    ansible_connection: str
 
     def exec(self, command: str) -> tuple[int, str]: ...
     def copy_in(self, source: Path, dest: str) -> None: ...
     def diff(self) -> list[str]: ...
+    def volatile(self, path_line: str) -> bool:
+        """Whether a ``diff()`` line changes on any command and means
+        nothing to the idempotence check (the target's own knowledge of
+        its tool's diff format)."""
+        ...
     def close(self) -> None: ...
+
+
+#: what a runtime's ``local_test_target()`` returns: ``factory(image,
+#: executables) -> LocalTarget | None`` (None: the target's daemon does not
+#: answer; the harness records the tests as skipped)
+TargetFactory = Callable[..., "LocalTarget | None"]
 
 
 class ContainerStartError(RuntimeError):
     """The test container could not be started: the image could not be
     pulled (the registry or the daemon did not answer, after the retries)
-    or ``docker run`` refused. Carries docker's own last line, which is
-    what a reader needs (hygiene XII item 26: an exit status 125 under
-    eighty lines of traceback said nothing of a registry that was down)."""
+    or the run command refused. Carries the tool's own last line, which
+    is what a reader needs (an exit status under eighty lines of
+    traceback said nothing of a registry that was down)."""
 
     def __init__(self, image: str, stage: str, rc: int, words: str) -> None:
         self.image, self.stage, self.rc, self.words = image, stage, rc, words
         super().__init__(f"cannot start a container from {image}: {stage} exited {rc}: {words or '(nothing on stderr)'}")
 
 
-#: A pull is tried this many times before the container counts as unstarted,
-#: waiting these many seconds between tries (the last entry repeats). Docker
-#: Hub's sign-in service was found not answering for about an hour on
-#: 2026-10-09; a retry rides over a short outage, and names a long one.
-PULL_ATTEMPTS = 3
-PULL_RETRY_SECONDS: tuple[int, ...] = (5, 20)
-
-
-def _last_line(text: str) -> str:
-    lines = [l.strip() for l in (text or "").splitlines() if l.strip()]
-    return lines[-1] if lines else ""
-
-
-def ensure_image(docker: str, image: str, attempts: int = PULL_ATTEMPTS,
-                 retry_seconds: tuple[int, ...] = PULL_RETRY_SECONDS, sleep=time.sleep) -> str:
-    """``present`` when the daemon already holds the image, ``pulled`` after
-    a pull that may have been retried; :class:`ContainerStartError` with
-    docker's last line when every attempt failed."""
-    if subprocess.run([docker, "image", "inspect", image], capture_output=True, text=True, check=False).returncode == 0:
-        return "present"
-    for n in range(1, attempts + 1):
-        log.info(f"mod tests: pulling {image} (attempt {n} of {attempts})")
-        res = subprocess.run([docker, "pull", image], capture_output=True, text=True, check=False)
-        if res.returncode == 0:
-            return "pulled"
-        words = _last_line(res.stderr) or _last_line(res.stdout)
-        if n == attempts:
-            raise ContainerStartError(image, f"docker pull (after {attempts} attempts)", res.returncode, words)
-        wait = retry_seconds[min(n - 1, len(retry_seconds) - 1)] if retry_seconds else 0
-        log.warning(f"mod tests: pull of {image} failed (attempt {n} of {attempts}): {words}; again in {wait}s")
-        sleep(wait)
-    raise ContainerStartError(image, "docker pull", 1, "")      # attempts < 1: unreachable in practice
-
-
-class DockerTarget:
-    """A ``docker run -d`` container kept alive with ``sleep infinity``.
-    The image is pulled first, with retries, so a registry that does not
-    answer is named as such and not as a failed modification."""
-
-    def __init__(self, image: str, docker: str = "docker", attempts: int = PULL_ATTEMPTS,
-                 retry_seconds: tuple[int, ...] = PULL_RETRY_SECONDS, sleep=time.sleep) -> None:
-        self.docker = docker
-        self.image = image
-        ensure_image(docker, image, attempts, retry_seconds, sleep)
-        res = subprocess.run([docker, "run", "-d", "--rm", image, "sh", "-c", "sleep infinity"],
-                             capture_output=True, text=True, check=False)
-        if res.returncode != 0:
-            raise ContainerStartError(image, "docker run", res.returncode, _last_line(res.stderr))
-        self.name = res.stdout.strip()
-
-    def exec(self, command: str) -> tuple[int, str]:
-        res = subprocess.run([self.docker, "exec", self.name, "sh", "-c", command],
-                             capture_output=True, text=True, check=False)
-        return res.returncode, (res.stdout or "") + (res.stderr or "")
-
-    def copy_in(self, source: Path, dest: str) -> None:
-        subprocess.run([self.docker, "cp", str(source), f"{self.name}:{dest}"], check=True,
-                       capture_output=True, text=True)
-
-    def diff(self) -> list[str]:
-        res = subprocess.run([self.docker, "diff", self.name], capture_output=True, text=True, check=True)
-        return sorted(l for l in res.stdout.splitlines() if l.strip())
-
-    def close(self) -> None:
-        subprocess.run([self.docker, "rm", "-f", self.name], capture_output=True, text=True, check=False)
-
-
-def docker_binary(ctx: Any, name: str = "docker") -> str:
-    """The docker CLI a tree declares under ``name`` in cfg/executables.yml
-    (its ``binary``), else ``docker`` from PATH (stage 103)."""
-    exe = (getattr(ctx, "executables", None) or {}).get(name)
-    return str(getattr(exe, "binary", None) or getattr(exe, "name", None) or "docker") if exe is not None else "docker"
-
-
-def docker_available(docker: str = "docker") -> bool:
-    if shutil.which(docker) is None:
-        return False
-    return subprocess.run([docker, "info"], capture_output=True, text=True, check=False).returncode == 0
+def stand_in_target_factory() -> tuple[str, TargetFactory] | None:
+    """The runtime type that offers the local test target and its factory,
+    read from the registered runtime builder classes; None when no
+    installed runtime offers one."""
+    from .image_sources import _runtime_classes, stand_in_runtime_type
+    classes = _runtime_classes()
+    runtime_type = stand_in_runtime_type(classes)
+    if runtime_type is None:
+        return None
+    factory = classes[runtime_type].local_test_target()
+    return (runtime_type, factory) if factory is not None else None
 
 
 @dataclass(config=CSIS_MODEL_CONFIG)
@@ -255,14 +208,14 @@ def _stage_mod(ctx: "GlobalTypeContext", mod: Any) -> Path:
 
 def apply_mod(ctx: "GlobalTypeContext", mod: Any, target: LocalTarget, staged: Path) -> tuple[int, str]:
     """Apply one modification to the target once. Ansible mods run through
-    the docker connection when the target is a container; bash mods exec."""
+    the target's ansible connection plugin; bash mods exec."""
     playbooks = list(getattr(mod, "playbooks", None) or [])
     if playbooks:
         rc_total, out_total = 0, ""
         _, interp = target.exec(ANSIBLE_INTERPRETER)
         interp = (interp.strip().splitlines() or ["/usr/bin/python3"])[-1].strip() or "/usr/bin/python3"
         for pb in playbooks:
-            cmd = ["ansible-playbook", "-i", f"{target.name},", "-c", "docker",
+            cmd = ["ansible-playbook", "-i", f"{target.name},", "-c", target.ansible_connection,
                    "-e", f"ansible_python_interpreter={interp}", str(staged / Path(str(pb)).name)]
             res = subprocess.run(cmd, capture_output=True, text=True, check=False)
             rc_total = rc_total or res.returncode
@@ -278,13 +231,6 @@ def apply_mod(ctx: "GlobalTypeContext", mod: Any, target: LocalTarget, staged: P
         if rc != 0:
             return rc, out_total
     return rc_total, out_total
-
-
-def _volatile(path_line: str) -> bool:
-    """docker diff entries that change on any command and mean nothing."""
-    p = path_line[2:] if len(path_line) > 2 else path_line
-    return p.startswith(("/tmp", "/var/log", "/var/cache", "/var/lib/dnf", "/var/lib/rpm/__db",
-                         "/root/.ansible", "/root/.cache", "/var/lib/apt/lists", "/run"))
 
 
 def test_mod(ctx: "GlobalTypeContext", image: Any, mod: Any, record: dict[str, Any],
@@ -306,10 +252,10 @@ def test_mod(ctx: "GlobalTypeContext", image: Any, mod: Any, record: dict[str, A
         if rc1 != 0:
             result.detail = out1[-2000:]
             return result
-        before = {l for l in target.diff() if not _volatile(l)}
+        before = {l for l in target.diff() if not target.volatile(l)}
         rc2, out2 = apply_mod(ctx, mod, target, staged)
         result.second_run_rc = rc2
-        after = {l for l in target.diff() if not _volatile(l)}
+        after = {l for l in target.diff() if not target.volatile(l)}
         result.changes_on_rerun = sorted(after - before)
         result.idempotent = rc2 == 0 and not result.changes_on_rerun
         if "changed=" in out2:   # ansible recap adds its own verdict
@@ -332,6 +278,8 @@ def run_mod_tests(ctx: "GlobalTypeContext", images: list[str] | None = None,
     ms = ctx.meta_state
     previous = ms.read(MOD_TESTS_FILE).setdefault("results", {})
     results: list[ModTestResult] = []
+    offered: tuple[str, TargetFactory] | None = None
+    runtime_type = "the local target"
     for image in ctx.images:
         if images and image.get_name() not in images:
             continue
@@ -347,17 +295,20 @@ def run_mod_tests(ctx: "GlobalTypeContext", images: list[str] | None = None,
                                              detail="no local test image for the root OS family", run=ctx.run_id))
             continue
         if make_target is None:
-            # stage 103: the `docker` entry of cfg/executables.yml names the
-            # CLI (and the binary's path) the tests run; a tree without one
-            # runs `docker` from PATH as before
-            docker = docker_binary(ctx)
-            if not docker_available(docker):
+            # the one installed runtime that offers a local test target makes
+            # it; the tree's executables (cfg/executables.yml) tell its factory
+            # which CLI to run
+            if offered is None:
+                offered = stand_in_target_factory()
+            if offered is None:
                 for mod, rec in zip(mods, records):
                     results.append(ModTestResult(image=image.get_name(), mod=mod.get_name(), type=mod.get_type(),
                                                  content_hash=rec["content_hash"], target=container_image,
-                                                 status="skipped", detail="docker is not available", run=ctx.run_id))
+                                                 status="skipped", detail="no installed runtime offers a local test target",
+                                                 run=ctx.run_id))
                 continue
-            make_target = functools.partial(DockerTarget, docker=docker)
+            runtime_type, factory = offered
+            make_target = functools.partial(factory, executables=ctx.executables)
         pending = [(m, r) for m, r in zip(mods, records)
                    if force or previous.get(r["content_hash"], {}).get("status") != "pass"]
         for mod, rec in zip(mods, records):
@@ -367,8 +318,8 @@ def run_mod_tests(ctx: "GlobalTypeContext", images: list[str] | None = None,
                 results.append(ModTestResult(**{k: v for k, v in cached.items() if k in ModTestResult.__dataclass_fields__}))
         if not pending:
             continue
-        # hygiene XII item 26: say what is being waited for, and tell a
-        # container that could not START from a modification that FAILED
+        # say what is being waited for, and tell a container that could not
+        # START from a modification that FAILED
         log.info(f"mod tests: {image.get_name()}: {len(pending)} modification(s) to test on {container_image}")
         try:
             target = make_target(container_image)
@@ -380,6 +331,14 @@ def run_mod_tests(ctx: "GlobalTypeContext", images: list[str] | None = None,
                                   detail=str(e), run=ctx.run_id)
                 results.append(r)
                 previous[rec["content_hash"]] = r.to_dict()
+            continue
+        if target is None:
+            # the factory found no daemon to make the target on: skipped, not failed
+            for mod, rec in pending:
+                results.append(ModTestResult(image=image.get_name(), mod=mod.get_name(), type=mod.get_type(),
+                                             content_hash=rec["content_hash"], target=container_image,
+                                             status="skipped", detail=f"{runtime_type}: the daemon is not available",
+                                             run=ctx.run_id))
             continue
         try:
             for n, (mod, rec) in enumerate(pending, 1):

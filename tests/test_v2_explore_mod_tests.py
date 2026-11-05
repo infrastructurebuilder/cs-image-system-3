@@ -6,8 +6,10 @@
 v2-explore-mod-tests): every modification runs twice against a throwaway
 local target; run 1 must succeed, run 2 must change nothing.
 
-The harness is exercised with a FAKE target (no docker); one docker-backed
-test runs only with CSIS_DOCKER_TESTS=1.
+The harness is exercised with a FAKE target (no container tool); one
+docker-backed test runs only with CSIS_DOCKER_TESTS=1. The real target comes
+from the docker runtime plugin (``local_test_target()``); the core's
+harness names no runtime.
 """
 from __future__ import annotations
 
@@ -25,6 +27,7 @@ class FakeTarget:
     """Records commands; simulates a filesystem diff that grows on the
     first application only (idempotent) or on every application (not)."""
     instances: list["FakeTarget"] = []
+    ansible_connection = "fake"
 
     def __init__(self, image: str, idempotent: bool = True, fail_first: bool = False):
         self.image = image
@@ -55,6 +58,9 @@ class FakeTarget:
 
     def diff(self):
         return sorted(self._diff)
+
+    def volatile(self, path_line: str) -> bool:
+        return path_line[2:].startswith("/tmp")
 
     def close(self):
         self.closed = True
@@ -130,17 +136,45 @@ def test_failing_mod_is_reported_and_cached_results_are_reused(v2):
     assert forced[0].status == "pass" and len(FakeTarget.instances) == n + 1
 
 
-def test_without_docker_results_are_skipped_not_failed(v2, monkeypatch):
+def test_without_a_daemon_results_are_skipped_not_failed(v2, monkeypatch):
     from cs_image_system.base import mod_tests
-    monkeypatch.setattr(mod_tests, "docker_available", lambda docker="docker": False)
+    from cs_image_system.docker_runtime import local_target
+    monkeypatch.setattr(local_target, "docker_available", lambda docker="docker": False)
     _only_bash(v2.ctx)
     results = mod_tests.run_mod_tests(v2.ctx, images=["imgfile-basic-dask"])
     assert [r.status for r in results] == ["skipped"]
+    assert results[0].detail == "docker: the daemon is not available"      # the runtime's type, from the registry
+
+
+def test_the_target_comes_from_the_runtime_that_offers_one(v2, monkeypatch):
+    """The harness asks the registry, never a name of its own: with no
+    runtime offering a local target every modification is skipped, and the
+    factory it does find is handed the tree's executables."""
+    from cs_image_system.base import mod_tests
+    from cs_image_system.docker_runtime.local_target import docker_binary
+    _only_bash(v2.ctx)
+    assert docker_binary(v2.ctx.executables) == "/usr/local/bin/docker"           # the fixture's declared CLI
+    assert docker_binary({}) == "docker" and docker_binary(None) == "docker"
+    assert docker_binary({"docker": {"name": "docker"}}) == "docker"
+    seen: list[tuple[str, object]] = []
+
+    def factory(image, executables=None):
+        seen.append((image, executables))
+        return FakeTarget(image)
+    monkeypatch.setattr(mod_tests, "stand_in_target_factory", lambda: ("fake", factory))
+    results = mod_tests.run_mod_tests(v2.ctx, images=["imgfile-basic-dask"])
+    assert [r.status for r in results] == ["pass"]
+    assert seen == [("almalinux:10", v2.ctx.executables)]
+    monkeypatch.setattr(mod_tests, "stand_in_target_factory", lambda: None)
+    results = mod_tests.run_mod_tests(v2.ctx, images=["imgfile-basic-dask"], force=True)
+    assert [r.status for r in results] == ["skipped"]
+    assert results[0].detail == "no installed runtime offers a local test target"
 
 
 @pytest.mark.skipif(not os.environ.get("CSIS_DOCKER_TESTS"), reason="set CSIS_DOCKER_TESTS=1 to run against docker")
 def test_live_docker_bash_mod(v2):
-    from cs_image_system.base.mod_tests import docker_available, run_mod_tests
+    from cs_image_system.base.mod_tests import run_mod_tests
+    from cs_image_system.docker_runtime.local_target import docker_available
     if not docker_available():
         pytest.skip("docker not available")
     _only_bash(v2.ctx)

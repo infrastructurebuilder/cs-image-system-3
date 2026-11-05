@@ -24,7 +24,9 @@ class SessionStatus:
     readable, else ``None``; ``note`` the one-line explanation the
     preflight prints after the source; ``present`` ``False`` when there
     is nothing to read at all; ``renews`` ``True`` when the credential
-    refreshes itself and only its presence can be judged; ``renew`` the
+    refreshes itself and only its presence can be judged -- an
+    ``expires_at`` given beside it is the current token's own, advisory
+    (a long run may want to know it) and never blocks; ``renew`` the
     command that renews the session, printed when it has lapsed."""
 
     source: str

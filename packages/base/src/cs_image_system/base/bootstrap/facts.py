@@ -38,8 +38,8 @@ def real(value: Any) -> str | None:
 
 
 def run_tool(args: list[str], timeout: int = 60) -> tuple[int, str]:
-    """A read-only probe of the account (``aws iam get-role``, say): the exit
-    code and the output; 127 when the tool is not installed, 124 on a
+    """A read-only probe of an account through its cloud's CLI (a describe
+    or a get of one named resource): the exit code and the output; 127 when the tool is not installed, 124 on a
     timeout. A section's default asks through ``Facts.probe`` so a test can
     answer instead."""
     if shutil.which(args[0]) is None:
@@ -167,10 +167,19 @@ def gather(config_root: Path, *, git: bool = True, gh: bool = True) -> Facts:
     return facts
 
 
+def runtimes_of_type(facts: Facts, type_word: str) -> list[dict[str, Any]]:
+    """Every runtime the tree declares with ``type: <type_word>`` (the word a
+    runtime plugin registers), in declaration order. The core knows no type
+    word of its own: the caller -- a plugin's section -- passes the one it
+    owns."""
+    want = type_word.lower()
+    return [r for r in facts.runtimes if str(r.get("type", "")).lower() == want]
+
+
 def runtime_of_type(facts: Facts, kind: str) -> dict[str, Any] | None:
-    """The tree's runtime of a cloud (``aws``, ``gcloud``): the default one of
-    that type, else the first."""
-    mine = [r for r in facts.runtimes if str(r.get("type", "")).lower() == kind]
+    """The tree's runtime of one type: the default one of that type, else
+    the first declared."""
+    mine = runtimes_of_type(facts, kind)
     return next((r for r in mine if r.get("is_default")), mine[0] if mine else None)
 
 
@@ -204,16 +213,15 @@ def bound_backend_names(facts: Facts) -> set[str]:
 
 
 def ci_can_reach(runtime: dict[str, Any]) -> bool:
-    """Whether CI can be expected to reach the runtime (stage 103 item 15).
-    A cloud's API is reachable from anywhere; a container runtime is a
-    daemon on someone's host, and the starters' workflow reaches an
-    ``ssh://`` one, or the environment's own daemon, whose address the
-    workflow supplies (the docker starter's runtime names none). A local
-    socket, a context, a host the YAML keeps as an ``ENC[...]`` marker
-    (unreadable here) and a ``tcp://`` host are not assumed reachable: the
+    """Whether CI can be expected to reach the runtime, judged from the shape
+    of its declaration and from nothing provider-specific. A runtime that
+    names no daemon address is a cloud's API, or the environment's own
+    daemon whose address the workflow supplies: reachable from anywhere. A
+    runtime that names a ``host`` is a daemon on someone's machine, and the
+    starters' workflow reaches an ``ssh://`` one only; a local socket, a
+    ``tcp://`` host, a host the YAML keeps as an ``ENC[...]`` marker
+    (unreadable here) and a named ``context`` are not assumed reachable: the
     interview asks."""
-    if str(runtime.get("type", "")).lower() != "docker":
-        return True
     host = str(runtime.get("host") or "").strip()
     if host:
         return host.startswith("ssh://")
@@ -223,8 +231,7 @@ def ci_can_reach(runtime: dict[str, Any]) -> bool:
 def first_runtime_name(facts: Facts, *, prefer: tuple[str, ...] = ()) -> str | None:
     """The default runtime's name: the one marked ``is_default``, else the
     first whose type or aliases name a preferred cloud (none by default: no
-    cloud is assumed, stage 103 item 15), else the first CI can reach, else
-    the first."""
+    cloud is assumed), else the first CI can reach, else the first."""
     if not facts.runtimes:
         return None
     for r in facts.runtimes:
@@ -244,11 +251,3 @@ def first_unreachable_runtime_name(facts: Facts) -> str | None:
     """The first runtime CI cannot be expected to reach, else None: the
     default of the question "a runtime CI must never bake on"."""
     return next((str(r["name"]) for r in facts.runtimes if not ci_can_reach(r)), None)
-
-
-def runtime_region(facts: Facts, name: str | None) -> str | None:
-    for r in facts.runtimes:
-        if name and r.get("name") == name:
-            region = r.get("region") or (r.get("config") or {}).get("region") if isinstance(r.get("config"), dict) else r.get("region")
-            return str(region) if region else None
-    return None

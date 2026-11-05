@@ -416,10 +416,16 @@ section so a named profile still finds them. With `profile` unset, no
 passed through when declared, so they steer tofu the way the
 terraform backend documents; static keys are refused at load, so
 credentials still come from the profile, the environment or an assumed
-role. The configuration
-load checks the *runtime's* AWS session (the runtime's
-`credentials.profile_name`), not the backend's `profile`; a backend whose
-profile is unknown or expired fails at tofu's `init`, not at load.
+role. `preflight` and every
+load print the backend's own session as well as the runtimes': this
+builder's `session_status` hook takes the backend's `profile` (else the
+environment's) and reaches the AWS runtime plugin's session reading
+through the registry by its type key (`aws`), so a backend on a lapsed
+profile is reported before the load, in the same `session:` line as the
+runtimes that share the profile. The plugin imports nothing of the
+runtime's package; when that plugin is not installed the backend's line
+is present and NOT JUDGED, and says so. A backend whose profile is
+unknown to the account still fails at tofu's `init`, not at load.
 
 **Tools.** Tofu (or terraform) with an `s3` backend that accepts
 `use_lockfile` -- S3-native locking, no DynamoDB table is declared or

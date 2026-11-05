@@ -16,7 +16,7 @@ mod test is tolerated unless ``config.require_mod_tests`` is true).
 
 The lifecycle itself (registered after ``instance-image``) regenerates the
 release read-model under ``generated/release/`` and defers the artifact
-marking (e.g. tagging the AMI) to its runner script, applied only when
+marking (e.g. tagging the image) to its runner script, applied only when
 ``config.apply_release`` is true -- the same gate discipline as everything
 else. With ``config.require_released_builds: true`` an instance may pin only
 to a released build of its image (a validator; the first bind of an

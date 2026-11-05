@@ -10,6 +10,7 @@ from typing import Any
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
 from cs_image_system.contract.assets import AssetSet
 from cs_image_system.base.basic.builder_base_cloud import CloudBuilderBase
+from cs_image_system.base.image_sources import packaged_entries_of
 from cs_image_system.contract.constants import VCT
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
@@ -21,7 +22,8 @@ from .aws_provider_specific_image import AwsProviderSpecificImage
 from .aws_runtime_models import AWS_CLI, AwsCloudBuilderModel
 from .aws_utils import AWS_QUERY_KEYS, query_image, translate_image_query
 from cs_image_system.contract.image import ImageQuery
-from cs_image_system.aws_runtime import aws_utils
+from cs_image_system.contract.session import LoadFailureReport, SessionStatus
+from cs_image_system.aws_runtime import aws_utils, session
 
 log = logging.getLogger(__name__)
 
@@ -44,12 +46,40 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
     def provider_specific_image_class(self) -> type[ProviderSpecificImage]:
         return AwsProviderSpecificImage
 
+    # --- the session hooks: what the preflight and the load ask of the CLASS
+    @classmethod
+    def session_status(cls, settings: Mapping[str, Any], executables: Mapping[str, Any]) -> SessionStatus | None:
+        """The runtime's AWS session from the credential caches (see
+        ``session.py``): its profile from ``profile`` /
+        ``credentials.profile_name`` / ``AWS_PROFILE``."""
+        return session.session_status(settings)
+
+    @classmethod
+    def credential_environment_prefixes(cls) -> tuple[str, ...]:
+        return session.CREDENTIAL_ENVIRONMENT_PREFIXES
+
+    @classmethod
+    def classify_failure(cls, exc: BaseException) -> LoadFailureReport | None:
+        return session.classify_failure(exc)
+
     # --- the image query (stage 106)
     def supported_query_keys(self) -> frozenset[str]:
         return AWS_QUERY_KEYS
 
     def translate_image_query(self, query: ImageQuery) -> dict[str, Any]:
         return translate_image_query(query)
+
+    @classmethod
+    def secret_patterns(cls) -> Mapping[str, str]:
+        """An access key id: the two fixed prefixes and sixteen upper-case
+        alphanumerics; the public-safety scan refuses one anywhere."""
+        return {"aws-access-key": r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"}
+
+    @classmethod
+    def image_source_entries(cls) -> list[Mapping[str, Any]]:
+        """This runtime's part of the release-owned image-source catalog:
+        the `aws` blocks, shipped as this package's ``data/image-sources.yml``."""
+        return packaged_entries_of("cs_image_system.aws_runtime")
 
     def query_provider_image(self, os_builder: OSBuilderBaseImageBuilderSubconfig) -> tuple[str, str, Mapping[str,Any]] | None:
         retval: str | None = None

@@ -35,7 +35,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from cs_image_system.base.bootstrap.facts import Facts, collect, real
-from cs_image_system.base.bootstrap.questions import BY_HAND, Answers, Question, Rendered, Section
+from cs_image_system.base.bootstrap.questions import BY_HAND, Answers, Question, Rendered, Secret, Section
 
 from . import okta_app_check
 
@@ -310,6 +310,15 @@ def wanted(facts: Facts) -> bool:
     return okta_builder(facts) is not None
 
 
+#: The repository secrets the starters' workflow reads to act on Okta and OPA
+#: (CI_SETUP.md 3.5): all from files, since by decision none is made by a root.
+SECRETS: tuple[Secret, ...] = (
+    Secret("OKTA_API_PRIVATE_KEY", "file", comment="the okta provider's private key, PEM (3.5)", order=30),
+    Secret("TF_VAR_KEY", "file", comment="the OPA service user's key (3.5)", order=31),
+    Secret("TF_VAR_SECRET", "file", comment="the OPA service user's secret (3.5)", order=32),
+)
+
+
 def okta_section() -> Section:
-    return Section(name="okta", title="Okta and OPA", questions=QUESTIONS, render=render, wanted=wanted,
+    return Section(name="okta", title="Okta and OPA", questions=QUESTIONS, render=render, wanted=wanted, secrets=SECRETS,
                    description="the OPA workload connection and role and the Okta API services app, read and checked")

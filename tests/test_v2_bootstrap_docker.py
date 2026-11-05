@@ -90,7 +90,7 @@ def test_the_quiet_interview_of_the_docker_starter_takes_its_own_runtime(tmp_pat
     out = bs.run_interview([s for s in bs.discover() if s.name == "github"], facts, quiet=True, prior={"github": {
         "wanted": True, "repository": "acme/widgets", "default_branch": "develop"}})
     assert out["github"]["perform_runtime"] == "docker-main"
-    assert out["github"]["guard_runtime"] == "" and out["github"]["aws_region"] == ""
+    assert out["github"]["guard_runtime"] == "" and "aws_region" not in out["github"]     # the region is a cloud section's question
 
 
 def test_a_daemon_ci_cannot_reach_is_the_guard_by_default(tmp_path: Path):
@@ -126,7 +126,7 @@ def test_the_render_says_what_remains_and_never_prints_an_address(tmp_path: Path
 def test_the_generated_root_for_a_docker_tree_names_the_secrets_and_the_audit(tmp_path: Path):
     root = _tree(tmp_path)
     answers = {**GITHUB_ANSWERS, "docker": {"wanted": True, "runtime": "docker-main", "ci_reaches": True}}
-    answers["github"] = {**GITHUB_ANSWERS["github"], "perform_runtime": "docker-main", "guard_runtime": "", "aws_region": ""}
+    answers["github"] = {**GITHUB_ANSWERS["github"], "perform_runtime": "docker-main", "guard_runtime": ""}
     bs.write_answers(root / bs.ANSWERS_FILE, answers)
     bs.regenerate(root)
     out = bs.output_dir(root)

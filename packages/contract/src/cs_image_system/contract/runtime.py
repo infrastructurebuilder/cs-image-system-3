@@ -10,7 +10,7 @@ into its own words (stage 106), and makes the provider-specific images (the
 resolved or deferred reference to an image on this runtime).
 Stage 103 adds the container runtime's model protocol beside the cloud's,
 and two bake hooks: the post-processor blocks a runtime's packer plugin
-wants in the build (the docker runtime tags its committed image) and the
+wants in the build (the container runtime tags its committed image) and the
 ansible variables a bake on it connects with (``ansible_connection``);
 its second branch adds ``launch_delivery``: whether the platform runs the
 launch script at first boot (a cloud's user data) or the system delivers it
@@ -27,7 +27,7 @@ from .image import ImageQuery, PSISourceKind
 from .session import SessionStatus
 
 #: How an instance's launch script reaches the machine (stage 103 branch 2):
-#: ``boot`` -- the platform runs it at first boot (EC2 user data, a GCE
+#: ``boot`` -- the platform runs it at first boot (a cloud's user data or
 #: startup script); ``session`` -- the system runs it through the runtime's
 #: session after the apply, as it runs the accounts script.
 LAUNCH_DELIVERY_BOOT = "boot"
@@ -74,8 +74,8 @@ class CloudBuilderModelProtocol(RuntimeBuilderModelProtocol, Protocol):
 
 class ContainerBuilderModelProtocol(RuntimeBuilderModelProtocol, Protocol):
     """A container runtime (stage 103): a durable host running a daemon
-    that speaks the Docker Engine API, reached by a ``host`` URL
-    (``unix://``, ``ssh://``, ``tcp://`` with TLS) or a docker ``context``;
+    that speaks the container engine's API, reached by a ``host`` URL
+    (``unix://``, ``ssh://``, ``tcp://`` with TLS) or a named client ``context``;
     a ``networking`` block that names a network and nothing more (no
     subnets, no zones); and a ``machine_types`` map from a name to the
     limits a container of that type runs under (``cpus``, ``memory``),
@@ -225,6 +225,15 @@ class RuntimeBuilderProtocol(BuilderProtocol, Protocol):
         credentials from (the preflight reports one that is set and
         empty, by name, never by value). Empty for a runtime that reads
         none."""
+        ...
+
+    @classmethod
+    def secret_patterns(cls) -> Mapping[str, str]:
+        """The shapes of this runtime's secrets that must never reach a
+        public repository, as named regular expressions over text (an
+        access key id's prefix and length, a service-account key id); the
+        public-safety scan adds them to its own rules. Empty for a runtime
+        whose secrets have no recognisable shape."""
         ...
 
     @classmethod

@@ -31,8 +31,11 @@ log = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=PackerImageBuilderModel)
 
-class PackerImageBuilder(ImageBuilderBase[T]):
-    """Packer image builder implementation."""
+class PackerImageBuilderBase(ImageBuilderBase[T]):
+    """What every packer image builder shares: the type key, the source
+    type the bound runtime bakes with, the build-target label, the plugin
+    and variable registration. The one concrete builder is
+    ``packer_image_builder.PackerImageBuilder``."""
 
     @classmethod
     def csis_name(cls) -> str:
@@ -43,16 +46,16 @@ class PackerImageBuilder(ImageBuilderBase[T]):
         return self._model # type: ignore # FIXME: Type check on aisle 4!
 
     def get_packer_source_type(self) -> str:
-        """The packer source type: the runtime plugin's say (EXPLORE GCP
-        increment 1); ``amazon-ebs`` only for a runtime with no opinion."""
+        """The packer source type: the bound runtime's say, and only its.
+        A runtime that declares none cannot bake with packer; the error
+        names it."""
         from cs_image_system.base.global_context import GlobalTypeContext
-        rtb = GlobalTypeContext().runtime_builders.get(self.model.get_runtime_provider())
-        if rtb is not None:
-            try:
-                return rtb.packer_source_type()
-            except NotImplementedError:
-                log.debug(f"Runtime {rtb.get_name()} declares no packer source type; assuming amazon-ebs")
-        return "amazon-ebs"
+        runtime = self.model.get_runtime_provider()
+        rtb = GlobalTypeContext().runtime_builders.get(runtime)
+        if rtb is None:
+            raise ValueError(f"image builder {self.name!r}: its runtime {runtime!r} is not loaded, "
+                             f"so no packer source type can be named")
+        return rtb.packer_source_type()
 
     def build_target_label(self, image: Image | BaseImage) -> str:
         return f"{self.get_packer_source_type()}.{image.get_name()}"

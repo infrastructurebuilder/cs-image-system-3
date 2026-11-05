@@ -28,8 +28,10 @@ def _image(name="basic-deb-11", auto_update=True, subconfig_present=True):
 
 
 def _image_builder():
+    # the image builder labels the build target through its runtime; the stub answers for one
     return SimpleNamespace(
-        model=SimpleNamespace(get_runtime_provider=lambda: "aws-east2-runtime"))
+        model=SimpleNamespace(get_runtime_provider=lambda: "aws-east2-runtime"),
+        build_target_label=lambda img: f"amazon-ebs.{getattr(img, 'name', None) or img.get_name()}")
 
 
 def _stub_osb(commands, os_type="debian"):

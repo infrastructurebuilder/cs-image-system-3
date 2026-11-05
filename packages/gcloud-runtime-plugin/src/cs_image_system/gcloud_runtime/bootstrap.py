@@ -412,6 +412,16 @@ def wanted(facts: Facts) -> bool:
     return runtime_of_type(facts, "gcloud") is not None or default_state_backend(facts, "gcs") is not None
 
 
+#: The repository secrets the starters' workflow reads to act on GCP (CI_SETUP.md
+#: 3.4), from files when this section is not wanted; a wanted section's render
+#: sets all three from the applied root's outputs instead.
+SECRETS: tuple[Secret, ...] = (
+    Secret("GCP_WORKLOAD_IDENTITY_PROVIDER", "file", comment="the provider's full resource name (3.4)", order=20),
+    Secret("GCP_SERVICE_ACCOUNT", "file", comment="the READ-ONLY service account's address (3.4)", order=21),
+    Secret("GCP_APPLY_SERVICE_ACCOUNT", "file", comment="the service account that may write (3.4)", order=22),
+)
+
+
 def gcp_section() -> Section:
-    return Section(name="gcp", title="GCP", questions=QUESTIONS, render=render, wanted=wanted,
+    return Section(name="gcp", title="GCP", questions=QUESTIONS, render=render, wanted=wanted, secrets=SECRETS,
                    description="the workload identity pool and GitHub provider, the read-only and write service accounts, their bindings")

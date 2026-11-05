@@ -12,7 +12,7 @@ root instead of erroring.
 """
 from types import SimpleNamespace
 
-from cs_image_system.packer_plugin.packer_ebs_builder import PackerEbsImageBuilder
+from cs_image_system.packer_plugin.packer_image_builder import PackerEbsImageBuilder
 
 
 def _stub_builder():

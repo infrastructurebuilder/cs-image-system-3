@@ -337,6 +337,17 @@ state. `validate` has already refused an entry whose query uses a key this
 runtime cannot translate (the EC2 particulars) or has no source at all,
 and has printed every entry's query in both vocabularies.
 
+The `gcloud` blocks of the release's catalog are this plugin's: it ships
+them as package data,
+[`data/image-sources.yml`](src/cs_image_system/gcloud_runtime/data/image-sources.yml),
+and `GCPCloudBuilder.image_source_entries()` reads that file. The core
+merges every installed runtime's part by family, so the release catalog a
+tree sees carries a `gcloud` block exactly when this plugin is installed.
+Two families the other runtimes know are absent from the file on purpose:
+Compute Engine has no public Fedora family, and its Ubuntu families are
+named by release (`ubuntu-2404-lts-amd64`), not by major version, so a
+tree declares the one it bakes (CONFIGURATION 5a.1).
+
 ### Image query translation
 
 What `translate_image_query()` does with each key of the system's
@@ -578,9 +589,15 @@ gcloud auth application-default login --impersonate-service-account=csis-runner@
 
 which needs `roles/iam.serviceAccountTokenCreator` on the runner for the
 operator's own Google user. `cs-image-system preflight` and every `run` and
-`state` check that the ADC file exists at the same path (presence only: an
-impersonated or authorized-user ADC refreshes itself, so no expiry is
-readable) and print one `session:` line for it. In CI the
+`state` print one `session:` line for it; the check is this plugin's own
+`session_status` hook ([`session.py`](src/cs_image_system/gcloud_runtime/session.py)),
+which reports whether the ADC file exists at the same path (presence
+only: an impersonated or authorized-user ADC refreshes itself, so no
+expiry is readable) and names `gcloud auth application-default login` as
+the renew command; the core prints what the hook answers and reads no
+credential file itself. A `gcs` state backend reaches the same reading
+through this runtime's class, so a tree with the backend alone is
+preflighted too. In CI the
 `google-github-actions/auth` action turns `GCP_WORKLOAD_IDENTITY_PROVIDER`
 and `GCP_SERVICE_ACCOUNT` into ADC (read-only in CI: the GCE runtime is out
 of CI by the cost decision, and the perform job only records and guards).
@@ -663,7 +680,9 @@ later.
 Environment variables the plugin or its checks read: `GOOGLE_APPLICATION_CREDENTIALS`
 (optional; the ADC file), and in CI `GCP_WORKLOAD_IDENTITY_PROVIDER` and
 `GCP_SERVICE_ACCOUNT` (read by the auth action, not by the plugin). The
-preflight also refuses any `GOOGLE_*` variable that is set but empty.
+preflight also refuses any `GOOGLE_*` or `CLOUDSDK_*` variable that is set
+but empty: those are the prefixes this plugin declares through
+`credential_environment_prefixes()`.
 
 ## Configuration reference
 
@@ -800,11 +819,13 @@ and any key inside `credentials:`.
   project id is used as is; `amazon`, `aws-marketplace`, `aws-backup-vault`
   and anything that cannot be a project id (an AWS account number) are
   dropped, so a shared OS-builder query works on both clouds.
-- **A query with AWS-only keys.** `root_device_type`,
-  `virtualization_type`, `block_device_mapping.*` and the rest of
-  `AWS_ONLY_QUERY_KEYS` cannot be translated for GCE: `validate` refuses
-  the entry and names the key, and the translation raises `ValueError`
-  if it is ever reached; only owner aliases are dropped, never keys. A
+- **A query with keys of another cloud.** `root_device_type`,
+  `virtualization_type`, `block_device_mapping.*` and the other keys
+  outside `supported_query_keys()` cannot be translated for GCE:
+  `validate` refuses the entry and names the key, and the translation
+  raises `ValueError` if it is ever reached; only owner aliases are
+  dropped, never keys. (The plugin once carried a list of the other
+  cloud's keys in order to drop them; nothing read it, and it is gone.) A
   base image shared by both clouds therefore keeps its query to the keys
   both runtimes translate (the table above).
 - **`state: available` vs anything else.** `available` maps to `status =
@@ -853,6 +874,12 @@ and any key inside `credentials:`.
   one of them would reach the API as the literal marker.
 
 ## What it tests and verifies
+
+The plugin also tells the public-safety scan the shape of its own
+secret: `secret_patterns()` declares `gcp-service-account` (a
+`private_key_id` with a long hex value, the mark of a service-account key
+file; the key body is a PEM block the scan refuses on its own), so the
+core's scan names no cloud and still knows this one's keys.
 
 **At load (pydantic, then `finalize()`).** Unknown keys anywhere in the
 entry are refused with the field path (`extra="forbid"`); `credentials:`

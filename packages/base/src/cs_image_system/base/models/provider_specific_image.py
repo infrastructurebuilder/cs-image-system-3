@@ -18,8 +18,8 @@ class ProviderSpecificImage(ABC):
     """An image as a specific runtime provider knows it.
 
     Generated for a given RuntimeBuilder from either a generic Image or an
-    OsBuilder.  Holds the runtime-specific identifier (e.g. an AMI id for AWS,
-    an image name/self-link for GCP).
+    OsBuilder.  Holds the runtime-specific identifier (an image id on one
+    cloud, an image name or self-link on another).
 
     Two states are supported:
     - RESOLVED: a concrete identifier is known (obtained at resolution time,
@@ -118,7 +118,8 @@ class ProviderSpecificImage(ABC):
     def get_query_assets(self) -> dict[str, Any] | None:
         """Provider query inputs for locating this image.
 
-        Keys match the packer 'data "amazon-ami"' body: owners, filters, most_recent.
+        Keys match the body of the packer image data source the runtime's plugin
+        emits: owners, filters, most_recent.
         """
         ...
 

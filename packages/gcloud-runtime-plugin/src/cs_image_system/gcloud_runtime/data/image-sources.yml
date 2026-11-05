@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# The gcloud runtime's part of the release-owned image-source catalog:
+# where a vendor image comes from on Compute Engine, per family, in the
+# SYSTEM's query vocabulary (CONFIGURATION.md section 5a). The core merges
+# this with every other installed runtime's part by family; a tree's own
+# `cfg/image-sources*.yml` extends or overrides the result by family (and
+# version); an OS builder's own `query`, and its runtime entry's, land on
+# top of the block, key by key.
+#
+# `{version}` is the one placeholder: the OS builder's `family_version`.
+# Every publisher project here is a vendor fact, reviewed at the release
+# that ships it; a tree that distrusts one overrides it.
+image_sources:
+  # ------------------------------------------------ the Red Hat family
+  - family: rhel
+    description: Red Hat Enterprise Linux, the vendor's own images
+    sources:
+      gcloud:
+        publisher: ["rhel-cloud"]
+        family: "rhel-{version}"
+  - family: alma-linux
+    is: rhel
+    description: AlmaLinux, a RHEL rebuild
+    sources:
+      gcloud:
+        publisher: ["almalinux-cloud"]
+        family: "almalinux-{version}"
+  - family: rocky-linux
+    is: rhel
+    description: Rocky Linux, a RHEL rebuild
+    sources:
+      gcloud:
+        publisher: ["rocky-linux-cloud"]
+        family: "rocky-linux-{version}"
+  - family: centos-stream
+    is: rhel
+    description: CentOS Stream
+    sources:
+      gcloud:
+        publisher: ["centos-cloud"]
+        family: "centos-stream-{version}"
+  # fedora: Compute Engine has no public Fedora family; a tree that bakes
+  # it there declares its own block.
+  # ------------------------------------------------ the Debian family
+  - family: debian
+    description: Debian, the vendor's own cloud images
+    sources:
+      gcloud:
+        publisher: ["debian-cloud"]
+        family: "debian-{version}"
+  # ubuntu: Compute Engine's families are named by release
+  # (`ubuntu-2404-lts-amd64`), not by major version, so a tree declares the
+  # one it bakes (CONFIGURATION.md section 5a.1).

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """The container runtime's model (stage 103): a durable host running a
-daemon that speaks the Docker Engine API. Unlike a cloud it has no region,
+daemon that speaks the container engine's API. Unlike a cloud it has no region,
 no subnets and no zones: its network is a name the daemon knows, referenced
 and never created or changed (the network rule of stage 1), and its machine
 types are the limits a container runs under, declared here because no
@@ -47,8 +47,8 @@ class ContainerNetworkingModel:
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
 class ContainerMachineType:
     """The limits a container of one machine type runs under: a CPU count
-    (``docker run --cpus``, fractional allowed) and a memory limit in
-    docker's own spelling (``512m``, ``4g``). Either may be left unset."""
+    (the engine's ``--cpus`` run option, fractional allowed) and a memory limit
+    in the engine's own spelling (``512m``, ``4g``). Either may be left unset."""
     cpus: float | None = None
     memory: str | None = None
 
@@ -61,8 +61,8 @@ class ContainerMachineType:
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
 class ContainerBuilderModel(RuntimeBuilderModel, ContainerBuilderModelProtocol):
-    """A container runtime's declaration. ``host`` is a ``DOCKER_HOST`` URL
-    (``unix://``, ``ssh://``, ``tcp://`` with TLS) and ``context`` a docker
+    """A container runtime's declaration. ``host`` is the daemon's URL
+    (``unix://``, ``ssh://``, ``tcp://`` with TLS) and ``context`` a client
     context name; one or neither is declared (neither: the daemon the
     environment names). Never a credential: TLS material is a path or an
     ENC marker. ``machine_types`` names the limits an instance's
