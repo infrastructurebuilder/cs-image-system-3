@@ -3467,6 +3467,16 @@ exception is a decision to record, not a bypass.
   that needs it, and it stops it again.
 - No privileged container, no init system and no sshd are built. An image
   that adds an sshd or systemd is outside the supported shape.
+- On a host with several engines (OrbStack, Docker Desktop, a Podman
+  machine) the `docker` command follows its active context while the
+  tofu docker provider and packer read `DOCKER_HOST` and otherwise take
+  `/var/run/docker.sock`, which may point at an engine that is not
+  running. The docker legs of `just full-test` (`test-docker-bake`,
+  `test-docker-cycle`) therefore run with `DOCKER_HOST` set to the
+  active context's endpoint (`just docker-host` prints it; a
+  `DOCKER_HOST` already in the shell wins), so every tool reaches the
+  daemon `docker` itself uses. A tree that must name a daemon names it
+  in the runtime's `host:` or `context:`.
 - CI reaches a host over ssh with a key kept as a repository secret
   (CI_SETUP.md 3.4a), or it does not, in which case the runtime is named
   in `GUARD_RUNTIME` and CI never bakes on it. Without the key a job uses
