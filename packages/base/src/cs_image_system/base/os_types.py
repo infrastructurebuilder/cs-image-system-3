@@ -28,7 +28,7 @@ def os_type_for_family(family: str | None) -> type:
     if not token:
         raise ValueError("no OS family given: a package-manager line needs the image's family to pick its OS type")
     load_plugins()
-    types = current_registry().models.get(VCT.OS_BUILDER_MODEL, {})
+    types = current_registry().models_under(VCT.OS_BUILDER_MODEL)
 
     def served_by(cls: type) -> tuple[str, ...]:
         families = getattr(cls, "families", None)

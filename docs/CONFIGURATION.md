@@ -73,6 +73,25 @@ current directory). The Justfile drives the live tree named by
 - On a **builder**, `type` names the plugin model that structures the entry
   (`aws`, `packer`, `tf-aws-efs`, `okta-tf-ro`, `s3`, …). A plugin may
   register a model under several names; the canonical name is recorded.
+  Every registration also has a **qualified form**,
+  `<namespace>/<name>`, where the namespace is the plugin's: its
+  distribution name with `cs-image-system-` and `-plugin` dropped
+  (`aws-runtime/aws`, `tf-ebs-instance/tofu`, `packer/packer`), or the
+  namespace the plugin declares. A bare word is enough while one class
+  answers to it, whatever plugins carry it; when two installed plugins
+  register *different* classes under one word, `validate` refuses the
+  bare word with one line naming both qualified forms, and the entry
+  writes the one it means:
+
+  ```yaml
+  instance_builders:
+    - name: ebs-instances
+      type: tf-ebs-instance/tofu   # the AWS root's `tofu`, not another plugin's
+  ```
+
+  What the entry wrote is what is recorded: a bare word stays bare, a
+  qualified word keeps its namespace; the registry answers either. The
+  reasoning is in [the stage index](CHANGES.md#s131).
 - On a **collection item**, `type` names the builder that owns it, by the
   builder's `name` or one of its `aliases` (`type: pckr-ebs-ans`,
   `type: some-other-builder`). Inside `modifications:` and `storages:` the

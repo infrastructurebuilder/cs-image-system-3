@@ -27,13 +27,15 @@ def test_a_registry_is_per_run_and_the_process_holds_the_bound_one():
 def test_reset_clears_registered_state(clean_registry):
     reg = _registry.current_registry()
 
-    reg.models[VCT.STORAGE_MODEL]["thing"] = cast(Any, object)
+    reg.models[_registry.RegistrationKey(VCT.STORAGE_MODEL, "test", "thing")] = cast(Any, object)
     reg.instances[VCT.STORAGE_MODEL]["thing"] = object()
     assert reg.get_model(VCT.STORAGE_MODEL, "thing") is not None
+    assert reg.get_model(VCT.STORAGE_MODEL, "test/thing") is not None
 
     reg.reset()
 
     # All registered state is gone, and the per-VCT dicts are rebuilt (present + empty).
     assert reg.get_model(VCT.STORAGE_MODEL, "thing") is None
+    assert reg.models == {}
     assert reg.instances[VCT.STORAGE_MODEL] == {}
     assert set(reg.instances.keys()) == set(VCT)

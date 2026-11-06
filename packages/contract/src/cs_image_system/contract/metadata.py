@@ -39,7 +39,15 @@ class PluginMetadata:
     ``injected_models`` are item models registered under a classification
     (``is_injected_models_default`` makes them that classification's
     default); ``version`` is the plugin's own, ``plugin_metadata_version``
-    the shape of this record, ``python`` the interpreter it needs."""
+    the shape of this record, ``python`` the interpreter it needs.
+
+    ``namespace`` is the word the registry qualifies every registration of
+    this record with (``<namespace>/<name>``), so two plugins may register
+    one ``type:`` word under one classification and a tree may name either
+    by its qualified form. Left ``None``, the loader derives it from the
+    plugin's distribution name with the ``cs-image-system-`` prefix and
+    the ``-plugin`` suffix dropped; a record with no distribution behind
+    it (one built in a test) must name it or is refused."""
 
     services: dict[str, list[type[PluginArtifactProtocol]]] = field(default_factory=dict)
     builders_for_models: dict[type[NameTypedProtocol], type] = field(default_factory=dict)
@@ -48,6 +56,7 @@ class PluginMetadata:
     version: str = "0"
     plugin_metadata_version: str = "1"
     python: str = ">=3.13"
+    namespace: str | None = None
 
     @property
     def requires_python(self) -> SpecifierSet:

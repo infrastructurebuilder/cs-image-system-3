@@ -18,7 +18,7 @@ dependencies = [
     "cs-image-system-aws-runtime-plugin==0.1.7.dev1",
     "cs-image-system-base==0.1.7.dev1",
     "cs-image-system-bash-mod-plugin==0.1.7.dev1",
-    "cs-image-system-contract>=0.1,<0.2",
+    "cs-image-system-contract>=0.2,<0.3",
     "cs-image-system-contract-example-plugin==0.1.7.dev1",
     "cs-image-system-default-os-plugin==0.1.7.dev1",
     "cs-image-system-docker-runtime-plugin==0.1.7.dev1",

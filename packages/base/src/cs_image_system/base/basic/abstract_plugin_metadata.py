@@ -81,6 +81,7 @@ class AbstractPluginMetadata(ABC, PluginMetadataProtocol):
                _injected_models: dict[VCT, type] | None = None,
                _injected_models_are_defaults: bool = False,
                _version: str | None = None,
+               _namespace: str | None = None,
                ) -> None:
     super().__init__()
     self._metadata_version = _metadata_version
@@ -90,6 +91,7 @@ class AbstractPluginMetadata(ABC, PluginMetadataProtocol):
     self._injected_models = _injected_models if _injected_models is not None else {}
     self._injected_models_are_defaults = _injected_models_are_defaults
     self._version = _version
+    self._namespace = _namespace
   @property
   def plugin_metadata_version(self) -> str:
       return self._metadata_version
@@ -121,3 +123,10 @@ class AbstractPluginMetadata(ABC, PluginMetadataProtocol):
   @property
   def is_injected_models_default(self) -> bool:
        return self._injected_models_are_defaults
+
+  @property
+  def namespace(self) -> str | None:
+      """The namespace the registry qualifies this plugin's registrations
+      with: the one given, else ``None`` and the loader derives it from
+      the distribution that ships the subclass."""
+      return self._namespace

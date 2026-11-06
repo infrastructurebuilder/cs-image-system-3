@@ -97,7 +97,10 @@ this order:
 Each entry point loads to a callable. `load_plugins()` calls it and expects
 one object satisfying the contract's `PluginMetadataProtocol`, or a list of
 them (the check is `isinstance`, name-only; anything else is logged as an
-error and skipped). Entry points within a group load in name order. Loading
+error and skipped). The entry point's distribution gives the plugin its
+namespace (`namespace_of_distribution`: `cs-image-system-aws-runtime-plugin`
+is `aws-runtime`), unless the metadata names one; the load log says, per
+namespace, what registered. Entry points within a group load in name order. Loading
 is idempotent: a second call in the same process returns at once unless
 `Registry().reset()` was called. After every plugin registered, the loader
 drops the cached converter so the next structuring sees the full model set.
@@ -136,6 +139,7 @@ does the same from constructor arguments in this order (the plugin's
 | `injected_models`             | `dict[VCT, type]`                     | Item models the plugin injects under a classification. |
 | `is_injected_models_default`  | `bool`                                | Whether injected models become the default for their classification. |
 | `version`                     | `str`                                 | The plugin's own version: the one given, else the version of the distribution that ships the metadata class, else `0`. |
+| `namespace`                   | `str | None`                          | The namespace the registry qualifies the plugin's registrations with (`<namespace>/<name>`). `None` leaves it to the loader, which derives it from the distribution's name (`cs-image-system-` and `-plugin` dropped: `aws-runtime`, `tf-ebs-instance`, `base`); a plugin with no distribution must name one. |
 
 `PluginArtifactProtocol` is two class methods:
 
@@ -146,8 +150,10 @@ does the same from constructor arguments in this order (the plugin's
 
 A typical plugin registers a model class and its builder class under the
 same service name and maps the model to the builder in
-`builders_for_models`. The registry refuses a name registered twice under
-one classification (`Type Collision`).
+`builders_for_models`. Every class is keyed by its classification, the
+plugin's namespace and its `csis_name` ("The registry" below), so two
+plugins may use one word; the registry refuses only a *different* class
+under one classification, namespace and name (`Type Collision`).
 
 ### Classifications (`VCT`)
 
@@ -210,15 +216,49 @@ hold no context, reach the current one through `registry.current_registry()`
 registry on the first ask in a process with no run). A deep copy of a
 model keeps its registry handle rather than cloning the registry. It holds:
 
+The class-level tables (what the plugins registered) are keyed by one
+typed key, `RegistrationKey(classification, namespace, name)`, a named
+tuple and never a joined string: the classification the class registers
+under, the namespace of the plugin that registered it and the class's
+canonical name (`csis_name`). The namespace comes from the loader, which
+derives it from the plugin's distribution name with the `cs-image-system-`
+prefix and the `-plugin` suffix dropped (`aws-runtime`, `tf-ebs-instance`,
+`okta-opa`, `contract-example`; the core's own registrations through its
+`base` entry point, the generic version checker and the storage mapping,
+carry `base`), unless the plugin's metadata names a `namespace` of its
+own; a plugin with no distribution and no field is refused at discovery.
+The instance-level tables (what the tree declared: built builders and
+items, their aliases, the defaults) are keyed by the tree's own names,
+which carry no namespace. The reasoning is in
+[the stage index](../../docs/CHANGES.md#s131).
+
 | Store                     | Keyed by                          | Holds |
 | --------------------------- | ----------------------------------- | ------- |
-| `models`                  | `VCT`, then canonical name        | Model classes a `type:` value can select. A second registration of the same name is a `ValueError` ("Type Collision"). |
+| `models`                  | `RegistrationKey`                 | Model classes a `type:` value can select (`get_model(vct, word)`; `models_under(vct)` lists them by the shortest word that resolves, `registration_keys(vct)` the keys). A *different* class under a key already taken is a `ValueError` ("Type Collision"); the same class under the same key, or under another namespace, is the same registration. |
 | `builders`                | model class                       | The builder class for a model. |
-| `registry` / `vct_type_registry` / `reverse_registry` | service name / `VCT` / class | Services by name and classification; `get_builder_for_model(type_name, classification)` reads `registry`. |
+| `registry` / `vct_type_registry` / `reverse_registry` | `RegistrationKey` / `VCT` / class | Services by key, the classes per classification (one entry per class, however many plugins carry it), and every key a class is registered under; `get_builder_for_model(type_name, classification)` reads `registry` by the resolution rule below, and `register_service` refuses a different class under a taken key. |
 | `instances`               | `VCT`, then name or alias         | Built objects: builder models, builders, items. Cloud and container builders are mirrored under the runtime classifications. |
 | `instances_by_global_id`  | `global_id`                       | The same objects by `<classification>::<model_id>::<name>`. |
 | `aliases` / `classified_aliases` | `VCT`                      | Builder aliases; a duplicate alias within a classification is an error. |
 | `defaults_registry`       | `VCT`                             | The name of the default builder per classification. A default may not be a reserved word (`default`, `self`, `none`, empty or `None`). |
+
+**Resolution.** A `type:` word is read against `models` (or `registry`)
+under one classification by one rule, wherever the word comes from (a
+builder's `type:`, an item's, a version checker looked up by an
+executable's name and type). A **qualified** word, `<namespace>/<name>`,
+reads its key directly. A **bare** word resolves when exactly one class
+answers to it, whatever the namespaces carrying it: the one version
+checker the three terraform-root plugins register is three keys and one
+class, so `tofu` is not ambiguous. When *different* classes answer to a
+bare word the lookup raises `AmbiguousTypeError`, which names every
+qualified form (`type 'x' is ambiguous under instance_builder_model: 2
+plugins register it; write one of one/x, two/x`), and `validate` prints
+it as one configuration error. A word nobody registered is `None`, as
+before. What a tree wrote is what is recorded: the orchestrator
+canonicalises an alias to the class's `csis_name` but never rewrites a
+bare word to its qualified form (the mod fingerprint hashes the type word,
+so the golden and every emission are unchanged) nor a qualified one to
+the bare word, and the registry answers either.
 
 `get_instance_by_name_or_alias(vct, "default")` resolves to the registered
 default. `reset()` clears an instance; a repeated load makes a new registry
@@ -2184,9 +2224,25 @@ code writes it (values in angle brackets).
 - `workspace '<ws>' names state backend 'none', which names nothing` at
   `validate` -- declare a backend of type `local` for state on disk, or
   leave `state_configuration` out for the default backend.
-- `Type Collision` (`ValueError` from the registry) -- two installed
-  plugins register one canonical name; a packaging problem, not a
-  configuration one.
+- `Type Collision: <namespace>/<name> under <classification> is
+  <module.Class>, and <module.Other> registers it too` (`ValueError`
+  from the registry) -- two *different* classes under one classification,
+  namespace and canonical name: one plugin registering two classes under
+  one word, or two plugins whose distributions derive the same namespace;
+  a packaging problem, not a configuration one. Two plugins using one word
+  under different namespaces is not this: both load, and the tree picks
+  one by its qualified form.
+- `type '<word>' is ambiguous under <classification>: N plugins register
+  it; write one of <ns>/<word>, ...` (`AmbiguousTypeError`; `validate`
+  prints it as ` - <the line>` under `Validation failed with 1
+  error(s).`) -- the tree wrote a bare `type:` word that different
+  installed plugins' classes answer to; write one of the qualified forms
+  named.
+- `Plugin <name> is refused: its entry point has no distribution to
+  derive a namespace from, and its metadata names none; set
+  PluginMetadata.namespace` (`PluginNamespaceError`) -- a plugin
+  registered without a distribution behind its entry point and without
+  the field; a packaging problem.
 - `KeyError: <type>` while structuring -- the `type:` names no registered
   model: the plugin is not installed or the name is misspelt (aliases are
   canonicalised first).

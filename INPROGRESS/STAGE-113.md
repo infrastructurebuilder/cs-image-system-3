@@ -35,8 +35,20 @@ through four doors, each a few plugin imports:
   policies): closed by moving those helpers to the kit module that
   owns the vocabulary.
 
+**After §125 (read 2026-11-05, on the §131 tree):** the doors are
+closed from the plugins' side, because a plugin now imports from the
+core only `basic/*`, `models/*` and the two metadata abstractions
+(`tests/test_plugin_imports.py`, four exceptions) and reaches the rest
+through the context's services. The closure test now reads `base`
+134 modules, the plugins' top-level closure **67** (`kit_top`), 77 with
+lazy and typing edges (`kit_all`), and **57** engine-only; so the kit
+is the base classes, the models and what they import, and the engine
+is everything the loader, the orchestrator, the finalizer, the
+commands and the meta-state writers need. The split of item 1 is now
+the measured one, and the four-door work below is done.
+
 So the stage's first act is no longer the script (it exists) but
-closing the four doors, with `kit_top` read after each; the expected
+reading the two sets from the closure test and moving the engine set; the expected
 kit after that is the 45-module component the closure test names
 (`run_context`, `basic/*`, `models/*`, `lineage`, `launch_params`,
 `utils`, `capabilities`, `meta_state`, `generations`,
