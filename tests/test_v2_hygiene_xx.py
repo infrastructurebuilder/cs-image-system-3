@@ -28,8 +28,8 @@ import yaml
 from cs_image_system.base import bootstrap as bs
 from cs_image_system.base.bootstrap.questions import COVERAGE_STATUSES
 
-from tests.test_v2_bootstrap import EXAMPLES, _assigned, _git, _starter_copy
-from v2_support import copy_config, load_context, reset_singletons, stub_environment
+from tests.test_v2_bootstrap import _assigned, _git, _starter_copy
+from v2_support import copy_config, load_context, module_path, reset_singletons, stub_environment
 
 REPO = Path(__file__).resolve().parents[1]
 ACCOUNT = "111122223333"
@@ -95,7 +95,7 @@ def test_a_second_s3_backends_bucket_is_made_when_bound_and_absent(tmp_path: Pat
     assert "| aws | the S3 backend `s3-east1`'s bucket `acme-tfstate-east1` | MADE |" in readme
     assert "| aws | the default S3 backend's bucket `acme-tfstate-east2` | READ |" in readme
     # the module: one bucket set per entry, and the WRITE role's StatePrefix statement covers each prefix
-    module = (REPO / "tfmodules" / "bootstrap_aws" / "main.tf").read_text()
+    module = (module_path("bootstrap_aws") / "main.tf").read_text()
     for needle in ('resource "aws_s3_bucket" "other"', 'resource "aws_s3_bucket_versioning" "other"',
                    'resource "aws_s3_bucket_server_side_encryption_configuration" "other"',
                    'resource "aws_s3_bucket_public_access_block" "other"', "for bucket, prefix in var.other_state_buckets"):
@@ -163,7 +163,7 @@ def test_the_gcs_state_bucket_is_made_when_absent_and_read_when_it_stands(tmp_pa
     readme = (out / "README.md").read_text()
     assert "is CREATED here in us-east1 (versioned, uniform access, no public access" in readme
     assert "| gcp | the GCS state bucket `acme-gcs-tfstate` | MADE |" in readme
-    module = (REPO / "tfmodules" / "bootstrap_gcp" / "main.tf").read_text()
+    module = (module_path("bootstrap_gcp") / "main.tf").read_text()
     for needle in ('resource "google_storage_bucket" "state"', "uniform_bucket_level_access = true",
                    'public_access_prevention    = "enforced"', 'resource "google_storage_bucket_iam_member" "state_read"',
                    'resource "google_storage_bucket_iam_member" "state_write"', "roles/storage.objectViewer"):
@@ -259,9 +259,7 @@ def test_a_family_that_says_what_the_image_is_draws_no_warning(tmp_path, monkeyp
     assert not [r for r in caplog.records if r.levelno == logging.WARNING and "names" in r.getMessage()]
 
 
-def test_the_starters_carry_the_modules_byte_for_byte():
-    for name in ("standard-aws", "standard-gce", "complete", "standard-aws-posix", "standard-docker"):
-        for module in ("bootstrap_aws", "bootstrap_gcp"):
-            for f in (REPO / "tfmodules" / module).glob("*.tf"):
-                assert (EXAMPLES / name / "tfmodules" / module / f.name).read_bytes() == f.read_bytes(), (name, module, f.name)
+def test_the_release_carries_the_bootstrap_modules():
+    for module in ("bootstrap_aws", "bootstrap_gcp"):
+        assert [f.name for f in sorted(module_path(module).glob("*.tf"))] == ["main.tf", "outputs.tf", "variables.tf"], module
     assert shutil.which("git") and _git is not None

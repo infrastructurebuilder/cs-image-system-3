@@ -301,13 +301,13 @@ publish index="test":
 	esac
 	rm -rf dist
 	just build
-	n=$(ls dist | wc -l | tr -d ' ')
-	packages=$(ls -d packages/*/ | wc -l | tr -d ' ')
+	# the two workspace-only plugins (`Private :: Do Not Upload`, stage 126) are built and never uploaded
+	packages=$(grep -L 'Private :: Do Not Upload' packages/*/pyproject.toml | wc -l | tr -d ' ')
 	# hygiene XIV: one project at a time, sdist and wheel together, dependencies first and
 	# cs-image-system last; a 429 is exit 75 with what is left; a failure shows its cause lines;
 	# when everything was already there, one file is sent again to prove the token
 	uv run --no-sync python scripts/publish-dist "{{index}}" --version "$version" --token-var "$token_var" ${CSIS_PUBLISH_SUMMARY:+--summary "$CSIS_PUBLISH_SUMMARY"}
-	echo "publish: cs-image-system $version is on $name ($n files: the system and its $packages packages, sdist and wheel each; files already there with the same content were skipped)"
+	echo "publish: cs-image-system $version is on $name (the system and its $packages published packages, sdist and wheel each; files already there with the same content were skipped)"
 
 # ------------------------------------------------------------ development
 
@@ -364,12 +364,12 @@ full-test-legs:
 
 # Format code with ruff
 format:
-	@uv run ruff format packages tests
+	@uv run ruff format src packages tests
 
 # Run linter (blocking) -- same command CI runs; then the licensing check: every file carries
 # copyright and licence information (an SPDX header, or a REUSE.toml declaration)
 lint:
-	@uv run ruff check packages tests
+	@uv run ruff check src packages tests
 	@uv run reuse lint
 
 # Licence headers (REUSE): the SPDX two-liner, holder and licence, on every source file that lacks one.
@@ -379,8 +379,8 @@ headers:
 	#!/usr/bin/env bash
 	set -euo pipefail
 	H="Mykel Alvis <mykelalvis@infrastructurebuilder.org>"; Y=$(date +%Y)
-	find packages -name '*.py' -not -path '*/.venv/*' -print0 | xargs -0 uv run reuse annotate --copyright "$H" --license Apache-2.0 --year "$Y" --skip-existing
-	find tfmodules -name '*.tf' -print0 | xargs -0 uv run reuse annotate --copyright "$H" --license Apache-2.0 --year "$Y" --skip-existing
+	find src packages -name '*.py' -not -path '*/.venv/*' -print0 | xargs -0 uv run reuse annotate --copyright "$H" --license Apache-2.0 --year "$Y" --skip-existing
+	find packages -name '*.tf' -not -path '*/.venv/*' -print0 | xargs -0 uv run reuse annotate --copyright "$H" --license Apache-2.0 --year "$Y" --skip-existing
 	uv run reuse annotate --copyright "$H" --license Apache-2.0 --year "$Y" --skip-existing tests/*.py bin/*.sh .github/workflows/*.yml pyproject.toml packages/*/pyproject.toml
 	uv run reuse annotate --copyright "$H" --license Apache-2.0 --year "$Y" --skip-existing --style python Justfile .githooks/pre-commit
 	uv run reuse lint
@@ -391,10 +391,10 @@ reuse-live: config-guard
 
 # Fix linting issues automatically (safe fixes)
 lint-fix:
-	@uv run ruff check --fix packages tests
+	@uv run ruff check --fix src packages tests
 
 lint-unsafe-fix:
-	@uv run ruff check --fix --unsafe-fixes packages tests
+	@uv run ruff check --fix --unsafe-fixes src packages tests
 
 # Type check with pyright (basic mode; see [tool.pyright] in pyproject.toml)
 typecheck:
@@ -444,7 +444,7 @@ test-bake-steps *ARGS:
 # two package updates, the mods). A leg of `full-test`; under `just test` the
 # same file is skipped.
 test-docker-bake *ARGS:
-	@CSIS_DOCKER_BAKE=1 uv run pytest tests/test_v2_docker_bake_live.py {{ARGS}}
+	@DOCKER_HOST="$(just docker-host)" CSIS_DOCKER_KEEP_HOST=1 CSIS_DOCKER_BAKE=1 uv run pytest tests/test_v2_docker_bake_live.py {{ARGS}}
 
 # Stage 103 branch 2: the docker runtime's CHANGE CYCLE on the local daemon, from
 # nothing to nothing -- the bake above, then two containers launched on one
@@ -454,7 +454,17 @@ test-docker-bake *ARGS:
 # images disposed. Needs what test-docker-bake needs plus tofu; several minutes
 # more. A leg of `full-test`; under `just test` the same file is skipped.
 test-docker-cycle *ARGS:
-	@CSIS_DOCKER_CYCLE=1 uv run pytest tests/test_v2_docker_cycle_live.py tests/test_v2_docker_starter_live.py {{ARGS}}
+	@DOCKER_HOST="$(just docker-host)" CSIS_DOCKER_KEEP_HOST=1 CSIS_DOCKER_CYCLE=1 uv run pytest tests/test_v2_docker_cycle_live.py tests/test_v2_docker_starter_live.py {{ARGS}}
+
+# The daemon the docker legs run against: DOCKER_HOST when the shell sets it, else the endpoint of
+# the docker command's ACTIVE CONTEXT (`docker context inspect`), so packer, the tofu provider and
+# the system all reach the daemon `docker` itself uses. The tofu docker provider and packer read
+# DOCKER_HOST and otherwise take /var/run/docker.sock, which on a host with several engines
+# (OrbStack, Docker Desktop, a Podman machine) may point at one that is not running; the context
+# is the operator's choice (`docker context use orbstack`) and this recipe follows it.
+[private]
+docker-host:
+	@if [ -n "${DOCKER_HOST:-}" ]; then printf '%s\n' "$DOCKER_HOST"; else docker context inspect --format '{{{{.Endpoints.docker.Host}}' 2>/dev/null || true; fi
 
 # Stage 103 branch 3: the cycle above against PODMAN'S API SERVICE instead of the
 # environment's docker daemon. CSIS_PODMAN_HOST is the DOCKER_HOST URL of a running
@@ -635,7 +645,7 @@ clean-all: clean clean-venv
 # The system's live proof over the FROZEN FIXTURE (stage 64: what this repository's CI `live` job runs; the
 # reference configuration's own CI proves the live tree). With real sessions -- the fixture names the real
 # account's networks and project -- and the fixture's committed TEST identity: validate, then a headless dry
-# run --all over a private copy (tfmodules beside it, as the fixture's module_source_base expects) with the
+# run --all over a private copy (the installed modules written beside it, as the fixture's module_source_base expects) with the
 # state query off (the fixture's declarations are synthetic; reality would read as drift), then the
 # modification tests under docker over the copy. Exit 0 when every leg passed.
 fixture-live:
@@ -648,7 +658,7 @@ fixture-live:
 	copy=$(mktemp -d "${TMPDIR:-/tmp}/csis-fixture-live.XXXXXX")
 	mkdir -p "$copy/x"
 	cp -R tests/fixtures/config "$copy/x/config"
-	cp -R tfmodules "$copy/x/tfmodules"
+	uv run cs-image-system modules --write "$copy/x/tfmodules" || { echo "fixture-live: FAILED modules --write"; status=1; }
 	echo "fixture-live: headless dry run --all over a private copy ($copy), state query off"
 	uv run cs-image-system --root-dir "$copy/x/config" run --all --no-state-query || { echo "fixture-live: FAILED dry run --all"; status=1; }
 	if docker info >/dev/null 2>&1; then

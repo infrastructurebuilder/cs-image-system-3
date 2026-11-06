@@ -122,6 +122,12 @@ commit on the bundle's branch.
     only falls, so no stage adds to what [§129](STAGE-129.md) will
     remove; §129's grep-test grows out of it (found by the
     re-evaluation of 2026-11-05).
+24. The bootstrap root (`base/bootstrap/generate.py`) renders its
+    module calls from `module_source_base` alone: a `config:
+    module_sources` entry for `bootstrap_aws`, `bootstrap_gcp` or
+    `bootstrap_github` is honoured by every generated root through
+    `utils.module_source` and not by the bootstrap's, which should
+    resolve each section's module the same way (found by §126).
 
 **Acceptance**: each item its own commit; `just test` green after
 each; one squash, branch kept. Records: the squash; this section goes

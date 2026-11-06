@@ -57,7 +57,11 @@ run and applied by the operator. The manual describes each.
 
 `packages/` holds the uv workspace: five core packages and seventeen
 plugins, each with its own README ([docs/PLUGINS.md](docs/PLUGINS.md)
-describes them together). The core:
+describes them together). Twenty are published; `uv tool install
+cs-image-system` installs the core and the plugins marked **bare**, each
+provider's plugins come with the extra marked beside them (`[aws]`,
+`[gcloud]`, `[docker]`, `[okta]`; `[all]` is every one), and the two
+marked **never published** are workspace-only. The core (all **bare**):
 
 - [contract](packages/contract/README.md) — the plugin contract: what a
   plugin is written against.
@@ -74,42 +78,53 @@ describes them together). The core:
 The plugins, discovered through Python entry points, one package each:
 
 - [aws-runtime-plugin](packages/aws-runtime-plugin/README.md) — the `aws`
-  runtime: profiles, regions, VPCs and subnets.
+  runtime: profiles, regions, VPCs and subnets. `[aws]`
 - [gcloud-runtime-plugin](packages/gcloud-runtime-plugin/README.md) — the
-  `gcloud` runtime: projects, zones and networks.
+  `gcloud` runtime: projects, zones and networks. `[gcloud]`
 - [docker-runtime-plugin](packages/docker-runtime-plugin/README.md) — the
-  `docker` runtime: a host's container daemon.
+  `docker` runtime: a host's container daemon. `[docker]`
 - [default-os-plugin](packages/default-os-plugin/README.md) — the OS
-  families a base image is built from.
+  families a base image is built from. **bare**
 - [packer-plugin](packages/packer-plugin/README.md) — the one `packer`
-  image builder, which bakes on whichever runtime it is bound to.
+  image builder, which bakes on whichever runtime it is bound to. **bare**
 - [ansible-plugin](packages/ansible-plugin/README.md) — modifications as
-  ansible playbooks.
+  ansible playbooks. **bare**
 - [bash-mod-plugin](packages/bash-mod-plugin/README.md) — modifications as
-  shell scripts and `ensure` items.
+  shell scripts and `ensure` items. **bare**
 - [okta-opa-plugin](packages/okta-opa-plugin/README.md) — Okta users and
-  OPA groups.
+  OPA groups. `[okta]`
 - [posix-identity-plugin](packages/posix-identity-plugin/README.md) —
-  POSIX groups and users on the machines, with declared ids.
+  POSIX groups and users on the machines, with declared ids. **bare**
 - [tf-ebs-instance-plugin](packages/tf-ebs-instance-plugin/README.md) —
-  the OpenTofu instance and storage builders for AWS.
+  the OpenTofu instance and storage builders for AWS. `[aws]`
 - [tf-gcp-plugin](packages/tf-gcp-plugin/README.md) — the OpenTofu
-  instance and storage builders for Google Cloud.
+  instance and storage builders for Google Cloud. `[gcloud]`
 - [tf-docker-plugin](packages/tf-docker-plugin/README.md) — containers and
-  named volumes through OpenTofu's docker provider.
+  named volumes through OpenTofu's docker provider. `[docker]`
 - [tf-s3-state-plugin](packages/tf-s3-state-plugin/README.md) — the `s3`
-  state backend.
+  state backend. `[aws]`
 - [gcs-state-plugin](packages/gcs-state-plugin/README.md) — the `gcs`
-  state backend.
+  state backend. `[gcloud]`
 - [local-state-plugin](packages/local-state-plugin/README.md) — the
-  `local` state backend: a state file on disk.
+  `local` state backend: a state file on disk. **bare**
 - [contract-example-plugin](packages/contract-example-plugin/README.md) —
   the `inmem` state backend: the proof that a plugin can be written
-  against the contract alone, never a backend for a real tree.
+  against the contract alone, never a backend for a real tree. **never
+  published**: installed with the workspace through the root's `dev`
+  group, classified `Private :: Do Not Upload`.
 - [dummy-plugin](packages/dummy-plugin/README.md) — the extension
-  template and test double.
+  template and test double. **never published**, the same way.
 
-`tfmodules/` are the terraform modules the builders emit calls to.
+A tree's `Justfile` reads the extras it needs from its own `type:`
+words (`just extras`), and `validate` names the extra to install when a
+declared word's plugin is absent ("Installing a release" in
+[docs/OPERATIONS.md](docs/OPERATIONS.md)).
+
+The terraform modules the builders emit calls to ship inside their
+plugin's package (`packages/<plugin>/src/cs_image_system/<pkg>/tfmodules/`,
+declared through the `cs_image_system.modules` entry point);
+`cs-image-system modules` lists them and `cs-image-system modules --write
+<dir>` writes them into a tree.
 `tests/` is the suite, with the frozen fixture configuration under
 `tests/fixtures/config/` and the golden emission under
 `tests/fixtures/v2_golden/`. `docs/examples/` holds the five starter

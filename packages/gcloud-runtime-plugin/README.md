@@ -62,6 +62,12 @@ uniform access, no public access, the CI identities' object access;
 managed from then on, with the AWS section's fork)
 (`tfmodules/bootstrap_gcp`). The section renders its coverage audit for
 the generated README: what it made, read, or leaves by hand and why.
+This plugin ships the GCP terraform modules as package data
+(`gce_instance`, `gcp_storage_pd`, `gcp_storage_filestore`,
+`gcp_storage_gcs`, `bootstrap_gcp`, under
+[src/cs_image_system/gcloud_runtime/tfmodules/](src/cs_image_system/gcloud_runtime/tfmodules)),
+declared through the `cs_image_system.modules` entry point;
+`cs-image-system modules` lists them.
 The section is wanted by default where the tree declares a GCE runtime
 or a `gcs` state backend. Its defaults come from the raw
 `cfg/runtime-builders.yml` and `cfg/state-backends.yml` (a starter's

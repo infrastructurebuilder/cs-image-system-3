@@ -293,8 +293,10 @@ need:
   points are discovered through `importlib.metadata`, so an uninstalled
   package registers nothing: `type: dummy` is then an unknown type and the
   `notify` lifecycle does not exist. In this repository it is a workspace
-  member pinned by the root `cs-image-system` metapackage; `just init`
-  installs it. Its own requirements ([pyproject.toml](pyproject.toml)) are
+  member in the root's `dev` dependency group; `just init` installs it. It
+  is never published: its classifier `Private :: Do Not Upload` is one an
+  index refuses, and the release tooling leaves it out, so a consumer of
+  a release does not have it. Its own requirements ([pyproject.toml](pyproject.toml)) are
   Python 3.13 or newer, `cs-image-system-contract` and
   `cs-image-system-base` at the same version (never the CLI host,
   `cs-image-system-system`) and `pydantic` 2.13 or newer.

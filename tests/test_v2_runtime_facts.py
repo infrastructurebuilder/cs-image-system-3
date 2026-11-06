@@ -101,7 +101,7 @@ def test_apply_runtime_lets_that_runtimes_roots_apply_and_the_check_carries_it(r
 # ------------------------------------------ the recipes are effective (operator)
 
 JUSTFILES = {"Justfile": "{{live_cli}}",                                            # the developer's (stage 64)
-             "docs/examples/complete/Justfile": "{{cli}}"}                          # a configuration repository's
+             "docs/examples/_skeleton/Justfile": "{{cli}}"}                         # a configuration repository's (every starter's)
 
 
 def _justfile_cli_invocations() -> list[tuple[str, list[str]]]:

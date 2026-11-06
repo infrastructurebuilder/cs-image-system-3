@@ -34,8 +34,11 @@ def _world(tmp_path: Path) -> tuple[Path, Path]:
 
 
 def _older(previous: Path, rel: str, extra: str = "# the previous release's line\n") -> str:
+    """The previous release's text of REL made older: written into the
+    starter's own directory, which the render lays over the skeleton."""
     path = previous / "standard-aws" / rel
-    old = path.read_text() + extra
+    old = starters.render("standard-aws", previous)[rel].decode() + extra
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(old)
     return old
 
@@ -45,7 +48,7 @@ def test_a_file_the_release_changed_and_the_tree_still_has_as_the_old_release_wr
     (tree / "Justfile").write_text(_older(previous, "Justfile"))
     report = starters.changes_since(tree, previous, "standard-aws")
     assert report.refresh == ["Justfile"] and report.edited == [] and report.added == []
-    assert not report.clear and report.unchanged > 5
+    assert not report.clear and report.unchanged >= 5       # the other release-owned files; a previous root of this layout holds no module to count
 
 
 def test_a_changed_file_the_tree_also_edited_is_listed_apart(tmp_path: Path):

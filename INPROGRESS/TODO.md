@@ -12,7 +12,7 @@ Stages from the re-examination of 2026-11-03.
 [REEXAMINE4.md](REEXAMINE4.md) digests the three reviews
 ([REEXAMINE1.md](REEXAMINE1.md), [REEXAMINE2.md](REEXAMINE2.md),
 [REEXAMINE3.md](REEXAMINE3.md)); each stage file
-([§126](STAGE-126.md) to [§130](STAGE-130.md); §118 to §125 and §131
+([§127](STAGE-127.md) to [§130](STAGE-130.md); §118 to §126 and §131
 landed) cites the review section
 it answers. The conventions are the ones above: one file per stage; a
 stage is a plan until the operator says "do N"; **YOUR DECISION** marks
@@ -51,8 +51,11 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
 - §120 to §125, the six seams, landed 2026-11-04 to 2026-11-05; §125
   absorbed §114 and §115, so the contract holds the run context, its
   services and its own version, and the §30 shims are gone.
-- [§126](STAGE-126.md), the package shape: a decision stage; before
-  [§112](STAGE-112.md) and [§116](STAGE-116.md).
+- §126, the package shape: landed 2026-11-06 under shape (b), the
+  twenty-two projects kept; it re-scoped [§112](STAGE-112.md) (whole)
+  and [§116](STAGE-116.md) (the external-repository proof, docker
+  first). Its release proof, a development release on TestPyPI, is the
+  operator's box.
 - [§127](STAGE-127.md), loading once: after §124.
 - [§128](STAGE-128.md) and [§129](STAGE-129.md), the tests and the
   sources stop narrating: any time after §119.
@@ -80,7 +83,6 @@ and validated by the operator before its "do N")
 - [§112, A release in two boxes](STAGE-112.md)
 - [§113, The kit and the engine: `base` splits where the plugins stop](STAGE-113.md)
 - [§116, A runtime installed from outside](STAGE-116.md)
-- [§126, The package shape](STAGE-126.md)
 - [§127, Loading once, without the cloud](STAGE-127.md)
 - [§128, Tests named for behaviour](STAGE-128.md)
 - [§129, The sources stop narrating](STAGE-129.md)
@@ -129,6 +131,22 @@ and validated by the operator before its "do N")
 
 **Landed since 2026-10-05** (newest first)
 
+- §126, the package shape: 2026-11-06, its squash commit
+  (feature/stage-126-package-shape kept). Each plugin's terraform
+  modules are package data inside its wheel, declared by the entry
+  point group `cs_image_system.modules` (contract 0.3.0); the root
+  `tfmodules/` and the starters' copies are gone; `base.modules`
+  materialises them with a `.csis-module` stamp, `init-config` never
+  overwrites an edited copy, and `config: module_sources` overrides
+  one module. The umbrella installs no runtime: `[aws]`, `[gcloud]`,
+  `[docker]`, `[okta]`, `[all]`; dummy-plugin and
+  contract-example-plugin are workspace-only (twenty projects
+  published); `validate` names the extra a missing plugin needs, from
+  the umbrella's own table (`src/cs_image_system/extras.py`); a tree's
+  Justfile reads its extras from its `type:` words. The starters are
+  one skeleton (`docs/examples/_skeleton`) and five overlays, rendered
+  by `starters.write_starter`. The docker legs follow the docker
+  command's active context. Finding: hygiene XXIV item 24.
 - §131, registrations carry their plugin's namespace: 2026-11-06, its
   squash commit (feature/stage-131-registration-namespaces kept).
   Every registration is keyed by classification, namespace and name;

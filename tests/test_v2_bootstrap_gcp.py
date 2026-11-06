@@ -21,7 +21,9 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_v2_bootstrap import EXAMPLES, REPO, TREES, _assigned, _starter_copy
+from tests.starter_support import RENDERED
+from tests.test_v2_bootstrap import EXAMPLES, _assigned, _starter_copy
+from v2_support import module_path, modules_inside
 
 from cs_image_system.base import bootstrap as bs
 from cs_image_system.base.bootstrap.questions import Refused
@@ -96,7 +98,7 @@ def test_the_gcloud_plugin_contributes_the_section_and_the_tree_decides(tmp_path
     aws_section = next(s for s in bs.discover() if s.name == "aws")
     assert aws_section.wanted_default(gce) is False                           # a GCE-only tree does not want AWS
     other = tmp_path / "aws"
-    shutil.copytree(EXAMPLES / "standard-aws", other)
+    shutil.copytree(RENDERED() / "standard-aws", other)
     assert _section().wanted_default(bs.gather(other, git=False, gh=False)) is False
     # so a quiet interview over a GCE tree asks GitHub and GCP and never refuses on an AWS question
     out = bs.run_interview(bs.discover(), _facts(_tree(tmp_path / "again"), _project(None, **FRESH)), quiet=True,
@@ -195,24 +197,22 @@ def test_the_root_reads_what_exists_adds_single_members_and_sets_the_secrets_fro
     assert readme.index("export GOOGLE_OAUTH_ACCESS_TOKEN") < readme.index("tofu init")
     assert "application-default" in readme and "can read no IAM" in readme
     # and the guide sends people to those lines instead of listing bare commands
-    guide = (EXAMPLES / "complete" / "CI_SETUP.md").read_text()
+    guide = (EXAMPLES / "_skeleton" / "CI_SETUP.md").read_text()
     section = guide[guide.index("### 3.0 The bootstrap"):guide.index("### 3.1 ")]
     assert "GOOGLE_OAUTH_ACCESS_TOKEN" in section and "export" in section and '"Apply" block' in section
     assert section.index("GOOGLE_OAUTH_ACCESS_TOKEN") < section.index("tofu init && tofu plan && tofu apply")
     # the module: reads what exists, and every grant is one member added -- nothing authoritative
-    module = (REPO / "tfmodules" / "bootstrap_gcp" / "main.tf").read_text()
+    module = (module_path("bootstrap_gcp") / "main.tf").read_text()
     for needle in ('data "google_iam_workload_identity_pool" "github"', 'data "google_iam_workload_identity_pool_provider" "github"',
                    'data "google_service_account" "read"', "google_project_iam_member", "google_service_account_iam_member",
                    '"attribute.repository_id" = "assertion.repository_id"', "attribute.ref/refs/heads/${var.production_branch}",
                    "https://token.actions.githubusercontent.com", "roles/iam.workloadIdentityUser"):
         assert needle in module, needle
     assert not re.search(r"google_\w+_iam_(binding|policy)\b", module)        # authoritative forms would replace other members
-    guide = (EXAMPLES / "complete" / "CI_SETUP.md").read_text()
+    guide = (EXAMPLES / "_skeleton" / "CI_SETUP.md").read_text()
     section = guide[guide.index("### 3.4 GCP"):guide.index("### 3.5 ")]
     for mapped in GUIDE_MAPPING:
         assert mapped in section and mapped in module, mapped                  # the module's mapping is the guide's
-    for name in TREES:
-        assert (EXAMPLES / name / "tfmodules" / "bootstrap_gcp" / "main.tf").read_bytes() == (REPO / "tfmodules" / "bootstrap_gcp" / "main.tf").read_bytes()
 
 
 def test_a_shared_provider_that_does_not_name_this_repository_is_a_step_by_hand_not_a_rewrite(tmp_path: Path):
@@ -232,7 +232,8 @@ def test_a_shared_provider_that_does_not_name_this_repository_is_a_step_by_hand_
 def test_the_root_validates_with_tofu(tmp_path: Path):
     from tests.test_v2_gcp_increment3 import private_plugin_cache
     root, out = _root(tmp_path, None, None, **FRESH)
-    env = {**os.environ, "TF_PLUGIN_CACHE_DIR": str(private_plugin_cache(tmp_path, [out, REPO / "tfmodules" / "bootstrap_gcp"]))}
+    modules_inside(root)
+    env = {**os.environ, "TF_PLUGIN_CACHE_DIR": str(private_plugin_cache(tmp_path, [out, module_path("bootstrap_gcp")]))}
     for args in (["init", "-backend=false", "-input=false", "-no-color"], ["validate", "-no-color"]):
         res = subprocess.run(["tofu", *args], cwd=out, capture_output=True, text=True, timeout=600, env=env)
         assert res.returncode == 0, f"tofu {args[0]}\n{res.stdout}\n{res.stderr}"

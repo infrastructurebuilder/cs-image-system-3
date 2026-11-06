@@ -1,7 +1,10 @@
 # 112. A release in two boxes
 
 **Status: OPEN 2026-11-03, from the 0.1.7.dev1 walk. Waits for "do
-112".**
+112".** Re-scoped by §126 (2026-11-06, its item 6 under shape (b)):
+this stage stays whole; the release walk keeps its twenty-two
+projects (twenty published, two workspace-only), so its boxes are
+the recipes' to shrink, not a package count's.
 
 The principle (the operator, 2026-10-31, restated 2026-11-03): a
 release walk is as few boxes as the recipes allow, and a recipe that

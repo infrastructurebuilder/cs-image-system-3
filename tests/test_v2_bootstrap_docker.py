@@ -141,7 +141,7 @@ def test_the_generated_root_for_a_docker_tree_names_the_secrets_and_the_audit(tm
 
 
 def test_the_guide_names_the_section_and_its_secrets():
-    guide = (EXAMPLES / "complete" / "CI_SETUP.md").read_text()
+    guide = (EXAMPLES / "_skeleton" / "CI_SETUP.md").read_text()
     assert "### 3.4a A docker host" in guide and "| Docker host (3.4a) |" in guide
     assert dk.GUIDE == "CI_SETUP.md 3.4a"
     body = guide[guide.index("### 3.7 The secrets"):]

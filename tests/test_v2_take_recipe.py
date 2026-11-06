@@ -24,7 +24,7 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-JUSTFILE = REPO / "docs" / "examples" / "standard-aws" / "Justfile"
+JUSTFILE = REPO / "docs" / "examples" / "_skeleton" / "Justfile"      # the skeleton: every starter carries it
 
 pytestmark = pytest.mark.skipif(shutil.which("just") is None or shutil.which("git") is None, reason="needs just and git")
 

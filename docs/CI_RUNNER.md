@@ -43,7 +43,7 @@ development version comes from TestPyPI with PyPI as the extra index.
   `openssh-clients`) and the docker client, and the workflow's "Reach the
   docker host" step writes the key and the host's `known_hosts` line to the
   job's `~/.ssh` and exports `DOCKER_HOST=ssh://<host>`
-  ([CI_SETUP.md](examples/standard-aws/CI_SETUP.md), 3.4a). Nothing more is
+  ([CI_SETUP.md](examples/_skeleton/CI_SETUP.md), 3.4a). Nothing more is
   needed in the image; whoever reaches that daemon is root on its host. The
   modification tests stay on the runner's own socket.
 - **Federation by OIDC.** The read-only and write cloud identities are
@@ -52,7 +52,7 @@ development version comes from TestPyPI with PyPI as the extra index.
   DevOps's workload identity federation are the same mechanism. The
   OPA workload connection is proved the same way (`workload probe`).
 - **The secrets the gate reads**, as the workflow names them
-  ([CI_SETUP.md](examples/standard-aws/CI_SETUP.md), 3.7): the Okta API
+  ([CI_SETUP.md](examples/_skeleton/CI_SETUP.md), 3.7): the Okta API
   key, the OPA key pair, the age identity, the role ARNs or service
   account names. A job with none configured is skipped and says so; one
   with some missing fails by name.

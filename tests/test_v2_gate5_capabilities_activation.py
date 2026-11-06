@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from v2_support import V2Run, copy_config, tree
+from v2_support import V2Run, copy_config, module_path, tree
 
 
 @pytest.fixture
@@ -378,6 +378,6 @@ def test_decommissioned_instance_is_whitelisted_and_forgotten(tmp_path, monkeypa
 
 def test_instance_module_keeps_original_image(v2):
     """Belt and braces (§3F5): the module ignores AMI drift."""
-    module = (Path(__file__).resolve().parents[1] / "tfmodules" / "aws_instance" / "main.tf").read_text()
+    module = (module_path("aws_instance") / "main.tf").read_text()
     assert "ignore_changes = [ami, user_data]" in module
     assert 'resource "aws_volume_attachment"' in module

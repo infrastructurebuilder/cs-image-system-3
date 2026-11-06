@@ -15,12 +15,17 @@ Three trees, each in the shape of a real configuration root:
   every variation, plus the alias pool and a storage-state record so the
   archived and destroyed requests are legal.
 
-Each is copied to a private directory, loaded over the V2 harness (every
-cloud and tool stubbed, the frozen fixture's TEST identity exported) and
-run through the ``validate`` command's checks; the standard trees are
-pinned minimal, the complete tree is pinned to name every plugin type, and
-every ``ENC[age:...]`` marker in the three trees must open with the test
-identity. Documentation only: nothing here changes what the code does.
+Each is RENDERED first (``docs/examples/<name>`` is an overlay over
+``docs/examples/_skeleton``, and the terraform modules are the installed
+plugins': ``rendered_starters`` writes every starter once per session with
+``write_starter``), copied to a private directory, loaded over the V2
+harness (every cloud and tool stubbed, the frozen fixture's TEST identity
+exported) and run through the ``validate`` command's checks; the standard
+trees are pinned minimal, the complete tree is pinned to name every plugin
+type, and every ``ENC[age:...]`` marker in the trees must open with the
+test identity. The wheel test alone reads the SOURCE under
+``docs/examples``. Documentation only: nothing here changes what the code
+does.
 """
 from __future__ import annotations
 
@@ -31,10 +36,12 @@ from pathlib import Path
 import pytest
 import yaml
 
+from starter_support import RENDERED
 from v2_support import load_context, stub_environment
 
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLES = REPO / "docs" / "examples"
+SKELETON = EXAMPLES / "_skeleton"
 STANDARD = ["standard-aws", "standard-gce", "standard-aws-posix", "standard-docker"]
 TREES = [*STANDARD, "complete"]
 
@@ -64,11 +71,13 @@ NOT_PLUGINS = {"base", "contract", "contract-example-plugin", "system", "hashico
 MARKER = re.compile(r"ENC\[age:[A-Za-z0-9+/=]+\]")
 
 
-def copy_example(tmp_path: Path, name: str) -> Path:
-    """A private copy of an example root (no generated output, no VCS
-    litter); the complete tree's hand-written meta-state files travel with it."""
+def copy_example(tmp_path: Path, name: str, source: Path | None = None) -> Path:
+    """A private copy of an example root as a team holds it: the rendered
+    starter (``source`` is the ``rendered_starters`` directory; None reads
+    the process-wide one), no generated output, no VCS litter; the complete
+    tree's hand-written meta-state files travel with it."""
     dst = tmp_path / name
-    shutil.copytree(EXAMPLES / name, dst, ignore=shutil.ignore_patterns("generated", ".git", ".DS_Store"))
+    shutil.copytree((source or RENDERED()) / name, dst, ignore=shutil.ignore_patterns("generated", ".git", ".DS_Store"))
     return dst
 
 
@@ -128,9 +137,9 @@ def stub_opa_credentials_from(monkeypatch, root: Path) -> None:
 
 
 @pytest.fixture(params=TREES)
-def tree(request, tmp_path, monkeypatch):
+def tree(request, tmp_path, monkeypatch, rendered_starters):
     stub_environment(monkeypatch)
-    root = copy_example(tmp_path, request.param)
+    root = copy_example(tmp_path, request.param, rendered_starters)
     stub_networks_from(monkeypatch, root)
     stub_opa_credentials_from(monkeypatch, root)
     ctx = load_context(root, dry_run=True)
@@ -147,9 +156,9 @@ def test_every_example_loads_and_validates(tree):
     assert _validation_errors(ctx) == [], name
 
 
-def test_every_example_has_the_shape_of_a_configuration_root():
+def test_every_example_has_the_shape_of_a_configuration_root(rendered_starters):
     for name in TREES:
-        root = EXAMPLES / name
+        root = rendered_starters / name
         for rel in ("README.md", "cfg/_config.yml", "groups", "storages", "images", "instances",
                     "base_images", "overlays", ".age-identity", ".age-recipient"):
             assert (root / rel).exists(), f"{name} lacks {rel}"
@@ -169,9 +178,9 @@ def test_the_standard_trees_are_minimal(tree):
     assert len(ctx.instances) == 1, [i.get_name() for i in ctx.instances]
 
 
-def test_the_standard_trees_use_their_cloud_alone():
+def test_the_standard_trees_use_their_cloud_alone(rendered_starters):
     for name, runtime in (("standard-aws", "aws"), ("standard-gce", "gcloud"), ("standard-aws-posix", "aws"), ("standard-docker", "docker")):
-        types = {r.get("type") for r in _runtimes(EXAMPLES / name)}
+        types = {r.get("type") for r in _runtimes(rendered_starters / name)}
         assert types == {runtime}, f"{name} declares runtimes of types {types}"
 
 
@@ -190,26 +199,26 @@ def _builder_types(root: Path) -> set[str]:
     return out
 
 
-def test_the_complete_tree_declares_every_plugin_the_workspace_ships():
+def test_the_complete_tree_declares_every_plugin_the_workspace_ships(rendered_starters):
     packages = {p.name for p in (REPO / "packages").iterdir()
                 if p.is_dir() and (p / "pyproject.toml").exists()}
     plugins = packages - NOT_PLUGINS
     assert plugins == set(PLUGIN_TYPES), "a plugin package appeared or left: update PLUGIN_TYPES"
     for pkg in plugins:
         assert "entry-points" in (REPO / "packages" / pkg / "pyproject.toml").read_text(), f"{pkg} registers no entry point"
-    used = _builder_types(EXAMPLES / "complete")
+    used = _builder_types(rendered_starters / "complete")
     for pkg, types in sorted(PLUGIN_TYPES.items()):
         missing = types - used
         assert not missing, f"complete: {pkg} type(s) {sorted(missing)} are not declared"
 
 
-def test_every_marker_in_the_examples_opens_with_the_test_identity(monkeypatch):
+def test_every_marker_in_the_examples_opens_with_the_test_identity(monkeypatch, rendered_starters):
     stub_environment(monkeypatch)
     from cs_image_system.base.encryption import _identities_for, decrypt_marker
     identities = _identities_for(str(REPO / "tests" / "fixtures" / "config" / ".age-identity"))
     seen = 0
     for name in TREES:
-        for p in sorted((EXAMPLES / name).rglob("*")):
+        for p in sorted((rendered_starters / name).rglob("*")):
             if not p.is_file() or p.suffix not in (".yml", ".yaml", ".md", ".txt"):
                 continue
             for m in MARKER.finditer(p.read_text()):
@@ -218,9 +227,9 @@ def test_every_marker_in_the_examples_opens_with_the_test_identity(monkeypatch):
     assert seen > 0, "the examples carry no encrypted value"
 
 
-def test_the_prose_carries_no_em_dash():
+def test_the_prose_carries_no_em_dash(rendered_starters):
     for name in TREES:
-        for p in sorted((EXAMPLES / name).rglob("*")):
+        for p in sorted((rendered_starters / name).rglob("*")):
             if p.is_file() and p.suffix in (".md", ".yml", ".yaml", ".sh", ".txt"):
                 assert "—" not in p.read_text(), f"{p} carries an em-dash"
 
@@ -228,9 +237,9 @@ def test_the_prose_carries_no_em_dash():
 OVERLAY_KEYS = {"config", "users", "groups", "storages", "images", "instances", "base_images"}
 
 
-def test_every_overlay_has_the_documented_shape():
+def test_every_overlay_has_the_documented_shape(rendered_starters):
     for name in TREES:
-        for p in sorted((EXAMPLES / name / "overlays").glob("*.y*ml")):
+        for p in sorted((rendered_starters / name / "overlays").glob("*.y*ml")):
             doc = yaml.safe_load(p.read_text())
             assert isinstance(doc, dict) and doc, p
             assert set(doc) <= OVERLAY_KEYS, f"{p}: keys {sorted(set(doc) - OVERLAY_KEYS)} are not overlay keys"
@@ -243,9 +252,9 @@ def test_every_overlay_has_the_documented_shape():
 
 @pytest.mark.parametrize("overlay", ["apply-identity-and-storage", "gce-cycle-launch", "gce-cycle-decommission",
                                      "archive-volume", "gce-cycle-storage-teardown"])
-def test_the_complete_tree_loads_under_each_overlay(tmp_path, monkeypatch, overlay):
+def test_the_complete_tree_loads_under_each_overlay(tmp_path, monkeypatch, overlay, rendered_starters):
     stub_environment(monkeypatch)
-    root = copy_example(tmp_path, "complete")
+    root = copy_example(tmp_path, "complete", rendered_starters)
     stub_networks_from(monkeypatch, root)
     stub_opa_credentials_from(monkeypatch, root)
     ctx = load_context(root, dry_run=True, overlays=[root / "overlays" / f"{overlay}.yaml"])
@@ -286,18 +295,22 @@ def test_the_complete_tree_carries_every_variation(tree):
 STARTER_FILES = ["Justfile", ".github/workflows/ci.yml", ".githooks/pre-commit", ".gitignore"]
 
 
-def test_every_example_is_a_whole_repository_a_team_can_copy():
+def test_every_example_is_a_whole_repository_a_team_can_copy(rendered_starters):
     """A configuration repository carries its own Justfile, CI, hook and
-    terraform modules; the system is installed from a release,
-    never cloned beside it. The copies must be the release's, byte for byte,
-    and what the release resolves as its starters must be these trees (stage
+    terraform modules; the system is installed from a release, never cloned
+    beside it. The rendered tree holds them, the modules are the installed
+    plugins' byte for byte (each copy stamped), and what the release
+    resolves as its starters must be the source under docs/examples (stage
     64: the source the release is built from)."""
     import stat
+    from cs_image_system.base.modules import STAMP_FILE, installed_modules
     from cs_image_system.system.starters import STARTERS, starters_root
     assert sorted(STARTERS) == sorted(TREES)
     assert starters_root().resolve() == EXAMPLES.resolve()          # an editable checkout resolves the source
+    modules = installed_modules()
+    assert len(modules) >= 14, sorted(modules)
     for name in TREES:
-        root = EXAMPLES / name
+        root = rendered_starters / name
         for rel in STARTER_FILES:
             assert (root / rel).is_file(), f"{name} lacks {rel}"
         for rel in (".githooks/pre-commit",):
@@ -305,23 +318,27 @@ def test_every_example_is_a_whole_repository_a_team_can_copy():
             assert (root / rel).read_bytes() == (REPO / rel).read_bytes(), f"{name}/{rel} differs from the release's"
         assert not (root / "scripts" / "with-tofu-lock").exists(), f"{name}: the helpers are commands of the CLI (stage 64)"
         # hygiene XXIII item 2: Finder's .DS_Store is git-ignored junk, not a module
-        ours = sorted(p.relative_to(REPO / "tfmodules") for p in (REPO / "tfmodules").rglob("*") if p.is_file() and p.name != ".DS_Store")
-        theirs = sorted(p.relative_to(root / "tfmodules") for p in (root / "tfmodules").rglob("*") if p.is_file() and p.name != ".DS_Store")
-        assert ours == theirs, f"{name}/tfmodules does not carry the release's modules"
+        theirs = sorted(p.relative_to(root / "tfmodules") for p in (root / "tfmodules").rglob("*")
+                        if p.is_file() and p.name not in (".DS_Store", STAMP_FILE))
+        ours = sorted(Path(mod) / p.relative_to(src.path) for mod, src in modules.items()
+                      for p in src.path.rglob("*") if p.is_file() and p.name != ".DS_Store")
+        assert ours == theirs, f"{name}/tfmodules does not carry the installed plugins' modules"
         for rel in ours:
-            assert (root / "tfmodules" / rel).read_bytes() == (REPO / "tfmodules" / rel).read_bytes(), f"{name}/tfmodules/{rel} differs"
+            assert (root / "tfmodules" / rel).read_bytes() == (modules[rel.parts[0]].path / Path(*rel.parts[1:])).read_bytes(), \
+                f"{name}/tfmodules/{rel} differs"
+            assert (root / "tfmodules" / rel.parts[0] / STAMP_FILE).is_file(), f"{name}/tfmodules/{rel.parts[0]} is not stamped"
         cfg = (root / "cfg" / "_config.yml").read_text()
         assert re.search(r"module_source_base:\s*tfmodules\b", cfg), f"{name}: module_source_base must be the tree's own tfmodules"
         assert "REPLACE-ME" in (root / ".github/workflows/ci.yml").read_text(), f"{name}: the workflow's team values must be marked"
 
 
-def test_the_starter_justfile_parses_and_leads_with_the_contract():
+def test_the_starter_justfile_parses_and_leads_with_the_contract(rendered_starters):
     import shutil, subprocess
     just = shutil.which("just")
     if not just:
         pytest.skip("just is not on PATH")
     for name in TREES:
-        out = subprocess.run([just, "--justfile", str(EXAMPLES / name / "Justfile"), "--list", "--unsorted"],
+        out = subprocess.run([just, "--justfile", str(rendered_starters / name / "Justfile"), "--list", "--unsorted"],
                              capture_output=True, text=True, check=True).stdout
         names = [ln.split()[0] for ln in out.splitlines()[1:] if ln.strip()]
         assert names[:5] == ["init", "build", "test", "full-test", "release"], f"{name}: {names[:5]}"
@@ -329,12 +346,12 @@ def test_the_starter_justfile_parses_and_leads_with_the_contract():
             assert recipe in names, f"{name}: no recipe {recipe}"
 
 
-def test_the_starter_workflow_has_the_three_jobs():
+def test_the_starter_workflow_has_the_three_jobs(rendered_starters):
     for name in TREES:
-        doc = yaml.safe_load((EXAMPLES / name / ".github/workflows/ci.yml").read_text())
+        doc = yaml.safe_load((rendered_starters / name / ".github/workflows/ci.yml").read_text())
         assert set(doc["jobs"]) == {"verify", "live", "perform"}, f"{name}: {sorted(doc['jobs'])}"
         assert doc["jobs"]["live"]["needs"] == "verify" and doc["jobs"]["perform"]["needs"] == "live"
-        text = (EXAMPLES / name / ".github/workflows/ci.yml").read_text()
+        text = (rendered_starters / name / ".github/workflows/ci.yml").read_text()
         assert "uv tool install" in text and "cs-image-system" in text, f"{name}: the workflow must install a release"
         assert "test.pypi.org" in text, f"{name}: a development version installs from TestPyPI"
         assert "just mirror-clean" in text, f"{name}: the mirror must be removed even on failure"
@@ -352,7 +369,7 @@ def _steps(job: dict) -> list[dict]:
     return job["steps"]
 
 
-def test_the_starter_perform_job_records_guards_performs_proves_and_records_again():
+def test_the_starter_perform_job_records_guards_performs_proves_and_records_again(rendered_starters):
     """Stage 64 item 3: the proven shape of a performing job (stage 45, 56)
     travels with the starter: a full record pushed first, the guarded runtime
     checked against it, the write identity for the performing step and the
@@ -360,7 +377,7 @@ def test_the_starter_perform_job_records_guards_performs_proves_and_records_agai
     after a failed performing step, and the strict state query as the
     post-condition."""
     for name in TREES:
-        doc = yaml.safe_load((EXAMPLES / name / ".github/workflows/ci.yml").read_text())
+        doc = yaml.safe_load((rendered_starters / name / ".github/workflows/ci.yml").read_text())
         perform = doc["jobs"]["perform"]
         assert "refs/heads/main" in perform["if"] and perform["permissions"]["contents"] == "write"
         assert perform["concurrency"] == {"group": "perform", "cancel-in-progress": False}
@@ -417,7 +434,7 @@ def test_the_starter_perform_job_records_guards_performs_proves_and_records_agai
             assert "APPLY" not in yaml.safe_dump(doc["jobs"]["live"]), name
         # the probe workflow travels with the tree -- with every tree that has OPA (stage 75: the
         # posix starter has no OPA workload connection to probe, and carries no probe)
-        probe_path = EXAMPLES / name / ".github/workflows/opa-workload-probe.yml"
+        probe_path = rendered_starters / name / ".github/workflows/opa-workload-probe.yml"
         if name in ("standard-aws-posix", "standard-docker"):
             assert not probe_path.exists(), name
             continue
@@ -428,13 +445,14 @@ def test_the_starter_perform_job_records_guards_performs_proves_and_records_agai
         assert any(s.get("run", "").strip() == "just opa-workload-probe" for s in job["steps"])
 
 
-def _run_gate(tmp_path: Path, name: str, job: str, configured: set[str], is_record: bool) -> tuple[int, str, dict[str, str]]:
-    """The gate step of JOB in NAME's workflow, run as the runner runs it (its
-    `sh` is bash on the AlmaLinux image), with CONFIGURED as the secrets that
-    exist; (exit code, output, the step's outputs)."""
+def _run_gate(tmp_path: Path, root: Path, job: str, configured: set[str], is_record: bool) -> tuple[int, str, dict[str, str]]:
+    """The gate step of JOB in the workflow of the starter rendered at ROOT,
+    run as the runner runs it (its `sh` is bash on the AlmaLinux image),
+    with CONFIGURED as the secrets that exist; (exit code, output, the
+    step's outputs)."""
     import os
     import subprocess
-    doc = yaml.safe_load((EXAMPLES / name / ".github/workflows/ci.yml").read_text())
+    doc = yaml.safe_load((root / ".github/workflows/ci.yml").read_text())
     step = next(s for s in doc["jobs"][job]["steps"] if s.get("id") == "gate")
     outputs, summary = tmp_path / "outputs", tmp_path / "summary"
     outputs.write_text("")
@@ -446,7 +464,7 @@ def _run_gate(tmp_path: Path, name: str, job: str, configured: set[str], is_reco
     return proc.returncode, proc.stdout + proc.stderr, said
 
 
-def test_an_unconfigured_copy_of_a_starter_skips_even_on_its_first_push_to_main(tmp_path):
+def test_an_unconfigured_copy_of_a_starter_skips_even_on_its_first_push_to_main(tmp_path, rendered_starters):
     """Hygiene XVI item 3: "Use this template" pushes the copy's first commit
     to `main` with no secret set. The perform gate tested the record request
     first, and that run failed naming every secret (the stage 66 proof, 0.1.2,
@@ -454,44 +472,47 @@ def test_an_unconfigured_copy_of_a_starter_skips_even_on_its_first_push_to_main(
     configured and some missing still FAILS, and a record request names the
     write identity it lacks."""
     for name in TREES:
-        doc = yaml.safe_load((EXAMPLES / name / ".github/workflows/ci.yml").read_text())
+        root = rendered_starters / name
+        doc = yaml.safe_load((root / ".github/workflows/ci.yml").read_text())
         gate = next(s for s in doc["jobs"]["perform"]["steps"] if s.get("id") == "gate")
         secrets = {k[len("HAVE_"):] for k in gate["env"] if k.startswith("HAVE_")}
         write = {s for s in secrets if "APPLY" in s or s.startswith("DOCKER_HOST_")}   # the docker starter's is its way into the host
         read = secrets - write
         assert write and read, name
         for is_record in (True, False):
-            code, out, said = _run_gate(tmp_path, name, "perform", set(), is_record)
+            code, out, said = _run_gate(tmp_path, root, "perform", set(), is_record)
             assert code == 0 and "perform: SKIPPED -- no secret is configured" in out, (name, is_record, out)
             assert said == {"ready": "false", "record": "false"}, (name, is_record, said)
-        code, out, said = _run_gate(tmp_path, name, "perform", read, True)
+        code, out, said = _run_gate(tmp_path, root, "perform", read, True)
         assert code == 1 and "recording was requested on main" in out, (name, out)
         assert all(s in out for s in write) and not any(f" {s}" in out.split("EMPTY:")[1] for s in read), (name, out)
-        code, out, said = _run_gate(tmp_path, name, "perform", read, False)
+        code, out, said = _run_gate(tmp_path, root, "perform", read, False)
         assert code == 0 and "mode DRY" in out and said == {"ready": "true", "record": "false"}, (name, out)
-        code, out, said = _run_gate(tmp_path, name, "perform", secrets, True)
+        code, out, said = _run_gate(tmp_path, root, "perform", secrets, True)
         assert code == 0 and "mode RECORD" in out and said == {"ready": "true", "record": "true"}, (name, out)
         some = set(sorted(read)[:1])
         if len(read) > 1:       # the docker starter's read side is the age identity alone: it cannot be half configured
-            code, out, _ = _run_gate(tmp_path, name, "perform", some, False)
+            code, out, _ = _run_gate(tmp_path, root, "perform", some, False)
             assert code == 1 and "secrets are configured but these are missing" in out, (name, out)
         # the live job's gate, which never records, reads the same way
-        code, out, said = _run_gate(tmp_path, name, "live", set(), False)
+        code, out, said = _run_gate(tmp_path, root, "live", set(), False)
         assert code == 0 and "live: SKIPPED" in out and said == {"ready": "false"}, (name, out)
         if len(read) > 1:
-            code, out, _ = _run_gate(tmp_path, name, "live", some, False)
+            code, out, _ = _run_gate(tmp_path, root, "live", some, False)
             assert code == 1 and "live: FAILED" in out, (name, out)
         else:
-            code, out, said = _run_gate(tmp_path, name, "live", read, False)
+            code, out, said = _run_gate(tmp_path, root, "live", read, False)
             assert code == 0 and said == {"ready": "true"}, (name, out)
 
 
 def test_the_built_release_carries_the_starters_byte_for_byte(tmp_path):
     """Stage 64 item 1: `just build` (uv build: the sdist, then the wheel FROM
-    the sdist) ships every starter tree, and the DEFAULT marker naming the
-    one a new tree gets, inside the system package, so a machine that holds
-    nothing but the release can write one out. The wheel is built here and
-    read; every file of every tree is in it, unchanged."""
+    the sdist) ships the SOURCE every starter is rendered from -- the DEFAULT
+    marker naming the one a new tree gets, the skeleton, and every starter's
+    overlay -- inside the system package, so a machine that holds nothing
+    but the release can write one out. The wheel is built here and read;
+    every file is in it, unchanged, and nothing else is (the terraform
+    modules are the plugins' package data, not the starters')."""
     import shutil, subprocess, zipfile
     uv = shutil.which("uv")
     if not uv:
@@ -504,18 +525,20 @@ def test_the_built_release_carries_the_starters_byte_for_byte(tmp_path):
     with zipfile.ZipFile(wheel) as z:
         carried = {n[len(prefix):]: z.read(n) for n in z.namelist() if n.startswith(prefix)}
     expected = {"DEFAULT": (EXAMPLES / "DEFAULT").read_bytes()}
-    for name in TREES:
+    for name in ["_skeleton", *TREES]:
         for p in sorted((EXAMPLES / name).rglob("*")):
             if p.is_file() and p.name != ".DS_Store":
                 expected[f"{name}/{p.relative_to(EXAMPLES / name)}"] = p.read_bytes()
     assert set(carried) == set(expected), sorted(set(carried) ^ set(expected))[:20]
     for rel, content in expected.items():
         assert carried[rel] == content, rel
+    assert not any("/tfmodules/" in rel for rel in carried), "a starter carried a module copy"
     sdist = next(out.glob("cs_image_system_system-*.tar.gz"))
     import tarfile
     with tarfile.open(sdist) as tf:
         names = tf.getnames()
     assert any(n.endswith("/starters/complete/cfg/_config.yml") for n in names), "the sdist must carry the source too"
+    assert any(n.endswith("/starters/_skeleton/Justfile") for n in names), "the sdist must carry the skeleton too"
 
 
 # ------------------------------------------------ the CI setup guide (stage 69)
@@ -523,9 +546,9 @@ def test_the_built_release_carries_the_starters_byte_for_byte(tmp_path):
 GUIDE = "CI_SETUP.md"
 
 
-def _gate_secrets(name: str) -> set[str]:
-    """Every secret a gate of the starter workflow reads (its HAVE_<NAME> lines)."""
-    text = (EXAMPLES / name / ".github" / "workflows" / "ci.yml").read_text()
+def _gate_secrets(root: Path) -> set[str]:
+    """Every secret a gate of the starter workflow (at ROOT) reads (its HAVE_<NAME> lines)."""
+    text = (root / ".github" / "workflows" / "ci.yml").read_text()
     return set(re.findall(r"HAVE_([A-Z0-9_]+):\s*\$\{\{\s*secrets\.\1\s*!= ''", text))
 
 
@@ -536,30 +559,31 @@ def _guide_secrets(text: str, section: str) -> set[str]:
     return set(re.findall(r"^\| `([A-Z0-9_]+)` \|", body, flags=re.M))
 
 
-def test_every_starter_carries_the_same_ci_guide_and_it_is_release_owned():
+def test_every_starter_carries_the_same_ci_guide_and_it_is_release_owned(rendered_starters):
     from cs_image_system.system.starters import RELEASE_OWNED_FILES
     assert GUIDE in RELEASE_OWNED_FILES, "the guide names the workflow's secrets: it must move with the workflow"
-    texts = {name: (EXAMPLES / name / GUIDE).read_text() for name in TREES}
-    assert len(set(texts.values())) == 1, "the three starters must carry the same guide"
+    texts = {name: (rendered_starters / name / GUIDE).read_text() for name in TREES}
+    assert len(set(texts.values())) == 1, "the starters must carry the same guide"
+    assert (SKELETON / GUIDE).is_file(), "the one guide is the skeleton's"
     for name in TREES:
-        assert GUIDE in (EXAMPLES / name / "README.md").read_text(), f"{name}: the README names the guide"
+        assert GUIDE in (rendered_starters / name / "README.md").read_text(), f"{name}: the README names the guide"
     assert not (REPO / "WORKLOAD_CONNECTION.md").exists(), "stage 69: the checklist folded into the guide's OPA section"
 
 
-def test_the_guides_secrets_table_is_the_workflows_gates():
+def test_the_guides_secrets_table_is_the_workflows_gates(rendered_starters):
     """Every secret a starter workflow's gates read is in the guide's GitHub
     secrets table, and every name in the table is read by some starter's gate,
     so the guide cannot fall behind the workflow (or run ahead of it)."""
-    text = (EXAMPLES / "complete" / GUIDE).read_text()
+    text = (SKELETON / GUIDE).read_text()
     table = _guide_secrets(text, "### 3.7 The secrets")
-    gates = set().union(*(_gate_secrets(name) for name in TREES))
+    gates = set().union(*(_gate_secrets(rendered_starters / name) for name in TREES))
     assert gates, "no gate read a secret: the pattern no longer matches the workflow"
     assert table == gates, {"in the workflow, not the guide": sorted(gates - table),
                             "in the guide, not the workflow": sorted(table - gates)}
 
 
 def test_the_guide_has_github_in_full_and_gitlab_as_placeholders():
-    text = (EXAMPLES / "complete" / GUIDE).read_text()
+    text = (SKELETON / GUIDE).read_text()
     github = [h for h in re.findall(r"^### (3\.\d) ", text, flags=re.M)]
     gitlab = [h for h in re.findall(r"^### (4\.\d) ", text, flags=re.M)]
     assert github == [f"3.{i}" for i in range(0, 10)] and gitlab == [f"4.{i}" for i in range(0, 10)]   # 3.0/4.0: the bootstrap (stage 70)
@@ -573,16 +597,17 @@ def test_the_guide_has_github_in_full_and_gitlab_as_placeholders():
 
 # ---------------------------------------------------- hygiene XII, the starters
 
-def test_each_starter_as_written_is_public_safe_once_its_values_are_filled(tmp_path):
+def test_each_starter_as_written_is_public_safe_once_its_values_are_filled(tmp_path, rendered_starters):
     """Hygiene XII item 1 (the walk's F1 and F48): a starter's own hook refused
     its first commit, because the SPDX header of every release-owned file
     carries the copyright holder's address and the allow list did not say so;
     and standard-gce did not allow a runner service account's address. Each
-    starter is scanned as written, its placeholders filled with plausible
-    values, against its own allow list."""
+    starter is scanned as written (the rendered tree, module stamps and
+    all), its placeholders filled with plausible values, against its own
+    allow list."""
     from cs_image_system.base.public_safe import allow_from_config, scan_tree
     for name in TREES:
-        root = copy_example(tmp_path / name, name)
+        root = copy_example(tmp_path / name, name, rendered_starters)
         for f in root.rglob("*"):
             if f.is_file() and f.suffix in (".yml", ".yaml", ".md", "") and ".git" not in f.parts:
                 try:
@@ -596,28 +621,28 @@ def test_each_starter_as_written_is_public_safe_once_its_values_are_filled(tmp_p
         assert findings == [], f"{name}: " + "; ".join(str(x) for x in findings[:8])
 
 
-def test_each_starter_shows_the_release_model_keys_and_a_release_line():
+def test_each_starter_shows_the_release_model_keys_and_a_release_line(rendered_starters):
     """Hygiene XII item 18 (the walk's F43): the daily driver's 1.9 names
     `require_released_builds`, `require_image_tests` and
     `preflight.expected_run_minutes` among a tree's decisions; every starter
     carries them at their defaults, and every image file shows `release:`."""
     for name in TREES:
-        cfg = (EXAMPLES / name / "cfg" / "_config.yml").read_text()
+        cfg = (rendered_starters / name / "cfg" / "_config.yml").read_text()
         assert re.search(r"^  require_released_builds: false$", cfg, re.M), name
         assert re.search(r"^  require_image_tests: true$", cfg, re.M), name
         assert re.search(r"^  preflight:\n    expected_run_minutes: 30$", cfg, re.M), name
-        for img in sorted((EXAMPLES / name / "images").glob("*.yaml")):
+        for img in sorted((rendered_starters / name / "images").glob("*.yaml")):
             assert re.search(r"^\s*#?\s*release:", img.read_text(), re.M), f"{name}/{img.name} shows no release: line"
 
 
-def test_the_docker_starters_reach_step_writes_what_ssh_needs_and_refuses_half_a_pair(tmp_path):
+def test_the_docker_starters_reach_step_writes_what_ssh_needs_and_refuses_half_a_pair(tmp_path, rendered_starters):
     """Stage 103 item 16: the step runs as the runner runs it, with a stub
     `docker`. No key: the runner's own daemon, said so. Key and known-hosts:
     a 0600 key, the pinned host, the user, and DOCKER_HOST exported. A key
     without its known-hosts line fails by name."""
     import os
     import subprocess
-    doc = yaml.safe_load((EXAMPLES / "standard-docker" / ".github/workflows/ci.yml").read_text())
+    doc = yaml.safe_load((rendered_starters / "standard-docker" / ".github/workflows/ci.yml").read_text())
     (tmp_path / "bin").mkdir()
     stub = tmp_path / "bin" / "docker"
     stub.write_text("#!/bin/sh\necho \"stub docker: DOCKER_HOST=$DOCKER_HOST\"\n")

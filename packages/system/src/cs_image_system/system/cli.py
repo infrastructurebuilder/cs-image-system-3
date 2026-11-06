@@ -52,6 +52,7 @@ from cs_image_system.base.encryption import (
     rotate_text,
 )
 from cs_image_system.base.materialize import PRIVATE_DIRNAME, ensure_ignored, materialize, mirror_path, sync_back
+from cs_image_system.base.modules import installed_modules, materialise_modules
 from cs_image_system.system.starters import changes_since as _changes_since, init_config
 from cs_image_system.base.bootstrap import (
     ANSWERS_FILE,
@@ -574,6 +575,46 @@ def init_config_command(
     if report.whole_tree:
         typer.echo("init-config: next: git init, just init, then replace every REPLACE-ME "
                    "(the tree's README says which values are yours)")
+
+
+@app.command(name="modules")
+def modules_command(
+    write: Annotated[Path | None, typer.Option(
+        "--write", help="write every installed module into this directory (a tree's modules directory), "
+        "each copy stamped; a copy edited in the tree is refused by name")] = None,
+    force: Annotated[bool, typer.Option(
+        "--force", help="with --write: replace an unstamped copy that differs from the release's")] = False,
+) -> None:
+    """List the terraform modules the installed plugins ship, or write them
+    into a tree.
+
+    Without --write, one line per module: its name, the plugin's namespace
+    and release, and the module's directory inside the installed plugin.
+    With --write DIR, every module is materialised into DIR and stamped
+    (.csis-module: the plugin, the release, the content hash): an absent
+    copy is written, an unmodified copy of another release is refreshed, a
+    copy identical to the release's is kept, an unstamped identical copy is
+    adopted, an edited copy is REFUSED by name whatever the flags (keep it
+    by naming the module in `config: module_sources`, or delete it to take
+    the release's), and an unstamped copy that differs is refused unless
+    --force. Loads no configuration; exits 1 when anything was refused."""
+    if write is None:
+        for name, module in installed_modules().items():
+            typer.echo(f"{name}  {module.namespace} {module.version}  {module.path}")
+        return
+    try:
+        report = materialise_modules(write, force=force)
+    except ValueError as e:
+        typer.secho(f"modules: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=2)
+    except OSError as e:
+        typer.secho(f"modules: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    for line in report.lines():
+        refused = line.startswith("modules: REFUSED")
+        typer.secho(line, fg=typer.colors.RED if refused else None, err=refused)
+    if not report.ok:
+        raise typer.Exit(code=1)
 
 
 @app.command(name="bootstrap")
@@ -1640,11 +1681,12 @@ def main(
         # the sessions and federation it makes may not exist yet, so nothing loads
         typer_cntx.obj["config_root"] = Path(root_dir or os.getcwd())
         return
-    if typer_cntx.invoked_subcommand in ("gate-plan", "apply-check", "identity", "init-config"):
+    if typer_cntx.invoked_subcommand in ("gate-plan", "apply-check", "identity", "init-config", "modules"):
         # Utility commands invoked from runner scripts / terraform: no
         # configuration tree is loaded (plugins are loaded on demand;
         # apply-check reads only cfg/_config.yml itself). init-config (stage
-        # 64) writes a tree; there is nothing to load yet.
+        # 64) writes a tree; there is nothing to load yet. modules reads the
+        # installed plugins' entry points alone.
         return
     if typer_cntx.invoked_subcommand in ("encrypt", "decrypt", "reencrypt", "public-safe", "materialize", "mask",
                                          "config-drift"):

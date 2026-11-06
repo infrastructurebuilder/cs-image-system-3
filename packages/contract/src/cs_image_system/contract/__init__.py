@@ -26,6 +26,8 @@ One module per kind of builder, over a shared core:
 - :mod:`.commands` -- the record a plugin returns from its
   ``cs_image_system.commands`` entry point to mount a command on the
   console script;
+- :mod:`.modules` -- the entry-point group a plugin declares its terraform
+  modules directory in (the modules are package data inside the plugin);
 - :mod:`.lineage_vocabulary`, :mod:`.launch_vocabulary`,
   :mod:`.storage_vocabulary`, :mod:`.identity_vocabulary`,
   :mod:`.power_state`, :mod:`.secrets`, :mod:`.bootstrap`, :mod:`.errors`

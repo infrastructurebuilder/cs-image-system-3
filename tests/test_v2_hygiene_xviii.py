@@ -24,7 +24,8 @@ from typer.testing import CliRunner
 from cs_image_system.system.cli import app
 
 REPO = Path(__file__).resolve().parents[1]
-STARTERS = sorted(p for p in (REPO / "docs" / "examples").iterdir() if (p / "Justfile").is_file())
+STARTERS = sorted(p for p in (REPO / "docs" / "examples").iterdir() if (p / "cfg").is_dir() and not p.name.startswith("_"))
+SKELETON = REPO / "docs" / "examples" / "_skeleton"           # the Justfile every starter carries
 INIT_LINE = '{{csis}} --version 2>/dev/null || echo cs-image-system'
 
 
@@ -43,10 +44,9 @@ def test_version_answers_before_anything_loads(tmp_path: Path):
 
 def test_every_starter_init_asks_the_command_for_its_version():
     assert len(STARTERS) == 5, [p.name for p in STARTERS]
-    for starter in STARTERS:
-        text = (starter / "Justfile").read_text()
-        assert INIT_LINE in text, f"{starter.name}/Justfile: init no longer asks --version"
-        assert "ready against" in text, starter.name
+    text = (SKELETON / "Justfile").read_text()
+    assert INIT_LINE in text, "the starter Justfile: init no longer asks --version"
+    assert "ready against" in text
 
 
 @pytest.mark.skipif(shutil.which("cs-image-system") is None, reason="the command is not on PATH")

@@ -5,11 +5,13 @@
 """Stage 66: a template repository's tree is its starter and three generated
 changes, nothing else.
 
-scripts/starter-tree over every starter: the files are the starter's tracked
-files plus `.csis-version`; every file is byte-identical except the README's
-generated header and the Markdown links that leave the starter's tree, which
-point at the system repository at the release's tag -- and every such link
-names a path that exists here.
+scripts/starter-tree over every starter: the files are the rendered starter
+(the skeleton under the overlay, every one of them a tracked file of this
+repository), the installed plugins' terraform modules with their stamps, and
+`.csis-version`; every file is byte-identical except the README's generated
+header and the Markdown links that leave the starter's tree, which point at
+the system repository at the release's tag -- and every such link names a
+path that exists here.
 """
 from __future__ import annotations
 
@@ -21,6 +23,10 @@ import subprocess
 from pathlib import Path
 
 import pytest
+
+from cs_image_system.base.modules import STAMP_FILE, installed_modules
+from cs_image_system.system import starters
+from cs_image_system.system.starter_links import rewrite_links
 
 REPO = Path(__file__).resolve().parents[1]
 VERSION = "0.1.2"
@@ -35,23 +41,29 @@ def _script():
     return m
 
 
-def _tracked(name: str) -> dict[str, bytes]:
-    tree = f"docs/examples/{name}"
-    out = subprocess.run(["git", "-C", str(REPO), "ls-files", "-z", tree], capture_output=True, check=True).stdout
-    files = [p for p in out.decode().split("\0") if p]
-    return {p[len(tree) + 1:]: subprocess.run(["git", "-C", str(REPO), "show", f"HEAD:{p}"],
-                                              capture_output=True, check=True).stdout for p in files}
+def _tracked() -> set[str]:
+    out = subprocess.run(["git", "-C", str(REPO), "ls-files", "-z", "docs/examples"], capture_output=True, check=True).stdout
+    return {p for p in out.decode().split("\0") if p}
 
 
 @pytest.mark.parametrize("name", ["standard-aws", "standard-aws-posix", "standard-gce", "complete", "standard-docker"])
 def test_the_tree_is_the_starter_and_three_generated_changes(tmp_path: Path, name: str):
     m = _script()
     assert name in m.starters()
-    files = m.build(REPO, name, VERSION, tmp_path / "t")
+    files = m.build(name, VERSION, tmp_path / "t")
     dest = tmp_path / "t"
-    want = _tracked(name)
-    assert set(files) == set(want) | {".csis-version"}
+    want = starters.render(name)
+    tracked = _tracked()
+    for rel in want:                        # every rendered file is a tracked file: the skeleton's or the overlay's
+        assert f"docs/examples/_skeleton/{rel}" in tracked or f"docs/examples/{name}/{rel}" in tracked, rel
+    modules = {rel: p.read_bytes() for rel, p in starters.installed_module_files("tfmodules").items()}
+    stamps = {f"tfmodules/{module}/{STAMP_FILE}" for module in installed_modules()}
+    assert set(files) == set(want) | set(modules) | stamps | {".csis-version"}
     assert (dest / ".csis-version").read_text() == f"{VERSION}\n"
+    for rel, data in modules.items():
+        assert (dest / rel).read_bytes() == data, rel
+    for rel in stamps:
+        assert (dest / rel).read_text().startswith("plugin: "), rel
     prefix = f"https://github.com/{m.SYSTEM_REPO}/"
     for rel, original in want.items():
         got = (dest / rel).read_bytes()
@@ -66,7 +78,7 @@ def test_the_tree_is_the_starter_and_three_generated_changes(tmp_path: Path, nam
         # what is left differs from the starter only in its rewritten links: every link that does
         # not point into the tree, and nothing else
         file_dir = posixpath.dirname(f"docs/examples/{name}/{rel}")
-        assert text == m.rewrite_links(original.decode(), file_dir, f"docs/examples/{name}", VERSION), rel
+        assert text == rewrite_links(original.decode(), file_dir, f"docs/examples/{name}", VERSION), rel
         for target in re.findall(r"\]\(([^)\s]+)\)", original.decode()):
             inside = posixpath.normpath(posixpath.join(file_dir, target.split("#", 1)[0]))
             if not re.match(r"^[a-z][a-z0-9+.-]*:|^#", target) and not inside.startswith(f"docs/examples/{name}"):
@@ -90,6 +102,6 @@ def test_the_template_repositories_are_named_after_the_starters():
 def test_a_destination_that_holds_files_is_refused(tmp_path: Path):
     (tmp_path / "x").write_text("x")
     with pytest.raises(SystemExit, match="is not empty"):
-        _script().build(REPO, "standard-aws", VERSION, tmp_path)
+        _script().build("standard-aws", VERSION, tmp_path)
     with pytest.raises(SystemExit, match="no starter named"):
-        _script().build(REPO, "nonesuch", VERSION, tmp_path / "new")
+        _script().build("nonesuch", VERSION, tmp_path / "new")

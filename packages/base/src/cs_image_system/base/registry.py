@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
+from importlib.metadata import entry_points
 from typing import Any, NamedTuple
 import operator
 from functools import reduce
@@ -13,6 +14,7 @@ from cs_image_system.contract.core import BuilderProtocol, NameTypedProtocol, Pl
 log = logging.getLogger(__name__)
 
 from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, VCT
+
 
 #: What joins a namespace to a name in the qualified form of a registration
 #: (``<namespace>/<name>``). No canonical name and no alias carries it: the
@@ -70,6 +72,50 @@ class AmbiguousTypeError(ValueError):
         forms = ", ".join(k.qualified for k in self.keys)
         super().__init__(f"type {word!r} is ambiguous under {classification.value}: "
                          f"{len(self.keys)} plugins register it; write one of {forms}")
+
+
+class UnknownTypeError(ValueError):
+    """A ``type:`` word no installed plugin registers under its
+    classification. Raised where a tree's item is structured; ``validate``
+    prints it as one configuration error. The line names the umbrella's
+    extra that installs the plugin when the umbrella's table knows the
+    word (the table is the umbrella's own module, reached through the
+    entry point group :data:`EXTRAS_ENTRY_POINT_GROUP`: the core names no
+    provider), else the words the installed plugins do register there."""
+
+    def __init__(self, classification: VCT, word: str, registered: list[str]) -> None:
+        self.classification = classification
+        self.word = word
+        self.registered = sorted(registered)
+        super().__init__(unknown_type_message(classification.value, word, self.registered))
+
+
+#: The entry point group the umbrella declares its extras table in: one
+#: entry point naming a module with ``unknown_type_message(classification,
+#: word, registered) -> str``; the core composes the line through it.
+EXTRAS_ENTRY_POINT_GROUP = "cs_image_system.extras"
+
+
+def _kind_of(classification: str) -> str:
+    return classification.removesuffix("_model").removesuffix("_builder").replace("_", " ")
+
+
+def unknown_type_message(classification: str, word: str, registered: list[str]) -> str:
+    """One line for a ``type:`` word no installed plugin registers under
+    ``classification``: the umbrella's table says which extra installs
+    the plugin when an umbrella is installed and knows the word; without
+    one the line says the word is unknown and lists the registered ones."""
+    for ep in entry_points(group=EXTRAS_ENTRY_POINT_GROUP):
+        try:
+            compose = getattr(ep.load(), "unknown_type_message", None)
+        except Exception as e:  # noqa: BLE001 - a broken table never hides the configuration error
+            log.debug(f"extras table {ep.value!r} did not load: {e}")
+            continue
+        if callable(compose):
+            return str(compose(classification, word, registered))
+    known = ", ".join(sorted(registered)) or "nothing"
+    return (f"{_kind_of(classification)} type {word!r} is unknown: no installed plugin registers it under "
+            f"{classification}; the installed plugins register {known}")
 
 
 def sanitize_classifier(classifer:VCT| None) -> VCT:

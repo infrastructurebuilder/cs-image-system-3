@@ -308,3 +308,20 @@ def test_the_docs_name_the_runtime():
     readme = (REPO / "packages" / "docker-runtime-plugin" / "README.md").read_text()
     assert "## When it fails" in readme and "test-docker-bake" in readme
     assert "test-docker-bake" in (REPO / "Justfile").read_text()
+
+
+def test_the_docker_legs_follow_the_docker_commands_active_context():
+    """The tofu docker provider and packer read DOCKER_HOST and otherwise
+    take /var/run/docker.sock, which on a host with several engines may
+    point at one that is not running; the docker legs run with DOCKER_HOST
+    set to the active context's endpoint (a DOCKER_HOST already set wins),
+    and the leg keeps it instead of dropping it."""
+    import re
+    from v2_support import REPO
+    text = (REPO / "Justfile").read_text()
+    for recipe in ("test-docker-bake", "test-docker-cycle"):
+        body = re.search(rf"^{recipe} \*ARGS:\n(.*)$", text, flags=re.M)
+        assert body and 'DOCKER_HOST="$(just docker-host)" CSIS_DOCKER_KEEP_HOST=1' in body.group(1), recipe
+    host = re.search(r"^docker-host:\n(.*)$", text, flags=re.M)
+    assert host and "docker context inspect --format '{{{{.Endpoints.docker.Host}}'" in host.group(1)
+    assert '[ -n "${DOCKER_HOST:-}" ]' in host.group(1), "a DOCKER_HOST already in the shell wins"

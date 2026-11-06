@@ -370,11 +370,12 @@ meet it: the symptom, what it means, and what to do.
 - `<name>: `parameters` was retired ...` -- delete the key.
 - `Name '<name>' contains invalid characters` / `Name cannot be in
   '['default', None, '', 'self']'` -- rename the backend.
-- `Unrecognized type/alias 'gcs' for VCT.STATE_BACKEND_MODEL` (a
-  `KeyError` at load) -- the plugin is not installed in the environment
-  that loaded the tree (it is a workspace member here, so this means a
-  foreign or partial install). Install `cs-image-system-gcs-state-plugin`
-  at the system's version.
+- `state backend type 'gcs' is registered by no installed plugin:
+  install the extra: uv tool install 'cs-image-system[gcloud]'` (one
+  line under `Validation failed with 1 error(s).`) -- the plugin is not
+  installed in the environment that loaded the tree: it comes with the
+  umbrella's `[gcloud]` extra, never with the bare install (it is a
+  workspace member here, so this means a foreign or partial install).
 - `State backend '<name>' registered twice with different
   configurations` -- two files declare the same name with different
   settings (an uncommented live `state-gcm.yml` beside a second copy, for

@@ -8,11 +8,14 @@
 
 The index options are read from a starter workflow -- the `indexes=` a job
 uses when `.csis-version` names a `.dev` version -- never restated, and
-`cs-image-system==VERSION` (default: the newest `v*.dev*` tag here) is
-resolved with them, read-only (`uv pip compile`, nothing installed). Exit 0
-when every `cs-image-system` package resolves at VERSION from TestPyPI and
-no other package comes from TestPyPI; 1 when either fails; 2 when the line
-or a version cannot be found, or the indexes could not be asked.
+`cs-image-system[all]==VERSION` (default: the newest `v*.dev*` tag here) is
+resolved with them, read-only (`uv pip compile`, nothing installed). The
+starters install `cs-image-system[<the tree's extras>]`; `[all]` is every
+extra at once, so the one resolution proves the line for every tree and
+every provider package. Exit 0 when every `cs-image-system` package resolves
+at VERSION from TestPyPI and no other package comes from TestPyPI; 1 when
+either fails; 2 when the line or a version cannot be found, or the indexes
+could not be asked.
 
 Born from 2026-10-26: once 0.1.1 was on PyPI, uv's default index strategy
 stopped at PyPI for `cs-image-system` and never looked for 0.1.2.dev1 on
@@ -62,10 +65,10 @@ def main(argv: list[str]) -> int:
         print("dev-pin-resolves: no v*.dev* tag here and no version given")
         return 2
     cmd = ["uv", "pip", "compile", "-", "--no-cache", "--python-version", "3.13", "--emit-index-annotation", "-q", *opts]
-    r = subprocess.run(cmd, input=f"cs-image-system=={version}\n", capture_output=True, text=True)
+    r = subprocess.run(cmd, input=f"cs-image-system[all]=={version}\n", capture_output=True, text=True)
     if r.returncode != 0:
         tail = " ".join(r.stderr.split())[:300]
-        print(f"dev-pin-resolves: cs-image-system=={version} does not resolve with {' '.join(opts)}: {tail}")
+        print(f"dev-pin-resolves: cs-image-system[all]=={version} does not resolve with {' '.join(opts)}: {tail}")
         return 1 if "No solution found" in r.stderr else 2
     pins: dict[str, tuple[str, str]] = {}
     current = None
@@ -79,7 +82,7 @@ def main(argv: list[str]) -> int:
     theirs = {n: v for n, v in pins.items() if not n.startswith("cs-image-system")}
     wrong = [n for n, (v, src) in ours.items() if v != version or TESTPYPI not in src]
     leaked = [n for n, (_, src) in theirs.items() if TESTPYPI in src]
-    print(f"dev-pin-resolves: cs-image-system=={version} with {' '.join(opts)}: {len(ours)} of ours, "
+    print(f"dev-pin-resolves: cs-image-system[all]=={version} with {' '.join(opts)}: {len(ours)} of ours, "
           f"{len(theirs)} third-party")
     if wrong:
         print(f"dev-pin-resolves: FAILED -- not {version} from TestPyPI: {', '.join(sorted(wrong))}")

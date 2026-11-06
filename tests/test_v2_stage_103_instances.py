@@ -18,7 +18,7 @@ import pytest
 import yaml
 
 from test_v2_stage_103 import BASE, BUILDER, IMAGE, RUNTIME, _edit, _stub_daemon, docker_overlay
-from v2_support import V2Run, copy_config, load_context, stub_environment
+from v2_support import V2Run, copy_config, load_context, module_path, stub_environment
 
 INSTANCE_BUILDER = "tofu-docker-local"
 VOLUME_BUILDER = "docker-volumes"
@@ -340,18 +340,16 @@ def test_the_plugin_is_a_member_of_the_workspace():
     from v2_support import REPO
     import tomllib
     root = tomllib.loads((REPO / "pyproject.toml").read_text())
-    assert "cs-image-system-tf-docker-plugin==0.1.6.dev1" in root["project"]["dependencies"] or \
-        any(d.startswith("cs-image-system-tf-docker-plugin==") for d in root["project"]["dependencies"])
+    docker_extra = root["project"]["optional-dependencies"]["docker"]
+    assert any(d.startswith("cs-image-system-tf-docker-plugin==") for d in docker_extra)   # the docker extra carries it
+    assert not any(d.startswith("cs-image-system-tf-docker-plugin") for d in root["project"]["dependencies"])
     assert "cs-image-system-tf-docker-plugin" in root["tool"]["uv"]["sources"]
     assert "packages/tf-docker-plugin/tests" in root["tool"]["pytest"]["ini_options"]["testpaths"]
     from cs_image_system.tf_docker_plugin.main import initialize
     meta = initialize()
     assert meta is not None
     for d in ("docker_container", "docker_volume"):
-        assert (REPO / "tfmodules" / d / "main.tf").is_file()
-        for starter in ("standard-aws", "standard-gce", "complete", "standard-aws-posix", "standard-docker"):
-            assert (REPO / "docs" / "examples" / starter / "tfmodules" / d / "main.tf").read_text() == \
-                (REPO / "tfmodules" / d / "main.tf").read_text()
-    module = (REPO / "tfmodules" / "docker_container" / "main.tf").read_text()
+        assert (module_path(d) / "main.tf").is_file()
+    module = (module_path("docker_container") / "main.tf").read_text()
     assert "must_run = false" in module and 'restart  = var.restart' in module and "memory_swap" in module
     assert (REPO / "Justfile").read_text().count("test-docker-cycle") >= 3

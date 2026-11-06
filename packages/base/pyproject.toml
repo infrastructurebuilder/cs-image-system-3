@@ -12,7 +12,7 @@ license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
-    "cs-image-system-contract>=0.2,<0.3",
+    "cs-image-system-contract>=0.3,<0.4",
     "Jinja2>=3.1",
     "PyYAML>=6.0",
     "age>=0.5",
@@ -36,3 +36,8 @@ exclude = ["*.code-workspace"]
 
 [project.entry-points."cs_image_system.plugins.base"]
 base_plugin = "cs_image_system.base.init:initialize"
+
+# the terraform modules this package ships, as package data (the group is the
+# contract's MODULES_ENTRY_POINT_GROUP; the value is <package>:<dirname>)
+[project.entry-points."cs_image_system.modules"]
+modules = "cs_image_system.base:tfmodules"

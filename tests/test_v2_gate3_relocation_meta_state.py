@@ -14,13 +14,12 @@
 from __future__ import annotations
 
 import re
-import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 
-from v2_support import REPO, V2Run, copy_config
+from v2_support import V2Run, copy_config, modules_beside
 
 # module sources are filesystem paths (relative or absolute); provider
 # sources ("hashicorp/aws") are registry addresses and are not paths.
@@ -37,8 +36,7 @@ def relocated(tmp_path, monkeypatch):
     """the fixture + tfmodules copied as siblings under a temp dir -- the
     shape of an independent configuration repository."""
     config = copy_config(tmp_path, "cfgrepo")
-    shutil.copytree(REPO / "tfmodules", tmp_path / "tfmodules",
-                    ignore=shutil.ignore_patterns("tftest"))
+    modules_beside(config)
     run = V2Run(tmp_path, monkeypatch, config_root=config)
     yield run
     run.restore_cwd()

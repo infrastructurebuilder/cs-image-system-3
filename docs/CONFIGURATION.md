@@ -210,12 +210,38 @@ template scope: `{{ config.x }}` does not resolve in model fields).
 | `apply_release` | bool or list[str] | `false` | let the release lifecycle mark artifacts in the cloud |
 | `use_state_backends` | bool | `false` | emit terraform `backend` and remote-state blocks (needs real state locations). Required in effect: the instance and storage roots read gids, tokens and volume ids through remote state, so `validate` (and every run) refuses the flag off when any root would read a producer, naming each root and what it reads. Only a tree where nothing reads anything (no storages, no instance on a grouped image, no storage carrying a group) may turn it off |
 | `module_source_base` | str | `../tfmodules` | where generated `module` calls find the modules: a relative path is relative to the configuration root and rewritten for each root's depth; an absolute path or a git/registry URL passes through |
+| `module_sources` | map[str, str] | `{}` | a source for ONE module at a time, by the module's directory name (`aws_instance`, `okta_opa_module`, ...); a named entry wins over `module_source_base` for that module alone and IS the module (nothing is appended): a relative path is relative to the configuration root and rewritten for each root's depth, an absolute path or a git/registry URL passes through. The names are not checked against the installed modules. A value that is not a mapping of strings is refused by key at `validate` |
 | `admin_public_keys` | list[str] (a single string is accepted) | `[]` | OpenSSH public key lines for the mandatory local admin user of every base image; anything resembling private-key material is refused; per-base override on the OS builder |
 | `okta_gateway_selector` | str | none | fallback `gateway_selector` for an OPA group builder that sets none |
 | `require_mod_tests` | bool | `false` | a release refuses a build whose modification has no local mod-test record |
 | `require_image_tests` | bool | `true` | a release of an image that declares `tests.post_bake` needs a passing record |
 | `require_released_builds` | bool | `false` | an instance may be pinned only to a released build of its image, or to the series head while its own proof is under way (the release grace; OPERATIONS "A model image, end to end") |
 | `preflight.expected_run_minutes` | int | `30` | a credential session expiring sooner is reported as blocking |
+
+**The modules.** The terraform modules a generated `module` call targets
+ship inside their plugin's package (`cs-image-system modules` lists them:
+the name, the plugin's namespace and release, the directory). A tree
+holds its own copies, the directory `module_source_base` names (the
+starters' `tfmodules/`): `init-config` writes them from the release and
+`cs-image-system modules --write <dir>` writes them anywhere. Every copy
+written that way carries a stamp, `.csis-module` (the plugin, the
+release, a hash of the copy's content). A later refresh replaces only a
+copy whose content is still what its stamp says (an older release's,
+unmodified) and refuses, by name, a copy edited in the tree, whatever
+the flags; a copy without a stamp is adopted when it is the release's
+content and refused otherwise (`--force` replaces it). To keep an edit
+past a refresh, name the module in `module_sources`, and the refresh
+skips it from then on; to take the release's version back, delete the
+copy. An override may also point at a module nothing here ships, or at
+a remote source:
+
+```yaml
+config:
+  module_source_base: tfmodules
+  module_sources:
+    aws_instance: ../my-modules/aws_instance          # relative to the configuration root
+    okta_opa_module: git::https://example.com/modules.git//okta_opa_module?ref=v3
+```
 
 **The `apply_*` flags.** `true` lets every root of that lifecycle apply;
 `false` (or absent) lets none. A **list** names the roots that may apply,

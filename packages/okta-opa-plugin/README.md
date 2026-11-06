@@ -144,7 +144,7 @@ keys this plugin adds:
   project.
 - `workload_connection`: the name of the team's OPA workload connection,
   made by hand once
-  ([CI_SETUP.md, section 3.5](../../docs/examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access)).
+  ([CI_SETUP.md, section 3.5](../../docs/examples/_skeleton/CI_SETUP.md#35-okta-and-okta-privileged-access)).
   Read only together with `workload_role`.
 - `workload_role`: the name of the team's one workload role. With both
   names set, the builder keeps one CI login policy per managed group
@@ -319,7 +319,7 @@ every other phase.
 
 The module call
 ([`_group_module_call`](src/cs_image_system/okta_opa_plugin/okta_opa_tf_group_builder.py))
-targets [tfmodules/okta_opa_module](../../tfmodules/okta_opa_module/main.tf):
+targets [tfmodules/okta_opa_module](src/cs_image_system/okta_opa_plugin/tfmodules/okta_opa_module/main.tf):
 
 | Module input | Value |
 |---|---|
@@ -678,9 +678,12 @@ builder) are fetched by `tofu init` from the public registry.
 
 **The terraform module** `okta_opa_module`, found at
 `config.module_source_base` (default `../tfmodules`, relative to the
-configuration root). The system repository carries it under
-[tfmodules/](../../tfmodules/okta_opa_module); a configuration checkout
-needs it beside it.
+configuration root) or where `config.module_sources` names it. This
+plugin ships the module as package data under
+[src/cs_image_system/okta_opa_plugin/tfmodules/](src/cs_image_system/okta_opa_plugin/tfmodules/okta_opa_module),
+declared through the `cs_image_system.modules` entry point; a configuration
+tree holds a copy (`init-config` or `cs-image-system modules --write`
+writes it) or sources it from elsewhere.
 
 **A state backend.** `state_configuration` names a `state_backends:`
 entry, or `default` picks the default one. The `s3` backend needs an AWS
@@ -717,7 +720,7 @@ gateway's security group.
 
 **The workload connection and role**, only when CI is to log in: made by
 hand once in the OPA admin console following
-[the CI setup guide, section 3.5](../../docs/examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access), then named on
+[the CI setup guide, section 3.5](../../docs/examples/_skeleton/CI_SETUP.md#35-okta-and-okta-privileged-access), then named on
 the `okta-tf` group builder as `workload_connection` and `workload_role`.
 The system reads both by name and never writes them. The bootstrap's
 Okta and OPA section (`okta =
@@ -1070,7 +1073,7 @@ Failures by symptom: what each means and what to do. Each names the
 symptom as the operator sees it, what it means, where to look and what
 to do; the general rules are in
 [docs/OPERATIONS.md](../../docs/OPERATIONS.md) and
-[the CI setup guide](../../docs/examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access).
+[the CI setup guide](../../docs/examples/_skeleton/CI_SETUP.md#35-okta-and-okta-privileged-access).
 
 - **An identity plan wants to *create* `oktapam_user_group_attachment`
   resources that already stand in OPA.** The memberships exist out of
@@ -1320,16 +1323,16 @@ Failures the code raises:
   [roots.py](../tofu-roots/src/cs_image_system/tofu_roots/roots.py)
   (`TerraformRootMixin`, the gated apply sequence).
 - Terraform module called:
-  [tfmodules/okta_opa_module](../../tfmodules/okta_opa_module)
-  ([main.tf](../../tfmodules/okta_opa_module/main.tf),
-  [variables.tf](../../tfmodules/okta_opa_module/variables.tf),
-  [outputs.tf](../../tfmodules/okta_opa_module/outputs.tf)).
+  [tfmodules/okta_opa_module](src/cs_image_system/okta_opa_plugin/tfmodules/okta_opa_module)
+  ([main.tf](src/cs_image_system/okta_opa_plugin/tfmodules/okta_opa_module/main.tf),
+  [variables.tf](src/cs_image_system/okta_opa_plugin/tfmodules/okta_opa_module/variables.tf),
+  [outputs.tf](src/cs_image_system/okta_opa_plugin/tfmodules/okta_opa_module/outputs.tf)).
 - Manuals: [docs/CONFIGURATION.md](../../docs/CONFIGURATION.md) (section
   9, 11.5, 11.6, 13, 14), [docs/OPERATIONS.md](../../docs/OPERATIONS.md)
   ("CI logs in through the policy the system manages", "The state
   query", "Credentials contract", "The gid shim", "Rules: Identity"),
   [docs/DESIGN.md](../../docs/DESIGN.md) (N1, N7, N19, section D),
-  [the CI setup guide, section 3.5](../../docs/examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access).
+  [the CI setup guide, section 3.5](../../docs/examples/_skeleton/CI_SETUP.md#35-okta-and-okta-privileged-access).
 - Tests: [tests/](tests) -- the module call, the workspace mixin, the
   resource emitters, the four builder roots, the gid shim, the server
   registry and the workload policy; the `prune-attachments` runner step

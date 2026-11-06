@@ -580,9 +580,11 @@ sources are deferred (§H). The tests own a frozen fixture of their own
 (`tests/fixtures/config/`).
 
 - **Module sources**: generated module calls reach the terraform modules
-  through `config.module_source_base` (default `../tfmodules`). In the
-  sibling-checkout shape the config repo declares the path to this
-  repo's `tfmodules/`, the modules stay here, and nothing else in the
+  through `config.module_source_base` (default `../tfmodules`) and, for
+  one module at a time, `config.module_sources`. The modules ship as
+  package data inside the plugin that owns them; a config repository
+  holds the copies `init-config` writes (each stamped, so a refresh
+  replaces only an unmodified copy), and nothing else in the
   config tree points outside itself (`.envrc`/key files are
   operator-local either way).
 - **Per-lifecycle generated-IaC directories** (`generated/<lifecycle>/`),

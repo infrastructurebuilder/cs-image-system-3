@@ -382,7 +382,7 @@ def test_the_grace_is_only_for_the_series_head_that_was_verified_in_bake(run):
 
 def test_the_upgrade_recipe_is_the_second_release_procedure_with_the_rule_left_on():
     # stage 64: the cycle recipes live in a configuration repository's Justfile, which the release ships
-    text = (REPO / "docs" / "examples" / "complete" / "Justfile").read_text()
+    text = (REPO / "docs" / "examples" / "_skeleton" / "Justfile").read_text()
     assert "cloud-upgrade" not in (REPO / "Justfile").read_text()
     body = text[text.index("cloud-upgrade runtime instance"):]
     body = body[:body.index("\n\n")]

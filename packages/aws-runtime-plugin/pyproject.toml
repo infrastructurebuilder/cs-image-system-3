@@ -12,7 +12,7 @@ license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
-    "cs-image-system-contract>=0.2,<0.3",
+    "cs-image-system-contract>=0.3,<0.4",
     "cs-image-system-base==0.1.7.dev1",
     "cs-image-system-hashicorp-utils==0.1.7.dev1",
     "boto3>=1.43",
@@ -40,3 +40,8 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/cs_image_system"]
 exclude = ["*.code-workspace"]
+
+# the terraform modules this package ships, as package data (the group is the
+# contract's MODULES_ENTRY_POINT_GROUP; the value is <package>:<dirname>)
+[project.entry-points."cs_image_system.modules"]
+modules = "cs_image_system.aws_runtime:tfmodules"

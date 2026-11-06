@@ -860,8 +860,8 @@ the tree's `id`, its generation directory and `dateformat`, the
 `executables` and the nine builder lists, the extra `gitignore` entries,
 the `encryption` recipients, the `public_safe` allowances and the free
 `config:` mapping, of which the core reads the four apply flags,
-`use_state_backends`, `module_source_base`, `admin_public_keys`, the
-`require_*` release gates and `preflight.expected_run_minutes`. Every
+`use_state_backends`, `module_source_base`, `module_sources`,
+`admin_public_keys`, the `require_*` release gates and `preflight.expected_run_minutes`. Every
 key with its type, default and meaning is the table in
 [CONFIGURATION section 2](../../docs/CONFIGURATION.md#2-cfg_configyml),
 and the `config:` keys the code reads are its
@@ -1351,10 +1351,55 @@ lines. `admin_public_keys` returns a base image's own list when set, else
 `config.admin_public_keys`; `admin_user` returns the OS builder's
 `admin_user`, default `csisadmin`.
 
+## The terraform modules
+
+Every terraform module a builder emits a `module` call against
+(`aws_instance`, `gcp_storage_pd`, `docker_volume`, `okta_opa_module`, ...)
+is package data inside the plugin that owns it, under that package's
+`tfmodules/` directory; the core ships the neutral one,
+[`bootstrap_github`](src/cs_image_system/base/tfmodules/bootstrap_github).
+A plugin declares its directory with one entry point in the contract's
+group `cs_image_system.modules`
+([`contract/modules.py`](../contract/src/cs_image_system/contract/modules.py)),
+the value `<package>:<dirname>`:
+
+```toml
+[project.entry-points."cs_image_system.modules"]
+modules = "cs_image_system.aws_runtime:tfmodules"
+```
+
+[`modules.py`](src/cs_image_system/base/modules.py) is the one API over
+that declaration. `installed_modules()` reads the entry points and returns
+every module by directory name (`ModuleSource`: the name, the namespace the
+distribution's name yields exactly as a plugin's registrations do,
+the distribution, its version, the directory), importing no plugin code
+and refusing a name two distributions ship. `materialise_modules(dest,
+force=..., overrides=..., only=...)` writes them into a tree's modules
+directory and stamps every copy with `.csis-module` (`plugin`, `release`,
+`hash`: `content_hash` over the copy's files, the stamp excluded); the
+report (`ModulesReport`: `written`, `refreshed`, `adopted`, `kept`,
+`skipped`, `refused`, with `lines()`) says what happened to each. The
+rules: an absent copy is written; a stamped copy whose content is still
+what its stamp says is kept when it is the release's and refreshed when it
+is an older release's; a stamped copy edited in the tree is refused by
+name, `force` or not; an unstamped copy is adopted when identical to the
+release's and refused otherwise (`force` replaces it); a module named in
+`overrides` (the keys of `config: module_sources`, which
+`declared_overrides(config_root)` reads from the raw `cfg/_config.yml`)
+is skipped. `cs-image-system modules [--write DIR] [--force]` is the
+command over it, and `init-config` uses it for a tree's copies.
+
+The emission reads none of this: `module_source` in `utils.py` resolves a
+call's `source` from `config: module_source_base` (every module) and
+`config: module_sources` (one module at a time, the entry being the
+module itself), so a tree may hold a copy, source a module from
+elsewhere, or edit a copy and keep the edit by naming it.
+
 ## Other modules
 
 | Module | Purpose |
 | -------- | --------- |
+| [`modules.py`](src/cs_image_system/base/modules.py) | The installed terraform modules (`installed_modules`, from the `cs_image_system.modules` entry points, no plugin import), their materialisation into a tree with a stamp per copy (`materialise_modules`, `Stamp`, `content_hash`, `ModulesReport`) and the names `config: module_sources` declares (`declared_overrides`); see [The terraform modules](#the-terraform-modules). |
 | [`state_query.py`](src/cs_image_system/base/state_query.py) | Asks every plugin for reality (images by lineage tags, storages by name, groups by gid), diffs it against meta-state, and classifies drift as `missing`, `foreign`, `changed` or `stale`. Hard drift (a pinned build gone, a storage recorded live but absent, a managed group unknown to the provider, an instance pinned to an unrecorded build) makes the next run's validation refuse. `import_foreign` adopts foreign artifacts into meta-state; nothing here writes to a cloud or to terraform state. The report is `generated/state-report.json`. |
 | [`storage_state.py`](src/cs_image_system/base/storage_state.py) | The storage state machine: legal transitions (`active` to `archived` and back, either to `destroyed`, and regeneration of a destroyed name), the rule that a storage must be unattached to leave `active`, transitions for undeclared storages, and the recording of applied transitions. |
 | [`v2_validation.py`](src/cs_image_system/base/v2_validation.py) | Generation-time rules, all hard: managed groups may not disappear; allowed groups exist; the strict attach rule; single-attach cardinality; data lifecycles only where the builder realizes them; storage transitions are legal; an instance image's group exists and every instance image has one; declared types resolve to configured plugins; admin keys are public keys; every base image has a debug path (keys or a session mechanism); capability resolution on both axes; test specs use the known vocabulary; update policies are valid. |
@@ -1365,7 +1410,7 @@ lines. `admin_public_keys` returns a base image's own list when set, else
 | [`commands/preflight.py`](src/cs_image_system/base/commands/preflight.py) | The session lines: asks every declared runtime's and state backend's class the contract's `session_status` hook (from the raw `cfg/` files before the load, and from the loaded models after) and judges the answers against the expected run length; reads no credential cache itself and names no provider. |
 | [`commands/gate.py`](src/cs_image_system/base/commands/gate.py) | The apply gate over a `tofu show -json` plan: every planned destroy must match a whitelisted address or prefix; a plan file older than the newest `.tf` in its root is stale. |
 | [`commands/upgrade.py`](src/cs_image_system/base/commands/upgrade.py), [`commands/dispose.py`](src/cs_image_system/base/commands/dispose.py), [`commands/restamp.py`](src/cs_image_system/base/commands/restamp.py), [`commands/relabel.py`](src/cs_image_system/base/commands/relabel.py), [`commands/verify_instance.py`](src/cs_image_system/base/commands/verify_instance.py), [`commands/unmount.py`](src/cs_image_system/base/commands/unmount.py), [`commands/runtime_facts.py`](src/cs_image_system/base/commands/runtime_facts.py), [`commands/identity_gids.py`](src/cs_image_system/base/commands/identity_gids.py), [`commands/run_scope.py`](src/cs_image_system/base/commands/run_scope.py) | The operations behind the CLI's `upgrade`, `dispose image`, `lineage restamp`, `lineage relabel`, `verify instance`, `unmount storage`, `runtime describe` / `empty`, `identity export-gids`, and the bake scope check. |
-| [`utils.py`](src/cs_image_system/base/utils.py) | `safe_name`, `super_safe_name`, `system_cli_executable` (a deferred call of the system's own CLI), `apply_enabled` / `apply_flag_allows` (the `apply_<lifecycle>` rule), `module_source`, `hcl_expr` and `render_module_call` (terraform module call rendering). |
+| [`utils.py`](src/cs_image_system/base/utils.py) | `safe_name`, `super_safe_name`, `system_cli_executable` (a deferred call of the system's own CLI), `apply_enabled` / `apply_flag_allows` (the `apply_<lifecycle>` rule), `module_source` and `module_source_overrides` (a call's source from `module_source_base` and `module_sources`), `hcl_expr` and `render_module_call` (terraform module call rendering). |
 | [`ansible_launch.py`](src/cs_image_system/base/ansible_launch.py) | Renders the same launch parameters as an ansible inventory and playbook: the hostname task, each mount's tasks from its storage builder's `launch_tasks()`, the enrollment kind's tasks; `extra_vars(ctx)` is the playbook's variable list, the same names as the launch template's. |
 | [`power_state.py`](src/cs_image_system/base/power_state.py) | The system's power-state vocabulary (`running`, `stopped`, `suspended`, `starting`, `stopping`, `absent`, `unknown`; `None` is "cannot answer"), `wait_until_reachable`, and `running_for_task`, the one bounded exception under which a stopped machine is started for work that needs it and stopped again afterwards. |
 | [`generations.py`](src/cs_image_system/base/generations.py) | Instance generations: one per machine, opened `inferred` by a launch and confirmed `observed` (or closed as `replaced-out-of-band`) by the provider's instance id after a real apply; a machine launched before the record existed is `adopted` as generation 1 of it. |
@@ -1571,9 +1616,12 @@ release are deferred into the release runner); `use_state_backends`
 (hashicorp-utils' collector and the tofu-roots hook plugin's
 state-location validator and recorder: off, no backend block, no
 `.tfbackend.hcl`, no remote-state data source, no location record, no
-collision or move check); `module_source_base` (`module_source` in `utils.py`: a relative
-value is relative to the configuration root and rewritten per workspace
-depth, absolute paths and URLs pass through); `admin_public_keys`
+collision or move check); `module_source_base` and `module_sources`
+(`module_source` in `utils.py`: a relative value is relative to the
+configuration root and rewritten per workspace depth, absolute paths and
+URLs pass through; an entry of `module_sources` is the source of that one
+module, and `validate_module_sources` refuses a value that is not a
+mapping of strings); `admin_public_keys`
 ([`capabilities.py`](src/cs_image_system/base/capabilities.py),
 `validate_base_images`, the fingerprint and the in-bake tests: one
 OpenSSH public-key line each, never private material, a lone string

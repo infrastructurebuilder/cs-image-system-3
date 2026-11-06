@@ -59,7 +59,12 @@ OIDC identity provider, the READ-ONLY and WRITE roles of CI_SETUP.md 3.3
 with their trust and permission documents, and the state buckets (the
 default backend's and every other declared S3 backend's that a root is
 bound to) and the Session Manager instance profile when the account
-lacks them (`tfmodules/bootstrap_aws`). The
+lacks them (`tfmodules/bootstrap_aws`). This plugin ships the AWS
+terraform modules as package data (`aws_instance`, `aws_storage_ebs`,
+`aws_storage_efs`, `aws_storage_s3`, `bootstrap_aws`, under
+[src/cs_image_system/aws_runtime/tfmodules/](src/cs_image_system/aws_runtime/tfmodules)),
+declared through the `cs_image_system.modules` entry point; `cs-image-system
+modules` lists them. The
 section renders its coverage audit for the generated README: what it
 made, read, adopted, or leaves by hand and why (a backend bound to no
 root is left out and said so). The section declares the two repository
@@ -281,7 +286,7 @@ hooks. In the order a run reaches them:
 Every instance lookup above is by the EC2 `Name` tag, which the instance
 module sets to the instance's declared name
 (`tags = merge({ Name = var.name }, var.tags)` in
-[tfmodules/aws_instance/main.tf](../../tfmodules/aws_instance/main.tf)). Two
+[tfmodules/aws_instance/main.tf](src/cs_image_system/aws_runtime/tfmodules/aws_instance/main.tf)). Two
 lookups differ on purpose: `_running_instance` filters on `pending`/`running`
 (the boot-image query, the session command), `_named_instance` takes any
 state and prefers a non-`terminated` record (the power-state and identity

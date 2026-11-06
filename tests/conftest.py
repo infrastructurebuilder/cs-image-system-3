@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import pytest
 
+from starter_support import rendered_starters  # noqa: F401 - the session fixture every starter-reading test may take
+
 
 def pytest_sessionstart(session) -> None:
     """Stage 125: the installed plugins are held to the contract ONCE, as

@@ -73,13 +73,34 @@ def _dep_name(spec: str) -> str:
     return re.split(r"[\s<>=!~;\[(]", spec.strip(), maxsplit=1)[0].lower().replace("_", "-")
 
 
+PRIVATE = "Private :: Do Not Upload"
+
+
+def is_published(project: dict) -> bool:
+    """Whether a project is one the release uploads: every workspace member
+    except one classified ``Private :: Do Not Upload`` (the extension
+    template and the contract's proof, stage 126), which an index refuses
+    and which the workspace installs through the root's dev group."""
+    return PRIVATE not in project.get("classifiers", [])
+
+
+def published_pyprojects(root: Path) -> list[Path]:
+    """The root project's manifest and each published packages/* member's."""
+    return [path for path in [root / "pyproject.toml", *sorted(root.glob("packages/*/pyproject.toml"))]
+            if is_published(_pyproject(path).get("project", {}))]
+
+
 def upload_order(root: Path) -> list[str]:
-    """Every project the release uploads (the root project and each packages/*
-    member), each after the workspace projects it depends on; ties by name."""
+    """Every project the release uploads (the root project and each published
+    packages/* member), each after the workspace projects it depends on --
+    the root's extras count as its dependencies -- ties by name."""
     deps: dict[str, set[str]] = {}
-    for path in [root / "pyproject.toml", *sorted(root.glob("packages/*/pyproject.toml"))]:
+    for path in published_pyprojects(root):
         project = _pyproject(path).get("project", {})
-        deps[project["name"].lower()] = {_dep_name(d) for d in project.get("dependencies", [])}
+        specs = list(project.get("dependencies", []))
+        for extra in project.get("optional-dependencies", {}).values():
+            specs += list(extra)
+        deps[project["name"].lower()] = {_dep_name(d) for d in specs}
     for name in deps:
         deps[name] &= set(deps) - {name}
     order: list[str] = []
@@ -98,7 +119,7 @@ def project_versions(root: Path) -> dict[str, str]:
     of its own, independent of the workspace's, so its files are looked for
     under that, never under --version."""
     out: dict[str, str] = {}
-    for path in [root / "pyproject.toml", *sorted(root.glob("packages/*/pyproject.toml"))]:
+    for path in published_pyprojects(root):
         project = _pyproject(path).get("project", {})
         if "version" in project:
             out[project["name"].lower()] = project["version"]

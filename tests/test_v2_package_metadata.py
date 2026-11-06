@@ -8,8 +8,14 @@ A wheel installed from an index has only its metadata to go on, so every
 package declares exactly the third-party distributions its sources import
 (41.1), pins every sibling at == its own version (41.2), carries the
 description, readme and urls an index page shows (41.8); the root is the
-buildable `cs-image-system` that depends on all of them (41.3); and
-`bump-my-version` moves every version line and every pin at once under the
+buildable `cs-image-system` umbrella whose dependencies are the core and
+whose extras (`[aws]`, `[gcloud]`, `[docker]`, `[okta]`, `[all]`) are the
+providers, so a bare install carries no runtime (stage 126; the extras'
+table is cs_image_system.extras, the umbrella's one module, tests/test_extras.py); the two
+workspace-only plugins (dummy, contract-example) are in the root's dev
+group alone, classified `Private :: Do Not Upload`, and never published;
+and `bump-my-version` moves every version line and every pin -- the
+extras' and the dev group's included -- at once under the
 MAJOR.MINOR.PATCH[.devN] scheme (41.4, 41.5), proven on a copy of the tree.
 The one exception is the contract (stage 125): its version is its own, every
 dependent pins it to a range, and the bump leaves it alone
@@ -42,21 +48,54 @@ OWN = "cs-image-system"
 NAMESPACE = "cs_image_system"
 CONTRACT = "cs-image-system-contract"
 STDLIB = set(sys.stdlib_module_names)
+PRIVATE = "Private :: Do Not Upload"
+#: the two workspace-only plugins: installed through the dev group, never published
+PRIVATE_PACKAGES = {"cs-image-system-dummy-plugin", "cs-image-system-contract-example-plugin"}
+#: the umbrella's extras -> the distributions each installs (the namespaces of
+#: cs_image_system.extras.EXTRAS, as distribution names)
+EXTRA_DISTRIBUTIONS = {
+    "aws": {"cs-image-system-aws-runtime-plugin", "cs-image-system-tf-ebs-instance-plugin",
+            "cs-image-system-tf-s3-state-plugin"},
+    "gcloud": {"cs-image-system-gcloud-runtime-plugin", "cs-image-system-tf-gcp-plugin",
+               "cs-image-system-gcs-state-plugin"},
+    "docker": {"cs-image-system-docker-runtime-plugin", "cs-image-system-tf-docker-plugin"},
+    "okta": {"cs-image-system-okta-opa-plugin"},
+}
 
 
 def _project(path: Path) -> dict:
     return tomllib.loads(path.read_text())["project"]
 
 
-def _requirements(project: dict) -> tuple[dict[str, Requirement], dict[str, Requirement]]:
-    """(sibling requirements, third-party requirements), keyed by canonical name."""
+def _split(specs: list[str]) -> tuple[dict[str, Requirement], dict[str, Requirement]]:
     siblings: dict[str, Requirement] = {}
     third: dict[str, Requirement] = {}
-    for spec in project.get("dependencies", []):
+    for spec in specs:
         req = Requirement(spec)
         name = canonicalize_name(req.name)
         (siblings if name.startswith(OWN) else third)[name] = req
     return siblings, third
+
+
+def _requirements(project: dict) -> tuple[dict[str, Requirement], dict[str, Requirement]]:
+    """(sibling requirements, third-party requirements) of a project's
+    `dependencies`, keyed by canonical name."""
+    return _split(list(project.get("dependencies", [])))
+
+
+def _extras(project: dict) -> dict[str, dict[str, Requirement]]:
+    """extra -> its sibling requirements by canonical name (the root's
+    optional-dependencies; a package has none)."""
+    return {extra: _split(list(specs))[0] for extra, specs in project.get("optional-dependencies", {}).items()}
+
+
+def _dev_group(root: dict) -> dict[str, Requirement]:
+    """The root's dev dependency group's sibling requirements by canonical name."""
+    return _split(list(root["dependency-groups"]["dev"]))[0]
+
+
+def _is_private(project: dict) -> bool:
+    return PRIVATE in project.get("classifiers", [])
 
 
 def _optional(node: ast.AST) -> bool:
@@ -191,27 +230,85 @@ def test_every_sibling_pin_is_exactly_the_shared_version():
             assert project["version"] == contract
         else:
             assert project["version"] == version, path
-        for name, req in _requirements(project)[0].items():
+        pins = dict(_requirements(project)[0])
+        for extra, reqs in _extras(project).items():         # the root's extras pin like its dependencies
+            pins.update({f"{name} ({extra})": req for name, req in reqs.items()})
+        for name, req in pins.items():
             expected = contract_range(contract) if name == CONTRACT else f"=={version}"
             assert str(req.specifier) == expected, f"{project['name']} pins {name} as {req.specifier or 'unpinned'}"
+    for name, req in _dev_group(root).items():               # and so does the dev group
+        assert str(req.specifier) == f"=={version}", f"the dev group pins {name} as {req.specifier or 'unpinned'}"
 
 
-def test_the_root_is_the_whole_system_in_one_install():
-    """41.3: `cs-image-system` is buildable, has no sources of its own, and pins all
-    twenty-two packages (nothing else), so one install gets the CLI and every plugin."""
+def _published() -> set[str]:
+    """Every package the release uploads: the workspace members without the
+    private classifier."""
+    return {canonicalize_name(_project(p / "pyproject.toml")["name"]) for p in PACKAGES
+            if not _is_private(_project(p / "pyproject.toml"))}
+
+
+def test_the_root_is_the_core_and_each_provider_is_an_extra():
+    """Stage 126: `cs-image-system` is buildable, carries one module of its own (the
+    extras table, src/cs_image_system/extras.py, declared to the core by an entry point), and
+    its dependencies plus its extras pin exactly the twenty published
+    packages (nothing else, nothing twice). The dependencies are the core
+    -- no runtime, no terraform-root plugin, no provider state backend, no
+    Okta -- so a bare install carries no runtime; `[aws]`, `[gcloud]`,
+    `[docker]` and `[okta]` are the providers, and `[all]` is their union."""
     root = tomllib.loads(ROOT.read_text())
     assert root["project"]["name"] == OWN
     assert root["build-system"]["build-backend"] == "hatchling.build"
-    assert root["tool"]["hatch"]["build"]["targets"]["wheel"]["bypass-selection"] is True
+    assert root["tool"]["hatch"]["build"]["targets"]["wheel"]["packages"] == ["src/cs_image_system"]
+    assert root["project"]["entry-points"]["cs_image_system.extras"] == {"umbrella": "cs_image_system.extras"}
+    assert sorted(p.name for p in (REPO / "src" / "cs_image_system").iterdir() if p.suffix == ".py") == ["extras.py"]
     siblings, third = _requirements(root["project"])
     assert not third, sorted(third)
-    assert set(siblings) == {canonicalize_name(_project(p / "pyproject.toml")["name"]) for p in PACKAGES}
-    assert len(siblings) == 22                  # stage 75 the posix identity plugin, stage 30 the contract and its proof, stage 103 the docker runtime and its tofu plugin, stage 123 tofu-roots
+    extras = _extras(root["project"])
+    assert set(extras) == {"aws", "gcloud", "docker", "okta", "all"}
+    for extra, members in EXTRA_DISTRIBUTIONS.items():
+        assert set(extras[extra]) == members, extra
+    assert set(extras["all"]) == set().union(*EXTRA_DISTRIBUTIONS.values())
+    provided = set().union(*(set(reqs) for reqs in extras.values()))
+    assert not (set(siblings) & provided), "a package is both a dependency and an extra's"
+    assert set(siblings) | provided == _published()
+    assert len(_published()) == 20 and len(siblings) == 11 and len(provided) == 9
+    assert not any(n for n in siblings if "runtime" in n or n.startswith("cs-image-system-tf-") or "okta" in n
+                   or n in ("cs-image-system-gcs-state-plugin",)), "the bare install carries a provider"
     names = {i["name"]: i for i in root["tool"]["uv"]["index"]}
     assert names["testpypi"]["publish-url"] == "https://test.pypi.org/legacy/"
     assert names["testpypi"]["url"] == "https://test.pypi.org/simple/"
     assert names["pypi"]["publish-url"] == "https://upload.pypi.org/legacy/"
     assert all(i.get("explicit") is True for i in names.values()), "a publish target must never resolve anything"
+
+
+def test_the_two_private_plugins_are_workspace_only():
+    """Stage 126: the extension template and the contract's proof are
+    installed with the workspace through the root's dev group (so the
+    suite and the dry runs see them) and never published: they carry the
+    `Private :: Do Not Upload` classifier an index refuses, no dependency
+    or extra of the root or of any published package names them, and the
+    release tooling leaves them out of the upload order and the probe."""
+    root = tomllib.loads(ROOT.read_text())
+    private = {canonicalize_name(_project(p / "pyproject.toml")["name"]) for p in PACKAGES
+               if _is_private(_project(p / "pyproject.toml"))}
+    assert private == PRIVATE_PACKAGES
+    assert private.isdisjoint(_published())
+    dev = _dev_group(root)
+    assert set(dev) == private, "the dev group installs exactly the private plugins"
+    for name in private:
+        assert root["tool"]["uv"]["sources"][name] == {"workspace": True}, f"{name} is not a workspace source"
+    for path in [ROOT, *(p / "pyproject.toml" for p in PACKAGES)]:
+        project = _project(path)
+        if _is_private(project):
+            continue
+        named = set(_requirements(project)[0]).union(*(set(r) for r in _extras(project).values()))
+        assert named.isdisjoint(private), f"{project['name']} depends on a private plugin"
+    from test_v2_contract_version import _load
+    assert set(_load("publish-dist").upload_order(REPO)) == _published() | {OWN}
+    assert {canonicalize_name(n) for n in _load("publish-target-ready").projects(REPO)} == _published() | {OWN}
+    assert set(_load("publish-dist").project_versions(REPO)) == _published() | {OWN}
+    body = (REPO / "Justfile").read_text()
+    assert "grep -L 'Private :: Do Not Upload' packages/*/pyproject.toml | wc -l" in body
 
 
 @pytest.mark.parametrize("path", [ROOT, *(p / "pyproject.toml" for p in PACKAGES)], ids=lambda p: p.parent.name)
@@ -239,7 +336,7 @@ def _bump(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 @pytest.fixture
 def tree(tmp_path: Path) -> Path:
-    """The twenty-one pyproject files in their layout, and nothing else."""
+    """The twenty-three pyproject files in their layout, and nothing else."""
     for path in [ROOT, *(p / "pyproject.toml" for p in PACKAGES)]:
         dest = tmp_path / path.relative_to(REPO)
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -249,7 +346,8 @@ def tree(tmp_path: Path) -> Path:
 
 def test_a_bump_moves_every_version_line_and_every_pin_at_once(tree: Path):
     """41.4: one `bump-my-version bump patch` over a copy of the tree leaves no
-    trace of the old version, and every version line and pin is the new one;
+    trace of the old version, and every version line and pin -- the root's
+    dependencies, its extras and its dev group included -- is the new one;
     the contract's own version and the range its dependents pin are untouched."""
     old = tomllib.loads(ROOT.read_text())["project"]["version"]
     contract = _project(REPO / "packages/contract/pyproject.toml")["version"]
@@ -266,9 +364,15 @@ def test_a_bump_moves_every_version_line_and_every_pin_at_once(tree: Path):
             assert project["version"] == contract, "the bump moved the contract's own version"
         else:
             assert project["version"] == new, path
-        for name, req in _requirements(project)[0].items():
+        pins = dict(_requirements(project)[0])
+        for reqs in _extras(project).values():
+            pins.update(reqs)
+        for name, req in pins.items():
             expected = contract_range(contract) if name == CONTRACT else f"=={new}"
             assert str(req.specifier) == expected, (path, name)
+    root_after = tomllib.loads((tree / "pyproject.toml").read_text())
+    assert {str(r.specifier) for r in _dev_group(root_after).values()} == {f"=={new}"}
+    assert {str(r.specifier) for r in _extras(root_after["project"])["all"].values()} == {f"=={new}"}
     assert not (tree / ".git").exists() and not list(tree.rglob("*.orig"))       # commit = false, tag = false
 
 

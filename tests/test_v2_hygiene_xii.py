@@ -15,7 +15,8 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-STARTERS = sorted(p.name for p in (REPO / "docs" / "examples").iterdir() if (p / ".gitignore").is_file())
+STARTERS = sorted(p.name for p in (REPO / "docs" / "examples").iterdir() if (p / "cfg").is_dir() and not p.name.startswith("_"))
+SKELETON = REPO / "docs" / "examples" / "_skeleton"           # the .gitignore every starter carries
 
 IGNORED = [".gh_token", ".envrc", ".private_key.pem", ".private_key.json", ".age-identity-ci", ".DS_Store",
            ".tofu-plugin-cache/x", "generated/x/.terraform/y", "key.pem", "_private/x", "a.tfstate", "x.tfvars"]
@@ -31,15 +32,16 @@ def _check_ignore(root: Path, paths: list[str]) -> set[str]:
 
 
 @pytest.mark.parametrize("starter", STARTERS)
-def test_a_starters_gitignore_ignores_every_dotfile_but_the_trees_own(tmp_path: Path, starter: str):
+def test_a_starters_gitignore_ignores_every_dotfile_but_the_trees_own(tmp_path: Path, starter: str, rendered_starters: Path):
     root = tmp_path / starter
-    shutil.copytree(REPO / "docs" / "examples" / starter, root)
+    shutil.copytree(rendered_starters / starter, root)
     subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)  # noqa: S603,S607
     ignored = _check_ignore(root, IGNORED + TRACKED)
     assert ignored == set(IGNORED), f"{starter}: ignored={sorted(ignored)}"
 
 
-def test_the_four_starters_share_one_gitignore():
-    texts = {s: (REPO / "docs" / "examples" / s / ".gitignore").read_text() for s in STARTERS}
-    assert len(set(texts.values())) == 1, "the release owns one .gitignore; the starters must agree"
-    assert texts[STARTERS[0]].lstrip("#").lstrip().startswith("Every dotfile")
+def test_the_starters_share_one_gitignore(rendered_starters: Path):
+    skeleton = (SKELETON / ".gitignore").read_text()
+    for s in STARTERS:
+        assert (rendered_starters / s / ".gitignore").read_text() == skeleton, f"{s}: the release owns one .gitignore"
+    assert skeleton.lstrip("#").lstrip().startswith("Every dotfile")

@@ -35,7 +35,9 @@ LEAVES = {"constants", "model_config", "fields", "field_kinds", "lifecycle", "li
           "lineage_vocabulary", "launch_vocabulary", "storage_vocabulary", "identity_vocabulary", "power_state",
           "secrets", "bootstrap", "errors",
           # the second wave (stage 125): the enrollment-kind registry a plugin fills when it loads
-          "enrollment"}
+          "enrollment",
+          # the modules declaration (stage 126): one constant, importing nothing
+          "modules"}
 # what each non-leaf module may import from the package, beside the leaves
 ALLOWED = {
     "core": set(),
