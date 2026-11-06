@@ -203,8 +203,12 @@ def load_plugins(reg: "registry.Registry | None" = None) -> None:
                 injected_any: Any = injected
                 name = injected_any.csis_name() if isinstance(injected_any, PluginArtifactProtocol) else injected.__name__
                 words.append(f"{classifier.value}:{name}")
+    # one line per load at INFO; the per-namespace detail at DEBUG, where a
+    # `--verbose` run reads it (at INFO it was a hundred lines on every command)
     for namespace, words in sorted(registered_by_namespace.items()):
-        log.info(f"namespace {namespace}: registered {', '.join(words) or 'nothing'}")
+        log.debug(f"namespace {namespace}: registered {', '.join(words) or 'nothing'}")
+    log.info(f"registered {sum(len(w) for w in registered_by_namespace.values())} classes "
+             f"under {len(registered_by_namespace)} namespaces")
 
     # All plugin model/builder classes are now registered; drop any cached cattrs
     # Converter so it rebuilds against the full plugin set on next use.
