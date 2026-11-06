@@ -49,9 +49,12 @@ trust first:
 - The suite never reads the live configuration
   (`tests/test_fixture_independence.py`).
 - Every package declares exactly the third-party distributions it imports
-  and pins its siblings at the shared version; the root is the whole system;
-  one bump moves every version line and pin
-  (`tests/test_v2_package_metadata.py`).
+  and pins its siblings at the shared version; the root is the core with
+  each provider as an extra, and the two private plugins are workspace-only;
+  one bump moves every version line and pin, the extras' and the dev
+  group's included (`tests/test_v2_package_metadata.py`); the extras'
+  table, the starters' `extras` recipe and what `validate` says of an
+  absent plugin (`tests/test_extras.py`).
 
 ## Known divergences
 

@@ -153,6 +153,28 @@ def _is_remote_module_source(base: str) -> bool:
     return "://" in base or base.startswith(("git@", "github.com/")) or bool(_FORCED_GETTER.match(base))
 
 
+def module_source_overrides(ctx: "RunContext") -> dict[str, str]:
+    """The per-module sources ``config: module_sources`` declares: a mapping
+    from a module's directory name to the path or URL that IS that module.
+    Empty when the key is absent; a value that is not a mapping, or an
+    entry that is not a non-empty string, is refused naming the key. The
+    names are not checked against the installed modules: an override may
+    name a module of a plugin that is not installed here."""
+    raw = ctx.config.get("module_sources")
+    if raw is None:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"config: module_sources must be a mapping of module name to path or URL, "
+                         f"not {type(raw).__name__}")
+    out: dict[str, str] = {}
+    for key, value in raw.items():
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"config: module_sources: {key!r} must be a path or URL (a non-empty string), "
+                             f"not {type(value).__name__}")
+        out[str(key)] = value.rstrip("/")
+    return out
+
+
 def module_source(ctx: "RunContext", module_dirname: str, workspace_dir: Path | None = None) -> str:
     """Terraform module source for a generated ``module`` call.
 
@@ -169,12 +191,24 @@ def module_source(ctx: "RunContext", module_dirname: str, workspace_dir: Path | 
 
     The default is ``../tfmodules`` -- a sibling of the configuration tree,
     which is where this repository keeps them relative to ``test_folder``.
+
+    ``config: module_sources`` (:func:`module_source_overrides`) names a
+    source for one module at a time, and a named entry wins over the base
+    for that module alone: the entry IS the module (nothing is appended to
+    it), a remote source or an absolute path passes through, and a relative
+    path is relative to the configuration root and rewritten for the
+    workspace's depth exactly as the base is. Every other module keeps the
+    base.
     """
     import os
-    base = str(ctx.config.get("module_source_base", DEFAULT_MODULE_SOURCE_BASE)).rstrip("/")
-    if _is_remote_module_source(base) or Path(base).is_absolute() or workspace_dir is None:
-        return f"{base}/{module_dirname}"
-    modules_dir = (Path(ctx.working_path) / base / module_dirname).resolve()
+    override = module_source_overrides(ctx).get(module_dirname)
+    if override is not None:
+        source, tail = override, ""
+    else:
+        source, tail = str(ctx.config.get("module_source_base", DEFAULT_MODULE_SOURCE_BASE)).rstrip("/"), module_dirname
+    if _is_remote_module_source(source) or Path(source).is_absolute() or workspace_dir is None:
+        return f"{source}/{tail}" if tail else source
+    modules_dir = (Path(ctx.working_path) / source / tail).resolve() if tail else (Path(ctx.working_path) / source).resolve()
     workspace_abs = (Path(ctx.generation_path) / workspace_dir).resolve()
     return os.path.relpath(modules_dir, workspace_abs)
 

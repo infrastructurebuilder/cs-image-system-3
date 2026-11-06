@@ -43,22 +43,27 @@ def _invoke(*args: str):
 def test_the_release_carries_the_three_starters_and_the_source_is_docs_examples():
     root = starters.starters_root()
     assert sorted(starters.STARTERS) == ["complete", "standard-aws", "standard-aws-posix", "standard-docker", "standard-gce"]
+    for name in [starters.SKELETON, *starters.STARTERS]:
+        # what the package resolves is byte for byte the source under docs/examples: the skeleton and each overlay
+        assert _files(root / name) == _files(EXAMPLES / name), name
     for name in starters.STARTERS:
         assert (root / name / "cfg" / "_config.yml").is_file(), name
-        # what the package resolves is byte for byte the source under docs/examples
-        assert _files(root / name) == _files(EXAMPLES / name), name
     assert starters.release_version() == (REPO / "packages" / "system" / "pyproject.toml").read_text().split(
         'version = "', 1)[1].split('"', 1)[0]
 
 
-def test_the_release_owned_parts_are_the_whole_repository_minus_the_teams_yaml():
-    owned = starters.release_owned_paths(EXAMPLES / "standard-aws")
-    for rel in ("Justfile", ".gitignore", ".githooks/pre-commit", ".github/workflows/ci.yml",
-                "tfmodules/aws_instance/main.tf"):
+def test_the_release_owned_parts_are_the_whole_repository_minus_the_teams_yaml(rendered_starters: Path):
+    owned = starters.release_owned_paths(EXAMPLES / "standard-aws")          # the overlay, read with the skeleton under it
+    assert owned == starters.release_owned_paths(starters.render("standard-aws"))
+    for rel in ("Justfile", ".gitignore", ".githooks/pre-commit", ".github/workflows/ci.yml", "CI_SETUP.md"):
         assert rel in owned, rel
+    assert not any(p.startswith("tfmodules/") for p in owned)         # the modules are the plugins', not the starter's files
     assert not any(p.startswith("scripts/") for p in owned)          # item 2: the helpers are commands
     assert not any(p.startswith(("cfg/", "groups/", "images/", "instances/", "storages/")) for p in owned)
     assert "README.md" not in owned and "scripts/mod_image.sh" not in starters.release_owned_paths(EXAMPLES / "complete")
+    # a written tree is read as it is: its module copies are release-owned there (the older layout's comparisons)
+    written = starters.release_owned_paths(rendered_starters / "standard-aws")
+    assert "tfmodules/aws_instance/main.tf" in written and "Justfile" in written
 
 
 def test_the_whole_system_package_exposes_the_command_to_uv_tool_install():
@@ -77,13 +82,18 @@ def test_the_whole_system_package_exposes_the_command_to_uv_tool_install():
 
 @pytest.mark.parametrize("name", starters.STARTERS)
 def test_init_config_writes_the_whole_starter_into_an_empty_destination(tmp_path, name):
+    from cs_image_system.base.modules import STAMP_FILE, installed_modules
     dest = tmp_path / "team-config"
     result = _invoke(str(dest), "--from", name)
     assert result.exit_code == 0, result.output
     written = _files(dest)
-    expected = _files(EXAMPLES / name)
+    expected = starters.render(name)                                    # the skeleton under the overlay
+    for rel, p in starters.installed_module_files("tfmodules").items():   # and the installed plugins' modules
+        expected[rel] = p.read_bytes()
     version = starters.release_version()
     assert written.pop(".csis-version") == version.encode() + b"\n"
+    for module in installed_modules():                                  # each copy stamped
+        assert written.pop(f"tfmodules/{module}/{STAMP_FILE}").startswith(b"plugin: "), module
     # hygiene XV item 1: Markdown links that leave the starter now name the release's tag;
     # every other byte is the starter's
     tree = f"docs/examples/{name}"
@@ -100,7 +110,8 @@ def test_init_config_writes_the_whole_starter_into_an_empty_destination(tmp_path
     assert (dest / ".githooks" / "pre-commit").stat().st_mode & stat.S_IXUSR     # the mode travelled
     assert "module_source_base: tfmodules" in (dest / "cfg" / "_config.yml").read_text()
     assert f"the whole tree of {name}" in result.output and "next: git init, just init" in result.output
-    if any(written[r] != _files(EXAMPLES / name)[r] for r in written if r.endswith(".md")):
+    assert "init-config: tfmodules: 14 written" in result.output, result.output   # the modules' own account
+    if any(written[r] != starters.render(name)[r] for r in written if r.endswith(".md")):
         assert f"link into the system repository at v{version}" in result.output   # the report says so
 
 
@@ -124,12 +135,19 @@ def test_init_config_on_an_existing_tree_writes_only_the_release_owned_parts(tmp
     assert (dest / "cfg" / "_config.yml").read_text() == "config: {}\n"      # the team's YAML is untouched
     assert (dest / "groups" / "users.yaml").read_text() == "users: []\n"
     assert not (dest / "images").exists() and not (dest / "README.md").exists()
-    for rel in starters.release_owned_paths(EXAMPLES / "standard-aws"):
-        assert (dest / rel).read_bytes() == (EXAMPLES / "standard-aws" / rel).read_bytes(), rel
+    rendered = starters.render("standard-aws")
+    for rel in starters.release_owned_paths(rendered):
+        assert (dest / rel).read_bytes() == rendered[rel], rel
+    # the modules come too, into the tree's modules directory (no module_source_base declared: tfmodules), stamped
+    for rel, p in starters.installed_module_files("tfmodules").items():
+        assert (dest / rel).read_bytes() == p.read_bytes(), rel
+    assert (dest / "tfmodules" / "aws_instance" / ".csis-module").is_file()
+    assert "init-config: tfmodules: 14 written" in result.output
     assert (dest / ".csis-version").read_text() == starters.release_version() + "\n"
     # a second run changes nothing and says so
     again = _invoke(str(dest))
     assert again.exit_code == 0 and "0 written" in again.output, again.output
+    assert "14 kept" in again.output
 
 
 def test_init_config_refuses_a_release_owned_file_that_differs_unless_forced(tmp_path):
@@ -145,7 +163,7 @@ def test_init_config_refuses_a_release_owned_file_that_differs_unless_forced(tmp
     assert (dest / "tfmodules" / "aws_instance" / "main.tf").is_file()          # the rest was written
     forced = _invoke(str(dest), "--force")
     assert forced.exit_code == 0, forced.output
-    assert (dest / "Justfile").read_bytes() == (EXAMPLES / "standard-aws" / "Justfile").read_bytes()
+    assert (dest / "Justfile").read_bytes() == starters.render("standard-aws")["Justfile"]
     assert (dest / ".csis-version").read_text() == starters.release_version() + "\n"
 
 
@@ -154,9 +172,10 @@ def _filled_complete(dest: Path) -> dict[str, str]:
     team's values in it, as the reference configuration's is."""
     (dest / "cfg").mkdir(parents=True)
     (dest / "cfg" / "_config.yml").write_text("config: {}\n")
-    for rel in starters.release_owned_paths(EXAMPLES / "complete"):
+    rendered = starters.render("complete")
+    for rel in starters.release_owned_paths(rendered):
         (dest / rel).parent.mkdir(parents=True, exist_ok=True)
-        (dest / rel).write_bytes((EXAMPLES / "complete" / rel).read_bytes())
+        (dest / rel).write_bytes(rendered[rel])
     wf = dest / ".github" / "workflows" / "ci.yml"
     text = wf.read_text()
     values = {
@@ -300,7 +319,7 @@ def test_the_three_helper_scripts_are_gone_from_the_repository_and_the_starters(
         for name in starters.STARTERS:
             assert not (EXAMPLES / name / rel).exists(), f"{name}/{rel}"
     for name in starters.STARTERS:
-        just = (EXAMPLES / name / "Justfile").read_text()
+        just = starters.render(name)["Justfile"].decode()
         assert "scripts/" not in just, f"{name}: the starter Justfile must call the CLI alone"
         assert "--locked" in just and "config-drift" in just and "workload token" in just and "runtime-unchanged" in just
 

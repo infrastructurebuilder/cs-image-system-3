@@ -345,7 +345,7 @@ applies `gce_name`, because GCE resource names must match
 
 | | `TofuPdStorageBuilder` (`tf-gcp-pd`) | `TofuFilestoreStorageBuilder` (`tf-gcp-filestore`) | `TofuGcsStorageBuilder` (`tf-gcp-gcs`) |
 |---|---|---|---|
-| Module | [gcp_storage_pd](../../tfmodules/gcp_storage_pd/variables.tf) | [gcp_storage_filestore](../../tfmodules/gcp_storage_filestore/variables.tf) | [gcp_storage_gcs](../../tfmodules/gcp_storage_gcs/variables.tf) |
+| Module | [gcp_storage_pd](../gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/tfmodules/gcp_storage_pd/variables.tf) | [gcp_storage_filestore](../gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/tfmodules/gcp_storage_filestore/variables.tf) | [gcp_storage_gcs](../gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/tfmodules/gcp_storage_gcs/variables.tf) |
 | Capability type (what a base image declares in `storage_types`) | `pd` | `filestore` | `gcs` |
 | Attachment cardinality | single | many | many |
 | POSIX | yes | yes | no |
@@ -403,10 +403,10 @@ The read-models record the GCP items with their plugin and capability type:
 [meta-state/launch-params.yaml](../../tests/fixtures/v2_golden/meta-state/launch-params.yaml)
 (`gce-test`: session `iap`, mount device `/dev/disk/by-id/google-gce-data`).
 
-Modules called: [tfmodules/gce_instance](../../tfmodules/gce_instance/main.tf),
-[tfmodules/gcp_storage_pd](../../tfmodules/gcp_storage_pd/main.tf),
-[tfmodules/gcp_storage_filestore](../../tfmodules/gcp_storage_filestore/main.tf),
-[tfmodules/gcp_storage_gcs](../../tfmodules/gcp_storage_gcs/main.tf).
+Modules called (shipped by the gcloud-runtime plugin as package data; `cs-image-system modules` lists them): [tfmodules/gce_instance](../gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/tfmodules/gce_instance/main.tf),
+[tfmodules/gcp_storage_pd](../gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/tfmodules/gcp_storage_pd/main.tf),
+[tfmodules/gcp_storage_filestore](../gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/tfmodules/gcp_storage_filestore/main.tf),
+[tfmodules/gcp_storage_gcs](../gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/tfmodules/gcp_storage_gcs/main.tf).
 
 ## Example configuration
 
@@ -525,8 +525,9 @@ drive the rest of a change cycle.
 ## Prerequisites and integration
 
 Everything a terraform root needs applies here unchanged (the `tofu`
-executable, the state backend, the identity workspace, the `tfmodules/`
-directory beside the configuration root, the system's own CLI on `PATH`
+executable, the state backend, the identity workspace, the modules
+beside the configuration root (`cs-image-system modules --write` writes
+them from the installed plugins), the system's own CLI on `PATH`
 at execution time); see
 [hashicorp-utils](../hashicorp-utils/README.md#prerequisites-and-integration),
 whose roots these builders subclass. This section lists what the GCP

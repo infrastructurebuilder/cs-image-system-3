@@ -102,7 +102,7 @@ standard-docker` writes it out, and every part a team needs is then there:
 | `CI_SETUP.md` | setting CI up from scratch (the same guide every starter carries; its cloud and OPA sections do not apply here, 3.4a is this tree's): the repository settings, every secret the workflow reads, the proofs in order, and what each first-setup failure means; GitHub in full, GitLab not yet written |
 | `.github/workflows/ci.yml` | the repository's own CI: `verify` (no secrets), `live` (validate, drift, state, the modification tests), `perform` (on `main`, against your docker host, records pushed back); every `REPLACE-ME` in it is a team value |
 | `.githooks/pre-commit` | the public-safe gate on every commit; `just init` installs it |
-| `tfmodules/` | the terraform modules the emitted roots call, at `module_source_base: tfmodules`; the release's, byte for byte (`cs-image-system init-config` writes them, and refreshes them after an upgrade) |
+| `tfmodules/` | the terraform modules the emitted roots call, at `module_source_base: tfmodules`; the installed plugins' modules, byte for byte, each copy stamped with `.csis-module` (`cs-image-system init-config` writes them, and after an upgrade refreshes every copy you did not edit; one you edited is kept and named, and `module_sources` sources a module elsewhere) |
 | `scripts/` | the tree's own modification scripts |
 | `.gitignore` | the shell's exports, every credential file, the private mirror, tool residue and `*.tfstate`; `generated/` and `meta-state/` ARE committed |
 | `.csis-version` | the release that wrote the tree, which CI installs; `init-config` writes it (absent in this source copy) |

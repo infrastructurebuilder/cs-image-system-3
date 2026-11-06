@@ -21,6 +21,7 @@ One module per kind of builder, over a shared core:
 | [`core`](src/cs_image_system/contract/core.py) | `PluginArtifactProtocol` (`csis_name`, `csis_classifier`), `NameTypedProtocol`, `PluginMetadataProtocol`, `BuilderModelProtocol` and `RuntimeEnabledBuilderModelProtocol` (what the core reads of any builder model), `BuilderProtocol` (the six universal hooks, the three finalize-phase hooks, `finalize`, the paths), and the three markers the orchestrator dispatches on: `SelfInjectedNameProtocol`, `SubItemOverrideProtocol`, `ParentPropertyHoldingProtocol`. |
 | [`runtime`](src/cs_image_system/contract/runtime.py), [`operating_system`](src/cs_image_system/contract/operating_system.py), [`storage`](src/cs_image_system/contract/storage.py), [`image`](src/cs_image_system/contract/image.py), [`instance`](src/cs_image_system/contract/instance.py), [`modification`](src/cs_image_system/contract/modification.py), [`group`](src/cs_image_system/contract/group.py), [`user`](src/cs_image_system/contract/user.py), [`state`](src/cs_image_system/contract/state.py) | One `<Kind>BuilderModelProtocol` and one `<Kind>BuilderProtocol` per kind, with exactly the attributes and hooks a plugin calls on another's builder or model, or implements on its own ("The surface" below). `state` also carries the backend seam: `StateLocation`, `BackendRegistration`, `BackendKindProtocol` and `StateBackendModelProtocol`. `image` carries the provider-specific image's two enums. |
 | [`metadata`](src/cs_image_system/contract/metadata.py) | `PluginMetadata`, the record a plugin's entry point returns. |
+| [`modules`](src/cs_image_system/contract/modules.py) | `MODULES_ENTRY_POINT_GROUP` (`cs_image_system.modules`): the entry-point group a plugin declares its terraform modules directory in, one entry point whose value is `<package>:<dirname>`; the modules are package data inside the plugin, one directory per module, and the core lists and materialises them without importing the plugin. |
 | [`constants`](src/cs_image_system/contract/constants.py) | `VCT` (the classifications), the sentinels (`DEFAULT`, `SELF`, `NONE`, `OOPS_DEFAULTS`), the field metadata keys, `PLUGIN_TYPES` (the entry-point groups), the collection names, the file names a run writes. |
 | [`model_config`](src/cs_image_system/contract/model_config.py) | `CSIS_MODEL_CONFIG`, the one pydantic configuration every model is declared under (unknown keys are refused). |
 | [`fields`](src/cs_image_system/contract/fields.py), [`field_kinds`](src/cs_image_system/contract/field_kinds.py) | `fk_field`, `templated_field`, `deferred_list_field`, `deferred_list_fk_field`, `parent_field`; the open registry of field kinds a plugin may extend. |
@@ -122,14 +123,14 @@ exceptions, which can only shrink.
 ### Version
 
 The contract carries a semantic version of its own, independent of the
-workspace's: `0.2.0` now, and 0.x until the operator decides otherwise
+workspace's: `0.3.0` now, and 0.x until the operator decides otherwise
 (the decision of 2026-11-05). What a bump means: a PATCH is a change no
 plugin can observe (a docstring, a test helper); a MINOR, while the
 version is 0.x, is a change a plugin can observe, so a protocol member
 added, renamed or removed, a constant's value changed, a module added or
 removed, and it is the breaking step; from 1.0 a MINOR adds without
 breaking and a MAJOR breaks. Every package that depends on the contract
-pins the compatible series, `cs-image-system-contract>=0.2,<0.3`, and
+pins the compatible series, `cs-image-system-contract>=0.3,<0.4`, and
 `just release`, which moves every other package's version in lockstep,
 leaves the contract's where it is (`bump-my-version` excludes its
 manifest by name; the upload and the index probe read its version from
@@ -145,6 +146,7 @@ The versions so far:
 | --- | --- |
 | `0.1.0` | The first versioned contract: the protocols, constants and data carriers as the core's surface was settled ([the stage index](../../docs/CHANGES.md#s125)). |
 | `0.2.0` | `PluginMetadata` and `PluginMetadataProtocol` gain `namespace` (optional, `None` by default), the override of the namespace the loader derives from the plugin's distribution. A member added is something a plugin can observe, so while the contract is 0.x it is a MINOR step, and every dependent's range moved from `>=0.1,<0.2` ([the stage index](../../docs/CHANGES.md#s131)). |
+| `0.3.0` | A module added: `modules`, holding `MODULES_ENTRY_POINT_GROUP` (`cs_image_system.modules`), the entry-point group a plugin declares its terraform modules directory in, with the value `<package>:<dirname>`; the modules themselves are package data inside the plugin that owns them. A module added is something a plugin can observe, so while the contract is 0.x it is a MINOR step, and every dependent's range moved from `>=0.2,<0.3` ([the stage index](../../docs/CHANGES.md#s126)). |
 
 ## Writing a plugin
 
@@ -241,6 +243,10 @@ what plugins use. The loader binds the context to every builder that has
 a `bind(ctx)` method; a base builder reaches it through `_get_context()`.
 The hooks entry point is [`hooks`](src/cs_image_system/contract/hooks.py)
 (`HookSet` and the hook signatures, typed on the context protocol), the
+modules entry point is [`modules`](src/cs_image_system/contract/modules.py)
+(a plugin that ships terraform modules declares its modules directory
+under `cs_image_system.modules` as `<package>:<dirname>`, and the core
+reads the directory as package data), the
 bootstrap vocabulary and `FactsProtocol` are
 [`bootstrap`](src/cs_image_system/contract/bootstrap.py), and the
 enrollment-kind registry is

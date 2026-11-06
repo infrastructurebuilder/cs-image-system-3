@@ -460,8 +460,9 @@ under one name by several plugins is one registration; only a
    [hashicorp-utils](../hashicorp-utils/README.md) and on the
    provider's runtime plugin, never on another provider's root plugin
    (the neutral-root test refuses the import and the dependency).
-5. Add the provider's modules under `tfmodules/` with the inputs the
-   module arguments name.
+5. Add the provider's modules under the runtime plugin's `tfmodules/`
+   package directory, declared through its `cs_image_system.modules`
+   entry point, with the inputs the module arguments name.
 
 ## The run hooks
 

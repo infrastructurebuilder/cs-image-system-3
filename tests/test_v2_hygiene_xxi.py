@@ -16,9 +16,9 @@ from pathlib import Path
 
 import yaml
 
+from cs_image_system.system.starters import STARTERS
+
 REPO = Path(__file__).resolve().parents[1]
-EXAMPLES = REPO / "docs" / "examples"
-STARTERS = sorted(p.name for p in EXAMPLES.iterdir() if (p / "Justfile").is_file())
 
 
 def test_the_ide_workspace_file_is_untracked_and_ignored():
@@ -28,10 +28,10 @@ def test_the_ide_workspace_file_is_untracked_and_ignored():
     assert "/*.code-workspace" in ignore and "packages/**/*.code-workspace" in ignore
 
 
-def test_every_starter_carries_the_same_take_recipe():
+def test_every_starter_carries_the_same_take_recipe(rendered_starters: Path):
     assert len(STARTERS) == 5
-    texts = {s: (EXAMPLES / s / "Justfile").read_text() for s in STARTERS}
-    assert len(set(texts.values())) == 1                                   # the Justfile is the release's, one file five times
+    texts = {s: (rendered_starters / s / "Justfile").read_text() for s in STARTERS}
+    assert len(set(texts.values())) == 1                                   # the Justfile is the release's (the skeleton's), one file five times
     just = next(iter(texts.values()))
     assert "\ntake version patched=\"no\":\n" in just
     recipe = just[just.index("\ntake version"):]
@@ -46,13 +46,13 @@ def test_every_starter_carries_the_same_take_recipe():
     assert "--index-strategy unsafe-first-match" in recipe                              # a development release (stage 99)
 
 
-def test_the_guard_checks_each_runtime_it_is_given():
+def test_the_guard_checks_each_runtime_it_is_given(rendered_starters: Path):
     for s in STARTERS:
-        wf = EXAMPLES / s / ".github" / "workflows" / "ci.yml"
+        wf = rendered_starters / s / ".github" / "workflows" / "ci.yml"
         text = wf.read_text()
         yaml.safe_load(text)                                                 # still a workflow
         assert 'for guarded in $GUARD_RUNTIME; do' in text and 'just runtime-unchanged "$guarded"' in text, s
         assert 'just runtime-unchanged "$GUARD_RUNTIME"' not in text, s
         assert "several separated by spaces" in text, s
-        guide = (EXAMPLES / s / "CI_SETUP.md").read_text()
+        guide = (rendered_starters / s / "CI_SETUP.md").read_text()
         assert "several separated by spaces (the guard checks each)" in guide, s

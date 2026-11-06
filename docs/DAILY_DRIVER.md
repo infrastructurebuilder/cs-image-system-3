@@ -53,7 +53,10 @@ where everything you do happens. It holds:
 - its own `Justfile`, the single entry point for everything below; its
   own CI under `.github/workflows/`; the public-safe hook under
   `.githooks/`; the terraform modules the emitted roots call, under
-  `tfmodules/`. The `scripts/` directory is not the system's: a starter
+  `tfmodules/`, written there from the installed plugins by
+  `init-config` (each plugin ships the modules it owns) and each copy
+  stamped (`.csis-module`) so a later refresh can tell a copy you edited
+  from one you did not. The `scripts/` directory is not the system's: a starter
   ships one file there, the script a modification runs inside the image
   (`post-install.sh`, named under `scripts:` by an image's bash-remote
   item; `mod_image.sh` in the complete tree), content-hashed into the
@@ -90,12 +93,23 @@ per-package detail is each README's "Prerequisites and integration" section
 ### 1.1 The release, and how it reaches you
 
 The command comes from the index, in one of two ways. Either is fine; the
-starter tree's `Justfile` works with both.
+starter tree's `Justfile` works with both. The bare package carries no
+runtime: each provider is an extra of it -- `[aws]`, `[gcloud]`,
+`[docker]`, `[okta]`, and `[all]` for every one -- and a tree needs the
+extras its `type:` words name (an AWS tree with Okta groups is
+`cs-image-system[aws,okta]`). Your tree's `Justfile` knows: `just extras`
+prints them, and `just take` installs with them.
 
 ```sh
-uv tool install cs-image-system        # the command on PATH; the default the Justfile assumes
+uv tool install "cs-image-system[$(just extras)]"    # the command on PATH, with this tree's extras
+uv tool install 'cs-image-system[all]'               # or every provider, no questions asked
 cs-image-system --help
 ```
+
+If a declared `type:` has no plugin installed, `just validate` says so
+in one line and names the extra: `runtime type 'gcloud' is registered
+by no installed plugin: install the extra: uv tool install
+'cs-image-system[gcloud]'`.
 
 A development release (`0.1.2.devN`) is on TestPyPI and not on PyPI,
 and the line above cannot find it. It needs TestPyPI named, the version
@@ -107,7 +121,7 @@ version is never looked for on TestPyPI:
 
 ```sh
 uv tool install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ \
-  --index-strategy unsafe-first-match "cs-image-system==0.1.2.dev2"
+  --index-strategy unsafe-first-match "cs-image-system[$(just extras)]==0.1.2.dev2"
 ```
 
 CI does the same by itself when `.csis-version` names a `.dev` version.
@@ -228,7 +242,7 @@ nothing by default: a grant held in one root's state leaves with that
 root's destroy, and the other tree loses it too. Name roles at the
 interview only when this tree is the one to hold them; the generated
 bootstrap README lists what a destroy would take that the root did not
-make ([CI_SETUP.md](examples/standard-aws/CI_SETUP.md), 3.0).
+make ([CI_SETUP.md](examples/_skeleton/CI_SETUP.md), 3.0).
 
 ### 1.4a A container host, if you use the docker runtime
 
@@ -242,7 +256,7 @@ never makes.
 | A host running a daemon that speaks the Docker Engine API: Docker Engine, Docker Desktop, OrbStack, colima, or Podman's API service | images are baked into its store and containers run on it | `host:` or `context:` on the runtime; with neither, the daemon your shell's `DOCKER_HOST` names, else the local socket |
 | The `docker` CLI at the floor `cfg/executables.yml` names (`>=24`), reaching that daemon | every call the system makes to it | the `docker` entry of `cfg/executables.yml`; `just preflight` asks `docker version` against the daemon in one line |
 | `packer` and `tofu`, as for any runtime | the bakes and the container and volume roots | `cfg/executables.yml` |
-| For CI: an ssh key to the host's user who may use the daemon, and the host's `known_hosts` line, as repository secrets, or the runtime named in `GUARD_RUNTIME` so CI never bakes on it | CI performs only against a daemon it can reach | repository secrets `DOCKER_HOST_SSH_KEY`, `DOCKER_HOST_KNOWN_HOSTS` ([CI_SETUP.md](examples/standard-docker/CI_SETUP.md), 3.4a) |
+| For CI: an ssh key to the host's user who may use the daemon, and the host's `known_hosts` line, as repository secrets, or the runtime named in `GUARD_RUNTIME` so CI never bakes on it | CI performs only against a daemon it can reach | repository secrets `DOCKER_HOST_SSH_KEY`, `DOCKER_HOST_KNOWN_HOSTS` ([CI_SETUP.md](examples/_skeleton/CI_SETUP.md), 3.4a) |
 
 **Whoever can reach a docker daemon is root on its host.** Docker's API has
 no narrower grant, so the daemon's host is best one that holds nothing else,
@@ -277,7 +291,7 @@ run it on, which is the way to try it before you name a durable host.
 | An Okta API services app with key-based auth and the read scopes, DPoP off, the `*.manage` scopes ungranted | user lookups by the `okta/okta` provider | `OKTA_API_CLIENT_ID`, `OKTA_API_PRIVATE_KEY`, `OKTA_API_PRIVATE_KEY_ID`, `OKTA_API_SCOPES` |
 | An OPA team, and a service user's API key pair | groups, policies, memberships, enrollment tokens, the gid shim, the server registry, the state query | `team:` on the group builder; `TF_VAR_<team>_key` / `TF_VAR_<team>_secret` (the team name with non-alphanumerics as `_`); needed at load, not only at apply |
 | A resource group the system's projects live under, and a gateway | the login projects, the relay | `OKTA_RESOURCE_GROUP`; `okta_gateway_selector` |
-| For CI: a workload connection and a workload role, made by hand once | CI logs in as a workload, never with a key | `workload_connection`, `workload_role` on the group builder; [CI_SETUP.md, section 3.5](examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access), which every starter tree carries, is the checklist, step by step |
+| For CI: a workload connection and a workload role, made by hand once | CI logs in as a workload, never with a key | `workload_connection`, `workload_role` on the group builder; [CI_SETUP.md, section 3.5](examples/_skeleton/CI_SETUP.md#35-okta-and-okta-privileged-access), which every starter tree carries, is the checklist, step by step |
 | For people: the `sft` client, enrolled in the team (`sft enroll`), with a live session (`sft login`) | `sft ssh <machine>` | your machine |
 
 Enrollment tokens are the system's: one per project, created and rotated
@@ -370,7 +384,7 @@ workflow is a team value: the runtime it performs on, the region, the
 `TF_VAR_<team>` names.
 
 How to make those secrets exist, from nothing, is the guide every starter
-tree carries: [CI_SETUP.md](examples/standard-aws/CI_SETUP.md)
+tree carries: [CI_SETUP.md](examples/_skeleton/CI_SETUP.md)
 (the repository's settings, the AWS OIDC provider and its two roles with
 their trust and permission documents, the GCP workload identity pool and
 service accounts, the OPA workload connection and role, CI's age
@@ -495,13 +509,18 @@ into a tree that already holds a configuration it writes only the parts
 the release owns (the `Justfile`, the workflow, the hook, `.gitignore`,
 `tfmodules/`, `.csis-version`) and never a line of the YAML; a
 release-owned file you changed is refused by name until you pass
-`--force`.
+`--force`. The modules under `tfmodules/` are refreshed by their
+stamps: a copy you did not edit takes the new release's, a copy you
+edited is kept and named, and `--force` does not overwrite it (name the
+module under `config: module_sources` to keep your version for good,
+or delete the copy to take the release's); a module named under
+`module_sources` is never written.
 
 Then, in the written tree:
 
 1. `git init -b develop` (git's own default branch is `master`, and
    this page and CI_SETUP expect `develop` and `main`; `main` does not
-   exist until the first push of it, [CI_SETUP.md](examples/complete/CI_SETUP.md),
+   exist until the first push of it, [CI_SETUP.md](examples/_skeleton/CI_SETUP.md),
    section 3.8), `just init` (the hook, the plugin cache, and a line naming
    the release it found, `init: cs-image-system <version> ready against
    <root>`; a release of 0.1.3 or before has no `--version`, and the line
@@ -666,7 +685,7 @@ group's access by logging in as its proof user: a member declared
 `is_service_account: true`, with a `uid:` and one public key made for
 it alone, whose private half reaches the proof as `CSIS_PROOF_SSH_KEY`
 (the key itself, or a path to it; in CI a repository secret,
-[CI_SETUP.md](examples/standard-aws-posix/CI_SETUP.md), 3.7). The
+[CI_SETUP.md](examples/_skeleton/CI_SETUP.md), 3.7). The
 login is real ssh through the runtime's session tunnel -- SSM's
 `AWS-StartSSHSession` on AWS, an IAP tunnel on GCE -- so no machine
 needs a public address, and the proof passes only when the group is
@@ -831,7 +850,7 @@ in `storage_types`; on each image that should exist there, a second
 `runtimes[]` entry (a bake per runtime); a storage and an instance
 declared on the new runtime (`runtime:` and the `type:` of its
 builder). Then the credentials of section 1.3 or 1.4, CI's secrets for
-the cloud ([CI_SETUP.md](examples/complete/CI_SETUP.md), 3.3 or 3.4,
+the cloud ([CI_SETUP.md](examples/_skeleton/CI_SETUP.md), 3.3 or 3.4,
 and the bootstrap's section for it), and, for GCE, the runner service
 account's address allowed through `public_safe.allow`
 (`".iam.gserviceaccount.com"`), which the hook otherwise reads as an
@@ -855,7 +874,7 @@ by name; the builders are `packer` (bound to the docker runtime),
 `local` backend unless you declare another; and an image's group must be a
 `posix` one, since OPA's agent needs an init system a container lacks. The
 bootstrap's `docker` section reads the runtime and asks whether CI can
-reach it ([CI_SETUP.md](examples/complete/CI_SETUP.md), 3.4a).
+reach it ([CI_SETUP.md](examples/_skeleton/CI_SETUP.md), 3.4a).
 `complete` declares one beside its two clouds.
 
 **Two trees in one project or account.** Everything the system makes
@@ -1049,7 +1068,8 @@ Open list in [INPROGRESS/TODO.md](../INPROGRESS/TODO.md) names.
 
 | Symptom | Meaning | Do |
 | --- | --- | --- |
-| `init: 'cs-image-system' is not runnable` | the release is not installed, or `CSIS` names a command that does not run | `uv tool install cs-image-system`, or `export CSIS="uv run cs-image-system"` beside a pyproject that depends on it |
+| `init: 'cs-image-system' is not runnable` | the release is not installed, or `CSIS` names a command that does not run | `uv tool install "cs-image-system[$(just extras)]"`, or `export CSIS="uv run cs-image-system"` beside a pyproject that depends on it |
+| `runtime type 'gcloud' is registered by no installed plugin: install the extra: uv tool install 'cs-image-system[gcloud]'` under `Validation failed with 1 error(s).` | the tree declares a `type:` word whose plugin comes with an extra the install left out (a bare `cs-image-system` carries no runtime) | the line's own command, or `uv tool install "cs-image-system[$(just extras)]"`; `just take` installs with the extras by itself |
 | `preflight: a session has EXPIRED`; `Token has expired and refresh failed`; `the configuration cannot load: AWS refused the credentials (RequestExpired)` | the AWS portal session behind the profile ended (8h from a browser sign-in; less if the CLI token was minted mid-session); an `sso-session` profile's token lasts an hour and is judged only once it has lapsed, so a lapse mid-run is environmental, not a defect. `RequestExpired` is what temporary keys pasted into the shell or a credentials file say when they lapse, and `preflight` cannot see that coming: it reads no expiry for keys ([static keys](INCIDENTS.md#static-keys-lapsed-under-a-green-session-preflight), [the sso-session hour](INCIDENTS.md#an-sso-session-profile-was-read-as-absent-for-an-hour)) | `aws sso login --profile <profile>` for an SSO profile; FRESH keys for pasted ones (`aws sso login` does nothing for them); then re-run |
 | `preflight: N session(s) present; 1 NOT JUDGED (no expiry readable: ...)` in yellow, exit 0, in place of `every session present` | a session preflight can see but not time: static keys in a profile or in the environment. Present is all it can say without a cloud call, which it makes none of by design, and it says so rather than printing a green line over keys that may already have lapsed ([INCIDENTS.md](INCIDENTS.md#static-keys-lapsed-under-a-green-session-preflight)) | nothing, if you know the keys are fresh; if the next command says `RequestExpired`, fresh keys |
 | `runtime <gce> could not answer` under `unavailable:` | no Application Default Credentials, or they expired, or Google was unreachable | `gcloud auth application-default login --impersonate-service-account=...`; an `unavailable` line is not drift, but the strict query refuses on it |
@@ -1068,7 +1088,7 @@ Open list in [INPROGRESS/TODO.md](../INPROGRESS/TODO.md) names.
 | `changed instance x: booted image ... != pinned build ...` | the pin moved without a replacement, or a replacement is pending (then a `note`, not drift) | `upgrade instance` then `cloud-launch`; or move the pin back |
 | `CI login policy '<g>_v1_security_policy_ci' is absent` | the identity apply has not run since the workload objects were named | `just run identity` with `apply_identity` on; never hard drift ([INCIDENTS.md](INCIDENTS.md#the-first-ci-policy-reconcile-was-refused-by-hard-drift)) |
 | `resource group '<g>_rg' is not what the identity module makes` (or `user policy` / `admin policy`) | someone changed the object in OPA: a hand edit, or another configuration that holds the same objects in its own tofu state ([INCIDENTS.md](INCIDENTS.md#the-reference-trees-identity-objects-were-rewritten-by-another-configuration)) | if another configuration manages them, it lets go first (`tofu state rm` there, never a destroy); then `just run identity` puts them back; never hard drift |
-| `workload role '...' is not known to OPA` | the operator's object is missing; `missing`, never hard drift | [CI_SETUP.md, section 3.5, step 2](examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access) ([INCIDENTS.md](INCIDENTS.md#the-first-ci-policy-reconcile-was-refused-by-hard-drift)) |
+| `workload role '...' is not known to OPA` | the operator's object is missing; `missing`, never hard drift | [CI_SETUP.md, section 3.5, step 2](examples/_skeleton/CI_SETUP.md#35-okta-and-okta-privileged-access) ([INCIDENTS.md](INCIDENTS.md#the-first-ci-policy-reconcile-was-refused-by-hard-drift)) |
 | `sft resolve ...: exit 126` with nothing on stderr | the `sft` client's session lapsed and `--quiet` forbade the browser; the registration half of the proof can already have passed ([INCIDENTS.md](INCIDENTS.md#sft-resolve-exited-126-with-nothing-on-stderr)) | `sft login`, then the proof again; as the workload, the token was missing or refused |
 | `'<name>' has 2 registrations: ...` in a login proof | two servers answer to one canonical hostname | retire the stale one (a replacement does this itself); `sft ssh` would reach either ([INCIDENTS.md](INCIDENTS.md#three-registrations-of-one-hostname-in-opa-one-live)) |
 | `Instance x: alias 'y' SKIPPED -- already claimed by <id>` | a stale record holds the name | retire that record; the alias comes back on the next applies-on run |
@@ -1092,14 +1112,14 @@ Open list in [INPROGRESS/TODO.md](../INPROGRESS/TODO.md) names.
 | `config-drift: ... the vendor's newest image moved under a base this tree has not baked` (exit 0) | the vendor published a new image and the emission of a base with no build yet names the one of the day it was generated; nothing of yours changed | `just record`, and commit it; the move is named rather than reported as `BEHIND`, because a red scheduled run over it could not be re-run green ([INCIDENTS.md](INCIDENTS.md#the-vendors-newest-image-moved-under-a-base-this-tree-had-not-baked)) |
 | `runtime-unchanged: ... unchanged since <ref> (...), but the vendor's newest image moved under a base this tree has not baked` (exit 0), in `perform` | the same move on the guarded runtime: the job's record took it, and there is nothing to apply by hand | nothing; the guard names the move and passes rather than reading it as `CHANGED`, since the record the job pushed already holds it ([INCIDENTS.md](INCIDENTS.md#the-vendors-newest-image-moved-under-a-base-this-tree-had-not-baked)) |
 | the log of an apply shows the root's outputs and no `Apply complete!` line | the run keeps the last 40 lines of a command's output, and tofu prints its verdict BEFORE the outputs | every verdict line (`Plan:`, `Apply complete!`, the gate's, a bake's `Build ... finished`) is printed ahead of the tail with its line number; for the whole output, `just cli --verbose` or the DEBUG log ([INCIDENTS.md](INCIDENTS.md#the-applys-verdict-could-not-be-read-in-the-log)) |
-| `role <name>: not granted` from the workload probe dispatched on `main`; or `granted` from a branch that is not `main` | the first: the role is not bound to the connection, or its pin names another branch; the second: the pin does not hold. The probe's first line says `accepted` either way, since authenticating to the connection takes the role as a hint only | [CI_SETUP.md, section 3.5](examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access), steps 2 and 6; `not judged` means no machine of a managed group stands yet |
+| `role <name>: not granted` from the workload probe dispatched on `main`; or `granted` from a branch that is not `main` | the first: the role is not bound to the connection, or its pin names another branch; the second: the pin does not hold. The probe's first line says `accepted` either way, since authenticating to the connection takes the role as a hint only | [CI_SETUP.md, section 3.5](examples/_skeleton/CI_SETUP.md#35-okta-and-okta-privileged-access), steps 2 and 6; `not judged` means no machine of a managed group stands yet |
 | `data disks mounted` failed with `missing: /mnt/<x>` on GCE, the kernel's XFS count above it | the startup script did not report that mount point mounted: the device never attached, or `mount` failed and the script went on (`nofail`) | the script's own lines on the serial console (`csis-mount:`), then the storage's attachment in the instance root ([INCIDENTS.md](INCIDENTS.md#the-gce-data-disk-was-attached-but-never-mounted)) |
 | a base shown DUE on a cloud you changed nothing for | a field every runtime shares moved (`admin_user`, the admin keys, `update`, the vendor source); a storage type added for one cloud re-bakes only there, never the other cloud's base ([INCIDENTS.md](INCIDENTS.md#a-storage-type-added-for-one-cloud-re-baked-the-other-clouds-base)) | read the run's reason for the bake; a shared field re-bakes everywhere by design |
 | `unavailable: storages/<s3>: REFUSED (the identity lacks a permission, ...): An error occurred (AccessDenied) when calling the GetBucketTagging operation: User: ...assumed-role/csis-github-apply/... is not authorized` on a `perform` | the role the step ran as lacks a read the state query makes: the applied role's document lags the release's module: the write role needs the `StorageReality` statement, without which every performing run reads its S3 storage as unavailable and stays green over it ([INCIDENTS.md](INCIDENTS.md#the-ci-apply-role-could-not-read-the-storage-it-had-applied)) | take the release, then apply the bootstrap root again (CI_SETUP.md 3.0, the Apply block; IAM writes are yours); a `REFUSED` line is never a retry |
 | `note: storages/<s>: a persistent disk of that name belongs to configuration '<id>' (csis_config); ... ours is absent`; `empty: left alone on <rt>: N disks of configuration '<id>'` | another tree shares the project or account and made a thing of that name; it is theirs, counted and left alone | nothing for theirs; if ours is absent, declare a name the cloud does not hold yet |
 | `empty: disks still present on <rt>: old-scratch (no csis_config)` | a thing with no configuration id, made before the system labelled what it makes; it is counted as ours to answer for | if it is ours and declared, `just cloud-relabel <rt> no` gives it the id; if it is nothing of ours, remove it by hand |
 | a job fails in "Initialize containers" before any step of yours: `denied`, `unauthorized` or `manifest unknown` pulling `ghcr.io/.../csis-ci:alma10-<date>` | the runner image could not be pulled: the tag does not exist yet (the Runner image workflow has not published the date the workflow pins); or the job's `permissions:` block lacks `packages: read`, so its token pulls as nobody (a job with no block pulls; one with a block that lacks the line is denied); or the package is PRIVATE and this repository was not granted access to it (a package publishes private when the organisation disallows public packages) | a missing tag: the system's maintainers run the Runner image workflow and you rerun; a missing line: take the release that carries it; a private package: on the package's page, "Manage Actions access", add this repository with Read (same organisation), or have the organisation's administrators allow public packages ([docs/CI_RUNNER.md](CI_RUNNER.md), section 4); never a credential in the workflow for it ([INCIDENTS.md](INCIDENTS.md#the-ci-runner-image-took-four-builds-and-its-first-pull-was-refused)) |
-| `release: testpypi cannot take an upload now (above) -- nothing was changed; it is the index's condition, not the release's` (exit 75) | the index's upload endpoint or one of the twenty-two project pages did not answer, or answered 5xx; the release stopped before the bar, or after it and before the bump, so the tree is clean; the probe exists because an outage found only at the upload wastes the whole bar ([INCIDENTS.md](INCIDENTS.md#testpypi-was-down-and-a-release-found-it-only-at-the-upload)) | `just index-ready test wait`, then the release again; nothing to discard |
+| `release: testpypi cannot take an upload now (above) -- nothing was changed; it is the index's condition, not the release's` (exit 75) | the index's upload endpoint or one of the twenty-one project pages (the umbrella and the twenty published packages) did not answer, or answered 5xx; the release stopped before the bar, or after it and before the bump, so the tree is clean; the probe exists because an outage found only at the upload wastes the whole bar ([INCIDENTS.md](INCIDENTS.md#testpypi-was-down-and-a-release-found-it-only-at-the-upload)) | `just index-ready test wait`, then the release again; nothing to discard |
 | `release: this checkout is on '<branch>'; a release is cut on main alone (or a maintenance branch release/<major.minor>)` | the checkout is not on `main`; the rule exists so that a version is never cut, committed and tagged on a branch `main` does not hold ([CHANGES.md](CHANGES.md#s107)) | `git checkout main && git merge --ff-only develop`, then the release again |
 | `release: main is behind develop -- a release never leaves a stage behind` | a stage landed on `develop` that `main` has not taken | on `main`: `git merge --ff-only develop`, then the release again |
 | `public-safe: ... <file>:<line>` from the hook | a committed line looks like a secret, a key, a plan or a state file | never bypass the hook; encrypt the value, or allow it BY DECISION in `cfg/_config.yml` `public_safe.allow` |
@@ -1398,7 +1418,7 @@ to 4; a tree's holder does only step 5.
    something the new image lacks, the fix is a step in the workflow
    that installs it, never a return to a floating name.
 5. Every other tree takes it as it takes any release
-   ([CI_SETUP.md](examples/complete/CI_SETUP.md), section 3.1).
+   ([CI_SETUP.md](examples/_skeleton/CI_SETUP.md), section 3.1).
 
 **What it looks like when it was not done:** annotations on every run
 naming the image or an action; later, jobs that wait and are never

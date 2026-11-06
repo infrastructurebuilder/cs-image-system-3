@@ -82,11 +82,23 @@ def index_entry(root: Path, name: str) -> dict[str, str]:
     raise LookupError(f"pyproject.toml has no [[tool.uv.index]] named {name!r}")
 
 
+PRIVATE = "Private :: Do Not Upload"
+
+
+def is_published(project: dict) -> bool:
+    """Whether a project is one the release uploads: every workspace member
+    except one classified ``Private :: Do Not Upload`` (the extension
+    template and the contract's proof, stage 126), which an index refuses."""
+    return PRIVATE not in project.get("classifiers", [])
+
+
 def projects(root: Path) -> list[str]:
-    """Every project a release uploads: the root project and each packages/* member."""
+    """Every project a release uploads: the root project and each published packages/* member."""
     names = [tomllib.loads((root / "pyproject.toml").read_text())["project"]["name"]]
     for p in sorted((root / "packages").glob("*/pyproject.toml")):
-        names.append(tomllib.loads(p.read_text())["project"]["name"])
+        project = tomllib.loads(p.read_text())["project"]
+        if is_published(project):
+            names.append(project["name"])
     return names
 
 
@@ -98,7 +110,10 @@ def own_versioned(root: Path) -> dict[str, str]:
     version, and holding it is never a re-cut of the workspace's."""
     from packaging.requirements import Requirement
     doc = tomllib.loads((root / "pyproject.toml").read_text())["project"]
-    ranged = {canonicalize_name(Requirement(d).name) for d in doc.get("dependencies", [])
+    specs = list(doc.get("dependencies", []))
+    for extra in doc.get("optional-dependencies", {}).values():      # the root's extras pin like its dependencies
+        specs += list(extra)
+    ranged = {canonicalize_name(Requirement(d).name) for d in specs
               if not str(Requirement(d).specifier).startswith("==")}
     out: dict[str, str] = {}
     for p in sorted((root / "packages").glob("*/pyproject.toml")):

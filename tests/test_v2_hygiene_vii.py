@@ -54,9 +54,9 @@ def test_the_emitted_scripts_still_name_the_bare_command(tmp_path, monkeypatch):
         v2.restore_cwd()
 
 
-def test_the_starter_justfile_puts_a_csis_path_first_on_path():
+def test_the_starter_justfile_puts_a_csis_path_first_on_path(rendered_starters: Path):
     for name in ("standard-aws", "standard-gce", "complete", "standard-aws-posix", "standard-docker"):
-        text = (EXAMPLES / name / "Justfile").read_text()
+        text = (rendered_starters / name / "Justfile").read_text()
         m = re.search(r'^export PATH := if csis =~ "/" \{ parent_directory\(csis\) \+ ":" \+ env\("PATH"\) \} else \{ env\("PATH"\) \}$',
                       text, flags=re.M)
         assert m, f"{name}: the Justfile must put a CSIS that names a path first on PATH"

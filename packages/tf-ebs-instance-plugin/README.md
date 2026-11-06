@@ -214,11 +214,11 @@ load instead of being dropped:
 
 - `EbsVariables`: `volume_type: str`, `encrypted: bool`, `tags`, the
   variables of
-  [aws_storage_ebs/variables.tf](../../tfmodules/aws_storage_ebs/variables.tf);
+  [aws_storage_ebs/variables.tf](../aws-runtime-plugin/src/cs_image_system/aws_runtime/tfmodules/aws_storage_ebs/variables.tf);
 - `EfsVariables`: `performance_mode: str`, `encrypted: bool`, `tags`, of
-  [aws_storage_efs/variables.tf](../../tfmodules/aws_storage_efs/variables.tf);
+  [aws_storage_efs/variables.tf](../aws-runtime-plugin/src/cs_image_system/aws_runtime/tfmodules/aws_storage_efs/variables.tf);
 - `S3Variables`: `force_destroy: bool`, `tags`, of
-  [aws_storage_s3/variables.tf](../../tfmodules/aws_storage_s3/variables.tf).
+  [aws_storage_s3/variables.tf](../aws-runtime-plugin/src/cs_image_system/aws_runtime/tfmodules/aws_storage_s3/variables.tf).
 
 Precedence in the module call: what the builder computes from the storage
 item (name, groups, lifecycle, restore snapshot, placement) always wins;
@@ -567,7 +567,7 @@ the base's `_owned` and `_elsewhere`.
 
 | | `TofuEbsStorageBuilder` (`tf-aws-ebs`) | `TofuEfsStorageBuilder` (`tf-aws-efs`) | `TofuS3StorageBuilder` (`tf-aws-s3`) |
 |---|---|---|---|
-| Module | [aws_storage_ebs](../../tfmodules/aws_storage_ebs/variables.tf) | [aws_storage_efs](../../tfmodules/aws_storage_efs/variables.tf) | [aws_storage_s3](../../tfmodules/aws_storage_s3/variables.tf) |
+| Module | [aws_storage_ebs](../aws-runtime-plugin/src/cs_image_system/aws_runtime/tfmodules/aws_storage_ebs/variables.tf) | [aws_storage_efs](../aws-runtime-plugin/src/cs_image_system/aws_runtime/tfmodules/aws_storage_efs/variables.tf) | [aws_storage_s3](../aws-runtime-plugin/src/cs_image_system/aws_runtime/tfmodules/aws_storage_s3/variables.tf) |
 | Capability type (what a base image declares in `storage_types`) | `ebs` | `efs` | `s3` |
 | Attachment cardinality | single | many | many |
 | Zonal (`is_zonal()`) | yes: the zone takes part in the compatibility check and changing it replaces the volume | no | no |
@@ -628,10 +628,10 @@ after-apply hooks, `storage-state.yaml` (the storage transitions), `pins.yaml`
 `instance-state.yaml` (instance generations) and `verifications.yaml` (the
 ephemerals' verdicts); none of these appear in the dry golden.
 
-Modules called: [tfmodules/aws_instance](../../tfmodules/aws_instance/main.tf),
-[tfmodules/aws_storage_ebs](../../tfmodules/aws_storage_ebs/main.tf),
-[tfmodules/aws_storage_efs](../../tfmodules/aws_storage_efs/main.tf),
-[tfmodules/aws_storage_s3](../../tfmodules/aws_storage_s3/main.tf). The
+Modules called (shipped by the aws-runtime plugin as package data; `cs-image-system modules` lists them): [tfmodules/aws_instance](../aws-runtime-plugin/src/cs_image_system/aws_runtime/tfmodules/aws_instance/main.tf),
+[tfmodules/aws_storage_ebs](../aws-runtime-plugin/src/cs_image_system/aws_runtime/tfmodules/aws_storage_ebs/main.tf),
+[tfmodules/aws_storage_efs](../aws-runtime-plugin/src/cs_image_system/aws_runtime/tfmodules/aws_storage_efs/main.tf),
+[tfmodules/aws_storage_s3](../aws-runtime-plugin/src/cs_image_system/aws_runtime/tfmodules/aws_storage_s3/main.tf). The
 `source` is computed from `config.module_source_base` (default
 `../tfmodules`, relative to the configuration root) as a relative path from
 the workspace directory; absolute paths and remote URLs pass through.
@@ -799,7 +799,7 @@ holds them to.
 | Prerequisite | Why | How the plugin finds it |
 |---|---|---|
 | An OpenTofu (or terraform) binary | every root is `fmt`/`init`/`validate`d at generation and planned, gated and applied by the runner | the builder's `executable:` names an entry in `cfg/executables.yml`; that entry's `binary:` is the path and `type: tofu` selects `TofuVersionChecker` (tofu-roots' class, registered by this plugin and by every other root plugin), which runs `<binary> --version -json`. The entry's `version:` requirement is enforced: `validate` and every run refuse a binary outside it. The default `executable` value is the literal `"tofu"`, so an entry of that name must exist unless the builder names another. |
-| The terraform modules | each root is a `module` call against `tfmodules/aws_instance`, `aws_storage_ebs`, `aws_storage_efs` or `aws_storage_s3` | `config.module_source_base` in `cfg/_config.yml` (default `../tfmodules`, relative to the configuration root; an absolute path or a git/registry URL passes through). A fixture copy needs the `tfmodules` directory beside it. |
+| The terraform modules | each root is a `module` call against `tfmodules/aws_instance`, `aws_storage_ebs`, `aws_storage_efs` or `aws_storage_s3` | `config.module_source_base` in `cfg/_config.yml` (default `../tfmodules`, relative to the configuration root; an absolute path or a git/registry URL passes through). A fixture copy needs the modules beside it (`cs-image-system modules --write`); `config.module_sources` names a source for one module alone. |
 | An AWS account, region and credentials | the `provider "aws"` block, every plan and apply, the state queries (boto3), the archive/restore/wipe scripts (the AWS CLI) | `region` from the runtime's `region:`; `profile` from the runtime's `credentials.profile_name` (emitted into the provider block, the backend file and the CLI scripts as `--profile`). With no profile named, the provider and boto3 fall back to the environment (`AWS_PROFILE`, or `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_SESSION_TOKEN`). An SSO profile needs a live session (`aws sso login --profile <p>`): the load itself refuses on an expired one, and a session that lapses mid-run is environmental. |
 | The `aws` CLI on the runner's `PATH` | `archive-<label>.sh` (`describe-snapshots`, `create-snapshot`, `wait snapshot-completed`), `unarchive-<label>.sh` and `restore-<label>.sh` (`delete-snapshot`), and the S3 wipe `aws s3 rm --recursive` before a bucket's destroy | run as deferred steps of `run-storage.sh` with `bash` and `aws` found on `PATH`; the EBS scripts pass `--region` and `--profile` from the runtime, the S3 wipe passes `--profile` only. Nothing checks the CLI's presence before the step runs. |
 | `cs-image-system` on `PATH` and the configuration identity | the runner scripts call `cs-image-system materialize`, `gate-plan`, `apply-check`, `unmount storage` and `verify instance`; `materialize` and every configuration-loading step open `ENC[age:...]` values | `just` and `uv run` put the CLI on `PATH`; `CSIS_CONFIG_IDENTITY` must be in the environment of whoever runs the script (OPERATIONS "Encrypted values"). |

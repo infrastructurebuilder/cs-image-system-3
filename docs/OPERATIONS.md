@@ -769,7 +769,7 @@ OPA console and named on the okta-tf group builder
 the impersonation cases (what a name pin trusts) and the relocation order
 (what to edit, in which order, when the repository moves) are in the
 CI setup guide every starter tree carries,
-[CI_SETUP.md, section 3.5](examples/standard-aws/CI_SETUP.md#35-okta-and-okta-privileged-access).
+[CI_SETUP.md, section 3.5](examples/_skeleton/CI_SETUP.md#35-okta-and-okta-privileged-access).
 `just sft-install` puts Okta's client on an apt runner; `just
 opa-workload-probe` (the dispatch-only `OPA workload probe` workflow,
 `cs-image-system workload probe`) presents a run's token to the
@@ -1638,7 +1638,8 @@ message that the move is intended. Regenerating to make a test pass is
 how a defect becomes the expected output. Two traps: provisioned content
 (playbooks, scripts) is hashed, so a comment change there moves
 `content_hash` and `csis_fingerprint` and would re-bake images; a copy of
-the configuration needs `tfmodules/` beside it.
+the configuration needs the modules beside it (`cs-image-system modules
+--write <copy>/../tfmodules` writes them from the installed plugins).
 
 ### What a run's log shows of the commands it ran
 
@@ -1696,8 +1697,9 @@ command.
 this repository's CI `live` job runs: with real sessions (the frozen
 fixture names the real account's networks, project and OPA team) and the
 fixture's committed TEST identity, `validate` over the fixture, a headless
-dry `run --all --no-state-query` over a private copy with `tfmodules/`
-beside it (the state query is off because the fixture's declarations are
+dry `run --all --no-state-query` over a private copy with the installed
+modules written beside it (`cs-image-system modules --write`; the state
+query is off because the fixture's declarations are
 synthetic and reality would read as drift), then `test-mods --strict`
 over the copy under docker (skipped loudly without docker).
 
@@ -1791,9 +1793,10 @@ documents: `tests/test_docs_contract.py` reads
 [DAILY_DRIVER.md](DAILY_DRIVER.md), the root `README.md`,
 [PLUGINS.md](PLUGINS.md), every package `README.md` and every starter's
 `CI_SETUP.md` (the README contract, every relative link);
-`tests/test_docs_examples.py` reads the starter trees under
-`docs/examples/` whole, their `README.md` and `CI_SETUP.md` included,
-and holds the built wheel equal to them;
+`tests/test_docs_examples.py` reads every starter as a team holds it
+(rendered from `docs/examples/_skeleton/` and the starter's own directory,
+the installed plugins' modules under `tfmodules/`), its `README.md` and
+`CI_SETUP.md` included, and holds the built wheel equal to the source;
 `tests/test_docs_image_sources.py` reads every runtime plugin's
 `README.md` image-query table and the contract README against the
 code; `tests/test_v2_ci_runner.py` reads [CI_RUNNER.md](CI_RUNNER.md)'s
@@ -2007,12 +2010,14 @@ from the environment or, absent that, the index's own name --
 `.envrc` line serves the shell and CI alike -- and never in the Justfile:
 while versions are being deleted and re-cut, an account-scoped TestPyPI
 token; trusted publishing
-(a pending publisher per project name, twenty-three registrations) waits until
+(a pending publisher per project name, twenty-one registrations: the
+umbrella and the twenty published packages) waits until
 the names are stable, and is then the CI job's credential.
 
 The version lives in twenty-three `version =` lines -- the root's and the
-twenty-two packages' -- and in every `== <version>` pin between the
-packages, and `bump-my-version` is the
+twenty-two workspace packages', the two private ones included -- and in
+every `== <version>` pin between the packages (the root's dependencies,
+its extras and its dev group alike), and `bump-my-version` is the
 one thing that changes them (`uv version` bumps the lines but never a
 pin, so it is not used). The scheme is `MAJOR.MINOR.PATCH[.devN]`; every
 version goes to TestPyPI first, and versions there are deleted as
@@ -2022,9 +2027,47 @@ asserts nothing of the old version is left.
 
 ### Installing a release
 
-The twenty-two packages are on the index as `cs-image-system` (the whole
-system: no sources, a `==` pin on every package) and
-`cs-image-system-<package>`. TestPyPI does not carry the third-party
+Twenty packages are on the index: `cs-image-system`, the umbrella (no
+sources of its own; its dependencies are the core at a `==` pin, and
+each provider is an extra), and `cs-image-system-<package>` for the
+nineteen others. The bare install carries no runtime:
+
+```sh
+uv tool install cs-image-system               # the CLI, the engine, the OS families, packer,
+                                              # ansible, bash, posix identity, the local state
+uv tool install 'cs-image-system[aws]'        # + the aws runtime, its roots (tofu, tf-aws-*), s3 state
+uv tool install 'cs-image-system[gcloud]'     # + the gcloud runtime, its roots (tofu-gce, tf-gcp-*), gcs
+uv tool install 'cs-image-system[docker]'     # + the docker runtime, its roots (tofu-docker, tf-docker-volume)
+uv tool install 'cs-image-system[okta]'       # + Okta users and OPA groups (okta-tf, okta-tf-ro)
+uv tool install 'cs-image-system[aws,okta]'   # any combination, in one line
+uv tool install 'cs-image-system[all]'        # every provider: what the reference configuration installs
+```
+
+A configuration repository's `Justfile` reads the extras its tree needs
+from the `type:` words under `cfg/` (`just extras` prints them, as
+`aws,okta`), and `just take <version>` and every CI job install
+`cs-image-system[<extras>]==<version>` with that answer, so a tree that
+adds a provider edits no install line. The table from a `type:` word to
+its extra is the umbrella's one module (`cs_image_system.extras`); a tree
+that declares a word whose plugin is not installed does not get a
+traceback: `validate` prints one configuration line and exits 1,
+
+```text
+ - runtime type 'gcloud' is registered by no installed plugin: install the extra: uv tool install 'cs-image-system[gcloud]'
+Validation failed with 1 error(s).
+```
+
+and for a word no extra carries, that it is unknown and which words the
+installed plugins register under that classification. Two workspace
+packages are never on the index: `cs-image-system-dummy-plugin` (the
+extension template and test double) and
+`cs-image-system-contract-example-plugin` (the contract's proof). They
+carry the classifier `Private :: Do Not Upload`, which an index refuses,
+the release tooling leaves them out, and the workspace installs them
+through the root's `dev` dependency group, so the suite and the dry runs
+see them and a consumer never does.
+
+TestPyPI does not carry the third-party
 dependencies, so an install from it names PyPI as the extra index. In
 `uv`, `--extra-index-url` takes priority over `--index-url`, so the
 third-party packages come from PyPI; and `--index-strategy
@@ -2049,20 +2092,22 @@ uv pip install --python .venv/bin/python \
 
 A final version on PyPI installs with `uv pip install
 cs-image-system==<version>` alone, and `uv tool install cs-image-system`
-puts the command on `PATH` (the whole-system package declares the
+puts the command on `PATH` (the umbrella package declares the
 console script itself, because uv exposes only the requested package's
 executables, and `uv tool install` of a package with none ends with
 "Failed to install entrypoints"). A configuration
-repository's `Justfile` and workflow install it that way. Python 3.13 or
+repository's `Justfile` and workflow install it that way, with the
+tree's extras. Python 3.13 or
 later. The tools the
 system drives (`tofu`, `packer`, `gcloud`, `ansible-playbook`, docker) are
 not Python packages and are not installed by this; the configuration's
 `cfg/executables.yml` pins where they are. The same install from the
 built files, without an index, is `uv pip install --find-links dist
-cs-image-system==<version>` after `just build`; the twenty-two wheels
+'cs-image-system[all]==<version>'` after `just build`; the twenty wheels
 installed that way into a fresh virtualenv run `cs-image-system --help`
 and `decrypt`, which is the proof that every package declares what it
-imports.
+imports (`just build` builds the two private wheels too; nothing installs
+or uploads them).
 
 `just publish-tree <root> <dest>` builds what a public repository will
 hold: the TRACKED files of `<root>` at HEAD (`git archive`; nothing
@@ -2085,13 +2130,18 @@ this template". `docs/examples/` stays the one place a starter is
 edited; a template repository is generated from it and never edited
 there. For each starter (`scripts/starter-tree --list`):
 
-- **the tree** is `scripts/starter-tree <starter> <version>`: the
-  starter's files as committed, `.csis-version`, a generated README
-  header (where it comes from, that it takes no pull requests, and that
-  the TEST age identity must be replaced before any real value is
-  stored), and every Markdown link that leaves the starter pointed at
-  this repository at the release's tag; a test holds the tree to exactly
-  that;
+- **the tree** is `scripts/starter-tree <starter> <version>`: what
+  `init-config` writes into an empty directory (`starters.write_starter`:
+  the skeleton `docs/examples/_skeleton/` under the starter's own
+  directory, and the installed plugins' terraform modules materialised
+  into `tfmodules/` with their `.csis-module` stamps), `.csis-version`,
+  a generated README header (where it comes from, that it takes no pull
+  requests, and that the TEST age identity must be replaced before any
+  real value is stored), and every Markdown link that leaves the starter
+  pointed at this repository at the release's tag; a test holds the tree
+  to exactly that. The modules a template carries are those of the
+  plugins installed where the script runs, so it runs from the
+  workspace, which installs every plugin;
 - **the gate** is `public-safe` with the starter's own allow list;
 - **the commit** is one, `cs-image-system <version>`, on `main`, with the
   tag `v<version>`, so a repository's history is one line per release.
@@ -2527,8 +2577,9 @@ every state manager one reaches as well, and a docker runtime by one
 line (`docker version` against its daemon).
 
 The
-modules ship with the starters like every module (`tfmodules/`, byte for
-byte); `tests/test_v2_bootstrap_gcp.py` holds the GCP section (the
+modules ship inside their plugin's package like every module
+(`cs-image-system modules` lists them; `init-config` writes them into
+the tree); `tests/test_v2_bootstrap_gcp.py` holds the GCP section (the
 tree-derived gates across both clouds, the probes and refusals, a fresh
 project and a shared provider, the by-hand note, the additive-only
 module held to the guide's mapping, a real `tofu validate`),
@@ -2571,7 +2622,7 @@ touching the reference configuration.
 | Federated GCP credentials | `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_SERVICE_ACCOUNT`, read-only |
 | No install step: the runner image carries just, uv, OpenTofu, Packer, gcloud, ansible and the docker client at the paths the fixture's `executables.yml` pins (`/usr/local/bin`) | `validate` checks every declared tool at its path and version; the from-scratch workflow installs the same tools by steps and places them there |
 | `just init` | |
-| `just fixture-live` | `validate` over the fixture with its committed TEST identity, a dry `run --all --no-state-query` over a private copy with `tfmodules/` beside it, `test-mods --strict` over the copy under docker |
+| `just fixture-live` | `validate` over the fixture with its committed TEST identity, a dry `run --all --no-state-query` over a private copy with the installed modules written beside it (`modules --write`), `test-mods --strict` over the copy under docker |
 
 No identity secret: the fixture's age identity is committed beside it. No
 mirror to remove: the copy is under the runner's temporary directory and
@@ -2691,7 +2742,7 @@ from `cfg/runtime-builders.yml`.
 
 How a configuration repository's secrets and federated identities are
 made from nothing is the guide every starter tree carries,
-[CI_SETUP.md](examples/standard-aws/CI_SETUP.md); the tables below say
+[CI_SETUP.md](examples/_skeleton/CI_SETUP.md); the tables below say
 what each secret is for.
 
 This repository:
@@ -3096,7 +3147,7 @@ is likely to break the GCE code path; then one live cycle, torn down.
 | `test-mods` | the modification tests |
 | `mask` | a `::add-mask::` line for every value the configuration carries encrypted, so a CI log never shows one; a configuration repository's `live` and `perform` jobs run it before anything prints |
 | `materialize <source> [<destination>]` | copy a generated root into the private mirror (`_private/`), every ENC marker substituted with its plaintext, and print where it landed ("Encrypted values" above) |
-| `init-config <destination> [--from <starter>] [--force] [--changes-since <dir>]` | write a starter configuration repository from this release: an empty destination takes the whole starter (the YAML, the Justfile, the workflow, the hook, `.gitignore`, `tfmodules/`, `.csis-version`), an existing one only the parts the release owns; `--force` overwrites a release-owned file that differs; `--changes-since` lists what this release changed against the previous release's starters and writes nothing |
+| `init-config <destination> [--from <starter>] [--force] [--changes-since <dir>]` | write a starter configuration repository from this release: an empty destination takes the whole starter (the YAML, the Justfile, the workflow, the hook, `.gitignore`, `tfmodules/` written from the installed plugins and stamped, `.csis-version`), an existing one only the parts the release owns, its module copies refreshed by their stamps (an edited copy is kept and named); `--force` overwrites a release-owned file that differs, never an edited module; `--changes-since` lists what this release changed against the previous release's starters (either layout) and writes nothing |
 | `bootstrap [--quiet] [--answers <file>] [--section <name>]...` | the one-time initialisation as terraform, from an interview, run in a configuration repository ("The bootstrap" above); loads no configuration |
 | `config-drift` | is the committed emission current with the declarations? ("`config-drift` and `fixture-live`" above) |
 | `runtime-unchanged <rt> [--ref <ref>]` | has that runtime's emission changed since the ref (default `HEAD`)? 0 unchanged, or only the vendor's newest image moved under a base not yet baked; 1 with the diff; 2 for an unknown runtime; CI's performing job asks it of each `GUARD_RUNTIME` |

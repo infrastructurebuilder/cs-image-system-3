@@ -20,7 +20,9 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_v2_bootstrap import EXAMPLES, REPO, TREES, _assigned, _starter_copy
+from tests.starter_support import RENDERED
+from tests.test_v2_bootstrap import EXAMPLES, _assigned, _starter_copy
+from v2_support import module_path, modules_inside
 
 from cs_image_system.aws_runtime import bootstrap as aws
 from cs_image_system.base import bootstrap as bs
@@ -98,7 +100,7 @@ def test_the_aws_plugin_contributes_the_section_and_the_tree_decides_whether_it_
     aws_tree = _starter_copy(tmp_path)
     assert _section().wanted_default(bs.gather(aws_tree, gh=False)) is True
     other = tmp_path / "gce"
-    shutil.copytree(EXAMPLES / "standard-gce", other)
+    shutil.copytree(RENDERED() / "standard-gce", other)
     facts = bs.gather(other, git=False, gh=False)
     uses_aws = runtime_of_type(facts, "aws") is not None or default_state_backend(facts, "s3") is not None
     assert _section().wanted_default(facts) is uses_aws                       # the gate asks the tree, not a constant
@@ -185,7 +187,7 @@ def test_adopting_a_role_keeps_the_other_subjects_it_already_trusted(tmp_path: P
     assert ("the READ role `csis-github-readonly`, adopted by import: the destroy deletes the role itself, with every "
             "subject it trusted (`repo:acme/other:*`, `repo:acme@4242/other@111:*` among them)") in readme
     assert "the WRITE role `csis-github-apply`, adopted by import: the destroy deletes the role itself, with every subject it trusted\n" in readme
-    module = (REPO / "tfmodules" / "bootstrap_aws" / "main.tf").read_text()
+    module = (module_path("bootstrap_aws") / "main.tf").read_text()
     assert "var.read_extra_subjects)" in module and "var.write_extra_subjects)" in module
     # a role that does not exist has nothing to keep; one whose trust cannot be read is refused, not narrowed blind
     fresh = _account(oidc=True, read=False, write=False, bucket=True, profile=True)
@@ -262,8 +264,8 @@ def test_a_bucket_the_bootstrap_makes_means_local_state_first(tmp_path: Path):
 def test_the_module_says_what_the_guide_says():
     """The module's documents are the guide's (CI_SETUP.md 3.3): the same
     statements by Sid, the write role trusted on the production branch alone."""
-    module = (REPO / "tfmodules" / "bootstrap_aws" / "main.tf").read_text()
-    guide = (EXAMPLES / "complete" / "CI_SETUP.md").read_text()
+    module = (module_path("bootstrap_aws") / "main.tf").read_text()
+    guide = (EXAMPLES / "_skeleton" / "CI_SETUP.md").read_text()
     section = guide[guide.index("### 3.3 AWS"):guide.index("### 3.4 GCP")]
     sids = set(re.findall(r'"Sid": "(\w+)"', section))
     assert sids and sids == set(re.findall(r'Sid\s*=\s*"(\w+)"', module)), sids
@@ -271,15 +273,14 @@ def test_the_module_says_what_the_guide_says():
         assert action in section and action in module, action
     assert ':ref:refs/heads/${var.production_branch}' in module and '"${f}:*"' in module
     assert "aws_iam_openid_connect_provider" in module and "AmazonSSMManagedInstanceCore" in module
-    for name in TREES:
-        assert (EXAMPLES / name / "tfmodules" / "bootstrap_aws" / "main.tf").read_bytes() == (REPO / "tfmodules" / "bootstrap_aws" / "main.tf").read_bytes()
 
 
 @pytest.mark.skipif(shutil.which("tofu") is None, reason="tofu not installed")
 def test_the_root_with_both_sections_validates_with_tofu(tmp_path: Path):
     from tests.test_v2_gcp_increment3 import private_plugin_cache
     root, out = _root(tmp_path, oidc=True, read=True, write=True, bucket=True, profile=False)
-    env = {**os.environ, "TF_PLUGIN_CACHE_DIR": str(private_plugin_cache(tmp_path, [out, REPO / "tfmodules" / "bootstrap_aws"]))}
+    modules_inside(root)
+    env = {**os.environ, "TF_PLUGIN_CACHE_DIR": str(private_plugin_cache(tmp_path, [out, module_path("bootstrap_aws")]))}
     for args in (["init", "-backend=false", "-input=false", "-no-color"], ["validate", "-no-color"]):
         res = subprocess.run(["tofu", *args], cwd=out, capture_output=True, text=True, timeout=600, env=env)
         assert res.returncode == 0, f"tofu {args[0]}\n{res.stdout}\n{res.stderr}"

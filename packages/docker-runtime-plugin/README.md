@@ -6,6 +6,12 @@ SPDX-License-Identifier: Apache-2.0
 
 # cs-image-system-docker-runtime-plugin
 
+This plugin ships the docker terraform modules as package data
+(`docker_container`, `docker_volume`, under
+[src/cs_image_system/docker_runtime/tfmodules/](src/cs_image_system/docker_runtime/tfmodules)),
+declared through the `cs_image_system.modules` entry point;
+`cs-image-system modules` lists them.
+
 The `docker` runtime type: a durable host running a daemon that
 speaks the Docker Engine API, as a place where images bake and instances
 run. Docker Engine, Docker Desktop, OrbStack, colima and Podman's API

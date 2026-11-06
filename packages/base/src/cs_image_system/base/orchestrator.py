@@ -28,7 +28,7 @@ from cs_image_system.contract.constants import DEFAULT, DEFERRED_BUILDER_VCT, DE
 from .singleton import singleton
 
 from . import registry
-from .registry import NAMESPACE_SEPARATOR, split_qualified
+from .registry import NAMESPACE_SEPARATOR, UnknownTypeError, split_qualified
 
 
 
@@ -662,7 +662,9 @@ class PydanticConverter:
             raise ValueError(f"Missing 'type' key for: '{vct}'")
         target_cls = self._reg.get_model(vct, raw_identity)
         if target_cls is None:
-            raise KeyError(f"Unrecognized type/alias '{raw_identity}' for {vct}")
+            # no installed plugin registers the word: one configuration line
+            # under `validate`, naming the extra that would (the umbrella's table)
+            raise UnknownTypeError(vct, str(raw_identity), list(self._reg.models_under(vct)))
         canonical = target_cls.csis_name()
         # alias -> canonical; a tree that wrote the qualified form
         # (<namespace>/<name>) keeps its namespace, so what it wrote is what

@@ -9,7 +9,7 @@ Records in the live API's shape (read 2026-10-23): the module's own objects
 match; the 2026-10-19 rewrite of `basic` (delegated admin, rule name,
 descriptions) is named field by field; an added label is a difference; a
 reference that carries an id alone is not guessed; absent objects say so;
-and the expectations are held to tfmodules/okta_opa_module/main.tf.
+and the expectations are held to the plugin's okta_opa_module/main.tf.
 """
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ from pathlib import Path
 from cs_image_system.okta_opa_plugin.module_objects import expected, module_objects_state
 
 REPO = Path(__file__).resolve().parents[3]
+MODULE = Path(__file__).resolve().parents[1] / "src" / "cs_image_system" / "okta_opa_plugin" / "tfmodules" / "okta_opa_module"
 
 
 def _rule(g: str, admin: bool, labels: dict[str, str] | None = None) -> dict:
@@ -112,7 +113,7 @@ def test_absent_objects_say_so():
 
 
 def test_the_expectations_are_the_modules():
-    main = (REPO / "tfmodules" / "okta_opa_module" / "main.tf").read_text()
+    main = (MODULE / "main.tf").read_text()
     for needle in ('description                     = "Resource group for Okta group ${var.group_id}"',
                    'local.rg_delegated_admins', '[oktapam_group.admin.id]',
                    'description    = "Security policy for Okta group ${local.user_group}"',

@@ -18,7 +18,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.v2_support import V2Run, copy_config
+from tests.starter_support import RENDERED
+from tests.v2_support import V2Run, copy_config, module_path, modules_inside
 
 
 def _assigned(text: str, key: str, value: str) -> bool:
@@ -45,7 +46,7 @@ def _git(root: Path, *args: str) -> str:
 
 def _starter_copy(tmp_path: Path, name: str = "standard-aws", remote: str | None = "git@github.com:acme/widgets.git") -> Path:
     root = tmp_path / "tree"
-    shutil.copytree(EXAMPLES / name, root)
+    shutil.copytree(RENDERED() / name, root)   # a whole tree: the skeleton, the overlay and the modules
     _git(root, "init", "-q", "-b", "develop")
     _git(root, "config", "user.email", "t@example.invalid")
     _git(root, "config", "user.name", "t")
@@ -175,7 +176,7 @@ def test_the_secrets_script_names_every_guide_secret_and_no_value(tmp_path: Path
     bs.write_answers(root / bs.ANSWERS_FILE, GITHUB_ANSWERS)
     bs.regenerate(root)
     script = (bs.output_dir(root) / "set-secrets.sh").read_text()
-    guide = (EXAMPLES / "complete" / "CI_SETUP.md").read_text()
+    guide = (EXAMPLES / "_skeleton" / "CI_SETUP.md").read_text()
     body = guide[guide.index("### 3.7 The secrets"):]
     body = body[:body.index("\n### ", 1)]
     names = set(re.findall(r"^\| `([A-Z0-9_]+)` \|", body, flags=re.M))
@@ -295,6 +296,7 @@ def test_the_generated_root_validates_with_tofu(tmp_path: Path):
     bs.write_answers(root / bs.ANSWERS_FILE, GITHUB_ANSWERS)
     bs.regenerate(root)
     out = bs.output_dir(root)
+    modules_inside(root)
     env = {**os.environ, "TF_PLUGIN_CACHE_DIR": str(private_plugin_cache(tmp_path, [out]))}
     for args in (["init", "-backend=false", "-input=false", "-no-color"], ["validate", "-no-color"]):
         res = subprocess.run(["tofu", *args], cwd=out, capture_output=True, text=True, timeout=600, env=env)
@@ -429,10 +431,9 @@ def test_config_drift_judges_the_bootstrap_root(tmp_path: Path):
 
 # ------------------------------------------------------------- the release's parts
 
-def test_the_starters_carry_the_module_the_recipe_and_the_ignore_exception():
+def test_the_starters_carry_the_recipe_and_the_ignore_exception():
     for name in TREES:
-        tree = EXAMPLES / name
-        assert (tree / "tfmodules" / "bootstrap_github" / "main.tf").read_bytes() == (REPO / "tfmodules" / "bootstrap_github" / "main.tf").read_bytes()
+        tree = RENDERED() / name
         assert re.search(r"^bootstrap \*ARGS:\n\t@\{\{cli\}\} bootstrap \{\{ARGS\}\}", (tree / "Justfile").read_text(), flags=re.M), name
         ignore = (tree / ".gitignore").read_text().splitlines()
         assert "*.tfvars" in ignore and "!generated/bootstrap/bootstrap.auto.tfvars" in ignore, name
@@ -444,7 +445,7 @@ def test_the_ruleset_names_no_bypass_actor_and_blocks_only_deletion_and_force_pu
     Actions integration must be part of the ruleset source or owner
     organization` -- and the bypass was never needed: neither rule stops an
     ordinary push, which is all `perform` does."""
-    module = (REPO / "tfmodules" / "bootstrap_github" / "main.tf").read_text()
+    module = (module_path("bootstrap_github") / "main.tf").read_text()
     ruleset = module[module.index('resource "github_repository_ruleset"'):]
     ruleset = ruleset[:ruleset.index("\n}\n") + 3]
     assert "bypass_actors" not in ruleset and "15368" not in module

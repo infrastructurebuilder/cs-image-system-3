@@ -76,6 +76,35 @@ def copy_config(tmp_path: Path, name: str = "config") -> Path:
     return dst
 
 
+def module_path(name: str) -> Path:
+    """The directory of one installed terraform module, inside the plugin
+    that ships it (``installed_modules()[name].path``)."""
+    from cs_image_system.base.modules import installed_modules
+    return installed_modules()[name].path
+
+
+def modules_beside(config_root: Path) -> Path:
+    """Every installed module written (and stamped) into
+    ``<config_root>/../tfmodules``, where the fixture's ``module_source_base``
+    (``../tfmodules``) expects them; the directory is returned."""
+    from cs_image_system.base.modules import materialise_modules
+    dest = config_root.parent / "tfmodules"
+    report = materialise_modules(dest)
+    assert report.ok, "\n".join(report.lines())
+    return dest
+
+
+def modules_inside(config_root: Path) -> Path:
+    """Every installed module written into the tree's own ``tfmodules``
+    directory, where a starter's ``module_source_base`` (``tfmodules``)
+    expects them; the directory is returned."""
+    from cs_image_system.base.modules import materialise_modules
+    dest = config_root / "tfmodules"
+    report = materialise_modules(dest)
+    assert report.ok, "\n".join(report.lines())
+    return dest
+
+
 def docker_binary() -> str:
     """The docker CLI the FIXTURE declares (``cfg/executables.yml``, entry
     ``docker``) when its binary exists on this machine, else ``docker``

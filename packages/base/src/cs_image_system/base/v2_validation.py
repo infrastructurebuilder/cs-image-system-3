@@ -27,6 +27,7 @@ from .capabilities import (
 from cs_image_system.contract.lifecycles import Lifecycle
 from .storage_state import attachments, validate_transitions
 from .image_tests import validate_tests_spec
+from .utils import module_source_overrides
 
 if TYPE_CHECKING:
     from .global_context import GlobalTypeContext
@@ -231,7 +232,19 @@ def validate_update_policies(ctx: "GlobalTypeContext", requested: list[Lifecycle
     return errors
 
 
+def validate_module_sources(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> list[str]:
+    """``config: module_sources`` is a mapping of module name to path or URL;
+    the names are not checked (an override may name a module of a plugin
+    that is not installed here)."""
+    try:
+        module_source_overrides(ctx)
+    except ValueError as e:
+        return [str(e)]
+    return []
+
+
 def register(runner) -> None:
+    runner.register_validator(validate_module_sources)
     runner.register_validator(validate_test_specs)
     runner.register_validator(validate_update_policies)
     runner.register_validator(validate_identity)

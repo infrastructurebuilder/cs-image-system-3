@@ -1,14 +1,22 @@
 # The packages
 
-The uv workspace is twenty-two packages under `packages/`. Each has its own
+The uv workspace is twenty-two packages under `packages/`, twenty of
+them published. Each has its own
 README that describes it on its own terms: what it registers, its models
 and how they extend the base models, its builder's hooks, what it emits,
 and one example configuration. The core and the CLI are packages too.
 
-The workspace root is the twenty-second project, `cs-image-system`: no sources of its
-own, a `==` pin on every package, so one install is the whole system
-(`uv pip install cs-image-system==<version>`; see "Installing a release"
-in [OPERATIONS.md](OPERATIONS.md)). Every package declares exactly the
+The workspace root is the umbrella, `cs-image-system`: no sources of its
+own, a `==` pin on the core -- the CLI, the engine, the libraries and
+every plugin that needs no provider account -- and an extra per provider
+(`[aws]`, `[gcloud]`, `[docker]`, `[okta]`, `[all]`), so
+`uv pip install cs-image-system==<version>` carries no runtime and
+`'cs-image-system[aws]==<version>'` adds one (see "Installing a release"
+in [OPERATIONS.md](OPERATIONS.md); the table from a `type:` word to its
+extra is `cs_image_system.extras`, the umbrella's one module). The dummy plugin and the
+contract example plugin are workspace-only: classified `Private :: Do
+Not Upload`, installed through the root's `dev` group, never on the
+index. Every package declares exactly the
 third-party distributions its sources import and pins its siblings at its
 own version; `tests/test_v2_package_metadata.py` holds it to that.
 

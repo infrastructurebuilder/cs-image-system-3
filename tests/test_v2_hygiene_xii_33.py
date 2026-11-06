@@ -8,20 +8,20 @@ read document as a second policy, and the state query marks a permission
 refusal as REFUSED, a role's gap, not a cloud that did not answer."""
 from __future__ import annotations
 
-from tests.test_v2_bootstrap import EXAMPLES, REPO
+from tests.test_v2_bootstrap import EXAMPLES
+from v2_support import module_path
 
 from cs_image_system.base import state_query as sq
 
 
-def test_the_write_role_carries_the_read_document_in_every_copy():
-    for path in [REPO / "tfmodules" / "bootstrap_aws" / "main.tf"] + [
-            EXAMPLES / n / "tfmodules" / "bootstrap_aws" / "main.tf" for n in ("complete", "standard-aws", "standard-aws-posix", "standard-gce", "standard-docker")]:
+def test_the_write_role_carries_the_read_document():
+    for path in [module_path("bootstrap_aws") / "main.tf"]:
         module = path.read_text()
         assert module.count("local.read_document") == 2, path                      # on both roles
         assert 'resource "aws_iam_role_policy" "write_reads"' in module and '"cs-image-system-write-reads"' in module, path
         assert 'resource "aws_iam_role_policy" "write_reads" {\n  name   = "cs-image-system-write-reads"\n  role   = aws_iam_role.write.id' in module, path
         assert module.count('"StorageReality"') == 1 and module.count('"Describe"') == 1   # one document, defined once
-    guide = (EXAMPLES / "standard-aws" / "CI_SETUP.md").read_text()
+    guide = (EXAMPLES / "_skeleton" / "CI_SETUP.md").read_text()
     assert "cs-image-system-write-reads" in guide and "`REFUSED`" in guide
 
 

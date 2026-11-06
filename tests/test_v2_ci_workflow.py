@@ -107,14 +107,14 @@ def test_live_proves_the_fixture_read_only_and_is_gated():
 def test_the_fixture_live_recipe_is_read_only_over_a_copy():
     """`just fixture-live` (stage 64): the fixture's own committed identity,
     validate, a dry run --all with the state query off over a private copy
-    with tfmodules beside it, the modification tests under docker (skipped
+    with the installed modules written beside it, the modification tests under docker (skipped
     loudly without docker); never the live configuration, never a real run."""
     text = (REPO / "Justfile").read_text()
     m = re.search(r"^fixture-live:\n((?:\t.*\n|\n)+)", text, flags=re.M)
     assert m, "no fixture-live recipe"
     body = m.group(1)
     for needle in ("tests/fixtures/config/.age-identity", "--root-dir tests/fixtures/config validate",
-                   "cp -R tfmodules", "run --all --no-state-query", "test-mods --strict", "SKIPPED test-mods",
+                   "modules --write \"$copy/x/tfmodules\"", "run --all --no-state-query", "test-mods --strict", "SKIPPED test-mods",
                    "rm -rf \"$copy\""):
         assert needle in body, needle
     assert "--no-dry-run" not in body and "--commit" not in body and "config_root" not in body

@@ -20,7 +20,7 @@ import pytest
 import yaml
 
 from tests.test_v2_explore_gcp import GCE_RUNTIME, _edit, _find, gce_overlay
-from tests.v2_support import REPO, V2Run, copy_config
+from tests.v2_support import V2Run, copy_config, modules_beside
 
 
 def increment3_overlay(root: Path) -> None:
@@ -210,9 +210,8 @@ def test_generated_gce_roots_validate_with_tofu(gce3, tmp_path):
     summary = gce3.run(["identity", "storage", "base-image", "instance-image"], apply=False)
     assert summary.ok, summary.error
     # module_source_base is ../tfmodules relative to the config root
-    link = gce3.config_root.parent / "tfmodules"
-    if not link.exists():
-        os.symlink(REPO / "tfmodules", link)
+    if not (gce3.config_root.parent / "tfmodules").exists():
+        modules_beside(gce3.config_root)
     roots = [gce3.generated / "storage" / "gcp-pd", gce3.generated / "storage" / "gcp-filestore",
              gce3.generated / "storage" / "gcp-gcs", gce3.generated / "instance-image" / "tofu-gce"]
     cache = private_plugin_cache(tmp_path, roots)

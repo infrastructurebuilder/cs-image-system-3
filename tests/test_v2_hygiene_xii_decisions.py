@@ -19,7 +19,7 @@ import yaml
 
 from tests.test_v2_bootstrap import EXAMPLES, REPO, _assigned, _starter_copy
 from tests.test_v2_bootstrap_aws import _account, _facts, _filled
-from v2_support import V2Run
+from v2_support import V2Run, module_path
 
 from cs_image_system.base import bootstrap as bs
 
@@ -64,9 +64,8 @@ def test_a_bucket_the_root_made_stays_managed_after_the_second_interview(tmp_pat
     tfvars = (bs.output_dir(theirs) / "bootstrap.auto.tfvars").read_text()
     assert _assigned(tfvars, "aws_state_bucket_managed", "false")
     assert "stood before this root and is not managed here" in (bs.output_dir(theirs) / "README.md").read_text()
-    # the module counts the bucket resources on `managed`, never on `exists`, in every copy
-    for path in [REPO / "tfmodules" / "bootstrap_aws" / "main.tf"] + [
-            EXAMPLES / n / "tfmodules" / "bootstrap_aws" / "main.tf" for n in ("complete", "standard-aws", "standard-aws-posix", "standard-gce", "standard-docker")]:
+    # the module counts the bucket resources on `managed`, never on `exists`
+    for path in [module_path("bootstrap_aws") / "main.tf"]:
         module = path.read_text()
         assert module.count("var.state_bucket_managed ? 1 : 0") == 4 and "state_bucket_exists ? 0 : 1" not in module, path
 

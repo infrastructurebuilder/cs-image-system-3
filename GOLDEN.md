@@ -100,9 +100,12 @@ you meant, and say so in the commit message.
    and licence headers therefore never touch provisioned content. If the
    golden shows a `content_hash` or `csis_fingerprint` moving, stop and work
    out why.
-2. *A copy of the configuration needs `tfmodules/` beside it.* The generated
+2. *A copy of the configuration needs the modules beside it.* The generated
    terraform roots reach their modules by a relative path that climbs out of
-   the configuration tree. A copy without `tfmodules/` as a sibling fails at
+   the fixture tree (`module_source_base: ../tfmodules`). The modules ship
+   inside their plugin's package, so a copy writes them beside itself with
+   `cs-image-system modules --write <copy>/../tfmodules` (the tests'
+   `modules_beside` helper does the same); a copy without them fails at
    `tofu init`, and the identity roots do that during generation even in a dry
    run.
 

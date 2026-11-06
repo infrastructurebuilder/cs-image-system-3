@@ -461,32 +461,53 @@ version = "0.1.7.dev1"
 source = { editable = "." }
 dependencies = [
     { name = "cs-image-system-ansible-plugin" },
-    { name = "cs-image-system-aws-runtime-plugin" },
     { name = "cs-image-system-base" },
     { name = "cs-image-system-bash-mod-plugin" },
     { name = "cs-image-system-contract" },
-    { name = "cs-image-system-contract-example-plugin" },
     { name = "cs-image-system-default-os-plugin" },
-    { name = "cs-image-system-docker-runtime-plugin" },
-    { name = "cs-image-system-dummy-plugin" },
-    { name = "cs-image-system-gcloud-runtime-plugin" },
-    { name = "cs-image-system-gcs-state-plugin" },
     { name = "cs-image-system-hashicorp-utils" },
     { name = "cs-image-system-local-state-plugin" },
-    { name = "cs-image-system-okta-opa-plugin" },
     { name = "cs-image-system-packer-plugin" },
     { name = "cs-image-system-posix-identity-plugin" },
     { name = "cs-image-system-system" },
+    { name = "cs-image-system-tofu-roots" },
+]
+
+[package.optional-dependencies]
+all = [
+    { name = "cs-image-system-aws-runtime-plugin" },
+    { name = "cs-image-system-docker-runtime-plugin" },
+    { name = "cs-image-system-gcloud-runtime-plugin" },
+    { name = "cs-image-system-gcs-state-plugin" },
+    { name = "cs-image-system-okta-opa-plugin" },
     { name = "cs-image-system-tf-docker-plugin" },
     { name = "cs-image-system-tf-ebs-instance-plugin" },
     { name = "cs-image-system-tf-gcp-plugin" },
     { name = "cs-image-system-tf-s3-state-plugin" },
-    { name = "cs-image-system-tofu-roots" },
+]
+aws = [
+    { name = "cs-image-system-aws-runtime-plugin" },
+    { name = "cs-image-system-tf-ebs-instance-plugin" },
+    { name = "cs-image-system-tf-s3-state-plugin" },
+]
+docker = [
+    { name = "cs-image-system-docker-runtime-plugin" },
+    { name = "cs-image-system-tf-docker-plugin" },
+]
+gcloud = [
+    { name = "cs-image-system-gcloud-runtime-plugin" },
+    { name = "cs-image-system-gcs-state-plugin" },
+    { name = "cs-image-system-tf-gcp-plugin" },
+]
+okta = [
+    { name = "cs-image-system-okta-opa-plugin" },
 ]
 
 [package.dev-dependencies]
 dev = [
     { name = "bump-my-version" },
+    { name = "cs-image-system-contract-example-plugin" },
+    { name = "cs-image-system-dummy-plugin" },
     { name = "pyright" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -497,32 +518,42 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "cs-image-system-ansible-plugin", editable = "packages/ansible-plugin" },
-    { name = "cs-image-system-aws-runtime-plugin", editable = "packages/aws-runtime-plugin" },
+    { name = "cs-image-system-aws-runtime-plugin", marker = "extra == 'all'", editable = "packages/aws-runtime-plugin" },
+    { name = "cs-image-system-aws-runtime-plugin", marker = "extra == 'aws'", editable = "packages/aws-runtime-plugin" },
     { name = "cs-image-system-base", editable = "packages/base" },
     { name = "cs-image-system-bash-mod-plugin", editable = "packages/bash-mod-plugin" },
     { name = "cs-image-system-contract", editable = "packages/contract" },
-    { name = "cs-image-system-contract-example-plugin", editable = "packages/contract-example-plugin" },
     { name = "cs-image-system-default-os-plugin", editable = "packages/default-os-plugin" },
-    { name = "cs-image-system-docker-runtime-plugin", editable = "packages/docker-runtime-plugin" },
-    { name = "cs-image-system-dummy-plugin", editable = "packages/dummy-plugin" },
-    { name = "cs-image-system-gcloud-runtime-plugin", editable = "packages/gcloud-runtime-plugin" },
-    { name = "cs-image-system-gcs-state-plugin", editable = "packages/gcs-state-plugin" },
+    { name = "cs-image-system-docker-runtime-plugin", marker = "extra == 'all'", editable = "packages/docker-runtime-plugin" },
+    { name = "cs-image-system-docker-runtime-plugin", marker = "extra == 'docker'", editable = "packages/docker-runtime-plugin" },
+    { name = "cs-image-system-gcloud-runtime-plugin", marker = "extra == 'all'", editable = "packages/gcloud-runtime-plugin" },
+    { name = "cs-image-system-gcloud-runtime-plugin", marker = "extra == 'gcloud'", editable = "packages/gcloud-runtime-plugin" },
+    { name = "cs-image-system-gcs-state-plugin", marker = "extra == 'all'", editable = "packages/gcs-state-plugin" },
+    { name = "cs-image-system-gcs-state-plugin", marker = "extra == 'gcloud'", editable = "packages/gcs-state-plugin" },
     { name = "cs-image-system-hashicorp-utils", editable = "packages/hashicorp-utils" },
     { name = "cs-image-system-local-state-plugin", editable = "packages/local-state-plugin" },
-    { name = "cs-image-system-okta-opa-plugin", editable = "packages/okta-opa-plugin" },
+    { name = "cs-image-system-okta-opa-plugin", marker = "extra == 'all'", editable = "packages/okta-opa-plugin" },
+    { name = "cs-image-system-okta-opa-plugin", marker = "extra == 'okta'", editable = "packages/okta-opa-plugin" },
     { name = "cs-image-system-packer-plugin", editable = "packages/packer-plugin" },
     { name = "cs-image-system-posix-identity-plugin", editable = "packages/posix-identity-plugin" },
     { name = "cs-image-system-system", editable = "packages/system" },
-    { name = "cs-image-system-tf-docker-plugin", editable = "packages/tf-docker-plugin" },
-    { name = "cs-image-system-tf-ebs-instance-plugin", editable = "packages/tf-ebs-instance-plugin" },
-    { name = "cs-image-system-tf-gcp-plugin", editable = "packages/tf-gcp-plugin" },
-    { name = "cs-image-system-tf-s3-state-plugin", editable = "packages/tf-s3-state-plugin" },
+    { name = "cs-image-system-tf-docker-plugin", marker = "extra == 'all'", editable = "packages/tf-docker-plugin" },
+    { name = "cs-image-system-tf-docker-plugin", marker = "extra == 'docker'", editable = "packages/tf-docker-plugin" },
+    { name = "cs-image-system-tf-ebs-instance-plugin", marker = "extra == 'all'", editable = "packages/tf-ebs-instance-plugin" },
+    { name = "cs-image-system-tf-ebs-instance-plugin", marker = "extra == 'aws'", editable = "packages/tf-ebs-instance-plugin" },
+    { name = "cs-image-system-tf-gcp-plugin", marker = "extra == 'all'", editable = "packages/tf-gcp-plugin" },
+    { name = "cs-image-system-tf-gcp-plugin", marker = "extra == 'gcloud'", editable = "packages/tf-gcp-plugin" },
+    { name = "cs-image-system-tf-s3-state-plugin", marker = "extra == 'all'", editable = "packages/tf-s3-state-plugin" },
+    { name = "cs-image-system-tf-s3-state-plugin", marker = "extra == 'aws'", editable = "packages/tf-s3-state-plugin" },
     { name = "cs-image-system-tofu-roots", editable = "packages/tofu-roots" },
 ]
+provides-extras = ["aws", "gcloud", "docker", "okta", "all"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "bump-my-version", specifier = ">=1.2" },
+    { name = "cs-image-system-contract-example-plugin", editable = "packages/contract-example-plugin" },
+    { name = "cs-image-system-dummy-plugin", editable = "packages/dummy-plugin" },
     { name = "pyright", specifier = ">=1.1.390" },
     { name = "pytest", specifier = ">=8.3" },
     { name = "pytest-cov", specifier = ">=6.0" },
@@ -616,7 +647,7 @@ requires-dist = [
 
 [[package]]
 name = "cs-image-system-contract"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "packages/contract" }
 dependencies = [
     { name = "packaging" },

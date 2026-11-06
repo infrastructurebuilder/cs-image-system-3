@@ -48,7 +48,7 @@ def test_reuse_toml_declares_what_carries_no_header():
 
 def test_every_source_file_carries_the_header_and_no_hashed_file_does():
     sources = [p for p in (REPO / "packages").rglob("*.py") if ".venv" not in p.parts]
-    sources += list((REPO / "tests").glob("*.py")) + list((REPO / "tfmodules").rglob("*.tf"))
+    sources += list((REPO / "tests").glob("*.py")) + [p for p in (REPO / "packages").rglob("*.tf") if ".venv" not in p.parts]
     sources += list((REPO / "bin").glob("*.sh")) + [REPO / "Justfile", REPO / ".githooks" / "pre-commit"]
     assert len(sources) > 300
     missing = [str(p.relative_to(REPO)) for p in sources if HEADER not in "\n".join(p.read_text().splitlines()[:6])]

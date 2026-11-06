@@ -69,7 +69,9 @@ jobs:
           # cannot satisfy: the pinned .dev packages. uv's default strategy stops at the first index
           # that has a name at all, and PyPI has had cs-image-system since 0.1.1 (stage 99).
           case "$pin" in *.dev*) indexes="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match" ;; esac
-          uv tool install $indexes "cs-image-system${pin}"
+          # the extras this tree's `type:` words need (`just extras`): a bare install carries no runtime
+          extras=$(just extras)
+          uv tool install $indexes "cs-image-system${extras:+[$extras]}${pin}"
           cs-image-system --help >/dev/null
       - name: The Justfile parses and lists its recipes
         run: just --list >/dev/null
@@ -148,7 +150,9 @@ jobs:
           # cannot satisfy: the pinned .dev packages. uv's default strategy stops at the first index
           # that has a name at all, and PyPI has had cs-image-system since 0.1.1 (stage 99).
           case "$pin" in *.dev*) indexes="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match" ;; esac
-          uv tool install $indexes "cs-image-system${pin}"
+          # the extras this tree's `type:` words need (`just extras`): a bare install carries no runtime
+          extras=$(just extras)
+          uv tool install $indexes "cs-image-system${extras:+[$extras]}${pin}"
           cs-image-system --help >/dev/null
       - name: Federated AWS credentials, the read-only role
         if: steps.gate.outputs.ready == 'true'
@@ -290,7 +294,9 @@ jobs:
           # cannot satisfy: the pinned .dev packages. uv's default strategy stops at the first index
           # that has a name at all, and PyPI has had cs-image-system since 0.1.1 (stage 99).
           case "$pin" in *.dev*) indexes="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match" ;; esac
-          uv tool install $indexes "cs-image-system${pin}"
+          # the extras this tree's `type:` words need (`just extras`): a bare install carries no runtime
+          extras=$(just extras)
+          uv tool install $indexes "cs-image-system${extras:+[$extras]}${pin}"
           cs-image-system --help >/dev/null
       - name: Federated AWS credentials, the read-only role
         if: steps.gate.outputs.ready == 'true'

@@ -256,32 +256,65 @@ deferred command in a runner script runs through.
 ### `init-config DESTINATION [--from NAME] [--force] [--changes-since PREVIOUS_STARTERS]`
 
 Write a starter configuration repository from this release. The
-release carries five starter trees -- `standard-aws` (the default),
+release carries five starters -- `standard-aws` (the default),
 `standard-gce`, `complete`, `standard-aws-posix` (no Okta; the posix
 identity plugin) and `standard-docker` (a docker host, no cloud), the
 source being the system repository's `docs/examples/` -- and a
 `DESTINATION` that does not exist or is empty takes the whole one: the
 YAML, the `Justfile`, the workflow, the public-safe hook, `.gitignore`,
 `tfmodules/` (`module_source_base: tfmodules`) and
-`.csis-version` pinned to the running release. A `DESTINATION` that
-already holds a configuration takes only the parts the release owns (the
-same list without the YAML and the README), so an existing repository
-gains them, or refreshes them after an upgrade, with its own files
-untouched; a release-owned file that exists and differs is `REFUSED` by
-name, exit 1, until `--force` overwrites it, and an identical one is
-kept. Prints what was written and kept. Loads no configuration and needs
-no credential. Exit 2 for an unknown starter or a destination that is a
-file.
+`.csis-version` pinned to the running release.
+
+A starter is assembled from two parts (`starters.render`): the
+**skeleton**, `docs/examples/_skeleton/`, which holds the files every
+starter shares byte for byte (the `Justfile`, `CI_SETUP.md`, the hook,
+`.gitignore`, the TEST age identity and recipient, the base images'
+README), and the starter's own **overlay**, `docs/examples/<name>/`,
+laid over it (its YAML, workflows, README, playbooks, scripts; an
+overlay never repeats a skeleton file). The build hook ships the
+marker, the skeleton and every overlay as they are. The terraform
+modules are in neither: each plugin ships the modules it owns as
+package data, and `starters.write_starter` materialises the installed
+ones into the tree's `module_source_base` directory, every copy
+stamped with `.csis-module` (the plugin, the release, the content
+hash). `init-config` into an empty destination, `scripts/starter-tree`
+(the published template repositories) and the tests all write a
+starter through `write_starter`, so the three never differ.
+
+A `DESTINATION` that already holds a configuration takes only the parts
+the release owns (the same list without the YAML and the README), so an
+existing repository gains them, or refreshes them after an upgrade, with
+its own files untouched; a release-owned file that exists and differs
+is `REFUSED` by name, exit 1, until `--force` overwrites it, and an
+identical one is kept. The modules are refreshed by their stamps, into
+the directory the tree's `module_source_base` names when that is a
+directory inside the tree (none is written for a base outside it, and
+the report says so): a copy nobody edited takes the release's
+(`refreshed`), an unstamped copy identical to the release's is stamped
+(`adopted`), an edited copy is `REFUSED` by name with or without
+`--force`, and the report says how to keep it (name the module under
+`config: module_sources`, which `init-config` then never writes) or
+to take the release's (delete the copy). Prints what was written and
+kept, the modules' own account among it. Loads no configuration and
+needs no credential. Exit 2 for an unknown starter or a destination
+that is a file.
 
 With `--changes-since PREVIOUS_STARTERS` nothing is written:
 the command lists which release-owned files this release changed in an
 existing tree, given the previous release's `starters/` directory (its
 wheel's `cs_image_system/system/starters`; `just take` finds it with `uvx
---from cs-image-system==<previous> python -c ...`). A file the release did
+--from cs-image-system==<previous> python -c ...`), in either layout: a
+skeleton with overlays, or whole trees with their `tfmodules/` inside.
+This release's side is the rendered starter plus the installed plugins'
+modules as they sit in the tree's modules directory; the stamps are part
+of no comparison. A file the release did
 not change is not listed. A changed file the tree still holds as the
 previous release wrote it (byte for byte, or a workflow with only the
 team's values where that release had `REPLACE-ME`) is listed to refresh; one
 the tree also edited is listed apart; one the tree lacks is listed as new.
+A previous root that carries no modules (one of the skeleton layout) has
+no previous text for them: a module file the tree holds as this release's
+is passed over, one that differs is listed as edited.
 Exit 1 when any is listed, 0 when none, 2 when the previous release has no
 such starter or the destination holds no configuration.
 
@@ -1260,6 +1293,6 @@ warnings and goes on.
   (the gated sequence, `state-migration`).
 - [The Justfile](../../Justfile): `just cli`, `preflight`, `test-mods`,
   `fixture-live`; the starter Justfile the release ships
-  ([docs/examples/standard-aws/Justfile](../../docs/examples/standard-aws/Justfile)):
+  ([docs/examples/_skeleton/Justfile](../../docs/examples/_skeleton/Justfile), the one every starter carries):
   the `cloud-*` recipes, `record`, `config-drift`, `runtime-unchanged`,
   `ci-login-proof`.

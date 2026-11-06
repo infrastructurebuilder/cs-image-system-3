@@ -55,8 +55,13 @@ config:
   apply_release: false             # let the release lifecycle mark artifacts in the cloud
   use_state_backends: true         # emit backend / remote-state blocks (needs the declared state buckets)
   # a relative path is relative to this tree and rewritten per root depth;
-  # an absolute path or a git/registry URL passes through
-  module_source_base: tfmodules   # DECISION: the modules travel with the tree (the release ships them; init-config writes and refreshes them)
+  # an absolute path or a git/registry URL passes through. The modules come
+  # from the installed plugins: init-config writes them here and refreshes
+  # every copy nobody edited; `module_sources` (module name -> path or URL)
+  # sources one module elsewhere, and init-config never writes that one
+  module_source_base: tfmodules   # DECISION: the modules travel with the tree (init-config writes and refreshes them)
+  # module_sources:
+  #   aws_instance: ../our-modules/aws_instance
   # the mandatory local admin user's PUBLIC keys, ENCRYPTED here (any value
   # may be a marker, section 13): the emission carries the ciphertext and
   # `materialize` substitutes the key where packer runs. It decrypts to a

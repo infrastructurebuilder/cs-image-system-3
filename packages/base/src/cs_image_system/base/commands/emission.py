@@ -202,13 +202,31 @@ def _git_archive(root: Path, ref: str, paths: list[str], into: Path) -> bool:
     return True
 
 
-def _module_source_base(root: Path) -> str | None:
+def _raw_config(root: Path) -> dict:
     try:
         doc = yaml.safe_load((root / "cfg" / "_config.yml").read_text()) or {}
     except (OSError, yaml.YAMLError):
-        return None
-    cfg = doc.get("config") or {}
-    return str(cfg["module_source_base"]) if isinstance(cfg, dict) and cfg.get("module_source_base") else None
+        return {}
+    cfg = doc.get("config") if isinstance(doc, dict) else None
+    return cfg if isinstance(cfg, dict) else {}
+
+
+def _module_source_base(root: Path) -> str | None:
+    cfg = _raw_config(root)
+    return str(cfg["module_source_base"]) if cfg.get("module_source_base") else None
+
+
+def _module_sources_outside(root: Path) -> list[str]:
+    """The relative ``config: module_sources`` entries (each one module's
+    directory) the copy must carry beside itself as it carries the base."""
+    sources = _raw_config(root).get("module_sources")
+    if not isinstance(sources, dict):
+        return []
+    return [str(v).rstrip("/") for v in sources.values() if isinstance(v, str) and v.strip()]
+
+
+def _is_local_relative(source: str) -> bool:
+    return not source.startswith(("/", "git")) and not _FORCED_GETTER.match(source) and "://" not in source
 
 
 def _provider_cache_inside(root: Path) -> Path | None:
@@ -245,16 +263,18 @@ def copy_tree_for_a_dry_run(root: Path, work: Path) -> Path:
     modules that way until stage 64) is copied beside it at the same relative
     place, so the dry run's ``tofu init`` still finds the modules."""
     base = _module_source_base(root)
-    depth = 0
-    if base and not base.startswith(("/", "git")) and not _FORCED_GETTER.match(base) and "://" not in base:
-        rel = Path(os.path.relpath((root / base).resolve(), root))
-        depth = sum(1 for part in rel.parts if part == "..")
+    beside: list[str] = [s for s in [base, *_module_sources_outside(root)] if s and _is_local_relative(s)]
+    depths = {s: sum(1 for part in Path(os.path.relpath((root / s).resolve(), root)).parts if part == "..")
+              for s in beside}
+    depth = max(depths.values(), default=0)
     parent = work.joinpath(*(["d"] * depth)) if depth else work
     copy = parent / root.name
     shutil.copytree(root, copy, ignore=_left_out_of_the_copy(root), symlinks=True)
-    if depth and base:
-        src = (root / base).resolve()
-        dst = (copy / base).resolve()
+    for source in beside:
+        if not depths[source]:
+            continue                                    # inside the tree: the copy already carries it
+        src = (root / source).resolve()
+        dst = (copy / source).resolve()
         if src.is_dir() and not dst.exists():
             shutil.copytree(src, dst, ignore=shutil.ignore_patterns(".git", ".terraform", ".DS_Store"))
     return copy

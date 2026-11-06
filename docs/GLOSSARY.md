@@ -400,7 +400,7 @@ run leaves on disk for the next record to commit. "The records" without
 the article is `meta-state/` as a whole, and "a record" is one entry in
 it. The record is not the golden (the tests' pinned emission) and not a
 real run: it performs nothing. Read the `record` recipe in a starter
-tree's [Justfile](examples/standard-gce/Justfile) and
+tree's [Justfile](examples/_skeleton/Justfile) and
 [OPERATIONS.md, "A configuration repository: the `perform` job"](OPERATIONS.md#a-configuration-repository-the-perform-job).
 
 ### the reference
@@ -509,7 +509,7 @@ With nothing to patch it writes `.csis-version`, runs `just init` and
 `develop` to `main` is its own act, because `main` performs. The take is
 not the release: the release is cut here, the take is a team's act in
 its own repository. Read the `take` recipe in a starter tree's
-[Justfile](examples/standard-gce/Justfile) and
+[Justfile](examples/_skeleton/Justfile) and
 [DAILY_DRIVER.md, "The release, and how it reaches you"](DAILY_DRIVER.md#11-the-release-and-how-it-reaches-you).
 
 ### verify

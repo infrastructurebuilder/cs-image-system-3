@@ -10,7 +10,8 @@ The OpenTofu plugin for a container runtime: the
 instance builder `tofu-docker` and the storage builder `tf-docker-volume`.
 Each emits one terraform root on the `kreuzwerker/docker` provider against a
 release-owned module (`tfmodules/docker_container`, `tfmodules/docker_volume`,
-which every starter carries), exactly as the clouds' tofu plugins do against
+shipped as package data by the docker-runtime plugin and written into a
+tree by `init-config`), exactly as the clouds' tofu plugins do against
 theirs. The runtime is the `docker` runtime of
 [cs-image-system-docker-runtime-plugin](../docker-runtime-plugin/README.md):
 a durable host running a daemon that speaks the Docker Engine API.
@@ -236,8 +237,9 @@ validation).
 - A state manager for the roots: the runtime's `state_configuration`, often
   `local` for a tree with no cloud.
 - The modules `tfmodules/docker_container` and `tfmodules/docker_volume`
-  beside the configuration root (`module_source_base`); every starter carries
-  them.
+  beside the configuration root (`module_source_base`, or one of them where
+  `module_sources` names it); `init-config` writes them from the
+  docker-runtime plugin's package data.
 - `bash` on the baked image (the session runs `bash -s`), which the docker
   runtime's settle step installs with `sudo` and `python3` where a vendor
   container lacks them.

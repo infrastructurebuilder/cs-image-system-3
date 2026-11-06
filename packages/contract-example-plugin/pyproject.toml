@@ -10,13 +10,16 @@ readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
 license = "Apache-2.0"
 license-files = ["LICENSE"]
+# Workspace-only (stage 126): installed through the root's dev group, never published;
+# an index refuses an upload carrying this classifier, and the release tooling skips it
+classifiers = ["Private :: Do Not Upload"]
 requires-python = ">=3.13"
 # Stage 30: the contract and nothing else of the system. A test holds this
 # package to importing nothing from cs_image_system.base, .system or
 # .hashicorp_utils; the workspace pins the contract at == because the
 # packages release together, an external plugin would pin a floor.
 dependencies = [
-    "cs-image-system-contract>=0.2,<0.3",
+    "cs-image-system-contract>=0.3,<0.4",
     "pydantic>=2.13",
 ]
 

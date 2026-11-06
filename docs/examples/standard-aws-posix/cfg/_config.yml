@@ -64,8 +64,15 @@ config:
   # REPLACE: where the generated `module` calls find the terraform modules --
   # relative to THIS tree (rewritten for each root's depth), or an absolute
   # path, or a git/registry URL, which passes through unchanged. The modules
-  # ship in the cs-image-system repository's tfmodules/ directory.
-  module_source_base: tfmodules   # DECISION: the modules travel with the tree (the release ships them; init-config writes and refreshes them)
+  # come from the installed plugins (each plugin ships the modules it owns):
+  # `cs-image-system init-config` writes them here and refreshes every copy
+  # nobody edited; a copy you edit is kept and named. To source one module
+  # elsewhere, name it under `module_sources` (a map of module name to path
+  # or URL): that entry wins over the base for that module alone, and
+  # init-config never writes it.
+  module_source_base: tfmodules   # DECISION: the modules travel with the tree (init-config writes and refreshes them)
+  # module_sources:
+  #   aws_instance: ../our-modules/aws_instance
   # The mandatory local admin user of every base image gets these PUBLIC keys
   # (a list; rotation = add the new key, migrate, remove the old). Anything
   # resembling private-key material is refused at load.

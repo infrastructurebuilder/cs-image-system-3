@@ -8,10 +8,31 @@
 A team installs a release and owns a configuration repository. What that
 repository needs beyond its own YAML -- the ``Justfile``, the workflow, the
 public-safe hook, ``.gitignore``, the terraform modules the emitted roots
-call -- comes from the release, never from a clone of the system: the three
-trees under the system's ``docs/examples/`` are the source, the build hook
+call -- comes from the release, never from a clone of the system: the trees
+under the system's ``docs/examples/`` are the source, the build hook
 (``packages/system/hatch_build.py``) ships them inside this package as
 ``starters/<name>/``, and this module finds them again on any machine.
+
+A starter is assembled from two parts (``render``):
+
+* the **skeleton**, ``docs/examples/_skeleton/``: the files every starter
+  shares byte for byte (the ``Justfile``, ``CI_SETUP.md``, the hook,
+  ``.gitignore``, the TEST age identity and recipient, the base images'
+  README), kept once;
+* the starter's **overlay**, ``docs/examples/<name>/``: everything that is
+  the starter's own (its YAML, its workflows, its README, its playbooks
+  and scripts), laid over the skeleton; an overlay never repeats a
+  skeleton file.
+
+The terraform modules are in neither: they are package data of the plugins
+that own them (``cs_image_system.base.modules``), and ``write_starter``
+materialises the installed ones into the tree's ``module_source_base``
+directory (every starter declares ``tfmodules``), each copy stamped so a
+later ``init-config`` can tell an unmodified copy from an edited one. A
+starters directory of the older layout -- whole trees, ``tfmodules/``
+inside, no ``_skeleton`` -- still renders: each tree's files as they are.
+``init-config --changes-since`` reads such a directory from an earlier
+release's wheel.
 
 Two forms of ``init-config``:
 
@@ -53,12 +74,18 @@ from __future__ import annotations
 import re
 
 import difflib
+import posixpath
 import shutil
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from importlib import metadata, resources
 from pathlib import Path
 
+import yaml
 from packaging.version import InvalidVersion, Version
+
+from cs_image_system.base.modules import (STAMP_FILE, ModulesReport, declared_overrides, installed_modules,
+                                          materialise_modules)
 
 from .starter_links import rewrite_tree
 
@@ -68,10 +95,20 @@ VERSION_FILE = ".csis-version"
 #: carry a ``cfg/``. The release ships both, so the system carries no list
 #: of starters of its own and names none.
 DEFAULT_MARKER = "DEFAULT"
+#: The directory beside the starters holding the files every starter shares;
+#: it has no ``cfg/`` and is never a starter. Nothing else beside the starters
+#: may start with an underscore.
+SKELETON = "_skeleton"
+#: The modules directory a tree gets when its ``cfg/_config.yml`` declares no
+#: ``module_source_base``: the starters' own convention.
+MODULES_DIR = "tfmodules"
+#: Files that are never part of a starter: a run's output, the materialised
+#: roots, Python's and Finder's litter.
+_LITTER = (".DS_Store", "__pycache__", "generated", "_private")
 
 
 def _is_starter(path: Path) -> bool:
-    return path.is_dir() and (path / "cfg").is_dir()
+    return path.is_dir() and not path.name.startswith("_") and (path / "cfg").is_dir()
 
 
 def _starter_roots() -> list[Path]:
@@ -128,9 +165,10 @@ RELEASE_OWNED_FILES: tuple[str, ...] = (
     ".githooks/pre-commit",
     "CI_SETUP.md",          # stage 69: the guide names the workflow's secrets, so it moves with the workflow
 )
-RELEASE_OWNED_DIRS: tuple[str, ...] = (".github/workflows", "tfmodules")
-
-_IGNORED = shutil.ignore_patterns(".DS_Store", "__pycache__", "generated", "_private")
+#: ``tfmodules`` stays in the list for a starters directory of the older
+#: layout, where the modules were files of the tree (``changes_since``
+#: compares such a directory); a rendered starter holds no modules.
+RELEASE_OWNED_DIRS: tuple[str, ...] = (".github/workflows", MODULES_DIR)
 
 #: Where a release-owned file holds a team's value, the starter says so.
 PLACEHOLDER_MARKS: tuple[str, ...] = ("REPLACE-ME", "REPLACE_ME")
@@ -184,7 +222,7 @@ def infer_starter(destination: Path) -> str | None:
     own = mine.read_text().splitlines()
 
     def distance(name: str) -> tuple[int, int]:
-        theirs = (starter_path(name) / WORKFLOW).read_text().splitlines()
+        theirs = render_sources(name)[WORKFLOW].read_text().splitlines()
         ops = difflib.SequenceMatcher(None, theirs, own, autojunk=False).get_opcodes()
         differing = sum(max(i2 - i1, j2 - j1) for tag, i1, i2, j1, j2 in ops if tag != "equal")
         return differing, STARTERS.index(name)
@@ -225,19 +263,151 @@ def stale_install(installed: str | None = None, declared: str | None = None) -> 
 
 
 def starter_path(name: str) -> Path:
+    """The starter's own directory (its overlay) under the release's
+    starters; the whole starter is ``render(name)``."""
     if name not in STARTERS:
         raise ValueError(f"no starter named {name!r}; the release carries {', '.join(STARTERS) or 'no starter tree'}")
     return starters_root() / name
 
 
-def release_owned_paths(starter: Path) -> list[str]:
-    """The release-owned files the starter carries, as paths relative to it."""
-    out: list[str] = [f for f in RELEASE_OWNED_FILES if (starter / f).is_file()]
-    for d in RELEASE_OWNED_DIRS:
-        base = starter / d
-        if base.is_dir():
-            out.extend(str(p.relative_to(starter)) for p in sorted(base.rglob("*")) if p.is_file())
+def release_owned_paths(starter: Path | Mapping[str, object]) -> list[str]:
+    """The release-owned files a starter carries, as paths relative to it.
+
+    ``starter`` is a rendered view (``render``'s mapping, or any mapping
+    whose keys are the tree's relative paths) or a directory: an overlay
+    beside a ``_skeleton`` is read with the skeleton under it, any other
+    directory (a tree of the older layout, a written tree) as it is."""
+    if isinstance(starter, Path):
+        starter = _render_sources_of(starter)
+    out: list[str] = [f for f in RELEASE_OWNED_FILES if f in starter]
+    dirs = tuple(d + "/" for d in RELEASE_OWNED_DIRS)
+    out.extend(rel for rel in sorted(starter) if rel.startswith(dirs))
     return out
+
+
+# ------------------------------------------------------------- the render
+
+def _tree_files(root: Path) -> dict[str, Path]:
+    """Every file under ``root`` by its relative POSIX path, the litter left out."""
+    out: dict[str, Path] = {}
+    for p in sorted(root.rglob("*")):
+        if not p.is_file():
+            continue
+        rel = p.relative_to(root)
+        if any(part in _LITTER for part in rel.parts):
+            continue
+        out[rel.as_posix()] = p
+    return out
+
+
+def module_base_of(cfg_text: str | None) -> str | None:
+    """The modules directory a tree's ``cfg/_config.yml`` text declares,
+    normalised and relative to the tree, when it lies inside the tree
+    (``tfmodules``, ``./tfmodules``, ``tools/modules``); None when it is
+    absolute, leaves the tree (``../cs-image-system-3/tfmodules``) or names
+    a remote source: such a base is the tree's own and no file is written
+    for it. No declaration at all means ``MODULES_DIR``."""
+    if cfg_text is None:
+        return MODULES_DIR
+    try:
+        doc = yaml.safe_load(cfg_text) or {}
+    except yaml.YAMLError:
+        return None
+    config = doc.get("config") if isinstance(doc, dict) else None
+    base = config.get("module_source_base") if isinstance(config, dict) else None
+    if base is None:
+        return MODULES_DIR
+    base = str(base).strip()
+    if not base or base.startswith("/") or re.match(r"^[a-z][a-z0-9+.-]*:", base) or "::" in base:
+        return None
+    norm = posixpath.normpath(base)
+    if norm in (".", "") or norm.startswith(".."):
+        return None
+    return norm
+
+
+def _render_sources_of(directory: Path) -> dict[str, Path]:
+    """A directory's files as a starter's: an overlay beside a ``_skeleton``
+    is laid over it, with its modules directory left out (the modules are
+    the plugins'); any other directory is read as it is."""
+    skeleton = directory.parent / SKELETON
+    if not (skeleton.is_dir() and _is_starter(directory)):
+        return _tree_files(directory)
+    files = _tree_files(skeleton)
+    own = _tree_files(directory)
+    cfg = own.get("cfg/_config.yml")
+    base = module_base_of(cfg.read_text()) if cfg is not None else None
+    for rel, p in own.items():
+        if base and rel.startswith(base + "/"):
+            continue
+        files[rel] = p
+    return dict(sorted(files.items()))
+
+
+def render_sources(name: str, root: Path | None = None) -> dict[str, Path]:
+    """``render`` with the source file of each path instead of its bytes
+    (the file modes travel from them: the hook and the scripts are
+    executable)."""
+    root = root or starters_root()
+    overlay = root / name
+    if not _is_starter(overlay):
+        known = ", ".join(c.name for c in sorted(root.iterdir()) if _is_starter(c))
+        raise ValueError(f"no starter named {name!r}; {root} carries {known or 'no starter tree'}")
+    return _render_sources_of(overlay)
+
+
+def render(name: str, root: Path | None = None) -> dict[str, bytes]:
+    """The starter ``name`` as one tree: every file by its relative POSIX
+    path, with its bytes as the source holds them. Under ``root`` (the
+    running release's starters when None): the skeleton's files, then the
+    overlay's over them; under a root of the older layout, which has no
+    ``_skeleton``, the starter's files as they are, its ``tfmodules/``
+    included. The terraform modules of a current root are not here: they
+    come from the installed plugins (``write_starter``)."""
+    return {rel: p.read_bytes() for rel, p in render_sources(name, root).items()}
+
+
+def _modules_written(modules_dir: Path, destination: Path) -> list[str]:
+    return sorted(p.relative_to(destination).as_posix() for p in modules_dir.rglob("*") if p.is_file())
+
+
+def _write_starter(name: str, destination: Path, version: str) -> tuple[list[str], list[str], ModulesReport | None]:
+    """``write_starter``'s work: (the paths written, the Markdown files whose
+    links were rewritten, the modules report or None when the tree's
+    ``module_source_base`` is not a directory inside it)."""
+    destination.mkdir(parents=True, exist_ok=True)
+    sources = render_sources(name)
+    for rel, src in sources.items():
+        dst = destination / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)              # the mode travels: the hook and the scripts are executable
+    written = list(sources)
+    cfg = destination / "cfg" / "_config.yml"
+    base = module_base_of(cfg.read_text() if cfg.is_file() else None)
+    report = None
+    if base:
+        report = materialise_modules(destination / base, overrides=declared_overrides(destination))
+        written.extend(_modules_written(destination / base, destination))
+    # hygiene XV item 1: the starter's links into the system repository point at this
+    # release's tag, since a relative one points nowhere in a repository of its own
+    linked = rewrite_tree(destination, name, version)
+    (destination / VERSION_FILE).write_text(version + "\n")
+    written.append(VERSION_FILE)
+    return sorted(set(written)), linked, report
+
+
+def write_starter(name: str, destination: Path, *, version: str) -> list[str]:
+    """Write the whole starter ``name`` into ``destination`` (created if
+    absent; what is there is overwritten): the rendered tree, then the
+    installed plugins' terraform modules into the tree's own
+    ``module_source_base`` directory (each copy stamped with
+    ``.csis-module``), then every Markdown link that leaves the starter
+    pointed at the system repository at ``v<version>``, then
+    ``.csis-version`` holding ``version``. Returns the relative paths
+    written, sorted. This is what ``init-config`` writes into an empty
+    destination and what ``scripts/starter-tree`` publishes."""
+    written, _, _ = _write_starter(name, destination, version)
+    return written
 
 
 @dataclass
@@ -254,15 +424,22 @@ class InitReport:
     replaced: dict[str, int] = field(default_factory=dict)    # file -> the tree's other lines now the release's
     version_note: str = ""
     linked: list[str] = field(default_factory=list)    # Markdown whose links out of the starter now name the tag
+    modules: ModulesReport | None = None                # the terraform modules' own account (None: none were written)
+    modules_dir: str = ""                               # where they went, relative to the tree
+    modules_note: str = ""                              # why none were written
 
     @property
     def ok(self) -> bool:
-        return not self.refused
+        return not self.refused and (self.modules is None or self.modules.ok)
 
     def lines(self) -> list[str]:
         what = "the whole tree" if self.whole_tree else "the release-owned parts"
         out = [f"init-config: {what} of {self.starter} ({self.version}) -> {self.destination}: "
                f"{len(self.written)} written, {len(self.kept)} kept as they were"]
+        if self.modules is not None:
+            out.extend(self.modules.lines(f"init-config: {self.modules_dir}"))
+        if self.modules_note:
+            out.append(f"init-config: {self.modules_note}")
         if self.inferred:
             out.append(f"init-config: the starter {self.starter} was read from the tree's {WORKFLOW} "
                        "(--from names another)")
@@ -318,6 +495,34 @@ def _place(src: Path, dst: Path, rel: str, report: InitReport, *, force: bool) -
     report.written.append(rel)
 
 
+def _cfg_text(destination: Path) -> str | None:
+    cfg = destination / "cfg" / "_config.yml"
+    return cfg.read_text() if cfg.is_file() else None
+
+
+def _refresh_modules(destination: Path, report: InitReport, *, force: bool) -> None:
+    """The terraform modules of an existing tree: written, refreshed, adopted,
+    kept or refused by name into the tree's own modules directory. An edited
+    stamped copy is refused with or without ``force`` (the report says how to
+    keep it: name it in ``config: module_sources``); a module so named is
+    skipped. A tree whose ``module_source_base`` is not a directory inside it
+    gets no module and a line saying why."""
+    cfg_text = _cfg_text(destination)
+    base = module_base_of(cfg_text)
+    if base is None:
+        report.modules_note = ("no terraform module written: the tree's module_source_base is not a directory "
+                               "inside it; the modules there are the tree's own")
+        return
+    try:
+        overrides = declared_overrides(destination)
+    except ValueError as e:
+        raise ValueError(f"{destination / 'cfg' / '_config.yml'}: {e}") from e
+    modules = materialise_modules(destination / base, force=force, overrides=overrides)
+    report.modules, report.modules_dir = modules, base
+    report.written.extend(f"{base}/{m}/" for m in (*modules.written, *modules.refreshed, *modules.adopted))
+    report.kept.extend(f"{base}/{m}/" for m in modules.kept)
+
+
 def is_new_tree(destination: Path) -> bool:
     """A destination that takes the WHOLE starter: absent, empty, or a fresh
     clone holding only ``.git`` (hygiene XII item 2: a team creates its
@@ -369,17 +574,17 @@ def init_config(destination: Path, starter: str | None = None, *, force: bool = 
     if starter is None:
         found = None if empty else infer_starter(destination)
         starter, inferred = (found, True) if found else (DEFAULT_STARTER, False)
-    source = starter_path(starter)
+    starter_path(starter)                               # an unknown name is refused before anything is written
     report = InitReport(starter=starter, version=version, destination=destination, whole_tree=empty, inferred=inferred)
     if empty:
-        shutil.copytree(source, destination, ignore=_IGNORED, dirs_exist_ok=True)
-        report.written = sorted(str(p.relative_to(destination)) for p in destination.rglob("*") if p.is_file())
-        # hygiene XV item 1: the starter's links into the system repository point at this
-        # release's tag, since a relative one points nowhere in a repository of its own
-        report.linked = rewrite_tree(destination, starter, version)
+        report.written, report.linked, report.modules = _write_starter(starter, destination, version)
+        report.modules_dir = module_base_of(_cfg_text(destination)) or ""
+        report.written.remove(VERSION_FILE)             # stamped below, with the report's say
     else:
-        for rel in release_owned_paths(source):
-            _place(source / rel, destination / rel, rel, report, force=force)
+        sources = render_sources(starter)
+        for rel in release_owned_paths(sources):
+            _place(sources[rel], destination / rel, rel, report, force=force)
+        _refresh_modules(destination, report, force=force)
     stamp = destination / VERSION_FILE
     text = version + "\n"
     pinned = _version(stamp.read_text()) if stamp.exists() else None
@@ -445,12 +650,34 @@ def _is_previous_text(previous: str, tree: str, rel: str) -> bool:
     return False
 
 
+def installed_module_files(base: str) -> dict[str, Path]:
+    """The installed plugins' module files as they sit in a tree whose
+    modules directory is ``base``: ``<base>/<module>/<file>`` to the file
+    inside the plugin. The stamps are not content and are not here."""
+    out: dict[str, Path] = {}
+    for name, module in installed_modules().items():
+        for p in sorted(module.path.rglob("*")):
+            rel = p.relative_to(module.path)
+            if p.is_file() and p.name != STAMP_FILE and not any(part in _LITTER for part in rel.parts):
+                out[f"{base}/{name}/{rel.as_posix()}"] = p
+    return out
+
+
 def changes_since(destination: Path, previous_root: Path, starter: str | None = None) -> ChangesReport:
     """Compare, for each release-owned file of this release's starter, the
     previous release's starter (``previous_root``, a ``starters/`` directory
-    that release's own wheel carries), this release's, and the tree's. Writes
-    nothing. A file the release did not change is not listed, whatever the
-    tree holds."""
+    that release's own wheel carries, of either layout), this release's,
+    and the tree's. Writes nothing. A file the release did not change is
+    not listed, whatever the tree holds.
+
+    This release's side is the rendered starter plus the installed plugins'
+    modules, as they would sit in the tree's own modules directory. The
+    previous side's modules are the files of its tree when that release
+    carried whole trees; a previous root of the current layout carries no
+    module, and a file it lacks is never counted as unchanged: it is listed
+    as added when the tree has no such file, as edited when the tree's copy
+    differs from this release's, and not at all when it is this release's.
+    The stamps (``.csis-module``) are part of no comparison."""
     destination = destination.resolve()
     if not destination.is_dir() or not holds_configuration(destination):
         raise ValueError(f"{destination} is not a configuration repository (no cfg/_config.yml, no {VERSION_FILE})")
@@ -458,21 +685,35 @@ def changes_since(destination: Path, previous_root: Path, starter: str | None = 
     if starter is None:
         found = infer_starter(destination)
         starter, inferred = (found, True) if found else (DEFAULT_STARTER, False)
-    new_dir, old_dir = starter_path(starter), previous_root / starter
-    if not old_dir.is_dir():
+    starter_path(starter)
+    if not (previous_root / starter).is_dir():
         raise ValueError(f"the previous release's starters ({previous_root}) hold no {starter}; "
                          "a starter new in this release has no previous text to compare with")
+    new = render_sources(starter)
+    old = render_sources(starter, previous_root)
+    owned = release_owned_paths(new)
+    base = module_base_of(_cfg_text(destination))
+    if base:
+        modules = installed_module_files(base)
+        new.update(modules)
+        owned.extend(sorted(modules))
     report = ChangesReport(starter=starter, inferred=inferred)
-    for rel in release_owned_paths(new_dir):
-        new, old, mine = new_dir / rel, old_dir / rel, destination / rel
-        if old.is_file() and _same(old, new):
+    for rel in owned:
+        if posixpath.basename(rel) == STAMP_FILE:
+            continue
+        new_p, mine = new[rel], destination / rel
+        old_p = old.get(rel)
+        if old_p is None and base and base != MODULES_DIR and rel.startswith(base + "/"):
+            old_p = old.get(f"{MODULES_DIR}/{rel[len(base) + 1:]}")       # the older layout's modules directory
+        if old_p is not None and _same(old_p, new_p):
             report.unchanged += 1
         elif not mine.is_file():
             report.added.append(rel)
-        elif old.is_file() and _is_previous_text(old.read_text(), mine.read_text(), rel):
+        elif old_p is not None and _is_previous_text(old_p.read_text(), mine.read_text(), rel):
             report.refresh.append(rel)
-        elif _same(new, mine):
-            report.unchanged += 1
+        elif _same(new_p, mine):
+            if old_p is not None:
+                report.unchanged += 1
         else:
             report.edited.append(rel)
     return report

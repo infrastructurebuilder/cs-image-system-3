@@ -17,9 +17,11 @@ the running process's memory. No bucket, no file, no credentials, and
 gone when the process ends, which makes it useless for a real tree and
 exactly right for a proof -- every line is contract, nothing is
 borrowed. It registers the `type:` key `inmem` for entries under
-`state_backends:`. The package is a workspace member like every other
-and is installed with the whole system (the dummy plugin's precedent),
-but the published starters do not declare its key: a tree that binds a
+`state_backends:`. The package is a workspace member, installed with the
+workspace through the root's `dev` dependency group (the dummy plugin's
+precedent) and never published: it carries the classifier `Private :: Do
+Not Upload`, which an index refuses, so no consumer of a release has it,
+and the published starters do not declare its key: a tree that binds a
 root to it loses that root's state at the end of the process.
 
 ## What it registers

@@ -96,7 +96,7 @@ def test_build_wraps_uv_build_and_the_gates_hold():
 
 def _starter() -> dict[str, tuple[str, str]]:
     """The recipes of the starter Justfile the release ships (stage 64), where the cycle recipes live."""
-    return _recipes_of(REPO / "docs" / "examples" / "complete" / "Justfile")
+    return _recipes_of(REPO / "docs" / "examples" / "_skeleton" / "Justfile")
 
 
 def _closure(recipes: dict[str, tuple[str, str]], name: str) -> set[str]:
@@ -269,7 +269,7 @@ def test_release_cannot_half_release_and_publish_is_its_own_recipe():
     # stage 83: publish begins with the index, and never prints the index's error page
     assert publish.index("scripts/publish-target-ready") < publish.index("just build")
     assert "--refuse-held" not in publish, "a partial upload is what a re-run of publish completes"
-    assert "sixteen" not in publish and "$packages packages" in publish
+    assert "sixteen" not in publish and "$packages published packages" in publish
     assert "index-ready" in r and "--wait 7200" in r["index-ready"][1]
     assert "--check-url" not in publish, "uv refuses --check-url beside --index; the index's url is the check url"
     # the token is UV_PUBLISH_TOKEN, else the index's own name -- the repository secrets'

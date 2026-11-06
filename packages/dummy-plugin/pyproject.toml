@@ -10,9 +10,12 @@ readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
 license = "Apache-2.0"
 license-files = ["LICENSE"]
+# Workspace-only (stage 126): installed through the root's dev group, never published;
+# an index refuses an upload carrying this classifier, and the release tooling skips it
+classifiers = ["Private :: Do Not Upload"]
 requires-python = ">=3.13"
 dependencies = [
-    "cs-image-system-contract>=0.2,<0.3",
+    "cs-image-system-contract>=0.3,<0.4",
     "cs-image-system-base==0.1.7.dev1",
     "pydantic>=2.13",
 ]

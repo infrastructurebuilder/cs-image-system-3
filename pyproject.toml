@@ -5,37 +5,65 @@
 [project]
 name = "cs-image-system"
 version = "0.1.7.dev1"
-description = "Declarative provisioning of identities, storages, base images and instance images on AWS and GCE, from one YAML tree through gates: every cs-image-system package in one install"
+description = "Declarative provisioning of identities, storages, base images and instance images on AWS, GCE and docker, from one YAML tree through gates: the core in one install, each provider as an extra"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
-# The whole system (stage 41.3): this package has no sources of its own; it pins every
-# workspace package at == its own version, so one install gets the CLI and every plugin.
+# The umbrella: its one module is src/cs_image_system/extras.py, the table from a `type:`
+# word to the extra that installs its plugin (the core names no provider, so the table is
+# the umbrella's and the core reads it through the entry point below). Its dependencies are the core --
+# the CLI, the engine, the libraries and every plugin that needs no provider account --
+# pinned at == its own version; each provider is an extra below, and a bare install carries
+# no runtime (`validate` names the extra a tree's `type:` words need, base/extras.py).
+# The contract has a version of its own and is pinned to its compatible series.
 dependencies = [
     "cs-image-system-ansible-plugin==0.1.7.dev1",
-    "cs-image-system-aws-runtime-plugin==0.1.7.dev1",
     "cs-image-system-base==0.1.7.dev1",
     "cs-image-system-bash-mod-plugin==0.1.7.dev1",
-    "cs-image-system-contract>=0.2,<0.3",
-    "cs-image-system-contract-example-plugin==0.1.7.dev1",
     "cs-image-system-default-os-plugin==0.1.7.dev1",
+    "cs-image-system-contract>=0.3,<0.4",
+    "cs-image-system-hashicorp-utils==0.1.7.dev1",
+    "cs-image-system-local-state-plugin==0.1.7.dev1",
+    "cs-image-system-packer-plugin==0.1.7.dev1",
+    "cs-image-system-posix-identity-plugin==0.1.7.dev1",
+    "cs-image-system-system==0.1.7.dev1",
+    "cs-image-system-tofu-roots==0.1.7.dev1",
+]
+
+# The extras (stage 126): a provider's runtime plugin with its terraform-root and state-backend
+# plugins, and `all` for every provider. Every pin is == the workspace version, so a bump moves
+# them with the rest (the `=={current_version}"` rule below reads the whole file). The two
+# private plugins (dummy, contract-example) are in the dev group, never here.
+[project.optional-dependencies]
+aws = [
+    "cs-image-system-aws-runtime-plugin==0.1.7.dev1",
+    "cs-image-system-tf-ebs-instance-plugin==0.1.7.dev1",
+    "cs-image-system-tf-s3-state-plugin==0.1.7.dev1",
+]
+gcloud = [
+    "cs-image-system-gcloud-runtime-plugin==0.1.7.dev1",
+    "cs-image-system-tf-gcp-plugin==0.1.7.dev1",
+    "cs-image-system-gcs-state-plugin==0.1.7.dev1",
+]
+docker = [
     "cs-image-system-docker-runtime-plugin==0.1.7.dev1",
     "cs-image-system-tf-docker-plugin==0.1.7.dev1",
-    "cs-image-system-dummy-plugin==0.1.7.dev1",
-    "cs-image-system-gcloud-runtime-plugin==0.1.7.dev1",
-    "cs-image-system-gcs-state-plugin==0.1.7.dev1",
-    "cs-image-system-hashicorp-utils==0.1.7.dev1",
-    "cs-image-system-tofu-roots==0.1.7.dev1",
-    "cs-image-system-local-state-plugin==0.1.7.dev1",
-    "cs-image-system-posix-identity-plugin==0.1.7.dev1",
+]
+okta = [
     "cs-image-system-okta-opa-plugin==0.1.7.dev1",
-    "cs-image-system-packer-plugin==0.1.7.dev1",
-    "cs-image-system-system==0.1.7.dev1",
+]
+all = [
+    "cs-image-system-aws-runtime-plugin==0.1.7.dev1",
     "cs-image-system-tf-ebs-instance-plugin==0.1.7.dev1",
-    "cs-image-system-tf-gcp-plugin==0.1.7.dev1",
     "cs-image-system-tf-s3-state-plugin==0.1.7.dev1",
+    "cs-image-system-gcloud-runtime-plugin==0.1.7.dev1",
+    "cs-image-system-tf-gcp-plugin==0.1.7.dev1",
+    "cs-image-system-gcs-state-plugin==0.1.7.dev1",
+    "cs-image-system-docker-runtime-plugin==0.1.7.dev1",
+    "cs-image-system-tf-docker-plugin==0.1.7.dev1",
+    "cs-image-system-okta-opa-plugin==0.1.7.dev1",
 ]
 
 [project.urls]
@@ -56,11 +84,14 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-# a metadata-only wheel: nothing to select
-bypass-selection = true
+packages = ["src/cs_image_system"]
 
 [tool.hatch.build.targets.sdist]
-only-include = ["README.md", "LICENSE"]
+only-include = ["README.md", "LICENSE", "src"]
+
+# the extras table, read by the core when a `type:` word resolves to no installed plugin
+[project.entry-points."cs_image_system.extras"]
+umbrella = "cs_image_system.extras"
 
 [tool.uv.workspace]
 members = ["packages/*"]
@@ -173,6 +204,7 @@ testpaths = ["tests",
    ]
 pythonpath = [
     "tests",
+    "src",
     "packages/base/src",
     "packages/contract/src",
     "packages/contract-example-plugin/src",
@@ -200,6 +232,11 @@ addopts = "--import-mode=importlib"
 
 [dependency-groups]
 dev = [
+    # the two workspace-only plugins (stage 126): the extension template and the contract's
+    # proof are installed with the workspace and never published (their pyproject's
+    # `Private :: Do Not Upload` classifier); the == pin moves with the bump like any other
+    "cs-image-system-dummy-plugin==0.1.7.dev1",
+    "cs-image-system-contract-example-plugin==0.1.7.dev1",
     "pytest>=8.3",
     "pytest-cov>=6.0",
     "ruff>=0.15",
@@ -228,7 +265,7 @@ ignore = ["F841"]
 # check on since hygiene XIX; strict typing is not enforced yet.
 # NB: "packages/*/src" matches nothing in pyright's spec globbing (it silently
 # analyzed 0 files, which also broke find-all-references); use ** instead.
-include = ["packages/**/src", "packages/**/tests", "tests"]
+include = ["src", "packages/**/src", "packages/**/tests", "tests"]
 exclude = ["**/.venv", "**/generated"]
 # Resolve cross-package imports of the cs_image_system namespace directly from
 # source instead of through the venv's editable-install .pth files; otherwise
@@ -236,6 +273,7 @@ exclude = ["**/.venv", "**/generated"]
 # files. Globs are not supported in extraPaths, so each src root is listed.
 extraPaths = [
     "tests",
+    "src",
     "packages/ansible-plugin/src",
     "packages/aws-runtime-plugin/src",
     "packages/base/src",

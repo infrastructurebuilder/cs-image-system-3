@@ -2,8 +2,11 @@
 
 **Status: OPEN 2026-11-04; RE-EVALUATED 2026-11-05 after §125;
 DECIDED in part 2026-11-05: the shape is (b), the twenty-two projects
-stay, so the stage is items 2 to 7. Item 4's second decision (package
-data or fetched sources) is still open and is asked at "do 126".
+stay, so the stage is items 2 to 7. Item 4's second decision was
+asked at "do 126" on 2026-11-06: PACKAGE DATA (each plugin's wheel
+carries its modules; `init-config` and the starters copy them into
+the tree). IN PROGRESS 2026-11-06 on
+feature/stage-126-package-shape.
 Before [§112](STAGE-112.md) and [§116](STAGE-116.md), which it
 re-scopes.**
 

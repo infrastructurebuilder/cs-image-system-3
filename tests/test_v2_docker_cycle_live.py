@@ -32,7 +32,7 @@ import yaml
 
 from test_v2_docker_bake_live import (ALMA, DEB, IMAGE, REPOSITORY, RUNTIME, _docker_answers, docker_only_tree,
                                       require_engine_for_leg)
-from v2_support import REPO, copy_config, docker_binary, load_context, reset_singletons
+from v2_support import copy_config, docker_binary, load_context, modules_beside, reset_singletons
 
 INSTANCE_BUILDER = "tofu-leg"
 VOLUME_BUILDER = "leg-volumes"
@@ -85,9 +85,8 @@ def cycle_tree(root: Path) -> None:
     text = (cfg / "_config.yml").read_text()
     text = re.sub(r"^(  apply_(instances|storage):) \S+.*$", r"\1 true", text, flags=re.M)
     (cfg / "_config.yml").write_text(text)
-    modules = root.parent / "tfmodules"
-    if not modules.exists():
-        shutil.copytree(REPO / "tfmodules", modules)
+    if not (root.parent / "tfmodules").exists():
+        modules_beside(root)
 
 
 def _cli(root: Path, *args: str, env: dict[str, str], timeout: int = 3600) -> subprocess.CompletedProcess[str]:

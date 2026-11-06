@@ -4,14 +4,16 @@
 # SPDX-License-Identifier: Apache-2.0
 """Build one starter's template-repository tree (stage 66)
 
-    uv run python scripts/starter-tree <name> <version> <dest> [--root DIR]
+    uv run python scripts/starter-tree <name> <version> <dest>
     uv run python scripts/starter-tree --list      # each starter and its template repository
 
 The template repositories (`infrastructurebuilder/cs-image-system-starter-
 <name>`, "Use this template" on GitHub) are generated from
 `docs/examples/<name>` per final release and never edited there. The tree
-is the starter's files as committed at HEAD, with three generated changes
-and nothing else:
+is what `init-config` writes into an empty directory (`starters.write_starter`:
+the skeleton under the starter's overlay, the installed plugins' terraform
+modules materialised into `tfmodules/` with their stamps), with three
+generated changes and nothing else:
 
 - `.csis-version` holds the version, as `init-config` writes it;
 - README.md opens with a generated header: what it is, where it comes from,
@@ -22,19 +24,19 @@ and nothing else:
   file in the system repository at the release's tag, since a relative one
   would point nowhere in a repository of its own.
 
-`<dest>` must not exist or be empty. Prints the files it wrote.
+The modules a template carries are those of the plugins installed where
+the script runs, so the publishing checkout installs every plugin (the
+workspace does). `<dest>` must not exist or be empty. Prints the files it
+wrote.
 """
 from __future__ import annotations
 
 import argparse
-import io
-import posixpath
-import subprocess
 import sys
-import tarfile
 from pathlib import Path
 
-from cs_image_system.system.starter_links import SYSTEM_REPO, rewrite_links  # noqa: F401 (one rewrite, init-config's too)
+from cs_image_system.system.starter_links import SYSTEM_REPO
+from cs_image_system.system.starters import write_starter
 
 OWNER = "infrastructurebuilder"
 TEMPLATE_PREFIX = "cs-image-system-starter-"
@@ -61,27 +63,15 @@ def header(name: str, version: str) -> str:
             f"> age identity committed here (`.age-identity`): this README says how.\n\n")
 
 
-def build(root: Path, name: str, version: str, dest: Path) -> list[str]:
+def build(name: str, version: str, dest: Path) -> list[str]:
     if name not in starters():
         raise SystemExit(f"starter-tree: no starter named {name!r} (known: {', '.join(starters())})")
     if dest.exists() and any(dest.iterdir()):
         raise SystemExit(f"starter-tree: {dest} exists and is not empty")
-    tree = f"docs/examples/{name}"
-    archive = subprocess.run(["git", "-C", str(root), "archive", "--format=tar", f"HEAD:{tree}"],
-                             capture_output=True, check=True).stdout
-    dest.mkdir(parents=True, exist_ok=True)
-    with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
-        tar.extractall(dest, filter="data")
-    (dest / ".csis-version").write_text(f"{version}\n")
-    for md in sorted(dest.rglob("*.md")):
-        rel = md.relative_to(dest).as_posix()
-        text = md.read_text()
-        new = rewrite_links(text, posixpath.dirname(f"{tree}/{rel}"), tree, version)
-        if rel == "README.md":
-            new = header(name, version) + new
-        if new != text:
-            md.write_text(new)
-    return sorted(p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file())
+    files = write_starter(name, dest, version=version)      # the links and .csis-version are its own work
+    readme = dest / "README.md"
+    readme.write_text(header(name, version) + readme.read_text())
+    return files
 
 
 def main(argv: list[str]) -> int:
@@ -90,7 +80,6 @@ def main(argv: list[str]) -> int:
     ap.add_argument("name", nargs="?")
     ap.add_argument("version", nargs="?")
     ap.add_argument("dest", type=Path, nargs="?")
-    ap.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
     args = ap.parse_args(argv)
     if args.list:
         for name in starters():
@@ -98,7 +87,7 @@ def main(argv: list[str]) -> int:
         return 0
     if not (args.name and args.version and args.dest):
         ap.error("name, version and dest are required (or --list)")
-    files = build(args.root, args.name, args.version, args.dest)
+    files = build(args.name, args.version, args.dest)
     print(f"starter-tree: {args.name} at {args.version}: {len(files)} files in {args.dest} "
           f"(for {template_repo(args.name)})")
     return 0

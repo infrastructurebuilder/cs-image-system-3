@@ -1,5 +1,14 @@
 # 116. A runtime installed from outside
 
+**Re-scoped by §126 (2026-11-06, its item 6 under shape (b)):**
+items 2 and 3 (the extras and the starters' install lines) land in
+§126; item 1 landed as the contract's own version (§125); item 7
+landed in §125 (the shims are gone). What remains here is the
+external-repository proof, docker first (no cloud account, no cost,
+a cycle that runs on the host and in CI), gcloud second into the
+repository that exists, aws last; item 3's extras are what the proof
+installs.
+
 **Status: OPEN 2026-11-03. Waits for "do 116", after §115 and
 preferably after [§112](STAGE-112.md) (the release walk; this stage adds a repository
 to it). Kept apart from §115: it changes what a release ships, the
