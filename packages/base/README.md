@@ -99,8 +99,10 @@ one object satisfying the contract's `PluginMetadataProtocol`, or a list of
 them (the check is `isinstance`, name-only; anything else is logged as an
 error and skipped). The entry point's distribution gives the plugin its
 namespace (`namespace_of_distribution`: `cs-image-system-aws-runtime-plugin`
-is `aws-runtime`), unless the metadata names one; the load log says, per
-namespace, what registered. Entry points within a group load in name order. Loading
+is `aws-runtime`), unless the metadata names one. The load log gives one
+info line with how many classes registered under how many namespaces, and
+at debug level what registered under each. Entry points within a group
+load in name order. Loading
 is idempotent: a second call in the same process returns at once unless
 `Registry().reset()` was called. After every plugin registered, the loader
 drops the cached converter so the next structuring sees the full model set.

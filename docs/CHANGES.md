@@ -25,6 +25,7 @@ the entry without naming the number in its text.
 
 | Stage | Landed | Released in | Squash subject |
 | --- | --- | --- | --- |
+| <a id="s131"></a>§131 | 2026-11-06 | not yet | Stage 131: registrations carry their plugin's namespace |
 | <a id="s125"></a>§125 | 2026-11-05 | not yet | Stage 125: the contract's surface, its services and its version |
 | <a id="s124"></a>§124 | 2026-11-05 | not yet | Stage 124: the run context and the engine part ways |
 | <a id="s123"></a>§123 | 2026-11-05 | not yet | Stage 123: hashicorp-utils stops reaching back |

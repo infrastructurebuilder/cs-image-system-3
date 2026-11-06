@@ -12,7 +12,8 @@ Stages from the re-examination of 2026-11-03.
 [REEXAMINE4.md](REEXAMINE4.md) digests the three reviews
 ([REEXAMINE1.md](REEXAMINE1.md), [REEXAMINE2.md](REEXAMINE2.md),
 [REEXAMINE3.md](REEXAMINE3.md)); each stage file
-([§126](STAGE-126.md) to [§130](STAGE-130.md); §118 to §125 landed) cites the review section
+([§126](STAGE-126.md) to [§130](STAGE-130.md); §118 to §125 and §131
+landed) cites the review section
 it answers. The conventions are the ones above: one file per stage; a
 stage is a plan until the operator says "do N"; **YOUR DECISION** marks
 an operator choice and states the default; **USER** marks a step only
@@ -20,8 +21,8 @@ the operator can take; a landed stage's file is removed and its squash
 message is the record. Numbering starts at §118. §117 is
 reserved by [§116](STAGE-116.md) item 7 (the contract to its own
 repository).
-[§131](STAGE-131.md), from a finding of §120, is
-the first stage planned after the review's set.
+§131, from a finding of §120, was the first stage planned after the
+review's set; it landed 2026-11-06.
 
 **Scope** (the operator, 2026-11-04): separation of layers,
 consolidation of the base classes, and the documentation. Out of
@@ -56,10 +57,9 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
 - [§128](STAGE-128.md) and [§129](STAGE-129.md), the tests and the
   sources stop narrating: any time after §119.
 - [§130](STAGE-130.md), hygiene bundle XXIV: the open bundle for the small findings.
-- [§131](STAGE-131.md), registrations carry their plugin's namespace:
-  planned 2026-11-04; the contract is versioned (0.1.0, §125), so a
-  namespace change to the registration keys is a contract change under
-  that version; waits for "do 131".
+- §131, registrations carry their plugin's namespace: landed
+  2026-11-06; the contract is 0.2.0 (a minor bump for the new
+  `PluginMetadata.namespace` field).
 - [§112](STAGE-112.md), a release in two boxes: planned 2026-11-03; waits for
   "do 112".
 - [§113](STAGE-113.md) and [§116](STAGE-116.md), the decomposition that
@@ -85,7 +85,6 @@ and validated by the operator before its "do N")
 - [§128, Tests named for behaviour](STAGE-128.md)
 - [§129, The sources stop narrating](STAGE-129.md)
 - [§130, Hygiene bundle XXIV](STAGE-130.md)
-- [§131, Registrations carry their plugin's namespace](STAGE-131.md)
 
 **Release**
 
@@ -130,6 +129,18 @@ and validated by the operator before its "do N")
 
 **Landed since 2026-10-05** (newest first)
 
+- §131, registrations carry their plugin's namespace: 2026-11-06, its
+  squash commit (feature/stage-131-registration-namespaces kept).
+  Every registration is keyed by classification, namespace and name;
+  the namespace derives from the plugin's distribution name
+  (`aws-runtime`, `tf-ebs-instance`, the core's `base`) unless
+  `PluginMetadata.namespace` names one. A same-key, different-class
+  collision is refused for models, services, injected models and
+  builders; one class under several namespaces is one registration.
+  A bare `type:` word resolves when one class answers; when several
+  do, `validate` names every qualified form (`<namespace>/<name>`).
+  Nothing recorded moved. Contract 0.2.0; 23 tests in
+  `tests/test_registration_namespaces.py`.
 - §125, the contract's surface, its services and its version:
   2026-11-05, its squash commit (feature/stage-125-contract-surface
   kept); absorbed §114 and §115. The run context is the contract's
