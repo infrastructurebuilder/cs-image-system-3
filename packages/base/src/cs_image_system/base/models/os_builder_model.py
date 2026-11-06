@@ -104,7 +104,7 @@ class OsBuilderModel(BuilderModel, OsBuilderModelProtocol):
         real = self.get_family()
         served = tuple(f.lower() for f in type(self).families())
         if real not in served:
-            others = sorted(name for name, cls in self._reg.models.get(VCT.OS_BUILDER_MODEL, {}).items()
+            others = sorted(name for name, cls in self._reg.models_under(VCT.OS_BUILDER_MODEL).items()
                             if real in tuple(f.lower() for f in getattr(cls, "families", lambda: ())()))
             if others:
                 raise ValueError(

@@ -122,14 +122,14 @@ exceptions, which can only shrink.
 ### Version
 
 The contract carries a semantic version of its own, independent of the
-workspace's: `0.1.0` now, and 0.x until the operator decides otherwise
+workspace's: `0.2.0` now, and 0.x until the operator decides otherwise
 (the decision of 2026-11-05). What a bump means: a PATCH is a change no
 plugin can observe (a docstring, a test helper); a MINOR, while the
 version is 0.x, is a change a plugin can observe, so a protocol member
 added, renamed or removed, a constant's value changed, a module added or
 removed, and it is the breaking step; from 1.0 a MINOR adds without
 breaking and a MAJOR breaks. Every package that depends on the contract
-pins the compatible series, `cs-image-system-contract>=0.1,<0.2`, and
+pins the compatible series, `cs-image-system-contract>=0.2,<0.3`, and
 `just release`, which moves every other package's version in lockstep,
 leaves the contract's where it is (`bump-my-version` excludes its
 manifest by name; the upload and the index probe read its version from
@@ -138,6 +138,13 @@ stage that changes its surface, and
 [tests/test_v2_contract_version.py](../../tests/test_v2_contract_version.py)
 holds all of it: the version is its own and final, every dependent pins
 the range, the bump excludes the manifest, the release tooling knows.
+
+The versions so far:
+
+| Version | What changed, and why it is the step it is |
+| --- | --- |
+| `0.1.0` | The first versioned contract: the protocols, constants and data carriers as the core's surface was settled ([the stage index](../../docs/CHANGES.md#s125)). |
+| `0.2.0` | `PluginMetadata` and `PluginMetadataProtocol` gain `namespace` (optional, `None` by default), the override of the namespace the loader derives from the plugin's distribution. A member added is something a plugin can observe, so while the contract is 0.x it is a MINOR step, and every dependent's range moved from `>=0.1,<0.2` ([the stage index](../../docs/CHANGES.md#s131)). |
 
 ## Writing a plugin
 
@@ -187,7 +194,21 @@ that returns one `PluginMetadata` or a list of them.
 4. **Return the metadata**: `PluginMetadata(services={KEY: [Model,
    Builder]}, builders_for_models={Model: Builder})`, where `KEY` is the
    `csis_name`. Item models a plugin injects under a classification go in
-   `injected_models`.
+   `injected_models`. Every class the record registers is keyed in the
+   registry by its classification, the plugin's **namespace** and its
+   `csis_name`, so a word another plugin already uses is not a collision:
+   a tree names either by the qualified form `<namespace>/<name>`. The
+   namespace is derived from the plugin's distribution name with the
+   `cs-image-system-` prefix and the `-plugin` suffix dropped
+   (`cs-image-system-aws-runtime-plugin` registers under `aws-runtime`,
+   an outside `acme-roots` under `acme-roots`); `namespace="..."` on the
+   record overrides the derivation, and a record with no distribution
+   behind it (one a test builds in process) must name one, or the loader
+   refuses the plugin with the field named. Only the same classification,
+   namespace and name taken by a *different* class is the collision; the
+   same class registered by several plugins (one version checker three
+   root plugins carry) is one registration, and its bare word resolves.
+   The reasoning is in [the stage index](../../docs/CHANGES.md#s131).
 5. **Prove it.** In the plugin's tests, `assert_conforms(Model,
    <Kind>BuilderModelProtocol)` and `assert_conforms(Builder,
    <Kind>BuilderProtocol)`; then a dry `cs-image-system run --all` over a
@@ -345,8 +366,28 @@ failure's symptom, its meaning and what to do.
   in the log at load, and the plugin's types unknown to every `type:`: the
   entry point returned something other than a `PluginMetadata` (or a list
   of them) -- a class instead of an instance, a dict, nothing.
-- `Type Collision: <name>` at load: two plugins register one `csis_name`
-  under one classification; rename one.
+- `Plugin <name> is refused: its entry point has no distribution to
+  derive a namespace from, and its metadata names none; set
+  PluginMetadata.namespace` (`PluginNamespaceError`) at discovery: the
+  entry point was registered without a distribution behind it (a test's
+  in-process entry point, a module put on the path by hand) and the
+  record left `namespace` at `None`, so nothing could qualify its
+  registrations. Name the namespace on the record, or install the plugin
+  as a distribution.
+- `Type Collision: <namespace>/<name> under <classification> is
+  <module.Class>, and <module.Other> registers it too` (`ValueError`
+  from the registry) at load: one plugin, or two plugins that derive the
+  same namespace, registers two *different* classes under one
+  classification and name. The same word in two plugins with different
+  namespaces is not this: both load, and a tree names one by its
+  qualified form. Rename one of the classes' `csis_name`, or give one
+  plugin a `namespace` of its own.
+- `type '<word>' is ambiguous under <classification>: N plugins register
+  it; write one of <ns1>/<word>, <ns2>/<word>` (`AmbiguousTypeError`) at
+  load, which `validate` prints as one configuration error under
+  `Validation failed with 1 error(s).`: the tree wrote a bare `type:`
+  word that different classes answer to. Write one of the qualified
+  forms the line names.
 - `BackendWithoutKind` (`state`): a `BackendRegistration` was built without
   its `kind`; the model's `to_backend_registration()` must name the type's
   `BackendKindProtocol` object.

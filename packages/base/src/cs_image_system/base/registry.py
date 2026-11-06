@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
-from typing import Any
+from typing import Any, NamedTuple
 import operator
 from functools import reduce
 
@@ -14,12 +14,113 @@ log = logging.getLogger(__name__)
 
 from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, VCT
 
+#: What joins a namespace to a name in the qualified form of a registration
+#: (``<namespace>/<name>``). No canonical name and no alias carries it: the
+#: load refuses ``/`` in an alias, so the split is never ambiguous.
+NAMESPACE_SEPARATOR = "/"
+
+#: The namespace of the core's own registrations: what ``base`` registers
+#: through its entry point (the generic version checker, the storage
+#: mapping item model), derived from its distribution name like any
+#: plugin's.
+CORE_NAMESPACE = "base"
+
+
+class RegistrationKey(NamedTuple):
+    """The one key every class-level registry table is keyed by: the
+    classification a class registers under, the namespace of the plugin
+    that registered it (derived from its distribution, or the
+    ``namespace`` its metadata names) and the class's canonical name. A
+    typed tuple, never a joined string: the tables are read by the key's
+    fields, and the qualified form is for a tree and a message."""
+
+    classification: VCT
+    namespace: str
+    name: str
+
+    @property
+    def qualified(self) -> str:
+        """``<namespace>/<name>``: what a tree writes to name this
+        registration and no other."""
+        return f"{self.namespace}{NAMESPACE_SEPARATOR}{self.name}"
+
+
+def split_qualified(word: str) -> tuple[str | None, str]:
+    """A ``type:`` word as (namespace, name): ``("some-plugin", "x")`` for
+    ``some-plugin/x``, ``(None, "x")`` for the bare ``x``."""
+    namespace, sep, name = word.partition(NAMESPACE_SEPARATOR)
+    return (namespace, name) if sep else (None, word)
+
+
+def bare_name(word: str) -> str:
+    """The name part of a bare or a qualified ``type:`` word."""
+    return split_qualified(word)[1]
+
+
+class AmbiguousTypeError(ValueError):
+    """A bare ``type:`` word that several DIFFERENT classes answer to under
+    one classification, each from its own namespace: the tree must say
+    which, by the qualified form. Raised by every lookup that resolves a
+    word; ``validate`` prints it as one configuration error."""
+
+    def __init__(self, classification: VCT, word: str, keys: list["RegistrationKey"]) -> None:
+        self.classification = classification
+        self.word = word
+        self.keys = sorted(keys)
+        forms = ", ".join(k.qualified for k in self.keys)
+        super().__init__(f"type {word!r} is ambiguous under {classification.value}: "
+                         f"{len(self.keys)} plugins register it; write one of {forms}")
+
+
 def sanitize_classifier(classifer:VCT| None) -> VCT:
     if not classifer:
         return None # type: ignore
     if classifer in [VCT.CLOUD_BUILDER_MODEL, VCT.CONTAINER_BUILDER_MODEL]:
         return VCT.RUNTIME_BUILDER_MODEL
     return classifer
+
+
+def _resolve(table: dict[RegistrationKey, type], classification: VCT, word: str) -> type | None:
+    """The one class ``word`` names in ``table`` under ``classification``.
+    A qualified word (``<namespace>/<name>``) reads its key directly. A
+    bare word resolves when exactly one class answers to it, whatever the
+    namespaces carrying it (one checker three plugins register is one
+    class); when different classes answer, :class:`AmbiguousTypeError`
+    names every qualified form; when none does, ``None``."""
+    namespace, name = split_qualified(word)
+    if namespace is not None:
+        return table.get(RegistrationKey(classification, namespace, name))
+    hits = [(key, cls) for key, cls in table.items() if key.classification == classification and key.name == name]
+    if not hits:
+        return None
+    classes: list[type] = []
+    for _key, cls in hits:
+        if not any(cls is c for c in classes):
+            classes.append(cls)
+    if len(classes) > 1:
+        raise AmbiguousTypeError(classification, word, [key for key, _cls in hits])
+    return classes[0]
+
+
+def _names_under(table: dict[RegistrationKey, type], classification: VCT) -> dict[str, type]:
+    """Every class in ``table`` under ``classification`` by the shortest
+    word that resolves to it: the bare name where one class answers to it,
+    the qualified form where several do."""
+    by_name: dict[str, list[tuple[RegistrationKey, type]]] = {}
+    for key, cls in table.items():
+        if key.classification == classification:
+            by_name.setdefault(key.name, []).append((key, cls))
+    out: dict[str, type] = {}
+    for name, hits in by_name.items():
+        first = hits[0][1]
+        if all(cls is first for _key, cls in hits):
+            out[name] = first
+        else:
+            for key, cls in hits:
+                out[key.qualified] = cls
+    return out
+
+
 class Registry:
     """A registry for mapping type and key identifiers to classes for polymorphic deserialization.
     This registry allows for dynamic registration of classes that can be instantiated based on
@@ -37,9 +138,12 @@ class Registry:
 
     # NOTE: state is instance-level (built in __init__), NOT class-level, so
     # two registries share nothing; reset() gives an explicit lifecycle.
-    registry: dict[str, dict[str, type]]
+    # the class-level tables (what the plugins registered) are keyed by the
+    # typed RegistrationKey (classification, namespace, name); the
+    # instance-level tables (what the tree declared) by the tree's own names
+    registry: dict[RegistrationKey, type]
     vct_type_registry: dict[VCT, list[type]]
-    reverse_registry: dict[type, dict[VCT, list[str]]]
+    reverse_registry: dict[type, list[RegistrationKey]]
     builder_for_model: dict[type, type]
     # aliases is VCT -> name -> list of aliases
     aliases: dict[VCT, dict[str, list[str]]]
@@ -47,7 +151,7 @@ class Registry:
     defaults_registry: dict[VCT, str | None]
     instances: dict[VCT, dict[str, Any]]
     instances_by_global_id: dict[str, Any]
-    models: dict[VCT, dict[str, type[PluginArtifactProtocol]]]
+    models: dict[RegistrationKey, type]
     builders: dict[type[NameTypedProtocol], type]
 
     def __init__(self):
@@ -74,7 +178,7 @@ class Registry:
         self.defaults_registry = {}
         self.instances = {v: {} for v in VCT}
         self.instances_by_global_id = {}
-        self.models = {v: {} for v in VCT}
+        self.models = {}
         self.builders = {}
 
     def reset(self) -> None:
@@ -85,7 +189,40 @@ class Registry:
         """
         self._init_state()
 
-    def register_plugin_metadata(self, metadata: PluginMetadataProtocol):
+    @staticmethod
+    def namespace_of(metadata: PluginMetadataProtocol, namespace: str | None = None) -> str:
+        """The namespace ``metadata``'s registrations carry: the one the
+        loader derived from the plugin's distribution (``namespace``), else
+        the one the metadata names; neither is the refusal, with the field
+        named, because a registration without a namespace has no qualified
+        form and nothing could disambiguate it."""
+        chosen = namespace or metadata.namespace
+        if not chosen:
+            raise ValueError("plugin metadata has no distribution to derive a namespace from and names none: "
+                             "set PluginMetadata.namespace")
+        if NAMESPACE_SEPARATOR in chosen:
+            raise ValueError(f"PluginMetadata.namespace {chosen!r} may not contain {NAMESPACE_SEPARATOR!r}")
+        return chosen
+
+    def _register_model(self, key: RegistrationKey, cls: type) -> None:
+        """One entry of ``models``: the same class under the same key is the
+        same registration (a plugin's metadata replayed); the same class
+        under another namespace is one registration too, read by its bare
+        word (one checker three plugins carry); a DIFFERENT class under
+        the same key is the collision."""
+        registered = self.models.get(key)
+        if registered is not None and registered is not cls:
+            raise ValueError(f"Type Collision: {key.qualified} under {key.classification.value} is "
+                             f"{registered.__module__}.{registered.__qualname__}, "
+                             f"and {cls.__module__}.{cls.__qualname__} registers it too")
+        self.models[key] = cls
+
+    def register_plugin_metadata(self, metadata: PluginMetadataProtocol, namespace: str | None = None):
+        """Register what one plugin's metadata declares, every class keyed
+        by ``namespace`` (the loader passes the one it derived from the
+        plugin's distribution; a caller with no distribution behind the
+        metadata -- a test -- passes one, or the metadata names it)."""
+        ns = self.namespace_of(metadata, namespace)
         for service_group, artifacts in metadata.services.items():
             for artifact in artifacts:
                 classifier = artifact.csis_classifier()
@@ -96,46 +233,51 @@ class Registry:
                 # =========================================================
                 classifier = sanitize_classifier(classifier)
                 
-                canonical_name = artifact.csis_name()
-
-                # the same artifact registered by several plugins (the tofu
-                # version checker, which every terraform-root plugin carries so
-                # a tree with roots on one provider alone still has its tofu
-                # checked) is one registration; a different class under the
-                # same name is the collision
-                registered = self.models[classifier].get(canonical_name)
-                if registered is not None and registered is not artifact:
-                    raise ValueError(f"Type Collision: {canonical_name}")
-                self.models.setdefault(classifier, {})[canonical_name] = artifact
+                self._register_model(RegistrationKey(classifier, ns, artifact.csis_name()), artifact)
 
         for model_type, builder_type in metadata.builders_for_models.items():
-            if model_type in self.builders:
+            registered = self.builders.get(model_type)
+            if registered is not None and registered is not builder_type:
                 raise ValueError(f"Builder for model '{model_type.__name__}' is already registered.")
             self.builders[model_type] = builder_type
         for classifier, model_type in metadata.injected_models.items():
             # an injected item model names itself when it is a plugin artifact
             injected: Any = model_type
             name = injected.csis_name() if isinstance(injected, PluginArtifactProtocol) else model_type.__name__
-            if name in self.models[classifier]:
-                raise ValueError(f"Type Collision: {name} for classifier {classifier}")
-            self.models.setdefault(classifier, {})[name] = model_type
+            self._register_model(RegistrationKey(classifier, ns, name), model_type)
             if metadata.is_injected_models_default:
                 self.set_default_for(classifier, name)
+
+    def models_under(self, classifier: VCT) -> dict[str, type]:
+        """Every model class registered under ``classifier`` by the word
+        that resolves to it: the bare name, or the qualified form where
+        different classes share the name."""
+        return _names_under(self.models, classifier)
+
+    def registration_keys(self, classifier: VCT | None = None) -> list[RegistrationKey]:
+        """Every key of ``models``, under ``classifier`` when given, sorted."""
+        return sorted(k for k in self.models if classifier is None or k.classification == classifier)
+
     def runtime_builder_classes(self) -> dict[str, type]:
         """Every registered runtime builder class by its canonical name:
         the clouds, the containers and the plain runtimes, which the
         loader registers under their own classifications."""
         out: dict[str, type] = {}
         for classifier in (VCT.RUNTIME_BUILDER, VCT.CLOUD_BUILDER, VCT.CONTAINER_BUILDER):
-            out.update(self.models.get(classifier, {}))
+            out.update(self.models_under(classifier))
         return out
 
     def state_builder_classes(self) -> dict[str, type]:
         """Every registered state backend builder class by its canonical name."""
-        return dict(self.models.get(VCT.STATE_BACKEND, {}))
+        return self.models_under(VCT.STATE_BACKEND)
 
     def get_model(self, classifier: VCT, canonical_name: str) -> type[PluginArtifactProtocol] | None:
-        return self.models.get(classifier, {}).get(canonical_name, None)
+        """The model class a ``type:`` word names under ``classifier``: a
+        bare word when one class answers to it, a qualified word
+        (``<namespace>/<name>``) directly; ``None`` for a word nobody
+        registered; :class:`AmbiguousTypeError` for a bare word different
+        classes answer to."""
+        return _resolve(self.models, classifier, canonical_name)  # type: ignore[return-value]
     def get_instance(self, classifier: VCT, name_or_alias: str) -> NameTypedProtocol | None:
         return self.instances.get(classifier, {}).get(name_or_alias, None)
     def builder_keys(self) -> list[type[NameTypedProtocol]]:
@@ -222,16 +364,29 @@ class Registry:
         return None
             
     def register_service(self, service: type[PluginArtifactProtocol], 
-                         override_classifier:VCT|None = None) -> None:
-        """Register a service under its classification."""
+                         override_classifier:VCT|None = None, *, namespace: str) -> None:
+        """Register a service under its classification (or
+        ``override_classifier``: the loader registers a cloud's or a
+        container's model a second time as a runtime's), keyed by the
+        namespace the loader derived for its plugin. A different class
+        under a key already taken is refused (``Type Collision``), where
+        it used to be overwritten by the plugin that loaded later."""
+        if not namespace or NAMESPACE_SEPARATOR in namespace:
+            raise ValueError(f"register_service needs a namespace without {NAMESPACE_SEPARATOR!r}, got {namespace!r}")
         classifier = override_classifier if override_classifier is not None else service.csis_classifier()
-        self.registry.setdefault(service.csis_name(), {})[classifier] = service
+        key = RegistrationKey(classifier, namespace, service.csis_name())
+        registered = self.registry.get(key)
+        if registered is not None and registered is not service:
+            raise ValueError(f"Type Collision: service {key.qualified} under {classifier.value} is "
+                             f"{registered.__module__}.{registered.__qualname__}, "
+                             f"and {service.__module__}.{service.__qualname__} registers it too")
+        self.registry[key] = service
         by_classifier = self.vct_type_registry.setdefault(classifier, [])
         if service not in by_classifier:          # one entry per class, however many plugins carry it
             by_classifier.append(service)
-        names = self.reverse_registry.setdefault(service, {}).setdefault(classifier, [])
-        if service.csis_name() not in names:
-            names.append(service.csis_name())
+        keys = self.reverse_registry.setdefault(service, [])
+        if key not in keys:
+            keys.append(key)
         
     def register_aliases(self, classifier: VCT, name: str, aliases: list[str]) -> None:
         """Register all aliases for a given builder under a specific classification."""
@@ -323,9 +478,10 @@ class Registry:
         return None
 
     def get_builder_for_model(self, type_name: str, classification: VCT) -> type | None:
-        """Get the builder registered for a specific model."""
-        # return self.builder_for_model.get(model, None)
-        return self.registry.get(type_name,{}).get(classification, None)
+        """The service class registered under ``classification`` for a
+        model's ``type:`` word, bare or qualified, by the rule of
+        :meth:`get_model`."""
+        return _resolve(self.registry, classification, type_name)
 
 
 

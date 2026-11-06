@@ -8,8 +8,10 @@ Every command loads the configuration first, and a known failure there is
 one line and an exit code, not a traceback under a good message. Two
 failures are the core's own: a shell with no age identity
 (``MissingIdentityError``, the ENVIRONMENT's, exit 2 like the preflight's
-absent session) and a reserved word used as a name (``ReservedNameError``,
-the CONFIGURATION's, exit 1 under ``Validation failed with 1 error(s).``).
+absent session), a reserved word used as a name (``ReservedNameError``,
+the CONFIGURATION's, exit 1 under ``Validation failed with 1 error(s).``)
+and a bare ``type:`` word that different plugins' classes answer to
+(``AmbiguousTypeError``, the same line, naming every qualified form).
 Every other known failure is a plugin's: a runtime's lapsed credentials, a
 container runtime's unreachable daemon, a group builder's missing key
 pair. The core asks every registered builder class ``classify_failure``
@@ -26,6 +28,7 @@ from typing import Callable, Iterator, cast
 from cs_image_system.contract.session import LoadFailureReport
 
 from ..encryption import MissingIdentityError
+from ..registry import AmbiguousTypeError
 from ..reserved_names import ReservedNameError
 
 IDENTITY_REMEDY = ("the shell never loaded `.envrc` (a new terminal, a directory direnv has not entered or "
@@ -75,7 +78,9 @@ def classify_load_failure(exc: BaseException) -> LoadFailure | None:
     that keeps its traceback."""
     classes = _builder_classes()
     for e in _chain(exc):
-        if isinstance(e, ReservedNameError):
+        if isinstance(e, (ReservedNameError, AmbiguousTypeError)):
+            # a reserved word used as a name, or a bare `type:` word that
+            # several plugins' classes answer to: the tree's fault, one line
             return LoadFailure("configuration", [f" - {e}", "Validation failed with 1 error(s)."], code=1)
         if isinstance(e, MissingIdentityError):
             return LoadFailure("environment", [f"the configuration cannot load: {e}", f"({IDENTITY_REMEDY})"])

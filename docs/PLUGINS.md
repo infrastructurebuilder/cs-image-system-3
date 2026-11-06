@@ -52,6 +52,25 @@ registers" section, which is written from the package's `pyproject.toml`
 and its `main.py`. The field-by-field reference for the YAML each plugin
 reads is [CONFIGURATION.md](CONFIGURATION.md).
 
+Every plugin registers under a **namespace**, and every class it registers
+is keyed by its classification, that namespace and its canonical name. A
+plugin names its namespace with `PluginMetadata(namespace="...")`, or
+inherits it from its distribution: the distribution name with the
+`cs-image-system-` prefix and the `-plugin` suffix dropped, so the
+packages above register as `aws-runtime`, `gcloud-runtime`,
+`docker-runtime`, `tf-docker`, `default-os`, `packer`, `ansible`,
+`bash-mod`, `okta-opa`, `posix-identity`, `tf-ebs-instance`, `tf-gcp`,
+`tf-s3-state`, `contract-example`, `local-state`, `gcs-state` and
+`dummy`, and the core's own registrations as `base`. Two plugins may
+therefore answer to one `type:` word: a tree writes the bare word while
+one class answers to it, and the qualified form `<namespace>/<name>`
+(`tf-ebs-instance/tofu`) when different classes do, which `validate`
+says in one line. A plugin whose entry point has no distribution behind
+it must name the namespace or is refused at discovery with the field
+named. The reasoning is in [the stage index](CHANGES.md#s131); the
+registry's tables and the resolution rule are in
+[base's README](../packages/base/README.md#the-registry).
+
 The three terraform root plugins (`tf-ebs-instance-plugin`,
 `tf-gcp-plugin`, `tf-docker-plugin`) share one implementation of the
 root: the provider-neutral bases in

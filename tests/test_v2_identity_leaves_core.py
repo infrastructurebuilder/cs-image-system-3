@@ -209,7 +209,8 @@ def test_a_tree_with_okta_profile_fields_loads_with_the_plugin_and_is_refused_wi
     # without the plugin's injected model, the core's User is the item model and the keys are unknown
     reset_singletons()
     reg = current_registry()             # the plugins loaded into it; the run below loads into it too
-    reg.models[VCT.USER_MODEL].clear()
+    for key in reg.registration_keys(VCT.USER_MODEL):
+        del reg.models[key]
     reg.defaults_registry.pop(VCT.USER_MODEL, None)
     with pytest.raises(Exception, match="mobile_phone|department|[Ee]xtra"):
         read_config_and_transform(cast(Any, SimpleNamespace(obj={})), root, False, dry_run=True, overlays=[],

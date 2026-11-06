@@ -318,6 +318,27 @@ not a base image's vendor source or update policy. Read
 [CONFIGURATION.md, "The modification item"](CONFIGURATION.md#73-the-modification-item-inside-an-images-modifications)
 and [OPERATIONS.md, "The modification tests"](OPERATIONS.md#the-modification-tests).
 
+### namespace
+
+A namespace is the word that tells one plugin's registrations from
+another's: every class a plugin registers (a builder model a `type:`
+names, a builder, a version checker, an injected item model) is keyed
+in the registry by its classification, the plugin's namespace and the
+class's canonical name, and has a qualified form, `<namespace>/<name>`
+(`tf-ebs-instance/tofu`). A plugin inherits its namespace from its
+distribution name with the `cs-image-system-` prefix and the `-plugin`
+suffix dropped (`aws-runtime`, `okta-opa`, `contract-example`; the
+core's own registrations carry `base`), or names one in its metadata; a
+plugin with neither is refused when it is discovered. A namespace is not
+something a tree has to write: a bare `type:` word resolves while one
+class answers to it, whatever plugins carry it, and the qualified form is
+needed only where different installed plugins register different classes
+under one word, which `validate` says in one line naming every form. It
+is not a classification (the kind a class registers under) and not an
+alias (an extra name a tree gives its own builder). Read
+[the registry](../packages/base/README.md#the-registry) and
+[CONFIGURATION.md, 1.2](CONFIGURATION.md#12-type-aliases-and-is_default).
+
 ### overlay
 
 An overlay is a YAML file merged over the configuration tree for one

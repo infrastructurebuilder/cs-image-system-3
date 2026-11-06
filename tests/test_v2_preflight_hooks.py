@@ -62,7 +62,7 @@ def test_preflight_prints_the_session_a_stub_runtime_class_answers(tmp_path):
     StubModel, StubRuntime = _stub_classes()
     reset_singletons()
     reg = cast(Any, registry.current_registry())                    # a throwaway registration: no plugin behind it
-    reg.models[VCT.RUNTIME_BUILDER]["stub"] = StubRuntime
+    reg.models[registry.RegistrationKey(VCT.RUNTIME_BUILDER, "test", "stub")] = StubRuntime
     reg.builders[StubModel] = StubRuntime
     try:
         root = tmp_path / "tree"

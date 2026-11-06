@@ -117,6 +117,13 @@ class PluginMetadataProtocol(Protocol):
         """ Whether the injected models should be treated as defaults that can be overridden by other plugins. """
         ...
 
+    @property
+    def namespace(self) -> str | None:
+        """ The namespace the registry qualifies this plugin's registrations
+        with (``<namespace>/<name>``); ``None`` leaves it to the loader,
+        which derives it from the plugin's distribution name. """
+        ...
+
 
 @runtime_checkable
 class SelfInjectedNameProtocol(Protocol):

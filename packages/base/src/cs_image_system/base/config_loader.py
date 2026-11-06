@@ -537,7 +537,7 @@ def read_config_and_transform(
                     # stage 106: an OS builder may leave `type` out when exactly
                     # one registered type serves what its family IS
                     _type = default_os_type(str(item.get("family", "")), item.get("family_version"),
-                                            dict(reg.models.get(VCT.OS_BUILDER_MODEL, {})))
+                                            reg.models_under(VCT.OS_BUILDER_MODEL))
                     if _type:
                         item["type"] = _type
                         log.info(f"os_builders: {name}: type {_type} from family {item.get('family')}")

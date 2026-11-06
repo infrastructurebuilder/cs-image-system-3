@@ -28,6 +28,7 @@ from cs_image_system.contract.constants import DEFAULT, DEFERRED_BUILDER_VCT, DE
 from .singleton import singleton
 
 from . import registry
+from .registry import NAMESPACE_SEPARATOR, split_qualified
 
 
 
@@ -663,8 +664,13 @@ class PydanticConverter:
         if target_cls is None:
             raise KeyError(f"Unrecognized type/alias '{raw_identity}' for {vct}")
         canonical = target_cls.csis_name()
-        if raw_identity != canonical:                      # alias -> canonical
-            data = {**data, "type": canonical}
+        # alias -> canonical; a tree that wrote the qualified form
+        # (<namespace>/<name>) keeps its namespace, so what it wrote is what
+        # is recorded, and a bare word stays bare (the mod fingerprint hashes
+        # the type word)
+        namespace, written = split_qualified(str(raw_identity))
+        if written != canonical:
+            data = {**data, "type": canonical if namespace is None else f"{namespace}{NAMESPACE_SEPARATOR}{canonical}"}
         return self.structure(data, target_cls)
 
     def _register(self, obj: Any) -> None:
