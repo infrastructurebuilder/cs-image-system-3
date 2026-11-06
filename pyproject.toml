@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system"
-version = "0.1.7.dev1"
+version = "0.1.7.dev2"
 description = "Declarative provisioning of identities, storages, base images and instance images on AWS, GCE and docker, from one YAML tree through gates: the core in one install, each provider as an extra"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
@@ -19,17 +19,17 @@ requires-python = ">=3.13"
 # no runtime (`validate` names the extra a tree's `type:` words need, base/extras.py).
 # The contract has a version of its own and is pinned to its compatible series.
 dependencies = [
-    "cs-image-system-ansible-plugin==0.1.7.dev1",
-    "cs-image-system-base==0.1.7.dev1",
-    "cs-image-system-bash-mod-plugin==0.1.7.dev1",
-    "cs-image-system-default-os-plugin==0.1.7.dev1",
+    "cs-image-system-ansible-plugin==0.1.7.dev2",
+    "cs-image-system-base==0.1.7.dev2",
+    "cs-image-system-bash-mod-plugin==0.1.7.dev2",
+    "cs-image-system-default-os-plugin==0.1.7.dev2",
     "cs-image-system-contract>=0.3,<0.4",
-    "cs-image-system-hashicorp-utils==0.1.7.dev1",
-    "cs-image-system-local-state-plugin==0.1.7.dev1",
-    "cs-image-system-packer-plugin==0.1.7.dev1",
-    "cs-image-system-posix-identity-plugin==0.1.7.dev1",
-    "cs-image-system-system==0.1.7.dev1",
-    "cs-image-system-tofu-roots==0.1.7.dev1",
+    "cs-image-system-hashicorp-utils==0.1.7.dev2",
+    "cs-image-system-local-state-plugin==0.1.7.dev2",
+    "cs-image-system-packer-plugin==0.1.7.dev2",
+    "cs-image-system-posix-identity-plugin==0.1.7.dev2",
+    "cs-image-system-system==0.1.7.dev2",
+    "cs-image-system-tofu-roots==0.1.7.dev2",
 ]
 
 # The extras (stage 126): a provider's runtime plugin with its terraform-root and state-backend
@@ -38,32 +38,32 @@ dependencies = [
 # private plugins (dummy, contract-example) are in the dev group, never here.
 [project.optional-dependencies]
 aws = [
-    "cs-image-system-aws-runtime-plugin==0.1.7.dev1",
-    "cs-image-system-tf-ebs-instance-plugin==0.1.7.dev1",
-    "cs-image-system-tf-s3-state-plugin==0.1.7.dev1",
+    "cs-image-system-aws-runtime-plugin==0.1.7.dev2",
+    "cs-image-system-tf-ebs-instance-plugin==0.1.7.dev2",
+    "cs-image-system-tf-s3-state-plugin==0.1.7.dev2",
 ]
 gcloud = [
-    "cs-image-system-gcloud-runtime-plugin==0.1.7.dev1",
-    "cs-image-system-tf-gcp-plugin==0.1.7.dev1",
-    "cs-image-system-gcs-state-plugin==0.1.7.dev1",
+    "cs-image-system-gcloud-runtime-plugin==0.1.7.dev2",
+    "cs-image-system-tf-gcp-plugin==0.1.7.dev2",
+    "cs-image-system-gcs-state-plugin==0.1.7.dev2",
 ]
 docker = [
-    "cs-image-system-docker-runtime-plugin==0.1.7.dev1",
-    "cs-image-system-tf-docker-plugin==0.1.7.dev1",
+    "cs-image-system-docker-runtime-plugin==0.1.7.dev2",
+    "cs-image-system-tf-docker-plugin==0.1.7.dev2",
 ]
 okta = [
-    "cs-image-system-okta-opa-plugin==0.1.7.dev1",
+    "cs-image-system-okta-opa-plugin==0.1.7.dev2",
 ]
 all = [
-    "cs-image-system-aws-runtime-plugin==0.1.7.dev1",
-    "cs-image-system-tf-ebs-instance-plugin==0.1.7.dev1",
-    "cs-image-system-tf-s3-state-plugin==0.1.7.dev1",
-    "cs-image-system-gcloud-runtime-plugin==0.1.7.dev1",
-    "cs-image-system-tf-gcp-plugin==0.1.7.dev1",
-    "cs-image-system-gcs-state-plugin==0.1.7.dev1",
-    "cs-image-system-docker-runtime-plugin==0.1.7.dev1",
-    "cs-image-system-tf-docker-plugin==0.1.7.dev1",
-    "cs-image-system-okta-opa-plugin==0.1.7.dev1",
+    "cs-image-system-aws-runtime-plugin==0.1.7.dev2",
+    "cs-image-system-tf-ebs-instance-plugin==0.1.7.dev2",
+    "cs-image-system-tf-s3-state-plugin==0.1.7.dev2",
+    "cs-image-system-gcloud-runtime-plugin==0.1.7.dev2",
+    "cs-image-system-tf-gcp-plugin==0.1.7.dev2",
+    "cs-image-system-gcs-state-plugin==0.1.7.dev2",
+    "cs-image-system-docker-runtime-plugin==0.1.7.dev2",
+    "cs-image-system-tf-docker-plugin==0.1.7.dev2",
+    "cs-image-system-okta-opa-plugin==0.1.7.dev2",
 ]
 
 [project.urls]
@@ -145,7 +145,7 @@ explicit = true
 # (0.1.1.dev1 -> 0.1.1.dev2), `bump stage` finalises it (0.1.1.dev2 -> 0.1.1). A missing
 # stage reads as final, a bumped part resets the parts after it to their first values.
 [tool.bumpversion]
-current_version = "0.1.7.dev1"
+current_version = "0.1.7.dev2"
 parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)(\\.(?P<stage>dev)(?P<dev>\\d+))?"
 serialize = ["{major}.{minor}.{patch}.{stage}{dev}", "{major}.{minor}.{patch}"]
 commit = false
@@ -235,8 +235,8 @@ dev = [
     # the two workspace-only plugins (stage 126): the extension template and the contract's
     # proof are installed with the workspace and never published (their pyproject's
     # `Private :: Do Not Upload` classifier); the == pin moves with the bump like any other
-    "cs-image-system-dummy-plugin==0.1.7.dev1",
-    "cs-image-system-contract-example-plugin==0.1.7.dev1",
+    "cs-image-system-dummy-plugin==0.1.7.dev2",
+    "cs-image-system-contract-example-plugin==0.1.7.dev2",
     "pytest>=8.3",
     "pytest-cov>=6.0",
     "ruff>=0.15",

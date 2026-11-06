@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-dummy-plugin"
-version = "0.1.7.dev1"
+version = "0.1.7.dev2"
 description = "The extension template and test double: a builder plugin and a hook plugin in their smallest working form"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
@@ -16,7 +16,7 @@ classifiers = ["Private :: Do Not Upload"]
 requires-python = ">=3.13"
 dependencies = [
     "cs-image-system-contract>=0.3,<0.4",
-    "cs-image-system-base==0.1.7.dev1",
+    "cs-image-system-base==0.1.7.dev2",
     "pydantic>=2.13",
 ]
 

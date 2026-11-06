@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-contract-example-plugin"
-version = "0.1.7.dev1"
+version = "0.1.7.dev2"
 description = "The proof of the plugin contract: the inmem state backend, a plugin written against cs-image-system-contract alone, with nothing from the core"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
