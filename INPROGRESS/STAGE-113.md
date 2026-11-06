@@ -23,7 +23,7 @@ through four doors, each a few plugin imports:
 - `global_context` (seven plugin modules, for the `GlobalTypeContext`
   annotation and one `read_config_and_transform`): it pulls
   `config_loader` and `finalizer`. Closed by annotating with
-  `RunContext` (or [§125](STAGE-125.md)'s protocol) and by the one
+  `RunContext` (or §125's protocol) and by the one
   caller taking the loader from the engine.
 - `commands.run_lifecycles` (dummy-plugin and tofu-roots, for
   `HookSet`): it pulls `orchestrator`, `template_utils`, `meta_state`,
@@ -44,7 +44,7 @@ kit after that is the 45-module component the closure test names
 the vocabulary modules, and the engine the rest. That component is
 the layering question this stage answers: `run_context` is in the kit
 because the plugins annotate with it, and it names the models and the
-builder bases only under `TYPE_CHECKING`; [§125](STAGE-125.md)'s
+builder bases only under `TYPE_CHECKING`; §125's
 protocol cuts those edges. The engine-package decision in item 1
 stands; the re-export shims of item 1 must not import the engine from
 the kit (REEXAMINE3 flaw 2), so an old path either moves with its
@@ -135,7 +135,7 @@ of item 1.
    table grows.
 
 **Out of scope**: any change to what a plugin imports
-([§114](STAGE-114.md), [§115](STAGE-115.md)); the umbrella package's
+(§114, §115); the umbrella package's
 dependencies ([§116](STAGE-116.md)); removing the §30 shims; the
 contract's own repository; any YAML key, record, emission or cloud
 state.

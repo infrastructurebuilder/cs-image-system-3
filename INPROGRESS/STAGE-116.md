@@ -1,10 +1,10 @@
 # 116. A runtime installed from outside
 
-**Status: OPEN 2026-11-03. Waits for "do 116", after [§115](STAGE-115.md) and
+**Status: OPEN 2026-11-03. Waits for "do 116", after §115 and
 preferably after [§112](STAGE-112.md) (the release walk; this stage adds a repository
-to it). Kept apart from [§115](STAGE-115.md): it changes what a release ships, the
+to it). Kept apart from §115: it changes what a release ships, the
 starters, the reference's install line and the release walk, and
-makes a repository; [§115](STAGE-115.md) changes none of those.**
+makes a repository; §115 changes none of those.**
 
 The end the four stages are for: the umbrella `cs-image-system`
 installs without any runtime, a runtime installs beside it from an
