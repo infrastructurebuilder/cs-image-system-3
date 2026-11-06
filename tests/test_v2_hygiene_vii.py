@@ -22,7 +22,7 @@ EXAMPLES = REPO / "docs" / "examples"
 
 
 def test_the_system_cli_runs_as_the_running_interpreters_module(monkeypatch, tmp_path):
-    from cs_image_system.base.constants import SYSTEM_CLI
+    from cs_image_system.contract.constants import SYSTEM_CLI
     from cs_image_system.base.models.executable import ExecutableModel
     from cs_image_system.base.utils import system_cli_executable
     import cs_image_system.base.models.executable as ex

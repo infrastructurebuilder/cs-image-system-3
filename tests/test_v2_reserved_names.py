@@ -22,7 +22,7 @@ import yaml
 
 from tests.v2_support import FIXTURE_CONFIG, copy_config, load_context, reset_singletons, stub_environment
 
-from cs_image_system.base.constants import NONE, OOPS_DEFAULTS
+from cs_image_system.contract.constants import NONE, OOPS_DEFAULTS
 from cs_image_system.base.reserved_names import (
     ReservedNameError,
     is_reserved,
@@ -287,7 +287,7 @@ def test_only_none_is_an_explicitly_empty_bake_surface(tmp_path, monkeypatch):
 # ------------------- step 6: the `config:` key guard, switched on as written
 
 def test_every_word_of_the_guard_is_refused_as_a_document_config_key():
-    from cs_image_system.base.constants import INVALID_CONFIG_KEYS
+    from cs_image_system.contract.constants import INVALID_CONFIG_KEYS
     from cs_image_system.base.reserved_names import invalid_config_key_problems
     for word in INVALID_CONFIG_KEYS:
         for key in {word, word.upper(), f" {word} "}:

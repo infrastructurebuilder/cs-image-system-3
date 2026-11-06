@@ -31,9 +31,9 @@ from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from typing import Any, Mapping
 
-from cs_image_system.base import utils
+from cs_image_system.contract.names import super_safe_name
 from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, VCT
-from cs_image_system.base.encryption import EncryptedStr
+from cs_image_system.contract.secrets import EncryptedStr
 from cs_image_system.contract.fields import fk_field, templated_field
 from cs_image_system.hashicorp_utils.collector import (
     ConfiguredTerraformProvider,
@@ -92,7 +92,7 @@ class OktaTfWorkspaceModelMixin:
     # Provider bookkeeping
     # ------------------------------------------------------------------
     def _team_var(self) -> str:
-        return utils.super_safe_name(self.team)
+        return super_safe_name(self.team)
 
     def provider_names(self) -> set[str]:
         """Names of the declared providers, tolerant of un-structured entries."""

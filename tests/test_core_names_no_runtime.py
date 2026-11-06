@@ -44,7 +44,7 @@ EXCEPTIONS: tuple[tuple[str, str], ...] = (
     # the enrollment credential's terraform variable: its name is pinned by
     # every tree's committed emission (the launch scripts and the roots carry
     # it), so it stays until a hygiene item renames it with a re-record
-    ("packages/base/src/cs_image_system/base/launch_params.py", 'ENROLLMENT_TOKEN_VARIABLE = "sft_enrollment_token"'),
+    ("packages/contract/src/cs_image_system/contract/launch_vocabulary.py", 'ENROLLMENT_TOKEN_VARIABLE = "sft_enrollment_token"'),
 )
 
 

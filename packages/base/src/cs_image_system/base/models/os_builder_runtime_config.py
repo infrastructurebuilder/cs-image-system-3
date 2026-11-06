@@ -5,7 +5,7 @@
 from __future__ import annotations
 import logging
 from dataclasses import field
-from .model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic import Field
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from typing import Annotated, TYPE_CHECKING, Any, Mapping, Sequence
@@ -14,10 +14,10 @@ from typing import Annotated, TYPE_CHECKING, Any, Mapping, Sequence
 # from cs_image_system.base.models.base_image import BaseImage
 
 
-from ..helpers.field_helpers import fk_field, parent_field, templated_field
+from cs_image_system.contract.fields import fk_field, parent_field, templated_field
 from .root_item import SubRootItem
 
-from ..constants import  DEFAULT, OOPS_DEFAULTS, VCT
+from cs_image_system.contract.constants import  DEFAULT, OOPS_DEFAULTS, VCT
 from cs_image_system.contract.image import ImageQuery
 
 if TYPE_CHECKING:

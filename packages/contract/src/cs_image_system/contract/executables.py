@@ -16,9 +16,13 @@ log = logging.getLogger(__name__)
 
 
 class ExecutableProtocol(Protocol):
-    """One command a run executes: a name, a type and ``execute``."""
+    """One command a run executes: a name, a type, the binary it runs when
+    one is declared (else the name is the binary), and ``execute``."""
     name: str
     type_: str
+
+    @property
+    def binary(self) -> str | None: ...
 
     def execute(self, *args: str, skips: bool = False) -> subprocess.CompletedProcess[str]: ...
 

@@ -34,8 +34,20 @@ def _rtb(name="aws-east2-runtime", subnet="subnet-01"):
     )
 
 
+
+def _services():
+    """The one service each of these calls reaches (stage 125): a lineage
+    that labels nothing (a stand-in without a run gets no configuration id)
+    and a scope every root is in."""
+    return SimpleNamespace(
+        lineage=SimpleNamespace(config_tags=lambda: {}, pinned_instance_build=lambda instance: None,
+                                configuration_tag=lambda: ""),
+        scope=SimpleNamespace(root_in_runtime_scope=lambda runtime: True,
+                              apply_enabled=lambda key, root=None, aliases=(): True))
+
+
 def _ctx(psi):
-    return SimpleNamespace(get_provider_specific_image=lambda source, runtime: psi)
+    return SimpleNamespace(get_provider_specific_image=lambda source, runtime: psi, services=_services())
 
 
 def _module_args(psi):
@@ -75,7 +87,7 @@ def test_init_args_carry_backend_config_when_enabled(monkeypatch):
     """Partial backend configuration: init must pass -backend-config=<file>."""
     from pathlib import Path
 
-    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     from cs_image_system.hashicorp_utils.collector import terraform_collector
     from v2_support import bare_run
 
@@ -113,7 +125,7 @@ def test_deferred_psi_also_wires_ami_variable():
 
 
 def test_pre_finalize_writes_tfvars_for_resolved_psis(tmp_path):
-    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     from pathlib import Path
 
     psi = GenericProviderSpecificImage.resolved(
@@ -122,6 +134,7 @@ def test_pre_finalize_writes_tfvars_for_resolved_psis(tmp_path):
     ctx = SimpleNamespace(
         get_provider_specific_image=lambda source, runtime: psi,
         generation_path=Path(tmp_path),
+        services=_services(),
     )
     stub = SimpleNamespace(
         _instances=[_instance("test2", "imgfile-basic-dask")],

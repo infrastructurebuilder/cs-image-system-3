@@ -28,10 +28,8 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
-from cs_image_system.base.lineage import mod_records
-
 if TYPE_CHECKING:
-    from cs_image_system.base.global_context import GlobalTypeContext
+    from cs_image_system.contract.context import RunContextProtocol
 
 log = logging.getLogger(__name__)
 
@@ -78,7 +76,7 @@ def _run_sh_for(mod: Any, files: list[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def stage_local_mods(ctx: "GlobalTypeContext", image: Any, block_dir: Path,
+def stage_local_mods(ctx: "RunContextProtocol", image: Any, block_dir: Path,
                      source_label: str) -> list[str]:
     """Write the bundle under ``block_dir/csis-mods/<image>/`` and return the
     packer provisioner lines that install it on the image."""
@@ -91,7 +89,7 @@ def stage_local_mods(ctx: "GlobalTypeContext", image: Any, block_dir: Path,
     bundle.mkdir(parents=True)
     (bundle / RUNNER_NAME).write_text(RUNNER_SCRIPT)
     (bundle / RUNNER_NAME).chmod(0o755)
-    records = mod_records(ctx, image)
+    records = ctx.services.lineage.mod_records(image)
     index: list[dict[str, Any]] = []
     for n, (mod, rec) in enumerate(zip(mods, records), start=1):
         if isinstance(mod, dict):

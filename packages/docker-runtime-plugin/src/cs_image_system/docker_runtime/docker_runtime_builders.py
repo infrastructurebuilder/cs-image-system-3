@@ -18,10 +18,9 @@ from typing import Any
 
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
 from cs_image_system.base.basic.builder_base_container import ContainerBuilderBase
-from cs_image_system.base.image_sources import packaged_entries_of
 from cs_image_system.base.models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
 from cs_image_system.base.models.provider_specific_image import ProviderSpecificImage
-from cs_image_system.base import power_state
+from cs_image_system.contract import power_state
 from cs_image_system.contract.constants import VCT
 from cs_image_system.contract.core import PluginArtifactProtocol
 from cs_image_system.contract.image import ImageQuery
@@ -32,13 +31,12 @@ from .docker_names import (full_id, is_digest_reference, is_image_id, label_key_
                            parse_movable_tag, same_repository, short_id, tag_name, tag_problem)
 from .docker_provider_specific_image import DockerProviderSpecificImage
 from .docker_runtime_models import DockerContainerBuilderModel
-from cs_image_system.base.encryption import decrypt_marker, is_marker
-from cs_image_system.base.image_sources import container_reference
+from cs_image_system.contract.secrets import is_marker, open_marker
+from cs_image_system.contract.image_sources import container_reference
 from .local_target import make_local_target
-from cs_image_system.base.lineage import TAG_PREFIX, CONFIG_TAG, belongs_to_another_configuration
+from cs_image_system.contract.lineage_vocabulary import TAG_PREFIX, CONFIG_TAG
 from cs_image_system.base.models.executable import ExecutableModel
-from cs_image_system.base.launch_delivery import LAUNCH_MARKER_PATH
-from cs_image_system.base.bake_user import resolve_bake_user
+from cs_image_system.contract.launch_vocabulary import LAUNCH_MARKER_PATH
 from .docker_packer_source import bake_container_name, DOCKER_SOURCE, docker_source, docker_tag_post_processor
 
 DOCKER_RUNTIME: str = "docker"
@@ -93,7 +91,7 @@ def daemon_where(settings: Mapping[str, Any]) -> tuple[dict[str, str], str]:
     env: dict[str, str] = {}
     where = "the environment's daemon"
     if host:
-        env["DOCKER_HOST"] = decrypt_marker(str(host)) if is_marker(str(host)) else str(host)
+        env["DOCKER_HOST"] = open_marker(str(host)) if is_marker(str(host)) else str(host)
         where = "host (encrypted)" if is_marker(str(host)) else f"host {host}"
     elif context:
         env["DOCKER_CONTEXT"] = str(context)
@@ -215,12 +213,11 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
     def translate_image_query(self, query: ImageQuery) -> dict[str, Any]:
         return translate_image_query(query)
 
-    @classmethod
-    def image_source_entries(cls) -> list[Mapping[str, Any]]:
-        """This runtime's part of the release-owned image-source catalog:
-        the `docker` blocks, shipped as this package's ``data/image-sources.yml``;
-        the local modification tests read their stand-in container from them."""
-        return packaged_entries_of("cs_image_system.docker_runtime")
+    #: This runtime's part of the release-owned image-source catalog: the
+    #: `docker` blocks, shipped as this package's ``data/image-sources.yml``
+    #: (the core reads the file; stage 125); the local modification tests
+    #: read their stand-in container from them.
+    image_source_package = "cs_image_system.docker_runtime"
 
     @classmethod
     def local_test_target(cls) -> Callable[..., Any] | None:
@@ -451,7 +448,7 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
             return None
         info = dict(data[0])
         labels = dict((info.get("Config") or {}).get("Labels") or {})
-        if belongs_to_another_configuration(self._get_context(), labels):
+        if self._get_context().services.lineage.belongs_to_another_configuration(labels):
             return None
         return info
 
@@ -601,7 +598,7 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
     def bake_ssh_username(self, image=None) -> str | None:
         if image is None:
             return self.default_bake_user("")
-        return resolve_bake_user(self._get_context(), image, self.get_name())
+        return self._get_context().services.images.resolve_bake_user(image, self.get_name())
 
     def bake_settle_commands(self, os_family: str | None = None) -> list[str]:
         """A container has no first boot and no fleet management to wait

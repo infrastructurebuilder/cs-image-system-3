@@ -35,41 +35,39 @@ LAUNCH_DELIVERY_SESSION = "session"
 
 
 class RuntimeBuilderModelProtocol(BuilderModelProtocol, Protocol):
-    """An entry under ``runtime_builders:``."""
+    """An entry under ``runtime_builders:``: what another plugin reads of a
+    runtime's model (its credentials and default machine type, from a
+    terraform root), what a runtime plugin overrides (its credentials
+    type, ``update_networking``), and what the core reads of it (the
+    default owners an OS builder's query inherits; the retention and
+    teardown knobs the lineage, retention and state-query code read). The
+    fields only the kit's own classes read (``default_image_builder``,
+    ``default_machine_type``, ``ephemeral``, ...) are the kit model's,
+    ``RuntimeBuilderModel`` (stage 125)."""
 
-    default_machine_type: str
-    default_image_builder: str
-    default_owners: list[str] | None
     credentials: Any
-    default_config_username: str | None
-    ephemeral: bool
+
+    def get_default_machine_type(self) -> str: ...
+
+    def get_credentials(self) -> dict[str, str]: ...
+
+    def update_networking(self) -> None: ...
+
     retention_keep: int | None
     on_failure: str | None
     teardown_after: str | None
 
-    def get_default_image_builder(self) -> str: ...
-
-    def get_default_machine_type(self) -> str: ...
-
     def get_default_owners(self) -> list[str] | None: ...
-
-    def get_credentials(self) -> dict[str, str]: ...
-
-    def get_default_config_username(self) -> str | None: ...
-
-    def update_networking(self) -> None: ...
 
 
 class CloudBuilderModelProtocol(RuntimeBuilderModelProtocol, Protocol):
-    """A cloud runtime: a region and a networking block (``networking``:
-    the network, its subnets and availability zones)."""
+    """A cloud runtime's model: the networking block (``networking``: the
+    network, its subnets and availability zones), which every cloud plugin
+    redeclares with its own type. The region and the rest of a cloud's
+    fields are the kit model's (``CloudBuilderModel``): the core reads
+    them, no plugin does (stage 125)."""
 
-    region: str
     networking: Any
-
-    def get_region(self) -> str: ...
-
-    def get_networking(self) -> Any: ...
 
 
 class ContainerBuilderModelProtocol(RuntimeBuilderModelProtocol, Protocol):
@@ -79,20 +77,10 @@ class ContainerBuilderModelProtocol(RuntimeBuilderModelProtocol, Protocol):
     a ``networking`` block that names a network and nothing more (no
     subnets, no zones); and a ``machine_types`` map from a name to the
     limits a container of that type runs under (``cpus``, ``memory``),
-    one of which ``default_machine_type`` names."""
-
-    host: str | None
-    context: str | None
-    networking: Any
-    machine_types: Any
-
-    def get_host(self) -> str | None: ...
-
-    def get_context(self) -> str | None: ...
-
-    def get_networking(self) -> Any: ...
-
-    def get_machine_types(self) -> dict[str, Any]: ...
+    one of which ``default_machine_type`` names. The fields are the kit
+    model's (``ContainerBuilderModel``), read by the container plugin on
+    its own model and by the core; the protocol adds nothing to the
+    runtime's (stage 125)."""
 
 
 class RuntimeBuilderProtocol(BuilderProtocol, Protocol):
@@ -197,16 +185,10 @@ class RuntimeBuilderProtocol(BuilderProtocol, Protocol):
 
     def get_default_machine_type(self) -> str: ...
 
-    def apply_specific_changes(self, image: Any) -> Any: ...
-
     def provider_specific_image_class(self) -> type[Any]: ...
 
     def create_provider_specific_image_resolved(self, *, source_name: str, source_kind: PSISourceKind, identifier: str,
                                                 owner: str | None = None, raw_query_result: Any | None = None,
-                                                architecture: str | None = None) -> Any: ...
-
-    def create_provider_specific_image_deferred(self, *, image: Any, subconfig: Any,
-                                                source_kind: PSISourceKind = PSISourceKind.IMAGE,
                                                 architecture: str | None = None) -> Any: ...
 
     # --- what the core asks of the runtime's CLASS, before or without a tree
@@ -253,7 +235,11 @@ class RuntimeBuilderProtocol(BuilderProtocol, Protocol):
         one keyed by this runtime's type."""
         ...
 
-    # --- wiring: the builders that operate in this runtime
     def add_image_builder(self, image: Any) -> None: ...
 
     def add_instance_builder(self, instance: Any) -> None: ...
+
+    def create_provider_specific_image_deferred(self, *, image: Any, subconfig: Any,
+                                                source_kind: PSISourceKind = PSISourceKind.IMAGE,
+                                                architecture: str | None = None) -> Any: ...
+

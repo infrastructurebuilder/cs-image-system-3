@@ -6,7 +6,7 @@ from functools import partial
 import logging
 from typing import Any
 
-from cs_image_system.base import utils
+from cs_image_system.contract.names import safe_name
 from cs_image_system.contract.assets import AssetSet
 from cs_image_system.base.basic.builder_base_user import UserBuilderBase
 from cs_image_system.contract.constants import USERS
@@ -100,7 +100,7 @@ class OktaTfUserBuilder(UserBuilderBase[OktaTfUserBuilderModel], TerraformRootMi
         variable_lines = col.generate_variable_blocks(self.name)
         if variable_lines:
             vpath = self.get_path_for_phase(
-                phase, suffix=f"-{utils.safe_name(self.name)}-vars.tf")
+                phase, suffix=f"-{safe_name(self.name)}-vars.tf")
             items.add_list(vpath, variable_lines)
         backend_lines = col.generate_backend_config(self.name)
         if backend_lines:

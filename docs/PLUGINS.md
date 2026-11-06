@@ -114,6 +114,31 @@ runtime declares only what it has.
   public-safety scan adds them to the rules it carries itself (tokens,
   PEM bodies, an age identity, a literal `TF_VAR_*=` value).
 
+### What a plugin may import
+
+A plugin is written against `cs-image-system-contract`, and from the core
+it imports three things only: the base classes under
+`cs_image_system.base.basic` (the convenient way to satisfy a protocol),
+the models under `cs_image_system.base.models` (what it subclasses or
+attaches to) and the two metadata abstractions. Everything else it needs
+of a run it reads from the context it is handed at `bind(ctx)`, typed as
+the contract's `RunContextProtocol`: the collections and paths, the
+meta-state, and the services under `ctx.services`, each a protocol sized
+by what plugins use (`lineage`, `launch`, `secrets`, `files`, `commands`,
+`images`, `identity`, `storage`, `workspaces`, `scope`, `cli`,
+`lifecycles`, `meta_state`). The words a plugin reads and writes (tag
+names, the enrollment variable, the mount mark, storage states, gid
+policies, power states, the secret marker type) are the contract's
+vocabulary modules; the hooks entry point and the bootstrap facts protocol
+are the contract's too. `tests/test_plugin_imports.py` holds the rule over
+every installed plugin and carries the exception list, four entries today,
+each with its reason beside it (a model method with no context of its own;
+a state backend's session check that runs before any run exists). The
+contract's protocols hold what a plugin calls on the core's objects and
+what the core calls on a plugin's, nothing mirrored from the base classes
+for its own sake; a plugin that falls short of its kind's protocol is
+refused when the plugins are discovered, by name and by member.
+
 ### What a plugin adds to the command line
 
 The console script `cs-image-system` owns the root command and its

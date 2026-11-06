@@ -31,13 +31,14 @@ import shutil
 import subprocess
 import tempfile
 from dataclasses import asdict, field
-from .models.model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from pathlib import Path
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Protocol
 
 
+from cs_image_system.contract.errors import ContainerStartError  # noqa: F401 - the error is the contract's; this path keeps it
 from .lineage import mod_records
 from .image_sources import _runtime_classes, stand_in_runtime_type, ImageSourceCatalog, container_reference
 from .capabilities import image_chain
@@ -103,18 +104,6 @@ class LocalTarget(Protocol):
 #: executables) -> LocalTarget | None`` (None: the target's daemon does not
 #: answer; the harness records the tests as skipped)
 TargetFactory = Callable[..., "LocalTarget | None"]
-
-
-class ContainerStartError(RuntimeError):
-    """The test container could not be started: the image could not be
-    pulled (the registry or the daemon did not answer, after the retries)
-    or the run command refused. Carries the tool's own last line, which
-    is what a reader needs (an exit status under eighty lines of
-    traceback said nothing of a registry that was down)."""
-
-    def __init__(self, image: str, stage: str, rc: int, words: str) -> None:
-        self.image, self.stage, self.rc, self.words = image, stage, rc, words
-        super().__init__(f"cannot start a container from {image}: {stage} exited {rc}: {words or '(nothing on stderr)'}")
 
 
 def stand_in_target_factory() -> tuple[str, TargetFactory] | None:

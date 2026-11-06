@@ -20,7 +20,7 @@ import yaml
 from tests.v2_support import V2Run, copy_config, plain
 
 from cs_image_system.base import identity_attributes as ia
-from cs_image_system.base.lifecycles import Lifecycle
+from cs_image_system.contract.lifecycles import Lifecycle
 
 
 def _edit(path: Path, fn) -> None:

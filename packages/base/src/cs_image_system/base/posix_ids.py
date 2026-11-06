@@ -32,9 +32,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Iterable, Literal
+from typing import Iterable
 
-Kind = Literal["group", "user"]
+# The claim and its words are the contract's (`contract.identity_vocabulary`); this path keeps them.
+from cs_image_system.contract.identity_vocabulary import DEFERRED, Claim, ClaimKind as Kind  # noqa: F401, E402
 
 #: a name groupadd and useradd take on every supported family: lower case, a
 #: letter or underscore first, at most 32 characters; the dot is allowed
@@ -44,26 +45,6 @@ NAME_RE = re.compile(r"^[a-z_][a-z0-9._-]{0,31}$")
 #: ids below this are refused: the system's own accounts live there, and the
 #: Group model already refuses a gid below it at load (the same floor for uids)
 FIRST_REGULAR_ID = 1024
-
-#: an id a side will supply at a later moment (a provider read at bake)
-DEFERRED = "deferred"
-
-
-@dataclass(frozen=True)
-class Claim:
-    """One side's knowledge of one name: an id, None (the name only), or
-    DEFERRED (an id that side will supply later). ``rank`` orders the sides
-    -- lower resolves first (3: a provider before the configuration)."""
-    side: str
-    kind: Kind
-    name: str
-    id: int | None | str = None
-    rank: int = 50
-    #: a claim that follows from another (a user's private group from the
-    #: user): resolved like any other, but its name and id are checked once,
-    #: on the claim it follows from
-    derived: bool = False
-
 
 @dataclass
 class Resolution:

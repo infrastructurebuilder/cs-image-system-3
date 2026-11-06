@@ -58,6 +58,14 @@ plugin's `version` is its distribution's.
   and the paths the runner files output under. It is the whole surface the
   core drives on any builder, with nothing inherited; a plugin that
   subclasses the core's `StateBuilderBase` instead gets all of it for free.
+- **The builder reads the run through the contract alone**: `bind(ctx)`
+  receives the run context typed as `RunContextProtocol`, and at bind and
+  at every finalize phase the builder records the run id, the dry-run
+  flag, the generation path, the state backends and one service's answer
+  (`ctx.services.lineage.config_tags()`) into `observed`; the test asserts
+  them after the dry `run --all` and runs `assert_conforms` over the
+  context it was given. A plugin that needs more of a run asks the
+  context, never a core module.
 - **The registration reaches the collector without the plugin knowing the
   collector exists**: once the state backends are loaded the core hands
   every model's `to_backend_registration()` to `hashicorp-utils`.

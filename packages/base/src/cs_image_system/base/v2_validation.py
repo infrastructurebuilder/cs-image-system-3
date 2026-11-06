@@ -24,7 +24,7 @@ from .capabilities import (
     storage_type_of,
     validate_public_key,
 )
-from .lifecycles import Lifecycle
+from cs_image_system.contract.lifecycles import Lifecycle
 from .storage_state import attachments, validate_transitions
 from .image_tests import validate_tests_spec
 

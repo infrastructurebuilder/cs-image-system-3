@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from cs_image_system.base.launch_enrollment import register_enrollment_kind
+from cs_image_system.contract.enrollment import register_enrollment_kind
 
 SFTD_TOKEN = "sftd-token"
 

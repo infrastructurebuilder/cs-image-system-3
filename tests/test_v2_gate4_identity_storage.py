@@ -232,7 +232,7 @@ def test_archive_and_restore_are_legal_when_unattached(tmp_path, monkeypatch):
                                                     "requested_state": "archived",
                                                     "current_state": "active"}
         # after a real apply the transition is recorded and becomes authoritative
-        from cs_image_system.base.lifecycles import Lifecycle
+        from cs_image_system.contract.lifecycles import Lifecycle
         from cs_image_system.base.read_models import record_storage_transitions
         # truthful-recorders (finding 21): the recorder refuses to write a
         # reality-claiming record while the apply flag is off ...

@@ -40,7 +40,7 @@ from .launch_params import hostname_problems, will_replace
 from .utils import apply_enabled
 
 if TYPE_CHECKING:
-    from .global_context import GlobalTypeContext
+    from .run_context import RunContext
 
 log = logging.getLogger(__name__)
 
@@ -182,7 +182,7 @@ def undraw(path: Path, *, name: str, run_id: str) -> bool:
             fcntl.flock(lk, fcntl.LOCK_UN)
 
 
-def release_unlaunched(ctx: "GlobalTypeContext") -> list[str]:
+def release_unlaunched(ctx: "RunContext") -> list[str]:
     """When a run ends: every name this run drew for a machine that did not
     come to exist goes back to the pool (hygiene VIII item 5). A draw
     happens at generation; the machine exists only after the apply, and a
@@ -211,14 +211,14 @@ def release_unlaunched(ctx: "GlobalTypeContext") -> list[str]:
     return released
 
 
-def _new_machine(ctx: "GlobalTypeContext", instance: Any) -> bool:
+def _new_machine(ctx: "RunContext", instance: Any) -> bool:
     """Whether the launch parameters being computed are for a machine that
     does not exist yet: never launched, or a pending/follow replacement."""
     recorded = ctx.meta_state.launch_params().get(instance.get_name()) or {}
     return not recorded.get("launched") or will_replace(ctx, instance)
 
 
-def alias_for(ctx: "GlobalTypeContext", instance: Any, canonical: str) -> str | None:
+def alias_for(ctx: "RunContext", instance: Any, canonical: str) -> str | None:
     """The alias this instance's launch parameters carry: the recorded one
     for a machine that stands, a fresh draw for a new machine of a durable
     instance when THIS run can launch it, nothing otherwise."""

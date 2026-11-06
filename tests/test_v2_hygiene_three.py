@@ -168,7 +168,7 @@ def test_the_cache_dir_recipe_is_a_dependency_of_nothing():
 
 
 def test_packers_manifest_is_run_local(tmp_path, monkeypatch):
-    from cs_image_system.base.constants import PACKER_MANIFEST_FILENAME, RUN_LOCAL_FILENAMES
+    from cs_image_system.contract.constants import PACKER_MANIFEST_FILENAME, RUN_LOCAL_FILENAMES
     from cs_image_system.packer_plugin.packer_image_builder import MANIFEST_FILENAME
     assert MANIFEST_FILENAME == PACKER_MANIFEST_FILENAME == "manifest.json" and "manifest.json" in RUN_LOCAL_FILENAMES
     v2 = V2Run(tmp_path, monkeypatch)

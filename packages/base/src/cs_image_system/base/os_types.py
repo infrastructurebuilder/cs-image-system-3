@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .constants import VCT
+from cs_image_system.contract.constants import VCT
 from .loader import load_plugins
 from .registry import current_registry
 

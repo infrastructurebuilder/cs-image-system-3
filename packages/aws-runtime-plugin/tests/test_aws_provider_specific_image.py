@@ -11,7 +11,7 @@ from typing import Any, cast
 
 from cs_image_system.aws_runtime.aws_provider_specific_image import AwsProviderSpecificImage
 from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
-from cs_image_system.base.models.provider_specific_image import PSISourceKind
+from cs_image_system.contract.image import PSISourceKind
 
 
 def test_csis_name():

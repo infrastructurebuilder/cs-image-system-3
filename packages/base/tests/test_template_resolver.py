@@ -12,8 +12,8 @@ from dataclasses import dataclass
 
 from cs_image_system.base import registry as _registry
 from cs_image_system.base.orchestrator import SmartContext
-from cs_image_system.base.helpers.field_helpers import fk_field, templated_field
-from cs_image_system.base.constants import VCT, DEFAULT, NO_MODEL_ID
+from cs_image_system.contract.fields import fk_field, templated_field
+from cs_image_system.contract.constants import VCT, DEFAULT, NO_MODEL_ID
 
 
 @dataclass

@@ -12,7 +12,12 @@ registration at load. So every hook here returns its empty value. What
 the class shows is the whole surface the core drives on any builder:
 the names and the classification, the six universal lifecycle hooks, the
 three finalize-phase hooks, ``finalize``, and the paths the runner files
-output under.
+output under. Since stage 125 it also shows the run context as a plugin
+sees it: ``bind`` receives the contract's ``RunContextProtocol`` and
+the builder reads the run through it alone -- the run id, where the
+run generates, the declared backends and one service (the lineage's
+configuration tags) -- into ``observed``, which the proof's dry run
+asserts on.
 """
 from __future__ import annotations
 
@@ -22,6 +27,7 @@ from typing import Any
 
 from cs_image_system.contract.assets import AssetSet
 from cs_image_system.contract.constants import NO_MODEL_ID, VCT
+from cs_image_system.contract.context import RunContextProtocol
 from cs_image_system.contract.executables import CFExecutables
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.contract.names import safe_name
@@ -36,6 +42,31 @@ class InmemStateBuilder:
     def __init__(self, model: InmemStateBackendModel) -> None:
         self._model = model
         self._finalized = False
+        self._ctx: RunContextProtocol | None = None
+        #: what the builder read of the run through the protocol, at finalize
+        self.observed: dict[str, Any] = {}
+
+    # --- the run context, passed by the loader (stage 125)
+    def bind(self, ctx: RunContextProtocol) -> None:
+        """The loader hands every builder the run context it made, before
+        the domain items are read; the builder keeps it and reads the run
+        through the protocol alone, here and again before each phase's
+        deferred commands (``pre_finalize_phase``), when the generation
+        path is the lifecycle's."""
+        self._ctx = ctx
+        self._observe()
+
+    def _observe(self) -> None:
+        if self._ctx is None:
+            return
+        ctx = self._ctx
+        self.observed = {
+            "run_id": ctx.run_id,
+            "dry_run": ctx.dry_run,
+            "generation_path": ctx.generation_path,
+            "state_backends": sorted(ctx.state_backends),
+            "config_tags": dict(ctx.services.lineage.config_tags()),
+        }
 
     # --- asked of the class: no session, no failure of its own
     @classmethod
@@ -137,7 +168,7 @@ class InmemStateBuilder:
 
     # --- the finalize-phase hooks and finalize
     def pre_finalize_phase(self, phase: ExecutionLifecyclePhase) -> None:
-        return None
+        self._observe()
 
     def post_finalize_phase(self, phase: ExecutionLifecyclePhase) -> None:
         return None

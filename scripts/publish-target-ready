@@ -90,6 +90,24 @@ def projects(root: Path) -> list[str]:
     return names
 
 
+def own_versioned(root: Path) -> dict[str, str]:
+    """The projects whose version is their own, not the workspace's, with
+    that version: those the root project depends on by a range rather than
+    ``==`` (the contract, ``cs-image-system-contract``, whose dependents pin
+    ``>=0.1,<0.2``). What the index must hold for such a project is its own
+    version, and holding it is never a re-cut of the workspace's."""
+    from packaging.requirements import Requirement
+    doc = tomllib.loads((root / "pyproject.toml").read_text())["project"]
+    ranged = {canonicalize_name(Requirement(d).name) for d in doc.get("dependencies", [])
+              if not str(Requirement(d).specifier).startswith("==")}
+    out: dict[str, str] = {}
+    for p in sorted((root / "packages").glob("*/pyproject.toml")):
+        project = tomllib.loads(p.read_text())["project"]
+        if canonicalize_name(project["name"]) in ranged and "version" in project:
+            out[project["name"]] = project["version"]
+    return out
+
+
 def check_pypi_index(root: Path, index: str, version: str | None, say) -> tuple[bool, str, list[str], int]:
     """(ready, why not, the projects that hold version, how many projects)."""
     entry = index_entry(root, index)
@@ -103,8 +121,10 @@ def check_pypi_index(root: Path, index: str, version: str | None, say) -> tuple[
         failures.append(f"the upload endpoint {upload} answered {status if status is not None else 'nothing'}")
     versions_in = _versions_in() if version else None
     held: list[str] = []
+    own = own_versioned(root)
     names = projects(root)
     for project in names:
+        wanted = own.get(project, version)
         url = f"{simple}/{canonicalize_name(project)}/"
         status, body, why = _status(url, ACCEPT)
         ok = status is not None and (status < 400 or status == 404)
@@ -112,8 +132,12 @@ def check_pypi_index(root: Path, index: str, version: str | None, say) -> tuple[
             f"{' (never seen)' if status == 404 else ''}{'' if ok else ' -- ' + (why or 'not ready')}", ok)
         if not ok:
             failures.append(f"the project page {url} answered {status if status is not None else 'nothing'}")
-        elif versions_in and status == 200 and version in versions_in(body):
+        elif versions_in and status == 200 and wanted in versions_in(body):
             held.append(project)
+    if version:
+        for project, theirs in own.items():
+            say(f"publish-target-ready: {index} {'holds' if project in held else 'does not hold'} {theirs} for {project} "
+                f"(its own version, not {version})", True)
     return not failures, "; ".join(failures[:3]) + (f" (and {len(failures) - 3} more)" if len(failures) > 3 else ""), held, len(names)
 
 
@@ -178,6 +202,10 @@ def main(argv: list[str], sleep=time.sleep) -> int:
           + "; the token is not checked here (the index has no call that says so without an upload; "
           "`just publish` proves it)")
     if version is not None:
+        own = own_versioned(args.root)
+        own_held = [p for p in held if p in own]
+        held = [p for p in held if p not in own]
+        n -= len(own)
         # hygiene XIV item 5: the pages are cached, so a count taken just after an upload lags it
         lag = " (the index's pages are cached: minutes after an upload this count can lag it)"
         if not held:
@@ -192,8 +220,8 @@ def main(argv: list[str], sleep=time.sleep) -> int:
             print(f"publish-target-ready: {version} is already on {index}; a version is never re-cut -- take the next one"
                   + ("" if len(held) == n else ", or finish this one with `just publish`"))
             return 1
-        if args.all_held and len(held) < n:
-            missing = [p for p in projects(args.root) if p not in held]
+        if args.all_held and len(held) + len(own_held) < n + len(own):
+            missing = [p for p in projects(args.root) if p not in held and p not in own_held]
             print(f"publish-target-ready: --all-held: {len(missing)} project(s) do not hold {version} on {index}: "
                   f"{', '.join(missing)}")
             return 1

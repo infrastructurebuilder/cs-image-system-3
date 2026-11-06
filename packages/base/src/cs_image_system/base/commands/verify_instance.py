@@ -11,71 +11,25 @@ run fails (operator decision 2026-09-07).
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..run_context import RunContext
+
 import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from ..global_context import GlobalTypeContext
 from .. import power_state
+from ..ephemeral_policy import _UNITS, failure_policy, last_verification, parse_duration, teardown_due  # noqa: F401 - re-exported
 from ..launch_params import compute_launch_params, mounted_points
 from ..image_tests import parse_post_bake_output, post_bake_script, post_bake_spec, root_os_type
 
 log = logging.getLogger(__name__)
 
 
-ON_FAILURE_KEEP = "keep"
-ON_FAILURE_TEARDOWN = "teardown"
-ON_FAILURE_POLICIES = (ON_FAILURE_KEEP, ON_FAILURE_TEARDOWN)
-_UNITS = {"m": 60, "h": 3600, "d": 86400}
-
-
-def parse_duration(text: str | None) -> int | None:
-    """``"30m"`` / ``"2h"`` / ``"1d"`` -> seconds; None for None."""
-    if text is None:
-        return None
-    t = str(text).strip().lower()
-    if not t or t[-1] not in _UNITS or not t[:-1].isdigit():
-        raise ValueError(f"duration {text!r} must be <number><m|h|d>")
-    return int(t[:-1]) * _UNITS[t[-1]]
-
-
-def failure_policy(ctx: "GlobalTypeContext", instance: Any) -> tuple[str, int | None]:
-    """``(on_failure, teardown_after seconds)`` for an ephemeral instance:
-    instance declaration, else its runtime's defaults, else keep / None."""
-    rt = ctx.runtime_builders.get(str(getattr(instance, "runtime", "") or ""))
-    model = getattr(rt, "model", None)
-    on_failure = getattr(instance, "on_failure", None) or getattr(model, "on_failure", None) or ON_FAILURE_KEEP
-    after = getattr(instance, "teardown_after", None)
-    if after is None:
-        after = getattr(model, "teardown_after", None)
-    return str(on_failure).strip().lower(), parse_duration(after)
-
-
-def last_verification(ctx: "GlobalTypeContext", name: str) -> dict[str, Any] | None:
-    records = [v for v in ctx.meta_state.verifications() if v.get("instance") == name]
-    return records[-1] if records else None
-
-
-def teardown_due(ctx: "GlobalTypeContext", instance: Any, now: datetime | None = None) -> bool:
-    """A standing ephemeral (last verification failed, launch record still
-    present) whose teardown_after has elapsed (stage 11.3)."""
-    _, after = failure_policy(ctx, instance)
-    if after is None:
-        return False
-    name = instance.get_name()
-    if name not in ctx.meta_state.launch_params():
-        return False
-    last = last_verification(ctx, name)
-    if not last or last.get("ok"):
-        return False
-    try:
-        failed_at = datetime.fromisoformat(str(last.get("time")))
-    except ValueError:
-        return False
-    now = now or datetime.now(timezone.utc)
-    return (now - failed_at).total_seconds() >= after
-
-
+# The policies are the contract's vocabulary (`contract.launch_vocabulary`); this path keeps them.
+from cs_image_system.contract.launch_vocabulary import ON_FAILURE_KEEP, ON_FAILURE_POLICIES, ON_FAILURE_TEARDOWN  # noqa: F401, E402
 class VerificationFailed(RuntimeError):
     def __init__(self, record: dict[str, Any]) -> None:
         failed = [c for c in record.get("checks", []) if not c.get("ok")]
@@ -84,7 +38,7 @@ class VerificationFailed(RuntimeError):
         self.record = record
 
 
-def verify_instance(ctx: GlobalTypeContext, name: str, expected_build: str | None = None, timeout: int = 600,
+def verify_instance(ctx: "RunContext", name: str, expected_build: str | None = None, timeout: int = 600,
                     record_only: bool = False) -> dict[str, Any]:
     instances = {i.get_name(): i for i in ctx.instances}
     inst = instances.get(name)
@@ -177,7 +131,7 @@ def verify_instance(ctx: GlobalTypeContext, name: str, expected_build: str | Non
     return record
 
 
-def assert_last_verification(ctx: GlobalTypeContext, name: str) -> dict[str, Any]:
+def assert_last_verification(ctx: "RunContext", name: str) -> dict[str, Any]:
     """The closing step of a `teardown` failure policy: the instance was
     torn down regardless, but a failed verdict still fails the run."""
     last = last_verification(ctx, name)

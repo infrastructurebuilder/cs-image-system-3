@@ -2,11 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.contract.modification import ModBuilderModelProtocol
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 
-from ..constants import VCT
+from cs_image_system.contract.constants import VCT
 from ..models.builder_model import BuilderModel
 
 @dataclass(config=CSIS_MODEL_CONFIG)

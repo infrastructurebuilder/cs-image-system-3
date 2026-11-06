@@ -18,7 +18,7 @@ dependencies = [
     "cs-image-system-aws-runtime-plugin==0.1.7.dev1",
     "cs-image-system-base==0.1.7.dev1",
     "cs-image-system-bash-mod-plugin==0.1.7.dev1",
-    "cs-image-system-contract==0.1.7.dev1",
+    "cs-image-system-contract>=0.1,<0.2",
     "cs-image-system-contract-example-plugin==0.1.7.dev1",
     "cs-image-system-default-os-plugin==0.1.7.dev1",
     "cs-image-system-docker-runtime-plugin==0.1.7.dev1",
@@ -139,12 +139,14 @@ replace = "=={new_version}\""
 
 [[tool.bumpversion.files]]
 glob = "packages/*/pyproject.toml"
+glob_exclude = ["packages/contract/pyproject.toml"]     # the contract's version is its own (stage 125); its dependents pin a range
 search = "version = \"{current_version}\""
 replace = "version = \"{new_version}\""
 
 [[tool.bumpversion.files]]
 glob = "packages/*/pyproject.toml"
 glob_exclude = ["packages/contract/pyproject.toml"]     # the contract depends on no other package (stage 30)
+ignore_missing_version = true                            # a package that depends on the contract alone has no == pin (stage 125)
 search = "=={current_version}\""
 replace = "=={new_version}\""
 

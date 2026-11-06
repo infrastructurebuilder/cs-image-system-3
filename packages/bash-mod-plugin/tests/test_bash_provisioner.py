@@ -9,7 +9,7 @@ from typing import Any, cast
 
 from cs_image_system.bash_mod_plugin.bash_builder import BashModBuilder
 from cs_image_system.bash_mod_plugin.bash_models import BashModItemModel
-from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
 
 def _builder(**model_fields):

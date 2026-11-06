@@ -4,7 +4,7 @@
 
 from abc import ABC
 
-from ..constants import VCT
+from cs_image_system.contract.constants import VCT
 
 from ..models.executable import ExecutableModel
 

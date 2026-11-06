@@ -72,8 +72,10 @@ def test_the_shadowing_property_is_gone_and_the_field_is_real_at_three_levels():
     assert not isinstance(getattr(OSBuilderBaseImageBuilderSubconfig, "output_image_name", None), property)
     for cls in (OsBuilderModel, OSBuilderBaseImageBuilderSubconfig, ImageImageBuilderSubconfig, BaseImageImageBuilderSubconfig):
         assert "output_image_name" in cls.__dataclass_fields__, cls.__name__
-    assert "output_image_name" in OsBuilderModelProtocol.__annotations__
-    assert callable(getattr(OsBuilderModelProtocol, "get_output_image_name", None))
+    # stage 125: the field and its getter are the kit model's (no plugin reads
+    # them; the core does), not the protocol's
+    assert "output_image_name" not in OsBuilderModelProtocol.__annotations__
+    assert callable(getattr(OsBuilderModel, "get_output_image_name", None))
 
 
 def test_the_fixture_declares_the_seven_names_without_a_timestamp():

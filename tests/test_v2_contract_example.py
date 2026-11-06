@@ -132,3 +132,28 @@ def test_a_dry_run_emits_the_backend_for_every_root_that_names_it(tmp_path, monk
     assert len(inmem) == len(backend_files), (inmem, backend_files)
     assert all(loc == f"inmem://memory/{super_safe_name(ws)}.tfstate" for ws, loc in inmem.items()), inmem
     assert (FIXTURE_CONFIG / "cfg" / "state-backends-4.yml").exists() is False, "the frozen fixture itself must not change"
+
+
+def test_the_builder_reads_the_run_and_a_service_through_the_protocols_alone(tmp_path, monkeypatch):
+    """Stage 125: the loader binds the run context to the builder as the
+    contract's ``RunContextProtocol``; the builder reads the run id, the
+    generation path, the declared backends and one service (the lineage's
+    configuration tags, ``ctx.services.lineage``) through the protocol and
+    nothing else, in the dry ``run --all`` the proof already runs in. The
+    sources still import nothing from the core (the test above)."""
+    from cs_image_system.contract.context import RunContextProtocol
+    from cs_image_system.contract.lineage_vocabulary import CONFIG_TAG
+    from cs_image_system.contract.testing import assert_conforms
+    root = copy_config(tmp_path)
+    _bind_the_storage_roots_to_inmem(root)
+    v2 = V2Run(tmp_path, monkeypatch, config_root=root)
+    builder = v2.ctx.state_backends["scratch"]
+    assert isinstance(builder, InmemStateBuilder)
+    assert_conforms(type(v2.ctx), RunContextProtocol)       # the protocol is typing-only; conformance is the check
+    assert builder.observed["run_id"] == v2.ctx.run_id and builder.observed["dry_run"] is True
+    assert "scratch" in builder.observed["state_backends"]
+    v2.run("all")
+    assert builder.observed["run_id"] == v2.ctx.run_id
+    assert builder.observed["generation_path"].is_relative_to(root / "generated")
+    assert CONFIG_TAG in builder.observed["config_tags"], builder.observed["config_tags"]
+    assert builder.observed["config_tags"] == dict(v2.ctx.services.lineage.config_tags())

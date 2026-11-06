@@ -91,7 +91,7 @@ def test_an_interrupted_run_is_journalled_as_interrupted_and_not_ok(tmp_path, mo
 
 def test_the_sanction_list_is_ignored_by_the_emission_and_is_not_drift(tmp_path, monkeypatch):
     from cs_image_system.base.commands.emission import normalise_emission
-    from cs_image_system.base.constants import DEFAULT_GITIGNORE_ENTRIES
+    from cs_image_system.contract.constants import DEFAULT_GITIGNORE_ENTRIES
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
     name = OktaTfGroupBuilder.SANCTIONED_REMOVALS
     assert name in DEFAULT_GITIGNORE_ENTRIES

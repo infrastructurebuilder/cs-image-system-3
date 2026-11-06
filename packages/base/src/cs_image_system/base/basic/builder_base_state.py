@@ -7,7 +7,7 @@ from typing import Any, TypeVar
 
 from ..models.state_builder import StateBuilderModel
 
-from ..constants import VCT
+from cs_image_system.contract.constants import VCT
 
 from .builder_base import BuilderBase
 from cs_image_system.contract.session import SessionStatus

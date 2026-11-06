@@ -283,7 +283,7 @@ def _fake_runtime(delivery="session", state="running", answers=None):
 def test_the_launch_script_is_delivered_once_through_the_session(prepared, monkeypatch, caplog):
     import logging
     from cs_image_system.base import launch_delivery, power_state
-    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.contract.lifecycles import Lifecycle
     ctx = load_context(prepared)
     ctx.config["apply_instances"] = True
     rec = ctx.meta_state.launch_params()

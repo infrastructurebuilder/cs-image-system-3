@@ -62,13 +62,17 @@ here. Source: [`loader.py`](src/cs_image_system/base/loader.py),
 [`basic/abstract_plugin_metadata.py`](src/cs_image_system/base/basic/abstract_plugin_metadata.py),
 [`models/mixins.py`](src/cs_image_system/base/models/mixins.py) (the bodies
 of the contract's three marker protocols), and the base models and builder
-bases. The constants, the model configuration and the field helpers are
-re-exported here from the contract (`constants.py`, `models/model_config.py`,
-`helpers/field_helpers.py`, `helpers/field_kinds.py`, `lifecycle.py`,
-`lifecycles.py` for the lifecycle data, `basic/asset.py`,
-`models/executable_adds.py`, the two enums and the key in
-`models/provider_specific_image.py`, and the name and HCL helpers in
-`utils.py`), so a reader in the core keeps its path.
+bases. The constants, the model configuration, the field helpers and
+kinds, the lifecycle phases and data, the assets, the command lists, the
+name and HCL helpers and the provider-specific image's enums are the
+contract's ([contract](../contract/README.md)), and every module here
+imports them from it; the core has no path of its own for them. The
+vocabulary the engine reads (the tag words in `lineage.py`, the enrollment
+variable in `launch_params.py`, the power states in `power_state.py`,
+`EncryptedStr` in `encryption.py`, the bootstrap's question model in
+`bootstrap/questions.py`, the id claim in `posix_ids.py`) is the
+contract's too, imported into those modules so a reader of the engine
+keeps its path.
 
 ### Entry points
 
@@ -286,7 +290,7 @@ and applies `get_regex()`. The result is compared with the executable's
 | ------ | ------- | -------------- |
 | Run hooks | entry point group `cs_image_system.plugins.hooks`; `HookSet` in [`commands/run_lifecycles.py`](src/cs_image_system/base/commands/run_lifecycles.py) | `validators` (return error strings; any error aborts the run), `after_generate`, `before_apply`, `after_apply` (real runs only), `on_summary`, `state_bindings` (answer `{lifecycle: {workspace: state file}}`, merged into the runner-script headers and the summary's `state_bindings`; the tofu-roots plugin answers for the terraform roots), and `lifecycles` (a list of `LifecycleSpec`). |
 | Lifecycles | `register_lifecycle(LifecycleSpec)` in [`lifecycles.py`](src/cs_image_system/base/lifecycles.py) | A lifecycle with its own phases, builder classifications, directory and runner script, positioned after an existing one. |
-| Field kinds | `register_field_kind(name, FieldKindHandler)` in [`helpers/field_kinds.py`](src/cs_image_system/base/helpers/field_kinds.py) | A late-binding behaviour for fields carrying `field_kind` metadata: `contribute_context`, `resolve`, `upgrade`. |
+| Field kinds | `register_field_kind(name, FieldKindHandler)` in the contract's [`field_kinds.py`](../contract/src/cs_image_system/contract/field_kinds.py) | A late-binding behaviour for fields carrying `field_kind` metadata: `contribute_context`, `resolve`, `upgrade`. |
 | Resolution passes | `register_resolution_pass(name, fn, order)` in [`helpers/resolution_stages.py`](src/cs_image_system/base/helpers/resolution_stages.py) | A string-stage pass over the raw YAML document. Built in: `interpolate` (order 10) and `scope-this` (order 20). |
 | Item kinds | `register_item_kind(ItemKind)` in [`config_loader.py`](src/cs_image_system/base/config_loader.py) | A new domain-item collection: directory, model class, owning builder classification, attach function, optional validation. |
 
@@ -351,7 +355,7 @@ translate. CONFIGURATION 5a is the reference.
 
 Source: [`template_utils.py`](src/cs_image_system/base/template_utils.py),
 [`orchestrator.py`](src/cs_image_system/base/orchestrator.py),
-[`helpers/field_helpers.py`](src/cs_image_system/base/helpers/field_helpers.py),
+the contract's [`fields.py`](../contract/src/cs_image_system/contract/fields.py),
 [`config_loader.py`](src/cs_image_system/base/config_loader.py).
 
 ### The string stage
@@ -409,7 +413,7 @@ builder named in its `runtimes:` whose runtime differs from the primary.
 
 ### Field kinds
 
-Field factories in `helpers/field_helpers.py` stamp metadata that the
+Field factories in the contract's `fields.py` stamp metadata that the
 `TemplateResolver` acts on:
 
 | Factory | Kind | Behaviour |
@@ -544,8 +548,7 @@ It builds that command list once. Names must be unique.
 | `teardown_after` | `str \| None` | `None` | Runtime default duration (`30m`, `2h`, `1d`). |
 
 `CloudBuilderModel` adds `region: str` (required) and `networking:
-CloudNetworkingConfig` (required). `ContainerBuilderModel`
-(`contract.runtime.ContainerBuilderModelProtocol`) adds `host` and
+CloudNetworkingConfig` (required). `ContainerBuilderModel` adds `host` and
 `context` (one or neither), `networking: ContainerNetworkingModel | None`
 (a network by NAME, default `bridge`; no subnets, no zones) and
 `machine_types: dict[str, {cpus, memory}]`, of which `default_machine_type`
@@ -826,8 +829,11 @@ which of those the core itself acts on, and where, is under
 
 ## Lifecycles and phases
 
-Source: [`lifecycles.py`](src/cs_image_system/base/lifecycles.py),
-[`lifecycle.py`](src/cs_image_system/base/lifecycle.py).
+Source: [`lifecycles.py`](src/cs_image_system/base/lifecycles.py) (the
+registry) over the contract's
+[`lifecycles.py`](../contract/src/cs_image_system/contract/lifecycles.py) and
+[`lifecycle.py`](../contract/src/cs_image_system/contract/lifecycle.py) (the data
+and the phases).
 
 The four built-in lifecycles run in this fixed order. Each owns generation
 phases and the builder classifications whose during-phase hooks fire:

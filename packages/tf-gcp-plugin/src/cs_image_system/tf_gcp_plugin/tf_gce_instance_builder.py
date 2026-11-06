@@ -19,15 +19,14 @@ from __future__ import annotations
 import logging
 from typing import Any, TypeVar
 
-from cs_image_system.base import utils
+from cs_image_system.contract.names import super_safe_name
 from cs_image_system.contract.hcl import HclRaw, hcl_expr
-from cs_image_system.base.launch_params import ENROLLMENT_TOKEN_VARIABLE
+from cs_image_system.contract.launch_vocabulary import ENROLLMENT_TOKEN_VARIABLE
 from cs_image_system.base.models.instance import Instance
 from cs_image_system.tofu_roots.tofu_instance_builder import TofuInstanceBuilderBase
 
 from .tf_gcp_models import TOFU_GCE, TofuGceInstanceBuilderModel
 from .tf_gcp_storage_builder import google_provider_config
-from cs_image_system.base.lineage import pinned_instance_build, config_tags
 from cs_image_system.gcloud_runtime.gcp_packer_source import gce_name, gce_label
 
 log = logging.getLogger(__name__)
@@ -66,9 +65,9 @@ class TofuGceInstanceBuilder(TofuInstanceBuilderBase[Q]):
                 f"{self.__class__.__name__} ({self.name})"]
 
     def _module_args(self, ctx, rtb, instance: Instance, params: dict[str, Any] | None = None) -> dict[str, Any]:
-        label = utils.super_safe_name(instance.get_name())
+        label = super_safe_name(instance.get_name())
         args: dict[str, Any] = {"name": gce_name(instance.get_name())}
-        pinned = pinned_instance_build(ctx, instance) if hasattr(ctx, "meta_state") else None
+        pinned = ctx.services.lineage.pinned_instance_build(instance) if hasattr(ctx, "meta_state") else None
         psi = (ctx.get_provider_specific_image(instance.image, rtb.get_name()) if rtb and instance.image else None)
         if pinned:
             args["image"] = pinned
@@ -102,7 +101,8 @@ class TofuGceInstanceBuilder(TofuInstanceBuilderBase[Q]):
                 # no public IP: the IAP tunnel is the way in (operator prerequisite:
                 # firewall rule from 35.235.240.0/20 to tcp:22)
                 args["public_ip"] = False
-        labels = {k: str(v) for k, v in {**(instance.get_tags() or {}), **config_tags(ctx)}.items()}   # stage 93
+        labels = {k: str(v) for k, v in {**(instance.get_tags() or {}),
+                                         **ctx.services.lineage.config_tags()}.items()}   # stage 93
         if labels:
             args["labels"] = {gce_label(k): gce_label(v) for k, v in labels.items()}
         if params is not None:
@@ -122,8 +122,8 @@ class TofuGceInstanceBuilder(TofuInstanceBuilderBase[Q]):
             sb = m.get("builder") or self._storage_builder_name(m["storage"])
             if not sb:
                 continue
-            ref = (f"data.terraform_remote_state.{utils.super_safe_name(sb)}"
-                   f".outputs.storage_{utils.super_safe_name(m['storage'])}")
+            ref = (f"data.terraform_remote_state.{super_safe_name(sb)}"
+                   f".outputs.storage_{super_safe_name(m['storage'])}")
             if m["type"] == "pd":
                 # finding 50 (found live on gce-test): the disk was attached as
                 # device_name "gce_data" while the launch params mount

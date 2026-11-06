@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from ..constants import NONE
+from cs_image_system.contract.constants import NONE
 from ..global_context import GlobalTypeContext
 from ..lineage import base_image_runtimes, configuration_tag
 from ..lifecycles import all_lifecycles

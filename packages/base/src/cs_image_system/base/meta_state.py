@@ -28,14 +28,14 @@ import shutil
 import subprocess
 import tempfile
 from dataclasses import field
-from .models.model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-from .constants import RUN_LOCAL_FILENAMES
+from cs_image_system.contract.constants import RUN_LOCAL_FILENAMES
 from .encryption import decrypt_tree, decrypted_plaintexts
 from .public_safe import (COMMITTED_TFVARS, PRIVATE_DIRNAME, REFUSED_PATHS, PublicSafeError,  # noqa: F401
                           allow_from_config, assert_public_safe,

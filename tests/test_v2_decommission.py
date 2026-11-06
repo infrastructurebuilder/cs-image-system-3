@@ -137,7 +137,7 @@ def test_after_apply_hooks_honour_per_root_scoping(prepared):
     record must survive and its instances stay unlaunched, while the AWS
     instances are marked launched. Listing the GCE root then forgets it."""
     from cs_image_system.base.launch_params import forget_decommissioned, mark_launched
-    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.contract.lifecycles import Lifecycle
     root, make_run = prepared
     _undeclare(root, "gce-test")
     run = make_run()
@@ -161,7 +161,7 @@ def test_deferred_parent_binds_from_the_booted_image_after_apply(tmp_path, monke
     it to the NEW series head while the VM kept running the old image.
     After a real apply the pin now comes from reality -- the image the
     instance actually booted -- when lineage records it."""
-    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
     root = copy_config(tmp_path)
     # lineage knows the build the VM booted; no pin yet (deferred parent)

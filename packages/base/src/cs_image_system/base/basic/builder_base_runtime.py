@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 from .builder_base import BuilderBase
 from cs_image_system.contract.runtime import RuntimeBuilderProtocol
 from cs_image_system.contract.session import LoadFailureReport, SessionStatus
-from ..constants import VCT
+from cs_image_system.contract.constants import VCT
 from ..models.image import Image, ImageImageBuilderSubconfig
 from ..models.provider_specific_image import (
     GenericProviderSpecificImage,
@@ -21,6 +21,7 @@ from ..models.provider_specific_image import (
 )
 from ..models.runtime import RuntimeBuilderModel
 from cs_image_system.contract.runtime import LAUNCH_DELIVERY_BOOT
+from ..image_sources import packaged_entries_of
 if TYPE_CHECKING:
     from .builder_base_image import ImageBuilderBase
     from .builder_base_instance import InstanceBuilderBase
@@ -221,10 +222,16 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
         """Default: the runtime's secrets have no shape the scan can name."""
         return {}
 
+    #: The package that ships this runtime's part of the image-source catalog
+    #: (``<package>/data/image-sources.yml``, stage 125); None for a runtime
+    #: that ships none. A plugin names the package; the core reads the file.
+    image_source_package: str | None = None
+
     @classmethod
     def image_source_entries(cls) -> list[Mapping[str, Any]]:
-        """Default: the runtime ships no part of the image-source catalog."""
-        return []
+        """The runtime's part of the image-source catalog: the entries of the
+        file ``image_source_package`` ships, none when it names no package."""
+        return packaged_entries_of(cls.image_source_package) if cls.image_source_package else []
 
     @classmethod
     def local_test_target(cls) -> Callable[..., Any] | None:
@@ -432,7 +439,7 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
             raw_query_result=raw_query_result,
             architecture=architecture,
         )
-        self._get_context().reg.register_built_instance(psi)
+        self._run_context().reg.register_built_instance(psi)
         log.debug(f"Registered resolved provider-specific image {psi.get_name()} -> {identifier}")
         return psi
 
@@ -458,7 +465,7 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
             architecture=(architecture if architecture is not None
                           else getattr(image, "architecture", None)),
         )
-        self._get_context().reg.register_built_instance(psi)
+        self._run_context().reg.register_built_instance(psi)
         log.debug(f"Registered deferred provider-specific image {psi.get_name()} "
                   f"with pattern {psi.deferred_name_pattern}")
         return psi

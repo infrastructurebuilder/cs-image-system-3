@@ -365,7 +365,7 @@ def test_decommissioned_instance_is_whitelisted_and_forgotten(tmp_path, monkeypa
         # simulate the apply that destroyed old_node (the harness's stubbed
         # apply step fires no hooks): the after-apply forget, flag on
         from cs_image_system.base.launch_params import forget_decommissioned
-        from cs_image_system.base.lifecycles import Lifecycle
+        from cs_image_system.contract.lifecycles import Lifecycle
         forget_decommissioned(run.ctx, Lifecycle.INSTANCE_IMAGE)
         lp = yaml.safe_load((run.meta_state / "launch-params.yaml").read_text())
         assert "old_node" not in lp["instances"]

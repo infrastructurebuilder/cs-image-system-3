@@ -19,30 +19,32 @@ NEW image. The system embraces it:
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .run_context import RunContext
+
+
 import hashlib
 import json
 import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from .capabilities import declared_capabilities, effective_capabilities, image_chain
-from .constants import SELF
+from cs_image_system.contract.constants import SELF
 from .encryption import MARKER_PREFIX, substitute_markers
 from .image_tests import base_image_verify_commands, instance_image_verify_commands, assertion_count
-from .lifecycles import Lifecycle
+from cs_image_system.contract.lifecycles import Lifecycle
 
-if TYPE_CHECKING:
-    from .global_context import GlobalTypeContext
 
 log = logging.getLogger(__name__)
 
-TAG_PREFIX = "csis_"
-#: An image's fingerprint TAG holds this many leading characters of the
-#: input fingerprint; lineage records the whole of it. A build adopted with
-#: `state import` has only the tag to go on (hygiene X item 3).
-FINGERPRINT_TAG_LENGTH = 16
+# The tag names and the fingerprint's length are the contract's vocabulary
+# (`contract.lineage_vocabulary`); every reader in the core keeps this path.
+from cs_image_system.contract.lineage_vocabulary import CONFIG_TAG, FINGERPRINT_TAG_LENGTH, TAG_PREFIX  # noqa: F401, E402
 
 # Convergent bakes (stage 9)
 POLICY_PINNED = "pinned"
@@ -63,7 +65,7 @@ def _sha(data: Any) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-def is_base_image(ctx: "GlobalTypeContext", image: Any) -> bool:
+def is_base_image(ctx: "RunContext", image: Any) -> bool:
     return image.get_name() in ctx.os_builders
 
 
@@ -72,7 +74,7 @@ def series_of(image: Any) -> str:
     return str(image.get_name())
 
 
-def primary_runtime_of(ctx: "GlobalTypeContext", image: Any) -> str | None:
+def primary_runtime_of(ctx: "RunContext", image: Any) -> str | None:
     """The runtime of the image's primary image builder (its ``type``); an
     image baked on several runtimes has one pin per runtime, and callers
     that know their runtime pass it explicitly."""
@@ -85,7 +87,7 @@ def primary_runtime_of(ctx: "GlobalTypeContext", image: Any) -> str | None:
     return str(model.get_runtime_provider()) if model is not None else None
 
 
-def capability_stamp(ctx: "GlobalTypeContext", image: Any, runtime: str | None = None) -> dict[str, list[str]]:
+def capability_stamp(ctx: "RunContext", image: Any, runtime: str | None = None) -> dict[str, list[str]]:
     """Base image: its own declaration, the storage types narrowed to the
     bake's runtime (hygiene XII item 21). Instance image: the root's stamp,
     inherited through the pinned chain (N24) on the bake's runtime."""
@@ -97,7 +99,7 @@ def capability_stamp(ctx: "GlobalTypeContext", image: Any, runtime: str | None =
     return {"identity_types": list(caps.identity_types), "storage_types": list(caps.storage_types)}
 
 
-def mod_records(ctx: "GlobalTypeContext", image: Any) -> list[dict[str, Any]]:
+def mod_records(ctx: "RunContext", image: Any) -> list[dict[str, Any]]:
     """Every modification applied at this bake: operation + content hash
     (N23c). Ansible playbooks hash their file contents when present, bash
     scripts their text; the mod's config participates too."""
@@ -141,7 +143,7 @@ def mod_records(ctx: "GlobalTypeContext", image: Any) -> list[dict[str, Any]]:
     return records
 
 
-def input_fingerprint(ctx: "GlobalTypeContext", image: Any, runtime: str | None = None) -> str:
+def input_fingerprint(ctx: "RunContext", image: Any, runtime: str | None = None) -> str:
     """Hash of everything that determines the build's CONTENT -- the bake
     decision (stage 9) compares it with the series head's recorded value.
 
@@ -185,7 +187,7 @@ def input_fingerprint(ctx: "GlobalTypeContext", image: Any, runtime: str | None 
     return _sha(payload)
 
 
-def _verify_commands(ctx: "GlobalTypeContext", image: Any, runtime: str | None) -> list[str]:
+def _verify_commands(ctx: "RunContext", image: Any, runtime: str | None) -> list[str]:
     try:
         if is_base_image(ctx, image):
             return list(base_image_verify_commands(ctx, image, str(runtime))) if runtime else []
@@ -195,7 +197,7 @@ def _verify_commands(ctx: "GlobalTypeContext", image: Any, runtime: str | None) 
         return []
 
 
-def bake_disk_size(ctx: "GlobalTypeContext", image: Any, runtime: str | None) -> int | str | None:
+def bake_disk_size(ctx: "RunContext", image: Any, runtime: str | None) -> int | str | None:
     """The disk a bake of ``image`` on ``runtime`` gets, in GB -- the ONE rule
     the packer sources and the fingerprint both use (stage 63): the runtime's
     own ``default_disk_size`` when it declares one (finding 51: on one cloud a
@@ -222,7 +224,7 @@ def bake_disk_size(ctx: "GlobalTypeContext", image: Any, runtime: str | None) ->
 _bake_disk_size = bake_disk_size
 
 
-def _subconfig_runtime(ctx: "GlobalTypeContext", sub: Any) -> str | None:
+def _subconfig_runtime(ctx: "RunContext", sub: Any) -> str | None:
     ib = ctx.image_builders.get(str(getattr(sub, "image_builder", "") or ""))
     model = getattr(ib, "model", None)
     return str(model.get_runtime_provider()) if model is not None else None
@@ -252,7 +254,7 @@ class BaseImageRef:
         return f"BaseImageRef({self.name!r})"
 
 
-def base_image_runtimes(ctx: "GlobalTypeContext", series: str) -> list[str]:
+def base_image_runtimes(ctx: "RunContext", series: str) -> list[str]:
     """Runtimes the named OS builder bakes on (one per runtime entry)."""
     osb = ctx.os_builders.get(series)
     model = getattr(osb, "model", None)
@@ -264,7 +266,7 @@ def base_image_runtimes(ctx: "GlobalTypeContext", series: str) -> list[str]:
     return out
 
 
-def _vendor_source(ctx: "GlobalTypeContext", image: Any, runtime: str | None) -> dict[str, Any]:
+def _vendor_source(ctx: "RunContext", image: Any, runtime: str | None) -> dict[str, Any]:
     osb = ctx.os_builders.get(image.get_name())
     model = getattr(osb, "model", None)
     if model is None:
@@ -285,7 +287,7 @@ def _vendor_source(ctx: "GlobalTypeContext", image: Any, runtime: str | None) ->
     return out
 
 
-def update_policy_of(ctx: "GlobalTypeContext", image: Any) -> dict[str, Any] | None:
+def update_policy_of(ctx: "RunContext", image: Any) -> dict[str, Any] | None:
     """The base image's effective update policy (None for instance images)."""
     osb = ctx.os_builders.get(image.get_name())
     if osb is None:
@@ -298,7 +300,7 @@ def parent_policy_of(image: Any) -> str:
     return str(getattr(image, "parent_policy", None) or POLICY_PINNED).strip().lower()
 
 
-def effective_parent_build(ctx: "GlobalTypeContext", image: Any,
+def effective_parent_build(ctx: "RunContext", image: Any,
                            runtime: str | None = None) -> tuple[str | None, str | None]:
     """``(the parent build this image bakes FROM, the pin it supersedes)``.
     Pinned: the pin, superseding nothing. Follow: the parent series' head
@@ -318,7 +320,7 @@ def effective_parent_build(ctx: "GlobalTypeContext", image: Any,
     return pin, None
 
 
-def parent_fingerprint(ctx: "GlobalTypeContext", image: Any, runtime: str | None = None) -> str:
+def parent_fingerprint(ctx: "RunContext", image: Any, runtime: str | None = None) -> str:
     """The fingerprint's parent slot (stage 67 item 1): ``vendor`` for a
     base image (its vendor source is hashed on its own), else the parent
     IMAGE's input fingerprint on this runtime -- the base image hashes from
@@ -336,7 +338,7 @@ def parent_fingerprint(ctx: "GlobalTypeContext", image: Any, runtime: str | None
     return input_fingerprint(ctx, parent, runtime)
 
 
-def parent_reference(ctx: "GlobalTypeContext", image: Any, runtime: str | None = None) -> str:
+def parent_reference(ctx: "RunContext", image: Any, runtime: str | None = None) -> str:
     """The build this image is baked FROM: the effective parent build id
     (the pin, or under ``follow`` a newer parent head) on this runtime,
     else the parent series (bound at bake), else the vendor source."""
@@ -349,7 +351,7 @@ def parent_reference(ctx: "GlobalTypeContext", image: Any, runtime: str | None =
     return f"series:{src}" if src and src != SELF else "vendor"
 
 
-def _will_bake_this_run(ctx: "GlobalTypeContext", series: str, runtime: str | None) -> bool:
+def _will_bake_this_run(ctx: "RunContext", series: str, runtime: str | None) -> bool:
     """Whether the named image bakes in THIS run (convergent bakes, stage 9):
     it is in the run's surface and its bake decision is not `current`."""
     only = getattr(ctx, "only_images", None)
@@ -361,7 +363,7 @@ def _will_bake_this_run(ctx: "GlobalTypeContext", series: str, runtime: str | No
     return bake_reason(ctx, image, runtime) is not None
 
 
-def find_image(ctx: "GlobalTypeContext", series: str, runtime: str | None = None) -> Any | None:
+def find_image(ctx: "RunContext", series: str, runtime: str | None = None) -> Any | None:
     """The image object a series name denotes: an instance image from the
     map, or a base image from the image builders' OS-builder items (on
     ``runtime`` when given)."""
@@ -373,7 +375,7 @@ def find_image(ctx: "GlobalTypeContext", series: str, runtime: str | None = None
     return None
 
 
-def validate_policies(ctx: "GlobalTypeContext") -> list[str]:
+def validate_policies(ctx: "RunContext") -> list[str]:
     """Hard generation-time errors for unknown policies (stage 9)."""
     errors: list[str] = []
     for image in ctx.images_map.values():
@@ -421,7 +423,7 @@ def validate_policies(ctx: "GlobalTypeContext") -> list[str]:
     return errors
 
 
-def pinned_parent_build(ctx: "GlobalTypeContext", image: Any, runtime: str | None = None) -> str | None:
+def pinned_parent_build(ctx: "RunContext", image: Any, runtime: str | None = None) -> str | None:
     """N17: a rebuild bakes FROM its pinned base build ON ITS RUNTIME (under
     ``follow``, from a newer parent head). First bind (no pin yet): the
     recorded head of the parent series on that runtime, pinned now --
@@ -454,13 +456,11 @@ def pinned_parent_build(ctx: "GlobalTypeContext", image: Any, runtime: str | Non
     return None
 
 
-#: The tag that says WHICH configuration an image belongs to (stage 82). Two
-#: configuration repositories may share an account: each sees the other's
-#: images, and without this tag could only call them foreign.
-CONFIG_TAG = f"{TAG_PREFIX}config"
+#: ``CONFIG_TAG`` (the tag that says WHICH configuration an image belongs to)
+#: is imported above with the other tag words.
 
 
-def configuration_tag(ctx: "GlobalTypeContext") -> str:
+def configuration_tag(ctx: "RunContext") -> str:
     """The value of ``csis_config`` for this configuration: the top-level
     ``id`` of ``cfg/_config.yml``, made safe for the strictest carrier (a
     cloud label value: lower case letters, digits, ``_`` and ``-``, at most 63
@@ -469,7 +469,7 @@ def configuration_tag(ctx: "GlobalTypeContext") -> str:
     return re.sub(r"[^a-z0-9_-]", "-", raw.strip().lower())[:63]
 
 
-def belongs_to_another_configuration(ctx: "GlobalTypeContext", tags: dict[str, Any]) -> bool:
+def belongs_to_another_configuration(ctx: "RunContext", tags: dict[str, Any]) -> bool:
     """A thing tagged for a configuration that is not this one. One with no
     ``csis_config`` (made before stage 82, or before stage 93 for anything
     that is not an image) answers False: it is judged as it always was."""
@@ -482,7 +482,7 @@ def owner_of(tags: dict[str, Any] | None) -> str:
     return str((tags or {}).get(CONFIG_TAG) or "")
 
 
-def config_tags(ctx: "GlobalTypeContext") -> dict[str, str]:
+def config_tags(ctx: "RunContext") -> dict[str, str]:
     """The one tag everything the system makes carries (stage 93: the
     instances, volumes, disks, filesystems and buckets the terraform modules
     make, as the images have since stage 82): ``{csis_config: <id>}``, or
@@ -491,14 +491,14 @@ def config_tags(ctx: "GlobalTypeContext") -> dict[str, str]:
     return {CONFIG_TAG: owner} if owner else {}
 
 
-def ours_or_unlabelled(ctx: "GlobalTypeContext", tags: dict[str, Any] | None) -> bool:
+def ours_or_unlabelled(ctx: "RunContext", tags: dict[str, Any] | None) -> bool:
     """Whether a thing found by name may be taken for this configuration's:
     it carries our id, or no id at all (made before stage 93, counted and
     named as such until it is relabelled). Another configuration's never is."""
     return not belongs_to_another_configuration(ctx, tags or {})
 
 
-def lineage_tags(ctx: "GlobalTypeContext", image: Any, runtime: str | None = None) -> dict[str, str]:
+def lineage_tags(ctx: "RunContext", image: Any, runtime: str | None = None) -> dict[str, str]:
     caps = capability_stamp(ctx, image, runtime)
     owner = configuration_tag(ctx)
     return {
@@ -512,13 +512,13 @@ def lineage_tags(ctx: "GlobalTypeContext", image: Any, runtime: str | None = Non
     }
 
 
-def _assertion_count(ctx: "GlobalTypeContext", image: Any, runtime: str) -> int:
+def _assertion_count(ctx: "RunContext", image: Any, runtime: str) -> int:
     cmds = (base_image_verify_commands(ctx, image, runtime) if is_base_image(ctx, image)
             else instance_image_verify_commands(ctx, image))
     return assertion_count(cmds)
 
 
-def record_build(ctx: "GlobalTypeContext", image: Any, runtime: str, build_id: str,
+def record_build(ctx: "RunContext", image: Any, runtime: str, build_id: str,
                  name: str | None, resolve_parent) -> dict[str, Any]:
     """Append the lineage record of one built artifact and perform the
     first-bind of its parent edge when the parent was built this run."""
@@ -558,7 +558,7 @@ def record_build(ctx: "GlobalTypeContext", image: Any, runtime: str, build_id: s
     return record
 
 
-def pinned_instance_build(ctx: "GlobalTypeContext", instance: Any) -> str | None:
+def pinned_instance_build(ctx: "RunContext", instance: Any) -> str | None:
     """N5/F5: an instance stays on its pinned build. First bind at
     generation: the recorded head of its image's series (unless the image
     is being built this run, in which case binding follows the bake)."""
@@ -590,7 +590,7 @@ def image_policy_of(instance: Any) -> str:
     return str(getattr(instance, "image_policy", None) or POLICY_PINNED).strip().lower()
 
 
-def instance_follow_target(ctx: "GlobalTypeContext", instance: Any) -> tuple[str, str] | None:
+def instance_follow_target(ctx: "RunContext", instance: Any) -> tuple[str, str] | None:
     """``(pin, head)`` when a launched-and-pinned instance declares
     ``image_policy: follow`` and its image's series head on its runtime is
     newer than its pin: the gated replacement to plan. Read-only; the pin
@@ -610,7 +610,7 @@ def instance_follow_target(ctx: "GlobalTypeContext", instance: Any) -> tuple[str
     return None
 
 
-def pending_instance_replacements(ctx: "GlobalTypeContext", instances: list[Any]) -> set[str]:
+def pending_instance_replacements(ctx: "RunContext", instances: list[Any]) -> set[str]:
     """Instances to force-replace in this plan: explicit upgrades (pending
     replacements) plus ``follow`` targets."""
     pending = set(ctx.meta_state.pending_replacements())
@@ -621,7 +621,7 @@ def pending_instance_replacements(ctx: "GlobalTypeContext", instances: list[Any]
     return names
 
 
-def _head_age_days(ctx: "GlobalTypeContext", head: dict[str, Any]) -> float | None:
+def _head_age_days(ctx: "RunContext", head: dict[str, Any]) -> float | None:
     run = str(head.get("run") or "")
     try:
         built = datetime.strptime(run, RUN_ID_FORMAT)
@@ -646,7 +646,7 @@ def same_inputs(record: dict[str, Any], fingerprint: str) -> bool:
             and fingerprint.startswith(recorded))
 
 
-def _bake_reason(ctx: "GlobalTypeContext", image: Any, runtime: str | None) -> str | None:
+def _bake_reason(ctx: "RunContext", image: Any, runtime: str | None) -> str | None:
     name = series_of(image)
     forced = getattr(ctx, "force_bake", None)
     if forced and (FORCE_ALL in forced or name in forced or f"{name}@{runtime}" in forced):
@@ -681,7 +681,7 @@ def _bake_reason(ctx: "GlobalTypeContext", image: Any, runtime: str | None) -> s
     return None
 
 
-def bake_reason(ctx: "GlobalTypeContext", image: Any, runtime: str | None = None) -> str | None:
+def bake_reason(ctx: "RunContext", image: Any, runtime: str | None = None) -> str | None:
     """Why this image bakes on this runtime in THIS run, or None when it is
     current (the series head was built from the same inputs, its parent
     has not moved under ``follow``, no refresh is due, nothing forced).
@@ -698,7 +698,7 @@ def bake_reason(ctx: "GlobalTypeContext", image: Any, runtime: str | None = None
     return reason
 
 
-def bake_plan(ctx: "GlobalTypeContext") -> dict[str, str]:
+def bake_plan(ctx: "RunContext") -> dict[str, str]:
     """``{"<series>@<runtime>": "bake: <reason>" | "skip: current (build …)"
     | "skip: not selected (--only)"}`` for every image of every image
     builder -- the run's bake surface, explained. Journaled with the run."""

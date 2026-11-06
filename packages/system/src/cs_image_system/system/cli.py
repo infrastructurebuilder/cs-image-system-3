@@ -20,8 +20,10 @@ from typing import TYPE_CHECKING, Annotated
 import typer
 from rich.logging import RichHandler
 
-from cs_image_system.contract.commands import COMMANDS_ENTRY_POINT_GROUP, CommandMount
-from cs_image_system.base.lifecycles import Lifecycle, all_lifecycles, parse_lifecycles
+from cs_image_system.contract.commands import COMMANDS_ENTRY_POINT_GROUP, VERIFY_LOGIN, CommandMount
+from cs_image_system.base.commands.login_proof import verify_login_command
+from cs_image_system.contract.lifecycles import Lifecycle
+from cs_image_system.base.lifecycles import all_lifecycles, parse_lifecycles
 from cs_image_system.base.loader import load_plugins
 from cs_image_system.base.utils import is_base
 from cs_image_system.base.commands.run_lifecycles import run_lifecycles, load_hook_plugins, validate_only
@@ -1477,6 +1479,19 @@ def plugin_command_mounts() -> list[CommandMount]:
     return out
 
 
+#: The core's commands a plugin mounts by name (``CommandMount.kit_command``).
+KIT_COMMAND_CALLBACKS = {VERIFY_LOGIN: verify_login_command}
+
+
+def _callback_of(mount: CommandMount):
+    """The function a command mount mounts: its own callback, or the core's
+    command its ``kit_command`` names (stage 125: a plugin names the core's
+    login proof and imports nothing of the core to mount it)."""
+    if mount.kit_command is not None:
+        return KIT_COMMAND_CALLBACKS[mount.kit_command]
+    return mount.callback
+
+
 def _sub_app(root: typer.Typer, path: tuple[str, ...]) -> typer.Typer:
     """The sub-app ``path`` names, outermost first; the root for ``()``."""
     current = root
@@ -1509,7 +1524,7 @@ def mount_plugin_commands(root: typer.Typer, mounts: list[CommandMount] | None =
                 continue                                   # the same sub-app again: one mount
         else:
             earlier = next((c for c in parent.registered_commands if c.name == mount.name), None)
-            if earlier is not None and earlier.callback is mount.callback:
+            if earlier is not None and earlier.callback is _callback_of(mount):
                 continue                                   # the same callback again: one mount
         taken = {g.name for g in parent.registered_groups} | {c.name for c in parent.registered_commands}
         if mount.name in taken:
@@ -1519,8 +1534,10 @@ def mount_plugin_commands(root: typer.Typer, mounts: list[CommandMount] | None =
             root.add_typer(mount.app, name=mount.name)
             if mount.deferred_load:
                 _DEFERRED_LOAD_COMMANDS.add(mount.name)
-        elif mount.callback is not None:
-            parent.command(name=mount.name)(mount.callback)
+        else:
+            callback = _callback_of(mount)
+            if callback is not None:
+                parent.command(name=mount.name)(callback)
         mounted.append(where)
     return mounted
 

@@ -1055,11 +1055,25 @@ protocol listed as a base never answers for the class) is run by the bar
 over every base class and every built-in plugin's models and builders.
 Where a class lists its protocol as a base, pyright's override check
 (on as an error) compares the override's annotations with the
-protocol's. Runtime checks in
-the loader, the registry and the orchestrator stay structural and
-name-only, backed by that test. The mapper dispatches on the contract's
-surface, not a table of the core's classes: a builder-model class that
-classifies itself and names no type of its own is a dispatch point. The
+protocol's. The surface of each
+kind's protocol is what a plugin outside the core calls on another's
+builder or model, or implements on its own, plus what the core itself
+calls on a plugin's builder or model (the wiring hooks, the OS model's
+readers, the runtime's retention knobs), even where the kit's base
+class supplies the default body; a member only the core's base classes
+call on each other, or that nothing outside its defining class reads,
+is a kit base-class method, not a protocol member (the runtime
+builder's protocol holds 53 members of its own, the group builder's 40,
+the OS builder model's 22). The loader holds every class a plugin registers to
+the protocol of its classification (`assert_conforms` when the installed
+plugins are discovered, once per process), so a shortfall is refused at
+load with the member named; the loader, the
+registry and the orchestrator decide what kind of thing they hold by
+`isinstance` against the contract's `runtime_checkable` protocols, and a
+`getattr` that remains reads an optional value with a default. The mapper
+dispatches on the contract's surface, not a table of the core's classes:
+a builder-model class that classifies itself and names no type of its own
+is a dispatch point. The
 state backend seam is inverted: once the state backends are loaded the
 core hands every model's registration (`to_backend_registration`) to
 the terraform collector, rather than each model pushing its own from
@@ -1074,12 +1088,23 @@ or executes, and neither the context nor the registry is a process
 singleton. A builder reaches its context through `_get_context()`, a
 command takes it, and a model method with no context of its own reaches
 the process's current one through a shim that stands for one release
-with the old name. Deferred, each a piece of work of its own: the run
-context's protocol (the expensive part; the context is now small enough
-to type), the hooks and bootstrap
-entry points, the contract's own compatibility version (it moves in
-lockstep with the workspace until it stops changing), and a separate
-repository for it once stable, with an external plugin as the proof.
+with the old name. The contract carries a semantic version of its own
+(`0.1.0`; 0.x until the operator decides otherwise), every dependent pins
+its compatible series and the workspace's release leaves it where it is
+([the stage index](CHANGES.md#s125)). The run context is in the
+contract too: `RunContextProtocol` holds the members the plugins read
+(counted from the sources, each one used), `MetaStateProtocol` the
+meta-state's, and the run's services (`ctx.services.lineage`, `launch`,
+`secrets`, `files`, `commands`, `images`, `identity`, `storage`,
+`workspaces`, `scope`, `cli`, `lifecycles`, `meta_state`) are protocols
+whose adapters the loader binds to the context, so a plugin imports from
+the core only its base classes and models and reaches everything else
+through the context it is handed; the hooks entry point (`contract.hooks`)
+and the bootstrap vocabulary and facts protocol (`contract.bootstrap`)
+are the contract's as well, and a test holds the import rule with an
+exception list of four. Deferred, one piece of work of its own: a
+separate repository for the contract once stable, with an external plugin
+as the proof.
 The same direction holds among the plugins themselves: a terraform
 root's provider-neutral machinery (the workspace, its variables, the
 state binding and remote-state references, the module calls and outputs,
@@ -1092,29 +1117,27 @@ provider's root plugin, so the GCE and container roots install without
 the AWS root, its runtime or its SDK
 ([the stage index](CHANGES.md#s120)).
 
-**Reversibility (the operator's condition).** The split may have to be
-undone if it interferes with later work; what would be
-expensive is not abandoning a package or a repository but reversing a
-work stream built on it. So the split changed code alone (the emission
-is byte-identical; no YAML key, record or cloud state moved), and the
-core's old import paths stay as re-exports of the contract (the shims:
-`base/constants.py`, `models/model_config.py`, `helpers/field_helpers.py`,
-`helpers/field_kinds.py`, `lifecycle.py`, `lifecycles.py`,
-`basic/asset.py`, `models/executable_adds.py`, the PSI enums and the
-`utils` helpers). While the shims stand the undo is soft: a swap of which
-side holds the bodies, with no import rewritten in the core or in any
-plugin, so every stream that only imports contract names, the plugins
-and the proof plugin included, needs no reversal. The one later stream
-that would need reversing is a Tier C that types the context's protocol
-in the contract; the injection itself (`bind(ctx)` at registration,
-[the stage index](CHANGES.md#s124)) lives in the core and reverses with
-it, so while the split is provisional Tier C declares and types the
-context protocol and nothing in the contract depends on the injection. Removing the shims is the commitment to the contract: it
-is done together with moving the package to its own repository, and
-never unprompted. The operational state -- the tags that bracket the
-work, the undo recipe, the pieces worth re-applying and the standing
-reminder -- is kept in [REMINDERS.md](../REMINDERS.md), in the reminder
-on the contract shims.
+**Reversibility (the operator's condition), and the commitment.** The
+split may have had to be undone if it interfered with later work; what
+would have been expensive is not abandoning a package or a repository but
+reversing a work stream built on it. So the split changed code alone (the
+emission is byte-identical; no YAML key, record or cloud state moved),
+and the commitment has landed ([the stage
+index](CHANGES.md#s125)): the core has no re-export path for a contract
+name, the core and every built-in plugin import the contract directly,
+the contract carries a version of its own, and the soft undo (a swap of
+which side holds the bodies, with no import rewritten) no longer applies
+-- reversing the contract is a work stream of its own, not a swap. The tags `s30-1-before`, `s30-1-after`, `s30-2-before` and
+`s30-2-after` bracket the move of the bodies as history, each tag's
+message carrying its recipe; [REMINDERS.md](../REMINDERS.md) keeps the
+record. The vocabulary (the tag words, the launch words, the storage and
+identity words, the power states, `EncryptedStr`, the bootstrap's
+question model) lives in the contract as constants and types only, and
+the core's engine modules keep their own paths to it by importing from
+the contract, so an engine module reaches its vocabulary without naming
+the package; the services behind those words (reading lineage, computing
+launch parameters, decrypting) stay the core's and reach a plugin through
+the run context.
 
 ## 4. Standing constraints
 

@@ -25,8 +25,8 @@ gid, the enrollment, the declared userdata and the completion marker.
 """
 from __future__ import annotations
 
+
 import hashlib
-import re
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -34,25 +34,27 @@ from .basic.builder_base_storage import MOUNT_MARK, StorageBuilderBase, mount_ma
 from .capabilities import group_builder_of, storage_type_of
 from .launch_enrollment import enrollment_kind_for
 from . import generations
-from .lifecycles import Lifecycle
+from cs_image_system.contract.lifecycles import Lifecycle
 from .lineage import instance_follow_target
 from cs_image_system.contract.runtime import LAUNCH_DELIVERY_BOOT
 from .utils import apply_enabled, roots_on_runtime
 
 if TYPE_CHECKING:
-    from .global_context import GlobalTypeContext
+    from .run_context import RunContext
     from .models.instance import Instance
 
 log = logging.getLogger(__name__)
 
-ENROLLMENT_TOKEN_VARIABLE = "sft_enrollment_token"
+# The variable's name is the contract's vocabulary (`contract.launch_vocabulary`)
+from cs_image_system.contract.launch_vocabulary import (  # noqa: F401, E402 - re-exported
+    ENROLLMENT_TOKEN_VARIABLE, HOSTNAME_LABEL_MAX, hostname_problems)
 
 # Keys that may legitimately differ between generations of an instance's
 # launch params without meaning "replacement".
 _VOLATILE = ("run", "user_data_sha256", "launched", "launched_run", "build")
 
 
-def mount_script_lines(mount: dict[str, Any], group: str | None, ctx: "GlobalTypeContext | None") -> list[str]:
+def mount_script_lines(mount: dict[str, Any], group: str | None, ctx: "RunContext | None") -> list[str]:
     """One mount's block of the launch script: its storage builder's
     ``launch_script_lines`` (the record's ``builder`` names it in ``ctx``;
     ``None`` configures no builder). A mount whose builder is not configured
@@ -63,7 +65,7 @@ def mount_script_lines(mount: dict[str, Any], group: str | None, ctx: "GlobalTyp
     return list(builder.launch_script_lines(mount, group))
 
 
-def mount_tasks(mount: dict[str, Any], group: str | None, ctx: "GlobalTypeContext | None") -> list[dict[str, Any]]:
+def mount_tasks(mount: dict[str, Any], group: str | None, ctx: "RunContext | None") -> list[dict[str, Any]]:
     """One mount's ansible tasks: its storage builder's ``launch_tasks``;
     the directory task alone for a builder that is not configured."""
     builder = _mount_builder(mount, ctx)
@@ -72,13 +74,13 @@ def mount_tasks(mount: dict[str, Any], group: str | None, ctx: "GlobalTypeContex
     return list(builder.launch_tasks(mount, group))
 
 
-def _mount_builder(mount: dict[str, Any], ctx: "GlobalTypeContext | None") -> Any:
+def _mount_builder(mount: dict[str, Any], ctx: "RunContext | None") -> Any:
     if ctx is None:
         return None                     # no context: no storage builder is configured
     return ctx.storage_builders.get(str(mount.get("builder") or ""))
 
 
-def mounted_points(params: dict[str, Any], ctx: "GlobalTypeContext | None") -> list[str]:
+def mounted_points(params: dict[str, Any], ctx: "RunContext | None") -> list[str]:
     """The mount points the startup script mounts: every mount whose storage
     block carries the mount mark (an object store reached through its cloud
     CLI renders a comment and no mark)."""
@@ -87,7 +89,7 @@ def mounted_points(params: dict[str, Any], ctx: "GlobalTypeContext | None") -> l
             if mount_mark_line(str(m["mount_point"])) in mount_script_lines(m, group, ctx)]
 
 
-def launch_variables(ctx: "GlobalTypeContext") -> tuple[str, ...]:
+def launch_variables(ctx: "RunContext") -> tuple[str, ...]:
     """The names a launch template (and the playbook's extra-vars) takes by
     reference: ``group_gid``, then every storage builder's own in
     declaration order (each once), then the enrollment token."""
@@ -100,14 +102,7 @@ def launch_variables(ctx: "GlobalTypeContext") -> tuple[str, ...]:
     return tuple(names)
 
 
-#: RFC 1123 caps one hostname label at 63 characters; Linux's HOST_NAME_MAX
-#: is 64 bytes including the terminator. The canonical name here IS the OS
-#: hostname (see user_data_template), so this is the budget that binds.
-HOSTNAME_LABEL_MAX = 63
-_HOSTNAME_LABEL = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$")
-
-
-def will_replace(ctx: "GlobalTypeContext", instance: Any) -> bool:
+def will_replace(ctx: "RunContext", instance: Any) -> bool:
     """Whether THIS run replaces the instance's machine: an explicit upgrade
     left a pending replacement, or a follow policy has a newer head to move
     to. The same two exemptions validate_immutability honours -- so a name
@@ -116,7 +111,7 @@ def will_replace(ctx: "GlobalTypeContext", instance: Any) -> bool:
     return name in ctx.meta_state.pending_replacements() or instance_follow_target(ctx, instance) is not None
 
 
-def canonical_hostname(ctx: "GlobalTypeContext", instance: Any) -> str:
+def canonical_hostname(ctx: "RunContext", instance: Any) -> str:
     """The name the machine is given at boot and enrolls in OPA under
     (stage 55 step 4, operator decision 2026-09-21): the declared name plus
     its generation, zero-padded to three digits -- ``coops-model-003``.
@@ -147,25 +142,7 @@ def canonical_hostname(ctx: "GlobalTypeContext", instance: Any) -> str:
     return f"{name}-{ms.instance_generation(name, kind) + 1:03d}"
 
 
-def hostname_problems(name: str) -> list[str]:
-    """Why ``name`` cannot be an OS hostname / OPA canonical name; empty when
-    it can. Each reason is a clause that follows the name in a sentence."""
-    out: list[str] = []
-    if not name:
-        out.append("is empty")
-        return out
-    if len(name) > HOSTNAME_LABEL_MAX:
-        out.append(f"is {len(name)} characters, over the {HOSTNAME_LABEL_MAX} a hostname label allows")
-    if not _HOSTNAME_LABEL.match(name):
-        bad = sorted({c for c in name if not (c.isascii() and (c.isalnum() or c == "-"))})
-        if bad:
-            out.append(f"contains {bad}, which a hostname may not")
-        else:
-            out.append("starts or ends with a hyphen, which a hostname may not")
-    return out
-
-
-def _storage_by_name(ctx: "GlobalTypeContext"):
+def _storage_by_name(ctx: "RunContext"):
     return {s.get_name(): s for s in ctx.storages}
 
 
@@ -179,7 +156,7 @@ def effective_machine_type(instance: "Instance", rtb: Any) -> str:
     return str(get() or "").strip() if callable(get) else ""
 
 
-def resize_of(ctx: "GlobalTypeContext", instance: "Instance") -> tuple[str, str] | None:
+def resize_of(ctx: "RunContext", instance: "Instance") -> tuple[str, str] | None:
     """``(from, to)`` when a LAUNCHED instance's declaration names a different
     machine type than its record -- the in-place change hygiene VIII item 2
     allows. None when the instance is unlaunched, the type is unchanged, or
@@ -194,7 +171,7 @@ def resize_of(ctx: "GlobalTypeContext", instance: "Instance") -> tuple[str, str]
     return None
 
 
-def compute_launch_params(ctx: "GlobalTypeContext", instance: "Instance") -> dict[str, Any]:
+def compute_launch_params(ctx: "RunContext", instance: "Instance") -> dict[str, Any]:
     image = ctx.images_map.get(str(instance.image)) if instance.image else None
     group = getattr(image, "group", None) if image is not None else None
     storages = _storage_by_name(ctx)
@@ -261,7 +238,7 @@ def compute_launch_params(ctx: "GlobalTypeContext", instance: "Instance") -> dic
     }
 
 
-def user_data_template(params: dict[str, Any], ctx: "GlobalTypeContext | None" = None) -> str:
+def user_data_template(params: dict[str, Any], ctx: "RunContext | None" = None) -> str:
     """The cloud-init shell script as a terraform ``templatefile`` template.
 
     Template variables (supplied by the instance root, all by reference):
@@ -317,7 +294,7 @@ def user_data_template(params: dict[str, Any], ctx: "GlobalTypeContext | None" =
     return "\n".join(lines) + "\n"
 
 
-def record_launch_params(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
+def record_launch_params(ctx: "RunContext", lifecycle: Lifecycle) -> None:
     """After the instance-image lifecycle generated: record every instance's
     launch parameters (structural facts only), preserving the launched
     marker of instances already launched."""
@@ -350,7 +327,7 @@ def record_launch_params(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None
     # the finding-21 truthful-recorders shape).
 
 
-def forget_decommissioned(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
+def forget_decommissioned(ctx: "RunContext", lifecycle: Lifecycle) -> None:
     """After the instance-image runner completed WITH applies enabled, the
     recorded instances no longer declared were destroyed through the gate's
     decommission whitelist: forget their launch parameters and pins (N19)."""
@@ -388,7 +365,7 @@ def forget_decommissioned(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> Non
         ms.remove_instance_pin(name, ctx.run_id)
 
 
-def record_detachments(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
+def record_detachments(ctx: "RunContext", lifecycle: Lifecycle) -> None:
     """After the instance-image runner completed for real: a launched
     instance whose detach applied (its root was allowed to apply) is
     re-recorded without the mount (stage 10.14)."""
@@ -413,7 +390,7 @@ def record_detachments(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
                  "launch parameters re-recorded without the mount(s)")
 
 
-def record_resizes(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
+def record_resizes(ctx: "RunContext", lifecycle: Lifecycle) -> None:
     """After the instance-image runner completed for real: a launched
     instance whose declaration named a different machine type was resized
     IN PLACE by the apply -- the provider stopped it, changed its type and
@@ -437,7 +414,7 @@ def record_resizes(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
         generations.on_resized(ctx, name, resize[0], resize[1])
 
 
-def forget_ephemerals(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
+def forget_ephemerals(ctx: "RunContext", lifecycle: Lifecycle) -> None:
     """After the instance-image runner completed for real, every declared
     EPHEMERAL instance whose root applied was verified and torn down by
     its own sequence (stage 10.1): its launch parameters and pin are
@@ -475,7 +452,7 @@ def forget_ephemerals(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
         raise VerificationFailed(failed[0])
 
 
-def mark_launched(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
+def mark_launched(ctx: "RunContext", lifecycle: Lifecycle) -> None:
     """After the instance-image runner completed WITH applies enabled,
     every declared instance is launched: its parameters are now immutable."""
     if lifecycle != Lifecycle.INSTANCE_IMAGE:
@@ -518,7 +495,7 @@ def _comparable(params: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in params.items() if k not in _VOLATILE}
 
 
-def detachments(ctx: "GlobalTypeContext", instance: Any) -> list[dict[str, Any]]:
+def detachments(ctx: "RunContext", instance: Any) -> list[dict[str, Any]]:
     """Mounts recorded for a LAUNCHED instance that its declaration no
     longer lists (stage 10.14): each is a detach the instance root plans,
     after the unmount the runtime performs."""
@@ -535,7 +512,7 @@ def _without_mounts(params: dict[str, Any], names: set[str]) -> dict[str, Any]:
     return out
 
 
-def validate_immutability(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> list[str]:
+def validate_immutability(ctx: "RunContext", requested: list[Lifecycle]) -> list[str]:
     """N26: launched instances may not change their launch parameters except
     through replacement (an explicit upgrade, or decommission + recreate)."""
     errors: list[str] = []
@@ -573,7 +550,7 @@ def validate_immutability(ctx: "GlobalTypeContext", requested: list[Lifecycle]) 
     return errors
 
 
-def _retire_registration(ctx: "GlobalTypeContext", name: str, recorded: dict[str, Any]) -> None:
+def _retire_registration(ctx: "RunContext", name: str, recorded: dict[str, Any]) -> None:
     """Retire every OPA registration of a decommissioned instance's canonical
     hostname (stage 55 step 1). The recorded launch parameters say which
     group it enrolled under and which hostname it took; the group's builder
@@ -593,7 +570,7 @@ def _retire_registration(ctx: "GlobalTypeContext", name: str, recorded: dict[str
              if gone else f"Instance {name}: no OPA registration of {hostname!r} to retire")
 
 
-def validate_claimed_hostnames(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> list[str]:
+def validate_claimed_hostnames(ctx: "RunContext", requested: list[Lifecycle]) -> list[str]:
     """A canonical hostname is claimed once (stage 55 step 2). Before a run
     that can LAUNCH, every declared instance's hostname is checked against
     the group's server registry: an unlaunched instance whose name is already

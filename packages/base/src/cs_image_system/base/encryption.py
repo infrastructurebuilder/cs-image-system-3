@@ -33,33 +33,18 @@ import os
 import re
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated, Any, Iterable
-
-from pydantic import PlainValidator
+from typing import Any, Iterable
 
 from cs_image_system.contract.hcl import emitted
 
+# The marker's shape, ``is_marker``, ``Decrypted`` and the field type
+# ``EncryptedStr`` are the contract's (`contract.secrets`); this path keeps
+# them, and installs the decoder below.
+from cs_image_system.contract.secrets import (  # noqa: F401
+    MARKER_PREFIX, MARKER_RE, Decrypted, EncryptedStr, is_marker, register_secret_decoder)
+
 IDENTITY_ENV = "CSIS_CONFIG_IDENTITY"
-MARKER_PREFIX = "ENC[age:"
-MARKER_RE = re.compile(r"^ENC\[age:([A-Za-z0-9+/=]+)\]$")
 INLINE_MARKER_RE = re.compile(r"ENC\[age:([A-Za-z0-9+/=]+)\]")
-
-
-class Decrypted(str):
-    """A decrypted configuration value: a ``str`` everywhere it is used, with
-    a ``repr`` that never shows the text, carrying the ``marker`` it was read
-    from so an emission can refer to the ciphertext instead of the text
-    (stage 34). A ``str`` subclass cannot declare slots, hence the attribute."""
-
-    marker: str
-
-    def __new__(cls, plaintext: str, marker: str = "") -> "Decrypted":
-        obj = super().__new__(cls, plaintext)
-        obj.marker = marker
-        return obj
-
-    def __repr__(self) -> str:
-        return "Decrypted('***')"
 
 
 class MissingIdentityError(ValueError):
@@ -115,10 +100,6 @@ try:
         _dumper.add_representer(Decrypted, _represent_decrypted)
 except ImportError:                                  # pragma: no cover
     pass
-
-
-def is_marker(value: Any) -> bool:
-    return isinstance(value, str) and MARKER_RE.match(value.strip()) is not None
 
 
 # ---------------------------------------------------------------- identities
@@ -193,25 +174,8 @@ def encrypt_value(plaintext: str, recipients: Iterable[str]) -> str:
     return MARKER_PREFIX + base64.b64encode(buf.getvalue()).decode("ascii") + "]"
 
 
-def _validate_encrypted_str(value: Any) -> str:
-    """The whole validation of an ``EncryptedStr``: a plain validator, because
-    pydantic's own ``str`` step would flatten the ``Decrypted`` subclass back to
-    ``str`` and lose the hidden repr. Numbers are coerced to text the way
-    ``CSIS_MODEL_CONFIG`` does for every other string field."""
-    if isinstance(value, bool) or value is None:
-        raise ValueError("a string is required")
-    if isinstance(value, (int, float)):
-        value = str(value)
-    if not isinstance(value, str):
-        raise ValueError(f"a string is required, not {type(value).__name__}")
-    if is_marker(value):
-        return Decrypted(decrypt_marker(value), marker=value)
-    return value
-
-
-# The field type. Composes: list[EncryptedStr] / set[EncryptedStr] /
-# dict[str, EncryptedStr] decrypt each element on its own.
-EncryptedStr = Annotated[str, PlainValidator(_validate_encrypted_str, json_schema_input_type=str)]
+# The decoder an ``EncryptedStr`` field opens a marker with.
+register_secret_decoder(decrypt_marker)
 
 
 # ---------------------------------------------------------------- the tree

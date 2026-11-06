@@ -33,58 +33,22 @@ corrected.
 - 2027-01-09: (open)
 - 2027-02-09: (open)
 
-### The §30 shims: still in place?
+### The §30 shims: removed in §125
 
-**Reminded weekly: the first one is due on or after 2026-11-05.** Until the
-operator commits to the plugin contract, the core's re-export shims stay;
-each week the assistant says, in one line, that they are still in place and
-asks whether it is time to remove them. Never removed unprompted. Stop
-when the removal has landed.
-
-**What the shims are.** The core's modules that used to hold what moved
-into `cs_image_system.contract` (stage 30) and now only re-export it:
-`base/constants.py`, `models/model_config.py`, `helpers/field_helpers.py`,
-`helpers/field_kinds.py`, `lifecycle.py`, `lifecycles.py` (the data),
-`basic/asset.py`, `models/executable_adds.py`, the PSI enums in
-`models/provider_specific_image.py`, and the name and HCL helpers in
-`utils.py`. The core's internal imports still use those paths.
-
-**What removing them means** (the operator, 2026-10-29): "removing them
-will mean we're committing to the contracts and at that point we'll move
-the contract package to its own repo". It is one stage: rewrite the core's
-internal imports to the contract paths, delete the shim modules, and (in
-that stage or beside it) create the contract's own repository and its
-compatibility version. With the shims in place the whole of stage 30 can
-still be undone by swapping which side holds the bodies, with no import
-rewritten (DESIGN, section 3P, "Reversibility", holds the rule; the
-state is here).
-
-**How the stage is bracketed.** Stage 30 is code only: the emission is
-byte-identical and no YAML key, record or cloud state changed. It landed
-on `develop` as one squash per branch, and the annotated tags
-`s30-1-before` and `s30-1-after` (branch 1) and `s30-2-before` and
-`s30-2-after` (branch 2) bracket the work; each tag's message carries
-the recipe. The "What moved where" table in
-[packages/contract/README.md](packages/contract/README.md) is the map of
-which body moved into which contract module.
-
-**The undo, while the shims stand.** A swap of which side holds the
-bodies: the bodies go back into the shim modules listed above and the
-contract's modules become the re-exports, with no import rewritten in
-the core or in any plugin; every stream that only imports contract
-names, the plugins and the proof plugin (`contract-example-plugin`)
-included, needs no reversal. Pieces worth keeping under an undo, to
-re-apply from the squash: the `issubclass` TypeError fix, the plugin
-`version` fix, the public names for the three private cross-plugin
-helpers, the package manifests (no plugin depends on `system`), and the
-runtime base's TypeVar. The one later stream that would need reversing
-is a Tier C that injects the context (`bind(ctx)`) into the plugins' 53
-`_get_context()` sites; while the stage is provisional, Tier C declares
-and types the context protocol without the injection.
-
-**The reminders.**
-
-- (none yet)
+**Closed 2026-11-05; nothing to raise.** The core's re-export paths of the
+contract's names (`base/constants.py`, `models/model_config.py`,
+`helpers/field_helpers.py`, `helpers/field_kinds.py`, `lifecycle.py`, the
+data part of `lifecycles.py`, `basic/asset.py`, `models/executable_adds.py`,
+the PSI enums in `models/provider_specific_image.py` and the name and HCL
+helpers in `utils.py`) were removed in stage 125, every internal import
+rewritten to the contract path, as the commitment to the contract the
+operator's condition of 2026-10-29 named; the contract took a version of
+its own (0.1.0) in the same stage. The annotated tags `s30-1-before`,
+`s30-1-after`, `s30-2-before` and `s30-2-after` bracket the move of the
+bodies into the contract, each tag's message carrying its recipe, and
+stage 30 changed code alone (the emission byte-identical; no YAML key,
+record or cloud state moved). The weekly reminder that stood here is
+retired.
 
 ### STARTER_PUSH_TOKEN renewal
 

@@ -29,14 +29,17 @@ from __future__ import annotations
 import logging
 import json
 from datetime import datetime, timezone
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 
 from .. import power_state
 from ..basic.builder_base_group import GroupBuilderBase
-from ..global_context import GlobalTypeContext
 from ..launch_params import canonical_hostname, group_builder_of
+from ..standing import standing_instances  # noqa: F401 - re-exported (stage 125)
+
+if TYPE_CHECKING:          # annotations only (stage 125)
+    from ..global_context import GlobalTypeContext
 
 log = logging.getLogger(__name__)
 
@@ -53,30 +56,6 @@ class LoginProofFailed(Exception):
 def _group_of(ctx: GlobalTypeContext, instance: Any) -> str:
     image = ctx.images_map.get(str(instance.image))
     return str(getattr(image, "group", None) or "") if image is not None else ""
-
-
-def standing_instances(ctx: GlobalTypeContext, *, runtime: str | None = None,
-                       names: list[str] | None = None) -> list[Any]:
-    """The declared instances a login proof can target: launched (the
-    launch record says so), not ephemeral, on ``runtime`` when given, among
-    ``names`` when given. A name that is not declared is an error."""
-    declared = {i.get_name(): i for i in ctx.instances}
-    for n in names or []:
-        if n not in declared:
-            raise ValueError(f"login proof: instance {n!r} is not declared")
-    launched = ctx.meta_state.launch_params()
-    out = []
-    for name, inst in sorted(declared.items()):
-        if names and name not in names:
-            continue
-        if runtime and str(getattr(inst, "runtime", "") or "") != runtime:
-            continue
-        if getattr(inst, "ephemeral", False):
-            continue
-        if not (launched.get(name) or {}).get("launched"):
-            continue
-        out.append(inst)
-    return out
 
 
 def _as(gb: Any) -> str:

@@ -20,7 +20,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from .basic.builder_base_group import GroupBuilderBase
-from .lifecycles import Lifecycle
+from cs_image_system.contract.lifecycles import Lifecycle
 from .utils import apply_enabled
 
 if TYPE_CHECKING:

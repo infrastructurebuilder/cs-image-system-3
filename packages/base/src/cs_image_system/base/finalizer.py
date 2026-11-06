@@ -27,8 +27,9 @@ import shlex
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .lifecycle import ExecutionLifecyclePhase
-from .lifecycles import LifecycleLike, all_lifecycles
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.lifecycles import LifecycleLike
+from .lifecycles import all_lifecycles
 from .materialize import ensure_ignored, materialize, mirror_path, sync_back
 from .encryption import is_marker
 

@@ -35,15 +35,14 @@ import re
 from decimal import Decimal, InvalidOperation
 from typing import Any, TypeVar, cast
 
-from cs_image_system.base import utils
-from cs_image_system.base.launch_params import ENROLLMENT_TOKEN_VARIABLE
+from cs_image_system.contract.names import super_safe_name
+from cs_image_system.contract.launch_vocabulary import ENROLLMENT_TOKEN_VARIABLE
 from cs_image_system.base.models.executable import ExecutableModel
 from cs_image_system.base.models.instance import Instance
 from cs_image_system.contract.hcl import HclRaw, hcl_expr
 from cs_image_system.tofu_roots.tofu_instance_builder import TofuInstanceBuilderBase
 
 from .tf_docker_models import TOFU_DOCKER, TofuDockerInstanceBuilderModel
-from cs_image_system.base.lineage import config_tags, pinned_instance_build
 
 log = logging.getLogger(__name__)
 
@@ -139,11 +138,11 @@ class TofuDockerInstanceBuilder(TofuInstanceBuilderBase[Q]):
         return f"launch-{label}.sh.tftpl"
 
     def _module_args(self, ctx, rtb, instance: Instance, params: dict[str, Any] | None = None) -> dict[str, Any]:
-        label = utils.super_safe_name(instance.get_name())
+        label = super_safe_name(instance.get_name())
         name = str(instance.get_name())
         hostname = str((params or {}).get("hostname") or name)
         args: dict[str, Any] = {"name": name, "hostname": hostname}
-        pinned = pinned_instance_build(ctx, instance) if hasattr(ctx, "meta_state") else None
+        pinned = ctx.services.lineage.pinned_instance_build(instance) if hasattr(ctx, "meta_state") else None
         psi = (ctx.get_provider_specific_image(instance.image, rtb.get_name()) if rtb and instance.image else None)
         if pinned:
             args["image"] = pinned
@@ -179,7 +178,8 @@ class TofuDockerInstanceBuilder(TofuInstanceBuilderBase[Q]):
             network = getattr(networking, "network", None) if networking else None
             if network:
                 args["network"] = str(network)
-        labels = {str(k): str(v) for k, v in {**(instance.get_tags() or {}), **config_tags(ctx)}.items()}   # stage 93
+        labels = {str(k): str(v) for k, v in {**(instance.get_tags() or {}),
+                                              **ctx.services.lineage.config_tags()}.items()}   # stage 93
         labels["csis_instance"] = name
         labels["csis_generation"] = generation_of(hostname, name)
         args["labels"] = labels
@@ -202,8 +202,8 @@ class TofuDockerInstanceBuilder(TofuInstanceBuilderBase[Q]):
             sb = m.get("builder") or self._storage_builder_name(m["storage"])
             if not sb:
                 continue
-            ref = (f"data.terraform_remote_state.{utils.super_safe_name(sb)}"
-                   f".outputs.storage_{utils.super_safe_name(m['storage'])}")
+            ref = (f"data.terraform_remote_state.{super_safe_name(sb)}"
+                   f".outputs.storage_{super_safe_name(m['storage'])}")
             if m.get("platform_mounted"):
                 volumes[m["storage"]] = {"volume_name": HclRaw(f"{ref}.volume_name"),
                                          "container_path": str(m["mount_point"])}

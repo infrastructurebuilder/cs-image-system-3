@@ -30,10 +30,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from cs_image_system.base.bootstrap.facts import (Facts, bound_backend_names, default_state_backend, other_state_backends,
-                                                   real, runtime_of_type)
-from cs_image_system.base.bootstrap.questions import (ADOPTED, BY_HAND, MADE, READ, Answers, Question, Raw, Rendered,
-                                                       Secret, Section, Variable)
+from cs_image_system.contract.bootstrap import (ADOPTED, BY_HAND, MADE, READ, Answers, FactsProtocol as Facts, Question,
+                                                Raw, Rendered, Secret, Section, Variable, real)
 
 MODULE = "bootstrap_aws"
 OIDC_HOST = "token.actions.githubusercontent.com"
@@ -42,7 +40,7 @@ MANAGED_BY = "cs-image-system-bootstrap"
 
 # ------------------------------------------------------------------ the account
 def _runtime(facts: Facts) -> dict[str, Any]:
-    return runtime_of_type(facts, "aws") or {}
+    return facts.runtime_of_type("aws") or {}
 
 
 def _profile_of(facts: Facts, answers: Answers) -> str:
@@ -147,9 +145,9 @@ def other_s3_buckets(facts: Facts) -> list[tuple[str, str, str, bool]]:
     """The tree's other S3 backends (hygiene XX item 1): ``(backend name,
     bucket, prefix, bound)`` for each with a real bucket, in declaration
     order; ``bound`` when some root's ``state_configuration`` names it."""
-    bound = bound_backend_names(facts)
+    bound = facts.bound_backend_names()
     out: list[tuple[str, str, str, bool]] = []
-    for backend in other_state_backends(facts, "s3"):
+    for backend in facts.other_state_backends("s3"):
         bucket = real(backend.get("bucket"))
         if not bucket:
             continue
@@ -198,7 +196,7 @@ def _profile_exists(facts: Facts, answers: Answers) -> bool | None:
 
 # -------------------------------------------------------------------- defaults
 def _state(facts: Facts, key: str) -> str | None:
-    return real((default_state_backend(facts, "s3") or {}).get(key))
+    return real((facts.default_state_backend("s3") or {}).get(key))
 
 
 def _state_prefix(facts: Facts, answers: Answers) -> str | None:
@@ -461,7 +459,7 @@ def render(answers: Answers, facts: Facts | None = None) -> Rendered:
 
 def wanted(facts: Facts) -> bool:
     """The tree uses AWS: it declares an AWS runtime or keeps its state in S3."""
-    return runtime_of_type(facts, "aws") is not None or default_state_backend(facts, "s3") is not None
+    return facts.runtime_of_type("aws") is not None or facts.default_state_backend("s3") is not None
 
 
 #: The repository secrets the starters' workflow reads to act on AWS (CI_SETUP.md

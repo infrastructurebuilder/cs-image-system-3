@@ -17,9 +17,8 @@ the session instance profile is wired when the runtime offers one.
 import logging
 from typing import Any, TypeVar
 
-from cs_image_system.base import utils
-from cs_image_system.base.capabilities import group_builder_of
-from cs_image_system.base.launch_params import ENROLLMENT_TOKEN_VARIABLE
+from cs_image_system.contract.names import super_safe_name
+from cs_image_system.contract.launch_vocabulary import ENROLLMENT_TOKEN_VARIABLE
 from cs_image_system.base.models.instance import Instance
 from cs_image_system.contract.constants import OOPS_DEFAULTS
 from cs_image_system.contract.hcl import HclRaw, hcl_expr
@@ -27,7 +26,7 @@ from cs_image_system.hashicorp_utils.collector import TerraformCollector
 from cs_image_system.tofu_roots.tofu_instance_builder import TofuInstanceBuilderBase, TofuVersionChecker
 
 from .tf_instance_models import TOFU, TofuInstanceBuilderModel
-from cs_image_system.base.lineage import CONFIG_TAG, configuration_tag, pinned_instance_build, config_tags
+from cs_image_system.contract.lineage_vocabulary import CONFIG_TAG
 
 __all__ = ["TofuInstanceBuilder", "TofuVersionChecker"]
 
@@ -38,7 +37,7 @@ def _group_tags_line(ctx: Any) -> str:
     """The security group's tags: its name, and the configuration it belongs
     to (``csis_config``), so that in a shared account the state is not the
     only thing that says whose it is."""
-    tag = configuration_tag(ctx)
+    tag = ctx.services.lineage.configuration_tag()
     if tag:
         return f'  tags = {{ Name = "csis-instances", {CONFIG_TAG} = "{tag}" }}'
     return '  tags = { Name = "csis-instances" }'
@@ -133,7 +132,7 @@ class TofuInstanceBuilder(TofuInstanceBuilderBase[Q]):
         # block falls to the DEFAULT aws provider, which has no configuration
         # and only works when the operator's shell happens to carry ambient
         # AWS credentials
-        provider_line = f"  provider    = aws.{utils.super_safe_name(self.name)}"
+        provider_line = f"  provider    = aws.{super_safe_name(self.name)}"
         return [
             "",
             'data "aws_vpc" "csis_instances" {',
@@ -168,12 +167,12 @@ class TofuInstanceBuilder(TofuInstanceBuilderBase[Q]):
 
     # ------------------------------------------------------------ the module call
     def _module_args(self, ctx, rtb, instance: Instance, params: dict[str, Any] | None = None) -> dict[str, Any]:
-        label = utils.super_safe_name(instance.get_name())
+        label = super_safe_name(instance.get_name())
         args: dict[str, Any] = {"name": instance.get_name()}
         # Pinned build first (DESIGN §3F5): once bound, an instance keeps its
         # build until an explicit upgrade moves the pin; a rebuild of its
         # image's series never touches it.
-        pinned = pinned_instance_build(ctx, instance) if hasattr(ctx, "meta_state") else None
+        pinned = ctx.services.lineage.pinned_instance_build(instance) if hasattr(ctx, "meta_state") else None
         # AMI via the image's provider-specific image
         psi = (ctx.get_provider_specific_image(instance.image, rtb.get_name())
                if rtb and instance.image else None)
@@ -212,7 +211,7 @@ class TofuInstanceBuilder(TofuInstanceBuilderBase[Q]):
             profile = profile_fn() if callable(profile_fn) else None
             if profile:
                 args["iam_instance_profile"] = profile
-        tags = {**(instance.get_tags() or {}), **config_tags(ctx)}     # the machine carries the id
+        tags = {**(instance.get_tags() or {}), **ctx.services.lineage.config_tags()}     # the machine carries the id
         if tags:
             args["tags"] = dict(tags)
         # Launch parameters (N26) are added only when the caller computed them
@@ -236,8 +235,8 @@ class TofuInstanceBuilder(TofuInstanceBuilderBase[Q]):
             sb = m.get("builder") or self._storage_builder_name(m["storage"])
             if not sb:
                 continue
-            ref = (f"data.terraform_remote_state.{utils.super_safe_name(sb)}"
-                   f".outputs.storage_{utils.super_safe_name(m['storage'])}")
+            ref = (f"data.terraform_remote_state.{super_safe_name(sb)}"
+                   f".outputs.storage_{super_safe_name(m['storage'])}")
             if m["type"] == "ebs":
                 ebs[m["storage"]] = {"volume_id": HclRaw(f"{ref}.volume_id"),
                                      "device_name": m["device"]}
@@ -255,7 +254,7 @@ class TofuInstanceBuilder(TofuInstanceBuilderBase[Q]):
             # IaC-managed enrollment tokens: the group's identity plugin
             # supplies the credential by reference; the operator var stays as
             # explicit override and as the no-plugin fallback.
-            gb = group_builder_of(self._get_context(), group)
+            gb = self._get_context().services.launch.group_builder_of(group)
             ref = gb.enrollment_token_reference(group) if gb else None
             if ref:
                 token_expr = (f'(var.{ENROLLMENT_TOKEN_VARIABLE} != "" '

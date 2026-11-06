@@ -14,15 +14,15 @@ from .. import utils
 from ..orchestrator import Orchestrator, TemplateResolver
 log = logging.getLogger(__name__)
 from typing import Any, Sequence, TypeVar,Mapping
-from ..lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from ..models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
 from ..models.base_image import BaseImage
 from ..models.os_builder_model import OsBuilderModel
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .builder_base_image import ImageBuilderBase
-from ..constants import DEFAULT, OOPS_DEFAULTS, SELF, VCT
-from .asset import AssetSet
+from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, SELF, VCT
+from cs_image_system.contract.assets import AssetSet
 from .builder_base import BuilderBase
 from cs_image_system.contract.operating_system import OsBuilderProtocol
 from .builder_base_image import build_target_label_of
@@ -91,7 +91,7 @@ class OsBuilderBase(BuilderBase[TOS], OsBuilderProtocol):
         # resolved=False synthesizes the BaseImage for chaining metadata only
         # (execution runs, where the base run already built the artifact and no
         # vendor-image query is made) — image_identifier stays None.
-        ctx = self._get_context()
+        ctx = self._run_context()
         cvt = Orchestrator().get_converter()
         reg = ctx.reg
         template_resolver = TemplateResolver() # Already has 'addl' fields registered

@@ -351,7 +351,7 @@ def _posix_instance_run(tmp_path, monkeypatch, prepare=None):
 
 def test_a_launched_running_machine_of_a_posix_group_gets_its_accounts(tmp_path, monkeypatch):
     from cs_image_system.base import accounts_reconcile
-    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.contract.lifecycles import Lifecycle
     session = _Session(monkeypatch)
     run = _posix_instance_run(tmp_path, monkeypatch)
     try:
@@ -367,7 +367,7 @@ def test_a_launched_running_machine_of_a_posix_group_gets_its_accounts(tmp_path,
 @pytest.mark.parametrize("why", ["not launched", "applies off", "wrong lifecycle", "stopped"])
 def test_no_accounts_are_sent_when_they_should_not_be(tmp_path, monkeypatch, why):
     from cs_image_system.base import accounts_reconcile
-    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.contract.lifecycles import Lifecycle
     session = _Session(monkeypatch, state="stopped" if why == "stopped" else "running")
     run = _posix_instance_run(tmp_path, monkeypatch)
     try:
@@ -386,7 +386,7 @@ def test_no_accounts_are_sent_when_they_should_not_be(tmp_path, monkeypatch, why
 def test_a_refused_script_is_logged_as_an_error_and_never_stops_the_run(tmp_path, monkeypatch, caplog):
     import logging
     from cs_image_system.base import accounts_reconcile
-    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.contract.lifecycles import Lifecycle
     _Session(monkeypatch, rc=1, out="posix accounts: group pxgroup has gid 4000 here; the configuration says 3101\n")
     run = _posix_instance_run(tmp_path, monkeypatch)
     try:
@@ -611,7 +611,7 @@ def test_a_name_opa_does_not_give_stops_the_list_and_guesses_nothing(monkeypatch
 def test_a_machine_is_left_as_it_stands_when_an_account_name_cannot_be_read(tmp_path, monkeypatch, caplog):
     import logging
     from cs_image_system.base import accounts_reconcile
-    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.contract.lifecycles import Lifecycle
     from tests.v2_support import V2Run
     _Opa(monkeypatch, attribute_error=RuntimeError("HTTP 503 from OPA"))
     session = _Session(monkeypatch)
@@ -630,7 +630,7 @@ def test_a_machine_is_left_as_it_stands_when_an_account_name_cannot_be_read(tmp_
 
 def test_an_okta_machine_gets_its_group_after_apply(tmp_path, monkeypatch):
     from cs_image_system.base import accounts_reconcile
-    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.contract.lifecycles import Lifecycle
     from tests.v2_support import V2Run
     _Opa(monkeypatch)
     session = _Session(monkeypatch)
@@ -647,7 +647,7 @@ def test_an_okta_machine_gets_its_group_after_apply(tmp_path, monkeypatch):
 
 def test_posix_none_sends_an_okta_machine_nothing(tmp_path, monkeypatch):
     from cs_image_system.base import accounts_reconcile
-    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.contract.lifecycles import Lifecycle
     from tests.v2_support import V2Run, copy_config
     root = copy_config(tmp_path)
     _okta_posix(root, "none")
@@ -666,7 +666,7 @@ def test_posix_none_sends_an_okta_machine_nothing(tmp_path, monkeypatch):
 def test_an_opa_that_cannot_be_asked_is_an_error_not_a_crash(tmp_path, monkeypatch, caplog):
     import logging
     from cs_image_system.base import accounts_reconcile
-    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.contract.lifecycles import Lifecycle
     from tests.v2_support import V2Run
     _Opa(monkeypatch, error=RuntimeError("HTTP 401 from OPA"))
     session = _Session(monkeypatch)

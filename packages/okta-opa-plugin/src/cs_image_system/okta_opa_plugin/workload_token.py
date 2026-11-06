@@ -41,11 +41,9 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Mapping
 
 from cs_image_system.base.basic.builder_base_group import GroupBuilderBase
-from cs_image_system.base.commands.login_proof import standing_instances
-from cs_image_system.base.launch_params import group_builder_of
 
 if TYPE_CHECKING:
-    from cs_image_system.base.global_context import GlobalTypeContext
+    from cs_image_system.contract.context import RunContextProtocol
 
 NAME_VARS: tuple[str, ...] = ("OPA_WORKLOAD_CONNECTION", "OPA_WORKLOAD_ROLE", "SFT_TEAM", "OPA_ADDR")
 CLAIMS = ("iss", "aud", "sub", "repository", "repository_owner", "ref", "ref_type", "workflow_ref", "exp")
@@ -175,7 +173,7 @@ def probe_role(names: WorkloadNames, token: str, hostname: str | None,
 
 # ---------------------------------------- what the configuration names
 
-def workload_facts(ctx: "GlobalTypeContext") -> list[dict[str, Any]]:
+def workload_facts(ctx: "RunContextProtocol") -> list[dict[str, Any]]:
     """What a workload login needs from the configuration, per group
     builder that names the team's objects: the connection and role names,
     the team and the API address. Nothing secret."""
@@ -192,19 +190,19 @@ def workload_facts(ctx: "GlobalTypeContext") -> list[dict[str, Any]]:
     return out
 
 
-def _group_of(ctx: "GlobalTypeContext", instance: Any) -> str:
+def _group_of(ctx: "RunContextProtocol", instance: Any) -> str:
     image = ctx.images_map.get(str(instance.image))
     return str(getattr(image, "group", None) or "") if image is not None else ""
 
 
-def probe_target(ctx: "GlobalTypeContext") -> tuple[str, str] | None:
+def probe_target(ctx: "RunContextProtocol") -> tuple[str, str] | None:
     """``(hostname, group)`` of the first standing machine whose group's
     builder names the workload objects -- what the workload probe resolves
     to judge the role (hygiene XII item 14); None when none stands."""
     launched = ctx.meta_state.launch_params()
-    for inst in standing_instances(ctx):
+    for inst in ctx.services.identity.standing_instances():
         group = _group_of(ctx, inst)
-        gb = group_builder_of(ctx, group) if group else None
+        gb = ctx.services.launch.group_builder_of(group) if group else None
         if not isinstance(gb, GroupBuilderBase) or not gb.can_manage_workload_access():
             continue
         hostname = str((launched.get(inst.get_name()) or {}).get("hostname") or "")

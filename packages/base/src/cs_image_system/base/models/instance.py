@@ -8,15 +8,15 @@ from typing import Annotated, TYPE_CHECKING, Any, cast
 
 
 log = logging.getLogger(__name__)
-from .model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic import Field, model_validator
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 
-from ..helpers.field_helpers import deferred_list_field, fk_field, parent_field
+from cs_image_system.contract.fields import deferred_list_field, fk_field, parent_field
 from .mixins import SelfInjectedName, SubItemOverride
 
 STORAGE_MAPPING = "storage_mapping"
-from ..constants import DEFAULT, VCT
+from cs_image_system.contract.constants import DEFAULT, VCT
 from .root_item import RootItem, SubRootItem
 if TYPE_CHECKING:
     from ..models.storage import Storage

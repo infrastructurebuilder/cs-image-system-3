@@ -83,7 +83,7 @@ def test_ephemeral_sequence_is_absent_when_the_root_may_not_apply(prepared):
 
 def test_forget_ephemerals_drops_the_records_after_a_real_apply(prepared):
     from cs_image_system.base.launch_params import forget_ephemerals
-    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.contract.lifecycles import Lifecycle
     root, make = prepared
     run = make()
     assert run.run(["instance-image"], apply=True, only=["none"]).ok
@@ -237,7 +237,7 @@ def test_teardown_policy_forgets_the_record_before_failing_the_run(prepared):
     launch record. Now the hook forgets first, then raises the verdict."""
     from cs_image_system.base.commands.verify_instance import VerificationFailed
     from cs_image_system.base.launch_params import forget_ephemerals
-    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.contract.lifecycles import Lifecycle
     root, make = prepared
     _set_instance(root, "gce-test", on_failure="teardown")
     run = make()
@@ -284,16 +284,17 @@ def test_teardown_after_tears_down_a_standing_instance_once_due(prepared):
     from datetime import datetime, timezone
     assert not teardown_due(run.ctx, inst, now=datetime(2026, 9, 8, 10, 30, tzinfo=timezone.utc))
     assert teardown_due(run.ctx, inst, now=datetime(2026, 9, 8, 11, 30, tzinfo=timezone.utc))
-    # once due, the sequence tears down without re-verifying
-    import cs_image_system.base.commands.verify_instance as vi
+    # once due, the sequence tears down without re-verifying (the instance
+    # root asks ``ctx.services.launch``, which reads the policy module; stage 125)
+    import cs_image_system.base.ephemeral_policy as ep
     run2 = make()
     run2.ctx.config["apply_instances"] = ["gcloud-east1"]
-    real_due = vi.teardown_due
-    vi.teardown_due = lambda ctx, instance, now=None: real_due(ctx, instance, datetime(2026, 9, 9, tzinfo=timezone.utc))
+    real_due = ep.teardown_due
+    ep.teardown_due = lambda ctx, instance, now=None: real_due(ctx, instance, datetime(2026, 9, 9, tzinfo=timezone.utc))
     try:
         assert run2.run(["instance-image"], apply=True, only=["none"]).ok
     finally:
-        vi.teardown_due = real_due
+        ep.teardown_due = real_due
     lines = _lines_in((run2.generated / "instance-image" / "run-instance-image.sh").read_text(), GCE_ROOT)
     assert not any("verify instance" in ln for ln in lines)
     assert any("-var=ephemeral_present=false" in ln for ln in lines)

@@ -20,7 +20,7 @@ from cs_image_system.docker_runtime.docker_runtime_builders import (DOCKER_QUERY
                                                                     DockerContainerBuilder, translate_image_query)
 from cs_image_system.docker_runtime.docker_runtime_models import DockerContainerBuilderModel
 from cs_image_system.base.models.container_builder import ContainerMachineType, ContainerNetworkingModel
-from cs_image_system.base.models.provider_specific_image import PSISourceKind
+from cs_image_system.contract.image import PSISourceKind
 
 ID_A = "sha256:" + "a" * 64
 ID_B = "sha256:" + "b" * 64

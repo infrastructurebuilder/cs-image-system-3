@@ -272,8 +272,11 @@ def test_the_contract_declares_the_new_hooks_and_the_core_answers_them():
     declared = getattr(cast(Any, rt.RuntimeBuilderProtocol), "__protocol_attrs__")
     for hook in ("packer_post_processor_blocks", "bake_ansible_vars", "tool_environment"):
         assert hook in declared and hasattr(RuntimeBuilderBase, hook)
-    assert {"host", "context", "networking", "machine_types"} <= set(
-        getattr(cast(Any, rt.ContainerBuilderModelProtocol), "__protocol_attrs__"))
+    # stage 125: the container model's fields are the kit's (ContainerBuilderModel);
+    # the protocol keeps only what a plugin reads or overrides
+    assert {"host", "context", "networking", "machine_types"} <= set(ContainerBuilderModel.__dataclass_fields__)
+    assert not getattr(cast(Any, rt.ContainerBuilderModelProtocol), "__protocol_attrs__") - \
+        getattr(cast(Any, rt.RuntimeBuilderModelProtocol), "__protocol_attrs__")
     from cs_image_system.contract.constants import VCT
     assert ContainerBuilderModel.csis_classifier() == VCT.CONTAINER_BUILDER_MODEL
     from cs_image_system.base.models import container

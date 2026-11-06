@@ -43,6 +43,8 @@ from pydantic import Field, TypeAdapter
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 
 from cs_image_system.contract.image import ImageQuery
+from cs_image_system.contract.image_sources import (  # noqa: F401 - re-exported: the words are the contract's
+    IMAGE_SOURCES_KEY, PACKAGED_CATALOG_FILE, container_reference)
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.contract.names import safe_name
 
@@ -50,9 +52,6 @@ from .singleton import singleton
 
 log = logging.getLogger(__name__)
 
-IMAGE_SOURCES_KEY = "image_sources"
-#: the one file a runtime plugin ships its part of the catalog in
-PACKAGED_CATALOG_FILE = "image-sources.yml"
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
@@ -291,21 +290,6 @@ class ImageSourceCatalog:
                 if e.family not in out:
                     out.append(e.family)
         return out
-
-
-def container_reference(query: ImageQuery) -> str | None:
-    """A catalog block as a container image reference, whatever runtime
-    type keyed it: ``native.image`` verbatim when given; else
-    ``<publisher>/<name>:<version>``, the publisher omitted when it is
-    ``library`` (the public registry's own namespace)."""
-    image = query.native.get("image") if query.native else None
-    if image:
-        return str(image)
-    if not query.name:
-        return None
-    publisher = query.publisher[0] if query.publisher else ""
-    repo = query.name if publisher in ("", "library") else f"{publisher}/{query.name}"
-    return f"{repo}:{query.version}" if query.version else repo
 
 
 def default_os_type(family: str, version: str | None, registered: dict[str, type]) -> str | None:

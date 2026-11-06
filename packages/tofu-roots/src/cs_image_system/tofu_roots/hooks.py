@@ -27,17 +27,16 @@ from __future__ import annotations
 
 import logging
 
-from cs_image_system.base.commands.run_lifecycles import HookSet
-from cs_image_system.base.commands.validate import deployed_in_workspace, terraform_workspaces
-from cs_image_system.base.constants import NONE
-from cs_image_system.base.global_context import GlobalTypeContext
-from cs_image_system.base.lifecycles import LifecycleLike, all_lifecycles, builder_vcts_of
+from cs_image_system.contract.constants import NONE
+from cs_image_system.contract.context import RunContextProtocol
+from cs_image_system.contract.hooks import HookSet
+from cs_image_system.contract.lifecycles import LifecycleLike
 from cs_image_system.hashicorp_utils.collector import StateLocation, terraform_collector
 
 log = logging.getLogger(__name__)
 
 
-def state_location_problems(ctx: GlobalTypeContext) -> list[Exception]:
+def state_location_problems(ctx: RunContextProtocol) -> list[Exception]:
     """Every terraform root's state location resolved from the declarations,
     then two refusals. Collisions: two roots that would write one state
     object -- the same bucket and normalised prefix under two backend names,
@@ -54,7 +53,7 @@ def state_location_problems(ctx: GlobalTypeContext) -> list[Exception]:
         return []
     errors: list[Exception] = []
     resolved: dict[str, StateLocation] = {}
-    for workspace, (own, runtime_value) in terraform_workspaces(ctx).items():
+    for workspace, (own, runtime_value) in ctx.services.workspaces.terraform_workspaces().items():
         # `none` reads as unset in the chain below (it is in OOPS_DEFAULTS so
         # nothing can be named after it), which would put this root's state
         # on the default backend -- the opposite of what `none` says. There
@@ -89,7 +88,7 @@ def state_location_problems(ctx: GlobalTypeContext) -> list[Exception]:
         old_text = ctx.meta_state.location_key(old)
         if old_text == str(location) or workspace in migrating:
             continue
-        deployed = deployed_in_workspace(ctx, workspace)
+        deployed = ctx.services.workspaces.deployed_in_workspace(workspace)
         if not deployed:
             log.info(f"workspace '{workspace}' moves its state from {old_text} to {location}: "
                      "nothing is deployed from it, so nothing is at risk")
@@ -105,14 +104,14 @@ def state_location_problems(ctx: GlobalTypeContext) -> list[Exception]:
     return errors
 
 
-def validate_state_locations(ctx: GlobalTypeContext, requested: list[LifecycleLike]) -> list[str]:
+def validate_state_locations(ctx: RunContextProtocol, requested: list[LifecycleLike]) -> list[str]:
     """The validator hook: ``state_location_problems`` as the error strings
     the runner collects. Every requested set is checked whole: a root's
     location is a property of the tree, not of the lifecycles asked for."""
     return [str(e) for e in state_location_problems(ctx)]
 
 
-def record_state_locations(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> None:
+def record_state_locations(ctx: RunContextProtocol, lifecycle: LifecycleLike) -> None:
     """Every workspace this lifecycle generated records its resolved state
     location in meta-state: the record, not the emission, is the memory a
     later run's move guard compares against (``generated/`` can be pruned
@@ -124,7 +123,7 @@ def record_state_locations(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> 
         return
     migrating = set(getattr(ctx, "migrate_state", None) or [])
     mine = {b.get_name() for b in ctx.all_sorted_builders
-            if b.get_classification() in builder_vcts_of(lifecycle)}
+            if b.get_classification() in ctx.services.lifecycles.builder_vcts_of(lifecycle)}
     records = {}
     for workspace in col.bound_workspaces():
         if workspace in migrating or workspace not in mine:
@@ -136,17 +135,18 @@ def record_state_locations(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> 
         ctx.meta_state.record_state_locations(records, ctx.run_id)
 
 
-def lifecycle_state_bindings(ctx: GlobalTypeContext) -> dict[str, dict[str, str]]:
+def lifecycle_state_bindings(ctx: RunContextProtocol) -> dict[str, dict[str, str]]:
     """``{lifecycle: {workspace: state file}}`` -- the state-isolation
     evidence. A workspace is a builder; a builder belongs to exactly one
     lifecycle, so 'apply identity only' provably touches only identity
     state files. Every lifecycle is named, bound to nothing when it has no
     terraform root."""
     col = terraform_collector(ctx)
-    out: dict[str, dict[str, str]] = {lc.value: {} for lc in all_lifecycles()}
-    for lifecycle in all_lifecycles():
+    lifecycles = ctx.services.lifecycles
+    out: dict[str, dict[str, str]] = {lc.value: {} for lc in lifecycles.all_lifecycles()}
+    for lifecycle in lifecycles.all_lifecycles():
         for builder in ctx.all_sorted_builders:
-            if builder.get_classification() not in builder_vcts_of(lifecycle):
+            if builder.get_classification() not in lifecycles.builder_vcts_of(lifecycle):
                 continue
             reg = col.workspace_backend(builder.get_name())
             if reg is not None:

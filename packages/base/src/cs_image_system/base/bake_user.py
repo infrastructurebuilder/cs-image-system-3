@@ -33,13 +33,16 @@ None of them answering is a refusal naming every place a user could be set.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
-
-from .constants import OOPS_DEFAULTS
-from .capabilities import image_chain
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .global_context import GlobalTypeContext
+    from .run_context import RunContext
+
+
+from typing import Any
+
+from cs_image_system.contract.constants import OOPS_DEFAULTS
+from .capabilities import image_chain
 
 
 def _set(value: Any) -> str | None:
@@ -49,7 +52,7 @@ def _set(value: Any) -> str | None:
     return None if not text or text in OOPS_DEFAULTS else text
 
 
-def root_os_builder(ctx: "GlobalTypeContext", image: Any) -> Any | None:
+def root_os_builder(ctx: "RunContext", image: Any) -> Any | None:
     """The OS builder at the root of ``image``'s chain (the image itself when
     it is a base image)."""
     name = image.get_name()
@@ -57,7 +60,7 @@ def root_os_builder(ctx: "GlobalTypeContext", image: Any) -> Any | None:
     return ctx.os_builders.get(root) if root else None
 
 
-def entry_for_runtime(ctx: "GlobalTypeContext", os_builder: Any, runtime: str) -> Any | None:
+def entry_for_runtime(ctx: "RunContext", os_builder: Any, runtime: str) -> Any | None:
     """The OS builder's runtime entry whose image builder bakes on ``runtime``."""
     if os_builder is None:
         return None
@@ -68,7 +71,7 @@ def entry_for_runtime(ctx: "GlobalTypeContext", os_builder: Any, runtime: str) -
     return None
 
 
-def bake_user_candidates(ctx: "GlobalTypeContext", os_builder: Any, entry: Any, runtime: str,
+def bake_user_candidates(ctx: "RunContext", os_builder: Any, entry: Any, runtime: str,
                          image_entry: Any = None) -> list[tuple[str, str | None]]:
     """Every place a user can come from, in order, with what each says."""
     rtb = ctx.runtime_builders.get(str(runtime))
@@ -91,7 +94,7 @@ def bake_user_candidates(ctx: "GlobalTypeContext", os_builder: Any, entry: Any, 
     ]
 
 
-def resolve_for_entry(ctx: "GlobalTypeContext", os_builder: Any, entry: Any, runtime: str,
+def resolve_for_entry(ctx: "RunContext", os_builder: Any, entry: Any, runtime: str,
                       image_entry: Any = None, *, what: str = "") -> str:
     for _where, user in bake_user_candidates(ctx, os_builder, entry, runtime, image_entry):
         if user:
@@ -103,7 +106,7 @@ def resolve_for_entry(ctx: "GlobalTypeContext", os_builder: Any, entry: Any, run
         f"OS builder, or `ssh_username` / `default_config_username` on runtime {runtime}")
 
 
-def resolve_bake_user(ctx: "GlobalTypeContext", image: Any, runtime: str) -> str:
+def resolve_bake_user(ctx: "RunContext", image: Any, runtime: str) -> str:
     """The user ``image`` is baked as on ``runtime``; every reader asks here."""
     osb = root_os_builder(ctx, image)
     image_entry = image.get_image_runtime_subconfig_for_runtime(runtime) \

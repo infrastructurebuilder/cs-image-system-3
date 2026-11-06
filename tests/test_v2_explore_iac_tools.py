@@ -15,7 +15,7 @@ import yaml
 from tests.v2_support import V2Run
 
 from cs_image_system.base import ansible_launch, launch_params
-from cs_image_system.base.lifecycles import Lifecycle
+from cs_image_system.contract.lifecycles import Lifecycle
 
 
 def _params(run: V2Run) -> dict[str, dict]:

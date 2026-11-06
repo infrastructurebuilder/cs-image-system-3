@@ -116,13 +116,13 @@ def stub_opa_credentials_from(monkeypatch, root: Path) -> None:
     LOAD, that TF_VAR_<team>_key and _secret exist (the manual says "at
     finalize"); the harness sets them for the fixture's team, so the example
     trees' placeholder teams get dummies here."""
-    from cs_image_system.base import utils
+    from cs_image_system.contract.names import super_safe_name
     for p in sorted((root / "cfg").glob("*.y*ml")):
         doc = yaml.safe_load(p.read_text()) or {}
         for key in ("group_builders", "user_builders"):
             for b in doc.get(key) or []:
                 if isinstance(b, dict) and b.get("team"):
-                    team = utils.super_safe_name(str(b["team"]))
+                    team = super_safe_name(str(b["team"]))
                     monkeypatch.setenv(f"TF_VAR_{team}_key", "dummy")
                     monkeypatch.setenv(f"TF_VAR_{team}_secret", "dummy")
 

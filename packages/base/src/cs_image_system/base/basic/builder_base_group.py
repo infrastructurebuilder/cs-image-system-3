@@ -12,21 +12,21 @@ from ..models.group import Group
 
 from ..models.group_builder import GroupBuilderModel
 
-from ..constants import VCT
+from cs_image_system.contract.constants import VCT
 
 from .builder_base import BuilderBase
 from cs_image_system.contract.group import (WORKLOAD_CONNECTION_ABSENT, WORKLOAD_CONNECTION_INACTIVE,
                                             WORKLOAD_CONNECTION_UNREAD, WORKLOAD_POLICY_ABSENT,
                                             WORKLOAD_POLICY_DIVERGED, WORKLOAD_ROLE_ABSENT, GroupBuilderProtocol)
-from .. import utils
+from cs_image_system.contract.names import super_safe_name
 
 if TYPE_CHECKING:
     from ..models.image import Image
 
-# GID authority policies (N1): who defines a group's gid, and when.
-GID_POLICY_CONFIG_TIME = "config-time"      # settable in YAML (bash-style groupadd)
-GID_POLICY_CREATION_ONLY = "creation-only"  # settable only when the group is created (a directory that assigns ids)
-GID_POLICY_PROVIDER_ASSIGNED = "provider-assigned"
+# The GID authority policies (who defines a group's gid, and when) are the
+# contract's vocabulary; this path keeps them.
+from cs_image_system.contract.identity_vocabulary import (  # noqa: F401, E402
+    GID_POLICY_CONFIG_TIME, GID_POLICY_CREATION_ONLY, GID_POLICY_PROVIDER_ASSIGNED)
 
 
 TGROUP = TypeVar("TGROUP", bound=GroupBuilderModel)
@@ -252,7 +252,7 @@ class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
         ws = self.gid_workspace()
         if ws is None:
             return None
-        return f'data.terraform_remote_state.{utils.super_safe_name(ws)}.outputs.group_gids["{group}"]'
+        return f'data.terraform_remote_state.{super_safe_name(ws)}.outputs.group_gids["{group}"]'
 
     # ------------------------------------- the login proof (stage 75 step 2)
     def can_prove_login(self, group: str | None = None) -> bool:

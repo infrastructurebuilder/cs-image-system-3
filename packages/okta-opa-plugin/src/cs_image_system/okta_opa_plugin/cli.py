@@ -27,10 +27,9 @@ from typing import Annotated
 
 import typer
 
-from cs_image_system.contract.commands import CommandMount
+from cs_image_system.contract.commands import VERIFY_LOGIN, CommandMount
 from .workload_token import workload_facts, WorkloadTokenError, mint_token, NAME_VARS, WorkloadNames
 from . import workload_token as wt
-from cs_image_system.base.commands.login_proof import verify_login_command
 
 workload_app = typer.Typer(help="Stage 56: what CI's workload login needs from the configuration.")
 
@@ -150,5 +149,5 @@ def command_mounts() -> list[CommandMount]:
     plugin mounts (a shared command: mounted once, whoever is installed)."""
     return [
         CommandMount(name="workload", app=workload_app, deferred_load=True),
-        CommandMount(name="login", path=("verify",), callback=verify_login_command),
+        CommandMount(name="login", path=("verify",), kit_command=VERIFY_LOGIN),
     ]

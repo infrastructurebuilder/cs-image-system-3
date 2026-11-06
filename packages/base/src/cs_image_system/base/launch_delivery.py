@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Any
 from cs_image_system.contract.runtime import LAUNCH_DELIVERY_SESSION
 
 from . import power_state
-from .lifecycles import Lifecycle
+from cs_image_system.contract.lifecycles import Lifecycle
 from .utils import apply_enabled
 
 if TYPE_CHECKING:
@@ -37,9 +37,9 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 #: Where the instance root puts the script on a session-delivered runtime,
-#: and the marker its last line writes (the clouds' scripts write the same).
-LAUNCH_SCRIPT_PATH = "/var/lib/csis/launch.sh"
-LAUNCH_MARKER_PATH = "/var/lib/csis/launch-applied"
+#: and the marker its last line writes (the clouds' scripts write the same):
+#: the contract's vocabulary (`contract.launch_vocabulary`).
+from cs_image_system.contract.launch_vocabulary import LAUNCH_MARKER_PATH, LAUNCH_SCRIPT_PATH  # noqa: F401, E402
 REACHABLE_WAIT_SECONDS = 120     # a container answers within seconds of its creation
 SCRIPT_TIMEOUT_SECONDS = 600
 

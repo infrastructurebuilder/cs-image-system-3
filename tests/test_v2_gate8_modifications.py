@@ -90,8 +90,8 @@ def test_bash_item_requires_script_or_scripts():
 def test_lineage_records_both_mods_with_content_hashes(v2):
     assert v2.run(["instance-image"], apply=False).ok
     ctx = v2.ctx
-    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
-    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.lifecycles import Lifecycle
     d = v2.generated / BUILD.parent
     (d / "manifest.json").write_text(json.dumps({"last_run_uuid": "u", "builds": [
         {"name": "imgfile-basic-dask", "packer_run_uuid": "u", "artifact_id": "us-east-2:ami-0dask0001"}]}))

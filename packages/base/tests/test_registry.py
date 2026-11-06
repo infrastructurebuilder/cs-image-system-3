@@ -6,7 +6,7 @@
 from typing import Any, cast
 
 from cs_image_system.base import registry as _registry
-from cs_image_system.base.constants import VCT
+from cs_image_system.contract.constants import VCT
 
 
 def test_a_registry_is_per_run_and_the_process_holds_the_bound_one():

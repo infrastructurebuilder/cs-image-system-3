@@ -13,8 +13,7 @@ from hcl2 import Builder
 
 from cs_image_system.contract.assets import Asset, AssetSet
 from cs_image_system.contract.constants import SELF, PACKER_MANIFEST_FILENAME
-from cs_image_system.base.materialize import mirror_path
-from cs_image_system.base.global_context import GlobalTypeContext
+from cs_image_system.contract.context import RunContextProtocol
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.base_image import BaseImage
 from cs_image_system.base.models.executable import ExecutableModel
@@ -28,20 +27,8 @@ from .packer_models import (PACKER, PACKER_DOCKER, PACKER_EBS, PACKER_GCE, Packe
 from .packer_builder import PackerImageBuilderBase
 from cs_image_system.hashicorp_utils.collector import packer_collector
 from .v2_provisioners import settle_provisioner, base_image_provisioners, instance_image_provisioners
-from cs_image_system.base.image_tests import (
-    base_image_verify_commands,
-    finalize_provisioner,
-    verify_provisioner,
-    instance_image_verify_commands,
-)
 from .v2_local_mods import stage_local_mods
-from cs_image_system.base.lineage import (
-    record_build,
-    FINGERPRINT_TAG_LENGTH,
-    TAG_PREFIX,
-    lineage_tags,
-    pinned_parent_build,
-)
+from cs_image_system.contract.lineage_vocabulary import FINGERPRINT_TAG_LENGTH, TAG_PREFIX
 from cs_image_system.contract.lifecycles import Lifecycle
 
 log = logging.getLogger(__name__)
@@ -224,12 +211,13 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
                                     self.model.get_runtime_provider()))
                                 # EXPLORE image tests: verification is the LAST step
                                 # (bar the runtime's bake finalization, finding 47).
-                                items.add_list(build_path, verify_provisioner(
+                                items.add_list(build_path, ctx.services.images.verify_provisioner(
                                     f"{self.get_packer_source_type()}.{image.get_name()}",
-                                    base_image_verify_commands(ctx, image, self.model.get_runtime_provider()),
+                                    ctx.services.images.base_image_verify_commands(
+                                        image, self.model.get_runtime_provider()),
                                     f"base image {image.get_name()}"))
-                                items.add_list(build_path, finalize_provisioner(
-                                    ctx, f"{self.get_packer_source_type()}.{image.get_name()}",
+                                items.add_list(build_path, ctx.services.images.finalize_provisioner(
+                                    f"{self.get_packer_source_type()}.{image.get_name()}",
                                     self.model.get_runtime_provider(), None))
                                 continue
                             for _mod in image.modifications:
@@ -259,12 +247,13 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
                                 ctx, image, block_dir, f"{self.get_packer_source_type()}.{image.get_name()}"))
                             # EXPLORE image tests: verification is the LAST step
                             # (bar the runtime's bake finalization, finding 47).
-                            items.add_list(build_path, verify_provisioner(
+                            items.add_list(build_path, ctx.services.images.verify_provisioner(
                                 f"{self.get_packer_source_type()}.{image.get_name()}",
-                                instance_image_verify_commands(ctx, image, self.model.get_runtime_provider()),
+                                ctx.services.images.instance_image_verify_commands(
+                                    image, self.model.get_runtime_provider()),
                                 f"instance image {image.get_name()}"))
-                            items.add_list(build_path, finalize_provisioner(
-                                ctx, f"{self.get_packer_source_type()}.{image.get_name()}",
+                            items.add_list(build_path, ctx.services.images.finalize_provisioner(
+                                f"{self.get_packer_source_type()}.{image.get_name()}",
                                 self.model.get_runtime_provider(), None))
                             # for s in image_to_build_target(self.get_packer_source_type(), self, image):
                             #     items.append(Asset((build_path, s + "")))
@@ -289,7 +278,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
                         items.add(build_path, "}")
         return items
 
-    def _manifest_paths(self, ctx: GlobalTypeContext, phase: ExecutionLifecyclePhase,
+    def _manifest_paths(self, ctx: RunContextProtocol, phase: ExecutionLifecyclePhase,
                         block: Any) -> list[Path]:
         """Where packer may have written a block's manifest: the private
         mirror it builds in (stage 49) first, then the generated root."""
@@ -297,7 +286,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
         paths = [block_dir / MANIFEST_FILENAME]
         working = getattr(ctx, "working_path", None)
         if working:
-            paths.insert(0, mirror_path(Path(working), block_dir) / MANIFEST_FILENAME)
+            paths.insert(0, ctx.services.files.mirror_path(Path(working), block_dir) / MANIFEST_FILENAME)
         return paths
 
     def pre_finalize_phase(self, phase: ExecutionLifecyclePhase) -> None:
@@ -390,7 +379,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
                 continue
             subconfig = image.get_image_runtime_subconfig_for_runtime(rtb.get_name())
             name = self._final_name(ctx, subconfig) if subconfig is not None else None
-            record = record_build(ctx, image, rtb.get_name(), ami, name, _resolve_parent)
+            record = ctx.services.lineage.record_build(image, rtb.get_name(), ami, name, _resolve_parent)
             # zero-drift-report: a parent resolved only after its bake leaves
             # generation-time `series:<name>`/stale-fingerprint tags on the
             # AMI. Lineage now holds the resolved truth; stamp it back
@@ -444,7 +433,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
         return CFExecutables(commands_now, commands_final)
 
     @staticmethod
-    def _final_name(ctx: GlobalTypeContext, subconfig) -> str | None:
+    def _final_name(ctx: RunContextProtocol, subconfig) -> str | None:
         """The unique artifact name (DESIGN §3F4): the subconfig's templated
         final name with the run's execution values rendered. The
         ``execution.timestamp`` template never resolved through the field
@@ -454,7 +443,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
             return name
         if "{{" in name:
             import jinja2
-            dtfmt = getattr(ctx.read_config, "dateformat", None) or "%Y%m%d_%H%M%S"
+            dtfmt = ctx.dateformat or "%Y%m%d_%H%M%S"
             execution = {
                 "timestamp": ctx.start_time.strftime(dtfmt),
                 "date": ctx.start_time.date().isoformat(),
@@ -576,7 +565,6 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
     def generate_items_after(self,
                              phase: ExecutionLifecyclePhase) -> AssetSet:
         items = AssetSet()
-        # ctx = GlobalTypeContext()
         # build_path = self.get_path_for_phase(phase, suffix="-build.pkr.hcl")
         # if phase == ExecutionLifecyclePhase.DEFAULT_IMAGE_RESOLUTION:
         #     source_list:list[str] = []
@@ -702,10 +690,10 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
                 f"runtime-specific data for runtime {runtime} required to convert to "
                 "source configuration."
             )
-        tags.update(lineage_tags(ctx, image, runtime))
+        tags.update(ctx.services.lineage.lineage_tags(image, runtime))
         # N17: a rebuild bakes FROM its pinned base build (an image-id filter),
         # never a most-recent lookup; unpinned images bind at first bake.
-        pinned = pinned_parent_build(ctx, image, runtime)
+        pinned = ctx.services.lineage.pinned_parent_build(image, runtime)
         if pinned:
             log.info(f"Image {image.get_name()} bakes from pinned build {pinned}")
         # Provider-neutral from here (EXPLORE GCP increment 1): the runtime

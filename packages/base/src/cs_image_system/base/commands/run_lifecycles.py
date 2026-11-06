@@ -25,17 +25,20 @@ import os
 import shutil
 import traceback
 from dataclasses import asdict, field
-from ..models.model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from pathlib import Path
 from typing import Callable
 
-from ..basic.asset import AssetSet
+from cs_image_system.contract.assets import AssetSet
 from ..basic.builder_base import BuilderBase
 from ..global_context import GlobalTypeContext
-from ..lifecycle import ExecutionLifecyclePhase
-from ..lifecycles import Lifecycle, LifecycleLike, all_lifecycles, phases_of
-from ..constants import RUN_LOCAL_FILENAMES, RUN_SUMMARY_FILENAME
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.lifecycles import Lifecycle, LifecycleLike
+from cs_image_system.contract.hooks import (  # noqa: F401 - re-exported
+    HOOK_ENTRY_POINT_GROUP, HookSet, LifecycleHook, StateBindingsHook, SummaryHook, ValidatorHook)
+from ..lifecycles import all_lifecycles, phases_of
+from cs_image_system.contract.constants import RUN_LOCAL_FILENAMES, RUN_SUMMARY_FILENAME
 from ..meta_state import commit_meta_state
 from ..orchestrator import TemplateResolver
 from .gen_groups import predefined_group_generation
@@ -81,12 +84,9 @@ _DURING: dict[ExecutionLifecyclePhase, Callable[[GlobalTypeContext, ExecutionLif
 
 # Hooks other modules register to extend the runner without the runner
 # importing them (read-model writers, V2 validators, post-apply recorders).
-ValidatorHook = Callable[[GlobalTypeContext, list[LifecycleLike]], list[str]]
-LifecycleHook = Callable[[GlobalTypeContext, LifecycleLike], None]
-SummaryHook = Callable[["RunSummary"], None]
-# {lifecycle: {workspace: state file}} -- the state-isolation evidence a
-# plugin that owns state-managed roots answers (the terraform roots do)
-StateBindingsHook = Callable[[GlobalTypeContext], dict[str, dict[str, str]]]
+# Their shapes, the entry-point group and ``HookSet`` are the contract's
+# (`contract.hooks`, stage 125), typed over the context protocol; this
+# module keeps the names its callers and the tests read them by.
 
 _VALIDATORS: list[ValidatorHook] = []
 _AFTER_GENERATE: list[LifecycleHook] = []
@@ -639,22 +639,7 @@ def validate_only(ctx: GlobalTypeContext) -> list[str]:
 
 # ------------------------------------------------ plugin hooks (entry points)
 
-HOOK_ENTRY_POINT_GROUP = "cs_image_system.plugins.hooks"
 _HOOK_PLUGINS_LOADED = False
-
-
-@dataclass(config=CSIS_MODEL_CONFIG)
-class HookSet:
-    """What a hook plugin's ``initialize()`` returns: any subset of hooks
-    plus lifecycles to register (EXPLORE "Expanding What Else Plugins
-    Could Do")."""
-    validators: list[ValidatorHook] = field(default_factory=list)
-    after_generate: list[LifecycleHook] = field(default_factory=list)
-    before_apply: list[LifecycleHook] = field(default_factory=list)
-    after_apply: list[LifecycleHook] = field(default_factory=list)
-    on_summary: list[SummaryHook] = field(default_factory=list)
-    state_bindings: list[StateBindingsHook] = field(default_factory=list)
-    lifecycles: list = field(default_factory=list)   # list[LifecycleSpec]
 
 
 def install_hook_set(hooks: HookSet) -> None:

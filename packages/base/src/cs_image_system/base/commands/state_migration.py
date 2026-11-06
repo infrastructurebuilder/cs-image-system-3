@@ -32,16 +32,20 @@ recording job is dry, and a dry run refuses the flag outright.
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..run_context import RunContext
+
+
 import json
 import logging
 import re
-import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
-from cs_image_system.base.public_safe import PRIVATE_DIRNAME
+from typing import Any
+from ..state_backup import (  # noqa: F401 - re-exported: the backup is the kit's own module (stage 125)
+    STATE_BACKUP_DIRNAME, backup, pull_state, state_backup_dir, tofu_run)
 
-if TYPE_CHECKING:
-    from ..global_context import GlobalTypeContext
 
 log = logging.getLogger(__name__)
 
@@ -90,77 +94,13 @@ def _location_text(record: dict[str, Any]) -> str:
     return str(record.get("location") or f"{record.get('type')}://{record.get('bucket')}/{record.get('key')}")
 
 
-def tofu_run(tofu: str, args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run([tofu, *args], cwd=cwd, capture_output=True, text=True, check=False)
-
-
 def init_against(tofu: str, cwd: Path, backend_file: str) -> None:
     res = tofu_run(tofu, ["init", "-input=false", "-reconfigure", f"-backend-config={backend_file}"], cwd)
     if res.returncode != 0:
         raise RuntimeError(f"init against {backend_file} failed:\n{res.stderr.strip() or res.stdout.strip()}")
 
 
-def pull_state(tofu: str, cwd: Path) -> dict[str, Any] | None:
-    """The state at the location the root is initialised against; None when
-    the location holds no state."""
-    res = tofu_run(tofu, ["state", "pull"], cwd)
-    if res.returncode != 0:
-        raise RuntimeError(f"state pull failed:\n{res.stderr.strip() or res.stdout.strip()}")
-    text = res.stdout.strip()
-    if not text:
-        return None
-    state = json.loads(text)
-    return state if isinstance(state, dict) else None
-
-
-STATE_BACKUP_DIRNAME = "state-backups"
-
-
-def state_backup_dir(ctx: "GlobalTypeContext | None", cwd: Path) -> Path:
-    """Where a runner's state backups are kept: ``_private/state-backups/``
-    under the configuration root -- never committed (the mirror's rule), and
-    outside every directory a run wipes or re-materialises. Without a
-    configuration root (the bare harness) the backup lands beside the root."""
-    root = getattr(ctx, "working_path", None) if ctx is not None else None
-    return (Path(root) / PRIVATE_DIRNAME / STATE_BACKUP_DIRNAME) if root else cwd
-
-
-def backup(ctx: "GlobalTypeContext | None", workspace: str, tofu: str, run_id: str, cwd: Path) -> int:
-    """Stage 61 item 3: the same-day state backup the operations rules ask of
-    a hand edit, taken by the runner itself before its first ``state rm``.
-
-    ``cwd`` is the root the runner entered (the private mirror), already
-    initialised against its location by the runner's ``init``; the state is
-    pulled from there and kept as ``<workspace>.backup-<run>.tfstate`` under
-    :func:`state_backup_dir`. A ``state rm`` is due, so there is no honest
-    empty case: a directory that is not an initialised root, a pull that
-    fails, or a location that holds no state each exit 1 and stop the
-    runner before anything leaves state. Found live 2026-09-23: invoked
-    with the configuration root as its directory, the first version pulled
-    nothing, said "nothing to keep" and let the removal run unbacked."""
-    if not (cwd / ".terraform").is_dir():
-        log.error(f"state backup for workspace {workspace!r} REFUSED: {cwd} is not an initialised terraform root; "
-                  "nothing is removed from state")
-        return 1
-    try:
-        old_state = pull_state(tofu, cwd)
-    except RuntimeError as e:
-        log.error(f"state backup for workspace {workspace!r} FAILED; nothing is removed from state: {e}")
-        return 1
-    if old_state is None or not old_state.get("resources"):
-        log.error(f"state backup for workspace {workspace!r} REFUSED: the location holds no state, yet a state rm "
-                  "is due -- the root is not initialised against the workspace's location; nothing is removed")
-        return 1
-    where = state_backup_dir(ctx, cwd)
-    where.mkdir(parents=True, exist_ok=True)
-    backup_path = where / f"{workspace}.backup-{run_id}.tfstate"
-    backup_path.write_text(json.dumps(old_state, indent=2) + "\n")
-    log.info(f"state backup for workspace {workspace!r}: serial {old_state.get('serial')}, "
-             f"{len(old_state.get('resources') or [])} resource(s), kept at {backup_path}")
-    return 0
-
-
-def begin(ctx: "GlobalTypeContext", workspace: str, tofu: str, backend_config: Path | None,
+def begin(ctx: "RunContext", workspace: str, tofu: str, backend_config: Path | None,
           run_id: str, cwd: Path, new_location: str | None = None) -> int:
     """Step 1 of the operation; exit 0 to let the runner continue. The new
     location is the type's rendering of it, passed by the root that emitted
@@ -200,7 +140,7 @@ def begin(ctx: "GlobalTypeContext", workspace: str, tofu: str, backend_config: P
         log.error(f"state-migration begin: {ex}")
         return 1
     serial = old_state.get("serial") if old_state else None
-    backup: str | None = None
+    kept: str | None = None
     already = False
     if new_state is not None:
         if old_state is not None and new_state.get("lineage") == old_state.get("lineage"):
@@ -223,16 +163,16 @@ def begin(ctx: "GlobalTypeContext", workspace: str, tofu: str, backend_config: P
     else:
         backup_path = cwd / f"{workspace}.backup-{run_id}.tfstate"
         backup_path.write_text(json.dumps(old_state, indent=2) + "\n")
-        backup = backup_path.name
+        kept = backup_path.name
         log.info(f"state-migration begin: workspace '{workspace}' state (serial {serial}) backed up to "
                  f"{backup_path}; moving {_location_text(record)} -> {_location_text(new)}")
     progress.write_text(json.dumps({"workspace": workspace, "from": record, "to": new, "run": run_id,
-                                    "serial": serial, "backup": backup, "already": already},
+                                    "serial": serial, "backup": kept, "already": already},
                                    indent=2, sort_keys=True))
     return 0
 
 
-def finish(ctx: "GlobalTypeContext", workspace: str, run_id: str, cwd: Path) -> int:
+def finish(ctx: "RunContext", workspace: str, run_id: str, cwd: Path) -> int:
     """Step 4: the plan at the new location was clean (the runner stops
     before this otherwise); record the move."""
     progress = cwd / f"{workspace}{PROGRESS_SUFFIX}"

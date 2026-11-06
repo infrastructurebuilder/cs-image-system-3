@@ -24,7 +24,7 @@ from cs_image_system.base import launch_params as lp
 from cs_image_system.base import provider_aliases as pa
 from cs_image_system.base import state_query as sq
 from cs_image_system.base.commands.validate import check_canonical_hostnames
-from cs_image_system.base.lifecycles import Lifecycle
+from cs_image_system.contract.lifecycles import Lifecycle
 
 
 @pytest.fixture

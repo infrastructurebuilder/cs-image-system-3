@@ -29,8 +29,8 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
-from .lifecycle import ExecutionLifecyclePhase
-from .lifecycles import LifecycleLike, LifecycleSpec
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.lifecycles import LifecycleLike, LifecycleSpec
 from .meta_state import MetaState
 from .utils import apply_enabled
 from .image_tests import post_bake_spec

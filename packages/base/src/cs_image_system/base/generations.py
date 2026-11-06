@@ -45,14 +45,18 @@ RECORD, not of the name. Its predecessors are visible only in
 
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING, Any
-
-from .lifecycles import Lifecycle
-from .utils import apply_enabled
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .global_context import GlobalTypeContext
+    from .run_context import RunContext
+
+
+import logging
+from typing import Any
+
+from cs_image_system.contract.lifecycles import Lifecycle
+from .utils import apply_enabled
+
 
 log = logging.getLogger(__name__)
 
@@ -75,7 +79,7 @@ def kind_of(params: dict[str, Any]) -> str:
 
 
 # -------------------------------------------------- control-flow signals
-def on_launched(ctx: "GlobalTypeContext", name: str, params: dict[str, Any], *, replaced: bool) -> None:
+def on_launched(ctx: "RunContext", name: str, params: dict[str, Any], *, replaced: bool) -> None:
     """Called by ``mark_launched`` for a declared instance whose root applied.
     Opens a generation when none is open -- inferred: the run launched, so
     a machine exists. When a sanctioned replacement just applied over an
@@ -101,7 +105,7 @@ def on_launched(ctx: "GlobalTypeContext", name: str, params: dict[str, Any], *, 
                  "the provider's id confirms it after apply)")
 
 
-def on_resized(ctx: "GlobalTypeContext", name: str, from_type: str, to_type: str) -> None:
+def on_resized(ctx: "RunContext", name: str, from_type: str, to_type: str) -> None:
     """Called by ``record_resizes`` after an in-place resize applied: the
     same machine (the provider's id does not move, so no generation does),
     now on another type. The open generation's snapshot takes the new type
@@ -114,7 +118,7 @@ def on_resized(ctx: "GlobalTypeContext", name: str, from_type: str, to_type: str
         log.info(f"Instance {name}: resized in place {from_type} -> {to_type}; no open generation to note it on")
 
 
-def on_gone(ctx: "GlobalTypeContext", name: str, *, why: str) -> dict[str, Any] | None:
+def on_gone(ctx: "RunContext", name: str, *, why: str) -> dict[str, Any] | None:
     """Called where a launch record is forgotten (decommission, ephemeral
     teardown): the open generation closes into the history with why, and
     keeps the launch parameters it booted with."""
@@ -126,7 +130,7 @@ def on_gone(ctx: "GlobalTypeContext", name: str, *, why: str) -> dict[str, Any] 
 
 
 # ------------------------------------------------------- the observation
-def reconcile_generations(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
+def reconcile_generations(ctx: "RunContext", lifecycle: Lifecycle) -> None:
     """After the instance-image runner applied for real: ask the provider
     which machine bears each launched name, and let THAT decide.
 

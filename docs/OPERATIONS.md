@@ -2139,9 +2139,22 @@ written against the contract alone, subclassing nothing of the core), the
 [local state plugin](../packages/local-state-plugin/README.md) the same
 kind written the convenient way on the base classes, and the
 [dummy plugin](../packages/dummy-plugin/README.md) the template for a
-group or user builder and for a hook plugin. Not in the contract: the
-run context, the hooks entry point and the bootstrap entry point, so a
-plugin that needs them depends on `base`.
+group or user builder and for a hook plugin. The run context is in the
+contract (`RunContextProtocol`, handed to a builder at `bind(ctx)` and
+read back through `_get_context()`), and so are the run's services
+(`ctx.services.lineage`, `launch`, `secrets`, `files`, `commands`,
+`images`, `identity`, `storage`, `workspaces`, `scope`, `cli`,
+`lifecycles`, `meta_state`), the hooks entry point (`contract.hooks`) and
+the bootstrap vocabulary (`contract.bootstrap`). What a plugin may import
+from `base` is its base classes (`cs_image_system.base.basic`), its models
+(`cs_image_system.base.models`) and the two metadata abstractions, nothing
+else; `tests/test_plugin_imports.py` holds that rule over every installed
+plugin. A plugin written outside this repository needs the two packages
+from the index, `cs-image-system-contract` (pinned `>=0.1,<0.2`; the
+contract has its own version, 0.x until it is declared stable) and, if it
+subclasses the base classes, `cs-image-system-base`; it tests itself with
+`assert_conforms` against the protocol of its kind and is refused at load
+by name if it falls short.
 
 ### Recipe catalogue
 

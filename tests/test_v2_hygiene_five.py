@@ -28,7 +28,7 @@ import pytest
 
 from cs_image_system.base import state_query as sq
 from cs_image_system.base.read_models import identity_read_model
-from cs_image_system.base.utils import super_safe_name
+from cs_image_system.contract.names import super_safe_name
 from cs_image_system.okta_opa_plugin import okta_opa_tf_group_builder as gbmod
 from cs_image_system.okta_opa_plugin.opa_gids import GID_ATTRIBUTE
 from tests.v2_support import REPO, V2Run
@@ -225,7 +225,7 @@ def _lines(execs) -> list[str]:
 
 
 def test_the_runner_carries_the_prune_step_between_init_and_plan_and_previews_without_refresh(run, monkeypatch):
-    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     gb = _group_builder(run.ctx)
     monkeypatch.setattr(gbmod.OktaTfGroupBuilder, "_dry_run", lambda self: False)
     execs = gb.get_commands_to_run_after(ExecutionLifecyclePhase.GROUP_GENERATION)
@@ -403,8 +403,8 @@ def test_the_upgrade_recipe_is_the_second_release_procedure_with_the_rule_left_o
 # ------------------------------------ 61.5 the tfvars belong to instance-image alone
 
 def test_release_and_retention_never_write_an_instance_roots_tfvars(tmp_path: Path, monkeypatch):
-    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
-    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.lifecycles import Lifecycle
     from cs_image_system.base.release import RELEASE_LIFECYCLE
     from cs_image_system.base.retention import RETENTION_LIFECYCLE
     from tests.test_v2_gate6_lineage_pins import _fake_manifest

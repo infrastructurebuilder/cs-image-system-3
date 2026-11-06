@@ -29,7 +29,7 @@ from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.contract.executables import CFExecutables
 from cs_image_system.base.models.group import Group
 from cs_image_system.base.models.user import User
-from cs_image_system.base.posix_ids import Claim
+from cs_image_system.contract.identity_vocabulary import Claim
 
 from . import accounts, ssh_login
 from .posix_models import POSIX, PosixGroupBuilderModel, PosixUserBuilderModel

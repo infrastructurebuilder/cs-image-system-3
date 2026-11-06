@@ -7,17 +7,17 @@ import copy
 import yaml
 import logging
 
-from cs_image_system.base.helpers.field_helpers import fk_field
+from cs_image_system.contract.fields import fk_field
 
 
 log = logging.getLogger(__name__)
 from dataclasses import field
-from .model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic import model_validator, Field
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from typing import Annotated, Any
-from ..constants import NO_MODEL_ID, UNSET_MODEL_ID, VCT, DEFAULT, OOPS_DEFAULTS
-from .. import utils
+from cs_image_system.contract.constants import NO_MODEL_ID, UNSET_MODEL_ID, VCT, DEFAULT, OOPS_DEFAULTS
+from cs_image_system.contract.names import safe_name
 from cs_image_system.contract.core import (
     BuilderModelProtocol,
     NameTypedProtocol,
@@ -71,11 +71,11 @@ class NameTyped(NameTypedProtocol):
         invalid_chars = set("/\\")# set(":/\\")
         if any(char in self.name for char in invalid_chars):
             raise ValueError(f"Name '{self.name}' contains invalid characters: {invalid_chars}")
-        self.name = utils.safe_name(self.name)
+        self.name = safe_name(self.name)
         if self.name in OOPS_DEFAULTS:
             raise ValueError(f"Name cannot be in '{OOPS_DEFAULTS}' for {self} .")
         self.aliases.discard(self.name)
-        self.aliases = {utils.safe_name(a) for a in self.aliases}
+        self.aliases = {safe_name(a) for a in self.aliases}
         for alias in self.aliases:
             if alias in OOPS_DEFAULTS:
                 raise ValueError(f"Alias cannot be in '{OOPS_DEFAULTS}' for {self.name}.")

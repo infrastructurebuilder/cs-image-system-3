@@ -18,8 +18,7 @@ from typing import TYPE_CHECKING, Any, Sequence
 
 from cs_image_system.hashicorp_utils.collector import TerraformCollector, terraform_collector
 from cs_image_system.contract.constants import STATE_BACKEND_FIELD
-from cs_image_system.base.materialize import mirror_path
-from cs_image_system.base.utils import system_cli_executable_with_config, system_cli_executable
+from cs_image_system.contract.executables import ExecutableProtocol
 from cs_image_system.base.models.executable import ExecutableModel
 
 if TYPE_CHECKING:
@@ -137,8 +136,9 @@ class TerraformRootMixin(_Base):
         if root is None:
             return self.terraform_commands(phase, list(arg_lists), working_directory)
         src = (Path(ctx.generation_path) / working_directory).resolve()
-        mirror = mirror_path(Path(root), src)
-        commands: list[Any] = [system_cli_executable_with_config(ctx, ["materialize", "."], working_directory)]
+        mirror = ctx.services.files.mirror_path(Path(root), src)
+        commands: list[Any] = [ctx.services.cli.system_cli_executable_with_config(["materialize", "."],
+                                                                                   working_directory)]
         commands += self.terraform_commands(phase, [self._runner_init_args(phase)] + list(arg_lists), mirror)
         return commands
 
@@ -192,11 +192,11 @@ class TerraformRootMixin(_Base):
         apply_root: str | None = None,
         apply_root_aliases: Sequence[str] = (),
         plan_extra_args: Sequence[str] = (),
-        pre_commands: Sequence["ExecutableModel"] = (),
+        pre_commands: Sequence[ExecutableProtocol] = (),
         require_unmounted: Sequence[str] = (),
         pre_plan_backup: bool = False,
         allow_destroy_from: Sequence[str] = (),
-    ) -> list["ExecutableModel"]:
+    ) -> list[ExecutableProtocol]:
         """The deferred plan -> gate -> (apply) sequence for a terraform root
         (DESIGN §3C/N19).
 
@@ -224,7 +224,7 @@ class TerraformRootMixin(_Base):
 
         ctx = self._context()
         run_id = str(getattr(ctx, "run_id", ""))
-        commands: list["ExecutableModel"] = []
+        commands: list[ExecutableProtocol] = []
         # A failed plan must leave nothing for the gate to read: a stale
         # tfplan from an earlier sequence once passed the gate (finding 33).
         rm = ExecutableModel(name="rm", type_="executable", binary="rm")
@@ -244,8 +244,8 @@ class TerraformRootMixin(_Base):
             col = self._collector()
             reg = col.workspace_backend(self.name) if col is not None else None
             location = str(reg.state_location(self.name)) if reg is not None else ""
-            commands.append(system_cli_executable_with_config(
-                ctx, ["state-migration", "begin", "--workspace", self.name, "--tofu", tofu_bin,
+            commands.append(ctx.services.cli.system_cli_executable_with_config(
+                ["state-migration", "begin", "--workspace", self.name, "--tofu", tofu_bin,
                  "--backend-config", backend_file, "--location", location, "--run", run_id],
                 working_directory))
             init_args = ["init", "-input=false", "-migrate-state", "-force-copy", f"-backend-config={backend_file}"]
@@ -253,8 +253,8 @@ class TerraformRootMixin(_Base):
             init_args = self._runner_init_args(phase)
         commands.extend(self.terraform_commands(phase, [init_args], working_directory))
         if pre_plan and pre_plan_backup:
-            commands.append(system_cli_executable_with_config(
-                ctx, ["state-migration", "backup", "--workspace", self.name, "--tofu", tofu_bin,
+            commands.append(ctx.services.cli.system_cli_executable_with_config(
+                ["state-migration", "backup", "--workspace", self.name, "--tofu", tofu_bin,
                  "--run", run_id], working_directory))
         commands.extend(self.terraform_commands(phase, list(pre_plan), working_directory))
         commands.extend(pre_commands)               # e.g. the unmount before a detach (stage 10.14)
@@ -271,10 +271,10 @@ class TerraformRootMixin(_Base):
             gate_args += ["--allow-destroy-from", name]
         for pair in require_unmounted:
             gate_args += ["--require-unmounted", pair]
-        commands.append(system_cli_executable(gate_args, working_directory))
+        commands.append(ctx.services.cli.system_cli_executable(gate_args, working_directory))
         if migrating:
-            commands.append(system_cli_executable_with_config(
-                ctx, ["state-migration", "finish", "--workspace", self.name, "--run", run_id],
+            commands.append(ctx.services.cli.system_cli_executable_with_config(
+                ["state-migration", "finish", "--workspace", self.name, "--run", run_id],
                 working_directory))
         if apply:
             # Re-checked at EXECUTION time: a runner script generated under
@@ -295,7 +295,7 @@ class TerraformRootMixin(_Base):
                 apply_runtime = getattr(ctx, "apply_runtime", None)
                 if apply_runtime:
                     check += ["--apply-runtime", str(apply_runtime)]
-                commands.append(system_cli_executable(check, working_directory))
+                commands.append(ctx.services.cli.system_cli_executable(check, working_directory))
             commands.extend(self.terraform_commands(
                 phase, [["apply", "-input=false", "tfplan"]], working_directory))
         return commands

@@ -3,27 +3,26 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import field
-from .model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic import Field
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from typing import Annotated, Any
 
-from cs_image_system.base.helpers.field_helpers import fk_field
+from cs_image_system.contract.fields import fk_field
 from cs_image_system.base.models.builder_model import NameTyped
 from cs_image_system.base.models.mixins import SelfInjectedName
 
-from ..constants import ALL, DEFAULT, VCT
+from cs_image_system.contract.constants import ALL, DEFAULT, VCT
 
 
 
 """Storage dataclass module."""
 
-# Storage lifecycle states (DESIGN §3E, N19/N22). The YAML declares the
-# REQUESTED state; the authoritative current state lives in meta-state.
-STORAGE_STATE_ACTIVE = "active"
-STORAGE_STATE_ARCHIVED = "archived"
-STORAGE_STATE_DESTROYED = "destroyed"
-STORAGE_STATES = (STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED, STORAGE_STATE_DESTROYED)
+# Storage lifecycle states (DESIGN §3E, N19/N22): the contract's vocabulary;
+# this path keeps them. The YAML declares the REQUESTED state; the
+# authoritative current state lives in meta-state.
+from cs_image_system.contract.storage_vocabulary import (  # noqa: F401, E402
+    STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED, STORAGE_STATE_DESTROYED, STORAGE_STATES)
 
 # Group subtree permission postures (N15): private by default, sharing by
 # explicit declaration.

@@ -92,6 +92,19 @@ def upload_order(root: Path) -> list[str]:
     return order
 
 
+def project_versions(root: Path) -> dict[str, str]:
+    """Each project's own version from its pyproject, for the projects that
+    declare one: the contract (``cs-image-system-contract``) carries a version
+    of its own, independent of the workspace's, so its files are looked for
+    under that, never under --version."""
+    out: dict[str, str] = {}
+    for path in [root / "pyproject.toml", *sorted(root.glob("packages/*/pyproject.toml"))]:
+        project = _pyproject(path).get("project", {})
+        if "version" in project:
+            out[project["name"].lower()] = project["version"]
+    return out
+
+
 def files_of(dist: Path, project: str, version: str) -> list[Path]:
     """The project's sdist and wheel(s) in dist/, the sdist first."""
     stem = f"{project.replace('-', '_')}-{version}"
@@ -140,6 +153,7 @@ def main(argv: list[str]) -> int:
     dist = args.dist or root / "dist"
     entry = index_entry(root, index)
     order = upload_order(root)
+    versions = project_versions(root)
     log = Path(tempfile.mkstemp(prefix="csis-publish.", dir=os.environ.get("TMPDIR") or None)[1])
     held, uploaded, skipped = 0, 0, 0
     last_skipped: Path | None = None
@@ -150,7 +164,7 @@ def main(argv: list[str]) -> int:
         return status
 
     for n, project in enumerate(order, 1):
-        files = files_of(dist, project, args.version)
+        files = files_of(dist, project, versions.get(project, args.version))
         rc, out = _run(_uv() + ["publish", "--index", index, *map(str, files)])
         with open(log, "a") as f:
             f.write(f"$ uv publish --index {index} {' '.join(p.name for p in files)}\n{out}\n")

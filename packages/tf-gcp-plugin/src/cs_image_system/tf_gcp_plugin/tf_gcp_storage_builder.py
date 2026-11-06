@@ -25,7 +25,7 @@ import logging
 import shlex
 from typing import Any, TypeVar, cast
 
-from cs_image_system.base import utils
+from cs_image_system.contract.names import super_safe_name
 from cs_image_system.contract.constants import OOPS_DEFAULTS
 from cs_image_system.contract.operating_system import PACKAGE_LOCK_TIMEOUT
 from cs_image_system.base.basic.builder_base_storage import CARDINALITY_MANY, CARDINALITY_SINGLE
@@ -41,8 +41,6 @@ from .tf_gcp_models import (
 )
 from cs_image_system.gcloud_runtime.gcp_utils import resolve_project, make_credentials
 from cs_image_system.gcloud_runtime.gcp_packer_source import gce_name, gce_label
-from cs_image_system.base.lineage import config_tags, belongs_to_another_configuration, owner_of
-from cs_image_system.base.os_types import os_type_for_family
 
 log = logging.getLogger(__name__)
 
@@ -122,7 +120,7 @@ class TofuGcpStorageBuilder(TofuStorageBuilderBase[Q]):
         labels["csis_storage"] = gce_label(storage.get_name())
         get_ctx: Any = getattr(self, "_get_context", None)      # a stand-in without a context gets no id
         if callable(get_ctx):
-            labels.update(config_tags(cast(Any, get_ctx())))   # stage 93: the disk, bucket, share carry the id
+            labels.update(cast(Any, get_ctx()).services.lineage.config_tags())   # stage 93: the disk, bucket, share carry the id
         for g in sorted(storage_groups(storage)):
             labels[f"csis_group_{gce_label(g)}"] = "true"
         return labels
@@ -135,11 +133,10 @@ class TofuGcpStorageBuilder(TofuStorageBuilderBase[Q]):
         """Stage 93: a thing of our name whose labels name another
         configuration is not ours (GCE names are unique per zone or project,
         so it stands where ours would)."""
-        return belongs_to_another_configuration(self._get_context(), labels)
+        return self._get_context().services.lineage.belongs_to_another_configuration(labels)
 
-    @staticmethod
-    def _elsewhere_by_labels(labels: dict[str, Any], what: str) -> dict[str, Any]:
-        return {"present": False, "elsewhere": owner_of(labels), "what": what}
+    def _elsewhere_by_labels(self, labels: dict[str, Any], what: str) -> dict[str, Any]:
+        return {"present": False, "elsewhere": self._get_context().services.lineage.owner_of(labels), "what": what}
 
 
 R = TypeVar("R", bound=TofuPdStorageBuilderModel)
@@ -345,7 +342,7 @@ class TofuFilestoreStorageBuilder(TofuGcpStorageBuilder[S]):
 
     def base_image_prerequisites(self, os_family: str | None = None) -> list[str]:
         # the package that carries an NFS client per package format; the line is the OS type's
-        os_type = os_type_for_family(os_family)
+        os_type = self._get_context().services.images.os_type_for_family(os_family)
         packages = {"deb": "nfs-common", "rpm": "nfs-utils", "apk": "nfs-utils"}
         pkg = os_type.package_install_command([packages[os_type.package_format()]], lock_timeout=PACKAGE_LOCK_TIMEOUT)
         return [f"# storage type 'filestore' prerequisites ({self.get_name()}): NFS mount tooling", pkg]
@@ -546,7 +543,7 @@ class TofuGcsStorageBuilder(TofuGcpStorageBuilder[G]):
 
     @staticmethod
     def wipe_script_name(storage: Storage) -> str:
-        return f"wipe-{utils.super_safe_name(storage.get_name())}.sh"
+        return f"wipe-{super_safe_name(storage.get_name())}.sh"
 
     def _lookup(self, storage: Storage) -> dict[str, Any] | None:
         """State-query parity for GCS (GCP-READINESS §7) without a new client

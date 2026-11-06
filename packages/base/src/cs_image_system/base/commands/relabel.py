@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import field
-from ..models.model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from typing import Any
 

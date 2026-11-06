@@ -12,7 +12,7 @@ license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
-    "cs-image-system-contract==0.1.7.dev1",
+    "cs-image-system-contract>=0.1,<0.2",
     "cs-image-system-base==0.1.7.dev1",
     "pydantic>=2.13",
 ]

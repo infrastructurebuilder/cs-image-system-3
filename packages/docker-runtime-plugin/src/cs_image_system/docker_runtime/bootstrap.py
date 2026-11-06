@@ -34,8 +34,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from cs_image_system.base.bootstrap.facts import Facts, ci_can_reach, real, runtime_of_type
-from cs_image_system.base.bootstrap.questions import BY_HAND, READ, Answers, Question, Rendered, Secret, Section
+from cs_image_system.contract.bootstrap import (BY_HAND, READ, Answers, FactsProtocol as Facts, Question, Rendered,
+                                                Secret, Section, ci_can_reach, real)
 
 RUNTIME_TYPE = "docker"
 GUIDE = "CI_SETUP.md 3.4a"
@@ -51,7 +51,7 @@ SECRETS: tuple[Secret, ...] = (
 )
 
 def _runtime(facts: Facts) -> dict[str, Any]:
-    return runtime_of_type(facts, RUNTIME_TYPE) or {}
+    return facts.runtime_of_type(RUNTIME_TYPE) or {}
 
 
 def _runtime_default(facts: Facts, answers: Answers) -> str | None:
@@ -130,7 +130,7 @@ def render(answers: Answers, facts: Facts | None = None) -> Rendered:
 
 def wanted(facts: Facts) -> bool:
     """The tree declares a docker runtime."""
-    return runtime_of_type(facts, RUNTIME_TYPE) is not None
+    return facts.runtime_of_type(RUNTIME_TYPE) is not None
 
 
 def docker_section() -> Section:

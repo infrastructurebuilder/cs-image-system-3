@@ -18,7 +18,7 @@ plugin, lazily or not, and
 that (`test_the_library_imports_only_the_contract`,
 `test_the_import_order_is_a_dag`). What it needs of a run -- the global
 `config:` map, the declared state backends and a slot to keep its
-collectors in -- it names in a small protocol of its own (`RunContext` in
+collectors in -- it names in a small protocol of its own (`CollectorContext` in
 [`collector.py`](src/cs_image_system/hashicorp_utils/collector.py)),
 which the core's run context satisfies and a bare holder in a test can
 satisfy too.
@@ -63,7 +63,7 @@ depends on `cs-image-system-system`, the CLI host.
 
 | Module | Provides |
 | -------- | ---------- |
-| [`collector.py`](src/cs_image_system/hashicorp_utils/collector.py) | `TerraformCollector`, `PackerCollector`, the per-run accessors `terraform_collector(ctx)` and `packer_collector(ctx)` with the `RunContext` protocol they take, the declaration dataclasses `ProviderRequirement`, `ConfiguredTerraformProvider`, `ProviderConfig`, `TerraformVariable`, `RemoteStateReference`, `PackerPluginRequirement`, `PackerVariableDecl`. `BackendRegistration`, the `StateLocation` tuple and the `BackendKind` protocol are the contract's (`cs_image_system.contract.state`) and stay importable from here. |
+| [`collector.py`](src/cs_image_system/hashicorp_utils/collector.py) | `TerraformCollector`, `PackerCollector`, the per-run accessors `terraform_collector(ctx)` and `packer_collector(ctx)` with the `CollectorContext` protocol they take, the declaration dataclasses `ProviderRequirement`, `ConfiguredTerraformProvider`, `ProviderConfig`, `TerraformVariable`, `RemoteStateReference`, `PackerPluginRequirement`, `PackerVariableDecl`. `BackendRegistration`, the `StateLocation` tuple and the `BackendKind` protocol are the contract's (`cs_image_system.contract.state`) and stay importable from here. |
 | [`blocks.py`](src/cs_image_system/hashicorp_utils/blocks.py) | The declarative block model: `Raw`, `hcl_value`, `NestedBlock`, `BlockSpec`, `ResourceSpec`, `DataSpec`, `OutputSpec`, `render_block`, `render_blocks`. |
 | [`hashicorp.py`](src/cs_image_system/hashicorp_utils/hashicorp.py) | The formatter options `FO`, the `QString` quoting wrapper, the `TerraformGenerator` protocol, `packer_variable`, and the S3-backend field dataclasses `TStateRoot`, `StateEndpoints`, `AssumeRoleBaseClass`, `AssumeRoleConfig`, `AssumeRoleWithWebIdentityConfig`. |
 | [`hashicorp_models.py`](src/cs_image_system/hashicorp_utils/hashicorp_models.py) | `GenericPluginModel` (`name`, `version`, `source`, `config`: a pydantic dataclass under the contract's model configuration, defined here since this package imports nothing of the core) and its subclasses `TFTofuPluginModel` and `PackerPluginConfig`, which builders use for their `required_providers:` / `required_plugins:` lists. |

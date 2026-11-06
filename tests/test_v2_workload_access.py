@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 from cs_image_system.base import state_query as sq
-from cs_image_system.base.lifecycles import Lifecycle
+from cs_image_system.contract.lifecycles import Lifecycle
 from cs_image_system.base.workload_access import reconcile_workload_access
 from tests.v2_support import V2Run
 

@@ -27,7 +27,6 @@ from cs_image_system.docker_runtime.docker_names import tag_name
 from cs_image_system.tofu_roots.tofu_storage_builder import TofuStorageBuilderBase, storage_groups
 
 from .tf_docker_models import TF_DOCKER_VOLUME, TofuDockerVolumeStorageBuilderModel
-from cs_image_system.base.lineage import config_tags, belongs_to_another_configuration, owner_of
 
 log = logging.getLogger(__name__)
 
@@ -111,7 +110,7 @@ class TofuDockerVolumeStorageBuilder(TofuStorageBuilderBase[Q]):
         labels["csis_storage"] = storage.get_name()
         get_ctx: Any = getattr(self, "_get_context", None)      # a stand-in without a context gets no id
         if callable(get_ctx):
-            labels.update(config_tags(cast(Any, get_ctx())))   # stage 93: the volume carries the id
+            labels.update(cast(Any, get_ctx()).services.lineage.config_tags())   # stage 93: the volume carries the id
         for g in sorted(storage_groups(storage)):
             labels[f"csis_group_{g}"] = "true"
         return labels
@@ -139,8 +138,9 @@ class TofuDockerVolumeStorageBuilder(TofuStorageBuilderBase[Q]):
             return None
         info = dict(data[0])
         labels = {str(k): str(v) for k, v in dict(info.get("Labels") or {}).items()}
-        if belongs_to_another_configuration(self._get_context(), labels):
-            return {"present": False, "elsewhere": owner_of(labels), "what": "a volume"}
+        lineage = self._get_context().services.lineage
+        if lineage.belongs_to_another_configuration(labels):
+            return {"present": False, "elsewhere": lineage.owner_of(labels), "what": "a volume"}
         return {"id": str(info.get("Name") or name), "state": "active", "driver": str(info.get("Driver") or ""),
                 "mountpoint": str(info.get("Mountpoint") or ""), "tags": labels}
 

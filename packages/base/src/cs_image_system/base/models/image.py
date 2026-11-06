@@ -6,17 +6,17 @@ from __future__ import annotations
 
 import copy
 from dataclasses import field
-from .model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic import Field
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 import logging
 from typing import Annotated, Any
 
-from ..helpers.field_helpers import deferred_list_field, fk_field, parent_field, templated_field
+from cs_image_system.contract.fields import deferred_list_field, fk_field, parent_field, templated_field
 
 log = logging.getLogger(__name__)
 
-from ..constants import DEFAULT, OOPS_DEFAULTS, SELF, VCT
+from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, SELF, VCT
 
 from .builder_model import NameTyped
 from .mixins import ParentPropertyHolding, SelfInjectedName

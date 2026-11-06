@@ -17,7 +17,8 @@ from pydantic.dataclasses import dataclass  # stage 23: validation at constructi
 
 from cs_image_system.base.models.container_builder import ContainerBuilderModel
 from .docker_names import repository_name
-from cs_image_system.base.encryption import decrypt_marker, is_marker, emit
+from cs_image_system.contract.hcl import emitted as emit
+from cs_image_system.contract.secrets import is_marker, open_marker
 
 log = logging.getLogger(__name__)
 
@@ -62,7 +63,7 @@ class DockerContainerBuilderModel(ContainerBuilderModel):
         host = self.host
         if not host:
             return None
-        return decrypt_marker(host) if is_marker(host) else str(host)
+        return open_marker(host) if is_marker(host) else str(host)
 
     def daemon_environment(self) -> dict[str, str]:
         """The environment a docker CLI (packer's docker plugin, ansible's

@@ -173,3 +173,41 @@ def assert_conforms(cls: type, protocol: type, *, abstract: Iterable[str] = ()) 
     problems = conformance_problems(cls, protocol, abstract=abstract)
     assert not problems, f"{cls.__module__}.{cls.__qualname__} does not conform to {protocol.__qualname__}:\n  " + \
         "\n  ".join(problems)
+
+
+def protocol_for(classifier: Any) -> type | None:
+    """The protocol a class registered under ``classifier`` is held to at
+    load (stage 125): the kind's model protocol for a builder-model
+    classification, the kind's builder protocol for a builder
+    classification, the cloud's and the container's own model protocols for
+    theirs, and ``None`` for a classification the contract declares no
+    protocol for (an item model, an executable, a version checker). The
+    loader runs ``assert_conforms`` against it when a plugin registers the
+    class, so a shortfall is refused at load with the member named."""
+    from .constants import VCT
+    from . import group, image, instance, modification, operating_system, runtime, state, storage, user
+    table: dict[Any, type] = {
+        VCT.RUNTIME_BUILDER_MODEL: runtime.RuntimeBuilderModelProtocol,
+        VCT.CLOUD_BUILDER_MODEL: runtime.CloudBuilderModelProtocol,
+        VCT.CONTAINER_BUILDER_MODEL: runtime.ContainerBuilderModelProtocol,
+        VCT.RUNTIME_BUILDER: runtime.RuntimeBuilderProtocol,
+        VCT.CLOUD_BUILDER: runtime.RuntimeBuilderProtocol,
+        VCT.CONTAINER_BUILDER: runtime.RuntimeBuilderProtocol,
+        VCT.OS_BUILDER_MODEL: operating_system.OsBuilderModelProtocol,
+        VCT.OS_BUILDER: operating_system.OsBuilderProtocol,
+        VCT.STORAGE_BUILDER_MODEL: storage.StorageBuilderModelProtocol,
+        VCT.STORAGE_BUILDER: storage.StorageBuilderProtocol,
+        VCT.IMAGE_BUILDER_MODEL: image.ImageBuilderModelProtocol,
+        VCT.IMAGE_BUILDER: image.ImageBuilderProtocol,
+        VCT.INSTANCE_BUILDER_MODEL: instance.InstanceBuilderModelProtocol,
+        VCT.INSTANCE_BUILDER: instance.InstanceBuilderProtocol,
+        VCT.MOD_BUILDER_MODEL: modification.ModBuilderModelProtocol,
+        VCT.MOD_BUILDER: modification.ModBuilderProtocol,
+        VCT.GROUP_BUILDER_MODEL: group.GroupBuilderModelProtocol,
+        VCT.GROUP_BUILDER: group.GroupBuilderProtocol,
+        VCT.USER_BUILDER_MODEL: user.UserBuilderModelProtocol,
+        VCT.USER_BUILDER: user.UserBuilderProtocol,
+        VCT.STATE_BACKEND_MODEL: state.StateBackendModelProtocol,
+        VCT.STATE_BACKEND: state.StateBuilderProtocol,
+    }
+    return table.get(classifier)

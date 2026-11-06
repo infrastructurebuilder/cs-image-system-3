@@ -8,14 +8,14 @@ import logging
 from typing import Any
 
 
-from cs_image_system.base.helpers.field_helpers import fk_field
+from cs_image_system.contract.fields import fk_field
 log = logging.getLogger(__name__)
-from ..constants import OOPS_DEFAULTS, VCT
+from cs_image_system.contract.constants import OOPS_DEFAULTS, VCT
 from .builder_model import BuilderModel
-from ..constants import DEFAULT
+from cs_image_system.contract.constants import DEFAULT
 from dataclasses import field
 from .credentials import CredentialsBase
-from .model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.contract.runtime import RuntimeBuilderModelProtocol
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 

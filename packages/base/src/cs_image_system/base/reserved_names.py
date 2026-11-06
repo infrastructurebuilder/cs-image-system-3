@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """Reserved names (stage 76): nothing in a configuration may be NAMED after a
-word of :data:`~cs_image_system.base.constants.OOPS_DEFAULTS`.
+word of :data:`~cs_image_system.contract.constants.OOPS_DEFAULTS`.
 
 Those words -- ``default``, ``self``, ``none``, the empty string and a YAML
 null -- mean "not set" wherever a value is read. An item named after one
@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .constants import INVALID_CONFIG_KEYS, OOPS_DEFAULTS
+from cs_image_system.contract.constants import INVALID_CONFIG_KEYS, OOPS_DEFAULTS
 
 NAME_KEY = "name"
 ALIASES_KEY = "aliases"
@@ -99,7 +99,7 @@ class InvalidConfigKeyError(ValueError):
 
 def invalid_config_key_problems(doc: Any, source: str) -> list[str]:
     """The keys of ``doc``'s top-level ``config:`` mapping that are in
-    :data:`~cs_image_system.base.constants.INVALID_CONFIG_KEYS`, folded the
+    :data:`~cs_image_system.contract.constants.INVALID_CONFIG_KEYS`, folded the
     same way as names. The guard was written on 2026-07-03 and never switched
     on; the operator switched it on as written in stage 76 (a probe that
     day found none of its words collides with the template context today)."""

@@ -14,5 +14,5 @@ log = logging.getLogger(__name__)
 
 
 
-from ..constants import *  # noqa: F403  (intentional constants re-export)
+from cs_image_system.contract.constants import *  # noqa: F403  (intentional constants re-export)
 

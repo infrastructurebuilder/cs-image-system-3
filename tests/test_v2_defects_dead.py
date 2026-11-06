@@ -573,7 +573,7 @@ def test_the_s3_lookup_asks_for_the_storages_own_bucket(tmp_path: Path, monkeypa
 
 
 def test_an_out_of_scope_instance_root_writes_no_tfvars(tmp_path: Path, monkeypatch):
-    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     run = V2Run(tmp_path, monkeypatch)
     try:
         ctx = run.ctx
