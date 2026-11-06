@@ -1,9 +1,29 @@
 # 131. Registrations carry their plugin's namespace
 
-**Status: OPEN 2026-11-04. Waits for "do 131". Any time after
-§120; before §125 item 5 gives the
-contract its version, since this stage adds a field to
-`PluginMetadata`.**
+**Status: OPEN 2026-11-04; RE-EVALUATED 2026-11-05 after §125. Waits
+for "do 131". Any time now; the contract is versioned (0.1.0), so the
+field this stage adds to `PluginMetadata` is a MINOR bump of the
+contract to 0.2.0 (0.x: additive, said in its README's Version
+section) and the dependents' range `>=0.1,<0.2` moves with it.**
+
+**Re-evaluated 2026-11-05.** Three facts moved under the plan. The
+registry is one instance per run since §124 (`ctx.reg`, made by the
+loader; `current_registry()` the shim for context-less code), so the
+typed key of item 2 keys the per-run registry and the replay of the
+plugins' registrations into it (`load_plugins(reg)`), not a
+singleton; the sentence "the registry stays a singleton here" below
+is superseded. The `hasattr` dispatch item 2 left to §125 is gone
+(registry 5 -> 0), and §125 checks every discovered plugin's classes
+against their kind's protocol at discovery (`_discovered_plugins`,
+once per process): the namespace is derived there, beside the
+conformance check, and a plugin without one is refused in the same
+message. Item 5's alternative changes: the tofu version checker
+(`tofu_roots.tofu_instance_builder.TofuVersionChecker`) is still
+registered by the three root plugins, but tofu-roots is a plugin now
+(a hooks entry point, §123) while hashicorp-utils is a leaf library
+by decision; so the alternative is "tofu-roots registers it once
+under its own namespace", which makes no library a plugin. The
+decisions of items 1 and 3 are unchanged.
 
 The registry keys every table by the classification and the plugin's
 `csis_name` alone: `models[classifier][name]`,
@@ -88,8 +108,9 @@ whose.
 (`PLUGIN_TYPEMAP`) and the registry's `hasattr` checks as a second
 type system; this stage keys the tables by a typed tuple and adds no
 string dispatch, and leaves the `hasattr` dispatch to
-§125 item 4. The registry stays a singleton here;
-§124 item 2's decision on dropping it is unchanged.
+§125 item 4 (landed: the registry has none). The registry is
+per-run since §124; the typed key applies to it and to the shim
+alike.
 The namespace is derived from packaging, not from a provider word
 (§121). Nothing worsens; no question before
 solidifying.

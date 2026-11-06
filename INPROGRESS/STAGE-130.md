@@ -110,6 +110,19 @@ commit on the bundle's branch.
     a run reads; it goes per-run like the registry, reached through
     the context (found by §124).
 
+22. `LaunchServiceProtocol` still lists `hostname_problems` and
+    `register_enrollment_kind`, both pure contract functions since
+    §125 (`contract.launch_vocabulary`, `contract.enrollment`); no
+    plugin reaches them through the service, so the two members go
+    and the adapter with them (found by §125).
+23. A ceiling test for the sources' narration tokens (the count of
+    "stage N", "hygiene X", "FNN" and dates under `packages/*/src`,
+    the Justfile, `pyproject.toml`, `tfmodules/`: 1,173 across 218
+    files on 2026-11-05, 106 of them written by §120 to §125) that
+    only falls, so no stage adds to what [§129](STAGE-129.md) will
+    remove; §129's grep-test grows out of it (found by the
+    re-evaluation of 2026-11-05).
+
 **Acceptance**: each item its own commit; `just test` green after
 each; one squash, branch kept. Records: the squash; this section goes
 at "merge 130".

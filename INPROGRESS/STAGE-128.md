@@ -1,6 +1,21 @@
 # 128. Tests named for behaviour
 
-**Status: OPEN 2026-11-04. Waits for "do 128", after §119.**
+**Status: OPEN 2026-11-04; RE-EVALUATED 2026-11-05 after §125. Waits
+for "do 128"; nothing blocks it.**
+
+**Re-evaluated 2026-11-05.** The drift the stage names continues
+while it waits: the root suite is 138 files, 129 with the `v2_`
+prefix and 49 named for a stage, bundle, gate or defect list; of the
+five test files §121 to §125 added, two took the `v2_` prefix and
+none a stage name (the rule is not yet a test, so it is not yet
+held). The five packages without tests are the same five (ansible,
+contract, contract-example, dummy, tf-s3-state; tf-gcp has one), and
+the missing `packages/contract/tests` tripped three agents'
+acceptance commands this week, which is item 6's case made again.
+Item 4 (docker in the golden) is unchanged. Recommended: item 2's
+rule and item 1's naming rule land first as tests with today's
+counts as ceilings that only fall (the §124 closure test's pattern),
+then the renames.
 
 49 of 128 root test files (427 tests) are named after a stage, bundle,
 gate or defect list; 36 files pin the literal text of the Justfile, a

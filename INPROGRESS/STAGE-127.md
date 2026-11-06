@@ -1,6 +1,26 @@
 # 127. Loading once, without the cloud
 
-**Status: OPEN 2026-11-04. Waits for "do 127", after §124.**
+**Status: OPEN 2026-11-04; RE-EVALUATED 2026-11-05 after §125. Waits
+for "do 127"; §124 has landed, so nothing blocks it.**
+
+**Re-evaluated 2026-11-05.** Every finding below still holds, read
+against the tree after §124 and §125: the loader is
+`base/config_loader.py` (the seven passes, `cycle_yaml` and
+`cycle_named_key` in `template_utils.py`, the dead
+`original_yaml_strings*` at config_loader.py:477-499); the runtime
+model's `finalize()` still queries the cloud at load
+(`aws_runtime_models.update_networking`), so item 1 stands and the
+session hooks §121 added are its online check; the child-process
+runs are `_execute_in_process` in `commands/run_lifecycles.py` and
+the deferred queue is the `Finalizer` (§124), the one place item 3
+changes. Two things §125 fixed in place: the context handed to a
+builder is `RunContextProtocol`, so item 3's in-process call passes
+the loaded context without a fetch, and the system CLI is a service
+(`ctx.services.cli.system_cli_executable_with_config` returns an
+`ExecutableProtocol` whose binary is the CLI): item 3 keeps that
+shape and makes the runner resolve such an executable in-process,
+the operator's hand-run lines unchanged. Item 4's measure should be
+taken now, before the stage, on the fixture and the reference.
 
 Loading a configuration is seven passes (REEXAMINE3 §1.1): the merged
 tree is dumped back to a YAML string, re-parsed and re-dumped once per
