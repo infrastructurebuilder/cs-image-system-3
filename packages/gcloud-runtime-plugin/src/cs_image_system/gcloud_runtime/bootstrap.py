@@ -31,8 +31,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from cs_image_system.base.bootstrap.facts import Facts, default_state_backend, first_runtime_name, real, runtime_of_type
-from cs_image_system.base.bootstrap.questions import BY_HAND, MADE, READ, Answers, Question, Raw, Rendered, Secret, Section
+from cs_image_system.contract.bootstrap import (BY_HAND, MADE, READ, Answers, FactsProtocol as Facts, Question, Raw,
+                                                Rendered, Secret, Section, real)
 
 MODULE = "bootstrap_gcp"
 ISSUER = "https://token.actions.githubusercontent.com"
@@ -50,7 +50,7 @@ SHARED_ACCOUNT = ("for an account that already exists the default is none: it ke
 
 # ------------------------------------------------------------------ the project
 def _runtime(facts: Facts) -> dict[str, Any]:
-    return runtime_of_type(facts, "gcloud") or {}
+    return facts.runtime_of_type("gcloud") or {}
 
 
 def _describe(facts: Facts, *args: str) -> tuple[bool | None, dict[str, Any]]:
@@ -131,12 +131,12 @@ def _condition_default(facts: Facts, answers: Answers) -> str | None:
 def _write_default(facts: Facts, answers: Answers) -> bool:
     """A WRITE account is needed only when CI performs on a GCE runtime: by
     default, when the tree's default runtime is one."""
-    name = first_runtime_name(facts, prefer=())
+    name = facts.first_runtime_name(prefer=())
     return any(r.get("name") == name and str(r.get("type", "")).lower() == "gcloud" for r in facts.runtimes)
 
 
 def _gcs(facts: Facts, key: str) -> str:
-    return real((default_state_backend(facts, "gcs") or {}).get(key)) or ""
+    return real((facts.default_state_backend("gcs") or {}).get(key)) or ""
 
 
 def _bucket_exists(facts: Facts, answers: Answers) -> bool | None:
@@ -409,7 +409,7 @@ def render(answers: Answers) -> Rendered:
 
 def wanted(facts: Facts) -> bool:
     """The tree uses GCP: it declares a GCE runtime or keeps its state in GCS."""
-    return runtime_of_type(facts, "gcloud") is not None or default_state_backend(facts, "gcs") is not None
+    return facts.runtime_of_type("gcloud") is not None or facts.default_state_backend("gcs") is not None
 
 
 #: The repository secrets the starters' workflow reads to act on GCP (CI_SETUP.md

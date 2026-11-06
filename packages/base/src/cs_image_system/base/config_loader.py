@@ -16,9 +16,9 @@ everything and loads nothing; the loading lives here.
 from __future__ import annotations
 
 import copy
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import is_dataclass
-from .models.model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 import logging
 import os
@@ -48,13 +48,45 @@ from .encryption import decrypt_tree, decrypted_plaintexts, refuse_markers_at
 from .reserved_names import refuse_invalid_config_keys, refuse_reserved_names
 from .run_context import RunContext, bind_current
 from .finalizer import Finalizer
+# the services behind the context (stage 125): the modules the adapters at
+# the end of this file delegate to, imported here because the loader is
+# where the run is assembled and the one place already inside the import
+# web every one of them belongs to
+from . import bake_steps, bake_user, capabilities, identity_attributes, image_tests, launch_enrollment
+from . import launch_params, lifecycles as _lifecycles, lineage, materialize, os_types, standing, storage_state, utils
+from . import encryption as _encryption
+from . import image_sources as _image_sources
+from . import ephemeral_policy, state_backup
+from cs_image_system.contract.context import (
+    AnsibleTasks,
+    CliServiceProtocol,
+    CommandsServiceProtocol,
+    FilesServiceProtocol,
+    IdentityServiceProtocol,
+    ImagesServiceProtocol,
+    LaunchServiceProtocol,
+    LifecyclesServiceProtocol,
+    LineageServiceProtocol,
+    MetaStateProtocol,
+    ScopeServiceProtocol,
+    ScriptLines,
+    SecretsServiceProtocol,
+    ServicesProtocol,
+    StorageServiceProtocol,
+    WorkspacesServiceProtocol,
+)
+from cs_image_system.contract.executables import ExecutableProtocol
+from cs_image_system.contract.lifecycles import LifecycleLike
+from cs_image_system.contract.group import GroupBuilderProtocol
+from cs_image_system.contract.image import ImageQuery
+from cs_image_system.contract.storage import StorageBuilderProtocol
 from .orchestrator import reset_unresolved_fks
 from .models.ia_config import DEFAULT_DATEFORMAT
 from .image_sources import ImageSourceCatalog, default_os_type
 
 log = logging.getLogger(__name__)
 
-from .constants import (
+from cs_image_system.contract.constants import (
     BASE_IMAGES,
     GROUPS,
     IMAGES,
@@ -83,7 +115,7 @@ from .models.executable import ExecutableModel
 
 from .basic.builder_base import BuilderBase
 from .models.builder_model import BuilderModel, NameTyped
-from cs_image_system.contract.core import BuilderModelProtocol
+from cs_image_system.contract.core import BuilderModelProtocol, PluginArtifactProtocol, RuntimeEnabledBuilderModelProtocol
 
 PLUGIN_TYPEMAP: dict[str, type] = {
     "base" : dict,
@@ -134,11 +166,10 @@ def item_model_class(reg: "registry.Registry", spec: ItemKind) -> type:
     the kind's own model (an identity plugin's user subclass carrying its
     directory's profile fields), else the kind's model. The YAML key and
     the ``isinstance`` check stay the kind's: a subclass only adds fields."""
-    classify = getattr(spec.model_cls, "csis_classifier", None)
-    if not callable(classify):
+    if not isinstance(spec.model_cls, PluginArtifactProtocol):
         return spec.model_cls
     try:
-        classifier = classify()
+        classifier = spec.model_cls.csis_classifier()
     except Exception:  # noqa: BLE001 - a model that classifies nothing has no injected default
         return spec.model_cls
     if not isinstance(classifier, VCT):
@@ -702,6 +733,7 @@ def read_config_and_transform(
         reg=reg,
     )
     ctx.bind_finalizer(Finalizer(ctx))
+    ctx.bind_services(RunServices(ctx))
     # the context is passed (DESIGN's phrase): every builder holds the one it
     # was registered into, and the process holds it for the one-release shim
     # (current_context) -- bound BEFORE the kinds are read, as the singleton
@@ -761,11 +793,10 @@ def process_and_register_builders(
             )
         else:
             model.name = name.strip()
-        if hasattr(model,"aliases"):
-            aliases = getattr(model, "aliases", [])
-            if model.name in aliases:
-                aliases.remove(model.name)
-            reg.register_aliases(classification, model.name,aliases) # Keeps aliases from colliding
+        aliases = model.aliases                  # every builder model carries them (BuilderModelProtocol)
+        if model.name in aliases:
+            aliases.remove(model.name)
+        reg.register_aliases(classification, model.name, list(aliases))  # Keeps aliases from colliding
         if model.name in names:
             raise ValueError(f"Duplicate builder name found: {model.name}")
 
@@ -777,10 +808,10 @@ def process_and_register_builders(
                 )
             default = model.name
             default_classifier = model.csis_classifier()
-        if hasattr(model,"runtime"):
-            rt = reg.get_registered_name_by_name_or_alias(VCT.RUNTIME_BUILDER, model.runtime) # type: ignore
+        if isinstance(model, RuntimeEnabledBuilderModelProtocol):   # the protocol check is the dispatch (stage 125)
+            rt = reg.get_registered_name_by_name_or_alias(VCT.RUNTIME_BUILDER, model.runtime)
             assert rt, f"Runtime provider '{rt}' not found for builder '{model.name}'"
-            model.runtime = rt  # type: ignore
+            model.runtime = rt
         try:
             model.finalize()  # This didn't happen in reprocess_a
         except Exception as e:
@@ -937,7 +968,7 @@ def _attach_image(builder: Any, image: Any) -> None:
     second-cloud exploration, to every other image builder its ``runtimes`` name -- one bake per
     runtime of the same logical image."""
     builder.add_image(image)
-    reg = builder._get_context().reg
+    reg = builder._run_context().reg
     primary_runtime = builder.model.get_runtime_provider()
     for sub in getattr(image, "runtimes", None) or []:
         name = getattr(sub, "image_builder", None)
@@ -967,3 +998,287 @@ register_item_kind(ItemKind(
     default_missing_type_to=VCT.IMAGE_BUILDER_MODEL,
     base_only=True,
 ))
+
+
+# ------------------------------------------------------------------ the services (stage 125)
+# The engine's run-bound knowledge as a plugin reaches it: ``ctx.services.<name>``
+# answers with one of these, each delegating to the module the functions
+# live in (the modules do not move; the functions keep their signatures,
+# minus the context they are bound to). Each lists its contract protocol as
+# a base so pyright compares the signatures; ``assert_conforms`` checks them
+# at the bar. The modules annotate the context as the kit's ``RunContext``.
+
+class _Service:
+    def __init__(self, ctx: RunContext) -> None:
+        self._ctx: RunContext = ctx
+
+
+class LineageService(_Service, LineageServiceProtocol):
+    def owner_of(self, tags: dict[str, Any] | None) -> str:
+        return lineage.owner_of(tags)
+
+    def belongs_to_another_configuration(self, tags: dict[str, Any]) -> bool:
+        return lineage.belongs_to_another_configuration(self._ctx, tags)
+
+    def ours_or_unlabelled(self, tags: dict[str, Any] | None) -> bool:
+        return lineage.ours_or_unlabelled(self._ctx, tags)
+
+    def config_tags(self) -> dict[str, str]:
+        return lineage.config_tags(self._ctx)
+
+    def configuration_tag(self) -> str:
+        return lineage.configuration_tag(self._ctx)
+
+    def lineage_tags(self, image: Any, runtime: str | None = None) -> dict[str, str]:
+        return lineage.lineage_tags(self._ctx, image, runtime)
+
+    def series_of(self, image: Any) -> str:
+        return lineage.series_of(image)
+
+    def mod_records(self, image: Any) -> list[dict[str, Any]]:
+        return lineage.mod_records(self._ctx, image)
+
+    def bake_disk_size(self, image: Any, runtime: str | None) -> int | str | None:
+        return lineage.bake_disk_size(self._ctx, image, runtime)
+
+    def pinned_parent_build(self, image: Any, runtime: str | None = None) -> str | None:
+        return lineage.pinned_parent_build(self._ctx, image, runtime)
+
+    def record_build(self, image: Any, runtime: str, build_id: str, name: str | None,
+                     resolve_parent: Callable[[str], str | None]) -> dict[str, Any]:
+        return lineage.record_build(self._ctx, image, runtime, build_id, name, resolve_parent)
+
+    def pinned_instance_build(self, instance: Any) -> str | None:
+        return lineage.pinned_instance_build(self._ctx, instance)
+
+    def instance_follow_target(self, instance: Any) -> tuple[str, str] | None:
+        return lineage.instance_follow_target(self._ctx, instance)
+
+    def pending_instance_replacements(self, instances: list[Any]) -> set[str]:
+        return lineage.pending_instance_replacements(self._ctx, instances)
+
+
+class LaunchService(_Service, LaunchServiceProtocol):
+    def compute_launch_params(self, instance: Any) -> dict[str, Any]:
+        return launch_params.compute_launch_params(self._ctx, instance)
+
+    def user_data_template(self, params: dict[str, Any]) -> str:
+        return launch_params.user_data_template(params, self._ctx)
+
+    def detachments(self, instance: Any) -> list[dict[str, Any]]:
+        return launch_params.detachments(self._ctx, instance)
+
+    def hostname_problems(self, name: str) -> list[str]:
+        return launch_params.hostname_problems(name)
+
+    def group_builder_of(self, group: str) -> GroupBuilderProtocol | None:
+        return capabilities.group_builder_of(self._ctx, group)
+
+    def register_enrollment_kind(self, kind: str, *, script_lines: ScriptLines, ansible_tasks: AnsibleTasks) -> None:
+        launch_enrollment.register_enrollment_kind(kind, script_lines=script_lines, ansible_tasks=ansible_tasks)
+
+    def failure_policy(self, instance: Any) -> tuple[str, int | None]:
+        return ephemeral_policy.failure_policy(self._ctx, instance)
+
+    def teardown_due(self, instance: Any, now: datetime | None = None) -> bool:
+        return ephemeral_policy.teardown_due(self._ctx, instance, now)
+
+
+class SecretsService(_Service, SecretsServiceProtocol):
+    def is_marker(self, value: Any) -> bool:
+        return _encryption.is_marker(value)
+
+    def decrypt_marker(self, marker: str, identities: Iterable[Any] | None = None) -> str:
+        return _encryption.decrypt_marker(marker, identities)
+
+    def emit(self, value: Any) -> Any:
+        return _encryption.emit(value)
+
+
+class FilesService(_Service, FilesServiceProtocol):
+    def mirror_path(self, config_root: Path, path: Path) -> Path:
+        return materialize.mirror_path(config_root, path)
+
+
+class CommandsService(_Service, CommandsServiceProtocol):
+    def execute_command_line(self, indent: str = "    ") -> str:
+        return bake_steps.execute_command_line(indent)
+
+    def settle_commands(self, runtime_commands: list[str] | None = None) -> list[str]:
+        return bake_steps.settle_commands(runtime_commands)
+
+
+class ImagesService(_Service, ImagesServiceProtocol):
+    def image_chain(self, image: Any) -> tuple[list[str], str | None]:
+        return capabilities.image_chain(self._ctx, image)
+
+    def resolve_bake_user(self, image: Any, runtime: str) -> str:
+        return bake_user.resolve_bake_user(self._ctx, image, runtime)
+
+    def os_type_for_family(self, family: str | None) -> type:
+        return os_types.os_type_for_family(family)
+
+    def packaged_entries_of(self, package: str) -> list[Mapping[str, Any]]:
+        return _image_sources.packaged_entries_of(package)
+
+    def container_reference(self, query: ImageQuery) -> str | None:
+        return _image_sources.container_reference(query)
+
+    def base_image_verify_commands(self, base: Any, runtime_name: str) -> list[str]:
+        return image_tests.base_image_verify_commands(self._ctx, base, runtime_name)
+
+    def instance_image_verify_commands(self, image: Any, runtime_name: str | None = None) -> list[str]:
+        return image_tests.instance_image_verify_commands(self._ctx, image, runtime_name)
+
+    def finalize_provisioner(self, source_label: str, runtime_name: str, os_family: str | None) -> list[str]:
+        return image_tests.finalize_provisioner(self._ctx, source_label, runtime_name, os_family)
+
+    def verify_provisioner(self, source_label: str, cmds: list[str], what: str) -> list[str]:
+        return image_tests.verify_provisioner(source_label, cmds, what)
+
+    def admin_user(self, os_builder_name: str) -> str:
+        return capabilities.admin_user(self._ctx, os_builder_name)
+
+    def admin_public_keys(self, base: Any = None, os_builder_name: str | None = None) -> list[str]:
+        return capabilities.admin_public_keys(self._ctx, base, os_builder_name)
+
+
+class IdentityService(_Service, IdentityServiceProtocol):
+    def declared_attributes(self) -> dict[str, dict[str, dict[str, Any]]]:
+        return identity_attributes.declared_attributes(self._ctx)
+
+    def standing_instances(self, *, runtime: str | None = None, names: list[str] | None = None) -> list[Any]:
+        return standing.standing_instances(self._ctx, runtime=runtime, names=names)
+
+    def group_builders_by_identity_type(self) -> Mapping[str, Sequence[GroupBuilderProtocol]]:
+        return capabilities.group_builders_by_identity_type(self._ctx)
+
+
+class StorageService(_Service, StorageServiceProtocol):
+    def undeclared_transitions(self) -> list[Any]:
+        return list(storage_state.undeclared_transitions(self._ctx))
+
+    def storage_builders_by_type(self) -> Mapping[str, Sequence[StorageBuilderProtocol]]:
+        return capabilities.storage_builders_by_type(self._ctx)
+
+
+class WorkspacesService(_Service, WorkspacesServiceProtocol):
+    def terraform_workspaces(self) -> dict[str, tuple[str | None, str | None]]:
+        return standing.terraform_workspaces(self._ctx)
+
+    def deployed_in_workspace(self, workspace: str) -> list[str]:
+        return standing.deployed_in_workspace(self._ctx, workspace)
+
+    def backup_state(self, workspace: str, tofu: str, run_id: str, cwd: Path) -> int:
+        return state_backup.backup(self._ctx, workspace, tofu, run_id, cwd)
+
+
+class ScopeService(_Service, ScopeServiceProtocol):
+    def apply_enabled(self, lifecycle_key: str, root: str | None = None, aliases: Iterable[str] = ()) -> bool:
+        return utils.apply_enabled(self._ctx, lifecycle_key, root, aliases)
+
+    def root_in_runtime_scope(self, runtime: str | None) -> bool:
+        return utils.root_in_runtime_scope(self._ctx, runtime)
+
+    def module_source(self, module_dirname: str, workspace_dir: Path | None = None) -> str:
+        return utils.module_source(self._ctx, module_dirname, workspace_dir)
+
+
+class CliService(_Service, CliServiceProtocol):
+    def system_cli_executable(self, args: list[str], working_directory: Path | None = None) -> ExecutableProtocol:
+        return utils.system_cli_executable(args, working_directory)
+
+    def system_cli_executable_with_config(self, args: list[str],
+                                          working_directory: Path | None = None) -> ExecutableProtocol:
+        return utils.system_cli_executable_with_config(self._ctx, args, working_directory)
+
+
+class LifecyclesService(_Service, LifecyclesServiceProtocol):
+    def all_lifecycles(self) -> list[LifecycleLike]:
+        return _lifecycles.all_lifecycles()
+
+    def builder_vcts_of(self, lifecycle: LifecycleLike) -> set[VCT]:
+        return _lifecycles.builder_vcts_of(lifecycle)
+
+
+class RunServices(ServicesProtocol):
+    """The services of one run, bound to its context by the loader."""
+
+    def __init__(self, ctx: RunContext) -> None:
+        self._lineage = LineageService(ctx)
+        self._launch = LaunchService(ctx)
+        self._secrets = SecretsService(ctx)
+        self._files = FilesService(ctx)
+        self._commands = CommandsService(ctx)
+        self._images = ImagesService(ctx)
+        self._identity = IdentityService(ctx)
+        self._storage = StorageService(ctx)
+        self._workspaces = WorkspacesService(ctx)
+        self._scope = ScopeService(ctx)
+        self._cli = CliService(ctx)
+        self._lifecycles = LifecyclesService(ctx)
+        self._meta_state: MetaStateProtocol = ctx.meta_state
+
+    @property
+    def lineage(self) -> LineageServiceProtocol:
+        return self._lineage
+
+    @property
+    def launch(self) -> LaunchServiceProtocol:
+        return self._launch
+
+    @property
+    def secrets(self) -> SecretsServiceProtocol:
+        return self._secrets
+
+    @property
+    def files(self) -> FilesServiceProtocol:
+        return self._files
+
+    @property
+    def commands(self) -> CommandsServiceProtocol:
+        return self._commands
+
+    @property
+    def images(self) -> ImagesServiceProtocol:
+        return self._images
+
+    @property
+    def identity(self) -> IdentityServiceProtocol:
+        return self._identity
+
+    @property
+    def storage(self) -> StorageServiceProtocol:
+        return self._storage
+
+    @property
+    def workspaces(self) -> WorkspacesServiceProtocol:
+        return self._workspaces
+
+    @property
+    def scope(self) -> ScopeServiceProtocol:
+        return self._scope
+
+    @property
+    def cli(self) -> CliServiceProtocol:
+        return self._cli
+
+    @property
+    def lifecycles(self) -> LifecyclesServiceProtocol:
+        return self._lifecycles
+
+    @property
+    def meta_state(self) -> MetaStateProtocol:
+        return self._meta_state
+
+
+#: the adapters, each with the protocol it implements (the bar's conformance check)
+SERVICE_PAIRS: tuple[tuple[type, type], ...] = (
+    (LineageService, LineageServiceProtocol), (LaunchService, LaunchServiceProtocol),
+    (SecretsService, SecretsServiceProtocol), (FilesService, FilesServiceProtocol),
+    (CommandsService, CommandsServiceProtocol), (ImagesService, ImagesServiceProtocol),
+    (IdentityService, IdentityServiceProtocol), (StorageService, StorageServiceProtocol),
+    (WorkspacesService, WorkspacesServiceProtocol), (ScopeService, ScopeServiceProtocol),
+    (CliService, CliServiceProtocol), (LifecyclesService, LifecyclesServiceProtocol),
+    (RunServices, ServicesProtocol),
+)

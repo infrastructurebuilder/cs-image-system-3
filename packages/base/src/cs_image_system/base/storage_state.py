@@ -23,9 +23,14 @@ YAML remains as a staging/testing device.
 """
 from __future__ import annotations
 
-from .models.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .run_context import RunContext
+
+
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 
 from .models.storage import (
     STORAGE_STATE_ACTIVE,
@@ -34,8 +39,6 @@ from .models.storage import (
     Storage,
 )
 
-if TYPE_CHECKING:
-    from .global_context import GlobalTypeContext
 
 # (current, requested) pairs that are legal transitions. ``None`` = never
 # applied (a new storage). Same-state pairs are no-ops, handled separately.
@@ -71,7 +74,7 @@ class Transition:
         return None
 
 
-def attachments(ctx: "GlobalTypeContext") -> dict[str, list[str]]:
+def attachments(ctx: "RunContext") -> dict[str, list[str]]:
     """``{storage name: [instance names]}`` from the instance declarations."""
     out: dict[str, list[str]] = {}
     for inst in ctx.instances:
@@ -80,11 +83,11 @@ def attachments(ctx: "GlobalTypeContext") -> dict[str, list[str]]:
     return out
 
 
-def current_state(ctx: "GlobalTypeContext", storage: Storage) -> str | None:
+def current_state(ctx: "RunContext", storage: Storage) -> str | None:
     return ctx.meta_state.storage_state(storage.get_name())
 
 
-def pending_transitions(ctx: "GlobalTypeContext") -> list[Transition]:
+def pending_transitions(ctx: "RunContext") -> list[Transition]:
     """Requested-vs-current differences for every declared storage."""
     out: list[Transition] = []
     for storage in ctx.storages:
@@ -94,7 +97,7 @@ def pending_transitions(ctx: "GlobalTypeContext") -> list[Transition]:
     return out
 
 
-def undeclared_transitions(ctx: "GlobalTypeContext") -> list[Transition]:
+def undeclared_transitions(ctx: "RunContext") -> list[Transition]:
     """Recorded, not destroyed, no longer declared: each is a destroy the
     next storage run plans (stage 10.11). The owning root comes from the
     record's facts (or the last read-model); a record that names no root
@@ -111,11 +114,11 @@ def undeclared_transitions(ctx: "GlobalTypeContext") -> list[Transition]:
     return out
 
 
-def all_transitions(ctx: "GlobalTypeContext") -> list[Transition]:
+def all_transitions(ctx: "RunContext") -> list[Transition]:
     return pending_transitions(ctx) + undeclared_transitions(ctx)
 
 
-def storage_facts(ctx: "GlobalTypeContext", storage: Storage) -> dict:
+def storage_facts(ctx: "RunContext", storage: Storage) -> dict:
     """Structural facts recorded with a storage's state so an UNDECLARED
     storage can still be planned (its root) and wiped (its bucket)."""
     builder = ctx.storage_builders.get(str(storage.type_))
@@ -133,7 +136,7 @@ def storage_facts(ctx: "GlobalTypeContext", storage: Storage) -> dict:
     return facts
 
 
-def validate_transitions(ctx: "GlobalTypeContext") -> list[str]:
+def validate_transitions(ctx: "RunContext") -> list[str]:
     """Every illegal request is a hard generation-time failure."""
     errors: list[str] = []
     attached = attachments(ctx)
@@ -179,7 +182,7 @@ def validate_transitions(ctx: "GlobalTypeContext") -> list[str]:
     return errors
 
 
-def record_applied_transitions(ctx: "GlobalTypeContext", transitions: list[Transition]) -> None:
+def record_applied_transitions(ctx: "RunContext", transitions: list[Transition]) -> None:
     """After the storage runner completed, the requested states become the
     authoritative states (with the action and the structural facts)."""
     by_name = {s.get_name(): s for s in ctx.storages}

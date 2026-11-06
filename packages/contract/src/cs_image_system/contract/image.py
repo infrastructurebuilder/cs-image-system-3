@@ -13,12 +13,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
-from pathlib import Path
 from typing import Any, Protocol
 
-from .constants import DEFAULT
-from .core import BuilderProtocol, RuntimeEnabledBuilderModelProtocol
-from .lifecycle import ExecutionLifecyclePhase
+from .core import BuilderProtocol, NameTypedProtocol, RuntimeEnabledBuilderModelProtocol
 
 
 class PSIState(StrEnum):
@@ -41,10 +38,32 @@ def psi_key(source_name: str, runtime: str) -> str:
     return f"{source_name}::{runtime}"
 
 
+class ProviderSpecificImageProtocol(NameTypedProtocol, Protocol):
+    """An image as one runtime knows it (stage 125): the source it was made
+    from (an image's or an OS builder's name), the runtime, its state
+    (resolved to an identifier, or deferred to a name pattern a build will
+    satisfy), the owner and architecture when known, and the query inputs
+    a packer data source locates it by. The core's ``ProviderSpecificImage``
+    is the implementation; a runtime plugin subclasses it with its own
+    ``csis_name``. ``RunContextProtocol.get_provider_specific_image`` answers
+    with one."""
+
+    source_name: str
+    source_kind: PSISourceKind
+    runtime: str
+    state: PSIState
+    identifier: str | None
+    owner: str | None
+    deferred_name_pattern: str | None
+    architecture: str | None
+
+    def is_resolved(self) -> bool: ...
+
+    def get_query_assets(self) -> dict[str, Any] | None: ...
+
+
 class ImageBuilderModelProtocol(RuntimeEnabledBuilderModelProtocol, Protocol):
     """An entry under ``image_builders:``."""
-
-    default_machine_type: str
 
     def get_default_machine_type(self) -> str: ...
 
@@ -53,16 +72,9 @@ class ImageBuilderProtocol(BuilderProtocol, Protocol):
     """An image builder: it collects the images declared on it and files
     each build block's output under a path per phase."""
 
-    def get_block_directory_for_phase(self, phase: ExecutionLifecyclePhase, block: str = DEFAULT) -> Path: ...
-
-    def get_block_path_for_phase(self, phase: ExecutionLifecyclePhase, block: str = DEFAULT,
-                                 discriminator: str | None = None, suffix: str | None = None) -> Path: ...
-
-    def add_image(self, image: Any, os_builder: Any = None) -> None: ...
-
     def build_target_label(self, image: Any) -> str: ...
 
-    def get_images(self, os_builder: bool = False) -> list[Any]: ...
+    def add_image(self, image: Any, os_builder: Any = None) -> None: ...
 
 
 # ---------------------------------------------------------------- stage 106

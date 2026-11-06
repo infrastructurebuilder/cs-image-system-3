@@ -126,7 +126,7 @@ def test_export_gids_stdout_is_pure_json(monkeypatch):
 def test_finalization_never_waits_on_a_terminal(monkeypatch):
     import time
     from cs_image_system.base.commands.finalization import predefined_finalization
-    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
     def _no_sleep(*a, **k):
         raise AssertionError("finalization must not sleep")

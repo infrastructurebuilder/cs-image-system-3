@@ -11,7 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
-from cs_image_system.base.basic.asset import AssetSet
+from cs_image_system.contract.assets import AssetSet
 from cs_image_system.base.basic.builder_base_os import OsBuilderBase
 from cs_image_system.default_os_plugin.apt_type import AptOsBuilderModel
 from cs_image_system.default_os_plugin.ubuntu_os_type import UbuntuOsBuilderModel

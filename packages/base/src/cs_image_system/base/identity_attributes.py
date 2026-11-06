@@ -24,17 +24,21 @@ path:
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .run_context import RunContext
+
+
 import json
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from .basic.builder_base_group import GroupBuilderBase
 from .basic.builder_base_user import UserBuilderBase
-from .lifecycles import Lifecycle
+from cs_image_system.contract.lifecycles import Lifecycle
 
-if TYPE_CHECKING:
-    from .global_context import GlobalTypeContext
 
 log = logging.getLogger(__name__)
 
@@ -47,7 +51,7 @@ class AttributeApplyDisabled(RuntimeError):
 
 # ---------------------------------------------------------------- declare
 
-def declared_attributes(ctx: "GlobalTypeContext") -> dict[str, dict[str, dict[str, Any]]]:
+def declared_attributes(ctx: "RunContext") -> dict[str, dict[str, dict[str, Any]]]:
     """``{"groups": {name: {attr: value}}, "users": {...}}`` -- every declared
     attribute map, empty maps dropped."""
     groups: dict[str, dict[str, Any]] = {g.get_name(): _attrs_of(g) for g in ctx.groups if _attrs_of(g)}
@@ -60,14 +64,14 @@ def _attrs_of(item: Any) -> dict[str, Any]:
     return {str(k): v for k, v in attrs.items()} if isinstance(attrs, dict) else {}
 
 
-def _group_builder_of(ctx: "GlobalTypeContext", group: Any) -> GroupBuilderBase | None:
+def _group_builder_of(ctx: "RunContext", group: Any) -> GroupBuilderBase | None:
     for b in ctx.group_builders.values():
         if isinstance(b, GroupBuilderBase) and any(g is group for g in b.local_groups):
             return b
     return None
 
 
-def _user_builder_of(ctx: "GlobalTypeContext", user: Any) -> UserBuilderBase | None:
+def _user_builder_of(ctx: "RunContext", user: Any) -> UserBuilderBase | None:
     for b in ctx.user_builders.values():
         if isinstance(b, UserBuilderBase) and any(u is user for u in b.local_users):
             return b
@@ -76,7 +80,7 @@ def _user_builder_of(ctx: "GlobalTypeContext", user: Any) -> UserBuilderBase | N
 
 # --------------------------------------------------------------- validate
 
-def validate_identity_items(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> list[str]:
+def validate_identity_items(ctx: "RunContext", requested: list[Lifecycle]) -> list[str]:
     """Per-item management mode and attribute declarations are checked by
     the owning plugin; any complaint aborts the run."""
     errors: list[str] = []
@@ -97,15 +101,15 @@ def validate_identity_items(ctx: "GlobalTypeContext", requested: list[Lifecycle]
 
 # ------------------------------------------------------------------- plan
 
-def plan_path(ctx: "GlobalTypeContext") -> Path:
+def plan_path(ctx: "RunContext") -> Path:
     return ctx.lifecycle_generation_path(Lifecycle.IDENTITY) / PLAN_FILENAME
 
 
-def attributes_plan(ctx: "GlobalTypeContext") -> dict[str, Any]:
+def attributes_plan(ctx: "RunContext") -> dict[str, Any]:
     return {"run": ctx.run_id, "desired": declared_attributes(ctx)}
 
 
-def write_attributes_plan(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
+def write_attributes_plan(ctx: "RunContext", lifecycle: Lifecycle) -> None:
     """after-generate hook: the plan exists iff something is declared."""
     if lifecycle != Lifecycle.IDENTITY:
         return
@@ -120,7 +124,7 @@ def write_attributes_plan(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> Non
     log.info(f"Wrote identity attributes plan to {p}")
 
 
-def read_attributes_plan(ctx: "GlobalTypeContext") -> dict[str, Any] | None:
+def read_attributes_plan(ctx: "RunContext") -> dict[str, Any] | None:
     p = plan_path(ctx)
     if not p.is_file():
         return None
@@ -130,7 +134,7 @@ def read_attributes_plan(ctx: "GlobalTypeContext") -> dict[str, Any] | None:
 
 # ------------------------------------------------------------------ probe
 
-def probe(ctx: "GlobalTypeContext", plan: dict[str, Any]) -> dict[str, Any]:
+def probe(ctx: "RunContext", plan: dict[str, Any]) -> dict[str, Any]:
     """Read-only: current provider values for every planned item, the
     changes needed, and the provider's conflict report. Items whose plugin
     cannot answer are listed under ``unavailable``."""
@@ -186,7 +190,7 @@ def probe(ctx: "GlobalTypeContext", plan: dict[str, Any]) -> dict[str, Any]:
 
 # ------------------------------------------------------------------ apply
 
-def apply(ctx: "GlobalTypeContext", probed: dict[str, Any], *, dry_run: bool) -> list[str]:
+def apply(ctx: "RunContext", probed: dict[str, Any], *, dry_run: bool) -> list[str]:
     """What an apply WOULD do, one line per attribute write. A real apply
     raises :class:`AttributeApplyDisabled` -- switched off by design until
     DESIGN Q7 is confirmed; there is no code path that writes."""

@@ -4,10 +4,16 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .run_context import RunContext
+
+
 import json
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping
 
 import logging
 import typer
@@ -18,10 +24,8 @@ import typer
 
 log = logging.getLogger(__name__)
 
-from . import constants
+from cs_image_system.contract import constants
 
-if TYPE_CHECKING:
-    from .global_context import GlobalTypeContext
 
 def is_base(typer_context: typer.Context) -> bool:
     return typer_context.obj.get("base_only", False)
@@ -43,10 +47,7 @@ def write_tuples_to_files(gen_path: Path, qv: list[tuple[Path, str]]) -> None:
             with open(target,  "a" if target.exists() else "w") as f:
                 f.write(content)
 
-# stage 30: the two name normalisations and the three HCL helpers live in
-# the contract (pure, used by the plugins); this module re-exports them.
-from cs_image_system.contract.names import safe_name, super_safe_name  # noqa: F401, E402
-from cs_image_system.contract.hcl import HclRaw, hcl_expr, render_module_call  # noqa: F401, E402
+from cs_image_system.contract.names import safe_name  # noqa: E402
 
 
 def validate_names(name: str, aliases: set[str]) -> bool:
@@ -66,7 +67,7 @@ class SetEncoder(json.JSONEncoder):
         return super().default(o)
 
 
-from .constants import SYSTEM_CLI  # noqa: E402 - re-exported: the name every caller imports from here
+from cs_image_system.contract.constants import SYSTEM_CLI  # noqa: E402 - re-exported: the name every caller imports from here
 
 
 def system_cli_executable(args: list[str], working_directory: Path | None = None):
@@ -80,7 +81,7 @@ def system_cli_executable(args: list[str], working_directory: Path | None = None
     return e
 
 
-def system_cli_executable_with_config(ctx: "GlobalTypeContext", args: list[str],
+def system_cli_executable_with_config(ctx: "RunContext", args: list[str],
                                       working_directory: Path | None = None):
     """A deferred system-CLI command that needs the CONFIGURATION (verify
     instance, dispose --retention, unmount storage): it runs from a
@@ -116,7 +117,7 @@ def apply_flag_allows(value: Any, root: str | None = None, aliases: Iterable[str
     return bool(value)
 
 
-def apply_enabled(ctx: "GlobalTypeContext", lifecycle_key: str, root: str | None = None,
+def apply_enabled(ctx: "RunContext", lifecycle_key: str, root: str | None = None,
                   aliases: Iterable[str] = ()) -> bool:
     """``config: apply_<lifecycle>`` flag (apply_identity, apply_storage,
     apply_instances) -- applies only ever run when the operator says so.
@@ -152,7 +153,7 @@ def _is_remote_module_source(base: str) -> bool:
     return "://" in base or base.startswith(("git@", "github.com/")) or bool(_FORCED_GETTER.match(base))
 
 
-def module_source(ctx: "GlobalTypeContext", module_dirname: str, workspace_dir: Path | None = None) -> str:
+def module_source(ctx: "RunContext", module_dirname: str, workspace_dir: Path | None = None) -> str:
     """Terraform module source for a generated ``module`` call.
 
     The base comes from the global ``config: module_source_base`` setting:
@@ -178,7 +179,7 @@ def module_source(ctx: "GlobalTypeContext", module_dirname: str, workspace_dir: 
     return os.path.relpath(modules_dir, workspace_abs)
 
 
-def root_in_runtime_scope(ctx: "GlobalTypeContext", runtime: str | None) -> bool:
+def root_in_runtime_scope(ctx: "RunContext", runtime: str | None) -> bool:
     """Whether a terraform root bound to ``runtime`` takes part in THIS run
     (ledger 70): under ``--only-runtime <rt>`` (explicit, or implied by
     ``--apply-runtime``) only that runtime's roots are generated and

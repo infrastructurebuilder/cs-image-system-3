@@ -26,10 +26,22 @@ One module per kind of builder, over a shared core:
 - :mod:`.commands` -- the record a plugin returns from its
   ``cs_image_system.commands`` entry point to mount a command on the
   console script;
+- :mod:`.lineage_vocabulary`, :mod:`.launch_vocabulary`,
+  :mod:`.storage_vocabulary`, :mod:`.identity_vocabulary`,
+  :mod:`.power_state`, :mod:`.secrets`, :mod:`.bootstrap`, :mod:`.errors`
+  -- the vocabulary: the words a plugin reads and writes (tag names, the
+  launch words, the storage and identity words, the power states, the type
+  a secret field is declared with, the bootstrap's question model, the
+  exception the core catches by type), constants and types only; the
+  services behind them are the core's and reach a plugin through the run
+  context;
+- :mod:`.context` -- ``RunContextProtocol``, what a plugin may read of the
+  run context, ``MetaStateProtocol`` and the service protocols it reaches
+  as ``ctx.services.<name>`` (stage 125);
 - :mod:`.testing` -- ``assert_conforms``, the signature-level check the
   core's tests run over every base class and every built-in plugin.
 
 The contract imports nothing from the core: a test holds the direction.
 The kind modules import :mod:`.core` and only the kinds they declare they
-read.
+read; the core has no path of its own for a contract name.
 """

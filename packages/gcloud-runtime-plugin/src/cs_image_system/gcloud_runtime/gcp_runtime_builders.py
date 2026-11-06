@@ -10,12 +10,11 @@ from typing import Any
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
 from cs_image_system.contract.assets import AssetSet
 from cs_image_system.base.basic.builder_base_cloud import CloudBuilderBase
-from cs_image_system.base.image_sources import packaged_entries_of
 from cs_image_system.contract.constants import VCT
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
 from cs_image_system.base.models.provider_specific_image import ProviderSpecificImage
-from cs_image_system.base import power_state
+from cs_image_system.contract import power_state
 from cs_image_system.contract.core import PluginArtifactProtocol
 
 from .gcp_provider_specific_image import GcpProviderSpecificImage
@@ -24,13 +23,11 @@ from cs_image_system.gcloud_runtime import gcp_utils, session
 from .gcp_utils import GCP_QUERY_KEYS, query_image, translate_image_query
 from cs_image_system.contract.image import ImageQuery
 from cs_image_system.contract.session import SessionStatus
-from cs_image_system.base.os_types import os_type_for_family
 from cs_image_system.contract.operating_system import PACKAGE_LOCK_TIMEOUT
 from .gcp_packer_source import gce_label, gce_name, GOOGLECOMPUTE, googlecompute_source
-from cs_image_system.base.bake_user import resolve_bake_user
-from cs_image_system.base.lineage import TAG_PREFIX, belongs_to_another_configuration, CONFIG_TAG
+from cs_image_system.contract.lineage_vocabulary import TAG_PREFIX, CONFIG_TAG
 from .gcp_utils import _make_images_client, resolve_project, make_credentials
-from cs_image_system.base.launch_params import MOUNT_MARK
+from cs_image_system.contract.launch_vocabulary import MOUNT_MARK
 
 GCP_RUNTIME: str = "gcloud"
 
@@ -75,11 +72,10 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         the key body itself is a PEM block the scan's own rule refuses."""
         return {"gcp-service-account": r'"private_key_id"\s*:\s*"[0-9a-f]{20,}"'}
 
-    @classmethod
-    def image_source_entries(cls) -> list[Mapping[str, Any]]:
-        """This runtime's part of the release-owned image-source catalog:
-        the `gcloud` blocks, shipped as this package's ``data/image-sources.yml``."""
-        return packaged_entries_of("cs_image_system.gcloud_runtime")
+    #: This runtime's part of the release-owned image-source catalog: the
+    #: `gcloud` blocks, shipped as this package's ``data/image-sources.yml``
+    #: (the core reads the file; stage 125).
+    image_source_package = "cs_image_system.gcloud_runtime"
 
     def query_provider_image(self, os_builder: OSBuilderBaseImageBuilderSubconfig) -> tuple[str, str, Mapping[str,Any]] | None:
         retval: str | None = None
@@ -162,8 +158,8 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         if self.session_mechanism() != self.IAP:
             return []
         # the guest agent's package bears one name on every family; the line is the OS type's
-        install = os_type_for_family(os_family).package_install_command(["google-guest-agent"],
-                                                                        lock_timeout=PACKAGE_LOCK_TIMEOUT)
+        os_type = self._get_context().services.images.os_type_for_family(os_family)
+        install = os_type.package_install_command(["google-guest-agent"], lock_timeout=PACKAGE_LOCK_TIMEOUT)
         return ["# debug session mechanism: IAP TCP forwarding (operator: IAP firewall rule + tunnelResourceAccessor)",
                 f"command -v google_guest_agent >/dev/null 2>&1 || {install}",
                 "sudo systemctl enable google-guest-agent sshd 2>/dev/null || sudo systemctl enable google-guest-agent ssh"]
@@ -221,7 +217,7 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         # no longer bakes as itself while ansible connects as `packer`.
         if image is None:
             return self.default_bake_user("")
-        return resolve_bake_user(self._get_context(), image, self.get_name())
+        return self._get_context().services.images.resolve_bake_user(image, self.get_name())
 
     def bake_finalize_commands(self, os_family: str | None = None) -> list[str]:
         # finding 47 (found live at the gce-test launch): a baked image
@@ -357,7 +353,8 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
 
     def _theirs(self, resource: Any) -> bool:
         """Stage 93: whether a GCE resource's labels name another configuration."""
-        return belongs_to_another_configuration(self._get_context(), dict(getattr(resource, "labels", {}) or {}))
+        return self._get_context().services.lineage.belongs_to_another_configuration(
+            dict(getattr(resource, "labels", {}) or {}))
 
     def instance_tags(self, instance_name: str) -> dict[str, str] | None:
         """The named machine's labels (stage 93's relabel reads them); None

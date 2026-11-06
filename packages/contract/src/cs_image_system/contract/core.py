@@ -16,10 +16,15 @@ orchestrator) are name-only, as ``runtime_checkable`` makes them; the
 conformance test is what makes that looseness safe. The protocols here
 are ``runtime_checkable``; those with a property or data member
 (``NameTypedProtocol``, ``PluginMetadataProtocol``, ``BuilderModelProtocol``,
+``RuntimeEnabledBuilderModelProtocol``, ``BuilderProtocol``,
 ``ParentPropertyHoldingProtocol``) support ``isinstance`` but not
-``issubclass``. The kind protocols in the other modules are typing only:
-``isinstance`` against one raises ``TypeError``, and ``assert_conforms`` is
-the check.
+``issubclass``. Stage 125: the loader, the registry and the orchestrator
+decide what kind of thing they hold by ``isinstance`` against these and
+nothing else (no ``hasattr`` on a member's name), and the loader runs
+``assert_conforms`` against the protocol of each registered class's
+classification, so a shortfall is refused at load. The kind protocols in
+the other modules are typing only: ``isinstance`` against one raises
+``TypeError``, and ``assert_conforms`` is the check.
 """
 from __future__ import annotations
 
@@ -198,6 +203,7 @@ class BuilderModelProtocol(NameTypedProtocol, PluginArtifactProtocol, Protocol):
         ...
 
 
+@runtime_checkable
 class RuntimeEnabledBuilderModelProtocol(BuilderModelProtocol, Protocol):
     """A builder model that operates in a runtime (storage, image and
     instance builders): ``runtime`` names it, ``DEFAULT`` until resolved."""
@@ -207,6 +213,7 @@ class RuntimeEnabledBuilderModelProtocol(BuilderModelProtocol, Protocol):
     def get_runtime_provider(self) -> str: ...
 
 
+@runtime_checkable
 class BuilderProtocol(NameTypedProtocol, PluginArtifactProtocol, Protocol):
     """The builder surface the core drives: the six universal lifecycle
     hooks (``generate_items_*`` return assets, ``get_commands_to_run_*``

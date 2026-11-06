@@ -18,21 +18,12 @@ from __future__ import annotations
 import logging
 from typing import Any, TYPE_CHECKING, Iterable
 
-from cs_image_system.base.capabilities import (
-    admin_public_keys,
-    admin_user,
-    group_builder_of,
-    group_builders_by_identity_type,
-    storage_builders_by_type,
-)
-
 if TYPE_CHECKING:
-    from cs_image_system.base.global_context import GlobalTypeContext
+    from cs_image_system.contract.context import RunContextProtocol
     from cs_image_system.base.models.base_image import BaseImage
     from cs_image_system.base.models.image import Image
 
-from cs_image_system.base.bake_steps import execute_command_line, settle_commands
-from cs_image_system.base.encryption import emit
+from cs_image_system.contract.hcl import emitted as emit
 
 log = logging.getLogger(__name__)
 
@@ -45,18 +36,19 @@ def _quote(cmd: str) -> str:
     return '"' + s.replace("${", "$${").replace("%{", "%%{") + '"'
 
 
-def shell_provisioner(source_label: str, comment: str, commands: Iterable[str],
+def shell_provisioner(ctx: "RunContextProtocol", source_label: str, comment: str, commands: Iterable[str],
                       indent: str = "  ", runner: bool = True) -> list[str]:
     """One ``provisioner "shell"`` block. Its script runs through the bake's
     step runner (stage 86: a step that fails on a held package database is
-    run again), which the settle step writes -- and so does not use itself."""
+    run again; the line is the commands service's), which the settle step
+    writes -- and so does not use itself."""
     cmds = [c for c in commands if c is not None]
     if not cmds:
         return []
     lines = [f"{indent}# {comment}", f'{indent}provisioner "shell" {{',
              f'{indent}  only   = ["{source_label}"]']
     if runner:
-        lines.append(execute_command_line(f"{indent}  "))
+        lines.append(ctx.services.commands.execute_command_line(f"{indent}  "))
     lines.append(f"{indent}  inline = [")
     for c in cmds:
         lines.append(f"{indent}    {_quote(c)},")
@@ -64,7 +56,7 @@ def shell_provisioner(source_label: str, comment: str, commands: Iterable[str],
     return lines
 
 
-def settle_provisioner(ctx: "GlobalTypeContext", source_label: str, runtime_name: str,
+def settle_provisioner(ctx: "RunContextProtocol", source_label: str, runtime_name: str,
                        os_family: str | None = None) -> list[str]:
     """The FIRST provisioner of every bake, base and instance image alike
     (stage 86): the machine's own first-boot script has ended, whatever the
@@ -73,8 +65,8 @@ def settle_provisioner(ctx: "GlobalTypeContext", source_label: str, runtime_name
     management may be using the package database the next step needs."""
     rtb = ctx.runtime_builders.get(runtime_name)
     runtime_cmds = rtb.bake_settle_commands(os_family) if rtb is not None else []
-    return shell_provisioner(source_label, f"before anything else: the build machine settles ({runtime_name})",
-                             settle_commands(runtime_cmds), runner=False)
+    return shell_provisioner(ctx, source_label, f"before anything else: the build machine settles ({runtime_name})",
+                             ctx.services.commands.settle_commands(runtime_cmds), runner=False)
 
 
 def _runtime_of(builder: Any) -> str | None:
@@ -106,28 +98,28 @@ def admin_user_commands(user: str, keys: list[str]) -> list[str]:
     return cmds
 
 
-def base_image_provisioners(ctx: "GlobalTypeContext", image: "BaseImage", source_type: str,
+def base_image_provisioners(ctx: "RunContextProtocol", image: "BaseImage", source_type: str,
                             runtime_name: str) -> list[str]:
     label = f"{source_type}.{image.get_name()}"
     osb = ctx.os_builders.get(image.get_name())
     family = osb.get_family() if osb is not None else None
     lines: list[str] = []
     # 1. admin user
-    user = image.admin_user or admin_user(ctx, image.get_name())
-    keys = admin_public_keys(ctx, base=image)
-    lines += shell_provisioner(label, f"admin user {user} ({len(keys)} public key(s))",
+    user = image.admin_user or ctx.services.images.admin_user(image.get_name())
+    keys = ctx.services.images.admin_public_keys(base=image)
+    lines += shell_provisioner(ctx, label, f"admin user {user} ({len(keys)} public key(s))",
                                admin_user_commands(user, keys))
     # 2. identity-type prerequisites (dormant)
-    id_plugins = group_builders_by_identity_type(ctx)
+    id_plugins = ctx.services.identity.group_builders_by_identity_type()
     for itype in sorted(image.identity_types or []):
         builders = id_plugins.get(itype, [])
         if not builders:
             continue  # validation already refused unknown types
-        lines += shell_provisioner(label, f"identity type '{itype}' prerequisites, dormant",
+        lines += shell_provisioner(ctx, label, f"identity type '{itype}' prerequisites, dormant",
                                    builders[0].base_image_prerequisites(family))
     # 3. storage-type prerequisites -- of the plugins ON THIS RUNTIME only
     # (GCP increment 3, gate 1): a GCE bake never installs EFS tooling.
-    st_plugins = storage_builders_by_type(ctx)
+    st_plugins = ctx.services.storage.storage_builders_by_type()
     for stype in sorted(image.storage_types or []):
         builders = [b for b in st_plugins.get(stype, [])
                     if _runtime_of(b) in (None, runtime_name)]
@@ -135,27 +127,27 @@ def base_image_provisioners(ctx: "GlobalTypeContext", image: "BaseImage", source
             lines.append(f"  # storage type '{stype}' declared but has no plugin on runtime "
                          f"{runtime_name}: nothing to bake here")
             continue
-        lines += shell_provisioner(label, f"storage type '{stype}' prerequisites",
+        lines += shell_provisioner(ctx, label, f"storage type '{stype}' prerequisites",
                                    builders[0].base_image_prerequisites(family))
     # 4. session mechanism agent
     rtb = ctx.runtime_builders.get(runtime_name)
     if rtb is not None:
-        lines += shell_provisioner(label, f"debug session mechanism ({rtb.session_mechanism()})",
+        lines += shell_provisioner(ctx, label, f"debug session mechanism ({rtb.session_mechanism()})",
                                    rtb.session_agent_commands(family))
     return lines
 
 
-def instance_image_provisioners(ctx: "GlobalTypeContext", image: "Image", source_type: str) -> list[str]:
+def instance_image_provisioners(ctx: "RunContextProtocol", image: "Image", source_type: str) -> list[str]:
     """Activation for the image's OWN owning group (rewritten at every bake)."""
     group = getattr(image, "group", None)
     if not group:
         return []
-    gb = group_builder_of(ctx, group)
+    gb = ctx.services.launch.group_builder_of(group)
     if gb is None:
         return []
     group_obj = next((g for g in gb.get_groups_for_builder() if g.get_name() == group), None)
     if group_obj is None:
         return []
     label = f"{source_type}.{image.get_name()}"
-    return shell_provisioner(label, f"identity activation for owning group '{group}' ({gb.identity_type()})",
+    return shell_provisioner(ctx, label, f"identity activation for owning group '{group}' ({gb.identity_type()})",
                              gb.activation_commands(image, group_obj))

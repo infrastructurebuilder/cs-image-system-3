@@ -16,7 +16,7 @@ requires-python = ">=3.13"
 # .hashicorp_utils; the workspace pins the contract at == because the
 # packages release together, an external plugin would pin a floor.
 dependencies = [
-    "cs-image-system-contract==0.1.7.dev1",
+    "cs-image-system-contract>=0.1,<0.2",
     "pydantic>=2.13",
 ]
 

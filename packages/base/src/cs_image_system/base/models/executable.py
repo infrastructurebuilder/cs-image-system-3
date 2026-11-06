@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import field
-from .model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic import Field
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 import logging
@@ -21,7 +21,7 @@ import subprocess
 import sys
 from typing import Annotated, Any
 
-from ..constants import SYSTEM_CLI, DEFAULT, VCT
+from cs_image_system.contract.constants import SYSTEM_CLI, DEFAULT, VCT
 from ..encryption import decrypt_marker, is_marker
 
 

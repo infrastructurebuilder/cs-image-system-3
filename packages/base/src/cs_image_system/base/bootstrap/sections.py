@@ -13,12 +13,11 @@ from __future__ import annotations
 import logging
 from importlib.metadata import entry_points
 
+from cs_image_system.contract.bootstrap import ENTRY_POINT_GROUP, Section
+
 from .github import github_section
-from .questions import Section
 
 log = logging.getLogger(__name__)
-
-ENTRY_POINT_GROUP = "cs_image_system.bootstrap"
 
 
 def discover() -> list[Section]:

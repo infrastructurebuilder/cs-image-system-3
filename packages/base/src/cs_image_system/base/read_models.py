@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 from .basic.builder_base_group import GroupBuilderBase
 from .basic.builder_base_storage import StorageBuilderBase
-from .lifecycles import Lifecycle
+from cs_image_system.contract.lifecycles import Lifecycle
 from .storage_state import all_transitions, attachments, record_applied_transitions
 from .state_query import read_state_report
 from .utils import apply_enabled

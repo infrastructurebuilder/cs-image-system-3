@@ -108,8 +108,8 @@ def test_idempotence_is_declared_and_recorded():
 def test_lineage_records_idempotence_and_bundle(v2):
     assert v2.run(["instance-image"], apply=False).ok
     ctx = v2.ctx
-    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
-    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.lifecycles import Lifecycle
     (v2.generated / BLOCK / "manifest.json").write_text(json.dumps({"last_run_uuid": "u", "builds": [
         {"name": "imgfile-basic-dask", "packer_run_uuid": "u", "artifact_id": "us-east-2:ami-0dask0001"}]}))
     ctx.current_lifecycle = Lifecycle.INSTANCE_IMAGE

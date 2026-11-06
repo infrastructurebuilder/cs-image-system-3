@@ -12,13 +12,13 @@ from typing import TYPE_CHECKING, TypeVar
 
 from ..models.mod_builder import ModBuilderModel
 
-from ..constants import VCT
+from cs_image_system.contract.constants import VCT
 
 from .builder_base import BuilderBase
 from cs_image_system.contract.modification import ModBuilderProtocol
 if TYPE_CHECKING:
-    from ..basic.asset import AssetSet
-    from ..lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.assets import AssetSet
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     from ..models.image import Image
     from ..models.moditem_type import ModItemModel
     from .builder_base_image import ImageBuilderBase

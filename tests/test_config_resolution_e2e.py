@@ -195,7 +195,7 @@ def test_image_to_source_emits_psi_backed_data_block(monkeypatch, cwd_guard, tmp
                                     root, False)
 
     from cs_image_system.base.commands.resolve import predefined_resolve
-    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     assert predefined_resolve(ctx, ExecutionLifecyclePhase.RESOLUTION, True)
 
     # Resolution registered a resolved PSI per os-builder x runtime.
@@ -269,10 +269,10 @@ def test_execution_run_defers_base_images_no_query_no_build(monkeypatch, cwd_gua
                                     root, False)
 
     from cs_image_system.base.commands.resolve import predefined_resolve
-    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     assert predefined_resolve(ctx, ExecutionLifecyclePhase.RESOLUTION, False)
 
-    from cs_image_system.base.models.provider_specific_image import PSISourceKind
+    from cs_image_system.contract.image import PSISourceKind
     base_psis = [p for p in ctx.provider_specific_images.values()
                  if p.source_kind == PSISourceKind.OS_BUILDER]
     assert base_psis, "each os builder x runtime should register a base-image PSI"

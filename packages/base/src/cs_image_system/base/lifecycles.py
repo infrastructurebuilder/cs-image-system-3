@@ -19,10 +19,10 @@ change to the runner.
 """
 from __future__ import annotations
 
-# stage 30: the lifecycles as data live in the contract, so a plugin names
-# or declares one without importing the core; this module keeps the
-# registry of plugin lifecycles and re-exports the data.
-from cs_image_system.contract.lifecycles import (  # noqa: F401
+# The lifecycles as data (the enum, the spec, the built-in phases and builder
+# classifications) are the contract's; this module is the registry of plugin
+# lifecycles over them.
+from cs_image_system.contract.lifecycles import (
     LIFECYCLE_BUILDER_VCTS,
     LIFECYCLE_ORDER,
     LIFECYCLE_PHASES,
@@ -31,8 +31,8 @@ from cs_image_system.contract.lifecycles import (  # noqa: F401
     LifecycleSpec,
 )
 
-from .constants import VCT
-from .lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.constants import VCT
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
 # Plugin-registered lifecycles, by name.
 _REGISTERED: dict[str, LifecycleSpec] = {}

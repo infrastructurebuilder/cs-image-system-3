@@ -14,7 +14,7 @@ import types
 from typing import Any, cast
 
 from cs_image_system.base import registry as _registry
-from cs_image_system.base.constants import VCT
+from cs_image_system.contract.constants import VCT
 
 
 class FakeModel:
@@ -56,3 +56,49 @@ def test_register_plugin_metadata_registers_model_builder_and_injected(clean_reg
     # Injected model registered and set as default for its classifier.
     assert reg.get_model(VCT.STORAGE_MODEL, "fake-injected") is FakeInjected
     assert reg.get_default_for(VCT.STORAGE_MODEL) == "fake-injected"
+
+
+def test_a_plugin_that_does_not_conform_is_refused_at_load():
+    """Stage 125: the loader holds every class a plugin registers to the
+    contract's protocol for its classification (``protocol_for``) when it
+    discovers the installed plugins, so a builder that lacks a hook is
+    refused with the plugin, the class, the protocol and the member named
+    -- not later, with an ``AttributeError`` from whatever first calls the
+    hook."""
+    import pytest
+    from cs_image_system.base.loader import PluginConformanceError, check_conformance
+    from cs_image_system.base.basic.builder_base_storage import StorageBuilderBase
+    from cs_image_system.base.models.storage_builder import StorageBuilderModel
+
+    class HalfModel(StorageBuilderModel):
+        @classmethod
+        def csis_name(cls):
+            return "half"
+
+    class HalfBuilder(StorageBuilderBase):
+        @classmethod
+        def csis_name(cls):
+            return "half"
+        # the builder protocol's launch hooks, answered by a method of the wrong shape
+        def launch_mount(self, storage):  # pyright: ignore[reportIncompatibleMethodOverride] -- the protocol's takes (storage, mapping, index)
+            return {}
+        query_state = "not a method"  # pyright: ignore[reportAssignmentType]
+
+    md = types.SimpleNamespace(services={"half": [HalfModel, HalfBuilder]},
+                               builders_for_models={HalfModel: HalfBuilder},
+                               injected_models={}, is_injected_models_default=False)
+    with pytest.raises(PluginConformanceError) as refused:
+        check_conformance("half-plugin", cast(Any, md))
+    message = str(refused.value)
+    assert "Plugin half-plugin is refused" in message
+    assert "HalfBuilder does not conform to StorageBuilderProtocol" in message
+    assert "launch_mount: lacks parameter 'mapping'" in message
+    assert "query_state: the protocol declares a method, the class holds str" in message
+    assert "HalfModel" not in message, "the conforming model is not named"
+
+    # a class under a classification the contract declares no protocol for
+    # (an injected item model) is held only to PluginArtifactProtocol
+    with pytest.raises(PluginConformanceError, match="names no csis_name/csis_classifier"):
+        check_conformance("nameless", cast(Any, types.SimpleNamespace(
+            services={"x": [FakeBuilder]}, builders_for_models={}, injected_models={},
+            is_injected_models_default=False)))

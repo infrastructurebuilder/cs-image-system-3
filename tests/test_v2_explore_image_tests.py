@@ -102,8 +102,8 @@ def test_tests_spec_is_validated(tmp_path, monkeypatch):
 
 
 def _bake(v2, lifecycle, block_dir, amis):
-    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
-    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.lifecycles import Lifecycle
     (v2.generated / block_dir / "manifest.json").write_text(json.dumps({"last_run_uuid": "u", "builds": [
         {"name": n, "packer_run_uuid": "u", "artifact_id": f"us-east-2:{a}"} for n, a in amis.items()]}))
     v2.ctx.current_lifecycle = Lifecycle(lifecycle)

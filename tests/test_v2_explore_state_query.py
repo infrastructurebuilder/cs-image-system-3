@@ -20,7 +20,7 @@ from tests.v2_support import V2Run
 
 from cs_image_system.base import state_query as sq
 from cs_image_system.base.lineage import TAG_PREFIX
-from cs_image_system.base.lifecycles import Lifecycle
+from cs_image_system.contract.lifecycles import Lifecycle
 
 
 def _tags(series: str, run: str = "run-1", parent: str = "external", fp: str = "abc") -> dict[str, str]:

@@ -21,20 +21,12 @@ from typing import Any, Callable
 
 import yaml
 
+# The two rules over a value, and the protocol the facts are handed to a
+# plugin's section as, are the contract's (stage 125); this path keeps the names.
+from cs_image_system.contract.bootstrap import (  # noqa: F401 - re-exported
+    PLACEHOLDER_MARKS, FactsProtocol, ci_can_reach, is_placeholder, real)
+
 log = logging.getLogger(__name__)
-
-#: What a starter tree carries where a team's value goes. A default that is
-#: still one of these was never filled in, so it is no default at all.
-PLACEHOLDER_MARKS = ("REPLACE-ME", "REPLACE_ME", "123456789012")
-
-
-def is_placeholder(value: Any) -> bool:
-    return value is None or any(mark in str(value) for mark in PLACEHOLDER_MARKS) or str(value).strip() == ""
-
-
-def real(value: Any) -> str | None:
-    """The value as text, or None when it is empty or a starter placeholder."""
-    return None if is_placeholder(value) else str(value).strip()
 
 
 def run_tool(args: list[str], timeout: int = 60) -> tuple[int, str]:
@@ -57,7 +49,9 @@ _REMOTE = re.compile(r"(?:git@github\.com:|https://github\.com/)(?P<owner>[^/]+)
 
 
 @dataclass
-class Facts:
+class Facts(FactsProtocol):
+    """The checkout's facts, as the core gathers them (``gather``); a
+    plugin's section reads them as the contract's :class:`FactsProtocol`."""
     config_root: Path
     remote_url: str | None = None
     owner: str | None = None
@@ -77,6 +71,28 @@ class Facts:
     @property
     def repository(self) -> str | None:
         return f"{self.owner}/{self.repo}" if self.owner and self.repo else None
+
+    # --- the questions a section asks of the facts (the contract's members)
+    def runtimes_of_type(self, type_word: str) -> list[dict[str, Any]]:
+        return runtimes_of_type(self, type_word)
+
+    def runtime_of_type(self, kind: str) -> dict[str, Any] | None:
+        return runtime_of_type(self, kind)
+
+    def default_state_backend(self, kind: str) -> dict[str, Any] | None:
+        return default_state_backend(self, kind)
+
+    def other_state_backends(self, kind: str) -> list[dict[str, Any]]:
+        return other_state_backends(self, kind)
+
+    def bound_backend_names(self) -> set[str]:
+        return bound_backend_names(self)
+
+    def first_runtime_name(self, *, prefer: tuple[str, ...] = ()) -> str | None:
+        return first_runtime_name(self, prefer=prefer)
+
+    def collect(self, key: str, *, named: bool = True) -> list[dict[str, Any]]:
+        return collect(self.config_root / "cfg", key, named=named)
 
 
 def parse_remote(url: str | None) -> tuple[str, str] | None:
@@ -210,22 +226,6 @@ def bound_backend_names(facts: Facts) -> set[str]:
             continue
         out.add(by_alias.get(name, name))
     return out
-
-
-def ci_can_reach(runtime: dict[str, Any]) -> bool:
-    """Whether CI can be expected to reach the runtime, judged from the shape
-    of its declaration and from nothing provider-specific. A runtime that
-    names no daemon address is a cloud's API, or the environment's own
-    daemon whose address the workflow supplies: reachable from anywhere. A
-    runtime that names a ``host`` is a daemon on someone's machine, and the
-    starters' workflow reaches an ``ssh://`` one only; a local socket, a
-    ``tcp://`` host, a host the YAML keeps as an ``ENC[...]`` marker
-    (unreadable here) and a named ``context`` are not assumed reachable: the
-    interview asks."""
-    host = str(runtime.get("host") or "").strip()
-    if host:
-        return host.startswith("ssh://")
-    return not str(runtime.get("context") or "").strip()
 
 
 def first_runtime_name(facts: Facts, *, prefer: tuple[str, ...] = ()) -> str | None:

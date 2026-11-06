@@ -19,7 +19,7 @@ One module per kind of builder, over a shared core:
 | Module | Carries |
 | --- | --- |
 | [`core`](src/cs_image_system/contract/core.py) | `PluginArtifactProtocol` (`csis_name`, `csis_classifier`), `NameTypedProtocol`, `PluginMetadataProtocol`, `BuilderModelProtocol` and `RuntimeEnabledBuilderModelProtocol` (what the core reads of any builder model), `BuilderProtocol` (the six universal hooks, the three finalize-phase hooks, `finalize`, the paths), and the three markers the orchestrator dispatches on: `SelfInjectedNameProtocol`, `SubItemOverrideProtocol`, `ParentPropertyHoldingProtocol`. |
-| [`runtime`](src/cs_image_system/contract/runtime.py), [`operating_system`](src/cs_image_system/contract/operating_system.py), [`storage`](src/cs_image_system/contract/storage.py), [`image`](src/cs_image_system/contract/image.py), [`instance`](src/cs_image_system/contract/instance.py), [`modification`](src/cs_image_system/contract/modification.py), [`group`](src/cs_image_system/contract/group.py), [`user`](src/cs_image_system/contract/user.py), [`state`](src/cs_image_system/contract/state.py) | One `<Kind>BuilderModelProtocol` and one `<Kind>BuilderProtocol` per kind, with exactly the attributes and hooks the core reads. `state` also carries the backend seam: `StateLocation`, `BackendRegistration`, `BackendKindProtocol` and `StateBackendModelProtocol`. `image` carries the provider-specific image's two enums. |
+| [`runtime`](src/cs_image_system/contract/runtime.py), [`operating_system`](src/cs_image_system/contract/operating_system.py), [`storage`](src/cs_image_system/contract/storage.py), [`image`](src/cs_image_system/contract/image.py), [`instance`](src/cs_image_system/contract/instance.py), [`modification`](src/cs_image_system/contract/modification.py), [`group`](src/cs_image_system/contract/group.py), [`user`](src/cs_image_system/contract/user.py), [`state`](src/cs_image_system/contract/state.py) | One `<Kind>BuilderModelProtocol` and one `<Kind>BuilderProtocol` per kind, with exactly the attributes and hooks a plugin calls on another's builder or model, or implements on its own ("The surface" below). `state` also carries the backend seam: `StateLocation`, `BackendRegistration`, `BackendKindProtocol` and `StateBackendModelProtocol`. `image` carries the provider-specific image's two enums. |
 | [`metadata`](src/cs_image_system/contract/metadata.py) | `PluginMetadata`, the record a plugin's entry point returns. |
 | [`constants`](src/cs_image_system/contract/constants.py) | `VCT` (the classifications), the sentinels (`DEFAULT`, `SELF`, `NONE`, `OOPS_DEFAULTS`), the field metadata keys, `PLUGIN_TYPES` (the entry-point groups), the collection names, the file names a run writes. |
 | [`model_config`](src/cs_image_system/contract/model_config.py) | `CSIS_MODEL_CONFIG`, the one pydantic configuration every model is declared under (unknown keys are refused). |
@@ -27,45 +27,117 @@ One module per kind of builder, over a shared core:
 | [`lifecycle`](src/cs_image_system/contract/lifecycle.py), [`lifecycles`](src/cs_image_system/contract/lifecycles.py) | `ExecutionLifecyclePhase`; `Lifecycle`, `LifecycleSpec` and the phases and builder classifications each built-in lifecycle owns. |
 | [`assets`](src/cs_image_system/contract/assets.py), [`executables`](src/cs_image_system/contract/executables.py) | `Asset`, `AssetSet` (what `generate_items_*` returns); `ExecutableProtocol`, `CFExecutables` (what `get_commands_to_run_*` returns). |
 | [`names`](src/cs_image_system/contract/names.py), [`hcl`](src/cs_image_system/contract/hcl.py) | `safe_name`, `super_safe_name`; `HclRaw`, `hcl_expr`, `render_module_call`. |
+| [`lineage_vocabulary`](src/cs_image_system/contract/lineage_vocabulary.py), [`launch_vocabulary`](src/cs_image_system/contract/launch_vocabulary.py), [`storage_vocabulary`](src/cs_image_system/contract/storage_vocabulary.py), [`identity_vocabulary`](src/cs_image_system/contract/identity_vocabulary.py) | The words a plugin reads and writes, constants and types only: the tag names and the fingerprint tag's length (`TAG_PREFIX`, `CONFIG_TAG`, `FINGERPRINT_TAG_LENGTH`); the enrollment variable, the mount mark, the launch script and marker paths and the verification failure policies (`ENROLLMENT_TOKEN_VARIABLE`, `MOUNT_MARK`, `LAUNCH_MARKER_PATH`, `ON_FAILURE_KEEP`, `ON_FAILURE_TEARDOWN`); the storage states and the attachment cardinalities; the gid policies and the id `Claim`. The functions that read lineage, compute launch parameters or reconcile ids are the core's. |
+| [`power_state`](src/cs_image_system/contract/power_state.py) | The power states (`RUNNING`, `STOPPED`, `STOPPING`, `STARTING`, `SUSPENDED`, `ABSENT`, `UNKNOWN`), their groupings, and `is_off`, `is_on`, `exists`, `describe`. A runtime maps its provider's states onto these; "cannot answer" is `None`, never a state. |
+| [`secrets`](src/cs_image_system/contract/secrets.py) | `EncryptedStr`, the type a model declares a secret field with; `Decrypted`, `is_marker` and the marker's shape. The decryption is the core's: it installs its decoder with `register_secret_decoder`, and a marker met with none is refused. |
+| [`bootstrap`](src/cs_image_system/contract/bootstrap.py) | The bootstrap interview's question model a plugin's section is built from (`Question`, `Section`, `Rendered`, `Secret`, `Variable`, `Raw`, `Refused`, `Answers`, the coverage words `MADE`, `READ`, `ADOPTED`, `BY_HAND`) and `ENTRY_POINT_GROUP`, the group a section is registered in. The checkout's facts a default reads are the core's and reach the callables untyped. |
+| [`errors`](src/cs_image_system/contract/errors.py) | `ContainerStartError`, the exception a local test target raises and the core catches by type. |
+| [`hooks`](src/cs_image_system/contract/hooks.py) | The hook plugin's surface: `HOOK_ENTRY_POINT_GROUP`, `HookSet` and the four hook signatures (validators, lifecycle, summary, state bindings), typed on `RunContextProtocol`; a hook plugin imports nothing of the core for it. |
+| [`enrollment`](src/cs_image_system/contract/enrollment.py) | The enrollment-kind registry an identity plugin registers its launch-time enrollment with (`register_enrollment_kind`, `enrollment_kind_for`, the script-line and task shapes). |
+| [`image_sources`](src/cs_image_system/contract/image_sources.py) | The release-owned image-source catalog's words: the packaged catalog file name, the YAML key, and `container_reference(query)`; a runtime declares `image_source_package` and the core reads its catalog. |
+| [`context`](src/cs_image_system/contract/context.py) | `RunContextProtocol`, `MetaStateProtocol`, the service protocols and `ServicesProtocol`: the run context as a plugin reads it, and the services it reaches through it. |
 | [`testing`](src/cs_image_system/contract/testing.py) | `assert_conforms(cls, protocol)` and `conformance_problems`. |
 
-### What the contract holds, and where the core re-exports it
+### The surface
 
-Every name the contract holds has a path in the core that re-exports it
-from here (the shims), except the protocols: `cs_image_system.base.protocols`
-does not exist. The shims are kept on purpose while the package is
-provisional. Removing them is the commitment to the contract, and is done
-together with moving the package to a repository of its own; until then
-the package can be undone by a swap of which side holds the bodies, with
-no import rewritten anywhere ([the stage index](../../docs/CHANGES.md#s30)
-records the move).
+A kind protocol's own members are the ones at least one package outside
+the core (a plugin, `hashicorp-utils`, `tofu-roots`) calls on a builder or
+model it does not own, or implements or overrides, plus the ones the core
+itself calls on a plugin's builder or model (the loader's wiring hooks,
+the readers the lineage, validation and resolve code call on an OS
+model), even where the kit's base class supplies the default body: the
+contract names everything the core will call on the plugin's object. A
+member only the core's base classes call on each other, or that nothing
+outside its defining class reads, is a method or field of the kit's base
+class (`cs_image_system.base.basic`, `base.models`) and not of the
+protocol. The universal protocols in `core`
+are the whole surface a structural plugin writes (the contract example
+implements every member). The counts, own members only (the inherited
+universal ones are not repeated), as measured over the sources:
 
-| Core path (re-exports) | Contract module |
-| --- | --- |
-| `base.constants` (all of it: `VCT`, the sentinels, the field metadata keys, `PLUGIN_TYPES`, the collection and file names) | `contract.constants` |
-| `base.models.model_config.CSIS_MODEL_CONFIG` | `contract.model_config` |
-| `base.helpers.field_helpers` (`fk_field`, `templated_field`, `deferred_list_field`, `deferred_list_fk_field`, `lookup_dataclass_field`) | `contract.fields`, plus `parent_field`, which has no core path |
-| `base.helpers.field_kinds` (the field-kind registry) | `contract.field_kinds` |
-| `base.lifecycle.ExecutionLifecyclePhase` | `contract.lifecycle` |
-| `base.lifecycles`: `Lifecycle`, `LifecycleSpec`, `LifecycleLike`, `LIFECYCLE_ORDER`, `LIFECYCLE_PHASES`, `LIFECYCLE_BUILDER_VCTS` (the registry functions are the core's) | `contract.lifecycles` |
-| `base.basic.asset`: `Asset`, `AssetSet` (`sort_and_write` takes the generation path) | `contract.assets` |
-| `base.models.executable_adds.CFExecutables` (generic over `ExecutableProtocol`) | `contract.executables` |
-| none: `base.protocols` has no shim, and the default bodies of `PluginArtifactProtocol`, `PluginMetadataProtocol`, `NameTypedProtocol`, `SelfInjectedNameProtocol`, `SubItemOverrideProtocol`, `BuilderModelProtocol` and `ParentPropertyHoldingProtocol` are `base.models.mixins` and the base classes | `contract.core` |
-| `base.utils.safe_name`, `super_safe_name` | `contract.names` |
-| `base.utils.HclRaw`, `hcl_expr`, `render_module_call` | `contract.hcl` |
-| `base.models.provider_specific_image.PSIState`, `PSISourceKind`, `psi_key` | `contract.image` |
-| `hashicorp_utils.collector.StateLocation`, `BackendRegistration`, the `BackendKind` protocol (importable from the collector) | `contract.state` (`BackendKindProtocol`, `BackendWithoutKind`) |
-| none: contract-only | `contract.metadata.PluginMetadata`, the kind protocols, `contract.testing` |
+| Protocol | Own members | Kept because |
+| --- | --- | --- |
+| `RuntimeBuilderModelProtocol` | 8 (`credentials`, `get_credentials`, `get_default_machine_type`, `update_networking`, `get_default_owners`, `retention_keep`, `on_failure`, `teardown_after`) | a terraform root reads the runtime's credentials and machine type; a cloud plugin redeclares its credentials type and overrides `update_networking`; the core reads the default owners (an OS builder's query inherits them) and the three retention/teardown knobs (lineage, retention, state query). `default_image_builder`, `default_machine_type`, `ephemeral` and the rest are the kit model's |
+| `CloudBuilderModelProtocol` | 1 (`networking`) | every cloud plugin redeclares it with its own type; `region` and the rest are the kit model's |
+| `ContainerBuilderModelProtocol` | 0 | `host`, `context`, `networking`, `machine_types` are read by the container plugin on its own model and by the core: the kit model's |
+| `RuntimeBuilderProtocol` | 53 | the hooks the three runtime plugins override and the packer, terraform and identity plugins call, plus what the core calls on a runtime builder: `add_image_builder` and `add_instance_builder` (the image and instance builders wire themselves in at finalize) and `create_provider_specific_image_deferred` (resolve). `apply_specific_changes` is the kit's |
+| `OsBuilderModelProtocol` | 22 | `families`, the six package-manager lines, `commands_for_policy` and `get_command_to_update` (the OS type's answers, which the default OS plugin implements and every baking plugin calls); and the thirteen readers the core calls on an OS builder's model: `get_owners`, `get_vendor_family`, `get_family_version`, `get_architecture`, `get_default_primary_disk_size`, `get_auto_update`, `get_query`, `get_runtimes` (the runtime subconfig, image names, validation, resolve), `effective_update_policy` (validation, lineage), `get_identity_types`, `get_storage_types`, `get_admin_user`, `get_admin_public_keys` (capabilities, lineage, validation). The fields themselves and the getters nothing outside the kit reads (`get_family`'s field, `get_modifications`, `get_osrtconfig_by_type`, `get_output_image_name`) are the kit model's |
+| `OsBuilderProtocol` | 7 | `get_family` and `generate_items_for_os_update` (what the packer plugin asks an OS builder); `get_family_version`, `get_architecture`, `get_config_username`, `generate_resolved_image` and `get_configs_for_image_builders` (what the core's resolve, bake-user, mod-test and validate code ask one) |
+| `StorageBuilderModelProtocol`, `InstanceBuilderModelProtocol`, `ModBuilderModelProtocol`, `GroupBuilderModelProtocol` | 0 | the universal fields; the plugin declares the rest |
+| `ImageBuilderModelProtocol` | 1 (`get_default_machine_type`) | the OS builder's finalize reads it on the image builder's model; the field is the kit model's |
+| `StorageBuilderProtocol` | 17 | the capability, lifecycle, launch and state hooks the terraform and identity plugins implement, and `add_storage`, which the loader calls to attach each storage item |
+| `ImageBuilderProtocol` | 2 (`build_target_label`, `add_image`) | the packer plugin overrides the first; the loader and resolve call the second; the block paths and `get_images` are the kit's |
+| `InstanceBuilderProtocol` | 1 (`add_instance`) | `tofu-roots` overrides it |
+| `ModBuilderProtocol` | 3 | the three modification hooks the ansible and bash plugins implement and the packer plugin calls |
+| `GroupBuilderProtocol` | 40 | the identity, bake, launch, state-query, login-proof and workload-access hooks the two identity plugins implement, and `add_group_to_builder`, which the loader calls; `add_user_to_builder`, `get_users_for_group`, `get_admins_for_group`, `get_users_for_builder` and `managed_groups` are the kit's |
+| `UserBuilderModelProtocol` | 4 (`email_as_username`, `default_user_description_template`, `email_domain`, `get_user_email_template`) | the posix user model redeclares the first; the core's user item templates read the other three (`{{ builder.get_user_email_template() }}`); `default_user_email_template`, `get_user_description_template` and `get_email_domain` are the kit model's |
+| `UserBuilderProtocol` | 7 | `default_managed`, `validate_user`, the attribute hooks, `posix_id_claims`, `get_users_for_builder`, and `add_user_to_builder`, which the loader calls |
+| `StateBackendModelProtocol`, `StateBuilderProtocol`, `BackendKindProtocol` | 1, 1, 4 | every state plugin implements them |
+
+The loader holds every class a plugin registers to the protocol of its
+classification (`testing.protocol_for`), with `assert_conforms`, when it
+discovers the installed plugins (once per process, as shipped): a builder
+that lacks a hook, or answers it with the wrong parameters, is refused
+with the plugin, the class, the protocol and the member named
+(`PluginConformanceError`), never later with an `AttributeError`. The loader, the registry and the orchestrator decide what
+kind of thing they hold by `isinstance` against the `runtime_checkable`
+protocols of `core` (`PluginArtifactProtocol`, `NameTypedProtocol`,
+`BuilderModelProtocol`, `RuntimeEnabledBuilderModelProtocol`,
+`BuilderProtocol`, the markers), not by `hasattr` on a member's name.
+
+### What the contract holds, and what the core keeps
+
+The contract is the one home of every name in the table above: the core
+has no path of its own for them (`cs_image_system.base.constants`,
+`base.models.model_config`, `base.helpers.field_helpers`,
+`base.helpers.field_kinds`, `base.lifecycle`, `base.basic.asset` and
+`base.models.executable_adds` do not exist, and `base.lifecycles`,
+`base.utils` and `base.models.provider_specific_image` hold only the
+core's own registry, helpers and model), and `cs_image_system.base.protocols`
+does not exist either. The core and every built-in plugin import the
+contract directly ([the stage index](../../docs/CHANGES.md#s125) records the
+commitment; the `s30-*` tags bracket the move of the bodies, as history).
+The vocabulary modules are the exception by design: the
+core keeps the paths a reader of the engine knows (`base.lineage` for the
+tag words, `base.launch_params` for the enrollment variable,
+`base.power_state`, `base.encryption`, `base.bootstrap.questions`,
+`base.posix_ids`), each importing the words from here, so an engine module
+reaches its vocabulary without naming the contract; a plugin imports the
+contract module.
 
 The protocols carry no implementation. Where a default body existed
 (`global_id`, `get_classification`, `get_self_injected_name`, the parent
 reference's registry lookup) it lives in the core's base classes and
 mixins. The kind modules import `core` and only the kinds they declare they
-read (`runtime` reads `image` for the provider-specific image's enums);
+read (`runtime` reads `image` for the provider-specific image's enums); the
+vocabulary modules import nothing from the package.
 [tests/test_v2_contract.py](../../tests/test_v2_contract.py) holds that
 direction, holds the package to importing nothing from the core, and runs
 `assert_conforms` over every base class and every built-in plugin's models
-and builders.
+and builders; [tests/test_plugin_imports.py](../../tests/test_plugin_imports.py)
+holds what a plugin may import of the core (the base classes, the models,
+the two metadata abstractions) against a committed list of the remaining
+exceptions, which can only shrink.
+
+### Version
+
+The contract carries a semantic version of its own, independent of the
+workspace's: `0.1.0` now, and 0.x until the operator decides otherwise
+(the decision of 2026-11-05). What a bump means: a PATCH is a change no
+plugin can observe (a docstring, a test helper); a MINOR, while the
+version is 0.x, is a change a plugin can observe, so a protocol member
+added, renamed or removed, a constant's value changed, a module added or
+removed, and it is the breaking step; from 1.0 a MINOR adds without
+breaking and a MAJOR breaks. Every package that depends on the contract
+pins the compatible series, `cs-image-system-contract>=0.1,<0.2`, and
+`just release`, which moves every other package's version in lockstep,
+leaves the contract's where it is (`bump-my-version` excludes its
+manifest by name; the upload and the index probe read its version from
+its own manifest). The contract's version moves only by hand, in the
+stage that changes its surface, and
+[tests/test_v2_contract_version.py](../../tests/test_v2_contract_version.py)
+holds all of it: the version is its own and final, every dependent pins
+the range, the bump excludes the manifest, the release tooling knows.
 
 ## Writing a plugin
 
@@ -135,13 +207,25 @@ written the convenient way on the base classes; the
 [dummy plugin](../dummy-plugin/README.md) is the template for a group or
 user builder and for a hook plugin.
 
-Not in the contract yet, so a plugin that needs them depends on `base`:
-the run context (`RunContext`, bound to every builder by the loader and
-reached through a base builder's `_get_context()`; it has no protocol
-yet), the
-`cs_image_system.plugins.hooks` entry point (`HookSet`, typed on the
-context) and the `cs_image_system.bootstrap` entry point (the bootstrap's
-sections).
+The run context is the contract's
+([the stage index](../../docs/CHANGES.md#s125)):
+[`context`](src/cs_image_system/contract/context.py) holds
+`RunContextProtocol` (what a plugin may read of the run: the run id, the
+paths, the builder collections typed by the kind protocols, the
+provider-specific image, the meta-state and `services`), `MetaStateProtocol`
+and the service protocols reached as `ctx.services.<name>` (`lineage`,
+`launch`, `secrets`, `files`, `commands`, `images`, `identity`, `storage`,
+`workspaces`, `scope`, `cli`, `lifecycles`, `meta_state`), each sized by
+what plugins use. The loader binds the context to every builder that has
+a `bind(ctx)` method; a base builder reaches it through `_get_context()`.
+The hooks entry point is [`hooks`](src/cs_image_system/contract/hooks.py)
+(`HookSet` and the hook signatures, typed on the context protocol), the
+bootstrap vocabulary and `FactsProtocol` are
+[`bootstrap`](src/cs_image_system/contract/bootstrap.py), and the
+enrollment-kind registry is
+[`enrollment`](src/cs_image_system/contract/enrollment.py); a plugin
+imports from the core only its base classes, its models and the two
+metadata abstractions (`tests/test_plugin_imports.py` holds the rule).
 
 ## Prerequisites and integration
 
@@ -235,8 +319,10 @@ under a dry run and a real one, on every runtime.
   third-party distributions it imports and reaches no sibling.
 - At load, the loader checks what an entry point returned with
   `isinstance(..., PluginMetadataProtocol)` and logs an error for anything
-  else; the registry refuses a `csis_name` registered twice under one
-  classification (`Type Collision`).
+  else; runs `assert_conforms` over every class the metadata registers,
+  against the protocol of its classification, and refuses the plugin on a
+  shortfall (`PluginConformanceError`); the registry refuses a `csis_name`
+  registered twice under one classification (`Type Collision`).
 
 ## When it fails
 
@@ -250,6 +336,11 @@ failure's symptom, its meaning and what to do.
   signature; the protocol is the specification. If the shortfall is in a
   core base class, the contract changed and the core did not follow: that
   is the test doing its job, and the fix is in `base`.
+- `Plugin <name> is refused: <class> does not conform to <protocol>:
+  <member>: ...` (`PluginConformanceError`) at load: the plugin registered
+  a class that lacks a member of its kind's protocol or answers it with
+  the wrong parameters. Fix the class; nothing of the plugin loads until
+  it conforms.
 - `Plugin <name> did not return a valid PluginMetadataProtocol instance`
   in the log at load, and the plugin's types unknown to every `type:`: the
   entry point returned something other than a `PluginMetadata` (or a list
@@ -263,9 +354,12 @@ failure's symptom, its meaning and what to do.
   model does not declare (`CSIS_MODEL_CONFIG` refuses unknown keys); the
   plugin's README names the fields it reads.
 - `ModuleNotFoundError: No module named 'cs_image_system.base.protocols'`
-  from a plugin that imports the protocols from the core: the protocols
-  live here and that path has no shim; import them from
-  `cs_image_system.contract.core`.
+  (or `...base.constants`, `...base.lifecycle`, `...base.basic.asset`,
+  `...base.helpers.field_helpers`) from a plugin written against an older
+  core: the names live here and the core has no path for them; import
+  them from the contract module the table above names
+  (`cs_image_system.contract.core`, `.constants`, `.lifecycle`, `.assets`,
+  `.fields`).
 
 No failure of this package has been seen in the field.
 

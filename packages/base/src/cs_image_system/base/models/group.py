@@ -4,10 +4,10 @@
 
 import logging
 
-from cs_image_system.base.helpers.field_helpers import fk_field, parent_field
+from cs_image_system.contract.fields import fk_field, parent_field
 log = logging.getLogger(__name__)
 from dataclasses import field
-from .model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic import Field
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from typing import Annotated, Any, ClassVar
@@ -18,7 +18,7 @@ from .mixins import ParentPropertyHolding, SelfInjectedName
 from .root_item import RootItem
 from ..encryption import EncryptedStr
 
-from ..constants import DEFAULT, VCT
+from cs_image_system.contract.constants import DEFAULT, VCT
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)

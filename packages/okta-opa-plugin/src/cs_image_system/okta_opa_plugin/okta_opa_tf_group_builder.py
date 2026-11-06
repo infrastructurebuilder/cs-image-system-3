@@ -9,11 +9,12 @@ import urllib.error
 from pathlib import Path
 from typing import Any
 
-from cs_image_system.base import utils
+from cs_image_system.contract.constants import SYSTEM_CLI
+from cs_image_system.contract.names import safe_name, super_safe_name
 from cs_image_system.contract.assets import AssetSet
 from cs_image_system.base.basic.builder_base_group import GID_POLICY_CREATION_ONLY, GroupBuilderBase
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
-from cs_image_system.contract.executables import CFExecutables
+from cs_image_system.contract.executables import CFExecutables, ExecutableProtocol
 from cs_image_system.contract.session import LoadFailureReport
 from cs_image_system.contract.group import LOGIN_HOOK
 from cs_image_system.contract.operating_system import PACKAGE_LOCK_TIMEOUT
@@ -38,9 +39,6 @@ from .module_objects import module_objects_state
 from .workload_policy import (WorkloadSnapshot, by_name, ci_policy_from, ci_policy_name, describe_condition,
                               policies_equal, user_policy_name, workload_state)
 from .server_aliases import alt_names_script
-from cs_image_system.base.os_types import os_type_for_family
-from cs_image_system.base.commands.state_migration import backup
-from cs_image_system.base.identity_attributes import declared_attributes
 
 """
 Group provider implementation via Terraform/Tofu for Okta groups using okta/oktapam
@@ -106,7 +104,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         image (activation_commands) and enrollment at launch (N26)."""
         # the OS type owns the package manager's lines; this plugin owns
         # the OktaPAM repository recipe per package format
-        os_type = os_type_for_family(os_family)
+        os_type = self._get_context().services.images.os_type_for_family(os_family)
         fmt = os_type.package_format()
         if fmt == "deb":
             install = [
@@ -184,7 +182,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         written = self._posix_written()
         if written is None or written.lower() == NONE:
             return None
-        gb = self._get_context().group_builders.get(utils.safe_name(written))
+        gb = self._get_context().group_builders.get(safe_name(written))
         return gb if isinstance(gb, GroupBuilderBase) and gb.identity_type() == POSIX_IDENTITY_TYPE else None
 
     def configuration_errors(self) -> list[str]:
@@ -196,7 +194,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         if written.lower() == NONE:
             return []
         builders = self._get_context().group_builders
-        gb = builders.get(utils.safe_name(written))
+        gb = builders.get(safe_name(written))
         if gb is None:
             return [f"group builder {self.get_name()}: `posix: {written}` names no declared group builder "
                     f"(declared: {', '.join(sorted(builders))})"]
@@ -470,7 +468,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
             # module makes (another tool rewrote basic's in place, 2026-10-19); the
             # module names them by the group's id. Omitted when OPA could not be asked
             if policies is not None and rgs is not None:
-                gid = utils.super_safe_name(name)
+                gid = super_safe_name(name)
                 listed = by_name(rgs, f"{gid}_rg")
                 detail = resolver.resource_group(str(listed["id"])) if listed and listed.get("id") else None
                 if listed is None or detail is not None:
@@ -528,7 +526,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
                 items.add_list(sensitive_lines)
                 items.add("\n")
             vpath = self.get_path_for_phase(phase,
-                suffix=f"-{utils.safe_name(self.name)}-vars.tf"
+                suffix=f"-{safe_name(self.name)}-vars.tf"
             )
             items.add_list(vpath, col.generate_variable_blocks(self.name))
             backend_lines = col.generate_backend_config(self.name)
@@ -552,8 +550,8 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         if phase == ExecutionLifecyclePhase.GROUP_GENERATION:
             ctx = self._get_context()
             rg: Group = ctx.root_group
-            src = utils.module_source(ctx, "okta_opa_module",
-                                      self.get_path_for_phase(phase, suffix=".tf").parent)
+            src = ctx.services.scope.module_source("okta_opa_module",
+                                                   self.get_path_for_phase(phase, suffix=".tf").parent)
 
             for group in self.get_groups_for_builder():
                 rpath = self.get_path_for_phase(phase, f"group-{group.name}", suffix=".tf")
@@ -608,8 +606,8 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         # did not exist yet, found no gid, and the creating plan could never
         # succeed -- a new group could not be made at all (found walking the
         # daily driver, 2026-10-07; the reference groups pre-date the lookup).
-        args["depends_on"] = [Raw(f"module.group_{utils.super_safe_name(name)}") for name in names]
-        args["program"] = [utils.SYSTEM_CLI, "identity", "export-gids"]
+        args["depends_on"] = [Raw(f"module.group_{super_safe_name(name)}") for name in names]
+        args["program"] = [SYSTEM_CLI, "identity", "export-gids"]
         args["query"] = query
         specs: list[BlockSpec] = [DataSpec(EXTERNAL_PROVIDER, GID_SHIM_LABEL, args,
                                            comment="gid shim: {group: gid} for every managed group")]
@@ -619,7 +617,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
             description="Group name -> unix gid, queried from OPA; consume by reference only"))
         group_map: dict[str, Any] = {}
         for name in names:
-            label = utils.super_safe_name(name)
+            label = super_safe_name(name)
             group_map[name] = {
                 "user_group_id": Raw(f"module.group_{label}.user_group_id"),
                 "admin_group_id": Raw(f"module.group_{label}.admin_group_id"),
@@ -628,7 +626,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
             }
         specs.append(OutputSpec("groups", group_map,
                                 description="Managed OPA groups and their object ids"))
-        token_map = {name: Raw(f"module.group_{utils.super_safe_name(name)}.enrollment_token")
+        token_map = {name: Raw(f"module.group_{super_safe_name(name)}.enrollment_token")
                      for name in names}
         specs.append(OutputSpec(
             "group_enrollment_tokens", token_map, sensitive=True,
@@ -641,7 +639,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         """The launch enrollment credential for ``group``, by remote-state
         reference into this root's sensitive output (PLAN.md IaC-managed
         enrollment tokens); never a literal."""
-        ws = utils.super_safe_name(self.name)
+        ws = super_safe_name(self.name)
         return (f"data.terraform_remote_state.{ws}"
                 f'.outputs.group_enrollment_tokens["{group}"]')
 
@@ -652,7 +650,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         group: no delegates are passed and the module's fallback
         ([oktapam_group.admin.id]) supplies it (PLAN.md local-migration Q1).
         """
-        label = utils.super_safe_name(group.name)
+        label = super_safe_name(group.name)
         # Membership comes from the group definition itself; users attach to the
         # user builder, not this group builder. Member/admin entries are bare
         # OPA usernames (PLAN.md local-migration Q3) — exactly what the module's
@@ -707,7 +705,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
 
     @staticmethod
     def _group_module(group: Group) -> str:
-        return f"module.group_{utils.super_safe_name(group.name)}"
+        return f"module.group_{super_safe_name(group.name)}"
 
     def _held_by_unmanaged(self, listed: list[str]) -> list[tuple[Group, str, list[str]]]:
         """``(group, module address, the state addresses under it)`` for every
@@ -735,7 +733,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
             admins = {str(a) for a in (g.admins or set())}
             if getattr(g, "include_root_group_in_admins", True) and root_group is not None:
                 admins |= {str(a) for a in (root_group.admins or set())}
-            out[utils.super_safe_name(g.name)] = (g, {"members": {str(m) for m in (g.members or set())},
+            out[super_safe_name(g.name)] = (g, {"members": {str(m) for m in (g.members or set())},
                                                       "admins": admins})
         return out
 
@@ -806,7 +804,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         backed_up = False
         for group, module, held in self._held_by_unmanaged([ln.strip() for ln in listed.stdout.splitlines()]):
             if not backed_up:
-                if backup(self._get_context(), self.name, tofu, run_id, cwd) != 0:
+                if self._get_context().services.workspaces.backup_state(self.name, tofu, run_id, cwd) != 0:
                     return 1
                 backed_up = True
             log.info(f"Identity builder {self.name}: group {group.get_name()!r} is unmanaged and the state still "
@@ -863,7 +861,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
             return 0
         # one backup a run, taken before the FIRST removal: a second would keep
         # the state as it stood after a release above, under the same name
-        if not backed_up and backup(self._get_context(), self.name, tofu, run_id, cwd) != 0:
+        if not backed_up and self._get_context().services.workspaces.backup_state(self.name, tofu, run_id, cwd) != 0:
             return 1
         for addr, group, kind, user in remove:
             log.info(f"Identity builder {self.name}: {kind[:-1]} {user!r} was dropped from group "
@@ -889,7 +887,8 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         # a dry run initialises without the backend and touches no state, so
         # the generation-time plan (a read) is a real run's; the deferred
         # script below enumerates the gated plan either way
-        commands = self.terraform_commands(phase, [["fmt"], self._init_args(phase), ["validate"]], wd)
+        commands: list[ExecutableProtocol] = list(
+            self.terraform_commands(phase, [["fmt"], self._init_args(phase), ["validate"]], wd))
         if not self._dry_run():
             # the plan reads plaintext, so it runs in the private mirror (stage 51: the
             # derived addresses carry ciphertext in the committed emission). It is a
@@ -908,9 +907,10 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         # attachments of memberships the declaration dropped and OPA no longer
         # holds, from the state it can see, after a backup (prune_stale_attachments).
         tofu_bin = self.get_executable_copy()
-        prune = utils.system_cli_executable_with_config(
-            self._get_context(), ["prune-attachments", "--builder", self.name, "--tofu", str(tofu_bin.binary or tofu_bin.name),
-             "--run", str(self._get_context().run_id)], wd)
+        ctx = self._get_context()
+        prune = ctx.services.cli.system_cli_executable_with_config(
+            ["prune-attachments", "--builder", self.name, "--tofu", str(tofu_bin.binary or tofu_bin.name),
+             "--run", str(ctx.run_id)], wd)
         # Per-root apply scoping (stage 7): the identity root is its builder name.
         # The prune step is the one place anything leaves state before the plan: a
         # dropped attachment OPA no longer holds (stage 61 item 3) and whatever the
@@ -918,18 +918,18 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
         # stage 88: the gate reads the removals that step sanctioned (a membership
         # the YAML dropped), each by its exact address
         deferred = self.gated_apply_commands(
-            phase, wd, apply=utils.apply_enabled(self._get_context(), "identity", self.name),
+            phase, wd, apply=ctx.services.scope.apply_enabled("identity", self.name),
             pre_commands=[prune], apply_flag_key="identity", apply_root=self.name,
             allow_destroy_from=[self.SANCTIONED_REMOVALS])
         # EXPLORE identity: attributes travel outside terraform. When
         # anything is declared, the runner probes (read-only) after the
         # apply and shows what an attribute apply would change; the write
         # itself stays disabled (DESIGN Q7).
-        declared = declared_attributes(self._get_context())
+        declared = ctx.services.identity.declared_attributes()
         if declared["groups"] or declared["users"]:
             # the probe loads the configuration, so it carries --root-dir like every
             # other runner step that does (stage 63 item 8: without it the step loaded
             # from the root's mirror, which has no cfg/, and failed after the apply)
-            deferred.append(utils.system_cli_executable_with_config(
-                self._get_context(), ["identity-attributes", "--probe", "--dry-run-apply"], wd))
+            deferred.append(ctx.services.cli.system_cli_executable_with_config(
+                ["identity-attributes", "--probe", "--dry-run-apply"], wd))
         return CFExecutables(commands, deferred)

@@ -19,7 +19,7 @@ import pytest
 from cs_image_system.base import config_loader
 from cs_image_system.base import global_context as gc
 from cs_image_system.base import registry as _registry
-from cs_image_system.base.constants import VCT, NO_MODEL_ID
+from cs_image_system.contract.constants import VCT, NO_MODEL_ID
 from cs_image_system.base.models.builder_model import NameTyped
 
 

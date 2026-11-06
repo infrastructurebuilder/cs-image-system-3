@@ -11,7 +11,7 @@ from ..basic.builder_base_instance import InstanceBuilderBase
 from ..basic.builder_base_runtime import RuntimeBuilderBase
 
 
-from ..lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
 from ..global_context import GlobalTypeContext
 

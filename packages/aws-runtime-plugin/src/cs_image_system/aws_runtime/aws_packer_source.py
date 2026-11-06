@@ -22,12 +22,9 @@ from cs_image_system.contract.constants import OOPS_DEFAULTS
 from cs_image_system.hashicorp_utils.hashicorp import FO
 
 from .aws_runtime_models import AwsCloudBuilderModel, AwsCloudNetworkingModel
-from cs_image_system.base.capabilities import image_chain
-from cs_image_system.base.lineage import bake_disk_size
-from cs_image_system.base.bake_user import resolve_bake_user
 
 if TYPE_CHECKING:
-    from cs_image_system.base.global_context import GlobalTypeContext
+    from cs_image_system.contract.context import RunContextProtocol
 
 log = logging.getLogger(__name__)
 
@@ -52,7 +49,7 @@ systemctl enable --now amazon-ssm-agent 2>/dev/null || true
 """
 
 
-def _root_device(ctx: GlobalTypeContext, image: Any, psi: Any) -> str:
+def _root_device(ctx: RunContextProtocol, image: Any, psi: Any) -> str:
     """The bake source's root device name: from the resolved vendor query
     when available, else by the chain root's family."""
     raw = getattr(psi, "raw_query_result", None)
@@ -62,17 +59,19 @@ def _root_device(ctx: GlobalTypeContext, image: Any, psi: Any) -> str:
     return {"debian": "/dev/xvda", "amazon": "/dev/xvda"}.get(fam, "/dev/sda1")
 
 
-def _chain_root_family(ctx: GlobalTypeContext, image: Any) -> str:
+def _chain_root_family(ctx: RunContextProtocol, image: Any) -> str:
     try:
         name = image.get_name()
-        root = name if name in ctx.os_builders else image_chain(ctx, image)[1]
-        return (ctx.os_builders[root].get_family() or "").lower() if root in ctx.os_builders else ""
+        root = name if name in ctx.os_builders else ctx.services.images.image_chain(image)[1]
+        if root is None or root not in ctx.os_builders:
+            return ""
+        return (ctx.os_builders[root].get_family() or "").lower()
     except Exception:
         return ""
 
 
-def _bake_disk(ctx: GlobalTypeContext, image: Any, runtime: str) -> Any:
-    size = bake_disk_size(ctx, image, runtime)
+def _bake_disk(ctx: RunContextProtocol, image: Any, runtime: str) -> Any:
+    size = ctx.services.lineage.bake_disk_size(image, runtime)
     return size if size is not None else image.primary_disk_size
 
 
@@ -84,7 +83,7 @@ def _machine_type(subconfig: Any, model: AwsCloudBuilderModel) -> str:
     return str(model.get_default_machine_type())
 
 
-def amazon_ebs_source(ctx: GlobalTypeContext, model: AwsCloudBuilderModel, image: Any, *, runtime: str, source_type: str,
+def amazon_ebs_source(ctx: RunContextProtocol, model: AwsCloudBuilderModel, image: Any, *, runtime: str, source_type: str,
                       subconfig: Any, self_subconfig: Any, psi: Any, tags: dict[str, str],
                       final_name: str, pinned: str | None) -> list[str]:
     networking: AwsCloudNetworkingModel = model.networking  # type: ignore[assignment]
@@ -148,7 +147,7 @@ def amazon_ebs_source(ctx: GlobalTypeContext, model: AwsCloudBuilderModel, image
     # root's entry, config_username, the runtime's ssh_username, its
     # default_config_username, the family's vendor user); the runtime's
     # ssh_username used to override every entry here
-    c["ssh_username"] = resolve_bake_user(ctx, image, runtime)
+    c["ssh_username"] = ctx.services.images.resolve_bake_user(image, runtime)
     if networking.default_availability_zone:
         c["availability_zone"] = networking.default_availability_zone
     if model.iam_instance_profile and "iam_instance_profile" not in c:

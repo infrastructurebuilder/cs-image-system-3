@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import dataclasses
 import os
-from ..models.model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from datetime import datetime, timedelta, timezone
 from pathlib import Path

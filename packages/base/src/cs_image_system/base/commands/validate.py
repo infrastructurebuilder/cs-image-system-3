@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from packaging.specifiers import SpecifierSet
 from packaging.version import parse
@@ -13,12 +13,11 @@ import shutil
 from pathlib import Path
 log = logging.getLogger(__name__)
 
-from ..constants import NONE, VCT, ComplianceState, STATE_BACKEND_FIELD
+from cs_image_system.contract.constants import NONE, VCT, ComplianceState
 from .. import registry
 from ..basic.abstract_version_checker import AbstractVersionChecker
 from ..basic.builder_base import BuilderBase
 from ..models.executable import ExecutableModel
-from ..global_context import GlobalTypeContext
 from ..posix_ids import FIRST_REGULAR_ID, NAME_RE, Claim, resolve_posix_ids, supplied_id
 from ..orchestrator import UNRESOLVED_FKS
 from ..encryption import decrypted_plaintexts
@@ -30,6 +29,9 @@ from ..bake_user import entry_for_runtime, resolve_bake_user, resolve_for_entry,
 from ..image_sources import ImageSourceCatalog, container_reference, stand_in_runtime_type
 from ..image_names import output_names_by_runtime
 from cs_image_system.base.models.container_builder import ContainerBuilderModel
+
+if TYPE_CHECKING:          # annotations only (stage 125)
+    from ..global_context import GlobalTypeContext
 
 
 def check_version(sv: str | None, version: str | None) -> ComplianceState:
@@ -220,65 +222,7 @@ def check_executables_exist_and_versions(ctx: GlobalTypeContext) -> list[Excepti
 
 # ------------------------------------------------------------ state locations
 
-def terraform_workspaces(ctx: GlobalTypeContext) -> dict[str, tuple[str | None, str | None]]:
-    """workspace -> (its builder's own ``state_configuration``, its runtime's)
-    for every builder that owns a terraform root, read from the models alone
-    so the tofu-roots state-location validator resolves the bindings without
-    generating anything. The runtime rung belongs to the roots that have a runtime -- the
-    storage and instance roots; an identity root resolves its own value or
-    the default, exactly as the builders bind at generation."""
-    out: dict[str, tuple[str | None, str | None]] = {}
-    runtime_rooted = set(ctx.storage_builders) | set(ctx.instance_builders)
-    for builder in ctx.all_sorted_builders:
-        name = builder.get_name()
-        if name in ctx.runtime_builders:
-            continue
-        model = getattr(builder, "model", None)
-        if model is None or not hasattr(model, STATE_BACKEND_FIELD):
-            continue
-        runtime_value: str | None = None
-        if name in runtime_rooted:
-            try:
-                runtime_name = model.get_runtime_provider()
-            except ValueError:
-                runtime_name = None
-            rtb = ctx.runtime_builders.get(runtime_name) if runtime_name else None
-            runtime_value = getattr(getattr(rtb, "model", None), STATE_BACKEND_FIELD, None) if rtb else None
-        out[name] = (getattr(model, STATE_BACKEND_FIELD), runtime_value)
-    return out
-
-
-def deployed_in_workspace(ctx: GlobalTypeContext, workspace: str) -> list[str]:
-    """What the records say stands in a workspace's state (stage 46.4.2):
-    storages whose recorded state is not destroyed, the groups and users the
-    identity read-model attributes to the root, and instances pinned to a
-    build (a pin is a standing instance; a decommission removes it)."""
-    ms = ctx.meta_state
-    out: list[str] = []
-    read_model = ms.storage_read_model().get("storages") or {}
-    for name, rec in ms.storage_states().items():
-        state = rec.get("state")
-        if state in (None, "destroyed"):
-            continue
-        builder = (rec.get("facts") or {}).get("builder") or (read_model.get(name) or {}).get("builder")
-        if builder == workspace:
-            out.append(f"storage {name} ({state})")
-    # the identity read-model is written at generation, so it is evidence only
-    # once a recorded run has EXECUTED the identity lifecycle
-    identity_applied = any((run.get("apply") or {}).get("identity") == "executed"
-                           for run in (ms.read("runs.yaml").get("runs") or []))
-    identity = ms.identity_read_model() if identity_applied else {}
-    for kind in ("groups", "users"):
-        entries = identity.get(kind) or {}
-        for name, rec in (entries.items() if isinstance(entries, dict) else []):
-            if isinstance(rec, dict) and rec.get("builder") == workspace:
-                out.append(f"{kind[:-1]} {name}")
-    builders_of = {inst.get_name(): getattr(inst, "type_", None) for inst in ctx.instances}
-    for inst, build in ms.instance_pins().items():
-        if builders_of.get(inst) == workspace:
-            out.append(f"instance {inst} (build {build})")
-    return out
-
+from ..standing import deployed_in_workspace, terraform_workspaces  # noqa: E402, F401 - re-exported (stage 125)
 
 def check_posix_ids(ctx: GlobalTypeContext) -> list[Exception]:
     """Stage 75: every POSIX id the configuration's builders claim, resolved

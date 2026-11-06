@@ -9,7 +9,7 @@ from ..models.instance_builder import InstanceBuilderModel
 from .builder_base_runtime import RuntimeBuilderBase
 
 from cs_image_system.base.registry import current_registry
-from ..constants import VCT
+from cs_image_system.contract.constants import VCT
 
 from .builder_base import BuilderBase
 from cs_image_system.contract.instance import InstanceBuilderProtocol

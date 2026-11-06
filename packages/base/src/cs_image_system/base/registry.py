@@ -8,11 +8,11 @@ import operator
 from functools import reduce
 
 
-from cs_image_system.contract.core import NameTypedProtocol, PluginArtifactProtocol, PluginMetadataProtocol
+from cs_image_system.contract.core import BuilderProtocol, NameTypedProtocol, PluginArtifactProtocol, PluginMetadataProtocol
 
 log = logging.getLogger(__name__)
 
-from .constants import DEFAULT, OOPS_DEFAULTS, VCT
+from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, VCT
 
 def sanitize_classifier(classifer:VCT| None) -> VCT:
     if not classifer:
@@ -113,10 +113,9 @@ class Registry:
                 raise ValueError(f"Builder for model '{model_type.__name__}' is already registered.")
             self.builders[model_type] = builder_type
         for classifier, model_type in metadata.injected_models.items():
-            if hasattr(model_type, 'csis_name'):
-                name = model_type.csis_name()            
-            else:
-                name = model_type.__name__
+            # an injected item model names itself when it is a plugin artifact
+            injected: Any = model_type
+            name = injected.csis_name() if isinstance(injected, PluginArtifactProtocol) else model_type.__name__
             if name in self.models[classifier]:
                 raise ValueError(f"Type Collision: {name} for classifier {classifier}")
             self.models.setdefault(classifier, {})[name] = model_type
@@ -152,18 +151,20 @@ class Registry:
         if not isinstance(instance, NameTypedProtocol):
             log.debug(f"No registering instance {instance} of type {type(instance)}")
             return
-        model = getattr(instance, 'model', instance) 
+        # a builder stands for its model; a model stands for itself (the
+        # protocol check is the dispatch, stage 125)
+        model = instance.model if isinstance(instance, BuilderProtocol) else instance
         if not model:
             raise ValueError(f"Cannot register {instance} because it has no model")
         model_name = model.get_name() if isinstance(model, NameTypedProtocol) else str(model)        
         # Determine the namespace (classification)
         classifier = instance.get_classification()
-        if classifier is None:            
-            if not hasattr(instance, 'csis_classifier'):
+        if classifier is None:
+            if not isinstance(instance, PluginArtifactProtocol):
                 log.warning(f"Object {instance} does not have a get_classification method or"
                             " a csis_classifier method. Skipping registration.")
                 return
-            classifier = instance.csis_classifier() if hasattr(instance, 'csis_classifier') else None # type: ignore
+            classifier = instance.csis_classifier()
         if not classifier:
             log.warning(f"Could not determine classification for instance {instance}. Skipping registration.")
             return
@@ -188,7 +189,7 @@ class Registry:
             self.instances[VCT.RUNTIME_BUILDER][model_name] = instance
         
         # Register aliases within the namespace
-        for alias in getattr(model, 'aliases', set()):
+        for alias in (model.get_aliases() if isinstance(model, NameTypedProtocol) else set()):
             if alias in self.instances[classifier]:
                 raise ValueError(f"Instance Alias Collision: '{alias}' is already in use for {classifier}!")
             self.instances[classifier][alias] = instance

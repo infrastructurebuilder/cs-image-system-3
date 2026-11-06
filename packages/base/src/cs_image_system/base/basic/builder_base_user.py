@@ -8,7 +8,7 @@ from ..models.user import User
 
 from ..models.user_builder import UserBuilderModel
 
-from ..constants import VCT
+from cs_image_system.contract.constants import VCT
 
 from .builder_base import BuilderBase
 from cs_image_system.contract.user import UserBuilderProtocol

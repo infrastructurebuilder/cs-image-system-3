@@ -299,7 +299,7 @@ another family's line.
 
 No family model accepts unknown keys (the shared model config forbids
 extras). None validates `family` against a fixed list: the `OSFamilies`
-enum in [constants.py](../base/src/cs_image_system/base/constants.py) exists
+enum in [constants.py](../contract/src/cs_image_system/contract/constants.py) exists
 but is not consulted. Modifications declared on an OS builder are ignored
 with a warning: base images receive no modification elements, only the OS
 update.

@@ -20,7 +20,7 @@ backend registrations) without any process-wide state. ``reset()`` stays
 for a test that reuses one instance.
 
 This library imports only the contract: the context it is handed is typed
-by the small ``RunContext`` protocol below, never by the core's class.
+by the small ``CollectorContext`` protocol below, never by the core's class.
 """
 from __future__ import annotations
 
@@ -671,12 +671,13 @@ class PackerCollector:
 
 # ------------------------------------------------- the per-run instances
 
-class RunContext(Protocol):
+class CollectorContext(Protocol):
     """What the accessors need of a run context: the global ``config:``
     map, the declared state backends (name -> a builder whose ``model``
     answers ``to_backend_registration``), and ``plugin_state``, the one
     slot per key a library keeps beside the context for the run. The
-    core's context satisfies it; so does a bare holder in a test."""
+    contract's ``RunContextProtocol`` satisfies it (so the core's context
+    does); so does a bare holder in a test."""
 
     @property
     def config(self) -> Mapping[str, Any]: ...
@@ -691,7 +692,7 @@ TERRAFORM_COLLECTOR_KEY = "hashicorp-utils.terraform-collector"
 PACKER_COLLECTOR_KEY = "hashicorp-utils.packer-collector"
 
 
-def terraform_collector(ctx: RunContext) -> TerraformCollector:
+def terraform_collector(ctx: CollectorContext) -> TerraformCollector:
     """The run's terraform collector, kept beside the context
     (``ctx.plugin_state``): one per context, made on the first ask with the
     backend flag read from the tree's ``config: use_state_backends`` and
@@ -706,7 +707,7 @@ def terraform_collector(ctx: RunContext) -> TerraformCollector:
     return ctx.plugin_state(TERRAFORM_COLLECTOR_KEY, make)
 
 
-def packer_collector(ctx: RunContext) -> PackerCollector:
+def packer_collector(ctx: CollectorContext) -> PackerCollector:
     """The run's packer collector, kept beside the context as the
     terraform one is: one per context, made on the first ask."""
     return ctx.plugin_state(PACKER_COLLECTOR_KEY, PackerCollector)

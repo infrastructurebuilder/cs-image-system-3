@@ -6,16 +6,16 @@ from abc import ABC, abstractmethod
 import logging
 from typing import Any
 
-from ..constants import NO_MODEL_ID, VCT
-# stage 30: the two enums and the key live in the contract (a runtime
-# plugin's create_provider_specific_image_* hooks take the source kind)
-from cs_image_system.contract.image import PSISourceKind, PSIState, psi_key  # noqa: F401
+from cs_image_system.contract.constants import NO_MODEL_ID, VCT
+from cs_image_system.contract.image import PSISourceKind, PSIState, psi_key
 
 log = logging.getLogger(__name__)
 
 
 class ProviderSpecificImage(ABC):
-    """An image as a specific runtime provider knows it.
+    """An image as a specific runtime provider knows it (the contract's
+    ``ProviderSpecificImageProtocol``, stage 125; the attributes are
+    declared here so the conformance check sees them).
 
     Generated for a given RuntimeBuilder from either a generic Image or an
     OsBuilder.  Holds the runtime-specific identifier (an image id on one
@@ -27,6 +27,16 @@ class ProviderSpecificImage(ABC):
     - DEFERRED: the image will only exist after a build; the instance carries a
       name pattern that can be turned into a most-recent/self-owned query.
     """
+
+    source_name: str
+    source_kind: PSISourceKind
+    runtime: str
+    state: PSIState
+    identifier: str | None
+    owner: str | None
+    raw_query_result: Any | None
+    deferred_name_pattern: str | None
+    architecture: str | None
 
     def __init__(
         self,

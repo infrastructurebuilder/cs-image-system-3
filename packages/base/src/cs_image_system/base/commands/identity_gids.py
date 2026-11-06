@@ -16,7 +16,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..basic.builder_base_group import GroupBuilderBase
-from ..constants import VCT
+from cs_image_system.contract.constants import VCT
 from ..loader import load_plugins
 from ..registry import current_registry
 

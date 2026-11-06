@@ -27,7 +27,7 @@ from tests.v2_support import V2Run
 from cs_image_system.base import launch_params as lp
 from cs_image_system.base.commands import validate as validate_module
 from cs_image_system.base.commands.validate import check_canonical_hostnames
-from cs_image_system.base.lifecycles import Lifecycle
+from cs_image_system.contract.lifecycles import Lifecycle
 
 
 # ------------------------------------------------------------ step 3

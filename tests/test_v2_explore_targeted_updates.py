@@ -132,8 +132,8 @@ def test_lineage_carries_the_policy_and_fingerprint_changes_with_it(v2):
     from cs_image_system.base.lineage import input_fingerprint
     assert v2.run(["base-image"], apply=False).ok
     ctx = v2.ctx
-    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
-    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.lifecycles import Lifecycle
     (v2.generated / BASE_BUILD.parent / "manifest.json").write_text(json.dumps({"last_run_uuid": "u", "builds": [
         {"name": "basic-rh-10", "packer_run_uuid": "u", "artifact_id": "us-east-2:ami-0base0001"}]}))
     ctx.current_lifecycle = Lifecycle.BASE_IMAGE

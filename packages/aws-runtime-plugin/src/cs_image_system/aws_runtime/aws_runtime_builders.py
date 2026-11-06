@@ -10,12 +10,11 @@ from typing import Any
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
 from cs_image_system.contract.assets import AssetSet
 from cs_image_system.base.basic.builder_base_cloud import CloudBuilderBase
-from cs_image_system.base.image_sources import packaged_entries_of
 from cs_image_system.contract.constants import VCT
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
 from cs_image_system.base.models.provider_specific_image import ProviderSpecificImage
-from cs_image_system.base import power_state
+from cs_image_system.contract import power_state
 from cs_image_system.contract.core import PluginArtifactProtocol
 
 from .aws_provider_specific_image import AwsProviderSpecificImage
@@ -24,9 +23,8 @@ from .aws_utils import AWS_QUERY_KEYS, query_image, translate_image_query
 from cs_image_system.contract.image import ImageQuery
 from cs_image_system.contract.session import LoadFailureReport, SessionStatus
 from cs_image_system.aws_runtime import aws_utils, session
-from cs_image_system.base.lineage import TAG_PREFIX, ours_or_unlabelled
+from cs_image_system.contract.lineage_vocabulary import TAG_PREFIX
 from .aws_packer_source import AMAZON_EBS, amazon_ebs_source
-from cs_image_system.base.os_types import os_type_for_family
 from cs_image_system.base.models.executable import ExecutableModel
 
 log = logging.getLogger(__name__)
@@ -79,11 +77,10 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
         alphanumerics; the public-safety scan refuses one anywhere."""
         return {"aws-access-key": r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"}
 
-    @classmethod
-    def image_source_entries(cls) -> list[Mapping[str, Any]]:
-        """This runtime's part of the release-owned image-source catalog:
-        the `aws` blocks, shipped as this package's ``data/image-sources.yml``."""
-        return packaged_entries_of("cs_image_system.aws_runtime")
+    #: This runtime's part of the release-owned image-source catalog: the
+    #: `aws` blocks, shipped as this package's ``data/image-sources.yml``
+    #: (the core reads the file; stage 125).
+    image_source_package = "cs_image_system.aws_runtime"
 
     def query_provider_image(self, os_builder: OSBuilderBaseImageBuilderSubconfig) -> tuple[str, str, Mapping[str,Any]] | None:
         retval: str | None = None
@@ -157,9 +154,9 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
         configuration may take for its own -- tagged with its id, or with no
         id at all (launched before the stage). Another configuration's
         machine of the same name is not ours to read, stop or log into."""
-        ctx = self._get_context()
+        lineage = self._get_context().services.lineage
         return [i for i in instances
-                if ours_or_unlabelled(ctx, {t["Key"]: t["Value"] for t in i.get("Tags", []) if "Key" in t})]
+                if lineage.ours_or_unlabelled({t["Key"]: t["Value"] for t in i.get("Tags", []) if "Key" in t})]
 
     def instance_tags(self, instance_name: str) -> dict[str, str] | None:
         """The tags the named machine carries (stage 93's relabel reads them);
@@ -462,7 +459,7 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
         region = self.model.get_region()
         # Amazon ships the agent as a deb and as an rpm: the OS type's
         # package format picks the artifact, its hooks give the lines
-        os_type = os_type_for_family(os_family)
+        os_type = self._get_context().services.images.os_type_for_family(os_family)
         fmt = os_type.package_format()
         if fmt == "deb":
             # Guarded: the SSM-communicator bootstrap has usually installed the

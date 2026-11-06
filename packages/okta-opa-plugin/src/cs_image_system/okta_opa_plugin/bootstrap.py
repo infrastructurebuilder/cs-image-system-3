@@ -34,8 +34,8 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from cs_image_system.base.bootstrap.facts import Facts, collect, real
-from cs_image_system.base.bootstrap.questions import BY_HAND, Answers, Question, Rendered, Secret, Section
+from cs_image_system.contract.bootstrap import (BY_HAND, Answers, FactsProtocol as Facts, Question, Rendered, Secret,
+                                                Section, real)
 
 from . import okta_app_check
 from .opa_gids import OpaGidResolver, credentials_from_env
@@ -50,7 +50,7 @@ UNASKABLE_OKTA = ("the Okta app could not be tried: OKTA_API_CLIENT_ID, OKTA_API
 # ------------------------------------------------------------------ the tree
 def okta_builder(facts: Facts) -> dict[str, Any] | None:
     """The tree's managed OPA group builder (``type: okta-tf``), first one."""
-    builders = collect(facts.config_root / "cfg", "group_builders")
+    builders = facts.collect("group_builders")
     return next((b for b in builders if str(b.get("type", "")).lower() == "okta-tf"), None)
 
 

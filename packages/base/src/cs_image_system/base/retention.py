@@ -23,8 +23,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .lifecycle import ExecutionLifecyclePhase
-from .lifecycles import LifecycleLike, LifecycleSpec
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.lifecycles import LifecycleLike, LifecycleSpec
 from .commands.dispose import retention_plan
 from .utils import system_cli_executable_with_config, system_cli_executable
 from .lifecycles import register_lifecycle

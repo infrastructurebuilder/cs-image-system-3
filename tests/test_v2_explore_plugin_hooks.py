@@ -59,8 +59,8 @@ def test_plugin_registered_lifecycle_participates_like_a_builtin(v2, monkeypatch
 
 
 def test_lifecycle_registration_is_validated():
-    from cs_image_system.base.lifecycles import (
-        LifecycleSpec, all_lifecycles, register_lifecycle, unregister_lifecycle)
+    from cs_image_system.contract.lifecycles import LifecycleSpec
+    from cs_image_system.base.lifecycles import all_lifecycles, register_lifecycle, unregister_lifecycle
     with pytest.raises(ValueError, match="built in"):
         register_lifecycle(LifecycleSpec(name="identity"))
     with pytest.raises(ValueError, match="unknown lifecycle"):

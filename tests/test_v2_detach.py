@@ -99,7 +99,7 @@ def test_dropping_a_mount_is_allowed_and_planned_as_a_detach_after_an_unmount(pr
     assert "gce_data" not in tf.split('module "instance_gce_test"', 1)[1].split("}", 1)[0] or True
     # after the apply the record drops it
     from cs_image_system.base.launch_params import record_detachments
-    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.contract.lifecycles import Lifecycle
     record_detachments(run.ctx, Lifecycle.INSTANCE_IMAGE)
     rec = run.ctx.meta_state.launch_params()["gce-test"]
     assert rec["mounts"] == [] and rec["launched"] is True and rec["launched_run"] == "r0"

@@ -19,19 +19,20 @@
 """
 from __future__ import annotations
 
+
 import re
 from dataclasses import field
-from .models.model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from typing import TYPE_CHECKING, Any
 
 from .basic.builder_base_group import GroupBuilderBase
 from .basic.builder_base_storage import StorageBuilderBase
 from .encryption import like
-from .constants import SELF
+from cs_image_system.contract.constants import SELF
 
 if TYPE_CHECKING:
-    from .global_context import GlobalTypeContext
+    from .run_context import RunContext
     from .models.base_image import BaseImage
     from .models.image import Image
 
@@ -72,7 +73,7 @@ class EffectiveCapabilities:
 
 # ------------------------------------------------------------- lookups
 
-def group_builders_by_identity_type(ctx: "GlobalTypeContext") -> dict[str, list[GroupBuilderBase]]:
+def group_builders_by_identity_type(ctx: "RunContext") -> dict[str, list[GroupBuilderBase]]:
     """``{identity type: [group builders]}``. Callers bake and verify with
     the FIRST builder of a type, so a builder that manages its groups comes
     before a lookup-only one, then by name (stage 63 item 18: by name alone,
@@ -88,7 +89,7 @@ def group_builders_by_identity_type(ctx: "GlobalTypeContext") -> dict[str, list[
     return out
 
 
-def storage_builders_by_type(ctx: "GlobalTypeContext") -> dict[str, list[StorageBuilderBase]]:
+def storage_builders_by_type(ctx: "RunContext") -> dict[str, list[StorageBuilderBase]]:
     out: dict[str, list[StorageBuilderBase]] = {}
     for name in sorted(ctx.storage_builders):
         b = ctx.storage_builders[name]
@@ -97,7 +98,7 @@ def storage_builders_by_type(ctx: "GlobalTypeContext") -> dict[str, list[Storage
     return out
 
 
-def group_builder_of(ctx: "GlobalTypeContext", group: str) -> GroupBuilderBase | None:
+def group_builder_of(ctx: "RunContext", group: str) -> GroupBuilderBase | None:
     for name in sorted(ctx.group_builders):
         b = ctx.group_builders[name]
         if isinstance(b, GroupBuilderBase) and any(g.get_name() == group for g in b.get_groups_for_builder()):
@@ -105,12 +106,12 @@ def group_builder_of(ctx: "GlobalTypeContext", group: str) -> GroupBuilderBase |
     return None
 
 
-def identity_type_of_group(ctx: "GlobalTypeContext", group: str) -> str | None:
+def identity_type_of_group(ctx: "RunContext", group: str) -> str | None:
     b = group_builder_of(ctx, group)
     return b.identity_type() if b is not None else None
 
 
-def storage_type_of(ctx: "GlobalTypeContext", storage_name: str) -> str | None:
+def storage_type_of(ctx: "RunContext", storage_name: str) -> str | None:
     for s in ctx.storages:
         if s.get_name() == storage_name:
             b = ctx.storage_builders.get(s.type_)
@@ -120,7 +121,7 @@ def storage_type_of(ctx: "GlobalTypeContext", storage_name: str) -> str | None:
 
 # ---------------------------------------------------------------- chains
 
-def image_chain(ctx: "GlobalTypeContext", image: "Image") -> tuple[list[str], str | None]:
+def image_chain(ctx: "RunContext", image: "Image") -> tuple[list[str], str | None]:
     """Follow ``source_image`` links: ``([image, parent, ...], root base name)``.
     The root is the first name that is an OS builder (a base image)."""
     chain: list[str] = []
@@ -151,7 +152,7 @@ def storage_builder_runtime(builder: Any) -> str | None:
         return None
 
 
-def storage_types_on_runtime(ctx: "GlobalTypeContext", types: list[str], runtime: str | None) -> list[str]:
+def storage_types_on_runtime(ctx: "RunContext", types: list[str], runtime: str | None) -> list[str]:
     """Of ``types``, those a bake on ``runtime`` prepares for: the ones with
     a storage builder on that runtime (or on none). Hygiene XII item 21
     (the walk's F49): `storage_types` is one list on the OS builder, and it
@@ -165,7 +166,7 @@ def storage_types_on_runtime(ctx: "GlobalTypeContext", types: list[str], runtime
                   if any(storage_builder_runtime(b) in (None, runtime) for b in by_type.get(t, [])))
 
 
-def declared_capabilities(ctx: "GlobalTypeContext", base_name: str,
+def declared_capabilities(ctx: "RunContext", base_name: str,
                           runtime: str | None = None) -> dict[str, list[str]]:
     """A base's declaration; with ``runtime``, the storage types narrowed to
     the ones a bake there prepares for (what that build carries and what
@@ -177,7 +178,7 @@ def declared_capabilities(ctx: "GlobalTypeContext", base_name: str,
             "storage_types": storage_types_on_runtime(ctx, osb.model.get_storage_types(), runtime)}
 
 
-def effective_capabilities(ctx: "GlobalTypeContext", image: "Image",
+def effective_capabilities(ctx: "RunContext", image: "Image",
                            runtime: str | None = None) -> EffectiveCapabilities | None:
     """N11/N24: resolve through the pin chain to the root base build's stamp;
     without a pinned, recorded build the current declaration governs (it
@@ -207,7 +208,7 @@ def effective_capabilities(ctx: "GlobalTypeContext", image: "Image",
 
 # ------------------------------------------------------------- admin keys
 
-def admin_public_keys(ctx: "GlobalTypeContext", base: "BaseImage | None" = None,
+def admin_public_keys(ctx: "RunContext", base: "BaseImage | None" = None,
                       os_builder_name: str | None = None) -> list[str]:
     """Per-base-image override, else the global list (N12)."""
     override: list[str] | None = None
@@ -226,6 +227,6 @@ def admin_public_keys(ctx: "GlobalTypeContext", base: "BaseImage | None" = None,
     return [like(k, str(k).strip()) for k in keys if str(k).strip()]
 
 
-def admin_user(ctx: "GlobalTypeContext", os_builder_name: str) -> str:
+def admin_user(ctx: "RunContext", os_builder_name: str) -> str:
     osb = ctx.os_builders.get(os_builder_name)
     return osb.model.get_admin_user() if osb is not None else "csisadmin"

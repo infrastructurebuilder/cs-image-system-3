@@ -108,8 +108,8 @@ def test_every_build_is_uniquely_named_and_lineage_tagged(v2):
 def test_bake_records_lineage_and_first_binds_the_base_edge(v2):
     assert v2.run(["base-image", "instance-image"], apply=False).ok
     ctx = v2.ctx
-    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
-    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.lifecycles import Lifecycle
     ib = ctx.image_builders["pckr-ebs-ans"]
     # base bake
     _fake_manifest(v2, "base-image", "block-000", {"basic-rh-10": "ami-0base0001", "basic-rhel-9": "ami-0base0009"})
@@ -290,8 +290,8 @@ def test_launch_binds_unpinned_instances_to_the_launched_build(tmp_path, monkeyp
     try:
         assert run.run(["instance-image"], apply=False).ok
         ctx = run.ctx
-        from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
-        from cs_image_system.base.lifecycles import Lifecycle
+        from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+        from cs_image_system.contract.lifecycles import Lifecycle
         ib = ctx.image_builders["pckr-ebs-ans"]
         _fake_manifest(run, "instance-image", "block-000", {"imgfile-basic-dask": "ami-0dask0007"})
         ctx.current_lifecycle = Lifecycle.INSTANCE_IMAGE

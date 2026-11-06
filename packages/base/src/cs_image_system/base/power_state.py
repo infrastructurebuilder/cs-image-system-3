@@ -32,58 +32,11 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
-# ---------------------------------------------------------- the vocabulary
-RUNNING = "running"          # on, and the provider says so
-STOPPED = "stopped"          # off, and still exists -- the operator's choice
-SUSPENDED = "suspended"      # off with state preserved (a cloud that offers it); not STOPPED
-STARTING = "starting"        # on its way up; not yet reachable
-STOPPING = "stopping"        # on its way down, or being destroyed
-ABSENT = "absent"            # no such machine (never created, or gone)
-UNKNOWN = "unknown"          # the provider answered something we do not know
-
-POWER_STATES = (RUNNING, STOPPED, SUSPENDED, STARTING, STOPPING, ABSENT, UNKNOWN)
-
-#: States in which a machine exists but is not doing anything. These are the
-#: operator's choice, and nothing in the system may treat them as drift.
-OFF_STATES = (STOPPED, SUSPENDED)
-
-#: States that are on their way somewhere: true now, false shortly. A caller
-#: that needs a settled answer waits rather than deciding on one of these.
-TRANSITIONAL = (STARTING, STOPPING)
-
-
-def is_off(state: str | None) -> bool:
-    """The machine exists and is not running. ``None`` (nobody could answer)
-    is NOT off -- the caller must not infer a state from silence."""
-    return state in OFF_STATES
-
-
-def is_on(state: str | None) -> bool:
-    """The machine is running right now. ``STARTING`` is not on: the provider
-    saying it is coming up is not the machine answering."""
-    return state == RUNNING
-
-
-def exists(state: str | None) -> bool:
-    """The machine is there in some form. ``None`` is not an answer either
-    way, so it is not existence."""
-    return state is not None and state not in (ABSENT, UNKNOWN)
-
-
-def describe(state: str | None) -> str:
-    """One phrase for a report or a log line, including for the two answers
-    that are not states."""
-    if state is None:
-        return "power state unavailable (no runtime could answer)"
-    return {
-        RUNNING: "running",
-        STOPPED: "STOPPED (switched off; not drift)",
-        SUSPENDED: "SUSPENDED (switched off with state preserved; not drift)",
-        STARTING: "starting",
-        STOPPING: "stopping",
-        ABSENT: "absent (no such machine)",
-        UNKNOWN: "in a state this system does not recognise",
-    }.get(state, f"in state {state!r}")
+# The vocabulary (the states, the groupings, ``is_off``/``is_on``/``exists``/
+# ``describe``) is the contract's (`contract.power_state`); this path keeps it.
+from cs_image_system.contract.power_state import (  # noqa: F401
+    ABSENT, OFF_STATES, POWER_STATES, RUNNING, STARTING, STOPPED, STOPPING, SUSPENDED, TRANSITIONAL, UNKNOWN,
+    describe, exists, is_off, is_on)
 
 
 # ------------------------------------------------- the bounded exception

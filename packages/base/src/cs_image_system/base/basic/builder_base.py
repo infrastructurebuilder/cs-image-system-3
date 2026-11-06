@@ -7,26 +7,24 @@ from abc import ABC
 from collections.abc import Mapping
 import copy
 from pathlib import Path
-from typing import TYPE_CHECKING, Generic, TypeVar
+from typing import Generic, TypeVar, cast
 import logging
 log = logging.getLogger(__name__)
-from ..constants import NO_MODEL_ID, UNSET_MODEL_ID, VCT
+from cs_image_system.contract.constants import NO_MODEL_ID, UNSET_MODEL_ID, VCT
 from cs_image_system.contract.session import LoadFailureReport
 from cs_image_system.contract.core import BuilderProtocol
 
 from ..models.builder_model import BuilderModel
 
-from .asset import AssetSet
-from ..utils import safe_name
+from cs_image_system.contract.assets import AssetSet
+from cs_image_system.contract.names import safe_name
 
-if TYPE_CHECKING:
-    from ..global_context import GlobalTypeContext
-    from ..run_context import RunContext
+from cs_image_system.contract.context import RunContextProtocol
 
-from ..lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from ..models.executable import  ExecutableModel
-from ..models.executable_adds import CFExecutables
-from ..run_context import current_context
+from cs_image_system.contract.executables import CFExecutables
+from ..run_context import RunContext, current_context
 
 C = TypeVar("C", bound=BuilderModel)
 # class BuilderBase(ABC, Generic[C, ItemT]):
@@ -111,26 +109,33 @@ class BuilderBase(ABC, BuilderProtocol, Generic[C]):
         return None
     def post_failed_phase(self, phase: ExecutionLifecyclePhase) -> None:
         return None
-    def bind(self, ctx: "RunContext") -> None:
+    def bind(self, ctx: RunContextProtocol) -> None:
         """The context is passed (stage 124, DESIGN's phrase): the loader
         binds every builder it registers to the run context it made, and
-        ``_get_context()`` answers with it."""
+        ``_get_context()`` answers with it. Typed by the contract's protocol
+        (stage 125): a builder needs nothing of the kit's class."""
         self._ctx = ctx
-    def _get_context(self) -> "GlobalTypeContext":
-        """The run context this builder was bound to at registration.
+    def _get_context(self) -> RunContextProtocol:
+        """The run context this builder was bound to at registration, as the
+        contract's :class:`~cs_image_system.contract.context.RunContextProtocol`
+        (stage 125): what a builder may read of the run, and the services it
+        reaches as ``ctx.services.<name>``.
 
         One-release note (stage 124): a builder made outside the loader (a
         unit test's, a plugin's own) has no bound context and falls back to
         the process's current one; that fallback goes with the next release,
-        when every builder is bound and the shim retires. Typed as the old
-        name so the plugins' annotations keep checking; the object is a
-        :class:`~..run_context.RunContext`.
+        when every builder is bound and the shim retires.
         """
-        from typing import cast
         ctx = getattr(self, "_ctx", None)
         if ctx is None:
             ctx = current_context()
-        return cast("GlobalTypeContext", ctx)
+        return ctx
+
+    def _run_context(self) -> RunContext:
+        """The same context as the kit's own class, for the kit's base classes
+        alone (the registry behind ``reg``, say): a plugin reads the context
+        through ``_get_context()`` and the protocol, never through this."""
+        return cast(RunContext, self._get_context())
     def get_builder_path(self) -> Path:
         return Path(safe_name(self.name))
     def get_discriminator(self) -> str:
@@ -151,7 +156,7 @@ class BuilderBase(ABC, BuilderProtocol, Generic[C]):
 
     def get_executable_copy(self) -> ExecutableModel:
         ctx = self._get_context()
-        executables: dict[str, ExecutableModel] = ctx.executables
+        executables: Mapping[str, ExecutableModel] = cast(Mapping[str, ExecutableModel], ctx.executables)
         key = self.model.get_executable()
         if key is not None:
             executable = executables.get(key, None)

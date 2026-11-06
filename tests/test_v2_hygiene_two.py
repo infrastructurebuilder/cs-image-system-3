@@ -20,7 +20,7 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
-from cs_image_system.base.constants import RUN_LOCAL_FILENAMES
+from cs_image_system.contract.constants import RUN_LOCAL_FILENAMES
 from cs_image_system.base.meta_state import commit_meta_state
 from v2_support import FIXTURE_CONFIG, REPO
 

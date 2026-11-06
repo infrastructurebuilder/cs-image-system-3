@@ -23,20 +23,24 @@ the next release.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
+from cs_image_system.contract.context import RunContextProtocol, ServicesProtocol
+from cs_image_system.contract.executables import ExecutableProtocol
 from cs_image_system.contract.state import StateBuilderProtocol
 
 from . import registry
-from .constants import DEFAULT_GITIGNORE_ENTRIES, VCT
-from .lifecycle import ExecutionLifecyclePhase
-from .lifecycles import LifecycleLike, runner_script_name
+from cs_image_system.contract.constants import DEFAULT_GITIGNORE_ENTRIES, VCT
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.lifecycles import LifecycleLike
+from .lifecycles import runner_script_name
 from .meta_state import META_STATE_DIRNAME, MetaState
-from .models.provider_specific_image import ProviderSpecificImage, psi_key
-from .utils import super_safe_name
+from cs_image_system.contract.image import psi_key
+from .models.provider_specific_image import ProviderSpecificImage
+from cs_image_system.contract.names import super_safe_name
 from .finalizer import render_executable_line
 
 if TYPE_CHECKING:
@@ -62,8 +66,13 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-class RunContext:
+class RunContext(RunContextProtocol):
     """What one run knows: configuration, collections, paths, flags.
+
+    The contract's :class:`~cs_image_system.contract.context.RunContextProtocol`
+    is a base (stage 125) so pyright compares every member a plugin may
+    read; the class has more than the protocol (the registry, the
+    finalizer, the scoping flags), which is the engine's.
 
     Constructed by the loader (:func:`~.config_loader.read_config_and_transform`)
     with the full configuration; there is no partial construction and no
@@ -138,6 +147,7 @@ class RunContext:
         self._meta_state: MetaState | None = None
         self._root_group: Group | None = None       # set by the groups kind's validator (the loader)
         self._finalizer: Finalizer | None = None    # bound by the loader
+        self._services: ServicesProtocol | None = None   # bound by the loader (stage 125)
 
     # --- identity: a context is shared, never cloned
     # A model copy (`copy.deepcopy(executable)`, a builder's executable copy)
@@ -164,6 +174,21 @@ class RunContext:
 
     def bind_finalizer(self, finalizer: Finalizer) -> None:
         self._finalizer = finalizer
+
+    # --- the services behind the context (stage 125)
+    @property
+    def services(self) -> ServicesProtocol:
+        """The engine's run-bound knowledge as a plugin reaches it
+        (``ctx.services.lineage``, ``.launch``, ``.secrets``, ``.files``,
+        ``.commands``, ``.images``, ``.identity``, ``.storage``,
+        ``.meta_state``): adapters the loader binds, each delegating to the
+        module the functions live in."""
+        if self._services is None:
+            raise RuntimeError("this run context has no services bound; the loader binds them")
+        return self._services
+
+    def bind_services(self, services: ServicesProtocol) -> None:
+        self._services = services
 
     # --- flags and defaults
     @property
@@ -224,6 +249,11 @@ class RunContext:
     @property
     def verbose(self) -> bool:
         return self._verbose or False
+    @property
+    def dateformat(self) -> str:
+        """The tree's ``dateformat``: the timestamp format a build's final
+        name carries (stage 125: a plugin reads it here, not the model)."""
+        return self._read_config.dateformat
 
     # --- paths
     @property
@@ -397,10 +427,12 @@ class RunContext:
     # old context. Each delegates to ``self.finalizer``; a caller should hold
     # the finalizer (or the context) and call it directly. Gone next release.
     def extend_finalization_phase(
-        self, phase: ExecutionLifecyclePhase, executables: list[ExecutableModel]
+        self, phase: ExecutionLifecyclePhase, executables: Sequence[ExecutableProtocol]
     ) -> None:
-        """Shim (stage 124): ``ctx.finalizer.extend_finalization_phase``."""
-        self.finalizer.extend_finalization_phase(phase, executables)
+        """Shim (stage 124): ``ctx.finalizer.extend_finalization_phase``.
+        Takes the contract's executables (stage 125): what a plugin queues
+        comes from this run's ``executables`` map, the kit's models."""
+        self.finalizer.extend_finalization_phase(phase, cast("list[ExecutableModel]", list(executables)))
 
     def get_finalization_executables_for_phase(
         self, phase: ExecutionLifecyclePhase, lifecycle: LifecycleLike | None | str = "current",

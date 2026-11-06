@@ -6,15 +6,15 @@ from __future__ import annotations
 
 import copy
 from dataclasses import field
-from .model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic import Field
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 import logging
 log = logging.getLogger(__name__)
 from typing import Annotated, Any
-from ..constants import DEFAULT, SELF,  VCT
+from cs_image_system.contract.constants import DEFAULT, SELF,  VCT
 
-from ..helpers.field_helpers import fk_field, parent_field, templated_field
+from cs_image_system.contract.fields import fk_field, parent_field, templated_field
 from ..registry import current_registry
 from .builder_model import NameTyped
 from .root_item import RootItem

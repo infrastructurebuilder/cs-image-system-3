@@ -11,7 +11,7 @@ from dataclasses import field
 
 from pydantic.dataclasses import dataclass
 
-from .model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)

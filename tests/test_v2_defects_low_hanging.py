@@ -20,8 +20,8 @@ from tests.v2_support import FIXTURE_CONFIG, V2Run, copy_config, load_context, r
 # ---------------------------------------------------- 1. the dummy builders
 
 def test_the_dummy_builders_return_an_asset_set_and_a_declared_dummy_builder_runs(tmp_path: Path, monkeypatch):
-    from cs_image_system.base.basic.asset import AssetSet
-    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.assets import AssetSet
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     from cs_image_system.dummy_plugin.dummy_builders import DummyGroupBuilder, DummyUserBuilder
     for cls in (DummyGroupBuilder, DummyUserBuilder):
         out = cls.generate_items_during(SimpleNamespace(), ExecutionLifecyclePhase.GROUP_GENERATION)  # type: ignore[arg-type]
@@ -118,9 +118,10 @@ def test_the_previous_location_file_carries_no_record_only_key():
 # ------------------------- 7. a GCE instance receives the build it baked
 
 def test_the_gce_root_receives_the_build_its_run_baked_under_its_own_variable(tmp_path: Path, monkeypatch):
-    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
-    from cs_image_system.base.lifecycles import Lifecycle
-    from cs_image_system.base.models.provider_specific_image import GenericProviderSpecificImage, PSISourceKind
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.lifecycles import Lifecycle
+    from cs_image_system.contract.image import PSISourceKind
+    from cs_image_system.base.models.provider_specific_image import GenericProviderSpecificImage
     run = V2Run(tmp_path, monkeypatch)
     try:
         assert run.run(["instance-image"], apply=False).ok
@@ -143,7 +144,7 @@ def test_the_gce_root_receives_the_build_its_run_baked_under_its_own_variable(tm
 # ------------------------------ 8. the attributes probe step can load
 
 def test_the_attributes_probe_step_carries_the_configuration(tmp_path: Path, monkeypatch):
-    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
     root = copy_config(tmp_path)
     p = root / "groups" / "group-tcmet.yaml"
@@ -187,7 +188,7 @@ def test_the_ssm_profile_wins_the_bake_when_both_profiles_are_set(tmp_path: Path
 
 def test_a_dry_run_never_asks_the_registry_for_a_hostname_claim(tmp_path: Path, monkeypatch):
     from cs_image_system.base import launch_params as lp
-    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.contract.lifecycles import Lifecycle
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
     calls: list[str] = []
 

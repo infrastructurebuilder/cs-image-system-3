@@ -18,7 +18,7 @@ place the file and the agent are named.
 
 from __future__ import annotations
 
-from cs_image_system.base.launch_params import hostname_problems
+from cs_image_system.contract.launch_vocabulary import hostname_problems
 from cs_image_system.contract.group import ALIASES_CHANGED, ALIASES_UNCHANGED
 
 SFTD_YAML = "/etc/sft/sftd.yaml"

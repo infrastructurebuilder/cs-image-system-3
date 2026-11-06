@@ -895,7 +895,7 @@ key, a non-integer `size`/`capacity_gb`, a missing GCS `bucket_name`, a
 configuration does not load, so `validate` and `run` exit 1 and
 `preflight` reports the load failure. The plugin adds no validator of its
 own; these are the base models' rules
-([model_config.py](../base/src/cs_image_system/base/models/model_config.py),
+([model_config.py](../contract/src/cs_image_system/contract/model_config.py),
 [builder_model.py](../base/src/cs_image_system/base/models/builder_model.py)).
 
 **At `validate` (the core, through this plugin's hooks).**

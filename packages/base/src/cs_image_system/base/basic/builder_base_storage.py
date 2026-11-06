@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, TypeVar
 
 
-from ..constants import VCT
+from cs_image_system.contract.constants import VCT
 from .builder_base import BuilderBase
 from cs_image_system.contract.storage import StorageBuilderProtocol
 from ..models.storage import Storage
@@ -15,16 +15,10 @@ from ..models.storage_builder import StorageBuilderModel
 if TYPE_CHECKING:
     from ..models.executable import ExecutableModel
 
-# Attachment cardinality a storage plugin declares (N10/N16): how many
-# instances may mount one storage instance at a time.
-CARDINALITY_SINGLE = "single"
-CARDINALITY_MANY = "many"
-
-#: hygiene XII item 22 (the walk's F50): the startup script says, per declared
-#: mount point, whether it is mounted -- one line a verification can read off
-#: the cloud's serial console by name. The kernel's own `XFS (...): Ending clean
-#: mount` lines count the image's filesystems too, so a count could not fail.
-MOUNT_MARK = "csis-mount:"
+# The attachment cardinalities a storage plugin declares and the mount mark
+# the startup script writes are the contract's vocabulary; this path keeps them.
+from cs_image_system.contract.storage_vocabulary import CARDINALITY_MANY, CARDINALITY_SINGLE  # noqa: F401, E402
+from cs_image_system.contract.launch_vocabulary import MOUNT_MARK  # noqa: F401, E402
 
 
 def mount_mark_line(mount_point: str) -> str:

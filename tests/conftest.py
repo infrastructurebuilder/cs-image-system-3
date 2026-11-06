@@ -16,6 +16,15 @@ from __future__ import annotations
 import pytest
 
 
+def pytest_sessionstart(session) -> None:
+    """Stage 125: the installed plugins are held to the contract ONCE, as
+    shipped, when the loader discovers them -- before any test replaces a
+    hook with a stub of its own (a stub's parameter names are the test's,
+    not the plugin's, and are no verdict on the plugin)."""
+    from cs_image_system.base.loader import discover_plugins
+    discover_plugins()
+
+
 @pytest.fixture(autouse=True)
 def _isolated_credential_caches(tmp_path_factory, monkeypatch):
     d = tmp_path_factory.mktemp("aws-empty")

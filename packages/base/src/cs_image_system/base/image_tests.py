@@ -32,8 +32,14 @@ lineage record notes how many assertions the build passed.
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .run_context import RunContext
+
+
 import shlex
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from .capabilities import (
     admin_public_keys,
@@ -45,8 +51,6 @@ from cs_image_system.base.models.container_builder import ContainerBuilderModel
 from .os_types import os_type_for_family
 from .capabilities import image_chain
 
-if TYPE_CHECKING:
-    from .global_context import GlobalTypeContext
 
 KNOWN_KEYS = {"files", "packages", "commands", "services_enabled", "users"}
 # stage 14: `tests.post_bake` is the same vocabulary plus `mounts`, run ON a
@@ -185,7 +189,7 @@ def declared_test_commands(spec: dict[str, Any], *, services: bool = True,
     return out
 
 
-def _admin_verify(ctx: "GlobalTypeContext", base: Any) -> list[str]:
+def _admin_verify(ctx: "RunContext", base: Any) -> list[str]:
     user = base.admin_user or "csisadmin"
     keys = admin_public_keys(ctx, base=base)
     cmds = [f"# verify: admin user {user}", f"id -u {user} >/dev/null 2>&1",
@@ -213,7 +217,7 @@ def _runtime_of(builder: Any) -> str | None:
         return None
 
 
-def _has_init_system(ctx: "GlobalTypeContext", runtime_name: str | None) -> bool:
+def _has_init_system(ctx: "RunContext", runtime_name: str | None) -> bool:
     """Whether bakes on ``runtime_name`` have an init system to enable
     services with: every runtime but a container one (stage 103)."""
     if not runtime_name:
@@ -222,11 +226,11 @@ def _has_init_system(ctx: "GlobalTypeContext", runtime_name: str | None) -> bool
     return not isinstance(getattr(rtb, "model", None), ContainerBuilderModel)
 
 
-def _os_type_of(ctx: "GlobalTypeContext", osb: Any) -> type | None:
+def _os_type_of(ctx: "RunContext", osb: Any) -> type | None:
     return os_type_for_family(osb.get_family()) if osb is not None else None
 
 
-def base_image_verify_commands(ctx: "GlobalTypeContext", base: Any, runtime_name: str) -> list[str]:
+def base_image_verify_commands(ctx: "RunContext", base: Any, runtime_name: str) -> list[str]:
     osb = ctx.os_builders.get(base.get_name())
     family = osb.get_family() if osb is not None else None
     cmds = _admin_verify(ctx, base)
@@ -258,14 +262,14 @@ def base_image_verify_commands(ctx: "GlobalTypeContext", base: Any, runtime_name
     return cmds
 
 
-def root_os_type(ctx: "GlobalTypeContext", image: Any) -> type | None:
+def root_os_type(ctx: "RunContext", image: Any) -> type | None:
     """The OS type of the instance image's root base image (None when the
     chain reaches no OS builder)."""
     _, root = image_chain(ctx, image)
     return _os_type_of(ctx, ctx.os_builders.get(root) if root else None)
 
 
-def instance_image_verify_commands(ctx: "GlobalTypeContext", image: Any, runtime_name: str | None = None) -> list[str]:
+def instance_image_verify_commands(ctx: "RunContext", image: Any, runtime_name: str | None = None) -> list[str]:
     cmds: list[str] = []
     group = getattr(image, "group", None)
     gb = group_builder_of(ctx, group) if group else None
@@ -296,7 +300,7 @@ def assertion_count(cmds: list[str]) -> int:
     return sum(1 for c in cmds if not c.startswith("#"))
 
 
-def finalize_provisioner(ctx: "GlobalTypeContext", source_label: str,
+def finalize_provisioner(ctx: "RunContext", source_label: str,
                          runtime_name: str, os_family: str | None) -> list[str]:
     """The runtime's bake-finalize commands as the very last provisioner of
     a bake (finding 47) -- cloud-specific image hygiene, after verification

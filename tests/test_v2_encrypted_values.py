@@ -30,7 +30,7 @@ from cs_image_system.base.encryption import (
     is_marker,
     rotate_text,
 )
-from cs_image_system.base.models.model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from v2_support import FIXTURE_CONFIG, V2Run
 
 

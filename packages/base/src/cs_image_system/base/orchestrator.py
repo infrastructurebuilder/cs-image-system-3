@@ -9,8 +9,8 @@ log = logging.getLogger(__name__)
 
 from . import template_utils
 from .encryption import Decrypted, mark_plaintexts
-from .helpers.field_helpers import lookup_dataclass_field
-from .helpers import field_kinds
+from cs_image_system.contract.fields import lookup_dataclass_field
+from cs_image_system.contract import field_kinds
 from cs_image_system.contract.core import (
     NameTypedProtocol,
     ParentPropertyHoldingProtocol,
@@ -23,7 +23,7 @@ from cs_image_system.contract.core import (
 from dataclasses import MISSING, fields, is_dataclass
 from typing import Any
 import jinja2
-from .constants import DEFAULT, DEFERRED_BUILDER_VCT, DEFERRED_ITEM_VCT, FK_ALSO_SET_ON_UPDATE, FK_TARGET, IS_DEFERRED_LIST_FK, IS_DEFERRED_LIST_GENERATED, IS_FK, IS_REPLACE, NONE, OOPS_DEFAULTS, STATE_BACKEND_FIELD, VCT, REPLACE_VALUE
+from cs_image_system.contract.constants import DEFAULT, DEFERRED_BUILDER_VCT, DEFERRED_ITEM_VCT, FK_ALSO_SET_ON_UPDATE, FK_TARGET, IS_DEFERRED_LIST_FK, IS_DEFERRED_LIST_GENERATED, IS_FK, IS_REPLACE, NONE, OOPS_DEFAULTS, STATE_BACKEND_FIELD, VCT, REPLACE_VALUE
 
 from .singleton import singleton
 
@@ -53,8 +53,7 @@ def default_fk_value(reg: Any, obj: Any, target: VCT) -> str | None:
     write. A runtime model's own field, and a model without a runtime (the
     identity roots), fall through to the default backend."""
     if target == VCT.STATE_BACKEND_MODEL:
-        classifier: Any = getattr(obj, "csis_classifier", None)
-        classified: Any = classifier() if callable(classifier) else None
+        classified = obj.csis_classifier() if isinstance(obj, PluginArtifactProtocol) else None
         is_runtime = classified is not None and registry.sanitize_classifier(classified) == VCT.RUNTIME_BUILDER_MODEL
         runtime_name = None if is_runtime else getattr(obj, "runtime", None)
         if runtime_name in OOPS_DEFAULTS and not is_runtime and hasattr(obj, "runtime"):
@@ -238,8 +237,10 @@ class TemplateResolver:
                 if not builder_instance:
                     raise KeyError(f"Could not resolve builder '{builder_name}' referenced in {obj}")
                 
-                # Get the true underlying type 
-                true_type = getattr(builder_instance, "type_", None)
+                # Get the true underlying type: the registry holds a builder or its
+                # model under this classification, and both name their type
+                # (NameTypedProtocol; the protocol check is the dispatch, stage 125)
+                true_type = builder_instance.get_type() if isinstance(builder_instance, NameTypedProtocol) else None
                 
                 # Get the target model class based on the true type
                 target_cls = reg.get_model(deferred_item_vct, true_type) if true_type else None
@@ -284,13 +285,13 @@ class TemplateResolver:
                         # runtime subconfig, parented in the model's __post_init__) keeps
                         # that parent; this used to overwrite it with the builder's id and
                         # warn four times per load
-                        if hasattr(obj, "global_id") and not getattr(concrete_mod, "_model_id", None):
-                            concrete_mod.model_id = getattr(obj, "global_id")
+                        if isinstance(obj, NameTypedProtocol) and not concrete_mod.model_id:
+                            concrete_mod.model_id = obj.global_id
                     except Exception as e:
                         log.warning(f"Structured object {concrete_mod} does not have a valid _model_id. It will not be added to the flattened map for template resolution. Error: {e}")
-                if hasattr(concrete_mod, "global_id"):
+                if isinstance(concrete_mod, NameTypedProtocol):
                     try:
-                        _gid = getattr(concrete_mod, "global_id")
+                        _gid = concrete_mod.global_id
                         if _gid:
                             self.flattened_map[_gid] = concrete_mod
                     except Exception as e:
@@ -319,7 +320,7 @@ class TemplateResolver:
                 if fkobj:
                     resolved_fks.append(fkobj)
                     # Also add to context for template resolution
-                    if hasattr(fkobj, "global_id"):
+                    if isinstance(fkobj, NameTypedProtocol):
                         self.flattened_map[fkobj.global_id] = fkobj
                 else:
                     log.warning(f"Could not resolve FK with id '{fk_id}' for field '{dfield}' in object '{obj}'. It will remain as the raw ID value.")

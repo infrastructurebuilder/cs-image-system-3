@@ -7,7 +7,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from warnings import deprecated
 
-from .. import utils
+from cs_image_system.contract.names import safe_name
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -22,8 +22,8 @@ if TYPE_CHECKING:
     from .builder_base_os import OsBuilderBase
 
 from cs_image_system.base.registry import current_registry
-from ..constants import DEFAULT, VCT
-from ..lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.constants import DEFAULT, VCT
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
 from .builder_base import BuilderBase
 from ..lineage import bake_reason
@@ -53,7 +53,7 @@ class ImageBuilderBase(BuilderBase[TIMAGE], ImageBuilderProtocol):
 
     def get_block_path_for_phase(self, phase: ExecutionLifecyclePhase, block: str = DEFAULT, discriminator: str | None = None, suffix: str | None = None) -> Path:
         name_for_phase = (
-            f"{utils.safe_name(self.name)}-{phase.value}"
+            f"{safe_name(self.name)}-{phase.value}"
             f"{f'-{discriminator}' if discriminator else ''}"
             f"{f'-{block}' if block and block != DEFAULT else ''}"
             f"{suffix if suffix else ''}"
@@ -118,7 +118,8 @@ class ImageBuilderBase(BuilderBase[TIMAGE], ImageBuilderProtocol):
         # Convergent bakes (stage 9): an image whose series head was built
         # from the same inputs is current and leaves no bake surface at all.
         if hasattr(ctx, "meta_state"):
-            imgs = [i for i in imgs if bake_reason(ctx, i, rt) is not None]
+            run = self._run_context()
+            imgs = [i for i in imgs if bake_reason(run, i, rt) is not None]
         return imgs
 
 

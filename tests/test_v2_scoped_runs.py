@@ -169,7 +169,7 @@ def test_storage_transitions_are_recorded_only_for_roots_that_applied(v2):
     """The after-apply storage hook reads the list the same way: a copy
     without meta-state has every storage pending None -> active; with the
     flag listing the AWS runtime alone, only the AWS storages become real."""
-    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.contract.lifecycles import Lifecycle
     from cs_image_system.base.read_models import record_storage_transitions
     assert v2.run(["storage"], apply=False).ok
     ms = v2.ctx.meta_state

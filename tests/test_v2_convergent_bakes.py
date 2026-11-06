@@ -264,7 +264,7 @@ def test_instance_follow_plans_a_replacement_and_moves_the_pin_after_apply(conve
     tf = "\n".join(p.read_text() for p in (run.generated / "instance-image" / "tofu-gce").rglob("*.tf"))
     assert new_dask in tf and old_dask not in tf
     assert run.ctx.meta_state.instance_pin("gce-test") == old_dask     # nothing moved by generation
-    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     run.ctx.config["apply_instances"] = ["gcloud-east1"]
     run.ctx.instance_builders["tofu-gce"].post_finalize_phase(ExecutionLifecyclePhase.INSTANCE_GENERATION)
     assert run.ctx.meta_state.instance_pin("gce-test") == new_dask

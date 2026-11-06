@@ -6,7 +6,7 @@
 from types import SimpleNamespace
 from typing import Any, cast
 
-from cs_image_system.base.utils import render_module_call
+from cs_image_system.contract.hcl import render_module_call
 from cs_image_system.tf_ebs_instance_plugin.tf_storage_builder import (
     TofuEfsStorageBuilder,
     TofuS3StorageBuilder,
@@ -30,7 +30,9 @@ def _builder(variables=None, networking=None) -> Any:
     model = SimpleNamespace(variables=variables or EfsVariables(),
                             get_runtime_provider=lambda: "aws")
     rtb = SimpleNamespace(model=SimpleNamespace(networking=networking)) if networking else None
-    ctx = SimpleNamespace(runtime_builders={"aws": rtb} if rtb else {})
+    # the one service the tags reach (stage 125): a lineage that labels nothing
+    services = SimpleNamespace(lineage=SimpleNamespace(config_tags=lambda: {}))
+    ctx = SimpleNamespace(runtime_builders={"aws": rtb} if rtb else {}, services=services)
     stub = SimpleNamespace(model=model, _get_context=lambda: ctx)
     # stage 67: the S3 module call asks the builder for the storage's bucket
     # (the storage's, else the builder's, else the name); this stub's model

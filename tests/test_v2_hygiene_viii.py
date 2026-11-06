@@ -24,7 +24,7 @@ import yaml
 from tests.v2_support import V2Run, copy_config
 
 from cs_image_system.base import launch_params as lp
-from cs_image_system.base.lifecycles import Lifecycle
+from cs_image_system.contract.lifecycles import Lifecycle
 
 A = {"instance_id": "i-aaaa0000aaaa0000a", "provider_hostname": "ip-10-0-0-1.us-east-2.compute.internal"}
 AWS = "aws-east2-runtime"

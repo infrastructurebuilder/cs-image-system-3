@@ -12,7 +12,7 @@ from unittest import mock
 
 import pytest
 
-from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.group import Group
 from cs_image_system.hashicorp_utils.collector import (
     ConfiguredTerraformProvider,

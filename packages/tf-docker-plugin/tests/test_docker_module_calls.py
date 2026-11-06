@@ -13,7 +13,7 @@ from typing import Any, cast
 import pytest
 
 from cs_image_system.base.models.container_builder import ContainerMachineType
-from cs_image_system.base.models.provider_specific_image import PSISourceKind
+from cs_image_system.contract.image import PSISourceKind
 from cs_image_system.docker_runtime.docker_provider_specific_image import DockerProviderSpecificImage
 from cs_image_system.tf_docker_plugin.tf_docker_instance_builder import (
     TofuDockerInstanceBuilder, cpus_as_read_back, generation_of, memory_mb)
@@ -37,7 +37,9 @@ def _rtb(types: dict[str, dict[str, Any]] | None = None, default="small", networ
 
 
 def _ctx(psi):
-    return SimpleNamespace(get_provider_specific_image=lambda source, runtime: psi)   # no meta_state: nothing pinned
+    # no meta_state: nothing pinned; the one service reached (stage 125) is a lineage that labels nothing
+    services = SimpleNamespace(lineage=SimpleNamespace(config_tags=lambda: {}))
+    return SimpleNamespace(get_provider_specific_image=lambda source, runtime: psi, services=services)
 
 
 def _module_args(psi, instance=None, rtb=None, params=None):

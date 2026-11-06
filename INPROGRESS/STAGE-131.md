@@ -1,7 +1,7 @@
 # 131. Registrations carry their plugin's namespace
 
 **Status: OPEN 2026-11-04. Waits for "do 131". Any time after
-§120; before [§125](STAGE-125.md) item 5 gives the
+§120; before §125 item 5 gives the
 contract its version, since this stage adds a field to
 `PluginMetadata`.**
 
@@ -88,7 +88,7 @@ whose.
 (`PLUGIN_TYPEMAP`) and the registry's `hasattr` checks as a second
 type system; this stage keys the tables by a typed tuple and adds no
 string dispatch, and leaves the `hasattr` dispatch to
-[§125](STAGE-125.md) item 4. The registry stays a singleton here;
+§125 item 4. The registry stays a singleton here;
 §124 item 2's decision on dropping it is unchanged.
 The namespace is derived from packaging, not from a provider word
 (§121). Nothing worsens; no question before

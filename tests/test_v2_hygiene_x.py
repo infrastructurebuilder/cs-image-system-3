@@ -138,8 +138,8 @@ def _manifest(path: Path, amis: dict[str, str], uuid: str = "u1") -> None:
 
 
 def _instance_bake(run: V2Run):
-    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
-    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.lifecycles import Lifecycle
     assert run.run(["base-image", "instance-image"], apply=False).ok
     run.ctx.current_lifecycle = Lifecycle.INSTANCE_IMAGE
     return run.ctx.image_builders["pckr-ebs-ans"], ExecutionLifecyclePhase.IMAGE_GENERATION
@@ -178,7 +178,7 @@ def test_a_failed_phase_records_the_builds_that_completed_and_nothing_else(run, 
 
 
 def test_other_phases_record_nothing_after_a_failure(run):
-    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     builder, _ = _instance_bake(run)
     try:
         _manifest(_block_dir(run, "block-000") / "manifest.json", {"imgfile-basic-dask": "ami-0dask0001"})
@@ -211,8 +211,8 @@ class _Builder:
 @pytest.mark.parametrize("how", ["exit code", "exception"])
 def test_the_runner_calls_the_failure_hook_instead_of_post(run, tmp_path, how):
     from cs_image_system.base.commands.run_lifecycles import _execute_in_process
-    from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
-    from cs_image_system.base.lifecycles import Lifecycle
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.lifecycles import Lifecycle
     calls: list[str] = []
 
     def execute(skips: bool = False):

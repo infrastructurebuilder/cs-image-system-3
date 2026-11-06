@@ -32,8 +32,11 @@ class GcsStateBuilder(StateBuilderBase[Q]):
         the preflight with -- found through the registry by its type key,
         so this plugin depends on no other. Without that plugin the
         session is present and NOT JUDGED, and the line says why."""
+        # a class-level session read, before any run is loaded and with no
+        # context to reach a service through: the one kit import this plugin
+        # keeps (stage 125's committed exception; the contract's
+        # ``session_status`` takes the settings and the executables alone)
         from cs_image_system.base.registry import current_registry
-        # a class-level session read, before any run is loaded (stage 124 shim)
         runtime = current_registry().runtime_builder_classes().get(GCLOUD_RUNTIME_TYPE)
         hook = cast(Callable[[Mapping[str, Any], Mapping[str, Any]], SessionStatus | None] | None,
                     getattr(runtime, "session_status", None))

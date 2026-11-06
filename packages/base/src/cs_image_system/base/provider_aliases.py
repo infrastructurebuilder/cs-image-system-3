@@ -53,7 +53,7 @@ from cs_image_system.contract.group import ALIASES_CHANGED
 from . import power_state
 from .capabilities import group_builder_of
 from .launch_params import canonical_hostname, hostname_problems
-from .lifecycles import Lifecycle
+from cs_image_system.contract.lifecycles import Lifecycle
 from .utils import apply_enabled
 
 if TYPE_CHECKING:

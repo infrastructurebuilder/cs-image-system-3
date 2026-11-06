@@ -5,7 +5,7 @@
 from __future__ import annotations
 import logging
 
-from .constants import VCT
+from cs_image_system.contract.constants import VCT
 from .basic.abstract_plugin_metadata import AbstractPluginMetadata
 
 log = logging.getLogger(__name__)

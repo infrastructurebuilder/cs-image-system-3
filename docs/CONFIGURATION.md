@@ -8,7 +8,7 @@ fixture under [`tests/fixtures/config/`](../tests/fixtures/config/) supplies
 every example. Its people are synthetic personas on example domains.
 
 Every model is a pydantic dataclass with one shared configuration
-([`model_config.py`](../packages/base/src/cs_image_system/base/models/model_config.py)):
+([`model_config.py`](../packages/contract/src/cs_image_system/contract/model_config.py)):
 
 - an **unknown key is an error** (`extra="forbid"`), naming the field path;
 - **numbers become strings** where a string is declared

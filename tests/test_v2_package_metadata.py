@@ -11,6 +11,9 @@ description, readme and urls an index page shows (41.8); the root is the
 buildable `cs-image-system` that depends on all of them (41.3); and
 `bump-my-version` moves every version line and every pin at once under the
 MAJOR.MINOR.PATCH[.devN] scheme (41.4, 41.5), proven on a copy of the tree.
+The one exception is the contract (stage 125): its version is its own, every
+dependent pins it to a range, and the bump leaves it alone
+(tests/test_v2_contract_version.py holds that side).
 """
 from __future__ import annotations
 
@@ -37,6 +40,7 @@ PACKAGES = sorted(p for p in (REPO / "packages").iterdir() if (p / "pyproject.to
 ROOT = REPO / "pyproject.toml"
 OWN = "cs-image-system"
 NAMESPACE = "cs_image_system"
+CONTRACT = "cs-image-system-contract"
 STDLIB = set(sys.stdlib_module_names)
 
 
@@ -162,19 +166,34 @@ def test_a_package_depends_on_every_sibling_whose_modules_it_imports(package: Pa
             assert providers[sub] in reachable, f"{package.name} imports {module} but never reaches {providers[sub]}"
 
 
+def contract_range(contract_version: str) -> str:
+    """The range a dependent pins the contract to: the compatible series of
+    its version (``>=0.1,<0.2`` for a 0.x, where a minor is the breaking
+    step; ``>=1,<2`` from 1.0 on)."""
+    major, minor = (int(x) for x in contract_version.split(".")[:2])
+    return f"<0.{minor + 1},>=0.{minor}" if major == 0 else f"<{major + 1},>={major}"
+
+
 def test_every_sibling_pin_is_exactly_the_shared_version():
     """41.2: the packages release together from one tag, so `>=` would let versions
     mix and `~=` buys nothing; every version line and every pin is the one
-    version, and bump-my-version's current_version is it too."""
+    version, and bump-my-version's current_version is it too. The contract is
+    the exception (stage 125): its version is its own and every dependent
+    pins the range of its compatible series."""
     root = tomllib.loads(ROOT.read_text())
     version = root["project"]["version"]
     assert root["tool"]["bumpversion"]["current_version"] == version
     assert re.fullmatch(r"\d+\.\d+\.\d+(\.dev\d+)?", version), version
+    contract = _project(REPO / "packages/contract/pyproject.toml")["version"]
     for path in [ROOT, *(p / "pyproject.toml" for p in PACKAGES)]:
         project = _project(path)
-        assert project["version"] == version, path
+        if canonicalize_name(project["name"]) == CONTRACT:
+            assert project["version"] == contract
+        else:
+            assert project["version"] == version, path
         for name, req in _requirements(project)[0].items():
-            assert str(req.specifier) == f"=={version}", f"{project['name']} pins {name} as {req.specifier or 'unpinned'}"
+            expected = contract_range(contract) if name == CONTRACT else f"=={version}"
+            assert str(req.specifier) == expected, f"{project['name']} pins {name} as {req.specifier or 'unpinned'}"
 
 
 def test_the_root_is_the_whole_system_in_one_install():
@@ -230,8 +249,10 @@ def tree(tmp_path: Path) -> Path:
 
 def test_a_bump_moves_every_version_line_and_every_pin_at_once(tree: Path):
     """41.4: one `bump-my-version bump patch` over a copy of the tree leaves no
-    trace of the old version, and every version line and pin is the new one."""
+    trace of the old version, and every version line and pin is the new one;
+    the contract's own version and the range its dependents pin are untouched."""
     old = tomllib.loads(ROOT.read_text())["project"]["version"]
+    contract = _project(REPO / "packages/contract/pyproject.toml")["version"]
     r = _bump(tree, "bump", "patch")
     assert r.returncode == 0, r.stdout + r.stderr
     new = tomllib.loads((tree / "pyproject.toml").read_text())["tool"]["bumpversion"]["current_version"]
@@ -241,9 +262,13 @@ def test_a_bump_moves_every_version_line_and_every_pin_at_once(tree: Path):
         lines = [ln for ln in text.splitlines() if not ln.lstrip().startswith("#")]     # a comment may show an example
         assert not any(old in ln for ln in lines), f"{path.relative_to(tree)} still carries {old}"
         project = tomllib.loads(text)["project"]
-        assert project["version"] == new, path
+        if canonicalize_name(project["name"]) == CONTRACT:
+            assert project["version"] == contract, "the bump moved the contract's own version"
+        else:
+            assert project["version"] == new, path
         for name, req in _requirements(project)[0].items():
-            assert str(req.specifier) == f"=={new}", (path, name)
+            expected = contract_range(contract) if name == CONTRACT else f"=={new}"
+            assert str(req.specifier) == expected, (path, name)
     assert not (tree / ".git").exists() and not list(tree.rglob("*.orig"))       # commit = false, tag = false
 
 

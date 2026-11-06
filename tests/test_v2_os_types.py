@@ -153,8 +153,13 @@ def test_an_alpine_image_bakes_through_the_hooks(v2):
 
 
 def test_the_filestore_storage_bakes_apk_on_alpine():
+    from cs_image_system.base.os_types import os_type_for_family
     from cs_image_system.tf_gcp_plugin.tf_gcp_storage_builder import TofuFilestoreStorageBuilder
-    stub = cast(Any, SimpleNamespace(get_name=lambda: "fs"))
+    # the builder asks the images service for the OS type (stage 125): the stub's
+    # context carries that one service, answered by the kit's own lookup
+    images = SimpleNamespace(os_type_for_family=os_type_for_family)
+    ctx = SimpleNamespace(services=SimpleNamespace(images=images))
+    stub = cast(Any, SimpleNamespace(get_name=lambda: "fs", _get_context=lambda: ctx))
     lines = TofuFilestoreStorageBuilder.base_image_prerequisites(stub, "alpine")
     assert lines[1] == "sudo apk add --no-cache nfs-utils"
     _says_only_apk(lines)

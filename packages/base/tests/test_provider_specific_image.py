@@ -10,7 +10,7 @@ import types
 import pytest
 
 from cs_image_system.base import registry as _registry
-from cs_image_system.base.constants import VCT
+from cs_image_system.contract.constants import VCT
 from cs_image_system.base.models.provider_specific_image import (
     GenericProviderSpecificImage,
     ProviderSpecificImage,
@@ -156,6 +156,8 @@ class TestRuntimeBuilderCreation:
             def _get_context(self):
                 # stage 124: a builder registers into its run's registry
                 return types.SimpleNamespace(reg=_registry.current_registry())
+
+            _run_context = _get_context      # the kit's own accessor to the registry (stage 125)
 
         return Stub()
 

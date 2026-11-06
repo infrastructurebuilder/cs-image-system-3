@@ -23,7 +23,7 @@ import pytest
 from cs_image_system.base import alias_pool as ap
 from cs_image_system.base import launch_params as lp
 from cs_image_system.base import provider_aliases as pa
-from cs_image_system.base.lifecycles import Lifecycle
+from cs_image_system.contract.lifecycles import Lifecycle
 from tests.v2_support import V2Run
 
 POOL = "bright-otter\nquiet-heron\n\n# spent-eel  -- instance old as old-001 2026-09-21T10:00:00Z run r0\nred-cod\n"

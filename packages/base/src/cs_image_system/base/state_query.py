@@ -51,7 +51,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import field
-from .models.model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -64,7 +64,7 @@ from .basic.builder_base_group import GroupBuilderBase
 from .capabilities import group_builder_of
 from .basic.builder_base_runtime import RuntimeBuilderBase
 from .basic.builder_base_storage import StorageBuilderBase
-from .constants import STATE_REPORT_FILENAME
+from cs_image_system.contract.constants import STATE_REPORT_FILENAME
 from .lineage import CONFIG_TAG, TAG_PREFIX, belongs_to_another_configuration
 from .meta_state import assert_public_safe
 from . import power_state
@@ -74,7 +74,7 @@ from .provider_aliases import instance_identity_notes
 
 if TYPE_CHECKING:
     from .global_context import GlobalTypeContext
-    from .lifecycles import Lifecycle
+    from cs_image_system.contract.lifecycles import Lifecycle
 
 log = logging.getLogger(__name__)
 

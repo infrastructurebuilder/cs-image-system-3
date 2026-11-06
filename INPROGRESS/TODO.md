@@ -12,7 +12,7 @@ Stages from the re-examination of 2026-11-03.
 [REEXAMINE4.md](REEXAMINE4.md) digests the three reviews
 ([REEXAMINE1.md](REEXAMINE1.md), [REEXAMINE2.md](REEXAMINE2.md),
 [REEXAMINE3.md](REEXAMINE3.md)); each stage file
-([§125](STAGE-125.md) to [§130](STAGE-130.md); §118 to §124 landed) cites the review section
+([§126](STAGE-126.md) to [§130](STAGE-130.md); §118 to §125 landed) cites the review section
 it answers. The conventions are the ones above: one file per stage; a
 stage is a plan until the operator says "do N"; **YOUR DECISION** marks
 an operator choice and states the default; **USER** marks a step only
@@ -35,11 +35,11 @@ repositories.
 to follow (REEXAMINE1 §5.2, REEXAMINE3 §3.1) and that
 [§116](STAGE-116.md)'s proof as planned would install the AWS runtime
 under the GCE one (REEXAMINE1 §5.3, REEXAMINE3 §3.1 flaw 1). The
-proposal: §118 to [§125](STAGE-125.md) land before
+proposal: §118 to §125 land before
 [§113](STAGE-113.md) is executed, each small and each proved by the
 golden; [§113](STAGE-113.md) is then re-planned on the numbers
-§124 prints, and [§125](STAGE-125.md) absorbs
-[§114](STAGE-114.md) and [§115](STAGE-115.md). **YOUR DECISION:** that
+§124 prints, and §125 absorbs
+§114 and §115. **YOUR DECISION:** that
 order (the default), or [§113](STAGE-113.md) first as its file plans it.
 
 
@@ -47,9 +47,9 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
 
 - §118 and §119, the documents, landed 2026-11-04; the rolling
   documentation stage is not open.
-- §120 to §124, the first five seams, landed 2026-11-04 to
-  2026-11-05; [§125](STAGE-125.md), the last one, waits for its
-  "do 125".
+- §120 to §125, the six seams, landed 2026-11-04 to 2026-11-05; §125
+  absorbed §114 and §115, so the contract holds the run context, its
+  services and its own version, and the §30 shims are gone.
 - [§126](STAGE-126.md), the package shape: a decision stage; before
   [§112](STAGE-112.md) and [§116](STAGE-116.md).
 - [§127](STAGE-127.md), loading once: after §124.
@@ -57,14 +57,15 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
   sources stop narrating: any time after §119.
 - [§130](STAGE-130.md), hygiene bundle XXIV: the open bundle for the small findings.
 - [§131](STAGE-131.md), registrations carry their plugin's namespace:
-  planned 2026-11-04; any time after §120 and before
-  [§125](STAGE-125.md) versions the contract; waits for "do 131".
+  planned 2026-11-04; the contract is versioned (0.1.0, §125), so a
+  namespace change to the registration keys is a contract change under
+  that version; waits for "do 131".
 - [§112](STAGE-112.md), a release in two boxes: planned 2026-11-03; waits for
   "do 112".
-- [§113](STAGE-113.md) to [§116](STAGE-116.md), the decomposition (the kit and the engine, the run
-  context's protocol, the services behind it, a runtime installed from
-  outside): planned 2026-11-03 (their files), in that order; each waits for
-  its "do N". [§114](STAGE-114.md) is the commitment to the contract in substance.
+- [§113](STAGE-113.md) and [§116](STAGE-116.md), the decomposition that
+  remains (the kit and the engine; a runtime installed from outside):
+  planned 2026-11-03, §113 re-planned 2026-11-05 on §124's numbers;
+  §114 and §115 landed inside §125; each waits for its "do N".
 - §110 and §111 are landed and released in 0.1.7.dev1 (TestPyPI,
   2026-11-03); the reference's `develop` and `main` run it. The final
   0.1.7 is not cut.
@@ -78,10 +79,7 @@ and validated by the operator before its "do N")
 
 - [§112, A release in two boxes](STAGE-112.md)
 - [§113, The kit and the engine: `base` splits where the plugins stop](STAGE-113.md)
-- [§114, Tier C: the run context is a protocol](STAGE-114.md)
-- [§115, The services behind the context](STAGE-115.md)
 - [§116, A runtime installed from outside](STAGE-116.md)
-- [§125, The contract's surface, its services and its version](STAGE-125.md)
 - [§126, The package shape](STAGE-126.md)
 - [§127, Loading once, without the cloud](STAGE-127.md)
 - [§128, Tests named for behaviour](STAGE-128.md)
@@ -132,6 +130,20 @@ and validated by the operator before its "do N")
 
 **Landed since 2026-10-05** (newest first)
 
+- §125, the contract's surface, its services and its version:
+  2026-11-05, its squash commit (feature/stage-125-contract-surface
+  kept); absorbed §114 and §115. The run context is the contract's
+  (`RunContextProtocol`, `MetaStateProtocol`, thirteen services reached
+  as `ctx.services`); a plugin imports from the core only its base
+  classes, models and the two metadata abstractions
+  (`tests/test_plugin_imports.py`, four exceptions with reasons); the
+  vocabulary, the hooks entry point, the bootstrap facts protocol and
+  the enrollment registry are contract modules; the §30 shims are
+  deleted and the weekly reminder retired; the contract is versioned
+  0.1.0 on its own (0.x until the operator decides), dependents pin
+  `>=0.1,<0.2`, the release bump excludes it; 64 kit-internal members
+  left the protocols and conformance is checked when the plugins are
+  discovered.
 - §124, the run context and the engine part ways: 2026-11-05, its
   squash commit (feature/stage-124-run-context kept). The context is
   what a run knows (`run_context.py`); the loader (`config_loader.py`)

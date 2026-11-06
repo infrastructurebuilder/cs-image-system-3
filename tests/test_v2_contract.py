@@ -20,7 +20,8 @@ from pathlib import Path
 
 import pytest
 
-from cs_image_system.contract import core, group, image, instance, modification, operating_system, runtime, state, storage, user
+from cs_image_system.contract import (context, core, group, image, instance, modification, operating_system, runtime, state,
+                                      storage, user)
 from cs_image_system.contract.constants import VCT
 from cs_image_system.contract.metadata import PluginMetadata
 from cs_image_system.contract.testing import assert_conforms, conformance_problems
@@ -29,13 +30,23 @@ from v2_support import FIXTURE_CONFIG, REPO, load_context, reset_singletons
 
 CONTRACT = REPO / "packages/contract/src/cs_image_system/contract"
 LEAVES = {"constants", "model_config", "fields", "field_kinds", "lifecycle", "lifecycles", "assets", "executables",
-          "names", "hcl", "session", "commands"}
+          "names", "hcl", "session", "commands",
+          # the vocabulary (stage 125): constants and types a plugin reads, importing nothing from the package
+          "lineage_vocabulary", "launch_vocabulary", "storage_vocabulary", "identity_vocabulary", "power_state",
+          "secrets", "bootstrap", "errors",
+          # the second wave (stage 125): the enrollment-kind registry a plugin fills when it loads
+          "enrollment"}
 # what each non-leaf module may import from the package, beside the leaves
 ALLOWED = {
     "core": set(),
     "metadata": {"core"},
-    "testing": set(),
+    "testing": {"core", "runtime", "operating_system", "storage", "image", "instance", "modification", "group",
+                "user", "state"},          # protocol_for: the protocol each classification is held to (stage 125)
     "state": {"core"},
+    "context": {"core", "runtime", "operating_system", "storage", "image", "instance", "modification", "group",
+                "user", "state"},          # the run context's protocol types the builder collections (stage 125)
+    "hooks": {"context"},                  # a hook is handed the run context (stage 125)
+    "image_sources": {"image"},            # the container reference is a rule over an ImageQuery (stage 125)
     "runtime": {"core", "image"},          # the provider-specific image's enums
     "operating_system": {"core"},
     "storage": {"core"},
@@ -96,6 +107,43 @@ def test_the_library_imports_only_the_contract():
             if level == 0 and module.startswith("cs_image_system."):
                 assert module.split(".")[1] in {"contract", "hashicorp_utils"}, \
                     f"{source.relative_to(REPO)} imports {module}"
+
+
+#: Sources outside the core that still name the kit's context class or
+#: import its module (stage 125): each entry says why, and goes when the
+#: reason does. The two model methods fetch the process's current context
+#: because a model holds none (stage 124's shim); hygiene XXIV item 19
+#: empties this list.
+KIT_CONTEXT_EXCEPTIONS: tuple[tuple[str, str], ...] = (
+    ("packages/docker-runtime-plugin/src/cs_image_system/docker_runtime/docker_provider_specific_image.py",
+     "a model holds no context: the floating tag fetches the current one (stage 124 shim)"),
+    ("packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/okta_tf_models.py",
+     "a model holds no context: the gateway selector fetches the current one (stage 124 shim)"),
+)
+
+
+def test_no_plugin_names_the_kits_context():
+    """A plugin, the terraform library and the terraform roots know the run
+    context as the contract's ``RunContextProtocol`` (stage 125): no source
+    of theirs names ``GlobalTypeContext`` or ``RunContext``, and none imports
+    ``cs_image_system.base.run_context`` or ``.global_context``, beyond the
+    committed exceptions (each the fetch a model makes because it holds no
+    context). An exception no hit matches any more is stale and goes."""
+    import re
+    names = re.compile(r"\b(GlobalTypeContext|RunContext)\b")
+    packages = {p.name for p in (REPO / "packages").iterdir() if p.is_dir()} - {"base", "contract", "system"}
+    hits: list[str] = []
+    for package in sorted(packages):
+        for source in sorted(_src(package).rglob("*.py")):
+            rel = str(source.relative_to(REPO))
+            text = source.read_text()
+            imports = [m for m, level in _imports(source)
+                       if level == 0 and m in ("cs_image_system.base.run_context", "cs_image_system.base.global_context")]
+            if names.search(text) or imports:
+                hits.append(rel)
+    excused = {path for path, _ in KIT_CONTEXT_EXCEPTIONS}
+    assert sorted(set(hits) - excused) == [], sorted(set(hits) - excused)
+    assert sorted(excused - set(hits)) == [], "stale exception(s)"
 
 
 def test_the_import_order_is_a_dag():
@@ -210,7 +258,19 @@ def _core_pairs() -> list[tuple[type, type, set[str]]]:
         (GroupBuilderModel, group.GroupBuilderModelProtocol, MODEL), (GroupBuilderBase, group.GroupBuilderProtocol, set()),
         (UserBuilderModel, user.UserBuilderModelProtocol, MODEL), (UserBuilderBase, user.UserBuilderProtocol, set()),
         (StateBuilderModel, state.StateBackendModelProtocol, MODEL), (StateBuilderBase, state.StateBuilderProtocol, set()),
-    ]
+    ] + _context_pairs()
+
+
+def _context_pairs() -> list[tuple[type, type, set[str]]]:
+    """The run context, the meta-state, the provider-specific image and the
+    service adapters against the contract's context protocols (stage 125)."""
+    from cs_image_system.base.config_loader import SERVICE_PAIRS
+    from cs_image_system.base.meta_state import MetaState
+    from cs_image_system.base.models.provider_specific_image import ProviderSpecificImage
+    from cs_image_system.base.run_context import RunContext
+    return [(RunContext, context.RunContextProtocol, set()), (MetaState, context.MetaStateProtocol, set()),
+            (ProviderSpecificImage, image.ProviderSpecificImageProtocol, {"csis_name"})] + \
+        [(cls, proto, set()) for cls, proto in SERVICE_PAIRS]
 
 
 @pytest.mark.parametrize("triple", _core_pairs(), ids=lambda p: f"{p[0].__name__}:{p[1].__name__}")

@@ -14,7 +14,7 @@ from cs_image_system.contract import field_kinds
 from cs_image_system.contract.field_kinds import (
     field_kind, FK, TEMPLATED, DEFERRED_LIST, DEFERRED_LIST_FK,
 )
-from cs_image_system.base.constants import (
+from cs_image_system.contract.constants import (
     IS_FK, IS_REPLACE, IS_DEFERRED_LIST_GENERATED, IS_DEFERRED_LIST_FK,
     FIELD_KIND, VCT, NO_MODEL_ID,
 )

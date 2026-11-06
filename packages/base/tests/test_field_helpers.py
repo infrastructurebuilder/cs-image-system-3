@@ -10,11 +10,11 @@ stays byte-compatible for plugin models.
 """
 from dataclasses import dataclass, fields
 
-from cs_image_system.base.helpers.field_helpers import (
+from cs_image_system.contract.fields import (
     fk_field, templated_field, deferred_list_field, deferred_list_fk_field,
     lookup_dataclass_field,
 )
-from cs_image_system.base.constants import (
+from cs_image_system.contract.constants import (
     IS_FK, FK_TARGET, FK_ALSO_SET_ON_UPDATE, IS_REPLACE, REPLACE_VALUE,
     IS_DEFERRED_LIST_GENERATED, IS_DEFERRED_LIST_FK, DEFERRED_BUILDER_VCT,
     DEFERRED_ITEM_VCT, VCT, DEFAULT,

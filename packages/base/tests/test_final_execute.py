@@ -12,7 +12,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 from cs_image_system.base.finalizer import Finalizer
-from cs_image_system.base.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
 
 class StubExecutable:

@@ -23,7 +23,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from cs_image_system.base.mod_tests import ContainerStartError
+from cs_image_system.contract.errors import ContainerStartError
 
 log = logging.getLogger(__name__)
 
