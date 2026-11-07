@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# cs-image-system launch parameters for instance container-test-001 (N26).
+# Generated from validated configuration; immutable after launch --
+# changing them means replacing the instance.
+set -euo pipefail
+# delivered by the runtime's session (session); the platform named the machine container-test-001
+# owning group: pxgroup (gid by reference)
+GID="${group_gid}"
+# mount storage container_data (volume) at /mnt/data
+mkdir -p '/mnt/data'
+findmnt -rn '/mnt/data' >/dev/null 2>&1 && echo 'csis-mount: /mnt/data mounted' || echo 'csis-mount: /mnt/data NOT mounted'
+mkdir -p '/mnt/data/pxgroup'
+chgrp "$GID" '/mnt/data/pxgroup'
+chmod 2770 '/mnt/data/pxgroup'
+mkdir -p /var/lib/csis
+date -u +%FT%TZ > /var/lib/csis/launch-applied

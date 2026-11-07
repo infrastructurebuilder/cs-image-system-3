@@ -7,7 +7,7 @@ import pytest
 
 from types import SimpleNamespace
 
-from v2_support import bare_run
+from harness import bare_run
 
 from cs_image_system.hashicorp_utils.collector import (
     BackendRegistration,

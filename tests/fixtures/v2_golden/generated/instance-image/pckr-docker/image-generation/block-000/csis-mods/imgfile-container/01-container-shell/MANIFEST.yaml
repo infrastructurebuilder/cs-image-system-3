@@ -1,0 +1,9 @@
+content_hash: 111ba8202c9a604417659017d2697a22a45ff8bb8b9829a21f431b602f9ef758
+files:
+- inline.sh
+idempotent: unknown
+image: imgfile-container
+name: container-shell
+operation: bash
+run: 2026_08_26t12_00_00
+type: bash-remote

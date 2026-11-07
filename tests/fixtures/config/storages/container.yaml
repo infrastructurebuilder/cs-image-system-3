@@ -1,0 +1,12 @@
+storages:
+  # Stage 128 (item 4): a named docker volume on the fixture's docker runtime,
+  # mounted by the platform into the container that attaches it.
+  - name: container_data
+    type: docker-volume
+    runtime: docker-fixture
+    mount_point: /mnt/data
+    groups:
+      - pxgroup
+    state: active
+    tags:
+      purpose: data

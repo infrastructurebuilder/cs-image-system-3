@@ -89,7 +89,7 @@ def test_init_args_carry_backend_config_when_enabled(monkeypatch):
 
     from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     from cs_image_system.hashicorp_utils.collector import terraform_collector
-    from v2_support import bare_run
+    from harness import bare_run
 
     run = bare_run(config={"use_state_backends": True})     # the collector lives with the run
     col = terraform_collector(run)

@@ -22,7 +22,7 @@ from pathlib import Path
 
 import pytest
 
-from v2_support import REPO, V2Run, tree
+from harness import REPO, V2Run, tree
 
 GOLDEN = REPO / "tests" / "fixtures" / "v2_golden"
 IGNORED_FILES = {"run-summary.json", "runs.yaml",   # carry run-local detail

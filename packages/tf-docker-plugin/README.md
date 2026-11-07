@@ -253,7 +253,7 @@ names and the runtime's hooks) and `pydantic`
 (`cs-image-system-tf-ebs-instance-plugin`) or on `aws-runtime-plugin`:
 installing this plugin installs no AWS package and no `boto3`. The
 proof is the neutral-root test,
-[tests/test_v2_stage_120_neutral_root.py](../../tests/test_v2_stage_120_neutral_root.py),
+[tests/test_neutral_tofu_root.py](../../tests/test_neutral_tofu_root.py),
 which syncs an environment for this plugin and the GCE one alone and
 imports, registers and constructs both there.
 
@@ -288,12 +288,12 @@ or runtime), `config.use_state_backends`, `config.module_source_base`.
   a pinned and a deferred provider-specific image; the machine type's
   limits; the memory and cpus spellings; the volume's module arguments and
   labels; the launch-script template on a volume mount.
-- `tests/test_v2_stage_103_instances.py`: a dry run over an overlay of the
+- `tests/test_container_runtime.py`: a dry run over an overlay of the
   frozen fixture emits both roots, the module calls, the uploaded launch
   script, the environment prefix on every tofu line and the gated apply
   sequence; the hooks' answers over a stubbed daemon; the fixture and the
   golden do not change.
-- `tests/test_v2_docker_cycle_live.py` (`just test-docker-cycle`, a leg of
+- `tests/test_docker_cycle_live.py` (`just test-docker-cycle`, a leg of
   `just full-test`): the cycle on the local daemon from nothing to nothing:
   bake, launch two containers on one volume, verify, reconcile accounts,
   stop one and show the next apply leaves it stopped, start it, upgrade one

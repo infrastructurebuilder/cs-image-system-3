@@ -5,7 +5,7 @@
 """The accounts script's parts, as text: what each part asks of the machine,
 that it adopts what is equal and refuses what differs, and that it quotes
 what it is given. Whether the script really does that on EL10 and Debian is
-the container leg's question (tests/test_v2_posix_containers.py)."""
+the container leg's question (tests/test_posix_containers.py)."""
 from __future__ import annotations
 
 import subprocess

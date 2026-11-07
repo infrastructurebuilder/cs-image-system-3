@@ -68,7 +68,7 @@ runtime is defined outside it, so the system installs without any
 runtime and a runtime installs without the system's engine. The
 contract (§30) is the leaf every plugin is written against and stays
 one: `base` depends on it, never the reverse, and
-`tests/test_v2_contract.py` holds the direction. What a plugin needs
+`tests/test_contract.py` holds the direction. What a plugin needs
 beyond the contract today is a part of `base`, and that part is
 measurable. Over the 136 modules of `base` (24,649 lines), the
 transitive closure of what the sixteen plugins and hashicorp-utils
@@ -154,7 +154,7 @@ state.
 
 **Acceptance**: code only; the emission of the reference and of every
 fixture is byte-identical before and after (the bar's golden tests);
-`tests/test_v2_contract.py` holds the direction for the three packages
+`tests/test_contract.py` holds the direction for the three packages
 (contract imports nothing from kit or engine; kit imports nothing from
 engine); the closure test of item 1 is green and lists its two sets;
 no plugin's `pyproject.toml` changes; `uv tool install` of the umbrella

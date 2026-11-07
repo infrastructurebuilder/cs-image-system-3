@@ -546,7 +546,7 @@ the terraform, provider, variable, backend and remote-state blocks),
 depend on `cs-image-system-tf-ebs-instance-plugin` or on
 `cs-image-system-aws-runtime-plugin`: installing it installs no AWS
 package and no `boto3`, which the neutral-root test
-([tests/test_v2_stage_120_neutral_root.py](../../tests/test_v2_stage_120_neutral_root.py))
+([tests/test_neutral_tofu_root.py](../../tests/test_neutral_tofu_root.py))
 proves by syncing an environment for this plugin and the container one
 alone. The compute client is imported lazily, inside
 `TofuPdStorageBuilder._lookup`, so it is needed only by `state query`
@@ -1009,18 +1009,18 @@ the pin, the power state) are the runtime plugin's, not this one's.
 [tests/test_storage_variables.py](tests/test_storage_variables.py), pins
 the label merge only. The behaviour above is pinned by the repository's
 generation tests over a GCE overlay of the fixture:
-[test_v2_gcp_increment3.py](../../tests/test_v2_gcp_increment3.py) (the
+[test_gcp_runtime.py](../../tests/test_gcp_runtime.py) (the
 roots, the module arguments, the launch parameters, a local `tofu
 validate` of the generated GCE roots when tofu is installed),
-[test_v2_explore_gcp.py](../../tests/test_v2_explore_gcp.py) (the device
+[test_gcp_runtime.py](../../tests/test_gcp_runtime.py) (the device
 name and mount path agree, IAP bakes),
-[test_v2_gce_cycle.py](../../tests/test_v2_gce_cycle.py) (the wipe
+[test_gce_cycle.py](../../tests/test_gce_cycle.py) (the wipe
 script, the storage destroy whitelist, the cycle overlays),
-[test_v2_decommission.py](../../tests/test_v2_decommission.py),
-[test_v2_detach.py](../../tests/test_v2_detach.py),
-[test_v2_ephemeral.py](../../tests/test_v2_ephemeral.py),
-[test_v2_run_scoping.py](../../tests/test_v2_run_scoping.py) and
-[test_v2_state_locations.py](../../tests/test_v2_state_locations.py).
+[test_decommission.py](../../tests/test_decommission.py),
+[test_detach.py](../../tests/test_detach.py),
+[test_ephemeral.py](../../tests/test_ephemeral.py),
+[test_run_scoping.py](../../tests/test_run_scoping.py) and
+[test_state_locations.py](../../tests/test_state_locations.py).
 Nothing reaches GCP from the tests.
 
 ## When it fails

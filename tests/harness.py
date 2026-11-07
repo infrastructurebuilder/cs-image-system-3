@@ -1,0 +1,452 @@
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""Shared harness for the V2 gate tests.
+
+Every V2 test runs the real pipeline over a private COPY of the frozen
+fixture (``tests/fixtures/config``, stage 28: owned by the tests, never a
+live configuration) with all external touchpoints stubbed:
+
+* no cloud: AWS networking discovery, vendor-AMI queries and GCP queries are
+  replaced; nothing in these tests can read or write AWS/Okta;
+* no tools: ``ExecutableModel.execute`` is journaled, never run;
+* deterministic: the run timestamp and ``USER`` are pinned, and dummy okta /
+  oktapam credentials are present so command lists never depend on the
+  developer's shell.
+"""
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import types
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Callable, cast
+
+REPO = Path(__file__).resolve().parents[1]
+FIXTURE_CONFIG = REPO / "tests" / "fixtures" / "config"     # frozen (stage 28); the live tree is elsewhere
+
+FIXED_NOW = datetime(2026, 8, 26, 12, 0, 0)
+FIXED_TIMESTAMP = "20260826_120000"          # per the fixture's dateformat
+FIXED_RUN_ID = "2026_08_26t12_00_00"         # iso_sanitized
+
+VPCS = ["vpc-0c78d0d63b7a100df", "vpc-0381e9f82c9ae68e7", "default"]
+VENDOR_AMI = "ami-0feedfacecafebeef"
+# stage 128: what the fixture's docker runtime (docker-fixture) "pulls" -- a digest reference no registry holds
+DOCKER_DIGEST = "almalinux@sha256:" + "f" * 64
+
+
+class _AnySecurityGroups(dict):
+    """Stubbed account SG map: membership always true. Which security groups
+    exist is a live-account fact; the fixture's configured ids are data, not
+    values these tests should restate."""
+    def __contains__(self, key: object) -> bool:
+        return True
+
+
+class _FixedDT(datetime):
+    @classmethod
+    def now(cls, tz=None):  # type: ignore[override]
+        return FIXED_NOW
+
+
+def copy_config(tmp_path: Path, name: str = "config") -> Path:
+    """A private copy of the frozen fixture (without any generated output).
+    The transient apply_* flags are normalized to false -- a live run's
+    TEMP flag flip must never leak into tests (found live during the first
+    GCP apply, when the fixture was still the live tree); tests that want
+    a flag on set ``ctx.config`` (and the file, for apply-check)
+    themselves."""
+    import re
+    dst = tmp_path / name
+    # The frozen fixture carries no generated output and no meta-state
+    # (records of live cloud resources); the ignore list is the guard that
+    # keeps it so should either ever be copied in.
+    shutil.copytree(FIXTURE_CONFIG, dst,
+                    ignore=shutil.ignore_patterns("generated", "meta-state", ".git", ".DS_Store"))
+    cfg = dst / "cfg" / "_config.yml"
+    cfg.write_text(re.sub(r"^(  apply_\w+:) \S+.*$", r"\1 false", cfg.read_text(), flags=re.M))
+    # The live GCE runtime declares `ephemeral: true` (stage 10.4, rule 58);
+    # copies start non-ephemeral and tests that want it declare it.
+    rb = dst / "cfg" / "runtime-builders.yml"
+    rb.write_text(re.sub(r"^(\s+ephemeral:) true.*$", r"\1 false", rb.read_text(), flags=re.M))
+    # The suite's instance subjects (test, test2, gce-test) are declared in
+    # the fixture itself since stage 39; nothing is injected here.
+    # The one meta-state file a copy starts with (stage 127): the network
+    # facts record a real run would have written, saying exactly what the
+    # harness's cloud stubs answer, so an offline load adopts the same
+    # networks the stubs used to resolve at load and the emission stays put.
+    record_network_facts(dst)
+    return dst
+
+
+# the record's fixed timestamp: a dry run never rewrites the record, so the
+# copy's file is the harness's input, not the run's output
+FIXED_CHECKED_AT = "2026-01-01T00:00:00+00:00"
+
+
+def record_network_facts(root: Path, checked_at: str = FIXED_CHECKED_AT) -> Path:
+    """Write ``<root>/meta-state/runtime-facts.yaml`` for the tree under
+    ``root``, derived from its own ``cfg/*.yml`` (the ids are the tree's
+    data, not literals restated here): every aws/gcloud runtime's declared
+    network (a `default` recorded as the literal ``default``, what the
+    harness's stubs answer as the account's default), its declared subnet
+    ids and, on aws, its declared security groups -- as if a real run had
+    checked them. The path is returned."""
+    import yaml as _yaml
+    from cs_image_system.contract.constants import OOPS_DEFAULTS
+    runtimes: dict[str, dict] = {}
+    for p in sorted((root / "cfg").glob("*.y*ml")):
+        doc = _yaml.safe_load(p.read_text()) or {}
+        for r in (doc.get("runtime_builders") or []) if isinstance(doc, dict) else []:
+            if not isinstance(r, dict) or r.get("type") not in ("aws", "gcloud") or not r.get("name"):
+                continue
+            net = r.get("networking") or {}
+            network = net.get("network")
+            facts: dict = {"network": "default" if network in OOPS_DEFAULTS else str(network),
+                           "subnets": [str(s.get("subnet_id")) for s in net.get("subnets") or []]}
+            if r.get("type") == "aws":
+                facts["security_groups"] = [str(sg) for sg in net.get("addl_security_groups") or []]
+            facts["checked_at"] = checked_at
+            runtimes[str(r["name"])] = facts
+    path = root / "meta-state" / "runtime-facts.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_yaml.safe_dump({"runtimes": runtimes}, sort_keys=True, default_flow_style=False))
+    return path
+
+
+def module_path(name: str) -> Path:
+    """The directory of one installed terraform module, inside the plugin
+    that ships it (``installed_modules()[name].path``)."""
+    from cs_image_system.base.modules import installed_modules
+    return installed_modules()[name].path
+
+
+def modules_beside(config_root: Path) -> Path:
+    """Every installed module written (and stamped) into
+    ``<config_root>/../tfmodules``, where the fixture's ``module_source_base``
+    (``../tfmodules``) expects them; the directory is returned."""
+    from cs_image_system.base.modules import materialise_modules
+    dest = config_root.parent / "tfmodules"
+    report = materialise_modules(dest)
+    assert report.ok, "\n".join(report.lines())
+    return dest
+
+
+def modules_inside(config_root: Path) -> Path:
+    """Every installed module written into the tree's own ``tfmodules``
+    directory, where a starter's ``module_source_base`` (``tfmodules``)
+    expects them; the directory is returned."""
+    from cs_image_system.base.modules import materialise_modules
+    dest = config_root / "tfmodules"
+    report = materialise_modules(dest)
+    assert report.ok, "\n".join(report.lines())
+    return dest
+
+
+def docker_binary() -> str:
+    """The docker CLI the FIXTURE declares (``cfg/executables.yml``, entry
+    ``docker``) when its binary exists on this machine, else ``docker``
+    from PATH (stage 103: the container legs read the declared executable
+    instead of a literal; a CI runner's docker sits elsewhere)."""
+    import yaml
+    try:
+        doc = yaml.safe_load((FIXTURE_CONFIG / "cfg" / "executables.yml").read_text()) or {}
+        for exe in doc.get("executables") or []:
+            if isinstance(exe, dict) and exe.get("name") == "docker" and exe.get("binary"):
+                binary = str(exe["binary"])
+                if Path(binary).is_file() or shutil.which(binary):
+                    return binary
+    except (OSError, yaml.YAMLError):
+        pass
+    return "docker"
+
+
+def plain(value: Any) -> Any:
+    """The plaintext of a fixture value that may be an ``ENC[age:...]`` marker
+    (stage 33), opened with the fixture's TEST identity -- for tests that
+    address roster entries by name in the raw YAML."""
+    from cs_image_system.base.encryption import _identities_for, decrypt_marker, is_marker
+    if is_marker(value):
+        return decrypt_marker(value, _identities_for(str(FIXTURE_CONFIG / ".age-identity")))
+    return value
+
+
+class BareRun:
+    """A bare run context for a builder driven outside a run: the global
+    ``config:`` map (backends off unless given), the declared state backends
+    (none unless given) and ``plugin_state``, the slot per key the terraform
+    library keeps its collectors in, exactly as the core's context has
+    them, plus ``dry_run`` and whatever else a test sets. Two holders are
+    two runs: a collector made on one is invisible to the other."""
+
+    dry_run: bool = False
+
+    def __init__(self, **attrs: Any) -> None:
+        self.config: dict[str, Any] = attrs.pop("config", {})
+        self.state_backends: dict[str, Any] = attrs.pop("state_backends", {})
+        self._state: dict[str, Any] = {}
+        for name, value in attrs.items():
+            setattr(self, name, value)
+
+    def plugin_state(self, key: str, factory: Callable[[], Any]) -> Any:
+        if key not in self._state:
+            self._state[key] = factory()
+        return self._state[key]
+
+
+def bare_run(**attrs: Any) -> BareRun:
+    """See :class:`BareRun`."""
+    return BareRun(**attrs)
+
+
+def reset_singletons() -> None:
+    """Fresh process-wide state between loads. The run context is NO
+    singleton since stage 124 (a new context per load; the loader binds the
+    one it makes as the process's current); only the process binding is
+    dropped here so a test that forgets to load cannot see an earlier test's."""
+    from cs_image_system.base.registry import bind_current_registry
+    from cs_image_system.base.run_context import bind_current
+    from cs_image_system.base.orchestrator import Orchestrator, TemplateResolver
+    # the registry is per run too (stage 124): the loader makes the next one;
+    # the process binding is dropped so `load_plugins()` below fills a fresh one
+    bind_current_registry(None)
+    from cs_image_system.base.image_sources import ImageSourceCatalog
+    ImageSourceCatalog().reset()
+    TemplateResolver().flattened_map = {}
+    TemplateResolver().unresolved_foreign_keys = []   # the loader starts each load with a fresh list too
+    Orchestrator().invalidate_converter()
+    # the terraform and packer collectors are per-run instances kept beside
+    # the context (plugin_state): a new context starts with none, so nothing
+    # of theirs is reset here
+    bind_current(None)
+    from cs_image_system.base.loader import load_plugins
+    load_plugins()
+
+
+def stub_environment(monkeypatch) -> list[str]:
+    """Install every stub; returns the command journal."""
+    # The installed plugins are held to the contract ONCE, as shipped, before
+    # any hook below is replaced (stage 125): a stub's parameter names are the
+    # test's, not the plugin's. tests/conftest.py does this at session start
+    # for the root suite; a package's tests and `tests/golden.py` run without
+    # that conftest, so the harness does it here too (memoised: free after
+    # the first call).
+    from cs_image_system.base.loader import discover_plugins
+    discover_plugins()
+    monkeypatch.setenv("USER", "testuser")
+    monkeypatch.setenv("OKTA_API_PRIVATE_KEY", "dummy")
+    monkeypatch.setenv("TF_VAR_nos_coastal_modeling_cloud_sandbox_key", "dummy")
+    monkeypatch.setenv("TF_VAR_nos_coastal_modeling_cloud_sandbox_secret", "dummy")
+    # stage 33: the frozen fixture's TEST identity opens its encrypted values
+    monkeypatch.setenv("CSIS_CONFIG_IDENTITY", str(FIXTURE_CONFIG / ".age-identity"))
+
+    from cs_image_system.base import config_loader
+    monkeypatch.setattr(config_loader, "datetime", _FixedDT)     # the loader's clock is the run's
+
+    # The cloud discovery stubs (stage 127): a LOAD no longer calls them --
+    # the copy's meta-state/runtime-facts.yaml (record_network_facts) says
+    # what they would answer -- but a real run's `discover` and a test's
+    # `validate --online` do, and must get the same answers.
+    from cs_image_system.aws_runtime import aws_utils
+    monkeypatch.setattr(aws_utils, "get_vpc_map_and_default_vpc_id",
+                        lambda session_config: ({v: {"subnets": []} for v in VPCS}, "default",
+                                                _AnySecurityGroups()))
+    from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
+    from cs_image_system.gcloud_runtime import gcp_utils
+    from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
+    def _gcp_network_map(session_config, clients=None):
+        # Config-derived like the SG stub: which subnets exist is a
+        # live-account fact, and the fixture's ids are data these tests must
+        # not restate. The my-project entries serve the gce_overlay tests.
+        import yaml as _yaml
+        subnets = [{"subnet_id": "projects/my-project/regions/us-east1/subnetworks/default"},
+                   {"subnet_id": "projects/my-project/regions/us-east1/subnetworks/custom-subnet-1"}]
+        d = _yaml.safe_load((FIXTURE_CONFIG / "cfg" / "runtime-builders.yml").read_text()) or {}
+        for r in d.get("runtime_builders", []):
+            if r.get("type") == "gcloud":
+                for s in (r.get("networking", {}) or {}).get("subnets") or []:
+                    subnets.append({"subnet_id": s.get("subnet_id")})
+        return ({"default": {"subnets": subnets}}, "default", {})
+
+    monkeypatch.setattr(gcp_utils, "get_network_map_and_default_network", _gcp_network_map)
+    monkeypatch.setattr(AwsCloudBuilder, "query_provider_image",
+                        lambda self, osb: (VENDOR_AMI, "amazon", {}))
+    monkeypatch.setattr(GCPCloudBuilder, "query_provider_image",
+                        lambda self, osb: ("debian-11-v1", "debian-cloud", {}))
+    # The read-only state-query hooks would reach AWS/OPA: answer "nothing
+    # of ours exists" by default. Tests of the query itself re-patch these
+    # AFTER constructing their V2Run.
+    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
+    from cs_image_system.tofu_roots.tofu_storage_builder import TofuStorageBuilderBase
+    monkeypatch.setattr(AwsCloudBuilder, "query_images", lambda self, series: [])
+    monkeypatch.setattr(GCPCloudBuilder, "query_images", lambda self, series: [])
+    # stage 128: the fixture's docker runtime names a daemon that exists nowhere
+    # (context csis-fixture-daemon); its pull, its image listing, its retagging
+    # and its session are answered here as the clouds' are, so no test reaches
+    # a daemon and the golden pins the docker emission
+    from cs_image_system.docker_runtime.docker_runtime_builders import DockerContainerBuilder
+    monkeypatch.setattr(DockerContainerBuilder, "query_provider_image",
+                        lambda self, osb: (DOCKER_DIGEST, "library", {}))
+    monkeypatch.setattr(DockerContainerBuilder, "query_images", lambda self, series: [])
+    # zero-drift-report: post-bake retagging would reach EC2; journal it.
+    retags: list[tuple[str, dict[str, str]]] = []
+    monkeypatch.setattr(AwsCloudBuilder, "retag_image",
+                        lambda self, image_id, tags: retags.append((image_id, dict(tags))) or True)
+    from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
+    # stage 14: the post-bake suite runs over the session command; the stub
+    # answers PASS for every assertion the script carries (tests that need a
+    # failing or dead session override this per test)
+    import re as _re
+    _real_aws_session = AwsCloudBuilder.run_session_command
+    _real_gcp_session = GCPCloudBuilder.run_session_command
+
+    def _session_stub(real):
+        def _run(self, name, script, timeout=300):
+            idx = _re.findall(r'CSIS_TEST (\d+) PASS', script)
+            if not idx:                      # an unmount or any other session: the real hook (its
+                return real(self, name, script, timeout)   # subprocess is what those tests fake)
+            return 0, "".join(f"CSIS_TEST {i} PASS\n" for i in sorted(set(idx), key=int))
+        return _run
+    monkeypatch.setattr(AwsCloudBuilder, "run_session_command", _session_stub(_real_aws_session))
+    monkeypatch.setattr(GCPCloudBuilder, "run_session_command", _session_stub(_real_gcp_session))
+    monkeypatch.setattr(GCPCloudBuilder, "retag_image",                    # ledger 66: GCE relabels too
+                        lambda self, image_id, tags: retags.append((image_id, dict(tags))) or True)
+    _real_docker_session = DockerContainerBuilder.run_session_command
+    monkeypatch.setattr(DockerContainerBuilder, "run_session_command", _session_stub(_real_docker_session))
+    monkeypatch.setattr(DockerContainerBuilder, "retag_image",            # stage 128: the daemon's tags too
+                        lambda self, image_id, tags: retags.append((image_id, dict(tags))) or True)
+    stub_environment.retags = retags  # type: ignore[attr-defined]
+    monkeypatch.setattr(TofuStorageBuilderBase, "query_state",
+                        lambda self: {s.get_name(): {"present": False, "type": self.capability_type()}
+                                      for s in self.model._storages})
+    monkeypatch.setattr(OktaTfGroupBuilder, "query_state",
+                        lambda self: {g.get_name(): {"present": True, "gid": 1}
+                                      for g in self.get_groups_for_builder()})
+    # stage 55: the server registry ANSWERS here -- an empty, free one -- and
+    # retirements are journaled. Silence would be refused by design (a run
+    # that can launch will not trust an unreachable registry), and the
+    # harness models a reachable OPA, not an absent one.
+    retirements: list[tuple[str, str]] = []
+    monkeypatch.setattr(OktaTfGroupBuilder, "registered_servers", lambda self, group: [])
+    monkeypatch.setattr(OktaTfGroupBuilder, "retire_servers_named",
+                        lambda self, group, hostname: retirements.append((group, hostname)) or [])
+    stub_environment.retirements = retirements  # type: ignore[attr-defined]
+
+    journal: list[str] = []
+    from cs_image_system.base.models.executable import ExecutableModel
+
+    def _fake_execute(self, *args, skips=False):
+        cmd = [self.binary or self.name] + list(self.args or []) + list(args)
+        journal.append(f"{self.working_directory}: {' '.join(cmd)}")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(ExecutableModel, "execute", _fake_execute)
+
+    # the system's own steps (materialize, gate-plan, prune-attachments,
+    # release --declared, ...) no longer go through `execute`: the executor
+    # runs them IN PROCESS over the loaded context through the seam the
+    # system's CLI registers at import. The harness journals them the same
+    # way (the same line a spawned step would have produced), so a test
+    # reads one journal; a test of the in-process path itself registers
+    # its own runner after constructing its V2Run.
+    from cs_image_system.base import in_process as _in_process
+    from cs_image_system.contract.constants import SYSTEM_CLI
+    import cs_image_system.system.cli  # noqa: F401 - registers the real runner BEFORE the patch window, so the
+    #                                      teardown restores it instead of None (a first import inside the window
+    #                                      would be undone with the patch)
+
+    def _fake_runner(ctx, args, working_directory):
+        journal.append(f"{working_directory}: {SYSTEM_CLI} {' '.join(str(a) for a in args)}")
+        return 0
+
+    monkeypatch.setattr(_in_process, "_RUNNER", _fake_runner)
+
+    from cs_image_system.base.commands import validate as _validate
+    monkeypatch.setattr(_validate, "check_executables_exist_and_versions", lambda ctx: [])
+    return journal
+
+
+def load_context(config_root: Path, dry_run: bool = True, overlays: list[Path] | None = None,
+                 undeclare: list[str] | None = None):
+    """Fresh singletons + the loader's run context over ``config_root`` (plus
+    any transient ``--overlay`` files, stage 8, and ``--undeclare`` specs,
+    stage 28). A new context per load: the returned one is THE context of the
+    run the test drives (and the process's current one, for the shim)."""
+    reset_singletons()
+    from cs_image_system.base.global_context import read_config_and_transform
+    return read_config_and_transform(cast(Any, types.SimpleNamespace(obj={})),
+                                     config_root, False, dry_run=dry_run,
+                                     overlays=list(overlays or []), undeclare=list(undeclare or []))
+
+
+def cli_context(ctx) -> Any:
+    """The typer context a console-script command reads the loaded context
+    from (``typer_cntx.obj["ctx"]``, stage 124), for calling a command
+    function directly."""
+    return cast(Any, types.SimpleNamespace(obj={"ctx": ctx}))
+
+
+def run_v2(ctx, lifecycles: list[str] | str = "all", *, apply: bool = True, commit: bool = False,
+           state_query: bool = False, only: list[str] | None = None,
+           force_bake: list[str] | None = None):
+    """``ctx`` is the context ``load_context`` returned (stage 124: passed,
+    never fetched). ``state_query`` is OFF here: the real hooks would reach AWS/OPA. Tests
+    of the pre-run query stub the hooks and pass ``state_query=True``."""
+    from cs_image_system.base.commands.run_lifecycles import run_lifecycles
+    from cs_image_system.base.lifecycles import parse_lifecycles
+    names = [lifecycles] if isinstance(lifecycles, str) else lifecycles
+    return run_lifecycles(ctx, parse_lifecycles(names), apply=apply, commit=commit,
+                          state_query=state_query, only=only, force_bake=force_bake)
+
+
+class V2Run:
+    """One prepared config copy + context; ``run()`` drives lifecycles."""
+
+    def __init__(self, tmp_path: Path, monkeypatch, dry_run: bool = True, config_root: Path | None = None,
+                 overlays: list[Path] | None = None, undeclare: list[str] | None = None):
+        self.journal = stub_environment(monkeypatch)
+        self.retags: list[tuple[str, dict[str, str]]] = getattr(stub_environment, "retags", [])
+        self.config_root = config_root or copy_config(tmp_path)
+        self._cwd = os.getcwd()
+        self.ctx = load_context(self.config_root, dry_run=dry_run, overlays=overlays, undeclare=undeclare)
+        self.generated = self.config_root / "generated"
+        self.meta_state = self.config_root / "meta-state"
+
+    def run(self, lifecycles: list[str] | str = "all", *, apply: bool = True, commit: bool = False,
+            state_query: bool = False, only: list[str] | None = None,
+            force_bake: list[str] | None = None):
+        summary = run_v2(self.ctx, lifecycles, apply=apply, commit=commit, state_query=state_query, only=only,
+                         force_bake=force_bake)
+        return summary
+
+    def restore_cwd(self) -> None:
+        os.chdir(self._cwd)
+
+
+def tree(root: Path, *, ignore_parts: tuple[str, ...] = (".terraform", "temp_assets")) -> dict[str, str]:
+    """``{relative path: text}`` for every file under root."""
+    out: dict[str, str] = {}
+    if not root.exists():
+        return out
+    for p in sorted(root.rglob("*")):
+        if not p.is_file():
+            continue
+        rel = p.relative_to(root)
+        if any(part in ignore_parts for part in rel.parts):
+            continue
+        out[str(rel)] = p.read_text()
+    return out
+
+
+def command_lines(script_text: str) -> list[str]:
+    """The executable lines of a runner script (no shebang/comments/set/cd)."""
+    lines = []
+    for line in script_text.splitlines():
+        s = line.strip()
+        if not s or s.startswith("#") or s.startswith("set ") or s == 'cd "$(dirname "$0")"' or s.startswith("CSIS_ROOT="):
+            continue
+        lines.append(s)
+    return lines

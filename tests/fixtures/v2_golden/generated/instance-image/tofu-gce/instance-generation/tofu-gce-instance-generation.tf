@@ -75,6 +75,13 @@ data "terraform_remote_state" "gcp_gcs" {
         profile = "noaa"
     }
 }
+data "terraform_remote_state" "docker_volume" {
+    backend = "local"
+    
+    config = {
+        path = "../../../../state/docker_volume.tfstate"
+    }
+}
 data "terraform_remote_state" "oktagroups" {
     backend = "local"
     

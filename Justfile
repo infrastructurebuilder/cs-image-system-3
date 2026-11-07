@@ -410,12 +410,6 @@ pytest:
 test-one *ARGS:
 	@uv run pytest {{ARGS}}
 
-# V2 gate tests only (tests/test_v2_*): the executable evidence for each
-# DESIGN §4 gate. Cloud-free: every test runs over a private copy of
-# the frozen fixture with AWS/Okta/tool execution stubbed (see GOLDEN.md).
-v2-test:
-	@uv run pytest tests/test_v2_*.py -q
-
 # Run every modification twice in a throwaway local container (apply +
 # idempotence); needs docker. Results: <config_root>/meta-state/mod-tests.yaml
 test-mods *ARGS: config-guard
@@ -426,14 +420,14 @@ test-mods *ARGS: config-guard
 # member with no account yet, sudo through visudo. A leg of `full-test`; under
 # `just test` the same file is skipped.
 test-posix-accounts *ARGS:
-	@CSIS_CONTAINER_TESTS=1 uv run pytest tests/test_v2_posix_containers.py {{ARGS}}
+	@CSIS_CONTAINER_TESTS=1 uv run pytest tests/test_posix_containers.py {{ARGS}}
 
 # Stage 86: a bake's settle step and step runner on AlmaLinux 10 and Debian 12,
 # under docker, with the package database REALLY held by another process (rpm's
 # transaction lock, dpkg's frontend lock). A leg of `full-test`; under `just
 # test` the same file is skipped.
 test-bake-steps *ARGS:
-	@CSIS_CONTAINER_TESTS=1 uv run pytest tests/test_v2_bake_steps_containers.py {{ARGS}}
+	@CSIS_CONTAINER_TESTS=1 uv run pytest tests/test_bake_steps_containers.py {{ARGS}}
 
 # Stage 103: the docker runtime's cycle on the local daemon -- a tree of nothing
 # but a docker runtime is written from the frozen fixture's pieces, its AlmaLinux
@@ -444,7 +438,7 @@ test-bake-steps *ARGS:
 # two package updates, the mods). A leg of `full-test`; under `just test` the
 # same file is skipped.
 test-docker-bake *ARGS:
-	@DOCKER_HOST="$(just docker-host)" CSIS_DOCKER_KEEP_HOST=1 CSIS_DOCKER_BAKE=1 uv run pytest tests/test_v2_docker_bake_live.py {{ARGS}}
+	@DOCKER_HOST="$(just docker-host)" CSIS_DOCKER_KEEP_HOST=1 CSIS_DOCKER_BAKE=1 uv run pytest tests/test_docker_bake_live.py {{ARGS}}
 
 # Stage 103 branch 2: the docker runtime's CHANGE CYCLE on the local daemon, from
 # nothing to nothing -- the bake above, then two containers launched on one
@@ -454,7 +448,7 @@ test-docker-bake *ARGS:
 # images disposed. Needs what test-docker-bake needs plus tofu; several minutes
 # more. A leg of `full-test`; under `just test` the same file is skipped.
 test-docker-cycle *ARGS:
-	@DOCKER_HOST="$(just docker-host)" CSIS_DOCKER_KEEP_HOST=1 CSIS_DOCKER_CYCLE=1 uv run pytest tests/test_v2_docker_cycle_live.py tests/test_v2_docker_starter_live.py {{ARGS}}
+	@DOCKER_HOST="$(just docker-host)" CSIS_DOCKER_KEEP_HOST=1 CSIS_DOCKER_CYCLE=1 uv run pytest tests/test_docker_cycle_live.py tests/test_docker_starter_live.py {{ARGS}}
 
 # The daemon the docker legs run against: DOCKER_HOST when the shell sets it, else the endpoint of
 # the docker command's ACTIVE CONTEXT (`docker context inspect`), so packer, the tofu provider and
@@ -480,7 +474,7 @@ test-podman-cycle *ARGS:
 		exit 0
 	fi
 	DOCKER_HOST="$CSIS_PODMAN_HOST" CSIS_DOCKER_KEEP_HOST=1 CSIS_PODMAN_CYCLE=1 CSIS_DOCKER_CYCLE=1 \
-		uv run pytest tests/test_v2_docker_cycle_live.py tests/test_v2_docker_starter_live.py {{ARGS}}
+		uv run pytest tests/test_docker_cycle_live.py tests/test_docker_starter_live.py {{ARGS}}
 
 # Stage 109: test-podman-cycle against PODMAN DESKTOP's machine on macOS. The address is
 # not typed: scripts/podman-machine-host reads it from `podman machine` (the one machine,

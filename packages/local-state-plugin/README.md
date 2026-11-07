@@ -288,7 +288,7 @@ for the chain and the collision rule in full.
   bucket, a key or prefix and, for the backend file, encryption, locking
   and identity settings; this kind renders one `path` in both the backend
   file and the data source, and the state-encryption rule
-  ([test_v2_state_encryption.py](../../tests/test_v2_state_encryption.py))
+  ([test_state_encryption.py](../../tests/test_state_encryption.py))
   is scoped to `s3` and does not apply to it. A consumer in one type reads
   a producer in another through a data source of the PRODUCER's type: an
   S3-bound root reading a `local`-bound one emits
@@ -371,8 +371,8 @@ for the chain and the collision rule in full.
   pins the three renderings (relative, absolute, normalised spelling),
   the collision rule across types, and a real `tofu init` plus
   `state pull` with an empty environment (skipped when `tofu` is not on
-  the PATH). [tests/test_v2_state_locations.py](../../tests/test_v2_state_locations.py)
-  and [tests/test_v2_gate4_identity_storage.py](../../tests/test_v2_gate4_identity_storage.py)
+  the PATH). [tests/test_state_locations.py](../../tests/test_state_locations.py)
+  and [tests/test_storage_state_machine.py](../../tests/test_storage_state_machine.py)
   pin the golden's record, header line and cross-type data source.
 
 ## When it fails

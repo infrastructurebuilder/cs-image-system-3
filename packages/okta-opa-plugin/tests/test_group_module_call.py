@@ -6,7 +6,7 @@
 from types import SimpleNamespace
 
 from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
-from v2_support import bare_run
+from harness import bare_run
 
 
 def _stub_builder(*, account_discovery=True, gateway_selector=None):

@@ -36,14 +36,17 @@ from pathlib import Path
 import pytest
 import yaml
 
+from cs_image_system.system.starters import STARTERS
 from starter_support import RENDERED
-from v2_support import load_context, record_network_facts, stub_environment
+from harness import load_context, record_network_facts, stub_environment
 
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLES = REPO / "docs" / "examples"
 SKELETON = EXAMPLES / "_skeleton"
-STANDARD = ["standard-aws", "standard-gce", "standard-aws-posix", "standard-docker"]
-TREES = [*STANDARD, "complete"]
+# the starters are the release's constant (stage 128): the standard trees are
+# every starter but the complete one
+TREES = list(STARTERS)
+STANDARD = [name for name in TREES if name != "complete"]
 
 # The `type:` keys each plugin package answers to (docs/PLUGINS.md and the
 # packages' models). Packages that register no `type:` (base, the contract,
@@ -309,8 +312,9 @@ def test_every_example_is_a_whole_repository_a_team_can_copy(rendered_starters):
     64: the source the release is built from)."""
     import stat
     from cs_image_system.base.modules import STAMP_FILE, installed_modules
-    from cs_image_system.system.starters import STARTERS, starters_root
-    assert sorted(STARTERS) == sorted(TREES)
+    from cs_image_system.system.starters import starters_root
+    # the constant is the directory: every tree under docs/examples but the skeleton
+    assert sorted(STARTERS) == sorted(p.name for p in EXAMPLES.iterdir() if p.is_dir() and not p.name.startswith("_"))
     assert starters_root().resolve() == EXAMPLES.resolve()          # an editable checkout resolves the source
     modules = installed_modules()
     assert len(modules) >= 14, sorted(modules)

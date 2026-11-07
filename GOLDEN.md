@@ -11,10 +11,10 @@ question: **did this change what the system produces?**
 
 ## What is in it
 
-122 files under [tests/fixtures/v2_golden/](tests/fixtures/v2_golden/), in two
+148 files under [tests/fixtures/v2_golden/](tests/fixtures/v2_golden/), in two
 subtrees.
 
-`generated/` — the emitted infrastructure-as-code (118 files): one directory
+`generated/` — the emitted infrastructure-as-code (144 files): one directory
 per lifecycle, plus two files at the top, `final_execution.sh` (the script
 that runs each lifecycle's runner in meta-workflow order, if and only if
 that runner exists) and the `.gitignore` that keeps state, plans and

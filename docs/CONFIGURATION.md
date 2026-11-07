@@ -1474,6 +1474,16 @@ declare `identity_types: [okta]` get the OPA server agent baked, dormant;
 an instance image activates it for its owning group. The identity type
 token is `okta`.
 
+`PosixGroupBuilderModel`; type `posix` (the posix-identity plugin): the
+groups exist on their machines, created at the bake with their declared
+gid, their members' accounts reconciled at launch. Common builder fields
+(4.1) plus:
+
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `shell` | str | `/bin/bash` | the login shell of the accounts this builder's users get |
+| `admin_sudo` | bool | `true` | the group's `admins` may run anything as root without a password (their accounts have none: keys only); `false` leaves sudo to the operator |
+
 The `dummy` plugin registers a `dummy` group builder and a `dummy` user
 builder as the extension template. Each takes `org` and `team`, both
 required, validated at load and read by nothing (the example shape of what

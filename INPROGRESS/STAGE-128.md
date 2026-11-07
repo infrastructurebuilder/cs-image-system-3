@@ -30,7 +30,7 @@ were never written. Five packages have no tests of their own.
 
 1. Rename: each stage-named file is split or renamed by the behaviour
    it holds (a table old → new in the squash); `v2_` goes everywhere
-   (`v2_support.py` included); the golden's name stays.
+   (`harness.py` included); the golden's name stays.
 2. Prose pins become behaviour: `just --summary` names the recipe and
    the recipe runs in its dry form; the workflow parses and names its
    jobs; a CLI assertion keeps the exit code and one stable token,

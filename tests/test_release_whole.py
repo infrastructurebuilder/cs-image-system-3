@@ -1,0 +1,723 @@
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""Stage 64: the release is the whole system.
+
+Item 1: the release carries the three starter configuration repositories
+(the source is ``docs/examples/``; the build hook ships them inside the
+system package) and ``cs-image-system init-config`` writes one out -- the
+whole tree into an empty destination, only the release-owned parts into an
+existing one -- with ``.csis-version`` pinned to the running release.
+"""
+from __future__ import annotations
+
+import os
+import posixpath
+import re
+import stat
+from pathlib import Path
+
+import pytest
+from typer.testing import CliRunner
+
+from cs_image_system.system import starter_links, starters
+from cs_image_system.system.cli import app
+from harness import reset_singletons
+
+REPO = Path(__file__).resolve().parents[1]
+EXAMPLES = REPO / "docs" / "examples"
+
+
+def _files(root: Path) -> dict[str, bytes]:
+    return {str(p.relative_to(root)): p.read_bytes() for p in sorted(root.rglob("*"))
+            if p.is_file() and ".DS_Store" not in p.name}
+
+
+def _invoke(*args: str):
+    return CliRunner().invoke(app, ["init-config", *args])
+
+
+# ------------------------------------------------------------ the starters
+
+def test_the_release_carries_the_three_starters_and_the_source_is_docs_examples():
+    root = starters.starters_root()
+    assert sorted(starters.STARTERS) == ["complete", "standard-aws", "standard-aws-posix", "standard-docker", "standard-gce"]
+    for name in [starters.SKELETON, *starters.STARTERS]:
+        # what the package resolves is byte for byte the source under docs/examples: the skeleton and each overlay
+        assert _files(root / name) == _files(EXAMPLES / name), name
+    for name in starters.STARTERS:
+        assert (root / name / "cfg" / "_config.yml").is_file(), name
+    assert starters.release_version() == (REPO / "packages" / "system" / "pyproject.toml").read_text().split(
+        'version = "', 1)[1].split('"', 1)[0]
+
+
+def test_the_release_owned_parts_are_the_whole_repository_minus_the_teams_yaml(rendered_starters: Path):
+    owned = starters.release_owned_paths(EXAMPLES / "standard-aws")          # the overlay, read with the skeleton under it
+    assert owned == starters.release_owned_paths(starters.render("standard-aws"))
+    for rel in ("Justfile", ".gitignore", ".githooks/pre-commit", ".github/workflows/ci.yml", "CI_SETUP.md"):
+        assert rel in owned, rel
+    assert not any(p.startswith("tfmodules/") for p in owned)         # the modules are the plugins', not the starter's files
+    assert not any(p.startswith("scripts/") for p in owned)          # item 2: the helpers are commands
+    assert not any(p.startswith(("cfg/", "groups/", "images/", "instances/", "storages/")) for p in owned)
+    assert "README.md" not in owned and "scripts/mod_image.sh" not in starters.release_owned_paths(EXAMPLES / "complete")
+    # a written tree is read as it is: its module copies are release-owned there (the older layout's comparisons)
+    written = starters.release_owned_paths(rendered_starters / "standard-aws")
+    assert "tfmodules/aws_instance/main.tf" in written and "Justfile" in written
+
+
+def test_the_whole_system_package_exposes_the_command_to_uv_tool_install():
+    """`uv tool install cs-image-system` exposes only the requested package's
+    executables (the reference configuration's first CI run ended with
+    "Failed to install entrypoints"): the metadata-only whole-system package
+    declares the same console script the system package does."""
+    import tomllib
+    root = tomllib.loads((REPO / "pyproject.toml").read_text())
+    system = tomllib.loads((REPO / "packages" / "system" / "pyproject.toml").read_text())
+    assert root["project"]["scripts"]["cs-image-system"] == system["project"]["scripts"]["cs-image-system"] \
+        == "cs_image_system.system.cli:app"
+
+
+# ------------------------------------------------------------ init-config
+
+@pytest.mark.parametrize("name", starters.STARTERS)
+def test_init_config_writes_the_whole_starter_into_an_empty_destination(tmp_path, name):
+    from cs_image_system.base.modules import STAMP_FILE, installed_modules
+    dest = tmp_path / "team-config"
+    result = _invoke(str(dest), "--from", name)
+    assert result.exit_code == 0, result.output
+    written = _files(dest)
+    expected = starters.render(name)                                    # the skeleton under the overlay
+    for rel, p in starters.installed_module_files("tfmodules").items():   # and the installed plugins' modules
+        expected[rel] = p.read_bytes()
+    version = starters.release_version()
+    assert written.pop(".csis-version") == version.encode() + b"\n"
+    for module in installed_modules():                                  # each copy stamped
+        assert written.pop(f"tfmodules/{module}/{STAMP_FILE}").startswith(b"plugin: "), module
+    # hygiene XV item 1: Markdown links that leave the starter now name the release's tag;
+    # every other byte is the starter's
+    tree = f"docs/examples/{name}"
+    for rel, data in expected.items():
+        if rel.endswith(".md"):
+            expected[rel] = starter_links.rewrite_links(
+                data.decode(), posixpath.dirname(f"{tree}/{rel}"), tree, version).encode()
+    assert written == expected, name
+    for rel in (r for r in written if r.endswith(".md")):
+        for target in re.findall(r"\]\(([^)\s]+)\)", (dest / rel).read_text()):
+            if not re.match(r"^[a-z][a-z0-9+.-]*:|^#", target):
+                inside = (dest / Path(rel).parent / target.split("#", 1)[0]).resolve()
+                assert str(inside).startswith(str(dest.resolve())), f"{name}/{rel}: {target} leaves the tree"
+    assert (dest / ".githooks" / "pre-commit").stat().st_mode & stat.S_IXUSR     # the mode travelled
+    assert "module_source_base: tfmodules" in (dest / "cfg" / "_config.yml").read_text()
+    assert f"the whole tree of {name}" in result.output and "next: git init, just init" in result.output
+    assert "init-config: tfmodules: 14 written" in result.output, result.output   # the modules' own account
+    if any(written[r] != starters.render(name)[r] for r in written if r.endswith(".md")):
+        assert f"at v{version}" in result.output   # the report says so
+
+
+def test_init_config_takes_an_empty_directory_too_and_defaults_to_standard_aws(tmp_path):
+    dest = tmp_path / "empty"
+    dest.mkdir()
+    result = _invoke(str(dest))
+    assert result.exit_code == 0, result.output
+    assert (dest / "cfg" / "_config.yml").read_bytes() == (EXAMPLES / "standard-aws" / "cfg" / "_config.yml").read_bytes()
+
+
+def test_init_config_on_an_existing_tree_writes_only_the_release_owned_parts(tmp_path):
+    dest = tmp_path / "existing"
+    (dest / "cfg").mkdir(parents=True)
+    (dest / "cfg" / "_config.yml").write_text("config: {}\n")
+    (dest / "groups").mkdir()
+    (dest / "groups" / "users.yaml").write_text("users: []\n")
+    result = _invoke(str(dest))
+    assert result.exit_code == 0, result.output
+    assert "the release-owned parts of standard-aws" in result.output
+    assert (dest / "cfg" / "_config.yml").read_text() == "config: {}\n"      # the team's YAML is untouched
+    assert (dest / "groups" / "users.yaml").read_text() == "users: []\n"
+    assert not (dest / "images").exists() and not (dest / "README.md").exists()
+    rendered = starters.render("standard-aws")
+    for rel in starters.release_owned_paths(rendered):
+        assert (dest / rel).read_bytes() == rendered[rel], rel
+    # the modules come too, into the tree's modules directory (no module_source_base declared: tfmodules), stamped
+    for rel, p in starters.installed_module_files("tfmodules").items():
+        assert (dest / rel).read_bytes() == p.read_bytes(), rel
+    assert (dest / "tfmodules" / "aws_instance" / ".csis-module").is_file()
+    assert "init-config: tfmodules: 14 written" in result.output
+    assert (dest / ".csis-version").read_text() == starters.release_version() + "\n"
+    # a second run changes nothing and says so
+    again = _invoke(str(dest))
+    assert again.exit_code == 0 and "0 written" in again.output, again.output
+    assert "14 kept" in again.output
+
+
+def test_init_config_refuses_a_release_owned_file_that_differs_unless_forced(tmp_path):
+    dest = tmp_path / "existing"
+    (dest / "cfg").mkdir(parents=True)
+    (dest / "cfg" / "_config.yml").write_text("config: {}\n")
+    (dest / "Justfile").write_text("# a team's own recipes\n")
+    (dest / ".csis-version").write_text("0.0.0\n")
+    result = _invoke(str(dest))
+    assert result.exit_code == 1, result.output
+    assert "REFUSED Justfile" in result.output and "REFUSED .csis-version" in result.output
+    assert (dest / "Justfile").read_text() == "# a team's own recipes\n"          # left alone
+    assert (dest / "tfmodules" / "aws_instance" / "main.tf").is_file()          # the rest was written
+    forced = _invoke(str(dest), "--force")
+    assert forced.exit_code == 0, forced.output
+    assert (dest / "Justfile").read_bytes() == starters.render("standard-aws")["Justfile"]
+    assert (dest / ".csis-version").read_text() == starters.release_version() + "\n"
+
+
+def _filled_complete(dest: Path) -> dict[str, str]:
+    """An existing tree whose workflow is the ``complete`` starter's with the
+    team's values in it, as the reference configuration's is."""
+    (dest / "cfg").mkdir(parents=True)
+    (dest / "cfg" / "_config.yml").write_text("config: {}\n")
+    rendered = starters.render("complete")
+    for rel in starters.release_owned_paths(rendered):
+        (dest / rel).parent.mkdir(parents=True, exist_ok=True)
+        (dest / rel).write_bytes(rendered[rel])
+    wf = dest / ".github" / "workflows" / "ci.yml"
+    text = wf.read_text()
+    values = {
+        "  PERFORM_RUNTIME: aws-REPLACE-ME": "  PERFORM_RUNTIME: aws-east2-runtime",
+        "TF_VAR_REPLACE_ME_key: ${{ secrets.TF_VAR_KEY }}": "TF_VAR_acme_team_key: ${{ secrets.TF_VAR_KEY }}",
+        "TF_VAR_REPLACE_ME_secret: ${{ secrets.TF_VAR_SECRET }}": "TF_VAR_acme_team_secret: ${{ secrets.TF_VAR_SECRET }}",
+    }
+    for a, b in values.items():
+        assert a in text, a
+        text = text.replace(a, b)
+    head = [ln for ln in text.splitlines() if ln.startswith("# REPLACE-ME:")]
+    assert head, "the starter workflow's header names its placeholders"
+    text = text.replace(head[0], "# The team's values: two lines of our own words")    # a rewritten placeholder comment
+    wf.write_text(text)
+    (dest / ".csis-version").write_text(starters.release_version() + "\n")
+    return values
+
+
+def test_refreshing_a_tree_keeps_its_starter_and_its_values(tmp_path):
+    """Hygiene IX item 1: taking releases dev7 and dev8 into the reference
+    configuration, `init-config . --force` refreshed a `complete` workflow
+    from `standard-aws` (every GCP step gone) and put REPLACE-ME back where
+    the team's values were; both times the diff was undone by hand."""
+    dest = tmp_path / "team"
+    values = _filled_complete(dest)
+    before = (dest / ".github" / "workflows" / "ci.yml").read_text()
+    # different from the release only in the team's values: current, kept, no --force needed
+    result = _invoke(str(dest))
+    assert result.exit_code == 0, result.output
+    assert "the release-owned parts of complete" in result.output and "was read from the tree's" in result.output
+    assert "your values kept in" in result.output and "REFUSED" not in result.output
+    assert (dest / ".github" / "workflows" / "ci.yml").read_text() == before
+    # an older workflow (a step the release has since changed): --force takes the release's lines, keeps the values
+    wf = dest / ".github" / "workflows" / "ci.yml"
+    release_line = next(ln for ln in before.splitlines() if "Install the released system" in ln)
+    wf.write_text(before.replace(release_line, release_line + " (an older wording)", 1))   # one job's step
+    refused = _invoke(str(dest))
+    assert refused.exit_code == 1 and "REFUSED .github/workflows/ci.yml" in refused.output
+    forced = _invoke(str(dest), "--force")
+    assert forced.exit_code == 0, forced.output
+    after = wf.read_text()
+    assert after == before                                                      # the release's line back, every value kept
+    assert all(b in after for b in values.values()) and "REPLACE_ME_key" not in after
+    assert "# The team's values" in after
+    assert "google-github-actions/auth" in after                                # complete's GCP steps, still there
+    assert "1 other line(s)" in forced.output
+    # --from still wins over the inference
+    chosen = _invoke(str(dest), "--from", "standard-aws", "--force")
+    assert chosen.exit_code == 0 and "of standard-aws" in chosen.output and "was read from" not in chosen.output
+
+
+def test_the_version_pin_is_never_moved_backwards(tmp_path):
+    dest = tmp_path / "team"
+    _filled_complete(dest)
+    running = starters.release_version()
+    (dest / ".csis-version").write_text("999.0.0\n")                             # a pin newer than this install
+    forced = _invoke(str(dest), "--force")
+    assert forced.exit_code == 0, forced.output
+    assert (dest / ".csis-version").read_text() == "999.0.0\n"
+    assert "kept at 999.0.0" in forced.output and "never moved backwards" in forced.output
+    (dest / ".csis-version").write_text("0.0.1\n")                               # an older one moves forward
+    assert _invoke(str(dest), "--force").exit_code == 0
+    assert (dest / ".csis-version").read_text() == running + "\n"
+    assert starters.carry_team_values("a\nX: REPLACE-ME\nb\n", "a\nX: ours\nb\nextra\n") == ("a\nX: ours\nb\n", 1, 1)
+    # a comment that names the placeholders, rewritten by the team, is kept whole -- not spliced line by line
+    release = "# REPLACE-ME: the runtime,\n# the region and the names.\nX: 1\n"
+    ours = "# Our values: the runtime and\n# the region, in our words.\nX: 1\n"
+    assert starters.carry_team_values(release, ours) == (ours, 2, 0)
+
+
+def test_init_config_takes_a_fresh_clone_holding_only_dot_git(tmp_path):
+    """Hygiene XII item 2 (the walk's F-finding): a team creates the repository
+    on GitHub and clones it, so the destination holds .git and nothing else."""
+    dest = tmp_path / "clone"
+    (dest / ".git").mkdir(parents=True)
+    (dest / ".git" / "HEAD").write_text("ref: refs/heads/develop\n")
+    result = _invoke(str(dest), "--from", "standard-aws-posix")
+    assert result.exit_code == 0, result.output
+    assert "the whole tree of standard-aws-posix" in result.output
+    assert (dest / "cfg" / "_config.yml").read_bytes() == (EXAMPLES / "standard-aws-posix" / "cfg" / "_config.yml").read_bytes()
+    assert (dest / ".git" / "HEAD").read_text() == "ref: refs/heads/develop\n"
+
+
+def test_init_config_refuses_a_directory_that_is_not_a_configuration_and_writes_nothing(tmp_path):
+    """Hygiene XII items 2 and 12: the release-owned form refreshes a
+    configuration repository and nothing else. Typed in the system
+    repository's root it replaced its Justfile and workflow; in a clone with a
+    README it wrote no cfg/ and read like success."""
+    for extra in ({"Justfile": "default:\n", "README.md": "# mine\n"}, {"README.md": "# a clone's README\n", ".git/HEAD": "ref: x\n"}):
+        dest = tmp_path / ("d" + str(len(extra)))
+        for rel, text in extra.items():
+            (dest / rel).parent.mkdir(parents=True, exist_ok=True)
+            (dest / rel).write_text(text)
+        before = _files(dest)
+        for args in ((str(dest),), (str(dest), "--force"), (str(dest), "--from", "complete")):
+            result = _invoke(*args)
+            assert result.exit_code == 2, (args, result.output)
+            assert "neither empty" in result.output and "Nothing was written" in result.output
+            assert _files(dest) == before, args
+
+
+def test_init_config_help_names_every_starter():
+    """Hygiene XII item 29 (the walk's F59): the --from help is built from
+    the list the command accepts."""
+    result = _invoke("--help")
+    assert result.exit_code == 0
+    flat = " ".join(result.output.split())
+    for name in starters.STARTERS:
+        assert name in flat, name
+
+
+def test_init_config_refuses_an_unknown_starter_and_a_file_destination(tmp_path):
+    result = _invoke(str(tmp_path / "x"), "--from", "nope")
+    assert result.exit_code == 2 and "no starter named 'nope'" in result.output and "standard-gce" in result.output
+    f = tmp_path / "a-file"
+    f.write_text("x")
+    result = _invoke(str(f))
+    assert result.exit_code == 2 and "is not a directory" in result.output
+
+
+def test_init_config_loads_no_configuration(monkeypatch, tmp_path):
+    """It runs where there is nothing to load yet: no identity, no session,
+    no plugin -- from any working directory."""
+    monkeypatch.delenv("CSIS_CONFIG_IDENTITY", raising=False)
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(app, ["--root-dir", str(tmp_path / "nowhere"), "init-config", "team"])
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / "team" / "Justfile").is_file()
+    assert os.getcwd() == str(tmp_path)
+
+
+# ================================================================ item 2
+# The helper scripts became commands: `--locked` (with-tofu-lock), `config-drift`
+# and `runtime-unchanged` (normalise-emission and the two recipes that used
+# it), `workload token` (opa-workload-token). The starter Justfile calls the
+# CLI alone and carries no scripts.
+
+def test_the_three_helper_scripts_are_gone_from_the_repository_and_the_starters():
+    for rel in ("scripts/with-tofu-lock", "scripts/opa-workload-token", "scripts/normalise-emission"):
+        assert not (REPO / rel).exists(), rel
+        for name in starters.STARTERS:
+            assert not (EXAMPLES / name / rel).exists(), f"{name}/{rel}"
+    for name in starters.STARTERS:
+        just = starters.render(name)["Justfile"].decode()
+        assert "scripts/" not in just, f"{name}: the starter Justfile must call the CLI alone"
+        assert "--locked" in just and "config-drift" in just and "workload token" in just and "runtime-unchanged" in just
+
+
+# --------------------------------------------------------------- --locked
+
+def _locked(monkeypatch, tmp_path, *args: str, cache: Path | None = None) -> tuple:
+    lock_cache: Path = cache if cache is not None else tmp_path / "cache"
+    monkeypatch.setenv("TF_PLUGIN_CACHE_DIR", str(lock_cache))
+    return CliRunner().invoke(app, ["--locked", *args]), lock_cache
+
+
+def test_locked_holds_the_lock_for_the_command_and_releases_it_however_it_ends(monkeypatch, tmp_path):
+    from cs_image_system.system import starters as st
+    seen: dict[str, bool] = {}
+    real = st.init_config
+
+    def spy(*a, **k):
+        seen["held"] = (tmp_path / "cache" / ".lock" / "pid").is_file()
+        return real(*a, **k)
+    from cs_image_system.system import cli as climod
+    monkeypatch.setattr(climod, "init_config", spy)   # patched where it is read (a top-level import since stage 124)
+    result, cache = _locked(monkeypatch, tmp_path, "init-config", str(tmp_path / "t"))
+    assert result.exit_code == 0, result.output
+    assert seen["held"] is True                                  # held while the command ran
+    assert not (cache / ".lock").exists()                        # released after it
+    # released on failure too (an unknown starter exits 2)
+    result, cache = _locked(monkeypatch, tmp_path, "init-config", str(tmp_path / "u"), "--from", "nope")
+    assert result.exit_code == 2 and not (cache / ".lock").exists()
+
+
+def test_locked_refuses_a_second_holder_with_exit_75_and_never_removes_its_lock(monkeypatch, tmp_path):
+    cache = tmp_path / "cache"
+    (cache / ".lock").mkdir(parents=True)
+    (cache / ".lock" / "pid").write_text("12345\n")
+    result, _ = _locked(monkeypatch, tmp_path, "init-config", str(tmp_path / "t"), cache=cache)
+    assert result.exit_code == 75, result.output
+    assert "pid 12345" in result.output and "one tofu process" in result.output
+    assert (cache / ".lock").exists() and not (tmp_path / "t").exists()
+
+
+def test_locked_needs_the_cache_directory_variable(monkeypatch, tmp_path):
+    monkeypatch.delenv("TF_PLUGIN_CACHE_DIR", raising=False)
+    result = CliRunner().invoke(app, ["--locked", "init-config", str(tmp_path / "t")])
+    assert result.exit_code == 2 and "TF_PLUGIN_CACHE_DIR is not set" in result.output
+
+
+def test_the_lock_module_keeps_the_shape_the_script_had(tmp_path):
+    from cs_image_system.base import tofu_lock
+    env = {"TF_PLUGIN_CACHE_DIR": str(tmp_path / "c")}
+    release = tofu_lock.acquire(env)
+    assert (tmp_path / "c" / ".lock" / "pid").read_text().strip() == str(os.getpid())
+    with pytest.raises(tofu_lock.LockHeld) as e:
+        tofu_lock.acquire(env)
+    assert e.value.holder == str(os.getpid())
+    release()
+    assert not (tmp_path / "c" / ".lock").exists()
+    assert tofu_lock.EX_TEMPFAIL == 75
+    with pytest.raises(tofu_lock.NoCacheDir):
+        tofu_lock.acquire({})
+
+
+# ------------------------------------------------------- the normaliser
+
+def test_normalise_emission_removes_residue_and_placeholders_run_ids_and_stamps(tmp_path):
+    from cs_image_system.base.commands.emission import normalise_emission
+    root = tmp_path / "generated"
+    (root / "instance-image" / "b" / ".terraform").mkdir(parents=True)
+    (root / "instance-image" / "b" / ".terraform.lock.hcl").write_text("x")
+    (root / "instance-image" / "b" / "tfplan").write_text("x")
+    (root / "release" / "release").mkdir(parents=True)
+    (root / "retention" / "retention").mkdir(parents=True)
+    for name in ("run-summary.json", "state-report.json", "manifest.json"):
+        (root / name).write_text("{}")
+    (root / "base-image" / "temp_assets").mkdir(parents=True)
+    keep = root / "instance-image" / "b" / "main.tf"
+    keep.write_text('run = "2026_09_26t10_38_27_569578"\nname = "img-20260926_103827"\nalso = "img-20260926-103827"\n')
+    normalise_emission(root)
+    assert not (root / "instance-image" / "b" / ".terraform").exists()
+    assert not (root / "instance-image" / "b" / ".terraform.lock.hcl").exists()
+    assert not (root / "instance-image" / "b" / "tfplan").exists()
+    assert not (root / "release" / "release").exists() and (root / "release").is_dir()
+    assert not (root / "retention" / "retention").exists()
+    assert not (root / "base-image" / "temp_assets").exists()
+    for name in ("run-summary.json", "state-report.json", "manifest.json"):
+        assert not (root / name).exists(), name
+    assert keep.read_text() == 'run = "<RUN>"\nname = "img-<STAMP>"\nalso = "img-<STAMP>"\n'
+
+
+def test_diff_trees_names_what_differs_and_nothing_when_equal(tmp_path):
+    from cs_image_system.base.commands.emission import diff_trees
+    a, b = tmp_path / "a", tmp_path / "b"
+    for r in (a, b):
+        (r / "d").mkdir(parents=True)
+        (r / "d" / "same.tf").write_text("x = 1\n")
+    assert diff_trees(a, b) == []
+    (a / "d" / "only-a.tf").write_text("a\n")
+    (b / "d" / "same.tf").write_text("x = 2\n")
+    (b / "new.tf").write_text("n\n")
+    lines = diff_trees(a, b)
+    assert any("Only in a/d: only-a.tf" in ln for ln in lines) and any("Only in b: new.tf" in ln for ln in lines)
+    assert "diff d/same.tf" in lines and any(ln.startswith("-x = 1") for ln in lines) and any(ln.startswith("+x = 2") for ln in lines)
+
+
+# ----------------------------------------------------------- config-drift
+
+def _git(root: Path, *args: str) -> str:
+    import subprocess
+    return subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True, check=True).stdout
+
+
+def _generated_tree(tmp_path, monkeypatch):
+    """A fixture copy with a recorded dry run committed under generated/."""
+    from harness import V2Run
+    v2 = V2Run(tmp_path, monkeypatch)
+    assert v2.run("all", apply=False).ok
+    v2.restore_cwd()
+    root = v2.config_root
+    _git(root, "init", "-q", "-b", "develop")
+    _git(root, "config", "user.email", "t@example.invalid")
+    _git(root, "config", "user.name", "t")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-q", "-m", "recorded")
+    return v2
+
+
+def _copy_of_committed(v2):
+    """A stand-in dry run for the test: the copy gets the committed emission
+    (the real command runs `run --all` in a process of its own)."""
+    import shutil
+    def dry_run(copy: Path, progress=None) -> None:
+        shutil.copytree(v2.generated, copy / "generated")
+    return dry_run
+
+
+def test_config_drift_reads_current_then_behind_then_nothing_committed(tmp_path, monkeypatch):
+    from cs_image_system.base.commands.emission import config_drift
+    v2 = _generated_tree(tmp_path, monkeypatch)
+    root = v2.config_root
+    said: list[str] = []
+    code, lines = config_drift(root, dry_run=_copy_of_committed(v2), progress=said.append)
+    assert code == 0 and "current with the configuration" in lines[0], lines
+    # hygiene XVI item 1: it says what it is doing as it goes, each part with its time
+    assert said[0].startswith(f"config-drift: copying {root.resolve()}"), said
+    assert re.fullmatch(r"config-drift: copied \d+ files \([0-9.]+ MB\) in \d+s", said[1]), said
+    assert "takes minutes" in said[2] and "comparing" in said[3] and said[-1].endswith(" in all"), said
+    # a declaration moved the emission: the committed tree is behind
+    def moved(copy: Path) -> None:
+        _copy_of_committed(v2)(copy)
+        tf = next((copy / "generated").rglob("*.tf"))
+        tf.write_text(tf.read_text() + "\n# a change\n")
+    code, lines = config_drift(root, dry_run=moved)
+    assert code == 1 and "BEHIND the configuration (1 files)" in lines[0] and any(ln.startswith("+# a change") for ln in lines), lines
+    # run ids never count as drift: the copy's differ from the record's
+    def restamped(copy: Path) -> None:
+        _copy_of_committed(v2)(copy)
+        for p in (copy / "generated").rglob("*.sh"):
+            p.write_text(re.sub(r"[0-9]{4}_[0-9]{2}_[0-9]{2}t[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{6}",
+                                "2030_01_01t00_00_00_000000", p.read_text()))
+    code, lines = config_drift(root, dry_run=restamped)
+    assert code == 0, lines
+    # a failing dry run and a tree with nothing committed under generated/
+    def failing(copy: Path) -> None:
+        raise RuntimeError("boom")
+    code, lines = config_drift(root, dry_run=failing)
+    assert code == 2 and "the dry run FAILED: boom" in lines[0]
+    bare = tmp_path / "bare"
+    bare.mkdir()
+    (bare / "cfg").mkdir()
+    (bare / "cfg" / "_config.yml").write_text("config: {}\n")
+    _git(bare, "init", "-q")
+    code, lines = config_drift(bare, dry_run=failing)
+    assert code == 2 and "nothing is committed under generated/" in lines[0]
+
+
+def test_config_drift_copies_a_relative_module_source_base_that_escapes_the_tree(tmp_path):
+    """The reference configuration reached the system's modules at
+    ../cs-image-system-3/tfmodules until stage 64 item 3; a copy for a dry run
+    puts the modules at the same relative place beside it."""
+    from cs_image_system.base.commands.emission import copy_tree_for_a_dry_run
+    site = tmp_path / "site"
+    (site / "cs-image-system-3" / "tfmodules" / "m").mkdir(parents=True)
+    (site / "cs-image-system-3" / "tfmodules" / "m" / "main.tf").write_text("module\n")
+    root = site / "cs-image-system-testconfig"
+    (root / "cfg").mkdir(parents=True)
+    (root / "cfg" / "_config.yml").write_text("config:\n  module_source_base: ../cs-image-system-3/tfmodules\n")
+    (root / "generated").mkdir()
+    (root / "generated" / "x").write_text("never copied\n")
+    copy = copy_tree_for_a_dry_run(root, tmp_path / "work")
+    assert copy.name == root.name and (copy / "cfg" / "_config.yml").is_file() and not (copy / "generated").exists()
+    assert (copy / "../cs-image-system-3/tfmodules/m/main.tf").resolve().read_text() == "module\n"
+    # a base inside the tree needs nothing beside the copy
+    (root / "cfg" / "_config.yml").write_text("config:\n  module_source_base: tfmodules\n")
+    copy2 = copy_tree_for_a_dry_run(root, tmp_path / "work2")
+    assert copy2 == tmp_path / "work2" / root.name
+
+
+def test_config_drift_leaves_the_provider_cache_out_of_the_copy(tmp_path, monkeypatch):
+    """Hygiene XVI item 2: the copy took the starter's provider cache, every
+    provider version the tree ever fetched (5.7 GB in the reference
+    configuration on 2026-10-27, when it filled the disk), though the copy's
+    dry run reads the original's through TF_PLUGIN_CACHE_DIR. Left out by its
+    starter name at any depth, and as TF_PLUGIN_CACHE_DIR names it inside the
+    tree; a directory of the same name elsewhere is copied."""
+    from cs_image_system.base.commands.emission import copy_tree_for_a_dry_run
+    root = tmp_path / "tree"
+    for rel in ("cfg/_config.yml", ".tofu-plugin-cache/registry.opentofu.org/hashicorp/aws/6.70.0/p",
+                "tools/providers/registry.opentofu.org/hashicorp/google/8.8.1/p", "tools/keep.txt",
+                "groups/providers/kept.yml"):
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_text("x\n")
+    (root / "cfg" / "_config.yml").write_text("config: {}\n")
+    monkeypatch.setenv("TF_PLUGIN_CACHE_DIR", str(root / "tools" / "providers"))
+    copy = copy_tree_for_a_dry_run(root, tmp_path / "work")
+    assert (copy / "cfg" / "_config.yml").is_file() and (copy / "tools" / "keep.txt").is_file()
+    assert not (copy / ".tofu-plugin-cache").exists() and not (copy / "tools" / "providers").exists()
+    assert (copy / "groups" / "providers" / "kept.yml").is_file()
+    # a cache outside the tree changes nothing; the starter's name is still left out
+    monkeypatch.setenv("TF_PLUGIN_CACHE_DIR", str(tmp_path / "elsewhere"))
+    copy2 = copy_tree_for_a_dry_run(root, tmp_path / "work2")
+    assert (copy2 / "tools" / "providers").is_dir() and not (copy2 / ".tofu-plugin-cache").exists()
+
+
+def test_the_dry_run_is_logged_as_it_goes_and_says_where_it_is(tmp_path):
+    """Hygiene XVI item 1: the dry run's output reaches run.log line by line,
+    and each lifecycle and each root's init is said as it happens -- read from
+    the run's own INFO records, never from a captured step's indented output."""
+    import sys
+    from cs_image_system.base.commands.emission import _took, subprocess_dry_run
+    record = [
+        "[13:52:29] INFO     Found 1 base plugins.                           loader.py:32",
+        "           INFO     [identity] regenerating                run_lifecycles.py:321",
+        "                    /tmp/x/generated/identity",
+        "[13:53:05] INFO     tofu init stdout:                           executable.py:69",
+        "                    Initializing the backend...",
+        "           INFO     tofu init stderr:                           executable.py:69",
+        "           INFO     cs_image_system.system materialize stdout:  executable.py:69",
+        "                    [13:53:05] INFO     tofu init stdout:   (a step's own output)",
+        "[13:53:13] INFO     [storage] regenerating                 run_lifecycles.py:321",
+        "           INFO     tofu init stdout (last 40 of 52 lines; all executable.py:69",
+    ]
+    copy = tmp_path / "work" / "tree"
+    copy.mkdir(parents=True)
+    script = "import sys\nfor ln in sys.argv[2:]: print(ln)\nsys.exit(int(sys.argv[1]))"
+    said: list[str] = []
+    subprocess_dry_run(copy, progress=said.append, command=[sys.executable, "-c", script, "0", *record])
+    assert (tmp_path / "work" / "run.log").read_text() == "".join(f"{ln}\n" for ln in record)
+    assert [s.split(" (")[0] for s in said[:-1]] == [
+        "config-drift: [identity] generating", "config-drift:   [identity] tofu init 1",
+        "config-drift: [storage] generating", "config-drift:   [storage] tofu init 2"], said
+    assert said[-1].startswith("config-drift: the dry run finished after "), said
+    assert said[-1].endswith("(2 lifecycle(s), 2 init(s))"), said
+    said.clear()
+    with pytest.raises(RuntimeError, match=r"exit 3\); the log's tail:\n.*Found 1 base plugins"):
+        subprocess_dry_run(copy, progress=said.append, command=[sys.executable, "-c", script, "3", *record[:3]])
+    assert said[-1].startswith("config-drift: the dry run FAILED after "), said
+    assert (_took(5), _took(75), _took(600)) == ("5s", "1m15s", "10m00s")
+
+
+def test_config_drift_is_a_command_that_loads_nothing(tmp_path, monkeypatch):
+    """The dry run happens in a process of its own; this process needs no
+    identity and no session, only the tree and its git history."""
+    from cs_image_system.base.commands import emission
+    v2 = _generated_tree(tmp_path, monkeypatch)
+    monkeypatch.setattr(emission, "subprocess_dry_run", _copy_of_committed(v2))
+    monkeypatch.delenv("CSIS_CONFIG_IDENTITY", raising=False)
+    reset_singletons()
+    result = CliRunner().invoke(app, ["--root-dir", str(v2.config_root), "config-drift"])
+    assert result.exit_code == 0, result.output
+    assert "current with the configuration" in result.output
+    # the progress is on stderr; the verdict alone is on stdout
+    assert "config-drift: copying" in result.stderr and "config-drift: copying" not in result.stdout
+
+
+# ------------------------------------------------------ runtime-unchanged
+
+def test_runtime_unchanged_compares_one_runtimes_directories_across_records(tmp_path, monkeypatch):
+    from cs_image_system.base.commands.emission import runtime_unchanged
+    v2 = _generated_tree(tmp_path, monkeypatch)
+    root = v2.config_root
+    os.chdir(root)
+    code, lines = runtime_unchanged(v2.ctx, "gcloud-east1", "HEAD")
+    assert code == 0 and "unchanged since HEAD" in lines[0] and "instance-image/" in lines[0], lines
+    # a change under the OTHER runtime's directories is not this runtime's
+    aws_dir = next(p for p in (root / "generated" / "instance-image").iterdir() if p.is_dir() and "gce" not in p.name)
+    (aws_dir / "extra.tf").write_text("# aws only\n")
+    code, lines = runtime_unchanged(v2.ctx, "gcloud-east1", "HEAD")
+    assert code == 0, lines
+    gce_dir = next(p for p in (root / "generated" / "instance-image").iterdir() if p.is_dir() and "gce" in p.name)
+    (gce_dir / "extra.tf").write_text("# gce\n")
+    code, lines = runtime_unchanged(v2.ctx, "gcloud-east1", "HEAD")
+    assert code == 1 and "CHANGED since HEAD (1 files)" in lines[0] and any("extra.tf" in ln for ln in lines), lines
+    code, lines = runtime_unchanged(v2.ctx, "no-such-runtime", "HEAD")
+    assert code == 2 and "no runtime named" in lines[0]
+    v2.restore_cwd()
+
+
+# -------------------------------------------------------- workload token
+
+def _stub_minting(monkeypatch, *, rc=0, token="opa-token-value", verdict="ok\n"):
+    from cs_image_system.okta_opa_plugin import workload_token as wt
+    jwt = "hdr." + __import__("base64").urlsafe_b64encode(
+        b'{"iss":"https://token.actions.githubusercontent.com","repository":"o/r","sub":"repo:o/r:ref:refs/heads/main"}').decode().rstrip("=") + ".sig"
+    monkeypatch.setattr(wt, "fetch_oidc_token", lambda url, bearer: jwt)
+    calls: list = []
+    def authenticate(names, presented):
+        calls.append((names, presented))
+        return rc, token, verdict
+    monkeypatch.setattr(wt, "sft_workload_authenticate", authenticate)
+    return jwt, calls
+
+
+def _job_env(monkeypatch, **names):
+    monkeypatch.setenv("ACTIONS_ID_TOKEN_REQUEST_URL", "https://runner.invalid/token")
+    monkeypatch.setenv("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "bearer-value")
+    for k, v in names.items():
+        monkeypatch.setenv(k, v)
+
+
+def test_workload_token_prints_the_token_alone_and_masks_both_on_stderr(monkeypatch):
+    jwt, calls = _stub_minting(monkeypatch)
+    _job_env(monkeypatch, OPA_WORKLOAD_CONNECTION="conn", OPA_WORKLOAD_ROLE="role", SFT_TEAM="team",
+             OPA_ADDR="https://x.pam.okta.com")
+    monkeypatch.delenv("CSIS_CONFIG_IDENTITY", raising=False)
+    from cs_image_system.okta_opa_plugin.workload_token import mint_token, WorkloadNames
+    said: list[str] = []
+    token = mint_token(WorkloadNames("conn", "role", "team", "https://x.pam.okta.com"), dict(os.environ),
+                       say=said.append, fetch=lambda u, b: jwt,
+                       authenticate=lambda n, j: (0, "opa-token-value\n", "verdict line\n"))
+    assert token == "opa-token-value"
+    assert said[0] == f"::add-mask::{jwt}" and "::add-mask::opa-token-value" in said
+    assert any(ln == "claim repository: o/r" for ln in said) and "verdict line" in said
+    # the command: the token is the ONLY thing on stdout, from a checkout with no configuration
+    result = CliRunner().invoke(app, ["--root-dir", "/nowhere", "workload", "token"])
+    assert result.exit_code == 0, result.output
+    assert result.stdout == "opa-token-value"
+    assert calls and calls[0][0].connection == "conn" and calls[0][1] == jwt
+    assert "::add-mask::" in result.stderr and "opa-token-value" not in result.stdout.replace("opa-token-value", "", 1)
+
+
+def test_the_client_is_handed_the_address_and_the_team_in_its_environment(monkeypatch):
+    """Hygiene VII item 4: `sft workload authenticate` reads OPA_ADDR (and the
+    team) from its environment; the first performing run from the reference
+    configuration failed with `environment variable OPA_ADDR is not set`."""
+    from cs_image_system.okta_opa_plugin import workload_token as wt
+    seen: dict = {}
+
+    class _Proc:
+        returncode, stdout, stderr = 0, "tok\n", ""
+
+    def fake_run(cmd, **kw):
+        seen["cmd"] = cmd
+        seen["env"] = kw["env"]
+        return _Proc()
+    monkeypatch.setattr(wt.subprocess, "run", fake_run)
+    monkeypatch.delenv("OPA_ADDR", raising=False)
+    monkeypatch.delenv("SFT_TEAM", raising=False)
+    rc, out, _ = wt.sft_workload_authenticate(wt.WorkloadNames("conn", "role", "team", "https://x.pam.okta.com"), "jwt")
+    assert rc == 0 and out == "tok\n"
+    assert seen["env"]["OPA_ADDR"] == "https://x.pam.okta.com" and seen["env"]["SFT_TEAM"] == "team"
+    assert seen["env"]["GH_OIDC_JWT"] == "jwt" and "--team" in seen["cmd"] and "--role-hint" in seen["cmd"]
+
+
+def test_workload_token_fills_missing_names_from_the_configuration(monkeypatch, tmp_path):
+    from harness import copy_config, stub_environment
+    stub_environment(monkeypatch)
+    root = copy_config(tmp_path)
+    # the fixture's builder names no workload objects; this copy's does
+    gb = root / "cfg" / "group-builders.yml"
+    gb.write_text(gb.read_text().replace('    team: "nos-coastal-modeling-cloud-sandbox"\n',
+                                         '    team: "nos-coastal-modeling-cloud-sandbox"\n'
+                                         '    workload_connection: github-cs-image-system\n'
+                                         '    workload_role: cs-image-system-ci\n', 1))
+    jwt, calls = _stub_minting(monkeypatch)
+    _job_env(monkeypatch)
+    for v in ("OPA_WORKLOAD_CONNECTION", "OPA_WORKLOAD_ROLE", "SFT_TEAM", "OPA_ADDR"):
+        monkeypatch.delenv(v, raising=False)
+    reset_singletons()
+    result = CliRunner().invoke(app, ["--root-dir", str(root), "workload", "token"])
+    assert result.exit_code == 0, result.output
+    names = calls[0][0]
+    assert names.team == "nos-coastal-modeling-cloud-sandbox" and names.connection == "github-cs-image-system"
+    assert names.role == "cs-image-system-ci" and "pam.okta.com" in names.api_host
+    assert result.stdout == "opa-token-value"
+
+
+def test_workload_token_refuses_outside_a_job_and_reports_a_refused_token(monkeypatch):
+    for v in ("ACTIONS_ID_TOKEN_REQUEST_URL", "ACTIONS_ID_TOKEN_REQUEST_TOKEN"):
+        monkeypatch.delenv(v, raising=False)
+    _stub_minting(monkeypatch)
+    monkeypatch.setenv("OPA_WORKLOAD_CONNECTION", "c"); monkeypatch.setenv("OPA_WORKLOAD_ROLE", "r")
+    monkeypatch.setenv("SFT_TEAM", "t"); monkeypatch.setenv("OPA_ADDR", "https://x")
+    result = CliRunner().invoke(app, ["workload", "token"])
+    assert result.exit_code == 2 and "not a GitHub Actions job" in result.output
+    _stub_minting(monkeypatch, rc=1, token="", verdict="the connection is a draft\n")
+    _job_env(monkeypatch)
+    result = CliRunner().invoke(app, ["workload", "token"])
+    assert result.exit_code == 1 and result.stdout == "" and "exited 1" in result.stderr and "the connection is a draft" in result.stderr
+    _stub_minting(monkeypatch, rc=0, token="", verdict="")
+    result = CliRunner().invoke(app, ["workload", "token"])
+    assert result.exit_code == 1 and "issued no token" in result.stderr

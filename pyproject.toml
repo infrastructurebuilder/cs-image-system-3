@@ -200,7 +200,11 @@ testpaths = ["tests",
    "packages/gcs-state-plugin/tests",
    "packages/docker-runtime-plugin/tests",
    "packages/tf-docker-plugin/tests",
-   "packages/tofu-roots/tests"
+   "packages/tofu-roots/tests",
+   "packages/contract/tests",
+   "packages/contract-example-plugin/tests",
+   "packages/dummy-plugin/tests",
+   "packages/tf-s3-state-plugin/tests"
    ]
 pythonpath = [
     "tests",

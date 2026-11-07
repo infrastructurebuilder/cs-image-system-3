@@ -47,3 +47,16 @@ image_builders:
       - name: ansible
         source: github.com/hashicorp/ansible
         version: '>= 1.0.0'
+  # Stage 128 (item 4): bakes on the fixture's docker runtime (packer's docker
+  # source; the result committed and tagged on the daemon)
+  - name: pckr-docker
+    type: packer-docker
+    runtime: docker-fixture
+    executable: packer
+    required_plugins:
+      - name: docker
+        source: github.com/hashicorp/docker
+        version: '>= 1.0.0'
+      - name: ansible
+        source: github.com/hashicorp/ansible
+        version: '>= 1.0.0'

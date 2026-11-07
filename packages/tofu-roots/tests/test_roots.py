@@ -14,7 +14,7 @@ from cs_image_system.hashicorp_utils.collector import (
     terraform_collector,
 )
 from cs_image_system.tofu_roots.roots import TerraformRootMixin
-from v2_support import bare_run
+from harness import bare_run
 
 
 def _s3(name="s3-east2", bucket="b", key_prefix="statefiles/", is_default=True):

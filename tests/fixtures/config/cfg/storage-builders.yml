@@ -64,6 +64,15 @@ storage_builders:
     runtime: gcloud-east1
     state_configuration: s3-east1   # stage 46: the storage roots keep their state in the second backend
     bucket_name: csis-sandbox-86233086783-default-bucket
+  # Stage 128 (item 4): named docker volumes on the fixture's docker runtime,
+  # mounted by the platform; the root inherits the runtime's backend (local-dev)
+  - name: docker-volume
+    type: tf-docker-volume
+    runtime: docker-fixture
+    executable: open-tofu-1
+    variables:
+      tags:
+        project: MyProject
   # - name: gcp-pd
   #   type: gcp-pd
   #   runtime: gcp-my-deb-12 # Refers to the runtime builder named gcp-my-deb-12

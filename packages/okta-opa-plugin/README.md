@@ -1043,7 +1043,7 @@ failing line fails the bake.
 'okta' reported no gid for groups [...]`, which fails the plan or apply
 that asked. Nothing is ever invented.
 
-`tests/test_v2_bootstrap_okta.py` holds the bootstrap's Okta and OPA
+`tests/test_bootstrap_okta.py` holds the bootstrap's Okta and OPA
 section: the entry point and the gate (wanted where an `okta-tf` group
 builder is), placeholders refused by name, the reference shape reading
 clean, names found by what they require, every failed check becoming its
@@ -1336,4 +1336,4 @@ Failures the code raises:
 - Tests: [tests/](tests) -- the module call, the workspace mixin, the
   resource emitters, the four builder roots, the gid shim, the server
   registry and the workload policy; the `prune-attachments` runner step
-  in [tests/test_v2_hygiene_five.py](../../tests/test_v2_hygiene_five.py).
+  in [tests/test_stale_attachments.py](../../tests/test_stale_attachments.py).

@@ -38,9 +38,9 @@ Licensed under Apache-2.0. Requires Python 3.13 or later. Declared
 dependencies ([pyproject.toml](pyproject.toml)): `cs-image-system-contract`,
 `cs-image-system-base`, `cs-image-system-hashicorp-utils` and `pydantic`.
 It imports nothing of any plugin, and the workspace's neutral-root test
-([tests/test_v2_stage_120_neutral_root.py](../../tests/test_v2_stage_120_neutral_root.py))
+([tests/test_neutral_tofu_root.py](../../tests/test_neutral_tofu_root.py))
 and the import-order test in
-[tests/test_v2_contract.py](../../tests/test_v2_contract.py) hold it to
+[tests/test_contract.py](../../tests/test_contract.py) hold it to
 that.
 
 ## Contents
@@ -488,7 +488,7 @@ or listed.
 ## Tests
 
 [`tests/test_roots.py`](tests/test_roots.py) pins the root mixin against
-a bare run holder (the workspace suite's `v2_support.bare_run`, which
+a bare run holder (the workspace suite's `harness.bare_run`, which
 offers what the mixin reads of a context): the dry-run and real-run
 `init` arguments, the runner's own `init`, the backend path, one
 executable copy per command. The terraform roots have no unit test of
@@ -496,11 +496,11 @@ their own here: their behaviour is pinned through the root plugins that
 subclass them (their module-call tests), through the golden emission of
 the frozen fixture ([tests/test_v2_golden.py](../../tests/test_v2_golden.py))
 and through the neutral-root test
-([tests/test_v2_stage_120_neutral_root.py](../../tests/test_v2_stage_120_neutral_root.py)),
+([tests/test_neutral_tofu_root.py](../../tests/test_neutral_tofu_root.py)),
 which holds the import graph, the declared dependencies and an isolated
 install to the rule that no root plugin depends on another provider's
 root. The run hooks are exercised by the workspace suite's state-location
-tests ([tests/test_v2_state_locations.py](../../tests/test_v2_state_locations.py)):
+tests ([tests/test_state_locations.py](../../tests/test_state_locations.py)):
 the collision refusal, the move guard, the record and the header lines.
 The package's tests borrow the S3 kind from `tf-s3-state-plugin` to
 build registrations, so they need that package installed (the workspace

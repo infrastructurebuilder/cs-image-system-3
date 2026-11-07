@@ -1,0 +1,26 @@
+---
+# Installs the dask stack on the image under construction. Until 2026-09-10
+# this was a placeholder (a debug task); the first live post-bake test
+# (TODO §14: `python3 -c 'import dask'` on the launched instance) failed
+# because the "dask" image carried no dask -- so now it does. pip on the
+# vendor python (EL10 ships no python3-dask package). Plain `pip3` through
+# `command` rather than ansible's pip module: the bake's pinned ansible
+# interpreter (csis-ansible-python, stage 1) lacks the `packaging` library
+# that module imports (found live, ledger 71). Idempotent: guarded on the
+# import succeeding.
+- name: Set up dask
+  hosts: all
+  become: true
+  tasks:
+    - name: pip is available
+      ansible.builtin.package:
+        name: python3-pip
+        state: present
+    - name: is dask importable already
+      ansible.builtin.command: python3 -c 'import dask'
+      register: dask_present
+      failed_when: false
+      changed_when: false
+    - name: dask is installed for the system python
+      ansible.builtin.command: pip3 install dask
+      when: dask_present.rc != 0

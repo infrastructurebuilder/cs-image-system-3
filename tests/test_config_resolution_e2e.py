@@ -10,12 +10,13 @@ command could request it); these tests load the whole tree.
 """
 import os
 import types
+import yaml
 from pathlib import Path
 from typing import Any, cast
 
 import pytest
 
-from v2_support import FIXTURE_CONFIG, copy_config
+from harness import FIXTURE_CONFIG, copy_config
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -77,6 +78,11 @@ def no_cloud(monkeypatch):
         return ({"default": {"subnets": subnets}}, "default", {})
 
     monkeypatch.setattr(gcp_utils, "get_network_map_and_default_network", _gcp_network_map)
+    # the fixture's docker runtime names a daemon that exists nowhere: its
+    # pull is answered here as the clouds' queries are
+    from cs_image_system.docker_runtime.docker_runtime_builders import DockerContainerBuilder
+    monkeypatch.setattr(DockerContainerBuilder, "query_provider_image",
+                        lambda self, osb: ("almalinux@sha256:" + "f" * 64, "library", {}))
 
 
 def test_pipeline_loads_and_resolves_builders(monkeypatch, cwd_guard, tmp_path):
@@ -95,7 +101,8 @@ def test_pipeline_loads_and_resolves_builders(monkeypatch, cwd_guard, tmp_path):
     cntx = types.SimpleNamespace(obj={})
     ctx = read_config_and_transform(cast(Any, cntx), copy_config(tmp_path), False)
 
-    assert set(ctx.runtime_builders) == {"aws-east1", "aws-east2-runtime", "gcloud-east1", "west1"}
+    declared = yaml.safe_load((FIXTURE_CONFIG / "cfg" / "runtime-builders.yml").read_text())["runtime_builders"]
+    assert set(ctx.runtime_builders) == {r["name"] for r in declared}
     assert "pckr-ebs-ans" in ctx.image_builders
     assert len(ctx.os_builders) >= 1
 
@@ -255,6 +262,8 @@ def test_execution_run_defers_base_images_no_query_no_build(monkeypatch, cwd_gua
             "execution runs must not query the provider for base images")
     monkeypatch.setattr(AwsCloudBuilder, "query_provider_image", _no_query)
     monkeypatch.setattr(GCPCloudBuilder, "query_provider_image", _no_query)
+    from cs_image_system.docker_runtime.docker_runtime_builders import DockerContainerBuilder
+    monkeypatch.setattr(DockerContainerBuilder, "query_provider_image", _no_query)
 
     # This test's premise is a FRESH system (no pins): since the first live
     # bake (2026-08-31), the live tree's committed meta-state recorded real

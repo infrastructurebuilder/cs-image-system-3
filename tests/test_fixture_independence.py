@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from v2_support import FIXTURE_CONFIG, REPO
+from harness import FIXTURE_CONFIG, REPO
 
 TESTS = Path(__file__).resolve().parent
 

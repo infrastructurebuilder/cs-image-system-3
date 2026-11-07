@@ -172,15 +172,31 @@ runtime_builders:
           # Note that Packer from GH requires access via public subnet
         - name: subnet2
           subnet_id: subnet-0ca0978d152fca976
-    # - name: docker
-    #   runtime_classifier: container
-    #   is_default: false
-    #   type: docker
-    #   executable: docker
-    #   default_machine_type: docker-machine_type-1
-    #   default_image_builder: packer-docker-ansible
-    #   config:
-    #     some_docker_setting: some_docker_value
+    # Stage 128 (item 4): the fixture's container runtime, so the golden pins the
+    # docker emission (the packer docker source, the tf-docker roots). The daemon
+    # is SYNTHETIC: `context` is a docker context NAME that exists on no machine,
+    # and the harness stubs every daemon call (tests/harness.py), so no test
+    # reaches a daemon. Shape: docs/CONFIGURATION.md (the container runtime).
+    - name: docker-fixture
+      type: docker
+      is_default: false
+      description: "The fixture's synthetic container daemon, reached by a docker context that exists nowhere"
+      context: csis-fixture-daemon
+      executable: docker
+      repository: csis/fixture
+      state_configuration: local-dev   # the docker roots inherit the local backend (stage 47)
+      credentials: {}
+      ephemeral: false
+      tags:
+        project: MyProject
+        environment: development
+      default_machine_type: small
+      default_image_builder: pckr-docker
+      machine_types:
+        small: { cpus: 1, memory: 1g }
+        medium: { cpus: 2, memory: 4g }
+      networking:
+        network: bridge
     # - name: swarm
     #   runtime_classifier: container
     #   is_default: false

@@ -656,11 +656,11 @@ duplicate registration, the chain, rebinding, collisions, cross-backend
 reads, the backend record);
 [test_roots.py](../tofu-roots/tests/test_roots.py) (the `init`
 arguments in dry and real runs, the runner's init, the backend file path);
-[tests/test_v2_state_locations.py](../../tests/test_v2_state_locations.py)
+[tests/test_state_locations.py](../../tests/test_state_locations.py)
 (every root resolves and is recorded, the runtime rung, collisions and
 undeclared names refused, the move guard with and without deployed
 resources, the migration operation over a fake tofu, the dry-run refusal);
-[tests/test_v2_state_encryption.py](../../tests/test_v2_state_encryption.py)
+[tests/test_state_encryption.py](../../tests/test_state_encryption.py)
 (every declared and emitted S3 backend encrypts); and the golden
 comparison, which pins every emitted `.tfbackend.hcl`, remote-state block
 and runner header.
@@ -724,9 +724,9 @@ arrive from tofu; the rest are the load's and `validate`'s refusals.
   and [tests/test_roots.py](../tofu-roots/tests/test_roots.py): the unit
   tests that pin the backend block, the partial configuration and the init
   arguments.
-- [tests/test_v2_state_encryption.py](../../tests/test_v2_state_encryption.py):
+- [tests/test_state_encryption.py](../../tests/test_state_encryption.py):
   the test that requires every declared and emitted S3 backend to encrypt.
-- [tests/test_v2_state_locations.py](../../tests/test_v2_state_locations.py):
+- [tests/test_state_locations.py](../../tests/test_state_locations.py):
   the location, collision, move-guard and migration tests.
 - [docs/CONFIGURATION.md](../../docs/CONFIGURATION.md), section 10: the
   configuration manual's entry for `cfg/state-backends*.yml`.

@@ -18,7 +18,7 @@ contract example plugin are workspace-only: classified `Private :: Do
 Not Upload`, installed through the root's `dev` group, never on the
 index. Every package declares exactly the
 third-party distributions its sources import and pins its siblings at its
-own version; `tests/test_v2_package_metadata.py` holds it to that.
+own version; `tests/test_package_metadata.py` holds it to that.
 
 ## The core
 

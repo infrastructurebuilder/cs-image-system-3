@@ -14,7 +14,7 @@ and contributes no builder of its own. Plugins import it. **It imports
 only the contract**: nothing under its source imports the core
 (`cs_image_system.base`), the CLI host, the terraform roots or any
 plugin, lazily or not, and
-[tests/test_v2_contract.py](../../tests/test_v2_contract.py) holds it to
+[tests/test_contract.py](../../tests/test_contract.py) holds it to
 that (`test_the_library_imports_only_the_contract`,
 `test_the_import_order_is_a_dag`). What it needs of a run -- the global
 `config:` map, the declared state backends and a slot to keep its
@@ -374,13 +374,13 @@ the packer collector (one per run context too), the block model and the
 version helpers. The root mixin and the terraform roots are pinned by
 [tofu-roots](../tofu-roots/README.md#tests). `QString`'s default quoting
 (quoted unless `quoted=False`) is pinned by
-[test_v2_defects_dead.py](../../tests/test_v2_defects_dead.py)
+[test_bake_sources.py](../../tests/test_bake_sources.py)
 (`test_a_qstring_is_quoted_by_default_and_prints`) in the workspace
 suite, and the direction of the imports (only the contract; the
 package order is a DAG) by
-[test_v2_contract.py](../../tests/test_v2_contract.py). The package's
+[test_contract.py](../../tests/test_contract.py). The package's
 tests borrow the S3 kind from `tf-s3-state-plugin` to build registrations
-and the bare run holder from the workspace suite's `v2_support`, so they
+and the bare run holder from the workspace suite's `harness`, so they
 run from the workspace (which always has both).
 
 ## Prerequisites and integration

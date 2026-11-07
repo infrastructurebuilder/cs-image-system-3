@@ -15,7 +15,7 @@ import difflib
 import pytest
 
 from golden import GOLDEN, current_output
-from v2_support import tree
+from harness import tree
 
 
 @pytest.fixture(scope="module")

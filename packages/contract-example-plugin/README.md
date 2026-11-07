@@ -110,7 +110,7 @@ state_backends:
 The plugin checks nothing of its own at load, validate, generation or
 apply beyond the model's `__post_init__` (the name rules, the empty
 `lock_id`). What verifies the plugin is
-[tests/test_v2_contract_example.py](../../tests/test_v2_contract_example.py)
+[tests/test_contract_example.py](../../tests/test_contract_example.py)
 in the core's bar: the sources import nothing from the core; the
 manifest declares the contract and `pydantic` alone;
 `assert_conforms` over the model and the builder against the kind's
@@ -129,7 +129,7 @@ Incidents that have happened, with their cause and fix, are recorded on
 [INCIDENTS.md](../../docs/INCIDENTS.md); what follows keeps each
 failure's symptom, its meaning and what to do.
 
-- A test in `tests/test_v2_contract_example.py` naming an import of
+- A test in `tests/test_contract_example.py` naming an import of
   `cs_image_system.base`, `.system` or `.hashicorp_utils`: the proof is
   broken; the plugin must be written against the contract alone.
 - `AssertionError: ... does not conform to StateBackendModelProtocol` or

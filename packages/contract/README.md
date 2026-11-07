@@ -112,7 +112,7 @@ reference's registry lookup) it lives in the core's base classes and
 mixins. The kind modules import `core` and only the kinds they declare they
 read (`runtime` reads `image` for the provider-specific image's enums); the
 vocabulary modules import nothing from the package.
-[tests/test_v2_contract.py](../../tests/test_v2_contract.py) holds that
+[tests/test_contract.py](../../tests/test_contract.py) holds that
 direction, holds the package to importing nothing from the core, and runs
 `assert_conforms` over every base class and every built-in plugin's models
 and builders; [tests/test_plugin_imports.py](../../tests/test_plugin_imports.py)
@@ -136,7 +136,7 @@ leaves the contract's where it is (`bump-my-version` excludes its
 manifest by name; the upload and the index probe read its version from
 its own manifest). The contract's version moves only by hand, in the
 stage that changes its surface, and
-[tests/test_v2_contract_version.py](../../tests/test_v2_contract_version.py)
+[tests/test_contract_version.py](../../tests/test_contract_version.py)
 holds all of it: the version is its own and final, every dependent pins
 the range, the bump excludes the manifest, the release tooling knows.
 
@@ -334,14 +334,14 @@ under a dry run and a real one, on every runtime.
   `reportIncompatibleMethodOverride`, is on as an error),
   and a protocol a class lists as a base is the question, not an answer,
   so its stubs never count. The core's
-  [tests/test_v2_contract.py](../../tests/test_v2_contract.py) runs it
+  [tests/test_contract.py](../../tests/test_contract.py) runs it
   over every base class and every built-in plugin's models and builders at
   `just test`; a plugin's own tests should run it over theirs. The verdict
   is an `AssertionError` naming every shortfall.
 - The import direction, in the same test: the package's sources import
   nothing from `cs_image_system.base`, `.system` or `.hashicorp_utils`,
   and each kind module imports only `core` and the kinds it declares.
-  [tests/test_v2_package_metadata.py](../../tests/test_v2_package_metadata.py)
+  [tests/test_package_metadata.py](../../tests/test_package_metadata.py)
   holds the same line from the manifest: the package declares exactly the
   third-party distributions it imports and reaches no sibling.
 - At load, the loader checks what an entry point returned with

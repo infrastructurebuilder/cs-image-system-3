@@ -10,5 +10,6 @@ cd "$(dirname "$0")"
 CSIS_ROOT="$(cd "../.." && pwd)"   # the configuration root, relative to this script
 
 # --- phase: image-generation ---
+( cd "pckr-docker/image-generation/block-000" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && DOCKER_CONTEXT=csis-fixture-daemon /usr/local/bin/packer build . )
 ( cd "pckr-ebs-ans/image-generation/block-000" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && /usr/local/bin/packer build . )
 ( cd "pckr-gce-ans/image-generation/block-000" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && /usr/local/bin/packer build . )
