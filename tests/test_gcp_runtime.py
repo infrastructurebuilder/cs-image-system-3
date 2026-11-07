@@ -836,6 +836,7 @@ def test_the_gce_root_receives_the_build_its_run_baked_under_its_own_variable(tm
     from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     from cs_image_system.contract.lifecycles import Lifecycle
     run = V2Run(tmp_path, monkeypatch)
+    ctx = None
     try:
         assert run.run(["instance-image"], apply=False).ok
         ctx = run.ctx
@@ -850,6 +851,7 @@ def test_the_gce_root_receives_the_build_its_run_baked_under_its_own_variable(tm
         root = (run.generated / "instance-image" / "tofu-gce" / "instance-generation").glob("*.tf")
         assert any('variable "gce_test_image"' in p.read_text() for p in root), "the root declares the variable the tfvars sets"
     finally:
-        ctx.current_lifecycle = None
+        if ctx is not None:        # a run that failed before binding it
+            ctx.current_lifecycle = None
         run.restore_cwd()
 

@@ -58,7 +58,11 @@ class TofuPdStorageBuilderModel(TofuGcpStorageBuilderModel):
     type = TF_GCP_PD
     size: int = 100          # GB
     disk_type: str = "pd-balanced"
-    variables: GcpVariables = field(default_factory=GcpVariables)
+    # narrowed on purpose: pydantic validates the declared `variables:` against this
+    # provider's class, so an unknown key is refused; the invariance rule
+    # cannot express a field that is only ever narrowed, never reassigned
+    variables: GcpVariables = field(  # pyright: ignore[reportIncompatibleVariableOverride]
+        default_factory=GcpVariables)
 
     @classmethod
     def csis_name(cls) -> str:
@@ -71,7 +75,8 @@ class TofuFilestoreStorageBuilderModel(TofuGcpStorageBuilderModel):
     type = TF_GCP_FILESTORE
     tier: str = "BASIC_HDD"
     capacity_gb: int = 1024
-    variables: GcpVariables = field(default_factory=GcpVariables)
+    variables: GcpVariables = field(  # pyright: ignore[reportIncompatibleVariableOverride]
+        default_factory=GcpVariables)
 
     @classmethod
     def csis_name(cls) -> str:
@@ -84,7 +89,8 @@ class TofuGcsStorageBuilderModel(TofuGcpStorageBuilderModel):
     type = TF_GCP_GCS
     bucket_name: str
     location: str | None = None
-    variables: GcpVariables = field(default_factory=GcpVariables)
+    variables: GcpVariables = field(  # pyright: ignore[reportIncompatibleVariableOverride]
+        default_factory=GcpVariables)
 
     @classmethod
     def csis_name(cls) -> str:

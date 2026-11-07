@@ -18,6 +18,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Protocol, cast
 
 import pytest
 from harness import module_path, modules_inside
@@ -41,6 +42,13 @@ def _tree(tmp_path: Path, filled: bool = True) -> Path:
             f = root / "cfg" / name
             f.write_text(f.read_text().replace("my-project-REPLACE-ME", PROJECT).replace("tfstate-REPLACE-ME", "acme-gcs-tfstate"))
     return root
+
+
+class _Probe(Protocol):
+    """The fake probe: answers like the CLI and keeps every command it was asked."""
+    calls: list[list[str]]
+
+    def __call__(self, args: list[str], timeout: int = 60) -> tuple[int, str]: ...
 
 
 def _project(record: dict | None = None, **present: bool):
@@ -68,8 +76,9 @@ def _project(record: dict | None = None, **present: bool):
         if key is None or key not in present:
             return 1, "ERROR: (gcloud.auth) You do not currently have an active account selected."
         return (0, found) if present[key] else (1, f"ERROR: NOT_FOUND: Requested entity was not found ({key}).")
-    probe.calls = calls                                        # type: ignore[attr-defined]
-    return probe
+    typed = cast(_Probe, probe)
+    typed.calls = calls
+    return typed
 
 
 def _facts(root: Path, probe=None, ids: bool = True):

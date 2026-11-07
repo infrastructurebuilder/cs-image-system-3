@@ -115,7 +115,11 @@ class AwsCloudBuilderModel(CloudBuilderModel):
     def csis_name(cls) -> str:
         return AWS
 
-    credentials: AwsCredentials = field(default_factory=AwsCredentials)
+    # narrowed on purpose: pydantic validates the declared `credentials:` against this
+    # provider's class, so an unknown key is refused; the invariance rule
+    # cannot express a field that is only ever narrowed, never reassigned
+    credentials: AwsCredentials = field(  # pyright: ignore[reportIncompatibleVariableOverride]
+        default_factory=AwsCredentials)
 
     def self_to_aws_client_config(self) -> dict[str, Any]:
         config: dict[str, Any] = {}

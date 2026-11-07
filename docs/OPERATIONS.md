@@ -1622,12 +1622,14 @@ and its cycles run from there (section 4).
 ### The bar: `just test`
 
 `just test` is the local acceptance bar, every check blocking: `lint`
-(ruff over `packages` and `tests`), `typecheck` (pyright, basic mode, 0
-errors), `pytest` (the unit tests, the golden emission included). `just
-verify` is its alias. It needs no live configuration and no credentials:
-the tests own the frozen fixture and export its TEST identity themselves.
-There is no looser recipe: the contract test asserts that a
-`ci` recipe with a non-blocking type-check stays gone.
+(ruff over `src`, `packages` and `tests`: pyflakes with no rule ignored,
+bugbear, import sorting and a complexity ceiling, the measured maximum,
+which only falls; and the REUSE lint), `typecheck` (pyright, standard
+mode, 0 errors), `pytest` (the unit tests, the golden emission included).
+`just verify` is its alias. It needs no live configuration and no
+credentials: the tests own the frozen fixture and export its TEST
+identity themselves. There is no looser recipe: the contract test
+asserts that a `ci` recipe with a non-blocking type-check stays gone.
 
 The tests run over private copies of the fixture with every cloud, Okta
 and tool execution stubbed.
@@ -2272,10 +2274,10 @@ repository's, which the release ships.
 | `index-ready [test\|pypi] [wait]` | can the index take an upload now: the upload endpoint and every project page, one line each; exit 0 ready, 75 not now; `wait` probes every minute, two hours at most | the network |
 | `full-test-legs` | `full-test` without `test`: the dev-pin check, every docker leg above, then a headless dry run `--all` and a `state query --strict` over a private copy of the reference configuration; re-run these after a session renewal instead of the whole `full-test` | `preflight` gates the two copy legs |
 | `format` | `ruff format packages tests` | nothing |
-| `lint` / `lint-fix` / `lint-unsafe-fix` | ruff check and the REUSE lint; with safe / unsafe fixes | nothing |
+| `lint` / `lint-fix` / `lint-unsafe-fix` | ruff check and the REUSE lint; with safe / unsafe fixes (the safe ones sort the imports) | nothing |
 | `headers` | the SPDX header on every source file that lacks one | nothing |
 | `reuse-live` | the REUSE lint over the reference configuration | reference configuration |
-| `typecheck` | pyright | nothing |
+| `typecheck` | pyright, standard mode | nothing |
 | `pytest` | the unit tests alone | nothing |
 | `test-one *ARGS` | one pytest expression | nothing |
 | `test-mods *ARGS` | the modification tests in a container over the reference configuration | docker, reference configuration |

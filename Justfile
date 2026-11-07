@@ -232,7 +232,7 @@ lint-fix:
 lint-unsafe-fix:
 	@uv run ruff check --fix --unsafe-fixes src packages tests
 
-# Type check with pyright (basic mode; see [tool.pyright] in pyproject.toml)
+# Type check with pyright (standard mode; see [tool.pyright] in pyproject.toml)
 typecheck:
 	@uv run pyright
 

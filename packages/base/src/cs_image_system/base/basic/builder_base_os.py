@@ -99,12 +99,13 @@ class OsBuilderBase(BuilderBase[TOS], OsBuilderProtocol):
         reg = ctx.reg
         template_resolver = TemplateResolver() # Already has 'addl' fields registered
         rt_list = []
+        img_bldr: ImageBuilderBase | None = None
         for os_imgbld_name, os_img_subconfig in self.get_configs_for_image_builders().items():
             log.debug(
                     f"Ensuring Image  OS: {self.get_name()} "
                     f"for Image Builder: {os_imgbld_name}"
                 )
-            img_bldr: ImageBuilderBase|None = ctx.image_builders.get(os_img_subconfig.get_image_builder(), None)
+            img_bldr = ctx.image_builders.get(os_img_subconfig.get_image_builder(), None)
             if not img_bldr:
                 errstr = (f"Image Builder {os_img_subconfig.get_image_builder()} for "
                           f"OS {self.get_name()} and runtime {os_imgbld_name} not found in predefined_resolve: "
@@ -199,6 +200,8 @@ class OsBuilderBase(BuilderBase[TOS], OsBuilderProtocol):
             # )
             rt_list.append(rtcm_map)
 
+        if img_bldr is None:
+            raise ValueError(f"OS builder {self.get_display_name()} declares no image builder to resolve its image with")
         log.debug(f"Generating resolved image for {self.__class__.__name__} in phase "
                   f"{phase} with runtime builder {img_bldr.get_name()}.")
         i: BaseImage = None # type: ignore

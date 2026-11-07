@@ -383,11 +383,13 @@ def test_gcs_state_lookup_goes_through_gcloud(tmp_path, monkeypatch):
         bucket = next(s for s in run.ctx.storages if s.get_name() == "gce_bucket")
         calls: list[list[str]] = []
 
+        answer = SimpleNamespace(result=None)
+
         def fake_run(cmd, **kw):
             calls.append(cmd)
-            return fake_run.result
+            return answer.result
         monkeypatch.setattr(subprocess, "run", fake_run)
-        fake_run.result = SimpleNamespace(returncode=0, stderr="", stdout=(
+        answer.result = SimpleNamespace(returncode=0, stderr="", stdout=(
             '{"name": "csis-sandbox-86233086783-default-bucket", "location": "US-EAST1", '
             '"storageClass": "STANDARD", "labels": {"csis_storage": "gce-bucket"}}'))
         rec = builder._lookup(bucket)
@@ -397,9 +399,9 @@ def test_gcs_state_lookup_goes_through_gcloud(tmp_path, monkeypatch):
         # the declared binary, not a bare name from PATH
         assert calls[-1][:4] == ["/usr/local/bin/gcloud", "storage", "buckets", "describe"]
         assert calls[-1][4] == "gs://csis-sandbox-86233086783-default-bucket"
-        fake_run.result = SimpleNamespace(returncode=1, stdout="", stderr="ERROR: ... 404 ... not found")
+        answer.result = SimpleNamespace(returncode=1, stdout="", stderr="ERROR: ... 404 ... not found")
         assert builder._lookup(bucket) is None
-        fake_run.result = SimpleNamespace(returncode=1, stdout="", stderr="ERROR: reauthentication required")
+        answer.result = SimpleNamespace(returncode=1, stdout="", stderr="ERROR: reauthentication required")
         with pytest.raises(RuntimeError, match="buckets describe"):
             builder._lookup(bucket)
     finally:

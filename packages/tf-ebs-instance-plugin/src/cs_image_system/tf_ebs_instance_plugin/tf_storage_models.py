@@ -55,7 +55,11 @@ class TofuEbsStorageBuilderModel(TofuStorageBuilderModel):
     """OpenTofu IaC builder configuration data object for EBS."""
     type = TF_AWS_EBS
     size: int = 100          # GB (a typed field, not a bare class attribute)
-    variables: EbsVariables = field(default_factory=EbsVariables)
+    # narrowed on purpose: pydantic validates the declared `variables:` against this
+    # provider's class, so an unknown key is refused; the invariance rule
+    # cannot express a field that is only ever narrowed, never reassigned
+    variables: EbsVariables = field(  # pyright: ignore[reportIncompatibleVariableOverride]
+        default_factory=EbsVariables)
 
     @classmethod
     def csis_name(cls) -> str:
@@ -65,7 +69,8 @@ class TofuEbsStorageBuilderModel(TofuStorageBuilderModel):
 class TofuEfsStorageBuilderModel(TofuStorageBuilderModel):
     """OpenTofu IaC builder configuration data object for EFS."""
     type = TF_AWS_EFS
-    variables: EfsVariables = field(default_factory=EfsVariables)
+    variables: EfsVariables = field(  # pyright: ignore[reportIncompatibleVariableOverride]
+        default_factory=EfsVariables)
     @classmethod
     def csis_name(cls) -> str:
         return TF_AWS_EFS
@@ -76,7 +81,8 @@ class TofuS3StorageBuilderModel(TofuStorageBuilderModel):
     """OpenTofu IaC builder configuration data object for S3."""
     bucket_name: str
     type = TF_AWS_S3
-    variables: S3Variables = field(default_factory=S3Variables)
+    variables: S3Variables = field(  # pyright: ignore[reportIncompatibleVariableOverride]
+        default_factory=S3Variables)
     @classmethod
     def csis_name(cls) -> str:
         return TF_AWS_S3

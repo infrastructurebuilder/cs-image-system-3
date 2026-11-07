@@ -44,7 +44,11 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
                                 "description": "parent model",
                                 "required": True,
                                 })
-    description: str = " {{ image_builder.name }} runtime configuration for {{ this.name }}"
+    # narrowed on purpose: an entry always has a description (the template
+    # below); the base allows none, and the invariance rule cannot express
+    # a field that is only ever narrowed, never reassigned
+    description: str = (  # pyright: ignore[reportIncompatibleVariableOverride]
+        " {{ image_builder.name }} runtime configuration for {{ this.name }}")
     # the declared PREFIX of the base image's build names on this
     # runtime, over the OS builder's (a template: `this` is this entry,
     # `this.parent` the OS builder at the string stage). A computed property
@@ -61,7 +65,7 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
     # unset, the OS builder's default_primary_disk_size (a runtime's own
     # default_disk_size still wins, finding 51)
     default_primary_disk_size: int | None = None
-    tags: Mapping[str, str] = field(default_factory=dict)
+    tags: dict[str, str] = field(default_factory=dict)
     owners: list[str] = field(default_factory=list) # Added to parent owners
     query: Mapping[str, Any] = field(default_factory=dict)
     ssh_username: str  = DEFAULT

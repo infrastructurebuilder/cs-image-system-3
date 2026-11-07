@@ -49,7 +49,11 @@ class TofuDockerVolumeStorageBuilderModel(TofuStorageBuilderModelBase):
     containers may mount one, it is POSIX, it lives in no zone, and the
     daemon mounts it at the declared path before the first command."""
     type = TF_DOCKER_VOLUME
-    variables: DockerVolumeVariables = field(default_factory=DockerVolumeVariables)
+    # narrowed on purpose: pydantic validates the declared `variables:` against this
+    # provider's class, so an unknown key is refused; the invariance rule
+    # cannot express a field that is only ever narrowed, never reassigned
+    variables: DockerVolumeVariables = field(  # pyright: ignore[reportIncompatibleVariableOverride]
+        default_factory=DockerVolumeVariables)
 
     @classmethod
     def csis_name(cls) -> str:

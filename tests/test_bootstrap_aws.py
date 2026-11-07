@@ -17,6 +17,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Protocol, cast
 
 import pytest
 from harness import module_path, modules_inside
@@ -49,6 +50,13 @@ def _trust(*subjects: str) -> str:
                       "StringLike": {"token.actions.githubusercontent.com:sub": list(subjects)}}}]})
 
 
+class _Probe(Protocol):
+    """The fake probe: answers like the CLI and keeps every command it was asked."""
+    calls: list[list[str]]
+
+    def __call__(self, args: list[str], timeout: int = 60) -> tuple[int, str]: ...
+
+
 def _account(trust: dict[str, str] | None = None, **present: bool):
     """A probe that answers for the account: each of oidc, read, write, bucket,
     profile is present (exit 0), absent (the service's own not-found word) or,
@@ -75,8 +83,9 @@ def _account(trust: dict[str, str] | None = None, **present: bool):
         if present[key] and "--query" in args and key in trust:
             return (255, "AccessDenied") if trust[key] == "unreadable" else (0, trust[key])
         return (0, "{}") if present[key] else (254, absent)
-    probe.calls = calls                                        # type: ignore[attr-defined]
-    return probe
+    typed = cast(_Probe, probe)
+    typed.calls = calls
+    return typed
 
 
 def _facts(root: Path, probe=None, ids: bool = True):

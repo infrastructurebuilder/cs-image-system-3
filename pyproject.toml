@@ -255,9 +255,13 @@ line-length = 120
 extend-exclude = [".venv", "generated", "**/generated"]
 
 [tool.ruff.lint]
-# Conservative, high-signal rules: pyflakes (unused imports/vars, undefined names,
-# redefinitions) + syntax errors. Style/import-ordering rules are intentionally left
-# off for now to avoid large churn on this codebase.
+# Every rule blocking, no rule ignored: pyflakes (unused imports and locals,
+# undefined names, redefinitions), syntax errors (E9), the complexity ceiling
+# (C90, below), bugbear (B: likely bugs such as a mutable default, a loop
+# variable a closure reads late, a zip that may silently truncate, a raise
+# inside except that drops its cause) and import sorting (I, ruff's isort;
+# `just lint-fix` sorts). Formatting rules (E501, the pycodestyle style codes)
+# stay off: `just format` is a separate, unenforced recipe.
 select = ["F", "E9", "C90", "B", "I"]
 
 [tool.ruff.lint.mccabe]
@@ -276,8 +280,13 @@ max-complexity = 49
 known-first-party = ["cs_image_system"]
 
 [tool.pyright]
-# "basic" mode, blocking (0 errors is the bar), with the override
-# check on; strict typing is not enforced yet.
+# "standard" mode over the whole workspace, blocking (0 errors is the bar):
+# basic's checks plus the override checks (a method's and a variable's),
+# possibly-unbound names and attribute access on functions. Strict typing
+# is not enforced yet; a package earns it once it is small enough. A field
+# a subclass narrows on purpose (a provider's own `credentials:` or
+# `variables:` class, which pydantic validates against) carries a
+# rule-named `pyright: ignore[reportIncompatibleVariableOverride]`.
 # NB: "packages/*/src" matches nothing in pyright's spec globbing (it silently
 # analyzed 0 files, which also broke find-all-references); use ** instead.
 include = ["src", "packages/**/src", "packages/**/tests", "tests"]
@@ -313,10 +322,10 @@ extraPaths = [
     "packages/tf-s3-state-plugin/src",
 ]
 pythonVersion = "3.13"
-typeCheckingMode = "basic"
+typeCheckingMode = "standard"
 reportMissingImports = "warning"
-# Basic mode compares no override's
-# signature with the base's or the protocol's, so a base class could narrow or
-# widen a contract signature unnoticed. On, as an error, over the whole workspace.
+# Standard mode makes this an error already; it stays named so that no mode
+# change can quietly drop it: without it a base class could narrow or widen a
+# contract signature unnoticed.
 reportIncompatibleMethodOverride = "error"
 
