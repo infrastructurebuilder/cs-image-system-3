@@ -378,10 +378,7 @@ class TemplateResolver:
             setattr(obj, data_field, resolved_fks)
         return obj
     def upgrade_deferred_fill_defaults(self, obj, dfield):        
-        reg = registry.current_registry()   # the resolver holds no context; the registry is the run's
         data_field = dfield.name
-        field_metadata: dict[str, Any] = dfield.metadata if hasattr(dfield, "metadata") else {} # type: ignore                
-        target_fk: VCT | None = field_metadata.get(FK_TARGET, None)
         val = getattr(obj, data_field)
         newval = val
         if field_is_required(dfield):            
@@ -398,14 +395,8 @@ class TemplateResolver:
         now that all builders are safely loaded into the Registry.
         """
         reg = registry.current_registry()   # the resolver holds no context; the registry is the run's
-        # Grab the orchestrator locally. We use ignore_collections to prevent infinite loops 
-        # or overwriting things we are manually managing here.
-        conv = Orchestrator().get_converter() 
-        
         # We need to iterate over a static list of the map's values because 
         # we will be adding new items to self.flattened_map during the loop.
-        old_count = len(self.flattened_map.keys())
-        new_count = -100
         cnt = 0
         MAX_ITER = 2
         while cnt < MAX_ITER:
@@ -448,7 +439,6 @@ class TemplateResolver:
         for _ in range(5):  # Max depth to prevent infinite loops
             any_changed = False
             for _obj_id, obj in self.flattened_map.items():
-                t = str(type(obj))
                 if hasattr(obj, "_already_resolved"):
                     if obj._already_resolved:
                         continue
@@ -548,7 +538,6 @@ class TemplateResolver:
           return
       obj_id = obj.global_id
       if not obj_id :
-        tehkey = obj.global_id
         raise ValueError(f"Object {obj} has no 'id' or 'name' field for registry key.")
       if obj_id in self.flattened_map:
         log.debug(f"Object {obj} with id {obj_id} is already registered.")

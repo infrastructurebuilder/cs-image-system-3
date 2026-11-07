@@ -130,7 +130,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
                     }
 
                     doc = Builder()
-                    lblock = doc.block("locals", **ctent)
+                    doc.block("locals", **ctent)
                     localslines = hcl2.dumps(doc.build(), formatter_options=FO).splitlines()
                     items.add_list(setup_path, localslines)
                     items.add(setup_path, "")

@@ -175,8 +175,6 @@ class PackerImageBuilderBase(ImageBuilderBase[T]):
 
     @deprecated("This method is deprecated and will be removed in a future version. Performed in a setup phase")
     def get_sources(self, images: list[Image]) -> list[dict[str, Any]]:
-        ctx = self._get_context()
-        configured_os_builders = ctx.os_builders
         sources: list[dict[str, Any]] = []
         for image in images:
             # osb = configured_os_builders.get(image.os) if image.os else None

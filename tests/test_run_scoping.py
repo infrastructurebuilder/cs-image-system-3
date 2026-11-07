@@ -66,7 +66,7 @@ def _cli_scope(run: V2Run, runtime: str) -> list[str]:
 
 
 def test_apply_runtime_implies_the_bake_filter_and_the_plan_says_so(fresh):
-    run = make = fresh()
+    run = fresh()
     only = _cli_scope(run, GCE)
     summary = run.run(["base-image", "instance-image"], apply=False, only=only)
     assert summary.ok, summary.error

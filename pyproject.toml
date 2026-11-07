@@ -259,10 +259,6 @@ extend-exclude = [".venv", "generated", "**/generated"]
 # redefinitions) + syntax errors. Style/import-ordering rules are intentionally left
 # off for now to avoid large churn on this codebase.
 select = ["F", "E9", "C90", "B", "I"]
-# F841 (unused local variables) is a real backlog of ~50 across mostly untested
-# plugin code; ruff's autofix for it is "unsafe" (some RHS have side effects), so it
-# is deferred. Remove this ignore and clean up incrementally as coverage grows.
-ignore = ["F841"]
 
 [tool.ruff.lint.mccabe]
 # The complexity ceiling (C901) is the measured maximum, so it can only fall

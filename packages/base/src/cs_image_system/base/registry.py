@@ -503,7 +503,6 @@ class Registry:
 
     def get_registered_name_by_name_or_alias(self,classification:VCT, name_or_alias:str) -> str | None:
         """Get the builder name registered for a given alias or name under a specific classification."""
-        rr = self.registry
         if DEFAULT == name_or_alias:
             return self.get_default_for(classification) # type: ignore
         if name_or_alias is None:

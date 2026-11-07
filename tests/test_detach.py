@@ -108,7 +108,7 @@ def test_dropping_a_mount_is_allowed_and_planned_as_a_detach_after_an_unmount(pr
 def test_any_other_launch_parameter_change_is_still_refused(prepared):
     root, make = prepared
     probe = make()
-    mounts = _record_current_mounts(probe, root, "gce-test", "dask-gce-1")
+    _record_current_mounts(probe, root, "gce-test", "dask-gce-1")
     _drop_mount(root, "gce-test", "gce_data")
     p = root / "instances" / "instances.yaml"
     d = yaml.safe_load(p.read_text())

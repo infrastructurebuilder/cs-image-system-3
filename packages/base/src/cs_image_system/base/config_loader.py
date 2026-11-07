@@ -603,7 +603,7 @@ def read_config_and_transform(
     if not config_data.runtime_builders:
         raise ValueError("No runtime providers configured.")
 
-    default_runtime_builder = reg.get_default_for(VCT.RUNTIME_BUILDER_MODEL)
+    _ = reg.get_default_for(VCT.RUNTIME_BUILDER_MODEL)   # the first ask fills the registry's defaults
 
     # TODO:
     #  1. cycle_yaml using the local value of "runtime" including a timestamp and
