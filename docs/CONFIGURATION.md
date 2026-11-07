@@ -1086,13 +1086,13 @@ image_builders:
 
 A builder on a docker runtime (from the
 [`standard-docker`](examples/standard-docker/cfg/image-builders.yml)
-starter, which still writes the older `packer-docker` key) names the
-`docker` and `ansible` plugins:
+starter; the starters all say `type: packer`, only the frozen fixture keeps
+the older keys) names the `docker` and `ansible` plugins:
 
 ```yaml
 image_builders:
   - name: packer-docker
-    type: packer-docker
+    type: packer
     is_default: true
     runtime: default
     executable: packer

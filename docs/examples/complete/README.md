@@ -29,7 +29,7 @@ manual documents it, and every field carries a comment giving its meaning
 | executables | 10 | [`cfg/executables.yml`](cfg/executables.yml) | checkers by name and by type |
 | OS builders (base images) | 3 | [`cfg/os-builders.yml`](cfg/os-builders.yml) | `rhel` (the family `alma-linux`, on four runtimes, one from a fixed image id), `debian`, `ubuntu` (its query an override on the catalog's) |
 | image sources | 0 | [`cfg/image-sources.yml`](cfg/image-sources.yml) | the tree's layer of the vendor-image catalog, empty: the release's answers for every family here (CONFIGURATION 5a) |
-| image builders | 4 | [`cfg/image-builders.yml`](cfg/image-builders.yml) | `packer-ebs` (two regions), `packer-gce`, `packer-docker` |
+| image builders | 4 | [`cfg/image-builders.yml`](cfg/image-builders.yml) | `packer` on every runtime: two AWS regions, Google Compute, docker |
 | modification builders | 2 | [`cfg/mod-builders.yml`](cfg/mod-builders.yml) | `ansible`, `bash-remote` |
 | instance builders | 4 | [`cfg/instance-builders.yml`](cfg/instance-builders.yml) | `tofu` (two regions), `tofu-gce`, `tofu-docker` |
 | storage builders | 7 | [`cfg/storage-builders.yml`](cfg/storage-builders.yml) | `tf-aws-ebs`, `tf-aws-efs`, `tf-aws-s3`, `tf-gcp-pd`, `tf-gcp-filestore`, `tf-gcp-gcs`, `tf-docker-volume` |

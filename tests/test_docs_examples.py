@@ -64,7 +64,7 @@ PLUGIN_TYPES: dict[str, set[str]] = {
     "local-state-plugin": {"local"},
     "okta-opa-plugin": {"okta-tf", "okta-tf-ro"},
     "posix-identity-plugin": {"posix"},
-    "packer-plugin": {"packer-ebs", "packer-gce", "packer-docker"},
+    "packer-plugin": {"packer"},
     "tf-ebs-instance-plugin": {"tofu", "tf-aws-ebs", "tf-aws-efs", "tf-aws-s3"},
     "tf-gcp-plugin": {"tofu-gce", "tf-gcp-pd", "tf-gcp-filestore", "tf-gcp-gcs"},
     "tf-docker-plugin": {"tofu-docker", "tf-docker-volume"},
