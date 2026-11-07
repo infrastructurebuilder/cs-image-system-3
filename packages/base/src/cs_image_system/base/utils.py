@@ -214,7 +214,6 @@ def module_source(ctx: ModuleSourceScope, module_dirname: str, workspace_dir: Pa
     workspace's depth exactly as the base is. Every other module keeps the
     base.
     """
-    import os
     override = module_source_overrides(ctx).get(module_dirname)
     if override is not None:
         source, tail = override, ""
